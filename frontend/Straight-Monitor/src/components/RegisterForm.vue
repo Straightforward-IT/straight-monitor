@@ -25,54 +25,25 @@
     />
     <label for="name">Name:</label>
     <div class="icon">
-      <svg
-        enable-background="new 0 0 100 100"
-        version="1.1"
-        viewBox="0 0 100 100"
-        xml:space="preserve"
-        xmlns="http://www.w3.org/2000/svg"
-        class="icon-svg"
-      >
-        <g transform="translate(0 -952.36)">
-          <path
-            d="M50 960c-9.9 0-18 8.1-18 18s8.1 18 18 18 18-8.1 18-18-8.1-18-18-18zm0 5.3c7 0 12.7 5.7 12.7 12.7s-5.7 12.7-12.7 12.7-12.7-5.7-12.7-12.7 5.7-12.7 12.7-12.7zm-21.7 32.7c-3.8 0-7 3.1-7 7 0 11.7 9.3 21 21 21h14c11.7 0 21-9.3 21-21 0-3.9-3.2-7-7-7h-42zm0 5.4h42c.9 0 1.5.6 1.5 1.5 0 9.4-7.6 17-17 17h-14c-9.4 0-17-7.6-17-17 0-.8.6-1.4 1.5-1.5z"
-          />
-        </g>
-      </svg>
+      <!-- Add your icon here -->
     </div>
   </div>
 
   <!-- Email -->
   <div class="floating-label">
     <input
-      :placeholder="
-        emailError
-          ? 'Nur Anmeldung mit @straightforward.email möglich'
-          : 'Email'
-      "
+      :placeholder="emailError ? 'Nur Anmeldung mit @straightforward.email möglich' : 'Email'"
       :class="{ 'error-input': emailError }"
       type="email"
       v-model="email"
+      @input="normalizeEmail"
       name="email"
       id="email"
       autocomplete="off"
     />
     <label for="email">Email:</label>
     <div class="icon">
-      <svg
-        enable-background="new 0 0 100 100"
-        version="1.1"
-        viewBox="0 0 100 100"
-        xml:space="preserve"
-        xmlns="http://www.w3.org/2000/svg"
-        class="icon-svg"
-      >
-        <g transform="translate(0 -952.36)">
-          <path
-            d="m17.5 977c-1.3 0-2.4 1.1-2.4 2.4v45.9c0 1.3 1.1 2.4 2.4 2.4h64.9c1.3 0 2.4-1.1 2.4-2.4v-45.9c0-1.3-1.1-2.4-2.4-2.4h-64.9zm2.4 4.8h60.2v1.2l-30.1 22-30.1-22v-1.2zm0 7l28.7 21c0.8 0.6 2 0.6 2.8 0l28.7-21v34.1h-60.2v-34.1z"
-          />
-        </g>
-      </svg>
+      <!-- Add your icon here -->
     </div>
   </div>
 
@@ -88,25 +59,24 @@
     />
     <label for="password">Passwort:</label>
     <div class="icon">
-      <svg
-        enable-background="new 0 0 24 24"
-        version="1.1"
-        viewBox="0 0 24 24"
-        xml:space="preserve"
-        xmlns="http://www.w3.org/2000/svg"
-        class="icon-svg"
-      >
-        <rect class="st0" width="24" height="24" />
-        <path class="st1" d="M19,21H5V9h14V21z M6,20h12V10H6V20z" />
-        <path
-          class="st1"
-          d="M16.5,10h-1V7c0-1.9-1.6-3.5-3.5-3.5S8.5,5.1,8.5,7v3h-1V7c0-2.5,2-4.5,4.5-4.5s4.5,2,4.5,4.5V10z"
-        />
-        <path
-          class="st1"
-          d="m12 16.5c-0.8 0-1.5-0.7-1.5-1.5s0.7-1.5 1.5-1.5 1.5 0.7 1.5 1.5-0.7 1.5-1.5 1.5zm0-2c-0.3 0-0.5 0.2-0.5 0.5s0.2 0.5 0.5 0.5 0.5-0.2 0.5-0.5-0.2-0.5-0.5-0.5z"
-        />
-      </svg>
+      <!-- Add your icon here -->
+    </div>
+  </div>
+
+  <!-- Passwort Bestätigung -->
+  <div class="floating-label">
+    <input
+      placeholder="Passwort bestätigen"
+      type="password"
+      v-model="confirmPassword"
+      :class="{ 'error-input': passwordError }"
+      name="confirm-password"
+      id="confirm-password"
+      autocomplete="off"
+    />
+    <label for="confirm-password">Passwort bestätigen:</label>
+    <div class="icon">
+      <!-- Add your icon here -->
     </div>
   </div>
 
@@ -129,14 +99,22 @@ export default {
       email: "",
       location: "",
       password: "",
+      confirmPassword: "",
       emailError: false, // Error state for email
+      passwordError: false, // Error state for password mismatch
       showEmailError: false, // Controls visibility of flying tag
     };
   },
   methods: {
+    // Normalize the email input to lowercase
+    normalizeEmail() {
+      this.email = this.email.toLowerCase().trim();
+    },
+
+    // Submit registration form
     async submitRegister() {
       try {
-        // Check if the email ends with @straightforward.email
+        // Check if email ends with @straightforward.email
         if (!this.email.endsWith("@straightforward.email")) {
           this.emailError = true; // Set error state
           this.showEmailError = true; // Show flying tag
@@ -148,6 +126,15 @@ export default {
           }, 3000);
           return;
         }
+
+        // Check if password and confirm password are equal
+        if (this.password !== this.confirmPassword) {
+          this.passwordError = true; // Set error state for mismatched passwords
+          return;
+        }
+
+        // Clear error if passwords match
+        this.passwordError = false;
 
         const res = await axios.post(
           "https://straight-monitor-684d4006140b.herokuapp.com/api/users/register",
@@ -163,8 +150,12 @@ export default {
         this.emailError = false;
         console.log("Registrierung erfolgreich:", res.data);
 
-        // Weiterleitung nach erfolgreicher Registrierung
-        this.$router.push("/dashboard");
+        // Save the token to localStorage
+        const token = res.data.token;
+        localStorage.setItem('token', token);
+
+        // Redirect to the dashboard
+        this.$router.push('/dashboard');
       } catch (err) {
         console.error(
           "Registrierungsfehler:",
@@ -198,4 +189,7 @@ select {
   border-radius: 5px;
 }
 
+button {
+  margin-top: 15px;
+}
 </style>
