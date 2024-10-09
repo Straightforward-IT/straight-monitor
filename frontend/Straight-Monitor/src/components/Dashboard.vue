@@ -17,7 +17,7 @@
     <div class="floating-label inactive">
       <button>Flip</button>
         <div class="icon">
-        <img src="@/assets/Flip_sw.png" alt="Flip Icon" />
+        <img src="@/assets/flip_sw.png" alt="Flip Icon" />
       </div>
     </div>
    
