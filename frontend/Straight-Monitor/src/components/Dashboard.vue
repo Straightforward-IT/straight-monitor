@@ -44,7 +44,7 @@
   
         if (token) {
           try {
-            const response = await axios.get('http://localhost:5050/api/users/me', {
+            const response = await axios.get('https://straight-monitor-684d4006140b.herokuapp.com/api/users/me', {
               headers: {
                 'x-auth-token': token,
               },

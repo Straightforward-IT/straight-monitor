@@ -86,7 +86,7 @@ export default {
   methods: {
     async submitLogin() {
       try {
-        const res = await axios.post('http://localhost:5050/api/users/login', {
+        const res = await axios.post('https://straight-monitor-684d4006140b.herokuapp.com/api/users/login', {
           email: this.email,
           password: this.password,
         });

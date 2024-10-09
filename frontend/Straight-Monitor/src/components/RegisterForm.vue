@@ -150,7 +150,7 @@ export default {
         }
 
         const res = await axios.post(
-          "http://localhost:5050/api/users/register",
+          "https://straight-monitor-684d4006140b.herokuapp.com/api/users/register",
           {
             name: this.name,
             email: this.email,

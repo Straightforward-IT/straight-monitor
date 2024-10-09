@@ -753,7 +753,7 @@ export default {
   // Make the axios call
  
     axios.put(
-    "http://localhost:5050/api/items/updateMultiple", { items: selectedItems, count })
+    "https://straight-monitor-684d4006140b.herokuapp.com/api/items/updateMultiple", { items: selectedItems, count })
     .then((response) => {
       console.log("Items updated successfully", response.data);
     }).then(() => {
@@ -797,7 +797,7 @@ submitServiceModal(action) {
     const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
 
     axios.put(
-      "http://localhost:5050/api/items/updateMultiple", { items: selectedItems, count })
+      "https://straight-monitor-684d4006140b.herokuapp.com/api/items/updateMultiple", { items: selectedItems, count })
       .then((response) => {
         console.log("Items updated successfully", response.data);
       }).then(() => {

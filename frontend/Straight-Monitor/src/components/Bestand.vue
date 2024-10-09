@@ -307,7 +307,7 @@ export default {
       if (token) {
         try {
           const response = await axios.get(
-            "http://localhost:5050/api/users/me",
+            "https://straight-monitor-684d4006140b.herokuapp.com/api/users/me",
             {
               headers: { "x-auth-token": token },
             }
@@ -327,7 +327,7 @@ export default {
     },
     async fetchItems() {
       try {
-        const response = await axios.get("http://localhost:5050/api/items");
+        const response = await axios.get("https://straight-monitor-684d4006140b.herokuapp.com/api/items");
         this.items = response.data;
         console.log("Items fetched:");
       } catch (error) {
@@ -350,7 +350,7 @@ export default {
 
       try {
         const response = await axios.post(
-          "http://localhost:5050/api/items/addNew",
+          "https://straight-monitor-684d4006140b.herokuapp.com/api/items/addNew",
           { bezeichnung, groesse, anzahl, standort }
         );
         this.items.push(response.data); // Add the new item to the list
@@ -380,7 +380,7 @@ export default {
         const amount = action === "add" ? value : -value; // Adjust for addition or removal
         try {
           const response = await axios.put(
-            `http://localhost:5050/api/items/add/${this.selectedItem._id}`,
+            `https://straight-monitor-684d4006140b.herokuapp.com/api/items/add/${this.selectedItem._id}`,
             { anzahl: amount }
           );
           const updatedItem = response.data;
