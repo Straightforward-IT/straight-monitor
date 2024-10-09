@@ -1018,7 +1018,7 @@ h4 {
     transition: background-color 0.3s ease;
 
     &:hover {
-      background-color: darken($primary, 10%);
+      background-color: mix(black, $primary, 10%);
     }
   }
 }

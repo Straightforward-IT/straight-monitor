@@ -498,7 +498,7 @@ export default {
 
   &:hover {
     box-shadow: 0 2px 6px -1px rgba($primary, 0.65);
-    background-color: darken($primary, 10%);
+    background-color: mix(black, $primary, 10%);
 
     &:active {
       transform: translateY(-3px);
@@ -520,7 +520,7 @@ export default {
   transition: background-color 0.3s ease;
 
   &:hover {
-    background-color: darken($primary, 10%);
+    background-color: mix(black, $primary, 10%);
   }
 }
 
@@ -565,7 +565,7 @@ export default {
     transition: background-color 0.3s ease;
 
     &:hover {
-      background-color: darken($primary, 10%);
+      background-color: mix(black, $primary, 10%);
     }
   }
 }
