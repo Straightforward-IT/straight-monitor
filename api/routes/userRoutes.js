@@ -4,7 +4,7 @@ const auth = require("../middleware/auth"); // Import the auth middleware
 const User = require("../models/User"); // Import the User model
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const config = require("config");
+require('dotenv').config(); // Load environment variables from .env
 
 // GET /api/users/me
 router.get("/me", auth, async (req, res) => {
@@ -30,7 +30,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-//PUT /api/users/:id
+// PUT /api/users/:id
 router.put("/update/:id", async (req, res) => {
   const { name, email, password } = req.body;
   try {
@@ -55,7 +55,7 @@ router.put("/update/:id", async (req, res) => {
 
 // POST /api/users/register
 router.post("/register", async (req, res) => {
-  const { name, email, password, location} = req.body;
+  const { name, email, password, location } = req.body;
 
   try {
     // Check if the user already exists
@@ -64,10 +64,11 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ msg: "User already exists" });
     }
 
-    //Check if company email @straightforward.email
+    // Check if company email @straightforward.email
     if (!email.includes("@straightforward.email")) {
       return res.status(401).json({ msg: "Please use a company email" });
     }
+
     // Create a new user instance
     user = new User({
       name,
@@ -88,7 +89,7 @@ router.post("/register", async (req, res) => {
 
     jwt.sign(
       payload,
-      config.get("jwtSecret"),
+      process.env.JWT_SECRET, // Use the JWT secret from .env
       { expiresIn: 360000 },
       (err, token) => {
         if (err) throw err;
@@ -127,11 +128,10 @@ router.post("/login", async (req, res) => {
 
     jwt.sign(
       payload,
-      config.get("jwtSecret"),
+      process.env.JWT_SECRET, // Use the JWT secret from .env
       { expiresIn: 360000 }, // Set token expiry time as needed
       (err, token) => {
         if (err) throw err;
-        console.log(token); // temporary
         res.json({ token });
       }
     );

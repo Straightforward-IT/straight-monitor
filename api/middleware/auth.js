@@ -1,7 +1,5 @@
-// middleware/auth.js
-
 const jwt = require('jsonwebtoken');
-const config = require('config');
+require('dotenv').config(); // Load environment variables from .env
 
 module.exports = function (req, res, next) {
   // Get token from header
@@ -14,7 +12,8 @@ module.exports = function (req, res, next) {
 
   // Verify the token
   try {
-    const decoded = jwt.verify(token, config.get('jwtSecret'));
+    const jwtSecret = process.env.JWT_SECRET; // Retrieve JWT secret from .env
+    const decoded = jwt.verify(token, jwtSecret); // Verify token with secret
     req.user = decoded.user; // Decoded payload has the user ID
     next(); // Proceed to the next middleware or route
   } catch (err) {
