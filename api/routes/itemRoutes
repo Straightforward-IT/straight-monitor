@@ -146,7 +146,7 @@ router.put('/name/:id', async (req, res) => {
 });
 // PUT /api/items/add/:id
 router.put('/add/:id', async (req, res) => {
-    const { userID, anzahl } = req.body;
+    const { userID, anzahl, anmerkung} = req.body;
     try {
         const user = await findOrCreateUser(userID);
         const item = await Item.findById(req.params.id);
@@ -162,6 +162,7 @@ router.put('/add/:id', async (req, res) => {
             item,
             anzahl,
             art: 'zugabe',
+            anmerkung
         });
 
         res.json(item);
@@ -172,7 +173,7 @@ router.put('/add/:id', async (req, res) => {
 });
 // PUT /api/items/remove/:id
 router.put('/remove/:id', async (req, res) => {
-    const { userID, anzahl } = req.body;
+    const { userID, anzahl, anmerkung} = req.body;
     try {
         const user = await findOrCreateUser(userID);
         const item = await Item.findById(req.params.id);
@@ -190,6 +191,7 @@ router.put('/remove/:id', async (req, res) => {
             item,
             anzahl,
             art: 'entnahme',
+            anmerkung
         });
 
         res.json(item);

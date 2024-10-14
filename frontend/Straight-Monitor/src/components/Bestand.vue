@@ -4,7 +4,7 @@
     Straight
     <span><font-awesome-icon :icon="['fas', 'warehouse']" /> Bestand</span>
   </h4>
-  <p>Benutzer: {{ userEmail }}</p>
+  <p>Benutzer:{{ userEmail }}</p>
 
   <!-- Suchleiste -->
   <div class="search-container">
@@ -120,6 +120,12 @@
           min="0"
           placeholder="Zahl eingeben"
         />
+        <input 
+        ref="floatingInput"
+        type="text"
+        v-model="anmerkung"
+        placeholder="Anmerkung (Optional)"
+        >
       </div>
 
       <button @click="submitAddOrRemove('add')">Hinzufügen</button>
@@ -138,8 +144,7 @@
               v-if="item.isEditing"
               type="text"
               v-model="item.bezeichnung"
-              @keyup.enter.stop="updateItemName(item)"
-              @blur="cancelEdit(item)"
+             
             />
             <font-awesome-icon
               v-if="!item.isEditing"
@@ -147,12 +152,21 @@
               :icon="['fas', 'pencil']"
               @click="enableEdit(item)"
             />
-            <font-awesome-icon
+            <span class="vertical-buttons">
+              <font-awesome-icon
               v-if="item.isEditing"
               class="close-button"
               :icon="['fas', 'times']"
               @click="cancelEdit(item)"
             />
+            <font-awesome-icon
+            v-if="item.isEditing"
+            class="accept-button"
+            :icon="['fas', 'check']"
+            @click="updateItemName(item)"
+            />
+            </span>
+           
           </span>
         </div>
 
@@ -198,6 +212,7 @@ export default {
       userID: "",
       searchQuery: "",
       inputValue: "",
+      anmerkung: "",
       showInputField: false,
       showAddModal: false, // Track if add modal is open
       modalOpen: false,
@@ -325,11 +340,24 @@ export default {
       item.isEditing = false;
     },
     async updateItemName(item){
+      console.log("entered");
+
+      if(item.bezeichnung === this.originalBezeichnung){
+        return this.cancelEdit(item);
+      }
+
       try {
         const response = await axios.put(
           `https://straight-monitor-684d4006140b.herokuapp.com/api/items/name/${item._id}`,
           { bezeichnung: item.bezeichnung }
         );
+        const updatedItem = response.data;
+        const index = this.items.findIndex(
+            (item) => item._id === updatedItem._id
+          );
+          if (index !== -1) {
+            this.items.splice(index, 1, updatedItem); // Replace the item with the updated one
+          }
         item.isEditing = false; // Exit editing mode after successful update
       } catch (error) {
         console.error("Fehler beim Aktualisieren des Namens:", error);
@@ -430,12 +458,12 @@ export default {
           if (action === "add") {
             response = await axios.put(
               `https://straight-monitor-684d4006140b.herokuapp.com/api/items/add/${this.selectedItem._id}`,
-              { userID: this.userID, anzahl: amount }
+              { userID: this.userID, anzahl: amount, anmerkung: this.anmerkung }
             );
           } else {
             response = await axios.put(
               `https://straight-monitor-684d4006140b.herokuapp.com/api/items/remove/${this.selectedItem._id}`,
-              { userID: this.userID, anzahl: amount }
+              { userID: this.userID, anzahl: amount, anmerkung: this.anmerkung }
             );
           }
           const updatedItem = response.data;
@@ -453,6 +481,7 @@ export default {
     },
     resetInput() {
       this.inputValue = "";
+      this.anmerkung = "";
       this.showInputField = false;
       this.closeModal();
       this.selectedItem = null;
@@ -524,6 +553,8 @@ form {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  word-wrap: break-word;
+  width: 100%;
 }
 .item-card {
   background-color: #f5f5f5;
@@ -546,7 +577,21 @@ form {
     color: #999;
   }
   }
+
+  .accept-button{
+  position: absolute;
+  top: 25px;
+  right: 9px;
+  font-size: 16px;
+  cursor: pointer;
+  color: #323231;
+
+  &:hover{
+    color: #999;
+  }
 }
+}
+
 .edit-button{
   position: absolute;
   top: 10px;
@@ -569,7 +614,7 @@ form {
   text-align: center;
 
   input {
-    width: 90%;
+    width: calc(100% - 20px);
     height: min-content;
     font-size: 16px;
     padding: 5px;

@@ -54,7 +54,7 @@ router.get("/:id", async (req, res) => {
 
 // PUT (update) a specific monitoring log by ID
 router.put("/:id", async (req, res) => {
-  const { item_id, bezeichnung, standort, anzahl, art, timestamp } = req.body;
+  const { item_id, bezeichnung, standort, anzahl, art, anmerkung, timestamp } = req.body;
 
   try {
     let monitoringLog = await Monitoring.findById(req.params.id);
@@ -68,6 +68,7 @@ router.put("/:id", async (req, res) => {
     monitoringLog.standort = standort || monitoringLog.standort;
     monitoringLog.anzahl = anzahl || monitoringLog.anzahl;
     monitoringLog.art = art || monitoringLog.art;
+    monitoringLog.anmerkung = anmerkung || monitoringLog.anmerkung;
     monitoringLog.timestamp = timestamp || monitoringLog.timestamp;
 
     await monitoringLog.save();
