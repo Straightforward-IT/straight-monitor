@@ -15,4 +15,11 @@
   align-items: left;
   justify-content: left;
 }
+
+@media only screen and (max-width: 768px) {
+
+  .Header-Banner{
+    height: 100px;
+  }
+}
 </style>

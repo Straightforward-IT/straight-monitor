@@ -6,10 +6,10 @@ import axios from 'axios'; // Import axios
 // Import Font Awesome core
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly } from '@fortawesome/free-solid-svg-icons';
+import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly, faPencil} from '@fortawesome/free-solid-svg-icons';
 
 // Add the icons to the library
-library.add(faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly);
+library.add(faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly, faPencil);
 
 // Create the Vue app
 const app = createApp(App).component('font-awesome-icon', FontAwesomeIcon);

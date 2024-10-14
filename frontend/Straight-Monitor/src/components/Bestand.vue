@@ -131,8 +131,23 @@
     <div v-for="item in filteredItems" :key="item.id" class="item-wrapper">
       <div class="item-card">
         <div class="item-header">
-          <strong>{{ item.bezeichnung }}</strong>
+          <span class="header-and-pen">
+            <strong v-if="!item.isEditing">{{ item.bezeichnung }}</strong>
+            <input
+              v-if="item.isEditing"
+              type="text"
+              v-model="item.bezeichnung"
+              @keyup.enter="updateItemName(item)"
+              @blur="cancelEdit(item)"
+            />
+            <font-awesome-icon
+              class="edit-button"
+              :icon="['fas', 'pencil']"
+              @click="enableEdit(item)"
+            />
+          </span>
         </div>
+
         <div class="item-detail">
           <span>Größe:</span>
           <span>{{ item.groesse ? item.groesse : "onesize" }}</span>
@@ -172,6 +187,7 @@ export default {
   data() {
     return {
       userEmail: "",
+      userID: "",
       searchQuery: "",
       inputValue: "",
       showInputField: false,
@@ -291,6 +307,23 @@ export default {
     },
   },
   methods: {
+    enableEdit(item){
+      item.isEditing = true;
+    },
+    cancelEdit(item){
+      item.isEditing = false;
+    },
+    async updateItemName(item){
+      try {
+        const response = await axios.put(
+          `https://straight-monitor-684d4006140b.herokuapp.com/api/items/name/${item._id}`,
+          { bezeichnung: item.bezeichnung }
+        );
+        item.isEditing = false; // Exit editing mode after successful update
+      } catch (error) {
+        console.error("Fehler beim Aktualisieren des Namens:", error);
+      }
+    },
     autoResize(event) {
       const textarea = event.target;
       event.target.style.height = "auto";
@@ -316,6 +349,7 @@ export default {
             this.$router.push("/");
           }
           this.userEmail = response.data.email;
+          this.userID = response.data._id;
           this.searchQuery = response.data.location;
         } catch (error) {
           console.error("Fehler beim Abrufen der Benutzerdaten:", error);
@@ -327,7 +361,9 @@ export default {
     },
     async fetchItems() {
       try {
-        const response = await axios.get("https://straight-monitor-684d4006140b.herokuapp.com/api/items");
+        const response = await axios.get(
+          "https://straight-monitor-684d4006140b.herokuapp.com/api/items"
+        );
         this.items = response.data;
         console.log("Items fetched:");
       } catch (error) {
@@ -336,22 +372,22 @@ export default {
     },
     async submitNewItem() {
       let { bezeichnung, groesse, anzahl, standort } = this.newItem;
-  
-  // Set 'groesse' to 'onesize' if it's empty or an empty string
-  if (!groesse || groesse.trim() === "") {
-    groesse = "onesize";
-  }
 
-  // Check for required fields
-  if (!bezeichnung || !standort || anzahl < 0) {
-    alert("Bezeichnung, Anzahl und Standort sind erforderlich");
-    return;
-  }
+      // Set 'groesse' to 'onesize' if it's empty or an empty string
+      if (!groesse || groesse.trim() === "") {
+        groesse = "onesize";
+      }
+
+      // Check for required fields
+      if (!bezeichnung || !standort || anzahl < 0) {
+        alert("Bezeichnung, Anzahl und Standort sind erforderlich");
+        return;
+      }
 
       try {
         const response = await axios.post(
           "https://straight-monitor-684d4006140b.herokuapp.com/api/items/addNew",
-          { bezeichnung, groesse, anzahl, standort }
+          { userID: this.userID, bezeichnung, groesse, anzahl, standort }
         );
         this.items.push(response.data); // Add the new item to the list
         this.resetNewItem(); // Reset the form
@@ -377,12 +413,20 @@ export default {
     async submitAddOrRemove(action) {
       const value = parseInt(this.inputValue);
       if (!isNaN(value)) {
-        const amount = action === "add" ? value : -value; // Adjust for addition or removal
+        const amount = value;
         try {
-          const response = await axios.put(
-            `https://straight-monitor-684d4006140b.herokuapp.com/api/items/add/${this.selectedItem._id}`,
-            { anzahl: amount }
-          );
+          var response;
+          if (action === "add") {
+            response = await axios.put(
+              `https://straight-monitor-684d4006140b.herokuapp.com/api/items/add/${this.selectedItem._id}`,
+              { userID: this.userID, anzahl: amount }
+            );
+          } else {
+            response = await axios.put(
+              `https://straight-monitor-684d4006140b.herokuapp.com/api/items/remove/${this.selectedItem._id}`,
+              { userID: this.userID, anzahl: amount }
+            );
+          }
           const updatedItem = response.data;
           const index = this.items.findIndex(
             (item) => item._id === updatedItem._id
@@ -406,7 +450,6 @@ export default {
   mounted() {
     this.fetchUserData();
     this.fetchItems();
-    
   },
 };
 </script>
@@ -437,21 +480,38 @@ export default {
     opacity: 1;
   }
 }
-//Hello stop
+
 .items-container {
   width: 100%;
   height: 400px;
   overflow-y: auto;
   padding-right: 10px;
-  display: grid; /* Use grid layout for multiple columns */
-  grid-template-columns: repeat(2, 1fr); /* Two equal-width columns */
-  grid-gap: 15px; /* Add space between the columns */
+  display: grid;
+  grid-template-columns: repeat(
+    2,
+    1fr
+  ); /* Two equal-width columns by default */
+  grid-gap: 15px;
+
+  /* Media query for mobile devices */
+  @media only screen and (max-width: 768px) {
+    grid-template-columns: 1fr; /* Switch to one column on mobile */
+  }
+}
+form {
+  @media only screen and (max-width: 768) {
+    width: 300px;
+  }
 }
 
 .item-wrapper {
   margin-bottom: 20px;
+  position: relative; /* To position the edit button */
 }
 
+.header-and-pen {
+  display: flex;
+}
 .item-card {
   background-color: #f5f5f5;
   border: 1px solid #ddd;
@@ -461,11 +521,34 @@ export default {
   width: 100%; /* Ensure the card takes up the full column width */
   box-sizing: border-box;
 }
+.edit-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 16px;
+  cursor: pointer;
+  color: #323231;
 
+  &:hover {
+    color: #999;
+  }
+}
+
+
+/* Item Header and Input */
 .item-header {
   font-size: 16px;
   margin-bottom: 5px;
   text-align: center;
+
+  input {
+    width: 100%;
+    font-size: 16px;
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    outline: none;
+  }
 }
 
 .item-detail {

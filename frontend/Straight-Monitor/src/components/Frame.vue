@@ -1,67 +1,97 @@
 <template>
-  <Banner />
+  <Banner v-if="!isMobile"/>
+
+  <div v-if="isMobile && currentComponent === 'Bestand' " class="top">
+    <Shortcuts
+      :isModalOpen="isModalOpen"
+      @update-modal="handleModalUpdate"
+      @itemsUpdated="handleItemsUpdated"
+    />
+  </div>
+
+
   <div class="session">
-    <header class="Header-Banner">
-      <!-- Header content goes here -->
-    </header>
     <div class="left">
       <img src="@/assets/SF_000.svg" alt="Logo" class="logo-svg" />
     </div>
-    
-    <form :style="{ width: currentComponent === 'Dashboard' ? '220px' : '500px' }" @submit.prevent>
+
+    <form :style="{ width: formWidth }" @submit.prevent>
       <!-- Conditional rendering for the 'Logout' and 'Zurück' links -->
-      <a class="discrete" v-if="currentComponent === 'Dashboard'" @click="logout">Logout</a>
+      <a
+        class="discrete"
+        v-if="currentComponent === 'Dashboard'"
+        @click="logout"
+        >Logout</a
+      >
       <a class="discrete" v-else @click="switchToDashboard">Zurück</a>
 
       <div>
-        <component 
-          :is="currentComponent" 
+        <component
+          :is="currentComponent"
           ref="bestandComponent"
           :isModalOpen="isModalOpen"
           @update-modal="handleModalUpdate"
-          @switch-to-bestand="switchToBestand"></component>
+          @switch-to-bestand="switchToBestand"
+        ></component>
       </div>
     </form>
-    <div v-if="currentComponent === 'Bestand'" class="right">
-     <Shortcuts
-     :isModalOpen="isModalOpen"
-      @update-modal="handleModalUpdate"
-      @itemsUpdated="handleItemsUpdated"
-     />
+    <div v-if="currentComponent === 'Bestand' && !isMobile" class="right">
+      <Shortcuts
+        :isModalOpen="isModalOpen"
+        @update-modal="handleModalUpdate"
+        @itemsUpdated="handleItemsUpdated"
+      />
     </div>
   </div>
 </template>
 
-  
-  <script>
-  import Banner from './LoginBanner.vue';
-  import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-  import axios from 'axios';
-  import Dashboard from './Dashboard.vue';
-  import Bestand from './Bestand.vue'; // Import Bestand component
-  import Shortcuts from './Shortcuts.vue';
+<script>
+import Banner from "./LoginBanner.vue";
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import axios from "axios";
+import Dashboard from "./Dashboard.vue";
+import Bestand from "./Bestand.vue"; // Import Bestand component
+import Shortcuts from "./Shortcuts.vue";
 
-  export default {
-  name: 'Frame',
-  emits: ['fetch-items'],
+export default {
+  name: "Frame",
+  emits: ["fetch-items"],
   components: {
     Dashboard,
     Bestand, // Register Bestand component
     Banner,
     FontAwesomeIcon,
-    Shortcuts
+    Shortcuts,
   },
   data() {
     return {
-      currentComponent: 'Dashboard', // Set the initial component to Dashboard
-      userEmail: '',
+      currentComponent: "Dashboard", // Set the initial component to Dashboard
+      userEmail: "",
       isModalOpen: false,
+      isMobile: false,
     };
   },
+  computed: {
+    formWidth() {
+      if (this.currentComponent === "Dashboard") {
+        return "220px";
+      } else if (this.isMobile) {
+        return "280px";
+      } else {
+        return "500px";
+      }
+    },
+  },
   methods: {
+    detectMobile(){
+      this.isMobile = window.innerWidth <= 768;
+    },
+    handleResize(){
+      this.detectMobile();
+    },
     handleItemsUpdated() {
-      if (this.currentComponent === 'Bestand') {
-       this.$refs.bestandComponent.fetchItems();
+      if (this.currentComponent === "Bestand") {
+        this.$refs.bestandComponent.fetchItems();
       }
     },
     handleModalUpdate(state) {
@@ -69,47 +99,74 @@
       console.log("State updated to: ", state);
     },
     async fetchUserData() {
-      const token = localStorage.getItem('token'); // Assuming the token is stored in localStorage
+      const token = localStorage.getItem("token"); // Assuming the token is stored in localStorage
 
       if (token) {
         try {
-          const response = await axios.get('https://straight-monitor-684d4006140b.herokuapp.com/api/users/me', {
-            headers: {
-              'x-auth-token': token,
-            },
-          });
+          const response = await axios.get(
+            "https://straight-monitor-684d4006140b.herokuapp.com/api/users/me",
+            {
+              headers: {
+                "x-auth-token": token,
+              },
+            }
+          );
           this.userEmail = response.data.email; // Update with the email from the response
         } catch (error) {
-          console.error('Error fetching user data:', error);
+          console.error("Error fetching user data:", error);
         }
       } else {
-        console.error('No token found');
+        console.error("No token found");
       }
     },
     switchToBestand() {
-      console.log('Switching to Bestand component');
-      this.currentComponent = 'Bestand'; // Switch to Bestand component
+      console.log("Switching to Bestand component");
+      this.currentComponent = "Bestand"; // Switch to Bestand component
     },
     switchToDashboard() {
-      this.currentComponent = 'Dashboard'; // Switch back to Dashboard
+      this.currentComponent = "Dashboard"; // Switch back to Dashboard
     },
     logout() {
       // Perform logout action
-      localStorage.removeItem('token'); // Clear token
-      this.$router.push('/'); // Redirect to home or login page
+      localStorage.removeItem("token"); // Clear token
+      this.$router.push("/"); // Redirect to home or login page
     },
   },
   mounted() {
+    this.detectMobile();
+    window.addEventListener('resize', this.handleResize)
     this.fetchUserData();
   },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.handleResize)
+  },
 };
+</script>
 
-  </script>
-  
-  <style>
-  @import '@/assets/styles/dashboard.scss';
+<style>
+@import "@/assets/styles/dashboard.scss";
 
-  a.discrete {
+.session {
+  display: flex;
+  flex-direction: row;
+}
+
+.left {
+  display: block; /* Default display for larger screens */
+}
+
+@media only screen and (max-width: 768px) {
+  .left {
+    display: none; /* Hide on mobile screens */
+  }
+
+  form {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+a.discrete {
   color: rgba(#000, 0.4);
   font-size: 14px;
   border-bottom: solid 1px rgba(#000, 0);
@@ -119,9 +176,13 @@
   font-weight: 300;
   transition: all 0.3s ease;
   margin-top: 0px;
+
   &:hover {
     border-bottom: solid 1px rgba(#000, 0.2);
   }
 }
-  </style>
-  
+
+.top{
+  display:block;
+}
+</style>

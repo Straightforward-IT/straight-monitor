@@ -13,7 +13,7 @@ app.use(express.json());
 // CORS configuration allowing any subdomain of straight-monitor.pages.dev
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowedDomain = /https:\/\/.*\.straight-monitor\.pages\.dev$/;  // Allow any subdomain of straight-monitor.pages.dev
+    const allowedDomain = /https:\/\/([a-z0-9-]+\.)?straight-monitor\.pages\.dev$/; // Allow any subdomain of straight-monitor.pages.dev
 
     if (!origin || allowedDomain.test(origin)) {
       callback(null, true); // Allow the request
@@ -25,8 +25,8 @@ const corsOptions = {
   credentials: true,  // Allow credentials like cookies
 };
 
-app.use(cors(corsOptions));  // Apply the CORS options
-
+//app.use(cors(corsOptions));  // Apply the CORS options
+app.use(cors());
 app.options('*', cors(corsOptions));
 
 // Basic route
@@ -38,10 +38,7 @@ app.use('/api/items', itemRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected'))
   .catch(err => {
     console.error('MongoDB connection error:', err);

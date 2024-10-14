@@ -1,170 +1,196 @@
 const express = require('express');
 const router = express.Router();
-const Item = require('../models/Item'); // Import the Item model
-const auth = require('../middleware/auth'); // Import the auth middleware
-const Monitoring = require('../models/Monitoring'); // Add the Monitoring model
+const User = require('../models/User');
+const Item = require('../models/Item');
+const Monitoring = require('../models/Monitoring');
 
 //Variables
 const cities = ['Hamburg', 'Berlin', 'Koeln'];
 
+// Helper function to find or create user
+async function findOrCreateUser(userID) {
+    let user = await User.findById(userID);
+    if (!user) {
+        user = new User({
+            name: "unknown",
+            email: "-",
+            password: "-",
+            location: "-"
+        });
+        
+    }
+    return user;
+}
+
+// Helper function to log monitoring actions
+async function logMonitoring({ user, item, anzahl, art, anmerkung}) {
+    const logEntry = new Monitoring({
+        benutzer: user._id,
+        benutzerMail: user.email,
+        itemId: item._id,
+        bezeichnung: item.bezeichnung,
+        groesse: item.groesse,
+        standort: item.standort,
+        anzahl: anzahl,
+        art: art,
+        anmerkung: anmerkung,
+        timestamp: new Date(),
+    });
+    await logEntry.save();
+}
+
 // POST /api/items/addNew
 router.post('/addNew', async (req, res) => {
-    const { bezeichnung, groesse, anzahl, standort } = req.body;
-    console.log(req.body);
+    const { userID, bezeichnung, groesse, anzahl, standort } = req.body;
     try {
-      // Check if the item already exists, based on bezeichnung, groesse, and standort
+        const user = await findOrCreateUser(userID);
 
-        const existingItem = await Item.findOne({
-            bezeichnung,
-            groesse,
-            standort,
-        });
+        const existingItem = await Item.findOne({ bezeichnung, groesse, standort });
         if (existingItem) {
             return res.status(400).json({ msg: 'Item already exists' });
         }
-  
-      // Create a new item
-      const newItem = new Item({
-        bezeichnung,
-        groesse,
-        anzahl,
-        standort,
-      });
-  
-      // Save the new item to the database
-      const savedItem = await newItem.save();
-  
-      // Create a monitoring log for the new item addition
-      const newMonitoringLog = new Monitoring({
-        itemId: savedItem._id,
-        bezeichnung: savedItem.bezeichnung,
-        standort: savedItem.standort,
-        anzahl: savedItem.anzahl,
-        art: 'zugabe', // 'Zugabe' means addition
-        timestamp: new Date(), // Optional: automatically adds the current timestamp
-      });
-  
-      // Save the monitoring log
-      await newMonitoringLog.save();
-  
-      // Return the saved item as the response
-      res.json(savedItem);
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).send('Server error');
-    }
-  });
 
-//PUT /api/items/add
-router.put('/add/:id', async (req, res) => {
-    const { anzahl } = req.body;
+        const newItem = new Item({ bezeichnung, groesse, anzahl, standort });
+        const savedItem = await newItem.save();
 
-    try {
-        const item = await Item.findById(req.params.id);
-        if (!item) {
-            return res.status(404).json({ msg: 'Item not found' });
-        }
-
-        // Add 'anzahl' to the item
-        item.anzahl += anzahl;
-        await item.save();
-
-        // Log the change to the Monitoring collection
-        const logEntry = new Monitoring({
-            itemId: item._id,
-            bezeichnung: item.bezeichnung,
-            groesse: item.groesse,
-            standort: item.standort,
-            anzahl: anzahl,
-            art: 'zugabe' // 'zugabe' for addition
+        await logMonitoring({
+            user,
+            item: savedItem,
+            anzahl: savedItem.anzahl,
+            art: 'zugabe',
         });
 
-        await logEntry.save();
-
-        res.json(item);
+        res.json(savedItem);
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server error');
     }
 });
+
+
+
 // PUT /api/items/updateMultiple
 router.put('/updateMultiple', async (req, res) => {
-    const { items, count } = req.body; // Expecting an array of item IDs and the count to add/subtract
+    const { userID, items, count } = req.body;
     try {
+        const user = await findOrCreateUser(userID);
         const updatedItems = [];
-        for (let i = 0; i < items.length; i++) {
-            const itemId = items[i];
+
+        for (let itemId of items) {
             const item = await Item.findById(itemId);
             if (!item) {
                 return res.status(404).json({ msg: `Item with id ${itemId} not found` });
             }
 
-            // Update the item quantity based on the action (add or subtract)
             item.anzahl += count;
+            if (item.anzahl < 0) item.anzahl = 0;
 
-            // Ensure that the quantity doesn't go below 0
-            if (item.anzahl < 0) {
-                item.anzahl = 0;
-            }
-
-            // Save the updated item
             await item.save();
 
-            // Log the change to the Monitoring collection
-            const logEntry = new Monitoring({
-                itemId: item._id,
-                bezeichnung: item.bezeichnung,
-                groesse: item.groesse,
-                standort: item.standort,
+            await logMonitoring({
+                user,
+                item,
                 anzahl: count,
-                art: count > 0 ? 'zugabe' : 'entnahme', // 'zugabe' for addition, 'entnahme' for removal
-                timestamp: new Date(),
+                art: count > 0 ? 'zugabe' : 'entnahme',
             });
 
-            await logEntry.save();
-
-            updatedItems.push(item); // Store the updated item for response
+            updatedItems.push(item);
         }
 
-        res.json(updatedItems); // Return all updated items
+        res.json(updatedItems);
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server error');
     }
 });
 
-
-// PUT /api/items/remove/:id
-router.put('/remove/:id', async (req, res) => {
-    const { anzahl } = req.body;
+// PUT /api/items/name/:id
+router.put('/name/:id', async (req, res) => {
+    const { userID, bezeichnung } = req.body;
+    var oldName, newName;
+    if (!bezeichnung || bezeichnung.trim() === '') {
+        return res.status(400).json({ msg: 'Name cannot be empty' });
+    }
 
     try {
+        const user = await findOrCreateUser(userID);
         const item = await Item.findById(req.params.id);
         if (!item) {
             return res.status(404).json({ msg: 'Item not found' });
         }
 
-        // Subtract 'anzahl' from the item
-        item.anzahl -= anzahl;
+        oldName = item.bezeichnung;
+        newName = bezeichnung;
 
-        // Ensure the 'anzahl' doesn't go below 0
-        if (item.anzahl < 0) {
-            item.anzahl = 0;
+        const existingItem = await Item.findOne({ bezeichnung, groesse: item.groesse, standort: item.standort });
+        if (existingItem) {
+            return res.status(400).json({ msg: 'Item with the same attributes already exists' });
         }
+
+        item.bezeichnung = bezeichnung;
+        await item.save();
+
+        await logMonitoring({
+            user,
+            item,
+            anzahl: 0, // No change in quantity, just a name change
+            art: 'änderung',
+            anmerkung: `Name geändert von ${oldName} zu ${newName}`
+        });
+
+        res.json(item);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server error');
+    }
+});
+// PUT /api/items/add/:id
+router.put('/add/:id', async (req, res) => {
+    const { userID, anzahl } = req.body;
+    try {
+        const user = await findOrCreateUser(userID);
+        const item = await Item.findById(req.params.id);
+        if (!item) {
+            return res.status(404).json({ msg: 'Item not found' });
+        }
+
+        item.anzahl += anzahl;
+        await item.save();
+
+        await logMonitoring({
+            user,
+            item,
+            anzahl,
+            art: 'zugabe',
+        });
+
+        res.json(item);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server error');
+    }
+});
+// PUT /api/items/remove/:id
+router.put('/remove/:id', async (req, res) => {
+    const { userID, anzahl } = req.body;
+    try {
+        const user = await findOrCreateUser(userID);
+        const item = await Item.findById(req.params.id);
+        if (!item) {
+            return res.status(404).json({ msg: 'Item not found' });
+        }
+
+        item.anzahl -= anzahl;
+        if (item.anzahl < 0) item.anzahl = 0;
 
         await item.save();
 
-        // Log the change to the Monitoring collection
-        const logEntry = new Monitoring({
-            itemId: item._id,
-            bezeichnung: item.bezeichnung,
-            groesse: item.groesse,
-            standort: item.standort,
-            anzahl: anzahl,
-            art: 'entnahme' // 'entnahme' for removal
+        await logMonitoring({
+            user,
+            item,
+            anzahl,
+            art: 'entnahme',
         });
-
-        await logEntry.save();
 
         res.json(item);
     } catch (err) {
@@ -173,19 +199,18 @@ router.put('/remove/:id', async (req, res) => {
     }
 });
 
-
-// Get all items
+// GET /api/items/ - Get all items
 router.get('/', async (req, res) => {
-  try {
-    const items = await Item.find();
-    res.json(items);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
-  }
+    try {
+        const items = await Item.find();
+        res.json(items);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server error');
+    }
 });
 
-// Get single Item
+// GET /api/items/find/:id - Get a single item by ID
 router.get('/find/:id', async (req, res) => {
     try {
         const item = await Item.findById(req.params.id);
@@ -196,7 +221,6 @@ router.get('/find/:id', async (req, res) => {
     } catch (err) {
         console.error(err.message);
 
-        // If the ID is not valid or any error occurs, send a server error response
         if (err.kind === 'ObjectId') {
             return res.status(400).json({ msg: 'Invalid Item ID' });
         }
@@ -204,25 +228,24 @@ router.get('/find/:id', async (req, res) => {
     }
 });
 
-// Get Item by Location
+// GET /api/items/findByLocation - Get items by location
 router.get('/findByLocation', async (req, res) => {
     try {
-        const locationQuery = req.query.locationQuery
-        console.log(locationQuery);
-        if(!cities.includes(locationQuery)){
-            return res.status(400).json({msg: `Location must be one of: ${cities.join(', ')}`});
+        const locationQuery = req.query.locationQuery;
+        if (!cities.includes(locationQuery)) {
+            return res.status(400).json({ msg: `Location must be one of: ${cities.join(', ')}` });
         }
-        const items = await Item.find({ standort: locationQuery});
 
-        //Check if any Items are found
-        if(!items.length) {
+        const items = await Item.find({ standort: locationQuery });
+        if (!items.length) {
             return res.status(404).json({ msg: 'No items found in this location' });
         }
 
-        //send
         res.json(items);
     } catch (err) {
-        
+        console.error(err.message);
+        res.status(500).send('Server error');
     }
 });
+
 module.exports = router;

@@ -18,7 +18,7 @@ const routes = [
     path: '/dashboard',
     name: 'Frame',
     component: Frame,
-    meta: { requiresAuth: true }, // Protect this route
+    meta: { requiresAuth: false }, // Protect this route
   },
 ];
 
