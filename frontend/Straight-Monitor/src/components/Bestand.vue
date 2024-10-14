@@ -91,6 +91,15 @@
           required
         />
       </div>
+      <div class="ModalGroup">
+        <label for="anmerkung">Anmerkung</label>
+        <input 
+        ref="floatingInput"
+        type="text"
+        v-model="anmerkung"
+        placeholder="Anmerkung (Optional)"
+        >
+      </div>
 
       <!-- Submit button -->
       <button @click="submitNewItem">Hinzufügen</button>
@@ -426,7 +435,7 @@ export default {
       try {
         const response = await axios.post(
           "https://straight-monitor-684d4006140b.herokuapp.com/api/items/addNew",
-          { userID: this.userID, bezeichnung, groesse, anzahl, standort }
+          { userID: this.userID, bezeichnung, groesse, anzahl, standort, anmerkung: this.anmerkung}
         );
         this.items.push(response.data); // Add the new item to the list
         this.resetNewItem(); // Reset the form
@@ -443,6 +452,7 @@ export default {
         anzahl: 0,
         standort: "",
       };
+      this.anmerkung = "";
     },
     startUpdate(item) {
       this.selectedItem = item;

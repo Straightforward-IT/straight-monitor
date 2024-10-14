@@ -41,7 +41,7 @@ async function logMonitoring({ user, item, anzahl, art, anmerkung}) {
 
 // POST /api/items/addNew
 router.post('/addNew', async (req, res) => {
-    const { userID, bezeichnung, groesse, anzahl, standort } = req.body;
+    const { userID, bezeichnung, groesse, anzahl, standort, anmerkung} = req.body;
     try {
         const user = await findOrCreateUser(userID);
 
@@ -58,6 +58,7 @@ router.post('/addNew', async (req, res) => {
             item: savedItem,
             anzahl: savedItem.anzahl,
             art: 'zugabe',
+            anmerkung,
         });
 
         res.json(savedItem);
