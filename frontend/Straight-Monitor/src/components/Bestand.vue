@@ -127,6 +127,7 @@
     </div>
   </div>
 
+  <!-- Items Display -->
   <div class="items-container">
     <div v-for="item in filteredItems" :key="item.id" class="item-wrapper">
       <div class="item-card">
@@ -137,13 +138,20 @@
               v-if="item.isEditing"
               type="text"
               v-model="item.bezeichnung"
-              @keyup.enter="updateItemName(item)"
+              @keyup.enter.stop="updateItemName(item)"
               @blur="cancelEdit(item)"
             />
             <font-awesome-icon
+              v-if="!item.isEditing"
               class="edit-button"
               :icon="['fas', 'pencil']"
               @click="enableEdit(item)"
+            />
+            <font-awesome-icon
+              v-if="item.isEditing"
+              class="close-button"
+              :icon="['fas', 'times']"
+              @click="cancelEdit(item)"
             />
           </span>
         </div>
@@ -203,6 +211,7 @@ export default {
         anzahl: 0,
         standort: "",
       }, // Store new item data
+      originalBezeichnung: "",
     };
   },
   computed: {
@@ -308,9 +317,11 @@ export default {
   },
   methods: {
     enableEdit(item){
+      this.originalBezeichnung = item.bezeichnung;
       item.isEditing = true;
     },
     cancelEdit(item){
+      item.bezeichnung = this.originalBezeichnung
       item.isEditing = false;
     },
     async updateItemName(item){
@@ -511,6 +522,8 @@ form {
 
 .header-and-pen {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .item-card {
   background-color: #f5f5f5;
@@ -520,8 +533,21 @@ form {
   font-size: 14px;
   width: 100%; /* Ensure the card takes up the full column width */
   box-sizing: border-box;
+
+  .close-button{
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 16px;
+  cursor: pointer;
+  color: #323231;
+
+  &:hover {
+    color: #999;
+  }
+  }
 }
-.edit-button {
+.edit-button{
   position: absolute;
   top: 10px;
   right: 10px;
@@ -535,6 +561,7 @@ form {
 }
 
 
+
 /* Item Header and Input */
 .item-header {
   font-size: 16px;
@@ -542,7 +569,8 @@ form {
   text-align: center;
 
   input {
-    width: 100%;
+    width: 90%;
+    height: min-content;
     font-size: 16px;
     padding: 5px;
     border: 1px solid #ddd;
