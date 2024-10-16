@@ -52,27 +52,30 @@
       setAxiosAuthToken(){
       axios.defaults.headers.common['x-auth-token'] = this.token;
     },
+      setAxiosAuthToken(){
+      axios.defaults.headers.common['x-auth-token'] = this.token;
+    },
       async fetchUserData() {
         const token = localStorage.getItem('token'); // Assuming the token is stored in localStorage
   
-        if (token) {
+        if (this.token) {
           try {
             const response = await axios.get('https://straight-monitor-684d4006140b.herokuapp.com/api/users/me', {
-              headers: {
-                'x-auth-token': token,
-              },
             });
             this.userName = response.data.name; // Update with the email from the response
           } catch (error) {
             console.error('Error fetching user data:', error);
+            this.$router.push("/");
           }
         } else {
           console.error('No token found');
+          this.$router.push("/");
         }
       },
     },
     mounted() {
       this.fetchUserData();
+      this.setAxiosAuthToken();
       this.setAxiosAuthToken();
     },
   };
