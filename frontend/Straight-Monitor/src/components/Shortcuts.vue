@@ -318,9 +318,9 @@
         </div>
       </div>
     </div>
-    <div v-if="showServiceModal"class="modal">
-<div class="modal-content">
-  <font-awesome-icon
+    <div v-if="showServiceModal" class="modal">
+      <div class="modal-content">
+        <font-awesome-icon
           class="close-modal"
           :icon="['fas', 'times']"
           @click="
@@ -503,8 +503,7 @@
             <button @click="submitServiceModal('remove')">Entnahme</button>
           </div>
         </div>
-
-</div>
+      </div>
     </div>
   </div>
 </template>
@@ -524,8 +523,8 @@ export default {
   },
   data() {
     return {
+      token: localStorage.getItem('token') || null,
       showLogiModal: false,
-
       cuttermesserChecked: false,
       jutebeutelChecked: false,
       logistikHoseChecked: false,
@@ -569,16 +568,30 @@ export default {
       schwarzeHemdenDamenChecked: false,
       weisseHemdenHerrenChecked: false,
       schwarzeHemdenHerrenChecked: false,
-      
+
       serviceHandschuheSize: "",
       weisseHemdenDamenSize: "",
       schwarzeHemdenDamenSize: "",
       weisseHemdenHerrenSize: "",
       schwarzeHemdenHerrenSize: "",
-      
+
     };
   },
+  mounted(){
+    this.setAxiosAuthToken();
+  },
+  watch: {
+    token(newToken){
+      if (newToken) {
+        localStorage.setItem('token', newToken);
+      }else{
+        localStorage.removeItem('token');
+      }
+    },
   methods: {
+    setAxiosAuthToken(){
+      axios.defaults.headers.common['x-auth-token'] = this.token;
+    },
     openModal() {
       this.$emit("update-modal", true);
     },
@@ -594,7 +607,7 @@ export default {
       this.showServiceModal = true;
     },
     resetLogiPaket(){
-     
+
       this.showLogiModal = false;
       this.cuttermesserChecked = false;
       this.jutebeutelChecked = false;
@@ -645,7 +658,7 @@ export default {
       this.weisseHemdenHerrenSize = "";
       this.schwarzeHemdenHerrenSize = "";
     },
-    
+
     // Validation method to check if all required dropdowns are selected
     validateLogiSelections() {
       const errorMessages = [];
@@ -718,11 +731,39 @@ export default {
       }
       return true;
     },
+    async updateMultiple(selections, count){
+      if(this.token){
+
+        // Filter out only the checked items
+  const selectedItems = selections
+    .filter((selection) => selection.checked)
+    .map((selection) => ({ _id: selection._id, size: selection.size }));
+
+
+        axios.put(
+    "https://straight-monitor-684d4006140b.herokuapp.com/api/items/updateMultiple", { items: selectedItems, count })
+    .then((response) => {
+      console.log("Items updated successfully", response.data);
+    }).then(() => {
+      this.$emit("itemsUpdated");
+    })
+    .catch((error) => {
+      console.error("Error updating items", error);
+      console.log(selectedItems);
+    });
+
+
+      }else{
+    console.error("No Token Found")
+    router.push('/');
+  }
+
+
+    },
     submitLogiModal(action) {
       if (!this.validateLogiSelections()) {
         return;
       }
-
   // Define a map of selections
   const selections = [
     { checked: this.cuttermesserChecked, _id: "66f409272bd7b954e71ded84", size: "onesize" },
@@ -740,34 +781,13 @@ export default {
     { checked: this.sicherheitsschuheChecked, _id: this.getSicherheitsschuheId(this.sicherheitsschuheSize), size: this.sicherheitsschuheSize },
     { checked: this.handschuheChecked, _id: this.getHandschuheId(this.handschuheSize), size: this.handschuheSize },
   ];
-    
+// Determine count based on action
+const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
 
-  // Filter out only the checked items
-  const selectedItems = selections
-    .filter((selection) => selection.checked)
-    .map((selection) => ({ _id: selection._id, size: selection.size }));
-
-  // Determine count based on action
-  const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
-
-  // Make the axios call
- 
-    axios.put(
-    "https://straight-monitor-684d4006140b.herokuapp.com/api/items/updateMultiple", { items: selectedItems, count })
-    .then((response) => {
-      console.log("Items updated successfully", response.data);
-    }).then(() => {
-      this.$emit("itemsUpdated");
-    })
-    .catch((error) => {
-      console.error("Error updating items", error);
-      console.log(selectedItems);
-    });
+    this.updateMultiple(selections, count);
     this.closeModal();
     this.showLogiModal = false;
     this.resetLogiPaket();
-
-  
   
 },
 submitServiceModal(action) {
@@ -789,31 +809,14 @@ submitServiceModal(action) {
     { checked: this.weisseHemdenHerrenChecked, _id: this.getWeisseHemdenHerrenId(this.weisseHemdenHerrenSize), size: this.weisseHemdenHerrenSize },
     { checked: this.schwarzeHemdenHerrenChecked, _id: this.getSchwarzeHemdenHerrenId(this.schwarzeHemdenHerrenSize), size: this.schwarzeHemdenHerrenSize },
   ];
-
-  const selectedItems = selections
-    .filter((selection) => selection.checked)
-    .map((selection) => ({ _id: selection._id, size: selection.size }));
-
     const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
 
-    axios.put(
-      "https://straight-monitor-684d4006140b.herokuapp.com/api/items/updateMultiple", { items: selectedItems, count })
-      .then((response) => {
-        console.log("Items updated successfully", response.data);
-      }).then(() => {
-        this.$emit("itemsUpdated");
-      })
-      .catch((error) => {
-        console.error("Error updating items", error);
-        console.log(selectedItems);
-      });
+      this.updateMultiple(selections, count);
       this.closeModal();
       this.showServiceModal = false;
       this.resetServicePaket();
 },
-    // Map functions for size-based items
-    //Logistik
-    
+
     getLogistikHoseId() {
       const hoseMap = {
         44: "66fbe9416971ca198c0dd709",
@@ -972,9 +975,10 @@ submitServiceModal(action) {
     };
     return hemdenMap[size];
   },
-    
+
   },
-};
+}
+}
 </script>
 
 <style scoped lang="scss">

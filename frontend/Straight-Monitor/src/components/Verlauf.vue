@@ -16,21 +16,33 @@ export default{
     },
     data() {
         return {
-
+            token: localStorage.getItem('token') || null,
         }
     },
+    watch: {
+    token(newToken){
+      if (newToken) {
+        localStorage.setItem('token', newToken);
+      }else{
+        localStorage.removeItem('token');
+      }
+    }
+  },
+  mounted() {
+    this.setAxiosAuthToken();
+  },
     computed: {
 
     }, methods: {
+        setAxiosAuthToken(){
+      axios.defaults.headers.common['x-auth-token'] = this.token;
+    },
         async fetchUserData() {
-      const token = localStorage.getItem("token");
-      if (token) {
+      if (this.token) {
         try {
           const response = await axios.get(
             "https://straight-monitor-684d4006140b.herokuapp.com/api/users/me",
-            {
-              headers: { "x-auth-token": token },
-            }
+            
           );
           if (response.status === 401) {
             this.$router.push("/");
@@ -59,7 +71,8 @@ export default{
       }
     },
     async fetchMonitoringLogs() {
-        try {
+        if(token){
+            try {
             const response = await axios.get(
                 "https://straight-monitor-684d4006140b.herokuapp.com/api/monitoring"
             );
@@ -68,6 +81,10 @@ export default{
         }catch (error) {
             console.error("Fehler beim Abrufen der Logs: ", error)
         }
+        }else{
+            router.push('/');
+        }
+        
     },
     }, mounted() {
         this.fetchUserData();

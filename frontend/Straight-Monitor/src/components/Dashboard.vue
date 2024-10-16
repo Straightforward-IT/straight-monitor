@@ -35,7 +35,7 @@
     },
     data() {
       return {
-        token: localStorage.getItem('x-auth-token') || null,
+        token: localStorage.getItem('token') || null,
         userName: '   ',
       };
     },
@@ -52,12 +52,7 @@
       setAxiosAuthToken(){
       axios.defaults.headers.common['x-auth-token'] = this.token;
     },
-      setAxiosAuthToken(){
-      axios.defaults.headers.common['x-auth-token'] = this.token;
-    },
       async fetchUserData() {
-        const token = localStorage.getItem('token'); // Assuming the token is stored in localStorage
-  
         if (this.token) {
           try {
             const response = await axios.get('https://straight-monitor-684d4006140b.herokuapp.com/api/users/me', {
@@ -75,7 +70,6 @@
     },
     mounted() {
       this.fetchUserData();
-      this.setAxiosAuthToken();
       this.setAxiosAuthToken();
     },
   };
