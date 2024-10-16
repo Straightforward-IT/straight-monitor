@@ -8,7 +8,7 @@
       </div>
     </div>
     <div class="floating-label inactive">
-      <button>Verlauf</button>
+      <button @click="$emit('switch-to-verlauf')">Verlauf</button>
       <div class="icon">
         <font-awesome-icon :icon="['fas', 'timeline']" />
       </div>
@@ -29,7 +29,7 @@
   
   export default {
     name: 'Dashboard',
-    emits: ['switch-to-bestand', "update-modal"],
+    emits: ['switch-to-bestand', "update-modal", "switch-to-dashboard", , "switch-to-verlauf"],
     components: {
       FontAwesomeIcon,
     },

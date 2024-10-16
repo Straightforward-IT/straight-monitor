@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const auth = require('../middleware/auth');
 const User = require('../models/User');
 const Item = require('../models/Item');
 const Monitoring = require('../models/Monitoring');
@@ -40,7 +41,7 @@ async function logMonitoring({ user, item, anzahl, art, anmerkung}) {
 }
 
 // POST /api/items/addNew
-router.post('/addNew', async (req, res) => {
+router.post('/addNew', auth, async (req, res) => {
     const { userID, bezeichnung, groesse, anzahl, standort, anmerkung} = req.body;
     try {
         const user = await findOrCreateUser(userID);
@@ -71,7 +72,7 @@ router.post('/addNew', async (req, res) => {
 
 
 // PUT /api/items/updateMultiple
-router.put('/updateMultiple', async (req, res) => {
+router.put('/updateMultiple', auth, async (req, res) => {
     const { userID, items, count } = req.body;
     try {
         const user = await findOrCreateUser(userID);
@@ -106,7 +107,7 @@ router.put('/updateMultiple', async (req, res) => {
 });
 
 // PUT /api/items/name/:id
-router.put('/name/:id', async (req, res) => {
+router.put('/name/:id', auth, async (req, res) => {
     const { userID, bezeichnung } = req.body;
     var oldName, newName;
     if (!bezeichnung || bezeichnung.trim() === '') {
@@ -146,7 +147,7 @@ router.put('/name/:id', async (req, res) => {
     }
 });
 // PUT /api/items/add/:id
-router.put('/add/:id', async (req, res) => {
+router.put('/add/:id', auth, async (req, res) => {
     const { userID, anzahl, anmerkung} = req.body;
     try {
         const user = await findOrCreateUser(userID);
@@ -173,7 +174,7 @@ router.put('/add/:id', async (req, res) => {
     }
 });
 // PUT /api/items/remove/:id
-router.put('/remove/:id', async (req, res) => {
+router.put('/remove/:id', auth, async (req, res) => {
     const { userID, anzahl, anmerkung} = req.body;
     try {
         const user = await findOrCreateUser(userID);
@@ -203,7 +204,7 @@ router.put('/remove/:id', async (req, res) => {
 });
 
 // GET /api/items/ - Get all items
-router.get('/', async (req, res) => {
+router.get('/', auth, async (req, res) => {
     try {
         const items = await Item.find();
         res.json(items);
@@ -214,7 +215,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/items/find/:id - Get a single item by ID
-router.get('/find/:id', async (req, res) => {
+router.get('/find/:id', auth, async (req, res) => {
     try {
         const item = await Item.findById(req.params.id);
         if (!item) {
@@ -232,7 +233,7 @@ router.get('/find/:id', async (req, res) => {
 });
 
 // GET /api/items/findByLocation - Get items by location
-router.get('/findByLocation', async (req, res) => {
+router.get('/findByLocation', auth, async (req, res) => {
     try {
         const locationQuery = req.query.locationQuery;
         if (!cities.includes(locationQuery)) {

@@ -4,7 +4,7 @@
     Straight
     <span><font-awesome-icon :icon="['fas', 'warehouse']" /> Bestand</span>
   </h4>
-  <p>Benutzer:{{ userEmail }}</p>
+  <p>Benutzer: {{ userName }}</p>
 
   <!-- Suchleiste -->
   <div class="search-container">
@@ -208,7 +208,7 @@ import axios from "axios";
 
 export default {
   name: "Bestand",
-  emits: ["update-modal", "switch-to-bestand", "switch-to-dashboard"],
+  emits: ["update-modal", "switch-to-bestand", "switch-to-dashboard", "switch-to-verlauf"],
   components: {
     FontAwesomeIcon,
   },
@@ -217,7 +217,9 @@ export default {
   },
   data() {
     return {
+      token: localStorage.getItem('token') || null,
       userEmail: "",
+      userName: "",
       userID: "",
       searchQuery: "",
       inputValue: "",
@@ -237,6 +239,15 @@ export default {
       }, // Store new item data
       originalBezeichnung: "",
     };
+  },
+  watch: {
+    token(newToken){
+      if (newToken) {
+        localStorage.setItem('token', newToken);
+      }else{
+        localStorage.removeItem('token');
+      }
+    }
   },
   computed: {
     filteredItems() {
@@ -340,6 +351,9 @@ export default {
     },
   },
   methods: {
+    setAxiosAuthToken(){
+      axios.defaults.headers.common['x-auth-token'] = this.token;
+    },
     enableEdit(item){
       this.originalBezeichnung = item.bezeichnung;
       item.isEditing = true;
@@ -384,20 +398,17 @@ export default {
       this.$emit("update-modal", false);
     },
     async fetchUserData() {
-      const token = localStorage.getItem("token");
-      if (token) {
+      if (this.token) {
         try {
           const response = await axios.get(
             "https://straight-monitor-684d4006140b.herokuapp.com/api/users/me",
-            {
-              headers: { "x-auth-token": token },
-            }
           );
           if (response.status === 401) {
             this.$router.push("/");
           }
           this.userEmail = response.data.email;
           this.userID = response.data._id;
+          this.userName = response.data.name;
           this.searchQuery = response.data.location;
         } catch (error) {
           console.error("Fehler beim Abrufen der Benutzerdaten:", error);
@@ -464,7 +475,7 @@ export default {
       if (!isNaN(value)) {
         const amount = value;
         try {
-          var response;
+          let response;
           if (action === "add") {
             response = await axios.put(
               `https://straight-monitor-684d4006140b.herokuapp.com/api/items/add/${this.selectedItem._id}`,
@@ -500,6 +511,7 @@ export default {
   mounted() {
     this.fetchUserData();
     this.fetchItems();
+    this.setAxiosAuthToken();
   },
 };
 </script>

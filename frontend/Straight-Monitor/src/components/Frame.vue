@@ -1,7 +1,8 @@
 <template>
-  <Banner v-if="!isMobile"/>
+  <Banner v-if="!isMobile" />
 
-  <div v-if="isMobile && currentComponent === 'Bestand' " class="top">
+  <!-- Mobile Shortcuts -->
+  <div v-if="isMobile && currentComponent === 'Bestand'" class="top">
     <Shortcuts
       :isModalOpen="isModalOpen"
       @update-modal="handleModalUpdate"
@@ -9,9 +10,8 @@
     />
   </div>
 
-
   <div class="session">
-    <div class="left">
+    <div class="left" v-if="currentComponent != 'Verlauf'">
       <img src="@/assets/SF_000.svg" alt="Logo" class="logo-svg" />
     </div>
 
@@ -28,13 +28,16 @@
       <div>
         <component
           :is="currentComponent"
-          ref="bestandComponent"
+          ref="currentComponentRef"
           :isModalOpen="isModalOpen"
           @update-modal="handleModalUpdate"
           @switch-to-bestand="switchToBestand"
+          @switch-to-verlauf="switchToVerlauf"
         ></component>
       </div>
     </form>
+
+    <!-- Desktop Shortcuts -->
     <div v-if="currentComponent === 'Bestand' && !isMobile" class="right">
       <Shortcuts
         :isModalOpen="isModalOpen"
@@ -45,20 +48,21 @@
   </div>
 </template>
 
-<script>
-import Banner from "./LoginBanner.vue";
+<script>import Banner from "./LoginBanner.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import axios from "axios";
 import Dashboard from "./Dashboard.vue";
 import Bestand from "./Bestand.vue"; // Import Bestand component
 import Shortcuts from "./Shortcuts.vue";
+import Verlauf from "./Verlauf.vue"; // Import Verlauf component
 
 export default {
   name: "Frame",
   emits: ["fetch-items"],
   components: {
     Dashboard,
-    Bestand, // Register Bestand component
+    Bestand,
+    Verlauf,
     Banner,
     FontAwesomeIcon,
     Shortcuts,
@@ -77,21 +81,30 @@ export default {
         return "220px";
       } else if (this.isMobile) {
         return "280px";
-      } else {
+      } else if (this.currentComponent === "Bestand"){
         return "500px";
+      } else {
+        return "1200px"
       }
+    },
+    currentComponentRef() {
+      if (this.currentComponent === "Bestand") return "bestandComponent";
+      if (this.currentComponent === "Verlauf") return "verlaufComponent";
+      return null;
     },
   },
   methods: {
-    detectMobile(){
+    detectMobile() {
       this.isMobile = window.innerWidth <= 768;
     },
-    handleResize(){
+    handleResize() {
       this.detectMobile();
     },
     handleItemsUpdated() {
       if (this.currentComponent === "Bestand") {
         this.$refs.bestandComponent.fetchItems();
+      } else if (this.currentComponent === "Verlauf") {
+        this.$refs.verlaufComponent.fetchItems();
       }
     },
     handleModalUpdate(state) {
@@ -123,6 +136,10 @@ export default {
       console.log("Switching to Bestand component");
       this.currentComponent = "Bestand"; // Switch to Bestand component
     },
+    switchToVerlauf() {
+      console.log("Switching to Verlauf component");
+      this.currentComponent = "Verlauf"; // Switch to Verlauf component
+    },
     switchToDashboard() {
       this.currentComponent = "Dashboard"; // Switch back to Dashboard
     },
@@ -134,13 +151,14 @@ export default {
   },
   mounted() {
     this.detectMobile();
-    window.addEventListener('resize', this.handleResize)
+    window.addEventListener("resize", this.handleResize);
     this.fetchUserData();
   },
   beforeDestroy() {
-    window.removeEventListener('resize', this.handleResize)
+    window.removeEventListener("resize", this.handleResize);
   },
 };
+
 </script>
 
 <style>
@@ -182,7 +200,8 @@ a.discrete {
   }
 }
 
-.top{
-  display:block;
+.top {
+  display: block;
 }
+
 </style>

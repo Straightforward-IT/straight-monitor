@@ -13,8 +13,8 @@ app.use(express.json());
 // CORS configuration allowing any subdomain of straight-monitor.pages.dev
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowedDomain = /https:\/\/([a-z0-9-]+\.)?straight-monitor\.pages\.dev$/; // Allow any subdomain of straight-monitor.pages.dev
-
+    const allowedDomain = /https:\/\/straightmonitor\.com$/; // Only allow the main domain
+    
     if (!origin || allowedDomain.test(origin)) {
       callback(null, true); // Allow the request
     } else {
