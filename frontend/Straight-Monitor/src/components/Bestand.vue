@@ -217,7 +217,7 @@ export default {
   },
   data() {
     return {
-      token: localStorage.getItem('token') || null,
+      token: localStorage.getItem('x-auth-token') || null,
       userEmail: "",
       userName: "",
       userID: "",

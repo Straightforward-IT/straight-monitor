@@ -35,10 +35,23 @@
     },
     data() {
       return {
+        token: localStorage.getItem('x-auth-token') || null,
         userName: '   ',
       };
     },
+    watch: {
+    token(newToken){
+      if (newToken) {
+        localStorage.setItem('token', newToken);
+      }else{
+        localStorage.removeItem('token');
+      }
+    }
+  },
     methods: {
+      setAxiosAuthToken(){
+      axios.defaults.headers.common['x-auth-token'] = this.token;
+    },
       async fetchUserData() {
         const token = localStorage.getItem('token'); // Assuming the token is stored in localStorage
   
@@ -60,6 +73,7 @@
     },
     mounted() {
       this.fetchUserData();
+      this.setAxiosAuthToken();
     },
   };
   </script>
