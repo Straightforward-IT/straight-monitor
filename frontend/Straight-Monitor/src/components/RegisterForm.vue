@@ -143,7 +143,9 @@ export default {
             email: this.email,
             password: this.password,
             location: this.location,
-          }
+          },{
+          withCredentials: true,
+        }
         );
 
         // If valid, clear the error and proceed
