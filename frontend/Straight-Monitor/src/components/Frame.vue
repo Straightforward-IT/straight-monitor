@@ -170,7 +170,7 @@ export default {
 }
 
 .left {
-  display: block; /* Default display for larger screens */
+  display: block;
 }
 
 @media only screen and (max-width: 768px) {

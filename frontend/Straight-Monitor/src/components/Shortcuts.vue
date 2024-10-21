@@ -591,6 +591,7 @@ export default {
       axios.defaults.headers.common['x-auth-token'] = this.token;
     },
     openModal() {
+      console.log("called");
       this.$emit("update-modal", true);
     },
     closeModal() {
