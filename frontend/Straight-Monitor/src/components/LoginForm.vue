@@ -89,7 +89,10 @@ export default {
         const res = await axios.post('https://straight-monitor-684d4006140b.herokuapp.com/api/users/login', {
           email: this.email,
           password: this.password,
-        });
+        },{
+          withCredentials: true,
+        }
+      );
 
         // Save the token to localStorage
         const token = res.data.token;

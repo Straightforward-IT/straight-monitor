@@ -13,21 +13,20 @@ app.use(express.json());
 // CORS configuration allowing any subdomain of straight-monitor.pages.dev
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowedDomain = /https:\/\/straightmonitor\.com$/; // Only allow the main domain
-    
+    console.log('Origin:', origin);
+    const allowedDomain = /^https:\/\/(www\.)?straightmonitor\.com$/;
     if (!origin || allowedDomain.test(origin)) {
-      callback(null, true); // Allow the request
+      callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS')); // Reject other origins
+      callback(new Error('Not allowed by CORS'));
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true,  // Allow credentials like cookies
+  credentials: true,
 };
 
 app.use(cors(corsOptions));  // Apply the CORS options
 //app.use(cors());
-app.options('*', cors(corsOptions));
 
 // Basic route
 app.get('/', (req, res) => res.send('API Running'));
