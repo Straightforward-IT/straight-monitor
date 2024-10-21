@@ -509,9 +509,9 @@ export default {
     },
   },
   mounted() {
+    this.setAxiosAuthToken();
     this.fetchUserData();
     this.fetchItems();
-    this.setAxiosAuthToken();
   },
 };
 </script>

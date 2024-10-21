@@ -87,10 +87,10 @@ export default{
         
     },
     }, mounted() {
+      this.setAxiosAuthToken();
         this.fetchUserData();
         this.fetchItems();
         this.fetchMonitoringLogs();
-        this.setAxiosAuthToken();
     }
 }
 </script>

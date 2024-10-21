@@ -54,7 +54,6 @@
     },
       async fetchUserData() {
         if (this.token) {
-          this.setAxiosAuthToken();
           try {
             
             const response = await axios.get('https://straight-monitor-684d4006140b.herokuapp.com/api/users/me', {
@@ -71,8 +70,8 @@
       },
     },
     mounted() {
-      this.fetchUserData();
       this.setAxiosAuthToken();
+      this.fetchUserData();
     },
   };
   </script>
