@@ -102,7 +102,7 @@
       </div>
 
       <!-- Submit button -->
-      <button @click="submitNewItem">Hinzufügen</button>
+      <button @click="submitNewItem()">Hinzufügen</button>
     </div>
   </div>
 
@@ -111,7 +111,7 @@
       <font-awesome-icon
         class="close-modal"
         :icon="['fas', 'times']"
-        @click="resetInput"
+        @click="resetInput()"
       />
 
       <h4>

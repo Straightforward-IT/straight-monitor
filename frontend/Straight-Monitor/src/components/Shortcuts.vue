@@ -10,7 +10,7 @@
           id="logi-paket"
           alt="Logo"
           class="item-list-sf"
-          @click="openLogiPaketModal"
+          @click="openLogiPaketModal()"
         />
         <label for="logi-paket">
           <p>Logi-Paket</p>
@@ -23,8 +23,7 @@
           alt="Logo"
           class="item-list-sf inactive"
           @click="
-          openServicePaketModal;
-          console.log('Click');
+          openServicePaketModal()
           "
         />
         <label for="service-paket">
@@ -600,11 +599,11 @@ export default {
     closeModal() {
       this.$emit("update-modal", false);
     },
-    async openLogiPaketModal() {
+    openLogiPaketModal() {
       this.openModal();
       this.showLogiModal = true;
     },
-    async openServicePaketModal() {
+    openServicePaketModal() {
       this.openModal();
       this.showServiceModal = true;
     },

@@ -60,7 +60,7 @@
           </svg>
         </div>
       </div>
-      <button type="submit" @click="submitLogin">Log in</button>
+      <button type="submit" @click="submitLogin()">Log in</button>
       <a class="discrete" @click="$emit('switch-to-register')">
       Register
     </a>

@@ -80,7 +80,7 @@
     </div>
   </div>
 
-  <button type="submit" @click="submitRegister">Register</button>
+  <button type="submit" @click="submitRegister()">Register</button>
 
   <!-- Link zum Login-Formular -->
   <a class="discrete" @click="$emit('switch-to-login')">Login</a>
