@@ -25,8 +25,8 @@ const corsOptions = {
   credentials: true,  // Allow credentials like cookies
 };
 
-//app.use(cors(corsOptions));  // Apply the CORS options
-app.use(cors());
+app.use(cors(corsOptions));  // Apply the CORS options
+//app.use(cors());
 app.options('*', cors(corsOptions));
 
 // Basic route
