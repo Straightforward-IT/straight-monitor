@@ -30,7 +30,7 @@
       </span>
     </div>
 
-    <div v-if="showLogiModal" class="modal">
+    <div v-if="!showLogiModal" class="modal">
       <div class="modal-content">
         <font-awesome-icon
           class="close-modal"
