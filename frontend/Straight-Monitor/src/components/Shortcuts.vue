@@ -22,7 +22,10 @@
           id="service-paket"
           alt="Logo"
           class="item-list-sf inactive"
-          @click="openServicePaketModal"
+          @click="
+          openServicePaketModal;
+          console.log('Click');
+          "
         />
         <label for="service-paket">
           <p>Service-Paket</p>
