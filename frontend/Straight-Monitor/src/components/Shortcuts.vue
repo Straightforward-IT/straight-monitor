@@ -4,27 +4,25 @@
     <h4>Shortcuts</h4>
 
     <div class="shortcut-container">
-      <span class="list-item">
+      <span class="list-item"
+      @click="openLogiPaketModal()">
         <img
           src="@/assets/SF_002.png"
           id="logi-paket"
           alt="Logo"
           class="item-list-sf"
-          @click="openLogiPaketModal()"
         />
         <label for="logi-paket">
           <p>Logi-Paket</p>
         </label>
       </span>
-      <span class="list-item">
+      <span class="list-item"
+      @click="openServicePaketModal()">
         <img
           src="@/assets/SF_002.png"
           id="service-paket"
           alt="Logo"
-          class="item-list-sf inactive"
-          @click="
-          openServicePaketModal()
-          "
+          class="item-list-sf"
         />
         <label for="service-paket">
           <p>Service-Paket</p>
