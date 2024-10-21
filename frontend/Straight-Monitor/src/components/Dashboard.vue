@@ -57,7 +57,7 @@
           try {
             const response = await axios.get('https://straight-monitor-684d4006140b.herokuapp.com/api/users/me', {
             });
-            this.userName = response.data.name; // Update with the email from the response
+            this.userName = response.data.name; 
           } catch (error) {
             console.error('Error fetching user data:', error);
             this.$router.push("/");

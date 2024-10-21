@@ -90,6 +90,7 @@ export default{
         this.fetchUserData();
         this.fetchItems();
         this.fetchMonitoringLogs();
+        this.setAxiosAuthToken();
     }
 }
 </script>

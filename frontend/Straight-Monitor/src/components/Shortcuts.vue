@@ -577,9 +577,7 @@ export default {
 
     };
   },
-  mounted(){
-    this.setAxiosAuthToken();
-  },
+  
   watch: {
     token(newToken){
       if (newToken) {
@@ -975,7 +973,9 @@ submitServiceModal(action) {
     };
     return hemdenMap[size];
   },
-
+  mounted(){
+    this.setAxiosAuthToken();
+  },
   },
 }
 }
