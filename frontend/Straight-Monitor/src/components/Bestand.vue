@@ -204,7 +204,7 @@
 
 <script>
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import axios from "axios";
+import api from '@/utils/api'
 
 export default {
   name: "Bestand",
@@ -352,7 +352,7 @@ export default {
   },
   methods: {
     setAxiosAuthToken(){
-      axios.defaults.headers.common['x-auth-token'] = this.token;
+      api.defaults.headers.common['x-auth-token'] = this.token;
     },
     enableEdit(item){
       this.originalBezeichnung = item.bezeichnung;
@@ -370,8 +370,8 @@ export default {
       }
 
       try {
-        const response = await axios.put(
-          `https://straight-monitor-684d4006140b.herokuapp.com/api/items/name/${item._id}`,
+        const response = await api.put(
+          `/api/items/name/${item._id}`,
           { bezeichnung: item.bezeichnung }
         );
         const updatedItem = response.data;
@@ -400,8 +400,8 @@ export default {
     async fetchUserData() {
       if (this.token) {
         try {
-          const response = await axios.get(
-            "https://straight-monitor-684d4006140b.herokuapp.com/api/users/me",
+          const response = await api.get(
+            "/api/users/me",
           );
           if (response.status === 401) {
             this.$router.push("/");
@@ -420,8 +420,8 @@ export default {
     },
     async fetchItems() {
       try {
-        const response = await axios.get(
-          "https://straight-monitor-684d4006140b.herokuapp.com/api/items"
+        const response = await api.get(
+          "/api/items"
         );
         this.items = response.data;
         console.log("Items fetched:");
@@ -444,8 +444,8 @@ export default {
       }
 
       try {
-        const response = await axios.post(
-          "https://straight-monitor-684d4006140b.herokuapp.com/api/items/addNew",
+        const response = await api.post(
+          "/api/items/addNew",
           { userID: this.userID, bezeichnung, groesse, anzahl, standort, anmerkung: this.anmerkung}
         );
         this.items.push(response.data); // Add the new item to the list
@@ -477,13 +477,13 @@ export default {
         try {
           let response;
           if (action === "add") {
-            response = await axios.put(
-              `https://straight-monitor-684d4006140b.herokuapp.com/api/items/add/${this.selectedItem._id}`,
+            response = await api.put(
+              `/api/items/add/${this.selectedItem._id}`,
               { userID: this.userID, anzahl: amount, anmerkung: this.anmerkung }
             );
           } else {
-            response = await axios.put(
-              `https://straight-monitor-684d4006140b.herokuapp.com/api/items/remove/${this.selectedItem._id}`,
+            response = await api.put(
+              `/api/items/remove/${this.selectedItem._id}`,
               { userID: this.userID, anzahl: amount, anmerkung: this.anmerkung }
             );
           }

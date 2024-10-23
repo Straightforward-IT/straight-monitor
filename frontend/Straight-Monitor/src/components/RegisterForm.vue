@@ -87,7 +87,7 @@
 </template>
 
 <script>
-import axios from "axios";
+import api from "@/utils/api";
 
 export default {
   name: "RegisterForm",
@@ -136,8 +136,8 @@ export default {
         // Clear error if passwords match
         this.passwordError = false;
 
-        const res = await axios.post(
-          "https://straight-monitor-684d4006140b.herokuapp.com/api/users/register",
+        const res = await api.post(
+          "/api/users/register",
           {
             name: this.name,
             email: this.email,

@@ -510,7 +510,7 @@
 
 <script>
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import axios from "axios";
+import api from "@/utils/api";
 
 export default {
   name: "Shortcuts",
@@ -589,7 +589,7 @@ export default {
   },
   methods: {
     setAxiosAuthToken(){
-      axios.defaults.headers.common['x-auth-token'] = this.token;
+      api.defaults.headers.common['x-auth-token'] = this.token;
     },
     openModal() {
       console.log("called");
@@ -740,8 +740,8 @@ export default {
     .map((selection) => ({ _id: selection._id, size: selection.size }));
 
 
-        axios.put(
-    "https://straight-monitor-684d4006140b.herokuapp.com/api/items/updateMultiple", { items: selectedItems, count })
+        api.put(
+    "/api/items/updateMultiple", { items: selectedItems, count })
     .then((response) => {
       console.log("Items updated successfully", response.data);
     }).then(() => {

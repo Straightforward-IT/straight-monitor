@@ -50,7 +50,7 @@
 
 <script>import Banner from "./LoginBanner.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import axios from "axios";
+import api from '@/utils/api';
 import Dashboard from "./Dashboard.vue";
 import Bestand from "./Bestand.vue"; // Import Bestand component
 import Shortcuts from "./Shortcuts.vue";
@@ -116,8 +116,8 @@ export default {
 
       if (token) {
         try {
-          const response = await axios.get(
-            "https://straight-monitor-684d4006140b.herokuapp.com/api/users/me",
+          const response = await api.get(
+            "/api/users/me",
             {
               headers: {
                 "x-auth-token": token,
