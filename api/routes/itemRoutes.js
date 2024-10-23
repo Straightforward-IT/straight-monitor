@@ -5,7 +5,7 @@ const User = require('../models/User');
 const Item = require('../models/Item');
 const Monitoring = require('../models/Monitoring');
 
-//Variables
+// Variables
 const cities = ['Hamburg', 'Berlin', 'Koeln'];
 
 // Helper function to find or create user
@@ -18,23 +18,19 @@ async function findOrCreateUser(userID) {
             password: "-",
             location: "-"
         });
-        
     }
     return user;
 }
 
 // Helper function to log monitoring actions
-async function logMonitoring({ user, item, anzahl, art, anmerkung}) {
+async function logMonitoring({ user, standort, items, art, anmerkung }) {
     const logEntry = new Monitoring({
         benutzer: user._id,
         benutzerMail: user.email,
-        itemId: item._id,
-        bezeichnung: item.bezeichnung,
-        groesse: item.groesse,
-        standort: item.standort,
-        anzahl: anzahl,
-        art: art,
-        anmerkung: anmerkung,
+        standort,
+        art,
+        items,
+        anmerkung,
         timestamp: new Date(),
     });
     await logEntry.save();
@@ -42,7 +38,7 @@ async function logMonitoring({ user, item, anzahl, art, anmerkung}) {
 
 // POST /api/items/addNew
 router.post('/addNew', auth, async (req, res) => {
-    const { userID, bezeichnung, groesse, anzahl, standort, anmerkung} = req.body;
+    const { userID, bezeichnung, groesse, anzahl, standort, anmerkung } = req.body;
     try {
         const user = await findOrCreateUser(userID);
 
@@ -56,8 +52,8 @@ router.post('/addNew', auth, async (req, res) => {
 
         await logMonitoring({
             user,
-            item: savedItem,
-            anzahl: savedItem.anzahl,
+            standort,
+            items: [{ itemId: savedItem._id, bezeichnung: savedItem.bezeichnung, groesse: savedItem.groesse, anzahl: savedItem.anzahl }],
             art: 'zugabe',
             anmerkung,
         });
@@ -69,14 +65,15 @@ router.post('/addNew', auth, async (req, res) => {
     }
 });
 
-
-
 // PUT /api/items/updateMultiple
 router.put('/updateMultiple', auth, async (req, res) => {
-    const { userID, items, count } = req.body;
+    const { userID, items, count, anmerkung } = req.body;
     try {
         const user = await findOrCreateUser(userID);
         const updatedItems = [];
+
+        // Prepare an array for logging the changes to multiple items
+        const itemsForLog = [];
 
         for (let itemId of items) {
             const item = await Item.findById(itemId);
@@ -89,15 +86,25 @@ router.put('/updateMultiple', auth, async (req, res) => {
 
             await item.save();
 
-            await logMonitoring({
-                user,
-                item,
-                anzahl: count,
-                art: count > 0 ? 'zugabe' : 'entnahme',
+            // Prepare the item data for logging
+            itemsForLog.push({
+                itemId: item._id,
+                bezeichnung: item.bezeichnung,
+                groesse: item.groesse,
+                anzahl: Math.abs(count),
             });
 
             updatedItems.push(item);
         }
+
+        // Log the action for all updated items
+        await logMonitoring({
+            user,
+            standort: updatedItems[0].standort, // Assuming all items share the same location for simplicity
+            items: itemsForLog,
+            art: count > 0 ? 'zugabe' : 'entnahme',
+            anmerkung,
+        });
 
         res.json(updatedItems);
     } catch (err) {
@@ -108,8 +115,7 @@ router.put('/updateMultiple', auth, async (req, res) => {
 
 // PUT /api/items/name/:id
 router.put('/name/:id', auth, async (req, res) => {
-    const { userID, bezeichnung } = req.body;
-    var oldName, newName;
+    const { userID, bezeichnung, anmerkung } = req.body;
     if (!bezeichnung || bezeichnung.trim() === '') {
         return res.status(400).json({ msg: 'Name cannot be empty' });
     }
@@ -121,23 +127,23 @@ router.put('/name/:id', auth, async (req, res) => {
             return res.status(404).json({ msg: 'Item not found' });
         }
 
-        oldName = item.bezeichnung;
-        newName = bezeichnung;
+        const oldName = item.bezeichnung;
+        const newName = bezeichnung;
 
         const existingItem = await Item.findOne({ bezeichnung, groesse: item.groesse, standort: item.standort });
         if (existingItem) {
             return res.status(400).json({ msg: 'Item with the same attributes already exists' });
         }
 
-        item.bezeichnung = bezeichnung;
+        item.bezeichnung = newName;
         await item.save();
 
         await logMonitoring({
             user,
-            item,
-            anzahl: 0, // No change in quantity, just a name change
+            standort: item.standort,
+            items: [{ itemId: item._id, bezeichnung: newName, groesse: item.groesse, anzahl: 0 }],
             art: 'änderung',
-            anmerkung: `Name geändert von ${oldName} zu ${newName}`
+            anmerkung: `Name geändert von ${oldName} zu ${newName}. ${anmerkung || ''}`
         });
 
         res.json(item);
@@ -146,9 +152,10 @@ router.put('/name/:id', auth, async (req, res) => {
         res.status(500).send('Server error');
     }
 });
+
 // PUT /api/items/add/:id
 router.put('/add/:id', auth, async (req, res) => {
-    const { userID, anzahl, anmerkung} = req.body;
+    const { userID, anzahl, anmerkung } = req.body;
     try {
         const user = await findOrCreateUser(userID);
         const item = await Item.findById(req.params.id);
@@ -161,8 +168,8 @@ router.put('/add/:id', auth, async (req, res) => {
 
         await logMonitoring({
             user,
-            item,
-            anzahl,
+            standort: item.standort,
+            items: [{ itemId: item._id, bezeichnung: item.bezeichnung, groesse: item.groesse, anzahl }],
             art: 'zugabe',
             anmerkung
         });
@@ -173,9 +180,10 @@ router.put('/add/:id', auth, async (req, res) => {
         res.status(500).send('Server error');
     }
 });
+
 // PUT /api/items/remove/:id
 router.put('/remove/:id', auth, async (req, res) => {
-    const { userID, anzahl, anmerkung} = req.body;
+    const { userID, anzahl, anmerkung } = req.body;
     try {
         const user = await findOrCreateUser(userID);
         const item = await Item.findById(req.params.id);
@@ -185,13 +193,12 @@ router.put('/remove/:id', auth, async (req, res) => {
 
         item.anzahl -= anzahl;
         if (item.anzahl < 0) item.anzahl = 0;
-
         await item.save();
 
         await logMonitoring({
             user,
-            item,
-            anzahl,
+            standort: item.standort,
+            items: [{ itemId: item._id, bezeichnung: item.bezeichnung, groesse: item.groesse, anzahl }],
             art: 'entnahme',
             anmerkung
         });
