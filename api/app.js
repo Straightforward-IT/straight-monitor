@@ -1,6 +1,7 @@
 const cors = require('cors');
 const express = require('express');
 const mongoose = require('mongoose');
+const axios = require('axios');
 const userRoutes = require('./routes/userRoutes'); 
 const itemRoutes = require('./routes/itemRoutes');
 const monitoringRoutes = require('./routes/monitoringRoutes');
@@ -26,7 +27,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));  // Apply the CORS options
-//app.use(cors());
 
 // Basic route
 app.get('/', (req, res) => res.send('API Running'));
@@ -36,11 +36,22 @@ app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 
+// Function to get and log the public IP
+async function logCurrentIP() {
+  try {
+    const response = await axios.get('https://api.ipify.org?format=json');
+    console.log('Current server IP:', response.data.ip);
+  } catch (error) {
+    console.error('Error fetching IP address:', error);
+  }
+}
+
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected'))
-  .catch(err => {
+  .catch(async (err) => {
     console.error('MongoDB connection error:', err);
+    await logCurrentIP();
     process.exit(1);  // Exit process with failure
   });
 
