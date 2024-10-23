@@ -510,7 +510,7 @@
 
 <script>
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import axios from "axios";
+import api from "@/utils/api";
 
 export default {
   name: "Shortcuts",
@@ -524,6 +524,8 @@ export default {
   data() {
     return {
       token: localStorage.getItem('token') || null,
+      anmerkung: "",
+      userID: "",
       showLogiModal: false,
       cuttermesserChecked: false,
       jutebeutelChecked: false,
@@ -589,8 +591,24 @@ export default {
   },
   methods: {
     setAxiosAuthToken(){
-      axios.defaults.headers.common['x-auth-token'] = this.token;
+      api.defaults.headers.common['x-auth-token'] = this.token;
     },
+    async fetchUserData() {
+        if (this.token) {
+          try {
+            
+            const response = await api.get('/api/users/me', {
+            });
+            this.userID = response.data._id; 
+          } catch (error) {
+            console.error('Error fetching user data:', error);
+            this.$router.push("/");
+          }
+        } else {
+          console.error('No token found');
+          this.$router.push("/");
+        }
+      },
     openModal() {
       console.log("called");
       this.$emit("update-modal", true);
@@ -607,6 +625,7 @@ export default {
       this.showServiceModal = true;
     },
     resetLogiPaket(){
+      this.anmerkung = "";
 
       this.showLogiModal = false;
       this.cuttermesserChecked = false;
@@ -638,6 +657,8 @@ export default {
       this.handschuheSize = "";
     },
     resetServicePaket(){
+      this.anmerkung = "";
+
       this.kellnermesserChecked = true;
       this.kugelschreiberChecked = true;
       this.namensschildChecked = true;
@@ -735,22 +756,22 @@ export default {
       if(this.token){
 
         // Filter out only the checked items
-  const selectedItems = selections
-    .filter((selection) => selection.checked)
-    .map((selection) => ({ _id: selection._id, size: selection.size }));
+      const selectedItems = selections
+      .filter((selection) => selection.checked)
+      .map((selection) => ({ _id: selection._id, size: selection.size }));
 
 
-        axios.put(
-    "https://straight-monitor-684d4006140b.herokuapp.com/api/items/updateMultiple", { items: selectedItems, count })
-    .then((response) => {
+        api.put(
+      "/api/items/updateMultiple", {userID: this.userID, items: selectedItems, count, anmerkung: this.anmerkung})
+      .then((response) => {
       console.log("Items updated successfully", response.data);
-    }).then(() => {
+     }).then(() => {
       this.$emit("itemsUpdated");
-    })
-    .catch((error) => {
+     })
+      .catch((error) => {
       console.error("Error updating items", error);
       console.log(selectedItems);
-    });
+     });
 
 
       }else{
@@ -783,7 +804,8 @@ export default {
   ];
 // Determine count based on action
 const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
-
+      
+        this.anmerkung = "Logistik-Paket: ".concat(this.anmerkung)
     this.updateMultiple(selections, count);
     this.closeModal();
     this.showLogiModal = false;
@@ -811,6 +833,7 @@ submitServiceModal(action) {
   ];
     const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
 
+    this.anmerkung = "Service-Paket: ".concat(this.anmerkung);
       this.updateMultiple(selections, count);
       this.closeModal();
       this.showServiceModal = false;
@@ -975,9 +998,11 @@ submitServiceModal(action) {
     };
     return hemdenMap[size];
   },
+  
+  },
   mounted(){
     this.setAxiosAuthToken();
-  },
+    this.fetchUserData();
   },
 }
 

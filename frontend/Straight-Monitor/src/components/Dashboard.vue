@@ -25,8 +25,8 @@
   
   <script>
   import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-  import axios from 'axios';
-  
+  import api from '@/utils/api';
+
   export default {
     name: 'Dashboard',
     emits: ['switch-to-bestand', "update-modal", "switch-to-dashboard", , "switch-to-verlauf"],
@@ -50,13 +50,13 @@
   },
     methods: {
       setAxiosAuthToken(){
-      axios.defaults.headers.common['x-auth-token'] = this.token;
+      api.defaults.headers.common['x-auth-token'] = this.token;
     },
       async fetchUserData() {
         if (this.token) {
           try {
             
-            const response = await axios.get('https://straight-monitor-684d4006140b.herokuapp.com/api/users/me', {
+            const response = await api.get('/api/users/me', {
             });
             this.userName = response.data.name; 
           } catch (error) {

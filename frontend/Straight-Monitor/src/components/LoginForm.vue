@@ -68,7 +68,8 @@
 </template>
 
 <script>
-import axios from 'axios';
+import api from '@/utils/api';
+
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
 export default {
@@ -86,7 +87,7 @@ export default {
   methods: {
     async submitLogin() {
       try {
-        const res = await axios.post('https://straight-monitor-684d4006140b.herokuapp.com/api/users/login', {
+        const res = await api.post('/api/users/login', {
           email: this.email,
           password: this.password,
         },{

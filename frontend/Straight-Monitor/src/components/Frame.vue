@@ -26,20 +26,35 @@
       <a class="discrete" v-else @click="switchToDashboard">Zurück</a>
 
       <div>
-        <component
-          :is="currentComponent"
-          ref="currentComponentRef"
-          :isModalOpen="isModalOpen"
-          @update-modal="handleModalUpdate"
-          @switch-to-bestand="switchToBestand"
-          @switch-to-verlauf="switchToVerlauf"
-        ></component>
+        <div v-if="currentComponent === 'Dashboard'">
+          <Dashboard
+            ref="dashboardComponent"
+            @switch-to-bestand="switchToBestand"
+            @switch-to-verlauf="switchToVerlauf"
+          />
+        </div>
+        <div v-if="currentComponent === 'Bestand'">
+          <Bestand
+            ref="bestandComponent"
+            :isModalOpen="isModalOpen"
+            @update-modal="handleModalUpdate"
+            @switch-to-verlauf="switchToVerlauf"
+          />
+        </div>
+        <div v-if="currentComponent === 'Verlauf'">
+          <Verlauf
+            ref="verlaufComponent"
+            @update-modal="handleModalUpdate"
+            @switch-to-bestand="switchToBestand"
+          />
+        </div>
       </div>
     </form>
 
     <!-- Desktop Shortcuts -->
     <div v-if="currentComponent === 'Bestand' && !isMobile" class="right">
       <Shortcuts
+        ref="shortcutsComponent"
         :isModalOpen="isModalOpen"
         @update-modal="handleModalUpdate"
         @itemsUpdated="handleItemsUpdated"
@@ -48,9 +63,10 @@
   </div>
 </template>
 
-<script>import Banner from "./LoginBanner.vue";
+<script>
+import Banner from "./LoginBanner.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import axios from "axios";
+import api from "@/utils/api";
 import Dashboard from "./Dashboard.vue";
 import Bestand from "./Bestand.vue"; // Import Bestand component
 import Shortcuts from "./Shortcuts.vue";
@@ -81,16 +97,11 @@ export default {
         return "220px";
       } else if (this.isMobile) {
         return "280px";
-      } else if (this.currentComponent === "Bestand"){
+      } else if (this.currentComponent === "Bestand") {
         return "500px";
       } else {
-        return "1200px"
+        return "1200px";
       }
-    },
-    currentComponentRef() {
-      if (this.currentComponent === "Bestand") return "bestandComponent";
-      if (this.currentComponent === "Verlauf") return "verlaufComponent";
-      return null;
     },
   },
   methods: {
@@ -101,9 +112,9 @@ export default {
       this.detectMobile();
     },
     handleItemsUpdated() {
-      if (this.currentComponent === "Bestand") {
+      if (this.currentComponent === "Bestand" && this.$refs.bestandComponent) {
         this.$refs.bestandComponent.fetchItems();
-      } else if (this.currentComponent === "Verlauf") {
+      } else if (this.currentComponent === "Verlauf" && this.$refs.verlaufComponent) {
         this.$refs.verlaufComponent.fetchItems();
       }
     },
@@ -116,14 +127,11 @@ export default {
 
       if (token) {
         try {
-          const response = await axios.get(
-            "https://straight-monitor-684d4006140b.herokuapp.com/api/users/me",
-            {
-              headers: {
-                "x-auth-token": token,
-              },
-            }
-          );
+          const response = await api.get("/api/users/me", {
+            headers: {
+              "x-auth-token": token,
+            },
+          });
           this.userEmail = response.data.email; // Update with the email from the response
         } catch (error) {
           console.error("Error fetching user data:", error);
@@ -158,7 +166,6 @@ export default {
     window.removeEventListener("resize", this.handleResize);
   },
 };
-
 </script>
 
 <style>
@@ -203,5 +210,4 @@ a.discrete {
 .top {
   display: block;
 }
-
 </style>

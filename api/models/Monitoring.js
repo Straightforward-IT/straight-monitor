@@ -1,49 +1,53 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const MonitoringSchema = new mongoose.Schema({
-    benutzer: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true  
-    },
-    benutzerMail: {
-        type: String,
-        required: true
-    },
-    itemId: {
+  benutzer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+  benutzerMail: {
+    type: String,
+    required: true,
+  },
+  standort: {
+    type: String,
+    required: true,
+  },
+  art: {
+    type: String, // 'zugabe' for add, 'entnahme' for remove, 'änderung' for change
+    enum: ["zugabe", "entnahme", "änderung"],
+    required: true,
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now,
+  },
+  items: [
+    {
+      itemId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Item', // Reference the Item collection
-        required: true
-    },
-    bezeichnung: {
+        ref: "Item", // Reference the Item collection
+        required: true,
+      },
+      bezeichnung: {
         type: String,
-        required: true
-    },
-    groesse: {
+        required: true,
+      },
+      groesse: {
         type: String,
-        required: false
-    },
-    standort: {
-        type: String,
-        required: true
-    },
-    anzahl: {
+        required: false,
+      },
+      anzahl: {
         type: Number,
-        required: true
+        required: true,
+      },
     },
-    art: {
-        type: String, // 'zugabe' for add, 'entnahme' for remove
-        enum: ['zugabe', 'entnahme', 'änderung'],
-        required: true
-    },
-    anmerkung: {
-        type: String,
-        required: false
-    },
-    timestamp: {
-        type: Date,
-        default: Date.now
-    }
+  ],
+  anmerkung: {
+    type: String,
+    required: false,
+  },
 });
 
-module.exports = mongoose.model('Monitoring', MonitoringSchema);
+module.exports = mongoose.model("Monitoring", MonitoringSchema);

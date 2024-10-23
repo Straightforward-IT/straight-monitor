@@ -15,7 +15,6 @@
 </template>
 
 <script>
-import axios from 'axios';
 import LoginForm from './LoginForm.vue';
 import RegisterForm from './RegisterForm.vue';
 
@@ -39,26 +38,6 @@ export default {
     switchToLogin() {
       this.currentForm = 'login';
     },
-    /*
-    async submitLogin() {
-      try {
-        const res = await axios.post('http://localhost:5050/api/users/login', {
-          email: this.email,
-          password: this.password,
-        });
-
-        // Token speichern
-        const token = res.data.token;
-        localStorage.setItem('token', token);
-        console.log('Login erfolgreich:', res.data);
-
-        // Weiterleitung zum Dashboard
-        this.$router.push('/dashboard');
-        
-      } catch (err) {
-        console.error('Login-Fehler:', err.response?.data?.msg || err.message);
-      }
-    },*/
   },
 };
 </script>
