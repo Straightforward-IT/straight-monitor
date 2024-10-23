@@ -30,31 +30,41 @@ router.get("/:id", async (req, res) => {
 });
 
 // POST a new monitoring log
-/*router.post('/', async (req, res) => {
-  const { item_id, bezeichnung, standort, anzahl, art, timestamp } = req.body;
+router.post("/", auth, async (req, res) => {
+  const { userID, standort, art, items, anmerkung } = req.body;
 
   try {
+    // Validate items structure
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ msg: "Items array is required" });
+    }
+
+    const user = await User.findById(userID);
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
     const newMonitoringLog = new Monitoring({
-      item_id,
-      bezeichnung,
+      benutzer: user._id,
+      benutzerMail: user.email,
       standort,
-      anzahl,
       art,
-      timestamp: timestamp || Date.now() // If no timestamp is provided, set current time
+      items,
+      anmerkung,
+      timestamp: Date.now()
     });
 
     const savedMonitoringLog = await newMonitoringLog.save();
     res.json(savedMonitoringLog);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).send("Server error");
   }
 });
-*/
 
 // PUT (update) a specific monitoring log by ID
-router.put("/:id", async (req, res) => {
-  const { item_id, bezeichnung, standort, anzahl, art, anmerkung, timestamp } = req.body;
+router.put("/:id", auth, async (req, res) => {
+  const { standort, art, items, anmerkung, timestamp } = req.body;
 
   try {
     let monitoringLog = await Monitoring.findById(req.params.id);
@@ -63,11 +73,9 @@ router.put("/:id", async (req, res) => {
     }
 
     // Update fields
-    monitoringLog.item_id = item_id || monitoringLog.item_id;
-    monitoringLog.bezeichnung = bezeichnung || monitoringLog.bezeichnung;
     monitoringLog.standort = standort || monitoringLog.standort;
-    monitoringLog.anzahl = anzahl || monitoringLog.anzahl;
     monitoringLog.art = art || monitoringLog.art;
+    monitoringLog.items = items || monitoringLog.items;
     monitoringLog.anmerkung = anmerkung || monitoringLog.anmerkung;
     monitoringLog.timestamp = timestamp || monitoringLog.timestamp;
 
@@ -80,7 +88,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE a specific monitoring log by ID
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", auth, async (req, res) => {
   try {
     const monitoringLog = await Monitoring.findById(req.params.id);
     if (!monitoringLog) {
@@ -95,17 +103,17 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// Get logs for a specific item
+// GET logs for a specific item
 router.get("/item/:itemId", async (req, res) => {
   try {
     const item = await Item.findById(req.params.itemId);
     if (!item) {
       return res.status(404).json({ msg: "Item not found" });
     }
-    const logs = await Monitoring.find({ itemId: req.params.itemId }).sort({
-      timestamp: -1,
-    });
-    if (!logs) {
+
+    const logs = await Monitoring.find({ "items.itemId": req.params.itemId }).sort({ timestamp: -1 });
+
+    if (!logs || logs.length === 0) {
       return res.status(404).json({ msg: "Logs not found" });
     }
     res.json(logs);

@@ -17,17 +17,12 @@ export default{
     data() {
         return {
             token: localStorage.getItem('token') || null,
+            currentAnsicht: null,
+            items: null,
+            monitorings: null,
+            
         }
     },
-    watch: {
-    token(newToken){
-      if (newToken) {
-        localStorage.setItem('token', newToken);
-      }else{
-        localStorage.removeItem('token');
-      }
-    }
-  },
   mounted() {
     this.setAxiosAuthToken();
   },
@@ -71,7 +66,7 @@ export default{
       }
     },
     async fetchMonitoringLogs() {
-        if(token){
+        if(this.token){
             try {
             const response = await api.get(
                 "/api/monitoring"

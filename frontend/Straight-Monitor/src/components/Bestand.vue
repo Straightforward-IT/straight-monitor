@@ -93,12 +93,12 @@
       </div>
       <div class="ModalGroup">
         <label for="anmerkung">Anmerkung</label>
-        <input 
-        ref="floatingInput"
-        type="text"
-        v-model="anmerkung"
-        placeholder="Anmerkung (Optional)"
-        >
+        <input
+          ref="floatingInput"
+          type="text"
+          v-model="anmerkung"
+          placeholder="Anmerkung (Optional)"
+        />
       </div>
 
       <!-- Submit button -->
@@ -129,12 +129,12 @@
           min="0"
           placeholder="Zahl eingeben"
         />
-        <input 
-        ref="floatingInput"
-        type="text"
-        v-model="anmerkung"
-        placeholder="Anmerkung (Optional)"
-        >
+        <input
+          ref="floatingInput"
+          type="text"
+          v-model="anmerkung"
+          placeholder="Anmerkung (Optional)"
+        />
       </div>
 
       <button @click="submitAddOrRemove('add')">Hinzufügen</button>
@@ -153,7 +153,6 @@
               v-if="item.isEditing"
               type="text"
               v-model="item.bezeichnung"
-             
             />
             <font-awesome-icon
               v-if="!item.isEditing"
@@ -163,19 +162,18 @@
             />
             <span class="vertical-buttons">
               <font-awesome-icon
-              v-if="item.isEditing"
-              class="close-button"
-              :icon="['fas', 'times']"
-              @click="cancelEdit(item)"
-            />
-            <font-awesome-icon
-            v-if="item.isEditing"
-            class="accept-button"
-            :icon="['fas', 'check']"
-            @click="updateItemName(item)"
-            />
+                v-if="item.isEditing"
+                class="close-button"
+                :icon="['fas', 'times']"
+                @click="cancelEdit(item)"
+              />
+              <font-awesome-icon
+                v-if="item.isEditing"
+                class="accept-button"
+                :icon="['fas', 'check']"
+                @click="updateItemName(item)"
+              />
             </span>
-           
           </span>
         </div>
 
@@ -204,11 +202,16 @@
 
 <script>
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import api from '@/utils/api'
+import api from "@/utils/api";
 
 export default {
   name: "Bestand",
-  emits: ["update-modal", "switch-to-bestand", "switch-to-dashboard", "switch-to-verlauf"],
+  emits: [
+    "update-modal",
+    "switch-to-bestand",
+    "switch-to-dashboard",
+    "switch-to-verlauf",
+  ],
   components: {
     FontAwesomeIcon,
   },
@@ -217,7 +220,7 @@ export default {
   },
   data() {
     return {
-      token: localStorage.getItem('token') || null,
+      token: localStorage.getItem("token") || null,
       userEmail: "",
       userName: "",
       userID: "",
@@ -241,13 +244,14 @@ export default {
     };
   },
   watch: {
-    token(newToken){
+    token(newToken) {
       if (newToken) {
-        localStorage.setItem('token', newToken);
-      }else{
-        localStorage.removeItem('token');
+        localStorage.setItem("token", newToken);
+        this.setAxiosAuthToken();
+      } else {
+        localStorage.removeItem("token");
       }
-    }
+    },
   },
   computed: {
     filteredItems() {
@@ -351,36 +355,35 @@ export default {
     },
   },
   methods: {
-    setAxiosAuthToken(){
-      api.defaults.headers.common['x-auth-token'] = this.token;
+    setAxiosAuthToken() {
+      api.defaults.headers.common["x-auth-token"] = this.token;
     },
-    enableEdit(item){
+    enableEdit(item) {
       this.originalBezeichnung = item.bezeichnung;
       item.isEditing = true;
     },
-    cancelEdit(item){
-      item.bezeichnung = this.originalBezeichnung
+    cancelEdit(item) {
+      item.bezeichnung = this.originalBezeichnung;
       item.isEditing = false;
     },
-    async updateItemName(item){
+    async updateItemName(item) {
       console.log("entered");
 
-      if(item.bezeichnung === this.originalBezeichnung){
+      if (item.bezeichnung === this.originalBezeichnung) {
         return this.cancelEdit(item);
       }
 
       try {
-        const response = await api.put(
-          `/api/items/name/${item._id}`,
-          { bezeichnung: item.bezeichnung }
-        );
+        const response = await api.put(`/api/items/name/${item._id}`, {
+          bezeichnung: item.bezeichnung,
+        });
         const updatedItem = response.data;
         const index = this.items.findIndex(
-            (item) => item._id === updatedItem._id
-          );
-          if (index !== -1) {
-            this.items.splice(index, 1, updatedItem); // Replace the item with the updated one
-          }
+          (item) => item._id === updatedItem._id
+        );
+        if (index !== -1) {
+          this.items.splice(index, 1, updatedItem); // Replace the item with the updated one
+        }
         item.isEditing = false; // Exit editing mode after successful update
       } catch (error) {
         console.error("Fehler beim Aktualisieren des Namens:", error);
@@ -400,12 +403,7 @@ export default {
     async fetchUserData() {
       if (this.token) {
         try {
-          const response = await api.get(
-            "/api/users/me",
-          );
-          if (response.status === 401) {
-            this.$router.push("/");
-          }
+          const response = await api.get("/api/users/me");
           this.userEmail = response.data.email;
           this.userID = response.data._id;
           this.userName = response.data.name;
@@ -420,9 +418,7 @@ export default {
     },
     async fetchItems() {
       try {
-        const response = await api.get(
-          "/api/items"
-        );
+        const response = await api.get("/api/items");
         this.items = response.data;
         console.log("Items fetched:");
       } catch (error) {
@@ -444,10 +440,14 @@ export default {
       }
 
       try {
-        const response = await api.post(
-          "/api/items/addNew",
-          { userID: this.userID, bezeichnung, groesse, anzahl, standort, anmerkung: this.anmerkung}
-        );
+        const response = await api.post("/api/items/addNew", {
+          userID: this.userID,
+          bezeichnung,
+          groesse,
+          anzahl,
+          standort,
+          anmerkung: this.anmerkung,
+        });
         this.items.push(response.data); // Add the new item to the list
         this.resetNewItem(); // Reset the form
         this.showAddModal = false; // Close the modal
@@ -476,17 +476,15 @@ export default {
         const amount = value;
         try {
           let response;
-          if (action === "add") {
-            response = await api.put(
-              `/api/items/add/${this.selectedItem._id}`,
-              { userID: this.userID, anzahl: amount, anmerkung: this.anmerkung }
-            );
-          } else {
-            response = await api.put(
-              `/api/items/remove/${this.selectedItem._id}`,
-              { userID: this.userID, anzahl: amount, anmerkung: this.anmerkung }
-            );
-          }
+          const endpoint =
+            action === "add"
+              ? `/api/items/add/${this.selectedItem._id}`
+              : `/api/items/remove/${this.selectedItem._id}`;
+          response = await api.put(endpoint, {
+            userID: this.userID,
+            anzahl: amount,
+            anmerkung: this.anmerkung,
+          });
           const updatedItem = response.data;
           const index = this.items.findIndex(
             (item) => item._id === updatedItem._id
@@ -587,7 +585,34 @@ form {
   width: 100%; /* Ensure the card takes up the full column width */
   box-sizing: border-box;
 
-  .close-button{
+  .close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 16px;
+    cursor: pointer;
+    color: #323231;
+
+    &:hover {
+      color: #999;
+    }
+  }
+
+  .accept-button {
+    position: absolute;
+    top: 25px;
+    right: 9px;
+    font-size: 16px;
+    cursor: pointer;
+    color: #323231;
+
+    &:hover {
+      color: #999;
+    }
+  }
+}
+
+.edit-button {
   position: absolute;
   top: 10px;
   right: 10px;
@@ -598,36 +623,7 @@ form {
   &:hover {
     color: #999;
   }
-  }
-
-  .accept-button{
-  position: absolute;
-  top: 25px;
-  right: 9px;
-  font-size: 16px;
-  cursor: pointer;
-  color: #323231;
-
-  &:hover{
-    color: #999;
-  }
 }
-}
-
-.edit-button{
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  font-size: 16px;
-  cursor: pointer;
-  color: #323231;
-
-  &:hover {
-    color: #999;
-  }
-}
-
-
 
 /* Item Header and Input */
 .item-header {
