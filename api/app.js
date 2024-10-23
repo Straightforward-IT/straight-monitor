@@ -13,8 +13,17 @@ app.use(express.json());
 
 // CORS configuration allowing any subdomain of straight-monitor.pages.dev
 const corsOptions = {
-  origin: 'http://localhost:5173', // Ersetze dies durch den Ursprung deiner Frontend-App
-  credentials: true, // Erlaubt Cookies und andere Anmeldeinformationen
+  origin: function (origin, callback) {
+    console.log('Origin:', origin);
+    const allowedDomain = /^https:\/\/(www\.)?straightmonitor\.com$/;
+    if (!origin || allowedDomain.test(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
 };
 
 app.use(cors(corsOptions));  // Apply the CORS options
