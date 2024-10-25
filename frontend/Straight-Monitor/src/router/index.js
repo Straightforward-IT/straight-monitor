@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Home from '../components/Home.vue';
-import Dashboard from '../components/Dashboard.vue'; // Renamed component from About to Dashboard
+import Verlauf from '../components/Verlauf.vue';
 import '../assets/styles/main.scss'; // Adjust the path according to your project structure
 import Frame from '../components/Frame.vue'; // Import the Frame component
 // @ts-ignore  
@@ -18,8 +18,13 @@ const routes = [
     path: '/dashboard',
     name: 'Frame',
     component: Frame,
-    meta: { requiresAuth: true }, // Protect this route
-  },
+    meta: { requiresAuth: true }, 
+  },{
+    path: '/verlauf',
+    name: 'Verlauf',
+    component: Verlauf,
+    meta: { requiresAuth: true },
+  }
 ];
 
 // Create the router
