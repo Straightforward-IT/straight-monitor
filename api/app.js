@@ -11,12 +11,12 @@ const app = express();
 // Middleware
 app.use(express.json());
 
-// CORS configuration allowing any subdomain of straight-monitor.pages.dev
+const allowedDomains = ["http://localhost:5173", /https:\/\/straightmonitor\.com$/];
+
 const corsOptions = {
   origin: function (origin, callback) {
     console.log('Origin:', origin);
-    const allowedDomain = /^https:\/\/(www\.)?straightmonitor\.com$/;
-    if (!origin || allowedDomain.test(origin)) {
+    if (!origin || allowedDomains.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));

@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: "https://straight-monitor-684d4006140b.herokuapp.com",
+    baseURL: import.meta.env.VITE_API_BASE_URL,
     withCredentials: true,
 });
 
