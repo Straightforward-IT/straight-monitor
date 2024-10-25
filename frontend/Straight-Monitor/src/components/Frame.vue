@@ -11,7 +11,7 @@
   </div>
 
   <div class="session">
-    <div class="left" v-if="currentComponent != 'Verlauf'">
+    <div class="left">
       <img src="@/assets/SF_000.svg" alt="Logo" class="logo-svg" />
     </div>
 
@@ -24,13 +24,10 @@
         >Logout</a
       >
       <a class="discrete" v-else @click="switchToDashboard">Zurück</a>
-
-      <div>
         <div v-if="currentComponent === 'Dashboard'">
           <Dashboard
             ref="dashboardComponent"
             @switch-to-bestand="switchToBestand"
-            @switch-to-verlauf="switchToVerlauf"
           />
         </div>
         <div v-if="currentComponent === 'Bestand'">
@@ -38,19 +35,9 @@
             ref="bestandComponent"
             :isModalOpen="isModalOpen"
             @update-modal="handleModalUpdate"
-            @switch-to-verlauf="switchToVerlauf"
           />
         </div>
-        <div v-if="currentComponent === 'Verlauf'">
-          <Verlauf
-            ref="verlaufComponent"
-            @update-modal="handleModalUpdate"
-            @switch-to-bestand="switchToBestand"
-          />
-        </div>
-      </div>
     </form>
-
     <!-- Desktop Shortcuts -->
     <div v-if="currentComponent === 'Bestand' && !isMobile" class="right">
       <Shortcuts
@@ -70,7 +57,6 @@ import api from "@/utils/api";
 import Dashboard from "./Dashboard.vue";
 import Bestand from "./Bestand.vue"; // Import Bestand component
 import Shortcuts from "./Shortcuts.vue";
-import Verlauf from "./Verlauf.vue"; // Import Verlauf component
 
 export default {
   name: "Frame",
@@ -78,7 +64,6 @@ export default {
   components: {
     Dashboard,
     Bestand,
-    Verlauf,
     Banner,
     FontAwesomeIcon,
     Shortcuts,
@@ -114,8 +99,6 @@ export default {
     handleItemsUpdated() {
       if (this.currentComponent === "Bestand" && this.$refs.bestandComponent) {
         this.$refs.bestandComponent.fetchItems();
-      } else if (this.currentComponent === "Verlauf" && this.$refs.verlaufComponent) {
-        this.$refs.verlaufComponent.fetchItems();
       }
     },
     handleModalUpdate(state) {
@@ -143,10 +126,6 @@ export default {
     switchToBestand() {
       console.log("Switching to Bestand component");
       this.currentComponent = "Bestand"; // Switch to Bestand component
-    },
-    switchToVerlauf() {
-      console.log("Switching to Verlauf component");
-      this.currentComponent = "Verlauf"; // Switch to Verlauf component
     },
     switchToDashboard() {
       this.currentComponent = "Dashboard"; // Switch back to Dashboard

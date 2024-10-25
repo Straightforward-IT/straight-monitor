@@ -8,7 +8,7 @@
       </div>
     </div>
     <div class="floating-label inactive">
-      <button @click="$emit('switch-to-verlauf')">Verlauf</button>
+      <button @click="switchToVerlauf">Verlauf</button>
       <div class="icon">
         <font-awesome-icon :icon="['fas', 'timeline']" />
       </div>
@@ -29,7 +29,7 @@
 
   export default {
     name: 'Dashboard',
-    emits: ['switch-to-bestand', "update-modal", "switch-to-dashboard", , "switch-to-verlauf"],
+    emits: ['switch-to-bestand', "update-modal", "switch-to-dashboard"],
     components: {
       FontAwesomeIcon,
     },
@@ -67,6 +67,9 @@
           console.error('No token found');
           this.$router.push("/");
         }
+      },
+      switchToVerlauf(){
+        this.$router.push('/verlauf');
       },
     },
     mounted() {
