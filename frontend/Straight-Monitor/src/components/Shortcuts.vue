@@ -4,8 +4,7 @@
     <h4>Shortcuts</h4>
 
     <div class="shortcut-container">
-      <span class="list-item"
-      @click="openLogiPaketModal()">
+      <span class="list-item" @click="openLogiPaketModal()">
         <img
           src="@/assets/SF_002.png"
           id="logi-paket"
@@ -16,8 +15,7 @@
           <p>Logi-Paket</p>
         </label>
       </span>
-      <span class="list-item"
-      @click="openServicePaketModal()">
+      <span class="list-item" @click="openServicePaketModal()">
         <img
           src="@/assets/SF_002.png"
           id="service-paket"
@@ -26,6 +24,17 @@
         />
         <label for="service-paket">
           <p>Service-Paket</p>
+        </label>
+      </span>
+      <span class="list-item" @click="getExcel()">
+        <img
+          src="@/assets/SF_002.png"
+          id="excel"
+          alt="Logo"
+          class="item-list-sf"
+        />
+        <label for="excel">
+          <p>Excel</p>
         </label>
       </span>
     </div>
@@ -523,7 +532,7 @@ export default {
   },
   data() {
     return {
-      token: localStorage.getItem('token') || null,
+      token: localStorage.getItem("token") || null,
       anmerkung: "",
       userID: "",
       showLogiModal: false,
@@ -576,39 +585,61 @@ export default {
       schwarzeHemdenDamenSize: "",
       weisseHemdenHerrenSize: "",
       schwarzeHemdenHerrenSize: "",
-
     };
   },
-  
+
   watch: {
-    token(newToken){
+    token(newToken) {
       if (newToken) {
-        localStorage.setItem('token', newToken);
-      }else{
-        localStorage.removeItem('token');
+        localStorage.setItem("token", newToken);
+      } else {
+        localStorage.removeItem("token");
       }
     },
   },
   methods: {
-    setAxiosAuthToken(){
-      api.defaults.headers.common['x-auth-token'] = this.token;
+    setAxiosAuthToken() {
+      api.defaults.headers.common["x-auth-token"] = this.token;
     },
     async fetchUserData() {
-        if (this.token) {
-          try {
-            
-            const response = await api.get('/api/users/me', {
-            });
-            this.userID = response.data._id; 
-          } catch (error) {
-            console.error('Error fetching user data:', error);
-            this.$router.push("/");
-          }
-        } else {
-          console.error('No token found');
+      if (this.token) {
+        try {
+          const response = await api.get("/api/users/me", {});
+          this.userID = response.data._id;
+        } catch (error) {
+          console.error("Error fetching user data:", error);
           this.$router.push("/");
         }
-      },
+      } else {
+        console.error("No token found");
+        this.$router.push("/");
+      }
+    },
+    async getExcel() {
+      console.log("Entered")
+      if (this.token) {
+        try {
+          const response = await api.get("/api/items/getExcel", {
+            responseType: "blob",
+          });
+
+          const blob = new Blob([response.data], {
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          });
+
+          const link = document.createElement("a");
+          const url = window.URL.createObjectURL(blob);
+          link.href = url;
+          link.download = "items.xlsx";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        } catch (error) {
+          console.error("Error downloading the Excel file:", error);
+        }
+      }
+    },
     openModal() {
       console.log("called");
       this.$emit("update-modal", true);
@@ -624,7 +655,7 @@ export default {
       this.openModal();
       this.showServiceModal = true;
     },
-    resetLogiPaket(){
+    resetLogiPaket() {
       this.anmerkung = "";
 
       this.showLogiModal = false;
@@ -656,7 +687,7 @@ export default {
       this.sicherheitsschuheSize = "";
       this.handschuheSize = "";
     },
-    resetServicePaket(){
+    resetServicePaket() {
       this.anmerkung = "";
 
       this.kellnermesserChecked = true;
@@ -697,16 +728,24 @@ export default {
         errorMessages.push("Bitte wählen Sie eine Größe für das T-Shirt (3).");
       }
       if (this.schwarzeKapuzenjackeChecked && !this.schwarzeKapuzenjackeSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für die Schwarze Kapuzenjacke.");
+        errorMessages.push(
+          "Bitte wählen Sie eine Größe für die Schwarze Kapuzenjacke."
+        );
       }
       if (this.sicherheitshelmChecked && !this.sicherheitshelmArt) {
-        errorMessages.push("Bitte wählen Sie eine Art für den Sicherheitshelm.");
+        errorMessages.push(
+          "Bitte wählen Sie eine Art für den Sicherheitshelm."
+        );
       }
       if (this.softshelljackeChecked && !this.softshelljackeSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für die Softshelljacke.");
+        errorMessages.push(
+          "Bitte wählen Sie eine Größe für die Softshelljacke."
+        );
       }
       if (this.dickiesStoffhoseChecked && !this.dickiesStoffhoseSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für die Dickies Stoffhose.");
+        errorMessages.push(
+          "Bitte wählen Sie eine Größe für die Dickies Stoffhose."
+        );
       }
       if (this.pulloverChecked && !this.pulloverSize) {
         errorMessages.push("Bitte wählen Sie eine Größe für den Pullover.");
@@ -715,7 +754,9 @@ export default {
         errorMessages.push("Bitte wählen Sie eine Größe für die Bundhose.");
       }
       if (this.sicherheitsschuheChecked && !this.sicherheitsschuheSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für die Sicherheitsschuhe.");
+        errorMessages.push(
+          "Bitte wählen Sie eine Größe für die Sicherheitsschuhe."
+        );
       }
       if (this.handschuheChecked && !this.handschuheSize) {
         errorMessages.push("Bitte wählen Sie eine Größe für die Handschuhe.");
@@ -727,23 +768,33 @@ export default {
       }
       return true;
     },
-    validateServiceSelections(){
+    validateServiceSelections() {
       const errorMessages = [];
 
       if (this.serviceHandschuheChecked && !this.serviceHandschuheSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für die Service Handschuhe.");
+        errorMessages.push(
+          "Bitte wählen Sie eine Größe für die Service Handschuhe."
+        );
       }
       if (this.weisseHemdenDamenChecked && !this.weisseHemdenDamenSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für die Weißen Damen Hemden.");
+        errorMessages.push(
+          "Bitte wählen Sie eine Größe für die Weißen Damen Hemden."
+        );
       }
       if (this.schwarzeHemdenDamenChecked && !this.schwarzeHemdenDamenSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für die Schwarzen Damen Hemden.");
+        errorMessages.push(
+          "Bitte wählen Sie eine Größe für die Schwarzen Damen Hemden."
+        );
       }
       if (this.weisseHemdenHerrenChecked && !this.weisseHemdenHerrenSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für die Weißen Herren Hemden.");
+        errorMessages.push(
+          "Bitte wählen Sie eine Größe für die Weißen Herren Hemden."
+        );
       }
       if (this.schwarzeHemdenHerrenChecked && !this.schwarzeHemdenHerrenSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für die Schwarzen Herren Hemden.");
+        errorMessages.push(
+          "Bitte wählen Sie eine Größe für die Schwarzen Herren Hemden."
+        );
       }
 
       if (errorMessages.length > 0) {
@@ -752,93 +803,200 @@ export default {
       }
       return true;
     },
-    async updateMultiple(selections, count){
-      if(this.token){
-
+    async updateMultiple(selections, count) {
+      if (this.token) {
         // Filter out only the checked items
-      const selectedItems = selections
-      .filter((selection) => selection.checked)
-      .map((selection) => ({ _id: selection._id, size: selection.size }));
+        const selectedItems = selections
+          .filter((selection) => selection.checked)
+          .map((selection) => ({ _id: selection._id, size: selection.size }));
 
-
-        api.put(
-      "/api/items/updateMultiple", {userID: this.userID, items: selectedItems, count, anmerkung: this.anmerkung})
-      .then((response) => {
-      console.log("Items updated successfully", response.data);
-     }).then(() => {
-      this.$emit("itemsUpdated");
-     })
-      .catch((error) => {
-      console.error("Error updating items", error);
-      console.log(selectedItems);
-     });
-
-
-      }else{
-    console.error("No Token Found")
-    router.push('/');
-  }
-
-
+        api
+          .put("/api/items/updateMultiple", {
+            userID: this.userID,
+            items: selectedItems,
+            count,
+            anmerkung: this.anmerkung,
+          })
+          .then((response) => {
+            console.log("Items updated successfully", response.data);
+          })
+          .then(() => {
+            this.$emit("itemsUpdated");
+          })
+          .catch((error) => {
+            console.error("Error updating items", error);
+            console.log(selectedItems);
+          });
+      } else {
+        console.error("No Token Found");
+        router.push("/");
+      }
     },
     submitLogiModal(action) {
       if (!this.validateLogiSelections()) {
         return;
       }
-  // Define a map of selections
-  const selections = [
-    { checked: this.cuttermesserChecked, _id: "66f409272bd7b954e71ded84", size: "onesize" },
-    { checked: this.jutebeutelChecked, _id: "66fbe89a6971ca198c0dd6f2", size: "onesize" },
-    { checked: this.logistikHoseChecked, _id: this.getLogistikHoseId(), size: this.logistikHoseSize },
-    { checked: this.tshirt1Checked, _id: this.getTShirtId(this.tshirt1Size), size: this.tshirt1Size },
-    { checked: this.tshirt2Checked, _id: this.getTShirtId(this.tshirt2Size), size: this.tshirt2Size },
-    { checked: this.tshirt3Checked, _id: this.getTShirtId(this.tshirt3Size), size: this.tshirt3Size },
-    { checked: this.schwarzeKapuzenjackeChecked, _id: this.getKapuzenjackeId(this.schwarzeKapuzenjackeSize), size: this.schwarzeKapuzenjackeSize },
-    { checked: this.sicherheitshelmChecked, _id: this.getSicherheitshelmId(this.sicherheitshelmArt), size: this.sicherheitshelmArt },
-    { checked: this.softshelljackeChecked, _id: this.getSoftshelljackeId(this.softshelljackeSize), size: this.softshelljackeSize },
-    { checked: this.dickiesStoffhoseChecked, _id: this.getDickiesStoffhoseId(this.dickiesStoffhoseSize), size: this.dickiesStoffhoseSize },
-    { checked: this.pulloverChecked, _id: this.getPulloverId(this.pulloverSize), size: this.pulloverSize },
-    { checked: this.bundhoseChecked, _id: this.getBundhoseId(this.bundhoseSize), size: this.bundhoseSize },
-    { checked: this.sicherheitsschuheChecked, _id: this.getSicherheitsschuheId(this.sicherheitsschuheSize), size: this.sicherheitsschuheSize },
-    { checked: this.handschuheChecked, _id: this.getHandschuheId(this.handschuheSize), size: this.handschuheSize },
-  ];
-// Determine count based on action
-const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
-      
-        this.anmerkung = "Logistik-Paket: ".concat(this.anmerkung)
-    this.updateMultiple(selections, count);
-    this.closeModal();
-    this.showLogiModal = false;
-    this.resetLogiPaket();
-  
-},
-submitServiceModal(action) {
-  if (!this.validateServiceSelections()) {
-    return;
-  }
-  const selections = [
-    { checked: this.kellnermesserChecked, _id: "66fc02a16eba044dba7612ed", size: "onesize" },
-    { checked: this.kugelschreiberChecked, _id: "66fc02b36eba044dba7612f2", size: "onesize" },
-    { checked: this.namensschildChecked, _id: "66fc02c16eba044dba7612f7", size: "onesize" },
-    { checked: this.feuerzeugChecked, _id: "66fc02c76eba044dba7612fc", size: "onesize" },
-    { checked: this.schuhputzzeugChecked, _id: "66fc02d36eba044dba761301", size: "onesize" },
-    { checked: this.schwarzeKrawatteChecked, _id: "66fc02966eba044dba7612e8", size: "onesize" },
-    { checked: this.schwarzeSchuerzeChecked, _id: "66fc02826eba044dba7612e3", size: "onesize" },
-    { checked: this.kleidersackChecked, _id: "66fc02696eba044dba7612de", size: "onesize" },
-    { checked: this.serviceHandschuheChecked, _id: this.getServiceHandschuheId(this.serviceHandschuheSize), size: this.serviceHandschuheSize },
-    { checked: this.weisseHemdenDamenChecked, _id: this.getWeisseHemdenDamenId(this.weisseHemdenDamenSize), size: this.weisseHemdenDamenSize },
-    { checked: this.schwarzeHemdenDamenChecked, _id: this.getSchwarzeHemdenDamenId(this.schwarzeHemdenDamenSize), size: this.schwarzeHemdenDamenSize },
-    { checked: this.weisseHemdenHerrenChecked, _id: this.getWeisseHemdenHerrenId(this.weisseHemdenHerrenSize), size: this.weisseHemdenHerrenSize },
-    { checked: this.schwarzeHemdenHerrenChecked, _id: this.getSchwarzeHemdenHerrenId(this.schwarzeHemdenHerrenSize), size: this.schwarzeHemdenHerrenSize },
-  ];
-    const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
+      // Define a map of selections
+      const selections = [
+        {
+          checked: this.cuttermesserChecked,
+          _id: "66f409272bd7b954e71ded84",
+          size: "onesize",
+        },
+        {
+          checked: this.jutebeutelChecked,
+          _id: "66fbe89a6971ca198c0dd6f2",
+          size: "onesize",
+        },
+        {
+          checked: this.logistikHoseChecked,
+          _id: this.getLogistikHoseId(),
+          size: this.logistikHoseSize,
+        },
+        {
+          checked: this.tshirt1Checked,
+          _id: this.getTShirtId(this.tshirt1Size),
+          size: this.tshirt1Size,
+        },
+        {
+          checked: this.tshirt2Checked,
+          _id: this.getTShirtId(this.tshirt2Size),
+          size: this.tshirt2Size,
+        },
+        {
+          checked: this.tshirt3Checked,
+          _id: this.getTShirtId(this.tshirt3Size),
+          size: this.tshirt3Size,
+        },
+        {
+          checked: this.schwarzeKapuzenjackeChecked,
+          _id: this.getKapuzenjackeId(this.schwarzeKapuzenjackeSize),
+          size: this.schwarzeKapuzenjackeSize,
+        },
+        {
+          checked: this.sicherheitshelmChecked,
+          _id: this.getSicherheitshelmId(this.sicherheitshelmArt),
+          size: this.sicherheitshelmArt,
+        },
+        {
+          checked: this.softshelljackeChecked,
+          _id: this.getSoftshelljackeId(this.softshelljackeSize),
+          size: this.softshelljackeSize,
+        },
+        {
+          checked: this.dickiesStoffhoseChecked,
+          _id: this.getDickiesStoffhoseId(this.dickiesStoffhoseSize),
+          size: this.dickiesStoffhoseSize,
+        },
+        {
+          checked: this.pulloverChecked,
+          _id: this.getPulloverId(this.pulloverSize),
+          size: this.pulloverSize,
+        },
+        {
+          checked: this.bundhoseChecked,
+          _id: this.getBundhoseId(this.bundhoseSize),
+          size: this.bundhoseSize,
+        },
+        {
+          checked: this.sicherheitsschuheChecked,
+          _id: this.getSicherheitsschuheId(this.sicherheitsschuheSize),
+          size: this.sicherheitsschuheSize,
+        },
+        {
+          checked: this.handschuheChecked,
+          _id: this.getHandschuheId(this.handschuheSize),
+          size: this.handschuheSize,
+        },
+      ];
+      // Determine count based on action
+      const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
 
-    this.anmerkung = "Service-Paket: ".concat(this.anmerkung);
+      this.anmerkung = "Logistik-Paket: ".concat(this.anmerkung);
+      this.updateMultiple(selections, count);
+      this.closeModal();
+      this.showLogiModal = false;
+      this.resetLogiPaket();
+    },
+    submitServiceModal(action) {
+      if (!this.validateServiceSelections()) {
+        return;
+      }
+      const selections = [
+        {
+          checked: this.kellnermesserChecked,
+          _id: "66fc02a16eba044dba7612ed",
+          size: "onesize",
+        },
+        {
+          checked: this.kugelschreiberChecked,
+          _id: "66fc02b36eba044dba7612f2",
+          size: "onesize",
+        },
+        {
+          checked: this.namensschildChecked,
+          _id: "66fc02c16eba044dba7612f7",
+          size: "onesize",
+        },
+        {
+          checked: this.feuerzeugChecked,
+          _id: "66fc02c76eba044dba7612fc",
+          size: "onesize",
+        },
+        {
+          checked: this.schuhputzzeugChecked,
+          _id: "66fc02d36eba044dba761301",
+          size: "onesize",
+        },
+        {
+          checked: this.schwarzeKrawatteChecked,
+          _id: "66fc02966eba044dba7612e8",
+          size: "onesize",
+        },
+        {
+          checked: this.schwarzeSchuerzeChecked,
+          _id: "66fc02826eba044dba7612e3",
+          size: "onesize",
+        },
+        {
+          checked: this.kleidersackChecked,
+          _id: "66fc02696eba044dba7612de",
+          size: "onesize",
+        },
+        {
+          checked: this.serviceHandschuheChecked,
+          _id: this.getServiceHandschuheId(this.serviceHandschuheSize),
+          size: this.serviceHandschuheSize,
+        },
+        {
+          checked: this.weisseHemdenDamenChecked,
+          _id: this.getWeisseHemdenDamenId(this.weisseHemdenDamenSize),
+          size: this.weisseHemdenDamenSize,
+        },
+        {
+          checked: this.schwarzeHemdenDamenChecked,
+          _id: this.getSchwarzeHemdenDamenId(this.schwarzeHemdenDamenSize),
+          size: this.schwarzeHemdenDamenSize,
+        },
+        {
+          checked: this.weisseHemdenHerrenChecked,
+          _id: this.getWeisseHemdenHerrenId(this.weisseHemdenHerrenSize),
+          size: this.weisseHemdenHerrenSize,
+        },
+        {
+          checked: this.schwarzeHemdenHerrenChecked,
+          _id: this.getSchwarzeHemdenHerrenId(this.schwarzeHemdenHerrenSize),
+          size: this.schwarzeHemdenHerrenSize,
+        },
+      ];
+      const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
+
+      this.anmerkung = "Service-Paket: ".concat(this.anmerkung);
       this.updateMultiple(selections, count);
       this.closeModal();
       this.showServiceModal = false;
       this.resetServicePaket();
-},
+    },
 
     getLogistikHoseId() {
       const hoseMap = {
@@ -953,59 +1111,57 @@ submitServiceModal(action) {
     //Service
     getServiceHandschuheId(size) {
       const handschuheMap = {
-      8: "66fc02fe6eba044dba761306",
-      9: "66fc03036eba044dba76130b",
-      10: "66fc03076eba044dba761310",
-    };
-    return handschuheMap[size];
-  },
+        8: "66fc02fe6eba044dba761306",
+        9: "66fc03036eba044dba76130b",
+        10: "66fc03076eba044dba761310",
+      };
+      return handschuheMap[size];
+    },
 
-  getWeisseHemdenDamenId(size) {
-    const hemdenMap = {
-      S: "66fc01d16eba044dba761293",
-      M: "66fc01d86eba044dba761298",
-      L: "66fc01dd6eba044dba76129d",
-      XL: "66fc01e56eba044dba7612a2",
-    };
-    return hemdenMap[size];
-  },
+    getWeisseHemdenDamenId(size) {
+      const hemdenMap = {
+        S: "66fc01d16eba044dba761293",
+        M: "66fc01d86eba044dba761298",
+        L: "66fc01dd6eba044dba76129d",
+        XL: "66fc01e56eba044dba7612a2",
+      };
+      return hemdenMap[size];
+    },
 
-  getSchwarzeHemdenDamenId(size) {
-    const hemdenMap = {
-      S: "66fc01f66eba044dba7612a7",
-      M: "66fc01f96eba044dba7612ac",
-      L: "66fc01fc6eba044dba7612b1",
-    };
-    return hemdenMap[size];
-  },
+    getSchwarzeHemdenDamenId(size) {
+      const hemdenMap = {
+        S: "66fc01f66eba044dba7612a7",
+        M: "66fc01f96eba044dba7612ac",
+        L: "66fc01fc6eba044dba7612b1",
+      };
+      return hemdenMap[size];
+    },
 
-  getWeisseHemdenHerrenId(size) {
-    const hemdenMap = {
-      S: "66fc020a6eba044dba7612b6",
-      M: "66fc020d6eba044dba7612bb",
-      L: "66fc02116eba044dba7612c0",
-      XL: "66fc02156eba044dba7612c5",
-    };
-    return hemdenMap[size];
-  },
+    getWeisseHemdenHerrenId(size) {
+      const hemdenMap = {
+        S: "66fc020a6eba044dba7612b6",
+        M: "66fc020d6eba044dba7612bb",
+        L: "66fc02116eba044dba7612c0",
+        XL: "66fc02156eba044dba7612c5",
+      };
+      return hemdenMap[size];
+    },
 
-  getSchwarzeHemdenHerrenId(size) {
-    const hemdenMap = {
-      S: "66fc022f6eba044dba7612ca",
-      M: "66fc02336eba044dba7612cf",
-      L: "66fc02366eba044dba7612d4",
-      XL: "66fc023b6eba044dba7612d9",
-    };
-    return hemdenMap[size];
+    getSchwarzeHemdenHerrenId(size) {
+      const hemdenMap = {
+        S: "66fc022f6eba044dba7612ca",
+        M: "66fc02336eba044dba7612cf",
+        L: "66fc02366eba044dba7612d4",
+        XL: "66fc023b6eba044dba7612d9",
+      };
+      return hemdenMap[size];
+    },
   },
-  
-  },
-  mounted(){
+  mounted() {
     this.setAxiosAuthToken();
     this.fetchUserData();
   },
-}
-
+};
 </script>
 
 <style scoped lang="scss">

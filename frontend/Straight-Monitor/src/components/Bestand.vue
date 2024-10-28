@@ -149,7 +149,7 @@
         <div class="item-header">
           <span class="header-and-pen">
             <strong v-if="!item.isEditing">{{ item.bezeichnung }}</strong>
-            <input
+            <input class="inputBez"
               v-if="item.isEditing"
               type="text"
               v-model="item.bezeichnung"
@@ -171,7 +171,7 @@
                 v-if="item.isEditing"
                 class="accept-button"
                 :icon="['fas', 'check']"
-                @click="updateItemName(item)"
+                @click="updateItem(item)"
               />
             </span>
           </span>
@@ -183,7 +183,12 @@
         </div>
         <div class="item-detail">
           <span>Menge:</span>
-          <span>{{ item.anzahl }}</span>
+          <span v-if="!item.isEditing">{{ item.anzahl }}</span>
+          <input class="inputMen"
+              v-if="item.isEditing"
+              type="number"
+              v-model="item.anzahl"
+            />
         </div>
         <div class="item-detail">
           <span>Standort:</span>
@@ -241,6 +246,7 @@ export default {
         standort: "",
       }, // Store new item data
       originalBezeichnung: "",
+      originalAnzahl: 0,
     };
   },
   watch: {
@@ -360,22 +366,28 @@ export default {
     },
     enableEdit(item) {
       this.originalBezeichnung = item.bezeichnung;
+      this.originalAnzahl = item.anzahl;
       item.isEditing = true;
     },
     cancelEdit(item) {
       item.bezeichnung = this.originalBezeichnung;
+      item.anzahl = this.originalAnzahl;
       item.isEditing = false;
     },
-    async updateItemName(item) {
+    async updateItem(item) {
       console.log("entered");
 
       if (item.bezeichnung === this.originalBezeichnung) {
+        return this.cancelEdit(item);
+      }
+      if(item.anzahl === this.originalAnzahl) {
         return this.cancelEdit(item);
       }
 
       try {
         const response = await api.put(`/api/items/name/${item._id}`, {
           bezeichnung: item.bezeichnung,
+          anzahl: item.anzahl,
         });
         const updatedItem = response.data;
         const index = this.items.findIndex(
@@ -631,7 +643,7 @@ form {
   margin-bottom: 5px;
   text-align: center;
 
-  input {
+  .inputBez {
     width: calc(100% - 20px);
     height: min-content;
     font-size: 16px;
@@ -640,12 +652,23 @@ form {
     border-radius: 4px;
     outline: none;
   }
+  
 }
 
 .item-detail {
   display: flex;
   justify-content: space-between;
   margin-bottom: 5px;
+
+  .inputMen{
+    width: calc(30%);
+    height: min-content;
+    font-size: 16px;
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    outline: none;
+  }
 }
 
 .item-detail span {

@@ -11,7 +11,7 @@ const app = express();
 // Middleware
 app.use(express.json());
 
-const allowedDomains = ["http://localhost:5173", /https:\/\/straightmonitor\.com$/];
+const allowedDomains = ["http://localhost:5173", "https://straightmonitor.com"];
 
 const corsOptions = {
   origin: function (origin, callback) {
