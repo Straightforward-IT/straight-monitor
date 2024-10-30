@@ -124,8 +124,8 @@ router.put("/updateMultiple", auth, async (req, res) => {
 });
 
 // PUT /api/items/name/:id
-router.put("/name/:id", auth, async (req, res) => {
-  const { userID, bezeichnung, anzahl, anmerkung } = req.body;
+router.put("/edit/:id", auth, async (req, res) => {
+  const { userID, bezeichnung, anzahl } = req.body;
   if (!bezeichnung || bezeichnung.trim() === "") {
     return res.status(400).json({ msg: "Name cannot be empty" });
   }
@@ -173,9 +173,7 @@ router.put("/name/:id", auth, async (req, res) => {
         },
       ],
       art: "änderung",
-      anmerkung: `Name geändert von ${oldName} zu ${newName}. ${
-        anmerkung || ""
-      }`,
+      anmerkung: `Name geändert von ${oldName} zu ${newName}.`,
     });
 
     res.json(item);

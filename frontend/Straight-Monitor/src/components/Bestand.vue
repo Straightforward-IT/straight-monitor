@@ -375,17 +375,15 @@ export default {
       item.isEditing = false;
     },
     async updateItem(item) {
-      console.log("entered");
-
-      if (item.bezeichnung === this.originalBezeichnung) {
-        return this.cancelEdit(item);
-      }
-      if(item.anzahl === this.originalAnzahl) {
+      
+      if (item.bezeichnung === this.originalBezeichnung && item.anzahl === this.originalAnzahl) {
         return this.cancelEdit(item);
       }
 
       try {
-        const response = await api.put(`/api/items/name/${item._id}`, {
+       
+        const response = await api.put(`/api/items/edit/${item._id}`, {
+          userID: this.userID,
           bezeichnung: item.bezeichnung,
           anzahl: item.anzahl,
         });
@@ -394,9 +392,9 @@ export default {
           (item) => item._id === updatedItem._id
         );
         if (index !== -1) {
-          this.items.splice(index, 1, updatedItem); // Replace the item with the updated one
+          this.items.splice(index, 1, updatedItem); 
         }
-        item.isEditing = false; // Exit editing mode after successful update
+        item.isEditing = false; 
       } catch (error) {
         console.error("Fehler beim Aktualisieren des Namens:", error);
       }
