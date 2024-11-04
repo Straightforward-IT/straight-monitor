@@ -26,23 +26,48 @@
     >
       +
     </button>
-    
   </div>
-  <div class="filter-buttons">
-    <div :class="{ active: sortBy === 'name' }" @click="setSortBy('name')">
-      Name
-    </div>
-    <div :class="{ active: sortBy === 'count' }" @click="setSortBy('count')">
-      Anzahl
-    </div>
 
-    <div class="keyword-button" @click="insertKeyword('logistik')">
-      Logistik
-    </div>
-    <div class="keyword-button" @click="insertKeyword('service')">
-      Service
-    </div>
+  <div class="filter-buttons">
+  <div 
+    :class="{ active: sortBy === 'name' }" 
+    @click="setSortBy('name')" 
+    id="nameFilter"
+  >
+    Name
+    <font-awesome-icon 
+      v-if="sortBy === 'name' && isAscending" 
+      :icon="['fas', 'sort-up']" 
+    />
+    <font-awesome-icon 
+      v-if="sortBy === 'name' && !isAscending" 
+      :icon="['fas', 'sort-down']" 
+    />
   </div>
+  <div 
+    :class="{ active: sortBy === 'count' }" 
+    @click="setSortBy('count')" 
+    id="countFilter"
+  >
+    Anzahl
+    <font-awesome-icon 
+      v-if="sortBy === 'count' && isAscending" 
+      :icon="['fas', 'sort-up']" 
+    />
+    <font-awesome-icon 
+      v-if="sortBy === 'count' && !isAscending" 
+      :icon="['fas', 'sort-down']" 
+    />
+  </div>
+
+  <div class="keyword-button" @click="insertKeyword('logistik')">
+    Logistik
+  </div>
+  <div class="keyword-button" @click="insertKeyword('service')">
+    Service
+  </div>
+</div>
+
   </div>
   
 
@@ -269,6 +294,7 @@ export default {
       originalBezeichnung: "",
       originalAnzahl: 0,
       sortBy: "name",
+      isAscending: true,
     };
   },
   watch: {
@@ -283,58 +309,64 @@ export default {
   },
   computed: {
     filteredItems() {
-      // If any item is being edited, return all items as-is to avoid re-sorting during edit
-      if (this.items.some((item) => item.isEditing)) {
-        return this.items;
-      }
+  // If any item is being edited, return all items as-is to avoid re-sorting during edit
+  if (this.items.some((item) => item.isEditing)) {
+    return this.items;
+  }
 
-      // Split the search query into words, excluding any empty strings
-      const searchWords = this.searchQuery
-        .toLowerCase()
-        .split(" ")
-        .filter((word) => word);
+  // Split the search query into words, excluding any empty strings
+  const searchWords = this.searchQuery
+    .toLowerCase()
+    .split(" ")
+    .filter((word) => word);
 
-      // Apply location filter based on keywords in search query
-      if (
-        searchWords.includes("hamburg") &&
-        !searchWords.includes("köln") &&
-        !searchWords.includes("berlin")
-      ) {
-        this.newItem.standort = "Hamburg";
-      } else if (
-        !searchWords.includes("hamburg") &&
-        searchWords.includes("köln") &&
-        !searchWords.includes("berlin")
-      ) {
-        this.newItem.standort = "Köln";
-      } else if (
-        !searchWords.includes("hamburg") &&
-        !searchWords.includes("köln") &&
-        searchWords.includes("berlin")
-      ) {
-        this.newItem.standort = "Berlin";
-      } else {
-        this.newItem.standort = "";
-      }
+  // Apply location filter based on keywords in search query
+  if (
+    searchWords.includes("hamburg") &&
+    !searchWords.includes("köln") &&
+    !searchWords.includes("berlin")
+  ) {
+    this.newItem.standort = "Hamburg";
+  } else if (
+    !searchWords.includes("hamburg") &&
+    searchWords.includes("köln") &&
+    !searchWords.includes("berlin")
+  ) {
+    this.newItem.standort = "Köln";
+  } else if (
+    !searchWords.includes("hamburg") &&
+    !searchWords.includes("köln") &&
+    searchWords.includes("berlin")
+  ) {
+    this.newItem.standort = "Berlin";
+  } else {
+    this.newItem.standort = "";
+  }
 
-      // Filter items based on search terms (by name, size, or location)
-      let filtered = this.items.filter((item) => {
-        const itemData =
-          `${item.bezeichnung} ${item.groesse} ${item.standort}`.toLowerCase();
-        return searchWords.every((word) => itemData.includes(word));
-      });
+  // Filter items based on search terms (by name, size, or location)
+  let filtered = this.items.filter((item) => {
+    const itemData =
+      `${item.bezeichnung} ${item.groesse} ${item.standort}`.toLowerCase();
+    return searchWords.every((word) => itemData.includes(word));
+  });
 
-      // Sort filtered items based on the selected criterion
-      if (this.sortBy === "count") {
-        // Sort by quantity (Anzahl) in descending order if sorting by count
-        filtered.sort((a, b) => b.anzahl - a.anzahl);
-      } else {
-        // Default: Sort by name (Bezeichnung) in alphabetical order
-        filtered.sort((a, b) => a.bezeichnung.localeCompare(b.bezeichnung));
-      }
+  // Sort filtered items based on the selected criterion and ascending/descending order
+  if (this.sortBy === "count") {
+    // Sort by quantity (Anzahl), considering ascending or descending order
+    filtered.sort((a, b) => 
+      this.isAscending ? a.anzahl - b.anzahl : b.anzahl - a.anzahl
+    );
+  } else {
+    // Default: Sort by name (Bezeichnung) in alphabetical order, considering order
+    filtered.sort((a, b) => 
+      this.isAscending 
+        ? a.bezeichnung.localeCompare(b.bezeichnung) 
+        : b.bezeichnung.localeCompare(a.bezeichnung)
+    );
+  }
 
-      return filtered;
-    },
+  return filtered;
+},
   },
   methods: {
     setAxiosAuthToken() {
@@ -351,8 +383,17 @@ export default {
       item.isEditing = false;
     },
     setSortBy(criteria) {
+    if (this.sortBy === criteria) {
+      // Toggle the direction if the same criteria is clicked
+      this.isAscending = !this.isAscending;
+    } else {
+      // Set new criteria and default to ascending
       this.sortBy = criteria;
-    },
+      this.isAscending = true;
+    }
+    // Call your sort function here, if necessary
+    this.sortItems();
+  },
     insertKeyword(keyword) {
       if (keyword === "logistik") {
         if (this.searchQuery.includes(keyword)) {
@@ -569,6 +610,8 @@ export default {
     border: 1px solid #ccc;
     border-radius: 5px;
     background-color: #f0f0f0;
+    display: flex;
+    justify-content: space-between;
     cursor: pointer;
     transition: background-color 0.3s;
     user-select: none;
@@ -581,7 +624,7 @@ export default {
       background-color: #1d1d1d30;
     }
   }
-
+  
   .keyword-button {
     background-color: #eee;
     padding: 5px;
