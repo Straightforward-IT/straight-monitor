@@ -6,8 +6,8 @@
   </h4>
   <p>Benutzer: {{ userName }}</p>
 
-  <!-- Suchleiste -->
-  <div class="search-container">
+  <div class="search-outer">
+    <div class="search-container">
     <textarea
       v-model="searchQuery"
       placeholder="Suche nach Bezeichnung, Größe oder Standort"
@@ -26,8 +26,27 @@
     >
       +
     </button>
+    
   </div>
+  <div class="filter-buttons">
+    <div :class="{ active: sortBy === 'name' }" @click="setSortBy('name')">
+      Name
+    </div>
+    <div :class="{ active: sortBy === 'count' }" @click="setSortBy('count')">
+      Anzahl
+    </div>
 
+    <div class="keyword-button" @click="insertKeyword('logistik')">
+      Logistik
+    </div>
+    <div class="keyword-button" @click="insertKeyword('service')">
+      Service
+    </div>
+  </div>
+  </div>
+  
+
+  
   <!-- Modal for adding an item -->
   <div v-if="showAddModal" class="modal">
     <div class="modal-content">
@@ -149,7 +168,8 @@
         <div class="item-header">
           <span class="header-and-pen">
             <strong v-if="!item.isEditing">{{ item.bezeichnung }}</strong>
-            <input class="inputBez"
+            <input
+              class="inputBez"
               v-if="item.isEditing"
               type="text"
               v-model="item.bezeichnung"
@@ -184,11 +204,12 @@
         <div class="item-detail">
           <span>Menge:</span>
           <span v-if="!item.isEditing">{{ item.anzahl }}</span>
-          <input class="inputMen"
-              v-if="item.isEditing"
-              type="number"
-              v-model="item.anzahl"
-            />
+          <input
+            class="inputMen"
+            v-if="item.isEditing"
+            type="number"
+            v-model="item.anzahl"
+          />
         </div>
         <div class="item-detail">
           <span>Standort:</span>
@@ -233,7 +254,7 @@ export default {
       inputValue: "",
       anmerkung: "",
       showInputField: false,
-      showAddModal: false, // Track if add modal is open
+      showAddModal: false,
       modalOpen: false,
       mouseX: 0,
       mouseY: 0,
@@ -247,6 +268,7 @@ export default {
       }, // Store new item data
       originalBezeichnung: "",
       originalAnzahl: 0,
+      sortBy: "name",
     };
   },
   watch: {
@@ -261,12 +283,18 @@ export default {
   },
   computed: {
     filteredItems() {
+      // If any item is being edited, return all items as-is to avoid re-sorting during edit
+      if (this.items.some((item) => item.isEditing)) {
+        return this.items;
+      }
+
+      // Split the search query into words, excluding any empty strings
       const searchWords = this.searchQuery
         .toLowerCase()
         .split(" ")
         .filter((word) => word);
 
-      // Setting 'standort' based on searchWords
+      // Apply location filter based on keywords in search query
       if (
         searchWords.includes("hamburg") &&
         !searchWords.includes("köln") &&
@@ -289,75 +317,23 @@ export default {
         this.newItem.standort = "";
       }
 
-      // Filtering and capitalizing bezeichnung
-      this.newItem.bezeichnung = searchWords
-        .filter(
-          (word) => !["hamburg", "köln", "berlin"].includes(word.toLowerCase())
-        )
-        .map(
-          (word) =>
-            word
-              .split("-") // Split by hyphen
-              .map(
-                (part) =>
-                  part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
-              ) // Capitalize each part
-              .join("-") // Join the parts back with a hyphen
-        )
-        .join(" "); // Join words with a space
+      // Filter items based on search terms (by name, size, or location)
+      let filtered = this.items.filter((item) => {
+        const itemData =
+          `${item.bezeichnung} ${item.groesse} ${item.standort}`.toLowerCase();
+        return searchWords.every((word) => itemData.includes(word));
+      });
 
-      // Filtering and sorting items
-      return this.items
-        .filter((item) => {
-          const itemData =
-            `${item.bezeichnung} ${item.groesse} ${item.standort}`.toLowerCase();
-          return searchWords.every((word) => itemData.includes(word));
-        })
-        .sort((a, b) => {
-          // Priority 1: Standort
-          if (a.standort.toLowerCase() < b.standort.toLowerCase()) return -1;
-          if (a.standort.toLowerCase() > b.standort.toLowerCase()) return 1;
+      // Sort filtered items based on the selected criterion
+      if (this.sortBy === "count") {
+        // Sort by quantity (Anzahl) in descending order if sorting by count
+        filtered.sort((a, b) => b.anzahl - a.anzahl);
+      } else {
+        // Default: Sort by name (Bezeichnung) in alphabetical order
+        filtered.sort((a, b) => a.bezeichnung.localeCompare(b.bezeichnung));
+      }
 
-          // Priority 2: Bezeichnung
-          if (a.bezeichnung.toLowerCase() < b.bezeichnung.toLowerCase())
-            return -1;
-          if (a.bezeichnung.toLowerCase() > b.bezeichnung.toLowerCase())
-            return 1;
-
-          // Priority 3: Groesse (Size)
-          const sizeOrder = ["S", "M", "L", "XL", "XXL", "3XL"]; // Custom size order
-
-          const aSize = a.groesse.trim();
-          const bSize = b.groesse.trim();
-
-          // Check if the sizes are numeric and compare them as numbers
-          const aIsNumeric = !isNaN(aSize);
-          const bIsNumeric = !isNaN(bSize);
-
-          if (aIsNumeric && bIsNumeric) {
-            return parseInt(aSize) - parseInt(bSize); // Numeric sorting
-          }
-
-          // If one is numeric and the other is not, prioritize the numeric one
-          if (aIsNumeric) return -1;
-          if (bIsNumeric) return 1;
-
-          // If both are non-numeric, check for special size values like S, M, L, etc.
-          const aIndex = sizeOrder.indexOf(aSize.toUpperCase());
-          const bIndex = sizeOrder.indexOf(bSize.toUpperCase());
-
-          // If both sizes are found in the custom size order, sort accordingly
-          if (aIndex !== -1 && bIndex !== -1) {
-            return aIndex - bIndex;
-          }
-
-          // If one size is found and the other is not, prioritize the found one
-          if (aIndex !== -1) return -1;
-          if (bIndex !== -1) return 1;
-
-          // If neither is found, sort alphabetically as a fallback
-          return aSize.localeCompare(bSize);
-        });
+      return filtered;
     },
   },
   methods: {
@@ -374,14 +350,40 @@ export default {
       item.anzahl = this.originalAnzahl;
       item.isEditing = false;
     },
+    setSortBy(criteria) {
+      this.sortBy = criteria;
+    },
+    insertKeyword(keyword) {
+      if (keyword === "logistik") {
+        if (this.searchQuery.includes(keyword)) {
+          return;
+        } else {
+          if (this.searchQuery.includes("service")) {
+            console.log(" hi ");
+            this.searchQuery = this.searchQuery.replace(" service", "");
+          }
+          this.searchQuery += ` ${keyword}`;
+        }
+      } else {
+        if (this.searchQuery.includes(keyword)){
+          return;
+        }else{
+          if(this.searchQuery.includes("logistik")) {
+            this.searchQuery = this.searchQuery.replace(" logistik", "");
+          }
+          this.searchQuery += ` ${keyword}`
+        }
+      }
+    },
     async updateItem(item) {
-      
-      if (item.bezeichnung === this.originalBezeichnung && item.anzahl === this.originalAnzahl) {
+      if (
+        item.bezeichnung === this.originalBezeichnung &&
+        item.anzahl === this.originalAnzahl
+      ) {
         return this.cancelEdit(item);
       }
 
       try {
-       
         const response = await api.put(`/api/items/edit/${item._id}`, {
           userID: this.userID,
           bezeichnung: item.bezeichnung,
@@ -392,9 +394,9 @@ export default {
           (item) => item._id === updatedItem._id
         );
         if (index !== -1) {
-          this.items.splice(index, 1, updatedItem); 
+          this.items.splice(index, 1, updatedItem);
         }
-        item.isEditing = false; 
+        item.isEditing = false;
       } catch (error) {
         console.error("Fehler beim Aktualisieren des Namens:", error);
       }
@@ -528,13 +530,14 @@ export default {
 @import "@/assets/styles/dashboard.scss";
 
 .search-container {
+  
   display: flex;
   align-items: center;
   width: 100%;
-  margin-bottom: 15px;
 }
 
 .search-textarea {
+  z-index: 4;
   width: 100%;
   padding: 8px;
   font-size: 12px;
@@ -548,6 +551,45 @@ export default {
     font-size: 12px;
     color: #999;
     opacity: 1;
+  }
+}
+
+.filter-buttons {
+  z-index: 3;
+  margin-top: -3px;
+  display: flex;
+  gap: 5px !important;
+  margin-bottom: 10px;
+  width: 50%;
+  div {
+    font-size: 9px;
+    min-width: 40px;
+    margin-top: 0px;
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: #f0f0f0;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    user-select: none;
+    &.active {
+      background-color: #5d5d5d; /* Active button color */
+      color: white;
+    }
+
+    &:hover {
+      background-color: #1d1d1d30;
+    }
+  }
+
+  .keyword-button {
+    background-color: #eee;
+    padding: 5px;
+    cursor: pointer;
+
+    &:hover {
+      background-color: #1d1d1d30;
+    }
   }
 }
 
@@ -650,7 +692,6 @@ form {
     border-radius: 4px;
     outline: none;
   }
-  
 }
 
 .item-detail {
@@ -658,7 +699,7 @@ form {
   justify-content: space-between;
   margin-bottom: 5px;
 
-  .inputMen{
+  .inputMen {
     width: calc(30%);
     height: min-content;
     font-size: 16px;

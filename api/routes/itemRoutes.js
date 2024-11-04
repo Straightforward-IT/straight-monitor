@@ -125,64 +125,82 @@ router.put("/updateMultiple", auth, async (req, res) => {
 
 // PUT /api/items/name/:id
 router.put("/edit/:id", auth, async (req, res) => {
-  const { userID, bezeichnung, anzahl } = req.body;
-  if (!bezeichnung || bezeichnung.trim() === "") {
-    return res.status(400).json({ msg: "Name cannot be empty" });
-  }
-  if (anzahl < 0) {
-    return res.status(400).json({ msg: "Anzahl kann nicht negativ sein" });
-  }
-
-  try {
-    const user = await findOrCreateUser(userID);
-    const item = await Item.findById(req.params.id);
-    if (!item) {
-      return res.status(404).json({ msg: "Item not found" });
+    const { userID, bezeichnung, anzahl } = req.body;
+  
+    if (!bezeichnung || bezeichnung.trim() === "") {
+      return res.status(400).json({ msg: "Name cannot be empty" });
     }
-
-    const oldName = item.bezeichnung;
-    const oldAnzahl = item.anzahl;
-    const newName = bezeichnung;
-    const newAnzahl = anzahl;
-
-    const existingItem = await Item.findOne({
-      bezeichnung,
-      anzahl,
-      groesse: item.groesse,
-      standort: item.standort,
-    });
-    if (existingItem) {
-      return res
-        .status(400)
-        .json({ msg: "Item with the same attributes already exists" });
+  
+    if (anzahl < 0) {
+      return res.status(400).json({ msg: "Anzahl kann nicht negativ sein" });
     }
-
-    item.bezeichnung = newName;
-    item.anzahl = newAnzahl;
-    await item.save();
-
-    await logMonitoring({
-      user,
-      standort: item.standort,
-      items: [
-        {
-          itemId: item._id,
-          bezeichnung: newName,
+  
+    try {
+      const user = await findOrCreateUser(userID);
+      const item = await Item.findById(req.params.id);
+  
+      if (!item) {
+        return res.status(404).json({ msg: "Item not found" });
+      }
+  
+      const oldName = item.bezeichnung;
+      const oldAnzahl = item.anzahl;
+      let anmerkung = "";
+  
+      // Case handling based on changes to bezeichnung and anzahl
+      if (oldName === bezeichnung && oldAnzahl === anzahl) {
+        return res.status(200).json({ msg: "No changes detected." });
+      }
+  
+      // Check if bezeichnung has changed and needs validation for uniqueness
+      if (oldName !== bezeichnung) {
+        const existingItem = await Item.findOne({
+          bezeichnung,
           groesse: item.groesse,
-          anzahl: Math.abs(oldAnzahl - newAnzahl),
-        },
-      ],
-      art: "änderung",
-      anmerkung: `Name geändert von ${oldName} zu ${newName}.`,
-    });
-
-    res.json(item);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
-
+          standort: item.standort,
+        });
+  
+        if (existingItem) {
+          return res.status(400).json({
+            msg: `Item with Name "${bezeichnung}", Size "${item.groesse}", and Location "${item.standort}" already exists.`,
+          });
+        }
+        
+        // Update name and note the change
+        anmerkung += `[Name: ${oldName} => ${bezeichnung}] `;
+        item.bezeichnung = bezeichnung;
+      }
+  
+      // Check if anzahl has changed and note the change
+      if (oldAnzahl !== anzahl) {
+        anmerkung += `[Anzahl: ${oldAnzahl} => ${anzahl}] `;
+        item.anzahl = anzahl;
+      }
+  
+      await item.save();
+  
+      await logMonitoring({
+        user,
+        standort: item.standort,
+        items: [
+          {
+            itemId: item._id,
+            bezeichnung: item.bezeichnung,
+            groesse: item.groesse,
+            anzahl: Math.abs(oldAnzahl - anzahl),
+          },
+        ],
+        art: "änderung",
+        anmerkung: `Geändert: ${anmerkung.trim()}`,
+      });
+  
+      res.json(item);
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send("Server error");
+    }
+  });
+  
 // PUT /api/items/add/:id
 router.put("/add/:id", auth, async (req, res) => {
   const { userID, anzahl, anmerkung } = req.body;

@@ -171,6 +171,7 @@ export default {
 }
 
 a.discrete {
+  user-select: none;
   color: rgba(#000, 0.4);
   font-size: 14px;
   border-bottom: solid 1px rgba(#000, 0);
