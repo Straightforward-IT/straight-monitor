@@ -81,6 +81,7 @@
   
   <style scoped lang="scss">
   @import '@/assets/styles/dashboard.scss';
+  
   $primary: #f5f5f5;
   button {
     flex-grow: 1;

@@ -116,24 +116,23 @@ export default {
       try {
         // Check if email ends with @straightforward.email
         if (!this.email.endsWith("@straightforward.email")) {
-          this.emailError = true; // Set error state
-          this.showEmailError = true; // Show flying tag
-          this.email = ""; // Clear the email input field
-
-          // Hide the flying tag after 3 seconds
+          this.emailError = true;
+          this.showEmailError = true; 
+          this.email = ""; 
+         
           setTimeout(() => {
             this.showEmailError = false;
           }, 3000);
           return;
         }
 
-        // Check if password and confirm password are equal
+        
         if (this.password !== this.confirmPassword) {
-          this.passwordError = true; // Set error state for mismatched passwords
+          this.passwordError = true; 
           return;
         }
 
-        // Clear error if passwords match
+      
         this.passwordError = false;
 
         const res = await api.post(
@@ -148,15 +147,15 @@ export default {
         }
         );
 
-        // If valid, clear the error and proceed
+        
         this.emailError = false;
         console.log("Registrierung erfolgreich:", res.data);
 
-        // Save the token to localStorage
+       
         const token = res.data.token;
         localStorage.setItem('token', token);
 
-        // Redirect to the dashboard
+       
         this.$router.push('/dashboard');
       } catch (err) {
         console.error(

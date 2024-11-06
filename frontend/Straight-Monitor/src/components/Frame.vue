@@ -147,8 +147,18 @@ export default {
 };
 </script>
 
-<style>
+<style lang="scss">
 @import "@/assets/styles/dashboard.scss";
+
+html, body {
+  height: 100vh;
+  width: 100vw;
+  margin: 0 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  background: #323231;
+}
 
 .session {
   display: flex;
@@ -158,6 +168,8 @@ export default {
 .left {
   display: block;
 }
+
+
 
 @media only screen and (max-width: 768px) {
   .left {

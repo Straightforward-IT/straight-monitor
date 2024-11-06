@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Home from '../components/Home.vue';
 import Verlauf from '../components/Verlauf.vue';
-import '../assets/styles/main.scss'; // Adjust the path according to your project structure
+import '../assets/styles/main.scss'; 
 import Frame from '../components/Frame.vue'; // Import the Frame component
 // @ts-ignore  
 import { jwtDecode } from "jwt-decode";

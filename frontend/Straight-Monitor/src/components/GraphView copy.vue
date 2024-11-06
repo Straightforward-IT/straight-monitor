@@ -308,7 +308,6 @@ export default {
 
 
 <style scoped lang="scss">
-@import "@/assets/styles/dashboard.scss";
 
 .verlauf {
   display: flex;

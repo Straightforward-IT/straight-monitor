@@ -1,69 +1,89 @@
 <template>
-  <div class="verlauf">
-    <div class="sidebar">
-      <a class="back-link" @click="$router.push('/dashboard')">Zurück</a>
-      <div class="controls">
-        <button @click="switchTo('graph')" :class="{ active: currentAnsicht === 'graph' }">Graph</button>
-        <button @click="switchTo('table')" :class="{ active: currentAnsicht === 'table' }">Tabelle</button>
-        <button @click="switchTo('overview')" :class="{ active: currentAnsicht === 'overview' }">Übersicht</button>
-      </div>
+  <div class="window">
+    <div class="controls">
+      <!-- Sort Controls -->
+      <label for="sort">Sort By:</label>
+      <select v-model="sortBy" @change="sortLogs">
+        <option value="benutzer">Benutzer</option>
+        <option value="standort">Standort</option>
+        <option value="art">Art</option>
+        <option value="timestamp">Timestamp</option>
+      </select>
     </div>
 
-    <div class="view">
-      <component :is="currentAnsichtComponent" :items="items" :monitorings="monitorings"></component>
+    <!-- Logs Display -->
+    <div v-for="log in sortedLogs" :key="log._id" class="log-card">
+      <div class="log-header" @click="toggleExpand(log)">
+        <p><strong>Benutzer:</strong> {{ log.benutzerMail }}</p>
+        <p><strong>Standort:</strong> {{ log.standort }}</p>
+        <p><strong>Art:</strong> {{ log.art }}</p>
+        <p><strong>Timestamp:</strong> {{ new Date(log.timestamp).toLocaleString() }}</p>
+        <!-- Expand/Collapse Indicator -->
+        <font-awesome-icon
+          :icon="log.isExpanded ? ['fas', 'sort-up'] : ['fas', 'sort-down']"
+        />
+      </div>
+
+      <!-- Expanded Item Details -->
+      <div v-if="log.isExpanded" class="log-details">
+        <div v-for="item in log.items" :key="item.itemId" class="item-detail">
+          <p><strong>Bezeichnung:</strong> {{ item.bezeichnung }}</p>
+          <p><strong>Größe:</strong> {{ item.groesse }}</p>
+          <p><strong>Anzahl:</strong> {{ item.anzahl }}</p>
+        </div>
+        <p><strong>Anmerkung:</strong> {{ log.anmerkung || 'Keine' }}</p>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import api from "@/utils/api";
-import GraphView from './GraphView.vue';
-import TableView from './TableView.vue';
-import OverviewView from './OverviewView.vue';
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 
 export default {
   name: "Verlauf",
   components: {
     FontAwesomeIcon,
-    GraphView,
-    TableView,
-    OverviewView,
-  },
-  props: {
-    isModalOpen: Boolean,
   },
   data() {
     return {
-      token: localStorage.getItem('token') || null,
-      currentAnsicht: 'graph',
-      items: [],
-      monitorings: [],
-      selectedTimeRange: 'totalTime',
+      token: localStorage.getItem("token") || null,
+      userEmail: "",
+      userName: "",
+      userID: "",
+      userLocation: "",
+      logs: [],
+      sortBy: "timestamp",
     };
   },
   computed: {
-    currentAnsichtComponent() {
-      return this.currentAnsicht === 'table' ? 'TableView' : 
-             this.currentAnsicht === 'overview' ? 'OverviewView' : 
-             'GraphView';
-    }
+    sortedLogs() {
+      return this.logs.slice().sort((a, b) => {
+        if (this.sortBy === "timestamp") {
+          return new Date(b.timestamp) - new Date(a.timestamp);
+        } else if (this.sortBy === "benutzer") {
+          return a.benutzerMail.localeCompare(b.benutzerMail);
+        } else if (this.sortBy === "standort") {
+          return a.standort.localeCompare(b.standort);
+        } else if (this.sortBy === "art") {
+          return a.art.localeCompare(b.art);
+        }
+      });
+    },
   },
   methods: {
     setAxiosAuthToken() {
-      api.defaults.headers.common['x-auth-token'] = this.token;
+      api.defaults.headers.common["x-auth-token"] = this.token;
     },
     async fetchUserData() {
       if (this.token) {
         try {
           const response = await api.get("/api/users/me");
-          if (response.status === 401) {
-            this.$router.push("/");
-          }
           this.userEmail = response.data.email;
           this.userID = response.data._id;
           this.userName = response.data.name;
-          this.searchQuery = response.data.location;
+          this.userLocation = response.data.location;
         } catch (error) {
           console.error("Fehler beim Abrufen der Benutzerdaten:", error);
           this.$router.push("/");
@@ -72,110 +92,61 @@ export default {
         this.$router.push("/");
       }
     },
-    async fetchItems() {
+    async fetchLogs() {
       try {
-        const response = await api.get("/api/items");
-        this.items = response.data;
-        console.log("Items fetched.");
+        const response = await api.get("/api/monitoring");
+        this.logs = response.data.map((log) => ({ ...log, isExpanded: false }));
       } catch (error) {
-        console.error("Fehler beim Abrufen der Artikel:", error);
+        console.error("Fehler beim Abrufen der Logs:", error);
       }
     },
-    async fetchMonitoringLogs() {
-      if (this.token) {
-        try {
-          const response = await api.get("/api/monitoring");
-          this.monitorings = response.data;
-          console.log("Logs fetched.");
-        } catch (error) {
-          console.error("Fehler beim Abrufen der Logs:", error);
-        }
-      } else {
-        this.$router.push("/");
-      }
+    toggleExpand(log) {
+      log.isExpanded = !log.isExpanded;
     },
-    switchTo(view) {
-      this.currentAnsicht = view;
-    },
-    updateTimeRange() {
-      console.log('Selected time range:', this.selectedTimeRange);
-      
+    sortLogs() {
+      // Trigger computed sorting on sort change
+      this.sortedLogs;
     },
   },
   mounted() {
     this.setAxiosAuthToken();
     this.fetchUserData();
-    this.fetchItems();
-    this.fetchMonitoringLogs();
-  }
+    this.fetchLogs();
+  },
 };
 </script>
 
 <style scoped lang="scss">
-@import "@/assets/styles/dashboard.scss";
+.window {
+  padding: 20px;
+  background-color: #ccc;
+}
 
-.verlauf {
+.controls {
   display: flex;
-  width: 100%;
-  min-height: 100vh;
-  background: #f8f8f8;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
 
-  .sidebar {
+.log-card {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 15px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  background-color: #f9f9f9;
+
+  .log-header {
     display: flex;
-    flex-direction: column;
-    gap: 20px;
-    background-color: #ffffff;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    width: auto;
-    
-    .back-link {
-      color: #555;
-      font-size: 16px;
-      text-decoration: none;
-      cursor: pointer;
-      margin-bottom: 20px;
-      &:hover {
-        text-decoration: underline;
-      }
-    }
-
-    .controls {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-
-      button {
-        padding: 10px;
-        border: none;
-        background-color: #ddd;
-        cursor: pointer;
-        text-align: left;
-        border-radius: 5px;
-        &.active {
-          background-color: #b69de6;
-          color: white;
-        }
-      }
-    }
+    justify-content: space-between;
+    align-items: center;
   }
 
-  .view {
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
-    align-items: center;
-    padding: 20px;
-    background: #f8f8f8;
-
-    .time-range-dropdown {
-      margin-top: 20px;
-      align-self: flex-end;
-      select {
-        padding: 5px;
-        font-size: 14px;
-      }
-    }
+  .log-details {
+    margin-top: 10px;
+    padding-left: 15px;
+    border-top: 1px solid #ddd;
   }
 }
 </style>
