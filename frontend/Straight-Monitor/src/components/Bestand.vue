@@ -573,6 +573,9 @@ export default {
   width: 100%;
 }
 
+.search-outer{
+  width: 500px;
+}
 .search-textarea {
   z-index: 4;
   width: 100%;
