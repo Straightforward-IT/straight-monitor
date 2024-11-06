@@ -52,6 +52,12 @@
         />
         <h4>Logi-Paket</h4>
 
+        <select v-model="selectedLocation" @change="updateItemMappings">
+  <option value="Hamburg">Hamburg</option>
+  <option value="Köln">Köln</option>
+  <option value="Berlin">Berlin</option>
+</select>
+
         <div class="modalGroup">
           <span class="list-item">
             <div class="checkbox-container">
@@ -220,44 +226,9 @@
           <span class="list-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
-                <input type="checkbox" v-model="dickiesStoffhoseChecked" />
-                <span class="checkmark"></span>
-                Dickies Stoffhose
-              </label>
-              <select
-                v-model="dickiesStoffhoseSize"
-                class="size-dropdown"
-                :disabled="!dickiesStoffhoseChecked"
-              >
-                <option value="44">44</option>
-                <option value="50">50</option>
-                <option value="52">52</option>
-              </select>
-            </div>
-          </span>
-          <span class="list-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="pulloverChecked" />
-                <span class="checkmark"></span>
-                Pullover
-              </label>
-              <select
-                v-model="pulloverSize"
-                class="size-dropdown"
-                :disabled="!pulloverChecked"
-              >
-                <option value="L">L</option>
-                <option value="XL">XL</option>
-              </select>
-            </div>
-          </span>
-          <span class="list-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
                 <input type="checkbox" v-model="bundhoseChecked" />
                 <span class="checkmark"></span>
-                Bundhose e.s. Motion 2020
+                Bundhose E.S. Motion 2020
               </label>
               <select
                 v-model="bundhoseSize"
@@ -339,6 +310,12 @@
           style="bottom: 97%"
         />
         <h4>Service-Paket</h4>
+
+        <select v-model="selectedLocation" @change="updateItemMappings">
+  <option value="Hamburg">Hamburg</option>
+  <option value="Köln">Köln</option>
+  <option value="Berlin">Berlin</option>
+</select>
 
         <div class="modalGroup">
           <span class="list-item">
@@ -520,6 +497,7 @@
 <script>
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
+import itemMappings from "@/assets/itemMappings.json";
 
 export default {
   name: "Shortcuts",
@@ -535,6 +513,9 @@ export default {
       token: localStorage.getItem("token") || null,
       anmerkung: "",
       userID: "",
+      userLocation: "",
+      selectedLocation: this.userLocation,
+      items: itemMappings[this.userLocation],
       showLogiModal: false,
       cuttermesserChecked: false,
       jutebeutelChecked: false,
@@ -545,8 +526,6 @@ export default {
       schwarzeKapuzenjackeChecked: false,
       sicherheitshelmChecked: false,
       softshelljackeChecked: false,
-      dickiesStoffhoseChecked: false,
-      pulloverChecked: false,
       bundhoseChecked: false,
       sicherheitsschuheChecked: false,
       handschuheChecked: false,
@@ -606,6 +585,7 @@ export default {
         try {
           const response = await api.get("/api/users/me", {});
           this.userID = response.data._id;
+          this.userLocation = response.data.location;
         } catch (error) {
           console.error("Error fetching user data:", error);
           this.$router.push("/");
@@ -615,6 +595,10 @@ export default {
         this.$router.push("/");
       }
     },
+    updateItemMappings(){
+      this.items = itemMappings[this.selectedLocation];
+    },
+
     async getExcel() {
       console.log("Entered")
       if (this.token) {
@@ -643,6 +627,10 @@ export default {
     openModal() {
       console.log("called");
       this.$emit("update-modal", true);
+
+      if(this.userLocation === "Berlin" || this.userLocation === "Köln"){
+        alert("Achtung! Für deinen Standort müssen die Gegenstände erst hinzugefügt werden.");
+      }
     },
     closeModal() {
       this.$emit("update-modal", false);
@@ -668,8 +656,6 @@ export default {
       this.schwarzeKapuzenjackeChecked = false;
       this.sicherheitshelmChecked = false;
       this.softshelljackeChecked = false;
-      this.dickiesStoffhoseChecked = false;
-      this.pulloverChecked = false;
       this.bundhoseChecked = false;
       this.sicherheitsschuheChecked = false;
       this.handschuheChecked = false;
@@ -741,14 +727,6 @@ export default {
         errorMessages.push(
           "Bitte wählen Sie eine Größe für die Softshelljacke."
         );
-      }
-      if (this.dickiesStoffhoseChecked && !this.dickiesStoffhoseSize) {
-        errorMessages.push(
-          "Bitte wählen Sie eine Größe für die Dickies Stoffhose."
-        );
-      }
-      if (this.pulloverChecked && !this.pulloverSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für den Pullover.");
       }
       if (this.bundhoseChecked && !this.bundhoseSize) {
         errorMessages.push("Bitte wählen Sie eine Größe für die Bundhose.");
@@ -840,12 +818,12 @@ export default {
       const selections = [
         {
           checked: this.cuttermesserChecked,
-          _id: "66f409272bd7b954e71ded84",
+          _id: getCuttermesserId(),
           size: "onesize",
         },
         {
           checked: this.jutebeutelChecked,
-          _id: "66fbe89a6971ca198c0dd6f2",
+          _id: getJutebeutelId(),
           size: "onesize",
         },
         {
@@ -884,16 +862,6 @@ export default {
           size: this.softshelljackeSize,
         },
         {
-          checked: this.dickiesStoffhoseChecked,
-          _id: this.getDickiesStoffhoseId(this.dickiesStoffhoseSize),
-          size: this.dickiesStoffhoseSize,
-        },
-        {
-          checked: this.pulloverChecked,
-          _id: this.getPulloverId(this.pulloverSize),
-          size: this.pulloverSize,
-        },
-        {
           checked: this.bundhoseChecked,
           _id: this.getBundhoseId(this.bundhoseSize),
           size: this.bundhoseSize,
@@ -925,42 +893,42 @@ export default {
       const selections = [
         {
           checked: this.kellnermesserChecked,
-          _id: "66fc02a16eba044dba7612ed",
+          _id: this.getKellnermesserId(),
           size: "onesize",
         },
         {
           checked: this.kugelschreiberChecked,
-          _id: "66fc02b36eba044dba7612f2",
+          _id: this.getKugelschreiberId(),
           size: "onesize",
         },
         {
           checked: this.namensschildChecked,
-          _id: "66fc02c16eba044dba7612f7",
+          _id: this.getNamensschildId(),
           size: "onesize",
         },
         {
           checked: this.feuerzeugChecked,
-          _id: "66fc02c76eba044dba7612fc",
+          _id: this.getFeuerzeugId(),
           size: "onesize",
         },
         {
           checked: this.schuhputzzeugChecked,
-          _id: "66fc02d36eba044dba761301",
+          _id: this.getSchuhputzzeugId(),
           size: "onesize",
         },
         {
           checked: this.schwarzeKrawatteChecked,
-          _id: "66fc02966eba044dba7612e8",
+          _id: this.getSchwarzeKrawatteId(),
           size: "onesize",
         },
         {
           checked: this.schwarzeSchuerzeChecked,
-          _id: "66fc02826eba044dba7612e3",
+          _id: this.getschwarzeSchuerzeId(),
           size: "onesize",
         },
         {
           checked: this.kleidersackChecked,
-          _id: "66fc02696eba044dba7612de",
+          _id: this.getKleidersackId(),
           size: "onesize",
         },
         {
@@ -997,169 +965,99 @@ export default {
       this.showServiceModal = false;
       this.resetServicePaket();
     },
+    getCuttermesserId(){
+      return this.items.cuttermesser;
+    },
+    getJutebeutelId(){
+      return this.items.jutebeutel;
+    },
 
     getLogistikHoseId() {
-      const hoseMap = {
-        44: "66fbe9416971ca198c0dd709",
-        46: "66fbec896eba044dba7610f8",
-        48: "66fbeded6eba044dba761107",
-        50: "66fbeb576eba044dba7610db",
-        52: "66fbedf66eba044dba76110c",
-      };
-      return hoseMap[this.logistikHoseSize];
+      return this.items.logistikHose[this.logistikHoseSize];
     },
 
     getTShirtId(size) {
-      const tshirtMap = {
-        S: "66fbee256eba044dba761111",
-        M: "66fbee2e6eba044dba761116",
-        L: "66fbef426eba044dba761127",
-        XL: "66fbef5d6eba044dba76112c",
-        XXL: "66fbef636eba044dba761131",
-        "3XL": "66fbef786eba044dba761136",
-      };
-      return tshirtMap[size];
+      return this.items.tshirt[size];
     },
 
     getKapuzenjackeId(size) {
-      const kapuzenjackeMap = {
-        S: "66fbf0316eba044dba761141",
-        M: "66fbf0366eba044dba761146",
-        L: "66fbf03b6eba044dba76114b",
-        XL: "66fbf0436eba044dba761150",
-        XXL: "66fbf04a6eba044dba761155",
-        "3XL": "66fbf04f6eba044dba76115a",
-      };
-      return kapuzenjackeMap[size];
+      return this.items.kapuzenjacke[size];
     },
 
     getSicherheitshelmId(art) {
-      const helmMap = {
-        Festis: "66fbf08e6eba044dba76115f",
-        Normal: "66fbf0926eba044dba761164",
-      };
-      return helmMap[art];
+      
+      return this.items.sicherheitshelm[art];
     },
 
     getSoftshelljackeId(size) {
-      const softshellMap = {
-        S: "66fbf0b16eba044dba761169",
-        M: "66fbf0b66eba044dba76116e",
-        L: "66fbf0c96eba044dba761178",
-        XL: "66fbf0d26eba044dba76117d",
-        XXL: "66fbf0d76eba044dba761182",
-        "3XL": "66fbf0db6eba044dba761187",
-      };
-      return softshellMap[size];
+      
+      return this.items.softshelljacke[size];
     },
-
-    getDickiesStoffhoseId(size) {
-      const dickiesMap = {
-        44: "66fbf24b6eba044dba761198",
-        50: "66fbf47a6eba044dba7611a9",
-        52: "66fbf47f6eba044dba7611ae",
-      };
-      return dickiesMap[size];
-    },
-
-    getPulloverId(size) {
-      const pulloverMap = {
-        L: "66fbf4ca6eba044dba7611c2",
-        XL: "66fbf53e6eba044dba7611dd",
-      };
-      return pulloverMap[size];
-    },
-
     getBundhoseId(size) {
-      const bundhoseMap = {
-        44: "66fbf5bc6eba044dba7611ec",
-        46: "66fbf5c66eba044dba7611f1",
-        48: "66fbf5ca6eba044dba7611f6",
-        50: "66fbf5cf6eba044dba7611fb",
-        52: "66fbf5d26eba044dba761200",
-      };
-      return bundhoseMap[size];
+      return this.items.bundhose[size];
     },
 
     getSicherheitsschuheId(size) {
-      const schuheMap = {
-        36: "66fbff256eba044dba76127b",
-        37: "66fbff1d6eba044dba761276",
-        38: "66fbff176eba044dba761271",
-        39: "66fbff0f6eba044dba76126c",
-        40: "66fbff086eba044dba761267",
-        41: "66fbff006eba044dba761262",
-        42: "66fbfeea6eba044dba76125d",
-        43: "66fbfec36eba044dba761254",
-        44: "66fbfeb36eba044dba76124f",
-        45: "66fbfdeb6eba044dba761246",
-        46: "66fbfdde6eba044dba761241",
-        47: "66fbfcdb6eba044dba761234",
-        48: "66fbfcb56eba044dba76122b",
-      };
-      return schuheMap[size];
+      return this.items.sicherheitsschuhe[size];
     },
 
     getHandschuheId(size) {
-      const handschuheMap = {
-        8: "66fc01306eba044dba761284",
-        9: "66fc013a6eba044dba761289",
-        10: "66fc01456eba044dba76128e",
-      };
-      return handschuheMap[size];
+      return this.items.handschuhe[size];
     },
     //Service
     getServiceHandschuheId(size) {
-      const handschuheMap = {
-        8: "66fc02fe6eba044dba761306",
-        9: "66fc03036eba044dba76130b",
-        10: "66fc03076eba044dba761310",
-      };
-      return handschuheMap[size];
+    
+      return this.items.serviceHandschuhe[size];
     },
 
     getWeisseHemdenDamenId(size) {
-      const hemdenMap = {
-        S: "66fc01d16eba044dba761293",
-        M: "66fc01d86eba044dba761298",
-        L: "66fc01dd6eba044dba76129d",
-        XL: "66fc01e56eba044dba7612a2",
-      };
-      return hemdenMap[size];
+     
+      return this.items.weisseHemdenDamen[size];
     },
 
     getSchwarzeHemdenDamenId(size) {
-      const hemdenMap = {
-        S: "66fc01f66eba044dba7612a7",
-        M: "66fc01f96eba044dba7612ac",
-        L: "66fc01fc6eba044dba7612b1",
-      };
-      return hemdenMap[size];
+     
+      return this.items.schwarzeHemdenDamen[size];
     },
 
     getWeisseHemdenHerrenId(size) {
-      const hemdenMap = {
-        S: "66fc020a6eba044dba7612b6",
-        M: "66fc020d6eba044dba7612bb",
-        L: "66fc02116eba044dba7612c0",
-        XL: "66fc02156eba044dba7612c5",
-      };
-      return hemdenMap[size];
+      
+      return this.items.weisseHemdenHerren[size];
     },
 
     getSchwarzeHemdenHerrenId(size) {
-      const hemdenMap = {
-        S: "66fc022f6eba044dba7612ca",
-        M: "66fc02336eba044dba7612cf",
-        L: "66fc02366eba044dba7612d4",
-        XL: "66fc023b6eba044dba7612d9",
-      };
-      return hemdenMap[size];
+      
+      return this.items.schwarzeHemdenHerren[size];
     },
+    getKellnermesserId() {
+      return this.items.kellnermesser;
+    },
+    getKugelschreiberId() {
+      return this.items.kugelschreiber;
+    },
+    getNamensschildId() {
+      return this.items.namensschild;
+    },
+    getFeuerzeugId() {
+      return this.items.feuerzeug;
+    },
+    getSchuhputzzeugId() {
+      return this.items.schuhputzzeug;
+    },
+    getSchwarzeKrawatteId() {
+      return this.items.schwarzeKrawatte;
+    },
+    getschwarzeSchuerzeId() {
+      return this.items.schwarzeSchuerze;
+    },
+    getKleidersackId() {
+      return this.items.kleidersack;
+    }
   },
   mounted() {
     this.setAxiosAuthToken();
     this.fetchUserData();
+    this.updateItemMappings();
   },
 };
 </script>

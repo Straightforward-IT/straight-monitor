@@ -192,7 +192,9 @@
       <div class="item-card">
         <div class="item-header">
           <span class="header-and-pen">
-            <strong v-if="!item.isEditing">{{ item.bezeichnung }}</strong>
+            <strong 
+            class="inputBez"
+            v-if="!item.isEditing">{{ item.bezeichnung }}</strong>
             <input
               class="inputBez"
               v-if="item.isEditing"
@@ -309,18 +311,12 @@ export default {
   },
   computed: {
     filteredItems() {
-  // If any item is being edited, return all items as-is to avoid re-sorting during edit
-  if (this.items.some((item) => item.isEditing)) {
-    return this.items;
-  }
 
-  // Split the search query into words, excluding any empty strings
   const searchWords = this.searchQuery
     .toLowerCase()
     .split(" ")
     .filter((word) => word);
 
-  // Apply location filter based on keywords in search query
   if (
     searchWords.includes("hamburg") &&
     !searchWords.includes("köln") &&
