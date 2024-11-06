@@ -311,6 +311,7 @@ export default {
   },
   computed: {
     filteredItems() {
+      this.searchQuery = this.searchQuery.toLocaleLowerCase();
 
   const searchWords = this.searchQuery
     .toLowerCase()
@@ -392,21 +393,20 @@ export default {
   },
     insertKeyword(keyword) {
       if (keyword === "logistik") {
-        if (this.searchQuery.includes(keyword)) {
+        if (this.searchQuery.toLocaleLowerCase().includes(keyword)) {
           return;
         } else {
-          if (this.searchQuery.includes("service")) {
-            console.log(" hi ");
-            this.searchQuery = this.searchQuery.replace(" service", "");
+          if (this.searchQuery.toLocaleLowerCase().includes("service")) {
+            this.searchQuery = this.searchQuery.toLocaleLowerCase().replace(" service", "");
           }
           this.searchQuery += ` ${keyword}`;
         }
       } else {
-        if (this.searchQuery.includes(keyword)){
+        if (this.searchQuery.toLocaleLowerCase().includes(keyword)){
           return;
         }else{
-          if(this.searchQuery.includes("logistik")) {
-            this.searchQuery = this.searchQuery.replace(" logistik", "");
+          if(this.searchQuery.toLocaleLowerCase().includes("logistik")) {
+            this.searchQuery = this.searchQuery.toLocaleLowerCase().replace(" logistik", "");
           }
           this.searchQuery += ` ${keyword}`
         }
@@ -785,9 +785,10 @@ form {
   margin: 0 10px 0 10px;
   height: 2rem; /* Same as the search input height */
   display: flex;
+  z-index: 5;
   justify-content: center;
   align-items: center;
-  background-color: $primary;
+  background-color: rgba($primary, 100); 
   color: white;
   border: none;
   border-radius: 5px;
@@ -795,7 +796,7 @@ form {
   transition: background-color 0.3s ease;
 
   &:hover {
-    background-color: mix(black, $primary, 10%);
+    background-color: mix(black, rgba($primary,100), 5%);
   }
 }
 
