@@ -497,7 +497,7 @@
 <script>
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
-import itemMappings from "@/assets/itemMappings.json";
+import itemMappings from "@/assets/ItemMappings.json";
 
 export default {
   name: "Shortcuts",
