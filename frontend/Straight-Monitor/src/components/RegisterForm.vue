@@ -84,6 +84,15 @@
 
   <!-- Link zum Login-Formular -->
   <a class="discrete" @click="$emit('switch-to-login')">Login</a>
+
+  <!-- Confirmation Modal -->
+  <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
+      <div class="modal-content">
+        <h3>Registrierung erfolgreich!</h3>
+        <p>Bitte prüfe deine E-Mails, um dein Konto zu bestätigen.</p>
+        <button @click="showModal = false">OK</button>
+      </div>
+    </div>
 </template>
 
 <script>
@@ -103,6 +112,7 @@ export default {
       emailError: false, // Error state for email
       passwordError: false, // Error state for password mismatch
       showEmailError: false, // Controls visibility of flying tag
+      showModal: false, // Show modal after registration
     };
   },
   methods: {
@@ -114,54 +124,36 @@ export default {
     // Submit registration form
     async submitRegister() {
       try {
-        // Check if email ends with @straightforward.email
         if (!this.email.endsWith("@straightforward.email")) {
           this.emailError = true;
-          this.showEmailError = true; 
           this.email = ""; 
-         
           setTimeout(() => {
-            this.showEmailError = false;
+            this.emailError = false;
           }, 3000);
           return;
         }
 
-        
         if (this.password !== this.confirmPassword) {
           this.passwordError = true; 
           return;
         }
 
-      
         this.passwordError = false;
 
-        const res = await api.post(
-          "/api/users/register",
-          {
-            name: this.name,
-            email: this.email,
-            password: this.password,
-            location: this.location,
-          },{
+        await api.post("/api/users/register", {
+          name: this.name,
+          email: this.email,
+          password: this.password,
+          location: this.location,
+        }, {
           withCredentials: true,
-        }
-        );
+        });
 
-        
         this.emailError = false;
-        console.log("Registrierung erfolgreich:", res.data);
+        this.showModal = true; // Show confirmation modal
 
-       
-        const token = res.data.token;
-        localStorage.setItem('token', token);
-
-       
-        this.$router.push('/dashboard');
       } catch (err) {
-        console.error(
-          "Registrierungsfehler:",
-          err.response?.data?.msg || err.message
-        );
+        console.error("Registrierungsfehler:", err.response?.data?.msg || err.message);
       }
     },
   },
@@ -169,7 +161,6 @@ export default {
 </script>
 
 <style scoped lang="scss">
-$primary: rgb(182, 157, 230);
 @import "@/assets/styles/login.scss";
 
 /* Add red color to input when error occurs */
@@ -192,5 +183,57 @@ select {
 
 button {
   margin-top: 15px;
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+  width: 90%;
+  max-width: 400px;
+}
+
+.modal-content h3 {
+  color: #1d1d1d;
+  margin-bottom: 10px;
+}
+
+.modal-content p {
+  color: #333;
+}
+form{
+  p{
+    max-width: unset;
+  }
+}
+
+.modal-content button {
+  background-color: primary;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  font-size: 16px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.modal-content button:hover {
+  background-color: primary;
 }
 </style>

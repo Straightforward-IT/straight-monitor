@@ -121,6 +121,53 @@ router.post("/register", async (req, res) => {
   }
 });
 
+//POST /api/users/resend-confirmation
+router.post("/resend-confirmation", async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ msg: "Benutzer nicht gefunden." });
+    }
+
+    if (user.isConfirmed) {
+      return res.status(400).json({ msg: "E-Mail bereits bestätigt." });
+    }
+
+    // Generate a new confirmation token
+    const confirmationToken = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+
+    await user.save();
+
+    const confirmUrl = `https://straightmonitor.com/confirm-email?token=${confirmationToken}`;
+    const emailSubject = "Bestätige deine E-Mail Adresse für den Straightforward Monitor";
+    const emailContent = `
+      <div style="font-family: Arial, sans-serif; color: #333;">
+        <h2 style="font-weight: bold; color: #000;">Bestätige deine E-Mail Adresse!</h2>
+        <p>Bitte bestätige deine E-Mail Adresse, um dein Profil zu aktivieren.</p>
+        <a href="${confirmUrl}" style="color: #000; text-decoration: none; font-weight: bold;">
+          <strong>Hier klicken, um die E-Mail Adresse zu bestätigen</strong>
+        </a>
+      </div>
+    `;
+
+    await sendMail(user.email, emailSubject, emailContent);
+    res.status(200).json({ msg: "Bestätigungs-E-Mail wurde erneut gesendet." });
+
+  } catch (err) {
+    console.error("Error in resending confirmation:", err);
+    res.status(500).json({ msg: "Serverfehler beim erneuten Senden der Bestätigung." });
+  }
+});
+
+
 // POST /api/users/confirm-email
 router.post("/confirm-email", async (req, res) => {
   const { token } = req.body;
