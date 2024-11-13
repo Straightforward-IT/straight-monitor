@@ -1,13 +1,13 @@
 <template>
-    <div class="email-confirmation">
       <div class="confirmation-container">
         <h2>Email Bestätigung</h2>
-  
-        <div v-if="confirmationMessage" class="message">
-          <p>{{ confirmationMessage }}</p>
-        </div>
-        <div v-else>
-          <p>Bitte warten, deine E-Mail wird bestätigt...</p>
+        <div v-if="token || confirmationMessage">
+          <div v-if="confirmationMessage" class="message">
+            <p>{{ confirmationMessage }}</p>
+          </div>
+          <div v-else>
+            <p>Bitte warten, deine E-Mail wird bestätigt...</p>
+          </div>
         </div>
   
         <div v-if="!token">
@@ -24,9 +24,8 @@
           </button>
         </div>
   
-        <router-link v-if="token" to="/" class="app-link">Zur App</router-link>
+        <router-link to="/" class="app-link">Zur App</router-link>
       </div>
-    </div>
   </template>
   
   <script>
@@ -54,29 +53,38 @@
       }
     },
     methods: {
-      async resendConfirmation() {
-        if (!this.email) {
-          alert("Bitte E-Mail eingeben.");
-          return;
-        }
-  
-        this.isResending = true;
-  
-        try {
-          const response = await api.post("/api/users/resend-confirmation", { email: this.email });
-          this.confirmationMessage = response.data.msg;
-        } catch (error) {
-          console.error("Error resending confirmation:", error);
-          this.confirmationMessage = error.response?.data?.msg || "Fehler beim erneuten Senden der Bestätigung.";
-        } finally {
-          this.isResending = false;
-        }
+        async resendConfirmation() {
+    if (!this.email) {
+      alert("Bitte E-Mail eingeben.");
+      return;
+    }
+
+    this.isResending = true;
+
+    try {
+      const response = await api.post("/api/users/resend-confirmation", { email: this.email });
+      this.confirmationMessage = response.data.msg;
+    } catch (error) {
+      console.error("Error resending confirmation:", error);
+
+      if (error.response?.status === 400) {
+        // If error 400 occurs, show a specific message for already confirmed email
+        this.confirmationMessage = "Diese E-Mail wurde bereits bestätigt. Du kannst dich einloggen.";
+        console.log("test");
+      } else {
+        this.confirmationMessage = error.response?.data?.msg || "Fehler beim erneuten Senden der Bestätigung.";
       }
+    } finally {
+      this.isResending = false;
+    }
+  }
     }
   };
   </script>
   
   <style scoped lang="scss">
+  @import "@/assets/styles/login.scss";
+  
   .email-confirmation {
     display: flex;
     justify-content: center;
@@ -102,7 +110,7 @@
   }
   
   .message {
-    color: #4CAF50;
+    color: $primary;
     font-weight: bold;
     margin-bottom: 20px;
   }
@@ -112,7 +120,7 @@
     margin-top: 20px;
     padding: 10px 20px;
     color: #fff;
-    background-color: #4CAF50;
+    background-color: $primary;
     border-radius: 5px;
     text-decoration: none;
     font-weight: bold;
@@ -120,7 +128,7 @@
   }
   
   .app-link:hover {
-    background-color: #43a047;
+    background-color: lighten($primary, 10%);
   }
   
   .email-input {
@@ -137,7 +145,7 @@
     margin-top: 15px;
     padding: 10px 20px;
     color: #fff;
-    background-color: #4CAF50;
+    background-color: $primary;
     border: none;
     border-radius: 5px;
     cursor: pointer;
@@ -150,7 +158,7 @@
   }
   
   button:hover:not(:disabled) {
-    background-color: #43a047;
+    background-color: lighten($primary, 10%);
   }
   </style>
   
