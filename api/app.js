@@ -5,7 +5,6 @@ const axios = require('axios');
 const userRoutes = require('./routes/userRoutes'); 
 const itemRoutes = require('./routes/itemRoutes');
 const monitoringRoutes = require('./routes/monitoringRoutes');
-const emailRoutes = require('./routes/emailRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -37,7 +36,7 @@ app.get('/', (req, res) => res.send('API Running'));
 app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
 app.use('/api/monitoring', monitoringRoutes);
-app.use('/api/email', emailRoutes)
+
 // Function to get and log the public IP
 async function logCurrentIP() {
   try {

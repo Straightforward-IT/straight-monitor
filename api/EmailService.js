@@ -1,9 +1,13 @@
-const express = require("express");
-const router = express.Router();
 const { Client } = require("@microsoft/microsoft-graph-client");
 require("isomorphic-fetch");
+const fs = require('fs');
+const path = require('path');
 const msal = require("@azure/msal-node");
 require('dotenv').config();
+
+// Read image file and convert to base64
+const imagePath = path.join(__dirname, 'assets', 'Banner.png');
+const base64Image = fs.readFileSync(imagePath).toString('base64');
 
 // OAuth2 Configuration
 const config = {
@@ -17,8 +21,7 @@ const config = {
 // Initialize MSAL client for OAuth2
 const cca = new msal.ConfidentialClientApplication(config);
 
-// Configure the Graph Client with access token
-async function sendMail() {
+async function sendMail(to, subject, content, from = "it@straightforward.email") {
     try {
         // Acquire Token by Client Credential flow
         const authResponse = await cca.acquireTokenByClientCredential({
@@ -28,49 +31,48 @@ async function sendMail() {
         // Initialize Graph Client
         const client = Client.init({
             authProvider: (done) => {
-                done(null, authResponse.accessToken); // Pass the access token to Graph API
+                done(null, authResponse.accessToken);
             }
         });
 
-        // Email configuration
+        // Email configuration with the image attachment
         const mail = {
             message: {
-                subject: "Test Email from shared mailbox",
+                subject: subject,
                 body: {
-                    contentType: "Text",
-                    content: "This is a test email sent from a shared mailbox using Microsoft Graph API."
+                    contentType: "HTML",
+                    content: `${content}<br><img src="cid:bannerImage" alt="Banner Image" style="width: 280px; height: auto;" />`
                 },
                 toRecipients: [
                     {
                         emailAddress: {
-                            address: "cb@straightforward.email"
+                            address: to
                         }
                     }
                 ],
                 from: {
                     emailAddress: {
-                        address: "it@straightforward.email" // Use shared mailbox address
+                        address: from
                     }
-                }
+                },
+                attachments: [
+                    {
+                        "@odata.type": "#microsoft.graph.fileAttachment",
+                        name: "Banner.png",
+                        contentId: "bannerImage", // This must match the cid in the HTML content
+                        contentBytes: base64Image
+                    }
+                ]
             }
         };
 
-        // Send Email from the shared mailbox
-        await client.api("/users/cb@straightforward.email/sendMail").post(mail);
+        // Send Email
+        await client.api(`/users/${from}/sendMail`).post(mail);
         console.log("Email sent successfully");
     } catch (error) {
         console.error("Error sending email:", error);
+        throw error;
     }
 }
 
-// Route to trigger the email
-router.get("/", async (req, res) => {
-    try {
-        await sendMail();
-        res.status(200).json({ msg: "Email sent successfully" });
-    } catch (error) {
-        res.status(500).json({ msg: "Failed to send email", error: error.message });
-    }
-});
-
-module.exports = router;
+module.exports = { sendMail };

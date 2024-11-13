@@ -4,7 +4,9 @@ const auth = require("../middleware/auth"); // Import the auth middleware
 const User = require("../models/User"); // Import the User model
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { sendMail } = require("../EmailService");
 require('dotenv').config(); // Load environment variables from .env
+
 
 // GET /api/users/me
 router.get("/me", auth, async (req, res) => {
@@ -59,49 +61,97 @@ router.post("/register", async (req, res) => {
   const { name, email, password, location } = req.body;
 
   try {
-    // Check if the user already exists
-    let user = await User.findOne({ email });
-    if (user) {
-      return res.status(400).json({ msg: "User already exists" });
-    }
-
-    // Check if company email @straightforward.email
-    if (!email.includes("@straightforward.email")) {
-      return res.status(401).json({ msg: "Please use a company email" });
-    }
-
-    // Create a new user instance
-    user = new User({
-      name,
-      email,
-      password,
-      location
-    });
-
-    // Save the new user
-    await user.save();
-
-    // Create and sign JWT
-    const payload = {
-      user: {
-        id: user.id,
-      },
-    };
-
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET, // Use the JWT secret from .env
-      { expiresIn: 360000 },
-      (err, token) => {
-        if (err) throw err;
-        res.json({ token });
+      // Check if the user already exists
+      let user = await User.findOne({ email });
+      if (user) {
+          return res.status(400).json({ msg: "Benutzer mit dieser E-mail existiert bereits" });
       }
-    );
+
+      // Check if company email @straightforward.email
+      if (!email.includes("@straightforward.email")) {
+          return res.status(401).json({ msg: "Bitte benutze eine E-mail der Firma Straightforward" });
+      }
+
+      // Create a new user instance
+      user = new User({
+          name,
+          email,
+          password,
+          location,
+          isConfirmed: false // Set isActive to false until email confirmation
+      });
+
+      // Save the new user
+      await user.save();
+
+      // Generate a confirmation token with a short expiration time (e.g., 1 hour)
+      const confirmationToken = jwt.sign(
+          { userId: user.id },
+          process.env.JWT_SECRET,
+          { expiresIn: "1h" }
+      );
+
+      await user.save();
+
+      // Send the confirmation email
+      const confirmUrl = `https://straightmonitor.com/confirm-email?token=${confirmationToken}`;
+      const emailSubject = "Bestätige deine E-Mail Adresse für den Straightforward Monitor";
+      const emailContent = `
+  <div style="font-family: Arial, sans-serif; color: #333;">
+    <h2 style="font-weight: bold; color: #000;">Willkommen beim Straightforward Monitor!</h2>
+    <p>Diese E-Mail dient zur Bestätigung deiner Registrierung. Bitte bestätige deine E-Mail Adresse, um dein Profil zu aktivieren.</p>
+    <p>
+      <a href="${confirmUrl}" style="color: #000; text-decoration: none; font-weight: bold;">
+        <strong>Hier klicken, um die E-Mail Adresse zu bestätigen</strong>
+      </a>
+    </p>
+    <hr />
+    <p style="font-size: 12px; color: #666;">
+      Falls du nicht versuchst, dich zu registrieren, ignoriere diese Nachricht.
+    </p>
+  </div>
+`;
+
+      await sendMail(user.email, emailSubject, emailContent);
+
+      res.status(200).json({ msg: "Registration successful. Please check your email to confirm your account." });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
+      console.error(err.message);
+      res.status(500).send("Server error");
   }
 });
+
+// POST /api/users/confirm-email
+router.post("/confirm-email", async (req, res) => {
+  const { token } = req.body;
+
+  try {
+    // Verify the confirmation token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+
+    // Find the user by ID and confirm email
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ msg: "Benutzer nicht gefunden" });
+    }
+
+    // Check if the user is already confirmed
+    if (user.isConfirmed) {
+      return res.status(400).json({ msg: "E-Mail bereits bestätigt" });
+    }
+
+    // Update the user's confirmation status
+    user.isConfirmed = true;
+    await user.save();
+
+    res.status(200).json({ msg: "E-Mail erfolgreich bestätigt. Du kannst dich nun anmelden." });
+  } catch (error) {
+    console.error("Token verification failed:", error);
+    res.status(400).json({ msg: "Ungültiger oder abgelaufener Bestätigungslink" });
+  }
+});
+
 
 // POST /api/users/login
 router.post("/login", async (req, res) => {
