@@ -208,13 +208,18 @@ router.post("/login", async (req, res) => {
     // Check if user exists
     let user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ msg: "Invalid Credentials" });
+      return res.status(400).json({ msg: "Ungültige Anmeldedaten" });
+    }
+
+    // Check if user email is confirmed
+    if (!user.isConfirmed) {
+      return res.status(403).json({ msg: "Bitte bestätige zuerst deine E-Mail Adresse." });
     }
 
     // Compare the provided password with the hashed password stored in the database
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ msg: "Invalid Credentials" });
+      return res.status(400).json({ msg: "Ungültige Anmeldedaten" });
     }
 
     // Generate a JWT token for the user
