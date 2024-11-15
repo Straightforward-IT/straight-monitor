@@ -102,6 +102,8 @@
     }
   },
   "Köln": {
+    "cuttermesser": "",
+    "jutebeutel": "",
     "logistikHose": {},
     "tshirt": {},
     "kapuzenjacke": {},
@@ -125,6 +127,8 @@
     "schwarzeHemdenHerren": {}
   },
   "Berlin": {
+    "cuttermesser": "",
+    "jutebeutel": "",
     "logistikHose": {},
     "tshirt": {},
     "kapuzenjacke": {},

@@ -598,9 +598,13 @@ export default {
     updateItemMappings(){
       this.items = itemMappings[this.selectedLocation];
     },
-
+     // Simplified logic to fetch item IDs based on new JSON format
+  getItemId(category, subcategory = null) {
+    if (!this.items || !this.items[category]) return null;
+    return subcategory ? this.items[category][subcategory] : this.items[category];
+  },
     async getExcel() {
-      console.log("Entered")
+      
       if (this.token) {
         try {
           const response = await api.get("/api/items/getExcel", {
@@ -811,248 +815,160 @@ export default {
       }
     },
     submitLogiModal(action) {
-      if (!this.validateLogiSelections()) {
-        return;
-      }
-      // Define a map of selections
-      const selections = [
-        {
-          checked: this.cuttermesserChecked,
-          _id: getCuttermesserId(),
-          size: "onesize",
-        },
-        {
-          checked: this.jutebeutelChecked,
-          _id: getJutebeutelId(),
-          size: "onesize",
-        },
-        {
-          checked: this.logistikHoseChecked,
-          _id: this.getLogistikHoseId(),
-          size: this.logistikHoseSize,
-        },
-        {
-          checked: this.tshirt1Checked,
-          _id: this.getTShirtId(this.tshirt1Size),
-          size: this.tshirt1Size,
-        },
-        {
-          checked: this.tshirt2Checked,
-          _id: this.getTShirtId(this.tshirt2Size),
-          size: this.tshirt2Size,
-        },
-        {
-          checked: this.tshirt3Checked,
-          _id: this.getTShirtId(this.tshirt3Size),
-          size: this.tshirt3Size,
-        },
-        {
-          checked: this.schwarzeKapuzenjackeChecked,
-          _id: this.getKapuzenjackeId(this.schwarzeKapuzenjackeSize),
-          size: this.schwarzeKapuzenjackeSize,
-        },
-        {
-          checked: this.sicherheitshelmChecked,
-          _id: this.getSicherheitshelmId(this.sicherheitshelmArt),
-          size: this.sicherheitshelmArt,
-        },
-        {
-          checked: this.softshelljackeChecked,
-          _id: this.getSoftshelljackeId(this.softshelljackeSize),
-          size: this.softshelljackeSize,
-        },
-        {
-          checked: this.bundhoseChecked,
-          _id: this.getBundhoseId(this.bundhoseSize),
-          size: this.bundhoseSize,
-        },
-        {
-          checked: this.sicherheitsschuheChecked,
-          _id: this.getSicherheitsschuheId(this.sicherheitsschuheSize),
-          size: this.sicherheitsschuheSize,
-        },
-        {
-          checked: this.handschuheChecked,
-          _id: this.getHandschuheId(this.handschuheSize),
-          size: this.handschuheSize,
-        },
-      ];
-      // Determine count based on action
-      const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
-
-      this.anmerkung = "Logistik-Paket: ".concat(this.anmerkung);
-      this.updateMultiple(selections, count);
-      this.closeModal();
-      this.showLogiModal = false;
-      this.resetLogiPaket();
-    },
-    submitServiceModal(action) {
-      if (!this.validateServiceSelections()) {
-        return;
-      }
-      const selections = [
-        {
-          checked: this.kellnermesserChecked,
-          _id: this.getKellnermesserId(),
-          size: "onesize",
-        },
-        {
-          checked: this.kugelschreiberChecked,
-          _id: this.getKugelschreiberId(),
-          size: "onesize",
-        },
-        {
-          checked: this.namensschildChecked,
-          _id: this.getNamensschildId(),
-          size: "onesize",
-        },
-        {
-          checked: this.feuerzeugChecked,
-          _id: this.getFeuerzeugId(),
-          size: "onesize",
-        },
-        {
-          checked: this.schuhputzzeugChecked,
-          _id: this.getSchuhputzzeugId(),
-          size: "onesize",
-        },
-        {
-          checked: this.schwarzeKrawatteChecked,
-          _id: this.getSchwarzeKrawatteId(),
-          size: "onesize",
-        },
-        {
-          checked: this.schwarzeSchuerzeChecked,
-          _id: this.getschwarzeSchuerzeId(),
-          size: "onesize",
-        },
-        {
-          checked: this.kleidersackChecked,
-          _id: this.getKleidersackId(),
-          size: "onesize",
-        },
-        {
-          checked: this.serviceHandschuheChecked,
-          _id: this.getServiceHandschuheId(this.serviceHandschuheSize),
-          size: this.serviceHandschuheSize,
-        },
-        {
-          checked: this.weisseHemdenDamenChecked,
-          _id: this.getWeisseHemdenDamenId(this.weisseHemdenDamenSize),
-          size: this.weisseHemdenDamenSize,
-        },
-        {
-          checked: this.schwarzeHemdenDamenChecked,
-          _id: this.getSchwarzeHemdenDamenId(this.schwarzeHemdenDamenSize),
-          size: this.schwarzeHemdenDamenSize,
-        },
-        {
-          checked: this.weisseHemdenHerrenChecked,
-          _id: this.getWeisseHemdenHerrenId(this.weisseHemdenHerrenSize),
-          size: this.weisseHemdenHerrenSize,
-        },
-        {
-          checked: this.schwarzeHemdenHerrenChecked,
-          _id: this.getSchwarzeHemdenHerrenId(this.schwarzeHemdenHerrenSize),
-          size: this.schwarzeHemdenHerrenSize,
-        },
-      ];
-      const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
-
-      this.anmerkung = "Service-Paket: ".concat(this.anmerkung);
-      this.updateMultiple(selections, count);
-      this.closeModal();
-      this.showServiceModal = false;
-      this.resetServicePaket();
-    },
-    getCuttermesserId(){
-      return this.items.cuttermesser;
-    },
-    getJutebeutelId(){
-      return this.items.jutebeutel;
-    },
-
-    getLogistikHoseId() {
-      return this.items.logistikHose[this.logistikHoseSize];
-    },
-
-    getTShirtId(size) {
-      return this.items.tshirt[size];
-    },
-
-    getKapuzenjackeId(size) {
-      return this.items.kapuzenjacke[size];
-    },
-
-    getSicherheitshelmId(art) {
-      
-      return this.items.sicherheitshelm[art];
-    },
-
-    getSoftshelljackeId(size) {
-      
-      return this.items.softshelljacke[size];
-    },
-    getBundhoseId(size) {
-      return this.items.bundhose[size];
-    },
-
-    getSicherheitsschuheId(size) {
-      return this.items.sicherheitsschuhe[size];
-    },
-
-    getHandschuheId(size) {
-      return this.items.handschuhe[size];
-    },
-    //Service
-    getServiceHandschuheId(size) {
-    
-      return this.items.serviceHandschuhe[size];
-    },
-
-    getWeisseHemdenDamenId(size) {
-     
-      return this.items.weisseHemdenDamen[size];
-    },
-
-    getSchwarzeHemdenDamenId(size) {
-     
-      return this.items.schwarzeHemdenDamen[size];
-    },
-
-    getWeisseHemdenHerrenId(size) {
-      
-      return this.items.weisseHemdenHerren[size];
-    },
-
-    getSchwarzeHemdenHerrenId(size) {
-      
-      return this.items.schwarzeHemdenHerren[size];
-    },
-    getKellnermesserId() {
-      return this.items.kellnermesser;
-    },
-    getKugelschreiberId() {
-      return this.items.kugelschreiber;
-    },
-    getNamensschildId() {
-      return this.items.namensschild;
-    },
-    getFeuerzeugId() {
-      return this.items.feuerzeug;
-    },
-    getSchuhputzzeugId() {
-      return this.items.schuhputzzeug;
-    },
-    getSchwarzeKrawatteId() {
-      return this.items.schwarzeKrawatte;
-    },
-    getschwarzeSchuerzeId() {
-      return this.items.schwarzeSchuerze;
-    },
-    getKleidersackId() {
-      return this.items.kleidersack;
+    if (!this.validateLogiSelections()) {
+      return;
     }
+    const selections = [
+      {
+        checked: this.cuttermesserChecked,
+        _id: this.getItemId("cuttermesser"),
+        size: "onesize",
+      },
+      {
+        checked: this.jutebeutelChecked,
+        _id: this.getItemId("jutebeutel"),
+        size: "onesize",
+      },
+      {
+        checked: this.logistikHoseChecked,
+        _id: this.getItemId("logistikHose", this.logistikHoseSize),
+        size: this.logistikHoseSize,
+      },
+      {
+        checked: this.tshirt1Checked,
+        _id: this.getItemId("tshirt", this.tshirt1Size),
+        size: this.tshirt1Size,
+      },
+      {
+        checked: this.tshirt2Checked,
+        _id: this.getItemId("tshirt", this.tshirt2Size),
+        size: this.tshirt2Size,
+      },
+      {
+        checked: this.tshirt3Checked,
+        _id: this.getItemId("tshirt", this.tshirt3Size),
+        size: this.tshirt3Size,
+      },
+      {
+        checked: this.schwarzeKapuzenjackeChecked,
+        _id: this.getItemId("kapuzenjacke", this.schwarzeKapuzenjackeSize),
+        size: this.schwarzeKapuzenjackeSize,
+      },
+      {
+        checked: this.sicherheitshelmChecked,
+        _id: this.getItemId("sicherheitshelm", this.sicherheitshelmArt),
+        size: this.sicherheitshelmArt,
+      },
+      {
+        checked: this.softshelljackeChecked,
+        _id: this.getItemId("softshelljacke", this.softshelljackeSize),
+        size: this.softshelljackeSize,
+      },
+      {
+        checked: this.bundhoseChecked,
+        _id: this.getItemId("bundhose", this.bundhoseSize),
+        size: this.bundhoseSize,
+      },
+      {
+        checked: this.sicherheitsschuheChecked,
+        _id: this.getItemId("sicherheitsschuhe", this.sicherheitsschuheSize),
+        size: this.sicherheitsschuheSize,
+      },
+      {
+        checked: this.handschuheChecked,
+        _id: this.getItemId("handschuhe", this.handschuheSize),
+        size: this.handschuheSize,
+      },
+    ];
+
+    const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
+
+    this.anmerkung = "Logistik-Paket: ".concat(this.anmerkung);
+    this.updateMultiple(selections, count);
+    this.closeModal();
+    this.showLogiModal = false;
+    this.resetLogiPaket();
+  },
+  submitServiceModal(action) {
+    if (!this.validateServiceSelections()) {
+      return;
+    }
+    const selections = [
+      {
+        checked: this.kellnermesserChecked,
+        _id: this.getItemId("kellnermesser"),
+        size: "onesize",
+      },
+      {
+        checked: this.kugelschreiberChecked,
+        _id: this.getItemId("kugelschreiber"),
+        size: "onesize",
+      },
+      {
+        checked: this.namensschildChecked,
+        _id: this.getItemId("namensschild"),
+        size: "onesize",
+      },
+      {
+        checked: this.feuerzeugChecked,
+        _id: this.getItemId("feuerzeug"),
+        size: "onesize",
+      },
+      {
+        checked: this.schuhputzzeugChecked,
+        _id: this.getItemId("schuhputzzeug"),
+        size: "onesize",
+      },
+      {
+        checked: this.schwarzeKrawatteChecked,
+        _id: this.getItemId("schwarzeKrawatte"),
+        size: "onesize",
+      },
+      {
+        checked: this.schwarzeSchuerzeChecked,
+        _id: this.getItemId("schwarzeSchuerze"),
+        size: "onesize",
+      },
+      {
+        checked: this.kleidersackChecked,
+        _id: this.getItemId("kleidersack"),
+        size: "onesize",
+      },
+      {
+        checked: this.serviceHandschuheChecked,
+        _id: this.getItemId("serviceHandschuhe", this.serviceHandschuheSize),
+        size: this.serviceHandschuheSize,
+      },
+      {
+        checked: this.weisseHemdenDamenChecked,
+        _id: this.getItemId("weisseHemdenDamen", this.weisseHemdenDamenSize),
+        size: this.weisseHemdenDamenSize,
+      },
+      {
+        checked: this.schwarzeHemdenDamenChecked,
+        _id: this.getItemId("schwarzeHemdenDamen", this.schwarzeHemdenDamenSize),
+        size: this.schwarzeHemdenDamenSize,
+      },
+      {
+        checked: this.weisseHemdenHerrenChecked,
+        _id: this.getItemId("weisseHemdenHerren", this.weisseHemdenHerrenSize),
+        size: this.weisseHemdenHerrenSize,
+      },
+      {
+        checked: this.schwarzeHemdenHerrenChecked,
+        _id: this.getItemId("schwarzeHemdenHerren", this.schwarzeHemdenHerrenSize),
+        size: this.schwarzeHemdenHerrenSize,
+      },
+    ];
+
+    const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
+
+    this.anmerkung = "Service-Paket: ".concat(this.anmerkung);
+    this.updateMultiple(selections, count);
+    this.closeModal();
+    this.showServiceModal = false;
+    this.resetServicePaket();
+  },
   },
   mounted() {
     this.setAxiosAuthToken();

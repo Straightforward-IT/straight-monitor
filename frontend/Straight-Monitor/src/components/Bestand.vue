@@ -388,8 +388,6 @@ export default {
       this.sortBy = criteria;
       this.isAscending = true;
     }
-    // Call your sort function here, if necessary
-    this.sortItems();
   },
     insertKeyword(keyword) {
       if (keyword === "logistik") {

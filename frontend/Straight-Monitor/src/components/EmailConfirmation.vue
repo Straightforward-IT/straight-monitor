@@ -1,6 +1,6 @@
 <template>
       <div class="confirmation-container">
-        <h2>Email Bestätigung</h2>
+        <h2>Bestätigung</h2>
         <div v-if="token || confirmationMessage">
           <div v-if="confirmationMessage" class="message">
             <p>{{ confirmationMessage }}</p>
