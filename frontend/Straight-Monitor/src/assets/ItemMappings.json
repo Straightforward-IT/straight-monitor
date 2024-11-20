@@ -72,11 +72,7 @@
     "schwarzeKrawatte": "66fc02966eba044dba7612e8",
     "schwarzeSchuerze": "66fc02826eba044dba7612e3",
     "kleidersack": "66fc02696eba044dba7612de",
-    "serviceHandschuhe": {
-      "8": "66fc02fe6eba044dba761306",
-      "9": "66fc03036eba044dba76130b",
-      "10": "66fc03076eba044dba761310"
-    },
+    "serviceHandschuhe": "66fc03036eba044dba76130b",
     "weisseHemdenDamen": {
       "S": "66fc01d16eba044dba761293",
       "M": "66fc01d86eba044dba761298",
@@ -120,7 +116,7 @@
     "schwarzeKrawatte": "",
     "schwarzeSchuerze": "",
     "kleidersack": "",
-    "serviceHandschuhe": {},
+    "serviceHandschuhe": "",
     "weisseHemdenDamen": {},
     "schwarzeHemdenDamen": {},
     "weisseHemdenHerren": {},
@@ -145,7 +141,7 @@
     "schwarzeKrawatte": "",
     "schwarzeSchuerze": "",
     "kleidersack": "",
-    "serviceHandschuhe": {},
+    "serviceHandschuhe": "",
     "weisseHemdenDamen": {},
     "schwarzeHemdenDamen": {},
     "weisseHemdenHerren": {},

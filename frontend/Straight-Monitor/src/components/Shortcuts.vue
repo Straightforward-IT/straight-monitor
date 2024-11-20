@@ -397,15 +397,6 @@
                 <span class="checkmark"></span>
                 Service Handschuhe
               </label>
-              <select
-                v-model="serviceHandschuheSize"
-                class="size-dropdown"
-                :disabled="!serviceHandschuheChecked"
-              >
-                <option value="8">8</option>
-                <option value="9">9</option>
-                <option value="10">10</option>
-              </select>
             </div>
           </span>
           <span class="list-item">
@@ -559,7 +550,6 @@ export default {
       weisseHemdenHerrenChecked: false,
       schwarzeHemdenHerrenChecked: false,
 
-      serviceHandschuheSize: "",
       weisseHemdenDamenSize: "",
       schwarzeHemdenDamenSize: "",
       weisseHemdenHerrenSize: "",
@@ -694,7 +684,6 @@ export default {
       this.weisseHemdenHerrenChecked = false;
       this.schwarzeHemdenHerrenChecked = false;
 
-      this.serviceHandschuheSize = "";
       this.weisseHemdenDamenSize = "";
       this.schwarzeHemdenDamenSize = "";
       this.weisseHemdenHerrenSize = "";
@@ -753,11 +742,6 @@ export default {
     validateServiceSelections() {
       const errorMessages = [];
 
-      if (this.serviceHandschuheChecked && !this.serviceHandschuheSize) {
-        errorMessages.push(
-          "Bitte wählen Sie eine Größe für die Service Handschuhe."
-        );
-      }
       if (this.weisseHemdenDamenChecked && !this.weisseHemdenDamenSize) {
         errorMessages.push(
           "Bitte wählen Sie eine Größe für die Weißen Damen Hemden."
@@ -936,8 +920,8 @@ export default {
       },
       {
         checked: this.serviceHandschuheChecked,
-        _id: this.getItemId("serviceHandschuhe", this.serviceHandschuheSize),
-        size: this.serviceHandschuheSize,
+        _id: this.getItemId("serviceHandschuhe"),
+        size: "onesize",
       },
       {
         checked: this.weisseHemdenDamenChecked,
