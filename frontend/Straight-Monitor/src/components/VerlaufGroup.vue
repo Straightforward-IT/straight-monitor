@@ -3,7 +3,7 @@
     <template v-for="(group, key) in groupedData" :key="key">
       <!-- Group Header -->
       <div class="group-header" @click="toggleExpand(key)">
-        <h4>{{ activeGroups[level] }} {{ key }}</h4>
+        <h4> {{ key }}</h4>
         <font-awesome-icon
           :icon="expanded[key] ? ['fas', 'sort-down'] : ['fas', 'sort-up']"
         />
@@ -33,21 +33,22 @@
               <p><strong>Art:</strong> {{ log.art }}</p>
               <p>
                 <strong>Timestamp:</strong>
-                {{ new Date(log.timestamp).toLocaleString() }}
+                {{ formatTimestamp(log.timestamp) }}
               </p>
             </div>
+            <p><strong>Anmerkung:</strong> {{ log.anmerkung || "Keine" }}</p>
             <!-- Expanded Item Details -->
             <div v-if="log.isExpanded" class="log-details">
               <div
-                v-for="item in log.items"
+                v-for="(item, index) in log.items"
                 :key="item.itemId"
                 class="item-detail"
               >
-                <p><strong>Bezeichnung:</strong> {{ item.bezeichnung }}</p>
-                <p><strong>Größe:</strong> {{ item.groesse }}</p>
-                <p><strong>Anzahl:</strong> {{ item.anzahl }}</p>
+              <p>#{{ index + 1 }}</p>
+                <p><strong>-</strong> {{ item.bezeichnung }}</p>
+                <p><strong>- Größe:</strong> {{ item.groesse }}</p>
+                <p><strong>- Anzahl:</strong> {{ item.anzahl }}</p>
               </div>
-              <p><strong>Anmerkung:</strong> {{ log.anmerkung || "Keine" }}</p>
             </div>
           </div>
         </div>
@@ -60,10 +61,17 @@
 export default {
   name: "VerlaufGroup",
   props: {
-    groupedData: Object,
-    activeGroups: Array,
-    level: Number,
+  groupedData: Object,
+  activeGroups: {
+    type: Array,
+    required: true,
   },
+  level: {
+    type: Number,
+    default: 0,
+  },
+},
+
   data() {
     return {
       expanded: {}, // Reactive state for expanded groups
@@ -75,10 +83,17 @@ export default {
     },
     toggleExpandLog(log) {
       log.isExpanded = !log.isExpanded;
-      console.log(this.expanded);
     },
     isGroup(group) {
       return typeof group === "object" && !Array.isArray(group);
+    },
+    formatTimestamp(timestamp) {
+      const date = new Date(timestamp);
+      return date.toLocaleDateString("de-DE") + ", " + date.toLocaleTimeString("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }) + " Uhr";
     },
   },
 };
@@ -88,11 +103,16 @@ export default {
 .group-container {
   margin-top: 15px;
   padding-left: 15px;
-  border-left: 2px solid #1d1d1d6e;
+  border: 2px solid #1d1d1d6e;
+  border-top: 2px solid #1d1d1d6e;
+  box-shadow: 0px 2px 5px rgba(145, 145, 145, 0.485);
+  padding: 5px 5px 5px 5px;
+  cursor: pointer;
 }
 
 .group-header {
-  cursor: pointer;
+  border: 2px solid #1d1d1d6e;
+  margin: 2px;
   display: flex;
   justify-content: space-between;
   align-items: center;

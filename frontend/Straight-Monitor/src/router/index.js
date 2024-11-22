@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Home from '../components/Home.vue';
 import Verlauf from '../components/Verlauf.vue';
+import Auswertung from '../components/Auswertung.vue';
 import EmailConfirmation from '../components/EmailConfirmation.vue';
 import '../assets/styles/main.scss'; 
 import Frame from '../components/Frame.vue'; // Import the Frame component
@@ -24,6 +25,11 @@ const routes = [
     path: '/verlauf',
     name: 'Verlauf',
     component: Verlauf,
+    meta: { requiresAuth: true },
+  },{
+    path: '/auswertung',
+    name: 'Auswertung',
+    component: Auswertung,
     meta: { requiresAuth: true },
   },{
     path: '/confirm-email',

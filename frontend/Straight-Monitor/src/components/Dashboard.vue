@@ -7,12 +7,17 @@
         <font-awesome-icon :icon="['fas', 'warehouse']" />
       </div>
     </div>
-    <div class="floating-label inactive">
+    <div class="floating-label">
       <button @click="switchToVerlauf">Verlauf</button>
       <div class="icon">
         <font-awesome-icon :icon="['fas', 'timeline']" />
       </div>
-      
+    </div>
+    <div class="floating-label">
+      <button @click="switchToAuswertung">Auswertung</button>
+      <div class="icon">
+        <font-awesome-icon :icon="['fas', 'list']" />
+      </div>
     </div>
     <div class="floating-label inactive">
       <button>Flip</button>
@@ -20,6 +25,7 @@
         <img src="@/assets/flip_sw.png" alt="Flip Icon" />
       </div>
     </div>
+
    
   </template>
   
@@ -70,6 +76,9 @@
       },
       switchToVerlauf(){
         this.$router.push('/verlauf');
+      },
+      switchToAuswertung(){
+        this.$router.push('/auswertung');
       },
     },
     mounted() {

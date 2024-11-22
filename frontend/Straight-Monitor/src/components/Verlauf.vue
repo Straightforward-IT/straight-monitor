@@ -1,5 +1,6 @@
 <template>
   <div class="window">
+    <a class="discrete" @click="switchToDashboard">Zurück</a>
     <div class="controls">
       <!-- Group By Controls -->
       <label>Group By:</label>
@@ -29,7 +30,7 @@
     <div v-if="Object.keys(groupedLogs).length > 0">
       <verlauf-group
         :grouped-data="groupedLogs"
-        :active-groups="activeGroups"
+        :active-groups="activeGroupsArray"
         :level="0"
       ></verlauf-group>
     </div>
@@ -84,6 +85,13 @@ export default {
 
       
     },
+    activeGroupsArray() {
+    return Object.keys(this.groupBy)
+      .filter((key) => this.groupBy[key])
+      .map((key) =>
+        key === "benutzer" ? "benutzerMail" : key // Map to the correct property name
+      );
+  },
   },
   methods: {
     setAxiosAuthToken() {
@@ -109,8 +117,7 @@ export default {
       try {
         const response = await api.get("/api/monitoring");
         this.logs = response.data.map((log) => ({ ...log, isExpanded: false }));
-        this.groupLogs(); // Automatically group after fetching
-        console.log(this.logs);
+        this.groupLogs(); 
       } catch (error) {
         console.error("Fehler beim Abrufen der Logs:", error);
       }
@@ -165,6 +172,9 @@ export default {
       // Trigger computed sorting on sort change
       this.sortedLogs;
     },
+    switchToDashboard() {
+    this.$router.push("/");
+},
   },
   mounted() {
     this.setAxiosAuthToken();
@@ -191,6 +201,7 @@ input {
 .window {
   padding: 20px;
   background-color: $background-gray;
+  box-shadow: 0px 5px 20px rgba(255, 255, 255, 0.631);
   font-family: Arial, sans-serif;
   min-height: 100vh;
   width: 1000px;
