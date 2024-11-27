@@ -93,7 +93,6 @@
           class="standort-dropdown"
           v-model="newItem.standort"
           id="standort"
-          @keyup.enter="submitNewItem"
           required
         >
           <option value="" disabled>Standort auswählen</option>
@@ -109,7 +108,6 @@
           id="bezeichnung"
           type="text"
           placeholder="Bezeichnung"
-          @keyup.enter="submitNewItem"
           required
         />
       </div>
@@ -120,18 +118,26 @@
           id="groesse"
           type="text"
           placeholder="Größe (optional)"
-          @keyup.enter="submitNewItem"
         />
+        <label for="anzahl">Anzahl / Soll</label>
       </div>
-      <div class="ModalGroup">
-        <label for="anzahl">Anzahl</label>
-        <input
+      <div class="ModalGroup CountGroup">
+          <input class="CountInput"
           v-model="newItem.anzahl"
           id="anzahl"
           type="number"
           placeholder="Anzahl"
           min="0"
-          @keyup.enter="submitNewItem"
+          required
+        />
+        <input 
+          style="margin-left: auto;"
+          class="CountInput"
+          v-model="newItem.soll"
+          id="soll"
+          type="number"
+          placeholder="Sollwert"
+          min="1"
           required
         />
       </div>
@@ -229,6 +235,17 @@
           <span>{{ item.groesse ? item.groesse : "onesize" }}</span>
         </div>
         <div class="item-detail">
+          <span>Soll:</span>
+          <span v-if="!item.isEditing">{{ item.soll }}</span>
+          <input
+            class="inputMen"
+            v-if="item.isEditing"
+            type="number"
+            v-model="item.soll"
+          />
+          
+        </div>
+        <div class="item-detail">
           <span>Menge:</span>
           <span v-if="!item.isEditing">{{ item.anzahl }}</span>
           <input
@@ -291,10 +308,12 @@ export default {
         bezeichnung: "",
         groesse: "",
         anzahl: 0,
+        soll: 0,
         standort: "",
       }, // Store new item data
       originalBezeichnung: "",
       originalAnzahl: 0,
+      originalSoll: 0,
       sortBy: "name",
       isAscending: true,
     };
@@ -413,7 +432,8 @@ export default {
     async updateItem(item) {
       if (
         item.bezeichnung === this.originalBezeichnung &&
-        item.anzahl === this.originalAnzahl
+        item.anzahl === this.originalAnzahl &&
+        item.soll === this.originalSoll
       ) {
         return this.cancelEdit(item);
       }
@@ -423,6 +443,7 @@ export default {
           userID: this.userID,
           bezeichnung: item.bezeichnung,
           anzahl: item.anzahl,
+          soll: item.soll
         });
         const updatedItem = response.data;
         const index = this.items.findIndex(
@@ -433,7 +454,7 @@ export default {
         }
         item.isEditing = false;
       } catch (error) {
-        console.error("Fehler beim Aktualisieren des Namens:", error);
+        console.error("Fehler beim Aktualisieren des Items:", error);
       }
     },
     autoResize(event) {
@@ -473,11 +494,14 @@ export default {
       }
     },
     async submitNewItem() {
-      let { bezeichnung, groesse, anzahl, standort } = this.newItem;
+      let { bezeichnung, groesse, anzahl, soll, standort } = this.newItem;
 
       // Set 'groesse' to 'onesize' if it's empty or an empty string
       if (!groesse || groesse.trim() === "") {
         groesse = "onesize";
+      }
+      if (!soll) {
+        soll = 0;
       }
 
       // Check for required fields
@@ -492,6 +516,7 @@ export default {
           bezeichnung,
           groesse,
           anzahl,
+          soll,
           standort,
           anmerkung: this.anmerkung,
         });
@@ -849,5 +874,12 @@ form {
 
 .ModalGroup {
   display: inline-grid;
+}
+.CountGroup{
+  display: flex !important;
+
+  .CountInput{
+    width: 40%;
+  }
 }
 </style>

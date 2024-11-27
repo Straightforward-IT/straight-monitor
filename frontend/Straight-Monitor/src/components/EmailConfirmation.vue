@@ -128,8 +128,8 @@
   }
   
   .app-link:hover {
-    background-color: lighten($primary, 10%);
-  }
+  background-color: color-mix(in srgb, white 10%, var(--primary));
+}
   
   .email-input {
     width: 100%;
@@ -158,7 +158,7 @@
   }
   
   button:hover:not(:disabled) {
-    background-color: lighten($primary, 10%);
+    background-color: color-mix(in srgb, white 10%, var(--primary));
   }
   </style>
   

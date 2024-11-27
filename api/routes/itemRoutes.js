@@ -38,7 +38,7 @@ async function logMonitoring({ user, standort, items, art, anmerkung }) {
 
 // POST /api/items/addNew
 router.post("/addNew", auth, async (req, res) => {
-  const { userID, bezeichnung, groesse, anzahl, standort, anmerkung } =
+  const { userID, bezeichnung, groesse, anzahl, soll, standort, anmerkung } =
     req.body;
   try {
     const user = await findOrCreateUser(userID);
@@ -48,7 +48,7 @@ router.post("/addNew", auth, async (req, res) => {
       return res.status(400).json({ msg: "Item already exists" });
     }
 
-    const newItem = new Item({ bezeichnung, groesse, anzahl, standort });
+    const newItem = new Item({ bezeichnung, groesse, anzahl, soll, standort });
     const savedItem = await newItem.save();
 
     await logMonitoring({
@@ -125,7 +125,7 @@ router.put("/updateMultiple", auth, async (req, res) => {
 
 // PUT /api/items/name/:id
 router.put("/edit/:id", auth, async (req, res) => {
-    const { userID, bezeichnung, anzahl } = req.body;
+    const { userID, bezeichnung, anzahl, soll} = req.body;
   
     if (!bezeichnung || bezeichnung.trim() === "") {
       return res.status(400).json({ msg: "Name cannot be empty" });
@@ -134,7 +134,11 @@ router.put("/edit/:id", auth, async (req, res) => {
     if (anzahl < 0) {
       return res.status(400).json({ msg: "Anzahl kann nicht negativ sein" });
     }
-  
+    
+    if (soll < 0) {
+      return res.status(400).json({ msg: "Anzahl kann nicht negativ sein" });
+    }
+
     try {
       const user = await findOrCreateUser(userID);
       const item = await Item.findById(req.params.id);
@@ -145,10 +149,12 @@ router.put("/edit/:id", auth, async (req, res) => {
   
       const oldName = item.bezeichnung;
       const oldAnzahl = item.anzahl;
+      const oldSoll = item.soll;
+
       let anmerkung = "";
   
       // Case handling based on changes to bezeichnung and anzahl
-      if (oldName === bezeichnung && oldAnzahl === anzahl) {
+      if (oldName === bezeichnung && oldAnzahl === anzahl && oldSoll === soll) {
         return res.status(200).json({ msg: "No changes detected." });
       }
   
@@ -176,6 +182,11 @@ router.put("/edit/:id", auth, async (req, res) => {
         anmerkung += `[Anzahl: ${oldAnzahl} => ${anzahl}] `;
         item.anzahl = anzahl;
       }
+
+      if (oldSoll !== soll) {
+        anmerkung += `[Soll: ${oldSoll} => ${soll}]`;
+        item.soll = soll;
+      }
   
       await item.save();
   
@@ -188,6 +199,7 @@ router.put("/edit/:id", auth, async (req, res) => {
             bezeichnung: item.bezeichnung,
             groesse: item.groesse,
             anzahl: Math.abs(oldAnzahl - anzahl),
+            soll: item.soll,
           },
         ],
         art: "änderung",
@@ -223,6 +235,7 @@ router.put("/add/:id", auth, async (req, res) => {
           bezeichnung: item.bezeichnung,
           groesse: item.groesse,
           anzahl,
+          soll: item.soll,
         },
       ],
       art: "zugabe",
@@ -259,6 +272,7 @@ router.put("/remove/:id", auth, async (req, res) => {
           bezeichnung: item.bezeichnung,
           groesse: item.groesse,
           anzahl,
+          soll: item.soll
         },
       ],
       art: "entnahme",
@@ -334,6 +348,7 @@ router.get("/getExcel", auth, async (req, res) => {
     const itemData = items.map(item => ({
         Bezeichnung: item.bezeichnung,
         Groesse: item.groesse || "Onesize",
+        Soll: item.soll,
         Anzahl: item.anzahl,
         Standort: item.standort,
         ID: item._id

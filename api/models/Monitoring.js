@@ -42,6 +42,10 @@ const MonitoringSchema = new mongoose.Schema({
         type: Number,
         required: true,
       },
+      soll: {
+        type: Number,
+        required: false,
+      },
     },
   ],
   anmerkung: {
