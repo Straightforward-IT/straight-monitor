@@ -4,7 +4,7 @@ const auth = require("../middleware/auth"); // Import the auth middleware
 const User = require("../models/User"); // Import the User model
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { sendMail } = require("../EmailService");
+const { sendMail, sollRoutine } = require("../EmailService");
 require('dotenv').config(); // Load environment variables from .env
 
 
@@ -167,6 +167,18 @@ router.post("/resend-confirmation", async (req, res) => {
   }
 });
 
+//POST /api/users/test-email
+router.post("/email-test", async (req, res) => {
+  try{
+    await sollRoutine();
+    res.status(200).json({msg: "Mails gesendet"});
+  }catch(err) {
+    console.error("Error sending the email", err);
+    res.status(500).json({ msg: "Serverfehler beim verarbeiten der Anfrage."});
+  }
+  
+
+});
 
 // POST /api/users/confirm-email
 router.post("/confirm-email", async (req, res) => {

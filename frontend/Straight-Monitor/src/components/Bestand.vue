@@ -391,11 +391,13 @@ export default {
     enableEdit(item) {
       this.originalBezeichnung = item.bezeichnung;
       this.originalAnzahl = item.anzahl;
+      this.originalSoll = item.soll;
       item.isEditing = true;
     },
     cancelEdit(item) {
       item.bezeichnung = this.originalBezeichnung;
       item.anzahl = this.originalAnzahl;
+      item.soll = this.originalSoll;
       item.isEditing = false;
     },
     setSortBy(criteria) {
