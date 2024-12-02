@@ -74,67 +74,85 @@ export default {
       }
     },
     processExcelData(data) {
-      const headers = data[0];
-      const rows = data.slice(1);
-      const personalNrIndex = headers.indexOf("PERSONALNR");
-      const anzahlMitarbeiterIndex = headers.indexOf("ANZAHL_MITARBEITER");
-      const reportsIndex = headers.length;
+  const headers = data[0];
+  const rows = data.slice(1);
+  const personalNrIndex = headers.indexOf("PERSONALNR");
+  const anzahlMitarbeiterIndex = headers.indexOf("ANZAHL_MITARBEITER");
+  const reportsIndex = headers.length;
 
-      // Add new "REPORTS" column
-      headers.push("REPORTS");
+  // Add new "REPORTS" column
+  headers.push("REPORTS");
 
-      const processedRows = [];
-      const personalNrMap = {};
-      let currentPersonalNr = null;
-      let startIndex = 1; // Tracks the current row index in the output
+  const processedRows = [];
+  const personalNrMap = {};
+  let currentPersonalNr = null;
+  let startIndex = 1; // Tracks the current row index in the output
 
-      rows.forEach((row, i) => {
-        const personalNr = row[personalNrIndex];
+  // Convert dates in Column A (first column)
+  rows.forEach((row, i) => {
+    if (row[0]) {
+      // Check if it's a number, and convert it to a readable date
+      if (typeof row[0] === "number") {
+  // Convert Excel serial number to JS Date
+  const date = new Date(Math.round((row[0] - 25569) * 86400 * 1000)); // Excel to JS date
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0"); // Months are 0-based
+  const year = date.getFullYear();
+  row[0] = `${day}.${month}.${year}`; // Format as dd.mm.yyyy
+}
 
-        if (personalNr !== currentPersonalNr) {
-          if (currentPersonalNr !== null) {
-            // Add blank row with the AVERAGE formula for the previous group
-            const rangeStart = personalNrMap[currentPersonalNr][0] + 1; // +1 to account for headers
-            const rangeEnd = personalNrMap[currentPersonalNr][1] + 1; // +1 to account for headers
-            const averageFormula = {
-              f: `=AVERAGE(I${rangeStart}:I${rangeEnd})`,
-            };
-            const blankRow = Array(headers.length).fill("");
-            blankRow[reportsIndex] = averageFormula;
-            processedRows.push(blankRow);
-            startIndex++;
-          }
+    }
+    const personalNr = row[personalNrIndex];
 
-          // Update the map with the start of a new Mitarbeiter
-          currentPersonalNr = personalNr;
-          personalNrMap[personalNr] = [startIndex];
-        }
-
-        // Add the row and update the last index for this Mitarbeiter
-        processedRows.push(row);
-        startIndex++;
-        personalNrMap[personalNr][1] = startIndex - 1; // Update the end index
-      });
-
-      // Handle the last Mitarbeiter
+    if (personalNr !== currentPersonalNr) {
       if (currentPersonalNr !== null) {
-        const rangeStart = personalNrMap[currentPersonalNr][0] + 1;
-        const rangeEnd = personalNrMap[currentPersonalNr][1] + 1;
-        const averageFormula = `=AVERAGE(I${rangeStart}:I${rangeEnd})`;
+        // Add blank row with the AVERAGE formula for the previous group
+        const rangeStart = personalNrMap[currentPersonalNr][0] + 1; // +1 to account for headers
+        const rangeEnd = personalNrMap[currentPersonalNr][1] + 1; // +1 to account for headers
+        const averageFormula = {
+          f: `=AVERAGE(I${rangeStart}:I${rangeEnd})*100`,
+        };
         const blankRow = Array(headers.length).fill("");
         blankRow[reportsIndex] = averageFormula;
         processedRows.push(blankRow);
+        startIndex++;
       }
 
-      // Save processed data
-      this.processedData = [headers, ...processedRows];
-      this.verarbeitet = true;
-    },
+      // Update the map with the start of a new Mitarbeiter
+      currentPersonalNr = personalNr;
+      personalNrMap[personalNr] = [startIndex];
+    }
+
+    // Add the row and update the last index for this Mitarbeiter
+    processedRows.push(row);
+    startIndex++;
+    personalNrMap[personalNr][1] = startIndex - 1; // Update the end index
+  });
+
+  // Handle the last Mitarbeiter
+  if (currentPersonalNr !== null) {
+    const rangeStart = personalNrMap[currentPersonalNr][0] + 1;
+    const rangeEnd = personalNrMap[currentPersonalNr][1] + 1;
+    const averageFormula = {
+      f: `=AVERAGE(I${rangeStart}:I${rangeEnd})*100`,
+    };
+    const blankRow = Array(headers.length).fill("");
+    blankRow[reportsIndex] = averageFormula;
+    processedRows.push(blankRow);
+  }
+
+  // Save processed data
+  this.processedData = [headers, ...processedRows];
+  this.verarbeitet = true;
+},
 
     downloadProcessedExcel() {
       if (!this.processedData) return;
 
       const worksheet = XLSX.utils.aoa_to_sheet(this.processedData);
+
+
+      
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Formatierte Daten");
 
