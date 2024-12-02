@@ -28,6 +28,7 @@
           <Dashboard
             ref="dashboardComponent"
             @switch-to-bestand="switchToBestand"
+            @open-tools-bar="toggleToolsBar"
           />
         </div>
         <div v-if="currentComponent === 'Bestand'">
@@ -47,6 +48,12 @@
         @itemsUpdated="handleItemsUpdated"
       />
     </div>
+    <div v-if="toolsBarOpen" class="right">
+      <Tools
+      :isToolBarOpen="toolsBarOpen"
+      ref="toolsComponent"
+      />
+    </div>
   </div>
 </template>
 
@@ -57,6 +64,7 @@ import api from "@/utils/api";
 import Dashboard from "./Dashboard.vue";
 import Bestand from "./Bestand.vue"; // Import Bestand component
 import Shortcuts from "./Shortcuts.vue";
+import Tools from "./Tools.vue"
 
 export default {
   name: "Frame",
@@ -67,6 +75,7 @@ export default {
     Banner,
     FontAwesomeIcon,
     Shortcuts,
+    Tools
   },
   data() {
     return {
@@ -74,6 +83,7 @@ export default {
       userEmail: "",
       isModalOpen: false,
       isMobile: false,
+      toolsBarOpen: false
     };
   },
   computed: {
@@ -87,7 +97,7 @@ export default {
       } else {
         return "1200px";
       }
-    },
+    }
   },
   methods: {
     detectMobile() {
@@ -100,6 +110,9 @@ export default {
       if (this.currentComponent === "Bestand" && this.$refs.bestandComponent) {
         this.$refs.bestandComponent.fetchItems();
       }
+    },
+    closeToolsBar(){
+        this.toolsBarOpen = false;
     },
     handleModalUpdate(state) {
       this.isModalOpen = state;
@@ -124,8 +137,13 @@ export default {
       }
     },
     switchToBestand() {
+      this.closeToolsBar();
       console.log("Switching to Bestand component");
       this.currentComponent = "Bestand"; // Switch to Bestand component
+    },
+    toggleToolsBar(){
+      console.log("Toggling Tools Bar");
+      this.toolsBarOpen = !this.toolsBarOpen;
     },
     switchToDashboard() {
       this.currentComponent = "Dashboard"; // Switch back to Dashboard

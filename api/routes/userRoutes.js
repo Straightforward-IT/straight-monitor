@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const auth = require("../middleware/auth"); // Import the auth middleware
-const User = require("../models/User"); // Import the User model
+const auth = require("../middleware/auth");
+const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { sendMail, sollRoutine } = require("../EmailService");
@@ -78,17 +78,15 @@ router.post("/register", async (req, res) => {
           email,
           password,
           location,
-          isConfirmed: false // Set isActive to false until email confirmation
+          isConfirmed: false 
       });
 
-      // Save the new user
       await user.save();
 
-      // Generate a confirmation token with a short expiration time (e.g., 1 hour)
       const confirmationToken = jwt.sign(
           { userId: user.id },
           process.env.JWT_SECRET,
-          { expiresIn: "1h" }
+          { expiresIn: "6h" }
       );
 
       await user.save();
@@ -189,7 +187,6 @@ router.post("/confirm-email", async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.userId;
 
-    // Find the user by ID and confirm email
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ msg: "Benutzer nicht gefunden" });

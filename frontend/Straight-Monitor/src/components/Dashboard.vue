@@ -14,7 +14,7 @@
       </div>
     </div>
     <div class="floating-label">
-      <button @click="switchToAuswertung">Auswertung</button>
+      <button @click="$emit('open-tools-bar')">Tools</button>
       <div class="icon">
         <font-awesome-icon :icon="['fas', 'list']" />
       </div>
@@ -35,7 +35,7 @@
 
   export default {
     name: 'Dashboard',
-    emits: ['switch-to-bestand', "update-modal", "switch-to-dashboard"],
+    emits: ['switch-to-bestand', "update-modal", "switch-to-dashboard", "open-tools-bar"],
     components: {
       FontAwesomeIcon,
     },
@@ -76,9 +76,6 @@
       },
       switchToVerlauf(){
         this.$router.push('/verlauf');
-      },
-      switchToAuswertung(){
-        this.$router.push('/auswertung');
       },
     },
     mounted() {
