@@ -4,124 +4,158 @@ const LaufzettelSchema = new mongoose.Schema({
     location: {
         type: String,
         required: true,
-    }, name: {
+    },
+    name: {
         type: String,
         required: true,
-    }, bogenNr: {
+    },
+    bogenNr: {
         type: Number,
         required: true,
-    }, name_teamleiter: {
+    },
+    name_teamleiter: {
         type: String,
-        required: true
-    }, datum: {
+        required: true,
+    },
+    datum: {
         type: Date,
-        required: false
-    }, date: {
+        required: false,
+        set: (value) => {
+            if (typeof value === 'string') {
+                // Try parsing string into a date
+                return new Date(value);
+            }
+            if (value && typeof value === 'object' && value.unix) {
+                // Convert Unix timestamp to date
+                return new Date(value.unix * 1000);
+            }
+            return value; // Return as-is if already a valid date
+        },
+    },
+    date: {
         type: Date,
-        default: Date.now
-      },
+        default: Date.now,
+    },
 });
 
 const EventReportSchema = new mongoose.Schema({
     location: {
         type: String,
-        required: true
+        required: true,
     },
     name: {
         type: String,
-        required: true
+        required: true,
     },
     datum: {
         type: Date,
-        required: true
+        required: true,
+        set: (value) => {
+            if (typeof value === 'string') {
+                return new Date(value);
+            }
+            if (value && typeof value === 'object' && value.unix) {
+                return new Date(value.unix * 1000);
+            }
+            return value;
+        },
     },
     kunde: {
         type: String,
-        required: true
+        required: true,
     },
     puenktlichkeit: {
         type: String,
-        required: false
+        required: false,
     },
     erscheinungsbild: {
         type: String,
-        required: false
+        required: false,
     },
     team: {
         type: String,
-        required: false
+        required: false,
     },
     mitarbeiter: {
         type: String,
-        required: false
+        required: false,
     },
     feedback_auftraggeber: {
         type: String,
-        required: false
+        required: false,
     },
     sonstiges: {
         type: String,
-        required: false
+        required: false,
     },
     date: {
         type: Date,
-        default: Date.now
-      },
+        default: Date.now,
+    },
 });
 
 const EvaluierungSchema = new mongoose.Schema({
     location: {
         type: String,
-        required: true
+        required: true,
     },
     datum: {
         type: Date,
-        required: false
+        required: false,
+        set: (value) => {
+            if (typeof value === 'string') {
+                return new Date(value);
+            }
+            if (value && typeof value === 'object' && value.unix) {
+                return new Date(value.unix * 1000);
+            }
+            return value;
+        },
     },
     kunde: {
         type: String,
-        required: true
+        required: true,
     },
     name_teamleiter: {
         type: String,
-        required: true
+        required: true,
     },
     name_mitarbeiter: {
         type: String,
-        required: true
+        required: true,
     },
     puenktlichkeit: {
         type: String,
-        required: false
+        required: false,
     },
     grooming: {
         type: String,
-        required: false
+        required: false,
     },
     motivation: {
         type: String,
-        required: false
+        required: false,
     },
     technische_fertigkeiten: {
         type: String,
-        required: false
+        required: false,
     },
     lernbereitschaft: {
         type: String,
-        required: false
+        required: false,
     },
     sonstiges: {
         type: String,
-        required: false
+        required: false,
     },
     date: {
         type: Date,
-        default: Date.now
-      },
+        default: Date.now,
+    },
 });
 
 const Laufzettel = mongoose.model('Laufzettel', LaufzettelSchema);
 const EventReport = mongoose.model('EventReport', EventReportSchema);
 const EvaluierungMA = mongoose.model('EvaluierungMA', EvaluierungSchema);
 
-module.exports = {Laufzettel, EventReport, EvaluierungMA};
+module.exports = { Laufzettel, EventReport, EvaluierungMA };
