@@ -24,12 +24,34 @@
             <p>Teamleiter Excel</p>
           </label>
         </span>
+        <span class="list-item" @click="uploadFlipExcel">
+          <input 
+          type="file"
+          ref="fileInput"
+          style="display: none;"
+          @change="handleFileChange"
+          accept=".xls, .xlsx"
+          >
+          <img
+            src="@/assets/SF_002.png"
+            id="flip-import"
+            alt="Flip import"
+            class="item-list-sf"
+          />
+          <label for="flip-import">
+            <p>Flip Import</p>
+          </label>
+        </span>
       </div>
     </div>
   </template>
   
   <script>
+  import api from "@/utils/api";
+
   export default {
+    
+
     name: "Tools",
     emits: ["open-tools-bar"],
     props: {
@@ -42,6 +64,44 @@
       openTeamleiterExcel() {
         this.$router.push('/excelFormatierung');
       },
+      uploadFlipExcel() {
+        this.$refs.fileInput.click();
+      },
+      async handleFileChange() {
+        const file = event.target.files[0];
+
+        if(!file) {
+          alert('Keine Datei ausgewählt');
+          return;
+        }
+         // Validate file type (must be Excel)
+      const validMimeTypes = [
+        'application/vnd.ms-excel', // .xls
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      ];
+
+      if (!validMimeTypes.includes(file.type)) {
+        alert('Invalid file type. Please upload a valid Excel file (.xls or .xlsx).');
+        return;
+      }
+
+      // Submit the file to the server
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const response = await api.post('/api/personal/upload', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        alert('File uploaded successfully!');
+        console.log('Server Response:', response.data);
+      } catch (error) {
+        console.error('File upload failed:', error);
+        alert('File upload failed. Please try again.');
+      }
+      }
     },
   };
   </script>

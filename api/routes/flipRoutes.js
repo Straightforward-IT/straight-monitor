@@ -4,6 +4,46 @@ const auth = require("../middleware/auth");
 
 const { Laufzettel, EventReport, EvaluierungMA } = require('../models/FlipDocs');
 
+
+router.get("/", auth, async (req, res) => {
+    try {
+      const type = req.headers["document-type"]; // Optional document type header
+      let documents = [];
+  
+      // Fetch documents based on the type, or fetch all if no type is specified
+      if (type === "laufzettel") {
+        documents = await Laufzettel.find(); // Fetch Laufzettel documents
+      } else if (type === "event_report") {
+        documents = await EventReport.find(); // Fetch EventReport documents
+      } else if (type === "evaluierung") {
+        documents = await EvaluierungMA.find(); // Fetch EvaluierungMA documents
+      } else if (!type) {
+        // Fetch all documents if no type is provided
+        const laufzettelDocs = await Laufzettel.find();
+        const eventReportDocs = await EventReport.find();
+        const evaluierungDocs = await EvaluierungMA.find();
+  
+        // Combine all documents into a single array
+        documents = [
+          ...laufzettelDocs.map(doc => ({ type: "laufzettel", ...doc._doc })),
+          ...eventReportDocs.map(doc => ({ type: "event_report", ...doc._doc })),
+          ...evaluierungDocs.map(doc => ({ type: "evaluierung", ...doc._doc })),
+        ];
+      } else {
+        return res.status(400).json({ error: "Invalid document type" });
+      }
+  
+      // Respond with the documents
+      res.status(200).json({
+        success: true,
+        data: documents,
+      });
+    } catch (err) {
+      console.error("Error fetching documents:", err);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+  
 router.post("/send", async (req, res) => {
     try {
         const type = req.headers["document-type"]; // Inspect the document type

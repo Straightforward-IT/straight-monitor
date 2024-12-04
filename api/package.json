@@ -25,6 +25,7 @@
     "jwt-decode": "^4.0.0",
     "mongodb": "^6.9.0",
     "mongoose": "^8.6.3",
+    "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.16",
     "validator": "^13.12.0",
     "xlsx": "^0.18.5"

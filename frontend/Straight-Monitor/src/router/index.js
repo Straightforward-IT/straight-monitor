@@ -4,6 +4,7 @@ import Verlauf from '../components/Verlauf.vue';
 import Auswertung from '../components/Auswertung.vue';
 import ExcelFormatierung from '../components/ExcelFormatierung.vue';
 import EmailConfirmation from '../components/EmailConfirmation.vue';
+import Personal from '../components/Personal.vue';
 import '../assets/styles/main.scss'; 
 import Frame from '../components/Frame.vue'; // Import the Frame component
 // @ts-ignore  
@@ -43,6 +44,12 @@ const routes = [
     name: 'EmailConfirmation',
     component: EmailConfirmation,
     meta: { requiresAuth: false},
+  },
+  {
+    path: '/personal',
+    name: 'Personal',
+    component: Personal,
+    meta: { requiresAuth: true},
   }
 ];
 

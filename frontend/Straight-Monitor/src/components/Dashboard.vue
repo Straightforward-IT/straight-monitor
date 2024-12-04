@@ -14,6 +14,12 @@
       </div>
     </div>
     <div class="floating-label">
+      <button @click="switchToPersonal">Personal</button>
+      <div class="icon">
+        <font-awesome-icon :icon="['fas', 'person-through-window']" />
+      </div>
+    </div>
+    <div class="floating-label">
       <button @click="$emit('open-tools-bar')">Tools</button>
       <div class="icon">
         <font-awesome-icon :icon="['fas', 'list']" />
@@ -76,6 +82,9 @@
       },
       switchToVerlauf(){
         this.$router.push('/verlauf');
+      },
+      switchToPersonal(){
+        this.$router.push('/personal')
       },
     },
     mounted() {

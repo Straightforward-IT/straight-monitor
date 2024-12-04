@@ -6,6 +6,7 @@ const userRoutes = require('./routes/userRoutes');
 const itemRoutes = require('./routes/itemRoutes');
 const monitoringRoutes = require('./routes/monitoringRoutes');
 const flipRoutes = require('./routes/flipRoutes');
+const personalRoutes = require('./routes/personalRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -40,6 +41,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/reports', flipRoutes);
+app.use('/api/personal', personalRoutes);
 
 app.use((req, res, next) => {
   const headers = req.headers;
