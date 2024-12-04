@@ -5,6 +5,7 @@ const axios = require('axios');
 const userRoutes = require('./routes/userRoutes'); 
 const itemRoutes = require('./routes/itemRoutes');
 const monitoringRoutes = require('./routes/monitoringRoutes');
+const flipRoutes = require('./routes/flipRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -12,7 +13,7 @@ const app = express();
 // Middleware
 app.use(express.json());
 
-const allowedDomains = ["http://localhost:5173", "https://straightmonitor.com"];
+const allowedDomains = ["http://localhost:5173", "https://straightmonitor.com",  "https://straight-monitor-684d4006140b.herokuapp.com", "https://flipcms.de/integration/flipcms/hpstraightforward"];
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -20,6 +21,7 @@ const corsOptions = {
     if (!origin || allowedDomains.includes(origin)) {
       callback(null, true);
     } else {
+      console.error(`Blocked by CORS: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -28,6 +30,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));  // Apply the CORS options
+app.options('*', cors(corsOptions));
 
 // Basic route
 app.get('/', (req, res) => res.send('API Running'));
@@ -36,6 +39,13 @@ app.get('/', (req, res) => res.send('API Running'));
 app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
 app.use('/api/monitoring', monitoringRoutes);
+app.use('/api/reports', flipRoutes);
+
+app.use((req, res, next) => {
+  const headers = req.headers;
+  res.send(headers);
+  
+});
 
 // Function to get and log the public IP
 async function logCurrentIP() {
