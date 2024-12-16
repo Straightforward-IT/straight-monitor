@@ -17,6 +17,32 @@ const LaufzettelSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+<<<<<<< HEAD
+=======
+    assigned: {
+        type: Boolean,
+        required: true,
+        default: false,
+    },
+>>>>>>> 9faa263d035f9c6b93d8a6b31986a605a7e62182
+    mitarbeiter: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "FlipUser",
+        required: false
+    },
+    teamleiter: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "FlipUser",
+        required: false
+    },
+<<<<<<< HEAD
+    assigned: {
+        type: Boolean,
+        required: true,
+        default: false,
+    },
+=======
+>>>>>>> 9faa263d035f9c6b93d8a6b31986a605a7e62182
     datum: {
         type: Date,
         required: false,
@@ -88,6 +114,16 @@ const EventReportSchema = new mongoose.Schema({
         type: String,
         required: false,
     },
+    teamleiter: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "FlipUser",
+        required: false
+    },
+    assigned: {
+        type: Boolean,
+        required: true,
+        default: false,
+    },
     date: {
         type: Date,
         default: Date.now,
@@ -147,6 +183,21 @@ const EvaluierungSchema = new mongoose.Schema({
     sonstiges: {
         type: String,
         required: false,
+    },
+    mitarbeiter: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "FlipUser",
+        required: false
+    },
+    teamleiter: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "FlipUser",
+        required: false
+    },
+    assigned: {
+        type: Boolean,
+        required: true,
+        default: false,
     },
     date: {
         type: Date,

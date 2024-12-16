@@ -64,10 +64,6 @@ const FlipUserSchema = new mongoose.Schema({
         required: false,
         default: []
     },
-    isActive: {
-        type: Boolean,
-        default: true
-    },
     dateCreated: {
         type: Date,
         default: Date.now
