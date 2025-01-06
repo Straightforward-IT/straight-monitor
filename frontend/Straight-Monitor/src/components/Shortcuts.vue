@@ -833,67 +833,94 @@ export default {
         return;
       }
       const selections = [
-        {
-          checked: this.cuttermesserChecked,
-          _id: this.getItemId("cuttermesser"),
-          size: "onesize",
-        },
-        {
-          checked: this.jutebeutelChecked,
-          _id: this.getItemId("jutebeutel"),
-          size: "onesize",
-        },
-        {
-          checked: this.logistikHoseChecked,
-          _id: this.getItemId("logistikHose", this.logistikHoseSize),
-          size: this.logistikHoseSize,
-        },
-        {
-          checked: this.tshirt1Checked,
-          _id: this.getItemId("tshirt", this.tshirt1Size),
-          size: this.tshirt1Size,
-        },
-        {
-          checked: this.tshirt2Checked,
-          _id: this.getItemId("tshirt", this.tshirt2Size),
-          size: this.tshirt2Size,
-        },
-        {
-          checked: this.tshirt3Checked,
-          _id: this.getItemId("tshirt", this.tshirt3Size),
-          size: this.tshirt3Size,
-        },
-        {
-          checked: this.schwarzeKapuzenjackeChecked,
-          _id: this.getItemId("kapuzenjacke", this.schwarzeKapuzenjackeSize),
-          size: this.schwarzeKapuzenjackeSize,
-        },
-        {
-          checked: this.sicherheitshelmChecked,
-          _id: this.getItemId("sicherheitshelm", this.sicherheitshelmArt),
-          size: this.sicherheitshelmArt,
-        },
-        {
-          checked: this.softshelljackeChecked,
-          _id: this.getItemId("softshelljacke", this.softshelljackeSize),
-          size: this.softshelljackeSize,
-        },
-        {
-          checked: this.bundhoseChecked,
-          _id: this.getItemId("bundhose", this.bundhoseSize),
-          size: this.bundhoseSize,
-        },
-        {
-          checked: this.sicherheitsschuheChecked,
-          _id: this.getItemId("sicherheitsschuhe", this.sicherheitsschuheSize),
-          size: this.sicherheitsschuheSize,
-        },
-        {
-          checked: this.handschuheChecked,
-          _id: this.getItemId("handschuhe", this.handschuheSize),
-          size: this.handschuheSize,
-        },
-      ];
+  {
+    bezeichnung: "Cuttermesser",
+    checked: this.cuttermesserChecked,
+    _id: this.getItemId("cuttermesser"),
+    size: "onesize",
+  },
+  {
+    bezeichnung: "Jutebeutel",
+    checked: this.jutebeutelChecked,
+    _id: this.getItemId("jutebeutel"),
+    size: "onesize",
+  },
+  {
+    bezeichnung: "Logistik Hose",
+    checked: this.logistikHoseChecked,
+    _id: this.getItemId("logistikHose", this.logistikHoseSize),
+    size: this.logistikHoseSize,
+  },
+  {
+    bezeichnung: "T-Shirt (1)",
+    checked: this.tshirt1Checked,
+    _id: this.getItemId("tshirt", this.tshirt1Size),
+    size: this.tshirt1Size,
+  },
+  {
+    bezeichnung: "T-Shirt (2)",
+    checked: this.tshirt2Checked,
+    _id: this.getItemId("tshirt", this.tshirt2Size),
+    size: this.tshirt2Size,
+  },
+  {
+    bezeichnung: "T-Shirt (3)",
+    checked: this.tshirt3Checked,
+    _id: this.getItemId("tshirt", this.tshirt3Size),
+    size: this.tshirt3Size,
+  },
+  {
+    bezeichnung: "Schwarze Kapuzenjacke",
+    checked: this.schwarzeKapuzenjackeChecked,
+    _id: this.getItemId("kapuzenjacke", this.schwarzeKapuzenjackeSize),
+    size: this.schwarzeKapuzenjackeSize,
+  },
+  {
+    bezeichnung: "Sicherheitshelm",
+    checked: this.sicherheitshelmChecked,
+    _id: this.getItemId("sicherheitshelm", this.sicherheitshelmArt),
+    size: this.sicherheitshelmArt,
+  },
+  {
+    bezeichnung: "Softshelljacke",
+    checked: this.softshelljackeChecked,
+    _id: this.getItemId("softshelljacke", this.softshelljackeSize),
+    size: this.softshelljackeSize,
+  },
+  {
+    bezeichnung: "Bundhose",
+    checked: this.bundhoseChecked,
+    _id: this.getItemId("bundhose", this.bundhoseSize),
+    size: this.bundhoseSize,
+  },
+  {
+    bezeichnung: "Sicherheitsschuhe",
+    checked: this.sicherheitsschuheChecked,
+    _id: this.getItemId("sicherheitsschuhe", this.sicherheitsschuheSize),
+    size: this.sicherheitsschuheSize,
+  },
+  {
+    bezeichnung: "Handschuhe",
+    checked: this.handschuheChecked,
+    _id: this.getItemId("handschuhe", this.handschuheSize),
+    size: this.handschuheSize,
+  },
+];
+
+// Check for invalid items
+const invalidItems = selections.filter(
+  (selection) => selection.checked && !selection._id
+);
+
+if (invalidItems.length > 0) {
+  alert(
+    `Folgende Items konnten nicht gefunden werden:\n${invalidItems
+      .map((item) => `${item.bezeichnung} (Größe: ${item.size || "?"})`)
+      .join("\n")}`
+  );
+  return;
+}
+
 
       const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
 
