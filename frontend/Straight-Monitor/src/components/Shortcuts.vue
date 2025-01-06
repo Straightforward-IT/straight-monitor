@@ -97,6 +97,7 @@
                 <option value="52">52</option>
                 <option value="54">54</option>
                 <option value="56">56</option>
+                <option v-if="selectedLocation === 'Berlin'" value="58">58</option>
               </select>
             </div>
           </span>
@@ -180,11 +181,11 @@
                 <option value="L">L</option>
                 <option value="XL">XL</option>
                 <option value="XXL">XXL</option>
-                <option value="3XL">3XL</option>
+                <option v-if="selectedLocation != 'Berlin'" value="3XL">3XL</option>
               </select>
             </div>
           </span>
-          <span class="list-item">
+          <span v-if="selectedLocation === 'Hamburg'" class="list-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="sicherheitshelmChecked" />
@@ -220,8 +221,8 @@
                 <option value="M">M</option>
                 <option value="L">L</option>
                 <option value="XL">XL</option>
-                <option value="XXL">XXL</option>
-                <option value="3XL">3XL</option>
+                <option v-if="selectedLocation != 'Berlin'" value="XXL">XXL</option>
+                <option v-if="selectedLocation != 'Berlin'" value="3XL">3XL</option>
               </select>
             </div>
           </span>
@@ -237,11 +238,15 @@
                 class="size-dropdown"
                 :disabled="!bundhoseChecked"
               >
-                <option value="44">44</option>
+                
+                <option v-if="selectedLocation != 'Hamburg'" value="44">44</option>
                 <option value="46">46</option>
                 <option value="48">48</option>
                 <option value="50">50</option>
                 <option value="52">52</option>
+                <option value="54">54</option>
+                <option v-if="selectedLocation != 'Hamburg'" value="56">56</option>
+                <option v-if="selectedLocation === 'Berlin'" value="58">58</option>
               </select>
             </div>
           </span>
@@ -259,7 +264,7 @@
                 class="size-dropdown"
                 :disabled="!sicherheitsschuheChecked"
               >
-                <option value="36">36</option>
+                <option v-if="selectedLocation != Köln" value="36">36</option>
                 <option value="37">37</option>
                 <option value="38">38</option>
                 <option value="39">39</option>
@@ -371,6 +376,15 @@
                 <input type="checkbox" v-model="schwarzeKrawatteChecked" />
                 <span class="checkmark"></span>
                 Schwarze Krawatte
+              </label>
+            </div>
+          </span>
+          <span v-if="selectedLocation === 'Berlin' " class="list-item">
+            <div class="checkbox-container">
+              <label class="custom-checkbox">
+                <input type="checkbox" v-model="schwarzeFliegeChecked" />
+                <span class="checkmark"></span>
+                Schwarze Fliege
               </label>
             </div>
           </span>
@@ -517,7 +531,7 @@ export default {
       tshirt2Checked: true,
       tshirt3Checked: false,
       schwarzeKapuzenjackeChecked: true,
-      sicherheitshelmChecked: true,
+      sicherheitshelmChecked: false,
       softshelljackeChecked: false,
       bundhoseChecked: false,
       sicherheitsschuheChecked: false,
@@ -544,6 +558,7 @@ export default {
       feuerzeugChecked: true,
       schuhputzzeugChecked: true,
       schwarzeKrawatteChecked: true,
+      schwarzeFliegeChecked: false,
       schwarzeSchuerzeChecked: true,
       kleidersackChecked: true,
       serviceHandschuheChecked: true,
@@ -690,6 +705,7 @@ export default {
       this.feuerzeugChecked = true;
       this.schuhputzzeugChecked = true;
       this.schwarzeKrawatteChecked = true;
+      this.schwarzeFliegeChecked = false;
       this.schwarzeSchuerzeChecked = true;
       this.kleidersackChecked = true;
       this.serviceHandschuheChecked = true;
@@ -923,6 +939,11 @@ export default {
           size: "onesize",
         },
         {
+          checked: this.schwarzeFliegeChecked,
+          _id: this.getItemId("schwarzeFliege"),
+          size: "onesize",
+        },
+        {
           checked: this.schwarzeSchuerzeChecked,
           _id: this.getItemId("schwarzeSchuerze"),
           size: "onesize",
@@ -1021,7 +1042,7 @@ h4 {
   border-radius: 8px;
   width: 350px;
   text-align: center;
-  position: relative; /* Needed for absolute positioning of the close button */
+  position: relative;
 
   .item-actions {
     display: flex;

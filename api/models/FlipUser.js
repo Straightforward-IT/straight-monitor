@@ -49,10 +49,6 @@ const FlipUserSchema = new mongoose.Schema({
         type: String,
         required: false,
     },
-    mobil: {
-        type: String,
-        required: false,
-    },
     channels: {
         type: [
             {

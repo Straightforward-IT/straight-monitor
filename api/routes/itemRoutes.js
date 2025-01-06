@@ -6,7 +6,7 @@ const Item = require("../models/Item");
 const Monitoring = require("../models/Monitoring");
 const xlsx = require("xlsx");
 // Variables
-const cities = ["Hamburg", "Berlin", "Koeln"];
+const cities = ["Hamburg", "Berlin", "Köln"];
 
 // Helper function to find or create user
 async function findOrCreateUser(userID) {
@@ -173,18 +173,18 @@ router.put("/edit/:id", auth, async (req, res) => {
         }
         
         // Update name and note the change
-        anmerkung += `[Name: ${oldName} => ${bezeichnung}] `;
+        anmerkung += `[Name: ${oldName} -> ${bezeichnung}] `;
         item.bezeichnung = bezeichnung;
       }
   
       // Check if anzahl has changed and note the change
       if (oldAnzahl !== anzahl) {
-        anmerkung += `[Anzahl: ${oldAnzahl} => ${anzahl}] `;
+        anmerkung += `[Anzahl: ${oldAnzahl} -> ${anzahl}] `;
         item.anzahl = anzahl;
       }
 
       if (oldSoll !== soll) {
-        anmerkung += `[Soll: ${oldSoll} => ${soll}]`;
+        anmerkung += `[Soll: ${oldSoll} -> ${soll}]`;
         item.soll = soll;
       }
   
