@@ -213,4 +213,7 @@ router.post("/upload", auth, upload.single("file"), async (req, res) => {
   }
 });
 
+router.post("upload-teamleiter", auth, upload.single("file", async (req, res) => {
+  
+}));
 module.exports = router;

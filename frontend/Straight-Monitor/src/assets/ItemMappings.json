@@ -1,7 +1,10 @@
 {
   "Hamburg": {
     "cuttermesser": "66f409272bd7b954e71ded84",
-    "jutebeutel": "66fbe89a6971ca198c0dd6f2",
+    "jutebeutel": {
+        "Gold": "66fbe89a6971ca198c0dd6f2",
+        "Weiß": "6724f2b1a7e40e0c31f8c608"
+      }, 
     "logistikHose": {
       "44": "66fbe9416971ca198c0dd709",
       "46": "66fbec896eba044dba7610f8",
@@ -101,8 +104,11 @@
   },
   
     "Köln": {
-     
-      "jutebeutel": "676ebc7b53fe013a546dd642", 
+      "cuttermesser": "676ebca653fe013a546dd650",
+      "jutebeutel": {
+        "Gold": "676ebc7b53fe013a546dd642",
+        "Weiß": "676ebc9153fe013a546dd649"
+      }, 
       "logistikHose": {
         "44": "676ebfca53fe013a546dd66c",
         "46": "676ebfe153fe013a546dd673",
@@ -204,7 +210,10 @@
   
     "Berlin": {
       "cuttermesser": "676e8c74b2c6d81331df004b",
-      "jutebeutel": "676eb7b553fe013a546dd63b",
+      "jutebeutel": {
+        "Gold": "676eb79e53fe013a546dd634",
+        "Weiß": "676eb7b553fe013a546dd63b"
+      }, 
       "logistikHose": {
         "44": "676e711bb2c6d81331defef7",
         "46": "676e7142b2c6d81331defefe",
@@ -230,7 +239,6 @@
         "XL": "676e88d7b2c6d81331deffcd",
         "XXL": "676e88e1b2c6d81331deffd4"
       },
-      "sicherheitshelm": {},
       "softshelljacke": {
         "S": "676e72a9b2c6d81331deff66",
         "M": "676e72b6b2c6d81331deff6d",

@@ -47,18 +47,47 @@ export default {
   },
   methods: {
     handleFileUpload(event) {
-      const file = event.target.files[0];
-      this.fileName = file.name;
-      this.readFile(file);
-    },
-    handleDragAndDrop(event) {
-        event.preventDefault();
-        event.stopPropagation();
-      const file = event.dataTransfer.files[0];
-      this.fileName = file.name;
-      this.readFile(file);
-    },
+    const file = event.target.files[0];
+    this.fileName = file.name;
 
+  
+    this.uploadFileToServer(file)
+      .then(() => {
+        this.readFile(file); 
+      })
+      .catch((error) => {
+        console.error("Error uploading file to the server:", error);
+        alert("Fehler beim Hochladen der Datei.");
+      });
+  },
+  handleDragAndDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const file = event.dataTransfer.files[0];
+    this.fileName = file.name;
+
+    // Send the file to the server before processing
+    this.uploadFileToServer(file)
+      .then(() => {
+        this.readFile(file); // Process the file after successful upload
+      })
+      .catch((error) => {
+        console.error("Error uploading file to the server:", error);
+        alert("Fehler beim Hochladen der Datei.");
+      });
+  },
+  uploadFileToServer(file) {
+    // Create FormData to send the file
+    const formData = new FormData();
+    formData.append("file", file);
+
+    // Return a promise for the API call
+    return api.post("/api/personal/upload-teamleiter", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
     readFile(file) {
       if (file) {
         const reader = new FileReader();

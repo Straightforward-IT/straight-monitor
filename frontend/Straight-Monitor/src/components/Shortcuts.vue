@@ -75,6 +75,14 @@
                 <span class="checkmark"></span>
                 Jutebeutel
               </label>
+              <select
+                v-model="jutebeutelArt"
+                class="size-dropdown"
+                :disabled="!jutebeutelChecked"
+              >
+                <option value="Gold">Gold</option>
+                <option value="Weiß">Weiß</option>
+              </select>
             </div>
           </span>
           <span class="list-item">
@@ -537,6 +545,7 @@ export default {
       sicherheitsschuheChecked: false,
       handschuheChecked: false,
 
+      jutebeutelArt: "",
       logistikHoseSize: "",
       tshirt1Size: "",
       tshirt2Size: "",
@@ -842,8 +851,8 @@ export default {
   {
     bezeichnung: "Jutebeutel",
     checked: this.jutebeutelChecked,
-    _id: this.getItemId("jutebeutel"),
-    size: "onesize",
+    _id: this.getItemId("jutebeutel", this.jutebeutelArt),
+    size: this.jutebeutelArt,
   },
   {
     bezeichnung: "Logistik Hose",
