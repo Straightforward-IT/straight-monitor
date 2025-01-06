@@ -31,193 +31,171 @@
     </div>
   </template>
   
-<script>
-import * as XLSX from "xlsx";
-import FileSaver from "file-saver";
-
-export default {
-  name: "ExcelFormatierung",
-  data() {
-    return {
-      uploadedFile: null,
-      processedData: null,
-      fileName: "",
-      verarbeitet: false,
-    };
-  },
-  methods: {
-    handleFileUpload(event) {
-    const file = event.target.files[0];
-    this.fileName = file.name;
-
+  <script>
+  import * as XLSX from "xlsx";
+  import FileSaver from "file-saver";
+  import api from "../utils/api";
   
-    this.uploadFileToServer(file)
-      .then(() => {
-        this.readFile(file); 
-      })
-      .catch((error) => {
-        console.error("Error uploading file to the server:", error);
-        alert("Fehler beim Hochladen der Datei.");
-      });
-  },
-  handleDragAndDrop(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    const file = event.dataTransfer.files[0];
-    this.fileName = file.name;
-
-    // Send the file to the server before processing
-    this.uploadFileToServer(file)
-      .then(() => {
-        this.readFile(file); // Process the file after successful upload
-      })
-      .catch((error) => {
-        console.error("Error uploading file to the server:", error);
-        alert("Fehler beim Hochladen der Datei.");
-      });
-  },
-  uploadFileToServer(file) {
-    // Create FormData to send the file
-    const formData = new FormData();
-    formData.append("file", file);
-
-    // Return a promise for the API call
-    return api.post("/api/personal/upload-teamleiter", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
+  export default {
+    name: "ExcelFormatierung",
+    data() {
+      return {
+        token: localStorage.getItem("token") || null,
+        processedData: null,
+        fileName: "",
+        verarbeitet: false,
+      };
+    },
+    methods: {
+      setAxiosAuthToken() {
+        api.defaults.headers.common["x-auth-token"] = this.token;
       },
-    });
-  },
-    readFile(file) {
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: "array" });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          this.processExcelData(jsonData);
-        };
-        reader.readAsArrayBuffer(file);
-      }
+      async fetchUserData() {
+        if (this.token) {
+          try {
+            const response = await api.get("/api/users/me", {});
+            this.userID = response.data._id;
+            this.userLocation = response.data.location;
+          } catch (error) {
+            console.error("Error fetching user data:", error);
+            this.$router.push("/");
+          }
+        } else {
+          console.error("No token found");
+          this.$router.push("/");
+        }
+      },
+      handleFileUpload(event) {
+        const file = event.target.files[0];
+        this.fileName = file.name;
+        this.uploadFileToServer(file);
+      },
+      handleDragAndDrop(event) {
+        event.preventDefault();
+        const file = event.dataTransfer.files[0];
+        this.fileName = file.name;
+        this.uploadFileToServer(file);
+      },
+      uploadFileToServer(file) {
+        const formData = new FormData();
+        formData.append("file", file);
+  
+        api
+          .post("/api/personal/upload-teamleiter", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          })
+          .then((response) => {
+            const { headers, rows } = response.data;
+            this.processExcelData([headers, ...rows]);
+          })
+          .catch((error) => {
+            console.error("Error uploading file:", error);
+            alert("Fehler beim Hochladen der Datei.");
+          });
+      },
+      processExcelData(data) {
+        const headers = data[0];
+        const rows = data.slice(1);
+        const personalNrIndex = headers.indexOf("PERSONALNR");
+        const anzahlMitarbeiterIndex = headers.indexOf("ANZAHL_MITARBEITER");
+        const reportsIndex = headers.length;
+  
+        // Add a new column for "REPORTS"
+        headers.push("QUOTE IN %");
+  
+        const processedRows = [];
+        const personalNrMap = {};
+        let currentPersonalNr = null;
+        let startIndex = 1; // Tracks the current row index in the output
+  
+        rows.forEach((row) => {
+          // Convert dates in Column A
+          if (row[0] && typeof row[0] === "number") {
+            const date = new Date(Math.round((row[0] - 25569) * 86400 * 1000)); // Excel to JS date
+            const day = String(date.getDate()).padStart(2, "0");
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const year = date.getFullYear();
+            row[0] = `${day}.${month}.${year}`; // Format as dd.mm.yyyy
+          }
+  
+          const personalNr = row[personalNrIndex];
+  
+          // Check if PERSONALNR group has changed
+          if (personalNr !== currentPersonalNr) {
+            if (currentPersonalNr !== null) {
+              // Add a blank row with the AVERAGE formula for the previous group
+              const rangeStart = personalNrMap[currentPersonalNr][0] + 1; // +1 to account for headers
+              const rangeEnd = personalNrMap[currentPersonalNr][1] + 1; // +1 to account for headers
+              const averageFormula = { f: `=AVERAGE(I${rangeStart}:I${rangeEnd})*100` };
+              const blankRow = Array(headers.length).fill("");
+              blankRow[reportsIndex] = averageFormula;
+              processedRows.push(blankRow);
+              startIndex++;
+            }
+  
+            // Update the map with the start of a new group
+            currentPersonalNr = personalNr;
+            personalNrMap[personalNr] = [startIndex];
+          }
+  
+          // Add the current row and update the last index for this group
+          processedRows.push(row);
+          startIndex++;
+          personalNrMap[personalNr][1] = startIndex - 1;
+        });
+  
+        // Add a blank row with the AVERAGE formula for the last group
+        if (currentPersonalNr !== null) {
+          const rangeStart = personalNrMap[currentPersonalNr][0] + 1;
+          const rangeEnd = personalNrMap[currentPersonalNr][1] + 1;
+          const averageFormula = { f: `=AVERAGE(I${rangeStart}:I${rangeEnd})*100` };
+          const blankRow = Array(headers.length).fill("");
+          blankRow[reportsIndex] = averageFormula;
+          processedRows.push(blankRow);
+        }
+  
+        // Save processed data
+        this.processedData = [headers, ...processedRows];
+        this.verarbeitet = true;
+      },
+      downloadProcessedExcel() {
+        if (!this.processedData) return;
+  
+        const worksheet = XLSX.utils.aoa_to_sheet(this.processedData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Formatierte Daten");
+  
+        const excelBuffer = XLSX.write(workbook, {
+          bookType: "xlsx",
+          type: "array",
+        });
+        const blob = new Blob([excelBuffer], {
+          type: "application/octet-stream",
+        });
+        FileSaver.saveAs(blob, "Excel_Formatiert.xlsx");
+        this.resetState();
+      },
+      resetState() {
+        this.fileName = "";
+        this.verarbeitet = false;
+        this.processedData = null;
+      },
+      switchToDashboard() {
+        const userConfirmed = window.confirm(
+          "Bist du Sicher? Alle ungespeicherten Änderungen gehen verloren."
+        );
+        if (userConfirmed) {
+          this.$router.push("/");
+        }
+      },
     },
-    processExcelData(data) {
-  const headers = data[0];
-  const rows = data.slice(1);
-  const personalNrIndex = headers.indexOf("PERSONALNR");
-  const anzahlMitarbeiterIndex = headers.indexOf("ANZAHL_MITARBEITER");
-  const reportsIndex = headers.length;
-
-  // Add new "REPORTS" column
-  headers.push("REPORTS");
-
-  const processedRows = [];
-  const personalNrMap = {};
-  let currentPersonalNr = null;
-  let startIndex = 1; // Tracks the current row index in the output
-
-  // Convert dates in Column A (first column)
-  rows.forEach((row, i) => {
-    if (row[0]) {
-      // Check if it's a number, and convert it to a readable date
-      if (typeof row[0] === "number") {
-  // Convert Excel serial number to JS Date
-  const date = new Date(Math.round((row[0] - 25569) * 86400 * 1000)); // Excel to JS date
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0"); // Months are 0-based
-  const year = date.getFullYear();
-  row[0] = `${day}.${month}.${year}`; // Format as dd.mm.yyyy
-}
-
-    }
-    const personalNr = row[personalNrIndex];
-
-    if (personalNr !== currentPersonalNr) {
-      if (currentPersonalNr !== null) {
-        // Add blank row with the AVERAGE formula for the previous group
-        const rangeStart = personalNrMap[currentPersonalNr][0] + 1; // +1 to account for headers
-        const rangeEnd = personalNrMap[currentPersonalNr][1] + 1; // +1 to account for headers
-        const averageFormula = {
-          f: `=AVERAGE(I${rangeStart}:I${rangeEnd})*100`,
-        };
-        const blankRow = Array(headers.length).fill("");
-        blankRow[reportsIndex] = averageFormula;
-        processedRows.push(blankRow);
-        startIndex++;
-      }
-
-      // Update the map with the start of a new Mitarbeiter
-      currentPersonalNr = personalNr;
-      personalNrMap[personalNr] = [startIndex];
-    }
-
-    // Add the row and update the last index for this Mitarbeiter
-    processedRows.push(row);
-    startIndex++;
-    personalNrMap[personalNr][1] = startIndex - 1; // Update the end index
-  });
-
-  // Handle the last Mitarbeiter
-  if (currentPersonalNr !== null) {
-    const rangeStart = personalNrMap[currentPersonalNr][0] + 1;
-    const rangeEnd = personalNrMap[currentPersonalNr][1] + 1;
-    const averageFormula = {
-      f: `=AVERAGE(I${rangeStart}:I${rangeEnd})*100`,
-    };
-    const blankRow = Array(headers.length).fill("");
-    blankRow[reportsIndex] = averageFormula;
-    processedRows.push(blankRow);
-  }
-
-  // Save processed data
-  this.processedData = [headers, ...processedRows];
-  this.verarbeitet = true;
-},
-
-    downloadProcessedExcel() {
-      if (!this.processedData) return;
-
-      const worksheet = XLSX.utils.aoa_to_sheet(this.processedData);
-
-
-      
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Formatierte Daten");
-
-      const excelBuffer = XLSX.write(workbook, {
-        bookType: "xlsx",
-        type: "array",
-      });
-      const blob = new Blob([excelBuffer], {
-        type: "application/octet-stream",
-      });
-      FileSaver.saveAs(blob, "Excel_Formatiert.xlsx");
-      this.fileName = "";
-      this.verarbeitet = false;
-      this.uploadedFile = null;
-      this.processedData = null;
+    mounted() {
+      this.setAxiosAuthToken();
+      this.fetchUserData();
     },
-    switchToDashboard() {
-      const userConfirmed = window.confirm(
-        "Bist du Sicher? Alle ungespeicherten Änderungen gehen verloren."
-      );
-      if (userConfirmed) {
-        this.$router.push("/");
-      }
-    },
-  },
-  mounted() {
-    // Add the beforeunload event listener
-    window.addEventListener("beforeunload", this.beforeUnloadHandler);
-  },
-  beforeDestroy() {
-    // Remove the beforeunload event listener
-    window.removeEventListener("beforeunload", this.beforeUnloadHandler);
-  },
-};
-</script>
-
+  };
+  </script>
+  
 <style scoped>
 .window {
   width: 600px;
