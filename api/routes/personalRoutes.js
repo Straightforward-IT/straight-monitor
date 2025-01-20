@@ -196,7 +196,7 @@ router.post("/upload", auth, upload.single("file"), async (req, res) => {
             nachname: user.nachname,
             email: user.email,
             standort: user.standort,
-            isActive: true, // Ensure active on import
+            isActive: true, 
             isTeamleiter,
             isFestAngestellt,
             isOfficeMA,
@@ -256,7 +256,7 @@ router.post(
       headers.push("REPORT_GEFUNDEN");
 
       const processedRows = [];
-      const personalNrToRowsMap = {};
+      const nachnameToRowsMap = {};
 
       // Helper function to convert Excel serial date to JavaScript date
       const excelDateToJSDate = (serial) => {
@@ -264,34 +264,34 @@ router.post(
         return new Date(excelEpoch.getTime() + (serial - 2) * 86400 * 1000); // Adjust for Excel's leap year bug
       };
 
-      // Group rows by `personalnr`
+      // Group rows by `Nachname`
       for (const row of rows) {
-        if (!row[3]) {
-          processedRows.push(row); // Skip rows without `personalnr`
+        if (!row[1]) { // Check if `Nachname` exists
+          processedRows.push(row); // Skip rows without `Nachname`
           continue;
         }
-        const personalnr = row[3];
-        if (!personalNrToRowsMap[personalnr]) {
-          personalNrToRowsMap[personalnr] = [];
+        const nachname = row[1];
+        if (!nachnameToRowsMap[nachname]) {
+          nachnameToRowsMap[nachname] = [];
         }
-        personalNrToRowsMap[personalnr].push(row);
+        nachnameToRowsMap[nachname].push(row);
       }
 
-      // Fetch all unique Mitarbeiter by personalnr
-      const uniquePersonalNrs = Object.keys(personalNrToRowsMap);
+      // Fetch all unique Mitarbeiter by Nachname
+      const uniqueNachnamen = Object.keys(nachnameToRowsMap);
       const mitarbeiterDocs = await Mitarbeiter.find({
-        personalnr: { $in: uniquePersonalNrs },
+        nachname: { $in: uniqueNachnamen },
       }).populate("eventreports", "datum");
 
-      const personalNrToMitarbeiterMap = {};
+      const nachnameToMitarbeiterMap = {};
       mitarbeiterDocs.forEach((mitarbeiter) => {
-        personalNrToMitarbeiterMap[mitarbeiter.personalnr] = mitarbeiter;
+        nachnameToMitarbeiterMap[mitarbeiter.nachname] = mitarbeiter;
       });
 
       // Process each row group
-      for (const personalnr of uniquePersonalNrs) {
-        const mitarbeiter = personalNrToMitarbeiterMap[personalnr];
-        const rowsForMitarbeiter = personalNrToRowsMap[personalnr];
+      for (const nachname of uniqueNachnamen) {
+        const mitarbeiter = nachnameToMitarbeiterMap[nachname];
+        const rowsForMitarbeiter = nachnameToRowsMap[nachname];
 
         // Prepare all event report dates for quick lookup
         const eventReportDates = new Set(
@@ -344,6 +344,7 @@ router.post(
     }
   }
 );
+
 
 
 module.exports = router;

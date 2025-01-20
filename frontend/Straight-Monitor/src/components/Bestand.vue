@@ -82,7 +82,7 @@
           showAddModal = false;
           closeModal();
         "
-        style="bottom: 95%"
+        style="bottom: 96%"
       />
       <h4>Artikel hinzufügen</h4>
 

@@ -144,7 +144,7 @@ const assignFields = async (documentId, updates) => {
             const mitarbeiter = await Mitarbeiter.findById(updates.mitarbeiter);
             if (mitarbeiter) {
                 if (documentFound instanceof Laufzettel) {
-                    mitarbeiter.laufzettel_received.push(documentFound._id);
+                    mitarbeiter.laufzettel_submitted.push(documentFound._id);
                 } else if (documentFound instanceof EvaluierungMA) {
                     mitarbeiter.evaluierungen_received.push(documentFound._id);
                 }
@@ -158,7 +158,7 @@ const assignFields = async (documentId, updates) => {
             const teamleiter = await Mitarbeiter.findById(updates.teamleiter);
             if (teamleiter) {
                 if (documentFound instanceof Laufzettel) {
-                    teamleiter.laufzettel_submitted.push(documentFound._id);
+                    teamleiter.laufzettel_received.push(documentFound._id);
                 } else if (documentFound instanceof EventReport) {
                     teamleiter.eventreports.push(documentFound._id);
                 } else if (documentFound instanceof EvaluierungMA) {

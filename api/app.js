@@ -7,6 +7,7 @@ const itemRoutes = require('./routes/itemRoutes');
 const monitoringRoutes = require('./routes/monitoringRoutes');
 const flipRoutes = require('./routes/flipRoutes');
 const personalRoutes = require('./routes/personalRoutes');
+const asanaRoutes = require('./routes/asanaRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -42,7 +43,7 @@ app.use('/api/items', itemRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/reports', flipRoutes);
 app.use('/api/personal', personalRoutes);
-
+app.use('/api/asana', asanaRoutes);
 app.use((req, res, next) => {
   const headers = req.headers;
   res.send(headers);

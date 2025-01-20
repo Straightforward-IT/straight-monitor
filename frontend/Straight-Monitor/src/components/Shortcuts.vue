@@ -59,7 +59,7 @@
         </select>
 
         <div class="modalGroup">
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="cuttermesserChecked" />
@@ -68,7 +68,7 @@
               </label>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="jutebeutelChecked" />
@@ -85,7 +85,7 @@
               </select>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="logistikHoseChecked" />
@@ -109,7 +109,7 @@
               </select>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="tshirt1Checked" />
@@ -130,7 +130,7 @@
               </select>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="tshirt2Checked" />
@@ -151,7 +151,7 @@
               </select>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="tshirt3Checked" />
@@ -172,7 +172,7 @@
               </select>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="schwarzeKapuzenjackeChecked" />
@@ -193,7 +193,7 @@
               </select>
             </div>
           </span>
-          <span v-if="selectedLocation === 'Hamburg'" class="list-item">
+          <span v-if="selectedLocation === 'Hamburg'" class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="sicherheitshelmChecked" />
@@ -212,8 +212,7 @@
           </span>
           <h5>Optional</h5>
           <hr />
-
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="softshelljackeChecked" />
@@ -234,7 +233,7 @@
               </select>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="bundhoseChecked" />
@@ -260,7 +259,7 @@
           </span>
           <h5>Bezahlt</h5>
           <hr />
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="sicherheitsschuheChecked" />
@@ -288,7 +287,7 @@
               </select>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="handschuheChecked" />
@@ -306,10 +305,20 @@
               </select>
             </div>
           </span>
-          <div class="item-actions">
+          <h5>Anmerkung</h5>
+          <hr />
+          <span class="paket-item">
+            <div class="anmerkung-container">
+              <input type="text" placeholder="Anmerkung (Optional)" v-model="anmerkung">
+            </div>
+          </span>
+          <span class="paket-item">
+            <div class="item-actions">
             <button @click="submitLogiModal('add')">Rückgabe</button>
             <button @click="submitLogiModal('remove')">Entnahme</button>
           </div>
+          </span>
+          
         </div>
       </div>
     </div>
@@ -333,7 +342,7 @@
         </select>
 
         <div class="modalGroup">
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="kellnermesserChecked" />
@@ -342,7 +351,7 @@
               </label>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="kugelschreiberChecked" />
@@ -351,7 +360,7 @@
               </label>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="namensschildChecked" />
@@ -360,7 +369,7 @@
               </label>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="feuerzeugChecked" />
@@ -369,7 +378,7 @@
               </label>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="schuhputzzeugChecked" />
@@ -378,7 +387,7 @@
               </label>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="schwarzeKrawatteChecked" />
@@ -387,7 +396,7 @@
               </label>
             </div>
           </span>
-          <span v-if="selectedLocation === 'Berlin' " class="list-item">
+          <span v-if="selectedLocation === 'Berlin' " class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="schwarzeFliegeChecked" />
@@ -396,7 +405,7 @@
               </label>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="schwarzeSchuerzeChecked" />
@@ -405,7 +414,7 @@
               </label>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="kleidersackChecked" />
@@ -414,7 +423,7 @@
               </label>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="serviceHandschuheChecked" />
@@ -423,7 +432,7 @@
               </label>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="weisseHemdenDamenChecked" />
@@ -442,7 +451,7 @@
               </select>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="schwarzeHemdenDamenChecked" />
@@ -461,7 +470,7 @@
               </select>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="weisseHemdenHerrenChecked" />
@@ -480,7 +489,7 @@
               </select>
             </div>
           </span>
-          <span class="list-item">
+          <span class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="schwarzeHemdenHerrenChecked" />
@@ -499,10 +508,19 @@
               </select>
             </div>
           </span>
+          <h5>Anmerkung</h5>
+          <hr />
+          <span class="paket-item">
+            <div class="anmerkung-container">
+              <input type="text" placeholder="Anmerkung (Optional)" v-model="anmerkung">
+            </div>
+          </span>
+          <span class="paket-item">
           <div class="item-actions">
             <button @click="submitServiceModal('add')">Rückgabe</button>
             <button @click="submitServiceModal('remove')">Entnahme</button>
           </div>
+          </span>
         </div>
       </div>
     </div>
@@ -1061,6 +1079,30 @@ if (invalidItems.length > 0) {
 h4 {
   z-index: 1;
 }
+hr {
+  margin: 10px;
+  clear: both; /* Ensure it clears any floats */
+}
+.anmerkung-container {
+  margin-bottom: 10px; /* Add space below the input */
+  display: flex;
+  width: 100%; /* Ensure input spans full width */
+}
+span.paket-item {
+  display: flex;
+  flex-direction: column; /* Stack the elements vertically */
+  align-items: flex-start; /* Align items to the start */
+  gap: 2px; /* Add space between elements */
+}
+
+.anmerkung-container input {
+  width: 100%; /* Full width */
+  padding: 8px;
+  font-size: 14px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+}
 .modal {
   position: fixed;
   top: 0;
@@ -1081,9 +1123,11 @@ h4 {
   position: relative;
 
   .item-actions {
-    display: flex;
-    justify-content: center;
-  }
+  display: flex;
+  justify-content: center; /* Center buttons */
+  gap: 10px; /* Add space between buttons */
+  margin-top: 10px; /* Add space above buttons */
+}
 
   button {
     margin: 10px;
@@ -1103,7 +1147,7 @@ h4 {
   justify-content: space-between; /* Space between label/checkbox and dropdown */
   width: 100%; /* Ensure the container spans the full width */
 }
-.list-item {
+.paket-item {
   margin-bottom: 10px;
   height: 31px;
 }
