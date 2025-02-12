@@ -147,7 +147,7 @@ export default {
     const minutes = parsedDate.getMinutes().toString().padStart(2, "0");
     return `${day}.${month}.${year} ${hours}:${minutes}`;
   },
-    generatePDF() {
+  generatePDF() {
   const doc = new jsPDF("landscape");
 
   // 1. Header: Auswertung Jobangebote (Bold, Right-aligned)
@@ -189,7 +189,7 @@ export default {
   doc.setFont("helvetica", "bold");
   doc.text(this.headerData.listTitle, 10, 60);
 
-  // 7. Add Table
+  // 7. Add Table without styling
   doc.autoTable({
     head: [["Datum", "Eventtitel", "Job", "Stunden", "Position"]],
     body: this.rows.map((row) => [
@@ -202,6 +202,9 @@ export default {
       row.position || "",
     ]),
     startY: 70,
+    styles: { fillColor: false }, // Removes background color from rows
+    headStyles: { fillColor: false, textColor: 0 }, // Removes background color from header
+    alternateRowStyles: { fillColor: false }, // Removes alternating row colors
   });
 
   // Download PDF
