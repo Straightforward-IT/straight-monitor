@@ -1,3 +1,4 @@
 *.agdai
 MAlonzo/**
 .env
+api/.env

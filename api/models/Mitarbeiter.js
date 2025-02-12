@@ -1,14 +1,12 @@
 const mongoose = require('mongoose');
 
 const MitarbeiterSchema = new mongoose.Schema({
+    flip_id: { type: String, required: false, trim: true},
+    asana_id: {type: String, required: false, trim: true},
     vorname: { type: String, required: true, trim: true },
     nachname: { type: String, required: true, trim: true },
     email: { type: String, lowercase: true, trim: true },
-    standort: { type: String, trim: true },
     isActive: { type: Boolean, default: true },
-    isFestAngestellt: { type: Boolean },
-    isOfficeMA: { type: Boolean },
-    isTeamleiter: { type: Boolean, default: false },
     laufzettel_received: [
         {
             type: mongoose.Schema.Types.ObjectId,
@@ -39,37 +37,45 @@ const MitarbeiterSchema = new mongoose.Schema({
             ref: "EvaluierungMA",
         },
     ],
-    eventReportSoll: {
-        type: Number, // This will be imported and stored directly
-        default: 0,
-    },
-    flipRef: { type: mongoose.Schema.Types.ObjectId, ref: "FlipUser" },
-    asanaRef: { type: mongoose.Schema.Types.ObjectId },
     dateCreated: { type: Date, default: Date.now },
 });
 
-// Middleware for auto-populating referenced documents
-MitarbeiterSchema.pre('find', function () {
-    this.populate([
-        { path: 'laufzettel_received' },
-        { path: 'laufzettel_submitted' },
-        { path: 'eventreports' },
-        { path: 'evaluierungen_received' },
-        { path: 'evaluierungen_submitted' },
-        { path: 'flipRef' }
-    ]);
+
+function autoPopulate(next) {
+    const pathsToPopulate = [];
+
+    const fieldsToCheck = [
+        { key: "laufzettel_received", select: "_id name" },
+        { key: "laufzettel_submitted", select: "_id name" },
+        { key: "eventreports", select: "_id title" },
+        { key: "evaluierungen_received", select: "_id score" },
+        { key: "evaluierungen_submitted", select: "_id score" },
+    ];
+
+    fieldsToCheck.forEach(({ key, select }) => {
+        // Check if the field exists in the document and is not empty
+        if (this[key] && this[key].length > 0) {
+            pathsToPopulate.push({ path: key, select });
+        }
+    });
+
+    // Populate only if at least one valid field exists
+    if (pathsToPopulate.length > 0) {
+        this.populate(pathsToPopulate);
+    }
+
+    next();
+}
+
+// Apply middleware to `find` and `findOne`
+MitarbeiterSchema.pre("find", function (next) {
+    autoPopulate.call(this, next);
 });
 
-MitarbeiterSchema.pre('findOne', function () {
-    this.populate([
-        { path: 'laufzettel_received' },
-        { path: 'laufzettel_submitted' },
-        { path: 'eventreports' },
-        { path: 'evaluierungen_received' },
-        { path: 'evaluierungen_submitted' },
-        { path: 'flipRef' }
-    ]);
+MitarbeiterSchema.pre("findOne", function (next) {
+    autoPopulate.call(this, next);
 });
+
 
 // Optional: Add a virtual field for dynamic calculations
 MitarbeiterSchema.virtual('evaluierungSoll').get(function () {

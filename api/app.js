@@ -5,10 +5,11 @@ const axios = require('axios');
 const userRoutes = require('./routes/userRoutes'); 
 const itemRoutes = require('./routes/itemRoutes');
 const monitoringRoutes = require('./routes/monitoringRoutes');
-const flipRoutes = require('./routes/flipRoutes');
-const personalRoutes = require('./routes/personalRoutes');
+const wpformsRoutes = require('./routes/wpformsRoutes');
+const mitarbeiterRoutes = require('./routes/mitarbeiterRoutes');
 const asanaRoutes = require('./routes/asanaRoutes');
 require('dotenv').config();
+require('./serverRoutines');
 
 const app = express();
 
@@ -41,8 +42,8 @@ app.get('/', (req, res) => res.send('API Running'));
 app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
 app.use('/api/monitoring', monitoringRoutes);
-app.use('/api/reports', flipRoutes);
-app.use('/api/personal', personalRoutes);
+app.use('/api/reports', wpformsRoutes);
+app.use('/api/personal', mitarbeiterRoutes);
 app.use('/api/asana', asanaRoutes);
 app.use((req, res, next) => {
   const headers = req.headers;
@@ -68,6 +69,7 @@ mongoose.connect(process.env.MONGO_URI)
     await logCurrentIP();
     process.exit(1);  // Exit process with failure
   });
+  mongoose.set("debug", false);
 
 // Start the server
 const PORT = process.env.PORT || 5050;

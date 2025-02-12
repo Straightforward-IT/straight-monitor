@@ -118,13 +118,25 @@ export default {
       this.rows.splice(index, 1);
     },
     formatDate(date) {
-    if (!date) return "";
-    const parsedDate = new Date(date);
-    const day = parsedDate.getDate().toString().padStart(2, "0");
-    const month = (parsedDate.getMonth() + 1).toString().padStart(2, "0");
-    const year = parsedDate.getFullYear();
-    return `${day}.${month}.${year}`;
-  },
+  if (!date) return "";
+  
+  // Check if date is already a valid Date object
+  if (date instanceof Date) {
+    return date.toLocaleDateString("de-DE");
+  }
+
+  // Handle date input formatted as DD.MM.YYYY
+  const parts = date.split(".");
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; // JS months are 0-based
+    const year = parseInt(parts[2], 10);
+    const parsedDate = new Date(year, month, day);
+    return parsedDate.toLocaleDateString("de-DE"); // Format in German locale
+  }
+
+  return date; // Return as-is if format is incorrect
+},
   formatDateTime(dateTime) {
     if (!dateTime) return "";
     const parsedDate = new Date(dateTime);

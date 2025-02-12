@@ -110,7 +110,7 @@ function createRoutineContent(location) {
         content += `
             <h3>Items ohne Soll</h3>
             <ul>
-                ${itemsWithZeroSoll.map((item) => `<li>${item.bezeichnung}: ${item.anzahl}</li>`).join("")}
+                ${itemsWithZeroSoll.map((item) => `<li>${item.bezeichnung}${item.groesse !== 'onesize' ? ` ${item.groesse}` : ''}: ${item.anzahl}</li>`).join("")}
             </ul>
         `;
     }
@@ -143,7 +143,7 @@ async function sollRoutine() {
         {
             name: "Hamburg",
             email: "teamhamburg@straightforward.email",
-            weekdays: ["Tuesday"],
+            weekdays: ["Monday"],
             enabled: true,
         },
         {
@@ -180,10 +180,5 @@ async function sollRoutine() {
     }
 }
 
-// Schedule Routine
-cron.schedule("0 8 * * *", async () => {
-    console.log("Running scheduled email routine...");
-    await sollRoutine();
-});
 
 module.exports = { sendMail, sollRoutine };

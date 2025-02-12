@@ -90,7 +90,7 @@
           })
           .catch((error) => {
             console.error("Error uploading file:", error);
-            alert("Fehler beim Hochladen der Datei.");
+            alert("Fehler beim Hochladen der Datei. Möglicherweise ist die Datei beschädigt.");
           });
       },
       processExcelData(data) {
