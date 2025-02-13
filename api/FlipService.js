@@ -383,6 +383,19 @@ async function assignFlipTask(req) {
   }
 }
 
+async function assignFlipUserGroups(req) {
+  try{
+    const items = req.body;
+    const response = await flipAxios.get("/api/admin/users/v4/user-groups", { items });
+    return response.data;
+  } catch(error){
+    console.error("❌ Error assigning Users to User Groups:", error.response ? error.response.data : error.message);
+    console.log(items);
+    throw new Error(error.response ? JSON.stringify(error.response.data) : error.message);
+  }
+}
+
+
 module.exports = {
   flipUserRoutine,
   getFlipUsers,
@@ -392,4 +405,5 @@ module.exports = {
   assignTeamleiter,
   assignMitarbeiter,
   assignFlipTask,
+  assignFlipUserGroups
 };

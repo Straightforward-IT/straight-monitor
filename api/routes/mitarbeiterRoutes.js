@@ -7,7 +7,8 @@ const path = require("path");
 const Mitarbeiter = require("../models/Mitarbeiter");
 const FlipUser = require("../models/Classes/FlipUser");
 const storage = multer.memoryStorage();
-const { assignFlipTask, getFlipUsers, getFlipUserGroups, flipUserRoutine } = require("../FlipService");
+const { assignFlipTask, assignFlipUserGroups, getFlipUsers, getFlipUserGroups, flipUserRoutine } = require("../FlipService");
+const asyncHandler = require("../middleware/AsyncHandler");
 
 const upload = multer({
   storage,
@@ -21,20 +22,14 @@ const upload = multer({
   },
 });
 
-router.get("/flip", auth, async (req, res) => {
-  try {
-      const data = await getFlipUsers(req.query);
-      
+router.get("/flip", auth, asyncHandler(async (req, res) => {
+      const data = await getFlipUsers(req.query);   
       res.status(200).json(data);
-  } catch (err) {
-      console.error("Error fetching Flip users:", err.response ? err.response.data : err.message);
-      res.status(500).json({ error: "Failed to fetch Flip users" });
-  }
-});
+}));
 
 
-router.get("/mitarbeiter", auth, async (req, res) => {
-  try {
+router.get("/mitarbeiter", auth, asyncHandler(async (req, res) => {
+
     const filters = { ...req.query };
     const mitarbeiter = await Mitarbeiter.find(filters).populate([
       { path: "laufzettel_received", select: "_id name" },
@@ -47,34 +42,19 @@ router.get("/mitarbeiter", auth, async (req, res) => {
       success: true,
       data: mitarbeiter,
     });
-  } catch (error) {
-    console.error("Error fetching Mitarbeiter with filters:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch Mitarbeiter",
-    });
-  }
-});
+}));
 
-router.get("/initialRoutine", auth, async (req, res) => {
-try{
+router.get("/initialRoutine", auth, asyncHandler(async (req, res) => {
   const data = await flipUserRoutine();
   res.status(200).json(data);
-} catch(error) {
-  console.error("Error running routine", error);
-  res.status(500).json({
-    success: false,
-    error: "Failed to run",
-  });
-}
-});
+}));
 
 router.post(
   "/upload-teamleiter",
   auth,
   upload.single("file"),
+  asyncHandler(
   async (req, res) => {
-    try {
       if (!req.file) {
         return res.status(400).send("No file uploaded.");
       }
@@ -180,34 +160,18 @@ router.post(
 
       // Return headers and processed rows
       res.status(200).json({ headers, rows: processedRows });
-    } catch (error) {
-      console.error("Error processing file:", error);
-      res.status(500).send("Internal Server Error");
-    }
   }
-);
+));
 
-router.post("/assignTask", auth, async (req, res) => {
-  try {
+router.post("/assignTask", auth, asyncHandler( async (req, res) => {
       const response = await assignFlipTask(req); // Pass the entire request object
-
       res.status(200).json({
           success: true,
           data: response,
       });
-  } catch (err) {
-      console.error("Error assigning Flip Task:", err);
-      res.status(500).json({
-          success: false,
-          error: "Failed to create Task",
-          details: err.message,
-          body: req.body
-      });
-  }
-});
+}));
 
-router.post("/create", auth, async (req, res) => {
-  try {
+router.post("/create", auth, asyncHandler( async (req, res) => {
       let { asana_id, first_name, last_name, email, role, primary_user_group_id, profile } = req.body;
       let status = "ACTIVE";
       role = role || "USER";
@@ -247,23 +211,16 @@ router.post("/create", auth, async (req, res) => {
       });
 
       res.status(201).json({ message: "Flip user created successfully", flipUser: createdFlipUser });
-  } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Internal Server Error" });
-  }
-});
+}));
 
-router.get("/user-groups", auth, async (req, res) => {
-  try{
+router.get("/user-groups", auth, asyncHandler(async (req, res) => {
     const data = await getFlipUserGroups(req.query);
-
     res.status(200).json(data);
+}));
 
-  } catch(err) {
-      console.error("Error fetching Flip user-groups:", err.response ? err.response.data : err.message);
-      res.status(500).json({ error: "Failed to fetch Flip user-groups" });
-  }
-});
-
+router.post("/user-groups-assign", auth, asyncHandler(async (req, res) => {
+  const data = await assignFlipUserGroups(req);
+  res.status(200).json(data);
+}));
 
 module.exports = router;

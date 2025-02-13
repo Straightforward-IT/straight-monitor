@@ -5,6 +5,7 @@ const User = require("../models/User");
 const Item = require("../models/Item");
 const Monitoring = require("../models/Monitoring");
 const xlsx = require("xlsx");
+const asyncHandler = require("../middleware/AsyncHandler");
 // Variables
 const cities = ["Hamburg", "Berlin", "Köln"];
 
@@ -37,10 +38,9 @@ async function logMonitoring({ user, standort, items, art, anmerkung }) {
 }
 
 // POST /api/items/addNew
-router.post("/addNew", auth, async (req, res) => {
+router.post("/addNew", auth, asyncHandler(async (req, res) => {
   const { userID, bezeichnung, groesse, anzahl, soll, standort, anmerkung } =
     req.body;
-  try {
     const user = await findOrCreateUser(userID);
 
     const existingItem = await Item.findOne({ bezeichnung, groesse, standort });
@@ -65,18 +65,12 @@ router.post("/addNew", auth, async (req, res) => {
       art: "zugabe",
       anmerkung,
     });
-
-    res.json(savedItem);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    res.status(201).json(savedItem);
+}));
 
 // PUT /api/items/updateMultiple
-router.put("/updateMultiple", auth, async (req, res) => {
+router.put("/updateMultiple", auth, asyncHandler(async (req, res) => {
   const { userID, items, count, anmerkung } = req.body;
-  try {
     const user = await findOrCreateUser(userID);
     const updatedItems = [];
 
@@ -115,16 +109,11 @@ router.put("/updateMultiple", auth, async (req, res) => {
       art: count > 0 ? "zugabe" : "entnahme",
       anmerkung,
     });
-
-    res.json(updatedItems);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    res.status(200).json(updatedItems);
+}));
 
 // PUT /api/items/name/:id
-router.put("/edit/:id", auth, async (req, res) => {
+router.put("/edit/:id", auth, asyncHandler( async (req, res) => {
     const { userID, bezeichnung, anzahl, soll} = req.body;
   
     if (!bezeichnung || bezeichnung.trim() === "") {
@@ -139,7 +128,6 @@ router.put("/edit/:id", auth, async (req, res) => {
       return res.status(400).json({ msg: "Anzahl kann nicht negativ sein" });
     }
 
-    try {
       const user = await findOrCreateUser(userID);
       const item = await Item.findById(req.params.id);
   
@@ -205,18 +193,13 @@ router.put("/edit/:id", auth, async (req, res) => {
         art: "änderung",
         anmerkung: `Geändert: ${anmerkung.trim()}`,
       });
-  
-      res.json(item);
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).send("Server error");
-    }
-  });
+      res.status(200).json(item);
+  }));
   
 // PUT /api/items/add/:id
-router.put("/add/:id", auth, async (req, res) => {
+router.put("/add/:id", auth, asyncHandler( async (req, res) => {
   const { userID, anzahl, anmerkung } = req.body;
-  try {
+ 
     const user = await findOrCreateUser(userID);
     const item = await Item.findById(req.params.id);
     if (!item) {
@@ -241,18 +224,13 @@ router.put("/add/:id", auth, async (req, res) => {
       art: "zugabe",
       anmerkung,
     });
-
-    res.json(item);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    res.status(200).json(item);
+}));
 
 // PUT /api/items/remove/:id
-router.put("/remove/:id", auth, async (req, res) => {
+router.put("/remove/:id", auth, asyncHandler( async (req, res) => {
   const { userID, anzahl, anmerkung } = req.body;
-  try {
+  
     const user = await findOrCreateUser(userID);
     const item = await Item.findById(req.params.id);
     if (!item) {
@@ -279,45 +257,27 @@ router.put("/remove/:id", auth, async (req, res) => {
       anmerkung,
     });
 
-    res.json(item);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    res.status(200).json(item);
+  
+}));
 
 // GET /api/items/ - Get all items
-router.get("/", auth, async (req, res) => {
-  try {
+router.get("/", auth, asyncHandler( async (req, res) => {
     const items = await Item.find();
-    res.json(items);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    res.status(200).json(items);
+}));
 
 // GET /api/items/find/:id - Get a single item by ID
-router.get("/find/:id", auth, async (req, res) => {
-  try {
+router.get("/find/:id", auth, asyncHandler( async (req, res) => {
     const item = await Item.findById(req.params.id);
     if (!item) {
       return res.status(404).json({ msg: "Item not found" });
     }
-    res.json(item);
-  } catch (err) {
-    console.error(err.message);
-
-    if (err.kind === "ObjectId") {
-      return res.status(400).json({ msg: "Invalid Item ID" });
-    }
-    res.status(500).send("Server error");
-  }
-});
+    res.status(200).json(item);
+}));
 
 // GET /api/items/findByLocation - Get items by location
-router.get("/findByLocation", auth, async (req, res) => {
-  try {
+router.get("/findByLocation", auth, asyncHandler( async (req, res) => {
     const locationQuery = req.query.locationQuery;
     if (!cities.includes(locationQuery)) {
       return res
@@ -329,16 +289,11 @@ router.get("/findByLocation", auth, async (req, res) => {
     if (!items.length) {
       return res.status(404).json({ msg: "No items found in this location" });
     }
-
-    res.json(items);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    res.status(200).json(items);
+}));
 
 // GET /api/items/getExcel - Get Excel Document
-router.get("/getExcel", auth, async (req, res) => {
+router.get("/getExcel", auth, asyncHandler( async (req, res) => {
   try {
     const items = await Item.find();
     const monitorings = await Monitoring.find().populate("benutzer", "name email");
@@ -382,6 +337,6 @@ router.get("/getExcel", auth, async (req, res) => {
     console.error("Error generating Excel file: ", err.msg);
     res.status(500).send("Server-Error");
   }
-});
+}));
 
 module.exports = router;

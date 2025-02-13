@@ -4,13 +4,13 @@ const fs = require("fs");
 const path = require("path");
 const Item = require("./models/Item");
 const msal = require("@azure/msal-node");
-const cron = require("node-cron");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 // Read image file and convert to base64
 const imagePath = path.join(__dirname, "assets", "Banner.png");
 const base64Image = fs.readFileSync(imagePath).toString("base64");
-
+const BASE_URL = "https://straightmonitor.com";
 // OAuth2 Configuration
 const config = {
     auth: {
@@ -23,9 +23,69 @@ const config = {
 // Initialize MSAL client for OAuth2
 const cca = new msal.ConfidentialClientApplication(config);
 
+//Locations
+const locations = [
+    {
+        name: "Hamburg",
+        email: ["teamhamburg@straightforward.email", "einkauf@straightforward.email"],
+        weekdays: ["Monday"],
+        enabled: true,
+    },
+    {
+        name: "Berlin",
+        email: ["teamberlin@straightforward.email", "einkauf@straightforward.email"],
+        weekdays: ["Monday"],
+        enabled: true,
+    },
+    {
+        name: "Köln",
+        email: ["teamkoeln@straightforward.email", "einkauf@straightforward.email"],
+        weekdays: ["Monday"],
+        enabled: true,
+    }
+];
+
+// 📌 Centralized Email Templates
+const EMAIL_TEMPLATES = {
+    confirmation: {
+        subject: "Bestätige deine E-Mail Adresse für den Straightforward Monitor",
+        getContent: (confirmUrl) => `
+            <div style="font-family: Arial, sans-serif; color: #333;">
+                <h2 style="font-weight: bold; color: #000;">Willkommen beim Straightforward Monitor!</h2>
+                <p>Diese E-Mail dient zur Bestätigung deiner Registrierung. Bitte bestätige deine E-Mail Adresse, um dein Profil zu aktivieren.</p>
+                <p>
+                    <a href="${confirmUrl}" style="color: #000; text-decoration: none; font-weight: bold;">
+                        <strong>Hier klicken, um die E-Mail Adresse zu bestätigen</strong>
+                    </a>
+                </p>
+                <hr />
+                <p style="font-size: 12px; color: #666;">Falls du dich nicht registriert hast, ignoriere diese Nachricht.</p>
+            </div>
+        `,
+    },
+};
+
+async function sendConfirmationEmail(user) {
+    const confirmationToken = jwt.sign(
+        { userId: user.id },
+        process.env.JWT_SECRET,
+        { expiresIn: "6h" }
+    );
+
+    const confirmUrl = `${BASE_URL}/confirm-email?token=${confirmationToken}`;
+    const { subject, getContent } = EMAIL_TEMPLATES.confirmation;
+
+    await sendMail(user.email, subject, getContent(confirmUrl));
+}
+
 // Send Mail Function
-async function sendMail(to, subject, content, from = "it@straightforward.email") {
+async function sendMail(recipients, subject, content, from = "it@straightforward.email") {
     try {
+        // Ensure recipients is always an array
+        if (!Array.isArray(recipients)) {
+            recipients = [recipients]; // Convert single email string into an array
+        }
+
         const authResponse = await cca.acquireTokenByClientCredential({
             scopes: ["https://graph.microsoft.com/.default"],
         });
@@ -43,7 +103,7 @@ async function sendMail(to, subject, content, from = "it@straightforward.email")
                     contentType: "HTML",
                     content: `${content}<br><img src="cid:bannerImage" alt="Banner Image" style="width: 280px; height: auto;" />`,
                 },
-                toRecipients: [{ emailAddress: { address: to } }],
+                toRecipients: recipients.map(email => ({ emailAddress: { address: email } })), // Works for both single and multiple recipients
                 from: { emailAddress: { address: from } },
                 attachments: [
                     {
@@ -57,12 +117,14 @@ async function sendMail(to, subject, content, from = "it@straightforward.email")
         };
 
         await client.api(`/users/${from}/sendMail`).post(mail);
-        console.log("Email sent successfully to:", to);
+        console.log(`✅ Email sent successfully to: ${recipients.join(", ")}`);
     } catch (error) {
-        console.error("Error sending email:", error);
+        console.error("❌ Error sending email:", error);
         throw error;
     }
 }
+
+
 
 // Generate Email Content
 function createRoutineContent(location) {
@@ -139,27 +201,6 @@ async function getItems(location) {
 
 // Main Routine
 async function sollRoutine() {
-    const locations = [
-        {
-            name: "Hamburg",
-            email: "teamhamburg@straightforward.email",
-            weekdays: ["Monday"],
-            enabled: true,
-        },
-        {
-            name: "Berlin",
-            email: "teamberlin@straightforward.email",
-            weekdays: ["Monday"],
-            enabled: false,
-        },
-        {
-            name: "Köln",
-            email: "teamkoeln@straightforward.email",
-            weekdays: ["Monday"],
-            enabled: false,
-        }
-    ];
-
     const today = new Date().toLocaleString("en-US", { weekday: "long" });
 
     for (const location of locations) {
@@ -168,17 +209,18 @@ async function sollRoutine() {
                 const items = await getItems(location.name);
                 location.items = items;
                 const content = createRoutineContent(location);
+
                 await sendMail(
-                    location.email,
+                    location.email, // Now an array of recipients
                     `Bestands-Update vom ${new Date().toLocaleDateString("de-DE")} für Team ${location.name}`,
                     content
                 );
             } catch (error) {
-                console.error(`Error processing email for ${location.name}:`, error);
+                console.error(`❌ Error processing email for ${location.name}:`, error);
             }
         }
     }
 }
 
 
-module.exports = { sendMail, sollRoutine };
+module.exports = { sendMail, sollRoutine, sendConfirmationEmail };

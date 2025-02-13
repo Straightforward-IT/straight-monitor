@@ -65,11 +65,18 @@
       Register
     </a>
    
+   <!-- Confirmation Modal -->
+<div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
+  <div class="modal-content">
+    <h3>Anmeldung fehlgeschlagen</h3>
+    <p>{{ modalMessage }}</p> <!-- Display dynamic error message -->
+    <button @click="showModal = false">OK</button>
+  </div>
+</div>
 </template>
 
 <script>
 import api from '@/utils/api';
-
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
 export default {
@@ -82,6 +89,8 @@ export default {
     return {
       email: '',
       password: '',
+      showModal: false,
+      modalMessage: '', // Store error message for the modal
     };
   },
   methods: {
@@ -90,10 +99,9 @@ export default {
         const res = await api.post('/api/users/login', {
           email: this.email,
           password: this.password,
-        },{
+        }, {
           withCredentials: true,
-        }
-      );
+        });
 
         // Save the token to localStorage
         const token = res.data.token;
@@ -105,7 +113,10 @@ export default {
         
       } catch (err) {
         console.error('Login error:', err.response?.data?.msg || err.message);
-        // Display error message in UI if needed
+        
+        // Display error message in the modal
+        this.modalMessage = err.response?.data?.msg || "Ein unbekannter Fehler ist aufgetreten.";
+        this.showModal = true;
       }
     },
   },
@@ -115,4 +126,56 @@ export default {
 <style scoped lang="scss">
  $primary: rgb(182,157,230); 	
 @import '@/assets/styles/login.scss';
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+  width: 90%;
+  max-width: 400px;
+}
+
+.modal-content h3 {
+  color: #1d1d1d;
+  margin-bottom: 10px;
+}
+
+.modal-content p {
+  color: #333;
+}
+form{
+  p{
+    max-width: unset;
+  }
+}
+
+.modal-content button {
+  background-color: primary;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  font-size: 16px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.modal-content button:hover {
+  background-color: primary;
+}
+
 </style>

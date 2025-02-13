@@ -109,10 +109,10 @@ export default {
       location: "",
       password: "",
       confirmPassword: "",
-      emailError: false, // Error state for email
-      passwordError: false, // Error state for password mismatch
-      showEmailError: false, // Controls visibility of flying tag
-      showModal: false, // Show modal after registration
+      emailError: false,
+      passwordError: false, 
+      showEmailError: false, 
+      showModal: false, 
     };
   },
   methods: {

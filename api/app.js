@@ -8,6 +8,7 @@ const monitoringRoutes = require('./routes/monitoringRoutes');
 const wpformsRoutes = require('./routes/wpformsRoutes');
 const mitarbeiterRoutes = require('./routes/mitarbeiterRoutes');
 const asanaRoutes = require('./routes/asanaRoutes');
+const ErrorHandler = require('./middleware/ErrorHandler');
 require('dotenv').config();
 require('./serverRoutines');
 
@@ -15,7 +16,7 @@ const app = express();
 
 // Middleware
 app.use(express.json());
-
+app.use(ErrorHandler);
 const allowedDomains = ["http://localhost:5173", "https://straightmonitor.com",  "https://straight-monitor-684d4006140b.herokuapp.com", "https://flipcms.de/integration/flipcms/hpstraightforward"];
 
 const corsOptions = {

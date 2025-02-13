@@ -4,186 +4,86 @@ const auth = require("../middleware/auth");
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { sendMail, sollRoutine } = require("../EmailService");
-require('dotenv').config(); // Load environment variables from .env
-
+const { sollRoutine, sendConfirmationEmail} = require("../EmailService");
+require("dotenv").config(); // Load environment variables from .env
+const asyncHandler = require("../middleware/AsyncHandler");
 
 // GET /api/users/me
-router.get("/me", auth, async (req, res) => {
-  try {
-    // Find the user by ID
-    const user = await User.findById(req.user.id).select("-password"); // Exclude the password
-    res.json(user);
-  } catch (err) {
-    console.error(err.message);
-    console.log("hello");
-    res.status(500).send("Server error");
-  }
-});
+router.get(
+  "/me",
+  auth,
+  asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user.id).select("-password");
+    res.status(200).json(user);
+  })
+);
 
 // GET /api/users/:id
-router.get("/:id", async (req, res) => {
-  try {
+router.get(
+  "/:id",
+  asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: "User not found" });
-    res.json(user);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    res.status(200).json(user);
+  })
+);
 
 // PUT /api/users/:id
-router.put("/update/:id", async (req, res) => {
-  const { name, email, password } = req.body;
-  try {
+router.put(
+  "/update/:id",
+  asyncHandler(async (req, res) => {
+    const { name, email, password } = req.body;
     let user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: "User not found" });
-
-    // Update fields
     user.name = name || user.name;
     user.email = email || user.email;
     if (password) {
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(password, salt);
     }
-
     await user.save();
-    res.json(user);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    res.status(200).json(user);
+  })
+);
 
 // POST /api/users/register
-router.post("/register", async (req, res) => {
-  const { name, email, password, location } = req.body;
+router.post(
+  "/register",
+  asyncHandler(async (req, res) => {
+    const { name, email, password, location } = req.body;
 
-  try {
-      // Check if the user already exists
-      let user = await User.findOne({ email });
-      if (user) {
-          return res.status(400).json({ msg: "Benutzer mit dieser E-mail existiert bereits" });
-      }
-
-      // Check if company email @straightforward.email
-      if (!email.includes("@straightforward.email")) {
-          return res.status(401).json({ msg: "Bitte benutze eine E-mail der Firma Straightforward" });
-      }
-
-      // Create a new user instance
-      user = new User({
-          name,
-          email,
-          password,
-          location,
-          isConfirmed: false 
-      });
-
-      await user.save();
-
-      const confirmationToken = jwt.sign(
-          { userId: user.id },
-          process.env.JWT_SECRET,
-          { expiresIn: "6h" }
-      );
-
-      await user.save();
-
-      // Send the confirmation email
-      const confirmUrl = `https://straightmonitor.com/confirm-email?token=${confirmationToken}`;
-      const emailSubject = "Bestätige deine E-Mail Adresse für den Straightforward Monitor";
-      const emailContent = `
-  <div style="font-family: Arial, sans-serif; color: #333;">
-    <h2 style="font-weight: bold; color: #000;">Willkommen beim Straightforward Monitor!</h2>
-    <p>Diese E-Mail dient zur Bestätigung deiner Registrierung. Bitte bestätige deine E-Mail Adresse, um dein Profil zu aktivieren.</p>
-    <p>
-      <a href="${confirmUrl}" style="color: #000; text-decoration: none; font-weight: bold;">
-        <strong>Hier klicken, um die E-Mail Adresse zu bestätigen</strong>
-      </a>
-    </p>
-    <hr />
-    <p style="font-size: 12px; color: #666;">
-      Falls du nicht versuchst, dich zu registrieren, ignoriere diese Nachricht.
-    </p>
-  </div>
-`;
-
-      await sendMail(user.email, emailSubject, emailContent);
-
-      res.status(200).json({ msg: "Registration successful. Please check your email to confirm your account." });
-  } catch (err) {
-      console.error(err.message);
-      res.status(500).send("Server error");
-  }
-});
-
-//POST /api/users/resend-confirmation
-router.post("/resend-confirmation", async (req, res) => {
-  const { email } = req.body;
-
-  try {
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({ msg: "Benutzer nicht gefunden." });
+    let user = await User.findOne({ email });
+    if (user) {
+      return res.status(400).json({ msg: "Benutzer mit dieser E-Mail existiert bereits" });
     }
 
-    if (user.isConfirmed) {
-      return res.status(400).json({ msg: "E-Mail bereits bestätigt." });
+    if (!email.includes("@straightforward.email")) {
+      return res.status(401).json({ msg: "Bitte benutze eine E-Mail der Firma Straightforward" });
     }
 
-    // Generate a new confirmation token
-    const confirmationToken = jwt.sign(
-      { userId: user.id },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
-
-
+    user = new User({ name, email, password, location, isConfirmed: false });
     await user.save();
 
-    const confirmUrl = `https://straightmonitor.com/confirm-email?token=${confirmationToken}`;
-    const emailSubject = "Bestätige deine E-Mail Adresse für den Straightforward Monitor";
-    const emailContent = `
-      <div style="font-family: Arial, sans-serif; color: #333;">
-        <h2 style="font-weight: bold; color: #000;">Bestätige deine E-Mail Adresse!</h2>
-        <p>Bitte bestätige deine E-Mail Adresse, um dein Profil zu aktivieren.</p>
-        <a href="${confirmUrl}" style="color: #000; text-decoration: none; font-weight: bold;">
-          <strong>Hier klicken, um die E-Mail Adresse zu bestätigen</strong>
-        </a>
-      </div>
-    `;
+    await sendConfirmationEmail(user); // 🔹 Use centralized function
 
-    await sendMail(user.email, emailSubject, emailContent);
-    res.status(200).json({ msg: "Bestätigungs-E-Mail wurde erneut gesendet." });
-
-  } catch (err) {
-    console.error("Error in resending confirmation:", err);
-    res.status(500).json({ msg: "Serverfehler beim erneuten Senden der Bestätigung." });
-  }
-});
+    res.status(200).json({ msg: "Registrierung erfolgreich. Bitte bestätige deine E-Mail." });
+  })
+);
 
 //POST /api/users/test-email
-router.post("/email-test", async (req, res) => {
-  try{
+router.post(
+  "/email-test",
+  asyncHandler(async (req, res) => {
     await sollRoutine();
-    res.status(200).json({msg: "Mails gesendet"});
-  }catch(err) {
-    console.error("Error sending the email", err);
-    res.status(500).json({ msg: "Serverfehler beim verarbeiten der Anfrage."});
-  }
-  
-
-});
+    res.status(200).json({ msg: "Mails gesendet" });
+  })
+);
 
 // POST /api/users/confirm-email
-router.post("/confirm-email", async (req, res) => {
-  const { token } = req.body;
-
-  try {
-    // Verify the confirmation token
+router.post(
+  "/confirm-email",
+  asyncHandler(async (req, res) => {
+    const { token } = req.body;
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.userId;
 
@@ -191,66 +91,51 @@ router.post("/confirm-email", async (req, res) => {
     if (!user) {
       return res.status(404).json({ msg: "Benutzer nicht gefunden" });
     }
-
-    // Check if the user is already confirmed
     if (user.isConfirmed) {
       return res.status(400).json({ msg: "E-Mail bereits bestätigt" });
     }
-
-    // Update the user's confirmation status
     user.isConfirmed = true;
     await user.save();
 
-    res.status(200).json({ msg: "E-Mail erfolgreich bestätigt. Du kannst dich nun anmelden." });
-  } catch (error) {
-    console.error("Token verification failed:", error);
-    res.status(400).json({ msg: "Ungültiger oder abgelaufener Bestätigungslink" });
-  }
-});
-
+    res
+      .status(200)
+      .json({
+        msg: "E-Mail erfolgreich bestätigt. Du kannst dich nun anmelden.",
+      });
+  })
+);
 
 // POST /api/users/login
-router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    // Check if user exists
+router.post(
+  "/login",
+  asyncHandler(async (req, res) => {
+    const { email, password } = req.body;
     let user = await User.findOne({ email });
+
     if (!user) {
       return res.status(400).json({ msg: "Ungültige Anmeldedaten" });
     }
 
-    // Check if user email is confirmed
     if (!user.isConfirmed) {
-      return res.status(403).json({ msg: "Bitte bestätige zuerst deine E-Mail Adresse." });
+      await sendConfirmationEmail(user); // 🔹 Use centralized function
+
+      return res.status(403).json({
+        msg: "Bitte bestätige zuerst deine E-Mail Adresse. Eine neue Bestätigungsmail wurde gesendet.",
+      });
     }
 
-    // Compare the provided password with the hashed password stored in the database
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ msg: "Ungültige Anmeldedaten" });
     }
 
-    // Generate a JWT token for the user
-    const payload = {
-      user: {
-        id: user.id,
-      },
-    };
+    const payload = { user: { id: user.id } };
 
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET, // Use the JWT secret from .env
-      { expiresIn: 360000 }, // Set token expiry time as needed
-      (err, token) => {
-        if (err) throw err;
-        res.json({ token });
-      }
-    );
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: 360000 }, (err, token) => {
+      if (err) throw err;
+      res.status(200).json({ token });
+    });
+  })
+);
 
 module.exports = router;
