@@ -4,7 +4,7 @@
     <div class="window-panels">
       <div class="create-panel">
         <div class="user-create">
-          <h2>Benutzer erstellen</h2>
+          <h2>Benutzer Erstellen</h2>
           <section style="margin: 15px">
             <h3>Hinweise: </h3>
             <p>- Diese Seite sollte immer aus dem 'Bewerber erstellen' Link im Asana Task geöffnet werden</p>
@@ -625,11 +625,13 @@ export default {
         // ✅ Send API request to create user
         const response = await api.post("/api/personal/create", userPayload);
         console.log("✅ User created successfully:", response.data);
+        alert("✅ Das hat geklappt!");
       } catch (error) {
         console.error(
           "❌ Error creating user:",
           error.response?.data || error.message
         );
+        alert("❌ Das hat nicht geklappt.");
       }
     },
     async submitNewUserMock() {
