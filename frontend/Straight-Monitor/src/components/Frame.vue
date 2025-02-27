@@ -29,6 +29,7 @@
             ref="dashboardComponent"
             @switch-to-bestand="switchToBestand"
             @open-tools-bar="toggleToolsBar"
+            @open-flip-bar=toggleFlipBar
           />
         </div>
         <div v-if="currentComponent === 'Bestand'">
@@ -54,6 +55,12 @@
       ref="toolsComponent"
       />
     </div>
+    <div v-if="flipBarOpen" class="right">
+      <FlipActions
+      :isFlipBarOpen="flipBarOpen"
+      ref="flipComponent"
+      />
+    </div>
   </div>
 </template>
 
@@ -65,6 +72,7 @@ import Dashboard from "./Dashboard.vue";
 import Bestand from "./Bestand.vue"; // Import Bestand component
 import Shortcuts from "./Shortcuts.vue";
 import Tools from "./Tools.vue"
+import FlipActions from "./FlipActions.vue";
 
 export default {
   name: "Frame",
@@ -75,7 +83,8 @@ export default {
     Banner,
     FontAwesomeIcon,
     Shortcuts,
-    Tools
+    Tools,
+    FlipActions
   },
   data() {
     return {
@@ -83,7 +92,8 @@ export default {
       userEmail: "",
       isModalOpen: false,
       isMobile: false,
-      toolsBarOpen: false
+      toolsBarOpen: false,
+      flipBarOpen: false,
     };
   },
   computed: {
@@ -144,6 +154,10 @@ export default {
     toggleToolsBar(){
       console.log("Toggling Tools Bar");
       this.toolsBarOpen = !this.toolsBarOpen;
+    },
+    toggleFlipBar(){
+      console.log("Toggling Flip Bar");
+      this.flipBarOpen = !this.flipBarOpen;
     },
     switchToDashboard() {
       this.currentComponent = "Dashboard"; // Switch back to Dashboard

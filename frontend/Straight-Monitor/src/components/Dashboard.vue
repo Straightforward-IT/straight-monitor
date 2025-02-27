@@ -25,8 +25,8 @@
         <font-awesome-icon :icon="['fas', 'list']" />
       </div>
     </div>
-    <div class="floating-label inactive">
-      <button>Flip</button>
+    <div class="floating-label">
+      <button @click="$emit('open-flip-bar')">Flip</button>
         <div class="icon">
         <img src="@/assets/flip_sw.png" alt="Flip Icon" />
       </div>
@@ -41,7 +41,7 @@
 
   export default {
     name: 'Dashboard',
-    emits: ['switch-to-bestand', "update-modal", "switch-to-dashboard", "open-tools-bar"],
+    emits: ['switch-to-bestand', "update-modal", "switch-to-dashboard", "open-tools-bar", "open-flip-bar"],
     components: {
       FontAwesomeIcon,
     },

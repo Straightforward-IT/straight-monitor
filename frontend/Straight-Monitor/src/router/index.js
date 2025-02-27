@@ -1,16 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import '../assets/styles/main.scss'; 
 import Home from '../components/Home.vue';
 import Verlauf from '../components/Verlauf.vue';
 import Auswertung from '../components/Auswertung.vue';
 import ExcelFormatierung from '../components/ExcelFormatierung.vue';
 import EmailConfirmation from '../components/EmailConfirmation.vue';
 import Personal from '../components/Personal.vue';
-import '../assets/styles/main.scss'; 
-import Frame from '../components/Frame.vue'; // Import the Frame component
-// @ts-ignore  
+import FlipCreate from '../components/FlipCreate.vue';
+import FlipExit from '../components/FlipExit.vue';
+import Frame from '../components/Frame.vue'; 
+
 import { jwtDecode } from "jwt-decode";
 
-// Define your routes
 const routes = [
   {
     path: '/',
@@ -50,45 +51,51 @@ const routes = [
     name: 'Personal',
     component: Personal,
     meta: { requiresAuth: true},
-  }
+  },
+  {
+    path: '/flip/benutzer-erstellen/:id?',
+    name: 'BenutzerErstellen',
+    component: FlipCreate,
+    meta: { requiresAuth: true},
+  },
+  {
+    path: '/flip/austritte',
+    name: 'Austritte',
+    component: FlipExit,
+    meta: { requiresAuth: true},
+  },
 ];
 
-// Create the router
 const router = createRouter({
   history: createWebHistory(),
   routes,
 });
 
-// Function to check if token is expired
 function tokenIsExpired(token) {
   try {
-    const decoded = jwtDecode(token); // Use jwt-decode
-    const currentTime = Date.now() / 1000; // Current time in seconds
-    return decoded.exp < currentTime; // Check if token is expired
+    const decoded = jwtDecode(token); 
+    const currentTime = Date.now() / 1000; 
+    return decoded.exp < currentTime;
   } catch (error) {
     console.error('Invalid token:', error);
-    return true; // Consider invalid tokens as expired
+    return true; 
   }
 }
 
-// Add a navigation guard to check for authentication
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('token'); // Check if the token exists
+  const token = localStorage.getItem('token'); 
 
-  // If trying to access a protected route without a token or with an expired token
+
   if (to.matched.some(record => record.meta.requiresAuth)) {
     if (!token || tokenIsExpired(token)) {
-      localStorage.removeItem('token'); // Remove the invalid or expired token
-      return next({ path: '/', query: { redirect: to.fullPath } }); // Redirect to home if no token or expired
+      localStorage.removeItem('token'); 
+      return next({ path: '/', query: { redirect: to.fullPath } }); 
     }
   }
 
-  // If already logged in and trying to access '/', redirect to '/dashboard'
   if (to.path === '/' && token && !tokenIsExpired(token)) {
     return next({ path: '/dashboard' });
   }
-
-  // If no issues, proceed as normal
   next();
 });
 

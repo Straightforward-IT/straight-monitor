@@ -5,60 +5,47 @@ const  FlipUser  = require("./models/Classes/FlipUser");
 const FlipTask = require("./models/Classes/FlipTask");
 const { Laufzettel, EventReport, EvaluierungMA } = require("./models/FlipDocs");
 const Mitarbeiter = require("./models/Mitarbeiter");
+const { sendMail } = require("./EmailService");
 require("dotenv").config();
 
-
+const apiUserGroup = "e9e8e278-08a9-4b0e-bdf6-681f8e26c43a";
+const user_role = "53267279-ffb8-4cb9-aced-e5d92ed9be05";
 async function flipUserRoutine() {
   try {
     console.log("🔄 Running Flip API user refresh...");
     
-    let allFlipUsers = [];
-    let currentPage = 1;
-    let totalPages = 1;
+    // Fetch all users from Flip API using existing function
+    const allFlipUsers = await getFlipUsers({
+      sort: "LAST_NAME_ASC",
+      page_limit: 100,
+    });
 
-    do {
-      // Fetch users from the current page
-      const flipUsersData = await getFlipUsers({
-        sort: "LAST_NAME_ASC",
-        page_limit: 100,
-        page_number: currentPage,
-      });
+    if (!allFlipUsers || !Array.isArray(allFlipUsers)) {
+      console.error("❌ Flip API response is invalid:", allFlipUsers);
+      throw new Error("Invalid response from Flip API");
+    }
 
-      if (!flipUsersData || !Array.isArray(flipUsersData.users)) {
-        console.error("❌ Flip API response is invalid:", flipUsersData);
-        throw new Error("Invalid response from Flip API (missing 'users')");
-      }
+    console.log(`✅ Fetched ${allFlipUsers.length} Flip users. Processing...`);
 
-      console.log(`✅ Fetched page ${currentPage}/${flipUsersData.pagination.total_pages}`);
-
-      allFlipUsers.push(...flipUsersData.users);
-      totalPages = flipUsersData.pagination.total_pages;
-      currentPage++;
-      
-    } while (currentPage <= totalPages);
-
-    // Convert FlipUser objects
-    const flipUsers = allFlipUsers.map(user => new FlipUser(user));
-    console.log(`✅ Fetched total ${flipUsers.length} Flip users. Processing...`);
-
-    for (const flipUser of flipUsers) {
-      if (flipUser.primary_user_group.id === "28c08fdc-ff27-4ada-a13f-463a771d402d") {
-        continue;
-      }
-
+    for (const flipUserData of allFlipUsers) {
+       // Skip users in the API user group
+       if (flipUserData.primary_user_group?.id === apiUserGroup) continue;
+      console.log(flipUserData);
+      const flipUser = new FlipUser(flipUserData);
+     
+      // Check if the user exists in local database
       let mitarbeiter = await Mitarbeiter.findOne({ flip_id: flipUser.id });
 
       if (!mitarbeiter) {
         mitarbeiter = await createMitarbeiterByFlip(flipUser);
-        console.log(mitarbeiter._id.toString());
+        console.log(`✅ Created new Mitarbeiter: ${mitarbeiter._id}`);
       }
 
-      
-        if(!mitarbeiter._id.equals(flipUser.external_id)){
-          flipUser.setExternalId(mitarbeiter._id.toString());
-          await flipUser.update();
-        } 
-      
+      // Ensure external_id is correctly set
+      if (!mitarbeiter._id.equals(flipUser.external_id)) {
+        flipUser.setExternalId(mitarbeiter._id.toString());
+        await flipUser.update();
+      }
 
       // Sync `isActive` field
       const shouldBeActive = flipUser.status === "ACTIVE";
@@ -68,13 +55,14 @@ async function flipUserRoutine() {
       }
     }
 
-    console.log(`✅ Processed ${flipUsers.length} Flip users.`);
-    return flipUsers;
+    console.log(`✅ Processed ${allFlipUsers.length} Flip users.`);
+    return allFlipUsers;
   } catch (error) {
     console.error("❌ Error in Flip API user refresh:", error.message);
-    throw new Error("Failed to fetch Flip users");
+    throw new Error("Failed to sync Flip users");
   }
 }
+
 
 async function createMitarbeiterByFlip(flipUser) {
   try {
@@ -93,14 +81,36 @@ async function createMitarbeiterByAsana(asanaKarte) {
 
 }
 
-async function getFlipUsers(params = {}) {
+async function getFlipUsers(initialParams = {}) {
+  let allUsers = [];
+  let currentPage = 1;
+  let totalPages = 1; // Default assumption, updated dynamically
 
   try {
-    const response = await flipAxios.get("/api/admin/users/v4/users", { params });
-    return response.data;
+      do {
+          // Ensure params include the correct page number
+          const params = { ...initialParams, page_number: currentPage, page_limit: 100 };
+
+          const response = await flipAxios.get("/api/admin/users/v4/users", { params });
+
+          if (response.data && response.data.users) {
+              allUsers.push(...response.data.users);
+          }
+
+          // Update pagination details
+          const pagination = response.data.pagination;
+          if (pagination) {
+              totalPages = pagination.total_pages; // Total number of pages from response
+              currentPage++; // Move to the next page
+          } else {
+              break; // No pagination info, exit loop
+          }
+      } while (currentPage <= totalPages);
+
+      return allUsers;
   } catch (error) {
-    console.error("❌ Error fetching Flip users:", error.response?.data || error.message);
-    throw new Error("Failed to fetch Flip users");
+      console.error("❌ Error fetching Flip users:", error.response?.data || error.message);
+      throw new Error("Failed to fetch all Flip users");
   }
 }
 
@@ -117,11 +127,87 @@ async function getFlipUserGroups(params = {}) {
     const response = await flipAxios.get("/api/admin/users/v4/user-groups", { params });
     return response.data;
   } catch (error) {
-    console.error("❌ Error fetching Flip users:", error.response?.data || error.message);
-    throw new Error("Failed to fetch Flip users");
+    console.error("❌ Error fetching Flip user-groups:", error.response?.data || error.message);
+    throw new Error("Failed to fetch Flip user groups");
   }
 
 }
+async function getFlipUserGroupAssignments(params = {}) {
+  try {
+    if (!params.group_id) throw new Error("group_id is required");
+    const response = await flipAxios.get(`/api/admin/users/v4/user-groups/${params.group_id}/assignments`);
+    return response.data;
+  } catch (error) {
+    console.error("❌ Error fetching Flip user group assignments", error.response?.data || error.message);
+    throw new Error("Failed to fetch Flip User Group Assignments");
+  }
+}
+
+async function assignFlipUserGroups(req) {
+  try {
+    console.log("🚀 Assigning user to user groups. Raw data:", req.body.items);
+
+    // ✅ Ensure `items` is structured correctly
+    const items = req.body.items
+      ?.filter(item => item.user_group_id) // Remove any invalid entries
+      .map(item => ({
+        group_id: item.user_group_id, // ✅ Correct key name
+        body: {
+          role_id: user_role, // ✅ Fixed role ID
+          user_id: item.user_id, // ✅ Ensure `user_id` is included
+        },
+      })) || [];
+
+    if (items.length === 0) {
+      console.log("🚨 No valid user groups to assign.");
+      return;
+    }
+
+    console.log("📤 Final formatted request payload:", JSON.stringify({ items }, null, 2));
+
+    const response = await flipAxios.post(
+      "/api/admin/users/v4/user-groups/assignments/batch",
+      { items }
+    );
+
+    console.log("✅ Successfully assigned user groups:", response.data);
+
+    // Check if response contains an error (status 400)
+    if (response.data?.items?.some(item => item.status === 400)) {
+      console.error("❌ One or more user group assignments failed:", response.data);
+
+      // Prepare the error message for email
+      const errorMessage = `
+        <h2>❌ Error Assigning Users to User Groups</h2>
+        <p>Some user group assignments failed with status 400.</p>
+        <pre>${JSON.stringify(response.data, null, 2)}</pre>
+      `;
+
+      // Send an email notification
+      await sendMail("it@straightforward.email", "User Group Assignment Failed", errorMessage);
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error("❌ Error assigning Users to User Groups:", error.response ? error.response.data : error.message);
+    
+    const errorDetails = error.response ? JSON.stringify(error.response.data, null, 2) : error.message;
+
+    // Prepare email content
+    const errorMessage = `
+      <h2>❌ Critical Error Assigning Users to User Groups</h2>
+      <p>An unexpected error occurred while assigning user groups.</p>
+      <pre>${errorDetails}</pre>
+    `;
+
+    // Send an email notification about the critical failure
+    await sendMail("it@straightforward.email", "Critical Error: User Group Assignment", errorMessage);
+
+    throw new Error(errorDetails);
+  }
+}
+
+
 const findFlipUserByName = async (fullName) => {
   const users = await FlipUser.find();
 
@@ -383,23 +469,12 @@ async function assignFlipTask(req) {
   }
 }
 
-async function assignFlipUserGroups(req) {
-  try{
-    const items = req.body;
-    const response = await flipAxios.get("/api/admin/users/v4/user-groups", { items });
-    return response.data;
-  } catch(error){
-    console.error("❌ Error assigning Users to User Groups:", error.response ? error.response.data : error.message);
-    console.log(items);
-    throw new Error(error.response ? JSON.stringify(error.response.data) : error.message);
-  }
-}
-
 
 module.exports = {
   flipUserRoutine,
   getFlipUsers,
   getFlipUserGroups,
+  getFlipUserGroupAssignments,
   findFlipUserByName,
   findMitarbeiterByName,
   assignTeamleiter,

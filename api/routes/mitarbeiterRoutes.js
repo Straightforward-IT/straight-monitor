@@ -7,7 +7,7 @@ const path = require("path");
 const Mitarbeiter = require("../models/Mitarbeiter");
 const FlipUser = require("../models/Classes/FlipUser");
 const storage = multer.memoryStorage();
-const { assignFlipTask, assignFlipUserGroups, getFlipUsers, getFlipUserGroups, flipUserRoutine } = require("../FlipService");
+const { assignFlipTask, assignFlipUserGroups, getFlipUsers, getFlipUserGroups, getFlipUserGroupAssignments, flipUserRoutine } = require("../FlipService");
 const asyncHandler = require("../middleware/AsyncHandler");
 
 const upload = multer({
@@ -27,6 +27,10 @@ router.get("/flip", auth, asyncHandler(async (req, res) => {
       res.status(200).json(data);
 }));
 
+router.get("/flip/user-group-assignments", asyncHandler(async (req, res) => {
+  const data = await getFlipUserGroupAssignments(req.query);
+  res.status(200).json(data);
+}));
 
 router.get("/mitarbeiter", auth, asyncHandler(async (req, res) => {
 
@@ -171,15 +175,22 @@ router.post("/assignTask", auth, asyncHandler( async (req, res) => {
       });
 }));
 
-router.post("/create", auth, asyncHandler( async (req, res) => {
-      let { asana_id, first_name, last_name, email, role, primary_user_group_id, profile } = req.body;
-      let status = "ACTIVE";
-      role = role || "USER";
-      // Create and save Mitarbeiter
-      const mitarbeiter = new Mitarbeiter({ asana_id, vorname: first_name, nachname: last_name, email });
+router.post("/create", auth, asyncHandler(async (req, res) => {
+  let { asana_id, first_name, last_name, email, role, primary_user_group_id, profile, user_group_ids } = req.body;
+  let status = "ACTIVE";
+  role = role || "USER";
+
+  try {
+      // ✅ 1. Create and save Mitarbeiter in the database
+      const mitarbeiter = new Mitarbeiter({ 
+          asana_id, 
+          vorname: first_name, 
+          nachname: last_name, 
+          email 
+      });
       await mitarbeiter.save();
 
-      // Create FlipUser instance
+      // ✅ 2. Create FlipUser instance
       const flipUser = new FlipUser({
           external_id: mitarbeiter._id.toString(),
           first_name,
@@ -189,28 +200,46 @@ router.post("/create", auth, asyncHandler( async (req, res) => {
           benutzername: email,
           rolle: role,
           profile,
-          primary_user_group: { id: primary_user_group_id }
+          primary_user_group_id 
       });
 
-      // Call Flip API to create user
+      // ✅ 3. Call Flip API to create user
       const createdFlipUser = await flipUser.create();
       await createdFlipUser.setDefaultPassword();
-      mitarbeiter.flip_id = createdFlipUser.id;
-      mitarbeiter.save();
 
-      // Assign initial Flip Task
+      // ✅ 4. Update Mitarbeiter with FlipUser ID
+      mitarbeiter.flip_id = createdFlipUser.id;
+      await mitarbeiter.save();
+
+      // ✅ 5. Assign Flip user to user groups
+      if (user_group_ids?.length) {
+          await assignFlipUserGroups({
+              body: {
+                  items: user_group_ids.map(groupId => ({
+                      user_id: createdFlipUser.id,
+                      user_group_id: groupId
+                  }))
+              }
+          });
+      }
+
+      // ✅ 6. Assign initial Flip Task
       await assignFlipTask({
-        body: {
-          title: `Aufgabe erhalten: Flip Profil einrichten 😎`,
-          recipients: [{
-            id: createdFlipUser.id,
-            type: "USER"
-          }],
-          description: `<p>Gehe auf „<strong>Menü</strong>“ und tippe oben links auf den Kreis. Wenn du in den Einstellungen angekommen bist, tippst du auf deinen Namen und dann oben rechts auf „<strong>Bearbeiten</strong>“</p><p><br></p><p>📋 Wähle ein Profilbild aus auf dem man dich erkennt ( und mit dem du dich wohlfühlst ) </p><p>📋 Schreibe rein in welchem Bereich [ Logistik / Service ] du zukünftig arbeitest</p><p>📋 Setze gerne auch deine Telefonnummer. Wenn du diese nicht öffentlich teilen möchtest ist das vollkommen okay</p>`,
-        }
+          body: {
+              title: `Aufgabe erhalten: Flip Profil einrichten 😎`,
+              recipients: [{ id: createdFlipUser.id, type: "USER" }],
+              description: `<p>Gehe auf „<strong>Menü</strong>“ und tippe oben links auf den Kreis. Wenn du in den Einstellungen angekommen bist, tippst du auf deinen Namen und dann oben rechts auf „<strong>Bearbeiten</strong>“</p>
+                            <p>📋 Wähle ein Profilbild aus auf dem man dich erkennt ( und mit dem du dich wohlfühlst )</p>
+                            <p>📋 Schreibe rein in welchem Bereich [ Logistik / Service ] du zukünftig arbeitest</p>
+                            <p>📋 Setze gerne auch deine Telefonnummer. Wenn du diese nicht öffentlich teilen möchtest ist das vollkommen okay</p>`
+          }
       });
 
       res.status(201).json({ message: "Flip user created successfully", flipUser: createdFlipUser });
+  } catch (error) {
+      console.error("❌ Error in createUserRequest:", error.message);
+      res.status(500).json({ message: "Error creating Flip user", error: error.message });
+  }
 }));
 
 router.get("/user-groups", auth, asyncHandler(async (req, res) => {

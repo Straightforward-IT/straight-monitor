@@ -1,27 +1,27 @@
 <template>
     <div class="shortcuts">
-      <h4>Tools</h4>
+      <h4>Flip Aktionen</h4>
       <div class="shortcut-container">
-        <span class="list-item" @click="openAuswertung">
+        <span class="list-item" @click="openErstellung">
           <img
             src="@/assets/SF_002.png"
-            id="auswertung"
-            alt="Auswertung Logo"
+            id="erstellung"
+            alt="Erstellung"
             class="item-list-sf"
           />
-          <label for="auswertung">
-            <p>Auswertung</p>
+          <label for="erstellung">
+            <p>Benutzer Erstellen</p>
           </label>
         </span>
-        <span class="list-item" @click="openTeamleiterExcel">
+        <span class="list-item" @click="openAustritte">
           <img
             src="@/assets/SF_002.png"
-            id="teamleiter-excel"
-            alt="Excel Logo"
+            id="austritte"
+            alt="Austritte"
             class="item-list-sf"
           />
-          <label for="teamleiter-excel">
-            <p>Teamleiter Excel</p>
+          <label for="austritte">
+            <p>Austritte</p>
           </label>
         </span>
       </div>
@@ -33,18 +33,17 @@
 
   export default {
     
-
     name: "Tools",
-    emits: ["open-tools-bar"],
+    emits: ["open-flip-bar"],
     props: {
-        isToolBarOpen: Boolean,
+        isFlipBarOpen: Boolean
     },
     methods: {
-      openAuswertung() {
-        this.$router.push('/auswertung');
+      openErstellung() {
+        this.$router.push('/flip/benutzer-erstellen');
       },
-      openTeamleiterExcel() {
-        this.$router.push('/excelFormatierung');
+      openAustritte() {
+        this.$router.push('/flip/austritte');
       },
     },
   };
