@@ -13,12 +13,12 @@
         <font-awesome-icon :icon="['fas', 'timeline']" />
       </div>
     </div>
-    <div class="floating-label">
+    <!-- <div class="floating-label">
       <button @click="switchToPersonal">Personal</button>
       <div class="icon">
         <font-awesome-icon :icon="['fas', 'person-through-window']" />
       </div>
-    </div>
+    </div> -->
     <div class="floating-label">
       <button @click="$emit('open-tools-bar')">Tools</button>
       <div class="icon">

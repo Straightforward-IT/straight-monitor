@@ -817,6 +817,10 @@ export default {
 <style scoped lang="scss">
 $primary: #f69e6f;
 
+#app {
+  max-width: unset;
+}
+
 .window {
   width: 1600px;
   margin: auto;
