@@ -13,7 +13,7 @@
             <p>Benutzer Erstellen</p>
           </label>
         </span>
-        <span class="list-item" @click="openAustritte">
+        <!-- <span class="list-item" @click="openAustritte">
           <img
             src="@/assets/SF_002.png"
             id="austritte"
@@ -23,7 +23,7 @@
           <label for="austritte">
             <p>Austritte</p>
           </label>
-        </span>
+        </span> -->
       </div>
     </div>
   </template>
