@@ -217,6 +217,7 @@
 <script>
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
+import debounce from 'lodash.debounce';
 
 export default {
   name: "Erstellen",
@@ -285,16 +286,20 @@ export default {
     };
   },
   watch: {
-    asana_id(newVal) {
-    if (newVal && newVal.trim().length > 8) { // assuming a minimum length for a valid task ID
-      this.asana_id = newVal.trim();
-      if(!this.fetchAsanaTask()){
-        this.asanaTask = null;
-      }
-    } else {
-      this.asanaTask = null;
-    }
-  },
+    asana_id: {
+      handler: debounce(async function (newVal) {
+        if (newVal && newVal.trim().length > 8) {
+          const trimmedId = newVal.trim();
+          const taskFound = await this.fetchAsanaTask(trimmedId);
+          if (!taskFound) {
+            this.asanaTask = null;
+          }
+        } else {
+          this.asanaTask = null;
+        }
+      }, 1000),  // 500ms debounce (half a second wait)
+      immediate: false,
+    },
     "$route.params.id": {
       immediate: true,
       handler(newId) {

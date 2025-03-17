@@ -193,7 +193,7 @@
               </select>
             </div>
           </span>
-          <span v-if="selectedLocation === 'Hamburg'" class="paket-item">
+          <span v-if="selectedLocation === 'Hamburg' || selectedLocation === 'Berlin'" class="paket-item">
             <div class="checkbox-container">
               <label class="custom-checkbox">
                 <input type="checkbox" v-model="sicherheitshelmChecked" />
@@ -205,7 +205,7 @@
                 class="size-dropdown"
                 :disabled="!sicherheitshelmChecked"
               >
-                <option value="Festis">Festis</option>
+                <option v-if="selectedLocation === 'Hamburg'" value="Festis">Festis</option>
                 <option value="Normal">Normal</option>
               </select>
             </div>
