@@ -74,8 +74,9 @@
 </template>
 
 <script>
-import jsPDF from "jspdf";
-import "jspdf-autotable";
+import pdfMake from "pdfmake/build/pdfmake";
+import pdfFonts from "pdfmake/build/vfs_fonts";
+pdfMake.vfs = pdfFonts.vfs;
 
 export default {
   name: "Auswertung",
@@ -98,141 +99,128 @@ export default {
   },
   methods: {
     addRow() {
-  if (this.rows.length > 0) {
-    const lastRow = this.rows[this.rows.length - 1];
-    // Create a copy of the last row
-    const newRow = { ...lastRow };
-    this.rows.push(newRow);
-  } else {
-    // If no rows exist, add an empty default row
-    this.rows.push({
-      datum: "",
-      eventtitel: "",
-      job: "",
-      stunden: "0.00",
-      position: "",
-    });
-  }
-},
+      const lastRow = this.rows[this.rows.length - 1] || {
+        datum: "",
+        eventtitel: "",
+        job: "",
+        stunden: "0.00",
+        position: "",
+      };
+      this.rows.push({ ...lastRow });
+    },
     deleteRow(index) {
       this.rows.splice(index, 1);
     },
     formatDate(date) {
-  if (!date) return "";
-  
-  // Check if date is already a valid Date object
-  if (date instanceof Date) {
-    return date.toLocaleDateString("de-DE");
-  }
+      if (!date) return "";
+      const parsedDate = new Date(date);
+      return parsedDate.toLocaleDateString("de-DE");
+    },
+    formatDateTime(dateTime) {
+      if (!dateTime) return "";
+      const parsedDate = new Date(dateTime);
+      const day = parsedDate.getDate().toString().padStart(2, "0");
+      const month = (parsedDate.getMonth() + 1).toString().padStart(2, "0");
+      const year = parsedDate.getFullYear();
+      const hours = parsedDate.getHours().toString().padStart(2, "0");
+      const minutes = parsedDate.getMinutes().toString().padStart(2, "0");
+      return `${day}.${month}.${year} ${hours}:${minutes}`;
+    },
+    generatePDF() {
+      const tableBody = [
+        ["Datum", "Eventtitel", "Job", "Stunden", "Position"],
+        ...this.rows.map((row) => [
+          this.formatDate(row.datum),
+          row.eventtitel,
+          row.job,
+          parseFloat(row.stunden).toFixed(2).replace(".", ","),
+          row.position,
+        ]),
+      ];
 
-  // Handle date input formatted as DD.MM.YYYY
-  const parts = date.split(".");
-  if (parts.length === 3) {
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1; // JS months are 0-based
-    const year = parseInt(parts[2], 10);
-    const parsedDate = new Date(year, month, day);
-    return parsedDate.toLocaleDateString("de-DE"); // Format in German locale
-  }
+      const docDefinition = {
+        pageOrientation: "landscape",
+        content: [
+          {
+            text: "Auswertung Jobangebote",
+            style: "header",
+          },
+          {
+            text: this.formatDateTime(this.headerData.timestamp || new Date()),
+            alignment: "right",
+            margin: [0, 0, 0, 10],
+          },
+          {
+            columns: [
+              {
+                text: `Personalnummer: ${this.headerData.personalnummer || "-"}`,
+              },
+              {
+                text: `Name: ${this.headerData.name || "-"}`,
+                alignment: "right",
+              },
+            ],
+            margin: [0, 0, 0, 5],
+          },
+          {
+            text: `Zeitraum: ${
+              this.formatDate(this.headerData.fromDate) || "-"
+            } bis ${this.formatDate(this.headerData.toDate) || "-"}`,
+          },
+          {
+            text: `Geschäftsstelle: ${
+              this.headerData.geschaeftsstelle || "-"
+            }`,
+          },
+          {
+            text: `Personalstatus: ${this.headerData.personalStatus || "-"}`,
+            margin: [0, 0, 0, 10],
+          },
+          {
+            text: this.headerData.listTitle,
+            style: "subheader",
+            margin: [0, 0, 0, 10],
+          },
+          {
+            table: {
+              headerRows: 1,
+              widths: ["auto", "*", "*", "auto", "*"],
+              body: tableBody,
+            },
+            layout: "lightHorizontalLines",
+          },
+        ],
+        styles: {
+          header: { fontSize: 16, bold: true },
+          subheader: { fontSize: 12, bold: true },
+        },
+      };
 
-  return date; // Return as-is if format is incorrect
-},
-  formatDateTime(dateTime) {
-    if (!dateTime) return "";
-    const parsedDate = new Date(dateTime);
-    const day = parsedDate.getDate().toString().padStart(2, "0");
-    const month = (parsedDate.getMonth() + 1).toString().padStart(2, "0");
-    const year = parsedDate.getFullYear();
-    const hours = parsedDate.getHours().toString().padStart(2, "0");
-    const minutes = parsedDate.getMinutes().toString().padStart(2, "0");
-    return `${day}.${month}.${year} ${hours}:${minutes}`;
-  },
-  generatePDF() {
-  const doc = new jsPDF("landscape");
-
-  // 1. Header: Auswertung Jobangebote (Bold, Right-aligned)
-  doc.setFontSize(16);
-  doc.setFont("helvetica", "bold");
-  const currentTimestamp = this.formatDateTime(
-    this.headerData.timestamp || new Date()
-  );
-  doc.text("Auswertung Jobangebote", 10, 10);
-  doc.setFontSize(10);
-  doc.text(currentTimestamp, 270, 10, { align: "right" });
-
-  // 2. Personalnummer and Name
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "normal");
-  doc.text(
-    `Personalnummer: ${this.headerData.personalnummer}        ${this.headerData.name}`,
-    10,
-    20
-  );
-
-  // 3. Zeitraum von - bis
-  const fromDate = this.formatDate(this.headerData.fromDate);
-  const toDate = this.formatDate(this.headerData.toDate);
-  doc.text(`Zeitraum von: ${fromDate}        bis: ${toDate}`, 10, 30);
-
-  // 4. Geschäftsstelle and Personalstatus
-  doc.text(
-    `Geschäftsstelle: ${this.headerData.geschaeftsstelle}        Personalstatus: ${this.headerData.personalStatus}`,
-    10,
-    40
-  );
-
-  // 5. Empty line
-  doc.text("", 10, 50);
-
-  // 6. Listentitel
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text(this.headerData.listTitle, 10, 60);
-
-  // 7. Add Table without styling
-  doc.autoTable({
-    head: [["Datum", "Eventtitel", "Job", "Stunden", "Position"]],
-    body: this.rows.map((row) => [
-      this.formatDate(row.datum) || "",
-      row.eventtitel || "",
-      row.job || "",
-      typeof row.stunden === "number"
-        ? row.stunden.toFixed(2).replace(".", ",")
-        : (row.stunden || "").toString().replace(".", ","),
-      row.position || "",
-    ]),
-    startY: 70,
-    styles: { fillColor: false }, // Removes background color from rows
-    headStyles: { fillColor: false, textColor: 0 }, // Removes background color from header
-    alternateRowStyles: { fillColor: false }, // Removes alternating row colors
-  });
-
-  // Download PDF
-  doc.save("Auswertung_Jobangebote.pdf");
-},
+      pdfMake.createPdf(docDefinition).download("Auswertung_Jobangebote.pdf");
+    },
     beforeUnloadHandler(event) {
       event.preventDefault();
-      event.returnValue = ""; 
+      event.returnValue = "";
     },
     switchToDashboard() {
-  const userConfirmed = window.confirm(
-    "Sind Sie sicher, dass Sie zur Dashboard-Seite zurückkehren möchten? Alle ungespeicherten Änderungen gehen verloren."
-  );
-  if (userConfirmed) {
-    this.$router.push("/");
-  }
-},
+      if (
+        confirm(
+          "Sind Sie sicher, dass Sie zur Dashboard-Seite zurückkehren möchten? Alle ungespeicherten Änderungen gehen verloren."
+        )
+      ) {
+        this.$router.push("/");
+      }
+    },
   },
   mounted() {
-    // Add the beforeunload event listener
     window.addEventListener("beforeunload", this.beforeUnloadHandler);
   },
   beforeDestroy() {
-    // Remove the beforeunload event listener
     window.removeEventListener("beforeunload", this.beforeUnloadHandler);
   },
 };
 </script>
+
 
 <style scoped lang="scss"> 
 $primary: #f69e6f;

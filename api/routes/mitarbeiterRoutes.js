@@ -230,8 +230,8 @@ router.post("/create", auth, asyncHandler(async (req, res) => {
               recipients: [{ id: createdFlipUser.id, type: "USER" }],
               description: `<p>Gehe auf „<strong>Menü</strong>“ und tippe oben links auf den Kreis. Wenn du in den Einstellungen angekommen bist, tippst du auf deinen Namen und dann oben rechts auf „<strong>Bearbeiten</strong>“</p>
                             <p>📋 Wähle ein Profilbild aus auf dem man dich erkennt ( und mit dem du dich wohlfühlst )</p>
-                            <p>📋 Schreibe rein in welchem Bereich [ Logistik / Service ] du zukünftig arbeitest</p>
-                            <p>📋 Setze gerne auch deine Telefonnummer. Wenn du diese nicht öffentlich teilen möchtest ist das vollkommen okay</p>`
+                            <p>📋 Im Absatz 'Über Mich' kannst du Leuten mitteilen wer du bist</p>
+                            <p>📋 Du kannst auch deine Telefonnummer hinzufügen. Wenn du diese nicht öffentlich teilen möchtest ist das vollkommen okay</p>`
           }
       });
 

@@ -13,11 +13,12 @@ const user_role = "53267279-ffb8-4cb9-aced-e5d92ed9be05";
 async function flipUserRoutine() {
   try {
     console.log("🔄 Running Flip API user refresh...");
-    
-    // Fetch all users from Flip API using existing function
+
+    // Fetch all Flip users with all statuses (active & pending deletion)
     const allFlipUsers = await getFlipUsers({
       sort: "LAST_NAME_ASC",
       page_limit: 100,
+      status: ["ACTIVE"],
     });
 
     if (!allFlipUsers || !Array.isArray(allFlipUsers)) {
@@ -27,12 +28,17 @@ async function flipUserRoutine() {
 
     console.log(`✅ Fetched ${allFlipUsers.length} Flip users. Processing...`);
 
+    // Create a Set of active Flip User IDs for comparison
+    const activeFlipUserIds = new Set(
+      allFlipUsers.filter(user => user.status === "ACTIVE").map(user => user.id)
+    );
+
     for (const flipUserData of allFlipUsers) {
-       // Skip users in the API user group
-       if (flipUserData.primary_user_group?.id === apiUserGroup) continue;
-      console.log(flipUserData);
+      // Skip users in the API user group
+      if (flipUserData.primary_user_group?.id === apiUserGroup) continue;
+
       const flipUser = new FlipUser(flipUserData);
-     
+
       // Check if the user exists in local database
       let mitarbeiter = await Mitarbeiter.findOne({ flip_id: flipUser.id });
 
@@ -47,21 +53,35 @@ async function flipUserRoutine() {
         await flipUser.update();
       }
 
-      // Sync `isActive` field
+      // Sync `isActive` field directly from flipUser.status
       const shouldBeActive = flipUser.status === "ACTIVE";
       if (mitarbeiter.isActive !== shouldBeActive) {
         mitarbeiter.isActive = shouldBeActive;
         await mitarbeiter.save();
+        console.log(`🟡 Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} set active status to ${shouldBeActive}`);
       }
     }
 
-    console.log(`✅ Processed ${allFlipUsers.length} Flip users.`);
+    // Additional Step: Set Mitarbeiter to inactive if not returned by Flip API
+    const allMitarbeiter = await Mitarbeiter.find({ flip_id: { $exists: true } });
+
+    for (const mitarbeiter of allMitarbeiter) {
+      if (!activeFlipUserIds.has(mitarbeiter.flip_id) && mitarbeiter.isActive) {
+        mitarbeiter.isActive = false;
+        await mitarbeiter.save();
+        console.log(`🔴 Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} set inactive (not in Flip API)`);
+      }
+    }
+
+    console.log("✅ Flip user refresh complete.");
     return allFlipUsers;
+
   } catch (error) {
     console.error("❌ Error in Flip API user refresh:", error.message);
     throw new Error("Failed to sync Flip users");
   }
 }
+
 
 
 async function createMitarbeiterByFlip(flipUser) {
@@ -89,7 +109,7 @@ async function getFlipUsers(initialParams = {}) {
   try {
       do {
           // Ensure params include the correct page number
-          const params = { ...initialParams, page_number: currentPage, page_limit: 100 };
+          const params = { ...initialParams, page_number: currentPage, page_limit: 100};
 
           const response = await flipAxios.get("/api/admin/users/v4/users", { params });
 

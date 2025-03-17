@@ -18,21 +18,11 @@
             <div class="input-item">
               <label class="input-label">Asana Task-ID</label>
               <input
-                v-if="asana_id"
-                disabled
                 type="text"
                 v-model="asana_id"
-                class="text-input-disabled"
+                class="text-input"
                 placeholder="e.g. 1209453587596953"
               />
-              <span v-if="!asana_id" class="asana-span">
-                <input
-                  type="text"
-                  v-model="asana_id_input"
-                  class="text-input"
-                  placeholder="e.g. 1209453587596953"
-                />
-              </span>
             </div>
           </div>
 
@@ -287,7 +277,6 @@ export default {
       isOffice: false,
       isUKE: false,
       asana_id: this.$route.params.id || null,
-      asana_id_input: "",
       job_title: "Mitarbeiter/in",
       location: "",
       department: "",
@@ -296,6 +285,16 @@ export default {
     };
   },
   watch: {
+    asana_id(newVal) {
+    if (newVal && newVal.trim().length > 8) { // assuming a minimum length for a valid task ID
+      this.asana_id = newVal.trim();
+      if(!this.fetchAsanaTask()){
+        this.asanaTask = null;
+      }
+    } else {
+      this.asanaTask = null;
+    }
+  },
     "$route.params.id": {
       immediate: true,
       handler(newId) {
@@ -384,8 +383,10 @@ export default {
         if (!this.vorname && !this.nachname) {
           this.parseTaskName(this.asanaTask.name);
         }
+        return true;
       } catch (error) {
         console.error("❌ Error fetching Asana task:", error);
+        return false;
       }
     },
     async fetchSchulungenTasks() {
@@ -656,7 +657,7 @@ export default {
 
         // ✅ Construct request payload
         const userPayload = {
-          asana_id: this.asana_id || this.asana_id_input,
+          asana_id: this.asana_id,
           first_name: this.vorname,
           last_name: this.nachname,
           email: this.email,
