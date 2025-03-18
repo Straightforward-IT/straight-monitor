@@ -1,0 +1,25 @@
+{
+    "user_group_ids": {
+      "all_users": "12af8c2e-7076-4b66-90d0-b2b7fd885c88",
+      "berlin": "fe6d165f-f588-4762-90ee-a949b08a3c07",
+      "berlin_service": "18d4f311-7b51-430a-9e70-885cca7248e4",
+      "berlin_logistik": "bdbb18bf-d0bd-4fba-b339-785533bb09b9",
+      "berlin_festangestellte": "ce92c64b-46e2-4a31-93aa-a7ed1b1a6843",
+      "berlin_office": "e5473746-c88f-4799-ae68-731a28ba595f",
+      "berlin_teamleiter": "b99df75f-eb8d-42f8-838f-413223ae1572",
+      "hamburg": "1372dc72-86ad-4375-b3b9-11b5350f4c3e",
+      "hamburg_service": "3808e874-a254-4731-843d-3df0844088a1",
+      "hamburg_logistik": "3365d98e-27e6-4965-9794-b05802290a49",
+      "hamburg_festangestellte": "e3e05ccf-e429-498a-a833-1b8b7a2feec9",
+      "hamburg_office": "db9c176d-941b-49b4-ad3f-56df0a33e45b",
+      "hamburg_teamleiter": "806cb6f0-ee73-4376-98c0-710679c9ef96",
+      "hamburg_uke": "8db46766-19b3-4151-b91e-d04dda0e72d3",
+      "koeln": "13e5b96d-c8f3-4dcc-944e-8ba491efb570",
+      "koeln_service": "aa3c1034-0414-4a72-9917-5f3db06f0131",
+      "koeln_logistik": "bf483217-f705-4bab-8150-ee7a7bf2a08f",
+      "koeln_festangestellte": "67153127-21ae-4717-9f88-cb90638bbd48",
+      "koeln_office": "63a3e1d1-4ce5-4962-ae32-939b5cc6ba5f",
+      "koeln_teamleiter": "a99dfeff-9ee3-4de2-b6d1-15c59081b2a1"
+    }
+  }
+  

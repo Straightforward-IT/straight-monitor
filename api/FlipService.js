@@ -1,7 +1,7 @@
 const stringSimilarity = require("string-similarity");
 const mongoose = require("mongoose");
 const { flipAxios } = require("./flipAxios");
-const  FlipUser  = require("./models/Classes/FlipUser");
+const FlipUser = require("./models/Classes/FlipUser");
 const FlipTask = require("./models/Classes/FlipTask");
 const { Laufzettel, EventReport, EvaluierungMA } = require("./models/FlipDocs");
 const Mitarbeiter = require("./models/Mitarbeiter");
@@ -30,7 +30,9 @@ async function flipUserRoutine() {
 
     // Create a Set of active Flip User IDs for comparison
     const activeFlipUserIds = new Set(
-      allFlipUsers.filter(user => user.status === "ACTIVE").map(user => user.id)
+      allFlipUsers
+        .filter((user) => user.status === "ACTIVE")
+        .map((user) => user.id)
     );
 
     for (const flipUserData of allFlipUsers) {
@@ -38,6 +40,17 @@ async function flipUserRoutine() {
       if (flipUserData.primary_user_group?.id === apiUserGroup) continue;
 
       const flipUser = new FlipUser(flipUserData);
+      // Inside flipUserRoutine(), within the loop iterating over allFlipUsers:
+
+      if (!flipUser.email && flipUser.benutzername) {
+        if(!flipUser.benutzername.includes('@')){
+          console.warn(
+            `⚠️ FlipUser ${flipUser.id} has no email. Setting username as email.`
+          );
+          flipUser.email = flipUser.benutzername;
+          await flipUser.update();
+        }
+      }
 
       // Check if the user exists in local database
       let mitarbeiter = await Mitarbeiter.findOne({ flip_id: flipUser.id });
@@ -58,38 +71,51 @@ async function flipUserRoutine() {
       if (mitarbeiter.isActive !== shouldBeActive) {
         mitarbeiter.isActive = shouldBeActive;
         await mitarbeiter.save();
-        console.log(`🟡 Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} set active status to ${shouldBeActive}`);
+        console.log(
+          `🟡 Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} set active status to ${shouldBeActive}`
+        );
       }
     }
 
     // Additional Step: Set Mitarbeiter to inactive if not returned by Flip API
-    const allMitarbeiter = await Mitarbeiter.find({ flip_id: { $exists: true } });
+    const allMitarbeiter = await Mitarbeiter.find({
+      flip_id: { $exists: true },
+    });
 
     for (const mitarbeiter of allMitarbeiter) {
-      if (!activeFlipUserIds.has(mitarbeiter.flip_id) && mitarbeiter.isActive) {
-        mitarbeiter.isActive = false;
-        await mitarbeiter.save();
-        console.log(`🔴 Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} set inactive (not in Flip API)`);
+      if (!activeFlipUserIds.has(mitarbeiter.flip_id)) {
+        if (mitarbeiter.isActive) {
+          mitarbeiter.isActive = false;
+          await mitarbeiter.save();
+          console.log(`🔴 Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} set inactive (not in Flip API)`);
+        }
+      } else if (!mitarbeiter.email) {
+        const flipUser = allFlipUsers.find(user => user.id === mitarbeiter.flip_id);
+        if (flipUser && flipUser.email) {
+          mitarbeiter.email = flipUser.email;
+          await mitarbeiter.save();
+          console.log(`✅ Updated Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} with email ${flipUser.email}`);
+        } else {
+          console.warn(`⚠️ No email found for Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname}`);
+        }
       }
     }
-
     console.log("✅ Flip user refresh complete.");
     return allFlipUsers;
-
   } catch (error) {
     console.error("❌ Error in Flip API user refresh:", error.message);
     throw new Error("Failed to sync Flip users");
   }
 }
 
-
-
 async function createMitarbeiterByFlip(flipUser) {
   try {
     const mitarbeiterData = flipUser.toMitarbeiter();
     const newMitarbeiter = new Mitarbeiter(mitarbeiterData);
     await newMitarbeiter.save();
-    console.log(`✅ Created new Mitarbeiter: ${flipUser.vorname} ${flipUser.nachname}`);
+    console.log(
+      `✅ Created new Mitarbeiter: ${flipUser.vorname} ${flipUser.nachname}`
+    );
     return newMitarbeiter;
   } catch (error) {
     console.error("❌ Error creating Mitarbeiter:", error.message);
@@ -97,9 +123,7 @@ async function createMitarbeiterByFlip(flipUser) {
   }
 }
 
-async function createMitarbeiterByAsana(asanaKarte) {
-
-}
+async function createMitarbeiterByAsana(asanaKarte) {}
 
 async function getFlipUsers(initialParams = {}) {
   let allUsers = [];
@@ -107,30 +131,39 @@ async function getFlipUsers(initialParams = {}) {
   let totalPages = 1; // Default assumption, updated dynamically
 
   try {
-      do {
-          // Ensure params include the correct page number
-          const params = { ...initialParams, page_number: currentPage, page_limit: 100};
+    do {
+      // Ensure params include the correct page number
+      const params = {
+        ...initialParams,
+        page_number: currentPage,
+        page_limit: 100,
+      };
 
-          const response = await flipAxios.get("/api/admin/users/v4/users", { params });
+      const response = await flipAxios.get("/api/admin/users/v4/users", {
+        params,
+      });
 
-          if (response.data && response.data.users) {
-              allUsers.push(...response.data.users);
-          }
+      if (response.data && response.data.users) {
+        allUsers.push(...response.data.users);
+      }
 
-          // Update pagination details
-          const pagination = response.data.pagination;
-          if (pagination) {
-              totalPages = pagination.total_pages; // Total number of pages from response
-              currentPage++; // Move to the next page
-          } else {
-              break; // No pagination info, exit loop
-          }
-      } while (currentPage <= totalPages);
+      // Update pagination details
+      const pagination = response.data.pagination;
+      if (pagination) {
+        totalPages = pagination.total_pages; // Total number of pages from response
+        currentPage++; // Move to the next page
+      } else {
+        break; // No pagination info, exit loop
+      }
+    } while (currentPage <= totalPages);
 
-      return allUsers;
+    return allUsers;
   } catch (error) {
-      console.error("❌ Error fetching Flip users:", error.response?.data || error.message);
-      throw new Error("Failed to fetch all Flip users");
+    console.error(
+      "❌ Error fetching Flip users:",
+      error.response?.data || error.message
+    );
+    throw new Error("Failed to fetch all Flip users");
   }
 }
 
@@ -144,21 +177,30 @@ async function getFlipUserGroups(params = {}) {
 */
 
   try {
-    const response = await flipAxios.get("/api/admin/users/v4/user-groups", { params });
+    const response = await flipAxios.get("/api/admin/users/v4/user-groups", {
+      params,
+    });
     return response.data;
   } catch (error) {
-    console.error("❌ Error fetching Flip user-groups:", error.response?.data || error.message);
+    console.error(
+      "❌ Error fetching Flip user-groups:",
+      error.response?.data || error.message
+    );
     throw new Error("Failed to fetch Flip user groups");
   }
-
 }
 async function getFlipUserGroupAssignments(params = {}) {
   try {
     if (!params.group_id) throw new Error("group_id is required");
-    const response = await flipAxios.get(`/api/admin/users/v4/user-groups/${params.group_id}/assignments`);
+    const response = await flipAxios.get(
+      `/api/admin/users/v4/user-groups/${params.group_id}/assignments`
+    );
     return response.data;
   } catch (error) {
-    console.error("❌ Error fetching Flip user group assignments", error.response?.data || error.message);
+    console.error(
+      "❌ Error fetching Flip user group assignments",
+      error.response?.data || error.message
+    );
     throw new Error("Failed to fetch Flip User Group Assignments");
   }
 }
@@ -168,22 +210,26 @@ async function assignFlipUserGroups(req) {
     console.log("🚀 Assigning user to user groups. Raw data:", req.body.items);
 
     // ✅ Ensure `items` is structured correctly
-    const items = req.body.items
-      ?.filter(item => item.user_group_id) // Remove any invalid entries
-      .map(item => ({
-        group_id: item.user_group_id, // ✅ Correct key name
-        body: {
-          role_id: user_role, // ✅ Fixed role ID
-          user_id: item.user_id, // ✅ Ensure `user_id` is included
-        },
-      })) || [];
+    const items =
+      req.body.items
+        ?.filter((item) => item.user_group_id) // Remove any invalid entries
+        .map((item) => ({
+          group_id: item.user_group_id, // ✅ Correct key name
+          body: {
+            role_id: user_role, // ✅ Fixed role ID
+            user_id: item.user_id, // ✅ Ensure `user_id` is included
+          },
+        })) || [];
 
     if (items.length === 0) {
       console.log("🚨 No valid user groups to assign.");
       return;
     }
 
-    console.log("📤 Final formatted request payload:", JSON.stringify({ items }, null, 2));
+    console.log(
+      "📤 Final formatted request payload:",
+      JSON.stringify({ items }, null, 2)
+    );
 
     const response = await flipAxios.post(
       "/api/admin/users/v4/user-groups/assignments/batch",
@@ -193,8 +239,11 @@ async function assignFlipUserGroups(req) {
     console.log("✅ Successfully assigned user groups:", response.data);
 
     // Check if response contains an error (status 400)
-    if (response.data?.items?.some(item => item.status === 400)) {
-      console.error("❌ One or more user group assignments failed:", response.data);
+    if (response.data?.items?.some((item) => item.status === 400)) {
+      console.error(
+        "❌ One or more user group assignments failed:",
+        response.data
+      );
 
       // Prepare the error message for email
       const errorMessage = `
@@ -204,14 +253,23 @@ async function assignFlipUserGroups(req) {
       `;
 
       // Send an email notification
-      await sendMail("it@straightforward.email", "User Group Assignment Failed", errorMessage);
+      await sendMail(
+        "it@straightforward.email",
+        "User Group Assignment Failed",
+        errorMessage
+      );
     }
 
     return response.data;
   } catch (error) {
-    console.error("❌ Error assigning Users to User Groups:", error.response ? error.response.data : error.message);
-    
-    const errorDetails = error.response ? JSON.stringify(error.response.data, null, 2) : error.message;
+    console.error(
+      "❌ Error assigning Users to User Groups:",
+      error.response ? error.response.data : error.message
+    );
+
+    const errorDetails = error.response
+      ? JSON.stringify(error.response.data, null, 2)
+      : error.message;
 
     // Prepare email content
     const errorMessage = `
@@ -221,12 +279,15 @@ async function assignFlipUserGroups(req) {
     `;
 
     // Send an email notification about the critical failure
-    await sendMail("it@straightforward.email", "Critical Error: User Group Assignment", errorMessage);
+    await sendMail(
+      "it@straightforward.email",
+      "Critical Error: User Group Assignment",
+      errorMessage
+    );
 
     throw new Error(errorDetails);
   }
 }
-
 
 const findFlipUserByName = async (fullName) => {
   const users = await FlipUser.find();
@@ -285,7 +346,6 @@ const findFlipUserByName = async (fullName) => {
 const findMitarbeiterByName = async (fullName) => {
   const users = await Mitarbeiter.find();
   const normalizedInput = fullName.toLowerCase().replace(/\s+/g, "");
-
 
   const normalizedUsers = users.map((user) => ({
     id: user._id,
@@ -403,42 +463,51 @@ const assignFields = async (documentId, updates, callback) => {
 };
 
 const assignTeamleiter = async (documentId, teamleiterId) => {
-  return assignFields(documentId, { teamleiter: teamleiterId }, async (document) => {
-    if (document instanceof Laufzettel) {
-      await document.populate("mitarbeiter teamleiter");
+  return assignFields(
+    documentId,
+    { teamleiter: teamleiterId },
+    async (document) => {
+      if (document instanceof Laufzettel) {
+        await document.populate("mitarbeiter teamleiter");
 
-      const teamleiter = document.teamleiter;
-      const mitarbeiter = document.mitarbeiter;
+        const teamleiter = document.teamleiter;
+        const mitarbeiter = document.mitarbeiter;
 
-      if (!teamleiter || !mitarbeiter) {
-        console.warn(`⚠ Missing required fields in Laufzettel: ${document._id}`);
-        return;
-      }
+        if (!teamleiter || !mitarbeiter) {
+          console.warn(
+            `⚠ Missing required fields in Laufzettel: ${document._id}`
+          );
+          return;
+        }
 
-      try {
-        const authToken = await getFlipAuthToken(); // 🔥 Use cached or fresh token
+        try {
+          const authToken = await getFlipAuthToken(); // 🔥 Use cached or fresh token
 
-        await assignFlipTask({
-          body: {
-            external_id: document._id.toString(),
-            title: `Laufzettel erhalten: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`,
-            recipients: [{
-             id: teamleiter.flip_id,
-             type: "USER"}],
-            description: `Du wurdest als Teamleiter für den Laufzettel von ${mitarbeiter.vorname} ${mitarbeiter.nachname} zugewiesen.`,
-          },
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-          query: {},
-        });
+          await assignFlipTask({
+            body: {
+              external_id: document._id.toString(),
+              title: `Laufzettel erhalten: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`,
+              recipients: [
+                {
+                  id: teamleiter.flip_id,
+                  type: "USER",
+                },
+              ],
+              description: `Du wurdest als Teamleiter für den Laufzettel von ${mitarbeiter.vorname} ${mitarbeiter.nachname} zugewiesen.`,
+            },
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+            },
+            query: {},
+          });
 
-        console.log(`✅ Flip task assigned for Laufzettel: ${document._id}`);
-      } catch (error) {
-        console.error(`❌ Error assigning Flip task: ${error.message}`);
+          console.log(`✅ Flip task assigned for Laufzettel: ${document._id}`);
+        } catch (error) {
+          console.error(`❌ Error assigning Flip task: ${error.message}`);
+        }
       }
     }
-  });
+  );
 };
 const assignMitarbeiter = async (documentId, mitarbeiterId) => {
   return assignFields(documentId, { mitarbeiter: mitarbeiterId });
@@ -448,22 +517,25 @@ async function assignFlipTask(req) {
   try {
     const { external_id, title, recipients, description } = req.body;
     if (!recipients || !Array.isArray(recipients)) {
-      throw new Error("Invalid recipients: Must be an array with at least one recipient.");
+      throw new Error(
+        "Invalid recipients: Must be an array with at least one recipient."
+      );
     }
 
-    
     const newTask = new FlipTask({
       title,
       external_id,
       body: { html: description },
-      recipients, 
+      recipients,
     });
     console.log(newTask);
-    
+
     const existingTasks = await newTask.find();
 
     if (existingTasks.length > 0) {
-      console.log("⚠️ Task with external_id already exists. Skipping creation.");
+      console.log(
+        "⚠️ Task with external_id already exists. Skipping creation."
+      );
       if (existingTasks.length === 1) {
         console.log("Updating existing task");
         let task = new FlipTask(existingTasks[0]); // Ensure it's an instance
@@ -477,18 +549,24 @@ async function assignFlipTask(req) {
       return existingTasks[0].toSimplifiedObject();
     }
 
-
     const createdTask = await newTask.create();
 
-    console.log("✅ Flip Task Assigned Successfully:", createdTask.toSimplifiedObject());
+    console.log(
+      "✅ Flip Task Assigned Successfully:",
+      createdTask.toSimplifiedObject()
+    );
 
     return createdTask.toSimplifiedObject();
   } catch (error) {
-    console.error("❌ Error assigning Flip Task:", error.response ? error.response.data : error.message);
-    throw new Error(error.response ? JSON.stringify(error.response.data) : error.message);
+    console.error(
+      "❌ Error assigning Flip Task:",
+      error.response ? error.response.data : error.message
+    );
+    throw new Error(
+      error.response ? JSON.stringify(error.response.data) : error.message
+    );
   }
 }
-
 
 module.exports = {
   flipUserRoutine,
@@ -500,5 +578,5 @@ module.exports = {
   assignTeamleiter,
   assignMitarbeiter,
   assignFlipTask,
-  assignFlipUserGroups
+  assignFlipUserGroups,
 };

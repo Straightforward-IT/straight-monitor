@@ -3,16 +3,41 @@
     <a class="discrete" @click="switchToDashboard">Zurück</a>
     <div class="window-panels">
       <div class="create-panel">
-        <div class="user-create">
-          <h2>Benutzer Erstellen</h2>
-          <section style="margin: 15px">
-            <h3>Hinweise: </h3>
-            <p>- Diese Seite sollte immer aus dem 'Bewerber erstellen' Link im Asana Task geöffnet werden</p>
-            <p>- Einige Felder werden aus dem Asana Task automatisch befüllt - diese unbedingt kontrollieren</p>
-            <p>- In 99% der Fälle wird nur der 1.Standort gebraucht</p>
-            <p>- Das Passwort wird automatisch auf 'password' gesetzt und kann bei der 1. Anmeldung geändert werden</p>
-          </section>
+        <!-- Top Panel -->
+        <div class="top-panel">
+          <h2>Bewerber erstellen</h2>
 
+          <!-- Toggle Button -->
+
+          <div class="action-buttons">
+            <button class="toggle-button" @click="showHinweise = !showHinweise">
+              {{ showHinweise ? "Hinweise verbergen" : "Hinweise anzeigen" }}
+            </button>
+            <button @click="resetNewUser">Formular Zurücksetzen</button>
+            <button @click="fetchAsanaTask">Asana Task neu laden</button>
+            <button @click="openReentryModal">Wiedereintritt MA</button>
+          </div>
+
+          <!-- Hinweise Section (toggleable) -->
+          <section class="hinweise" v-if="showHinweise">
+            <h3>Hinweise:</h3>
+            <p>
+              - Diese Seite sollte möglichst immer aus dem 'Bewerber erstellen'
+              Link im Asana Task geöffnet werden.
+            </p>
+            <p>
+              - Einige Felder werden aus dem Asana Task automatisch befüllt -
+              diese unbedingt kontrollieren.
+            </p>
+            <p>
+              - Das Passwort wird automatisch auf 'password' gesetzt und kann
+              bei der 1. Anmeldung geändert werden.
+            </p>
+          </section>
+        </div>
+
+        <!-- Bottom Panel -->
+        <div class="bottom-panel">
           <!-- Asana ID Input -->
           <div class="input-group">
             <div class="input-item">
@@ -78,19 +103,6 @@
                 <option value="">-</option>
                 <option
                   v-for="location in availableLocations(1)"
-                  :key="location"
-                  :value="location"
-                >
-                  {{ location }}
-                </option>
-              </select>
-            </div>
-            <div class="input-item">
-              <label class="input-label">3. Standort</label>
-              <select class="standort-dropdown" v-model="locations[2]">
-                <option value="">-</option>
-                <option
-                  v-for="location in availableLocations(2)"
                   :key="location"
                   :value="location"
                 >
@@ -182,7 +194,6 @@
           </button>
         </div>
       </div>
-
       <!-- ASANA PANEL -->
       <div class="second-panel">
         <h3>Asana Task Details</h3>
@@ -211,13 +222,50 @@
         </div>
       </div>
     </div>
+    <div v-if="showReentryModal" class="modal">
+      <div class="modal-content">
+  <font-awesome-icon
+    class="close-modal"
+    :icon="['fas', 'times']"
+    @click="showReentryModal = false"
+  />
+  <h4>Wiedereintritt MA</h4>
+
+  <!-- Input for Mitarbeiter search -->
+  <div class="autocomplete-wrapper">
+  <input
+    type="text"
+    v-model="searchMitarbeiter"
+    @keydown.down.prevent="highlightNext"
+    @keydown.up.prevent="highlightPrev"
+    @keydown.enter.prevent="selectHighlighted"
+    placeholder="Mitarbeiter suchen..."
+    class="text-input"
+  />
+  <ul v-if="filteredMitarbeiter.length" class="mitarbeiter-list">
+    <li
+      v-for="(mitarbeiter, index) in filteredMitarbeiter"
+      :key="mitarbeiter._id"
+      :class="{ highlighted: index === selectedIndex }"
+      @mouseenter="highlightOption(index)"
+      @click="selectMitarbeiter(mitarbeiter)"
+    >
+      {{ mitarbeiter.vorname }} {{ mitarbeiter.nachname }} ({{ mitarbeiter.email }})
+    </li>
+  </ul>
+</div>
+</div>
+
+    </div>
   </div>
 </template>
 
 <script>
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
-import debounce from 'lodash.debounce';
+import debounce from "lodash.debounce";
+import AsanaMappings from "@/assets/AsanaMappings.json"; 
+import FlipMappings from "@/assets/FlipMappings.json";
 
 export default {
   name: "Erstellen",
@@ -234,37 +282,15 @@ export default {
       asanaTasks: null,
       asanaTask: null,
       userGroups: null,
-      showAsanaModal: false,
-      // Konstanten
-      bewerber_project_gids: {
-        bewerber_b: "1203882527761007",
-        bewerber_hh: "1204666703404588",
-        bewerber_k: "1207192167671531",
-      },
-      user_group_ids: {
-        all_users: "12af8c2e-7076-4b66-90d0-b2b7fd885c88",
-        berlin: "fe6d165f-f588-4762-90ee-a949b08a3c07",
-        berlin_service: "18d4f311-7b51-430a-9e70-885cca7248e4",
-        berlin_logistik: "bdbb18bf-d0bd-4fba-b339-785533bb09b9",
-        berlin_festangestellte: "ce92c64b-46e2-4a31-93aa-a7ed1b1a6843",
-        berlin_office: "e5473746-c88f-4799-ae68-731a28ba595f",
-        berlin_teamleiter: "b99df75f-eb8d-42f8-838f-413223ae1572",
-
-        hamburg: "1372dc72-86ad-4375-b3b9-11b5350f4c3e",
-        hamburg_service: "3808e874-a254-4731-843d-3df0844088a1",
-        hamburg_logistik: "3365d98e-27e6-4965-9794-b05802290a49",
-        hamburg_festangestellte: "e3e05ccf-e429-498a-a833-1b8b7a2feec9",
-        hamburg_office: "db9c176d-941b-49b4-ad3f-56df0a33e45b",
-        hamburg_teamleiter: "806cb6f0-ee73-4376-98c0-710679c9ef96",
-        hamburg_uke: "8db46766-19b3-4151-b91e-d04dda0e72d3",
-
-        koeln: "13e5b96d-c8f3-4dcc-944e-8ba491efb570",
-        koeln_service: "aa3c1034-0414-4a72-9917-5f3db06f0131",
-        koeln_logistik: "bf483217-f705-4bab-8150-ee7a7bf2a08f",
-        koeln_festangestellte: "67153127-21ae-4717-9f88-cb90638bbd48",
-        koeln_office: "63a3e1d1-4ce5-4962-ae32-939b5cc6ba5f",
-        koeln_teamleiter: "a99dfeff-9ee3-4de2-b6d1-15c59081b2a1",
-      },
+      showHinweise: false,
+      showReentryModal: false,
+      inactiveMitarbeiter: [],
+      selectedMitarbeiter: null,
+      searchMitarbeiter: "",
+      selectedIndex: -1,
+       // JSON Mappings
+      bewerber_project_gids: AsanaMappings,
+      user_group_ids: FlipMappings.user_group_ids,
       // User Create
       vorname: "",
       nachname: "",
@@ -297,7 +323,7 @@ export default {
         } else {
           this.asanaTask = null;
         }
-      }, 1000),  // 500ms debounce (half a second wait)
+      }, 1000), // 500ms debounce (half a second wait)
       immediate: false,
     },
     "$route.params.id": {
@@ -336,13 +362,41 @@ export default {
   computed: {
     availableLocations() {
       return (index) => {
-        const allLocations = ["Berlin", "Hamburg", "Koeln"];
-        const selectedLocations = this.locations.filter(
-          (loc, i) => loc && i !== index
-        ); // Exclude current index and empty values
-        return allLocations.filter((loc) => !selectedLocations.includes(loc)); // Remove already selected
+        const allLocations = Object.keys(this.bewerber_project_gids); 
+        return allLocations.filter(
+          (loc) => !this.locations.includes(loc) || this.locations.indexOf(loc) === index
+        );
       };
     },
+    filteredMitarbeiter() {
+    const query = this.searchMitarbeiter.toLowerCase().trim();
+    if (!query) return [];
+
+    return this.inactiveMitarbeiter
+      .filter(({ vorname, nachname, email }) => {
+        const fullName = `${vorname} ${nachname}`.toLowerCase();
+        return (
+          fullName.includes(query) ||
+          email.toLowerCase().includes(query)
+        );
+      })
+      .sort((a, b) => {
+        const input = query;
+        const fullNameA = `${a.vorname} ${a.nachname}`.toLowerCase();
+        const fullNameB = `${b.vorname} ${b.nachname}`.toLowerCase();
+
+        const startsWithA = fullNameA.startsWith(input);
+        const startsWithB = fullNameB.startsWith(input);
+
+        if (startsWithA && !startsWithB) return -1;
+        if (!startsWithA && startsWithB) return 1;
+
+        return fullNameA.localeCompare(fullNameB);
+      });
+  },
+selectedMitarbeiter() {
+  return this.filteredMitarbeiter[this.selectedIndex] || null;
+}
   },
   methods: {
     setAxiosAuthToken() {
@@ -374,17 +428,11 @@ export default {
         this.switchToDashboard();
       }
     },
-    async fetchAsanaTask() {
+     async fetchAsanaTask() {
       if (!this.asana_id) return;
-
       try {
-        console.log("Fetching task:", this.asana_id);
         const response = await api.get(`/api/asana/task/${this.asana_id}`);
         this.asanaTask = response.data.task;
-
-        console.log("✅ Asana Task fetched:", this.asanaTask);
-
-        // Only call parseTaskName if fields are empty to allow manual edits
         if (!this.vorname && !this.nachname) {
           this.parseTaskName(this.asanaTask.name);
         }
@@ -392,6 +440,74 @@ export default {
       } catch (error) {
         console.error("❌ Error fetching Asana task:", error);
         return false;
+      }
+    },
+    highlightNext() {
+    if (this.selectedIndex < this.filteredMitarbeiter.length - 1) {
+      this.selectedIndex++;
+      this.scrollHighlightedIntoView();
+    }
+  },
+  highlightPrev() {
+    if (this.selectedIndex > 0) {
+      this.selectedIndex--;
+      this.scrollHighlightedIntoView();
+    }
+  },
+  selectHighlighted() {
+    if (this.selectedIndex >= 0 && this.filteredMitarbeiter.length > 0) {
+      this.selectMitarbeiter(this.filteredMitarbeiter[this.selectedIndex]);
+    }
+  },
+  highlightOption(index) {
+    this.selectedIndex = index;
+  }, scrollHighlightedIntoView() {
+    this.$nextTick(() => {
+      const container = this.$el.querySelector(".mitarbeiter-list");
+      const highlightedItem = container.querySelector(".highlighted");
+      
+      if (highlightedItem) {
+        highlightedItem.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest"
+        });
+      }
+    });
+  }, 
+  selectMitarbeiter(mitarbeiter) {
+    this.selectedMitarbeiter = mitarbeiter;
+    this.searchMitarbeiter = `${mitarbeiter.vorname} ${mitarbeiter.nachname}`;
+    this.selectedIndex = -1;
+    this.filteredMitarbeiter = [];
+
+    this.autofillMitarbeiterDetails(mitarbeiter);
+  },
+  autofillMitarbeiterDetails(mitarbeiter) {
+    this.vorname = mitarbeiter.vorname;
+    this.nachname = mitarbeiter.nachname;
+    this.email = mitarbeiter.email;
+
+    if (mitarbeiter.asana_id) {
+      this.asana_id = mitarbeiter.asana_id;
+      this.fetchAsanaTask();
+    }
+
+    // close dropdown after selection
+    this.filteredMitarbeiter = [];
+  },
+    async fetchInactiveMitarbeiter() {
+      if (!this.token) return this.switchToDashboard();
+      try {
+        const response = await api.get("/api/personal/mitarbeiter", {
+          params: { isActive: false },
+        });
+        this.inactiveMitarbeiter = response.data.data;
+        console.log(
+          "✅ Inaktive Mitarbeiter geladen:",
+          this.inactiveMitarbeiter
+        );
+      } catch (error) {
+        console.error("Fehler beim Laden inaktiver Mitarbeiter:", error);
       }
     },
     async fetchSchulungenTasks() {
@@ -587,7 +703,10 @@ export default {
       this.location = "";
       this.department = "";
       this.userGroups = [];
-      this.showAsanaModal = false;
+      this.showReentryModal = false;
+    },
+    openReentryModal() {
+      this.showReentryModal = true;
     },
     async submitNewUser() {
       if (!this.token) {
@@ -701,35 +820,31 @@ export default {
       }
     },
     getProjectName(memberships) {
-      if (!memberships || memberships.length === 0) return "Nicht zugeordnet";
+  if (!memberships || memberships.length === 0) return "Nicht zugeordnet";
 
-      // Extract all project GIDs from memberships
-      const projectGids = memberships.map(
-        (membership) => membership.project.gid
-      );
+  // Extract all project GIDs from memberships
+  const projectGids = memberships.map((membership) => membership.project.gid);
+  console.log("Extracted project GIDs:", projectGids);
 
-      console.log("Extracted project GIDs:", projectGids);
+  // Convert AsanaMappings.json structure into a lookup table
+  const projectMapping = {};
+  for (const [location, projects] of Object.entries(this.bewerber_project_gids)) {
+    for (const projectType in projects) {
+      projectMapping[projects[projectType]] = location;
+    }
+  }
 
-      // Define project GID mappings
-      const projectMapping = {
-        1203882527761007: "Berlin",
-        1204666703404588: "Hamburg",
-        1207192167671531: "Koeln",
-      };
+  // Find first matching project GID
+  for (const gid of projectGids) {
+    if (projectMapping[gid]) {
+      this.locations[0] = projectMapping[gid]; // Update location dynamically
+      return projectMapping[gid];
+    }
+  }
 
-      // Check for a match in the project mapping
-      for (const gid of projectGids) {
-        if (projectMapping[gid]) {
-          this.locations[0] = projectMapping[gid]; // Update location dynamically
-          return projectMapping[gid];
-        }
-      }
+  return "Nicht zugeordnet";
+},
 
-      return "Nicht zugeordnet";
-    },
-    openAsanaModal() {
-      this.showAsanaModal = true;
-    },
     getGroupsFor(groupType, location) {
       const mapping = {
         service: {
@@ -772,38 +887,26 @@ export default {
         isOffice: "office",
       };
 
-      // Dynamically add groups based on attributes
-      Object.entries(groupMappings).forEach(([key, groupType]) => {
-        if (this[key]) {
-          userGroups.push(
-            ...this.locations.map((location) =>
-              this.getGroupsFor(groupType, location)
-            )
-          );
-        }
-      });
-
-      // **Hinzufügen der Hauptgruppen (Berlin, Hamburg, Koeln)**
       this.locations.forEach((location) => {
-        const normalizedLocation = location.toLowerCase();
-        if (this.user_group_ids[normalizedLocation]) {
-          userGroups.push(this.user_group_ids[normalizedLocation]);
+        if (this.user_group_ids[location.toLowerCase()]) {
+          userGroups.push(this.user_group_ids[location.toLowerCase()]);
         }
+
+        Object.entries(groupMappings).forEach(([key, groupType]) => {
+          if (this[key]) {
+            const groupId = this.user_group_ids[`${location.toLowerCase()}_${groupType}`];
+            if (groupId) {
+              userGroups.push(groupId);
+            }
+          }
+        });
       });
 
-      // **Duplikate entfernen und zuweisen**
-      this.userGroups = [...new Set(userGroups)];
-
-      // Handle special Hamburg UKE case separately
-      if (this.isUKE) {
+      if (this.isUKE && this.user_group_ids.hamburg_uke) {
         userGroups.push(this.user_group_ids.hamburg_uke);
       }
 
-      // Remove duplicates and assign
       this.userGroups = [...new Set(userGroups)];
-    },
-    openAsanaModal() {
-      this.showAsanaModal = true;
     },
     switchToDashboard() {
       this.$router.push("/");
@@ -812,7 +915,7 @@ export default {
   mounted() {
     this.setAxiosAuthToken();
     this.fetchUserData();
-    //  this.fetchSchulungenTasks();
+    this.fetchInactiveMitarbeiter();
     this.fetchFlipUsers();
     this.fetchFlipUserGroups();
     this.fetchAsanaTask();
@@ -845,6 +948,70 @@ $primary: #f69e6f;
   background-color: #f9f9f9;
   border-radius: 8px;
   box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.create-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 15px;
+
+  .top-panel,
+  .bottom-panel {
+    padding: 15px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.05);
+  }
+
+  .top-panel {
+    .action-buttons {
+      margin-bottom: 15px;
+
+      button {
+        background-color: transparent;
+        color: #f69e6f;
+        border: none;
+        cursor: pointer;
+        font-weight: 600;
+        padding: 5px 10px;
+        margin-right: 10px; // <-- Adds spacing between buttons horizontally
+
+        &:last-child {
+          margin-right: 0; // Removes margin from the last button
+        }
+
+        &:hover {
+          color: darken(#f69e6f, 15%);
+          text-decoration: underline;
+        }
+      }
+    }
+
+    .hinweise {
+      background-color: #f7f7f7;
+      padding: 10px;
+      border-radius: 5px;
+      border-left: 3px solid #f69e6f;
+      margin-bottom: 10px;
+
+      h3 {
+        margin-bottom: 5px;
+      }
+
+      p {
+        margin: 2px 0;
+        font-size: 0.9rem;
+      }
+    }
+  }
+
+  .bottom-panel {
+    .submit-button {
+      width: 100%;
+      margin-top: 20px;
+    }
+  }
 }
 
 .second-panel {
@@ -1018,6 +1185,109 @@ input {
     &:active {
       transform: translateY(-3px);
     }
+  }
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.modal-content {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  width: 350px;
+  text-align: center;
+  position: relative;
+
+  .item-actions {
+    display: flex;
+    justify-content: center; /* Center buttons */
+    gap: 10px; /* Add space between buttons */
+    margin-top: 10px; /* Add space above buttons */
+  }
+
+  button {
+    margin: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+
+    &:hover {
+      background-color: mix(black, $primary, 10%);
+    }
+  }
+  .autocomplete-wrapper {
+  position: relative;
+
+  .mitarbeiter-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    padding: 0px;
+    max-height: 200px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 0 0 6px 6px;
+    margin-top: -1px;
+    z-index: 100;
+
+    li {
+      padding: 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+
+      &.highlighted,
+      &:hover {
+        background-color: #f69e6f;
+        color: white;
+      }
+    }
+  }
+}
+
+.autocomplete-input {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  font-size: 0.95rem;
+}
+
+.suggestions-list {
+  position: absolute;
+  width: 100%;
+  max-height: 150px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 0 0 6px 6px;
+  border-top: none;
+  z-index: 10;
+  margin-top: -2px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+
+  li {
+    padding: 8px;
+    cursor: pointer;
+
+    &:hover {
+      background-color: #f69e6f;
+      color: white;
+    }
+  }
+
   }
 }
 </style>
