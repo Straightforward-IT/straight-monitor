@@ -204,8 +204,10 @@
 
           <!-- Project Memberships -->
           <p>
-            <strong>Projekt:</strong>
-            {{ getProjectName(asanaTask.memberships) }}
+            <strong>Projekte:</strong>
+            <p v-for="project in asanaTask.memberships">
+              {{ project.project.name }}
+            </p>
           </p>
 
           <h3>Beschreibung</h3>
@@ -224,38 +226,39 @@
     </div>
     <div v-if="showReentryModal" class="modal">
       <div class="modal-content">
-  <font-awesome-icon
-    class="close-modal"
-    :icon="['fas', 'times']"
-    @click="showReentryModal = false"
-  />
-  <h4>Wiedereintritt MA</h4>
+        <font-awesome-icon
+          class="close-modal"
+          :icon="['fas', 'times']"
+          @click="showReentryModal = false"
+        />
+        <h4>Wiedereintritt MA</h4>
 
-  <!-- Input for Mitarbeiter search -->
-  <div class="autocomplete-wrapper">
-  <input
-    type="text"
-    v-model="searchMitarbeiter"
-    @keydown.down.prevent="highlightNext"
-    @keydown.up.prevent="highlightPrev"
-    @keydown.enter.prevent="selectHighlighted"
-    placeholder="Mitarbeiter suchen..."
-    class="text-input"
-  />
-  <ul v-if="filteredMitarbeiter.length" class="mitarbeiter-list">
-    <li
-      v-for="(mitarbeiter, index) in filteredMitarbeiter"
-      :key="mitarbeiter._id"
-      :class="{ highlighted: index === selectedIndex }"
-      @mouseenter="highlightOption(index)"
-      @click="selectMitarbeiter(mitarbeiter)"
-    >
-      {{ mitarbeiter.vorname }} {{ mitarbeiter.nachname }} ({{ mitarbeiter.email }})
-    </li>
-  </ul>
-</div>
-</div>
-
+        <!-- Input for Mitarbeiter search -->
+        <div class="autocomplete-wrapper">
+          <input
+            type="text"
+            v-model="searchMitarbeiter"
+            @keydown.down.prevent="highlightNext"
+            @keydown.up.prevent="highlightPrev"
+            @keydown.enter.prevent="selectHighlighted"
+            placeholder="Mitarbeiter suchen..."
+            class="text-input"
+          />
+          <ul v-if="filteredMitarbeiter.length" class="mitarbeiter-list">
+            <li
+              v-for="(mitarbeiter, index) in filteredMitarbeiter"
+              :key="mitarbeiter._id"
+              :class="{ highlighted: index === selectedIndex }"
+              @mouseenter="highlightOption(index)"
+              @click="selectMitarbeiter(mitarbeiter)"
+            >
+              {{ mitarbeiter.vorname }} {{ mitarbeiter.nachname }} ({{
+                mitarbeiter.email
+              }})
+            </li>
+          </ul>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -264,7 +267,7 @@
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
 import debounce from "lodash.debounce";
-import AsanaMappings from "@/assets/AsanaMappings.json"; 
+import AsanaMappings from "@/assets/AsanaMappings.json";
 import FlipMappings from "@/assets/FlipMappings.json";
 
 export default {
@@ -278,9 +281,8 @@ export default {
     return {
       // System
       token: localStorage.getItem("token") || null,
-      flipUsers: null,
-      asanaTasks: null,
       asanaTask: null,
+      flipUsers: null,
       userGroups: null,
       showHinweise: false,
       showReentryModal: false,
@@ -288,10 +290,13 @@ export default {
       selectedMitarbeiter: null,
       searchMitarbeiter: "",
       selectedIndex: -1,
-       // JSON Mappings
+
+      // JSON Mappings
       bewerber_project_gids: AsanaMappings,
       user_group_ids: FlipMappings.user_group_ids,
-      // User Create
+
+      // User Form Data
+      asana_id: this.$route.params.id || null,
       vorname: "",
       nachname: "",
       email: "",
@@ -303,12 +308,10 @@ export default {
       isFestangestellt: false,
       isOffice: false,
       isUKE: false,
-      asana_id: this.$route.params.id || null,
       job_title: "Mitarbeiter/in",
       location: "",
       department: "",
       userGroups: [],
-      //
     };
   },
   watch: {
@@ -325,6 +328,15 @@ export default {
         }
       }, 1000), // 500ms debounce (half a second wait)
       immediate: false,
+    }, isTeamleiter: {
+      immediate: true,
+      handler(newVal) {
+        if(newVal) {
+          this.job_title = "Teamleiter/in";
+        } else {
+          this.job_title = "Mitarbeiter/in";
+        }
+      }
     },
     "$route.params.id": {
       immediate: true,
@@ -349,54 +361,46 @@ export default {
         this.location = newLocations[0] || "";
       },
     },
-    isService(newValue) {
-      this.setDepartment();
-    },
-    isLogistik(newValue) {
-      this.setDepartment();
-    },
-    isUKE(newValue) {
-      this.setDepartment();
-    },
+    isService: "setDepartment",
+    isLogistik: "setDepartment",
+    isUKE: "setDepartment",
   },
   computed: {
     availableLocations() {
       return (index) => {
-        const allLocations = Object.keys(this.bewerber_project_gids); 
+        const allLocations = Object.keys(this.bewerber_project_gids);
         return allLocations.filter(
-          (loc) => !this.locations.includes(loc) || this.locations.indexOf(loc) === index
+          (loc) =>
+            !this.locations.includes(loc) ||
+            this.locations.indexOf(loc) === index
         );
       };
     },
     filteredMitarbeiter() {
-    const query = this.searchMitarbeiter.toLowerCase().trim();
-    if (!query) return [];
+      const query = this.searchMitarbeiter.toLowerCase().trim();
+      if (!query) return [];
 
-    return this.inactiveMitarbeiter
-      .filter(({ vorname, nachname, email }) => {
-        const fullName = `${vorname} ${nachname}`.toLowerCase();
-        return (
-          fullName.includes(query) ||
-          email.toLowerCase().includes(query)
-        );
-      })
-      .sort((a, b) => {
-        const input = query;
-        const fullNameA = `${a.vorname} ${a.nachname}`.toLowerCase();
-        const fullNameB = `${b.vorname} ${b.nachname}`.toLowerCase();
-
-        const startsWithA = fullNameA.startsWith(input);
-        const startsWithB = fullNameB.startsWith(input);
-
-        if (startsWithA && !startsWithB) return -1;
-        if (!startsWithA && startsWithB) return 1;
-
-        return fullNameA.localeCompare(fullNameB);
-      });
-  },
-selectedMitarbeiter() {
-  return this.filteredMitarbeiter[this.selectedIndex] || null;
-}
+      return this.inactiveMitarbeiter
+        .filter(({ vorname, nachname, email }) => {
+          const fullName = `${vorname} ${nachname}`.toLowerCase();
+          return (
+            fullName.includes(query) || email.toLowerCase().includes(query)
+          );
+        })
+        .sort((a, b) => {
+          const input = query;
+          const fullNameA = `${a.vorname} ${a.nachname}`.toLowerCase();
+          const fullNameB = `${b.vorname} ${b.nachname}`.toLowerCase();
+          return fullNameA.startsWith(input)
+            ? -1
+            : fullNameB.startsWith(input)
+            ? 1
+            : fullNameA.localeCompare(fullNameB);
+        });
+    },
+    selectedMitarbeiter() {
+      return this.filteredMitarbeiter[this.selectedIndex] || null;
+    },
   },
   methods: {
     setAxiosAuthToken() {
@@ -428,14 +432,16 @@ selectedMitarbeiter() {
         this.switchToDashboard();
       }
     },
-     async fetchAsanaTask() {
+    async fetchAsanaTask() {
       if (!this.asana_id) return;
       try {
         const response = await api.get(`/api/asana/task/${this.asana_id}`);
         this.asanaTask = response.data.task;
+        console.log(this.asanaTask);
         if (!this.vorname && !this.nachname) {
           this.parseTaskName(this.asanaTask.name);
         }
+        this.parseTaskProjects(this.asanaTask.memberships);
         return true;
       } catch (error) {
         console.error("❌ Error fetching Asana task:", error);
@@ -443,58 +449,59 @@ selectedMitarbeiter() {
       }
     },
     highlightNext() {
-    if (this.selectedIndex < this.filteredMitarbeiter.length - 1) {
-      this.selectedIndex++;
-      this.scrollHighlightedIntoView();
-    }
-  },
-  highlightPrev() {
-    if (this.selectedIndex > 0) {
-      this.selectedIndex--;
-      this.scrollHighlightedIntoView();
-    }
-  },
-  selectHighlighted() {
-    if (this.selectedIndex >= 0 && this.filteredMitarbeiter.length > 0) {
-      this.selectMitarbeiter(this.filteredMitarbeiter[this.selectedIndex]);
-    }
-  },
-  highlightOption(index) {
-    this.selectedIndex = index;
-  }, scrollHighlightedIntoView() {
-    this.$nextTick(() => {
-      const container = this.$el.querySelector(".mitarbeiter-list");
-      const highlightedItem = container.querySelector(".highlighted");
-      
-      if (highlightedItem) {
-        highlightedItem.scrollIntoView({
-          behavior: "smooth",
-          block: "nearest"
-        });
+      if (this.selectedIndex < this.filteredMitarbeiter.length - 1) {
+        this.selectedIndex++;
+        this.scrollHighlightedIntoView();
       }
-    });
-  }, 
-  selectMitarbeiter(mitarbeiter) {
-    this.selectedMitarbeiter = mitarbeiter;
-    this.searchMitarbeiter = `${mitarbeiter.vorname} ${mitarbeiter.nachname}`;
-    this.selectedIndex = -1;
-    this.filteredMitarbeiter = [];
+    },
+    highlightPrev() {
+      if (this.selectedIndex > 0) {
+        this.selectedIndex--;
+        this.scrollHighlightedIntoView();
+      }
+    },
+    selectHighlighted() {
+      if (this.selectedIndex >= 0 && this.filteredMitarbeiter.length > 0) {
+        this.selectMitarbeiter(this.filteredMitarbeiter[this.selectedIndex]);
+      }
+    },
+    highlightOption(index) {
+      this.selectedIndex = index;
+    },
+    scrollHighlightedIntoView() {
+      this.$nextTick(() => {
+        const container = this.$el.querySelector(".mitarbeiter-list");
+        const highlightedItem = container.querySelector(".highlighted");
 
-    this.autofillMitarbeiterDetails(mitarbeiter);
-  },
-  autofillMitarbeiterDetails(mitarbeiter) {
-    this.vorname = mitarbeiter.vorname;
-    this.nachname = mitarbeiter.nachname;
-    this.email = mitarbeiter.email;
+        if (highlightedItem) {
+          highlightedItem.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          });
+        }
+      });
+    },
+    selectMitarbeiter(mitarbeiter) {
+      this.selectedMitarbeiter = mitarbeiter;
+      this.searchMitarbeiter = `${mitarbeiter.vorname} ${mitarbeiter.nachname}`;
+      this.selectedIndex = -1;
+      this.filteredMitarbeiter = [];
 
-    if (mitarbeiter.asana_id) {
-      this.asana_id = mitarbeiter.asana_id;
-      this.fetchAsanaTask();
-    }
+      this.autofillMitarbeiterDetails(mitarbeiter);
+    },
+  
+    async autofillMitarbeiterDetails(mitarbeiter) {
+      this.vorname = mitarbeiter.vorname;
+      this.nachname = mitarbeiter.nachname;
+      this.email = mitarbeiter.email;
 
-    // close dropdown after selection
-    this.filteredMitarbeiter = [];
-  },
+      if (mitarbeiter.asana_id) {
+        this.asana_id = mitarbeiter.asana_id;
+        await this.fetchAsanaTask(mitarbeiter.asana_id);
+      }
+
+      this.filteredMitarbeiter = [];
+    },
     async fetchInactiveMitarbeiter() {
       if (!this.token) return this.switchToDashboard();
       try {
@@ -502,10 +509,6 @@ selectedMitarbeiter() {
           params: { isActive: false },
         });
         this.inactiveMitarbeiter = response.data.data;
-        console.log(
-          "✅ Inaktive Mitarbeiter geladen:",
-          this.inactiveMitarbeiter
-        );
       } catch (error) {
         console.error("Fehler beim Laden inaktiver Mitarbeiter:", error);
       }
@@ -650,43 +653,35 @@ selectedMitarbeiter() {
 
       return html;
     },
-    async fetchFlipUsers(params) {
-      if (this.token) {
-        if (!params) {
-          params = {
-            sort: "LAST_NAME_ASC",
-            page_number: "1",
-            page_limit: "100",
-          };
-        }
-        const response = await api.get("/api/personal/flip", { params });
-        console.log("✅ Fetched Flip Users:", response.data);
+    async fetchFlipUsers() {
+      if (!this.token) return this.switchToDashboard();
+      try {
+        const response = await api.get("/api/personal/flip", {
+          params: { sort: "LAST_NAME_ASC", page_number: "1", page_limit: "100" },
+        });
         this.flipUsers = response.data;
-      } else {
-        this.switchToDashboard();
+      } catch (error) {
+        console.error("Fehler beim Laden der Flip-Benutzer:", error);
       }
     },
-    async fetchFlipUserGroups(params) {
-      if (this.token) {
-        if (!params) {
-          params = {
+    async fetchFlipUserGroups() {
+      if (!this.token) return this.switchToDashboard();
+      try {
+        const response = await api.get("/api/personal/user-groups", {
+          params: {
             sort: "GROUP_NAME_ASC",
             page_number: "1",
             page_limit: "100",
             status: "ACTIVE",
-          };
-        }
-        const response = await api.get("/api/personal/user-groups", { params });
-        console.log("✅ Fetched User Groups:", response.data.groups);
+          },
+        });
         this.userGroups = response.data;
-      } else {
-        this.switchToDashboard();
+      } catch (error) {
+        console.error("Fehler beim Laden der Benutzergruppen:", error);
       }
     },
     resetNewUser() {
-      const asanaIdFromUrl = this.$route.params.id || null;
-      this.asana_id = asanaIdFromUrl || "";
-
+      this.asana_id = this.$route.params.id || "";
       this.vorname = "";
       this.nachname = "";
       this.email = "";
@@ -698,7 +693,6 @@ selectedMitarbeiter() {
       this.isFestangestellt = false;
       this.isOffice = false;
       this.isUKE = false;
-      this.asana_id = "";
       this.job_title = "Mitarbeiter/in";
       this.location = "";
       this.department = "";
@@ -759,92 +753,27 @@ selectedMitarbeiter() {
         alert("❌ Das hat nicht geklappt.");
       }
     },
-    async submitNewUserMock() {
-      if (!this.token) {
-        this.switchToDashboard();
-        return;
-      }
+    parseTaskProjects(memberships) {
+      if (!memberships || memberships.length === 0) return;
 
-      try {
-        // ✅ Ensure user groups are set before submitting
-        this.setUserGroups();
+      const projectGids = memberships.map((m) => m.project.gid);
+      const projectMapping = {};
 
-        // ✅ Determine the primary user group based on the first selected location
-        const primaryLocation = this.locations[0] || null;
-        let primaryUserGroupId = "undefined";
-
-        if (primaryLocation) {
-          const normalizedLocation = primaryLocation.toLowerCase();
-          primaryUserGroupId =
-            this.user_group_ids[normalizedLocation] || "undefined";
+      for (const [location, projects] of Object.entries(
+        this.bewerber_project_gids
+      )) {
+        for (const projectType in projects) {
+          projectMapping[projects[projectType]] = location;
         }
-
-        // ✅ Construct request payload
-        const userPayload = {
-          asana_id: this.asana_id,
-          first_name: this.vorname,
-          last_name: this.nachname,
-          email: this.email,
-          role: "USER",
-          primary_user_group_id: primaryUserGroupId,
-          profile: {
-            job_title: this.job_title,
-            location: this.location,
-            department: this.department,
-          },
-          user_group_ids:
-            this.userGroups.length > 0 ? this.userGroups : ["undefined"], // Replace empty array with "undefined"
-        };
-
-        console.log("📤 Mock User Creation Request:");
-        console.log("First Name:", userPayload.first_name || "undefined");
-        console.log("Last Name:", userPayload.last_name || "undefined");
-        console.log("Email:", userPayload.email || "undefined");
-        console.log("Asana ID:", userPayload.asana_id || "undefined");
-        console.log("Job Title:", userPayload.profile.job_title || "undefined");
-        console.log("Location:", userPayload.profile.location || "undefined");
-        console.log(
-          "Department:",
-          userPayload.profile.department || "undefined"
-        );
-        console.log("Primary User Group:", primaryUserGroupId);
-        console.log(
-          "User Groups:",
-          userPayload.user_group_ids.join(", ") || "undefined"
-        );
-      } catch (error) {
-        console.error(
-          "❌ Mock Error creating user:",
-          error.response?.data || error.message
-        );
       }
+
+      let foundLocations = new Set();
+      for (const gid of projectGids) {
+        if (projectMapping[gid]) foundLocations.add(projectMapping[gid]);
+      }
+
+      this.locations = [...foundLocations];
     },
-    getProjectName(memberships) {
-  if (!memberships || memberships.length === 0) return "Nicht zugeordnet";
-
-  // Extract all project GIDs from memberships
-  const projectGids = memberships.map((membership) => membership.project.gid);
-  console.log("Extracted project GIDs:", projectGids);
-
-  // Convert AsanaMappings.json structure into a lookup table
-  const projectMapping = {};
-  for (const [location, projects] of Object.entries(this.bewerber_project_gids)) {
-    for (const projectType in projects) {
-      projectMapping[projects[projectType]] = location;
-    }
-  }
-
-  // Find first matching project GID
-  for (const gid of projectGids) {
-    if (projectMapping[gid]) {
-      this.locations[0] = projectMapping[gid]; // Update location dynamically
-      return projectMapping[gid];
-    }
-  }
-
-  return "Nicht zugeordnet";
-},
-
     getGroupsFor(groupType, location) {
       const mapping = {
         service: {
@@ -894,7 +823,8 @@ selectedMitarbeiter() {
 
         Object.entries(groupMappings).forEach(([key, groupType]) => {
           if (this[key]) {
-            const groupId = this.user_group_ids[`${location.toLowerCase()}_${groupType}`];
+            const groupId =
+              this.user_group_ids[`${location.toLowerCase()}_${groupType}`];
             if (groupId) {
               userGroups.push(groupId);
             }
@@ -1225,69 +1155,68 @@ input {
     }
   }
   .autocomplete-wrapper {
-  position: relative;
+    position: relative;
 
-  .mitarbeiter-list {
+    .mitarbeiter-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      padding: 0px;
+      max-height: 200px;
+      overflow-y: auto;
+      background: white;
+      border: 1px solid #ddd;
+      border-top: none;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      border-radius: 0 0 6px 6px;
+      margin-top: -1px;
+      z-index: 100;
+
+      li {
+        padding: 10px;
+        cursor: pointer;
+        transition: background 0.2s;
+
+        &.highlighted,
+        &:hover {
+          background-color: #f69e6f;
+          color: white;
+        }
+      }
+    }
+  }
+
+  .autocomplete-input {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    font-size: 0.95rem;
+  }
+
+  .suggestions-list {
     position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    padding: 0px;
-    max-height: 200px;
+    width: 100%;
+    max-height: 150px;
     overflow-y: auto;
     background: white;
     border: 1px solid #ddd;
-    border-top: none;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     border-radius: 0 0 6px 6px;
-    margin-top: -1px;
-    z-index: 100;
+    border-top: none;
+    z-index: 10;
+    margin-top: -2px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 
     li {
-      padding: 10px;
+      padding: 8px;
       cursor: pointer;
-      transition: background 0.2s;
 
-      &.highlighted,
       &:hover {
         background-color: #f69e6f;
         color: white;
       }
     }
-  }
-}
-
-.autocomplete-input {
-  width: 100%;
-  padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #ddd;
-  font-size: 0.95rem;
-}
-
-.suggestions-list {
-  position: absolute;
-  width: 100%;
-  max-height: 150px;
-  overflow-y: auto;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 0 0 6px 6px;
-  border-top: none;
-  z-index: 10;
-  margin-top: -2px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-
-  li {
-    padding: 8px;
-    cursor: pointer;
-
-    &:hover {
-      background-color: #f69e6f;
-      color: white;
-    }
-  }
-
   }
 }
 </style>
