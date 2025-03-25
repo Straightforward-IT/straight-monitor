@@ -97,7 +97,7 @@ class FlipUser {
                 headers: { "Content-Type": "application/json" }
             });
     
-            console.log(`✅ FlipUser created: ${this.vorname} ${this.nachname}`, response.data);
+            //console.log(`✅ FlipUser created: ${this.vorname} ${this.nachname}`, response.data);
             return new FlipUser(response.data);
         } catch (error) {
             console.error(`❌ Error creating FlipUser:`, error.response?.data || error.message);

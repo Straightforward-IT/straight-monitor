@@ -189,9 +189,14 @@
           </div>
 
           <!-- Submit Button -->
-          <button class="submit-button" @click="submitNewUser">
-            Erstellen
-          </button>
+          <button 
+  class="submit-button" 
+  @click="submitNewUser"
+  :disabled="isSubmitting"
+>
+  {{ isSubmitting ? "Erstellt..." : "Erstellen" }}
+</button>
+
         </div>
       </div>
       <!-- ASANA PANEL -->
@@ -290,7 +295,7 @@ export default {
       selectedMitarbeiter: null,
       searchMitarbeiter: "",
       selectedIndex: -1,
-
+      isSubmitting: false,
       // JSON Mappings
       bewerber_project_gids: AsanaMappings,
       user_group_ids: FlipMappings.user_group_ids,
@@ -703,56 +708,45 @@ export default {
       this.showReentryModal = true;
     },
     async submitNewUser() {
-      if (!this.token) {
-        this.switchToDashboard();
-        return;
-      }
+  if (this.isSubmitting) return;
+  this.isSubmitting = true;
 
-      try {
-        // ✅ Ensure user groups are set before submitting
-        this.setUserGroups();
+  try {
+    this.setUserGroups();
+    const primaryLocation = this.locations[0] || null;
+    const primaryUserGroupId = primaryLocation
+      ? this.user_group_ids[primaryLocation.toLowerCase()]
+      : null;
 
-        // ✅ Determine the primary user group based on the first selected location
-        const primaryLocation = this.locations[0] || null;
-        let primaryUserGroupId = null;
+    const userPayload = {
+      asana_id: this.asana_id || null,
+      first_name: this.vorname,
+      last_name: this.nachname,
+      email: this.email,
+      role: "USER",
+      primary_user_group_id: primaryUserGroupId,
+      profile: {
+        job_title: this.job_title,
+        location: this.location,
+        department: this.department,
+      },
+      user_group_ids: this.userGroups || [],
+    };
 
-        if (primaryLocation) {
-          const normalizedLocation = primaryLocation.toLowerCase();
-          primaryUserGroupId = this.user_group_ids[normalizedLocation] || null;
-        }
+    const response = await api.post("/api/personal/create", userPayload);
+    alert("✅ Benutzer erfolgreich erstellt!");
+  } catch (error) {
+    console.error("❌ Fehler beim Erstellen:", error);
 
-        // ✅ Construct request payload
-        const userPayload = {
-          asana_id: this.asana_id || null,
-          first_name: this.vorname,
-          last_name: this.nachname,
-          email: this.email,
-          role: "USER",
-          primary_user_group: primaryUserGroupId
-            ? { id: primaryUserGroupId }
-            : null, // ✅ Fix: Wrap in `{ id: value }`
-          profile: {
-            job_title: this.job_title,
-            location: this.location,
-            department: this.department,
-          },
-          user_group_ids: this.userGroups.length > 0 ? this.userGroups : [], // ✅ Fix: Use `[]` instead of `["undefined"]`
-        };
-        console.log("Primary User Group:", primaryUserGroupId);
-        console.log("📤 Sending user creation request:", userPayload);
-
-        // ✅ Send API request to create user
-        const response = await api.post("/api/personal/create", userPayload);
-        console.log("✅ User created successfully:", response.data);
-        alert("✅ Das hat geklappt!");
-      } catch (error) {
-        console.error(
-          "❌ Error creating user:",
-          error.response?.data || error.message
-        );
-        alert("❌ Das hat nicht geklappt.");
-      }
-    },
+    if (error.response && error.response.status === 409) {
+      alert(`⚠️ ${error.response.data.message}`);
+    } else {
+      alert("❌ Fehler beim Erstellen! Bitte versuche es später erneut.");
+    }
+  }  finally {
+    this.isSubmitting = false;
+  }
+},
     parseTaskProjects(memberships) {
       if (!memberships || memberships.length === 0) return;
 

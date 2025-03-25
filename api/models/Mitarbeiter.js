@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
 
 const MitarbeiterSchema = new mongoose.Schema({
-    flip_id: { type: String, required: false, trim: true},
-    asana_id: {type: String, required: false, trim: true},
+    flip_id: { type: String, unique: true, required: false, trim: true},
+    asana_id: {type: String, unique: true, required: false, trim: true},
     vorname: { type: String, required: true, trim: true },
     nachname: { type: String, required: true, trim: true },
-    email: { type: String, lowercase: true, trim: true },
+    email: { type: String, unique: true, lowercase: true, trim: true },
     isActive: { type: Boolean, default: true },
     laufzettel_received: [
         {
