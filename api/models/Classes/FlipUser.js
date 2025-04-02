@@ -74,36 +74,40 @@ class FlipUser {
     this.external_id = external_id;
   }
   
-    async create() {
-        try {
-            if (!this.vorname || !this.nachname || !this.email) {
-                throw new Error("Missing required fields: first_name, last_name, or email.");
-            }
-    
-            const payload = {
-                external_id: this.external_id,
-                first_name: this.vorname,
-                last_name: this.nachname,
-                email: this.email,
-                status: this.status,
-                username: this.benutzername || this.email,
-                role: this.rolle,
-                profile: this.profile,
-                required_actions: ["ACCEPT_TERMS_AND_CONDITIONS"],
-                primary_user_group_id: this.primary_user_group?.id || null
-            };
-    
-            const response = await flipAxios.post("/api/admin/users/v4/users", payload, {
-                headers: { "Content-Type": "application/json" }
-            });
-    
-            //console.log(`✅ FlipUser created: ${this.vorname} ${this.nachname}`, response.data);
-            return new FlipUser(response.data);
-        } catch (error) {
-            console.error(`❌ Error creating FlipUser:`, error.response?.data || error.message);
-            throw new Error(error.response?.data || error.message);
-        }
+  async create() {
+    try {
+      if (!this.vorname || !this.nachname || !this.email) {
+        throw new Error("Missing required fields: first_name, last_name, or email.");
+      }
+  
+      const payload = {
+        external_id: this.external_id,
+        first_name: this.vorname,
+        last_name: this.nachname,
+        email: this.email,
+        status: this.status,
+        username: this.benutzername || this.email,
+        role: this.rolle,
+        profile: this.profile,
+        required_actions: ["ACCEPT_TERMS_AND_CONDITIONS"],
+        primary_user_group_id: this.primary_user_group?.id || null
+      };
+  
+      const response = await flipAxios.post("/api/admin/users/v4/users", payload, {
+        headers: { "Content-Type": "application/json" }
+      });
+  
+      return new FlipUser(response.data);
+    } catch (error) {
+      const detailedError = error.response?.data 
+        ? JSON.stringify(error.response.data, null, 2) 
+        : error.message;
+  
+      console.error(`❌ Error creating FlipUser:`, detailedError);
+      throw new Error(detailedError);
     }
+  }
+  
   
 
   /**

@@ -6,6 +6,7 @@ const FlipTask = require("./models/Classes/FlipTask");
 const { Laufzettel, EventReport, EvaluierungMA } = require("./models/FlipDocs");
 const Mitarbeiter = require("./models/Mitarbeiter");
 const { sendMail } = require("./EmailService");
+const { findTasks } = require("./AsanaService");
 require("dotenv").config();
 
 const apiUserGroup = "e9e8e278-08a9-4b0e-bdf6-681f8e26c43a";
@@ -23,14 +24,18 @@ async function flipUserRoutine() {
     });
 
     if (!allFlipUsers || !Array.isArray(allFlipUsers)) {
-      emailLogs.push(`❌ Flip API response is invalid: ${JSON.stringify(allFlipUsers)}`);
+      emailLogs.push(
+        `❌ Flip API response is invalid: ${JSON.stringify(allFlipUsers)}`
+      );
       throw new Error("Invalid response from Flip API");
     }
 
-    emailLogs.push(`✅ Fetched ${allFlipUsers.length} Flip users. Processing...`);
+    emailLogs.push(
+      `✅ Fetched ${allFlipUsers.length} Flip users. Processing...`
+    );
 
     const activeFlipUserIds = new Set(
-      allFlipUsers.filter(u => u.status === "ACTIVE").map(u => u.id)
+      allFlipUsers.filter((u) => u.status === "ACTIVE").map((u) => u.id)
     );
 
     for (const flipUserData of allFlipUsers) {
@@ -38,38 +43,74 @@ async function flipUserRoutine() {
 
       const flipUser = new FlipUser(flipUserData);
 
-      if (!flipUser.email && flipUser.benutzername && !flipUser.benutzername.includes("@")) {
+      if (
+        !flipUser.email &&
+        flipUser.benutzername &&
+        !flipUser.benutzername.includes("@")
+      ) {
         flipUser.email = flipUser.benutzername;
         await flipUser.update();
-        emailLogs.push(`⚠️ FlipUser ${flipUser.id} had no email. Username set as email (${flipUser.email}).`);
+        emailLogs.push(
+          `⚠️ FlipUser ${flipUser.id} had no email. Username set as email (${flipUser.email}).`
+        );
       }
 
-      let mitarbeiter = await Mitarbeiter.findOne({ flip_id: flipUser.id });
+      let mitarbeiter = await Mitarbeiter.findOne({
+        $or: [
+          { flip_id: flipUser.id },
+          { email: flipUser.email },
+          { _id: flipUser.external_id },
+        ],
+      });
 
       if (!mitarbeiter) {
         mitarbeiter = await createMitarbeiterByFlip(flipUser);
-        emailLogs.push(`✅ Created Mitarbeiter: ${mitarbeiter.vorname} ${mitarbeiter.nachname} (${mitarbeiter._id})`);
-      } else if (!mitarbeiter.isActive) {
-        mitarbeiter.isActive = true;
-        await mitarbeiter.save();
-        emailLogs.push(`🟢 Mitarbeiter reactivated: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`);
+        emailLogs.push(
+          `✅ Created Mitarbeiter: ${mitarbeiter.vorname} ${mitarbeiter.nachname} (${mitarbeiter._id})`
+        );
+      } else {
+        let changesMade = false;
+
+        if (!mitarbeiter.isActive) {
+          mitarbeiter.isActive = true;
+          changesMade = true;
+          emailLogs.push(
+            `🟢 Mitarbeiter reactivated: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`
+          );
+        }
+
+        if (!mitarbeiter.flip_id || mitarbeiter.flip_id !== flipUser.id) {
+          mitarbeiter.flip_id = flipUser.id;
+          changesMade = true;
+          emailLogs.push(
+            `🟠 Mitarbeiter flip_id updated: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`
+          );
+        }
+
+        if (changesMade) await mitarbeiter.save();
       }
 
       if (!mitarbeiter._id.equals(flipUser.external_id)) {
         flipUser.setExternalId(mitarbeiter._id.toString());
         await flipUser.update();
-        emailLogs.push(`🟠 Fixed external_id mismatch for ${mitarbeiter.vorname} ${mitarbeiter.nachname}`);
+        emailLogs.push(
+          `🟠 Fixed external_id mismatch for ${mitarbeiter.vorname} ${mitarbeiter.nachname}`
+        );
       }
 
       const shouldBeActive = flipUser.status === "ACTIVE";
       if (mitarbeiter.isActive !== shouldBeActive) {
         mitarbeiter.isActive = shouldBeActive;
         await mitarbeiter.save();
-        emailLogs.push(`🟡 Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} active status synced (${shouldBeActive})`);
+        emailLogs.push(
+          `🟡 Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} active status synced (${shouldBeActive})`
+        );
       }
     }
 
-    const allMitarbeiter = await Mitarbeiter.find({ flip_id: { $exists: true } });
+    const allMitarbeiter = await Mitarbeiter.find({
+      flip_id: { $exists: true },
+    });
 
     for (const mitarbeiter of allMitarbeiter) {
       if (!activeFlipUserIds.has(mitarbeiter.flip_id)) {
@@ -77,16 +118,22 @@ async function flipUserRoutine() {
           mitarbeiter.isActive = false;
           mitarbeiter.flip_id = null;
           await mitarbeiter.save();
-          emailLogs.push(`🔴 Mitarbeiter deactivated: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`);
+          emailLogs.push(
+            `🔴 Mitarbeiter deactivated: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`
+          );
         }
       } else if (!mitarbeiter.email) {
-        const flipUser = allFlipUsers.find(u => u.id === mitarbeiter.flip_id);
+        const flipUser = allFlipUsers.find((u) => u.id === mitarbeiter.flip_id);
         if (flipUser?.email) {
           mitarbeiter.email = flipUser.email;
           await mitarbeiter.save();
-          emailLogs.push(`✅ Email updated for Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} (${flipUser.email})`);
+          emailLogs.push(
+            `✅ Email updated for Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} (${flipUser.email})`
+          );
         } else {
-          emailLogs.push(`⚠️ No email found for Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname}`);
+          emailLogs.push(
+            `⚠️ No email found for Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname}`
+          );
         }
       }
     }
@@ -101,7 +148,9 @@ async function flipUserRoutine() {
 
     return allFlipUsers;
   } catch (error) {
-    emailLogs.push(`❌ Critical error during Flip user refresh: ${error.message}`);
+    emailLogs.push(
+      `❌ Critical error during Flip user refresh: ${error.message}`
+    );
 
     await sendMail(
       "it@straightforward.email",
@@ -111,6 +160,90 @@ async function flipUserRoutine() {
 
     throw error;
   }
+}
+async function asanaTransferRoutine(section) {
+  let tasksNotFound = [];
+  let emailLogs = [];
+
+  try {
+    const opts = {
+      section,
+      completed_since: new Date().toISOString(),
+      opt_fields: "gid, name, html_notes, memberships.section, memberships.section.name, external.gid",
+    };
+
+    const tasks = await findTasks(opts);
+
+    if (!tasks) throw new Error("No tasks fetched from Asana.");
+
+    for (const task of tasks) {
+      let mitarbeiter = await Mitarbeiter.findOne({ asana_id: task.gid });
+
+      if (!mitarbeiter) {
+        const containedEmails = parseEmails(task);
+
+        if (containedEmails.length === 0) {
+          tasksNotFound.push({ task, reason: "No email found in task." });
+          continue;
+        }
+
+        for (const email of containedEmails) {
+          const matchingMitarbeiter = await Mitarbeiter.find({ email });
+
+          if (matchingMitarbeiter.length === 1) {
+            const foundMitarbeiter = matchingMitarbeiter[0];
+
+            if (!foundMitarbeiter.asana_id) {
+              foundMitarbeiter.asana_id = task.gid;
+              await foundMitarbeiter.save();
+              emailLogs.push(`✅ Updated Mitarbeiter: ${foundMitarbeiter.vorname} ${foundMitarbeiter.nachname} (Email: ${email}) with Asana ID: ${task.gid}`);
+            } else {
+              emailLogs.push(`⚠️ Mitarbeiter already has Asana ID: ${foundMitarbeiter.vorname} ${foundMitarbeiter.nachname} (Email: ${email}) - Skipped updating.`);
+            }
+          } else if (matchingMitarbeiter.length > 1) {
+            tasksNotFound.push({ task, reason: `Multiple Mitarbeiter found with email ${email}.` });
+          } else {
+            tasksNotFound.push({ task, reason: `No Mitarbeiter found with email ${email}.` });
+          }
+        }
+      }
+    }
+
+    if (tasksNotFound.length > 0) {
+      emailLogs.push(`<h3>Tasks with Issues:</h3>`);
+      tasksNotFound.forEach(({ task, reason }) => {
+        emailLogs.push(`❌ Task ${task.gid} (${task.name}) - ${reason}`);
+      });
+
+      await sendMail(
+        "it@straightforward.email",
+        "⚠️ Asana Transfer Routine - Issues Detected",
+        emailLogs.join("<br>")
+      );
+    } else {
+      emailLogs.push("✅ No issues detected during Asana transfer routine.");
+      await sendMail(
+        "it@straightforward.email",
+        "✅ Asana Transfer Routine Completed Successfully",
+        emailLogs.join("<br>")
+      );
+    }
+  } catch (err) {
+    console.error("Critical error in asanaTransferRoutine:", err);
+    emailLogs.push(`❌ Critical error: ${err.message}`);
+    await sendMail(
+      "it@straightforward.email",
+      "❌ Critical Error in Asana Transfer Routine",
+      emailLogs.join("<br>")
+    );
+  }
+}
+
+// Helper function to parse emails from task.html_notes
+function parseEmails(task) {
+  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+  const matches = task.html_notes?.match(emailRegex) || [];
+  return matches;
 }
 
 
@@ -242,7 +375,7 @@ async function assignFlipUserGroups(req) {
       { items }
     );
 
-    console.log("✅ Successfully assigned user groups:", response.data);
+    console.log("✅ Successfully assigned user groups:", response.data?.items);
 
     // Check if response contains an error (status 400)
     if (response.data?.items?.some((item) => item.status === 400)) {
@@ -349,11 +482,9 @@ const findFlipUserByName = async (fullName) => {
   return null;
 };
 const findFlipUserById = async (id) => {
-  const response = await flipAxios.get(
-    `/api/admin/users/v4/users/${id}`,
-  );
+  const response = await flipAxios.get(`/api/admin/users/v4/users/${id}`);
   return response.data;
-}
+};
 
 const findMitarbeiterByName = async (fullName) => {
   const users = await Mitarbeiter.find();
@@ -582,6 +713,7 @@ async function assignFlipTask(req) {
 
 module.exports = {
   flipUserRoutine,
+  asanaTransferRoutine,
   getFlipUsers,
   getFlipUserGroups,
   getFlipUserGroupAssignments,

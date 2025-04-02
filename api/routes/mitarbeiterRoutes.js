@@ -16,6 +16,7 @@ const {
   getFlipUserGroupAssignments,
   findFlipUserById,
   flipUserRoutine,
+  asanaTransferRoutine
 } = require("../FlipService");
 const asyncHandler = require("../middleware/AsyncHandler");
 
@@ -75,6 +76,24 @@ router.get(
     res.status(200).json(data);
   })
 );
+
+router.get("/asanaRoutine", auth, asyncHandler(async (req, res) => {
+  //const sections = ["1207021175334609", "1205091014657240", "1208816204908538"];
+  const sections = ["1207021175334609"];
+  for(const section of sections) {
+    await asanaTransferRoutine(section);
+  }
+  res.status(200).json();
+}));
+
+router.get("/missingAsanaRefs", auth, asyncHandler(async (req, res) => {
+  const result = await Mitarbeiter.find({
+    $or: [{ asana_id: null }, { asana_id: "" }, { asana_id: { $exists: false } }]
+  });
+
+  res.status(200).json(result);
+}));
+
 
 router.post(
   "/upload-teamleiter",
@@ -218,9 +237,10 @@ router.post(
     } = req.body;
 
     try {
+      const normalizedEmail = email.toLowerCase();
       // Check if Mitarbeiter exists (by email or Asana ID)
       let mitarbeiter = await Mitarbeiter.findOne({
-        $or: [{ email }, { asana_id }],
+        $or: [{ email: normalizedEmail }, { asana_id }],
       });
 
       if (mitarbeiter) {
@@ -261,9 +281,9 @@ router.post(
           asana_id,
           vorname: first_name,
           nachname: last_name,
-          email,
+          email: email.toLowerCase(),
           isActive: true,
-        });
+        });        
         await mitarbeiter.save();
       }
 
@@ -272,9 +292,9 @@ router.post(
         external_id: mitarbeiter._id.toString(),
         first_name,
         last_name,
-        email,
+        email: normalizedEmail,
         status: "ACTIVE",
-        benutzername: email,
+        benutzername: normalizedEmail,
         rolle: role,
         profile,
         primary_user_group_id,
@@ -286,30 +306,31 @@ router.post(
         createdFlipUser = await flipUser.create();
         await createdFlipUser.setDefaultPassword();
       } catch (flipError) {
-        // Deactivate Mitarbeiter upon FlipUser creation failure
         mitarbeiter.isActive = false;
         await mitarbeiter.save();
-
-        const errorDetails = flipError.response?.data || flipError.message;
-
+      
+        const errorDetails = flipError.message || flipError.response?.data || "Unbekannter Fehler";
+      
         console.error("❌ Fehler beim Erstellen des FlipUsers:", errorDetails);
-
+      
         await sendMail(
           "it@straightforward.email",
           "Fehler beim Erstellen des FlipUsers",
           `
           <h2>❌ Fehler beim Erstellen des FlipUsers</h2>
-          <p><strong>Error:</strong> ${JSON.stringify(errorDetails)}</p>
+          <p><strong>Error Details:</strong></p>
+          <pre>${errorDetails}</pre>
           <p><strong>Mitarbeiter-ID:</strong> ${mitarbeiter._id}</p>
+          <p><strong>Anfrage Daten:</strong></p>
           <pre>${JSON.stringify(req.body, null, 2)}</pre>
-        `
+          `
         );
-
+      
         return res.status(500).json({
           message: "Fehler beim Erstellen des FlipUsers",
           error: errorDetails,
         });
-      }
+      }      
 
       // Update Mitarbeiter with new FlipUser ID
       mitarbeiter.flip_id = createdFlipUser.id;

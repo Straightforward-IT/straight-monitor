@@ -75,7 +75,7 @@
               <label class="input-label">E-Mail*</label>
               <input
                 type="email"
-                v-model="email"
+                v-model="emailFormatted"
                 class="text-input email"
                 placeholder="E-Mail*"
               />
@@ -406,6 +406,14 @@ export default {
     selectedMitarbeiter() {
       return this.filteredMitarbeiter[this.selectedIndex] || null;
     },
+    emailFormatted: {
+      get() {
+        return this.email;
+      },
+      set(value) {
+        this.email = value.toLowerCase();
+      }
+    }
   },
   methods: {
     setAxiosAuthToken() {
