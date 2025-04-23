@@ -1,6 +1,6 @@
 const stringSimilarity = require("string-similarity");
 const mongoose = require("mongoose");
-const { flipAxios } = require("./flipAxios");
+const { flipAxios, getFlipAuthToken } = require("./flipAxios");
 const FlipUser = require("./models/Classes/FlipUser");
 const FlipTask = require("./models/Classes/FlipTask");
 const { Laufzettel, EventReport, EvaluierungMA } = require("./models/FlipDocs");
@@ -161,19 +161,18 @@ async function flipUserRoutine() {
     throw error;
   }
 }
-async function asanaTransferRoutine(section) {
+async function asanaTransferRoutine(section, currentLocation) {
   let tasksNotFound = [];
   let emailLogs = [];
-
   try {
     const opts = {
       section,
       completed_since: new Date().toISOString(),
-      opt_fields: "gid, name, html_notes, memberships.section, memberships.section.name, external.gid",
+      opt_fields:
+        "gid, name, html_notes, memberships.section, memberships.section.name, external.gid",
     };
 
     const tasks = await findTasks(opts);
-
     if (!tasks) throw new Error("No tasks fetched from Asana.");
 
     for (const task of tasks) {
@@ -187,24 +186,50 @@ async function asanaTransferRoutine(section) {
           continue;
         }
 
+        let matched = false;
+
         for (const email of containedEmails) {
           const matchingMitarbeiter = await Mitarbeiter.find({ email });
 
           if (matchingMitarbeiter.length === 1) {
             const foundMitarbeiter = matchingMitarbeiter[0];
 
+            // Update Asana ID if missing
             if (!foundMitarbeiter.asana_id) {
               foundMitarbeiter.asana_id = task.gid;
               await foundMitarbeiter.save();
-              emailLogs.push(`✅ Updated Mitarbeiter: ${foundMitarbeiter.vorname} ${foundMitarbeiter.nachname} (Email: ${email}) with Asana ID: ${task.gid}`);
+
+              emailLogs.push(
+                `✅ Updated Mitarbeiter: ${foundMitarbeiter.vorname} ${foundMitarbeiter.nachname} (Email: ${email}) with Asana ID: ${task.gid}`
+              );
             } else {
-              emailLogs.push(`⚠️ Mitarbeiter already has Asana ID: ${foundMitarbeiter.vorname} ${foundMitarbeiter.nachname} (Email: ${email}) - Skipped updating.`);
+              emailLogs.push(
+                `⚠️ Mitarbeiter already has Asana ID: ${foundMitarbeiter.vorname} ${foundMitarbeiter.nachname} || In Mitarbeiter: ${foundMitarbeiter.asana_id}. In Asana: ${task.gid}. (Email: ${email}) - Skipped updating.`
+              );
             }
+
+            matched = true;
+            break; // ✅ Stop checking other emails once one is matched
           } else if (matchingMitarbeiter.length > 1) {
-            tasksNotFound.push({ task, reason: `Multiple Mitarbeiter found with email ${email}.` });
+            tasksNotFound.push({
+              task,
+              reason: `Multiple Mitarbeiter found with email ${email}.`,
+            });
           } else {
-            tasksNotFound.push({ task, reason: `No Mitarbeiter found with email ${email}.` });
+            // Only push to not found list if this was the last email
+            if (!matched && email === containedEmails[containedEmails.length - 1]) {
+              tasksNotFound.push({
+                task,
+                reason: `No Mitarbeiter found with email ${email}.`,
+              });
+            }
           }
+        }
+      } else {
+        if(!mitarbeiter.isActive) {
+          emailLogs.push(
+            `🟡 Hinweis: Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} ist derzeit *inaktiv*.`
+          );
         }
       }
     }
@@ -217,27 +242,28 @@ async function asanaTransferRoutine(section) {
 
       await sendMail(
         "it@straightforward.email",
-        "⚠️ Asana Transfer Routine - Issues Detected",
+        `⚠️ Asana Transfer Routine (${currentLocation}) - Issues Detected `,
         emailLogs.join("<br>")
       );
     } else {
       emailLogs.push("✅ No issues detected during Asana transfer routine.");
       await sendMail(
         "it@straightforward.email",
-        "✅ Asana Transfer Routine Completed Successfully",
+        `✅ Asana Transfer Routine (${currentLocation}) Completed Successfully`,
         emailLogs.join("<br>")
       );
     }
   } catch (err) {
-    console.error("Critical error in asanaTransferRoutine:", err);
+    console.error(`Critical error in (${currentLocation}) asanaTransferRoutine:`, err);
     emailLogs.push(`❌ Critical error: ${err.message}`);
     await sendMail(
       "it@straightforward.email",
-      "❌ Critical Error in Asana Transfer Routine",
+      `❌ Critical Error in Asana Transfer Routine (${currentLocation})`,
       emailLogs.join("<br>")
     );
   }
 }
+
 
 // Helper function to parse emails from task.html_notes
 function parseEmails(task) {
@@ -617,15 +643,11 @@ const assignTeamleiter = async (documentId, teamleiterId) => {
         const mitarbeiter = document.mitarbeiter;
 
         if (!teamleiter || !mitarbeiter) {
-          console.warn(
-            `⚠ Missing required fields in Laufzettel: ${document._id}`
-          );
+          console.warn(`⚠ Missing required fields in Laufzettel: ${document._id}`);
           return;
         }
 
         try {
-          const authToken = await getFlipAuthToken(); // 🔥 Use cached or fresh token
-
           await assignFlipTask({
             body: {
               external_id: document._id.toString(),
@@ -636,12 +658,16 @@ const assignTeamleiter = async (documentId, teamleiterId) => {
                   type: "USER",
                 },
               ],
-              description: `Du wurdest als Teamleiter für den Laufzettel von ${mitarbeiter.vorname} ${mitarbeiter.nachname} zugewiesen.`,
-            },
-            headers: {
-              Authorization: `Bearer ${authToken}`,
-            },
-            query: {},
+              description: `
+      Du wurdest als Teamleiter auf einem Laufzettel angegeben.<br><br>
+      Bitte fülle eine 
+      <a href="https://flipcms.de/integration/flipcms/hpstraightforward/evaluierung-ma/?wpf176_20_first=${encodeURIComponent(mitarbeiter.vorname)}&wpf176_20_last=${encodeURIComponent(mitarbeiter.nachname)}" 
+         target="_self" 
+         rel="noopener noreferrer">
+         Evaluierung
+      </a> 
+      für ${mitarbeiter.vorname} aus.
+    `,  }
           });
 
           console.log(`✅ Flip task assigned for Laufzettel: ${document._id}`);
@@ -652,6 +678,7 @@ const assignTeamleiter = async (documentId, teamleiterId) => {
     }
   );
 };
+
 const assignMitarbeiter = async (documentId, mitarbeiterId) => {
   return assignFields(documentId, { mitarbeiter: mitarbeiterId });
 };
@@ -659,10 +686,9 @@ const assignMitarbeiter = async (documentId, mitarbeiterId) => {
 async function assignFlipTask(req) {
   try {
     const { external_id, title, recipients, description } = req.body;
+
     if (!recipients || !Array.isArray(recipients)) {
-      throw new Error(
-        "Invalid recipients: Must be an array with at least one recipient."
-      );
+      throw new Error("Invalid recipients: Must be an array with at least one recipient.");
     }
 
     const newTask = new FlipTask({
@@ -671,43 +697,35 @@ async function assignFlipTask(req) {
       body: { html: description },
       recipients,
     });
-    console.log(newTask);
 
     const existingTasks = await newTask.find();
 
     if (existingTasks.length > 0) {
-      console.log(
-        "⚠️ Task with external_id already exists. Skipping creation."
-      );
+      console.log("⚠️ Task with external_id already exists. Skipping creation.");
+      
       if (existingTasks.length === 1) {
-        console.log("Updating existing task");
-        let task = new FlipTask(existingTasks[0]); // Ensure it's an instance
+        console.log("🔁 Updating existing task");
+        const task = new FlipTask(existingTasks[0]); // Wrap in class
         task.title = newTask.title;
         task.body = newTask.body;
         task.recipients = newTask.recipients;
-        console.log(`Task id: ${task.id}`);
+
         await task.update();
         return task.toSimplifiedObject();
       }
+
       return existingTasks[0].toSimplifiedObject();
     }
 
     const createdTask = await newTask.create();
 
-    console.log(
-      "✅ Flip Task Assigned Successfully:",
-      createdTask.toSimplifiedObject()
-    );
-
+    console.log("✅ Flip Task Assigned Successfully:", createdTask.toSimplifiedObject());
     return createdTask.toSimplifiedObject();
+
   } catch (error) {
-    console.error(
-      "❌ Error assigning Flip Task:",
-      error.response ? error.response.data : error.message
-    );
-    throw new Error(
-      error.response ? JSON.stringify(error.response.data) : error.message
-    );
+    const message = error.response ? error.response.data : error.message;
+    console.error("❌ Error assigning Flip Task:", message);
+    throw new Error(typeof message === "string" ? message : JSON.stringify(message));
   }
 }
 

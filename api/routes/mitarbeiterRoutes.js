@@ -78,21 +78,36 @@ router.get(
 );
 
 router.get("/asanaRoutine", auth, asyncHandler(async (req, res) => {
-  //const sections = ["1207021175334609", "1205091014657240", "1208816204908538"];
-  const sections = ["1207021175334609"];
+  const sections = [{id: "1207021175334609", name: "Hamburg"}, {id: "1205091014657240", name: "Berlin"}, {id: "1208816204908538", name: "Köln"}];
   for(const section of sections) {
-    await asanaTransferRoutine(section);
+    await asanaTransferRoutine(section.id, section.name);
   }
   res.status(200).json();
 }));
 
 router.get("/missingAsanaRefs", auth, asyncHandler(async (req, res) => {
   const result = await Mitarbeiter.find({
-    $or: [{ asana_id: null }, { asana_id: "" }, { asana_id: { $exists: false } }]
+    $or: [
+      { asana_id: null },
+      { asana_id: "" },
+      { asana_id: { $exists: false } }
+    ]
   });
 
-  res.status(200).json(result);
+  const active = result.filter(m => m.isActive === true);
+  const inactive = result.filter(m => m.isActive === false);
+
+  res.status(200).json({
+    count: result.length,
+    count_active: active.length,
+    count_inactive: inactive.length,
+    grouped: {
+      active,
+      inactive
+    }
+  });
 }));
+
 
 
 router.post(
@@ -236,15 +251,31 @@ router.post(
       user_group_ids,
     } = req.body;
 
+    const normalizedEmail = email.toLowerCase();
+    let mitarbeiter;
+
     try {
-      const normalizedEmail = email.toLowerCase();
-      // Check if Mitarbeiter exists (by email or Asana ID)
-      let mitarbeiter = await Mitarbeiter.findOne({
-        $or: [{ email: normalizedEmail }, { asana_id }],
-      });
+      if (asana_id) {
+        // Wenn Asana-ID vorhanden ist
+        mitarbeiter = await Mitarbeiter.findOne({
+          $or: [{ email: normalizedEmail }, { asana_id }],
+        });
+      } else {
+        // Wenn KEINE Asana-ID vorhanden ist, schicke E-Mail an IT
+        await sendMail(
+          "it@straightforward.email",
+          "⚠️ Mitarbeiter-Erstellung ohne Asana-ID",
+          `
+          <h2>⚠️ Mitarbeiter wird ohne Asana-ID erstellt!</h2>
+          <p>Folgende Daten wurden übermittelt:</p>
+          <pre>${JSON.stringify(req.body, null, 2)}</pre>
+          `
+        );
+
+        mitarbeiter = await Mitarbeiter.findOne({ email: normalizedEmail });
+      }
 
       if (mitarbeiter) {
-        // Reactivate Mitarbeiter if previously inactive
         if (!mitarbeiter.isActive) {
           mitarbeiter.isActive = true;
           await mitarbeiter.save();
@@ -255,7 +286,6 @@ router.post(
           });
         }
 
-        // Remove old FlipUser if referenced
         if (mitarbeiter.flip_id) {
           const flipUserFound = await findFlipUserById(mitarbeiter.flip_id);
           if (flipUserFound?.data) {
@@ -276,18 +306,17 @@ router.post(
           }
         }
       } else {
-        // Create Mitarbeiter if doesn't exist
+        // Erstelle neuen Mitarbeiter
         mitarbeiter = new Mitarbeiter({
-          asana_id,
+          asana_id: asana_id || undefined, // undefined falls null
           vorname: first_name,
           nachname: last_name,
-          email: email.toLowerCase(),
+          email: normalizedEmail,
           isActive: true,
-        });        
+        });
         await mitarbeiter.save();
       }
 
-      // Create new FlipUser instance
       const flipUser = new FlipUser({
         external_id: mitarbeiter._id.toString(),
         first_name,
@@ -308,35 +337,34 @@ router.post(
       } catch (flipError) {
         mitarbeiter.isActive = false;
         await mitarbeiter.save();
-      
-        const errorDetails = flipError.message || flipError.response?.data || "Unbekannter Fehler";
-      
+
+        const errorDetails =
+          flipError.message || flipError.response?.data || "Unbekannter Fehler";
+
         console.error("❌ Fehler beim Erstellen des FlipUsers:", errorDetails);
-      
+
         await sendMail(
           "it@straightforward.email",
-          "Fehler beim Erstellen des FlipUsers",
+          "❌ Fehler beim Erstellen des FlipUsers",
           `
           <h2>❌ Fehler beim Erstellen des FlipUsers</h2>
           <p><strong>Error Details:</strong></p>
-          <pre>${errorDetails}</pre>
+          <pre>${JSON.stringify(errorDetails, null, 2)}</pre>
           <p><strong>Mitarbeiter-ID:</strong> ${mitarbeiter._id}</p>
           <p><strong>Anfrage Daten:</strong></p>
           <pre>${JSON.stringify(req.body, null, 2)}</pre>
           `
         );
-      
+
         return res.status(500).json({
           message: "Fehler beim Erstellen des FlipUsers",
           error: errorDetails,
         });
-      }      
+      }
 
-      // Update Mitarbeiter with new FlipUser ID
       mitarbeiter.flip_id = createdFlipUser.id;
       await mitarbeiter.save();
 
-      // Assign Flip user to user groups
       if (user_group_ids?.length) {
         await assignFlipUserGroups({
           body: {
@@ -348,7 +376,6 @@ router.post(
         });
       }
 
-      // Assign initial Flip Task
       await assignFlipTask({
         body: {
           title: `Aufgabe erhalten: Flip Profil einrichten 😎`,
@@ -369,13 +396,13 @@ router.post(
 
       await sendMail(
         "it@straightforward.email",
-        "Error Creating/Reactivating Flip User",
+        "❌ Error Creating/Reactivating Flip User",
         `
         <h2>❌ Error during User Creation/Reactivation</h2>
         <p><strong>Error:</strong> ${error.message}</p>
         <p><strong>Request Data:</strong></p>
         <pre>${JSON.stringify(req.body, null, 2)}</pre>
-      `
+        `
       );
 
       res.status(500).json({
@@ -385,6 +412,7 @@ router.post(
     }
   })
 );
+
 
 
 router.get(
@@ -504,11 +532,29 @@ router.get(
   })
 );
 
+router.get("/differences/username/email", auth, asyncHandler(async (req, res) => {
+  try {
+    const allUsers = await getFlipUsers(); // Holt alle Flip-User über Flip API
+
+    // Filtere alle User, bei denen der Benutzername nicht der E-Mail entspricht
+    const differingUsers = allUsers.filter(user => user.username !== user.email);
+
+    res.status(200).json({
+      success: true,
+      count: differingUsers.length,
+      users: differingUsers
+    });
+  } catch (err) {
+    console.error("❌ Fehler beim Abrufen der FlipUser-Differenzen:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+}));
+
+
 router.delete(
   "/mitarbeiter/:id",
   auth,
   asyncHandler(async (req, res) => {
-    try {
       const mitarbeiterId = req.params.id;
 
       // Suche und lösche den Mitarbeiter nach der ID
@@ -524,9 +570,6 @@ router.delete(
         message: "Mitarbeiter erfolgreich gelöscht",
         mitarbeiter: deletedMitarbeiter,
       });
-    } catch (err) {
-      res.status(500).json({ message: err.message });
-    }
   })
 );
 

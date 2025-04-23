@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/AsyncHandler");
-const { findTasks, getTaskById, findAllTasks, updateTaskHtmlNotes, addLinkToTask, bewerberRoutine } = require("../AsanaService");
+const { findTasks, getTaskById, getStoryById, getStoriesByTask, findAllTasks, updateTaskHtmlNotes, addLinkToTask, bewerberRoutine } = require("../AsanaService");
 
 
 /**
@@ -66,4 +66,23 @@ router.post("/bewerberRoutine", asyncHandler(async (req, res) => {
     res.status(200).json({ message: "✅ Bewerber routine executed successfully." });
 }));
 
+router.get("/story/:gid", asyncHandler(async (req, res) => {
+    const gid = req.params.gid;
+    const story = await getStoryById(gid);
+
+    if(!story) {
+        return res.status(404).json({ message: "Not found"});
+    }f
+    res.status(200).json({ message: "Success: ", story});
+}))
+
+router.get("/task/:gid/stories", asyncHandler(async (req, res) => {
+    const gid = req.params.gid;
+    const stories = await getStoriesByTask(gid);
+
+    if(!stories) {
+        return res.status(404).json({ message: "Not found"});
+    }
+    res.status(200).json({ message: "Success: ", stories});
+}));
 module.exports = router;
