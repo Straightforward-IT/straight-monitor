@@ -15,10 +15,13 @@ const {
   getFlipUserGroups,
   getFlipUserGroupAssignments,
   findFlipUserById,
+  findFlipUserByName,
   flipUserRoutine,
-  asanaTransferRoutine
+  asanaTransferRoutine,
+  deleteManyFlipUsers
 } = require("../FlipService");
 const asyncHandler = require("../middleware/AsyncHandler");
+const { createStoryOnTask } = require("../AsanaService");
 
 const upload = multer({
   storage,
@@ -247,7 +250,7 @@ router.post(
       email,
       role = "USER",
       primary_user_group_id,
-      profile,
+      attributes,
       user_group_ids,
     } = req.body;
 
@@ -325,7 +328,7 @@ router.post(
         status: "ACTIVE",
         benutzername: normalizedEmail,
         rolle: role,
-        profile,
+        attributes,
         primary_user_group_id,
       });
 
@@ -333,6 +336,11 @@ router.post(
 
       try {
         createdFlipUser = await flipUser.create();
+        if(asana_id){
+          await createStoryOnTask(asana_id, {
+            html_text: `<body><strong></strong>Mitarbeiter wurde automatisch erstellt</body>`
+          }); 
+        }
         await createdFlipUser.setDefaultPassword();
       } catch (flipError) {
         mitarbeiter.isActive = false;
@@ -550,6 +558,34 @@ router.get("/differences/username/email", auth, asyncHandler(async (req, res) =>
   }
 }));
 
+// Delete route
+router.delete("/flip/exit", asyncHandler(async (req, res) => {
+  const userList = req.body;
+  const foundIds = [];
+  const notFound = [];
+
+  for (const { vorname, nachname } of userList) {
+    const fullName = `${vorname} ${nachname}`;
+    const flipUserId = await findFlipUserByName(fullName);
+
+    if (flipUserId) {
+      foundIds.push(flipUserId);
+    } else {
+      notFound.push(fullName);
+    }
+  }
+
+  if (foundIds.length > 0) {
+    try {
+      await deleteManyFlipUsers(foundIds);
+    } catch (error) {
+      console.error("❌ Fehler beim Löschen:", error);
+      return res.status(500).json({ error: error.message, notFound });
+    }
+  }
+
+  res.status(200).json({ deleted: foundIds.length, notFound });
+}));
 
 router.delete(
   "/mitarbeiter/:id",

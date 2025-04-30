@@ -659,7 +659,7 @@ const assignTeamleiter = async (documentId, teamleiterId) => {
                 },
               ],
               description: `
-      Du wurdest als Teamleiter auf einem Laufzettel angegeben.<br><br>
+      Du wurdest als Teamleitung auf einem Laufzettel angegeben.<br><br>
       Bitte fülle eine 
       <a href="https://flipcms.de/integration/flipcms/hpstraightforward/evaluierung-ma/?wpf176_20_first=${encodeURIComponent(mitarbeiter.vorname)}&wpf176_20_last=${encodeURIComponent(mitarbeiter.nachname)}" 
          target="_self" 
@@ -729,6 +729,20 @@ async function assignFlipTask(req) {
   }
 }
 
+async function deleteManyFlipUsers(ids) {
+  try {
+    const response = await flipAxios.delete("/api/admin/users/v4/users/batch", {
+      headers: { "Content-Type": "application/json" },
+      data: { items: ids.map(id => ({ id })) }
+    });
+    console.log("Gelöschte FlipUser:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("❌ Fehler beim Löschen:", error.response?.data || error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   flipUserRoutine,
   asanaTransferRoutine,
@@ -742,4 +756,5 @@ module.exports = {
   assignMitarbeiter,
   assignFlipTask,
   assignFlipUserGroups,
+  deleteManyFlipUsers
 };

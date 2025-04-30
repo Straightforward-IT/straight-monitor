@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/AsyncHandler");
-const { findTasks, getTaskById, getStoryById, getStoriesByTask, findAllTasks, updateTaskHtmlNotes, addLinkToTask, bewerberRoutine } = require("../AsanaService");
+const { findTasks, getTaskById, getStoryById, getStoriesByTask, findAllTasks, updateTaskHtmlNotes, addLinkToTask, bewerberRoutine, createStoryOnTask} = require("../AsanaService");
+
 
 
 /**
@@ -85,4 +86,47 @@ router.get("/task/:gid/stories", asyncHandler(async (req, res) => {
     }
     res.status(200).json({ message: "Success: ", stories});
 }));
+
+router.post("/task/:gid/story", asyncHandler(async (req, res) => {
+    const {  html_text } = req.body;
+    const task_gid = req.params.gid;
+
+    if (!task_gid || !html_text) {
+      return res.status(400).json({
+        success: false,
+        message: "task_gid and html_text are required fields.",
+      });
+    }
+  
+    const data = {
+      type: "comment",
+      html_text: html_text,
+    };
+  
+    try {
+      const response = await createStoryOnTask(task_gid, data);
+  
+      if (!response || response.status !== 201) {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to create story on task.",
+          response,
+        });
+      }
+  
+      res.status(201).json({
+        success: true,
+        message: "Story created successfully.",
+        data: response.data || response,
+      });
+    } catch (error) {
+      console.error("❌ Error creating story:", error.message);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error while creating story.",
+        error: error.message,
+      });
+    }
+  }));
+
 module.exports = router;

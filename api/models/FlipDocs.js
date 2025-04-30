@@ -42,6 +42,18 @@ LaufzettelSchema.pre("findOne", function () {
   ]);
 });
 
+LaufzettelSchema.methods.toHtml = function () {
+  return `
+<strong>Location</strong>\n${this.location || "-"}\n
+<strong>Datum</strong>\n${formatDateHTML(this.datum)}\n
+<strong>Name Mitarbeiter</strong>\n${this.name_mitarbeiter || "-"}\n
+<strong>Name Teamleiter</strong>\n${this.name_teamleiter || "-"}\n
+<strong>Zugewiesen</strong>\n${this.assigned ? "Ja" : "Nein"}\n
+  `;
+};
+
+
+
 // EventReport Schema
 const EventReportSchema = new mongoose.Schema({
   location: { type: String, required: true },
@@ -79,6 +91,24 @@ EventReportSchema.pre("find", function () {
 EventReportSchema.pre("findOne", function () {
   this.populate({ path: "teamleiter", select: "vorname nachname email" });
 });
+
+EventReportSchema.methods.toHtml = function () {
+  return `
+<strong>Location</strong>\n${this.location}\n
+<strong>Datum</strong>\n${formatDateHTML(this.datum)}\n
+<strong>Kunde</strong>\n${this.kunde}\n
+<strong>Name Teamleiter</strong>\n${this.name_teamleiter}\n
+<strong>Pünktlichkeit</strong>\n${this.puenktlichkeit || "-"}\n
+<strong>Erscheinungsbild</strong>\n${this.erscheinungsbild || "-"}\n
+<strong>Team</strong>\n${this.team || "-"}\n
+<strong>Mitarbeiter Job</strong>\n${this.mitarbeiter_job || "-"}\n
+<strong>Feedback Auftraggeber</strong>\n${this.feedback_auftraggeber || "-"}\n
+<strong>Sonstiges</strong>\n${this.sonstiges || "-"}\n
+<strong>Zugewiesen</strong>\n${this.assigned ? "Ja" : "Nein"}\n
+  `;
+};
+
+
 
 // EvaluierungMA Schema
 const EvaluierungSchema = new mongoose.Schema({
@@ -129,6 +159,37 @@ EvaluierungSchema.pre("findOne", function () {
     { path: "teamleiter", select: "vorname nachname email" }
   ]);
 });
+
+
+EvaluierungSchema.methods.toText = function () {
+  return `
+<strong>Location</strong>\n${this.location}\n
+<strong>Datum</strong>\n${formatDateHTML(this.datum)}\n
+<strong>Kunde</strong>\n${this.kunde}\n
+<strong>Name Teamleiter</strong>\n${this.name_teamleiter}\n
+<strong>Name Mitarbeiter</strong>\n${this.name_mitarbeiter}\n
+<strong>Pünktlichkeit</strong>\n${this.puenktlichkeit || "-"}\n
+<strong>Grooming</strong>\n${this.grooming || "-"}\n
+<strong>Motivation</strong>\n${this.motivation || "-"}\n
+<strong>Technische Fertigkeiten</strong>\n${this.technische_fertigkeiten || "-"}\n
+<strong>Lernbereitschaft</strong>\n${this.lernbereitschaft || "-"}\n
+<strong>Sonstiges</strong>\n${this.sonstiges || "-"}\n
+<strong>Zugewiesen</strong>\n${this.assigned ? "Ja" : "Nein"}\n
+  `;
+};
+
+
+//Helper Methoden
+
+const formatDateHTML = (d) => {
+  if (!d) return "-";
+  const date = new Date(d);
+  const day = date.getDate().toString().padStart(2, "0");
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}.${month}.${year}`;
+};
+
 
 const Laufzettel = mongoose.model("Laufzettel", LaufzettelSchema);
 const EventReport = mongoose.model("EventReport", EventReportSchema);

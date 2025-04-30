@@ -1,6 +1,6 @@
 const Asana = require("asana");
 require("dotenv").config();
-const { sendMail } = require("./EmailService"); // Ensure sendMail is properly imported
+const { sendMail } = require("./EmailService");
 
 /**
  * Initialize Asana API Client
@@ -171,7 +171,7 @@ async function addLinkToTask(task) {
  * Routine to check tasks and append the link if missing
  */
 async function bewerberRoutine() {
-    const project_ids = ["1204666703404588", "1203882527761007", "1207192167671531"];
+    const project_ids = ["1204666703404588", "1203882527761007", "1207192167671531", "1209986644355933"];
 
     try {
         for (const id of project_ids) { 
@@ -246,4 +246,72 @@ async function getStoriesByTask(task_gid) {
         throw new Error("Failed to fetch stories from Asana");
     }
 }
-module.exports = { findTasks, findAllTasks, updateTaskHtmlNotes, addLinkToTask, bewerberRoutine, getTaskById, getStoryById, getStoriesByTask};
+
+async function createStoryOnTask(task_gid, data) {
+    const storiesApiInstance = initStoryApi();
+  
+    const body = {data};
+  
+    const opts = {
+      opt_fields: "gid,html_text,created_at,created_by.name"
+    };
+  
+    try {
+      const response = await storiesApiInstance.createStoryForTask(body, task_gid, opts);
+      return response;
+    } catch (error) {
+      console.error(`❌ Error creating Comment on task ${task_gid}:`, error.response?.body || error.message);
+      throw new Error("Failed to create comment in Asana");
+    }
+  }
+async function commentAsana(type, task_gid) {
+    const storiesApiInstance = initStoryApi();
+  
+}
+
+async function getSubtaskByTask(task_gid) {
+    const tasksApiInstance = initApi();
+    let opts = {
+        'opt_fields': "approval_status,completed,completed_at,completed_by,completed_by.name,created_at,created_by, html_notes,name,parent.name,projects,projects.name,resource_subtype"
+    };
+    try{
+        const subtasks = await tasksApiInstance.getSubtasksForTask(task_gid, opts);
+        return subtasks;
+    } catch (error) {
+        console.error(`❌ Error fetching Subtasks from task ${task_gid}:`, error.response?.body || error.message);
+        throw new Error("Failed to fetch subtasks from Asana");
+    }
+}
+
+async function createSubtasksOnTask(task_gid, data) {
+    const tasksApiInstance = initApi();
+    let body = {"data": data};
+    let opts = {
+        'opt_fields': "approval_status,completed,completed_at,completed_by,completed_by.name,created_at,created_by, html_notes,parent.name,projects,projects.name,resource_subtype"
+    };
+    try{
+        const response = await tasksApiInstance.createSubtaskForTask(body, task_gid, opts);
+        return response;
+    } catch (error) {
+        console.error(`❌ Error creating Subtask on task ${task_gid}:`, error.response?.body || error.message);
+        throw new Error("Failed to create Subtask in Asana");
+    }
+}
+
+async function completeTaskById(task_gid) {
+    const tasksApiInstance = initApi();
+    let body = {"data": {
+        "completed": "true"
+    }}
+    let opts = {
+        'opt_fields': "approval_status,completed,completed_at,completed_by,completed_by.name,created_at,created_by, html_notes,parent.name,projects,projects.name,resource_subtype"
+    };
+    try{
+        const response = await tasksApiInstance.updateTask(body, task_gid, opts)
+        return response;
+    } catch(error) {
+        console.error(`❌ Error Completing task ${task_gid}:`, error.response?.body || error.message);
+        throw new Error("Failed to complete Task in Asana");
+    }
+}
+module.exports = { findTasks, findAllTasks, updateTaskHtmlNotes, addLinkToTask, bewerberRoutine, getTaskById, getStoryById, getStoriesByTask, createStoryOnTask, getSubtaskByTask, createSubtasksOnTask, completeTaskById};

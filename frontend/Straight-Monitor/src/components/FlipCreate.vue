@@ -733,11 +733,18 @@ export default {
       email: this.email,
       role: "USER",
       primary_user_group_id: primaryUserGroupId,
-      profile: {
-        job_title: this.job_title,
-        location: this.location,
-        department: this.department,
-      },
+      attributes: [
+        {
+          name: "job_title",
+          value: this.job_title
+        },{
+          name: "location",
+          value: this.location
+        },{
+          name: "department",
+          value: this.department
+        },
+    ],
       user_group_ids: this.userGroups || [],
     };
 

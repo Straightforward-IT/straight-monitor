@@ -17,6 +17,7 @@ class FlipUser {
     this.rolle = data.role || "USER";
     this.required_actions = data.required_actions || [];
     this.profile = data.profile || null;
+    this.attributes = data.attributes || null;
     this.primary_user_group = {
       id: data.primary_user_group?.id || null,
       title: data.primary_user_group?.title?.text || null,
@@ -88,7 +89,7 @@ class FlipUser {
         status: this.status,
         username: this.benutzername || this.email,
         role: this.rolle,
-        profile: this.profile,
+        attributes: this.attributes,
         required_actions: ["ACCEPT_TERMS_AND_CONDITIONS"],
         primary_user_group_id: this.primary_user_group?.id || null
       };
