@@ -217,7 +217,10 @@ async function asanaTransferRoutine(section, currentLocation) {
             });
           } else {
             // Only push to not found list if this was the last email
-            if (!matched && email === containedEmails[containedEmails.length - 1]) {
+            if (
+              !matched &&
+              email === containedEmails[containedEmails.length - 1]
+            ) {
               tasksNotFound.push({
                 task,
                 reason: `No Mitarbeiter found with email ${email}.`,
@@ -226,7 +229,7 @@ async function asanaTransferRoutine(section, currentLocation) {
           }
         }
       } else {
-        if(!mitarbeiter.isActive) {
+        if (!mitarbeiter.isActive) {
           emailLogs.push(
             `🟡 Hinweis: Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} ist derzeit *inaktiv*.`
           );
@@ -254,7 +257,10 @@ async function asanaTransferRoutine(section, currentLocation) {
       );
     }
   } catch (err) {
-    console.error(`Critical error in (${currentLocation}) asanaTransferRoutine:`, err);
+    console.error(
+      `Critical error in (${currentLocation}) asanaTransferRoutine:`,
+      err
+    );
     emailLogs.push(`❌ Critical error: ${err.message}`);
     await sendMail(
       "it@straightforward.email",
@@ -264,14 +270,12 @@ async function asanaTransferRoutine(section, currentLocation) {
   }
 }
 
-
 // Helper function to parse emails from task.html_notes
 function parseEmails(task) {
   const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
   const matches = task.html_notes?.match(emailRegex) || [];
   return matches;
 }
-
 
 async function createMitarbeiterByFlip(flipUser) {
   try {
@@ -455,50 +459,60 @@ async function assignFlipUserGroups(req) {
 }
 
 const findFlipUserByName = async (fullName) => {
-  const users = await FlipUser.find();
+  if (!fullName || typeof fullName !== "string") {
+    console.warn("⚠️ Invalid fullName provided:", fullName);
+    return null;
+  }
 
-  // Normalize the input name for comparison
-  const normalizedInput = fullName.toLowerCase().replace(/\s+/g, "");
+  const users = await getFlipUsers();
 
-  // Create arrays of normalized user names
-  const normalizedUsers = users.map((user) => ({
-    id: user._id,
-    fullName: `${user.vorname} ${user.nachname}`
-      .toLowerCase()
-      .replace(/\s+/g, ""),
-    vorname: user.vorname.toLowerCase(),
-    nachname: user.nachname.toLowerCase(),
-  }));
+  if (!Array.isArray(users) || users.length === 0) {
+    console.warn("⚠️ No users received from Flip API.");
+    return null;
+  }
 
-  const inputParts = fullName.toLowerCase().split(/\s+/);
+  const normalizedInput = fullName.toLowerCase().trim();
+
+  const normalizedUsers = users
+    .filter(user => user.first_name && user.last_name)
+    .map(user => ({
+      id: user.id,  // Flip API uses `id`
+      fullName: `${user.first_name} ${user.last_name}`.toLowerCase().trim(),
+      vorname: user.first_name.toLowerCase().trim(),
+      nachname: user.last_name.toLowerCase().trim(),
+    }));
+
+  if (normalizedUsers.length === 0) {
+    console.warn("⚠️ All Flip users were missing first_name or last_name.");
+    return null;
+  }
+
+  const inputParts = normalizedInput.split(/\s+/);
   const inputLastName = inputParts[inputParts.length - 1];
-  const inputFirstNames = inputParts.slice(0, -1);
+  const inputFirstNames = inputParts.slice(0, -1).join(" ");
 
-  // Step 1: Exact match check (ignoring whitespace differences)
-  const exactMatch = normalizedUsers.find(
-    (user) => user.fullName === normalizedInput
+  // Step 1: Exact match (ignoring spaces)
+  const exactMatch = normalizedUsers.find(user =>
+    user.fullName.replace(/\s+/g, "") === normalizedInput.replace(/\s+/g, "")
   );
-  if (exactMatch) {
-    return exactMatch.id;
+  if (exactMatch) return exactMatch.id;
+
+  // Step 2: Match by last name + part of first name
+  const lastNameMatch = normalizedUsers.find(user =>
+    user.nachname === inputLastName &&
+    user.vorname.includes(inputFirstNames)
+  );
+  if (lastNameMatch) return lastNameMatch.id;
+
+  // Step 3: String similarity fallback
+  const userNames = normalizedUsers.map(user => user.fullName);
+
+  if (userNames.length === 0) {
+    console.warn("⚠️ No valid user names to compare.");
+    return null;
   }
 
-  // Step 2: Match by last name and any first name
-  const lastNameMatch = normalizedUsers.find((user) => {
-    return (
-      user.nachname === inputLastName &&
-      inputFirstNames.some((firstNamePart) =>
-        user.vorname.includes(firstNamePart)
-      )
-    );
-  });
-  if (lastNameMatch) {
-    return lastNameMatch.id;
-  }
-
-  // Step 3: Fallback to string similarity
-  const userNames = normalizedUsers.map((user) => user.fullName);
   const matches = stringSimilarity.findBestMatch(normalizedInput, userNames);
-
   if (matches.bestMatch.rating > 0.8) {
     const matchedUser = normalizedUsers[matches.bestMatchIndex];
     return matchedUser.id;
@@ -507,6 +521,9 @@ const findFlipUserByName = async (fullName) => {
   // Step 4: No match found
   return null;
 };
+
+
+
 const findFlipUserById = async (id) => {
   const response = await flipAxios.get(`/api/admin/users/v4/users/${id}`);
   return response.data;
@@ -518,11 +535,11 @@ const findMitarbeiterByName = async (fullName) => {
 
   const normalizedUsers = users.map((user) => ({
     id: user._id,
-    fullName: `${user.vorname} ${user.nachname}`
+    fullName: `${user.vorname || ""} ${user.nachname || ""}`
       .toLowerCase()
       .replace(/\s+/g, ""),
-    vorname: user.vorname.toLowerCase(),
-    nachname: user.nachname.toLowerCase(),
+    vorname: (user.vorname || "").toLowerCase(),
+    nachname: (user.nachname || "").toLowerCase(),
   }));
 
   const inputParts = fullName.toLowerCase().split(/\s+/);
@@ -643,7 +660,9 @@ const assignTeamleiter = async (documentId, teamleiterId) => {
         const mitarbeiter = document.mitarbeiter;
 
         if (!teamleiter || !mitarbeiter) {
-          console.warn(`⚠ Missing required fields in Laufzettel: ${document._id}`);
+          console.warn(
+            `⚠ Missing required fields in Laufzettel: ${document._id}`
+          );
           return;
         }
 
@@ -661,13 +680,16 @@ const assignTeamleiter = async (documentId, teamleiterId) => {
               description: `
       Du wurdest als Teamleitung auf einem Laufzettel angegeben.<br><br>
       Bitte fülle eine 
-      <a href="https://flipcms.de/integration/flipcms/hpstraightforward/evaluierung-ma/?wpf176_20_first=${encodeURIComponent(mitarbeiter.vorname)}&wpf176_20_last=${encodeURIComponent(mitarbeiter.nachname)}" 
+      <a href="https://flipcms.de/integration/flipcms/hpstraightforward/evaluierung-ma/?wpf176_20_first=${encodeURIComponent(
+        mitarbeiter.vorname
+      )}&wpf176_20_last=${encodeURIComponent(mitarbeiter.nachname)}" 
          target="_self" 
          rel="noopener noreferrer">
          Evaluierung
       </a> 
       für ${mitarbeiter.vorname} aus.
-    `,  }
+    `,
+            },
           });
 
           console.log(`✅ Flip task assigned for Laufzettel: ${document._id}`);
@@ -688,7 +710,9 @@ async function assignFlipTask(req) {
     const { external_id, title, recipients, description } = req.body;
 
     if (!recipients || !Array.isArray(recipients)) {
-      throw new Error("Invalid recipients: Must be an array with at least one recipient.");
+      throw new Error(
+        "Invalid recipients: Must be an array with at least one recipient."
+      );
     }
 
     const newTask = new FlipTask({
@@ -701,8 +725,10 @@ async function assignFlipTask(req) {
     const existingTasks = await newTask.find();
 
     if (existingTasks.length > 0) {
-      console.log("⚠️ Task with external_id already exists. Skipping creation.");
-      
+      console.log(
+        "⚠️ Task with external_id already exists. Skipping creation."
+      );
+
       if (existingTasks.length === 1) {
         console.log("🔁 Updating existing task");
         const task = new FlipTask(existingTasks[0]); // Wrap in class
@@ -719,13 +745,17 @@ async function assignFlipTask(req) {
 
     const createdTask = await newTask.create();
 
-    console.log("✅ Flip Task Assigned Successfully:", createdTask.toSimplifiedObject());
+    console.log(
+      "✅ Flip Task Assigned Successfully:",
+      createdTask.toSimplifiedObject()
+    );
     return createdTask.toSimplifiedObject();
-
   } catch (error) {
     const message = error.response ? error.response.data : error.message;
     console.error("❌ Error assigning Flip Task:", message);
-    throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+    throw new Error(
+      typeof message === "string" ? message : JSON.stringify(message)
+    );
   }
 }
 
@@ -733,12 +763,15 @@ async function deleteManyFlipUsers(ids) {
   try {
     const response = await flipAxios.delete("/api/admin/users/v4/users/batch", {
       headers: { "Content-Type": "application/json" },
-      data: { items: ids.map(id => ({ id })) }
+      data: { items: ids.map((id) => ({ id })) },
     });
     console.log("Gelöschte FlipUser:", response.data);
     return response.data;
   } catch (error) {
-    console.error("❌ Fehler beim Löschen:", error.response?.data || error.message);
+    console.error(
+      "❌ Fehler beim Löschen:",
+      error.response?.data || error.message
+    );
     throw error;
   }
 }
@@ -756,5 +789,5 @@ module.exports = {
   assignMitarbeiter,
   assignFlipTask,
   assignFlipUserGroups,
-  deleteManyFlipUsers
+  deleteManyFlipUsers,
 };

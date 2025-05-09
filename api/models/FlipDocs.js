@@ -161,7 +161,7 @@ EvaluierungSchema.pre("findOne", function () {
 });
 
 
-EvaluierungSchema.methods.toText = function () {
+EvaluierungSchema.methods.toHtml = function () {
   return `
 <strong>Location</strong>\n${this.location}\n
 <strong>Datum</strong>\n${formatDateHTML(this.datum)}\n

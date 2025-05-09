@@ -1,5 +1,8 @@
 <template>
     <div class="window">
+      <div class="leftAlign" style="text-align: left">
+        <a class="discrete" @click="switchToDashboard">Zurück</a>
+      </div>
       <h1>Flip Austritte</h1>
       <div class="upload-section">
         <div class="drag-drop-area" @dragover.prevent @drop="handleDragAndDrop">
@@ -65,7 +68,7 @@
       },
       async submitUsers() {
         try {
-          const response = await api.delete("/api/personal/flip/exit", this.userList, {
+          const response = await api.post("/api/personal/flip/exit", this.userList, {
             headers: { "Content-Type": "application/json" }
           });
           this.notFound = response.data.notFound;
@@ -73,6 +76,14 @@
         } catch (error) {
           console.error("Fehler beim Löschen:", error);
           alert("Es ist ein Fehler aufgetreten.");
+        }
+      },
+      switchToDashboard() {
+        const userConfirmed = window.confirm(
+          "Bist du Sicher? Alle ungespeicherten Änderungen gehen verloren."
+        );
+        if (userConfirmed) {
+          this.$router.push("/");
         }
       },
     },

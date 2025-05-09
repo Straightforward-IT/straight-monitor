@@ -559,8 +559,12 @@ router.get("/differences/username/email", auth, asyncHandler(async (req, res) =>
 }));
 
 // Delete route
-router.delete("/flip/exit", asyncHandler(async (req, res) => {
-  const userList = req.body;
+router.post("/flip/exit", asyncHandler(async (req, res) => {
+  let userList = req.body;
+  userList = userList.filter(
+    (user) => user && user.vorname && user.nachname
+  );
+  console.log(userList)
   const foundIds = [];
   const notFound = [];
 
