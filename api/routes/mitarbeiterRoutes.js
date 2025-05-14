@@ -56,14 +56,38 @@ router.get(
   "/mitarbeiter",
   auth,
   asyncHandler(async (req, res) => {
-    const filters = { ...req.query };
-    const mitarbeiter = await Mitarbeiter.find(filters).populate([
-      { path: "laufzettel_received", select: "_id name" },
-      { path: "laufzettel_submitted", select: "_id name" },
-      { path: "eventreports", select: "_id title" },
-      { path: "evaluierungen_received", select: "_id score" },
-      { path: "evaluierungen_submitted", select: "_id score" },
-    ]);
+    const { sortField = "dateCreated", sortOrder = "desc", ...rawFilters } = req.query;
+
+    const filters = {};
+
+    // Dynamische Filter-Konvertierung
+    for (const [key, value] of Object.entries(rawFilters)) {
+      if (value === "null") {
+        filters[key] = null;
+      } else if (value === "true") {
+        filters[key] = true;
+      } else if (value === "false") {
+        filters[key] = false;
+      } else {
+        filters[key] = value;
+      }
+    }
+
+    const sortOptions = {};
+    if (sortField) {
+      sortOptions[sortField] = sortOrder === "asc" ? 1 : -1;
+    }
+
+    const mitarbeiter = await Mitarbeiter.find(filters)
+      .sort(sortOptions)
+      .populate([
+        { path: "laufzettel_received", select: "_id name" },
+        { path: "laufzettel_submitted", select: "_id name" },
+        { path: "eventreports", select: "_id title" },
+        { path: "evaluierungen_received", select: "_id score" },
+        { path: "evaluierungen_submitted", select: "_id score" },
+      ]);
+
     res.status(200).json({
       success: true,
       data: mitarbeiter,

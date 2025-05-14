@@ -717,8 +717,19 @@ export default {
     },
     async submitNewUser() {
   if (this.isSubmitting) return;
-  this.isSubmitting = true;
 
+ // 🛡 Null/empty field checks
+ if (
+    !this.vorname?.trim() ||
+    !this.nachname?.trim() ||
+    !this.email?.trim() ||
+    !this.locations[0] 
+  ) {
+    alert("⚠️ Bitte fülle alle Pflichtfelder aus: Vorname, Nachname, E-Mail, Standort.");
+    return;
+  }
+
+  this.isSubmitting = true;
   try {
     this.setUserGroups();
     const primaryLocation = this.locations[0] || null;
