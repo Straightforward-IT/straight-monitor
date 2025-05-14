@@ -273,6 +273,7 @@ router.post(
       last_name,
       email,
       role = "USER",
+      created_by,
       primary_user_group_id,
       attributes,
       user_group_ids,
@@ -339,6 +340,7 @@ router.post(
           vorname: first_name,
           nachname: last_name,
           email: normalizedEmail,
+          erstellt_von: created_by, 
           isActive: true,
         });
         await mitarbeiter.save();

@@ -286,13 +286,15 @@ export default {
     return {
       // System
       token: localStorage.getItem("token") || null,
+      userEmail: "",
+      userName: "",
+      userID: "",
       asanaTask: null,
       flipUsers: null,
       userGroups: null,
       showHinweise: false,
       showReentryModal: false,
       inactiveMitarbeiter: [],
-      selectedMitarbeiter: null,
       searchMitarbeiter: "",
       selectedIndex: -1,
       isSubmitting: false,
@@ -317,6 +319,9 @@ export default {
       location: "",
       department: "",
       userGroups: [],
+
+      //Response
+      createdFlipUser: null,
     };
   },
   watch: {
@@ -711,6 +716,7 @@ export default {
       this.department = "";
       this.userGroups = [];
       this.showReentryModal = false;
+      this.createdFlipUser = null;
     },
     openReentryModal() {
       this.showReentryModal = true;
@@ -743,6 +749,7 @@ export default {
       last_name: this.nachname,
       email: this.email,
       role: "USER",
+      created_by: this.userEmail,
       primary_user_group_id: primaryUserGroupId,
       attributes: [
         {
@@ -760,6 +767,7 @@ export default {
     };
 
     const response = await api.post("/api/personal/create", userPayload);
+    this.createdFlipUser = response.data.flipUser;
     alert("✅ Benutzer erfolgreich erstellt!");
   } catch (error) {
     console.error("❌ Fehler beim Erstellen:", error);

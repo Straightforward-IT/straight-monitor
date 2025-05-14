@@ -5,6 +5,7 @@ const MitarbeiterSchema = new mongoose.Schema({
     asana_id: {type: String, unique: true, required: false, trim: true},
     vorname: { type: String, required: true, trim: true },
     nachname: { type: String, required: true, trim: true },
+    erstellt_von: { type: String, required: false, trim: true},
     email: { type: String, unique: true, lowercase: true, trim: true },
     isActive: { type: Boolean, default: true },
     laufzettel_received: [
