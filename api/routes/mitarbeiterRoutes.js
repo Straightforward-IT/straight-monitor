@@ -18,7 +18,10 @@ const {
   findFlipUserByName,
   flipUserRoutine,
   asanaTransferRoutine,
-  deleteManyFlipUsers
+  deleteManyFlipUsers,
+  getFlipTaskAssignments,
+  markAssignmentAsCompleted,
+  getFlipAssignments,
 } = require("../FlipService");
 const asyncHandler = require("../middleware/AsyncHandler");
 const { createStoryOnTask } = require("../AsanaService");
@@ -56,7 +59,11 @@ router.get(
   "/mitarbeiter",
   auth,
   asyncHandler(async (req, res) => {
-    const { sortField = "dateCreated", sortOrder = "desc", ...rawFilters } = req.query;
+    const {
+      sortField = "dateCreated",
+      sortOrder = "desc",
+      ...rawFilters
+    } = req.query;
 
     const filters = {};
 
@@ -104,38 +111,48 @@ router.get(
   })
 );
 
-router.get("/asanaRoutine", auth, asyncHandler(async (req, res) => {
-  const sections = [{id: "1207021175334609", name: "Hamburg"}, {id: "1205091014657240", name: "Berlin"}, {id: "1208816204908538", name: "Köln"}];
-  for(const section of sections) {
-    await asanaTransferRoutine(section.id, section.name);
-  }
-  res.status(200).json();
-}));
-
-router.get("/missingAsanaRefs", auth, asyncHandler(async (req, res) => {
-  const result = await Mitarbeiter.find({
-    $or: [
-      { asana_id: null },
-      { asana_id: "" },
-      { asana_id: { $exists: false } }
-    ]
-  });
-
-  const active = result.filter(m => m.isActive === true);
-  const inactive = result.filter(m => m.isActive === false);
-
-  res.status(200).json({
-    count: result.length,
-    count_active: active.length,
-    count_inactive: inactive.length,
-    grouped: {
-      active,
-      inactive
+router.get(
+  "/asanaRoutine",
+  auth,
+  asyncHandler(async (req, res) => {
+    const sections = [
+      { id: "1207021175334609", name: "Hamburg" },
+      { id: "1205091014657240", name: "Berlin" },
+      { id: "1208816204908538", name: "Köln" },
+    ];
+    for (const section of sections) {
+      await asanaTransferRoutine(section.id, section.name);
     }
-  });
-}));
+    res.status(200).json();
+  })
+);
 
+router.get(
+  "/missingAsanaRefs",
+  auth,
+  asyncHandler(async (req, res) => {
+    const result = await Mitarbeiter.find({
+      $or: [
+        { asana_id: null },
+        { asana_id: "" },
+        { asana_id: { $exists: false } },
+      ],
+    });
 
+    const active = result.filter((m) => m.isActive === true);
+    const inactive = result.filter((m) => m.isActive === false);
+
+    res.status(200).json({
+      count: result.length,
+      count_active: active.length,
+      count_inactive: inactive.length,
+      grouped: {
+        active,
+        inactive,
+      },
+    });
+  })
+);
 
 router.post(
   "/upload-teamleiter",
@@ -262,6 +279,42 @@ router.post(
     });
   })
 );
+router.get(
+  "/task/assignments/:id",
+  auth,
+  asyncHandler(async (req, res) => {
+    let id = req.params.id;
+    const response = await getFlipTaskAssignments(id);
+    res.status(200).json({
+      success: true,
+      data: response,
+    });
+  })
+);
+router.get(
+  "/task/assignments",
+  auth,
+  asyncHandler(async (req, res) => {
+    const response = await getFlipAssignments();
+    res.status(200).json({
+      success: true,
+      data: response,
+    });
+  })
+);
+
+router.post(
+  "/task/assignments/:id/complete",
+  auth,
+  asyncHandler(async (req, res) => {
+    let id = req.params.id;
+    const response = await markAssignmentAsCompleted(id);
+    res.status(200).json({
+      success: true,
+      data: response,
+    });
+  })
+);
 
 router.post(
   "/create",
@@ -340,7 +393,7 @@ router.post(
           vorname: first_name,
           nachname: last_name,
           email: normalizedEmail,
-          erstellt_von: created_by, 
+          erstellt_von: created_by,
           isActive: true,
         });
         await mitarbeiter.save();
@@ -362,10 +415,10 @@ router.post(
 
       try {
         createdFlipUser = await flipUser.create();
-        if(asana_id){
+        if (asana_id) {
           await createStoryOnTask(asana_id, {
-            html_text: `<body><strong></strong>Mitarbeiter wurde automatisch erstellt</body>`
-          }); 
+            html_text: `<body><strong></strong>Mitarbeiter wurde automatisch erstellt</body>`,
+          });
         }
         await createdFlipUser.setDefaultPassword();
       } catch (flipError) {
@@ -409,11 +462,20 @@ router.post(
           },
         });
       }
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 3); // +3 Tage
+      dueDate.setHours(18, 0, 0, 0); // Set to 18:00:00.000
+
+      const formattedDueDateTime = dueDate.toISOString(); // Full ISO string with time
 
       await assignFlipTask({
         body: {
           title: `Aufgabe erhalten: Flip Profil einrichten 😎`,
           recipients: [{ id: createdFlipUser.id, type: "USER" }],
+          due_at: {
+            date_time: formattedDueDateTime,
+            due_at_type: "DATE_TIME",
+          },
           description: `<p>Gehe auf „<strong>Menü</strong>“ und tippe oben links auf den Kreis. Wenn du in den Einstellungen angekommen bist, tippst du auf deinen Namen und dann oben rechts auf „<strong>Bearbeiten</strong>“</p>
           <p>📋 Wähle ein Profilbild aus, auf dem man dich erkennt (und mit dem du dich wohlfühlst)</p>
           <p>📋 Im Absatz 'Über Mich' kannst du Leuten mitteilen, wer du bist</p>
@@ -447,8 +509,6 @@ router.post(
   })
 );
 
-
-
 router.get(
   "/user-groups",
   auth,
@@ -467,15 +527,19 @@ router.post(
   })
 );
 
-router.get("/flip/by-id/:id", auth, asyncHandler(async (req, res) => {
-  try{
-    let id = req.params.id;
-    let flipUserFound = await findFlipUserById(id);
-    res.json(flipUserFound);
-  } catch(err) {
-    res.status(500).json({message: err.message});
-  }
-}))
+router.get(
+  "/flip/by-id/:id",
+  auth,
+  asyncHandler(async (req, res) => {
+    try {
+      let id = req.params.id;
+      let flipUserFound = await findFlipUserById(id);
+      res.json(flipUserFound);
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  })
+);
 router.get(
   "/duplicates/flip-id",
   auth,
@@ -566,76 +630,86 @@ router.get(
   })
 );
 
-router.get("/differences/username/email", auth, asyncHandler(async (req, res) => {
-  try {
-    const allUsers = await getFlipUsers(); // Holt alle Flip-User über Flip API
+router.get(
+  "/differences/username/email",
+  auth,
+  asyncHandler(async (req, res) => {
+    try {
+      const allUsers = await getFlipUsers(); // Holt alle Flip-User über Flip API
 
-    // Filtere alle User, bei denen der Benutzername nicht der E-Mail entspricht
-    const differingUsers = allUsers.filter(user => user.username !== user.email);
+      // Filtere alle User, bei denen der Benutzername nicht der E-Mail entspricht
+      const differingUsers = allUsers.filter(
+        (user) => user.username !== user.email
+      );
 
-    res.status(200).json({
-      success: true,
-      count: differingUsers.length,
-      users: differingUsers
-    });
-  } catch (err) {
-    console.error("❌ Fehler beim Abrufen der FlipUser-Differenzen:", err.message);
-    res.status(500).json({ message: err.message });
-  }
-}));
+      res.status(200).json({
+        success: true,
+        count: differingUsers.length,
+        users: differingUsers,
+      });
+    } catch (err) {
+      console.error(
+        "❌ Fehler beim Abrufen der FlipUser-Differenzen:",
+        err.message
+      );
+      res.status(500).json({ message: err.message });
+    }
+  })
+);
 
 // Delete route
-router.post("/flip/exit", asyncHandler(async (req, res) => {
-  let userList = req.body;
-  userList = userList.filter(
-    (user) => user && user.vorname && user.nachname
-  );
-  console.log(userList)
-  const foundIds = [];
-  const notFound = [];
+router.post(
+  "/flip/exit",
+  asyncHandler(async (req, res) => {
+    let userList = req.body;
+    userList = userList.filter((user) => user && user.vorname && user.nachname);
+    console.log(userList);
+    const foundIds = [];
+    const notFound = [];
 
-  for (const { vorname, nachname } of userList) {
-    const fullName = `${vorname} ${nachname}`;
-    const flipUserId = await findFlipUserByName(fullName);
+    for (const { vorname, nachname } of userList) {
+      const fullName = `${vorname} ${nachname}`;
+      const flipUserId = await findFlipUserByName(fullName);
 
-    if (flipUserId) {
-      foundIds.push(flipUserId);
-    } else {
-      notFound.push(fullName);
+      if (flipUserId) {
+        foundIds.push(flipUserId);
+      } else {
+        notFound.push(fullName);
+      }
     }
-  }
 
-  if (foundIds.length > 0) {
-    try {
-      await deleteManyFlipUsers(foundIds);
-    } catch (error) {
-      console.error("❌ Fehler beim Löschen:", error);
-      return res.status(500).json({ error: error.message, notFound });
+    if (foundIds.length > 0) {
+      try {
+        await deleteManyFlipUsers(foundIds);
+      } catch (error) {
+        console.error("❌ Fehler beim Löschen:", error);
+        return res.status(500).json({ error: error.message, notFound });
+      }
     }
-  }
 
-  res.status(200).json({ deleted: foundIds.length, notFound });
-}));
+    res.status(200).json({ deleted: foundIds.length, notFound });
+  })
+);
 
 router.delete(
   "/mitarbeiter/:id",
   auth,
   asyncHandler(async (req, res) => {
-      const mitarbeiterId = req.params.id;
+    const mitarbeiterId = req.params.id;
 
-      // Suche und lösche den Mitarbeiter nach der ID
-      const deletedMitarbeiter = await Mitarbeiter.findByIdAndDelete(
-        mitarbeiterId
-      );
+    // Suche und lösche den Mitarbeiter nach der ID
+    const deletedMitarbeiter = await Mitarbeiter.findByIdAndDelete(
+      mitarbeiterId
+    );
 
-      if (!deletedMitarbeiter) {
-        return res.status(404).json({ message: "Mitarbeiter nicht gefunden" });
-      }
+    if (!deletedMitarbeiter) {
+      return res.status(404).json({ message: "Mitarbeiter nicht gefunden" });
+    }
 
-      res.json({
-        message: "Mitarbeiter erfolgreich gelöscht",
-        mitarbeiter: deletedMitarbeiter,
-      });
+    res.json({
+      message: "Mitarbeiter erfolgreich gelöscht",
+      mitarbeiter: deletedMitarbeiter,
+    });
   })
 );
 

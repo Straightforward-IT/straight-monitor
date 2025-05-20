@@ -15,6 +15,7 @@ const LaufzettelSchema = new mongoose.Schema({
     required: false,
   },
   assigned: { type: Boolean, required: true, default: false },
+  task_id: { type: String, required: false, trim: true},
   datum: {
     type: Date,
     required: false,
@@ -142,6 +143,11 @@ const EvaluierungSchema = new mongoose.Schema({
     ref: "Mitarbeiter",
     required: false,
   },
+  laufzettel: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Laufzettel",
+  required: false,
+},
   assigned: { type: Boolean, required: true, default: false },
   date: { type: Date, default: Date.now },
 });

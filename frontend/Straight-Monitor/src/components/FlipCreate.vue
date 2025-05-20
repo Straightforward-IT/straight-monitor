@@ -579,7 +579,7 @@ export default {
       name = name.trim();
 
       // Define job-related keywords to be removed
-      const jobKeywords = ["s", "service", "l", "logi", "logistik", "uke"];
+      const jobKeywords = ["s", "service", "l", "logi", "logistik", "uke", "s+l", "l+s"];
 
       // Split into words while preserving order
       let words = name.split(" ");
@@ -598,6 +598,9 @@ export default {
           isLogistik = true;
         } else if (["uke"].includes(lowerWord)) {
           isUKE = true;
+        } else if(["s+l", "l+s"].includes(lowerWord)) {
+          isService = true;
+          isLogistik = true;
         } else {
           filteredWords.push(word); // Keep only words that are not job-related
         }

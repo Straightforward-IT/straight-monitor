@@ -474,9 +474,9 @@ const findFlipUserByName = async (fullName) => {
   const normalizedInput = fullName.toLowerCase().trim();
 
   const normalizedUsers = users
-    .filter(user => user.first_name && user.last_name)
-    .map(user => ({
-      id: user.id,  // Flip API uses `id`
+    .filter((user) => user.first_name && user.last_name)
+    .map((user) => ({
+      id: user.id, // Flip API uses `id`
       fullName: `${user.first_name} ${user.last_name}`.toLowerCase().trim(),
       vorname: user.first_name.toLowerCase().trim(),
       nachname: user.last_name.toLowerCase().trim(),
@@ -492,20 +492,21 @@ const findFlipUserByName = async (fullName) => {
   const inputFirstNames = inputParts.slice(0, -1).join(" ");
 
   // Step 1: Exact match (ignoring spaces)
-  const exactMatch = normalizedUsers.find(user =>
-    user.fullName.replace(/\s+/g, "") === normalizedInput.replace(/\s+/g, "")
+  const exactMatch = normalizedUsers.find(
+    (user) =>
+      user.fullName.replace(/\s+/g, "") === normalizedInput.replace(/\s+/g, "")
   );
   if (exactMatch) return exactMatch.id;
 
   // Step 2: Match by last name + part of first name
-  const lastNameMatch = normalizedUsers.find(user =>
-    user.nachname === inputLastName &&
-    user.vorname.includes(inputFirstNames)
+  const lastNameMatch = normalizedUsers.find(
+    (user) =>
+      user.nachname === inputLastName && user.vorname.includes(inputFirstNames)
   );
   if (lastNameMatch) return lastNameMatch.id;
 
   // Step 3: String similarity fallback
-  const userNames = normalizedUsers.map(user => user.fullName);
+  const userNames = normalizedUsers.map((user) => user.fullName);
 
   if (userNames.length === 0) {
     console.warn("⚠️ No valid user names to compare.");
@@ -521,8 +522,6 @@ const findFlipUserByName = async (fullName) => {
   // Step 4: No match found
   return null;
 };
-
-
 
 const findFlipUserById = async (id) => {
   const response = await flipAxios.get(`/api/admin/users/v4/users/${id}`);
@@ -649,13 +648,14 @@ const assignFields = async (documentId, updates, callback) => {
 };
 
 const assignTeamleiter = async (documentId, teamleiterId) => {
-  return assignFields(
+  let createdTask = null;
+
+  await assignFields(
     documentId,
     { teamleiter: teamleiterId },
     async (document) => {
       if (document instanceof Laufzettel) {
         await document.populate("mitarbeiter teamleiter");
-
         const teamleiter = document.teamleiter;
         const mitarbeiter = document.mitarbeiter;
 
@@ -665,40 +665,43 @@ const assignTeamleiter = async (documentId, teamleiterId) => {
           );
           return;
         }
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 3); // +3 Tage
+
+        const formattedDueDate = dueDate.toISOString().split("T")[0]; // "yyyy-mm-dd"
 
         try {
-          await assignFlipTask({
+          const task = await assignFlipTask({
             body: {
               external_id: document._id.toString(),
               title: `Laufzettel erhalten: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`,
-              recipients: [
-                {
-                  id: teamleiter.flip_id,
-                  type: "USER",
-                },
-              ],
+              recipients: [{ id: teamleiter.flip_id, type: "USER" }],
+              due_at: {
+                date: formattedDueDate,
+                due_at_type: "DATE",
+              },
               description: `
-      Du wurdest als Teamleitung auf einem Laufzettel angegeben.<br><br>
-      Bitte fülle eine 
-      <a href="https://flipcms.de/integration/flipcms/hpstraightforward/evaluierung-ma/?wpf176_20_first=${encodeURIComponent(
-        mitarbeiter.vorname
-      )}&wpf176_20_last=${encodeURIComponent(mitarbeiter.nachname)}" 
-         target="_self" 
-         rel="noopener noreferrer">
-         Evaluierung
-      </a> 
-      für ${mitarbeiter.vorname} aus.
-    `,
+Du wurdest als Teamleitung auf einem Laufzettel angegeben.<br><br>
+Bitte fülle eine 
+<a href="https://flipcms.de/integration/flipcms/hpstraightforward/evaluierung-ma/?wpf176_20_first=${encodeURIComponent(
+                mitarbeiter.vorname
+              )}&wpf176_20_last=${encodeURIComponent(
+                mitarbeiter.nachname
+              )}&wpf176_23=${document._id.toString()}" 
+target="_self" rel="noopener noreferrer">Evaluierung</a> 
+für ${mitarbeiter.vorname} aus.`,
             },
           });
 
-          console.log(`✅ Flip task assigned for Laufzettel: ${document._id}`);
+          createdTask = task;
         } catch (error) {
           console.error(`❌ Error assigning Flip task: ${error.message}`);
         }
       }
     }
   );
+
+  return createdTask; // ✅ Now you get the FlipTask from assignTeamleiter
 };
 
 const assignMitarbeiter = async (documentId, mitarbeiterId) => {
@@ -707,7 +710,7 @@ const assignMitarbeiter = async (documentId, mitarbeiterId) => {
 
 async function assignFlipTask(req) {
   try {
-    const { external_id, title, recipients, description } = req.body;
+    const { external_id, title, recipients, due_at, description } = req.body;
 
     if (!recipients || !Array.isArray(recipients)) {
       throw new Error(
@@ -720,6 +723,7 @@ async function assignFlipTask(req) {
       external_id,
       body: { html: description },
       recipients,
+      due_at,
     });
 
     const existingTasks = await newTask.find();
@@ -735,7 +739,7 @@ async function assignFlipTask(req) {
         task.title = newTask.title;
         task.body = newTask.body;
         task.recipients = newTask.recipients;
-
+        task.due_at = newTask.due_at;
         await task.update();
         return task.toSimplifiedObject();
       }
@@ -756,6 +760,56 @@ async function assignFlipTask(req) {
     throw new Error(
       typeof message === "string" ? message : JSON.stringify(message)
     );
+  }
+}
+// ✅ Holt alle Assignments für eine bestimmte Task
+async function getFlipTaskAssignments(taskId) {
+  try {
+    const response = await flipAxios.get(
+      `/api/tasks/v4/tasks/${taskId}/assignments`
+    );
+    console.log(response.data.assignments);
+    return response.data?.assignments || [];
+  } catch (error) {
+    console.error(
+      `❌ Fehler beim Abrufen der Assignments auf ID: ${taskId}:`,
+      error.response?.data || error.message
+    );
+    return [];
+  }
+}
+
+// ✅ Holt alle Assignments für eine bestimmte Task
+async function getFlipAssignments() {
+  try {
+    const response = await flipAxios.get(
+      `/api/tasks/v4/tasks/assignments?distribution_kind=PERSONAL`
+    );
+    console.log(response.data.assignments);
+    return response.data?.assignments || [];
+  } catch (error) {
+    console.error(
+      `❌ Fehler beim Abrufen der Assignments:`,
+      error.response?.data || error.message
+    );
+    return [];
+  }
+}
+
+// ✅ Markiert ein bestimmtes Assignment als abgeschlossen
+async function markAssignmentAsCompleted(assignmentId) {
+  try {
+    const response = await flipAxios.post(
+      `/api/tasks/v4/tasks/assignments/${assignmentId}/finish`,
+      { headers: { "Content-Type": "application/json" } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error(
+      `❌ Fehler beim Abschließen des Assignments auf ID: ${assignmentId}`,
+      error.response?.data || error.message
+    );
+    throw error;
   }
 }
 
@@ -788,6 +842,9 @@ module.exports = {
   assignTeamleiter,
   assignMitarbeiter,
   assignFlipTask,
+  getFlipTaskAssignments,
+  markAssignmentAsCompleted,
   assignFlipUserGroups,
   deleteManyFlipUsers,
+  getFlipAssignments,
 };
