@@ -24,15 +24,11 @@ async function flipUserRoutine() {
     });
 
     if (!allFlipUsers || !Array.isArray(allFlipUsers)) {
-      emailLogs.push(
-        `❌ Flip API response is invalid: ${JSON.stringify(allFlipUsers)}`
-      );
+      emailLogs.push(`❌ Flip API response is invalid: ${JSON.stringify(allFlipUsers)}`);
       throw new Error("Invalid response from Flip API");
     }
 
-    emailLogs.push(
-      `✅ Fetched ${allFlipUsers.length} Flip users. Processing...`
-    );
+    emailLogs.push(`✅ Fetched ${allFlipUsers.length} Flip users. Processing...`);
 
     const activeFlipUserIds = new Set(
       allFlipUsers.filter((u) => u.status === "ACTIVE").map((u) => u.id)
@@ -50,67 +46,46 @@ async function flipUserRoutine() {
       ) {
         flipUser.email = flipUser.benutzername;
         await flipUser.update();
-        emailLogs.push(
-          `⚠️ FlipUser ${flipUser.id} had no email. Username set as email (${flipUser.email}).`
-        );
+        emailLogs.push(`⚠️ FlipUser ${flipUser.id} had no email. Username set as email (${flipUser.email}).`);
       }
 
       let mitarbeiter = await Mitarbeiter.findOne({
         $or: [
           { flip_id: flipUser.id },
-          { email: flipUser.email },
-          { _id: flipUser.external_id },
+          { email: flipUser.email }
         ],
       });
 
       if (!mitarbeiter) {
         mitarbeiter = await createMitarbeiterByFlip(flipUser);
-        emailLogs.push(
-          `✅ Created Mitarbeiter: ${mitarbeiter.vorname} ${mitarbeiter.nachname} (${mitarbeiter._id})`
-        );
+        emailLogs.push(`✅ Created Mitarbeiter: ${mitarbeiter.vorname} ${mitarbeiter.nachname} (${mitarbeiter._id})`);
       } else {
         let changesMade = false;
 
         if (!mitarbeiter.isActive) {
           mitarbeiter.isActive = true;
           changesMade = true;
-          emailLogs.push(
-            `🟢 Mitarbeiter reactivated: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`
-          );
+          emailLogs.push(`🟢 Mitarbeiter reactivated: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`);
         }
 
         if (!mitarbeiter.flip_id || mitarbeiter.flip_id !== flipUser.id) {
           mitarbeiter.flip_id = flipUser.id;
           changesMade = true;
-          emailLogs.push(
-            `🟠 Mitarbeiter flip_id updated: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`
-          );
+          emailLogs.push(`🟠 Mitarbeiter flip_id updated: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`);
         }
 
         if (changesMade) await mitarbeiter.save();
-      }
-
-      if (!mitarbeiter._id.equals(flipUser.external_id)) {
-        flipUser.setExternalId(mitarbeiter._id.toString());
-        await flipUser.update();
-        emailLogs.push(
-          `🟠 Fixed external_id mismatch for ${mitarbeiter.vorname} ${mitarbeiter.nachname}`
-        );
       }
 
       const shouldBeActive = flipUser.status === "ACTIVE";
       if (mitarbeiter.isActive !== shouldBeActive) {
         mitarbeiter.isActive = shouldBeActive;
         await mitarbeiter.save();
-        emailLogs.push(
-          `🟡 Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} active status synced (${shouldBeActive})`
-        );
+        emailLogs.push(`🟡 Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} active status synced (${shouldBeActive})`);
       }
     }
 
-    const allMitarbeiter = await Mitarbeiter.find({
-      flip_id: { $exists: true },
-    });
+    const allMitarbeiter = await Mitarbeiter.find({ flip_id: { $exists: true } });
 
     for (const mitarbeiter of allMitarbeiter) {
       if (!activeFlipUserIds.has(mitarbeiter.flip_id)) {
@@ -118,22 +93,16 @@ async function flipUserRoutine() {
           mitarbeiter.isActive = false;
           mitarbeiter.flip_id = null;
           await mitarbeiter.save();
-          emailLogs.push(
-            `🔴 Mitarbeiter deactivated: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`
-          );
+          emailLogs.push(`🔴 Mitarbeiter deactivated: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`);
         }
       } else if (!mitarbeiter.email) {
         const flipUser = allFlipUsers.find((u) => u.id === mitarbeiter.flip_id);
         if (flipUser?.email) {
           mitarbeiter.email = flipUser.email;
           await mitarbeiter.save();
-          emailLogs.push(
-            `✅ Email updated for Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} (${flipUser.email})`
-          );
+          emailLogs.push(`✅ Email updated for Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} (${flipUser.email})`);
         } else {
-          emailLogs.push(
-            `⚠️ No email found for Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname}`
-          );
+          emailLogs.push(`⚠️ No email found for Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname}`);
         }
       }
     }
@@ -148,9 +117,7 @@ async function flipUserRoutine() {
 
     return allFlipUsers;
   } catch (error) {
-    emailLogs.push(
-      `❌ Critical error during Flip user refresh: ${error.message}`
-    );
+    emailLogs.push(`❌ Critical error during Flip user refresh: ${error.message}`);
 
     await sendMail(
       "it@straightforward.email",
@@ -292,12 +259,10 @@ async function createMitarbeiterByFlip(flipUser) {
   }
 }
 
-async function createMitarbeiterByAsana(asanaKarte) {}
-
 async function getFlipUsers(initialParams = {}) {
   let allUsers = [];
   let currentPage = 1;
-  let totalPages = 1; // Default assumption, updated dynamically
+  let totalPages = 1; 
 
   try {
     do {

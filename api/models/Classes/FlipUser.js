@@ -37,7 +37,7 @@ class FlipUser {
 
       const response = await flipAxios.patch(
         `/api/admin/users/v4/users/${this.id}`,
-        {
+        { 
           external_id: this.external_id,
           first_name: this.vorname,
           last_name: this.nachname,
@@ -71,9 +71,7 @@ class FlipUser {
     }
   }
 
-  setExternalId(external_id) {
-    this.external_id = external_id;
-  }
+
   
   async create() {
     try {
@@ -82,7 +80,6 @@ class FlipUser {
       }
   
       const payload = {
-        external_id: this.external_id,
         first_name: this.vorname,
         last_name: this.nachname,
         email: this.email,

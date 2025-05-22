@@ -336,60 +336,55 @@ router.post(
     let mitarbeiter;
 
     try {
+      // Erst Mitarbeiter finden, wenn asana_id vorhanden
       if (asana_id) {
-        // Wenn Asana-ID vorhanden ist
         mitarbeiter = await Mitarbeiter.findOne({
           $or: [{ email: normalizedEmail }, { asana_id }],
         });
       } else {
-        // Wenn KEINE Asana-ID vorhanden ist, schicke E-Mail an IT
+        // Benachrichtigung an IT, wenn keine Asana-ID
         await sendMail(
           "it@straightforward.email",
           "⚠️ Mitarbeiter-Erstellung ohne Asana-ID",
-          `
-          <h2>⚠️ Mitarbeiter wird ohne Asana-ID erstellt!</h2>
+          `<h2>⚠️ Mitarbeiter wird ohne Asana-ID erstellt!</h2>
           <p>Folgende Daten wurden übermittelt:</p>
-          <pre>${JSON.stringify(req.body, null, 2)}</pre>
-          `
+          <pre>${JSON.stringify(req.body, null, 2)}</pre>`
         );
-
         mitarbeiter = await Mitarbeiter.findOne({ email: normalizedEmail });
       }
-
+     
+      // Wenn Mitarbeiter gefunden
       if (mitarbeiter) {
-        if (!mitarbeiter.isActive) {
-          mitarbeiter.isActive = true;
-          await mitarbeiter.save();
-        } else {
-          return res.status(409).json({
-            message:
-              "Eine Person mit identischer Email/Asana-ID scheint bereits einen aktiven Flip-Account zu haben.",
-          });
-        }
-
+        // Flip User Status prüfen, falls flip_id existiert
         if (mitarbeiter.flip_id) {
-          const flipUserFound = await findFlipUserById(mitarbeiter.flip_id);
+          let flipUserFound = await findFlipUserById(mitarbeiter.flip_id);
           if (flipUserFound?.data) {
             if (flipUserFound.data.status === "ACTIVE") {
               return res.status(409).json({
-                message:
-                  "Eine Person mit identischer Email/Asana-ID scheint bereits einen aktiven Flip-Account zu haben.",
+                message: "Aktiver Flip-User mit identischer Email/Asana-ID existiert bereits.",
+              });
+            } else if (flipUserFound.data.status === "PENDING_DELETION") {
+              return res.status(409).json({
+                message: "Flip-User befindet sich im Status 'PENDING_DELETION'. Bitte prüfen.",
               });
             } else {
-              return res.status(409).json({
-                message:
-                  "Diese Person ist entweder gesperrt oder für die Löschung markiert. Bitte in Flip Admin Konsole überprüfen.",
+               return res.status(409).json({
+                message: "Flip-User befindet sich im Status 'LOCKED'. Bitte prüfen",
               });
             }
-          } else {
-            mitarbeiter.flip_id = null;
-            await mitarbeiter.save();
           }
         }
+        mitarbeiter.asana_id = asana_id;
+        mitarbeiter.vorname = first_name;
+        mitarbeiter.nachname = last_name;
+        mitarbeiter.email = normalizedEmail;
+        mitarbeiter.erstellt_von = created_by;
+        mitarbeiter.isActive = true;
+        await mitarbeiter.save();
       } else {
-        // Erstelle neuen Mitarbeiter
+        // Mitarbeiter neu erstellen
         mitarbeiter = new Mitarbeiter({
-          asana_id: asana_id || undefined, // undefined falls null
+          asana_id: asana_id || undefined,
           vorname: first_name,
           nachname: last_name,
           email: normalizedEmail,
@@ -399,8 +394,8 @@ router.post(
         await mitarbeiter.save();
       }
 
+      // FlipUser anlegen
       const flipUser = new FlipUser({
-        external_id: mitarbeiter._id.toString(),
         first_name,
         last_name,
         email: normalizedEmail,
@@ -415,43 +410,32 @@ router.post(
 
       try {
         createdFlipUser = await flipUser.create();
+        await createdFlipUser.setDefaultPassword();
+
         if (asana_id) {
           await createStoryOnTask(asana_id, {
-            html_text: `<body><strong></strong>Mitarbeiter wurde automatisch erstellt</body>`,
+            html_text: `<body>Mitarbeiter wurde automatisch erstellt.</body>`,
           });
         }
-        await createdFlipUser.setDefaultPassword();
       } catch (flipError) {
-        mitarbeiter.isActive = false;
-        await mitarbeiter.save();
-
-        const errorDetails =
-          flipError.message || flipError.response?.data || "Unbekannter Fehler";
-
-        console.error("❌ Fehler beim Erstellen des FlipUsers:", errorDetails);
-
         await sendMail(
           "it@straightforward.email",
           "❌ Fehler beim Erstellen des FlipUsers",
-          `
-          <h2>❌ Fehler beim Erstellen des FlipUsers</h2>
-          <p><strong>Error Details:</strong></p>
-          <pre>${JSON.stringify(errorDetails, null, 2)}</pre>
-          <p><strong>Mitarbeiter-ID:</strong> ${mitarbeiter._id}</p>
-          <p><strong>Anfrage Daten:</strong></p>
-          <pre>${JSON.stringify(req.body, null, 2)}</pre>
-          `
+          `<h2>❌ Fehler beim Erstellen des FlipUsers</h2>
+          <pre>${JSON.stringify(flipError.message || flipError.response?.data, null, 2)}</pre>
+          <pre>${JSON.stringify(req.body, null, 2)}</pre>`
         );
 
         return res.status(500).json({
           message: "Fehler beim Erstellen des FlipUsers",
-          error: errorDetails,
+          error: flipError.message || flipError.response?.data,
         });
       }
 
       mitarbeiter.flip_id = createdFlipUser.id;
       await mitarbeiter.save();
 
+      // Usergruppen zuweisen falls vorhanden
       if (user_group_ids?.length) {
         await assignFlipUserGroups({
           body: {
@@ -462,24 +446,27 @@ router.post(
           },
         });
       }
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 3); // +3 Tage
-      dueDate.setHours(18, 0, 0, 0); // Set to 18:00:00.000
 
-      const formattedDueDateTime = dueDate.toISOString(); // Full ISO string with time
+      // Aufgabe erstellen mit Frist in drei Tagen um 18 Uhr
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 3);
+      dueDate.setHours(18, 0, 0, 0);
 
       await assignFlipTask({
         body: {
-          title: `Aufgabe erhalten: Flip Profil einrichten 😎`,
+          title: "Aufgabe erhalten: Flip Profil einrichten 😎",
           recipients: [{ id: createdFlipUser.id, type: "USER" }],
           due_at: {
-            date_time: formattedDueDateTime,
+            date_time: dueDate.toISOString(),
             due_at_type: "DATE_TIME",
           },
-          description: `<p>Gehe auf „<strong>Menü</strong>“ und tippe oben links auf den Kreis. Wenn du in den Einstellungen angekommen bist, tippst du auf deinen Namen und dann oben rechts auf „<strong>Bearbeiten</strong>“</p>
-          <p>📋 Wähle ein Profilbild aus, auf dem man dich erkennt (und mit dem du dich wohlfühlst)</p>
-          <p>📋 Im Absatz 'Über Mich' kannst du Leuten mitteilen, wer du bist</p>
-          <p>📋 Du kannst auch deine Telefonnummer hinzufügen. Wenn du diese nicht öffentlich teilen möchtest, ist das vollkommen okay</p>`,
+          description: `
+          <p>Gehe auf „<strong>Menü</strong>“ und tippe oben links auf den Kreis. Tippe dann auf deinen Namen und „<strong>Bearbeiten</strong>“</p>
+          <ul>
+            <li>📋 Profilbild wählen</li>
+            <li>📋 Absatz 'Über Mich' ausfüllen</li>
+            <li>📋 Telefonnummer hinzufügen (optional)</li>
+          </ul>`,
         },
       });
 
@@ -488,17 +475,14 @@ router.post(
         flipUser: createdFlipUser,
       });
     } catch (error) {
-      console.error("❌ Error in createUserRequest:", error.message);
+      console.error("❌ Error in createUserRequest:", error);
 
       await sendMail(
         "it@straightforward.email",
-        "❌ Error Creating/Reactivating Flip User",
-        `
-        <h2>❌ Error during User Creation/Reactivation</h2>
-        <p><strong>Error:</strong> ${error.message}</p>
-        <p><strong>Request Data:</strong></p>
-        <pre>${JSON.stringify(req.body, null, 2)}</pre>
-        `
+        "❌ Fehler bei Mitarbeiter-Erstellung/Reaktivierung",
+        `<h2>❌ Fehler bei Mitarbeiter-Erstellung/Reaktivierung</h2>
+        <pre>${error.message}</pre>
+        <pre>${JSON.stringify(req.body, null, 2)}</pre>`
       );
 
       res.status(500).json({
@@ -508,6 +492,7 @@ router.post(
     }
   })
 );
+
 
 router.get(
   "/user-groups",

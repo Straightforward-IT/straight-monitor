@@ -15,7 +15,7 @@
             </button>
             <button @click="resetNewUser">Formular Zurücksetzen</button>
             <button @click="fetchAsanaTask">Asana Task neu laden</button>
-            <button @click="openReentryModal">Wiedereintritt MA</button>
+           <!-- <button @click="openReentryModal">Wiedereintritt MA</button>-->
           </div>
 
           <!-- Hinweise Section (toggleable) -->
