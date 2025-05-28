@@ -424,6 +424,14 @@ export default {
     setAxiosAuthToken() {
       api.defaults.headers.common["x-auth-token"] = this.token;
     },
+    normalizeLocation(location) {
+  return location
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss");
+},
     setDepartment() {
       let departments = [];
 
@@ -785,26 +793,30 @@ export default {
   }
 },
     parseTaskProjects(memberships) {
-      if (!memberships || memberships.length === 0) return;
+  if (!memberships || memberships.length === 0) return;
 
-      const projectGids = memberships.map((m) => m.project.gid);
-      const projectMapping = {};
+  const projectGids = memberships.map((m) => m.project.gid);
+  const projectMapping = {};
 
-      for (const [location, projects] of Object.entries(
-        this.bewerber_project_gids
-      )) {
-        for (const projectType in projects) {
-          projectMapping[projects[projectType]] = location;
-        }
-      }
+  for (const [location, projects] of Object.entries(this.bewerber_project_gids)) {
+    for (const projectType in projects) {
+      projectMapping[projects[projectType]] = location;
+    }
+  }
 
-      let foundLocations = new Set();
-      for (const gid of projectGids) {
-        if (projectMapping[gid]) foundLocations.add(projectMapping[gid]);
-      }
+  const normalize = (s) =>
+    s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
-      this.locations = [...foundLocations];
-    },
+  let foundLocations = new Set();
+  for (const gid of projectGids) {
+    const rawLocation = projectMapping[gid];
+    if (rawLocation) {
+      foundLocations.add(normalize(rawLocation));
+    }
+  }
+
+  this.locations = [...foundLocations];
+},
     getGroupsFor(groupType, location) {
       const mapping = {
         service: {
@@ -848,19 +860,21 @@ export default {
       };
 
       this.locations.forEach((location) => {
-        if (this.user_group_ids[location.toLowerCase()]) {
-          userGroups.push(this.user_group_ids[location.toLowerCase()]);
-        }
+       const normalizedLocation = this.normalizeLocation(location);
 
-        Object.entries(groupMappings).forEach(([key, groupType]) => {
-          if (this[key]) {
-            const groupId =
-              this.user_group_ids[`${location.toLowerCase()}_${groupType}`];
-            if (groupId) {
-              userGroups.push(groupId);
-            }
-          }
-        });
+if (this.user_group_ids[normalizedLocation]) {
+  userGroups.push(this.user_group_ids[normalizedLocation]);
+}
+
+Object.entries(groupMappings).forEach(([key, groupType]) => {
+  if (this[key]) {
+    const groupId =
+      this.user_group_ids[`${normalizedLocation}_${groupType}`];
+    if (groupId) {
+      userGroups.push(groupId);
+    }
+  }
+});
       });
 
       if (this.isUKE && this.user_group_ids.hamburg_uke) {

@@ -31,7 +31,7 @@ const LaufzettelSchema = new mongoose.Schema({
 
 LaufzettelSchema.pre("find", function () {
   this.populate([
-    { path: "mitarbeiter", select: "vorname nachname email" }, // Prevent full object recursion
+    { path: "mitarbeiter", select: "vorname nachname email" }, 
     { path: "teamleiter", select: "vorname nachname email" }
   ]);
 });
@@ -156,13 +156,15 @@ const EvaluierungSchema = new mongoose.Schema({
 EvaluierungSchema.pre("find", function () {
   this.populate([
     { path: "mitarbeiter", select: "vorname nachname email" },
-    { path: "teamleiter", select: "vorname nachname email" }
+    { path: "teamleiter", select: "vorname nachname email" },
+    { path: "laufzettel", select: "task_id"}
   ]);
 });
 EvaluierungSchema.pre("findOne", function () {
   this.populate([
     { path: "mitarbeiter", select: "vorname nachname email" },
-    { path: "teamleiter", select: "vorname nachname email" }
+    { path: "teamleiter", select: "vorname nachname email" },
+    { path: "laufzettel", select: "task_id"}
   ]);
 });
 

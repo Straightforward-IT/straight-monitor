@@ -304,7 +304,7 @@ async function completeTaskById(task_gid) {
         "completed": "true"
     }}
     let opts = {
-        'opt_fields': "approval_status,completed,completed_at,completed_by,completed_by.name,created_at,created_by, html_notes,parent.name,projects,projects.name,resource_subtype"
+        'opt_fields': "approval_status,completed,completed_at,completed_by,completed_by.name,created_at,created_by, html_notes,parent.name,projects,projects.name,resource_subtype, name, permalink_url"
     };
     try{
         const response = await tasksApiInstance.updateTask(body, task_gid, opts)

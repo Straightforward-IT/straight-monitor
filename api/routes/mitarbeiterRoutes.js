@@ -23,8 +23,21 @@ const {
   markAssignmentAsCompleted,
   getFlipAssignments,
 } = require("../FlipService");
+const {
+  findTasks,
+  findAllTasks,
+  updateTaskHtmlNotes,
+  addLinkToTask,
+  bewerberRoutine,
+  getTaskById,
+  getStoryById,
+  getStoriesByTask,
+  createStoryOnTask,
+  getSubtaskByTask,
+  createSubtasksOnTask,
+  completeTaskById,
+} = require("../AsanaService");
 const asyncHandler = require("../middleware/AsyncHandler");
-const { createStoryOnTask } = require("../AsanaService");
 
 const upload = multer({
   storage,
@@ -334,7 +347,7 @@ router.post(
 
     const normalizedEmail = email.toLowerCase();
     let mitarbeiter;
-
+    console.log(req.body);
     try {
       // Erst Mitarbeiter finden, wenn asana_id vorhanden
       if (asana_id) {
@@ -352,25 +365,42 @@ router.post(
         );
         mitarbeiter = await Mitarbeiter.findOne({ email: normalizedEmail });
       }
-     
+
       // Wenn Mitarbeiter gefunden
       if (mitarbeiter) {
         // Flip User Status prüfen, falls flip_id existiert
         if (mitarbeiter.flip_id) {
-          let flipUserFound = await findFlipUserById(mitarbeiter.flip_id);
-          if (flipUserFound?.data) {
-            if (flipUserFound.data.status === "ACTIVE") {
+          try {
+            let flipUserFound = await findFlipUserById(mitarbeiter.flip_id);
+            if (flipUserFound?.data?.status === "ACTIVE") {
               return res.status(409).json({
-                message: "Aktiver Flip-User mit identischer Email/Asana-ID existiert bereits.",
+                message:
+                  "Aktiver Flip-User mit identischer Email/Asana-ID existiert bereits.",
               });
-            } else if (flipUserFound.data.status === "PENDING_DELETION") {
+            } else if (flipUserFound?.data?.status === "PENDING_DELETION") {
               return res.status(409).json({
-                message: "Flip-User befindet sich im Status 'PENDING_DELETION'. Bitte prüfen.",
+                message:
+                  "Flip-User befindet sich im Status 'PENDING_DELETION'. Bitte prüfen.",
               });
             } else {
-               return res.status(409).json({
-                message: "Flip-User befindet sich im Status 'LOCKED'. Bitte prüfen",
+              return res.status(409).json({
+                message:
+                  "Flip-User befindet sich im Status 'LOCKED'. Bitte prüfen.",
               });
+            }
+          } catch (error) {
+            if (
+              error.response?.status === 403 &&
+              error.response?.data?.error_code === "PERMISSION_MISSING"
+            ) {
+              // 🧹 Clean up outdated flip_id
+              mitarbeiter.flip_id = null;
+              await mitarbeiter.save();
+              console.warn(
+                `⚠️ Outdated flip_id removed from Mitarbeiter: ${mitarbeiter.email}`
+              );
+            } else {
+              throw error; // Let other errors bubble up
             }
           }
         }
@@ -422,7 +452,11 @@ router.post(
           "it@straightforward.email",
           "❌ Fehler beim Erstellen des FlipUsers",
           `<h2>❌ Fehler beim Erstellen des FlipUsers</h2>
-          <pre>${JSON.stringify(flipError.message || flipError.response?.data, null, 2)}</pre>
+          <pre>${JSON.stringify(
+            flipError.message || flipError.response?.data,
+            null,
+            2
+          )}</pre>
           <pre>${JSON.stringify(req.body, null, 2)}</pre>`
         );
 
@@ -492,7 +526,6 @@ router.post(
     }
   })
 );
-
 
 router.get(
   "/user-groups",
@@ -639,6 +672,61 @@ router.get(
       );
       res.status(500).json({ message: err.message });
     }
+  })
+);
+
+router.get(
+  "/unfinishedAsanaTasks",
+  auth,
+  asyncHandler(async (req, res) => {
+    const project_ids = [
+      "1207021175334601",
+      "1203882830937566",
+      "1208815878474860",
+    ];
+
+    const result = [];
+
+    for (const id of project_ids) {
+      const opts = {
+        project: id,
+        completed_since: new Date().toISOString(),
+        opt_fields: "gid, name, html_notes, completed",
+      };
+
+      const tasks = await findTasks(opts);
+
+      if (!tasks || tasks.length === 0) {
+        continue; // move on to next project
+      }
+
+      for (const task of tasks) {
+        if (task.completed) continue; // skip already completed
+
+        // find Mitarbeiter with asana_id = task.gid
+        const mitarbeiter = await Mitarbeiter.findOne({ asana_id: task.gid });
+
+        if (mitarbeiter && !mitarbeiter.isActive) {
+          try {
+            const response = await completeTaskById(task.gid);
+            const responseTask = response?.data || response;
+            result.push(`✅ Task "${responseTask.name}" completed`);
+          } catch (err) {
+            result.push(
+              `❌ Failed to complete task ${task.gid}: ${err.message}`
+            );
+          }
+        }
+      }
+    }
+
+    if (result.length === 0) {
+      return res
+        .status(200)
+        .json({ message: "No matching unfinished tasks found." });
+    }
+
+    res.status(200).json({ result });
   })
 );
 
