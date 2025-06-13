@@ -24,6 +24,17 @@
           <p>Teamleiter Excel</p>
         </label>
       </span>
+       <span class="list-item" @click="openLohnabrechnungen">
+        <img
+          src="@/assets/SF_002.png"
+          id="lohnabrechnungen"
+          alt="Straightforward Logo"
+          class="item-list-sf"
+        />
+        <label for="teamleiter-excel">
+          <p>Lohnabrechnungen</p>
+        </label>
+      </span>
     </div>
   </div>
 </template>
@@ -43,6 +54,9 @@ export default {
     },
     openTeamleiterExcel() {
       this.$router.push("/excelFormatierung");
+    },
+    openLohnabrechnungen() {
+      this.$router.push("/lohnabrechnungen");
     },
   },
 };

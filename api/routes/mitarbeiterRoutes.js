@@ -38,6 +38,8 @@ const {
   completeTaskById,
 } = require("../AsanaService");
 const asyncHandler = require("../middleware/AsyncHandler");
+const JSZip = require("jszip");
+const { PDFDocument } = require("pdf-lib");
 
 const upload = multer({
   storage,
@@ -278,6 +280,70 @@ router.post(
 
     // Return headers and processed rows
     res.status(200).json({ headers, rows: processedRows });
+  })
+);
+
+router.post(
+  "/upload-lohnabrechnungen",
+  auth,
+  multer({
+    storage,
+  }).fields([
+    { name: "pdf", maxCount: 1 },
+    { name: "excel", maxCount: 1 },
+  ]),
+  asyncHandler(async (req, res) => {
+    try {
+      const { stadt, monat } = req.body;
+      const pdfBuffer = req.files?.pdf?.[0]?.buffer;
+      const excelBuffer = req.files?.excel?.[0]?.buffer;
+
+      if (!pdfBuffer || !excelBuffer || !stadt || !monat) {
+        return res.status(400).json({ error: "Fehlende Daten." });
+      }
+
+      // Excel verarbeiten
+      const workbook = xlsx.read(excelBuffer, { type: "buffer" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+      const headers = rows[0];
+      const data = rows.slice(1).sort((a, b) => a[1]?.localeCompare(b[1])); // Spalte 1 = Nachname
+
+      // PDF Seiten extrahieren
+      const originalPdf = await PDFDocument.load(pdfBuffer);
+      const zip = new JSZip();
+
+      if (originalPdf.getPageCount() < data.length) {
+        return res.status(400).json({
+          error: "Weniger PDF-Seiten als Excel-Zeilen. Möglicherweise Doppelseiten in PDF?",
+        });
+      }
+
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        const nachname = (row[1] || "Unbekannt").replace(/[^a-zA-ZäöüÄÖÜß]/g, "");
+        const vorname = (row[2] || "Unbekannt").replace(/[^a-zA-ZäöüÄÖÜß]/g, "");
+
+        const outputPdf = await PDFDocument.create();
+        const [page] = await outputPdf.copyPages(originalPdf, [i]);
+        outputPdf.addPage(page);
+
+        const fileBuffer = await outputPdf.save();
+        const filename = `${nachname}_${vorname}_Abrechnungen_${stadt}_${monat}.pdf`;
+        zip.file(filename, fileBuffer);
+      }
+
+      const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+
+      res.set({
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename=Abrechnungen_${stadt}_${monat}.zip`,
+      });
+      res.send(zipBuffer);
+    } catch (err) {
+      console.error("Fehler beim Aufteilen der Lohnabrechnungen:", err);
+      res.status(500).json({ error: "Interner Serverfehler" });
+    }
   })
 );
 
@@ -765,25 +831,67 @@ router.post(
 );
 
 router.delete(
-  "/mitarbeiter/:id",
+  "/mitarbeiter",
   auth,
   asyncHandler(async (req, res) => {
-    const mitarbeiterId = req.params.id;
+    const mitarbeiterIds = req.body; 
+    const flipIdsToDelete = [];
+    const deletedMitarbeiter = [];
+    const notFound = [];
 
-    // Suche und lösche den Mitarbeiter nach der ID
-    const deletedMitarbeiter = await Mitarbeiter.findByIdAndDelete(
-      mitarbeiterId
-    );
-
-    if (!deletedMitarbeiter) {
-      return res.status(404).json({ message: "Mitarbeiter nicht gefunden" });
+    if (!Array.isArray(mitarbeiterIds) || mitarbeiterIds.length === 0) {
+      return res.status(400).json({ message: "Keine IDs übergeben." });
     }
 
-    res.json({
-      message: "Mitarbeiter erfolgreich gelöscht",
-      mitarbeiter: deletedMitarbeiter,
+    // 1. Flip-IDs sammeln
+    for (const mitarbeiterId of mitarbeiterIds) {
+      const mitarbeiter = await Mitarbeiter.findById(mitarbeiterId);
+      if (!mitarbeiter) {
+        notFound.push(mitarbeiterId);
+        continue;
+      }
+
+      if (mitarbeiter.flip_id) {
+        flipIdsToDelete.push(mitarbeiter.flip_id);
+      }
+    }
+
+    // 2. Flip-Nutzer löschen
+    try {
+      if (flipIdsToDelete.length > 0) {
+        await deleteManyFlipUsers(flipIdsToDelete);
+      }
+    } catch (error) {
+      console.error("❌ Fehler beim Löschen der Flip-Nutzer:", error);
+      return res.status(500).json({
+        message: "Fehler beim Löschen der Flip-Nutzer",
+        error: error.message,
+      });
+    }
+
+    // 3. Mitarbeiter löschen
+    for (const mitarbeiterId of mitarbeiterIds) {
+      try {
+        const deleted = await Mitarbeiter.findByIdAndDelete(mitarbeiterId);
+        if (deleted) deletedMitarbeiter.push(deleted);
+        else notFound.push(mitarbeiterId);
+      } catch (error) {
+        console.error("❌ Fehler beim Löschen eines Mitarbeiters:", error);
+        notFound.push(mitarbeiterId);
+      }
+    }
+
+    // 4. Rückmeldung
+    res.status(200).json({
+      message: "Löschvorgang abgeschlossen",
+      deleted: deletedMitarbeiter.map((m) => ({
+        id: m._id,
+        name: `${m.vorname} ${m.nachname}`,
+      })),
+      notFound,
     });
   })
 );
+
 
 module.exports = router;

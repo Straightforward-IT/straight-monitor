@@ -4,6 +4,7 @@ import Home from '../components/Home.vue';
 import Verlauf from '../components/Verlauf.vue';
 import Auswertung from '../components/Auswertung.vue';
 import ExcelFormatierung from '../components/ExcelFormatierung.vue';
+import Lohnabrechnungen from '../components/Lohnabrechnungen.vue';
 import EmailConfirmation from '../components/EmailConfirmation.vue';
 import Personal from '../components/Personal.vue';
 import FlipCreate from '../components/FlipCreate.vue';
@@ -38,6 +39,12 @@ const routes = [
     path: '/excelFormatierung',
     name: 'ExcelFormatierung',
     component: ExcelFormatierung,
+    meta: { requiresAuth: true},
+  },
+  {
+    path: '/lohnabrechnungen',
+    name: 'Lohnabrechnungen',
+    component: Lohnabrechnungen,
     meta: { requiresAuth: true},
   },
   {
