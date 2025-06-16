@@ -1,54 +1,53 @@
 <template>
   <div class="group-container">
     <template v-for="(group, key) in groupedData" :key="key">
-      <!-- Group Header -->
       <div class="group-header" @click="toggleExpand(key)">
-        <h4> {{ key }}</h4>
+        <h4 class="group-title">{{ key }}</h4>
         <font-awesome-icon
-          :icon="expanded[key] ? ['fas', 'sort-down'] : ['fas', 'sort-up']"
+          class="expand-icon"
+          :icon="isExpanded(key) ? 'chevron-down' : 'chevron-right'"
         />
       </div>
 
-      <!-- Group Children -->
-      <div v-if="expanded[key]" class="group-children">
-        <!-- Render Subgroups Recursively -->
+      <div v-if="isExpanded(key)" class="group-children">
         <verlauf-group
           v-if="isGroup(group)"
           :grouped-data="group"
           :active-groups="activeGroups"
           :level="level + 1"
-        ></verlauf-group>
+        />
 
-        <!-- Render Logs if Leaf Node -->
-        <div v-else>
-          <div
-            v-for="log in group"
-            :key="log._id"
-            class="log-card"
-            @click="toggleExpandLog(log)"
-          >
-            <div class="log-header">
-              <p><strong>Benutzer:</strong> {{ log.benutzerMail }}</p>
-              <p><strong>Standort:</strong> {{ log.standort }}</p>
-              <p><strong>Art:</strong> {{ log.art }}</p>
-              <p>
-                <strong>Timestamp:</strong>
-                {{ formatTimestamp(log.timestamp) }}
-              </p>
+        <div v-else class="log-list">
+          <div v-for="log in group" :key="log._id" class="log-card">
+            <div class="log-card-header" @click="toggleExpandLog(log)">
+              <div class="log-meta">
+                <span><strong>Benutzer:</strong> {{ log.benutzerMail }}</span>
+                <span><strong>Art:</strong> {{ log.art }}</span>
+                <span>
+                  <strong>Timestamp:</strong>
+                  {{ formatTimestamp(log.timestamp) }}
+                </span>
+              </div>
+              <font-awesome-icon
+                class="expand-icon small"
+                :icon="log.isExpanded ? 'minus' : 'plus'"
+              />
             </div>
-            <p><strong>Anmerkung:</strong> {{ log.anmerkung || "Keine" }}</p>
-            <!-- Expanded Item Details -->
+
+            <p v-if="log.anmerkung" class="log-annotation"><strong>Anmerkung:</strong> {{ log.anmerkung }}</p>
+
             <div v-if="log.isExpanded" class="log-details">
               <div
                 v-for="(item, index) in log.items"
-                :key="item.itemId"
+                :key="item.itemId || index"
                 class="item-detail"
               >
-              <p>#{{ index + 1 }}</p>
-                <p><strong>-</strong> {{ item.bezeichnung }}</p>
-                <p><strong>- Größe:</strong> {{ item.groesse }}</p>
-                <p><strong>- Anzahl:</strong> {{ item.anzahl }}</p>
+                <span class="item-number">#{{ index + 1 }}</span>
+                <span class="item-name">{{ item.bezeichnung }}</span>
+                <span class="item-info">Größe: {{ item.groesse }}</span>
+                <span class="item-info">Anzahl: {{ item.anzahl }}</span>
               </div>
+              <p v-if="log.items.length === 0" class="item-info">Keine Items in diesem Log-Eintrag.</p>
             </div>
           </div>
         </div>
@@ -58,86 +57,174 @@
 </template>
 
 <script>
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import { library } from "@fortawesome/fontawesome-svg-core";
+import { faChevronRight, faChevronDown, faPlus, faMinus } from "@fortawesome/free-solid-svg-icons";
+
+library.add(faChevronRight, faChevronDown, faPlus, faMinus);
+
 export default {
   name: "VerlaufGroup",
+  components: {
+    FontAwesomeIcon,
+  },
   props: {
-  groupedData: Object,
-  activeGroups: {
-    type: Array,
-    required: true,
+    groupedData: {
+      type: Object,
+      required: true,
+    },
+    activeGroups: {
+      type: Array,
+      required: true,
+    },
+    level: {
+      type: Number,
+      default: 0,
+    },
   },
-  level: {
-    type: Number,
-    default: 0,
-  },
-},
-
   data() {
     return {
-      expanded: {}, // Reactive state for expanded groups
+      expandedKeys: new Set(),
     };
   },
+  mounted() {
+    if (this.level === 0) {
+      Object.keys(this.groupedData).forEach(key => {
+        this.expandedKeys.add(key);
+      });
+    }
+  },
   methods: {
+    isExpanded(key) {
+      return this.expandedKeys.has(key);
+    },
     toggleExpand(key) {
-      this.expanded[key] = !this.expanded[key];
+      if (this.expandedKeys.has(key)) {
+        this.expandedKeys.delete(key);
+      } else {
+        this.expandedKeys.add(key);
+      }
+      this.$forceUpdate();
     },
     toggleExpandLog(log) {
       log.isExpanded = !log.isExpanded;
     },
-    isGroup(group) {
-      return typeof group === "object" && !Array.isArray(group);
+    isGroup(value) {
+      return typeof value === "object" && value !== null && !Array.isArray(value);
     },
     formatTimestamp(timestamp) {
       const date = new Date(timestamp);
-      return date.toLocaleDateString("de-DE") + ", " + date.toLocaleTimeString("de-DE", {
+      return date.toLocaleDateString("de-DE", {
+        year: '2-digit',
+        month: '2-digit',
+        day: '2-digit',
+      }) + " - " + date.toLocaleTimeString("de-DE", {
         hour: "2-digit",
         minute: "2-digit",
-        hour12: false,
       }) + " Uhr";
     },
   },
 };
 </script>
 
-<style scoped>
-.group-container {
-  margin-top: 15px;
-  padding-left: 15px;
-  border: 2px solid #1d1d1d6e;
-  border-top: 2px solid #1d1d1d6e;
-  box-shadow: 0px 2px 5px rgba(145, 145, 145, 0.485);
-  padding: 5px 5px 5px 5px;
-  cursor: pointer;
-}
-
+<style scoped lang="scss">
 .group-header {
-  border: 2px solid #1d1d1d6e;
-  margin: 2px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px;
-  background-color: #e2e3e8;
-  border-radius: 5px;
-  transition: background-color 0.3s;
-
+  padding: 0.75rem 1rem;
+  margin-top: 0.5rem;
+  background-color: var(--c-surface);
+  border-left: 4px solid var(--c-primary);
+  border-radius: 0 6px 6px 0;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
   &:hover {
-    background-color: #f9f9f9;
+    background-color: var(--c-primary-light);
   }
 }
-
-h4{
-    font-size: 16px;
+.group-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--c-text-primary);
+}
+.expand-icon {
+  color: var(--c-text-secondary);
+  transition: transform 0.2s ease;
+  &.small {
+    font-size: 0.8em;
+  }
 }
 .group-children {
-  margin-top: 10px;
+  padding-left: 1.5rem;
+  margin-top: 0.5rem;
 }
-
 .log-card {
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 15px;
-  margin: 10px 0;
-  background-color: #f9f9f9;
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  transition: box-shadow 0.2s ease;
+  overflow: hidden;
+  &:hover {
+    box-shadow: 0 4px 10px -2px rgba(0,0,0,0.08);
+  }
+}
+.log-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  background-color: #fdfdfd;
+}
+.log-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  span {
+    font-size: 0.85rem;
+    color: var(--c-text-secondary);
+    strong {
+      color: var(--c-text-primary);
+    }
+  }
+}
+.log-annotation {
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  margin: 0;
+  background: var(--c-primary-light);
+  color: var(--c-text-primary);
+  border-top: 1px solid var(--c-border);
+  border-bottom: 1px solid var(--c-border);
+}
+.log-details {
+  padding: 1rem;
+  background-color: var(--c-bg);
+}
+.item-detail {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--c-border);
+  &:last-child {
+    border-bottom: none;
+  }
+}
+.item-number {
+  font-weight: 600;
+  color: var(--c-text-secondary);
+}
+.item-name {
+  flex-grow: 1;
+  color: var(--c-text-primary);
+}
+.item-info {
+  color: var(--c-text-secondary);
+  white-space: nowrap;
 }
 </style>

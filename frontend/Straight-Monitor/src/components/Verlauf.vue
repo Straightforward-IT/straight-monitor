@@ -1,32 +1,55 @@
 <template>
   <div class="window">
-    <a class="discrete" @click="switchToDashboard">Zurück</a>
+    <a class="discrete" @click="switchToDashboard">Zurück zum Dashboard</a>
+
     <div class="controls">
-      <!-- Group By Controls -->
-      <label>Group By:</label>
-      <label>
-        <input type="checkbox" v-model="groupBy.standort" @change="groupLogs" />
-        Standort
-      </label>
-      <label>
-        <input type="checkbox" v-model="groupBy.monat" @change="groupLogs" />
-        Monat
-      </label>
-      <label>
-        <input type="checkbox" v-model="groupBy.tag" @change="groupLogs" />
-        Tag
-      </label>
-      <label>
-        <input type="checkbox" v-model="groupBy.benutzer" @change="groupLogs" />
-        Benutzer
-      </label>
-      <label>
-        <input type="checkbox" v-model="groupBy.art" @change="groupLogs" />
-        Art
-      </label>
+      <div class="control-group">
+        <label for="search-input" class="group-label">Suchen:</label>
+        <input
+          id="search-input"
+          type="text"
+          v-model="searchQuery"
+          @input="groupLogs"
+          placeholder="in Anmerkungen & Items..."
+        />
+      </div>
+
+      <div class="control-group">
+        <label class="group-label">Gruppieren nach:</label>
+        <div class="checkbox-options">
+          <label>
+            <input type="checkbox" v-model="groupBy.standort" @change="groupLogs" />
+            Standort
+          </label>
+          <label>
+            <input type="checkbox" v-model="groupBy.monat" @change="groupLogs" />
+            Monat
+          </label>
+          <label>
+            <input type="checkbox" v-model="groupBy.tag" @change="groupLogs" />
+            Tag
+          </label>
+          <label>
+            <input type="checkbox" v-model="groupBy.benutzer" @change="groupLogs" />
+            Benutzer
+          </label>
+          <label>
+            <input type="checkbox" v-model="groupBy.art" @change="groupLogs" />
+            Art
+          </label>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label for="sort-select" class="group-label">Sortieren nach:</label>
+        <select id="sort-select" v-model="sortBy" @change="groupLogs">
+          <option value="timestamp_desc">Neueste zuerst</option>
+          <option value="timestamp_asc">Älteste zuerst</option>
+        </select>
+      </div>
+
     </div>
 
-    <!-- Grouped Logs -->
     <div v-if="Object.keys(groupedLogs).length > 0">
       <verlauf-group
         :grouped-data="groupedLogs"
@@ -34,281 +57,298 @@
         :level="0"
       ></verlauf-group>
     </div>
+    <div v-else class="no-logs-message">
+      <p v-if="searchQuery">Keine Einträge für die Suche nach "{{ searchQuery }}" gefunden.</p>
+      <p v-else>Keine Log-Einträge vorhanden.</p>
+    </div>
   </div>
 </template>
 
 <script>
 import api from "@/utils/api";
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import VerlaufGroup from "./VerlaufGroup.vue";
 
 export default {
   name: "Verlauf",
   components: {
-    FontAwesomeIcon,
     VerlaufGroup,
   },
   data() {
     return {
       token: localStorage.getItem("token") || null,
-      userEmail: "",
-      userName: "",
-      userID: "",
-      userLocation: "",
       logs: [],
       groupBy: {
         standort: true,
         monat: true,
-        tag: true,
+        tag: false,
         benutzer: false,
         art: false,
       },
-      groupedLogs: [],
+      sortBy: 'timestamp_desc',
+      searchQuery: '', // HINZUGEFÜGT: Zustand für das Suchfeld
+      groupedLogs: {},
     };
   },
   computed: {
-    
-    sortedLogs() {
-      
-      
-      return this.logs.slice().sort((a, b) => {
-        if (this.sortBy === "timestamp") {
-          return new Date(b.timestamp) - new Date(a.timestamp);
-        } else if (this.sortBy === "benutzer") {
-          return a.benutzerMail.localeCompare(b.benutzerMail);
-        } else if (this.sortBy === "standort") {
-          return a.standort.localeCompare(b.standort);
-        } else if (this.sortBy === "art") {
-          return a.art.localeCompare(b.art);
-        }
-      });
+    // Diese Computed Property führt nun Filtern UND Sortieren aus.
+    processedLogs() {
+      let processed = [...this.logs];
+      const searchTerm = this.searchQuery.trim().toLowerCase();
 
+      // 1. HINZUGEFÜGT: Filter-Logik anwenden
+      if (searchTerm) {
+        processed = processed.filter(log => {
+          // Suche in der Anmerkung (Groß-/Kleinschreibung ignorieren)
+          const annotationMatch =
+            log.anmerkung &&
+            log.anmerkung.toLowerCase().includes(searchTerm);
+
+          // Suche in den Item-Bezeichnungen
+          const itemMatch = log.items.some(item =>
+            item.bezeichnung &&
+            item.bezeichnung.toLowerCase().includes(searchTerm)
+          );
+
+          return annotationMatch || itemMatch;
+        });
+      }
+
+      // 2. Bestehende Sortier-Logik auf die (gefilterten) Ergebnisse anwenden
+      switch (this.sortBy) {
+        case 'timestamp_asc':
+          processed.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+          break;
+        case 'timestamp_desc':
+        default:
+          processed.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+          break;
+      }
       
+      return processed;
     },
     activeGroupsArray() {
-    return Object.keys(this.groupBy)
-      .filter((key) => this.groupBy[key])
-      .map((key) =>
-        key === "benutzer" ? "benutzerMail" : key // Map to the correct property name
-      );
-  },
+      return Object.keys(this.groupBy)
+        .filter((key) => this.groupBy[key])
+        .map((key) => (key === "benutzer" ? "benutzerMail" : key));
+    },
   },
   methods: {
+    // ... (Methoden bleiben größtenteils unverändert)
     setAxiosAuthToken() {
       api.defaults.headers.common["x-auth-token"] = this.token;
-    },
-    async fetchUserData() {
-      if (this.token) {
-        try {
-          const response = await api.get("/api/users/me");
-          this.userEmail = response.data.email;
-          this.userID = response.data._id;
-          this.userName = response.data.name;
-          this.userLocation = response.data.location;
-        } catch (error) {
-          console.error("Fehler beim Abrufen der Benutzerdaten:", error);
-          this.$router.push("/");
-        }
-      } else {
-        this.$router.push("/");
-      }
     },
     async fetchLogs() {
       try {
         const response = await api.get("/api/monitoring");
         this.logs = response.data.map((log) => ({ ...log, isExpanded: false }));
-        this.groupLogs(); 
+        this.groupLogs();
       } catch (error) {
         console.error("Fehler beim Abrufen der Logs:", error);
       }
     },
     activeGroups() {
-  return Object.keys(this.groupBy).filter((key) => this.groupBy[key]).map((key) => {
-    // Map `benutzer` to `userID` for proper grouping
-    return key === "benutzer" ? "benutzerMail" : key;
-  });
-},
+      return Object.keys(this.groupBy)
+        .filter((key) => this.groupBy[key])
+        .map((key) => (key === "benutzer" ? "benutzerMail" : key));
+    },
     groupByKeys(data, keys) {
       if (keys.length === 0) return data;
-
       const [key, ...rest] = keys;
       const grouped = {};
-
       data.forEach((item) => {
         const groupKey =
           key === "monat"
-            ? new Date(item.timestamp).toLocaleString("default", {
-                month: "long",
-              })
+            ? new Date(item.timestamp).toLocaleString("de-DE", { month: "long", year: "numeric" })
             : key === "tag"
-            ? new Date(item.timestamp).toLocaleDateString()
-            : item[key];
-
+            ? new Date(item.timestamp).toLocaleDateString("de-DE")
+            : item[key] || "Unbekannt";
         if (!grouped[groupKey]) grouped[groupKey] = [];
         grouped[groupKey].push(item);
       });
-
       Object.keys(grouped).forEach((groupKey) => {
         grouped[groupKey] = this.groupByKeys(grouped[groupKey], rest);
       });
-
       return grouped;
     },
     groupLogs() {
-  const activeGroups = this.activeGroups();
+      const activeGroups = this.activeGroups();
+      const dataToGroup = this.processedLogs; // Verwendet die gefilterte UND sortierte Liste
 
-  if (activeGroups.length > 0) {
-    this.groupedLogs = this.groupByKeys(this.logs, activeGroups);
-  } else {
-    this.groupedLogs = this.logs;
-  }
-},
-
-
-    toggleExpand(log) {
-      log.isExpanded = !log.isExpanded;
-    },
-    sortLogs() {
-      // Trigger computed sorting on sort change
-      this.sortedLogs;
+      if (activeGroups.length > 0 && dataToGroup.length > 0) {
+        this.groupedLogs = this.groupByKeys(dataToGroup, activeGroups);
+      } else if (dataToGroup.length > 0) {
+        this.groupedLogs = { 'Alle Ergebnisse': dataToGroup };
+      } else {
+        this.groupedLogs = {}; // Keine Ergebnisse, leeres Objekt
+      }
     },
     switchToDashboard() {
-    this.$router.push("/");
-},
+      this.$router.push("/");
+    },
   },
   mounted() {
     this.setAxiosAuthToken();
-    this.fetchUserData();
     this.fetchLogs();
   },
 };
 </script>
 
 <style scoped lang="scss">
-$primary-accent: #ff7700; // Orange accent color
-$background-gray: #f3f4f6; // Light gray background
-$card-gray: #e2e3e8; // Slightly darker gray for cards
-$text-dark: #333; // Dark text color
-$text-light: #555; // Lighter text for details
+/* --- CLEAN STYLES (inkl. Suche & Sortierung) --- */
+.window {
+  --c-bg: #f8f9fa;
+  --c-surface: #ffffff;
+  --c-border: #dee2e6;
+  --c-primary: #007bff;
+  --c-primary-light: #e7f3ff;
+  --c-text-primary: #212529;
+  --c-text-secondary: #6c757d;
 
-input {
-  height: unset;
-  margin-right: 5px;
-  margin-top: 5px;
-  width: unset;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--c-bg);
+  color: var(--c-text-primary);
+  min-height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  box-sizing: border-box;
 }
 
-.window {
-  padding: 20px;
-  background-color: $background-gray;
-  box-shadow: 0px 5px 20px rgba(255, 255, 255, 0.631);
-  font-family: Arial, sans-serif;
-  min-height: 100vh;
-  width: 1000px;
-  .controls {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
-    font-size: 14px;
-    justify-content: space-between;
+.discrete {
+  display: inline-block;
+  margin-bottom: 2rem;
+  color: var(--c-text-secondary);
+  text-decoration: none;
+  font-size: 0.9rem;
+  &:hover {
+    color: var(--c-primary);
+    text-decoration: underline;
+  }
+}
 
-    label {
-      font-weight: bold;
-      color: $text-dark;
-      padding: 10px;
-    }
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  margin-bottom: 2.5rem;
+  background-color: var(--c-surface);
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+}
 
-    select {
-      padding: 5px 10px;
-      border: 1px solid $card-gray;
-      border-radius: 4px;
-      background-color: white;
-      font-size: 14px;
-      color: $text-dark;
-      transition: border-color 0.3s;
+.control-group {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
 
-      &:hover {
-        border-color: $primary-accent;
-      }
+.group-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--c-text-primary);
+  padding-top: 0.5rem;
+  flex-shrink: 0;
+  width: 130px;
+}
 
-      &:focus {
-        outline: none;
-        border-color: $primary-accent;
-      }
+.checkbox-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--c-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  &:hover {
+    color: var(--c-text-primary);
+  }
+}
+
+input[type="text"],
+select {
+  padding: 0.3rem 0.6rem;  // 👈 weniger Padding
+  font-size: 0.85rem;
+  height: 32px;            // 👈 explizit etwas schlanker
+  border-radius: 4px;      // 👈 etwas weniger rund
+  border: 1px solid var(--c-border);
+  background-color: var(--c-surface);
+  color: var(--c-text-primary);
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &:hover {
+    border-color: #a0c7ff;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--c-primary);
+    box-shadow: 0 0 0 2px var(--c-primary-light);
+  }
+}
+
+// HINZUGEFÜGT: Spezifisches Styling für das Suchfeld
+input[type="text"] {
+  width: 100%;
+  max-width: 300px; // Verhindert, dass es zu breit wird
+}
+
+select {
+  cursor: pointer;
+}
+
+input[type="checkbox"] {
+  appearance: none;
+  height: 1.1em;   
+  width: 1.1em;
+  margin: 0;
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 3px;
+  cursor: pointer;
+  display: grid;
+  place-content: center;
+  transition: all 0.2s ease-in-out;
+  padding: 0;
+
+  &::before {
+    content: "";
+    width: 0.55em;
+    height: 0.55em;
+    transform: scale(0);
+    transition: 0.12s transform ease-in-out;
+    box-shadow: inset 1em 1em var(--c-primary);
+    background-color: CanvasText;
+    mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="none" stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m2 8 4 4 8-8"/></svg>');
+    mask-size: cover;
+    -webkit-mask-size: cover;
+  }
+
+  &:checked {
+    background-color: var(--c-primary);
+    border-color: var(--c-primary);
+
+    &::before {
+      transform: scale(1);
     }
   }
 
-  .log-card {
-    border: 1px solid $card-gray;
-    border-radius: 8px;
-    padding: 15px;
-    margin-bottom: 15px;
-    cursor: help;
-    background-color: white;
-    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s, box-shadow 0.2s;
-
-    &:hover {
-      transform: translateY(-3px);
-      box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
-    }
-
-    .log-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-
-      p {
-        margin: 0;
-        font-size: 14px;
-        color: $text-dark;
-
-        &:last-child {
-          margin-left: auto;
-          font-weight: bold;
-        }
-      }
-
-      .fa-icon {
-        margin-left: 10px;
-        font-size: 18px;
-        color: $primary-accent;
-        transition: transform 0.3s;
-
-        &:hover {
-          transform: rotate(180deg);
-        }
-      }
-    }
-
-    .log-details {
-      margin-top: 15px;
-      padding: 10px 15px;
-      background-color: $card-gray;
-      border-radius: 6px;
-
-      .item-detail {
-        margin-bottom: 10px;
-
-        p {
-          margin: 0 0 5px;
-          font-size: 13px;
-          color: $text-light;
-
-          strong {
-            color: $text-dark;
-          }
-        }
-      }
-
-      p:last-child {
-        margin-top: 10px;
-        font-size: 13px;
-        font-style: italic;
-        color: $text-dark;
-      }
-    }
-  }
+.no-logs-message {
+  text-align: center;
+  margin-top: 4rem;
+  padding: 2rem;
+  background-color: var(--c-surface);
+  border-radius: 8px;
+  color: var(--c-text-secondary);
+}
 }
 </style>
