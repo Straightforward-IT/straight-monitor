@@ -23,7 +23,7 @@
         @click="logout"
         >Logout</a
       >
-      <a class="discrete" v-else @click="switchToDashboard">Zurück</a>
+      <a class="discrete" v-else @click="switchToDashboard">Zurück zum Dashboard</a>
         <div v-if="currentComponent === 'Dashboard'">
           <Dashboard
             ref="dashboardComponent"

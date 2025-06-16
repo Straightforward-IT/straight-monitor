@@ -1,6 +1,6 @@
 <template>
   <div class="window">
-    <a class="discrete" @click="switchToDashboard">Zurück</a>
+    <a class="discrete" @click="switchToDashboard">Zurück zum Dashboard</a>
     <div class="window-panels">
       <div class="create-panel">
         <!-- Top Panel -->
@@ -898,8 +898,13 @@ Object.entries(groupMappings).forEach(([key, groupType]) => {
 };
 </script>
 
-<style scoped lang="scss">
-$primary: #f69e6f;
+<style scoped lang="scss">$primary: #f69e6f;
+$secondary-background: #ffffff; // Panels and modal
+$tertiary-background: #f9f9f9; // Input fields, hints
+$border-color: #e0e0e0;
+$text-color-dark: #333333;
+$text-color-medium: #555555;
+$text-color-light: #777777;
 
 #app {
   max-width: unset;
@@ -907,76 +912,85 @@ $primary: #f69e6f;
 
 .window {
   width: 1600px;
-  margin: auto;
-  padding: 20px;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  margin: 30px auto;
+  padding: 30px;
+  background-color: #f7f7f7;
+  border-radius: 12px;
+  box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.08);
 }
+
 .window-panels {
   display: flex;
+  gap: 20px;
 }
-/* User panel takes 60% of space */
-.create-panel {
-  flex: 3; // 60% of total space
-  padding: 20px;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+
+.create-panel,
+.second-panel {
+  padding: 25px;
+  background-color: $secondary-background;
+  border-radius: 10px;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.05);
 }
 
 .create-panel {
+  flex: 3;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 15px;
+  gap: 25px;
 
   .top-panel,
   .bottom-panel {
-    padding: 15px;
-    background-color: #ffffff;
+    padding: 20px;
+    background-color: $secondary-background;
     border-radius: 8px;
-    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.05);
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.03);
   }
 
   .top-panel {
-    .action-buttons {
+    h2 {
+      color: $text-color-dark;
+      font-size: 1.8rem;
       margin-bottom: 15px;
+    }
+    .action-buttons {
+      margin-bottom: 20px;
 
       button {
         background-color: transparent;
-        color: #f69e6f;
-        border: none;
+        color: $primary;
+        border: 1px solid $primary;
+        border-radius: 5px;
         cursor: pointer;
-        font-weight: 600;
-        padding: 5px 10px;
-        margin-right: 10px; // <-- Adds spacing between buttons horizontally
-
-        &:last-child {
-          margin-right: 0; // Removes margin from the last button
-        }
+        font-weight: 500;
+        padding: 8px 15px;
+        margin-right: 12px;
 
         &:hover {
-          color: darken(#f69e6f, 15%);
-          text-decoration: underline;
+          color: white;
+          background-color: darken($primary, 8%);
+          text-decoration: none;
+          box-shadow: 0 2px 6px -1px rgba($primary, 0.4);
         }
       }
     }
 
     .hinweise {
-      background-color: #f7f7f7;
-      padding: 10px;
-      border-radius: 5px;
-      border-left: 3px solid #f69e6f;
-      margin-bottom: 10px;
+      background-color: #fdf2e9;
+      padding: 15px;
+      border-radius: 8px;
+      border-left: 4px solid $primary;
+      margin-bottom: 15px;
 
       h3 {
-        margin-bottom: 5px;
+        color: $text-color-dark;
+        margin-bottom: 8px;
+        font-size: 1.05rem;
       }
 
       p {
-        margin: 2px 0;
-        font-size: 0.9rem;
+        margin: 4px 0;
+        font-size: 0.95rem;
+        color: $text-color-medium;
       }
     }
   }
@@ -984,282 +998,255 @@ $primary: #f69e6f;
   .bottom-panel {
     .submit-button {
       width: 100%;
-      margin-top: 20px;
+      margin-top: 25px;
+      height: 2.8rem;
+      font-size: 1.1rem;
+      border-radius: 8px;
+      background-color: $primary;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+
+      &:hover {
+        box-shadow: 0 4px 10px -2px rgba($primary, 0.6);
+        background-color: darken($primary, 8%);
+        transform: translateY(-2px);
+      }
+      &:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+      }
     }
   }
 }
 
 .second-panel {
-  flex: 2; // 40% of total space
-  padding: 20px;
-  margin-left: 10px;
-  background-color: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+  flex: 2;
+  margin-left: 20px;
   display: flex;
   flex-direction: column;
   gap: 15px;
-  font-family: Arial, sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 
   h3 {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: #414141;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: $text-color-dark;
     border-bottom: 2px solid $primary;
-    padding-bottom: 5px;
-    margin-bottom: 10px;
+    padding-bottom: 8px;
+    margin-bottom: 15px;
   }
 
   h4 {
-    font-size: 1.1rem;
-    color: #000000;
-    margin: 5px 0;
+    font-size: 1.2rem;
+    color: $text-color-dark;
+    margin: 8px 0;
+    font-weight: 500;
   }
 
   p {
-    font-size: 0.95rem;
-    color: #555;
-    line-height: 1.4;
-    margin: 4px 0;
+    font-size: 1rem;
+    color: $text-color-medium;
+    line-height: 1.6;
+    margin: 6px 0;
 
     strong {
-      color: #232323;
+      color: $text-color-dark;
+      font-weight: 600;
     }
   }
 
-  .task-description {
-    background-color: #f9f9f9;
-    padding: 10px;
-    border-left: 3px solid $primary;
-    border-radius: 5px;
-    font-size: 0.9rem;
-    color: #444;
-    line-height: 1.5;
-  }
-
   .asana-html-notes {
-    background: #fafafa;
-    padding: 10px;
-    border-radius: 6px;
-    border: 1px solid #ddd;
-    max-height: 200px;
+    background: #fdfdfd;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid $border-color;
+    max-height: 250px;
     overflow-y: auto;
+    line-height: 1.5;
+    color: $text-color-medium;
   }
 
   .no-data {
     text-align: center;
-    color: #777;
-    font-size: 0.9rem;
-    margin-top: 10px;
+    color: $text-color-light;
+    font-size: 0.95rem;
+    margin-top: 20px;
   }
 }
 
 .input-label {
-  display: inline-block; /* Ensures label takes width based on content */
-  border-bottom: 1px solid $primary; /* Thin border at the bottom */
-  padding-bottom: 2px; /* Adds some space between text and border */
+  display: block;
+  border-bottom: 1px solid $primary;
+  padding-bottom: 4px;
+  margin-bottom: 12px; /* Increased space between label and input */
+  font-weight: 500;
+  color: $text-color-dark;
 }
 .check-label {
-  display: inline-block;
-  height: 1.5rem;
-  border-left: 1px solid $primary;
-  padding-left: 8px;
+  display: flex;
+  align-items: center;
+  height: 2rem;
+  border-left: 2px solid $primary;
+  padding-left: 10px;
   user-select: none;
+  font-size: 0.95rem;
+  color: $text-color-medium;
+  /* No direct margin here, relying on check-item gap */
 }
 
 .discrete {
-  margin: 5px;
+  margin: 15px;
+  color: $text-color-light;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  &:hover {
+    color: darken($primary, 10%);
+    text-decoration: underline;
+  }
 }
 
-input {
-  width: unset;
-}
 .input-group {
   display: flex;
   flex-wrap: wrap;
-  padding: 5px;
-  gap: 5px;
+  gap: 20px; /* Increased gap for more horizontal space */
+  padding: 0;
+  margin-bottom: 25px; /* Added vertical spacing between input groups */
 }
+
 .checkbox-group {
-  background-color: #f9f9f9;
+  background-color: $tertiary-background;
   display: grid;
   border-radius: 8px;
-  grid-template-columns: repeat(2, 1fr); /* Two equal columns */
-  gap: 10px; /* Space between items */
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 20px; /* Increased gap for more space between checkboxes */
+  padding: 20px; /* Increased padding inside the checkbox group */
+  border: 1px solid $border-color;
+  margin-top: 25px; /* Added vertical spacing from the group above */
+  margin-bottom: 25px; /* Added vertical spacing from the group below */
 }
 
 .check-item label {
-  display: flex;
-  align-items: center;
-  gap: 8px; /* Space between text and checkbox */
-  cursor: pointer;
+  gap: 15px; /* Increased gap between text and checkbox */
 }
 
 .input-item {
-  display: inline-grid;
-  justify-items: center;
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  /* No margin-bottom here, relying on input-group's gap */
 }
-.text-input {
-  cursor: text;
-}
+
+.text-input,
 .standort-dropdown {
-  cursor: pointer;
-}
-.standort-dropdown,
-.text-input {
+  flex-grow: 1;
   border-radius: 8px;
-  background-color: #f9f9f9;
-  padding: 10px;
-  margin: 5px;
+  background-color: $tertiary-background;
+  border: 1px solid $border-color;
+  padding: 12px;
+  font-size: 1rem;
+  color: $text-color-dark;
+  transition: all 0.3s ease;
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+    box-shadow: 0 0 0 3px rgba($primary, 0.2);
+  }
   &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0px 10px 20px 0px rgba(0, 0, 0, 0.2);
-    &:active {
-      transform: scale(0.99);
-    }
+    transform: none;
+    box-shadow: none;
+    border-color: darken($border-color, 10%);
   }
 }
 
 .text-input-disabled {
-  border-radius: 8px;
-  background-color: #f9f9f9;
-  padding: 10px;
-  margin: 5px;
-  color: gray;
+  background-color: #eeeeee;
+  color: #a0a0a0;
+  cursor: not-allowed;
+  border: 1px solid #cccccc;
 }
 
 .check-input {
   cursor: pointer;
-  width: 15px;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  accent-color: $primary;
+  transition: transform 0.2s ease;
 
   &:hover {
-    transform: translateY(-3px);
-    &:active {
-      transform: scale(0.99);
-    }
+    transform: scale(1.1);
   }
-}
-
-.submit-button {
-  width: 100%;
-  height: 2rem;
-  font-size: 14px;
-  line-height: 0rem;
-  background-color: $primary;
-  color: white;
-  border: none;
-  margin-top: 0px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-
-  &:hover {
-    box-shadow: 0 2px 6px -1px rgba($primary, 0.65);
-    background-color: mix(black, $primary, 10%);
-
-    &:active {
-      transform: translateY(-3px);
-    }
+  &:active {
+    transform: scale(0.95);
   }
 }
 
 .modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  background: rgba(0, 0, 0, 0.6);
 }
 .modal-content {
-  background: white;
-  padding: 30px;
-  border-radius: 8px;
-  width: 350px;
-  text-align: center;
-  position: relative;
+  background: $secondary-background;
+  padding: 35px;
+  border-radius: 12px;
+  width: 400px;
+  box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.15);
 
-  .item-actions {
-    display: flex;
-    justify-content: center; /* Center buttons */
-    gap: 10px; /* Add space between buttons */
-    margin-top: 10px; /* Add space above buttons */
-  }
-
-  button {
-    margin: 10px;
-    border-radius: 5px;
+  .close-modal {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 1.5rem;
+    color: $text-color-light;
     cursor: pointer;
-    transition: background-color 0.3s ease;
-
+    transition: color 0.2s ease;
     &:hover {
-      background-color: mix(black, $primary, 10%);
+      color: $text-color-dark;
     }
   }
+
+  h4 {
+    font-size: 1.3rem;
+    color: $text-color-dark;
+    margin-bottom: 20px;
+    font-weight: 600;
+  }
+
   .autocomplete-wrapper {
-    position: relative;
+    .text-input {
+      width: calc(100% - 24px);
+      padding: 12px;
+      margin-bottom: 10px;
+      font-size: 1rem;
+    }
 
     .mitarbeiter-list {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      padding: 0px;
-      max-height: 200px;
-      overflow-y: auto;
-      background: white;
-      border: 1px solid #ddd;
-      border-top: none;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-      border-radius: 0 0 6px 6px;
-      margin-top: -1px;
-      z-index: 100;
+      max-height: 250px;
+      border-radius: 6px;
+      border: 1px solid $border-color;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 
       li {
-        padding: 10px;
-        cursor: pointer;
-        transition: background 0.2s;
+        padding: 12px 15px;
+        font-size: 0.95rem;
+        color: $text-color-dark;
+        &:not(:last-child) {
+          border-bottom: 1px solid #f0f0f0;
+        }
 
         &.highlighted,
         &:hover {
-          background-color: #f69e6f;
+          background-color: $primary;
           color: white;
         }
-      }
-    }
-  }
-
-  .autocomplete-input {
-    width: 100%;
-    padding: 8px;
-    border-radius: 6px;
-    border: 1px solid #ddd;
-    font-size: 0.95rem;
-  }
-
-  .suggestions-list {
-    position: absolute;
-    width: 100%;
-    max-height: 150px;
-    overflow-y: auto;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 0 0 6px 6px;
-    border-top: none;
-    z-index: 10;
-    margin-top: -2px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-
-    li {
-      padding: 8px;
-      cursor: pointer;
-
-      &:hover {
-        background-color: #f69e6f;
-        color: white;
       }
     }
   }

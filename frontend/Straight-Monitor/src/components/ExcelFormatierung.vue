@@ -196,102 +196,182 @@
   };
   </script>
   
-  <style scoped>
-  .window {
-    width: 600px;
-    margin: auto;
-    padding: 20px;
-    background-color: #f9f9f9;
-    border-radius: 8px;
-    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+<style scoped lang="scss">
+/* Define Sass variables for base colors */
+$base-primary: #f69e6f;
+$base-secondary-accent: #e6584f; // A slightly darker accent for hover/active states
+$base-tertiary-accent: #cc5045; // Even darker accent
+$base-light-gray: #f9f9f9;
+$base-medium-gray: #ccc;
+$base-dark-gray: #808080; // Adjusted for clearer text on gray backgrounds
+$base-text-color: #000;
+$base-border-color: #e0e0e0;
+
+.window {
+  /* Assign Sass variables to CSS custom properties */
+  --c-window-bg: #{$base-light-gray};
+  --c-panel-bg: #ffffff;
+  --c-primary: #{$base-primary};
+  --c-primary-hover: #{$base-secondary-accent};
+  --c-primary-active: #{$base-tertiary-accent};
+  --c-border: #{$base-border-color};
+  --c-text-dark: #{$base-text-color};
+  --c-text-medium: #{$base-dark-gray}; // Used for hints, drag/drop text
+  --c-disabled-bg: #{$base-medium-gray};
+  --c-drag-drop-hover: #{lighten($base-light-gray, 2%)};
+  --c-drag-drop-active: #{darken($base-light-gray, 5%)};
+
+  width: 600px;
+  margin: 30px auto; /* More vertical space */
+  padding: 30px; /* More internal padding */
+  background-color: var(--c-window-bg);
+  border-radius: 12px; /* Softer rounded corners */
+  box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.15); /* More pronounced, soft shadow */
+  text-align: center;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+  h1 {
+    color: var(--c-text-dark);
+    margin-bottom: 25px; /* More space below heading */
+    font-size: 2.2rem;
+  }
+}
+
+.leftAlign {
+  text-align: left;
+  margin-bottom: 20px; /* Space between "Zurück" and H1 */
+}
+
+.discrete {
+  margin: 15px;
+  color: $base-medium-gray;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  &:hover {
+    color: darken($base-primary, 10%);
+  }
+}
+
+.upload-section {
+  background-color: var(--c-panel-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 25px; /* More padding inside the section */
+  margin-bottom: 25px; /* Space below the upload section */
+  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.05); /* Subtle shadow */
+
+  label {
+    display: inline-block;
+    padding: 12px 25px; /* More padding for button-like label */
+    background-color: var(--c-primary);
+    color: white;
+    font-size: 1rem; /* Slightly larger font */
+    font-weight: 600; /* Bolder text */
+    border: none;
+    border-radius: 8px; /* Softer corners */
+    cursor: pointer;
     text-align: center;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+    box-shadow: 0 4px 8px -2px rgba($base-primary, 0.3); /* Soft shadow for button */
+
+    &:hover {
+      background-color: var(--c-primary-hover);
+      transform: translateY(-2px); /* Slight lift on hover */
+      box-shadow: 0 6px 12px -3px rgba($base-primary, 0.4);
+    }
+
+    &:active {
+      background-color: var(--c-primary-active);
+      transform: translateY(0); /* Press down effect */
+      box-shadow: 0 2px 4px rgba($base-primary, 0.2);
+    }
   }
-  
-  .upload-section {
-    margin: 10px;
-  }
-  
-  #file-upload {
+
+  input[type="file"] {
     display: none;
   }
-  .file-name {
-    margin-top: 15px;
-    font-size: 14px;
-    color: gray;
+}
+
+.drag-drop-area {
+  width: 100%;
+  height: 120px; /* Taller drag area */
+  border: 2px dashed var(--c-border);
+  border-radius: 10px; /* Consistent with panel corners */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px; /* More space below */
+  font-size: 1.05rem; /* Larger font */
+  color: var(--c-text-medium);
+  cursor: pointer;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+
+  &:hover {
+    background-color: var(--c-drag-drop-hover);
+    border-color: var(--c-primary); /* Primary color border on hover */
+    color: var(--c-text-dark);
   }
-  .file-name p {
-    margin: 0;
+
+  &:active {
+    background-color: var(--c-drag-drop-active);
+    border-color: var(--c-primary-active);
+    color: var(--c-text-dark);
   }
-  .file-name strong {
-    color: #000;
+}
+
+.file-info { /* Changed class name from .file-name to .file-info for consistency */
+  margin-top: 20px; /* More space above file info */
+  margin-bottom: 30px; /* More space below file info */
+  font-size: 0.95rem;
+  color: var(--c-text-medium);
+  background-color: var(--c-panel-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 15px; /* Padding around info */
+  box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.03);
+
+  p {
+    margin: 5px 0; /* Tighten line spacing for info */
   }
-  
-  
-  .upload-section label {
-    display: inline-block;
-    padding: 10px 20px;
-    background-color: #f69e6f;
-    color: white;
-    font-size: 14px;
-    font-weight: bold;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    text-align: center;
-    transition: background-color 0.3s ease;
+  strong {
+    color: var(--c-text-dark);
+    font-weight: 600;
   }
-  
-  .upload-section label:hover {
-    background-color: #e6584f;
-  }
-  
-  .upload-section label:active {
-    background-color: #cc5045;
-  }
-  
-  .drag-drop-area {
-    width: 100%;
-    height: 100px;
-    border: 2px dashed gray;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 15px;
-    font-size: 14px;
-    color: gray;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-  }
-  
-  .drag-drop-area:hover {
-    background-color: #f3f3f3;
-    color: #000;
-  }
-  
-  .drag-drop-area:active {
-    background-color: #e0e0e0;
-    border-color: #cc5045;
-  }
-  
-  
+}
+
+.actions {
+  margin-top: 0; /* Actions buttons should align cleanly below file-info */
   button {
-    margin: 10px;
-    padding: 10px 20px;
-    background-color: #f69e6f;
+    padding: 14px 30px; /* Larger buttons */
+    background-color: var(--c-primary);
     color: #fff;
     border: none;
-    border-radius: 4px;
+    border-radius: 8px; /* Consistent rounded corners */
     cursor: pointer;
+    font-size: 1.1rem; /* Larger font for main action */
+    font-weight: 600;
+    transition: background-color 0.3s ease, transform 0.1s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 10px -2px rgba($base-primary, 0.4);
+
+    &:disabled {
+      background-color: var(--c-disabled-bg);
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    &:hover:not(:disabled) {
+      background-color: var(--c-primary-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 14px -4px rgba($base-primary, 0.5);
+    }
+
+    &:active:not(:disabled) {
+      background-color: var(--c-primary-active);
+      transform: translateY(0);
+      box-shadow: 0 2px 5px rgba($base-primary, 0.3);
+    }
   }
-  
-  button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-  }
-  
-  button:hover:not(:disabled) {
-    background-color: #f69e6f;
-  }
-  </style>
-  
+}
+</style>

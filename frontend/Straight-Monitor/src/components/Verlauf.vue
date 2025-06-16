@@ -195,33 +195,48 @@ export default {
 
 <style scoped lang="scss">
 /* --- CLEAN STYLES (inkl. Suche & Sortierung) --- */
-.window {
-  --c-bg: #f8f9fa;
-  --c-surface: #ffffff;
-  --c-border: #dee2e6;
-  --c-primary: #007bff;
-  --c-primary-light: #e7f3ff;
-  --c-text-primary: #212529;
-  --c-text-secondary: #6c757d;
 
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+// Definieren Sie Ihre Basisfarben als Sass-Variablen
+$base-primary: #f69e6f; // Ihr Original-Primärorange
+$base-secondary-background: #ffffff;
+$base-tertiary-bg: #f9f9f9;
+$base-border: #e0e0e0;
+$base-text-primary: #333333;
+$base-text-secondary: #555555;
+$base-text-light: #777777;
+
+.window {
+  // Jetzt weisen Sie die Sass-Variablen (oder berechnete Sass-Farben) den CSS-Variablen zu
+  --c-bg: #f7f7f7; // Kann auch eine Sass-Variable sein, z.B. $base-bg
+  --c-surface: #{$base-secondary-background};
+  --c-tertiary-bg: #{$base-tertiary-bg};
+  --c-border: #{$base-border};
+  --c-primary: #{$base-primary}; // Zuweisen der Sass-Variable zur CSS-Variable
+  --c-primary-light: #{lighten($base-primary, 20%)}; // Verwenden Sie hier die Sass-Funktion
+  --c-text-primary: #{$base-text-primary};
+  --c-text-secondary: #{$base-text-secondary};
+  --c-text-light: #{$base-text-light};
+
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; // Konsistente Schriftart
   background-color: var(--c-bg);
   color: var(--c-text-primary);
   min-height: 100vh;
   max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+  margin: 30px auto; // Oben/Unten mehr Abstand
+  padding: 30px; // Mehr Innenabstand
   box-sizing: border-box;
+  border-radius: 12px; // Abgerundetere Ecken
+  box-shadow: 0px 6px 12px rgba(0,0,0,0.08); // Sanfterer Schatten
 }
 
 .discrete {
-  display: inline-block;
-  margin-bottom: 2rem;
-  color: var(--c-text-secondary);
+  margin: 15px;
+  color: $base-text-light;
+  font-weight: 600;
   text-decoration: none;
-  font-size: 0.9rem;
+  transition: color 0.2s ease;
   &:hover {
-    color: var(--c-primary);
+    color: darken($base-text-primary, 10%);
     text-decoration: underline;
   }
 }
@@ -229,43 +244,44 @@ export default {
 .controls {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  padding: 1.5rem;
-  margin-bottom: 2.5rem;
+  gap: 2rem; // Mehr Abstand zwischen den Control-Gruppen
+  padding: 2rem; // Mehr Innenabstand
+  margin-bottom: 3rem; // Mehr Abstand nach unten
   background-color: var(--c-surface);
-  border-radius: 8px;
+  border-radius: 10px; // Abgerundetere Ecken
   border: 1px solid var(--c-border);
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+  box-shadow: 0px 4px 8px rgba(0,0,0,0.05); // Leichterer Schatten
 }
 
 .control-group {
   display: flex;
-  align-items: flex-end;
+  align-items: center; // Vertikal zentriert
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 1.5rem; // Abstand innerhalb der Gruppe
 }
 
 .group-label {
-  font-size: 1rem;
+  font-size: 1.05rem; // Etwas größere Schrift
   font-weight: 600;
   color: var(--c-text-primary);
-  padding-top: 0.5rem;
+  padding-top: 0; // Kein padding-top nötig
   flex-shrink: 0;
-  width: 130px;
+  width: 150px; // Etwas breiter für die Labels
+  text-align: right; // Rechtsbündig für besseren Fluss
 }
 
 .checkbox-options {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
+  gap: 2rem; // Mehr Abstand zwischen Checkboxen
   align-items: center;
 }
 
 .controls label {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
+  gap: 0.8rem; // Mehr Abstand zwischen Checkbox und Text
+  font-size: 1rem; // Standard-Schriftgröße
   color: var(--c-text-secondary);
   cursor: pointer;
   user-select: none;
@@ -276,44 +292,45 @@ export default {
 
 input[type="text"],
 select {
-  padding: 0.3rem 0.6rem;  // 👈 weniger Padding
-  font-size: 0.85rem;
-  height: 32px;            // 👈 explizit etwas schlanker
-  border-radius: 4px;      // 👈 etwas weniger rund
+  flex-grow: 1; // Erlaubt, dass Input Felder den verfügbaren Platz einnehmen
+  padding: 0.8rem 1rem; // Mehr Padding
+  font-size: 0.95rem; // Etwas größere Schrift
+  height: auto; // Automatische Höhe, passt sich Padding an
+  border-radius: 8px; // Stärker abgerundet
   border: 1px solid var(--c-border);
-  background-color: var(--c-surface);
+  background-color: var(--c-tertiary-bg); // Hintergrund aus Farbvariable
   color: var(--c-text-primary);
   transition: border-color 0.2s, box-shadow 0.2s;
 
   &:hover {
-    border-color: #a0c7ff;
+    // Wenn Sie einen spezifischen Hover-Effekt auf dem Rand wünschen, verwenden Sie eine Sass-Farbe direkt
+    border-color: lighten($base-primary, 20%);
   }
 
   &:focus {
     outline: none;
-    border-color: var(--c-primary);
-    box-shadow: 0 0 0 2px var(--c-primary-light);
+    border-color: var(--c-primary); // Verwenden Sie die CSS-Variable für die Primärfarbe zur Laufzeit
+    box-shadow: 0 0 0 3px rgba($base-primary, 0.2); // Verwenden Sie die Sass-Variable für die rgba-Farbmanipulation
   }
 }
 
-// HINZUGEFÜGT: Spezifisches Styling für das Suchfeld
 input[type="text"] {
-  width: 100%;
-  max-width: 300px; // Verhindert, dass es zu breit wird
+  max-width: 350px;
 }
 
 select {
   cursor: pointer;
+  // Spezifisches Styling für Select falls benötigt, aber oft sind die Standardeinstellungen in Ordnung
 }
 
 input[type="checkbox"] {
   appearance: none;
-  height: 1.1em;   
-  width: 1.1em;
+  height: 1.25em; // Etwas größere Checkbox
+  width: 1.25em;
   margin: 0;
   background-color: var(--c-surface);
   border: 1px solid var(--c-border);
-  border-radius: 3px;
+  border-radius: 4px; // Etwas weniger rund als Input Felder
   cursor: pointer;
   display: grid;
   place-content: center;
@@ -322,11 +339,11 @@ input[type="checkbox"] {
 
   &::before {
     content: "";
-    width: 0.55em;
-    height: 0.55em;
+    width: 0.65em; // Pass die Größe des Hakens an
+    height: 0.65em;
     transform: scale(0);
     transition: 0.12s transform ease-in-out;
-    box-shadow: inset 1em 1em var(--c-primary);
+    box-shadow: inset 1em 1em var(--c-primary); // Dies funktioniert, da box-shadow CSS-Variablen akzeptiert
     background-color: CanvasText;
     mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="none" stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m2 8 4 4 8-8"/></svg>');
     mask-size: cover;
@@ -341,14 +358,16 @@ input[type="checkbox"] {
       transform: scale(1);
     }
   }
+}
 
 .no-logs-message {
   text-align: center;
   margin-top: 4rem;
   padding: 2rem;
   background-color: var(--c-surface);
-  border-radius: 8px;
+  border-radius: 10px; // Konsistente Rundung
   color: var(--c-text-secondary);
-}
+  border: 1px solid var(--c-border); // Leichter Rahmen
+  box-shadow: 0px 2px 4px rgba(0,0,0,0.03); // Leichter Schatten
 }
 </style>

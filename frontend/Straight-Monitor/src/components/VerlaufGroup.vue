@@ -128,103 +128,151 @@ export default {
 </script>
 
 <style scoped lang="scss">
+// Definieren Sie Ihre Basisfarben als Sass-Variablen, spiegeln Sie Verlauf.vue
+$base-primary: #f69e6f;
+$base-secondary-background: #ffffff;
+$base-tertiary-bg: #f9f9f9;
+$base-border: #e0e0e0; // <-- This is the Sass variable you need
+$base-text-primary: #333333;
+$base-text-secondary: #555555;
+
+
+
 .group-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1rem;
-  margin-top: 0.5rem;
+  padding: 1rem 1.25rem; // Mehr Padding
+  margin-top: 1rem; // Mehr Abstand nach oben
   background-color: var(--c-surface);
-  border-left: 4px solid var(--c-primary);
-  border-radius: 0 6px 6px 0;
+  border-left: 5px solid var(--c-primary); // Dickerer Primärfarb-Streifen
+  border-radius: 0 8px 8px 0; // Abgerundetere Ecken
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
   &:hover {
-    background-color: var(--c-primary-light);
+    background-color: var(--c-primary-light); // Dies verwendet bereits eine CSS-Variable
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); // Leichter Schatten auf Hover
+  }
+  // Level-basierte Hintergrundfarbe für Verschachtelung
+  @for $i from 0 through 5 {
+    &[data-level="#{$i}"] {
+      // Verwenden Sie Sass-Variablen für mix() und darken()
+      background-color: mix($base-secondary-background, $base-tertiary-bg, $i * 10%);
+      border-left: 5px solid darken($base-primary, $i * 5%);
+    }
   }
 }
+
 .group-title {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.2rem; // Etwas größere Schrift für Gruppentitel
   font-weight: 600;
   color: var(--c-text-primary);
 }
+
 .expand-icon {
   color: var(--c-text-secondary);
   transition: transform 0.2s ease;
   &.small {
-    font-size: 0.8em;
+    font-size: 0.9em; // Etwas größere Icons für Log-Karten
   }
 }
+
 .group-children {
-  padding-left: 1.5rem;
+  padding-left: 2rem; // Deutlich mehr Einrückung
+  padding-top: 0.5rem; // Etwas Abstand oben
   margin-top: 0.5rem;
 }
+
+.log-list {
+  padding-top: 1rem; // Abstand vor der Liste von Log-Karten
+}
+
 .log-card {
   background-color: var(--c-surface);
   border: 1px solid var(--c-border);
-  border-radius: 6px;
-  margin-bottom: 1rem;
-  transition: box-shadow 0.2s ease;
+  border-radius: 8px; // Abgerundetere Ecken
+  margin-bottom: 1.5rem; // Mehr Abstand zwischen Log-Karten
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
   overflow: hidden;
   &:hover {
-    box-shadow: 0 4px 10px -2px rgba(0,0,0,0.08);
+    box-shadow: 0 6px 12px -3px rgba(0,0,0,0.1); // Deutlicherer Schatten
+    transform: translateY(-2px); // Leichter "Schwebe"-Effekt
   }
 }
+
 .log-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1rem;
+  padding: 1rem 1.25rem; // Mehr Padding
   cursor: pointer;
-  background-color: #fdfdfd;
+  background-color: var(--c-tertiary-bg); // Leichter Hintergrund für Header
+  border-bottom: 1px solid var(--c-border); // Trennlinie zum Inhalt
 }
+
 .log-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.5rem;
+  gap: 0.75rem 2rem; // Mehr Abstand zwischen den Meta-Infos
   span {
-    font-size: 0.85rem;
+    font-size: 0.9rem; // Etwas größere Schrift
     color: var(--c-text-secondary);
     strong {
       color: var(--c-text-primary);
     }
   }
 }
+
 .log-annotation {
-  font-size: 0.9rem;
-  padding: 0.5rem 1rem;
+  font-size: 0.95rem; // Etwas größere Schrift
+  padding: 1rem 1.25rem; // Mehr Padding
   margin: 0;
-  background: var(--c-primary-light);
+  background: var(--c-primary-light); // Dies verwendet bereits eine CSS-Variable
   color: var(--c-text-primary);
   border-top: 1px solid var(--c-border);
   border-bottom: 1px solid var(--c-border);
+  line-height: 1.5; // Bessere Lesbarkeit
 }
+
 .log-details {
-  padding: 1rem;
-  background-color: var(--c-bg);
+  padding: 1.25rem; // Mehr Padding
+  background-color: var(--c-bg); // Hintergrund aus Farbvariable
 }
+
 .item-detail {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.5rem;
-  font-size: 0.9rem;
-  border-bottom: 1px solid var(--c-border);
+  gap: 1.25rem; // Mehr Abstand zwischen Item-Details
+  padding: 0.75rem 0; // Mehr vertikales Padding
+  font-size: 0.95rem;
+  // FIX: Use $base-border for lighten()
+  border-bottom: 1px dashed lighten($base-border, 10%); // Gestrichelte, hellere Linie
   &:last-child {
     border-bottom: none;
   }
 }
+
 .item-number {
-  font-weight: 600;
-  color: var(--c-text-secondary);
+  font-weight: 700; // Fetter
+  color: var(--c-primary); // Dies verwendet bereits eine CSS-Variable
+  width: 2.5rem; // Feste Breite für Nummer, zur Ausrichtung
+  flex-shrink: 0;
 }
+
 .item-name {
   flex-grow: 1;
   color: var(--c-text-primary);
 }
+
 .item-info {
   color: var(--c-text-secondary);
   white-space: nowrap;
+}
+
+.log-details > .item-info { // Für "Keine Items" Nachricht
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  text-align: center;
 }
 </style>
