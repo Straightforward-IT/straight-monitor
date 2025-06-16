@@ -6,6 +6,7 @@ const Item = require("../models/Item");
 const Monitoring = require("../models/Monitoring");
 const xlsx = require("xlsx");
 const asyncHandler = require("../middleware/AsyncHandler");
+const { sollRoutine } = require("../EmailService");
 // Variables
 const cities = ["Hamburg", "Berlin", "Köln"];
 
@@ -338,5 +339,19 @@ router.get("/getExcel", auth, asyncHandler( async (req, res) => {
     res.status(500).send("Server-Error");
   }
 }));
+
+
+router.get(
+  "/test-sollroutine",
+  auth, asyncHandler(async (req, res) => {
+    try {
+      await sollRoutine();
+      res.status(200).json({ success: true, message: "sollRoutine erfolgreich ausgeführt." });
+    } catch (err) {
+      console.error("❌ Fehler bei test-sollroutine:", err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  })
+);
 
 module.exports = router;

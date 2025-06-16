@@ -101,7 +101,15 @@ export default {
   computed: {
     readyToSplit() {
       return this.pdfFile && this.excelData.length > 0;
-    },
+    }, 
+    stadtFullName() {
+    const map = {
+      HH: "Hamburg",
+      B: "Berlin",
+      K: "Köln",
+    };
+    return map[this.stadt] || "Unbekannt";
+  },
   },
   methods: {
      setAxiosAuthToken() {
@@ -168,6 +176,7 @@ export default {
   formData.append("excel", this.excelFile);
   formData.append("stadt", this.stadt);
   formData.append("monat", this.monat);
+    formData.append("stadt_full", this.stadtFullName); 
 
   api
     .post("/api/personal/upload-lohnabrechnungen", formData, {

@@ -53,6 +53,48 @@ const upload = multer({
   },
 });
 
+const MONATSNAMEN = {
+  "01": "Januar",
+  "02": "Februar",
+  "03": "März",
+  "04": "April",
+  "05": "Mai",
+  "06": "Juni",
+  "07": "Juli",
+  "08": "August",
+  "09": "September",
+  10: "Oktober",
+  11: "November",
+  12: "Dezember",
+};
+
+function normalizeUmlauts(str) {
+  return str
+    .normalize("NFD") // Unicode z.B. "ö" → "o¨"
+    .replace(/[\u0300-\u036f]/g, "") // diakritische Zeichen entfernen
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/Ä/g, "Ae")
+    .replace(/Ö/g, "Oe")
+    .replace(/Ü/g, "Ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-zA-Z0-9]/g, ""); // Restliche Sonderzeichen entfernen
+}
+
+function normalizeUmlautsForSort(str) {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Diakritische Zeichen entfernen
+    .replace(/[^a-zA-Z]/g, ""); // Nur Buchstaben behalten
+}
+
 router.get(
   "/flip",
   auth,
@@ -286,43 +328,65 @@ router.post(
 router.post(
   "/upload-lohnabrechnungen",
   auth,
-  multer({
-    storage,
-  }).fields([
+  multer({ storage }).fields([
     { name: "pdf", maxCount: 1 },
     { name: "excel", maxCount: 1 },
   ]),
   asyncHandler(async (req, res) => {
     try {
-      const { stadt, monat } = req.body;
+      // Schritt 1: Formulardaten inkl. stadt_full auslesen
+      const { stadt, monat, stadt_full } = req.body;
       const pdfBuffer = req.files?.pdf?.[0]?.buffer;
       const excelBuffer = req.files?.excel?.[0]?.buffer;
 
-      if (!pdfBuffer || !excelBuffer || !stadt || !monat) {
-        return res.status(400).json({ error: "Fehlende Daten." });
-      }
-
-      // Excel verarbeiten
-      const workbook = xlsx.read(excelBuffer, { type: "buffer" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
-      const headers = rows[0];
-      const data = rows.slice(1).sort((a, b) => a[1]?.localeCompare(b[1])); // Spalte 1 = Nachname
-
-      // PDF Seiten extrahieren
-      const originalPdf = await PDFDocument.load(pdfBuffer);
-      const zip = new JSZip();
-
-      if (originalPdf.getPageCount() < data.length) {
+      // Validierung der Eingabedaten
+      if (!pdfBuffer || !excelBuffer || !stadt || !monat || !stadt_full) {
+        console.warn("❗ Fehlende Daten:", {
+          pdf: !!pdfBuffer,
+          excel: !!excelBuffer,
+          stadt,
+          monat,
+          stadt_full,
+        });
         return res.status(400).json({
-          error: "Weniger PDF-Seiten als Excel-Zeilen. Möglicherweise Doppelseiten in PDF?",
+          error:
+            "Fehlende Daten. Stellen Sie sicher, dass PDF, Excel, Stadt, Monat und Stadt (ausgeschrieben) gesendet werden.",
         });
       }
 
+      console.log("✅ PDF + Excel + Formulardaten empfangen");
+      const originalPdf = await PDFDocument.load(pdfBuffer);
+      const pageCount = originalPdf.getPageCount();
+      console.log(`📄 PDF hat ${pageCount} Seiten`);
+
+      const workbook = xlsx.read(excelBuffer, { type: "buffer" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+      const data = rows.slice(1).sort((a, b) => a[1]?.localeCompare(b[1]));
+
+      console.log(`📊 Excel-Zeilen (ohne Header): ${data.length}`);
+      if (pageCount < data.length) {
+        return res.status(400).json({
+          error:
+            "Weniger PDF-Seiten als Excel-Zeilen. Möglicherweise Doppelseiten in PDF?",
+        });
+      }
+
+      const zip = new JSZip();
+      const jahr = new Date().getFullYear(); // Aktuelles Jahr für die Vorlage
+      const monatLesbar = MONATSNAMEN[monat.padStart(2, "0")] || monat;
+
       for (let i = 0; i < data.length; i++) {
         const row = data[i];
-        const nachname = (row[1] || "Unbekannt").replace(/[^a-zA-ZäöüÄÖÜß]/g, "");
-        const vorname = (row[2] || "Unbekannt").replace(/[^a-zA-ZäöüÄÖÜß]/g, "");
+        const nachname = (row[1] || "Unbekannt").replace(
+          /[^a-zA-ZäöüÄÖÜß]/g,
+          ""
+        );
+        const vorname = (row[2] || "Mitarbeiter").replace(
+          /[^a-zA-ZäöüÄÖÜß]/g,
+          ""
+        );
+        const email = row[8] || null;
 
         const outputPdf = await PDFDocument.create();
         const [page] = await outputPdf.copyPages(originalPdf, [i]);
@@ -330,18 +394,87 @@ router.post(
 
         const fileBuffer = await outputPdf.save();
         const filename = `${nachname}_${vorname}_Abrechnungen_${stadt}_${monat}.pdf`;
+
         zip.file(filename, fileBuffer);
+        console.log(`📎 Hinzugefügt: ${filename}`);
+
+        // --- NEUE E-MAIL VORLAGE ---
+        const subject = `Lohnabrechnung Straightforward ${monatLesbar} ${jahr}`;
+        const content = `
+          <div style="font-family: Arial, sans-serif; font-size: 11pt; color: #333;">
+            <p>Hallo ${vorname},</p>
+            <p>anbei deine Lohnabrechnung für ${monatLesbar} ${jahr}.</p>
+            <p>Melde dich bei Fragen gerne bei uns.</p>
+            <p>Beste Grüße</p>
+            <br>
+            <div style="line-height: 1.4;">
+                <p style="margin: 0;"><strong>Alexandra Gridneva</strong></p>
+                <p style="margin: 0;"><em>Team ${stadt_full}</em></p>
+                <br>
+                <p style="margin: 0;">Gaußstraße 124</p>
+                <p style="margin: 0;">22765 Hamburg</p>
+                <br>
+                <p style="margin: 0;">Tel: <a href="tel:+494070010190">+49 40 700 101 90</a></p>
+                <p style="margin: 0;">Mobil: <a href="tel:+4917643318482">+49 176 433 184 82</a></p>
+                <br>
+                <p style="margin: 0;"><a href="mailto:teamhamburg@straightforward.email">ag@straightforward.email</a></p>
+                <p style="margin: 0;"><a href="https://www.straightforward.services" target="_blank">www.straightforward.services</a></p>
+            </div>
+            <br>
+            <div style="font-size: 8pt; color: #666; line-height: 1.3;">
+                <p style="margin: 0;"><strong>H. & P. Straightforward GmbH</strong></p>
+                <p style="margin: 0;">Managing Partners: Daniel Hansen & Christian Peßler</p>
+                <p style="margin: 0;">Based in: Berlin HRB 180342 B</p>
+                <p style="margin: 0;">VAT no.: DE308384616</p>
+                <br>
+                <p style="margin: 0;"><em>Please consider the impact on the environment before printing this e-mail. This communication is confidential and may be legally privileged. If you are not the intended recipient, (i) please do not read or disclose to others, (ii) please notify the sender by reply mail, and (iii) please delete this communication from your system. Failure to follow this process may be unlawful. Thank you for your cooperation.</em></p>
+            </div>
+          </div>
+        `;
+        // --- ENDE VORLAGE ---
+        const stadtSenderMap = {
+          HH: "teamhamburg",
+          B: "teamberlin",
+          K: "teamkoeln",
+        };
+
+        const senderKey = stadtSenderMap[stadt] || "it";
+
+        try {
+          await sendMail(
+            email || "it@straightforward.email", // Fallback-E-Mail, falls keine in Excel steht
+            subject,
+            content,
+            senderKey,
+            [
+              {
+                name: filename,
+                content: Buffer.from(fileBuffer).toString("base64"), // Korrigierte Base64-Konvertierung
+                contentType: "application/pdf",
+              },
+            ]
+          );
+          console.log(
+            `📤 Abrechnung für ${vorname} ${nachname} an ${email} verschickt.`
+          );
+        } catch (mailError) {
+          console.error(
+            `❌ Fehler beim Senden an ${email}:`,
+            mailError.message
+          );
+        }
       }
 
       const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
 
+      console.log(`✅ ZIP-Größe: ${zipBuffer.length} Bytes`);
       res.set({
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename=Abrechnungen_${stadt}_${monat}.zip`,
       });
       res.send(zipBuffer);
     } catch (err) {
-      console.error("Fehler beim Aufteilen der Lohnabrechnungen:", err);
+      console.error("❌ Fehler beim Aufteilen der Lohnabrechnungen:", err);
       res.status(500).json({ error: "Interner Serverfehler" });
     }
   })
@@ -834,7 +967,7 @@ router.delete(
   "/mitarbeiter",
   auth,
   asyncHandler(async (req, res) => {
-    const mitarbeiterIds = req.body; 
+    const mitarbeiterIds = req.body;
     const flipIdsToDelete = [];
     const deletedMitarbeiter = [];
     const notFound = [];
@@ -892,6 +1025,5 @@ router.delete(
     });
   })
 );
-
 
 module.exports = router;
