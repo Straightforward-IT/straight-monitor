@@ -244,9 +244,8 @@ export default {
   --c-text-light: #{$base-text-light};
   --c-error: #{$base-error};
   --c-disabled-bg: #{$base-disabled-bg};
-  --c-drag-drop-hover-bg: #{lighten($base-panel-bg, 2%)};
-  --c-drag-drop-active-bg: #{darken($base-panel-bg, 5%)};
-
+--c-drag-drop-hover-bg: #{color.adjust($base-panel-bg, $lightness: 2%)};
+  --c-drag-drop-active-bg: #{color.adjust($base-panel-bg, $lightness: -5%)};
 
   width: 600px;
   margin: 30px auto;

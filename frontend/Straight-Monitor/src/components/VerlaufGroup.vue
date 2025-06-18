@@ -134,7 +134,7 @@ export default {
 
 :root { 
   --c-primary: #{$base-primary};
-  --c-primary-light: #{lighten($base-primary, 20%)}; 
+  --c-primary-light: #{color.adjust($base-primary, $lightness: 20%)};
   --c-surface: #{$base-panel-bg}; 
   --c-tertiary-bg: #{$base-light-gray}; 
   --c-border: #{$base-border-color};
@@ -161,10 +161,8 @@ export default {
   // Level-basierte Hintergrundfarbe für Verschachtelung
   @for $i from 0 through 5 {
     &[data-level="#{$i}"] {
-      // Verwenden Sie Sass-Variablen für mix() und darken()
       background-color: mix($base-panel-bg, $base-light-gray, $i * 10%); // Nutzt $base- Variablen
-      border-left: 5px solid darken($base-primary, $i * 5%); // Nutzt $base- Variablen
-    }
+border-left: 5px solid color.adjust($base-primary, $lightness: -($i * 5%));    }
   }
 }
 
@@ -251,8 +249,7 @@ export default {
   gap: 1.25rem; // Mehr Abstand zwischen Item-Details
   padding: 0.75rem 0; // Mehr vertikales Padding
   font-size: 0.95rem;
-  border-bottom: 1px dashed lighten($base-border-color, 10%); // Nutzt $base- Variable
-  &:last-child {
+border-bottom: 1px dashed color.adjust($base-border-color, $lightness: 10%);  &:last-child {
     border-bottom: none;
   }
 }

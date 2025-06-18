@@ -11,7 +11,8 @@ export default defineConfig({
   css: {
     preprocessorOptions: {
       scss: {
-        
+          additionalData: `@use "sass:color"; @import "@/assets/styles/global.scss";`,
+           api: 'modern-compiler'
       }
     }
   }

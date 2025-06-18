@@ -1,203 +1,211 @@
 <template>
-    <div class="window">
-      <div class="leftAlign" style="text-align: left">
-        <a class="discrete" @click="switchToDashboard">Zurück</a>
-      </div>
-  
-      <h1>Excel Formatierung</h1>
-      <div class="upload-section">
-        <div class="drag-drop-area" @dragover.prevent @drop="handleDragAndDrop">
-          Drag and drop your file here
-        </div>
-        <label for="file-upload">Oder Manuell Upload</label>
-        <input
-          id="file-upload"
-          type="file"
-          @change="handleFileUpload"
-          accept=".xlsx, .xls"
-        />
-      </div>
-  
-      <div class="file-name">
-        <p>Hochgeladen: <strong v-if="fileName">{{ fileName }}</strong></p>
-        <p>Verarbeitet: <strong v-if="verarbeitet" >✓</strong></p>
-      </div>
-  
-      <div class="actions">
-        <button @click="downloadProcessedExcel" :disabled="!processedData">
-          Download Excel
-        </button>
-      </div>
+  <div class="window">
+    <div class="leftAlign" style="text-align: left">
+      <a class="discrete" @click="switchToDashboard">Zurück</a>
     </div>
-  </template>
-  
-  <script>
-  import * as XLSX from "xlsx";
-  import FileSaver from "file-saver";
-  import api from "../utils/api";
-  
-  export default {
-    name: "ExcelFormatierung",
-    data() {
-      return {
-        token: localStorage.getItem("token") || null,
-        processedData: null,
-        fileName: "",
-        verarbeitet: false,
-      };
+
+    <h1>Excel Formatierung</h1>
+    <div class="upload-section">
+      <div class="drag-drop-area" @dragover.prevent @drop="handleDragAndDrop">
+        Drag and drop your file here
+      </div>
+      <label for="file-upload">Oder Manuell Upload</label>
+      <input
+        id="file-upload"
+        type="file"
+        @change="handleFileUpload"
+        accept=".xlsx, .xls"
+      />
+    </div>
+
+    <div class="file-name">
+      <p>
+        Hochgeladen: <strong v-if="fileName">{{ fileName }}</strong>
+      </p>
+      <p>Verarbeitet: <strong v-if="verarbeitet">✓</strong></p>
+    </div>
+
+    <div class="actions">
+      <button @click="downloadProcessedExcel" :disabled="!processedData">
+        Download Excel
+      </button>
+    </div>
+  </div>
+</template>
+
+<script>
+import * as XLSX from "xlsx";
+import FileSaver from "file-saver";
+import api from "../utils/api";
+
+export default {
+  name: "ExcelFormatierung",
+  data() {
+    return {
+      token: localStorage.getItem("token") || null,
+      processedData: null,
+      fileName: "",
+      verarbeitet: false,
+    };
+  },
+  methods: {
+    setAxiosAuthToken() {
+      api.defaults.headers.common["x-auth-token"] = this.token;
     },
-    methods: {
-      setAxiosAuthToken() {
-        api.defaults.headers.common["x-auth-token"] = this.token;
-      },
-      async fetchUserData() {
-        if (this.token) {
-          try {
-            const response = await api.get("/api/users/me", {});
-            this.userID = response.data._id;
-            this.userLocation = response.data.location;
-          } catch (error) {
-            console.error("Error fetching user data:", error);
-            this.$router.push("/");
-          }
-        } else {
-          console.error("No token found");
+    async fetchUserData() {
+      if (this.token) {
+        try {
+          const response = await api.get("/api/users/me", {});
+          this.userID = response.data._id;
+          this.userLocation = response.data.location;
+        } catch (error) {
+          console.error("Error fetching user data:", error);
           this.$router.push("/");
         }
-      },
-      handleFileUpload(event) {
-        const file = event.target.files[0];
-        this.fileName = file.name;
-        this.uploadFileToServer(file);
-      },
-      handleDragAndDrop(event) {
-        event.preventDefault();
-        const file = event.dataTransfer.files[0];
-        this.fileName = file.name;
-        this.uploadFileToServer(file);
-      },
-      uploadFileToServer(file) {
-        const formData = new FormData();
-        formData.append("file", file);
-  
-        api
-          .post("/api/personal/upload-teamleiter", formData, {
-            headers: { "Content-Type": "multipart/form-data" },
-          })
-          .then((response) => {
-            const { headers, rows } = response.data;
-            this.processExcelData([headers, ...rows]);
-          })
-          .catch((error) => {
-            console.error("Error uploading file:", error);
-            alert("Fehler beim Hochladen der Datei. Möglicherweise ist die Datei beschädigt.");
-          });
-      },
-      processExcelData(data) {
-        const headers = data[0];
-        const rows = data.slice(1);
-        const personalNrIndex = headers.indexOf("PERSONALNR");
-        const anzahlMitarbeiterIndex = headers.indexOf("ANZAHL_MITARBEITER");
-        const reportsIndex = headers.length;
-  
-        // Add a new column for "REPORTS"
-        headers.push("QUOTE IN %");
-  
-        const processedRows = [];
-        const personalNrMap = {};
-        let currentPersonalNr = null;
-        let startIndex = 1; // Tracks the current row index in the output
-  
-        rows.forEach((row) => {
-          // Convert dates in Column A
-          if (row[0] && typeof row[0] === "number") {
-            const date = new Date(Math.round((row[0] - 25569) * 86400 * 1000)); // Excel to JS date
-            const day = String(date.getDate()).padStart(2, "0");
-            const month = String(date.getMonth() + 1).padStart(2, "0");
-            const year = date.getFullYear();
-            row[0] = `${day}.${month}.${year}`; // Format as dd.mm.yyyy
-          }
-  
-          const personalNr = row[personalNrIndex];
-  
-          // Check if PERSONALNR group has changed
-          if (personalNr !== currentPersonalNr) {
-            if (currentPersonalNr !== null) {
-              // Add a blank row with the AVERAGE formula for the previous group
-              const rangeStart = personalNrMap[currentPersonalNr][0] + 1; // +1 to account for headers
-              const rangeEnd = personalNrMap[currentPersonalNr][1] + 1; // +1 to account for headers
-              const averageFormula = { f: `=AVERAGE(I${rangeStart}:I${rangeEnd})*100` };
-              const blankRow = Array(headers.length).fill("");
-              blankRow[reportsIndex] = averageFormula;
-              processedRows.push(blankRow);
-              startIndex++;
-            }
-  
-            // Update the map with the start of a new group
-            currentPersonalNr = personalNr;
-            personalNrMap[personalNr] = [startIndex];
-          }
-  
-          // Add the current row and update the last index for this group
-          processedRows.push(row);
-          startIndex++;
-          personalNrMap[personalNr][1] = startIndex - 1;
-        });
-  
-        // Add a blank row with the AVERAGE formula for the last group
-        if (currentPersonalNr !== null) {
-          const rangeStart = personalNrMap[currentPersonalNr][0] + 1;
-          const rangeEnd = personalNrMap[currentPersonalNr][1] + 1;
-          const averageFormula = { f: `=AVERAGE(I${rangeStart}:I${rangeEnd})*100` };
-          const blankRow = Array(headers.length).fill("");
-          blankRow[reportsIndex] = averageFormula;
-          processedRows.push(blankRow);
-        }
-  
-        // Save processed data
-        this.processedData = [headers, ...processedRows];
-        this.verarbeitet = true;
-      },
-      downloadProcessedExcel() {
-        if (!this.processedData) return;
-  
-        const worksheet = XLSX.utils.aoa_to_sheet(this.processedData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Formatierte Daten");
-  
-        const excelBuffer = XLSX.write(workbook, {
-          bookType: "xlsx",
-          type: "array",
-        });
-        const blob = new Blob([excelBuffer], {
-          type: "application/octet-stream",
-        });
-        FileSaver.saveAs(blob, "Excel_Formatiert.xlsx");
-        this.resetState();
-      },
-      resetState() {
-        this.fileName = "";
-        this.verarbeitet = false;
-        this.processedData = null;
-      },
-      switchToDashboard() {
-        const userConfirmed = window.confirm(
-          "Bist du Sicher? Alle ungespeicherten Änderungen gehen verloren."
-        );
-        if (userConfirmed) {
-          this.$router.push("/");
-        }
-      },
+      } else {
+        console.error("No token found");
+        this.$router.push("/");
+      }
     },
-    mounted() {
-      this.setAxiosAuthToken();
-      this.fetchUserData();
+    handleFileUpload(event) {
+      const file = event.target.files[0];
+      this.fileName = file.name;
+      this.uploadFileToServer(file);
     },
-  };
-  </script>
-  
+    handleDragAndDrop(event) {
+      event.preventDefault();
+      const file = event.dataTransfer.files[0];
+      this.fileName = file.name;
+      this.uploadFileToServer(file);
+    },
+    uploadFileToServer(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      api
+        .post("/api/personal/upload-teamleiter", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+        .then((response) => {
+          const { headers, rows } = response.data;
+          this.processExcelData([headers, ...rows]);
+        })
+        .catch((error) => {
+          console.error("Error uploading file:", error);
+          alert(
+            "Fehler beim Hochladen der Datei. Möglicherweise ist die Datei beschädigt."
+          );
+        });
+    },
+    processExcelData(data) {
+      const headers = data[0];
+      const rows = data.slice(1);
+      const personalNrIndex = headers.indexOf("PERSONALNR");
+      const anzahlMitarbeiterIndex = headers.indexOf("ANZAHL_MITARBEITER");
+      const reportsIndex = headers.length;
+
+      // Add a new column for "REPORTS"
+      headers.push("QUOTE IN %");
+
+      const processedRows = [];
+      const personalNrMap = {};
+      let currentPersonalNr = null;
+      let startIndex = 1; // Tracks the current row index in the output
+
+      rows.forEach((row) => {
+        // Convert dates in Column A
+        if (row[0] && typeof row[0] === "number") {
+          const date = new Date(Math.round((row[0] - 25569) * 86400 * 1000)); // Excel to JS date
+          const day = String(date.getDate()).padStart(2, "0");
+          const month = String(date.getMonth() + 1).padStart(2, "0");
+          const year = date.getFullYear();
+          row[0] = `${day}.${month}.${year}`; // Format as dd.mm.yyyy
+        }
+
+        const personalNr = row[personalNrIndex];
+
+        // Check if PERSONALNR group has changed
+        if (personalNr !== currentPersonalNr) {
+          if (currentPersonalNr !== null) {
+            // Add a blank row with the AVERAGE formula for the previous group
+            const rangeStart = personalNrMap[currentPersonalNr][0] + 1; // +1 to account for headers
+            const rangeEnd = personalNrMap[currentPersonalNr][1] + 1; // +1 to account for headers
+            const averageFormula = {
+              f: `=AVERAGE(I${rangeStart}:I${rangeEnd})*100`,
+            };
+            const blankRow = Array(headers.length).fill("");
+            blankRow[reportsIndex] = averageFormula;
+            processedRows.push(blankRow);
+            startIndex++;
+          }
+
+          // Update the map with the start of a new group
+          currentPersonalNr = personalNr;
+          personalNrMap[personalNr] = [startIndex];
+        }
+
+        // Add the current row and update the last index for this group
+        processedRows.push(row);
+        startIndex++;
+        personalNrMap[personalNr][1] = startIndex - 1;
+      });
+
+      // Add a blank row with the AVERAGE formula for the last group
+      if (currentPersonalNr !== null) {
+        const rangeStart = personalNrMap[currentPersonalNr][0] + 1;
+        const rangeEnd = personalNrMap[currentPersonalNr][1] + 1;
+        const averageFormula = {
+          f: `=AVERAGE(I${rangeStart}:I${rangeEnd})*100`,
+        };
+        const blankRow = Array(headers.length).fill("");
+        blankRow[reportsIndex] = averageFormula;
+        processedRows.push(blankRow);
+      }
+
+      // Save processed data
+      this.processedData = [headers, ...processedRows];
+      this.verarbeitet = true;
+    },
+    downloadProcessedExcel() {
+      if (!this.processedData) return;
+
+      const worksheet = XLSX.utils.aoa_to_sheet(this.processedData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Formatierte Daten");
+
+      const excelBuffer = XLSX.write(workbook, {
+        bookType: "xlsx",
+        type: "array",
+      });
+      const blob = new Blob([excelBuffer], {
+        type: "application/octet-stream",
+      });
+      FileSaver.saveAs(blob, "Excel_Formatiert.xlsx");
+      this.resetState();
+    },
+    resetState() {
+      this.fileName = "";
+      this.verarbeitet = false;
+      this.processedData = null;
+    },
+    switchToDashboard() {
+      const userConfirmed = window.confirm(
+        "Bist du Sicher? Alle ungespeicherten Änderungen gehen verloren."
+      );
+      if (userConfirmed) {
+        this.$router.push("/");
+      }
+    },
+  },
+  mounted() {
+    this.setAxiosAuthToken();
+    this.fetchUserData();
+  },
+};
+</script>
+
 <style scoped lang="scss">
-@import "@/assets/styles/global.scss"; 
+@import "@/assets/styles/global.scss";
 
 .window {
   /* Assign Sass variables to CSS custom properties */
@@ -210,9 +218,8 @@
   --c-text-dark: #{$base-text-dark};
   --c-text-medium: #{$base-straight-gray}; // Used for hints, drag/drop text
   --c-disabled-bg: #{$base-text-medium};
-  --c-drag-drop-hover: #{lighten($base-light-gray, 2%)};
-  --c-drag-drop-active: #{darken($base-light-gray, 5%)};
-
+  --c-drag-drop-hover: #{color.adjust($base-light-gray, $lightness: 2%)};
+  --c-drag-drop-active: #{color.adjust($base-light-gray, $lightness: -5%)};
   width: 600px;
   margin: 30px auto; /* More vertical space */
   padding: 30px; /* More internal padding */
@@ -220,7 +227,7 @@
   border-radius: 12px; /* Softer rounded corners */
   box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.15); /* More pronounced, soft shadow */
   text-align: center;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 
   h1 {
     color: var(--c-text-dark);
@@ -241,7 +248,7 @@
   text-decoration: none;
   transition: color 0.2s ease;
   &:hover {
-    color: darken($base-primary, 10%);
+    color: color.adjust($base-primary, $lightness: -10%);
   }
 }
 
@@ -297,7 +304,8 @@
   font-size: 1.05rem; /* Larger font */
   color: var(--c-text-medium);
   cursor: pointer;
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease,
+    color 0.3s ease;
 
   &:hover {
     background-color: var(--c-drag-drop-hover);
@@ -312,7 +320,8 @@
   }
 }
 
-.file-info { /* Changed class name from .file-name to .file-info for consistency */
+.file-info {
+  /* Changed class name from .file-name to .file-info for consistency */
   margin-top: 20px; /* More space above file info */
   margin-bottom: 30px; /* More space below file info */
   font-size: 0.95rem;
@@ -343,7 +352,8 @@
     cursor: pointer;
     font-size: 1.1rem; /* Larger font for main action */
     font-weight: 600;
-    transition: background-color 0.3s ease, transform 0.1s ease, box-shadow 0.2s ease;
+    transition: background-color 0.3s ease, transform 0.1s ease,
+      box-shadow 0.2s ease;
     box-shadow: 0 4px 10px -2px rgba($base-primary, 0.4);
 
     &:disabled {

@@ -18,11 +18,19 @@
         <label class="group-label">Gruppieren nach:</label>
         <div class="checkbox-options">
           <label>
-            <input type="checkbox" v-model="groupBy.standort" @change="groupLogs" />
+            <input
+              type="checkbox"
+              v-model="groupBy.standort"
+              @change="groupLogs"
+            />
             Standort
           </label>
           <label>
-            <input type="checkbox" v-model="groupBy.monat" @change="groupLogs" />
+            <input
+              type="checkbox"
+              v-model="groupBy.monat"
+              @change="groupLogs"
+            />
             Monat
           </label>
           <label>
@@ -30,7 +38,11 @@
             Tag
           </label>
           <label>
-            <input type="checkbox" v-model="groupBy.benutzer" @change="groupLogs" />
+            <input
+              type="checkbox"
+              v-model="groupBy.benutzer"
+              @change="groupLogs"
+            />
             Benutzer
           </label>
           <label>
@@ -47,7 +59,6 @@
           <option value="timestamp_asc">Älteste zuerst</option>
         </select>
       </div>
-
     </div>
 
     <div v-if="Object.keys(groupedLogs).length > 0">
@@ -58,7 +69,9 @@
       ></verlauf-group>
     </div>
     <div v-else class="no-logs-message">
-      <p v-if="searchQuery">Keine Einträge für die Suche nach "{{ searchQuery }}" gefunden.</p>
+      <p v-if="searchQuery">
+        Keine Einträge für die Suche nach "{{ searchQuery }}" gefunden.
+      </p>
       <p v-else>Keine Log-Einträge vorhanden.</p>
     </div>
   </div>
@@ -84,8 +97,8 @@ export default {
         benutzer: false,
         art: false,
       },
-      sortBy: 'timestamp_desc',
-      searchQuery: '', // HINZUGEFÜGT: Zustand für das Suchfeld
+      sortBy: "timestamp_desc",
+      searchQuery: "", // HINZUGEFÜGT: Zustand für das Suchfeld
       groupedLogs: {},
     };
   },
@@ -97,16 +110,16 @@ export default {
 
       // 1. HINZUGEFÜGT: Filter-Logik anwenden
       if (searchTerm) {
-        processed = processed.filter(log => {
+        processed = processed.filter((log) => {
           // Suche in der Anmerkung (Groß-/Kleinschreibung ignorieren)
           const annotationMatch =
-            log.anmerkung &&
-            log.anmerkung.toLowerCase().includes(searchTerm);
+            log.anmerkung && log.anmerkung.toLowerCase().includes(searchTerm);
 
           // Suche in den Item-Bezeichnungen
-          const itemMatch = log.items.some(item =>
-            item.bezeichnung &&
-            item.bezeichnung.toLowerCase().includes(searchTerm)
+          const itemMatch = log.items.some(
+            (item) =>
+              item.bezeichnung &&
+              item.bezeichnung.toLowerCase().includes(searchTerm)
           );
 
           return annotationMatch || itemMatch;
@@ -115,15 +128,19 @@ export default {
 
       // 2. Bestehende Sortier-Logik auf die (gefilterten) Ergebnisse anwenden
       switch (this.sortBy) {
-        case 'timestamp_asc':
-          processed.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        case "timestamp_asc":
+          processed.sort(
+            (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+          );
           break;
-        case 'timestamp_desc':
+        case "timestamp_desc":
         default:
-          processed.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+          processed.sort(
+            (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+          );
           break;
       }
-      
+
       return processed;
     },
     activeGroupsArray() {
@@ -158,7 +175,10 @@ export default {
       data.forEach((item) => {
         const groupKey =
           key === "monat"
-            ? new Date(item.timestamp).toLocaleString("de-DE", { month: "long", year: "numeric" })
+            ? new Date(item.timestamp).toLocaleString("de-DE", {
+                month: "long",
+                year: "numeric",
+              })
             : key === "tag"
             ? new Date(item.timestamp).toLocaleDateString("de-DE")
             : item[key] || "Unbekannt";
@@ -177,7 +197,7 @@ export default {
       if (activeGroups.length > 0 && dataToGroup.length > 0) {
         this.groupedLogs = this.groupByKeys(dataToGroup, activeGroups);
       } else if (dataToGroup.length > 0) {
-        this.groupedLogs = { 'Alle Ergebnisse': dataToGroup };
+        this.groupedLogs = { "Alle Ergebnisse": dataToGroup };
       } else {
         this.groupedLogs = {}; // Keine Ergebnisse, leeres Objekt
       }
@@ -194,8 +214,7 @@ export default {
 </script>
 
 <style scoped lang="scss">
-@import "@/assets/styles/global.scss"; 
-
+@import "@/assets/styles/global.scss";
 
 .window {
   // Jetzt weisen Sie die Sass-Variablen (oder berechnete Sass-Farben) den CSS-Variablen zu
@@ -204,12 +223,12 @@ export default {
   --c-tertiary-bg: #{$base-input-bg};
   --c-border: #{$base-border-color};
   --c-primary: #{$base-primary}; // Zuweisen der Sass-Variable zur CSS-Variable
-  --c-primary-light: #{lighten($base-primary, 20%)}; // Verwenden Sie hier die Sass-Funktion
+  --c-primary-light: #{color.adjust($base-primary, $lightness: 20%)};
   --c-text-primary: #{$base-text-dark};
   --c-text-secondary: #{$base-text-notsodark};
   --c-text-light: #{$base-text-medium};
 
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; // Konsistente Schriftart
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; // Konsistente Schriftart
   background-color: var(--c-bg);
   color: var(--c-text-primary);
   min-height: 100vh;
@@ -218,7 +237,7 @@ export default {
   padding: 30px; // Mehr Innenabstand
   box-sizing: border-box;
   border-radius: 12px; // Abgerundetere Ecken
-  box-shadow: 0px 6px 12px rgba(0,0,0,0.08); // Sanfterer Schatten
+  box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.08); // Sanfterer Schatten
 }
 
 .discrete {
@@ -245,7 +264,7 @@ export default {
   background-color: var(--c-surface);
   border-radius: 10px; // Abgerundetere Ecken
   border: 1px solid var(--c-border);
-  box-shadow: 0px 4px 8px rgba(0,0,0,0.05); // Leichterer Schatten
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.05); // Leichterer Schatten
 }
 
 .control-group {
@@ -299,12 +318,13 @@ select {
 
   &:hover {
     // Wenn Sie einen spezifischen Hover-Effekt auf dem Rand wünschen, verwenden Sie eine Sass-Farbe direkt
-    border-color: lighten($base-primary, 20%);
-  }
+border-color: color.adjust($base-primary, $lightness: 20%);  }
 
   &:focus {
     outline: none;
-    border-color: var(--c-primary); // Verwenden Sie die CSS-Variable für die Primärfarbe zur Laufzeit
+    border-color: var(
+      --c-primary
+    ); // Verwenden Sie die CSS-Variable für die Primärfarbe zur Laufzeit
     box-shadow: 0 0 0 3px rgba($base-primary, 0.2); // Verwenden Sie die Sass-Variable für die rgba-Farbmanipulation
   }
 }
@@ -363,6 +383,6 @@ input[type="checkbox"] {
   border-radius: 10px; // Konsistente Rundung
   color: var(--c-text-secondary);
   border: 1px solid var(--c-border); // Leichter Rahmen
-  box-shadow: 0px 2px 4px rgba(0,0,0,0.03); // Leichter Schatten
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.03); // Leichter Schatten
 }
 </style>

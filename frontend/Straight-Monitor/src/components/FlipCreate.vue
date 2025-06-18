@@ -962,7 +962,7 @@ Object.entries(groupMappings).forEach(([key, groupType]) => {
 
         &:hover {
           color: white;
-          background-color: darken($base-primary, 8%);
+        background-color: color.adjust($base-primary, $lightness: -8%);
           text-decoration: none;
           box-shadow: 0 2px 6px -1px rgba($base-primary, 0.4);
         }
@@ -1005,7 +1005,7 @@ Object.entries(groupMappings).forEach(([key, groupType]) => {
 
       &:hover {
         box-shadow: 0 4px 10px -2px rgba($base-primary, 0.6);
-        background-color: darken($base-primary, 8%);
+        background-color: color.adjust($base-primary, $lightness: -8%);
         transform: translateY(-2px);
       }
       &:disabled {
@@ -1100,7 +1100,7 @@ Object.entries(groupMappings).forEach(([key, groupType]) => {
   text-decoration: none;
   transition: color 0.2s ease;
   &:hover {
-    color: darken($base-primary, 10%);
+    color: color.adjust($base-primary, $lightness: -10%);
     text-decoration: underline;
   }
 }
@@ -1158,7 +1158,7 @@ Object.entries(groupMappings).forEach(([key, groupType]) => {
   &:hover {
     transform: none;
     box-shadow: none;
-    border-color: darken($base-border-color, 10%);
+    border-color: color.adjust($base-primary, $lightness: -8%);
   }
 }
 
