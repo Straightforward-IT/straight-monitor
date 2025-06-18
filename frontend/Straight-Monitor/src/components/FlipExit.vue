@@ -90,12 +90,14 @@
   };
   </script>
   
-  <style scoped>
+  <style scoped lang="scss">
+@import "@/assets/styles/global.scss"; 
+
 .window {
   width: 600px;
   margin: auto;
   padding: 20px;
-  background-color: #f9f9f9;
+  background-color: $base-panel-bg;
   border-radius: 8px;
   box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
   text-align: center;
@@ -111,7 +113,7 @@
 .file-name {
   margin-top: 15px;
   font-size: 14px;
-  color: gray;
+  color: $base-text-notsodark;
 }
 .file-name p {
   margin: 0;
@@ -124,7 +126,7 @@
 .upload-section label {
   display: inline-block;
   padding: 10px 20px;
-  background-color: #f69e6f;
+  background-color: $base-primary;
   color: white;
   font-size: 14px;
   font-weight: bold;
@@ -136,11 +138,11 @@
 }
 
 .upload-section label:hover {
-  background-color: #e6584f;
+  background-color: $base-secondary-accent;
 }
 
 .upload-section label:active {
-  background-color: #cc5045;
+  background-color: $base-tertiary-accent;
 }
 
 .drag-drop-area {
@@ -159,20 +161,20 @@
 }
 
 .drag-drop-area:hover {
-  background-color: #f3f3f3;
+  background-color: $base-input-bg;
   color: #000;
 }
 
 .drag-drop-area:active {
-  background-color: #e0e0e0;
-  border-color: #cc5045;
+  background-color: $base-border-color;
+  border-color: $base-tertiary-accent;
 }
 
 
 button {
   margin: 10px;
   padding: 10px 20px;
-  background-color: #f69e6f;
+  background-color: $base-primary;
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -185,6 +187,6 @@ button:disabled {
 }
 
 button:hover:not(:disabled) {
-  background-color: #f69e6f;
+  background-color: $base-primary;
 }
 </style>

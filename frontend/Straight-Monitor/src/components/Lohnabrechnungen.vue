@@ -225,21 +225,8 @@ export default {
 </script>
 
 <style scoped lang="scss">
-// Define Sass variables for base colors
-$base-primary: #f69e6f; // Main action color (orange)
-$base-secondary-accent: #e6584f; // Darker orange for hover
-$base-tertiary-accent: #cc5045; // Even darker orange for active
-$base-success: #4caf50; // Green for success/action button
-$base-success-hover: #43a047; // Darker green for hover
-$base-success-active: #388e3c; // Even darker green for active
-$base-light-gray: #f9f9f9; // Window background
-$base-panel-bg: #ffffff; // Panel background
-$base-border-color: #e0e0e0; // General border color
-$base-text-dark: #333333; // Main text color
-$base-text-medium: #808080; // Medium gray for hints/disabled
-$base-text-light: #a0a0a0; // Lighter gray for drag/drop hint
-$base-error: #ff0000; // Error message color
-$base-disabled-bg: #cccccc; // Disabled button background
+@import "@/assets/styles/global.scss"; 
+
 
 .window {
   /* Assign Sass variables to CSS custom properties */

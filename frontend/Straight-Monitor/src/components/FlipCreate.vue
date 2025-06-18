@@ -898,13 +898,8 @@ Object.entries(groupMappings).forEach(([key, groupType]) => {
 };
 </script>
 
-<style scoped lang="scss">$primary: #f69e6f;
-$secondary-background: #ffffff; // Panels and modal
-$tertiary-background: #f9f9f9; // Input fields, hints
-$border-color: #e0e0e0;
-$text-color-dark: #333333;
-$text-color-medium: #555555;
-$text-color-light: #777777;
+<style scoped lang="scss">
+@import "@/assets/styles/global.scss"; 
 
 #app {
   max-width: unset;
@@ -914,7 +909,7 @@ $text-color-light: #777777;
   width: 1600px;
   margin: 30px auto;
   padding: 30px;
-  background-color: #f7f7f7;
+  background-color: #fafafa;
   border-radius: 12px;
   box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.08);
 }
@@ -927,7 +922,7 @@ $text-color-light: #777777;
 .create-panel,
 .second-panel {
   padding: 25px;
-  background-color: $secondary-background;
+  background-color: $base-panel-bg;
   border-radius: 10px;
   box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.05);
 }
@@ -941,14 +936,14 @@ $text-color-light: #777777;
   .top-panel,
   .bottom-panel {
     padding: 20px;
-    background-color: $secondary-background;
+    background-color: $base-panel-bg;
     border-radius: 8px;
     box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.03);
   }
 
   .top-panel {
     h2 {
-      color: $text-color-dark;
+      color: $base-text-dark;
       font-size: 1.8rem;
       margin-bottom: 15px;
     }
@@ -957,8 +952,8 @@ $text-color-light: #777777;
 
       button {
         background-color: transparent;
-        color: $primary;
-        border: 1px solid $primary;
+        color: $base-primary;
+        border: 1px solid $base-primary;
         border-radius: 5px;
         cursor: pointer;
         font-weight: 500;
@@ -967,22 +962,22 @@ $text-color-light: #777777;
 
         &:hover {
           color: white;
-          background-color: darken($primary, 8%);
+          background-color: darken($base-primary, 8%);
           text-decoration: none;
-          box-shadow: 0 2px 6px -1px rgba($primary, 0.4);
+          box-shadow: 0 2px 6px -1px rgba($base-primary, 0.4);
         }
       }
     }
 
     .hinweise {
-      background-color: #fdf2e9;
+      background-color: $base-highlight-accent;
       padding: 15px;
       border-radius: 8px;
-      border-left: 4px solid $primary;
+      border-left: 4px solid $base-primary;
       margin-bottom: 15px;
 
       h3 {
-        color: $text-color-dark;
+        color: $base-text-dark;
         margin-bottom: 8px;
         font-size: 1.05rem;
       }
@@ -990,7 +985,7 @@ $text-color-light: #777777;
       p {
         margin: 4px 0;
         font-size: 0.95rem;
-        color: $text-color-medium;
+        color: $base-text-notsodark;
       }
     }
   }
@@ -1002,15 +997,15 @@ $text-color-light: #777777;
       height: 2.8rem;
       font-size: 1.1rem;
       border-radius: 8px;
-      background-color: $primary;
+      background-color: $base-primary;
       color: white;
       border: none;
       cursor: pointer;
       transition: all 0.3s ease;
 
       &:hover {
-        box-shadow: 0 4px 10px -2px rgba($primary, 0.6);
-        background-color: darken($primary, 8%);
+        box-shadow: 0 4px 10px -2px rgba($base-primary, 0.6);
+        background-color: darken($base-primary, 8%);
         transform: translateY(-2px);
       }
       &:disabled {
@@ -1034,27 +1029,27 @@ $text-color-light: #777777;
   h3 {
     font-size: 1.5rem;
     font-weight: 600;
-    color: $text-color-dark;
-    border-bottom: 2px solid $primary;
+    color: $base-text-dark;
+    border-bottom: 2px solid $base-primary;
     padding-bottom: 8px;
     margin-bottom: 15px;
   }
 
   h4 {
     font-size: 1.2rem;
-    color: $text-color-dark;
+    color: $base-text-dark;
     margin: 8px 0;
     font-weight: 500;
   }
 
   p {
     font-size: 1rem;
-    color: $text-color-medium;
+    color: $base-text-notsodark;
     line-height: 1.6;
     margin: 6px 0;
 
     strong {
-      color: $text-color-dark;
+      color: $base-text-dark;
       font-weight: 600;
     }
   }
@@ -1063,16 +1058,16 @@ $text-color-light: #777777;
     background: #fdfdfd;
     padding: 15px;
     border-radius: 8px;
-    border: 1px solid $border-color;
+    border: 1px solid $base-border-color;
     max-height: 250px;
     overflow-y: auto;
     line-height: 1.5;
-    color: $text-color-medium;
+    color: $base-text-notsodark;
   }
 
   .no-data {
     text-align: center;
-    color: $text-color-light;
+    color: $base-text-light;
     font-size: 0.95rem;
     margin-top: 20px;
   }
@@ -1080,32 +1075,32 @@ $text-color-light: #777777;
 
 .input-label {
   display: block;
-  border-bottom: 1px solid $primary;
+  border-bottom: 1px solid $base-primary;
   padding-bottom: 4px;
   margin-bottom: 12px; /* Increased space between label and input */
   font-weight: 500;
-  color: $text-color-dark;
+  color: $base-text-dark;
 }
 .check-label {
   display: flex;
   align-items: center;
   height: 2rem;
-  border-left: 2px solid $primary;
+  border-left: 2px solid $base-primary;
   padding-left: 10px;
   user-select: none;
   font-size: 0.95rem;
-  color: $text-color-medium;
+  color: $base-text-notsodark;
   /* No direct margin here, relying on check-item gap */
 }
 
 .discrete {
   margin: 15px;
-  color: $text-color-light;
+  color: $base-text-light;
   font-weight: 600;
   text-decoration: none;
   transition: color 0.2s ease;
   &:hover {
-    color: darken($primary, 10%);
+    color: darken($base-primary, 10%);
     text-decoration: underline;
   }
 }
@@ -1119,13 +1114,13 @@ $text-color-light: #777777;
 }
 
 .checkbox-group {
-  background-color: $tertiary-background;
+  background-color: $base-input-bg;
   display: grid;
   border-radius: 8px;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 20px; /* Increased gap for more space between checkboxes */
   padding: 20px; /* Increased padding inside the checkbox group */
-  border: 1px solid $border-color;
+  border: 1px solid $base-border-color;
   margin-top: 25px; /* Added vertical spacing from the group above */
   margin-bottom: 25px; /* Added vertical spacing from the group below */
 }
@@ -1147,22 +1142,23 @@ $text-color-light: #777777;
 .standort-dropdown {
   flex-grow: 1;
   border-radius: 8px;
-  background-color: $tertiary-background;
-  border: 1px solid $border-color;
+  background-color: $base-input-bg;
+  border: 1px solid $base-border-color;
   padding: 12px;
   font-size: 1rem;
-  color: $text-color-dark;
+  color: $base-text-dark;
   transition: all 0.3s ease;
+  cursor: pointer;
 
   &:focus {
     outline: none;
-    border-color: $primary;
-    box-shadow: 0 0 0 3px rgba($primary, 0.2);
+    border-color: $base-primary;
+    box-shadow: 0 0 0 3px rgba($base-primary, 0.2);
   }
   &:hover {
     transform: none;
     box-shadow: none;
-    border-color: darken($border-color, 10%);
+    border-color: darken($base-border-color, 10%);
   }
 }
 
@@ -1179,7 +1175,7 @@ $text-color-light: #777777;
   height: 18px;
   min-width: 18px;
   min-height: 18px;
-  accent-color: $primary;
+  accent-color: $base-primary;
   transition: transform 0.2s ease;
 
   &:hover {
@@ -1194,7 +1190,7 @@ $text-color-light: #777777;
   background: rgba(0, 0, 0, 0.6);
 }
 .modal-content {
-  background: $secondary-background;
+  background: $base-panel-bg;
   padding: 35px;
   border-radius: 12px;
   width: 400px;
@@ -1205,17 +1201,17 @@ $text-color-light: #777777;
     top: 15px;
     right: 15px;
     font-size: 1.5rem;
-    color: $text-color-light;
+    color: $base-text-light;
     cursor: pointer;
     transition: color 0.2s ease;
     &:hover {
-      color: $text-color-dark;
+      color: $base-text-dark;
     }
   }
 
   h4 {
     font-size: 1.3rem;
-    color: $text-color-dark;
+    color: $base-text-dark;
     margin-bottom: 20px;
     font-weight: 600;
   }
@@ -1231,20 +1227,20 @@ $text-color-light: #777777;
     .mitarbeiter-list {
       max-height: 250px;
       border-radius: 6px;
-      border: 1px solid $border-color;
+      border: 1px solid $base-border-color;
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 
       li {
         padding: 12px 15px;
         font-size: 0.95rem;
-        color: $text-color-dark;
+        color: $base-text-dark;
         &:not(:last-child) {
           border-bottom: 1px solid #f0f0f0;
         }
 
         &.highlighted,
         &:hover {
-          background-color: $primary;
+          background-color: $base-primary;
           color: white;
         }
       }

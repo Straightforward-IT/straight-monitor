@@ -84,6 +84,7 @@
   
   <style scoped lang="scss">
   @import "@/assets/styles/login.scss";
+@import "@/assets/styles/global.scss"; 
   
   .email-confirmation {
     display: flex;
@@ -110,7 +111,7 @@
   }
   
   .message {
-    color: $primary;
+    color: $base-primary;
     font-weight: bold;
     margin-bottom: 20px;
   }
@@ -120,7 +121,7 @@
     margin-top: 20px;
     padding: 10px 20px;
     color: #fff;
-    background-color: $primary;
+    background-color: $base-primary;
     border-radius: 5px;
     text-decoration: none;
     font-weight: bold;
@@ -128,7 +129,7 @@
   }
   
   .app-link:hover {
-  background-color: color-mix(in srgb, white 10%, var(--primary));
+  background-color: color-mix(in srgb, white 10%, var(--base-primary));
 }
   
   .email-input {
@@ -145,7 +146,7 @@
     margin-top: 15px;
     padding: 10px 20px;
     color: #fff;
-    background-color: $primary;
+    background-color: $base-primary;
     border: none;
     border-radius: 5px;
     cursor: pointer;
@@ -158,7 +159,7 @@
   }
   
   button:hover:not(:disabled) {
-    background-color: color-mix(in srgb, white 10%, var(--primary));
+    background-color: color-mix(in srgb, white 10%, var(--base-primary));
   }
   </style>
   

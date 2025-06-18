@@ -194,28 +194,20 @@ export default {
 </script>
 
 <style scoped lang="scss">
-/* --- CLEAN STYLES (inkl. Suche & Sortierung) --- */
+@import "@/assets/styles/global.scss"; 
 
-// Definieren Sie Ihre Basisfarben als Sass-Variablen
-$base-primary: #f69e6f; // Ihr Original-Primärorange
-$base-secondary-background: #ffffff;
-$base-tertiary-bg: #f9f9f9;
-$base-border: #e0e0e0;
-$base-text-primary: #333333;
-$base-text-secondary: #555555;
-$base-text-light: #777777;
 
 .window {
   // Jetzt weisen Sie die Sass-Variablen (oder berechnete Sass-Farben) den CSS-Variablen zu
   --c-bg: #f7f7f7; // Kann auch eine Sass-Variable sein, z.B. $base-bg
-  --c-surface: #{$base-secondary-background};
-  --c-tertiary-bg: #{$base-tertiary-bg};
-  --c-border: #{$base-border};
+  --c-surface: #{$base-panel-bg};
+  --c-tertiary-bg: #{$base-input-bg};
+  --c-border: #{$base-border-color};
   --c-primary: #{$base-primary}; // Zuweisen der Sass-Variable zur CSS-Variable
   --c-primary-light: #{lighten($base-primary, 20%)}; // Verwenden Sie hier die Sass-Funktion
-  --c-text-primary: #{$base-text-primary};
-  --c-text-secondary: #{$base-text-secondary};
-  --c-text-light: #{$base-text-light};
+  --c-text-primary: #{$base-text-dark};
+  --c-text-secondary: #{$base-text-notsodark};
+  --c-text-light: #{$base-text-medium};
 
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; // Konsistente Schriftart
   background-color: var(--c-bg);
@@ -230,14 +222,17 @@ $base-text-light: #777777;
 }
 
 .discrete {
-  margin: 15px;
-  color: $base-text-light;
-  font-weight: 600;
-  text-decoration: none;
-  transition: color 0.2s ease;
+  display: inline-block;
+  padding: 5px 10px;
+  color: var(--c-text-medium);
+  text-decoration: none; /* No underline by default */
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: color 0.2s ease; /* Transition only color */
+
   &:hover {
-    color: darken($base-text-primary, 10%);
-    text-decoration: underline;
+    color: var(--c-primary); /* Primary color on hover */
+    /* text-decoration: underline; -- Removed as requested */
   }
 }
 

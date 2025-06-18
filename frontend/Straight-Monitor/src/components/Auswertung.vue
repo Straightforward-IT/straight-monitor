@@ -223,7 +223,8 @@ export default {
 
 
 <style scoped lang="scss"> 
-$primary: #f69e6f;
+@import "@/assets/styles/global.scss"; 
+
 
 .window {
   width: 1600px;
@@ -288,7 +289,7 @@ h2 {
 button {
   margin: 5px;
   padding: 10px 15px;
-  background-color: $primary;
+  background-color: $base-primary;
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -296,7 +297,7 @@ button {
 }
 
 button:hover {
-  background-color: $primary;
+  background-color: $base-primary;
   &:hover {
       transform: translateY(-3px);
       box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);

@@ -164,7 +164,7 @@ form{
 }
 
 .modal-content button {
-  background-color: primary;
+  background-color: $primary;
   color: white;
   border: none;
   padding: 10px 20px;
@@ -175,7 +175,7 @@ form{
 }
 
 .modal-content button:hover {
-  background-color: primary;
+  background-color: $primary;
 }
 
 </style>

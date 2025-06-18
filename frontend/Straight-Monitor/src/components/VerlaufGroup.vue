@@ -128,14 +128,19 @@ export default {
 </script>
 
 <style scoped lang="scss">
-// Definieren Sie Ihre Basisfarben als Sass-Variablen, spiegeln Sie Verlauf.vue
-$base-primary: #f69e6f;
-$base-secondary-background: #ffffff;
-$base-tertiary-bg: #f9f9f9;
-$base-border: #e0e0e0; // <-- This is the Sass variable you need
-$base-text-primary: #333333;
-$base-text-secondary: #555555;
 
+@import "@/assets/styles/global.scss"; 
+
+
+:root { 
+  --c-primary: #{$base-primary};
+  --c-primary-light: #{lighten($base-primary, 20%)}; 
+  --c-surface: #{$base-panel-bg}; 
+  --c-tertiary-bg: #{$base-light-gray}; 
+  --c-border: #{$base-border-color};
+  --c-text-primary: #{$base-text-dark};
+  --c-text-secondary: #{$base-text-medium}; 
+}
 
 
 .group-header {
@@ -144,21 +149,21 @@ $base-text-secondary: #555555;
   align-items: center;
   padding: 1rem 1.25rem; // Mehr Padding
   margin-top: 1rem; // Mehr Abstand nach oben
-  background-color: var(--c-surface);
-  border-left: 5px solid var(--c-primary); // Dickerer Primärfarb-Streifen
+  background-color: var(--c-surface); // Nutzt CSS Variable
+  border-left: 5px solid var(--c-primary); // Nutzt CSS Variable
   border-radius: 0 8px 8px 0; // Abgerundetere Ecken
   cursor: pointer;
   transition: background-color 0.2s ease, box-shadow 0.2s ease;
   &:hover {
-    background-color: var(--c-primary-light); // Dies verwendet bereits eine CSS-Variable
+    background-color: var(--c-primary-light); // Nutzt CSS Variable (berechnet)
     box-shadow: 0 2px 8px rgba(0,0,0,0.05); // Leichter Schatten auf Hover
   }
   // Level-basierte Hintergrundfarbe für Verschachtelung
   @for $i from 0 through 5 {
     &[data-level="#{$i}"] {
       // Verwenden Sie Sass-Variablen für mix() und darken()
-      background-color: mix($base-secondary-background, $base-tertiary-bg, $i * 10%);
-      border-left: 5px solid darken($base-primary, $i * 5%);
+      background-color: mix($base-panel-bg, $base-light-gray, $i * 10%); // Nutzt $base- Variablen
+      border-left: 5px solid darken($base-primary, $i * 5%); // Nutzt $base- Variablen
     }
   }
 }
@@ -167,11 +172,11 @@ $base-text-secondary: #555555;
   margin: 0;
   font-size: 1.2rem; // Etwas größere Schrift für Gruppentitel
   font-weight: 600;
-  color: var(--c-text-primary);
+  color: var(--c-text-primary); // Nutzt CSS Variable
 }
 
 .expand-icon {
-  color: var(--c-text-secondary);
+  color: var(--c-text-secondary); // Nutzt CSS Variable
   transition: transform 0.2s ease;
   &.small {
     font-size: 0.9em; // Etwas größere Icons für Log-Karten
@@ -189,8 +194,8 @@ $base-text-secondary: #555555;
 }
 
 .log-card {
-  background-color: var(--c-surface);
-  border: 1px solid var(--c-border);
+  background-color: var(--c-surface); // Nutzt CSS Variable
+  border: 1px solid var(--c-border); // Nutzt CSS Variable
   border-radius: 8px; // Abgerundetere Ecken
   margin-bottom: 1.5rem; // Mehr Abstand zwischen Log-Karten
   transition: box-shadow 0.2s ease, transform 0.2s ease;
@@ -207,8 +212,8 @@ $base-text-secondary: #555555;
   align-items: center;
   padding: 1rem 1.25rem; // Mehr Padding
   cursor: pointer;
-  background-color: var(--c-tertiary-bg); // Leichter Hintergrund für Header
-  border-bottom: 1px solid var(--c-border); // Trennlinie zum Inhalt
+  background-color: var(--c-tertiary-bg); // Nutzt CSS Variable
+  border-bottom: 1px solid var(--c-border); // Nutzt CSS Variable
 }
 
 .log-meta {
@@ -217,9 +222,9 @@ $base-text-secondary: #555555;
   gap: 0.75rem 2rem; // Mehr Abstand zwischen den Meta-Infos
   span {
     font-size: 0.9rem; // Etwas größere Schrift
-    color: var(--c-text-secondary);
+    color: var(--c-text-secondary); // Nutzt CSS Variable
     strong {
-      color: var(--c-text-primary);
+      color: var(--c-text-primary); // Nutzt CSS Variable
     }
   }
 }
@@ -228,16 +233,16 @@ $base-text-secondary: #555555;
   font-size: 0.95rem; // Etwas größere Schrift
   padding: 1rem 1.25rem; // Mehr Padding
   margin: 0;
-  background: var(--c-primary-light); // Dies verwendet bereits eine CSS-Variable
-  color: var(--c-text-primary);
-  border-top: 1px solid var(--c-border);
-  border-bottom: 1px solid var(--c-border);
+  background: var(--c-primary-light); // Nutzt CSS Variable (berechnet)
+  color: var(--c-text-primary); // Nutzt CSS Variable
+  border-top: 1px solid var(--c-border); // Nutzt CSS Variable
+  border-bottom: 1px solid var(--c-border); // Nutzt CSS Variable
   line-height: 1.5; // Bessere Lesbarkeit
 }
 
 .log-details {
   padding: 1.25rem; // Mehr Padding
-  background-color: var(--c-bg); // Hintergrund aus Farbvariable
+  background-color: var(--c-tertiary-bg); // Nutzt CSS Variable (war --c-bg)
 }
 
 .item-detail {
@@ -246,8 +251,7 @@ $base-text-secondary: #555555;
   gap: 1.25rem; // Mehr Abstand zwischen Item-Details
   padding: 0.75rem 0; // Mehr vertikales Padding
   font-size: 0.95rem;
-  // FIX: Use $base-border for lighten()
-  border-bottom: 1px dashed lighten($base-border, 10%); // Gestrichelte, hellere Linie
+  border-bottom: 1px dashed lighten($base-border-color, 10%); // Nutzt $base- Variable
   &:last-child {
     border-bottom: none;
   }
@@ -255,18 +259,18 @@ $base-text-secondary: #555555;
 
 .item-number {
   font-weight: 700; // Fetter
-  color: var(--c-primary); // Dies verwendet bereits eine CSS-Variable
+  color: var(--c-primary); // Nutzt CSS Variable
   width: 2.5rem; // Feste Breite für Nummer, zur Ausrichtung
   flex-shrink: 0;
 }
 
 .item-name {
   flex-grow: 1;
-  color: var(--c-text-primary);
+  color: var(--c-text-primary); // Nutzt CSS Variable
 }
 
 .item-info {
-  color: var(--c-text-secondary);
+  color: var(--c-text-secondary); // Nutzt CSS Variable
   white-space: nowrap;
 }
 

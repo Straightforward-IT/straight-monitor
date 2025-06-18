@@ -197,15 +197,7 @@
   </script>
   
 <style scoped lang="scss">
-/* Define Sass variables for base colors */
-$base-primary: #f69e6f;
-$base-secondary-accent: #e6584f; // A slightly darker accent for hover/active states
-$base-tertiary-accent: #cc5045; // Even darker accent
-$base-light-gray: #f9f9f9;
-$base-medium-gray: #ccc;
-$base-dark-gray: #808080; // Adjusted for clearer text on gray backgrounds
-$base-text-color: #000;
-$base-border-color: #e0e0e0;
+@import "@/assets/styles/global.scss"; 
 
 .window {
   /* Assign Sass variables to CSS custom properties */
@@ -215,9 +207,9 @@ $base-border-color: #e0e0e0;
   --c-primary-hover: #{$base-secondary-accent};
   --c-primary-active: #{$base-tertiary-accent};
   --c-border: #{$base-border-color};
-  --c-text-dark: #{$base-text-color};
-  --c-text-medium: #{$base-dark-gray}; // Used for hints, drag/drop text
-  --c-disabled-bg: #{$base-medium-gray};
+  --c-text-dark: #{$base-text-dark};
+  --c-text-medium: #{$base-straight-gray}; // Used for hints, drag/drop text
+  --c-disabled-bg: #{$base-text-medium};
   --c-drag-drop-hover: #{lighten($base-light-gray, 2%)};
   --c-drag-drop-active: #{darken($base-light-gray, 5%)};
 
@@ -244,7 +236,7 @@ $base-border-color: #e0e0e0;
 
 .discrete {
   margin: 15px;
-  color: $base-medium-gray;
+  color: $base-text-medium;
   font-weight: 600;
   text-decoration: none;
   transition: color 0.2s ease;

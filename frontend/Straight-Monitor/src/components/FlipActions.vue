@@ -50,7 +50,7 @@
   </script>
   
   <style scoped lang="scss">
-  @import "@/assets/styles/dashboard.scss";
+ @import "@/assets/styles/global.scss"; 
 
   .shortcuts {
     text-align: center;
@@ -62,10 +62,17 @@
   }
   
   .shortcut-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 5px;
+   font-size: 14px;
+    color: $base-straight-gray;
+    opacity: 0.65;
+    font-weight: 400;
+
+    .item-list-sf {
+      width: 30px; /* Adjust the width as needed */
+      height: auto; /* Maintain aspect ratio */
+      margin: 5px;
+      cursor: pointer;
+    }
   }
   
   .list-item {
