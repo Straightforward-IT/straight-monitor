@@ -22,6 +22,7 @@ const {
   getFlipTaskAssignments,
   markAssignmentAsCompleted,
   getFlipAssignments,
+  getFlipProfilePicture,
 } = require("../FlipService");
 const {
   findTasks,
@@ -67,6 +68,35 @@ const MONATSNAMEN = {
   11: "November",
   12: "Dezember",
 };
+const STADT_TEMPLATE_VARS = {
+  Hamburg: {
+    Sender_Name: "Alexandra Gridneva",
+    Strasse: "Gaußstraße",
+    Hausnummer: "124",
+    PLZ: "22765",
+    Stadt: "Hamburg",
+    Telefon: "+49 40 700 101 90",
+    Email: "teamhamburg@straightforward.email",
+  },
+  Berlin: {
+    Sender_Name: "Svenja Dischinger",
+    Strasse: "Straßmannstraße",
+    Hausnummer: "6",
+    PLZ: "10249",
+    Stadt: "Berlin",
+    Telefon: "+49 30 702 393 33",
+    Email: "teamberlin@straightforward.email",
+  },
+  Köln: {
+    Sender_Name: "Dominik Malter",
+    Strasse: "Zülpicher Str.",
+    Hausnummer: "85",
+    PLZ: "50937",
+    Stadt: "Köln",
+    Telefon: "+49 221 777 100 22",
+    Email: "teamkoeln@straightforward.email",
+  },
+};
 
 function normalizeUmlauts(str) {
   return str
@@ -91,8 +121,8 @@ function normalizeUmlautsForSort(str) {
     .replace(/ü/g, "ue")
     .replace(/ß/g, "ss")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // Diakritische Zeichen entfernen
-    .replace(/[^a-zA-Z]/g, ""); // Nur Buchstaben behalten
+    .replace(/[\u0300-\u036f]/g, "") // Diakritika entfernen
+    .replace(/[^a-z]/g, ""); // Nur Buchstaben behalten
 }
 
 router.get(
@@ -101,6 +131,17 @@ router.get(
   asyncHandler(async (req, res) => {
     const data = await getFlipUsers(req.query);
     res.status(200).json(data);
+  })
+);
+
+router.get(
+  "/flip/profilePicture/:id",
+  asyncHandler(async (req, res) => {
+    const id = req.params.id;
+    const { data, contentType } = await getFlipProfilePicture(id);
+
+    res.set("Content-Type", contentType);
+    res.send(Buffer.from(data, "binary"));
   })
 );
 
@@ -158,6 +199,88 @@ router.get(
     });
   })
 );
+
+router.patch(
+  "/mitarbeiter/:id",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Sicherheitsmaßnahme: Verhindern, dass kritische oder automatisch
+    // verwaltete Felder direkt über diesen Endpunkt geändert werden.
+    delete updateData._id;
+    delete updateData.dateCreated;
+    delete updateData.laufzettel_received;
+    delete updateData.laufzettel_submitted;
+    delete updateData.eventreports;
+    delete updateData.evaluierungen_received;
+    delete updateData.evaluierungen_submitted;
+
+    // Email immer in Kleinbuchstaben speichern, falls sie aktualisiert wird
+    if (updateData.email) {
+      updateData.email = updateData.email.toLowerCase();
+    }
+
+    try {
+      // Finde den Mitarbeiter und aktualisiere ihn in einem atomaren Vorgang.
+      // Die Option { new: true } sorgt dafür, dass das aktualisierte Dokument zurückgegeben wird.
+      // { runValidators: true } stellt sicher, dass Schema-Regeln (z.B. 'unique' für E-Mail) geprüft werden.
+      const mitarbeiter = await Mitarbeiter.findByIdAndUpdate(
+        id,
+        { $set: updateData }, // $set stellt sicher, dass nur die übergebenen Felder aktualisiert werden
+        {
+          new: true,
+          runValidators: true,
+          context: "query", // Wichtig für 'unique' Validatoren bei Updates
+        }
+      ).populate([
+        { path: "laufzettel_received", select: "_id name" },
+        { path: "laufzettel_submitted", select: "_id name" },
+        { path: "eventreports", select: "_id title" },
+        { path: "evaluierungen_received", select: "_id score" },
+        { path: "evaluierungen_submitted", select: "_id score" },
+      ]);
+
+      // Fall: Mitarbeiter mit der gegebenen ID wurde nicht gefunden.
+      if (!mitarbeiter) {
+        return res.status(404).json({
+          success: false,
+          message: "Mitarbeiter mit dieser ID nicht gefunden.",
+        });
+      }
+
+      // Erfolgreiche Antwort mit dem aktualisierten Mitarbeiter
+      res.status(200).json({
+        success: true,
+        data: mitarbeiter,
+      });
+    } catch (error) {
+      // Spezifisches Error-Handling für Duplikate (z.B. E-Mail oder asana_id)
+      if (error.code === 11000) {
+        const field = Object.keys(error.keyValue)[0];
+        return res.status(409).json({
+          // 409 Conflict
+          success: false,
+          message: `Ein Mitarbeiter mit diesem Wert für '${field}' existiert bereits.`,
+        });
+      }
+
+      // Generisches Error-Handling für andere Validierungsfehler
+      if (error.name === "ValidationError") {
+        return res.status(400).json({
+          success: false,
+          message: `Validierungsfehler: ${error.message}`,
+        });
+      }
+
+      // Alle anderen Fehler werden vom asyncHandler an die globale Fehlerbehandlung weitergeleitet
+      throw error;
+    }
+  })
+);
+
+module.exports = router;
 
 router.get(
   "/initialRoutine",
@@ -362,7 +485,14 @@ router.post(
       const workbook = xlsx.read(excelBuffer, { type: "buffer" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
-      const data = rows.slice(1).sort((a, b) => a[1]?.localeCompare(b[1]));
+      const data = rows
+  .slice(1)
+  .filter((row) =>
+    row.some((cell) => cell !== null && String(cell).trim() !== "")
+  )
+  .sort((a, b) =>
+    normalizeUmlautsForSort(a[1])?.localeCompare(normalizeUmlautsForSort(b[1]))
+  );
 
       console.log(`📊 Excel-Zeilen (ohne Header): ${data.length}`);
       if (pageCount < data.length) {
@@ -376,16 +506,35 @@ router.post(
       const jahr = new Date().getFullYear(); // Aktuelles Jahr für die Vorlage
       const monatLesbar = MONATSNAMEN[monat.padStart(2, "0")] || monat;
 
+      if (pageCount !== data.length) {
+        return res.status(400).json({
+          error: `Die Anzahl der PDF-Seiten (${pageCount}) stimmt nicht exakt mit der Anzahl der Excel-Zeilen (${data.length}) überein.`,
+        });
+      }
+
+      const stadtVars = STADT_TEMPLATE_VARS[stadt_full];
+      if (!stadtVars) {
+        return res.status(400).json({
+          error: `Unbekannter Standort "${stadt_full}". Keine Absenderdaten gefunden.`,
+        });
+      }
+
       for (let i = 0; i < data.length; i++) {
         const row = data[i];
-        const nachname = (row[1] || "Unbekannt").replace(
-          /[^a-zA-ZäöüÄÖÜß]/g,
-          ""
-        );
-        const vorname = (row[2] || "Mitarbeiter").replace(
-          /[^a-zA-ZäöüÄÖÜß]/g,
-          ""
-        );
+
+        const rawNachname = (row[1] || "Unbekannt").trim();
+        const rawVorname = (row[2] || "Mitarbeiter").trim();
+
+        const vorname = rawVorname;
+        const nachname = rawNachname;
+
+        const safeVorname = rawVorname
+          .replace(/[^a-zA-ZäöüÄÖÜß]/g, "")
+          .replace(/\s+/g, "_");
+        const safeNachname = rawNachname
+          .replace(/[^a-zA-ZäöüÄÖÜß]/g, "")
+          .replace(/\s+/g, "_");
+
         const email = row[8] || null;
 
         const outputPdf = await PDFDocument.create();
@@ -393,45 +542,41 @@ router.post(
         outputPdf.addPage(page);
 
         const fileBuffer = await outputPdf.save();
-        const filename = `${nachname}_${vorname}_Abrechnungen_${stadt}_${monat}.pdf`;
-
+        const filename = `${safeNachname}_${safeVorname}_Abrechnungen_${stadt}_${monat}.pdf`;
         zip.file(filename, fileBuffer);
-        console.log(`📎 Hinzugefügt: ${filename}`);
 
-        // --- NEUE E-MAIL VORLAGE ---
         const subject = `Lohnabrechnung Straightforward ${monatLesbar} ${jahr}`;
         const content = `
-          <div style="font-family: Arial, sans-serif; font-size: 11pt; color: #333;">
-            <p>Hallo ${vorname},</p>
-            <p>anbei deine Lohnabrechnung für ${monatLesbar} ${jahr}.</p>
-            <p>Melde dich bei Fragen gerne bei uns.</p>
-            <p>Beste Grüße</p>
-            <br>
-            <div style="line-height: 1.4;">
-                <p style="margin: 0;"><strong>Alexandra Gridneva</strong></p>
-                <p style="margin: 0;"><em>Team ${stadt_full}</em></p>
-                <br>
-                <p style="margin: 0;">Gaußstraße 124</p>
-                <p style="margin: 0;">22765 Hamburg</p>
-                <br>
-                <p style="margin: 0;">Tel: <a href="tel:+494070010190">+49 40 700 101 90</a></p>
-                <p style="margin: 0;">Mobil: <a href="tel:+4917643318482">+49 176 433 184 82</a></p>
-                <br>
-                <p style="margin: 0;"><a href="mailto:teamhamburg@straightforward.email">ag@straightforward.email</a></p>
-                <p style="margin: 0;"><a href="https://www.straightforward.services" target="_blank">www.straightforward.services</a></p>
-            </div>
-            <br>
-            <div style="font-size: 8pt; color: #666; line-height: 1.3;">
-                <p style="margin: 0;"><strong>H. & P. Straightforward GmbH</strong></p>
-                <p style="margin: 0;">Managing Partners: Daniel Hansen & Christian Peßler</p>
-                <p style="margin: 0;">Based in: Berlin HRB 180342 B</p>
-                <p style="margin: 0;">VAT no.: DE308384616</p>
-                <br>
-                <p style="margin: 0;"><em>Please consider the impact on the environment before printing this e-mail. This communication is confidential and may be legally privileged. If you are not the intended recipient, (i) please do not read or disclose to others, (ii) please notify the sender by reply mail, and (iii) please delete this communication from your system. Failure to follow this process may be unlawful. Thank you for your cooperation.</em></p>
-            </div>
-          </div>
-        `;
-        // --- ENDE VORLAGE ---
+    <div style="font-family: Arial, sans-serif; font-size: 11pt; color: #333;">
+      <p>Hallo ${vorname},</p>
+      <p>anbei deine Lohnabrechnung für ${monatLesbar} ${jahr}.</p>
+      <p>Melde dich bei Fragen gerne bei uns.</p>
+      <p>Beste Grüße</p>
+      <br>
+      <div style="line-height: 1.4;">
+          <p style="margin: 0;"><strong>${stadtVars.Sender_Name}</strong></p>
+          <p style="margin: 0;"><em>Team ${stadt_full}</em></p>
+          <br>
+          <p style="margin: 0;">${stadtVars.Strasse} ${stadtVars.Hausnummer}</p>
+          <p style="margin: 0;">${stadtVars.PLZ} ${stadtVars.Stadt}</p>
+          <br>
+          <p style="margin: 0;">Tel: <a href="tel:${stadtVars.Telefon}">${stadtVars.Telefon}</a></p>
+          <br>
+          <p style="margin: 0;"><a href="mailto:${stadtVars.Email}">${stadtVars.Email}</a></p>
+          <p style="margin: 0;"><a href="https://www.straightforward.services" target="_blank">www.straightforward.services</a></p>
+      </div>
+      <br>
+      <div style="font-size: 8pt; color: #666; line-height: 1.3;">
+          <p style="margin: 0;"><strong>H. & P. Straightforward GmbH</strong></p>
+          <p style="margin: 0;">Managing Partners: Daniel Hansen & Christian Peßler</p>
+          <p style="margin: 0;">Based in: Berlin HRB 180342 B</p>
+          <p style="margin: 0;">VAT no.: DE308384616</p>
+          <br>
+          <p style="margin: 0;"><em>Please consider the impact on the environment before printing this e-mail. This communication is confidential and may be legally privileged. If you are not the intended recipient, (i) please do not read or disclose to others, (ii) please notify the sender by reply mail, and (iii) please delete this communication from your system. Failure to follow this process may be unlawful. Thank you for your cooperation.</em></p>
+      </div>
+    </div>
+  `;
+
         const stadtSenderMap = {
           HH: "teamhamburg",
           B: "teamberlin",
@@ -442,14 +587,15 @@ router.post(
 
         try {
           await sendMail(
-            email || "it@straightforward.email", // Fallback-E-Mail, falls keine in Excel steht
+            // email ||
+            "it@straightforward.email",
             subject,
             content,
             senderKey,
             [
               {
                 name: filename,
-                content: Buffer.from(fileBuffer).toString("base64"), // Korrigierte Base64-Konvertierung
+                content: Buffer.from(fileBuffer).toString("base64"),
                 contentType: "application/pdf",
               },
             ]
@@ -751,10 +897,26 @@ router.get(
     try {
       let id = req.params.id;
       let flipUserFound = await findFlipUserById(id);
-      res.json(flipUserFound);
+      res.status(200).json(flipUserFound);
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
+  })
+);
+router.patch(
+  "/flip/user/:id",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    const response = await flipAxios.patch(
+      `/api/admin/users/v4/users/${id}`,
+      updateData,
+      { headers: { "content-type": "application/merge-patch+json" } }
+    );
+
+    res.status(200).json({ success: true, data: response.data });
   })
 );
 router.get(

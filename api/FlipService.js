@@ -13,7 +13,6 @@ const { sendMail } = require("./EmailService");
 const {
   findTasks,
   findAllTasks,
-  updateTaskHtmlNotes,
   addLinkToTask,
   bewerberRoutine,
   getTaskById,
@@ -376,6 +375,28 @@ async function getFlipUserGroups(params = {}) {
     throw new Error("Failed to fetch Flip user groups");
   }
 }
+
+async function getFlipProfilePicture(id) {
+  const url = `/media/avatars/${id}`;
+  try {
+    const response = await flipAxios.get(url, {
+      responseType: 'arraybuffer'
+    });
+
+    return {
+      data: response.data, // Binärdaten
+      contentType: response.headers['content-type'], // z.B. image/jpeg
+    };
+  } catch (error) {
+    console.error(
+      "❌ Error fetching Flip profile picture",
+      error.response?.data || error.message
+    );
+    throw new Error("Failed to fetch Flip Profile Picture");
+  }
+}
+
+
 async function getFlipUserGroupAssignments(params = {}) {
   try {
     if (!params.group_id) throw new Error("group_id is required");
@@ -854,6 +875,7 @@ module.exports = {
   getFlipUsers,
   getFlipUserGroups,
   getFlipUserGroupAssignments,
+  getFlipProfilePicture,
   findFlipUserByName,
   findFlipUserById,
   findMitarbeiterByName,

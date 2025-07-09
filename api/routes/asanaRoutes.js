@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/AsyncHandler");
-const { findTasks, getTaskById, getStoryById, getStoriesByTask, findAllTasks, updateTaskHtmlNotes, addLinkToTask, bewerberRoutine, createStoryOnTask} = require("../AsanaService");
+const { findTasks, getTaskById, getStoryById, getStoriesByTask, findAllTasks, updateTask, addLinkToTask, bewerberRoutine, createStoryOnTask} = require("../AsanaService");
 
 
 
@@ -19,9 +19,6 @@ router.get("/tasks", asyncHandler(async (req, res) => {
   }
 }));
 
-/**
- * Route: Fetch a single task by ID
- */
 router.get("/task/:id", asyncHandler(async (req, res) => {
     const taskId = req.params.id;
         const task = await getTaskById(taskId);
@@ -31,9 +28,8 @@ router.get("/task/:id", asyncHandler(async (req, res) => {
         }
         res.status(200).json({ message: "Task retrieved successfully", task });
 }));
-/**
- * Route: Fetch Schulungen Tasks and add links where needed
- */
+
+
 router.put("/schulungenTasks", asyncHandler(async (req, res) => {
     const opts = {   
         project: "1207931820284879", 
@@ -55,10 +51,37 @@ router.put("/updateTask/:gid", asyncHandler(async (req, res) => {
     const gid = req.params.gid;
     const htmlNotes = `<body><a href="https://straightmonitor.com/mitarbeiter/create/${gid}">Bewerber erstellen</a></body>`;
 
-    await updateTaskHtmlNotes(gid, htmlNotes);
+    await updateTask(gid, { html_notes: htmlNotes});
     res.status(200).json({ message: `✅ Task ${gid} updated successfully.` });
 }));
 
+router.patch("/updateTask/:gid", asyncHandler(async (req, res) => {
+  const { gid } = req.params;
+  const updateData = req.body;
+
+  // Validate that there is data in the body to update with
+  if (!updateData || Object.keys(updateData).length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Request body cannot be empty. Please provide fields to update.",
+    });
+  }
+
+  try {
+    const response = await updateTask(gid, updateData);
+    
+    res.status(200).json({
+      success: true,
+      message: `Task ${gid} updated successfully.`,
+      data: response.data // Send back the updated task from Asana
+    });
+  } catch (error) {
+    // The asyncHandler will forward the error, but we can add specific logging
+    console.error(`Error in PATCH /updateTask/${gid}:`, error.message);
+    // Let asyncHandler handle the response
+    throw error;
+  }
+}));
 /**
  * Route: Run Bewerber Routine (updates all necessary tasks)
  */

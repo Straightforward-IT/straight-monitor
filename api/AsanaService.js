@@ -43,7 +43,7 @@ async function processQueue() {
     activeRequests++;
 
     try {
-        await updateTaskHtmlNotes(task_gid, newHtmlNotes);
+        await updateTask(task_gid, { html_notes: newHtmlNotes });
     } catch (error) {
         console.error(`❌ Failed to update task ${task_gid}:`, error.message);
         if (error.response?.status === 429) {
@@ -111,37 +111,40 @@ async function findTasks(opts) {
 }
 
 /**
- * Update a Task's HTML Notes
+ * Generic function to update any field of a task
  */
-async function updateTaskHtmlNotes(task_gid, newHtmlNotes) {
+async function updateTask(task_gid, updateData, opts = {}) {
     const tasksApiInstance = initApi();
 
     try {
-        if (!task_gid || typeof newHtmlNotes !== "string" || newHtmlNotes.trim() === "") {
-            throw new Error(`Invalid parameters: task_gid=${task_gid}, newHtmlNotes=${newHtmlNotes}`);
+        // Validate input parameters
+        if (!task_gid || !updateData || Object.keys(updateData).length === 0) {
+            throw new Error("Task GID and a non-empty updateData object are required.");
         }
 
-        console.log(`🔄 Updating task: ${task_gid} with new notes...`);
+        console.log(`🔄 Updating task ${task_gid} with new data...`);
 
+        // The Asana API expects the payload to be wrapped in a 'data' object.
         const body = {
-            data: { html_notes: newHtmlNotes }
+            data: updateData
         };
-        console.log(body);
-        const response = await tasksApiInstance.updateTask(body, task_gid, {});
-        console.log(`✅ Task ${task_gid} updated successfully.`);
 
+        console.log("Request Body:", JSON.stringify(body, null, 2));
+        
+        const response = await tasksApiInstance.updateTask(body, task_gid, opts);
+        
+        console.log(`✅ Task ${task_gid} updated successfully.`);
         return response;
+
     } catch (error) {
-        if (error.response?.status === 429) {
-            console.warn(`⏳ Rate limit exceeded. Retrying task ${task_gid} in 5 seconds...`);
-            queueTaskUpdate(task_gid, newHtmlNotes);
-            await new Promise(resolve => setTimeout(resolve, 5000));
-        } else {
-            console.error(`❌ Failed to update task ${task_gid}:`, error.response?.data || error.message);
-            console.log(error);
-        }
+        // This generic function will not use the specific requeueing logic.
+        // It will throw the error to let the caller decide how to handle retries.
+        console.error(`❌ Failed to update task ${task_gid}:`, error.response?.data || error.message);
+        throw error; // Re-throw the error to be handled by the calling function
     }
 }
+
+
 
 
 /**
@@ -207,7 +210,7 @@ async function getTaskById(task_gid) {
     const tasksApiInstance = initApi();
     
     let opts = { 
-        'opt_fields': "gid,name,assignee,assignee.name,completed,completed_at,created_at,custom_fields,custom_fields.name,custom_fields.text_value,due_on,html_notes,memberships,memberships.project,memberships.project.name,notes,permalink_url"
+        'opt_fields': "gid,name,assignee,assignee.name,completed,completed_at, completed_by, created_at,custom_fields,custom_fields.name,custom_fields.text_value,due_on,html_notes,memberships,memberships.project,memberships.project.name, memberships.section, memberships.section.gid, memberships.section.name, notes,permalink_url"
     };
 
     try {
@@ -314,4 +317,4 @@ async function completeTaskById(task_gid) {
         throw new Error("Failed to complete Task in Asana");
     }
 }
-module.exports = { findTasks, findAllTasks, updateTaskHtmlNotes, addLinkToTask, bewerberRoutine, getTaskById, getStoryById, getStoriesByTask, createStoryOnTask, getSubtaskByTask, createSubtasksOnTask, completeTaskById};
+module.exports = { findTasks, findAllTasks, updateTask, addLinkToTask, bewerberRoutine, getTaskById, getStoryById, getStoriesByTask, createStoryOnTask, getSubtaskByTask, createSubtasksOnTask, completeTaskById};
