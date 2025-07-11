@@ -9,6 +9,13 @@
     <div class="upload-section">
       <div class="dropdowns">
         <div class="dropdown-group">
+          <label>Dokumenttyp:</label>
+          <select v-model="dokumentart">
+            <option value="LA">Lohnabrechnung</option>
+            <option value="LST">Lohnsteuerbescheid</option>
+          </select>
+        </div>
+        <div class="dropdown-group">
           <label>Stadt:</label>
           <select v-model="stadt">
             <option value="B">Berlin</option>
@@ -71,22 +78,32 @@
         Versenden 📧
       </button>
     </div>
-    <div v-if="loading" class="loader">
-  ⏳ Bitte warten – PDF wird verarbeitet ...
-</div>
+    <!-- Fortschrittsbalken -->
+    <div v-if="progressActive" class="progress-wrapper">
+      <p v-if="progressMessage">{{ progressMessage }}</p>
+      <div class="progress-bar">
+        <div
+          class="progress-fill"
+          :style="{ width: progressPercent + '%' }"
+        ></div>
+      </div>
+    </div>
 
+    <div v-if="loading" class="loader">
+      ⏳ Bitte warten – PDF wird verarbeitet ...
+    </div>
   </div>
 </template>
 
 <script>
 import * as XLSX from "xlsx";
- import api from "../utils/api";
+import api from "../utils/api";
 
 export default {
   name: "Lohnabrechnungen",
   data() {
     return {
-       token: localStorage.getItem("token") || null,
+      token: localStorage.getItem("token") || null,
       pdfFile: null,
       excelFile: null,
       excelData: [],
@@ -94,46 +111,52 @@ export default {
       excelName: "",
       stadt: "HH",
       monat: "01",
+      dokumentart: "LA",
       fileCountValid: null,
       loading: false,
+
+      // Für SSE Fortschritt
+      progressActive: false,
+      progressPercent: 0,
+      progressMessage: "",
     };
   },
   computed: {
     readyToSplit() {
       return this.pdfFile && this.excelData.length > 0;
-    }, 
+    },
     stadtFullName() {
-    const map = {
-      HH: "Hamburg",
-      B: "Berlin",
-      K: "Köln",
-    };
-    return map[this.stadt] || "Unbekannt";
-  },
+      const map = {
+        HH: "Hamburg",
+        B: "Berlin",
+        K: "Köln",
+      };
+      return map[this.stadt] || "Unbekannt";
+    },
   },
   methods: {
-     setAxiosAuthToken() {
-        api.defaults.headers.common["x-auth-token"] = this.token;
-      },
-      async fetchUserData() {
-        if (this.token) {
-          try {
-            const response = await api.get("/api/users/me", {});
-            this.userID = response.data._id;
-            this.userLocation = response.data.location;
-          } catch (error) {
-            console.error("Error fetching user data:", error);
-            this.$router.push("/");
-          }
-        } else {
-          console.error("No token found");
+    setAxiosAuthToken() {
+      api.defaults.headers.common["x-auth-token"] = this.token;
+    },
+    async fetchUserData() {
+      if (this.token) {
+        try {
+          const response = await api.get("/api/users/me", {});
+          this.userID = response.data._id;
+          this.userLocation = response.data.location;
+        } catch (error) {
+          console.error("Error fetching user data:", error);
           this.$router.push("/");
         }
-      },
+      } else {
+        console.error("No token found");
+        this.$router.push("/");
+      }
+    },
     switchToDashboard() {
       if (confirm("Zurück zur Startseite?")) this.$router.push("/");
     },
-     preventBrowserDefault(event) {
+    preventBrowserDefault(event) {
       event.preventDefault();
       event.stopPropagation();
     },
@@ -142,22 +165,22 @@ export default {
       this.pdfName = this.pdfFile.name;
     },
     handleExcelUpload(e) {
-  const file = e.target.files[0];
-  this.excelFile = file;
-  this.excelName = file.name;
+      const file = e.target.files[0];
+      this.excelFile = file;
+      this.excelName = file.name;
 
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    const data = new Uint8Array(evt.target.result);
-    const workbook = XLSX.read(data, { type: "array" });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-    const sorted = rows.slice(1).sort((a, b) => a[1]?.localeCompare(b[1]));
-    this.excelData = sorted;
-    this.validateCounts();
-  };
-  reader.readAsArrayBuffer(file); // 👈 modern & nicht-deprecated
-},
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+        const sorted = rows.slice(1).sort((a, b) => a[1]?.localeCompare(b[1]));
+        this.excelData = sorted;
+        this.validateCounts();
+      };
+      reader.readAsArrayBuffer(file); // 👈 modern & nicht-deprecated
+    },
     handleDrop(e) {
       const files = Array.from(e.dataTransfer.files);
       files.forEach((file) => {
@@ -170,63 +193,96 @@ export default {
     validateCounts() {
       this.fileCountValid = null; // placeholder
     },
-   startSplitting() {
-  if (!this.pdfFile || !this.excelData.length) return;
+    startSplitting() {
+      if (!this.pdfFile || !this.excelData.length) return;
 
-  this.loading = true;
+      this.loading = true;
 
-  const formData = new FormData();
-  formData.append("pdf", this.pdfFile);
-  formData.append("excel", this.excelFile);
-  formData.append("stadt", this.stadt);
-  formData.append("monat", this.monat);
-    formData.append("stadt_full", this.stadtFullName); 
+      const formData = new FormData();
+      formData.append("pdf", this.pdfFile);
+      formData.append("excel", this.excelFile);
+      formData.append("stadt", this.stadt);
+      formData.append("monat", this.monat);
+      formData.append("dokumentart", this.dokumentart);
+      formData.append("stadt_full", this.stadtFullName);
 
-  api
-    .post("/api/personal/upload-lohnabrechnungen", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-        "x-auth-token": this.token
-      },
-      responseType: "blob", // ⬅️ wichtig! sonst wird die ZIP nicht richtig empfangen
-    })
-    .then((res) => {
-      const blob = res.data;
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Lohnabrechnungen_${this.stadt}_${this.monat}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    })
-    .catch((err) => {
-      const msg = err?.response?.data || err.message;
-      alert("❌ Fehler: " + msg);
-      console.error("Fehler beim Aufteilen:", err);
-    })
-    .finally(() => {
-      this.loading = false;
-    });
-},
-  },
-   mounted() {
-      this.setAxiosAuthToken();
-      this.fetchUserData();
-         window.addEventListener('dragover', this.preventBrowserDefault);
-    window.addEventListener('drop', this.preventBrowserDefault);
+      api
+        .post("/api/personal/upload-lohnabrechnungen", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            "x-auth-token": this.token,
+          },
+          responseType: "blob", // ⬅️ wichtig! sonst wird die ZIP nicht richtig empfangen
+        })
+        .then((res) => {
+          this.listenToMailProgress();
+          const blob = res.data;
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `Lohnabrechnungen_${this.stadt}_${this.monat}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((err) => {
+          const msg = err?.response?.data || err.message;
+          alert("❌ Fehler: " + msg);
+          console.error("Fehler beim Aufteilen:", err);
+        })
+        .finally(() => {
+          this.loading = false;
+        });
     },
-      beforeUnmount() { // Für Vue 2 oder vor Vue 3.2; für Vue 3.2+ 'unmounted'
-    window.removeEventListener('dragover', this.preventBrowserDefault);
-    window.removeEventListener('drop', this.preventBrowserDefault);
+    listenToMailProgress() {
+  this.progressActive = true;
+  this.progressPercent = 0;
+  this.progressMessage = "📤 Versand gestartet ...";
+
+  const token = this.token;
+  const url = `${import.meta.env.VITE_API_BASE_URL}/api/personal/sse-mailstatus?token=${this.token}`;
+const eventSource = new EventSource(url);
+
+  eventSource.onmessage = (e) => {
+    const [index, totalName] = e.data.split(" ");
+    const [current, total] = index.split("/").map(Number);
+    this.progressPercent = Math.floor((current / total) * 100);
+    this.progressMessage = `📧 ${current}/${total}: ${totalName}`;
+  };
+
+  eventSource.addEventListener("done", (e) => {
+    this.progressMessage = "✅ Alle E-Mails verschickt!";
+    this.progressPercent = 100;
+    setTimeout(() => {
+      this.progressActive = false;
+    }, 4000);
+    eventSource.close();
+  });
+
+  eventSource.onerror = (err) => {
+    console.warn("SSE-Fehler:", err);
+    eventSource.close();
+  };
+}
+
+  },
+  mounted() {
+    this.setAxiosAuthToken();
+    this.fetchUserData();
+    window.addEventListener("dragover", this.preventBrowserDefault);
+    window.addEventListener("drop", this.preventBrowserDefault);
+  },
+  beforeUnmount() {
+    // Für Vue 2 oder vor Vue 3.2; für Vue 3.2+ 'unmounted'
+    window.removeEventListener("dragover", this.preventBrowserDefault);
+    window.removeEventListener("drop", this.preventBrowserDefault);
   },
 };
 </script>
 
 <style scoped lang="scss">
-@import "@/assets/styles/global.scss"; 
-
+@import "@/assets/styles/global.scss";
 
 .window {
   /* Assign Sass variables to CSS custom properties */
@@ -244,7 +300,7 @@ export default {
   --c-text-light: #{$base-text-light};
   --c-error: #{$base-error};
   --c-disabled-bg: #{$base-disabled-bg};
---c-drag-drop-hover-bg: #{color.adjust($base-panel-bg, $lightness: 2%)};
+  --c-drag-drop-hover-bg: #{color.adjust($base-panel-bg, $lightness: 2%)};
   --c-drag-drop-active-bg: #{color.adjust($base-panel-bg, $lightness: -5%)};
 
   width: 600px;
@@ -254,7 +310,7 @@ export default {
   border-radius: 12px;
   box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.15);
   text-align: center;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 
   h1 {
     color: var(--c-text-dark);
@@ -291,7 +347,8 @@ export default {
   margin-bottom: 25px;
   box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.05);
 
-  label.upload-btn { /* Specificity for the upload buttons */
+  label.upload-btn {
+    /* Specificity for the upload buttons */
     display: inline-block;
     padding: 12px 25px;
     background-color: var(--c-primary);
@@ -343,7 +400,8 @@ export default {
   font-size: 1.05rem; /* Larger font */
   background: var(--c-panel-bg); /* Use panel background color */
   cursor: pointer;
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease,
+    color 0.3s ease;
 
   &:hover {
     background-color: var(--c-drag-drop-hover-bg);
@@ -404,7 +462,8 @@ select {
   font-size: 1.1rem; /* Larger font */
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.1s ease, box-shadow 0.2s ease;
+  transition: background-color 0.3s ease, transform 0.1s ease,
+    box-shadow 0.2s ease;
   box-shadow: 0 4px 10px -2px rgba($base-success, 0.4);
 
   &:disabled {
@@ -458,5 +517,28 @@ select {
   font-size: 1.05rem;
   color: var(--c-text-secondary);
   font-weight: 500;
+}
+.progress-wrapper {
+  margin-top: 20px;
+  text-align: left;
+  color: var(--c-text-dark);
+  font-size: 0.95rem;
+}
+
+.progress-bar {
+  height: 14px;
+  width: 100%;
+  background-color: #ddd;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 5px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0;
+  background-color: var(--c-success);
+  transition: width 0.4s ease;
 }
 </style>
