@@ -68,7 +68,7 @@
 
     <div class="actions">
       <button @click="startSplitting" :disabled="!readyToSplit">
-        Aufteilen & Herunterladen
+        Versenden 📧
       </button>
     </div>
     <div v-if="loading" class="loader">
