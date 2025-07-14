@@ -2,8 +2,8 @@ const express = require("express");
 const router = express.Router();
 const SSE = require("express-sse");
 const sse = new SSE();
-const jwt = require('jsonwebtoken');
-require('dotenv').config(); // Load environment variables from .env
+const jwt = require("jsonwebtoken");
+require("dotenv").config(); // Load environment variables from .env
 const auth = require("../middleware/auth");
 const xlsx = require("xlsx");
 const multer = require("multer");
@@ -126,11 +126,21 @@ function normalizeUmlautsForSort(str) {
     .replace(/ü/g, "ue")
     .replace(/ß/g, "ss")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // Diakritika entfernen
-    .replace(/[^a-z]/g, ""); // Nur Buchstaben behalten
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z\s]/g, ""); 
 }
 
-async function sendAllMailsInBackground(data, userId, originalPdf, stadtVars, monatLesbar, jahr, stadt_full, stadt, dokumentart) {
+async function sendAllMailsInBackground(
+  data,
+  userId,
+  originalPdf,
+  stadtVars,
+  monatLesbar,
+  jahr,
+  stadt_full,
+  stadt,
+  dokumentart
+) {
   const senderMap = { HH: "teamhamburg", B: "teamberlin", K: "teamkoeln" };
   const senderKey = senderMap[stadt] || "it";
 
@@ -140,8 +150,17 @@ async function sendAllMailsInBackground(data, userId, originalPdf, stadtVars, mo
     const rawVorname = (row[2] || "Mitarbeiter").trim();
     const email = row[8] || null;
 
-    const safeVorname = rawVorname.replace(/[^a-zA-ZäöüÄÖÜß]/g, "").replace(/\s+/g, "_");
-    const safeNachname = rawNachname.replace(/[^a-zA-ZäöüÄÖÜß]/g, "").replace(/\s+/g, "_");
+    const safeVorname = rawVorname
+  .normalize("NFD") 
+  .replace(/[\u0300-\u036f]/g, "") 
+  .replace(/[^a-zA-ZäöüÄÖÜß]/g, "") 
+  .replace(/\s+/g, "_"); 
+
+const safeNachname = rawNachname
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .replace(/[^a-zA-ZäöüÄÖÜß]/g, "")
+  .replace(/\s+/g, "_");
     const filename = `${safeNachname}_${safeVorname}_${dokumentart}_${stadt}.pdf`;
 
     const outputPdf = await PDFDocument.create();
@@ -159,21 +178,24 @@ async function sendAllMailsInBackground(data, userId, originalPdf, stadtVars, mo
 
     try {
       await sendMail(
-        // email || 
-        "it@straightforward.email",
+         email || "it@straightforward.email",
         `${dokumentart} ${monatLesbar} ${jahr}`,
         content,
         senderKey,
-        [{
-          name: filename,
-          content: Buffer.from(fileBuffer).toString("base64"),
-          contentType: "application/pdf",
-        }]
+        [
+          {
+            name: filename,
+            content: Buffer.from(fileBuffer).toString("base64"),
+            contentType: "application/pdf",
+          },
+        ]
       );
 
       const stream = progressMap.get(userId);
-      if (stream) stream.write(`data: ${i + 1}/${data.length} ${rawVorname} ${rawNachname}\n\n`);
-      
+      if (stream)
+        stream.write(
+          `data: ${i + 1}/${data.length} ${rawVorname} ${rawNachname}\n\n`
+        );
     } catch (err) {
       console.error("❌ Fehler bei Mail an", email, err.message);
     }
@@ -186,7 +208,6 @@ async function sendAllMailsInBackground(data, userId, originalPdf, stadtVars, mo
     progressMap.delete(userId);
   }
 }
-
 
 router.get(
   "/flip",
@@ -521,7 +542,7 @@ router.get("/sse-mailstatus", (req, res) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.user._id || decoded.user.id; 
+    const userId = decoded.user._id || decoded.user.id;
     console.log("➡ SSE gestartet für:", userId);
 
     res.set({
@@ -542,31 +563,48 @@ router.get("/sse-mailstatus", (req, res) => {
   }
 });
 
-
-
 function getEmailTemplate(type, data) {
   const { vorname, monatLesbar, jahr, stadt_full, stadtVars } = data;
+      let anrede = "";
+      switch(type){
+        case "LA": anrede = `<p>Hallo ${vorname},</p>
+    <p>anbei deine Lohnabrechnung für ${monatLesbar} ${jahr}.</p>`;
+        case "LST": anrede = `<p>Hallo ${vorname},</p>
+    <p>anbei dein Lohnsteuerbescheid für ${monatLesbar} ${jahr}.</p>`;
+    default: anrede = `<p>Hallo ${vorname},</p>
+    <p>anbei deine Lohnabrechnung für ${monatLesbar} ${jahr}.</p>`;
+      }
 
-  switch (type.toUpperCase()) {
-    case "LST":
-      return `<div>Hallo ${vorname},<br>hier ist dein Lohnsteuerbescheid für ${monatLesbar} ${jahr}.</div>`;
-    case "LA":
-    default:
       return `
-        <div style="font-family: Arial, sans-serif; font-size: 11pt; color: #333;">
-          <p>Hallo ${vorname},</p>
-          <p>anbei deine Lohnabrechnung für ${monatLesbar} ${jahr}.</p>
-          <p>Melde dich bei Fragen gerne bei uns.</p>
-          <p>Beste Grüße</p>
-          <div style="line-height: 1.4; font-size: 10pt; color: #555; margin-top: 15px;">
-            <p><strong>${stadtVars.Sender_Name}</strong> – Team ${stadt_full}</p>
-            <p>${stadtVars.Strasse} ${stadtVars.Hausnummer}, ${stadtVars.PLZ} ${stadtVars.Stadt}</p>
-            <p>Tel: ${stadtVars.Telefon} – <a href="mailto:${stadtVars.Email}">${stadtVars.Email}</a></p>
-          </div>
-        </div>`;
-  }
+         <div style="font-family: Arial, sans-serif; font-size: 11pt; color: #333;">
+    ${anrede}
+    <p>Melde dich bei Fragen gerne bei uns.</p>
+    <p>Beste Grüße</p>
+    <br>
+    <div style="line-height: 1.4;">
+        <p style="margin: 0;"><strong>${stadtVars.Sender_Name}</strong></p>
+        <p style="margin: 0;"><em>Team ${stadt_full}</em></p>
+        <br>
+        <p style="margin: 0;">${stadtVars.Strasse} ${stadtVars.Hausnummer}</p>
+        <p style="margin: 0;">${stadtVars.PLZ} ${stadtVars.Stadt}</p>
+        <br>
+        <p style="margin: 0;">Tel: <a href="tel:${stadtVars.Telefon}">${stadtVars.Telefon}</a></p>
+        <br>
+        <p style="margin: 0;"><a href="mailto:${stadtVars.Email}">${stadtVars.Email}</a></p>
+        <p style="margin: 0;"><a href="https://www.straightforward.services" target="_blank">www.straightforward.services</a></p>
+    </div>
+    <br>
+    <div style="font-size: 8pt; color: #666; line-height: 1.3;">
+        <p style="margin: 0;"><strong>H. & P. Straightforward GmbH</strong></p>
+        <p style="margin: 0;">Managing Partners: Daniel Hansen & Christian Peßler</p>
+        <p style="margin: 0;">Based in: Berlin HRB 180342 B</p>
+        <p style="margin: 0;">VAT no.: DE308384616</p>
+        <br>
+        <p style="margin: 0;"><em>Please consider the impact on the environment before printing this e-mail. This communication is confidential and may be legally privileged. If you are not the intended recipient, (i) please do not read or disclose to others, (ii) please notify the sender by reply mail, and (iii) please delete this communication from your system. Failure to follow this process may be unlawful. Thank you for your cooperation.</em></p>
+    </div>
+  </div>`;
+  
 }
-
 
 router.post(
   "/upload-lohnabrechnungen",
@@ -581,7 +619,14 @@ router.post(
       const pdfBuffer = req.files?.pdf?.[0]?.buffer;
       const excelBuffer = req.files?.excel?.[0]?.buffer;
 
-      if (!pdfBuffer || !excelBuffer || !stadt || !monat || !stadt_full || !dokumentart) {
+      if (
+        !pdfBuffer ||
+        !excelBuffer ||
+        !stadt ||
+        !monat ||
+        !stadt_full ||
+        !dokumentart
+      ) {
         return res.status(400).json({ error: "Fehlende Daten" });
       }
 
@@ -594,13 +639,19 @@ router.post(
 
       const data = rows
         .slice(1)
-        .filter((row) => row.some((cell) => cell !== null && String(cell).trim() !== ""))
+        .filter((row) =>
+          row.some((cell) => cell !== null && String(cell).trim() !== "")
+        )
         .sort((a, b) =>
-          normalizeUmlautsForSort(a[1])?.localeCompare(normalizeUmlautsForSort(b[1]))
+          normalizeUmlautsForSort(a[1])?.localeCompare(
+            normalizeUmlautsForSort(b[1])
+          )
         );
 
       if (pageCount !== data.length) {
-        return res.status(400).json({ error: "PDF und Excel stimmen nicht überein." });
+        return res
+          .status(400)
+          .json({ error: "PDF und Excel stimmen nicht überein." });
       }
 
       const zip = new JSZip();
@@ -609,7 +660,9 @@ router.post(
       const stadtVars = STADT_TEMPLATE_VARS[stadt_full];
 
       if (!stadtVars) {
-        return res.status(400).json({ error: `Unbekannter Standort: ${stadt_full}` });
+        return res
+          .status(400)
+          .json({ error: `Unbekannter Standort: ${stadt_full}` });
       }
 
       for (let i = 0; i < data.length; i++) {
@@ -617,8 +670,12 @@ router.post(
         const rawNachname = (row[1] || "Unbekannt").trim();
         const rawVorname = (row[2] || "Mitarbeiter").trim();
 
-        const safeVorname = rawVorname.replace(/[^a-zA-ZäöüÄÖÜß]/g, "").replace(/\s+/g, "_");
-        const safeNachname = rawNachname.replace(/[^a-zA-ZäöüÄÖÜß]/g, "").replace(/\s+/g, "_");
+        const safeVorname = rawVorname
+          .replace(/[^a-zA-ZäöüÄÖÜß]/g, "")
+          .replace(/\s+/g, "_");
+        const safeNachname = rawNachname
+          .replace(/[^a-zA-ZäöüÄÖÜß]/g, "")
+          .replace(/\s+/g, "_");
         const email = row[8] || null;
 
         const outputPdf = await PDFDocument.create();
@@ -641,30 +698,28 @@ router.post(
       const userId = req.user?.id?.toString() || "default";
       console.log(userId);
       setImmediate(async () => {
-  try {
-    await sendAllMailsInBackground(
-      data,
-      userId,
-      originalPdf,
-      stadtVars,
-      monatLesbar,
-      jahr,
-      stadt_full,
-      stadt,
-      dokumentart
-    );
-  } catch (err) {
-    console.error("Fehler im asynchronen Mailversand:", err.message);
-  }
-});
+        try {
+          await sendAllMailsInBackground(
+            data,
+            userId,
+            originalPdf,
+            stadtVars,
+            monatLesbar,
+            jahr,
+            stadt_full,
+            stadt,
+            dokumentart
+          );
+        } catch (err) {
+          console.error("Fehler im asynchronen Mailversand:", err.message);
+        }
+      });
     } catch (err) {
       console.error("❌ Fehler beim Upload:", err);
       res.status(500).json({ error: "Interner Serverfehler" });
     }
   })
 );
-
-
 
 router.post(
   "/assignTask",
