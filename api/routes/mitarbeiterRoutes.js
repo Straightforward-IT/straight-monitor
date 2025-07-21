@@ -569,10 +569,12 @@ function getEmailTemplate(type, data) {
       switch(type){
         case "LA": anrede = `<p>Hallo ${vorname},</p>
     <p>anbei deine Lohnabrechnung für ${monatLesbar} ${jahr}.</p>`;
+    break;
         case "LST": anrede = `<p>Hallo ${vorname},</p>
     <p>anbei dein Lohnsteuerbescheid für ${monatLesbar} ${jahr}.</p>`;
+    break;
     default: anrede = `<p>Hallo ${vorname},</p>
-    <p>anbei deine Lohnabrechnung für ${monatLesbar} ${jahr}.</p>`;
+    <p>anbei dein Dokument für ${monatLesbar} ${jahr}.</p>`;
       }
 
       return `
@@ -666,6 +668,7 @@ router.post(
       }
 
       for (let i = 0; i < data.length; i++) {
+        console.log(data[i]);
         const row = data[i];
         const rawNachname = (row[1] || "Unbekannt").trim();
         const rawVorname = (row[2] || "Mitarbeiter").trim();

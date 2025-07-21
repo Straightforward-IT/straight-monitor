@@ -848,7 +848,7 @@ async function markAssignmentAsCompleted(assignmentId) {
       `❌ Fehler beim Abschließen des Assignments auf ID: ${assignmentId}`,
       error.response?.data || error.message
     );
-    throw error;
+    return false;
   }
 }
 

@@ -104,6 +104,7 @@ export default {
   data() {
     return {
       token: localStorage.getItem("token") || null,
+      userLocation: "",
       pdfFile: null,
       excelFile: null,
       excelData: [],
@@ -268,11 +269,29 @@ const eventSource = new EventSource(url);
 
   },
   mounted() {
-    this.setAxiosAuthToken();
-    this.fetchUserData();
-    window.addEventListener("dragover", this.preventBrowserDefault);
-    window.addEventListener("drop", this.preventBrowserDefault);
-  },
+  this.setAxiosAuthToken();
+  this.fetchUserData().then(() => {
+    // Stadt zuordnen nach userLocation
+    const reverseMap = {
+      Hamburg: "HH",
+      Berlin: "B",
+      Köln: "K",
+    };
+    if (this.userLocation && reverseMap[this.userLocation]) {
+      this.stadt = reverseMap[this.userLocation];
+    }
+
+    // Monat: immer den VORHERIGEN Monat auswählen
+    const today = new Date();
+    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const padded = String(lastMonth.getMonth() + 1).padStart(2, "0");
+    this.monat = padded;
+  });
+
+  window.addEventListener("dragover", this.preventBrowserDefault);
+  window.addEventListener("drop", this.preventBrowserDefault);
+},
+
   beforeUnmount() {
     // Für Vue 2 oder vor Vue 3.2; für Vue 3.2+ 'unmounted'
     window.removeEventListener("dragover", this.preventBrowserDefault);
