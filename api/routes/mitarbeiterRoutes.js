@@ -148,7 +148,7 @@ async function sendAllMailsInBackground(
     const row = data[i];
     const rawNachname = (row[1] || "Unbekannt").trim();
     const rawVorname = (row[2] || "Mitarbeiter").trim();
-    const email = row[8] || null;
+    const email = row[4] || null;
 
     const safeVorname = rawVorname
   .normalize("NFD") 
@@ -178,7 +178,8 @@ const safeNachname = rawNachname
 
     try {
       await sendMail(
-         email || "it@straightforward.email",
+         //email || 
+         "it@straightforward.email",
         `${dokumentart} ${monatLesbar} ${jahr}`,
         content,
         senderKey,

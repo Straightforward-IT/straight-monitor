@@ -5,6 +5,20 @@
     </div>
 
     <h1>Lohnabrechnungen</h1>
+<div class="info-box">
+  <p><strong>⚠ Bitte beachten:</strong> Die Excel-Datei muss folgende Spalten enthalten:</p>
+  <table class="sample-table">
+    <thead>
+      <tr>
+        <th>Personalnr</th>
+        <th>Nachname</th>
+        <th>Vorname</th>
+        <th>Austritt</th>
+        <th>Email</th>
+      </tr>
+    </thead>
+  </table>
+</div>
 
     <div class="upload-section">
       <div class="dropdowns">
@@ -337,6 +351,48 @@ const eventSource = new EventSource(url);
     font-size: 2.2rem;
   }
 }
+
+.info-box {
+  background-color: var(--c-panel-bg);
+  border: 1px solid var(--c-border);
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 25px;
+  text-align: left;
+  font-size: 0.95rem;
+  color: var(--c-text-dark);
+  width: 100%;             /* 💡 Volle Breite */
+  box-sizing: border-box;  /* Padding einrechnen */
+
+  p {
+    margin-bottom: 12px;
+  }
+}
+
+
+.sample-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+
+  th {
+    padding: 10px;
+    border: 1px solid var(--c-border);
+    font-size: 0.85rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  thead tr:first-child th {
+    background-color: var(--c-disabled-bg);
+    font-weight: bold;
+  }
+
+  thead tr:last-child th {
+    background-color: white;
+  }
+}
+
 
 .leftAlign {
   text-align: left;
