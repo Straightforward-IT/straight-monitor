@@ -4,6 +4,7 @@ const SSE = require("express-sse");
 const sse = new SSE();
 const jwt = require("jsonwebtoken");
 require("dotenv").config(); // Load environment variables from .env
+const stringSimilarity = require("string-similarity");
 const auth = require("../middleware/auth");
 const xlsx = require("xlsx");
 const multer = require("multer");
@@ -178,7 +179,7 @@ const safeNachname = rawNachname
 
     try {
       await sendMail(
-         //email || 
+         email || 
          "it@straightforward.email",
         `${dokumentart} ${monatLesbar} ${jahr}`,
         content,
@@ -680,7 +681,7 @@ router.post(
         const safeNachname = rawNachname
           .replace(/[^a-zA-ZäöüÄÖÜß]/g, "")
           .replace(/\s+/g, "_");
-        const email = row[8] || null;
+        const email = row[4] || null;
 
         const outputPdf = await PDFDocument.create();
         const [page] = await outputPdf.copyPages(originalPdf, [i]);
@@ -1190,39 +1191,87 @@ router.get(
   })
 );
 
-// Delete route
+// Delete Flip User
 router.post(
   "/flip/exit",
   asyncHandler(async (req, res) => {
-    let userList = req.body;
-    userList = userList.filter((user) => user && user.vorname && user.nachname);
-    console.log(userList);
+    let userList = req.body.filter((user) => user && user.vorname && user.nachname);
+    console.log(`👥 Eingehende Benutzer zur Löschung: ${userList.length}`);
+
+    let flipUsers;
+    try {
+      console.log("🔄 Lade Flip-User...");
+      flipUsers = await getFlipUsers();
+      console.log(`✅ ${flipUsers.length} Flip-User empfangen.`);
+    } catch (error) {
+      console.error("❌ Fehler beim Abrufen der Flip-User:", error);
+      return res.status(500).json({ error: "Fehler beim Abrufen der Flip-User." });
+    }
+
+    const normalizedUsers = flipUsers
+      .filter((u) => u.first_name && u.last_name)
+      .map((user) => ({
+        id: user.id,
+        fullName: `${user.first_name} ${user.last_name}`.toLowerCase().trim(),
+        vorname: user.first_name.toLowerCase().trim(),
+        nachname: user.last_name.toLowerCase().trim(),
+      }));
+
     const foundIds = [];
     const notFound = [];
 
     for (const { vorname, nachname } of userList) {
-      const fullName = `${vorname} ${nachname}`;
-      const flipUserId = await findFlipUserByName(fullName);
+      const inputName = `${vorname} ${nachname}`.toLowerCase().trim();
+      console.log(`🔍 Suche nach Flip-User für: ${inputName}`);
 
-      if (flipUserId) {
-        foundIds.push(flipUserId);
+      // 1. Exact match
+      let match = normalizedUsers.find((u) =>
+        u.fullName.replace(/\s+/g, "") === inputName.replace(/\s+/g, "")
+      );
+
+      // 2. Last name + partial first name
+      if (!match) {
+        const inputParts = inputName.split(/\s+/);
+        const inputLast = inputParts[inputParts.length - 1];
+        const inputFirst = inputParts.slice(0, -1).join(" ");
+        match = normalizedUsers.find(
+          (u) => u.nachname === inputLast && u.vorname.includes(inputFirst)
+        );
+      }
+
+      // 3. Similarity fallback
+      if (!match) {
+        const nameList = normalizedUsers.map((u) => u.fullName);
+        const similarityMatch = stringSimilarity.findBestMatch(inputName, nameList);
+        if (similarityMatch.bestMatch.rating > 0.8) {
+          match = normalizedUsers[similarityMatch.bestMatchIndex];
+          console.log(`🤖 Ähnlichkeits-Treffer: ${match.fullName} (${similarityMatch.bestMatch.rating})`);
+        }
+      }
+
+      if (match) {
+        foundIds.push(match.id);
+        console.log(`✅ Flip-User gefunden: ${match.fullName}`);
       } else {
-        notFound.push(fullName);
+        notFound.push(`${vorname} ${nachname}`);
+        console.warn(`❌ Kein Flip-User gefunden für: ${vorname} ${nachname}`);
       }
     }
 
     if (foundIds.length > 0) {
       try {
         await deleteManyFlipUsers(foundIds);
+        console.log("🧹 Erfolgreich gelöscht:", foundIds.length);
       } catch (error) {
         console.error("❌ Fehler beim Löschen:", error);
-        return res.status(500).json({ error: error.message, notFound });
+        return res.status(500).json({ error: "Fehler beim Löschen.", notFound });
       }
     }
 
     res.status(200).json({ deleted: foundIds.length, notFound });
   })
 );
+
 
 router.delete(
   "/mitarbeiter",

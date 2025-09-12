@@ -3,6 +3,8 @@ const { getFlipAuthToken } = require("./flipAxios");
 const { flipUserRoutine } = require("./FlipService");
 const { sollRoutine, sendMail } = require("./EmailService"); 
 const { bewerberRoutine } = require("./AsanaService");
+const { ensureMultipleGraphSubscriptions } = require("./GraphService");
+const registry = require("./config/registry");
 
 (async () => {
   try {
@@ -65,6 +67,26 @@ const { bewerberRoutine } = require("./AsanaService");
         `);
       }
     });
+
+
+cron.schedule("*/30 * * * *", async () => {
+  try {
+    console.log("📬 Ensuring Microsoft Graph mail subscriptions (registry)...");
+    const accounts = registry.getSubscriptionAccounts(); // [{upn, folderId, key}]
+    await ensureMultipleGraphSubscriptions({
+      accounts,
+      notificationUrl: process.env.GRAPH_NOTIFICATION_URL,
+      clientState: process.env.GRAPH_CLIENT_STATE || "sf-secret",
+    });
+  } catch (error) {
+    console.error("❌ Error in Graph subscription ensure (multi):", error.message);
+    await sendMail("it@straightforward.email", "❌ Graph Subscription Ensure Failed", `
+      <h3>Error in Graph Subscription Ensure (multi)</h3>
+      <p><strong>Error:</strong> ${error.message}</p>
+      <pre>${error.stack}</pre>
+    `);
+  }
+});
 
   } catch (error) {
     console.error("❌ Critical error in routine initialization:", error.message);

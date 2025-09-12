@@ -7,8 +7,10 @@ const Monitoring = require("../models/Monitoring");
 const xlsx = require("xlsx");
 const asyncHandler = require("../middleware/AsyncHandler");
 const { sollRoutine } = require("../EmailService");
+const registry = require("../config/registry");
+
 // Variables
-const cities = ["Hamburg", "Berlin", "Köln"];
+const cities = registry.listInventoryStandorte();
 
 // Helper function to find or create user
 async function findOrCreateUser(userID) {
@@ -278,19 +280,18 @@ router.get("/find/:id", auth, asyncHandler( async (req, res) => {
 }));
 
 // GET /api/items/findByLocation - Get items by location
-router.get("/findByLocation", auth, asyncHandler( async (req, res) => {
-    const locationQuery = req.query.locationQuery;
-    if (!cities.includes(locationQuery)) {
-      return res
-        .status(400)
-        .json({ msg: `Location must be one of: ${cities.join(", ")}` });
-    }
-
-    const items = await Item.find({ standort: locationQuery });
-    if (!items.length) {
-      return res.status(404).json({ msg: "No items found in this location" });
-    }
-    res.status(200).json(items);
+router.get("/findByLocation", auth, asyncHandler(async (req, res) => {
+  const locationQuery = req.query.locationQuery;
+  if (!cities.includes(locationQuery)) {
+    return res
+      .status(400)
+      .json({ msg: `Location must be one of: ${cities.join(", ")}` });
+  }
+  const items = await Item.find({ standort: locationQuery });
+  if (!items.length) {
+    return res.status(404).json({ msg: "No items found in this location" });
+  }
+  res.status(200).json(items);
 }));
 
 // GET /api/items/getExcel - Get Excel Document

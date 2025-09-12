@@ -8,6 +8,8 @@ const monitoringRoutes = require('./routes/monitoringRoutes');
 const wpformsRoutes = require('./routes/wpformsRoutes');
 const mitarbeiterRoutes = require('./routes/mitarbeiterRoutes');
 const asanaRoutes = require('./routes/asanaRoutes');
+const yousignRoutes = require('./routes/yousignRoutes');
+const graphRoutes = require("./routes/graphRoutes");
 const ErrorHandler = require('./middleware/ErrorHandler');
 require('dotenv').config();
 require('./serverRoutines');
@@ -15,9 +17,14 @@ require('./serverRoutines');
 const app = express();
 
 // Middleware
-app.use(express.json());
-app.use(ErrorHandler);
 const allowedDomains = ["http://localhost:5173", "https://straightmonitor.com",  "https://straight-monitor-684d4006140b.herokuapp.com", "https://flipcms.de/integration/flipcms/hpstraightforward"];
+const allowedIPs = [
+  '5.39.7.128', '5.39.7.129', '5.39.7.130', '5.39.7.131',
+  '5.39.7.132', '5.39.7.133', '5.39.7.134', '5.39.7.135',
+  '5.39.7.136', '5.39.7.137', '5.39.7.138', '5.39.7.139',
+  '5.39.7.140', '5.39.7.141', '5.39.7.142', '5.39.7.143',
+  '52.143.162.31', '51.103.81.166'
+];
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -32,9 +39,16 @@ const corsOptions = {
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
 };
+function rawBodySaver(req, res, buf, encoding) {
+  if (buf && buf.length) req.rawBody = buf.toString(encoding || 'utf8');
+}
+
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
 
 app.use(cors(corsOptions));  // Apply the CORS options
 app.options('*', cors(corsOptions));
+app.use(express.json({ verify: rawBodySaver }));
 
 // Basic route
 app.get('/', (req, res) => res.send('API Running'));
@@ -46,12 +60,14 @@ app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/reports', wpformsRoutes);
 app.use('/api/personal', mitarbeiterRoutes);
 app.use('/api/asana', asanaRoutes);
+app.use('/api/yousign', yousignRoutes);
+app.use('/api/graph', graphRoutes);
 app.use((req, res, next) => {
   const headers = req.headers;
   res.send(headers);
-  
 });
 
+app.use(ErrorHandler);
 // Function to get and log the public IP
 async function logCurrentIP() {
   try {
@@ -61,6 +77,8 @@ async function logCurrentIP() {
     console.error('Error fetching IP address:', error);
   }
 }
+
+
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)

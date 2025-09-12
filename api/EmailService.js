@@ -6,49 +6,31 @@ const msal = require("@azure/msal-node");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const Item = require("./models/Item");
+const registry = require("./config/registry");
 
 const BASE_URL = "https://straightmonitor.com";
 
-// 📎 Standard-Anhang (z. B. Banner)
+// 📎 Standard-Anhang (z. B. Banner)
 const imagePath = path.join(__dirname, "assets", "Banner.png");
 const base64Image = fs.readFileSync(imagePath).toString("base64");
 
-// ✅ Nur ein Auth-Set für alle Adressen
-const SHARED_AUTH = {
-  clientId: process.env.EMAIL_CLIENT_ID_IT,
-  clientSecret: process.env.EMAIL_SECRET_IT,
-  authority: process.env.EMAIL_AUTHORITY_IT,
-};
-
-// ✅ Absender-Konfigurationen
-const emailAccounts = {
-  it: { address: "it@straightforward.email", ...SHARED_AUTH },
-  teamhamburg: { address: "teamhamburg@straightforward.email", ...SHARED_AUTH },
-  teamberlin: { address: "teamberlin@straightforward.email", ...SHARED_AUTH },
-  teamkoeln: { address: "teamkoeln@straightforward.email", ...SHARED_AUTH },
-};
-
-// ✅ Mapping von Stadt → E-Mail-Absender
-function safeSenderKey(key) {
-  const map = {
-    hamburg: "teamhamburg",
-    berlin: "teamberlin",
-    köln: "teamkoeln",
-    koeln: "teamkoeln",
-    it: "it",
-  };
-  return map[key?.toLowerCase()] || key;
+// 🔑 Sender-Normalisierung über Registry
+function resolveSenderKey(key) {
+  return registry.resolveKey(key || "it");
 }
 
 // 📤 Flexible Mail-Funktion (mit Absender-Auswahl)
-async function sendMail(recipients, subject, content, senderKey = "it", additionalAttachments = []) {
+async function sendMail(
+  recipients,
+  subject,
+  content,
+  senderKey = "it",
+  additionalAttachments = []
+) {
   try {
     if (!Array.isArray(recipients)) recipients = [recipients];
 
-    senderKey = safeSenderKey(senderKey);
-    const sender = emailAccounts[senderKey];
-
-    if (!sender) throw new Error(`Unbekannter E-Mail-Absender: ${senderKey}`);
+    const sender = registry.getEmailSender(resolveSenderKey(senderKey)); // {address, clientId, clientSecret, authority}
 
     const cca = new msal.ConfidentialClientApplication({
       auth: {
@@ -91,16 +73,23 @@ async function sendMail(recipients, subject, content, senderKey = "it", addition
           contentType: "HTML",
           content: `${content}<br><img src="cid:bannerImage" alt="Banner" style="width: 280px; height: auto;" />`,
         },
-        toRecipients: recipients.map((email) => ({ emailAddress: { address: email } })),
+        toRecipients: recipients.map((email) => ({
+          emailAddress: { address: email },
+        })),
         from: { emailAddress: { address: sender.address } },
         attachments: combinedAttachments,
       },
     };
 
     await client.api(`/users/${sender.address}/sendMail`).post(mail);
-    console.log(`✅ Email sent successfully from ${sender.address} to ${recipients.join(", ")}`);
+    console.log(
+      `✅ Email sent from ${sender.address} to ${recipients.join(", ")}`
+    );
   } catch (error) {
-    console.error("❌ Error sending email:", error);
+    console.error(
+      "❌ Error sending email:",
+      error?.response?.data || error.message
+    );
     throw error;
   }
 }
@@ -114,7 +103,8 @@ async function sendConfirmationEmail(user) {
   );
 
   const confirmUrl = `${BASE_URL}/confirm-email?token=${confirmationToken}`;
-  const subject = "Bestätige deine E-Mail Adresse für den Straightforward Monitor";
+  const subject =
+    "Bestätige deine E-Mail Adresse für den Straightforward Monitor";
   const content = `
     <div style="font-family: Arial, sans-serif; color: #333;">
       <h2 style="font-weight: bold; color: #000;">Willkommen beim Straightforward Monitor!</h2>
@@ -132,43 +122,56 @@ async function sendConfirmationEmail(user) {
   await sendMail(user.email, subject, content, "it");
 }
 
-// 📦 Artikel-Update per E-Mail
+// 📦 Artikel-Update per E-Mail (Routinen)
 async function sollRoutine() {
-  const today = new Date().toLocaleString("en-US", { weekday: "long" });
+  const targets = registry.getRoutineTargetsForToday(new Date()); // [{key, recipients, weekday}]
 
-  for (const location of locations) {
-    if (location.enabled && location.weekdays.includes(today)) {
-      try {
-        const items = await getItems(location.name);
-        location.items = items;
-        const content = createRoutineContent(location);
-        const senderKey = safeSenderKey(location.name);
+  for (const t of targets) {
+    try {
+      const items = await getItems(t.key);
+      console.log(
+        `[sollRoutine] team=${t.key} recipients=${t.recipients.join(
+          ","
+        )} items=${items.length}`
+      );
+      const content = createRoutineContent({ name: t.key, items });
+      console.log(`[sollRoutine] team=${t.key} contentLen=${content.length}`);
 
-        await sendMail(
-          location.email,
-          `Bestands-Update vom ${new Date().toLocaleDateString("de-DE")} für Team ${location.name}`,
-          content,
-          senderKey
-        );
-      } catch (error) {
-        console.error(`❌ Error sending routine email for ${location.name}:`, error);
-      }
+      await sendMail(
+        t.recipients,
+        `Bestands-Update vom ${new Date().toLocaleDateString(
+          "de-DE"
+        )} für Team ${t.key}`,
+        content,
+        t.key
+      );
+    } catch (error) {
+      console.error(
+        `❌ Error sending routine email for ${t.key}:`,
+        error?.response?.data || error.message
+      );
     }
   }
 }
 
-// 📄 HTML-Content für Routinemails
+// 📄 HTML-Content für Routinemails (unverändert, nur location.name -> { name })
 function createRoutineContent(location) {
   const today = new Date().toLocaleDateString("de-DE");
   let content = `
     <div style="font-family: Arial, sans-serif; color: #333;">
       <h2>Bestands Update vom ${today} für Team ${location.name}</h2>
   `;
-
+  const items = location.items || [];
+ if (items.length === 0) {
+    content += `<p><em>Keine Artikel gefunden für diesen Standort.</em></p></div>`;
+    return content;
+  }
   const itemsWithSoll = location.items.filter((item) => item.soll > 0);
   const itemsWithZeroSoll = location.items.filter((item) => item.soll === 0);
 
-  const sortedItems = itemsWithSoll.sort((a, b) => (b.anzahl / b.soll) - (a.anzahl / a.soll));
+  const sortedItems = itemsWithSoll.sort(
+    (a, b) => b.anzahl / b.soll - a.anzahl / a.soll
+  );
 
   if (sortedItems.length > 0) {
     content += `
@@ -189,7 +192,9 @@ function createRoutineContent(location) {
       const color = getPercentageColor(percentage);
       content += `
         <tr>
-          <td>${item.bezeichnung}${item.groesse !== "onesize" ? ` ${item.groesse}` : ""}</td>
+          <td>${item.bezeichnung}${
+        item.groesse !== "onesize" ? ` ${item.groesse}` : ""
+      }</td>
           <td style="text-align: right;">${item.anzahl}</td>
           <td style="text-align: right;">${item.soll}</td>
           <td style="text-align: right; background-color: ${color};">${percentage}%</td>
@@ -203,7 +208,14 @@ function createRoutineContent(location) {
     content += `
       <h3>Items ohne Soll</h3>
       <ul>
-        ${itemsWithZeroSoll.map((item) => `<li>${item.bezeichnung}${item.groesse !== "onesize" ? ` ${item.groesse}` : ""}: ${item.anzahl}</li>`).join("")}
+        ${itemsWithZeroSoll
+          .map(
+            (item) =>
+              `<li>${item.bezeichnung}${
+                item.groesse !== "onesize" ? ` ${item.groesse}` : ""
+              }: ${item.anzahl}</li>`
+          )
+          .join("")}
       </ul>
     `;
   }
@@ -221,36 +233,19 @@ function getPercentageColor(percentage) {
 }
 
 // 📥 Artikel laden
-async function getItems(location) {
+async function getItems(locationKey) {
   try {
-    return await Item.find({ standort: location });
+      const standort = registry.getInventoryStandort(locationKey); 
+    return await Item.find({ standort });
   } catch (err) {
-    console.error("Error fetching items for location:", location, err);
+    console.error(
+      "Error fetching items for location:",
+      locationKey,
+      err.message
+    );
     return [];
   }
 }
-
-// 📍 Orte mit Routinen
-const locations = [
-  {
-    name: "Hamburg",
-    email: ["teamhamburg@straightforward.email", "einkauf@straightforward.email"],
-    weekdays: ["Monday"],
-    enabled: true,
-  },
-  {
-    name: "Berlin",
-    email: ["teamberlin@straightforward.email", "einkauf@straightforward.email"],
-    weekdays: ["Monday"],
-    enabled: true,
-  },
-  {
-    name: "Köln",
-    email: ["teamkoeln@straightforward.email", "einkauf@straightforward.email"],
-    weekdays: ["Monday"],
-    enabled: true,
-  },
-];
 
 module.exports = {
   sendMail,

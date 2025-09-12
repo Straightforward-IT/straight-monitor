@@ -496,14 +496,22 @@ async function assignFlipUserGroups(req) {
     throw new Error(errorDetails);
   }
 }
-
 const findFlipUserByName = async (fullName) => {
+  console.log(`🔍 Searching Flip user by name: "${fullName}"`);
+
   if (!fullName || typeof fullName !== "string") {
     console.warn("⚠️ Invalid fullName provided:", fullName);
     return null;
   }
 
-  const users = await getFlipUsers();
+  let users;
+  try {
+    users = await getFlipUsers();
+    console.log(`✅ Received ${users.length} users from Flip API.`);
+  } catch (error) {
+    console.error("❌ Error fetching users from Flip API:", error);
+    throw error;
+  }
 
   if (!Array.isArray(users) || users.length === 0) {
     console.warn("⚠️ No users received from Flip API.");
@@ -515,36 +523,37 @@ const findFlipUserByName = async (fullName) => {
   const normalizedUsers = users
     .filter((user) => user.first_name && user.last_name)
     .map((user) => ({
-      id: user.id, // Flip API uses `id`
+      id: user.id,
       fullName: `${user.first_name} ${user.last_name}`.toLowerCase().trim(),
       vorname: user.first_name.toLowerCase().trim(),
       nachname: user.last_name.toLowerCase().trim(),
     }));
 
-  if (normalizedUsers.length === 0) {
-    console.warn("⚠️ All Flip users were missing first_name or last_name.");
-    return null;
-  }
+  console.log(`✅ Normalized ${normalizedUsers.length} users for matching.`);
 
   const inputParts = normalizedInput.split(/\s+/);
   const inputLastName = inputParts[inputParts.length - 1];
   const inputFirstNames = inputParts.slice(0, -1).join(" ");
 
-  // Step 1: Exact match (ignoring spaces)
+  // Exact match
   const exactMatch = normalizedUsers.find(
-    (user) =>
-      user.fullName.replace(/\s+/g, "") === normalizedInput.replace(/\s+/g, "")
+    (user) => user.fullName.replace(/\s+/g, "") === normalizedInput.replace(/\s+/g, "")
   );
-  if (exactMatch) return exactMatch.id;
+  if (exactMatch) {
+    console.log(`✅ Exact match found: ${exactMatch.fullName}`);
+    return exactMatch.id;
+  }
 
-  // Step 2: Match by last name + part of first name
+  // Match by last name + first name parts
   const lastNameMatch = normalizedUsers.find(
-    (user) =>
-      user.nachname === inputLastName && user.vorname.includes(inputFirstNames)
+    (user) => user.nachname === inputLastName && user.vorname.includes(inputFirstNames)
   );
-  if (lastNameMatch) return lastNameMatch.id;
+  if (lastNameMatch) {
+    console.log(`✅ Last name & partial first name match: ${lastNameMatch.fullName}`);
+    return lastNameMatch.id;
+  }
 
-  // Step 3: String similarity fallback
+  // String similarity fallback
   const userNames = normalizedUsers.map((user) => user.fullName);
 
   if (userNames.length === 0) {
@@ -553,12 +562,15 @@ const findFlipUserByName = async (fullName) => {
   }
 
   const matches = stringSimilarity.findBestMatch(normalizedInput, userNames);
+  console.log(`🔬 Best string similarity match:`, matches.bestMatch);
+
   if (matches.bestMatch.rating > 0.8) {
     const matchedUser = normalizedUsers[matches.bestMatchIndex];
+    console.log(`✅ Similarity match found: ${matchedUser.fullName} (Rating: ${matches.bestMatch.rating})`);
     return matchedUser.id;
   }
 
-  // Step 4: No match found
+  console.warn(`⚠️ No suitable match found for "${fullName}"`);
   return null;
 };
 
@@ -853,21 +865,27 @@ async function markAssignmentAsCompleted(assignmentId) {
 }
 
 async function deleteManyFlipUsers(ids) {
-  try {
-    const response = await flipAxios.delete("/api/admin/users/v4/users/batch", {
-      headers: { "Content-Type": "application/json" },
-      data: { items: ids.map((id) => ({ id })) },
-    });
-    console.log("Gelöschte FlipUser:", response.data);
-    return response.data;
-  } catch (error) {
-    console.error(
-      "❌ Fehler beim Löschen:",
-      error.response?.data || error.message
-    );
-    throw error;
+  const chunkSize = 100;
+  const results = [];
+
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    try {
+      const response = await flipAxios.delete("/api/admin/users/v4/users/batch", {
+        headers: { "Content-Type": "application/json" },
+        data: { items: chunk.map((id) => ({ id })) },
+      });
+      console.log(`🧹 Erfolgreich gelöscht (${chunk.length}):`, chunk);
+      results.push(response.data);
+    } catch (error) {
+      console.error("❌ Fehler beim Löschen (Flip API):", error.response?.data || error.message);
+      throw error;
+    }
   }
+
+  return results;
 }
+
 
 module.exports = {
   flipUserRoutine,
