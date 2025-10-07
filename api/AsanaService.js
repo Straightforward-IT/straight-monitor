@@ -2,7 +2,6 @@
 const Asana = require("asana");
 const axios = require("axios");
 require("dotenv").config();
-const he = require("he");
 
 const { sendMail } = require("./EmailService");
 const registry = require("./config/registry");
@@ -406,27 +405,6 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
     await addLinkToTask(createdTask.gid);
   } catch (e) {
     console.warn("⚠️ addLinkToTask failed:", e.message);
-  }
-
-  // 6) Debug-RAW-HTML an IT (optional beibehalten)
-  try {
-    if (email.bodyHtml) {
-      await sendMail(
-        "it@straightforward.email",
-        `RAW Mail-HTML (${hint.teamKey || hint.upn || "unknown"}) – ${name}`,
-        `<h3>Provider: ${hint.provider || "-"}</h3>
-         <h4>UPN: ${hint.upn || "-"}</h4>
-         <h4>Team: ${hint.teamKey || "-"}</h4>
-         <pre style="white-space:pre-wrap;word-wrap:break-word;">${
-           (email.bodyHtml || "")
-             .replace(/&/g, "&amp;")
-             .replace(/</g, "&lt;")
-             .replace(/>/g, "&gt;")
-         }</pre>`
-      );
-    }
-  } catch (e) {
-    console.warn("⚠️ sending RAW HTML to IT failed:", e.message);
   }
 
   return createdTask;

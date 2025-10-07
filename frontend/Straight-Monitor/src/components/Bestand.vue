@@ -4,7 +4,6 @@
     Straight
     <span><font-awesome-icon :icon="['fas', 'warehouse']" /> Bestand</span>
   </h4>
-  <p>Benutzer: {{ userName }}</p>
 
   <div class="search-outer">
     <div class="search-container">
@@ -274,6 +273,8 @@
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
 
+const collator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
+
 export default {
   name: "Bestand",
   emits: [
@@ -282,19 +283,24 @@ export default {
     "switch-to-dashboard",
     "switch-to-verlauf",
   ],
-  components: {
-    FontAwesomeIcon,
-  },
-  props: {
-    isModalOpen: Boolean,
-  },
+  components: { FontAwesomeIcon },
+  props: { isModalOpen: Boolean },
+
   data() {
     return {
       token: localStorage.getItem("token") || null,
+
       userEmail: "",
       userName: "",
       userID: "",
+
+      // Suche & UI
       searchQuery: "",
+      searchWords: [],          // ← wird aus searchQuery (debounced) befüllt
+      debounceMs: 300,
+      _searchT: null,           // timer handle fürs Debounce
+
+      // Modal / Eingaben
       inputValue: "",
       anmerkung: "",
       showInputField: false,
@@ -303,6 +309,8 @@ export default {
       mouseX: 0,
       mouseY: 0,
       selectedItem: null,
+
+      // Daten
       items: [],
       newItem: {
         bezeichnung: "",
@@ -310,15 +318,21 @@ export default {
         anzahl: 0,
         soll: 0,
         standort: "",
-      }, // Store new item data
+      },
+
+      // Edit-Puffer
       originalBezeichnung: "",
       originalAnzahl: 0,
       originalSoll: 0,
-      sortBy: "name",
+
+      // Sortierung
+      sortBy: "name",    // "name" | "count"
       isAscending: true,
     };
   },
+
   watch: {
+    // Token-Update (optional, falls du’s noch lokal setzt)
     token(newToken) {
       if (newToken) {
         localStorage.setItem("token", newToken);
@@ -327,67 +341,72 @@ export default {
         localStorage.removeItem("token");
       }
     },
+
+    // Debounced Suche + Standort-Autofill — KEINE Seiteneffekte mehr im computed!
+    searchQuery: {
+      immediate: true,
+      handler(q) {
+        clearTimeout(this._searchT);
+        const text = (q || "").toLowerCase();
+
+        this._searchT = setTimeout(() => {
+          const words = text.split(/\s+/).filter(Boolean);
+          this.searchWords = words;
+
+          // Standort-Autofill nur wenn eindeutig
+          const hasHB = words.includes("hamburg");
+          const hasK  = words.includes("köln");
+          const hasB  = words.includes("berlin");
+          if (hasHB && !hasK && !hasB) this.newItem.standort = "Hamburg";
+          else if (!hasHB && hasK && !hasB) this.newItem.standort = "Köln";
+          else if (!hasHB && !hasK && hasB) this.newItem.standort = "Berlin";
+          else this.newItem.standort = "";
+        }, this.debounceMs);
+      },
+    },
   },
+
   computed: {
     filteredItems() {
-      this.searchQuery = this.searchQuery.toLocaleLowerCase();
+      const words = this.searchWords;
 
-  const searchWords = this.searchQuery
-    .toLowerCase()
-    .split(" ")
-    .filter((word) => word);
+      // Filtern
+      let filtered = words.length
+        ? this.items.filter((item) => {
+            const bezeichnung = (item.bezeichnung || "").toLowerCase();
+            const groesse    = (item.groesse || "").toLowerCase();
+            const standort   = (item.standort || "").toLowerCase();
+            const hay = `${bezeichnung} ${groesse} ${standort}`;
+            return words.every((w) => hay.includes(w));
+          })
+        : this.items.slice(); // Kopie, damit sort() nicht das Original zerdeppert
 
-  if (
-    searchWords.includes("hamburg") &&
-    !searchWords.includes("köln") &&
-    !searchWords.includes("berlin")
-  ) {
-    this.newItem.standort = "Hamburg";
-  } else if (
-    !searchWords.includes("hamburg") &&
-    searchWords.includes("köln") &&
-    !searchWords.includes("berlin")
-  ) {
-    this.newItem.standort = "Köln";
-  } else if (
-    !searchWords.includes("hamburg") &&
-    !searchWords.includes("köln") &&
-    searchWords.includes("berlin")
-  ) {
-    this.newItem.standort = "Berlin";
-  } else {
-    this.newItem.standort = "";
-  }
+      // Sortieren
+      if (this.sortBy === "count") {
+        filtered.sort((a, b) =>
+          this.isAscending
+            ? (a.anzahl ?? 0) - (b.anzahl ?? 0)
+            : (b.anzahl ?? 0) - (a.anzahl ?? 0)
+        );
+      } else {
+        filtered.sort((a, b) =>
+          this.isAscending
+            ? collator.compare(a.bezeichnung || "", b.bezeichnung || "")
+            : collator.compare(b.bezeichnung || "", a.bezeichnung || "")
+        );
+      }
 
-  // Filter items based on search terms (by name, size, or location)
-  let filtered = this.items.filter((item) => {
-    const itemData =
-      `${item.bezeichnung} ${item.groesse} ${item.standort}`.toLowerCase();
-    return searchWords.every((word) => itemData.includes(word));
-  });
-
-  // Sort filtered items based on the selected criterion and ascending/descending order
-  if (this.sortBy === "count") {
-    // Sort by quantity (Anzahl), considering ascending or descending order
-    filtered.sort((a, b) => 
-      this.isAscending ? a.anzahl - b.anzahl : b.anzahl - a.anzahl
-    );
-  } else {
-    // Default: Sort by name (Bezeichnung) in alphabetical order, considering order
-    filtered.sort((a, b) => 
-      this.isAscending 
-        ? a.bezeichnung.localeCompare(b.bezeichnung) 
-        : b.bezeichnung.localeCompare(a.bezeichnung)
-    );
-  }
-
-  return filtered;
-},
+      return filtered;
+    },
   },
+
   methods: {
     setAxiosAuthToken() {
+      // Mit neuem api-Interceptor eigentlich nicht mehr nötig,
+      // aber schadet nicht, falls du den Token hier zentral pflegst.
       api.defaults.headers.common["x-auth-token"] = this.token;
     },
+
     enableEdit(item) {
       this.originalBezeichnung = item.bezeichnung;
       this.originalAnzahl = item.anzahl;
@@ -400,37 +419,31 @@ export default {
       item.soll = this.originalSoll;
       item.isEditing = false;
     },
+
     setSortBy(criteria) {
-    if (this.sortBy === criteria) {
-      // Toggle the direction if the same criteria is clicked
-      this.isAscending = !this.isAscending;
-    } else {
-      // Set new criteria and default to ascending
-      this.sortBy = criteria;
-      this.isAscending = true;
-    }
-  },
-    insertKeyword(keyword) {
-      if (keyword === "logistik") {
-        if (this.searchQuery.toLocaleLowerCase().includes(keyword)) {
-          return;
-        } else {
-          if (this.searchQuery.toLocaleLowerCase().includes("service")) {
-            this.searchQuery = this.searchQuery.toLocaleLowerCase().replace(" service", "");
-          }
-          this.searchQuery += ` ${keyword}`;
-        }
+      if (this.sortBy === criteria) {
+        this.isAscending = !this.isAscending;
       } else {
-        if (this.searchQuery.toLocaleLowerCase().includes(keyword)){
-          return;
-        }else{
-          if(this.searchQuery.toLocaleLowerCase().includes("logistik")) {
-            this.searchQuery = this.searchQuery.toLocaleLowerCase().replace(" logistik", "");
-          }
-          this.searchQuery += ` ${keyword}`
-        }
+        this.sortBy = criteria;
+        this.isAscending = true;
       }
     },
+
+    insertKeyword(keyword) {
+      // robust: toggelt "logistik" vs "service" ohne Freitext zu vermurksen
+      const kw = String(keyword || "").toLowerCase();
+      if (!kw) return;
+
+      const tokens = (this.searchQuery || "").toLowerCase().split(/\s+/).filter(Boolean);
+      if (tokens.includes(kw)) return;
+
+      const other = kw === "logistik" ? "service" : "logistik";
+      const re = new RegExp(`\\b${other}\\b`, "i");
+      let next = (this.searchQuery || "").replace(re, "").trim();
+
+      this.searchQuery = `${next} ${kw}`.trim();
+    },
+
     async updateItem(item) {
       if (
         item.bezeichnung === this.originalBezeichnung &&
@@ -441,79 +454,69 @@ export default {
       }
 
       try {
-        const response = await api.put(`/api/items/edit/${item._id}`, {
+        const { data: updatedItem } = await api.put(`/api/items/edit/${item._id}`, {
           userID: this.userID,
           bezeichnung: item.bezeichnung,
           anzahl: item.anzahl,
-          soll: item.soll
+          soll: item.soll,
         });
-        const updatedItem = response.data;
-        const index = this.items.findIndex(
-          (item) => item._id === updatedItem._id
-        );
-        if (index !== -1) {
-          this.items.splice(index, 1, updatedItem);
-        }
+
+        const idx = this.items.findIndex((x) => x._id === updatedItem._id);
+        if (idx !== -1) this.items.splice(idx, 1, updatedItem);
         item.isEditing = false;
       } catch (error) {
         console.error("Fehler beim Aktualisieren des Items:", error);
       }
     },
+
     autoResize(event) {
-      const textarea = event.target;
-      event.target.style.height = "auto";
-      event.target.style.height = `${textarea.scrollHeight}px`;
+      const ta = event.target;
+      ta.style.height = "auto";
+      ta.style.height = `${ta.scrollHeight}px`;
     },
-    openModal() {
-      this.$emit("update-modal", true);
-    },
-    closeModal() {
-      this.$emit("update-modal", false);
-    },
+
+    openModal() { this.$emit("update-modal", true); },
+    closeModal() { this.$emit("update-modal", false); },
+
     async fetchUserData() {
-      if (this.token) {
-        try {
-          const response = await api.get("/api/users/me");
-          this.userEmail = response.data.email;
-          this.userID = response.data._id;
-          this.userName = response.data.name;
-          this.searchQuery = response.data.location;
-        } catch (error) {
-          console.error("Fehler beim Abrufen der Benutzerdaten:", error);
-          this.$router.push("/");
-        }
-      } else {
+      if (!this.token) return this.$router.push("/");
+      try {
+        const { data } = await api.get("/api/users/me");
+        this.userEmail = data.email;
+        this.userID = data._id;
+        this.userName = data.name;
+
+        // Standort als Start-Suchbegriff (triggert Watcher → searchWords & Autofill)
+        this.searchQuery = data.location || "";
+      } catch (error) {
+        console.error("Fehler beim Abrufen der Benutzerdaten:", error);
         this.$router.push("/");
       }
     },
+
     async fetchItems() {
       try {
-        const response = await api.get("/api/items");
-        this.items = response.data;
-        console.log("Items fetched:");
+        const { data } = await api.get("/api/items");
+        this.items = Array.isArray(data) ? data : [];
       } catch (error) {
         console.error("Fehler beim Abrufen der Artikel:", error);
       }
     },
+
     async submitNewItem() {
       let { bezeichnung, groesse, anzahl, soll, standort } = this.newItem;
 
-      // Set 'groesse' to 'onesize' if it's empty or an empty string
-      if (!groesse || groesse.trim() === "") {
-        groesse = "onesize";
-      }
-      if (!soll) {
-        soll = 0;
-      }
+      groesse = (groesse && groesse.trim()) ? groesse.trim() : "onesize";
+      anzahl = Number.isFinite(+anzahl) ? +anzahl : 0;
+      soll   = Number.isFinite(+soll)   ? +soll   : 0;
 
-      // Check for required fields
       if (!bezeichnung || !standort || anzahl < 0) {
         alert("Bezeichnung, Anzahl und Standort sind erforderlich");
         return;
       }
 
       try {
-        const response = await api.post("/api/items/addNew", {
+        const { data: created } = await api.post("/api/items/addNew", {
           userID: this.userID,
           bezeichnung,
           groesse,
@@ -522,56 +525,51 @@ export default {
           standort,
           anmerkung: this.anmerkung,
         });
-        this.items.push(response.data); // Add the new item to the list
-        this.resetNewItem(); // Reset the form
-        this.showAddModal = false; // Close the modal
+        this.items.push(created);
+        this.resetNewItem();
+        this.showAddModal = false;
         this.closeModal();
       } catch (error) {
         console.error("Fehler beim Hinzufügen des Artikels:", error);
       }
     },
+
     resetNewItem() {
-      this.newItem = {
-        bezeichnung: "",
-        groesse: "",
-        anzahl: 0,
-        standort: "",
-      };
+      this.newItem = { bezeichnung: "", groesse: "", anzahl: 0, soll: 0, standort: "" };
       this.anmerkung = "";
     },
+
     startUpdate(item) {
       this.selectedItem = item;
-      this.showInputField = true; // Show the update modal
+      this.showInputField = true;
       this.openModal();
     },
+
     async submitAddOrRemove(action) {
-      const value = parseInt(this.inputValue);
-      if (!isNaN(value)) {
-        const amount = value;
-        try {
-          let response;
-          const endpoint =
-            action === "add"
-              ? `/api/items/add/${this.selectedItem._id}`
-              : `/api/items/remove/${this.selectedItem._id}`;
-          response = await api.put(endpoint, {
-            userID: this.userID,
-            anzahl: amount,
-            anmerkung: this.anmerkung,
-          });
-          const updatedItem = response.data;
-          const index = this.items.findIndex(
-            (item) => item._id === updatedItem._id
-          );
-          if (index !== -1) {
-            this.items.splice(index, 1, updatedItem); // Replace the item with the updated one
-          }
-          this.resetInput();
-        } catch (error) {
-          console.error("Fehler beim Aktualisieren des Artikels:", error);
-        }
+      const value = parseInt(this.inputValue, 10);
+      if (Number.isNaN(value)) return;
+
+      try {
+        const endpoint =
+          action === "add"
+            ? `/api/items/add/${this.selectedItem._id}`
+            : `/api/items/remove/${this.selectedItem._id}`;
+
+        const { data: updated } = await api.put(endpoint, {
+          userID: this.userID,
+          anzahl: value,
+          anmerkung: this.anmerkung,
+        });
+
+        const idx = this.items.findIndex((x) => x._id === updated._id);
+        if (idx !== -1) this.items.splice(idx, 1, updated);
+
+        this.resetInput();
+      } catch (error) {
+        console.error("Fehler beim Aktualisieren des Artikels:", error);
       }
     },
+
     resetInput() {
       this.inputValue = "";
       this.anmerkung = "";
@@ -580,108 +578,101 @@ export default {
       this.selectedItem = null;
     },
   },
+
   mounted() {
-    this.setAxiosAuthToken();
+    this.setAxiosAuthToken();   // harmless; eig. durch api-Interceptor abgedeckt
     this.fetchUserData();
     this.fetchItems();
+  },
+
+  beforeUnmount() {
+    clearTimeout(this._searchT);
   },
 };
 </script>
 
-<style scoped lang="scss">
-@import "@/assets/styles/global.scss"; 
+<style scoped lang="scss">@import "@/assets/styles/global.scss";
 
+/* --------- Layout Grundstruktur --------- */
 .session {
   display: flex;
   flex-direction: row;
 }
 
-.left {
-  display: block;
-}
-
-
+.left { display: block; }
 
 @media only screen and (max-width: 768px) {
-  .left {
-    display: none; /* Hide on mobile screens */
-  }
-
-  form {
-    width: 100%;
-    height: 100%;
-  }
+  .left { display: none; }
+  form { width: 100%; height: 100%; }
 }
 
+/* --------- Links/Typo --------- */
 a.discrete {
   user-select: none;
-  color: rgba(#000, 0.4);
+  color: color-mix(in srgb, var(--text) 40%, transparent);
   font-size: 14px;
-  border-bottom: solid 1px rgba(#000, 0);
+  border-bottom: solid 1px rgba(0,0,0,0);
   cursor: pointer;
   padding-bottom: 4px;
   margin-left: auto;
   font-weight: 300;
   transition: all 0.3s ease;
-  margin-top: 0px;
+  margin-top: 0;
 
-  &:hover {
-    border-bottom: solid 1px rgba(#000, 0.2);
-  }
+  &:hover { border-bottom: solid 1px var(--border); }
 }
 
-.top {
-  display: block;
-}
+.top { display: block; }
 
-
+/* --------- Formular-Panel (Kopfbereich) --------- */
 form {
-  padding: 40px 30px;
-  background: #fefefe;
+  padding: 40px 30px 20px;
+  background: var(--panel);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding-bottom: 20px;
   width: 500px;
 
   h4 {
-      font-size: 24px;
-  font-weight: 600;
-  color: #000;
-  opacity: 0.85;
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text);
+    opacity: 0.85;
     margin-bottom: 20px;
-    color: rgba(#000, 0.5);
+
     span {
-      color: rgba(#000, 1);
+      color: var(--text);
       font-weight: 700;
     }
   }
+
   p {
     line-height: 155%;
-    margin-bottom: 5px;
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     opacity: 0.65;
     font-weight: 400;
     max-width: 200px;
-    margin-bottom: 40px;
+    margin: 0 0 40px;
   }
 }
+
+/* (Duplikat aus Original behalten) */
 a.discrete {
   user-select: none;
-  color: rgba(#000, 0.4);
+  color: color-mix(in srgb, var(--text) 40%, transparent);
   font-size: 14px;
-  border-bottom: solid 1px rgba(#000, 0);
+  border-bottom: solid 1px rgba(0,0,0,0);
   padding-bottom: 4px;
   margin-left: auto;
   font-weight: 300;
   transition: all 0.3s ease;
   margin-top: 40px;
-  &:hover {
-    border-bottom: solid 1px rgba(#000, 0.2);
-  }
+
+  &:hover { border-bottom: solid 1px var(--border); }
 }
 
+/* --------- Buttons --------- */
 button {
   user-select: none;
   width: auto;
@@ -690,69 +681,64 @@ button {
   text-align: center;
   padding: 15px 40px;
   margin-top: 5px;
-  background-color: $base-primary;
+  background-color: var(--primary);
   color: #fff;
   font-size: 14px;
   margin-left: auto;
   font-weight: 500;
-  box-shadow: 0px 2px 6px -1px rgba(0, 0, 0, 0.13);
+  box-shadow: 0px 2px 6px -1px rgba(0,0,0,0.13);
   border: none;
   outline: 0;
 }
-.modal {
-  z-index: 10;
-}
+
+/* --------- Modal Grundstruktur --------- */
+.modal { z-index: 10; }
+
 .close-modal {
   position: absolute;
   cursor: pointer;
   bottom: 94%;
-  left: 95%; /* Place the button at the top-right corner */
-  background-color: white;
-  color: #e3e3e3;
-  border: 1px solid gray;
+  left: 95%;
+  background-color: var(--tile-bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
+  width: 30px; height: 30px;
   font-size: 16px;
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: flex; justify-content: center; align-items: center;
 
-  &:hover {
-    color: #999;
-  }
+  &:hover { color: color-mix(in srgb, var(--text) 60%, transparent); }
 }
 
+/* --------- Floating Label Karte --------- */
 .floating-label {
   transition: all 0.3s ease;
+
   &:hover {
     cursor: pointer;
     transform: translateY(-3px);
-    box-shadow: 0px 10px 20px 0px rgba(0, 0, 0, 0.2);
-    &:active {
-      transform: scale(0.99);
-    }
+    box-shadow: 0px 10px 20px 0px rgba(0,0,0,0.2);
+
+    &:active { transform: scale(0.99); }
   }
-  button {
-    margin-top: 0px;
-  }
-  .icon {
-    height: 48px !important;
-  }
+
+  button { margin-top: 0; }
+  .icon { height: 48px !important; }
 }
+
 .inactive {
   transition: unset;
+
   &:hover {
     cursor: unset;
     transform: unset;
     box-shadow: unset;
   }
-  button {
-    background-color: #e0e0e0;
-  }
+
+  button { background-color: color-mix(in srgb, var(--tile-bg) 70%, var(--text) 30%); }
 }
 
+/* --------- Inputs & Dropdowns --------- */
 input,
 .standort-dropdown {
   user-select: none;
@@ -760,28 +746,29 @@ input,
   padding: 20px 0px;
   height: 56px;
   border: none;
-  border-bottom: solid 1px rgba(0, 0, 0, 0.1);
-  background: #fff;
+  border-bottom: solid 1px var(--border);
+  background: var(--tile-bg);
   width: 280px;
   box-sizing: border-box;
   transition: all 0.3s linear;
-  color: #000;
+  color: var(--text);
   font-weight: 400;
+
   &:focus {
-    border-bottom: solid 1px $base-primary;
+    border-bottom: solid 1px var(--primary);
     outline: 0;
-    box-shadow: 0 2px 6px -8px rgba($base-primary, 0.45);
+    box-shadow: 0 2px 6px -8px color-mix(in srgb, var(--primary) 45%, transparent);
   }
 }
 
-.standort-dropdown {
-  height: unset;
-}
+.standort-dropdown { height: unset; }
 
+/* Floating label helper (behalten) */
 .floating-label {
   position: relative;
   margin-bottom: 10px;
   width: 100%;
+
   label {
     position: absolute;
     top: calc(50% - 7px);
@@ -790,157 +777,119 @@ input,
     transition: all 0.3s ease;
     padding-left: 44px;
   }
+
   input {
     width: calc(100% - 44px);
     margin-left: auto;
     display: flex;
   }
+
   .icon {
     position: absolute;
-    top: 0;
-    left: 0;
-    height: 56px;
-    width: 44px;
+    top: 0; left: 0;
+    height: 56px; width: 44px;
     display: flex;
+
     svg {
-      height: 30px;
-      width: 30px;
+      height: 30px; width: 30px;
       margin: auto;
       opacity: 0.15;
       transition: all 0.3s ease;
-      path {
-        transition: all 0.3s ease;
-      }
+
+      path { transition: all 0.3s ease; }
     }
   }
-  input:not(:placeholder-shown) {
-    padding: 28px 0px 12px 0px;
+
+  input:not(:placeholder-shown) { padding: 28px 0px 12px 0px; }
+  input:not(:placeholder-shown) + label { transform: translateY(-10px); opacity: 0.7; }
+
+  input:valid:not(:placeholder-shown) + label + .icon svg {
+    opacity: 1;
+    path { fill: var(--primary); }
   }
-  input:not(:placeholder-shown) + label {
-    transform: translateY(-10px);
-    opacity: 0.7;
-  }
-  input:valid:not(:placeholder-shown) + label + .icon {
-    svg {
-      opacity: 1;
-      path {
-        fill: $base-primary;
-      }
-    }
-  }
+
   input:not(:valid):not(:focus) + label + .icon {
     animation-name: shake-shake;
     animation-duration: 0.3s;
   }
 }
+
 $displacement: 3px;
 @keyframes shake-shake {
-  0% {
-    transform: translateX(-$displacement);
-  }
-  20% {
-    transform: translateX($displacement);
-  }
-  40% {
-    transform: translateX(-$displacement);
-  }
-  60% {
-    transform: translateX($displacement);
-  }
-  80% {
-    transform: translateX(-$displacement);
-  }
-  100% {
-    transform: translateX(0px);
-  }
+  0% { transform: translateX(-$displacement); }
+  20% { transform: translateX($displacement); }
+  40% { transform: translateX(-$displacement); }
+  60% { transform: translateX($displacement); }
+  80% { transform: translateX(-$displacement); }
+  100% { transform: translateX(0px); }
 }
+
+/* --------- Wrapper + Sidebarhintergrund --------- */
 .session {
   display: flex;
   flex-direction: row;
-  width: auto;
-  height: auto;
+  width: auto; height: auto;
   margin: auto auto;
-  background: #ffffff;
+  background: var(--panel);
   border-radius: 4px;
-  box-shadow: 0px 0px 20px 10px rgba(255, 255, 255, 0.2);
+  box-shadow: 0px 0px 20px 10px rgba(255,255,255,0.02);
 }
+
 .left {
-  width: 220px;
-  height: auto;
-  min-height: 100%;
+  width: 220px; height: auto; min-height: 100%;
   position: relative;
   background-image: url("@/assets/SF_001.jpg");
   background-position: 60% center;
   background-size: cover;
-  border-top-left-radius: 4px;
-  border-bottom-left-radius: 4px;
-  box-shadow: 10px 0px 20px -5px rgba(0, 0, 0, 0.1);
-  svg {
-    height: 40px;
-    width: auto;
-    margin: 20px;
-  }
+  border-top-left-radius: 4px; border-bottom-left-radius: 4px;
+  box-shadow: 10px 0px 20px -5px rgba(0,0,0,0.1);
+
+  svg { height: 40px; width: auto; margin: 20px; }
 }
 
 .right {
   padding: 15px 15px;
-  box-shadow: -10px 0px 20px -5px rgba(0, 0, 0, 0.1);
-  background: #fefefe;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  box-shadow: -10px 0px 20px -5px rgba(0,0,0,0.1);
+  background: var(--tile-bg);
+  display: flex; flex-direction: column; align-items: flex-start;
   padding-bottom: 20px;
   width: 160px;
 
   h4 {
     margin-bottom: 20px;
-    color: rgba(#000, 0.5);
-    span {
-      color: rgba(#000, 1);
-      font-weight: 700;
-    }
+    color: var(--text);
+    opacity: 0.7;
+
+    span { color: var(--text); font-weight: 700; }
   }
 
   .shortcut-container {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     opacity: 0.65;
     font-weight: 400;
 
     .item-list-sf {
-      width: 30px; /* Adjust the width as needed */
-      height: auto; /* Maintain aspect ratio */
-      margin: 5px;
-      cursor: pointer;
+      width: 30px; height: auto;
+      margin: 5px; cursor: pointer;
     }
   }
 }
-.list-item {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-}
 
-/* src/assets/base.scss or any global stylesheet */
-.logo-svg .st01 {
-  fill: #fff;
-}
-.icon-svg .st0 {
-  fill: none;
-}
-.icon-svg .st1 {
-  fill: #010101;
-}
+.list-item { display: flex; flex-direction: row; align-items: center; }
+
+/* SVG Fills (belassen) */
+.logo-svg .st01 { fill: #fff; }
+.icon-svg .st0 { fill: none; }
+.icon-svg .st1 { fill: #010101; }
 
 .logo-svg {
-  width: 50px; /* Adjust the width as needed */
-  height: auto; /* Maintain aspect ratio */
+  width: 50px; height: auto;
   margin: 20px 0px 0px 10px;
-  /* Add other styles if needed */
 }
 
+/* --------- Suche + Filter (wie vorher, nur thematisiert) --------- */
 .search-container {
-  
   display: flex;
   align-items: center;
   width: 100%;
@@ -948,22 +897,39 @@ $displacement: 3px;
 
 .search-outer{
   width: 500px;
+  padding: 1vh;
 }
+
 .search-textarea {
   z-index: 4;
   width: 100%;
   padding: 8px;
-  font-size: 12px;
-  border: 1px solid #ccc;
+  font-size: 16px; /* Verhindert Auto-Zoom auf Mobile */
+  border: 1px solid var(--border);
   border-radius: 5px;
   box-sizing: border-box;
   resize: none;
   overflow: hidden;
+  background: var(--tile-bg);
+  color: var(--text);
 
   &::placeholder {
-    font-size: 12px;
-    color: #999;
+    font-size: 16px; /* Gleiche Größe wie Haupttext */
+    color: var(--muted);
     opacity: 1;
+  }
+}
+
+/* Mobile-spezifische Anpassungen */
+@media (max-width: 768px) {
+  .search-textarea {
+    font-size: 16px; /* Explizit für Mobile */
+    padding: 12px; /* Größere Touch-Targets */
+    line-height: 1.4;
+  }
+  
+  .search-textarea::placeholder {
+    font-size: 16px;
   }
 }
 
@@ -974,66 +940,63 @@ $displacement: 3px;
   gap: 5px !important;
   margin-bottom: 10px;
   width: 50%;
+
   div {
     font-size: 9px;
     min-width: 40px;
-    margin-top: 0px;
+    margin-top: 0;
     padding: 5px 10px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--border);
     border-radius: 5px;
-    background-color: #f0f0f0;
-    display: flex;
-    justify-content: space-between;
+    background-color: var(--tile-bg);
+    color: var(--text);
+    display: flex; justify-content: space-between; align-items: center;
     cursor: pointer;
-    transition: background-color 0.3s;
+    transition: background-color 0.3s, color 0.2s, border-color 0.2s;
     user-select: none;
+
     &.active {
-      background-color: #5d5d5d; /* Active button color */
-      color: white;
+      background-color: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
     }
 
     &:hover {
-      background-color: #1d1d1d30;
+      background-color: var(--hover);
     }
   }
-  
+
   .keyword-button {
-    background-color: #eee;
+    background-color: var(--hover);
     padding: 5px;
     cursor: pointer;
+    border-radius: 5px;
 
     &:hover {
-      background-color: #1d1d1d30;
+      background-color: color-mix(in srgb, var(--hover) 80%, var(--primary) 20%);
     }
   }
 }
 
-.items-container {
+/* --------- Items Grid --------- */
+.items-container{
   width: 100%;
-  height: 400px;
-  overflow-y: auto;
-  padding-right: 10px;
   display: grid;
-  grid-template-columns: repeat(
-    2,
-    1fr
-  ); /* Two equal-width columns by default */
-  grid-gap: 15px;
-
-  /* Media query for mobile devices */
-  @media only screen and (max-width: 768px) {
-    grid-template-columns: 1fr; /* Switch to one column on mobile */
-  }
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
+
+@media (min-width: 700px)  { .items-container{ grid-template-columns: repeat(2, 1fr);} }
+@media (min-width: 1100px) { .items-container{ grid-template-columns: repeat(3, 1fr);} }
+@media (min-width: 1500px) { .items-container{ grid-template-columns: repeat(4, 1fr);} }
+
 form {
-  @media only screen and (max-width: 768) {
-    width: 300px;
-  }
+  @media only screen and (max-width: 768) { width: 300px; }
 }
 
 .item-wrapper {
   margin-bottom: 20px;
-  position: relative; /* To position the edit button */
+  position: relative;
 }
 
 .header-and-pen {
@@ -1043,53 +1006,41 @@ form {
   word-wrap: break-word;
   width: 100%;
 }
+
 .item-card {
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
+  background-color: var(--tile-bg);
+  border: 1px solid var(--border);
   border-radius: 5px;
   padding: 10px;
   font-size: 14px;
-  width: 100%; /* Ensure the card takes up the full column width */
+  width: 100%;
   box-sizing: border-box;
+  color: var(--text);
 
-  .close-button {
+  .close-button,
+  .accept-button {
     position: absolute;
-    top: 10px;
     right: 10px;
     font-size: 16px;
     cursor: pointer;
-    color: #323231;
+    color: var(--text);
+    opacity: .85;
 
-    &:hover {
-      color: #999;
-    }
+    &:hover { color: var(--muted); }
   }
 
-  .accept-button {
-    position: absolute;
-    top: 25px;
-    right: 9px;
-    font-size: 16px;
-    cursor: pointer;
-    color: #323231;
-
-    &:hover {
-      color: #999;
-    }
-  }
+  .close-button { top: 10px; }
+  .accept-button { top: 25px; right: 9px; }
 }
 
 .edit-button {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 10px; right: 10px;
   font-size: 16px;
   cursor: pointer;
-  color: #323231;
+  color: var(--text);
 
-  &:hover {
-    color: #999;
-  }
+  &:hover { color: var(--muted); }
 }
 
 /* Item Header and Input */
@@ -1103,9 +1054,11 @@ form {
     height: min-content;
     font-size: 16px;
     padding: 5px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border);
     border-radius: 4px;
     outline: none;
+    background: var(--tile-bg);
+    color: var(--text);
   }
 }
 
@@ -1115,122 +1068,93 @@ form {
   margin-bottom: 5px;
 
   .inputMen {
-    width: calc(30%);
+    width: 30%;
     height: min-content;
     font-size: 16px;
     padding: 5px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border);
     border-radius: 4px;
     outline: none;
+    background: var(--tile-bg);
+    color: var(--text);
   }
 }
 
-.item-detail span {
-  font-size: 14px;
-}
+.item-detail span { font-size: 14px; }
 
-.item-actions {
-  display: flex;
-  justify-content: center;
-}
+/* Actions */
+.item-actions { display: flex; justify-content: center; }
 
 .update-button {
-  width: 100%;
-  height: 2rem;
-  font-size: 14px;
-  line-height: 0rem;
-  background-color: $base-primary;
-  color: white;
-  border: none;
-  margin-top: 0px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color 0.3s;
+  width: 100%; height: 2rem;
+  font-size: 14px; line-height: 0rem;
+  background-color: var(--primary);
+  color: white; border: none;
+  margin-top: 0; border-radius: 5px;
+  cursor: pointer; transition: background-color 0.3s;
 
   &:hover {
-    box-shadow: 0 2px 6px -1px rgba($base-primary, 0.65);
-    background-color: mix(black, $base-primary, 10%);
+    box-shadow: 0 2px 6px -1px color-mix(in srgb, var(--primary) 65%, transparent);
+    background-color: color-mix(in srgb, var(--primary) 90%, black);
 
-    &:active {
-      transform: translateY(-3px);
-    }
+    &:active { transform: translateY(-3px); }
   }
 }
-.add-button {
-  width: 2rem; /* Set the width equal to the height */
-  margin: 0 10px 0 10px;
-  height: 2rem; /* Same as the search input height */
-  display: flex;
-  z-index: 5;
-  justify-content: center;
-  align-items: center;
-  background-color: rgba($base-primary, 100); 
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
 
-  &:hover {
-    background-color: mix(black, rgba($base-primary,100), 5%);
-  }
+/* Add (+) Button neben Suche */
+.add-button {
+  width: 2rem; height: 2rem;
+  margin: 0 10px;
+  display: flex; justify-content: center; align-items: center;
+  z-index: 5;
+  background-color: var(--primary);
+  color: white; border: none; border-radius: 5px;
+  cursor: pointer; transition: background-color 0.3s ease;
+
+  &:hover { background-color: color-mix(in srgb, var(--primary) 95%, black); }
 }
 
 .floating-input {
-  position: fixed;
-  z-index: 1000;
-  background-color: white;
-  border: 1px solid #ccc;
-  padding: 10px;
-  border-radius: 5px;
+  position: fixed; z-index: 1000;
+  background-color: var(--tile-bg);
+  border: 1px solid var(--border);
+  padding: 10px; border-radius: 5px;
+  color: var(--text);
 }
 
 .floating-input input {
-  width: 50px;
-  text-align: center;
+  width: 50px; text-align: center; background: var(--tile-bg); color: var(--text);
 }
 
+/* --------- Modal Overlay & Card --------- */
 .modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: var(--overlay);
+  display: flex; justify-content: center; align-items: center;
 }
 
 .modal-content {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  width: 400px;
-  text-align: center;
-  position: relative; /* Needed for absolute positioning of the close button */
+  background: var(--tile-bg);
+  color: var(--text);
+  padding: 20px; border-radius: 8px;
+  width: 400px; text-align: center;
+  position: relative; border: 1px solid var(--border);
 
   button {
-    margin: 10px;
-    border-radius: 5px;
-    cursor: pointer;
+    margin: 10px; border-radius: 5px; cursor: pointer;
     transition: background-color 0.3s ease;
 
-    &:hover {
-      background-color: mix(black, $base-primary, 10%);
-    }
+    &:hover { background-color: color-mix(in srgb, var(--primary) 90%, black); }
   }
 }
 
-.ModalGroup {
-  display: inline-grid;
-}
-.CountGroup{
+/* --------- Gruppen --------- */
+.ModalGroup { display: inline-grid; }
+
+.CountGroup {
   display: flex !important;
 
-  .CountInput{
-    width: 40%;
-  }
+  .CountInput { width: 40%; }
 }
 
 

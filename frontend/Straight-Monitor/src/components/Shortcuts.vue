@@ -1,100 +1,90 @@
 <template>
   <div class="shortcuts">
-    <a class="discrete">.</a>
-    <h4>Shortcuts</h4>
-
-    <div class="shortcut-container">
-      <span class="list-item" @click="openLogiPaketModal()">
-        <img
-          src="@/assets/SF_002.png"
-          id="logi-paket"
-          alt="Logo"
-          class="item-list-sf"
-        />
-        <label for="logi-paket">
-          <p>Logi-Paket</p>
-        </label>
-      </span>
-      <span class="list-item" @click="openServicePaketModal()">
-        <img
-          src="@/assets/SF_002.png"
-          id="service-paket"
-          alt="Logo"
-          class="item-list-sf"
-        />
-        <label for="service-paket">
-          <p>Service-Paket</p>
-        </label>
-      </span>
-      <span class="list-item" @click="getExcel()">
-        <img
-          src="@/assets/SF_002.png"
-          id="excel"
-          alt="Logo"
-          class="item-list-sf"
-        />
-        <label for="excel">
-          <p>Excel</p>
-        </label>
-      </span>
+    <div class="shortcuts-header">
+      <h4>Shortcuts</h4>
+      <button class="close-btn" @click="ui.close()">
+        <font-awesome-icon :icon="['fas', 'times']" />
+      </button>
     </div>
 
-    <div v-if="showLogiModal" class="modal">
-      <div class="modal-content">
-        <font-awesome-icon
-          class="close-modal"
-          :icon="['fas', 'times']"
-          @click="
-            showLogiModal = false;
-            closeModal();
-          "
-          style="bottom: 97%"
-        />
-        <h4>Logi-Paket</h4>
+    <div class="actions">
+      <button class="s-btn" @click="openLogiPaketModal">
+        <img :src="logoSrc" alt="" />
+        <span>Logi-Paket</span>
+      </button>
 
-        <select v-model="selectedLocation" @change="updateItemMappings">
-          <option value="Hamburg">Hamburg</option>
-          <option value="Köln">Köln</option>
-          <option value="Berlin">Berlin</option>
-        </select>
+      <button class="s-btn" @click="openServicePaketModal">
+        <img :src="logoSrc" alt="" />
+        <span>Service-Paket</span>
+      </button>
 
-        <div class="modalGroup">
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
+      <button class="s-btn" @click="openBestandsUpdateModal">
+        <img :src="logoSrc" alt="" />
+        <span>Bestands-Update senden</span>
+      </button>
+
+      <button class="s-btn" :disabled="downloading" @click="getExcel">
+        <img :src="logoSrc" alt="" />
+        <span v-if="!downloading">Excel</span>
+        <span v-else>Lädt…</span>
+      </button>
+    </div>
+
+    <!-- LOGI MODAL -->
+    <teleport to="body">
+      <div v-if="showLogiModal" class="modal" @click.self="closeAllModals">
+        <div class="modal-content">
+          <font-awesome-icon
+            class="close"
+            :icon="['fas', 'times']"
+            @click="closeAllModals"
+          />
+
+          <h4>Logi-Paket</h4>
+
+          <label class="select-label">
+            Standort
+            <select v-model="selectedLocation">
+              <option value="Hamburg">Hamburg</option>
+              <option value="Köln">Köln</option>
+              <option value="Berlin">Berlin</option>
+            </select>
+          </label>
+
+          <div class="grid">
+            <label class="row">
+              <span class="chk">
                 <input type="checkbox" v-model="cuttermesserChecked" />
-                <span class="checkmark"></span>
-                Cuttermesser
-              </label>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
+                <span>Cuttermesser</span>
+              </span>
+              <select class="sel" disabled>
+                <option>onesize</option>
+              </select>
+            </label>
+
+            <label class="row">
+              <span class="chk">
                 <input type="checkbox" v-model="jutebeutelChecked" />
-                <span class="checkmark"></span>
-                Jutebeutel
-              </label>
+                <span>Jutebeutel</span>
+              </span>
               <select
+                class="sel"
                 v-model="jutebeutelArt"
-                class="size-dropdown"
                 :disabled="!jutebeutelChecked"
               >
                 <option value="Gold">Gold</option>
                 <option value="Weiß">Weiß</option>
               </select>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
+            </label>
+
+            <label class="row">
+              <span class="chk">
                 <input type="checkbox" v-model="logistikHoseChecked" />
-                <span class="checkmark"></span>
-                Logistikhose
-              </label>
+                <span>Logistikhose</span>
+              </span>
               <select
+                class="sel"
                 v-model="logistikHoseSize"
-                class="size-dropdown"
                 :disabled="!logistikHoseChecked"
                 @focus="logistikHoseChecked = true"
               >
@@ -105,21 +95,21 @@
                 <option value="52">52</option>
                 <option value="54">54</option>
                 <option value="56">56</option>
-                <option v-if="selectedLocation === 'Berlin'" value="58">58</option>
+                <option v-if="selectedLocation === 'Berlin'" value="58">
+                  58
+                </option>
               </select>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="tshirt1Checked" />
-                <span class="checkmark"></span>
-                T-Shirt ( 1 )
-              </label>
+            </label>
+
+            <label class="row" v-for="n in 3" :key="'t' + n">
+              <span class="chk">
+                <input type="checkbox" v-model="tshirtChecked[n - 1]" />
+                <span>T-Shirt ({{ n }})</span>
+              </span>
               <select
-                v-model="tshirt1Size"
-                class="size-dropdown"
-                :disabled="!tshirt1Checked"
+                class="sel"
+                v-model="tshirtSize[n - 1]"
+                :disabled="!tshirtChecked[n - 1]"
               >
                 <option value="S">S</option>
                 <option value="M">M</option>
@@ -128,60 +118,16 @@
                 <option value="XXL">XXL</option>
                 <option value="3XL">3XL</option>
               </select>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="tshirt2Checked" />
-                <span class="checkmark"></span>
-                T-Shirt ( 2 )
-              </label>
-              <select
-                v-model="tshirt2Size"
-                class="size-dropdown"
-                :disabled="!tshirt2Checked"
-              >
-                <option value="S">S</option>
-                <option value="M">M</option>
-                <option value="L">L</option>
-                <option value="XL">XL</option>
-                <option value="XXL">XXL</option>
-                <option value="3XL">3XL</option>
-              </select>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="tshirt3Checked" />
-                <span class="checkmark"></span>
-                T-Shirt ( 3 )
-              </label>
-              <select
-                v-model="tshirt3Size"
-                class="size-dropdown"
-                :disabled="!tshirt3Checked"
-              >
-                <option value="S">S</option>
-                <option value="M">M</option>
-                <option value="L">L</option>
-                <option value="XL">XL</option>
-                <option value="XXL">XXL</option>
-                <option value="3XL">3XL</option>
-              </select>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
+            </label>
+
+            <label class="row">
+              <span class="chk">
                 <input type="checkbox" v-model="schwarzeKapuzenjackeChecked" />
-                <span class="checkmark"></span>
-                Schwarze Kapuzenjacke
-              </label>
+                <span>Schwarze Kapuzenjacke</span>
+              </span>
               <select
+                class="sel"
                 v-model="schwarzeKapuzenjackeSize"
-                class="size-dropdown"
                 :disabled="!schwarzeKapuzenjackeChecked"
               >
                 <option value="S">S</option>
@@ -189,89 +135,101 @@
                 <option value="L">L</option>
                 <option value="XL">XL</option>
                 <option value="XXL">XXL</option>
-                <option v-if="selectedLocation != 'Berlin'" value="3XL">3XL</option>
+                <option v-if="selectedLocation !== 'Berlin'" value="3XL">
+                  3XL
+                </option>
               </select>
-            </div>
-          </span>
-          <span v-if="selectedLocation === 'Hamburg' || selectedLocation === 'Berlin'" class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
+            </label>
+
+            <label
+              v-if="
+                selectedLocation === 'Hamburg' || selectedLocation === 'Berlin'
+              "
+              class="row"
+            >
+              <span class="chk">
                 <input type="checkbox" v-model="sicherheitshelmChecked" />
-                <span class="checkmark"></span>
-                Sicherheitshelm
-              </label>
+                <span>Sicherheitshelm</span>
+              </span>
               <select
+                class="sel"
                 v-model="sicherheitshelmArt"
-                class="size-dropdown"
                 :disabled="!sicherheitshelmChecked"
               >
-                <option v-if="selectedLocation === 'Hamburg'" value="Festis">Festis</option>
+                <option v-if="selectedLocation === 'Hamburg'" value="Festis">
+                  Festis
+                </option>
                 <option value="Normal">Normal</option>
               </select>
-            </div>
-          </span>
-          <h5>Optional</h5>
-          <hr />
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
+            </label>
+
+            <h5 class="sub">Optional</h5>
+
+            <label class="row">
+              <span class="chk">
                 <input type="checkbox" v-model="softshelljackeChecked" />
-                <span class="checkmark"></span>
-                Softshelljacke
-              </label>
+                <span>Softshelljacke</span>
+              </span>
               <select
+                class="sel"
                 v-model="softshelljackeSize"
-                class="size-dropdown"
                 :disabled="!softshelljackeChecked"
               >
                 <option value="S">S</option>
                 <option value="M">M</option>
                 <option value="L">L</option>
                 <option value="XL">XL</option>
-                <option v-if="selectedLocation != 'Berlin'" value="XXL">XXL</option>
-                <option v-if="selectedLocation != 'Berlin'" value="3XL">3XL</option>
+                <option v-if="selectedLocation !== 'Berlin'" value="XXL">
+                  XXL
+                </option>
+                <option v-if="selectedLocation !== 'Berlin'" value="3XL">
+                  3XL
+                </option>
               </select>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
+            </label>
+
+            <label class="row">
+              <span class="chk">
                 <input type="checkbox" v-model="bundhoseChecked" />
-                <span class="checkmark"></span>
-                Bundhose E.S. Motion 2020
-              </label>
+                <span>Bundhose E.S. Motion 2020</span>
+              </span>
               <select
+                class="sel"
                 v-model="bundhoseSize"
-                class="size-dropdown"
                 :disabled="!bundhoseChecked"
               >
-                
-                <option v-if="selectedLocation != 'Hamburg'" value="44">44</option>
+                <option v-if="selectedLocation !== 'Hamburg'" value="44">
+                  44
+                </option>
                 <option value="46">46</option>
                 <option value="48">48</option>
                 <option value="50">50</option>
                 <option value="52">52</option>
                 <option value="54">54</option>
-                <option v-if="selectedLocation != 'Hamburg'" value="56">56</option>
-                <option v-if="selectedLocation === 'Berlin'" value="58">58</option>
+                <option v-if="selectedLocation !== 'Hamburg'" value="56">
+                  56
+                </option>
+                <option v-if="selectedLocation === 'Berlin'" value="58">
+                  58
+                </option>
               </select>
-            </div>
-          </span>
-          <h5>Bezahlt</h5>
-          <hr />
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
+            </label>
+
+            <h5 class="sub">Bezahlt</h5>
+
+            <label class="row">
+              <span class="chk">
                 <input type="checkbox" v-model="sicherheitsschuheChecked" />
-                <span class="checkmark"></span>
-                Sicherheitsschuhe
-              </label>
+                <span>Sicherheitsschuhe</span>
+              </span>
               <select
+                class="sel"
                 v-model="sicherheitsschuheSize"
-                class="size-dropdown"
                 :disabled="!sicherheitsschuheChecked"
               >
-                <option v-if="selectedLocation != Köln" value="36">36</option>
+                <option v-if="selectedLocation !== 'Köln'" value="36">
+                  36
+                </option>
                 <option value="37">37</option>
                 <option value="38">38</option>
                 <option value="39">39</option>
@@ -285,163 +243,177 @@
                 <option value="47">47</option>
                 <option value="48">48</option>
               </select>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
+            </label>
+
+            <label class="row">
+              <span class="chk">
                 <input type="checkbox" v-model="handschuheChecked" />
-                <span class="checkmark"></span>
-                Handschuhe
-              </label>
+                <span>Handschuhe</span>
+              </span>
               <select
+                class="sel"
                 v-model="handschuheSize"
-                class="size-dropdown"
                 :disabled="!handschuheChecked"
               >
                 <option value="8">8</option>
                 <option value="9">9</option>
                 <option value="10">10</option>
               </select>
-            </div>
-          </span>
-          <h5>Anmerkung</h5>
-          <hr />
-          <span class="paket-item">
-            <div class="anmerkung-container">
-              <input type="text" placeholder="Anmerkung (Optional)" v-model="anmerkung">
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="item-actions">
+            </label>
+          </div>
+
+          <label class="full">
+            Anmerkung
+            <input
+              type="text"
+              placeholder="Anmerkung (optional)"
+              v-model="anmerkung"
+            />
+          </label>
+
+          <div class="btns">
             <button @click="submitLogiModal('add')">Rückgabe</button>
             <button @click="submitLogiModal('remove')">Entnahme</button>
           </div>
-          </span>
-          
         </div>
       </div>
-    </div>
-    <div v-if="showServiceModal" class="modal">
-      <div class="modal-content">
-        <font-awesome-icon
-          class="close-modal"
-          :icon="['fas', 'times']"
-          @click="
-            showServiceModal = false;
-            closeModal();
-          "
-          style="bottom: 97%"
-        />
-        <h4>Service-Paket</h4>
+    </teleport>
 
-        <select v-model="selectedLocation" @change="updateItemMappings">
-          <option value="Hamburg">Hamburg</option>
-          <option value="Köln">Köln</option>
-          <option value="Berlin">Berlin</option>
-        </select>
+    <!-- SERVICE MODAL -->
+    <teleport to="body">
+      <div v-if="showServiceModal" class="modal" @click.self="closeAllModals">
+        <div class="modal-content">
+          <font-awesome-icon
+            class="close"
+            :icon="['fas', 'times']"
+            @click="closeAllModals"
+          />
 
-        <div class="modalGroup">
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="kellnermesserChecked" />
-                <span class="checkmark"></span>
-                Kellnermesser
-              </label>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="kugelschreiberChecked" />
-                <span class="checkmark"></span>
-                Kugelschreiber
-              </label>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="namensschildChecked" />
-                <span class="checkmark"></span>
-                Namensschild
-              </label>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="feuerzeugChecked" />
-                <span class="checkmark"></span>
-                Feuerzeug
-              </label>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="schuhputzzeugChecked" />
-                <span class="checkmark"></span>
-                Schuhputzzeug
-              </label>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="schwarzeKrawatteChecked" />
-                <span class="checkmark"></span>
-                Schwarze Krawatte
-              </label>
-            </div>
-          </span>
-          <span v-if="selectedLocation === 'Berlin' " class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="schwarzeFliegeChecked" />
-                <span class="checkmark"></span>
-                Schwarze Fliege
-              </label>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="schwarzeSchuerzeChecked" />
-                <span class="checkmark"></span>
-                Schwarze Schürze
-              </label>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="kleidersackChecked" />
-                <span class="checkmark"></span>
-                Kleidersack
-              </label>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="serviceHandschuheChecked" />
-                <span class="checkmark"></span>
-                Service Handschuhe
-              </label>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="weisseHemdenDamenChecked" />
-                <span class="checkmark"></span>
-                Weiße Hemden Damen
-              </label>
+          <h4>Service-Paket</h4>
+
+          <label class="select-label">
+            Standort
+            <select v-model="selectedLocation">
+              <option value="Hamburg">Hamburg</option>
+              <option value="Köln">Köln</option>
+              <option value="Berlin">Berlin</option>
+            </select>
+          </label>
+
+          <div class="grid">
+            <label class="row"
+              ><span class="chk"
+                ><input type="checkbox" v-model="kellnermesserChecked" /><span
+                  >Kellnermesser</span
+                ></span
+              ><select class="sel" disabled>
+                <option>onesize</option>
+              </select></label
+            >
+            <label v-if="selectedLocation === 'Hamburg'" class="row"
+              ><span class="chk"
+                ><input type="checkbox" v-model="kellnerblockChecked" /><span
+                  >Kellnerblock</span
+                ></span
+              ><select class="sel" disabled>
+                <option>onesize</option>
+              </select></label
+            >
+            <label class="row"
+              ><span class="chk"
+                ><input type="checkbox" v-model="kugelschreiberChecked" /><span
+                  >Kugelschreiber</span
+                ></span
+              ><select class="sel" disabled>
+                <option>onesize</option>
+              </select></label
+            >
+            <label class="row"
+              ><span class="chk"
+                ><input type="checkbox" v-model="namensschildChecked" /><span
+                  >Namensschild</span
+                ></span
+              ><select class="sel" disabled>
+                <option>onesize</option>
+              </select></label
+            >
+            <label class="row"
+              ><span class="chk"
+                ><input type="checkbox" v-model="feuerzeugChecked" /><span
+                  >Feuerzeug</span
+                ></span
+              ><select class="sel" disabled>
+                <option>onesize</option>
+              </select></label
+            >
+            <label class="row"
+              ><span class="chk"
+                ><input type="checkbox" v-model="schuhputzzeugChecked" /><span
+                  >Schuhputzzeug</span
+                ></span
+              ><select class="sel" disabled>
+                <option>onesize</option>
+              </select></label
+            >
+            <label class="row"
+              ><span class="chk"
+                ><input
+                  type="checkbox"
+                  v-model="schwarzeKrawatteChecked"
+                /><span>Schwarze Krawatte</span></span
+              ><select class="sel" disabled>
+                <option>onesize</option>
+              </select></label
+            >
+            <label v-if="selectedLocation === 'Berlin'" class="row"
+              ><span class="chk"
+                ><input type="checkbox" v-model="schwarzeFliegeChecked" /><span
+                  >Schwarze Fliege</span
+                ></span
+              ><select class="sel" disabled>
+                <option>onesize</option>
+              </select></label
+            >
+            <label class="row"
+              ><span class="chk"
+                ><input
+                  type="checkbox"
+                  v-model="schwarzeSchuerzeChecked"
+                /><span>Schwarze Schürze</span></span
+              ><select class="sel" disabled>
+                <option>onesize</option>
+              </select></label
+            >
+            <label class="row"
+              ><span class="chk"
+                ><input type="checkbox" v-model="kleidersackChecked" /><span
+                  >Kleidersack</span
+                ></span
+              ><select class="sel" disabled>
+                <option>onesize</option>
+              </select></label
+            >
+            <label class="row"
+              ><span class="chk"
+                ><input
+                  type="checkbox"
+                  v-model="serviceHandschuheChecked"
+                /><span>Service Handschuhe</span></span
+              ><select class="sel" disabled>
+                <option>onesize</option>
+              </select></label
+            >
+
+            <label class="row">
+              <span class="chk"
+                ><input
+                  type="checkbox"
+                  v-model="weisseHemdenDamenChecked"
+                /><span>Weiße Hemden Damen</span></span
+              >
               <select
+                class="sel"
                 v-model="weisseHemdenDamenSize"
-                class="size-dropdown"
                 :disabled="!weisseHemdenDamenChecked"
               >
                 <option value="S">S</option>
@@ -449,18 +421,18 @@
                 <option value="L">L</option>
                 <option value="XL">XL</option>
               </select>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="schwarzeHemdenDamenChecked" />
-                <span class="checkmark"></span>
-                Schwarze Hemden Damen
-              </label>
+            </label>
+
+            <label class="row">
+              <span class="chk"
+                ><input
+                  type="checkbox"
+                  v-model="schwarzeHemdenDamenChecked"
+                /><span>Schwarze Hemden Damen</span></span
+              >
               <select
+                class="sel"
                 v-model="schwarzeHemdenDamenSize"
-                class="size-dropdown"
                 :disabled="!schwarzeHemdenDamenChecked"
               >
                 <option value="S">S</option>
@@ -468,18 +440,18 @@
                 <option value="L">L</option>
                 <option value="XL">XL</option>
               </select>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="weisseHemdenHerrenChecked" />
-                <span class="checkmark"></span>
-                Weiße Hemden Herren
-              </label>
+            </label>
+
+            <label class="row">
+              <span class="chk"
+                ><input
+                  type="checkbox"
+                  v-model="weisseHemdenHerrenChecked"
+                /><span>Weiße Hemden Herren</span></span
+              >
               <select
+                class="sel"
                 v-model="weisseHemdenHerrenSize"
-                class="size-dropdown"
                 :disabled="!weisseHemdenHerrenChecked"
               >
                 <option value="S">S</option>
@@ -487,18 +459,18 @@
                 <option value="L">L</option>
                 <option value="XL">XL</option>
               </select>
-            </div>
-          </span>
-          <span class="paket-item">
-            <div class="checkbox-container">
-              <label class="custom-checkbox">
-                <input type="checkbox" v-model="schwarzeHemdenHerrenChecked" />
-                <span class="checkmark"></span>
-                Schwarze Hemden Herren
-              </label>
+            </label>
+
+            <label class="row">
+              <span class="chk"
+                ><input
+                  type="checkbox"
+                  v-model="schwarzeHemdenHerrenChecked"
+                /><span>Schwarze Hemden Herren</span></span
+              >
               <select
+                class="sel"
                 v-model="schwarzeHemdenHerrenSize"
-                class="size-dropdown"
                 :disabled="!schwarzeHemdenHerrenChecked"
               >
                 <option value="S">S</option>
@@ -506,24 +478,70 @@
                 <option value="L">L</option>
                 <option value="XL">XL</option>
               </select>
-            </div>
-          </span>
-          <h5>Anmerkung</h5>
-          <hr />
-          <span class="paket-item">
-            <div class="anmerkung-container">
-              <input type="text" placeholder="Anmerkung (Optional)" v-model="anmerkung">
-            </div>
-          </span>
-          <span class="paket-item">
-          <div class="item-actions">
+            </label>
+          </div>
+
+          <label class="full">
+            Anmerkung
+            <input
+              type="text"
+              placeholder="Anmerkung (optional)"
+              v-model="anmerkung"
+            />
+          </label>
+
+          <div class="btns">
             <button @click="submitServiceModal('add')">Rückgabe</button>
             <button @click="submitServiceModal('remove')">Entnahme</button>
           </div>
-          </span>
         </div>
       </div>
-    </div>
+    </teleport>
+
+    <!-- BESTAND UPDATE MODAL -->
+    <teleport to="body">
+      <div
+        v-if="showBestandUpdateModal"
+        class="modal"
+        @click.self="closeAllModals"
+      >
+        <div class="modal-content">
+          <font-awesome-icon
+            class="close"
+            :icon="['fas', 'times']"
+            @click="closeAllModals"
+          />
+
+          <h4>Bestands-Update senden</h4>
+
+          <div class="form-group">
+            <label>
+              Standort
+              <select v-model="inventoryLocation">
+                <option value="all">Alle Standorte</option>
+                <option value="Hamburg">Hamburg</option>
+                <option value="Berlin">Berlin</option>
+                <option value="Köln">Köln</option>
+              </select>
+            </label>
+
+            <label>
+              E-Mail
+              <input
+                type="email"
+                v-model="inventoryEmail"
+                placeholder="E-Mail-Adresse eingeben"
+                required
+              />
+            </label>
+          </div>
+
+          <div class="btns">
+            <button @click="sendInventoryUpdate">Bestand senden</button>
+          </div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -531,55 +549,68 @@
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
 import itemMappings from "@/assets/ItemMappings.json";
+import { useTheme } from "@/stores/theme";
+import { useUi } from "@/stores/ui";
+import { computed } from "vue";
 
 export default {
   name: "Shortcuts",
   emits: ["update-modal", "itemsUpdated"],
-  components: {
-    FontAwesomeIcon,
-  },
-  props: {
-    isModalOpen: Boolean,
+  components: { FontAwesomeIcon },
+  props: { isModalOpen: Boolean },
+  setup() {
+    const theme = useTheme();
+    const ui = useUi();
+    const logoSrc = computed(() =>
+      theme.isDark
+        ? new URL("@/assets/SF_000.svg", import.meta.url).href
+        : new URL("@/assets/SF_002.png", import.meta.url).href
+    );
+    return { theme, ui, logoSrc };
   },
   data() {
     return {
+      // auth & user
       token: localStorage.getItem("token") || null,
-      anmerkung: "",
       userID: "",
       userLocation: "",
-      selectedLocation: this.userLocation,
-      items: itemMappings[this.userLocation],
+
+      // ui
       showLogiModal: false,
+      showServiceModal: false,
+      showBestandUpdateModal: false,
+      downloading: false,
+      anmerkung: "",
+      selectedLocation: "Hamburg",
+
+      // inventory update
+      inventoryLocation: "all",
+      inventoryEmail: "",
+
+      // logi flags & sizes
       cuttermesserChecked: true,
       jutebeutelChecked: true,
       logistikHoseChecked: true,
-      tshirt1Checked: true,
-      tshirt2Checked: true,
-      tshirt3Checked: false,
+      tshirtChecked: [true, true, false],
+      tshirtSize: ["", "", ""],
       schwarzeKapuzenjackeChecked: true,
       sicherheitshelmChecked: false,
       softshelljackeChecked: false,
       bundhoseChecked: false,
       sicherheitsschuheChecked: false,
       handschuheChecked: false,
-
       jutebeutelArt: "",
       logistikHoseSize: "",
-      tshirt1Size: "",
-      tshirt2Size: "",
-      tshirt3Size: "",
       schwarzeKapuzenjackeSize: "",
       sicherheitshelmArt: "",
       softshelljackeSize: "",
-      dickiesStoffhoseSize: "",
-      pulloverSize: "",
       bundhoseSize: "",
       sicherheitsschuheSize: "",
       handschuheSize: "",
 
-      showServiceModal: false,
-
+      // service flags & sizes
       kellnermesserChecked: true,
+      kellnerblockChecked: true,
       kugelschreiberChecked: true,
       namensschildChecked: true,
       feuerzeugChecked: true,
@@ -593,7 +624,6 @@ export default {
       schwarzeHemdenDamenChecked: false,
       weisseHemdenHerrenChecked: false,
       schwarzeHemdenHerrenChecked: false,
-
       weisseHemdenDamenSize: "",
       schwarzeHemdenDamenSize: "",
       weisseHemdenHerrenSize: "",
@@ -601,90 +631,100 @@ export default {
     };
   },
 
-  watch: {
-    token(newToken) {
-      if (newToken) {
-        localStorage.setItem("token", newToken);
-      } else {
-        localStorage.removeItem("token");
-      }
+  computed: {
+    itemsMap() {
+      return itemMappings[this.selectedLocation] || {};
     },
   },
+
   methods: {
     setAxiosAuthToken() {
       api.defaults.headers.common["x-auth-token"] = this.token;
     },
     async fetchUserData() {
-      if (this.token) {
-        try {
-          const response = await api.get("/api/users/me", {});
-          this.userID = response.data._id;
-          this.userLocation = response.data.location;
-        } catch (error) {
-          console.error("Error fetching user data:", error);
-          this.$router.push("/");
-        }
-      } else {
-        console.error("No token found");
+      if (!this.token) return this.$router.push("/");
+      try {
+        const { data } = await api.get("/api/users/me");
+        this.userID = data._id;
+        this.userLocation = data.location || "Hamburg";
+        this.selectedLocation = this.userLocation; // initiales Mapping
+      } catch (e) {
+        console.error("Error fetching user data:", e);
         this.$router.push("/");
       }
     },
-    updateItemMappings() {
-      this.items = itemMappings[this.selectedLocation];
+
+    getItemId(category, sub = null) {
+      const c = this.itemsMap?.[category];
+      if (!c) return null;
+      return sub ? c?.[sub] || null : c;
     },
-    // Simplified logic to fetch item IDs based on new JSON format
-    getItemId(category, subcategory = null) {
-      if (!this.items || !this.items[category]) {
-        console.warn(`No mapping found for category: ${category}`);
-        return null;
-      }
-      if (subcategory && !this.items[category][subcategory]) {
-        console.warn(
-          `No mapping found for subcategory: ${subcategory} in category: ${category}`
-        );
-        return null;
-      }
-      return subcategory
-        ? this.items[category][subcategory]
-        : this.items[category];
-    },
+
     async getExcel() {
-      if (this.token) {
-        try {
-          const response = await api.get("/api/items/getExcel", {
-            responseType: "blob",
-          });
-
-          const blob = new Blob([response.data], {
-            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          });
-
-          const link = document.createElement("a");
-          const url = window.URL.createObjectURL(blob);
-          link.href = url;
-          link.download = "items.xlsx";
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-        } catch (error) {
-          console.error("Error downloading the Excel file:", error);
-        }
+      try {
+        this.downloading = true;
+        const { data } = await api.get("/api/items/getExcel", {
+          responseType: "blob",
+        });
+        const blob = new Blob([data], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "items.xlsx";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error("Excel Download fehlgeschlagen:", e);
+        alert("Excel konnte nicht geladen werden.");
+      } finally {
+        this.downloading = false;
       }
     },
-    openModal() {
-      console.log("called");
-      this.$emit("update-modal", true);
 
+    openModal() {
+      this.$emit("update-modal", true);
       if (this.userLocation === "Berlin" || this.userLocation === "Köln") {
-        alert(
-          "Achtung! Für deinen Standort müssen die Gegenstände erst hinzugefügt werden."
-        );
       }
     },
     closeModal() {
       this.$emit("update-modal", false);
     },
+    closeAllModals() {
+      this.showLogiModal = false;
+      this.showServiceModal = false;
+      this.showBestandUpdateModal = false;
+      this.closeModal();
+    },
+
+    handleEscapeKey(event) {
+      if (event.key === "Escape") {
+        this.closeAllModals();
+      }
+    },
+
+    async sendInventoryUpdate() {
+      if (!this.inventoryEmail) {
+        alert("Bitte eine E-Mail-Adresse eingeben");
+        return;
+      }
+
+      try {
+        await api.post("/api/items/sendInventoryUpdate", {
+          location: this.inventoryLocation,
+          email: this.inventoryEmail,
+        });
+        alert("Bestandsupdate wurde verschickt!");
+        this.closeAllModals();
+      } catch (error) {
+        console.error("Fehler beim Senden des Bestandsupdates:", error);
+        alert("Fehler beim Senden des Bestandsupdates");
+      }
+    },
+
     openLogiPaketModal() {
       this.openModal();
       this.showLogiModal = true;
@@ -693,278 +733,181 @@ export default {
       this.openModal();
       this.showServiceModal = true;
     },
-    resetLogiPaket() {
-      this.anmerkung = "";
-
-      this.showLogiModal = false;
-      this.cuttermesserChecked = false;
-      this.jutebeutelChecked = false;
-      this.logistikHoseChecked = false;
-      this.tshirt1Checked = false;
-      this.tshirt2Checked = false;
-      this.tshirt3Checked = false;
-      this.schwarzeKapuzenjackeChecked = false;
-      this.sicherheitshelmChecked = false;
-      this.softshelljackeChecked = false;
-      this.bundhoseChecked = false;
-      this.sicherheitsschuheChecked = false;
-      this.handschuheChecked = false;
-
-      this.logistikHoseSize = "";
-      this.tshirt1Size = "";
-      this.tshirt2Size = "";
-      this.tshirt3Size = "";
-      this.schwarzeKapuzenjackeSize = "";
-      this.sicherheitshelmArt = "";
-      this.softshelljackeSize = "";
-      this.dickiesStoffhoseSize = "";
-      this.pulloverSize = "";
-      this.bundhoseSize = "";
-      this.sicherheitsschuheSize = "";
-      this.handschuheSize = "";
+    openBestandsUpdateModal() {
+      this.openModal();
+      this.showBestandUpdateModal = true;
     },
-    resetServicePaket() {
-      this.anmerkung = "";
-
-      this.kellnermesserChecked = true;
-      this.kugelschreiberChecked = true;
-      this.namensschildChecked = true;
-      this.feuerzeugChecked = true;
-      this.schuhputzzeugChecked = true;
-      this.schwarzeKrawatteChecked = true;
-      this.schwarzeFliegeChecked = false;
-      this.schwarzeSchuerzeChecked = true;
-      this.kleidersackChecked = true;
-      this.serviceHandschuheChecked = true;
-      this.weisseHemdenDamenChecked = false;
-      this.schwarzeHemdenDamenChecked = false;
-      this.weisseHemdenHerrenChecked = false;
-      this.schwarzeHemdenHerrenChecked = false;
-
-      this.weisseHemdenDamenSize = "";
-      this.schwarzeHemdenDamenSize = "";
-      this.weisseHemdenHerrenSize = "";
-      this.schwarzeHemdenHerrenSize = "";
-    },
-
-    // Validation method to check if all required dropdowns are selected
     validateLogiSelections() {
-      const errorMessages = [];
+      const req = [];
+      if (this.logistikHoseChecked && !this.logistikHoseSize)
+        req.push("Logistikhose");
+      if (this.tshirtChecked[0] && !this.tshirtSize[0]) req.push("T-Shirt (1)");
+      if (this.tshirtChecked[1] && !this.tshirtSize[1]) req.push("T-Shirt (2)");
+      if (this.tshirtChecked[2] && !this.tshirtSize[2]) req.push("T-Shirt (3)");
+      if (this.schwarzeKapuzenjackeChecked && !this.schwarzeKapuzenjackeSize)
+        req.push("Kapuzenjacke");
+      if (this.sicherheitshelmChecked && !this.sicherheitshelmArt)
+        req.push("Sicherheitshelm");
+      if (this.softshelljackeChecked && !this.softshelljackeSize)
+        req.push("Softshelljacke");
+      if (this.bundhoseChecked && !this.bundhoseSize) req.push("Bundhose");
+      if (this.sicherheitsschuheChecked && !this.sicherheitsschuheSize)
+        req.push("Sicherheitsschuhe");
+      if (this.handschuheChecked && !this.handschuheSize)
+        req.push("Handschuhe");
 
-      if (this.logistikHoseChecked && !this.logistikHoseSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für die Logistikhose.");
-      }
-      if (this.tshirt1Checked && !this.tshirt1Size) {
-        errorMessages.push("Bitte wählen Sie eine Größe für das T-Shirt (1).");
-      }
-      if (this.tshirt2Checked && !this.tshirt2Size) {
-        errorMessages.push("Bitte wählen Sie eine Größe für das T-Shirt (2).");
-      }
-      if (this.tshirt3Checked && !this.tshirt3Size) {
-        errorMessages.push("Bitte wählen Sie eine Größe für das T-Shirt (3).");
-      }
-      if (this.schwarzeKapuzenjackeChecked && !this.schwarzeKapuzenjackeSize) {
-        errorMessages.push(
-          "Bitte wählen Sie eine Größe für die Schwarze Kapuzenjacke."
-        );
-      }
-      if (this.sicherheitshelmChecked && !this.sicherheitshelmArt) {
-        errorMessages.push(
-          "Bitte wählen Sie eine Art für den Sicherheitshelm."
-        );
-      }
-      if (this.softshelljackeChecked && !this.softshelljackeSize) {
-        errorMessages.push(
-          "Bitte wählen Sie eine Größe für die Softshelljacke."
-        );
-      }
-      if (this.bundhoseChecked && !this.bundhoseSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für die Bundhose.");
-      }
-      if (this.sicherheitsschuheChecked && !this.sicherheitsschuheSize) {
-        errorMessages.push(
-          "Bitte wählen Sie eine Größe für die Sicherheitsschuhe."
-        );
-      }
-      if (this.handschuheChecked && !this.handschuheSize) {
-        errorMessages.push("Bitte wählen Sie eine Größe für die Handschuhe.");
-      }
-
-      if (errorMessages.length > 0) {
-        alert(errorMessages.join("\n"));
+      if (req.length) {
+        alert("Bitte Größe/Art wählen für:\n• " + req.join("\n• "));
         return false;
       }
       return true;
     },
+
     validateServiceSelections() {
-      const errorMessages = [];
-
-      if (this.weisseHemdenDamenChecked && !this.weisseHemdenDamenSize) {
-        errorMessages.push(
-          "Bitte wählen Sie eine Größe für die Weißen Damen Hemden."
-        );
-      }
-      if (this.schwarzeHemdenDamenChecked && !this.schwarzeHemdenDamenSize) {
-        errorMessages.push(
-          "Bitte wählen Sie eine Größe für die Schwarzen Damen Hemden."
-        );
-      }
-      if (this.weisseHemdenHerrenChecked && !this.weisseHemdenHerrenSize) {
-        errorMessages.push(
-          "Bitte wählen Sie eine Größe für die Weißen Herren Hemden."
-        );
-      }
-      if (this.schwarzeHemdenHerrenChecked && !this.schwarzeHemdenHerrenSize) {
-        errorMessages.push(
-          "Bitte wählen Sie eine Größe für die Schwarzen Herren Hemden."
-        );
-      }
-
-      if (errorMessages.length > 0) {
-        alert(errorMessages.join("\n"));
+      const req = [];
+      if (this.weisseHemdenDamenChecked && !this.weisseHemdenDamenSize)
+        req.push("Weiße Hemden Damen");
+      if (this.schwarzeHemdenDamenChecked && !this.schwarzeHemdenDamenSize)
+        req.push("Schwarze Hemden Damen");
+      if (this.weisseHemdenHerrenChecked && !this.weisseHemdenHerrenSize)
+        req.push("Weiße Hemden Herren");
+      if (this.schwarzeHemdenHerrenChecked && !this.schwarzeHemdenHerrenSize)
+        req.push("Schwarze Hemden Herren");
+      if (req.length) {
+        alert("Bitte Größe wählen für:\n• " + req.join("\n• "));
         return false;
       }
       return true;
     },
-    async updateMultiple(selections, count) {
-      if (this.token) {
-        // Filter out only the checked items
-        const selectedItems = selections
-          .filter((selection) => selection.checked)
-          .map((selection) => ({ _id: selection._id, size: selection.size }));
 
-        api
-          .put("/api/items/updateMultiple", {
-            userID: this.userID,
-            items: selectedItems,
-            count,
-            anmerkung: this.anmerkung,
-          })
-          .then((response) => {
-            console.log("Items updated successfully", response.data);
-          })
-          .then(() => {
-            this.$emit("itemsUpdated");
-          })
-          .catch((error) => {
-            console.error("Error updating items", error);
-            console.log(selectedItems);
-          });
-      } else {
-        console.error("No Token Found");
-        router.push("/");
+    async updateMultiple(selections, count) {
+      if (!this.token) return this.$router.push("/");
+      const items = selections
+        .filter((s) => s.checked)
+        .map((s) => ({ _id: s._id, size: s.size }));
+      try {
+        await api.put("/api/items/updateMultiple", {
+          userID: this.userID,
+          items,
+          count,
+          anmerkung: this.anmerkung,
+        });
+        this.$emit("itemsUpdated");
+      } catch (e) {
+        console.error("UpdateMultiple failed:", e);
+        alert("Aktualisierung fehlgeschlagen.");
       }
     },
+
     submitLogiModal(action) {
-      if (!this.validateLogiSelections()) {
+      if (!this.validateLogiSelections()) return;
+
+      const sel = [
+        {
+          bezeichnung: "Cuttermesser",
+          checked: this.cuttermesserChecked,
+          _id: this.getItemId("cuttermesser"),
+          size: "onesize",
+        },
+        {
+          bezeichnung: "Jutebeutel",
+          checked: this.jutebeutelChecked,
+          _id: this.getItemId("jutebeutel", this.jutebeutelArt),
+          size: this.jutebeutelArt,
+        },
+        {
+          bezeichnung: "Logistik Hose",
+          checked: this.logistikHoseChecked,
+          _id: this.getItemId("logistikHose", this.logistikHoseSize),
+          size: this.logistikHoseSize,
+        },
+        {
+          bezeichnung: "T-Shirt (1)",
+          checked: this.tshirtChecked[0],
+          _id: this.getItemId("tshirt", this.tshirtSize[0]),
+          size: this.tshirtSize[0],
+        },
+        {
+          bezeichnung: "T-Shirt (2)",
+          checked: this.tshirtChecked[1],
+          _id: this.getItemId("tshirt", this.tshirtSize[1]),
+          size: this.tshirtSize[1],
+        },
+        {
+          bezeichnung: "T-Shirt (3)",
+          checked: this.tshirtChecked[2],
+          _id: this.getItemId("tshirt", this.tshirtSize[2]),
+          size: this.tshirtSize[2],
+        },
+        {
+          bezeichnung: "Schwarze Kapuzenjacke",
+          checked: this.schwarzeKapuzenjackeChecked,
+          _id: this.getItemId("kapuzenjacke", this.schwarzeKapuzenjackeSize),
+          size: this.schwarzeKapuzenjackeSize,
+        },
+        {
+          bezeichnung: "Sicherheitshelm",
+          checked: this.sicherheitshelmChecked,
+          _id: this.getItemId("sicherheitshelm", this.sicherheitshelmArt),
+          size: this.sicherheitshelmArt,
+        },
+        {
+          bezeichnung: "Softshelljacke",
+          checked: this.softshelljackeChecked,
+          _id: this.getItemId("softshelljacke", this.softshelljackeSize),
+          size: this.softshelljackeSize,
+        },
+        {
+          bezeichnung: "Bundhose",
+          checked: this.bundhoseChecked,
+          _id: this.getItemId("bundhose", this.bundhoseSize),
+          size: this.bundhoseSize,
+        },
+        {
+          bezeichnung: "Sicherheitsschuhe",
+          checked: this.sicherheitsschuheChecked,
+          _id: this.getItemId("sicherheitsschuhe", this.sicherheitsschuheSize),
+          size: this.sicherheitsschuheSize,
+        },
+        {
+          bezeichnung: "Handschuhe",
+          checked: this.handschuheChecked,
+          _id: this.getItemId("handschuhe", this.handschuheSize),
+          size: this.handschuheSize,
+        },
+      ];
+
+      // Ungültige Infos melden
+      const invalid = sel.filter((s) => s.checked && !s._id);
+      if (invalid.length) {
+        alert(
+          "Nicht gefunden:\n" +
+            invalid
+              .map((i) => `• ${i.bezeichnung} (${i.size || "?"})`)
+              .join("\n")
+        );
         return;
       }
-      const selections = [
-  {
-    bezeichnung: "Cuttermesser",
-    checked: this.cuttermesserChecked,
-    _id: this.getItemId("cuttermesser"),
-    size: "onesize",
-  },
-  {
-    bezeichnung: "Jutebeutel",
-    checked: this.jutebeutelChecked,
-    _id: this.getItemId("jutebeutel", this.jutebeutelArt),
-    size: this.jutebeutelArt,
-  },
-  {
-    bezeichnung: "Logistik Hose",
-    checked: this.logistikHoseChecked,
-    _id: this.getItemId("logistikHose", this.logistikHoseSize),
-    size: this.logistikHoseSize,
-  },
-  {
-    bezeichnung: "T-Shirt (1)",
-    checked: this.tshirt1Checked,
-    _id: this.getItemId("tshirt", this.tshirt1Size),
-    size: this.tshirt1Size,
-  },
-  {
-    bezeichnung: "T-Shirt (2)",
-    checked: this.tshirt2Checked,
-    _id: this.getItemId("tshirt", this.tshirt2Size),
-    size: this.tshirt2Size,
-  },
-  {
-    bezeichnung: "T-Shirt (3)",
-    checked: this.tshirt3Checked,
-    _id: this.getItemId("tshirt", this.tshirt3Size),
-    size: this.tshirt3Size,
-  },
-  {
-    bezeichnung: "Schwarze Kapuzenjacke",
-    checked: this.schwarzeKapuzenjackeChecked,
-    _id: this.getItemId("kapuzenjacke", this.schwarzeKapuzenjackeSize),
-    size: this.schwarzeKapuzenjackeSize,
-  },
-  {
-    bezeichnung: "Sicherheitshelm",
-    checked: this.sicherheitshelmChecked,
-    _id: this.getItemId("sicherheitshelm", this.sicherheitshelmArt),
-    size: this.sicherheitshelmArt,
-  },
-  {
-    bezeichnung: "Softshelljacke",
-    checked: this.softshelljackeChecked,
-    _id: this.getItemId("softshelljacke", this.softshelljackeSize),
-    size: this.softshelljackeSize,
-  },
-  {
-    bezeichnung: "Bundhose",
-    checked: this.bundhoseChecked,
-    _id: this.getItemId("bundhose", this.bundhoseSize),
-    size: this.bundhoseSize,
-  },
-  {
-    bezeichnung: "Sicherheitsschuhe",
-    checked: this.sicherheitsschuheChecked,
-    _id: this.getItemId("sicherheitsschuhe", this.sicherheitsschuheSize),
-    size: this.sicherheitsschuheSize,
-  },
-  {
-    bezeichnung: "Handschuhe",
-    checked: this.handschuheChecked,
-    _id: this.getItemId("handschuhe", this.handschuheSize),
-    size: this.handschuheSize,
-  },
-];
 
-// Check for invalid items
-const invalidItems = selections.filter(
-  (selection) => selection.checked && !selection._id
-);
-
-if (invalidItems.length > 0) {
-  alert(
-    `Folgende Items konnten nicht gefunden werden:\n${invalidItems
-      .map((item) => `${item.bezeichnung} (Größe: ${item.size || "?"})`)
-      .join("\n")}`
-  );
-  return;
-}
-
-
-      const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
-
-      this.anmerkung = "Logistik-Paket: ".concat(this.anmerkung);
-      this.updateMultiple(selections, count);
-      this.closeModal();
-      this.showLogiModal = false;
+      const count = action === "add" ? 1 : -1;
+      this.anmerkung = `Logistik-Paket: ${this.anmerkung || ""}`.trim();
+      this.updateMultiple(sel, count);
+      this.closeAllModals();
       this.resetLogiPaket();
     },
+
     submitServiceModal(action) {
-      if (!this.validateServiceSelections()) {
-        return;
-      }
-      const selections = [
+      if (!this.validateServiceSelections()) return;
+
+      const sel = [
         {
           checked: this.kellnermesserChecked,
           _id: this.getItemId("kellnermesser"),
+          size: "onesize",
+        },
+        {
+          checked: this.kellnerblockChecked,
+          _id: this.getItemId("kellnerblock"),
           size: "onesize",
         },
         {
@@ -1042,533 +985,324 @@ if (invalidItems.length > 0) {
           size: this.schwarzeHemdenHerrenSize,
         },
       ];
-      // Filter out invalid selections
-      const validSelections = selections.filter(
-        (selection) => selection.checked && selection._id
-      );
 
-      if (validSelections.length === 0) {
-        alert("No valid items selected.");
+      const valid = sel.filter((s) => s.checked && s._id);
+      if (!valid.length) {
+        alert("Es wurde nichts ausgewählt.");
         return;
       }
 
-      const count = action === "add" ? 1 : action === "remove" ? -1 : 0;
-
-      this.anmerkung = "Service-Paket: ".concat(this.anmerkung);
-      this.updateMultiple(selections, count);
-      this.closeModal();
-      this.showServiceModal = false;
+      const count = action === "add" ? 1 : -1;
+      this.anmerkung = `Service-Paket: ${this.anmerkung || ""}`.trim();
+      this.updateMultiple(sel, count);
+      this.closeAllModals();
       this.resetServicePaket();
     },
+
+    // resets
+    resetLogiPaket() {
+      this.anmerkung = "";
+      this.cuttermesserChecked = false;
+      this.jutebeutelChecked = false;
+      this.logistikHoseChecked = false;
+      this.tshirtChecked = [false, false, false];
+      this.schwarzeKapuzenjackeChecked = false;
+      this.sicherheitshelmChecked = false;
+      this.softshelljackeChecked = false;
+      this.bundhoseChecked = false;
+      this.sicherheitsschuheChecked = false;
+      this.handschuheChecked = false;
+
+      this.jutebeutelArt = "";
+      this.logistikHoseSize = "";
+      this.tshirtSize = ["", "", ""];
+      this.schwarzeKapuzenjackeSize = "";
+      this.sicherheitshelmArt = "";
+      this.softshelljackeSize = "";
+      this.bundhoseSize = "";
+      this.sicherheitsschuheSize = "";
+      this.handschuheSize = "";
+    },
+
+    resetServicePaket() {
+      this.anmerkung = "";
+      this.kellnermesserChecked = true;
+      this.kellnerblockChecked = true;
+      this.kugelschreiberChecked = true;
+      this.namensschildChecked = true;
+      this.feuerzeugChecked = true;
+      this.schuhputzzeugChecked = true;
+      this.schwarzeKrawatteChecked = true;
+      this.schwarzeFliegeChecked = false;
+      this.schwarzeSchuerzeChecked = true;
+      this.kleidersackChecked = true;
+      this.serviceHandschuheChecked = true;
+      this.weisseHemdenDamenChecked = false;
+      this.schwarzeHemdenDamenChecked = false;
+      this.weisseHemdenHerrenChecked = false;
+      this.schwarzeHemdenHerrenChecked = false;
+
+      this.weisseHemdenDamenSize = "";
+      this.schwarzeHemdenDamenSize = "";
+      this.weisseHemdenHerrenSize = "";
+      this.schwarzeHemdenHerrenSize = "";
+    },
   },
+
   mounted() {
     this.setAxiosAuthToken();
     this.fetchUserData();
-    this.updateItemMappings();
+    window.addEventListener("keydown", this.handleEscapeKey);
+  },
+
+  beforeUnmount() {
+    window.removeEventListener("keydown", this.handleEscapeKey);
   },
 };
 </script>
 
 <style scoped lang="scss">
-@import "@/assets/styles/global.scss"; 
+@import "@/assets/styles/global.scss";
 
-
-.session {
-  display: flex;
-  flex-direction: row;
-}
-
-.left {
-  display: block;
-}
-
-
-
-@media only screen and (max-width: 768px) {
-  .left {
-    display: none; /* Hide on mobile screens */
-  }
-
-  form {
-    width: 100%;
-    height: 100%;
-  }
-}
-
-a.discrete {
-  user-select: none;
-  color: rgba(#000, 0.4);
-  font-size: 14px;
-  border-bottom: solid 1px rgba(#000, 0);
-  cursor: pointer;
-  padding-bottom: 4px;
-  margin-left: auto;
-  font-weight: 300;
-  transition: all 0.3s ease;
-  margin-top: 0px;
-
-  &:hover {
-    border-bottom: solid 1px rgba(#000, 0.2);
-  }
-}
-
-.top {
-  display: block;
-}
-
-form {
-  padding: 40px 30px;
-  background: $base-panel-bg;
+/* Drawer */
+.shortcuts {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  padding-bottom: 20px;
-  width: 500px;
-
-  h4 {
-    margin-bottom: 20px;
-    color: rgba(#000, 0.5);
-    span {
-      color: rgba(#000, 1);
-      font-weight: 700;
-    }
-  }
-  p {
-    line-height: 155%;
-    margin-bottom: 5px;
-    font-size: 14px;
-    color: #000;
-    opacity: 0.65;
-    font-weight: 400;
-    max-width: 200px;
-    margin-bottom: 40px;
-  }
-}
-a.discrete {
-  user-select: none;
-  color: rgba(#000, 0.4);
-  font-size: 14px;
-  border-bottom: solid 1px rgba(#000, 0);
-  padding-bottom: 4px;
-  margin-left: auto;
-  font-weight: 300;
-  transition: all 0.3s ease;
-  margin-top: 40px;
-  &:hover {
-    border-bottom: solid 1px rgba(#000, 0.2);
-  }
+  gap: 8px;
+  padding: 8px 6px;
+  color: var(--text);
 }
 
-button {
-  user-select: none;
-  width: auto;
-  min-width: 100px;
-  border-radius: 24px;
-  text-align: center;
-  padding: 15px 40px;
-  margin-top: 5px;
-  background-color: $base-primary;
-  color: #fff;
-  font-size: 14px;
-  margin-left: auto;
-  font-weight: 500;
-  box-shadow: 0px 2px 6px -1px rgba(0, 0, 0, 0.13);
-  border: none;
-  outline: 0;
-}
-.modal {
-  z-index: 10;
-}
-.close-modal {
-  position: absolute;
-  cursor: pointer;
-  bottom: 94%;
-  left: 95%; /* Place the button at the top-right corner */
-  background-color: white;
-  color: #e3e3e3;
-  border: 1px solid gray;
-  border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  font-size: 16px;
-  cursor: pointer;
+.shortcuts-header {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-
-  &:hover {
-    color: #999;
-  }
+  margin: 0 0 6px;
 }
 
-.floating-label {
-  transition: all 0.3s ease;
-  &:hover {
-    cursor: pointer;
-    transform: translateY(-3px);
-    box-shadow: 0px 10px 20px 0px rgba(0, 0, 0, 0.2);
-    &:active {
-      transform: scale(0.99);
-    }
-  }
-  button {
-    margin-top: 0px;
-  }
-  .icon {
-    height: 48px !important;
-  }
-}
-.inactive {
-  transition: unset;
-  &:hover {
-    cursor: unset;
-    transform: unset;
-    box-shadow: unset;
-  }
-  button {
-    background-color: #e0e0e0;
-  }
-}
-
-input,
-.standort-dropdown {
-  user-select: none;
-  font-size: 16px;
-  padding: 20px 0px;
-  height: 56px;
-  border: none;
-  border-bottom: solid 1px rgba(0, 0, 0, 0.1);
-  background: #fff;
-  width: 280px;
-  box-sizing: border-box;
-  transition: all 0.3s linear;
-  color: #000;
-  font-weight: 400;
-  &:focus {
-    border-bottom: solid 1px $base-primary;
-    outline: 0;
-    box-shadow: 0 2px 6px -8px rgba($base-primary, 0.45);
-  }
-}
-
-.standort-dropdown {
-  height: unset;
-}
-
-.floating-label {
-  position: relative;
-  margin-bottom: 10px;
-  width: 100%;
-  label {
-    position: absolute;
-    top: calc(50% - 7px);
-    left: 0;
-    opacity: 0;
-    transition: all 0.3s ease;
-    padding-left: 44px;
-  }
-  input {
-    width: calc(100% - 44px);
-    margin-left: auto;
-    display: flex;
-  }
-  .icon {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 56px;
-    width: 44px;
-    display: flex;
-    svg {
-      height: 30px;
-      width: 30px;
-      margin: auto;
-      opacity: 0.15;
-      transition: all 0.3s ease;
-      path {
-        transition: all 0.3s ease;
-      }
-    }
-  }
-  input:not(:placeholder-shown) {
-    padding: 28px 0px 12px 0px;
-  }
-  input:not(:placeholder-shown) + label {
-    transform: translateY(-10px);
-    opacity: 0.7;
-  }
-  input:valid:not(:placeholder-shown) + label + .icon {
-    svg {
-      opacity: 1;
-      path {
-        fill: $base-primary;
-      }
-    }
-  }
-  input:not(:valid):not(:focus) + label + .icon {
-    animation-name: shake-shake;
-    animation-duration: 0.3s;
-  }
-}
-$displacement: 3px;
-@keyframes shake-shake {
-  0% {
-    transform: translateX(-$displacement);
-  }
-  20% {
-    transform: translateX($displacement);
-  }
-  40% {
-    transform: translateX(-$displacement);
-  }
-  60% {
-    transform: translateX($displacement);
-  }
-  80% {
-    transform: translateX(-$displacement);
-  }
-  100% {
-    transform: translateX(0px);
-  }
-}
-.session {
-  display: flex;
-  flex-direction: row;
-  width: auto;
-  height: auto;
-  margin: auto auto;
-  background: #ffffff;
-  border-radius: 4px;
-  box-shadow: 0px 0px 20px 10px rgba(255, 255, 255, 0.2);
-}
-.left {
-  width: 220px;
-  height: auto;
-  min-height: 100%;
-  position: relative;
-  background-image: url("@/assets/SF_001.jpg");
-  background-position: 60% center;
-  background-size: cover;
-  border-top-left-radius: 4px;
-  border-bottom-left-radius: 4px;
-  box-shadow: 10px 0px 20px -5px rgba(0, 0, 0, 0.1);
-  svg {
-    height: 40px;
-    width: auto;
-    margin: 20px;
-  }
-}
-
-.right {
-  padding: 15px 15px;
-  box-shadow: -10px 0px 20px -5px rgba(0, 0, 0, 0.1);
-  background: #fefefe;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding-bottom: 20px;
-  width: 160px;
-
-  h4 {
-    font-size: 20px;
-    margin-bottom: 20px;
-    color: rgba(#000, 0.5);
-    span {
-      color: rgba(#000, 1);
-      font-weight: 700;
-    }
-  }
-
-  .shortcut-container {
-    font-size: 14px;
-    color: #000;
-    opacity: 0.65;
-    font-weight: 400;
-
-    .item-list-sf {
-      width: 30px; /* Adjust the width as needed */
-      height: auto; /* Maintain aspect ratio */
-      margin: 5px;
-      cursor: pointer;
-    }
-  }
-}
-.list-item {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-}
-
-/* src/assets/base.scss or any global stylesheet */
-.logo-svg .st01 {
-  fill: #fff;
-}
-.icon-svg .st0 {
-  fill: none;
-}
-.icon-svg .st1 {
-  fill: #010101;
-}
-
-.logo-svg {
-  width: 50px; /* Adjust the width as needed */
-  height: auto; /* Maintain aspect ratio */
-  margin: 20px 0px 0px 10px;
-  /* Add other styles if needed */
-}
-
-.discrete {
-  color: transparent;
-  cursor: default;
-}
 h4 {
-  z-index: 1;
-}
-hr {
-  margin: 10px;
-  clear: both; /* Ensure it clears any floats */
-}
-.anmerkung-container {
-  margin-bottom: 10px; /* Add space below the input */
-  display: flex;
-  width: 100%; /* Ensure input spans full width */
-}
-span.paket-item {
-  display: flex;
-  flex-direction: column; /* Stack the elements vertically */
-  align-items: flex-start; /* Align items to the start */
-  gap: 2px; /* Add space between elements */
+  font-size: 15px;
+  font-weight: 700;
+  opacity: 0.9;
+  margin: 0;
 }
 
-.anmerkung-container input {
-  width: 100%; /* Full width */
-  padding: 8px;
-  font-size: 14px;
+.close-btn {
+  display: none; /* Desktop versteckt */
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 4px;
   border-radius: 4px;
-  border: 1px solid #ccc;
-  box-sizing: border-box;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s, background 0.2s;
 }
+.close-btn:hover {
+  opacity: 1;
+  background: var(--hover);
+}
+
+@media (max-width: 768px) {
+  .close-btn {
+    display: block; /* Nur auf Mobile sichtbar */
+  }
+}
+
+/* Buttons */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.s-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12.5px;
+  line-height: 1.2;
+  transition: background 0.2s, transform 0.08s, border-color 0.2s;
+}
+.s-btn:hover {
+  background: var(--hover);
+  transform: translateY(-1px);
+}
+.s-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+.s-btn img {
+  width: 16px;
+  height: 16px;
+  opacity: 0.6;
+}
+
+/* Modal Overlay (deins ggf. schon angepasst) */
 .modal {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  background: var(--overlay);
   display: flex;
+  align-items: center;
   justify-content: center;
-  align-items: center;
+  z-index: 1000;
 }
+
+/* Modal Card */
 .modal-content {
-  background: white;
-  padding: 30px;
+  position: relative;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  max-height: min(78vh, 640px);
+  overflow: hidden;
+  background: var(--tile-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 12px 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  font-size: 12.5px;
+}
+.modal-content > h4 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.close {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  font-size: 20px;
+  color: var(--muted);
+  cursor: pointer;
+  z-index: 1;
+  padding: 4px;
+}
+.close:hover {
+  color: var(--text);
+}
+
+.select-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.select-label select {
+  padding: 4px 6px;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  width: 350px;
-  text-align: center;
-  position: relative;
-
-  .item-actions {
-  display: flex;
-  justify-content: center; /* Center buttons */
-  gap: 10px; /* Add space between buttons */
-  margin-top: 10px; /* Add space above buttons */
+  background: var(--tile-bg);
+  color: var(--text);
 }
 
-  button {
-    margin: 10px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-
-    &:hover {
-      background-color: mix(black, $base-primary, 10%);
-    }
-  }
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  max-height: 48vh;
+  overflow: auto;
+  padding-right: 2px;
+}
+.sub {
+  margin: 4px 0 2px;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12.5px;
 }
 
-.checkbox-container {
+.row {
   display: flex;
   align-items: center;
-  justify-content: space-between; /* Space between label/checkbox and dropdown */
-  width: 100%; /* Ensure the container spans the full width */
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  background: var(--hover);
 }
-.paket-item {
-  margin-bottom: 10px;
-  height: 31px;
-}
-/* Align checkbox and label to the left */
-.custom-checkbox {
+.chk {
   display: flex;
   align-items: center;
-  font-size: 14px;
+  gap: 6px;
+  flex: 1;
+}
+.sel {
+  min-width: 90px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--text);
+}
+
+.full {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.full input {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--tile-bg);
+  color: var(--text);
+}
+
+/* Inventory Update Form */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.form-group label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group select,
+.form-group input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--tile-bg);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.btns {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.btns button {
+  min-width: 110px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
   cursor: pointer;
-  margin-right: 10px;
-  flex-grow: 1; /* Ensure the checkbox and label take up available space */
+  font-size: 12.5px;
 }
-
-/* Hide the default checkbox */
-.custom-checkbox input {
-  position: absolute;
-  opacity: 0;
-  cursor: pointer;
-}
-
-input {
-  width: auto;
-}
-
-/* Create a custom checkmark */
-.custom-checkbox .checkmark {
-  position: relative;
-  height: 20px;
-  width: 20px;
-  background-color: #ccc;
-  border-radius: 4px;
-  transition: 0.2s;
-  margin-right: 10px;
-}
-
-/* Checkmark when the checkbox is checked */
-.custom-checkbox input:checked + .checkmark {
-  background-color: $base-primary;
-}
-
-/* Checkmark icon */
-.custom-checkbox .checkmark:after {
-  content: "";
-  position: absolute;
-  display: none;
-}
-
-/* Display the checkmark when the checkbox is checked */
-.custom-checkbox input:checked + .checkmark:after {
-  display: block;
-}
-
-/* Checkmark (tick) style */
-.custom-checkbox .checkmark:after {
-  left: 6px;
-  top: 3px;
-  width: 5px;
-  height: 10px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-/* Dropdown aligned to the right */
-.size-dropdown {
-  text-align: right;
-  margin-left: auto; /* Push the dropdown to the right */
-  padding: 5px;
-  font-size: 14px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-  background-color: white;
-  cursor: pointer;
-}
-
-hr {
-  margin: 10px 0;
+.btns button:hover {
+  filter: brightness(0.95);
 }
 </style>

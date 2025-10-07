@@ -13,6 +13,7 @@ const Mitarbeiter = require("../models/Mitarbeiter");
 const FlipUser = require("../models/Classes/FlipUser");
 const { sendMail } = require("../EmailService");
 const storage = multer.memoryStorage();
+const { flipAxios } = require("../flipAxios");
 const {
   assignFlipTask,
   assignFlipUserGroups,
@@ -220,14 +221,199 @@ router.get(
   })
 );
 
+// routes/mitarbeiterRoutes.js (oder dein personal-Router)
 router.get(
   "/flip/profilePicture/:id",
+  auth, // Auth-Middleware hinzugefügt
   asyncHandler(async (req, res) => {
-    const id = req.params.id;
-    const { data, contentType } = await getFlipProfilePicture(id);
+    const userId = req.params.id;
+    console.log(`🖼️ Profile picture request for user: ${userId}`);
+    
+    try {
+      const result = await getFlipProfilePicture(userId);
 
-    res.set("Content-Type", contentType);
-    res.send(Buffer.from(data, "binary"));
+      if (!result) {
+        // kein Avatar hinterlegt
+        console.log(`❌ No profile picture found for user: ${userId}`);
+        return res.status(204).end();
+      }
+      
+      console.log(`✅ Profile picture found for user ${userId}: ${result.data?.length || 0} bytes, type: ${result.contentType}`);
+      
+      // Cache-Headers setzen für bessere Performance
+      res.set({
+        "Content-Type": result.contentType || "image/jpeg",
+        "Cache-Control": "public, max-age=3600", // 1 Stunde Cache
+        "ETag": `"${userId}"` // Simple ETag basierend auf User-ID
+      });
+      
+      res.send(Buffer.from(result.data, "binary"));
+    } catch (error) {
+      console.error(`❌ Error fetching profile picture for user ${userId}:`, error);
+      res.status(500).json({ message: "Failed to fetch profile picture" });
+    }
+  })
+);
+
+// --- Flip Task endpoints (moved here so all personal-related routes live under /api/personal) ---
+// Get tasks for a Flip user (by Flip user id)
+router.get(
+  "/flip/tasks/:userId",
+  auth,
+  asyncHandler(async (req, res) => {
+    const userId = req.params.userId;
+    if (!userId) return res.status(400).json({ message: "User ID is required" });
+
+    // Temporarily disable Flip API due to API issues - return placeholder data
+    // TODO: Re-enable once Flip API distribution_kind parameter is fixed
+    const FLIP_TASKS_ENABLED = process.env.FLIP_TASKS_ENABLED === 'true';
+    
+    if (!FLIP_TASKS_ENABLED) {
+      console.log(`Flip tasks API disabled, returning placeholder data for user ${userId}`);
+      
+      // Return placeholder tasks for development/testing
+      const placeholderTasks = [
+        {
+          id: "placeholder-task-1",
+          title: "Beispiel-Aufgabe: Profil einrichten",
+          body: {
+            html: "<p>Bitte richte dein Flip-Profil ein und füge ein Profilbild hinzu.</p>",
+            plain: "Bitte richte dein Flip-Profil ein und füge ein Profilbild hinzu.",
+            language: "de"
+          },
+          progress_status: "OPEN",
+          due_at: {
+            date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+            type: "DATE"
+          },
+          created_at: new Date().toISOString(),
+          link: `${process.env.FLIP_SYNC_URL || process.env.FLIP_BASE_URL || 'https://app.flip.de'}/tasks/placeholder-1`,
+        },
+        {
+          id: "placeholder-task-2", 
+          title: "Willkommen bei Straightforward",
+          body: {
+            html: "<p>Willkommen im Team! Diese Aufgabe wird automatisch erstellt, bis die Flip API wieder verfügbar ist.</p>",
+            plain: "Willkommen im Team! Diese Aufgabe wird automatisch erstellt, bis die Flip API wieder verfügbar ist.",
+            language: "de"
+          },
+          progress_status: "IN_PROGRESS",
+          due_at: null,
+          created_at: new Date().toISOString(),
+          link: `${process.env.FLIP_SYNC_URL || process.env.FLIP_BASE_URL || 'https://app.flip.de'}/tasks/placeholder-2`,
+        }
+      ];
+      
+      return res.json(placeholderTasks);
+    }
+
+    try {
+
+      let assignmentsResponse;
+      
+      try {
+        assignmentsResponse = await flipAxios.get("/api/tasks/v4/tasks/assignments", {
+          params: { 
+            distribution_kind: ["RECEIVED", "PERSONAL"],
+            progress_status: ["NEW", "IN_PROGRESS"],
+            body_format: "PLAIN"
+          },
+        });
+      } catch (distributionError) {
+        console.warn("Flip API error, falling back to placeholder:", distributionError.response?.data);
+        return res.json([]);
+      }
+
+      if (!assignmentsResponse.data || !assignmentsResponse.data.assignments) {
+        return res.json([]);
+      }
+
+      // Filter assignments for the specific user
+      const userAssignments = assignmentsResponse.data.assignments.filter(
+        assignment => assignment.assignee?.id === userId
+      );
+
+      // Get unique task IDs from assignments
+      const taskIds = [...new Set(userAssignments.map(assignment => assignment.task?.id).filter(Boolean))];
+
+      if (taskIds.length === 0) {
+        return res.json([]);
+      }
+
+      // Fetch task details for each task ID
+      const tasks = [];
+      for (const taskId of taskIds) {
+        try {
+          const taskResponse = await flipAxios.get(`/api/tasks/v4/tasks/${taskId}`, {
+            params: { body_format: "HTML,PLAIN" }
+          });
+          
+          if (taskResponse.data) {
+            const task = taskResponse.data;
+            tasks.push({
+              id: task.id,
+              title: task.title,
+              body: {
+                html: task.body?.html || "",
+                plain: task.body?.plain || "",
+                language: task.body?.language || null
+              },
+              progress_status: task.progress_status || "OPEN",
+              due_at: task.due_at ? {
+                date: task.due_at.date,
+                type: task.due_at.type || "DATE"
+              } : null,
+              created_at: task.created_at,
+              link: `${process.env.FLIP_SYNC_URL || process.env.FLIP_BASE_URL || 'https://app.flip.de'}/tasks/${task.id}`,
+            });
+          }
+        } catch (taskErr) {
+          console.warn(`Could not fetch task ${taskId}:`, taskErr.response?.data || taskErr.message);
+        }
+      }
+
+      res.json(tasks);
+    } catch (err) {
+      console.error(`Error fetching tasks for user ${userId}:`, err.response?.data || err.message);
+      // Return empty array instead of error to prevent frontend crashes
+      res.json([]);
+    }
+  })
+);
+
+// Create a Flip task
+router.post(
+  "/flip/tasks",
+  auth,
+  asyncHandler(async (req, res) => {
+    try {
+      const taskData = req.body;
+      if (!taskData.title || !taskData.recipients || taskData.recipients.length === 0) {
+        return res.status(400).json({ message: "Title and at least one recipient are required" });
+      }
+
+      const newTask = await assignFlipTask({ body: taskData });
+      res.status(201).json(newTask);
+    } catch (err) {
+      console.error("Error creating flip task:", err.response?.data || err.message);
+      res.status(500).json({ message: "Error creating flip task" });
+    }
+  })
+);
+
+// Mark a Flip task as completed
+router.post(
+  "/flip/tasks/:taskId/complete",
+  auth,
+  asyncHandler(async (req, res) => {
+    const taskId = req.params.taskId;
+    try {
+      const response = await flipAxios.post(`/api/tasks/v4/tasks/${taskId}/complete`);
+      res.json(response.data);
+    } catch (err) {
+      console.error(`Error completing task ${taskId}:`, err.response?.data || err.message);
+      res.status(500).json({ message: "Error completing task" });
+    }
   })
 );
 

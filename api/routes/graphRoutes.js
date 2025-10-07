@@ -157,8 +157,8 @@ router.post("/webhook", (req, res) => {
         try {
           if (n.clientState && n.clientState !== expectedState) {
             console.warn(
-              `⚠️ clientState mismatch (got=${n.clientState}, expected=${expectedState})`
-            );
+              `⚠️ clientState mismatch (got=${n.clientState}, expected=${expectedState})`);
+            continue;
           }
 
           // 1) Favorisiert: aus unserem Store über subscriptionId

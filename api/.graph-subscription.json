@@ -1,29 +1,6 @@
 {
   "subscriptions": {
-    "byId": {
-      "859b661a-e233-46af-8813-6b8b4c9b162c": {
-        "upn": "teamhamburg@straightforward.email",
-        "folderId": "AAMkADc3N2U2OWM1LTQzYzYtNDZkYi1hOGU3LTMyZjcyZjYxZDhiMAAuAAAAAADsbxcaOkqtS6j2HA5oaQdWAQBE30WTJlpaQYh_UhE9m5icAAJbR5gHAAA=",
-        "resource": "/users('teamhamburg@straightforward.email')/mailFolders('AAMkADc3N2U2OWM1LTQzYzYtNDZkYi1hOGU3LTMyZjcyZjYxZDhiMAAuAAAAAADsbxcaOkqtS6j2HA5oaQdWAQBE30WTJlpaQYh_UhE9m5icAAJbR5gHAAA=')/messages",
-        "expirationDateTime": "2025-09-13T12:38:01.402Z"
-      },
-      "b4fc0019-b58a-4f70-adb0-2c0b6f4ff42d": {
-        "upn": "teamberlin@straightforward.email",
-        "folderId": "AAMkAGMyMGFhN2FlLTIzNjItNGRiYy05M2JjLTMzY2I4NWVkNmYwYQAuAAAAAABXdjtxmi3RQKGPDm5p9TvXAQD-AqGf-78nSqrUvVdIVg-jAALYEeLUAAA=",
-        "resource": "/users('teamberlin@straightforward.email')/mailFolders('AAMkAGMyMGFhN2FlLTIzNjItNGRiYy05M2JjLTMzY2I4NWVkNmYwYQAuAAAAAABXdjtxmi3RQKGPDm5p9TvXAQD-AqGf-78nSqrUvVdIVg-jAALYEeLUAAA=')/messages",
-        "expirationDateTime": "2025-09-13T12:38:07.726Z"
-      },
-      "97058ca0-3d8a-43fa-a976-1151cb1883b4": {
-        "upn": "teamkoeln@straightforward.email",
-        "folderId": "AAMkADgzNmUzYTlmLWJiM2ItNDBlNS04M2EzLWU4ZTE1MWVkMjMzNAAuAAAAAAC5UmQRxi4DSJIc4SGSGqyrAQAuE9cxL75MRZSLnJLcoP_QAAFQf4ouAAA=",
-        "resource": "/users('teamkoeln@straightforward.email')/mailFolders('AAMkADgzNmUzYTlmLWJiM2ItNDBlNS04M2EzLWU4ZTE1MWVkMjMzNAAuAAAAAAC5UmQRxi4DSJIc4SGSGqyrAQAuE9cxL75MRZSLnJLcoP_QAAFQf4ouAAA=')/messages",
-        "expirationDateTime": "2025-09-13T12:38:13.996Z"
-      }
-    },
-    "byKey": {
-      "teamhamburg@straightforward.email|AAMkADc3N2U2OWM1LTQzYzYtNDZkYi1hOGU3LTMyZjcyZjYxZDhiMAAuAAAAAADsbxcaOkqtS6j2HA5oaQdWAQBE30WTJlpaQYh_UhE9m5icAAJbR5gHAAA=": "859b661a-e233-46af-8813-6b8b4c9b162c",
-      "teamberlin@straightforward.email|AAMkAGMyMGFhN2FlLTIzNjItNGRiYy05M2JjLTMzY2I4NWVkNmYwYQAuAAAAAABXdjtxmi3RQKGPDm5p9TvXAQD-AqGf-78nSqrUvVdIVg-jAALYEeLUAAA=": "b4fc0019-b58a-4f70-adb0-2c0b6f4ff42d",
-      "teamkoeln@straightforward.email|AAMkADgzNmUzYTlmLWJiM2ItNDBlNS04M2EzLWU4ZTE1MWVkMjMzNAAuAAAAAAC5UmQRxi4DSJIc4SGSGqyrAQAuE9cxL75MRZSLnJLcoP_QAAFQf4ouAAA=": "97058ca0-3d8a-43fa-a976-1151cb1883b4"
-    }
+    "byId": {},
+    "byKey": {}
   }
 }

@@ -110,6 +110,38 @@ function expirationIso(minutes) {
   return new Date(Date.now() + minutes * 60000).toISOString();
 }
 
+function filterSubsForResource(allSubs = [], { upn, folderId }) {
+  const candidates = buildMailResourceCandidates({ upn, folderId })
+    .map((r) => r.toLowerCase());
+  return allSubs.filter((s) => candidates.includes((s.resource || "").toLowerCase()));
+}
+
+/** Beste Subscription wählen: höchste expirationDateTime */
+function pickBest(subs = []) {
+  if (!subs.length) return null;
+  return subs.slice().sort((a, b) => {
+    const ta = new Date(a.expirationDateTime).getTime() || 0;
+    const tb = new Date(b.expirationDateTime).getTime() || 0;
+    return tb - ta;
+  })[0];
+}
+
+/** Doppelte für eine Quelle (clientState+notificationUrl) entfernen – nur beste behalten */
+async function pruneDuplicatesForSource({ token, subs, keep }) {
+  const toDelete = subs.filter((s) => s.id !== keep.id);
+  for (const s of toDelete) {
+    try {
+      await axios.delete(`${GRAPH}/subscriptions/${s.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      removeStoreSubscriptionById(s.id);
+      console.log(`🧹 Deleted duplicate subscription ${s.id}`);
+    } catch (e) {
+      logGraphError(`⚠️ delete dup ${s.id} failed`, e);
+    }
+  }
+}
+
 async function createSubscription({ token, upn, folderId, notificationUrl, clientState }) {
   const candidates = buildMailResourceCandidates({ upn, folderId });
   let lastErr;
@@ -156,65 +188,95 @@ async function ensureGraphMailSubscription({ userPrincipalName, folderId, notifi
 
   const token = await getAppToken();
   const desiredResource = buildDesiredResource({ upn: userPrincipalName, folderId });
-  const stored = getStoredSubscriptionByKey(userPrincipalName, folderId);
 
-  const needNew = async () => {
-    if (!stored?.id) return true;
-    try {
-      const current = await getSubscription({ token, id: stored.id });
+  // 1) Alle Subs laden + auf diese Mailbox/Folder einschränken
+  const all = await listAllSubscriptions(token);
+  const mine = filterSubsForResource(all, { upn: userPrincipalName, folderId });
 
-      if ((current.resource || "").toLowerCase() !== desiredResource.toLowerCase()) {
-        console.warn(`⚠️ Resource changed for ${userPrincipalName}. Old=${current.resource} New=${desiredResource} → re-create`);
-        try {
-          await axios.delete(`${GRAPH}/subscriptions/${stored.id}`, { headers: { Authorization: `Bearer ${token}` } });
-        } catch (e) { logGraphError("⚠️ delete old subscription failed", e); }
-        removeStoreSubscriptionById(stored.id);
-        return true;
-      }
+  // 2) Nach Quelle gruppieren
+  const isSameSource = (s) =>
+    (s.clientState || "") === (clientState || "") &&
+    (s.notificationUrl || "").toLowerCase() === (notificationUrl || "").toLowerCase();
 
-      const minLeft = (new Date(current.expirationDateTime).getTime() - Date.now()) / 60000;
-      if (minLeft <= 0) return true;
-      if (minLeft < 360) {
-        try {
-          const renewed = await renewSubscription({ token, id: stored.id });
-          upsertStoreSubscription({
-            id: renewed.id || stored.id,
-            upn: userPrincipalName,
-            folderId,
-            resource: renewed.resource || current.resource,
-            expirationDateTime: renewed.expirationDateTime,
-          });
-          console.log(`✅ Renewed subscription for ${userPrincipalName} (~${Math.round(minLeft)}min left)`);
-        } catch (e) {
-          logGraphError("⚠️ renew failed, will recreate", e);
-          return true;
-        }
-      } else {
-        console.log(`👌 Subscription OK for ${userPrincipalName} (~${Math.round(minLeft)}min left)`);
-      }
-      return false;
-    } catch (e) {
-      logGraphError("⚠️ getSubscription failed, will re-create", e);
-      removeStoreSubscriptionById(stored.id);
-      return true;
+  const sameSource = mine.filter(isSameSource);
+  const otherSource = mine.filter((s) => !isSameSource(s)); // z.B. dev vs prod
+
+  // 3) Andere Quelle(n): auf max. 1 reduzieren (ältere löschen, eine beste bleibt)
+  if (otherSource.length > 1) {
+    const bestOther = pickBest(otherSource);
+    await pruneDuplicatesForSource({ token, subs: otherSource, keep: bestOther });
+  }
+
+  // 4) Diese Quelle: Fälle behandeln
+  if (sameSource.length > 0) {
+    // Es existiert schon ≥1 passende Sub → nur beste behalten, Rest löschen
+    const best = pickBest(sameSource);
+    if (sameSource.length > 1) {
+      await pruneDuplicatesForSource({ token, subs: sameSource, keep: best });
     }
-  };
 
-  if (await needNew()) {
-    const created = await createSubscription({
-      token,
-      upn: userPrincipalName,
-      folderId,
-      notificationUrl,
-      clientState,
-    });
-    upsertStoreSubscription({
-      id: created.id,
-      upn: userPrincipalName,
-      folderId,
-      resource: created.resource,
-      expirationDateTime: created.expirationDateTime,
-    });
+    // Falls nahe am Ablauf → erneuern
+    try {
+      const minLeft = (new Date(best.expirationDateTime).getTime() - Date.now()) / 60000;
+      if (minLeft < 360) {
+        const renewed = await renewSubscription({ token, id: best.id });
+        upsertStoreSubscription({
+          id: renewed.id || best.id,
+          upn: userPrincipalName,
+          folderId,
+          resource: renewed.resource || desiredResource,
+          expirationDateTime: renewed.expirationDateTime,
+        });
+        console.log(`✅ Renewed subscription (this source) for ${userPrincipalName}`);
+      } else {
+        // Store aktualisieren (falls noch nicht da)
+        upsertStoreSubscription({
+          id: best.id,
+          upn: userPrincipalName,
+          folderId,
+          resource: best.resource || desiredResource,
+          expirationDateTime: best.expirationDateTime,
+        });
+        console.log(`👌 Subscription OK (this source) for ${userPrincipalName} (~${Math.round(minLeft)}min left)`);
+      }
+      return; // fertig: schon 1 Sub für diese Quelle vorhanden
+    } catch (e) {
+      logGraphError("⚠️ renew best (this source) failed, will recreate", e);
+      try {
+        await axios.delete(`${GRAPH}/subscriptions/${best.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        removeStoreSubscriptionById(best.id);
+      } catch (e2) {
+        logGraphError("⚠️ delete best before recreate failed", e2);
+      }
+      // weiter unten -> neu erstellen
+    }
+  }
+
+  // 5) Es gibt noch keine Sub für diese Quelle → neu erstellen
+  const created = await createSubscription({
+    token,
+    upn: userPrincipalName,
+    folderId,
+    notificationUrl,
+    clientState,
+  });
+  upsertStoreSubscription({
+    id: created.id,
+    upn: userPrincipalName,
+    folderId,
+    resource: created.resource,
+    expirationDateTime: created.expirationDateTime,
+  });
+
+  // 6) Sicherheitsnetz: Falls andere Quelle(n) >1 geworden sind, erneut trimmen (sollte i.d.R. nicht nötig sein)
+  const allAfter = await listAllSubscriptions(token);
+  const mineAfter = filterSubsForResource(allAfter, { upn: userPrincipalName, folderId });
+  const otherAfter = mineAfter.filter((s) => !isSameSource(s));
+  if (otherAfter.length > 1) {
+    const bestOther = pickBest(otherAfter);
+    await pruneDuplicatesForSource({ token, subs: otherAfter, keep: bestOther });
   }
 }
 

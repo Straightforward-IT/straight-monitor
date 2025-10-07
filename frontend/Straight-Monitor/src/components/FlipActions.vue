@@ -2,38 +2,43 @@
     <div class="shortcuts">
       <h4>Flip Aktionen</h4>
       <div class="shortcut-container">
-        <span class="list-item" @click="openErstellung">
-          <img
-            src="@/assets/SF_002.png"
-            id="erstellung"
-            alt="Erstellung"
-            class="item-list-sf"
-          />
-          <label for="erstellung">
-            <p>Benutzer Erstellen</p>
-          </label>
-        </span>
-       <span class="list-item" @click="openAustritte">
-          <img
-            src="@/assets/SF_002.png"
-            id="austritte"
-            alt="Austritte"
-            class="item-list-sf"
-          />
-          <label for="austritte">
-            <p>Austritte</p>
-          </label>
-        </span>
+        <custom-tooltip text="Neuen Benutzer in Flip erstellen" position="right" :delay="500">
+          <span class="list-item" @click="openErstellung">
+            <img
+              src="@/assets/SF_002.png"
+              id="erstellung"
+              alt="Erstellung"
+              class="item-list-sf"
+            />
+            <label for="erstellung">
+              <p>Benutzer Erstellen</p>
+            </label>
+          </span>
+        </custom-tooltip>
+        <custom-tooltip text="Austretende Mitarbeiter verwalten" position="right" :delay="500">
+          <span class="list-item" @click="openAustritte">
+            <img
+              src="@/assets/SF_002.png"
+              id="austritte"
+              alt="Austritte"
+              class="item-list-sf"
+            />
+            <label for="austritte">
+              <p>Austritte</p>
+            </label>
+          </span>
+        </custom-tooltip>
       </div>
     </div>
   </template>
   
   <script>
   import api from "@/utils/api";
+import CustomTooltip from './CustomTooltip.vue';
 
   export default {
-    
     name: "Tools",
+    components: { CustomTooltip },
     emits: ["open-flip-bar"],
     props: {
         isFlipBarOpen: Boolean

@@ -1,9 +1,5 @@
 <template>
   <div class="window">
-    <div class="leftAlign">
-      <a class="discrete" @click="switchToDashboard">Zurück</a>
-    </div>
-
     <h1>Lohnabrechnungen</h1>
 <div class="info-box">
   <p><strong>⚠ Bitte beachten:</strong> Die Excel-Datei muss folgende Spalten enthalten:</p>
@@ -317,303 +313,266 @@ const eventSource = new EventSource(url);
 <style scoped lang="scss">
 @import "@/assets/styles/global.scss";
 
-.window {
-  /* Assign Sass variables to CSS custom properties */
-  --c-window-bg: #{$base-light-gray};
-  --c-panel-bg: #{$base-panel-bg};
-  --c-primary: #{$base-primary};
-  --c-primary-hover: #{$base-secondary-accent};
-  --c-primary-active: #{$base-tertiary-accent};
-  --c-success: #{$base-success};
-  --c-success-hover: #{$base-success-hover};
-  --c-success-active: #{$base-success-active};
-  --c-border: #{$base-border-color};
-  --c-text-dark: #{$base-text-dark};
-  --c-text-medium: #{$base-text-medium};
-  --c-text-light: #{$base-text-light};
-  --c-error: #{$base-error};
-  --c-disabled-bg: #{$base-disabled-bg};
-  --c-drag-drop-hover-bg: #{color.adjust($base-panel-bg, $lightness: 2%)};
-  --c-drag-drop-active-bg: #{color.adjust($base-panel-bg, $lightness: -5%)};
-
-  width: 600px;
+.window{
+  width: 720px;
   margin: 30px auto;
-  padding: 30px;
-  background-color: var(--c-window-bg);
+  padding: 28px;
+  background: var(--tile-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.15);
-  text-align: center;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  box-shadow: 0 8px 16px rgba(0,0,0,.12);
+  text-align:center;
 
-  h1 {
-    color: var(--c-text-dark);
-    margin-bottom: 25px;
-    font-size: 2.2rem;
+  h1{ margin-bottom: 20px; font-size: 2rem; color: var(--text); }
+}
+
+.leftAlign{ text-align:left; margin-bottom: 12px; }
+.discrete{
+  display:inline-block; padding:6px 10px;
+  color: var(--muted); text-decoration:none; font-weight:500;
+  transition: color .2s ease;
+}
+.discrete:hover{ color: var(--primary); }
+
+.info-box{
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+  text-align:left;
+  color: var(--text);
+  font-size:.95rem;
+}
+
+.sample-table{
+  width:100%; border-collapse:collapse; table-layout:fixed; margin-top:8px;
+  th{
+    padding:10px; border:1px solid var(--border);
+    font-size:.85rem; text-align:center; white-space:nowrap; color: var(--text);
+    background: var(--hover);
   }
 }
 
-.info-box {
-  background-color: var(--c-panel-bg);
-  border: 1px solid var(--c-border);
-  padding: 20px;
-  border-radius: 8px;
-  margin-bottom: 25px;
-  text-align: left;
-  font-size: 0.95rem;
-  color: var(--c-text-dark);
-  width: 100%;             /* 💡 Volle Breite */
-  box-sizing: border-box;  /* Padding einrechnen */
+.upload-section{
+  background: var(--panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding: 18px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.06);
 
-  p {
-    margin-bottom: 12px;
+  .dropdowns{
+    display:flex; flex-wrap:wrap; gap:16px 24px; justify-content:center; margin-bottom:14px;
   }
+  .dropdown-group{
+    display:flex; flex-direction:column; gap:6px; align-items:flex-start;
+    label{ font-weight:500; color: var(--text); }
+    select{
+      padding:8px 12px; border-radius:8px; border:1px solid var(--border);
+      background: var(--tile-bg); color: var(--text);
+      transition: border-color .2s, box-shadow .2s;
+    }
+    select:focus{
+      outline:none; border-color: var(--primary);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 25%, transparent);
+    }
+  }
+
+  .drag-drop-area{
+    width:100%; height:120px; margin-top:10px;
+    border:2px dashed var(--border); border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    color: var(--muted); background: var(--tile-bg);
+    cursor:pointer; transition: background .2s, border-color .2s, color .2s;
+
+    &:hover{ background: var(--hover); border-color: var(--primary); color: var(--text); }
+    &:active{ background: color-mix(in oklab, var(--hover) 60%, var(--tile-bg)); }
+  }
+
+  .button-group{
+    display:flex; flex-direction:column; gap:12px; margin-top:16px;
+
+    .upload-btn{
+      display:inline-block; padding:12px 20px; border-radius:8px;
+      background: var(--primary); color:#fff; font-weight:600; cursor:pointer;
+      transition: transform .08s ease, filter .2s ease; text-align:center;
+    }
+    .upload-btn:hover{ filter: brightness(.95); transform: translateY(-1px); }
+    .upload-btn:active{ filter: brightness(.9); transform: translateY(0); }
+  }
+
+  input[type="file"]{ display:none; }
 }
 
+.file-name{
+  margin: 18px 0 22px; font-size:.95rem;
+  background: var(--panel); border:1px solid var(--border);
+  border-radius:10px; padding:12px; color: var(--muted);
+  box-shadow: 0 1px 3px rgba(0,0,0,.03);
 
-.sample-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
+  p{ margin:6px 0; }
+  strong{ color: var(--text); }
+  .error{ color: #d33; font-weight:600; } /* falls du --error willst, kannst du es global ergänzen */
+}
 
-  th {
+.actions{
+  button{
+    padding: 12px 24px; border:none; border-radius:8px; font-weight:600;
+    background: var(--primary); color:#fff; cursor:pointer;
+    transition: transform .08s ease, filter .2s ease, box-shadow .2s ease;
+    box-shadow: 0 4px 10px -2px rgba(0,0,0,.15);
+  }
+  button:disabled{ opacity:.6; cursor:not-allowed; box-shadow:none; transform:none; }
+  button:hover:not(:disabled){ filter: brightness(.95); transform: translateY(-1px); }
+  button:active:not(:disabled){ filter: brightness(.9); transform: translateY(0); }
+}
+
+.loader{
+  margin-top: 14px; font-size:1rem; color: var(--muted); font-weight:500;
+}
+
+.progress-wrapper{
+  margin-top: 18px; text-align:left; color: var(--text); font-size:.95rem;
+}
+
+.progress-bar{
+  height: 14px; width: 100%; border-radius:10px; overflow:hidden; margin-top:6px;
+  background: var(--hover); box-shadow: inset 0 1px 3px rgba(0,0,0,.08);
+}
+.progress-fill{
+  height:100%; width:0;
+  background: var(--primary); /* gern auf --success umstellen, wenn du es global definierst */
+  transition: width .35s ease;
+}
+
+/* Mobile Optimierungen */
+@media (max-width: 768px) {
+  .window {
+    width: calc(100vw - 32px);
+    margin: 16px;
+    padding: 20px;
+    
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 16px;
+    }
+  }
+  
+  .info-box {
+    padding: 12px;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+  }
+  
+  .sample-table th {
+    padding: 6px 4px;
+    font-size: 0.75rem;
+  }
+  
+  .upload-section {
+    padding: 14px;
+    
+    .dropdowns {
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 12px;
+      
+      .dropdown-group {
+        width: 100%;
+        
+        select {
+          width: 100%;
+          padding: 12px 16px;
+          font-size: 16px; /* Verhindert Auto-Zoom auf iOS */
+          border-radius: 12px;
+        }
+      }
+    }
+    
+    .drag-drop-area {
+      height: 100px;
+      font-size: 1rem;
+      margin-top: 8px;
+    }
+    
+    .button-group {
+      gap: 10px;
+      
+      .upload-btn {
+        padding: 14px 20px;
+        font-size: 16px; /* Verhindert Auto-Zoom */
+        border-radius: 12px;
+      }
+    }
+  }
+  
+  .file-name {
+    margin: 14px 0 18px;
     padding: 10px;
-    border: 1px solid var(--c-border);
-    font-size: 0.85rem;
-    text-align: center;
-    white-space: nowrap;
+    font-size: 0.9rem;
+    
+    p {
+      margin: 4px 0;
+    }
   }
-
-  thead tr:first-child th {
-    background-color: var(--c-disabled-bg);
-    font-weight: bold;
+  
+  .actions button {
+    padding: 14px 24px;
+    font-size: 16px; /* Verhindert Auto-Zoom */
+    width: 100%;
+    border-radius: 12px;
   }
-
-  thead tr:last-child th {
-    background-color: white;
+  
+  .progress-wrapper {
+    margin-top: 14px;
+    font-size: 0.9rem;
   }
-}
-
-
-.leftAlign {
-  text-align: left;
-  margin-bottom: 20px; /* Space between "Zurück" and H1 */
-}
-
-.discrete {
-  display: inline-block;
-  padding: 5px 10px;
-  color: var(--c-text-medium);
-  text-decoration: none; /* No underline by default */
-  font-size: 0.95rem;
-  font-weight: 500;
-  transition: color 0.2s ease; /* Transition only color */
-
-  &:hover {
-    color: var(--c-primary); /* Primary color on hover */
-    /* text-decoration: underline; -- Removed as requested */
-  }
-}
-
-.upload-section {
-  background-color: var(--c-panel-bg);
-  border: 1px solid var(--c-border);
-  border-radius: 10px;
-  padding: 25px;
-  margin-bottom: 25px;
-  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.05);
-
-  label.upload-btn {
-    /* Specificity for the upload buttons */
-    display: inline-block;
-    padding: 12px 25px;
-    background-color: var(--c-primary);
-    color: white;
-    font-size: 1rem;
-    font-weight: 600;
-    border: none;
+  
+  .progress-bar {
+    height: 12px;
     border-radius: 8px;
-    cursor: pointer;
-    text-align: center;
-    transition: background-color 0.3s ease, transform 0.1s ease;
-    box-shadow: 0 4px 8px -2px rgba($base-primary, 0.3);
+  }
+  
+  .loader {
+    margin-top: 12px;
+    font-size: 0.9rem;
+  }
+}
 
-    &:hover {
-      background-color: var(--c-primary-hover);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 12px -3px rgba($base-primary, 0.4);
+/* Kleine Mobile Geräte */
+@media (max-width: 480px) {
+  .window {
+    width: calc(100vw - 16px);
+    margin: 8px;
+    padding: 16px;
+    
+    h1 {
+      font-size: 1.4rem;
     }
-
-    &:active {
-      background-color: var(--c-primary-active);
-      transform: translateY(0);
-      box-shadow: 0 2px 4px rgba($base-primary, 0.2);
+  }
+  
+  .upload-section {
+    padding: 12px;
+    
+    .drag-drop-area {
+      height: 80px;
+      font-size: 0.9rem;
+    }
+    
+    .button-group .upload-btn {
+      padding: 12px 16px;
     }
   }
-
-  input[type="file"] {
-    display: none;
+  
+  .sample-table th {
+    padding: 4px 2px;
+    font-size: 0.7rem;
   }
-}
-
-.button-group {
-  display: flex;
-  flex-direction: column;
-  gap: 15px; /* More space between buttons */
-  margin-top: 20px; /* More space from drag/drop area */
-}
-
-.drag-drop-area {
-  width: 100%;
-  height: 120px; /* Taller drag area */
-  border: 2px dashed var(--c-border);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--c-text-medium);
-  margin-top: 15px;
-  font-size: 1.05rem; /* Larger font */
-  background: var(--c-panel-bg); /* Use panel background color */
-  cursor: pointer;
-  transition: background-color 0.3s ease, border-color 0.3s ease,
-    color 0.3s ease;
-
-  &:hover {
-    background-color: var(--c-drag-drop-hover-bg);
-    border-color: var(--c-primary); /* Primary color border on hover */
-    color: var(--c-text-dark);
+  
+  .actions button {
+    padding: 12px 20px;
   }
-
-  &:active {
-    background-color: var(--c-drag-drop-active-bg);
-    border-color: var(--c-primary-active);
-    color: var(--c-text-dark);
-  }
-}
-
-.dropdowns {
-  display: flex;
-  gap: 25px; /* More space between dropdown groups */
-  justify-content: center;
-  margin-bottom: 20px; /* More space below dropdowns */
-}
-
-.dropdown-group {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start; /* Align label and select to the left */
-  gap: 8px; /* Space between label and select */
-
-  label {
-    font-size: 1rem;
-    font-weight: 500;
-    color: var(--c-text-dark);
-  }
-}
-
-select {
-  padding: 8px 12px; /* More padding */
-  border-radius: 8px; /* Softer rounded corners */
-  border: 1px solid var(--c-border);
-  background-color: var(--c-window-bg); /* Use window background for select */
-  color: var(--c-text-dark);
-  font-size: 1rem;
-  cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-
-  &:focus {
-    outline: none;
-    border-color: var(--c-primary);
-    box-shadow: 0 0 0 3px rgba($base-primary, 0.2);
-  }
-}
-
-.actions button {
-  background-color: var(--c-success); /* Use success color */
-  color: white;
-  padding: 14px 30px; /* Larger buttons */
-  border: none;
-  border-radius: 8px; /* Consistent rounded corners */
-  font-size: 1.1rem; /* Larger font */
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.1s ease,
-    box-shadow 0.2s ease;
-  box-shadow: 0 4px 10px -2px rgba($base-success, 0.4);
-
-  &:disabled {
-    background-color: var(--c-disabled-bg);
-    cursor: not-allowed;
-    box-shadow: none;
-    transform: none;
-  }
-
-  &:hover:not(:disabled) {
-    background-color: var(--c-success-hover);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 14px -4px rgba($base-success, 0.5);
-  }
-
-  &:active:not(:disabled) {
-    background-color: var(--c-success-active);
-    transform: translateY(0);
-    box-shadow: 0 2px 5px rgba($base-success, 0.3);
-  }
-}
-
-.file-name {
-  margin-top: 20px; /* More space above file info */
-  margin-bottom: 30px; /* More space below file info */
-  font-size: 0.95rem;
-  color: var(--c-text-medium);
-  background-color: var(--c-panel-bg);
-  border: 1px solid var(--c-border);
-  border-radius: 10px;
-  padding: 15px; /* Padding around info */
-  box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.03);
-
-  p {
-    margin: 5px 0; /* Tighten line spacing for info */
-  }
-  strong {
-    color: var(--c-text-dark);
-    font-weight: 600;
-  }
-}
-
-.error {
-  color: var(--c-error);
-  margin-top: 10px;
-  font-weight: 600;
-}
-
-.loader {
-  margin-top: 20px; /* More space above loader */
-  font-size: 1.05rem;
-  color: var(--c-text-secondary);
-  font-weight: 500;
-}
-.progress-wrapper {
-  margin-top: 20px;
-  text-align: left;
-  color: var(--c-text-dark);
-  font-size: 0.95rem;
-}
-
-.progress-bar {
-  height: 14px;
-  width: 100%;
-  background-color: #ddd;
-  border-radius: 10px;
-  overflow: hidden;
-  margin-top: 5px;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.progress-fill {
-  height: 100%;
-  width: 0;
-  background-color: var(--c-success);
-  transition: width 0.4s ease;
 }
 </style>

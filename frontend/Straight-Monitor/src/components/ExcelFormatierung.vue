@@ -1,9 +1,5 @@
 <template>
   <div class="window">
-    <div class="leftAlign" style="text-align: left">
-      <a class="discrete" @click="switchToDashboard">Zurück</a>
-    </div>
-
     <h1>Excel Formatierung</h1>
     <div class="upload-section">
       <div class="drag-drop-area" @dragover.prevent @drop="handleDragAndDrop">
@@ -203,177 +199,175 @@ export default {
   },
 };
 </script>
-
 <style scoped lang="scss">
 @import "@/assets/styles/global.scss";
 
-.window {
-  /* Assign Sass variables to CSS custom properties */
-  --c-window-bg: #{$base-light-gray};
-  --c-panel-bg: #ffffff;
-  --c-primary: #{$base-primary};
-  --c-primary-hover: #{$base-secondary-accent};
-  --c-primary-active: #{$base-tertiary-accent};
-  --c-border: #{$base-border-color};
-  --c-text-dark: #{$base-text-dark};
-  --c-text-medium: #{$base-straight-gray}; // Used for hints, drag/drop text
-  --c-disabled-bg: #{$base-text-medium};
-  --c-drag-drop-hover: #{color.adjust($base-light-gray, $lightness: 2%)};
-  --c-drag-drop-active: #{color.adjust($base-light-gray, $lightness: -5%)};
+/* nutzt globale Theme-Variablen direkt */
+.window{
   width: 600px;
-  margin: 30px auto; /* More vertical space */
-  padding: 30px; /* More internal padding */
-  background-color: var(--c-window-bg);
-  border-radius: 12px; /* Softer rounded corners */
-  box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.15); /* More pronounced, soft shadow */
+  margin: 30px auto;
+  padding: 30px;
+  background: var(--tile-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(0,0,0,.12);
   text-align: center;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
 
-  h1 {
-    color: var(--c-text-dark);
-    margin-bottom: 25px; /* More space below heading */
-    font-size: 2.2rem;
+  h1{
+    margin-bottom: 22px;
+    font-size: 2.0rem;
+    color: var(--text);
   }
 }
 
-.leftAlign {
-  text-align: left;
-  margin-bottom: 20px; /* Space between "Zurück" and H1 */
+.leftAlign{ text-align:left; margin-bottom: 16px; }
+.discrete{
+  display:inline-block; padding:6px 10px;
+  color: var(--muted); text-decoration:none; font-weight:600;
+  transition: color .2s ease;
 }
+.discrete:hover{ color: var(--primary); }
 
-.discrete {
-  margin: 15px;
-  color: $base-text-medium;
-  font-weight: 600;
-  text-decoration: none;
-  transition: color 0.2s ease;
-  &:hover {
-    color: color.adjust($base-primary, $lightness: -10%);
-  }
-}
-
-.upload-section {
-  background-color: var(--c-panel-bg);
-  border: 1px solid var(--c-border);
+.upload-section{
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 25px; /* More padding inside the section */
-  margin-bottom: 25px; /* Space below the upload section */
-  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.05); /* Subtle shadow */
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.06);
 
-  label {
-    display: inline-block;
-    padding: 12px 25px; /* More padding for button-like label */
-    background-color: var(--c-primary);
-    color: white;
-    font-size: 1rem; /* Slightly larger font */
-    font-weight: 600; /* Bolder text */
-    border: none;
-    border-radius: 8px; /* Softer corners */
-    cursor: pointer;
-    text-align: center;
-    transition: background-color 0.3s ease, transform 0.1s ease;
-    box-shadow: 0 4px 8px -2px rgba($base-primary, 0.3); /* Soft shadow for button */
-
-    &:hover {
-      background-color: var(--c-primary-hover);
-      transform: translateY(-2px); /* Slight lift on hover */
-      box-shadow: 0 6px 12px -3px rgba($base-primary, 0.4);
-    }
-
-    &:active {
-      background-color: var(--c-primary-active);
-      transform: translateY(0); /* Press down effect */
-      box-shadow: 0 2px 4px rgba($base-primary, 0.2);
-    }
+  label{
+    display:inline-block;
+    padding: 12px 20px;
+    background: var(--primary);
+    color:#fff; font-weight:600; border-radius:8px; cursor:pointer;
+    transition: transform .08s ease, filter .2s ease;
   }
+  label:hover{ filter: brightness(.95); transform: translateY(-1px); }
+  label:active{ filter: brightness(.9); transform: translateY(0); }
 
-  input[type="file"] {
-    display: none;
-  }
+  input[type="file"]{ display:none; }
 }
 
-.drag-drop-area {
-  width: 100%;
-  height: 120px; /* Taller drag area */
-  border: 2px dashed var(--c-border);
-  border-radius: 10px; /* Consistent with panel corners */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 20px; /* More space below */
-  font-size: 1.05rem; /* Larger font */
-  color: var(--c-text-medium);
-  cursor: pointer;
-  transition: background-color 0.3s ease, border-color 0.3s ease,
-    color 0.3s ease;
-
-  &:hover {
-    background-color: var(--c-drag-drop-hover);
-    border-color: var(--c-primary); /* Primary color border on hover */
-    color: var(--c-text-dark);
-  }
-
-  &:active {
-    background-color: var(--c-drag-drop-active);
-    border-color: var(--c-primary-active);
-    color: var(--c-text-dark);
-  }
-}
-
-.file-info {
-  /* Changed class name from .file-name to .file-info for consistency */
-  margin-top: 20px; /* More space above file info */
-  margin-bottom: 30px; /* More space below file info */
-  font-size: 0.95rem;
-  color: var(--c-text-medium);
-  background-color: var(--c-panel-bg);
-  border: 1px solid var(--c-border);
+.drag-drop-area{
+  width:100%; height:120px;
+  border:2px dashed var(--border);
   border-radius: 10px;
-  padding: 15px; /* Padding around info */
-  box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.03);
+  display:flex; align-items:center; justify-content:center;
+  margin-bottom:16px; font-size:1.05rem; color: var(--muted);
+  background: var(--tile-bg);
+  cursor:pointer;
+  transition: background .2s, border-color .2s, color .2s;
 
-  p {
-    margin: 5px 0; /* Tighten line spacing for info */
+  &:hover{
+    background: var(--hover);
+    border-color: var(--primary);
+    color: var(--text);
   }
-  strong {
-    color: var(--c-text-dark);
-    font-weight: 600;
+  &:active{
+    background: color-mix(in oklab, var(--hover) 60%, var(--tile-bg));
   }
 }
 
-.actions {
-  margin-top: 0; /* Actions buttons should align cleanly below file-info */
-  button {
-    padding: 14px 30px; /* Larger buttons */
-    background-color: var(--c-primary);
-    color: #fff;
-    border: none;
-    border-radius: 8px; /* Consistent rounded corners */
-    cursor: pointer;
-    font-size: 1.1rem; /* Larger font for main action */
-    font-weight: 600;
-    transition: background-color 0.3s ease, transform 0.1s ease,
-      box-shadow 0.2s ease;
-    box-shadow: 0 4px 10px -2px rgba($base-primary, 0.4);
+.file-name{
+  margin: 18px 0 24px;
+  font-size: .95rem;
+  background: var(--panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding: 12px;
+  color: var(--muted);
+  box-shadow: 0 1px 3px rgba(0,0,0,.03);
 
-    &:disabled {
-      background-color: var(--c-disabled-bg);
-      cursor: not-allowed;
-      box-shadow: none;
-      transform: none;
-    }
+  p{ margin: 6px 0; }
+  strong{ color: var(--text); }
+}
 
-    &:hover:not(:disabled) {
-      background-color: var(--c-primary-hover);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 14px -4px rgba($base-primary, 0.5);
-    }
+.actions{
+  margin-top: 0;
+  button{
+    padding: 12px 24px;
+    background: var(--primary);
+    color:#fff; border:none; border-radius:8px; font-weight:600;
+    cursor:pointer; transition: transform .08s ease, filter .2s ease;
+  }
+  button:disabled{ opacity:.6; cursor:not-allowed; }
+  button:hover:not(:disabled){ filter: brightness(.95); transform: translateY(-1px); }
+  button:active:not(:disabled){ filter: brightness(.9); transform: translateY(0); }
+}
 
-    &:active:not(:disabled) {
-      background-color: var(--c-primary-active);
-      transform: translateY(0);
-      box-shadow: 0 2px 5px rgba($base-primary, 0.3);
+/* Mobile Optimierungen */
+@media (max-width: 768px) {
+  .window {
+    width: calc(100vw - 32px);
+    margin: 16px;
+    padding: 20px;
+    
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 18px;
     }
+  }
+  
+  .upload-section {
+    padding: 16px;
+    
+    label {
+      padding: 14px 20px;
+      font-size: 16px; /* Verhindert Auto-Zoom auf iOS */
+      width: 100%;
+      text-align: center;
+      box-sizing: border-box;
+    }
+  }
+  
+  .drag-drop-area {
+    height: 100px;
+    font-size: 1rem;
+    margin-bottom: 14px;
+  }
+  
+  .file-name {
+    margin: 16px 0 20px;
+    padding: 10px;
+    font-size: 0.9rem;
+    
+    p {
+      margin: 4px 0;
+    }
+  }
+  
+  .actions {
+    button {
+      padding: 14px 24px;
+      font-size: 16px; /* Verhindert Auto-Zoom */
+      width: 100%;
+      border-radius: 12px;
+    }
+  }
+}
+
+/* Kleine Mobile Geräte */
+@media (max-width: 480px) {
+  .window {
+    width: calc(100vw - 16px);
+    margin: 8px;
+    padding: 16px;
+    
+    h1 {
+      font-size: 1.4rem;
+    }
+  }
+  
+  .upload-section {
+    padding: 12px;
+  }
+  
+  .drag-drop-area {
+    height: 80px;
+    font-size: 0.9rem;
   }
 }
 </style>

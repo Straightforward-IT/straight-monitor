@@ -10,6 +10,7 @@ const mitarbeiterRoutes = require('./routes/mitarbeiterRoutes');
 const asanaRoutes = require('./routes/asanaRoutes');
 const yousignRoutes = require('./routes/yousignRoutes');
 const graphRoutes = require("./routes/graphRoutes");
+const supportRoutes = require('./routes/supportRoutes');
 const ErrorHandler = require('./middleware/ErrorHandler');
 require('dotenv').config();
 require('./serverRoutines');
@@ -62,6 +63,7 @@ app.use('/api/personal', mitarbeiterRoutes);
 app.use('/api/asana', asanaRoutes);
 app.use('/api/yousign', yousignRoutes);
 app.use('/api/graph', graphRoutes);
+app.use('/api/support', supportRoutes);
 app.use((req, res, next) => {
   const headers = req.headers;
   res.send(headers);

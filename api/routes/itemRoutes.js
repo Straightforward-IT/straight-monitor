@@ -6,7 +6,7 @@ const Item = require("../models/Item");
 const Monitoring = require("../models/Monitoring");
 const xlsx = require("xlsx");
 const asyncHandler = require("../middleware/AsyncHandler");
-const { sollRoutine } = require("../EmailService");
+const { sollRoutine, sendInventoryUpdateEmail} = require("../EmailService");
 const registry = require("../config/registry");
 
 // Variables
@@ -355,4 +355,42 @@ router.get(
   })
 );
 
+router.post("/sendInventoryUpdate", auth, asyncHandler(async (req, res) => {
+  const { location, email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ msg: "Email address is required" });
+  }
+
+  // If location is 'all', send update for each location, otherwise send for specific location
+  try {
+    if (location === 'all') {
+      // Send updates for all locations
+      for (const city of cities) {
+        await sendInventoryUpdateEmail(city, [email]);
+      }
+    } else {
+      // Validate location
+      if (!cities.includes(location)) {
+        return res.status(400).json({ 
+          msg: `Invalid location. Must be one of: ${cities.join(", ")} or 'all'` 
+        });
+      }
+      // Send update for specific location
+      await sendInventoryUpdateEmail(location, [email]);
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: `Inventory update sent to ${email}${location === 'all' ? ' for all locations' : ` for ${location}`}` 
+    });
+  } catch (error) {
+    console.error("Error sending inventory update:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to send inventory update", 
+      error: error.message 
+    });
+  }
+}))
 module.exports = router;

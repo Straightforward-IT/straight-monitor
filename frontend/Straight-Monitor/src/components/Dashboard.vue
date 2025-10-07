@@ -1,479 +1,657 @@
 <template>
-    <h4>Straight <span>Dashboard</span></h4>
-    <p>Benutzer: {{ userName }}</p>
-    <div class="floating-label">
-      <button @click="$emit('switch-to-bestand')">Bestand</button>
-      <div class="icon">
-        <font-awesome-icon :icon="['fas', 'warehouse']" />
-      </div>
-    </div>
-    <div class="floating-label">
-      <button @click="switchToVerlauf">Verlauf</button>
-      <div class="icon">
-        <font-awesome-icon :icon="['fas', 'timeline']" />
-      </div>
-    </div>
-    <!-- <div class="floating-label">
-      <button @click="switchToPersonal">Personal</button>
-      <div class="icon">
-        <font-awesome-icon :icon="['fas', 'person-through-window']" />
-      </div>
-    </div> -->
-    <div class="floating-label">
-      <button @click="$emit('open-tools-bar')">Tools</button>
-      <div class="icon">
-        <font-awesome-icon :icon="['fas', 'list']" />
-      </div>
-    </div>
-    <div class="floating-label">
-      <button @click="$emit('open-flip-bar')">Flip</button>
-        <div class="icon">
-        <img src="@/assets/flip_sw.png" alt="Flip Icon" />
+  <section class="dash">
+    <header class="dash__head">
+      <h4>Straight <span>Dashboard</span></h4>
+      <p class="dash__user">Benutzer: {{ userName }}</p>
+    </header>
+    
+    <!-- Deployment Update Modal -->
+    <div v-if="showUpdateModal" class="update-modal-overlay" @click="closeModal">
+      <div class="update-modal" @click.stop>
+        <div class="modal-header">
+          <h2>🎉 Großes Monitor Update! 🎉</h2>
+          <button class="close-btn" @click="closeModal" aria-label="Schließen">
+            <font-awesome-icon :icon="['fas', 'times']" />
+          </button>
+        </div>
+        
+        <div class="modal-body">
+          <p>Hey {{ userFirstName }}! 👋</p>
+          
+          <p>
+            Es gibt ein großes Update für den Monitor! 
+            Die Oberfläche ist jetzt komplett überarbeitet und sollte viel 
+            benutzerfreundlicher sein.
+          </p>
+          
+          <p>
+            <strong>⚠️ Hinweis:</strong> Da das ein vollständiges Rework ist, 
+            könnte es zu Fehlern kommen. Falls ihr welche 
+            findet, nutzt gerne das neue <font-awesome-icon :icon="['fas', 'ticket-alt']" class="ticket-icon" /> 
+            Ticket-Symbol für direktes Feedback! <br> <br>
+
+            Einige Funktionen sind noch in Arbeit, 
+            wie z.B. eine zentrale Mitarbeiterverwaltung und Dokumentenablage. 
+          </p>
+          
+          <p>Ich hoffe, die neue Seite gefällt dir!</p>
+          
+          <p class="signature">
+            LG Ceddy ❤️
+          </p>
+        </div>
+        
+        <div class="modal-footer">
+          <button class="understand-btn" @click="closeModal">
+            Verstanden! 👍
+          </button>
+        </div>
       </div>
     </div>
 
-   
-  </template>
+    <!-- Monitor 2.0 Section -->
+    <section class="monitor-2-section">
+      <h2 class="section-title">🚀 Monitor 2.0</h2>
+      
+      <div class="features-overview">
+        <div class="feature-group">
+          <h3 class="group-title">
+            <font-awesome-icon :icon="['fas', 'check']" />
+            Veröffentlichte Features
+          </h3>
+          <div class="feature-list">
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'envelope']" />
+              <span>Automatische Bewerber-Tasks aus E-Mails</span>
+            </div>
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'file-invoice']" />
+              <span>Lohnabrechnungen mit PDF-Split & E-Mail-Versand</span>
+            </div>
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'moon']" />
+              <span>Dark-Mode</span>
+            </div>
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'mobile-alt']" />
+              <span>Für Mobile Geräte Optimiert</span>
+            </div>
+             <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'ticket-alt']" />
+              <span>Support-Ticket-System</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="feature-group">
+          <h3 class="group-title">
+            <font-awesome-icon :icon="['fas', 'spinner']" />
+            In Entwicklung
+          </h3>
+          <div class="feature-list">
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'users']" />
+              <span>Personal - Mitarbeiterverwaltung mit Asana/Flip Verknüpfung</span>
+            </div>
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'file-alt']" />
+              <span>Dokumente - Event-Reports & OneDrive/YouSign Integration</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <nav class="tiles">
+      <!-- Bestand -->
+      <RouterLink class="tile" :to="{ name: 'Bestand' }" aria-label="Bestand">
+        <font-awesome-icon :icon="['fas','warehouse']" />
+        <span>Bestand</span>
+      </RouterLink>
+
+      <!-- Verlauf -->
+      <RouterLink class="tile" to="/verlauf" aria-label="Verlauf">
+        <font-awesome-icon :icon="['fas','timeline']" />
+        <span>Verlauf</span>
+      </RouterLink>
+
+      <!-- Personal -->
+      <RouterLink 
+        v-if="newPagesEnabled"
+        class="tile" 
+        to="/personal"
+        aria-label="Personal"
+      >
+        <font-awesome-icon :icon="['fas','people-line']" />
+        <span>Personal</span>
+      </RouterLink>
+
+      <!-- Dokumente -->
+      <RouterLink 
+        v-if="newPagesEnabled"
+        class="tile" 
+        to="/dokumente"
+        aria-label="Dokumente"
+      >
+        <font-awesome-icon :icon="['fas','file-alt']" />
+        <span>Dokumente</span>
+      </RouterLink>
+
+      <!-- Teamleiter Excel -->
+      <RouterLink class="tile" to="/excelFormatierung" aria-label="Dokumente">
+        <font-awesome-icon :icon="['fas','table']" />
+        <span>Teamleiter Excel</span>
+      </RouterLink>
+
+      <!-- Lohnabrechnungen -->
+      <RouterLink class="tile" to="/lohnabrechnungen" aria-label="Lohnabrechnungen">
+        <font-awesome-icon :icon="['fas','file-invoice']" />
+        <span>Lohnabrechnungen</span>
+      </RouterLink>
+
+      <!-- Benutzer erstellen (mit Flip-Badge) -->
+      <RouterLink class="tile" to="/flip/benutzer-erstellen" aria-label="Benutzer erstellen">
+        <img src="@/assets/flip_sw.png" alt="" class="badge" />
+        <font-awesome-icon :icon="['fas','user-plus']" />
+        <span>User erstellen</span>
+      </RouterLink>
+
+      <!-- Austritte (mit Flip-Badge) -->
+      <RouterLink class="tile" to="/flip/austritte" aria-label="Austritte">
+        <img src="@/assets/flip_sw.png" alt="" class="badge" />
+        <font-awesome-icon :icon="['fas','person-through-window']" />
+        <span>Austritte</span>
+      </RouterLink>
+    </nav>
+  </section>
+</template>
+
+<script setup>
+import { ref, onMounted, computed } from 'vue';
+import { RouterLink, useRouter } from 'vue-router';
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import api from '@/utils/api';
+
+const router = useRouter();
+const userName = ref('…');
+const userFirstName = ref('');
+
+// Feature flag für neue Pages
+const newPagesEnabled = computed(() => {
+  return import.meta.env.VITE_ENABLE_NEW_PAGES === 'true';
+});
+
+// Update Modal State
+const showUpdateModal = ref(false);
+const COOKIE_NAME = 'monitor_update_v2024_10_seen';
+const TOKEN_VERSION_COOKIE = 'monitor_token_version';
+const COOKIE_EXPIRY_DAYS = 365; // 1 Jahr
+const CURRENT_TOKEN_VERSION = '2024_10_v2'; // Neue Version für das Update
+
+// Cookie Helper Functions
+const setCookie = (name, value, days) => {
+  const expires = new Date();
+  expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+};
+
+const getCookie = (name) => {
+  const nameEQ = name + "=";
+  const ca = document.cookie.split(';');
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+  }
+  return null;
+};
+
+// Modal Functions
+const closeModal = () => {
+  showUpdateModal.value = false;
+  // Set Cookie für 1 Jahr
+  setCookie(COOKIE_NAME, 'true', COOKIE_EXPIRY_DAYS);
+};
+
+const checkShowUpdateModal = () => {
+  const hasSeenUpdate = getCookie(COOKIE_NAME);
+  if (!hasSeenUpdate && userFirstName.value) {
+    // Kleine Verzögerung für bessere UX
+    setTimeout(() => {
+      showUpdateModal.value = true;
+    }, 1500);
+  }
+};
+
+const checkTokenVersion = () => {
+  const currentVersion = getCookie(TOKEN_VERSION_COOKIE);
+  if (currentVersion !== CURRENT_TOKEN_VERSION) {
+    // Token Version ist veraltet - Force Logout
+    console.log('🔄 Token Version veraltet - Logout erzwungen');
+    localStorage.removeItem('token');
+    setCookie(TOKEN_VERSION_COOKIE, CURRENT_TOKEN_VERSION, COOKIE_EXPIRY_DAYS);
+    router.push('/login');
+    return false;
+  }
+  return true;
+};
+
+onMounted(async () => {
+  // Erst Token Version prüfen
+  if (!checkTokenVersion()) {
+    return;
+  }
+
+  try {
+    const { data } = await api.get('/api/users/me');
+    userName.value = data?.name || '';
+    
+    // Extrahiere Vornamen aus vollem Namen
+    const fullName = data?.name || '';
+    userFirstName.value = fullName.split(' ')[0] || 'Team';
+    
+    // Zeige Update Modal wenn User-Daten geladen sind
+    checkShowUpdateModal();
+  } catch {
+    router.push('/');
+  }
+});
+</script>
+
+<style scoped lang="scss">
+@import "@/assets/styles/global.scss";
+
+/* Layout */
+.dash { display:flex; flex-direction:column; gap:16px; }
+.dash__head { display:flex; align-items:baseline; gap:16px; }
+h4 { font-size:24px; font-weight:600; opacity:.9; }
+h4 span { font-weight:700; }
+.dash__user { color:#666; }
+
+/* Tiles Grid – responsive 2..6 Spalten, quadratisch */
+.tiles{
+  display:grid;
+  gap:14px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.tile{
+  position: relative; /* für das Eck-Badge */
+  aspect-ratio: 1 / 1;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:10px;
+   border:1px solid var(--border);
+  border-radius:12px;
+   background: var(--tile-bg);
   
-  <script>
-  import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-  import api from '@/utils/api';
+  text-decoration:none;
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
 
-  export default {
-    name: 'Dashboard',
-    emits: ['switch-to-bestand', "update-modal", "switch-to-dashboard", "open-tools-bar", "open-flip-bar"],
-    components: {
-      FontAwesomeIcon,
-    },
-    data() {
-      return {
-        token: localStorage.getItem('token') || null,
-        userName: '   ',
-      };
-    },
-    watch: {
-    token(newToken){
-      if (newToken) {
-        localStorage.setItem('token', newToken);
-      }else{
-        localStorage.removeItem('token');
-      }
-    }
-  },
-    methods: {
-      setAxiosAuthToken(){
-      api.defaults.headers.common['x-auth-token'] = this.token;
-    },
-      async fetchUserData() {
-        if (this.token) {
-          try {
-            
-            const response = await api.get('/api/users/me', {
-            });
-            this.userName = response.data.name; 
-          } catch (error) {
-            console.error('Error fetching user data:', error);
-            this.$router.push("/");
-          }
-        } else {
-          console.error('No token found');
-          this.$router.push("/");
-        }
-      },
-      switchToVerlauf(){
-        this.$router.push('/verlauf');
-      },
-      switchToPersonal(){
-        this.$router.push('/personal')
-      },
-    },
-    mounted() {
-      this.setAxiosAuthToken();
-      this.fetchUserData();
-    },
-  };
-  </script>
-  
-  <style scoped lang="scss">
-@import "@/assets/styles/global.scss"; 
+  :deep(svg){ font-size:28px; opacity:.9; }
+  span{ font-size:14px; font-weight:600; text-align:center; line-height:1.2; }
 
-.session {
+  &:hover{
+    transform: translateY(-2px);
+     border-color: color-mix(in srgb, black 15%, var(--border));
+    box-shadow: 0 6px 16px rgba(0,0,0,.15);
+    background: var(--hover);
+  }
+}
+
+/* Badge oben rechts – optional */
+.badge{
+  position:absolute;
+  top:6px; right:6px;
+  width:22px; height:22px;
+  object-fit:contain;
+  opacity:.55;
+  pointer-events:none; /* Tile bleibt überall klickbar */
+}
+
+/* größere Kacheln auf großen Screens */
+@media (min-width: 1400px){
+  .tiles{ grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .tile :deep(svg){ font-size:32px; }
+  .badge{ width:24px; height:24px; }
+}
+
+/* Monitor 2.0 Section */
+.monitor-2-section {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  text-align: center;
+  color: var(--text);
+}
+
+.features-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.feature-group {
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.group-title {
   display: flex;
-  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
 }
 
-.left {
-  display: block;
+.group-title svg {
+  width: 16px;
+  height: 16px;
 }
 
-
-
-@media only screen and (max-width: 768px) {
-  .left {
-    display: none; /* Hide on mobile screens */
-  }
-
-  form {
-    width: 100%;
-    height: 100%;
-  }
-}
-
-a.discrete {
-  user-select: none;
-  color: rgba(#000, 0.4);
-  font-size: 14px;
-  border-bottom: solid 1px rgba(#000, 0);
-  cursor: pointer;
-  padding-bottom: 4px;
-  margin-left: auto;
-  font-weight: 300;
-  transition: all 0.3s ease;
-  margin-top: 0px;
-
-  &:hover {
-    border-bottom: solid 1px rgba(#000, 0.2);
-  }
-}
-
-.top {
-  display: block;
-}
-
-form {
-  padding: 40px 30px;
-  background: #fefefe;
+.feature-list {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  padding-bottom: 20px;
-  width: 500px;
+  gap: 12px;
+}
 
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.feature-item svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.feature-item span {
+  line-height: 1.4;
+}
+
+/* Mobile Optimierungen */
+@media (max-width: 768px){
+  .dash{ gap:12px; padding: 12px; }
+  
+  /* Header kompakter */
+  .dash__head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
   h4 {
-    margin-bottom: 20px;
-    color: rgba(#000, 0.5);
-    span {
-      color: rgba(#000, 1);
-      font-weight: 700;
-    }
+    font-size: 20px;
   }
-  p {
-    line-height: 155%;
-    margin-bottom: 5px;
+  
+  /* Monitor 2.0 Section mobile */
+  .features-overview {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .monitor-2-section {
+    padding: 16px 12px;
+    margin-bottom: 16px;
+  }
+  
+  .section-title {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+  
+  .feature-group {
+    padding: 12px;
+  }
+  
+  .group-title {
     font-size: 14px;
-    color: #000;
-    opacity: 0.65;
-    font-weight: 400;
-    max-width: 200px;
-    margin-bottom: 40px;
+    margin-bottom: 12px;
   }
-}
-a.discrete {
-  user-select: none;
-  color: rgba(#000, 0.4);
-  font-size: 14px;
-  border-bottom: solid 1px rgba(#000, 0);
-  padding-bottom: 4px;
-  margin-left: auto;
-  font-weight: 300;
-  transition: all 0.3s ease;
-  margin-top: 40px;
-  &:hover {
-    border-bottom: solid 1px rgba(#000, 0.2);
+  
+  .feature-item {
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  
+  /* Tiles Grid mobile */
+  .tiles {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+  }
+  
+  .tile {
+    padding: 12px 8px;
+  }
+  
+  .tile :deep(svg) {
+    font-size: 24px;
+  }
+  
+  .tile span {
+    font-size: 12px;
+    line-height: 1.1;
+  }
+  
+  .badge {
+    width: 18px;
+    height: 18px;
+    top: 4px;
+    right: 4px;
   }
 }
 
-button {
-  user-select: none;
-  width: auto;
-  min-width: 100px;
-  border-radius: 24px;
-  text-align: center;
-  padding: 15px 40px;
-  margin-top: 5px;
-  background-color: $base-primary;
-  color: #fff;
-  font-size: 14px;
-  margin-left: auto;
-  font-weight: 500;
-  box-shadow: 0px 2px 6px -1px rgba(0, 0, 0, 0.13);
+/* Extra kleine Screens */
+@media (max-width: 480px) {
+  .dash { padding: 8px; }
+  
+  .tiles {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  
+  .tile {
+    padding: 10px 6px;
+    min-height: 90px;
+  }
+  
+  .monitor-2-section {
+    padding: 12px 8px;
+  }
+  
+  .feature-group {
+    padding: 10px;
+  }
+}
+
+/* Update Modal Styles */
+.update-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease;
+}
+
+.update-modal {
+  background: var(--tile-bg);
+  color: var(--text);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
+  width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  overflow: hidden;
+  animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.close-btn {
+  background: none;
   border: none;
-  outline: 0;
-}
-.modal {
-  z-index: 10;
-}
-.close-modal {
-  position: absolute;
+  font-size: 1.2rem;
+  color: var(--muted);
   cursor: pointer;
-  bottom: 94%;
-  left: 95%; /* Place the button at the top-right corner */
-  background-color: white;
-  color: #e3e3e3;
-  border: 1px solid gray;
+  padding: 8px;
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  font-size: 16px;
-  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+
+.close-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+  transform: scale(1.05);
+}
+
+.modal-body {
+  padding: 20px 28px;
+  line-height: 1.6;
+}
+
+.modal-body p {
+  margin: 0 0 16px 0;
+  color: var(--text);
+}
+
+.modal-body p:last-child {
+  margin-bottom: 0;
+}
+
+.ticket-icon {
+  color: var(--primary);
+  margin: 0 2px;
+}
+
+.signature {
+  font-style: italic;
+  color: var(--primary) !important;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 20px !important;
+}
+
+.modal-footer {
+  padding: 16px 28px 24px;
   display: flex;
   justify-content: center;
-  align-items: center;
-
-  &:hover {
-    color: #999;
-  }
 }
 
-.floating-label {
-  transition: all 0.3s ease;
-  &:hover {
-    cursor: pointer;
-    transform: translateY(-3px);
-    box-shadow: 0px 10px 20px 0px rgba(0, 0, 0, 0.2);
-    &:active {
-      transform: scale(0.99);
-    }
-  }
-  button {
-    margin-top: 0px;
-  }
-  .icon {
-    height: 48px !important;
-  }
-}
-.inactive {
-  transition: unset;
-  &:hover {
-    cursor: unset;
-    transform: unset;
-    box-shadow: unset;
-  }
-  button {
-    background-color: #e0e0e0;
-  }
-}
-
-input,
-.standort-dropdown {
-  user-select: none;
-  font-size: 16px;
-  padding: 20px 0px;
-  height: 56px;
+.understand-btn {
+  background: linear-gradient(135deg, #007bff, #f97316);
+  color: white;
   border: none;
-  border-bottom: solid 1px rgba(0, 0, 0, 0.1);
-  background: #fff;
-  width: 280px;
-  box-sizing: border-box;
-  transition: all 0.3s linear;
-  color: #000;
-  font-weight: 400;
-  &:focus {
-    border-bottom: solid 1px $base-primary;
-    outline: 0;
-    box-shadow: 0 2px 6px -8px rgba($base-primary, 0.45);
-  }
-}
-
-.standort-dropdown {
-  height: unset;
-}
-
-.floating-label {
-  position: relative;
-  margin-bottom: 10px;
-  width: 100%;
-  label {
-    position: absolute;
-    top: calc(50% - 7px);
-    left: 0;
-    opacity: 0;
-    transition: all 0.3s ease;
-    padding-left: 44px;
-  }
-  input {
-    width: calc(100% - 44px);
-    margin-left: auto;
-    display: flex;
-  }
-  .icon {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 56px;
-    width: 44px;
-    display: flex;
-    svg {
-      height: 30px;
-      width: 30px;
-      margin: auto;
-      opacity: 0.15;
-      transition: all 0.3s ease;
-      path {
-        transition: all 0.3s ease;
-      }
-    }
-  }
-  input:not(:placeholder-shown) {
-    padding: 28px 0px 12px 0px;
-  }
-  input:not(:placeholder-shown) + label {
-    transform: translateY(-10px);
-    opacity: 0.7;
-  }
-  input:valid:not(:placeholder-shown) + label + .icon {
-    svg {
-      opacity: 1;
-      path {
-        fill: $base-primary;
-      }
-    }
-  }
-  input:not(:valid):not(:focus) + label + .icon {
-    animation-name: shake-shake;
-    animation-duration: 0.3s;
-  }
-}
-$displacement: 3px;
-@keyframes shake-shake {
-  0% {
-    transform: translateX(-$displacement);
-  }
-  20% {
-    transform: translateX($displacement);
-  }
-  40% {
-    transform: translateX(-$displacement);
-  }
-  60% {
-    transform: translateX($displacement);
-  }
-  80% {
-    transform: translateX(-$displacement);
-  }
-  100% {
-    transform: translateX(0px);
-  }
-}
-.session {
-  display: flex;
-  flex-direction: row;
-  width: auto;
-  height: auto;
-  margin: auto auto;
-  background: #ffffff;
-  border-radius: 4px;
-  box-shadow: 0px 0px 20px 10px rgba(255, 255, 255, 0.2);
-}
-.left {
-  width: 220px;
-  height: auto;
-  min-height: 100%;
-  position: relative;
-  background-image: url("@/assets/SF_001.jpg");
-  background-position: 60% center;
-  background-size: cover;
-  border-top-left-radius: 4px;
-  border-bottom-left-radius: 4px;
-  box-shadow: 10px 0px 20px -5px rgba(0, 0, 0, 0.1);
-  svg {
-    height: 40px;
-    width: auto;
-    margin: 20px;
-  }
-}
-
-.right {
-  padding: 15px 15px;
-  box-shadow: -10px 0px 20px -5px rgba(0, 0, 0, 0.1);
-  background: #fefefe;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding-bottom: 20px;
-  width: 160px;
-
-  h4 {
-    margin-bottom: 20px;
-    color: rgba(#000, 0.5);
-    span {
-      color: rgba(#000, 1);
-      font-weight: 700;
-    }
-  }
-
-  .shortcut-container {
-    font-size: 14px;
-    color: #000;
-    opacity: 0.65;
-    font-weight: 400;
-
-    .item-list-sf {
-      width: 30px; /* Adjust the width as needed */
-      height: auto; /* Maintain aspect ratio */
-      margin: 5px;
-      cursor: pointer;
-    }
-  }
-}
-.list-item {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-}
-
-/* src/assets/base.scss or any global stylesheet */
-.logo-svg .st01 {
-  fill: #fff;
-}
-.icon-svg .st0 {
-  fill: none;
-}
-.icon-svg .st1 {
-  fill: #010101;
-}
-
-.logo-svg {
-  width: 50px; /* Adjust the width as needed */
-  height: auto; /* Maintain aspect ratio */
-  margin: 20px 0px 0px 10px;
-  /* Add other styles if needed */
-}
-
-h4 {
-  font-size: 24px;
+  padding: 12px 32px;
+  border-radius: 25px;
+  font-size: 1rem;
   font-weight: 600;
-  color: #000;
-  opacity: 0.85;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.2), 0 4px 15px rgba(249, 115, 22, 0.2);
 }
-label {
-  font-size: 12.5px;
-  color: #000;
-  opacity: 0.8;
-  font-weight: 400;
+
+.understand-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(249, 115, 22, 0.4);
+  filter: brightness(1.05);
 }
-  button {
-    flex-grow: 1;
+
+.understand-btn:active {
+  transform: translateY(0);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Mobile Optimierungen für Modal */
+@media (max-width: 480px) {
+  .update-modal {
+    width: calc(100vw - 16px);
+    border-radius: 12px;
+  }
+  
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  
+  .modal-header h2 {
+    font-size: 1.3rem;
+  }
+  
+  .modal-body {
+    font-size: 0.95rem;
+  }
+  
+  .understand-btn {
     width: 100%;
-    padding: 10px;
-    font-size: 16px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    cursor: pointer;
-    text-align: center;
-
-    
+    padding: 14px 24px;
   }
-
-  img{
-    height: 35px;
-    width: 35px;
-    margin: auto;
-    margin-top: 2px;
-    margin-right: 5px;
-    opacity: 0.30;
-    transition: opacity 0.3s;
-  }
-  
-  </style>
-  
+}
+</style>

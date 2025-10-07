@@ -1,6 +1,4 @@
 <template>
-  <Banner v-if="!isMobile" />
-
   <!-- Mobile Shortcuts -->
   <div v-if="isMobile && currentComponent === 'Bestand'" class="top">
     <Shortcuts
@@ -183,7 +181,7 @@ export default {
 };
 </script>
 
-<style lang="scss">
+<style scoped lang="scss">
 @import "@/assets/styles/global.scss"; 
 
 
@@ -246,7 +244,6 @@ form {
 button {
   user-select: none;
   width: auto;
-  min-width: 100px;
   border-radius: 24px;
   text-align: center;
   padding: 15px 40px;
@@ -476,7 +473,6 @@ html, body {
   height: 100vh;
   width: 100vw;
   margin: 0 0;
-  display: flex;
   align-items: flex-start;
   justify-content: flex-start;
   background: #323231;

@@ -1,6 +1,5 @@
 <template>
   <div class="window">
-    <a class="discrete" @click="switchToDashboard">Zurück zum Dashboard</a>
     <div class="window-panels">
       <div class="create-panel">
         <!-- Top Panel -->
@@ -899,352 +898,493 @@ Object.entries(groupMappings).forEach(([key, groupType]) => {
 </script>
 
 <style scoped lang="scss">
-@import "@/assets/styles/global.scss"; 
+@import "@/assets/styles/global.scss";
 
-#app {
-  max-width: unset;
-}
-
-.window {
+/* Wrapper */
+.window{
   width: 1600px;
   margin: 30px auto;
   padding: 30px;
-  background-color: #fafafa;
+  background: var(--tile-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6px 12px rgba(0,0,0,.12);
 }
 
-.window-panels {
-  display: flex;
-  gap: 20px;
-}
+/* Panels-Layout */
+.window-panels{ display:flex; gap:20px; }
 
+/* Cards */
 .create-panel,
-.second-panel {
+.second-panel{
   padding: 25px;
-  background-color: $base-panel-bg;
-  border-radius: 10px;
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.05);
+  background: var(--tile-bg);
+  color: var(--text);
+  border:1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,.06);
 }
 
-.create-panel {
-  flex: 3;
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
+/* Create-Panel Aufteilung */
+.create-panel{
+  flex:3; display:flex; flex-direction:column; gap:20px;
 
-  .top-panel,
-  .bottom-panel {
+  .top-panel, .bottom-panel{
     padding: 20px;
-    background-color: $base-panel-bg;
-    border-radius: 8px;
-    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.03);
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
   }
 
-  .top-panel {
-    h2 {
-      color: $base-text-dark;
-      font-size: 1.8rem;
-      margin-bottom: 15px;
+  .top-panel{
+    h2{ font-size:1.8rem; margin:0 0 14px; color: var(--text); }
+
+    .action-buttons{
+      margin-bottom: 16px;
+      button{
+        background: transparent;
+        color: var(--primary);
+        border:1px solid var(--primary);
+        border-radius: 8px;
+        cursor:pointer;
+        font-weight:600;
+        padding: 8px 14px;
+        margin-right: 10px;
+        transition: background .2s, color .2s, transform .08s, border-color .2s;
+      }
+      button:hover{
+        background: var(--primary);
+        color:#fff;
+        transform: translateY(-1px);
+      }
+      button:active{ transform: translateY(0); }
+      button:disabled{ opacity:.6; cursor:not-allowed; }
     }
-    .action-buttons {
-      margin-bottom: 20px;
 
-      button {
-        background-color: transparent;
-        color: $base-primary;
-        border: 1px solid $base-primary;
-        border-radius: 5px;
-        cursor: pointer;
-        font-weight: 500;
-        padding: 8px 15px;
-        margin-right: 12px;
+    .hinweise{
+      background: rgba(var(--primary-rgb), 0.05);
+      color: var(--text);
+      padding: 16px;
+      border-radius: 8px;
+      border-left: 3px solid var(--primary);
+      margin: 12px 0 0;
 
-        &:hover {
-          color: white;
-        background-color: color.adjust($base-primary, $lightness: -8%);
-          text-decoration: none;
-          box-shadow: 0 2px 6px -1px rgba($base-primary, 0.4);
+      h3{ margin:0 0 6px; font-size:1.05rem; }
+      p{ margin: 4px 0; color: var(--muted); }
+    }
+  }
+
+  .bottom-panel{
+    /* Submit */
+    .submit-button{
+      width: 100%; margin-top: 22px; height: 2.8rem;
+      font-size: 1.05rem; border-radius: 8px;
+      background: var(--primary); color:#fff; border:none; cursor:pointer;
+      transition: filter .2s, transform .08s, box-shadow .2s;
+      box-shadow: 0 4px 10px -2px rgba(0,0,0,.18);
+    }
+    .submit-button:hover{ filter: brightness(.95); transform: translateY(-1px); }
+    .submit-button:active{ filter: brightness(.9); transform: translateY(0); }
+    .submit-button:disabled{ opacity:.6; cursor:not-allowed; box-shadow:none; transform:none; }
+  }
+}
+
+/* Asana-Panel rechts */
+.second-panel{
+  flex:2; display:flex; flex-direction:column; gap:14px;
+
+  h3{
+    font-size:1.4rem; font-weight:700; color: var(--text);
+    border-bottom: 2px solid var(--primary); padding-bottom:6px; margin:0 0 10px;
+  }
+  h4{ font-size:1.15rem; margin:6px 0; color: var(--text); font-weight:600; }
+  p{ margin:6px 0; color: var(--muted); }
+  p strong{ color: var(--text); }
+
+  .asana-html-notes{
+    background: rgba(var(--border-rgb), 0.05);
+    color: var(--text);
+    border: 1px solid rgba(var(--border-rgb), 0.2);
+    border-radius: 8px;
+    padding: 16px;
+    max-height: 260px;
+    overflow:auto;
+    line-height: 1.6;
+  }
+  .no-data{ text-align:center; color: var(--muted); font-size:.95rem; margin-top:12px; }
+}
+
+/* Labels */
+.input-label{
+  display:block;
+  padding-bottom: 4px;
+  margin-bottom: 10px;
+  font-weight:600;
+  color: var(--text);
+  border-bottom: 1px solid var(--primary);
+}
+
+/* Checkbox Label */
+.check-label{
+  display:flex; align-items:center; gap:10px;
+  height: 2rem; padding-left: 10px; user-select:none;
+  color: var(--muted); border-left: 2px solid var(--primary);
+}
+
+/* Back link */
+.discrete{
+  display:inline-block; margin: 0 0 12px; padding:6px 10px;
+  color: var(--muted); font-weight:600; text-decoration:none;
+  transition: color .2s;
+}
+.discrete:hover{ color: var(--primary); }
+
+/* Inputs */
+.input-group{ display:flex; flex-wrap:wrap; gap:20px; margin-bottom: 22px; }
+.input-item{ flex:1; min-width: 220px; display:flex; flex-direction:column; }
+
+.text-input, .standort-dropdown{
+  border-radius: 8px;
+  background: rgba(var(--border-rgb), 0.03);
+  color: var(--text);
+  border: 1px solid rgba(var(--border-rgb), 0.3);
+  padding: 12px 14px; font-size: 1rem;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+.text-input:focus, .standort-dropdown:focus{
+  outline:none; border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 25%, transparent);
+}
+.text-input:hover, .standort-dropdown:hover{
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+}
+.text-input.email{ text-transform: lowercase; }
+
+/* Checkbox Group */
+.checkbox-group{
+  display:grid; gap: 16px; padding: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  background: rgba(var(--border-rgb), 0.1); 
+  border: 1px solid rgba(var(--border-rgb), 0.3);
+  border-radius: 8px;
+}
+
+/* Native checkbox mit Theme */
+.check-input{
+  width:18px; height:18px; min-width:18px; min-height:18px;
+  accent-color: var(--primary);
+  cursor:pointer; transition: transform .12s ease;
+}
+.check-input:hover{ transform: scale(1.06); }
+.check-input:active{ transform: scale(.98); }
+
+/* Modal */
+.modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background: var(--overlay); z-index: 1000; }
+.modal-content{
+  position:relative;
+  background: var(--tile-bg); color: var(--text);
+  border: 1px solid rgba(var(--border-rgb), 0.3);
+  border-radius: 16px; padding: 28px; width: 420px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.15);
+}
+.close-modal{
+  position:absolute; top:10px; right:10px; font-size:18px;
+  color: var(--muted); cursor:pointer; transition: color .2s;
+}
+.close-modal:hover{ color: var(--text); }
+
+.autocomplete-wrapper .text-input{ width: calc(100% - 2px); margin-bottom: 8px; }
+.mitarbeiter-list{
+  max-height: 260px; overflow:auto; 
+  border: 1px solid rgba(var(--border-rgb), 0.2);
+  border-radius: 8px; 
+  background: rgba(var(--border-rgb), 0.03); 
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0,0,0,.05); 
+  padding: 0; margin: 0; list-style: none;
+}
+.mitarbeiter-list li{
+  padding: 10px 12px; border-bottom: 1px solid var(--border); cursor:pointer;
+}
+.mitarbeiter-list li:last-child{ border-bottom: none; }
+.mitarbeiter-list li.highlighted,
+.mitarbeiter-list li:hover{
+  background: var(--primary); color:#fff;
+}
+
+/* ============= MOBILE RESPONSIVE OPTIMIERUNGEN ============= */
+
+@media (max-width: 1024px) {
+  /* Tablets */
+  .window {
+    width: calc(100vw - 32px);
+    margin: 16px;
+    padding: 20px;
+  }
+  
+  .window-panels {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .create-panel, .second-panel {
+    padding: 20px;
+  }
+  
+  .create-panel .top-panel,
+  .create-panel .bottom-panel {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Mobile */
+  .window {
+    width: calc(100vw - 16px);
+    margin: 8px;
+    padding: 16px;
+  }
+  
+  .window-panels {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  /* Panels kompakter */
+  .create-panel, .second-panel {
+    padding: 16px;
+  }
+  
+  .create-panel {
+    gap: 16px;
+    
+    .top-panel, .bottom-panel {
+      padding: 0;
+      margin-bottom: 16px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+    
+    .top-panel {
+      h2 {
+        font-size: 1.4rem;
+        margin-bottom: 12px;
+      }
+      
+      /* Action Buttons Stack Layout */
+      .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 12px;
+        
+        button {
+          width: 100%;
+          padding: 12px 16px;
+          font-size: 16px; /* Anti-Zoom */
+          text-align: center;
+          margin-right: 0;
+        }
+      }
+      
+      .hinweise {
+        padding: 12px;
+        margin: 8px 0 0;
+        
+        h3 {
+          font-size: 1rem;
+        }
+        
+        p {
+          font-size: 0.9rem;
+          margin: 3px 0;
         }
       }
     }
-
-    .hinweise {
-      background-color: $base-highlight-accent;
-      padding: 15px;
-      border-radius: 8px;
-      border-left: 4px solid $base-primary;
-      margin-bottom: 15px;
-
-      h3 {
-        color: $base-text-dark;
-        margin-bottom: 8px;
-        font-size: 1.05rem;
-      }
-
-      p {
-        margin: 4px 0;
-        font-size: 0.95rem;
-        color: $base-text-notsodark;
-      }
+  }
+  
+  /* Input Groups Mobile */
+  .input-group {
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+    
+    .input-item {
+      min-width: 100%;
+      flex: none;
     }
   }
-
-  .bottom-panel {
-    .submit-button {
-      width: 100%;
-      margin-top: 25px;
-      height: 2.8rem;
-      font-size: 1.1rem;
-      border-radius: 8px;
-      background-color: $base-primary;
-      color: white;
-      border: none;
-      cursor: pointer;
-      transition: all 0.3s ease;
-
-      &:hover {
-        box-shadow: 0 4px 10px -2px rgba($base-primary, 0.6);
-        background-color: color.adjust($base-primary, $lightness: -8%);
-        transform: translateY(-2px);
-      }
-      &:disabled {
-        background-color: #cccccc;
-        cursor: not-allowed;
-        box-shadow: none;
-        transform: none;
-      }
+  
+  /* Input Labels kompakter */
+  .input-label {
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+    padding-bottom: 3px;
+  }
+  
+  /* Inputs Touch-Optimiert */
+  .text-input, .standort-dropdown {
+    padding: 14px 16px;
+    font-size: 16px; /* Verhindert Auto-Zoom */
+    border-radius: 12px;
+  }
+  
+  /* Checkbox Group Mobile */
+  .checkbox-group {
+    grid-template-columns: 1fr 1fr; /* 2 Spalten auf Mobile */
+    gap: 12px;
+    padding: 12px;
+    
+    .check-label {
+      font-size: 0.9rem;
+      padding-left: 8px;
+      height: auto;
+      min-height: 2.5rem;
+    }
+    
+    .check-input {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      min-height: 20px;
     }
   }
-}
-
-.second-panel {
-  flex: 2;
-  margin-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-
-  h3 {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: $base-text-dark;
-    border-bottom: 2px solid $base-primary;
-    padding-bottom: 8px;
-    margin-bottom: 15px;
+  
+  /* Submit Button Mobile */
+  .submit-button {
+    height: 3rem;
+    font-size: 16px; /* Anti-Zoom */
+    border-radius: 12px;
+    margin-top: 16px;
   }
-
-  h4 {
-    font-size: 1.2rem;
-    color: $base-text-dark;
-    margin: 8px 0;
-    font-weight: 500;
-  }
-
-  p {
-    font-size: 1rem;
-    color: $base-text-notsodark;
-    line-height: 1.6;
-    margin: 6px 0;
-
-    strong {
-      color: $base-text-dark;
-      font-weight: 600;
+  
+  /* Asana Panel Mobile */
+  .second-panel {
+    h3 {
+      font-size: 1.2rem;
+      margin-bottom: 8px;
     }
-  }
-
-  .asana-html-notes {
-    background: #fdfdfd;
-    padding: 15px;
-    border-radius: 8px;
-    border: 1px solid $base-border-color;
-    max-height: 250px;
-    overflow-y: auto;
-    line-height: 1.5;
-    color: $base-text-notsodark;
-  }
-
-  .no-data {
-    text-align: center;
-    color: $base-text-light;
-    font-size: 0.95rem;
-    margin-top: 20px;
-  }
-}
-
-.input-label {
-  display: block;
-  border-bottom: 1px solid $base-primary;
-  padding-bottom: 4px;
-  margin-bottom: 12px; /* Increased space between label and input */
-  font-weight: 500;
-  color: $base-text-dark;
-}
-.check-label {
-  display: flex;
-  align-items: center;
-  height: 2rem;
-  border-left: 2px solid $base-primary;
-  padding-left: 10px;
-  user-select: none;
-  font-size: 0.95rem;
-  color: $base-text-notsodark;
-  /* No direct margin here, relying on check-item gap */
-}
-
-.discrete {
-  margin: 15px;
-  color: $base-text-light;
-  font-weight: 600;
-  text-decoration: none;
-  transition: color 0.2s ease;
-  &:hover {
-    color: color.adjust($base-primary, $lightness: -10%);
-    text-decoration: underline;
-  }
-}
-
-.input-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px; /* Increased gap for more horizontal space */
-  padding: 0;
-  margin-bottom: 25px; /* Added vertical spacing between input groups */
-}
-
-.checkbox-group {
-  background-color: $base-input-bg;
-  display: grid;
-  border-radius: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 20px; /* Increased gap for more space between checkboxes */
-  padding: 20px; /* Increased padding inside the checkbox group */
-  border: 1px solid $base-border-color;
-  margin-top: 25px; /* Added vertical spacing from the group above */
-  margin-bottom: 25px; /* Added vertical spacing from the group below */
-}
-
-.check-item label {
-  gap: 15px; /* Increased gap between text and checkbox */
-}
-
-.input-item {
-  flex: 1;
-  min-width: 200px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  /* No margin-bottom here, relying on input-group's gap */
-}
-
-.text-input,
-.standort-dropdown {
-  flex-grow: 1;
-  border-radius: 8px;
-  background-color: $base-input-bg;
-  border: 1px solid $base-border-color;
-  padding: 12px;
-  font-size: 1rem;
-  color: $base-text-dark;
-  transition: all 0.3s ease;
-  cursor: pointer;
-
-  &:focus {
-    outline: none;
-    border-color: $base-primary;
-    box-shadow: 0 0 0 3px rgba($base-primary, 0.2);
-  }
-  &:hover {
-    transform: none;
-    box-shadow: none;
-    border-color: color.adjust($base-primary, $lightness: -8%);
-  }
-}
-
-.text-input-disabled {
-  background-color: #eeeeee;
-  color: #a0a0a0;
-  cursor: not-allowed;
-  border: 1px solid #cccccc;
-}
-
-.check-input {
-  cursor: pointer;
-  width: 18px;
-  height: 18px;
-  min-width: 18px;
-  min-height: 18px;
-  accent-color: $base-primary;
-  transition: transform 0.2s ease;
-
-  &:hover {
-    transform: scale(1.1);
-  }
-  &:active {
-    transform: scale(0.95);
-  }
-}
-
-.modal {
-  background: rgba(0, 0, 0, 0.6);
-}
-.modal-content {
-  background: $base-panel-bg;
-  padding: 35px;
-  border-radius: 12px;
-  width: 400px;
-  box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.15);
-
-  .close-modal {
-    position: absolute;
-    top: 15px;
-    right: 15px;
-    font-size: 1.5rem;
-    color: $base-text-light;
-    cursor: pointer;
-    transition: color 0.2s ease;
-    &:hover {
-      color: $base-text-dark;
-    }
-  }
-
-  h4 {
-    font-size: 1.3rem;
-    color: $base-text-dark;
-    margin-bottom: 20px;
-    font-weight: 600;
-  }
-
-  .autocomplete-wrapper {
-    .text-input {
-      width: calc(100% - 24px);
-      padding: 12px;
-      margin-bottom: 10px;
+    
+    h4 {
       font-size: 1rem;
     }
-
-    .mitarbeiter-list {
-      max-height: 250px;
-      border-radius: 6px;
-      border: 1px solid $base-border-color;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
-
-      li {
-        padding: 12px 15px;
-        font-size: 0.95rem;
-        color: $base-text-dark;
-        &:not(:last-child) {
-          border-bottom: 1px solid #f0f0f0;
-        }
-
-        &.highlighted,
-        &:hover {
-          background-color: $base-primary;
-          color: white;
-        }
-      }
+    
+    p {
+      font-size: 0.9rem;
+      margin: 4px 0;
     }
+    
+    .asana-html-notes {
+      padding: 10px;
+      max-height: 200px;
+      font-size: 0.9rem;
+    }
+  }
+  
+  /* Modal Mobile */
+  .modal-content {
+    width: calc(100vw - 32px);
+    margin: 16px;
+    padding: 20px;
+  }
+  
+  .autocomplete-wrapper .text-input {
+    padding: 14px 16px;
+    font-size: 16px; /* Anti-Zoom */
+  }
+  
+  .mitarbeiter-list {
+    max-height: 200px;
+    
+    li {
+      padding: 12px;
+      font-size: 0.9rem;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  /* Kleine Mobile Geräte */
+  .window {
+    width: calc(100vw - 8px);
+    margin: 4px;
+    padding: 12px;
+  }
+  
+  .create-panel, .second-panel {
+    padding: 12px;
+  }
+  
+  .create-panel .top-panel,
+  .create-panel .bottom-panel {
+    padding: 10px;
+  }
+  
+  .create-panel .top-panel {
+    h2 {
+      font-size: 1.2rem;
+    }
+    
+    .action-buttons button {
+      padding: 10px 14px;
+      font-size: 15px;
+    }
+  }
+  
+  /* Checkbox Group - Single Column auf sehr kleinen Displays */
+  .checkbox-group {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+  }
+  
+  .input-label {
+    font-size: 0.85rem;
+  }
+  
+  .text-input, .standort-dropdown {
+    padding: 12px 14px;
+  }
+  
+  .submit-button {
+    height: 2.8rem;
+    font-size: 15px;
+  }
+  
+  .second-panel {
+    h3 {
+      font-size: 1.1rem;
+    }
+    
+    .asana-html-notes {
+      padding: 8px;
+      max-height: 150px;
+      font-size: 0.85rem;
+    }
+  }
+}
+
+/* Landscape Mobile Optimierung */
+@media (max-width: 768px) and (orientation: landscape) {
+  .window-panels {
+    flex-direction: row;
+  }
+  
+  .create-panel {
+    flex: 2;
+  }
+  
+  .second-panel {
+    flex: 1;
+  }
+  
+  .checkbox-group {
+    grid-template-columns: repeat(3, 1fr); /* 3 Spalten im Landscape */
   }
 }
 </style>
+

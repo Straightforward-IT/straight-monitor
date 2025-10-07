@@ -71,7 +71,7 @@ function autoPopulate(next) {
 // Apply middleware to `find` and `findOne`
 MitarbeiterSchema.pre("find", function (next) {
     autoPopulate.call(this, next);
-});
+}); 
 
 MitarbeiterSchema.pre("findOne", function (next) {
     autoPopulate.call(this, next);

@@ -23,6 +23,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "express-sse": "^1.0.0",
+    "he": "^1.2.0",
     "isomorphic-fetch": "^3.0.0",
     "jsonwebtoken": "^9.0.2",
     "jszip": "^3.10.1",

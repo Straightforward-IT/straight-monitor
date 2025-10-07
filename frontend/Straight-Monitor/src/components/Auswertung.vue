@@ -1,6 +1,5 @@
 <template>
   <div class="window">
-    <a class="discrete" @click="switchToDashboard">Zurück</a>
     <h1>Auswertung Jobangebote</h1>
     <div class="header-inputs">
       <form @submit.prevent="addRow" class="form-grid">

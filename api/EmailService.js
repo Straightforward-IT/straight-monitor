@@ -10,9 +10,7 @@ const registry = require("./config/registry");
 
 const BASE_URL = "https://straightmonitor.com";
 
-// 📎 Standard-Anhang (z. B. Banner)
-const imagePath = path.join(__dirname, "assets", "Banner.png");
-const base64Image = fs.readFileSync(imagePath).toString("base64");
+// Banner-Anhang entfernt - keine Logos mehr in E-Mails
 
 // 🔑 Sender-Normalisierung über Registry
 function resolveSenderKey(key) {
@@ -48,30 +46,19 @@ async function sendMail(
       authProvider: (done) => done(null, authResponse.accessToken),
     });
 
-    const baseAttachments = [
-      {
-        "@odata.type": "#microsoft.graph.fileAttachment",
-        name: "Banner.png",
-        contentId: "bannerImage",
-        contentBytes: base64Image,
-      },
-    ];
-
-    const combinedAttachments = baseAttachments.concat(
-      (additionalAttachments || []).map((att) => ({
-        "@odata.type": "#microsoft.graph.fileAttachment",
-        name: att.name,
-        contentBytes: att.content,
-        contentType: att.contentType || "application/pdf",
-      }))
-    );
+    const combinedAttachments = (additionalAttachments || []).map((att) => ({
+      "@odata.type": "#microsoft.graph.fileAttachment",
+      name: att.name,
+      contentBytes: att.content,
+      contentType: att.contentType || "application/pdf",
+    }));
 
     const mail = {
       message: {
         subject,
         body: {
           contentType: "HTML",
-          content: `${content}<br><img src="cid:bannerImage" alt="Banner" style="width: 280px; height: auto;" />`,
+          content: content,
         },
         toRecipients: recipients.map((email) => ({
           emailAddress: { address: email },
@@ -122,29 +109,43 @@ async function sendConfirmationEmail(user) {
   await sendMail(user.email, subject, content, "it");
 }
 
+// 📦 Send inventory update email for a specific location
+async function sendInventoryUpdateEmail(location, recipients) {
+  try {
+    const items = await getItems(location);
+    console.log(
+      `[sendInventoryUpdate] location=${location} recipients=${recipients.join(
+        ","
+      )} items=${items.length}`
+    );
+    const content = createRoutineContent({ name: location, items });
+    console.log(`[sendInventoryUpdate] location=${location} contentLen=${content.length}`);
+
+    await sendMail(
+      recipients,
+      `Bestands-Update vom ${new Date().toLocaleDateString(
+        "de-DE"
+      )} für Team ${location}`,
+      content,
+      location
+    );
+    return { success: true };
+  } catch (error) {
+    console.error(
+      `❌ Error sending inventory update email for ${location}:`,
+      error?.response?.data || error.message
+    );
+    throw error;
+  }
+}
+
 // 📦 Artikel-Update per E-Mail (Routinen)
 async function sollRoutine() {
   const targets = registry.getRoutineTargetsForToday(new Date()); // [{key, recipients, weekday}]
 
   for (const t of targets) {
     try {
-      const items = await getItems(t.key);
-      console.log(
-        `[sollRoutine] team=${t.key} recipients=${t.recipients.join(
-          ","
-        )} items=${items.length}`
-      );
-      const content = createRoutineContent({ name: t.key, items });
-      console.log(`[sollRoutine] team=${t.key} contentLen=${content.length}`);
-
-      await sendMail(
-        t.recipients,
-        `Bestands-Update vom ${new Date().toLocaleDateString(
-          "de-DE"
-        )} für Team ${t.key}`,
-        content,
-        t.key
-      );
+      await sendInventoryUpdateEmail(t.key, t.recipients);
     } catch (error) {
       console.error(
         `❌ Error sending routine email for ${t.key}:`,
@@ -251,4 +252,5 @@ module.exports = {
   sendMail,
   sendConfirmationEmail,
   sollRoutine,
+  sendInventoryUpdateEmail,
 };
