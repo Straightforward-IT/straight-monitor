@@ -225,14 +225,25 @@ const checkShowUpdateModal = () => {
 
 const checkTokenVersion = () => {
   const currentVersion = getCookie(TOKEN_VERSION_COOKIE);
-  if (currentVersion !== CURRENT_TOKEN_VERSION) {
-    // Token Version ist veraltet - Force Logout
+  const token = localStorage.getItem('token');
+  
+  // Wenn kein Cookie existiert, aber ein Token da ist = Neuer Login
+  // Dann setze einfach die aktuelle Version ohne Logout
+  if (!currentVersion && token) {
+    console.log('🆕 Neuer User Login erkannt - Token Version wird gesetzt');
+    setCookie(TOKEN_VERSION_COOKIE, CURRENT_TOKEN_VERSION, COOKIE_EXPIRY_DAYS);
+    return true;
+  }
+  
+  // Nur bei vorhandenem Cookie aber falscher Version = Force Logout
+  if (currentVersion && currentVersion !== CURRENT_TOKEN_VERSION) {
     console.log('🔄 Token Version veraltet - Logout erzwungen');
     localStorage.removeItem('token');
     setCookie(TOKEN_VERSION_COOKIE, CURRENT_TOKEN_VERSION, COOKIE_EXPIRY_DAYS);
     router.push('/login');
     return false;
   }
+  
   return true;
 };
 
