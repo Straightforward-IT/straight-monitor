@@ -9,7 +9,7 @@
     <div v-if="showUpdateModal" class="update-modal-overlay" @click="closeModal">
       <div class="update-modal" @click.stop>
         <div class="modal-header">
-          <h2>🎉 Großes Monitor Update! 🎉</h2>
+          <h2>🎉 Großes Monitor Update!</h2>
           <button class="close-btn" @click="closeModal" aria-label="Schließen">
             <font-awesome-icon :icon="['fas', 'times']" />
           </button>
@@ -66,7 +66,7 @@
             </div>
             <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'file-invoice']" />
-              <span>Lohnabrechnungen mit PDF-Split & E-Mail-Versand</span>
+              <span>Lohnabrechnungen mit E-Mail-Versand</span>
             </div>
             <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'moon']" />
