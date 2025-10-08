@@ -624,6 +624,7 @@ export default {
       userID: "",
       userName: "",
       userLocation: "",
+      filtersLoadedFromCookie: false, // Track if filters were loaded from cookie
       // expanded employee
       expandedEmployeeId: null,
       
@@ -908,8 +909,40 @@ export default {
     },
 
 
-    setFilter(type, value) {
-      this.filters[type] = value;
+    // Cookie Management
+    saveFiltersToCookie() {
+      try {
+        const filterData = JSON.stringify(this.filters);
+        const cookieString = `peopleDocsFilters=${encodeURIComponent(filterData)}; path=/; max-age=2592000`;
+        document.cookie = cookieString;
+      } catch (error) {
+        console.error('❌ Failed to save filters to cookie:', error);
+      }
+    },
+
+    loadFiltersFromCookie() {
+      try {
+        const cookies = document.cookie.split(';');
+        const filterCookie = cookies.find(c => c.trim().startsWith('peopleDocsFilters='));
+        
+        if (filterCookie) {
+          const cookieValue = filterCookie.split('=')[1];
+          const filterData = JSON.parse(decodeURIComponent(cookieValue));
+          
+          // Merge saved filters with defaults (in case new filters were added)
+          Object.keys(filterData).forEach(key => {
+            if (this.filters.hasOwnProperty(key)) {
+              this.filters[key] = filterData[key];
+            }
+          });
+          
+          this.filtersLoadedFromCookie = true;
+        } else {
+          this.filtersLoadedFromCookie = false;
+        }
+      } catch (error) {
+        console.error('❌ Failed to load filters from cookie:', error);
+      }
     },
 
     // Selection Methods
@@ -1079,7 +1112,6 @@ export default {
         case 'sipgate':
           if (this.getPhoneNumber(ma)) {
             const sipgateUrl = this.generateSipgateLink(this.getPhoneNumber(ma));
-            console.log('Opening Sipgate:', sipgateUrl);
             window.open(sipgateUrl, '_self');
           }
           break;
@@ -1087,11 +1119,9 @@ export default {
           if (ma.email) {
             // Direkt mailto verwenden - funktioniert universell und öffnet Standard-E-Mail-App (meist Outlook auf euren Macs)
             const mailtoUrl = `mailto:${ma.email}`;
-            console.log('Using standard mailto:', mailtoUrl);
             
             try {
               window.open(mailtoUrl, '_self');
-              console.log('✅ mailto opened successfully');
             } catch (error) {
               console.error('❌ mailto failed:', error);
             }
@@ -1174,6 +1204,9 @@ export default {
     setFilter(type, value) {
       this.filters[type] = value;
       this.currentPage = 1; // Reset to first page when filtering
+      
+      // Save filters to cookie immediately
+      this.saveFiltersToCookie();
     },
 
     resetAllFilters() {
@@ -1205,10 +1238,10 @@ export default {
     },
 
     openProfile(ma) {
-      console.log("Open profile:", ma?._id);
+      // TODO: Implement profile opening functionality
     },
     editMitarbeiter(ma) {
-      console.log("Edit mitarbeiter:", ma?._id);
+      // TODO: Implement mitarbeiter editing functionality
     },
 
     /* -------------------- API wiring -------------------- */
@@ -1229,8 +1262,8 @@ export default {
         this.userName = data.name;
         this.userLocation = data.location;
         
-        // Setze userLocation als Standard für Location-Filter, falls verfügbar
-        if (this.userLocation && this.locations.includes(this.userLocation)) {
+        // Setze userLocation als Standard für Location-Filter, falls verfügbar und kein Cookie geladen wurde
+        if (this.userLocation && this.locations.includes(this.userLocation) && !this.filtersLoadedFromCookie) {
           this.filters.location = this.userLocation;
         }
       } catch (e) {
@@ -1287,6 +1320,9 @@ export default {
   },
 
   async mounted() {
+    // Load saved filters from cookie before anything else
+    this.loadFiltersFromCookie();
+    
     // Check URL parameters for employee to expand
     const { mitarbeiter_id, asana_id, flip_id } = this.$route.query;
     this.expandedEmployeeId = mitarbeiter_id || asana_id || flip_id;

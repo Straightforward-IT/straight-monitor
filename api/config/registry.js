@@ -170,6 +170,51 @@ getTeamByUpn(upn) {
     return [...new Set(ids)];
   }
 
+  // Schulungs-Projekte
+  getAsanaSchulungProjectId(input) {
+    const t = this.getTeam(input);
+    return t?.asana?.schulungProjectId || null;
+  }
+
+  getAsanaSchulungProjectIds(keys = null) {
+    const selected = Array.isArray(keys) && keys.length
+      ? keys.map(k => this.getTeam(k))
+      : this.listTeams();
+
+    const ids = selected
+      .map(t => t?.asana?.schulungProjectId)
+      .filter(Boolean);
+
+    return [...new Set(ids)];
+  }
+
+  // Disposition-Projekte (separate von Bewerber-Projekten)
+  getAsanaDispositionProjectId(input) {
+    const t = this.getTeam(input);
+    return t?.asana?.dispositionProjectId || null;
+  }
+
+  getAsanaDispositionProjectIds(keys = null) {
+    const selected = Array.isArray(keys) && keys.length
+      ? keys.map(k => this.getTeam(k))
+      : this.listTeams();
+
+    const ids = selected
+      .map(t => t?.asana?.dispositionProjectId)
+      .filter(Boolean);
+
+    return [...new Set(ids)];
+  }
+
+  // Alle Asana-Projekte (Bewerber + Disposition + Schulung)
+  getAllAsanaProjectIds(keys = null, includeSchulung = true, includeDisposition = true) {
+    const bewerberIds = this.getAsanaProjectIds(keys);
+    const schulungIds = includeSchulung ? this.getAsanaSchulungProjectIds(keys) : [];
+    const dispositionIds = includeDisposition ? this.getAsanaDispositionProjectIds(keys) : [];
+    
+    return [...new Set([...bewerberIds, ...schulungIds, ...dispositionIds])];
+  }
+
 }
 
 module.exports = new Registry();

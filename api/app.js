@@ -12,6 +12,7 @@ const yousignRoutes = require('./routes/yousignRoutes');
 const graphRoutes = require("./routes/graphRoutes");
 const supportRoutes = require('./routes/supportRoutes');
 const ErrorHandler = require('./middleware/ErrorHandler');
+const logger = require('./utils/logger');
 require('dotenv').config();
 require('./serverRoutines');
 
@@ -29,15 +30,15 @@ const allowedIPs = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-    console.log('Origin:', origin);
+    logger.debug('CORS Origin:', origin);
     if (!origin || allowedDomains.includes(origin)) {
       callback(null, true);
     } else {
-      console.error(`Blocked by CORS: ${origin}`);
+      logger.warn(`Blocked by CORS: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   credentials: true,
 };
 function rawBodySaver(req, res, buf, encoding) {
@@ -64,9 +65,15 @@ app.use('/api/asana', asanaRoutes);
 app.use('/api/yousign', yousignRoutes);
 app.use('/api/graph', graphRoutes);
 app.use('/api/support', supportRoutes);
-app.use((req, res, next) => {
-  const headers = req.headers;
-  res.send(headers);
+
+// Debug endpoint (moved to specific path instead of catch-all)
+app.get('/api/debug/headers', (req, res) => {
+  res.json({ headers: req.headers, ip: req.ip, method: req.method, url: req.url });
+});
+
+// 404 handler for unmatched routes
+app.use('*', (req, res) => {
+  res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found` });
 });
 
 app.use(ErrorHandler);
@@ -74,19 +81,17 @@ app.use(ErrorHandler);
 async function logCurrentIP() {
   try {
     const response = await axios.get('https://api.ipify.org?format=json');
-    console.log('Current server IP:', response.data.ip);
+    logger.info('Current server IP:', response.data.ip);
   } catch (error) {
-    console.error('Error fetching IP address:', error);
+    logger.error('Error fetching IP address:', error);
   }
 }
 
-
-
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
+  .then(() => logger.dbConnect())
   .catch(async (err) => {
-    console.error('MongoDB connection error:', err);
+    logger.dbError(err);
     await logCurrentIP();
     process.exit(1);  // Exit process with failure
   });
@@ -94,4 +99,4 @@ mongoose.connect(process.env.MONGO_URI)
 
 // Start the server
 const PORT = process.env.PORT || 5050;
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+app.listen(PORT, () => logger.serverStart(PORT));

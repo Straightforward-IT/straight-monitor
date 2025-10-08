@@ -353,9 +353,20 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
   // 2) Rich HTML-Notes (darfs weiterhin hübsch+voll sein)
   try {
     const contactBlock = contacts.filter(Boolean).join("\n"); // gleiche Contacts wie oben
-    // Kommentartext (strukturierter Rest) – bleibt wie gehabt
+    
+    // Für Berlin: Kommentartext direkt in die Notes einbauen
+    // Für andere Teams: Kommentartext bleibt separat für Story
+    const isBerlin = hint.teamKey === "Berlin" || hint.teamKey === "berlin";
     const commentBlock = (email.bodyText && email.bodyText.trim()) || "";
-    const combinedText = [contactBlock, commentBlock].filter(Boolean).join("\n\n");
+    
+    let combinedText;
+    if (isBerlin) {
+      // Bei Berlin: Kontaktformular-Informationen werden direkt in die Notes integriert
+      combinedText = [contactBlock, commentBlock].filter(Boolean).join("\n\n");
+    } else {
+      // Bei anderen Teams: Nur Kontaktdaten in die Notes
+      combinedText = contactBlock;
+    }
 
     let html = buildEmailHtml({
       subject: email.subject,
@@ -382,13 +393,19 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
     console.warn("⚠️ Failed to queue html_notes update:", e.message);
   }
 
-  // 3) Parser-Kommentar als Story (wie gehabt)
+  // 3) Parser-Kommentar als Story - nur für Non-Berlin Teams
   try {
-    const comment = email.meta?.asana_comment || email.bodyText || "";
-    if (comment && comment.trim()) {
-      const safe = comment.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      await createStoryOnTask(createdTask.gid, { html_text: `<body><pre>${safe}</pre></body>` });
+    const isBerlin = hint.teamKey === "Berlin" || hint.teamKey === "berlin";
+    
+    if (!isBerlin) {
+      // Für alle Teams außer Berlin: Kommentar als Story anhängen (wie gehabt)
+      const comment = email.meta?.asana_comment || email.bodyText || "";
+      if (comment && comment.trim()) {
+        const safe = comment.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        await createStoryOnTask(createdTask.gid, { html_text: `<body><pre>${safe}</pre></body>` });
+      }
     }
+    // Für Berlin: Keine Story erstellen, da Informationen bereits in den Notes stehen
   } catch (e) {
     console.warn("⚠️ createStoryOnTask failed:", e.message);
   }

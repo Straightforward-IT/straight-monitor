@@ -27,7 +27,11 @@
         "upn": "teamhamburg@straightforward.email",
         "folderId": "AAMkADc3N2U2OWM1LTQzYzYtNDZkYi1hOGU3LTMyZjcyZjYxZDhiMAAuAAAAAADsbxcaOkqtS6j2HA5oaQdWAQBE30WTJlpaQYh_UhE9m5icAAJbR5gHAAA="
       },
-      "asana": { "projectId": "1204666703404588" },
+      "asana": { 
+        "projectId": "1204666703404588",
+        "dispositionProjectId": "1207021175334601",
+        "schulungProjectId": "1206622996192570"
+      },
       "routine": {
         "enabled": true,
         "weekdays": ["Monday"],
@@ -47,7 +51,11 @@
         "upn": "teamberlin@straightforward.email",
         "folderId": "AAMkAGMyMGFhN2FlLTIzNjItNGRiYy05M2JjLTMzY2I4NWVkNmYwYQAuAAAAAABXdjtxmi3RQKGPDm5p9TvXAQD-AqGf-78nSqrUvVdIVg-jAALYEeLUAAA="
       },
-      "asana": { "projectId": "1209986644355933" },
+      "asana": { 
+        "projectId": "1209986644355933",
+        "dispositionProjectId": "1203882830937566",
+        "schulungProjectId": "1206484809128286"
+      },
       "routine": {
         "enabled": true,
         "weekdays": ["Monday"],
@@ -67,7 +75,11 @@
         "upn": "teamkoeln@straightforward.email",
         "folderId": "AAMkADgzNmUzYTlmLWJiM2ItNDBlNS04M2EzLWU4ZTE1MWVkMjMzNAAuAAAAAAC5UmQRxi4DSJIc4SGSGqyrAQAuE9cxL75MRZSLnJLcoP_QAAFQf4ouAAA="
       },
-      "asana": { "projectId": "1207192167671531" },
+      "asana": { 
+        "projectId": "1207192167671531",
+        "dispositionProjectId": "1208815878474860",
+        "schulungProjectId": "1207192167671539"
+      },
       "routine": {
         "enabled": true,
         "weekdays": ["Monday"],

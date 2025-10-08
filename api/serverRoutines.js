@@ -6,6 +6,7 @@ const { sollRoutine, sendMail } = require("./EmailService");
 const { bewerberRoutine } = require("./AsanaService");
 const { ensureMultipleGraphSubscriptions } = require("./GraphService");
 const registry = require("./config/registry");
+const logger = require("./utils/logger");
 
 /* ---------------------- Feature-Flag / Env-Gates ---------------------- */
 
@@ -32,7 +33,7 @@ const CRON_PAUSED = String(process.env.CRON_PAUSED || "").toLowerCase() === "tru
 function guard(fn) {
   return async (...args) => {
     if (CRON_PAUSED) {
-      console.warn("⏸ CRON_PAUSED=true → Routine übersprungen.");
+      logger.warn("⏸ CRON_PAUSED=true → Routine übersprungen.");
       return;
     }
     return fn(...args);
@@ -46,10 +47,10 @@ function guard(fn) {
     if (allow("flip_token")) {
       cron.schedule("0 0 * * *", guard(async () => {
         try {
-          console.log("🔄 Running daily Flip API token refresh...");
+          logger.routineStart("daily Flip API token refresh");
           await getFlipAuthToken();
         } catch (error) {
-          console.error("❌ Flip API Token Refresh:", error.message);
+          logger.routineError("Flip API Token Refresh", error);
           await sendMail("it@straightforward.email", "❌ Flip API Token Refresh Failed", `
             <h3>Error in Flip API Token Refresh</h3>
             <p><strong>Error:</strong> ${error.message}</p>
