@@ -11,7 +11,15 @@
       "key": "it",
       "aliases": ["tech", "support"],
       "displayName": "IT",
+      "developmentOnly": true,
       "email": { "address": "it@straightforward.email" },
+      "graph": {
+        "upn": "it@straightforward.email",
+        "folderId": "AAMkAGZlNjY5NTg0LTEyZDctNGQ4MC1hNGUyLTkxY2MzYmU2YmNjNQAuAAAAAADK2se2ylstR6FJ2el-dDVCAQAwQF6EUVItQo8XKGsza1MUAAD0HJjNAAA="
+      },
+      "asana": { 
+        "projectId": "1211585530209654"
+      },
       "routine": {
         "enabled": true,
         "weekdays": ["Monday"],

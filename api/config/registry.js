@@ -66,7 +66,14 @@ class Registry {
   }
 
   // --- Lookups ---
-  listTeams() { return [...this.byKey.values()]; }
+  listTeams() { 
+    const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev';
+    return [...this.byKey.values()].filter(t => {
+      // Filtere development-only Teams in Production aus
+      if (t.developmentOnly && !isDevelopment) return false;
+      return true;
+    });
+  }
 
   resolveKey(input) {
     const n = normalizeKey(input);
@@ -96,8 +103,13 @@ class Registry {
 
   // Graph subscription accounts array
   getSubscriptionAccounts() {
+    const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev';
     return this.listTeams()
-      .filter(t => t.graph?.upn && t.graph?.folderId)
+      .filter(t => {
+        // Filtere development-only Teams in Production aus
+        if (t.developmentOnly && !isDevelopment) return false;
+        return t.graph?.upn && t.graph?.folderId;
+      })
       .map(t => ({ upn: t.graph.upn, folderId: t.graph.folderId, key: t.key }));
   }
 getTeamByUpn(upn) {

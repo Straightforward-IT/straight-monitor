@@ -879,8 +879,9 @@ async function getFlipTaskAssignments(taskId) {
 // ✅ Holt alle Assignments für eine bestimmte Task
 async function getFlipAssignments() {
   try {
+    // Basierend auf Flip Support-Antwort: Komma-getrennt ohne Leerzeichen
     const response = await flipAxios.get(
-      `/api/tasks/v4/tasks/assignments?distribution_kind=PERSONAL`
+      `/api/tasks/v4/tasks/assignments?distribution_kind=RECEIVED,PERSONAL`
     );
     console.log(response.data.assignments);
     return response.data?.assignments || [];

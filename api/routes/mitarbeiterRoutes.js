@@ -221,10 +221,10 @@ router.get(
   })
 );
 
-// routes/mitarbeiterRoutes.js (oder dein personal-Router)
+// Profile Picture Route mit verbessertem Error-Handling
 router.get(
   "/flip/profilePicture/:id",
-  auth, // Auth-Middleware hinzugefügt
+  auth, // Auth-Middleware
   asyncHandler(async (req, res) => {
     const userId = req.params.id;
     console.log(`🖼️ Profile picture request for user: ${userId}`);
@@ -232,7 +232,7 @@ router.get(
     try {
       const result = await getFlipProfilePicture(userId);
 
-      if (!result) {
+      if (!result || !result.data) {
         // kein Avatar hinterlegt
         console.log(`❌ No profile picture found for user: ${userId}`);
         return res.status(204).end();
@@ -247,7 +247,14 @@ router.get(
         "ETag": `"${userId}"` // Simple ETag basierend auf User-ID
       });
       
-      res.send(Buffer.from(result.data, "binary"));
+      // Direkt Buffer senden, falls result.data bereits ein Buffer/ArrayBuffer ist
+      if (Buffer.isBuffer(result.data)) {
+        res.send(result.data);
+      } else if (result.data instanceof ArrayBuffer) {
+        res.send(Buffer.from(result.data));
+      } else {
+        res.send(Buffer.from(result.data, "binary"));
+      }
     } catch (error) {
       console.error(`❌ Error fetching profile picture for user ${userId}:`, error);
       res.status(500).json({ message: "Failed to fetch profile picture" });
@@ -311,45 +318,159 @@ router.get(
 
       let assignmentsResponse;
       
+      // Debug: Welcher API-Client und User wird verwendet?
+      console.log("🔍 Debug Info:");
+      console.log("   - Requested User ID:", userId);
+      console.log("   - Flip API Base URL:", process.env.FLIP_SYNC_URL);
+      console.log("   - Flip Client ID:", process.env.FLIP_SYNC_CLIENT_ID);
+      
+      // Debug: User-ID Matching Problem analysieren
+      const testResponse = await flipAxios.get("/api/tasks/v4/tasks/assignments", {
+        params: { distribution_kind: "RECEIVED,PERSONAL", body_format: "PLAIN" }
+      });
+      const allUserIds = [...new Set(testResponse.data.assignments?.map(a => a.user_id) || [])];
+      
+      console.log("🔍 User-ID Matching Analysis:");
+      console.log("   - Requested User ID:", userId);
+      console.log("   - Available User IDs in Flip:", allUserIds);
+      console.log("   - Match found:", allUserIds.includes(userId));
+      
+      if (!allUserIds.includes(userId)) {
+        console.log("❌ User-ID mismatch detected!");
+        console.log("   - The requested user ID is not in any Flip assignments");
+        console.log("   - Check if the flip_id in the database is correct");
+        console.log("   - Available assignments:", testResponse.data.assignments?.map(a => ({
+          user_id: a.user_id, 
+          task_title: a.task?.title
+        })));
+      }
+      
+      // Test: Andere API-Endpoints ausprobieren
       try {
-        assignmentsResponse = await flipAxios.get("/api/tasks/v4/tasks/assignments", {
+        console.log("🔄 Trying alternative API endpoints...");
+        
+        // Versuche alle Tasks zu bekommen (nicht user-spezifisch)
+        console.log("📋 Trying /api/tasks/v4/tasks (all tasks)...");
+        const allTasksResponse = await flipAxios.get("/api/tasks/v4/tasks", {
+          params: { body_format: "PLAIN" }
+        });
+        console.log("� All Tasks Response:", JSON.stringify(allTasksResponse.data, null, 2));
+        
+      } catch (allTasksErr) {
+        console.log("❌ All tasks API failed:", allTasksErr.response?.data || allTasksErr.message);
+        
+        // Fallback: Versuche User-spezifische Task-API
+        try {
+          console.log("🔄 Trying user-specific task endpoint...");
+          const userTasksResponse = await flipAxios.get(`/api/tasks/v4/users/${userId}/tasks`);
+          console.log("🔍 User Tasks Response:", JSON.stringify(userTasksResponse.data, null, 2));
+        } catch (userTasksErr) {
+          console.log("❌ User tasks API failed:", userTasksErr.response?.data || userTasksErr.message);
+        }
+      }
+
+      // Erst mal OHNE progress_status Filter testen
+      try {
+        console.log("🔄 Trying API call WITHOUT progress_status filter first...");
+        let testResponse = await flipAxios.get("/api/tasks/v4/tasks/assignments", {
           params: { 
-            distribution_kind: ["RECEIVED", "PERSONAL"],
-            progress_status: ["NEW", "IN_PROGRESS"],
+            distribution_kind: "RECEIVED,PERSONAL",
             body_format: "PLAIN"
           },
         });
+        
+        console.log("🔍 Test Response (no status filter):", JSON.stringify(testResponse.data, null, 2));
+        
+        // Jetzt mit erweiterten Status-Filter (inkl. FINISHED)
+        assignmentsResponse = await flipAxios.get("/api/tasks/v4/tasks/assignments", {
+          params: { 
+            distribution_kind: "RECEIVED,PERSONAL",
+            progress_status: ["NEW", "IN_PROGRESS", "FINISHED", "DONE"],
+            body_format: "PLAIN"
+          },
+        });
+        
+        console.log("🔍 Flip API Response Status (with filter):", assignmentsResponse.status);
+        console.log("🔍 Flip API Response Data (with filter):", JSON.stringify(assignmentsResponse.data, null, 2));
+        
       } catch (distributionError) {
         console.warn("Flip API error, falling back to placeholder:", distributionError.response?.data);
         return res.json([]);
       }
 
       if (!assignmentsResponse.data || !assignmentsResponse.data.assignments) {
+        console.log("❌ No assignments data in response");
         return res.json([]);
       }
 
-      // Filter assignments for the specific user
-      const userAssignments = assignmentsResponse.data.assignments.filter(
-        assignment => assignment.assignee?.id === userId
-      );
+      console.log("📊 Total assignments received:", assignmentsResponse.data.assignments.length);
 
-      // Get unique task IDs from assignments
-      const taskIds = [...new Set(userAssignments.map(assignment => assignment.task?.id).filter(Boolean))];
+      // Analysiere Assignments um zwischen "assigned by me" und "assigned to me" zu unterscheiden
+      console.log(`📋 Available assignments through API client: ${assignmentsResponse.data.assignments.length}`);
+      
+      // Kategorisiere Assignments
+      const assignedToMe = assignmentsResponse.data.assignments.filter(assignment => 
+        assignment.user_id === userId
+      );
+      
+      const assignedByMe = assignmentsResponse.data.assignments.filter(assignment => 
+        assignment.task?.author_id === userId
+      );
+      
+      // Alle anderen (vom API-Client erstellte oder sichtbare Tasks)
+      const availableTasks = assignmentsResponse.data.assignments.filter(assignment => 
+        assignment.user_id !== userId && assignment.task?.author_id !== userId
+      );
+      
+      console.log(`🔍 Assignments TO user ${userId}: ${assignedToMe.length}`);
+      console.log(`🔍 Assignments BY user ${userId}: ${assignedByMe.length}`);
+      console.log(`🔍 Other available tasks: ${availableTasks.length}`);
+      
+      // Sammle alle Task-IDs mit Kategorisierung
+      const taskCategories = {
+        assignedToMe: assignedToMe.map(a => ({ taskId: a.task?.id, assignment: a })).filter(t => t.taskId),
+        assignedByMe: assignedByMe.map(a => ({ taskId: a.task?.id, assignment: a })).filter(t => t.taskId),
+        available: availableTasks.map(a => ({ taskId: a.task?.id, assignment: a })).filter(t => t.taskId)
+      };
+      
+      // Alle Task-IDs sammeln
+      const allTaskIds = [
+        ...taskCategories.assignedToMe.map(t => t.taskId),
+        ...taskCategories.assignedByMe.map(t => t.taskId),
+        ...taskCategories.available.map(t => t.taskId)
+      ];
+      
+      const taskIds = [...new Set(allTaskIds)];
+      console.log("🔍 Unique task IDs to fetch:", taskIds);
 
       if (taskIds.length === 0) {
+        console.log("ℹ️ No tasks available in API client scope");
         return res.json([]);
       }
 
       // Fetch task details for each task ID
+      console.log("🔄 Fetching task details for", taskIds.length, "tasks");
       const tasks = [];
       for (const taskId of taskIds) {
         try {
+          console.log(`🔄 Fetching task details for ID: ${taskId}`);
           const taskResponse = await flipAxios.get(`/api/tasks/v4/tasks/${taskId}`, {
             params: { body_format: "HTML,PLAIN" }
           });
           
+          console.log(`✅ Task ${taskId} response:`, JSON.stringify(taskResponse.data, null, 2));
+          
           if (taskResponse.data) {
             const task = taskResponse.data;
+            
+            // Bestimme Kategorie des Tasks
+            let category = 'available';
+            if (taskCategories.assignedToMe.some(t => t.taskId === task.id)) {
+              category = 'assignedToMe';
+            } else if (taskCategories.assignedByMe.some(t => t.taskId === task.id)) {
+              category = 'assignedByMe';
+            }
+            
             tasks.push({
               id: task.id,
               title: task.title,
@@ -365,18 +486,277 @@ router.get(
               } : null,
               created_at: task.created_at,
               link: `${process.env.FLIP_SYNC_URL || process.env.FLIP_BASE_URL || 'https://app.flip.de'}/tasks/${task.id}`,
+              category: category, // Neue Kategorisierung
+              author_id: task.author_id || null
             });
           }
         } catch (taskErr) {
-          console.warn(`Could not fetch task ${taskId}:`, taskErr.response?.data || taskErr.message);
+          console.warn(`❌ Could not fetch task ${taskId}:`, taskErr.response?.data || taskErr.message);
         }
       }
 
-      res.json(tasks);
+      console.log("🎯 Final tasks to return:", tasks.length);
+      
+      // Strukturiere Tasks nach Kategorien für Frontend
+      const categorizedTasks = {
+        assignedToMe: tasks.filter(t => t.category === 'assignedToMe'),
+        assignedByMe: tasks.filter(t => t.category === 'assignedByMe'),
+        available: tasks.filter(t => t.category === 'available'),
+        total: tasks.length,
+        summary: {
+          assignedToMe: tasks.filter(t => t.category === 'assignedToMe').length,
+          assignedByMe: tasks.filter(t => t.category === 'assignedByMe').length,
+          available: tasks.filter(t => t.category === 'available').length
+        }
+      };
+      
+      console.log("🎯 Categorized tasks summary:", categorizedTasks.summary);
+      
+      // Gebe strukturierte Antwort zurück
+      if (tasks.length > 0) {
+        res.json(categorizedTasks);
+      } else {
+        // Falls gar keine Tasks da sind, gib leere Struktur zurück
+        console.log("ℹ️ No tasks available from API client scope");
+        res.json({
+          assignedToMe: [],
+          assignedByMe: [],
+          available: [],
+          total: 0,
+          summary: { assignedToMe: 0, assignedByMe: 0, available: 0 }
+        });
+      }
     } catch (err) {
       console.error(`Error fetching tasks for user ${userId}:`, err.response?.data || err.message);
       // Return empty array instead of error to prevent frontend crashes
       res.json([]);
+    }
+  })
+);
+
+// Neue umfassende Route für alle Tasks eines Users
+router.get(
+  "/flip/tasks/comprehensive/:userId",
+  auth,
+  asyncHandler(async (req, res) => {
+    const userId = req.params.userId;
+    if (!userId) return res.status(400).json({ message: "User ID is required" });
+
+    const FLIP_TASKS_ENABLED = process.env.FLIP_TASKS_ENABLED === 'true';
+    
+    if (!FLIP_TASKS_ENABLED) {
+      console.log(`Flip tasks API disabled, returning placeholder data for user ${userId}`);
+      return res.json({
+        assignedToMe: [],
+        assignedByMe: [],
+        available: [],
+        total: 0,
+        summary: { assignedToMe: 0, assignedByMe: 0, available: 0 }
+      });
+    }
+
+    // Hilfsfunktion: Prüft ob ein Task für den User relevant ist
+    async function checkIfTaskIsRelevantForUser(task, userId, allAssignments, userInfo = null) {
+      // 1. Hat der Task ein Assignment für diesen User? (sollte bereits abgedeckt sein)
+      const hasAssignment = allAssignments.some(a => a.task_id === task.id && a.user_id === userId);
+      if (hasAssignment) {
+        return true;
+      }
+      
+      // 2. Wenn wir User-Info haben, prüfe ob der Name im Task-Titel vorkommt
+      if (userInfo) {
+        const { vorname, nachname } = userInfo;
+        const taskTitle = task.title?.toLowerCase() || '';
+        const taskBody = task.body?.plain?.toLowerCase() || '';
+        
+        const firstNameMatch = vorname && taskTitle.includes(vorname.toLowerCase());
+        const lastNameMatch = nachname && taskTitle.includes(nachname.toLowerCase());
+        const fullNameMatch = (vorname && nachname) && taskTitle.includes(`${vorname} ${nachname}`.toLowerCase());
+        
+        if (firstNameMatch || lastNameMatch || fullNameMatch) {
+          console.log(`🎯 Task "${task.title}" matched user ${vorname} ${nachname} by name`);
+          return true;
+        }
+        
+        // Auch im Body prüfen (für Laufzettel etc.)
+        const bodyFirstNameMatch = vorname && taskBody.includes(vorname.toLowerCase());
+        const bodyLastNameMatch = nachname && taskBody.includes(nachname.toLowerCase());
+        
+        if (bodyFirstNameMatch || bodyLastNameMatch) {
+          console.log(`🎯 Task "${task.title}" matched user ${vorname} ${nachname} in body`);
+          return true;
+        }
+      }
+      
+      // 3. Vorerst keine anderen Kriterien
+      return false;
+    }
+
+    try {
+      console.log(`🔄 Comprehensive task loading for user: ${userId}`);
+      
+      // 0. User-Info aus der DB laden für Name-Matching
+      let userInfo = null;
+      try {
+        userInfo = await Mitarbeiter.findOne({ flip_id: userId }).select('vorname nachname email');
+        if (userInfo) {
+          console.log(`👤 Found user info: ${userInfo.vorname} ${userInfo.nachname} (${userInfo.email})`);
+        } else {
+          console.log(`⚠️ No user found in DB with flip_id: ${userId}`);
+        }
+      } catch (dbError) {
+        console.log(`⚠️ Could not load user from DB:`, dbError.message);
+      }
+      
+      // 1. Alle Tasks ohne Filter abrufen
+      console.log("📋 Fetching ALL tasks from Flip API...");
+      const allTasksResponse = await flipAxios.get("/api/tasks/v4/tasks", {
+        params: { body_format: "PLAIN" }
+      });
+      const allTasks = allTasksResponse.data?.tasks || [];
+      console.log(`📊 Total tasks in Flip: ${allTasks.length}`);
+      
+      // 2. Alle Assignments abrufen
+      console.log("📋 Fetching ALL assignments from Flip API...");
+      const assignmentsResponse = await flipAxios.get("/api/tasks/v4/tasks/assignments", {
+        params: { 
+          distribution_kind: "RECEIVED,PERSONAL",
+          body_format: "PLAIN"
+        }
+      });
+      const allAssignments = assignmentsResponse.data?.assignments || [];
+      console.log(`📊 Total assignments in Flip: ${allAssignments.length}`);
+      
+      const assignedToMe = [];
+      const assignedByMe = [];
+      const available = [];
+      
+      // 3. Tasks kategorisieren
+      console.log(`🔄 Categorizing tasks for user ${userId}...`);
+      
+      for (const task of allTasks) {
+        let processed = false;
+        
+        // Tasks die der User erstellt hat
+        if (task.author_id === userId) {
+          assignedByMe.push({
+            id: task.id,
+            title: task.title,
+            body: {
+              html: task.body?.html || "",
+              plain: task.body?.plain || "",
+              language: task.body?.language || null
+            },
+            progress_status: task.progress_status || "OPEN",
+            due_at: task.due_at ? {
+              date: task.due_at.date,
+              type: task.due_at.type || "DATE"
+            } : null,
+            created_at: task.created_at,
+            link: `${process.env.FLIP_SYNC_URL || process.env.FLIP_BASE_URL || 'https://app.flip.de'}/tasks/${task.id}`,
+            category: 'assignedByMe',
+            author_id: task.author_id || null,
+            source: 'authored'
+          });
+          processed = true;
+        }
+        
+        // Tasks die dem User über Assignments zugewiesen sind
+        const userAssignment = allAssignments.find(a => 
+          a.task_id === task.id && a.user_id === userId
+        );
+        
+        if (userAssignment && !processed) {
+          assignedToMe.push({
+            id: task.id,
+            title: task.title,
+            body: {
+              html: task.body?.html || "",
+              plain: task.body?.plain || "",
+              language: task.body?.language || null
+            },
+            progress_status: userAssignment.progress_status || task.progress_status || "OPEN",
+            due_at: task.due_at ? {
+              date: task.due_at.date,
+              type: task.due_at.type || "DATE"
+            } : null,
+            created_at: task.created_at,
+            link: `${process.env.FLIP_SYNC_URL || process.env.FLIP_BASE_URL || 'https://app.flip.de'}/tasks/${task.id}`,
+            category: 'assignedToMe',
+            author_id: task.author_id || null,
+            assignment_id: userAssignment.id,
+            source: 'assigned'
+          });
+          processed = true;
+        }
+        
+        // Verfügbare Tasks: API-Client Tasks die an diese Person adressiert sind
+        // (z.B. Laufzettel mit dem Namen der Person im Titel)
+        if (!processed && task.author_id === 'c7310e42-b19d-432a-be5a-7211dc0f14b8') {
+          // Prüfe ob der Task für diese Person relevant ist
+          const isTaskRelevantForUser = await checkIfTaskIsRelevantForUser(task, userId, allAssignments, userInfo);
+          
+          console.log(`🔍 Task "${task.title}" relevant for user? ${isTaskRelevantForUser}`);
+          
+          if (isTaskRelevantForUser) {
+            available.push({
+              id: task.id,
+              title: task.title,
+              body: {
+                html: task.body?.html || "",
+                plain: task.body?.plain || "",
+                language: task.body?.language || null
+              },
+              progress_status: task.progress_status || "OPEN",
+              due_at: task.due_at ? {
+                date: task.due_at.date,
+                type: task.due_at.type || "DATE"
+              } : null,
+              created_at: task.created_at,
+              link: `${process.env.FLIP_SYNC_URL || process.env.FLIP_BASE_URL || 'https://app.flip.de'}/tasks/${task.id}`,
+              category: 'available',
+              author_id: task.author_id || null,
+              source: 'api-client-relevant'
+            });
+          }
+        }
+      }
+      
+      const response = {
+        assignedToMe,
+        assignedByMe,
+        available,
+        total: assignedToMe.length + assignedByMe.length + available.length,
+        summary: {
+          assignedToMe: assignedToMe.length,
+          assignedByMe: assignedByMe.length,
+          available: available.length
+        },
+        debug: {
+          totalTasksInFlip: allTasks.length,
+          totalAssignmentsInFlip: allAssignments.length,
+          userAssignments: allAssignments.filter(a => a.user_id === userId).length,
+          userAuthoredTasks: allTasks.filter(t => t.author_id === userId).length
+        }
+      };
+      
+      console.log(`✅ Comprehensive task loading completed for user ${userId}:`);
+      console.log(`   📥 Assigned to me: ${response.summary.assignedToMe}`);
+      console.log(`   📤 Assigned by me: ${response.summary.assignedByMe}`);
+      console.log(`   📋 Available: ${response.summary.available}`);
+      console.log(`   🔢 Total: ${response.total}`);
+      
+      res.json(response);
+      
+    } catch (error) {
+      console.error(`❌ Error in comprehensive task loading for user ${userId}:`, error.response?.data || error.message);
+      res.json({
+        assignedToMe: [],
+        assignedByMe: [],
+        available: [],
+        total: 0,
+        summary: { assignedToMe: 0, assignedByMe: 0, available: 0 }
+      });
     }
   })
 );

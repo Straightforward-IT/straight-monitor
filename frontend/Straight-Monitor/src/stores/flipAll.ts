@@ -48,7 +48,7 @@ export const useFlipAll = defineStore("flipAll", {
     mitarbeiters: [] as IMitarbeiter[],
 
     // Profile-Picture Cache (ObjectURLs)
-    enablePhotos: false, // Temporär deaktiviert wegen API-Problemen
+    enablePhotos: true, // ✅ Wieder aktiviert - URL ist korrekt
     pics: new Map<string, PicEntry>(),
     picTTL: 60 * 60 * 1000, // 1h
   }),

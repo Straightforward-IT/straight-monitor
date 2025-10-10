@@ -905,11 +905,11 @@ export default {
           _id: this.getItemId("kellnermesser"),
           size: "onesize",
         },
-        {
+        ...(this.selectedLocation === 'Hamburg' ? [{
           checked: this.kellnerblockChecked,
           _id: this.getItemId("kellnerblock"),
           size: "onesize",
-        },
+        }] : []),
         {
           checked: this.kugelschreiberChecked,
           _id: this.getItemId("kugelschreiber"),

@@ -1,6 +1,15 @@
 {
   "subscriptions": {
-    "byId": {},
-    "byKey": {}
+    "byId": {
+      "55406c7f-11fc-4ce6-b4b7-7dfb558b254c": {
+        "upn": "it@straightforward.email",
+        "folderId": "AAMkAGZlNjY5NTg0LTEyZDctNGQ4MC1hNGUyLTkxY2MzYmU2YmNjNQAuAAAAAADK2se2ylstR6FJ2el-dDVCAQAwQF6EUVItQo8XKGsza1MUAAD0HJjNAAA=",
+        "resource": "/users('it@straightforward.email')/mailFolders('AAMkAGZlNjY5NTg0LTEyZDctNGQ4MC1hNGUyLTkxY2MzYmU2YmNjNQAuAAAAAADK2se2ylstR6FJ2el-dDVCAQAwQF6EUVItQo8XKGsza1MUAAD0HJjNAAA=')/messages",
+        "expirationDateTime": "2025-10-11T10:51:25.25Z"
+      }
+    },
+    "byKey": {
+      "it@straightforward.email|AAMkAGZlNjY5NTg0LTEyZDctNGQ4MC1hNGUyLTkxY2MzYmU2YmNjNQAuAAAAAADK2se2ylstR6FJ2el-dDVCAQAwQF6EUVItQo8XKGsza1MUAAD0HJjNAAA=": "55406c7f-11fc-4ce6-b4b7-7dfb558b254c"
+    }
   }
 }

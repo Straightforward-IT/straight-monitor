@@ -223,7 +223,241 @@
 
         <!-- Flip View -->
         <section v-else-if="view === 'flip'" class="flip-view">
-          <FlipProfile v-if="ma.flip" :flip-user="ma.flip" />
+          <div v-if="ma.flip" class="flip-content">
+            <!-- Flip Profile -->
+            <div class="flip-profile-section">
+              <h4 class="section-title">
+                <img :src="flipLogo" alt="Flip" class="section-icon" />
+                Flip-Profil
+              </h4>
+              <FlipProfile :flip-user="ma.flip" />
+            </div>
+            
+            <!-- Flip Tasks -->
+            <div class="flip-tasks-section">
+              <h4 class="section-title">
+                <font-awesome-icon icon="fa-solid fa-clipboard-list" class="section-icon" />
+                Flip Tasks
+                
+                <!-- Task Filter Toggle -->
+                <div class="task-filters" v-if="flipTasks.total > 0">
+                  <button 
+                    @click="showFinishedTasks = false"
+                    class="filter-btn"
+                    :class="{ active: !showFinishedTasks }"
+                    title="Offene Aufgaben anzeigen"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-hourglass-half" />
+                    Offen
+                  </button>
+                  <button 
+                    @click="showFinishedTasks = true"
+                    class="filter-btn"
+                    :class="{ active: showFinishedTasks }"
+                    title="Erledigte Aufgaben anzeigen"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-check-circle" />
+                    Erledigt
+                  </button>
+                </div>
+                
+                <button 
+                  v-if="!loadingTasks"
+                  @click="loadFlipTasks" 
+                  class="refresh-btn"
+                  :disabled="loadingTasks"
+                  title="Aufgaben neu laden"
+                >
+                  <font-awesome-icon icon="fa-solid fa-rotate-right" />
+                </button>
+              </h4>
+              
+              <!-- Loading State -->
+              <div v-if="loadingTasks" class="tasks-loading">
+                <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" />
+                <span>Lade Aufgaben...</span>
+              </div>
+              
+              <!-- Tasks List -->
+              <div v-else-if="flipTasks.total > 0" class="tasks-categorized">
+                
+                <!-- Assigned to Me -->
+                <div v-if="filteredTasksToMe.length > 0" class="task-category">
+                  <h5 class="category-title">
+                    <font-awesome-icon icon="fa-solid fa-inbox" />
+                    Zugewiesen an {{ ma.flip.vorname }} ({{ filteredTasksToMe.length }})
+                  </h5>
+                  <div class="category-tasks">
+                    <div 
+                      v-for="task in filteredTasksToMe" 
+                      :key="task.id"
+                      class="task-item assigned-to-me"
+                      :class="{ 'task-in-progress': task.progress_status === 'IN_PROGRESS' }"
+                    >
+                      <div class="task-header">
+                        <h6 class="task-title">{{ task.title }}</h6>
+                        <span 
+                          class="task-status" 
+                          :class="`status-${(task.progress_status || 'OPEN').toLowerCase()}`"
+                        >
+                          {{ formatTaskStatus(task.progress_status) }}
+                        </span>
+                      </div>
+                      
+                      <div v-if="task.body?.plain" class="task-description" v-html="formatTaskDescription(task.body.plain)">
+                      </div>
+                      
+                      <div class="task-meta">
+                        <div v-if="task.due_at?.date" class="task-due">
+                          <font-awesome-icon icon="fa-solid fa-calendar" />
+                          <span>{{ formatDueDate(task.due_at.date) }}</span>
+                        </div>
+                        <div class="task-created">
+                          <font-awesome-icon icon="fa-solid fa-clock" />
+                          <span>{{ formatCreatedDate(task.created_at) }}</span>
+                        </div>
+                      </div>
+                      
+                      <div class="task-actions">
+                        <button 
+                          v-if="task.link"
+                          @click="openFlipTask(task.link)"
+                          class="btn btn-sm btn-primary"
+                        >
+                          <font-awesome-icon icon="fa-solid fa-external-link-alt" />
+                          Öffnen
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Assigned by Me -->
+                <div v-if="filteredTasksByMe.length > 0" class="task-category">
+                  <h5 class="category-title">
+                    <font-awesome-icon icon="fa-solid fa-paper-plane" />
+                    Zugewiesen von {{ ma.flip.vorname }} ({{ filteredTasksByMe.length }})
+                  </h5>
+                  <div class="category-tasks">
+                    <div 
+                      v-for="task in filteredTasksByMe" 
+                      :key="task.id"
+                      class="task-item assigned-by-me"
+                      :class="{ 'task-in-progress': task.progress_status === 'IN_PROGRESS' }"
+                    >
+                      <div class="task-header">
+                        <h6 class="task-title">{{ task.title }}</h6>
+                        <span 
+                          class="task-status" 
+                          :class="`status-${(task.progress_status || 'OPEN').toLowerCase()}`"
+                        >
+                          {{ formatTaskStatus(task.progress_status) }}
+                        </span>
+                      </div>
+                      
+                      <div v-if="task.body?.plain" class="task-description" v-html="formatTaskDescription(task.body.plain)">
+                      </div>
+                      
+                      <div class="task-meta">
+                        <div v-if="task.due_at?.date" class="task-due">
+                          <font-awesome-icon icon="fa-solid fa-calendar" />
+                          <span>{{ formatDueDate(task.due_at.date) }}</span>
+                        </div>
+                        <div class="task-created">
+                          <font-awesome-icon icon="fa-solid fa-clock" />
+                          <span>{{ formatCreatedDate(task.created_at) }}</span>
+                        </div>
+                      </div>
+                      
+                      <div class="task-actions">
+                        <button 
+                          v-if="task.link"
+                          @click="openFlipTask(task.link)"
+                          class="btn btn-sm btn-primary"
+                        >
+                          <font-awesome-icon icon="fa-solid fa-external-link-alt" />
+                          Öffnen
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Available Tasks -->
+                <div v-if="filteredAvailableTasks.length > 0" class="task-category">
+                  <h5 class="category-title">
+                    <font-awesome-icon icon="fa-solid fa-clipboard-list" />
+                    Zugewiesen an {{ ma.flip.vorname }} ({{ filteredAvailableTasks.length }})
+                  </h5>
+                  <div class="category-tasks">
+                    <div 
+                      v-for="task in filteredAvailableTasks" 
+                      :key="task.id"
+                      class="task-item available-task"
+                      :class="{ 'task-in-progress': task.progress_status === 'IN_PROGRESS' }"
+                    >
+                      <div class="task-header">
+                        <h6 class="task-title">{{ task.title }}</h6>
+                        <span 
+                          class="task-status" 
+                          :class="`status-${(task.progress_status || 'OPEN').toLowerCase()}`"
+                        >
+                          {{ formatTaskStatus(task.progress_status) }}
+                        </span>
+                      </div>
+                      
+                      <div v-if="task.body?.plain" class="task-description" v-html="formatTaskDescription(task.body.plain)">
+                      </div>
+                      
+                      <div class="task-meta">
+                        <div v-if="task.due_at?.date" class="task-due">
+                          <font-awesome-icon icon="fa-solid fa-calendar" />
+                          <span>{{ formatDueDate(task.due_at.date) }}</span>
+                        </div>
+                        <div class="task-created">
+                          <font-awesome-icon icon="fa-solid fa-clock" />
+                          <span>{{ formatCreatedDate(task.created_at) }}</span>
+                        </div>
+                      </div>
+                      
+                      <div class="task-actions">
+                        <button 
+                          v-if="task.link"
+                          @click="openFlipTask(task.link)"
+                          class="btn btn-sm btn-primary"
+                        >
+                          <font-awesome-icon icon="fa-solid fa-external-link-alt" />
+                          Öffnen
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Empty State -->
+              <div v-else class="tasks-empty">
+                <font-awesome-icon icon="fa-solid fa-clipboard" />
+                <p>Keine Aufgaben verfügbar</p>
+                <small>Aufgaben werden automatisch über den API-Client erstellt</small>
+                
+                <!-- Debug Info -->
+                <div v-if="flipTasks.debug" class="debug-info">
+                  <details>
+                    <summary>Debug Info</summary>
+                    <div class="debug-details">
+                      <div>Tasks in Flip: {{ flipTasks.debug.totalTasksInFlip }}</div>
+                      <div>Assignments in Flip: {{ flipTasks.debug.totalAssignmentsInFlip }}</div>
+                      <div>User assignments: {{ flipTasks.debug.userAssignments }}</div>
+                      <div>User authored: {{ flipTasks.debug.userAuthoredTasks }}</div>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- No Flip Connection -->
           <div v-else class="emptystate">
             <font-awesome-icon icon="fa-solid fa-plug-circle-xmark" />
             <p>Keine Flip-Verknüpfung vorhanden</p>
@@ -441,6 +675,7 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
 import { useFlipAll } from "@/stores/flipAll";
 import api from "@/utils/api";
+import { fetchFlipTasks } from "@/utils/flipApi";
 
 // Assets importieren (Vite handled cache+preload)
 import straightLight from "@/assets/SF_002.png";
@@ -551,7 +786,52 @@ export default {
       searchingAsana: false,
       savingAsana: false,
       loadingAsana: false,
+      // Flip-Tasks States
+      flipTasks: {
+        assignedToMe: [],
+        assignedByMe: [], 
+        available: [],
+        total: 0,
+        summary: { assignedToMe: 0, assignedByMe: 0, available: 0 }
+      },
+      loadingTasks: false,
+      tasksLoaded: false,
+      showFinishedTasks: false, // Toggle für erledigte Tasks
     };
+  },
+
+  computed: {
+    // Filtere Tasks nach Status (offen vs. erledigt)
+    filteredTasksToMe() {
+      if (!this.flipTasks.assignedToMe) return [];
+      return this.flipTasks.assignedToMe.filter(task => {
+        const isFinished = task.progress_status === 'FINISHED' || task.progress_status === 'DONE';
+        return this.showFinishedTasks ? isFinished : !isFinished;
+      });
+    },
+    filteredTasksByMe() {
+      if (!this.flipTasks.assignedByMe) return [];
+      return this.flipTasks.assignedByMe.filter(task => {
+        const isFinished = task.progress_status === 'FINISHED' || task.progress_status === 'DONE';
+        return this.showFinishedTasks ? isFinished : !isFinished;
+      });
+    },
+    filteredAvailableTasks() {
+      if (!this.flipTasks.available) return [];
+      return this.flipTasks.available.filter(task => {
+        const isFinished = task.progress_status === 'FINISHED' || task.progress_status === 'DONE';
+        return this.showFinishedTasks ? isFinished : !isFinished;
+      });
+    }
+  },
+
+  watch: {
+    view(newView) {
+      // Load tasks when switching to flip view
+      if (newView === 'flip' && this.expanded && this.ma.flip?.id && !this.tasksLoaded) {
+        this.loadFlipTasks();
+      }
+    }
   },
 
   methods: {
@@ -561,6 +841,11 @@ export default {
       if (this.expanded) {
         this.$emit("open", this.ma);
         console.log(this.ma);
+        
+        // Auto-load tasks if flip view and not loaded yet
+        if (this.view === 'flip' && this.ma.flip?.id && !this.tasksLoaded) {
+          this.loadFlipTasks();
+        }
       }
     },
     initials(ma) {
@@ -823,6 +1108,117 @@ export default {
       this.searchingAsana = false;
       this.savingAsana = false;
     },
+
+    // Flip Tasks Methoden
+    async loadFlipTasks() {
+      if (!this.ma.flip?.id) {
+        console.log("❌ No Flip ID available for", this.ma.vorname, this.ma.nachname);
+        return;
+      }
+
+      console.log("🔄 Loading Flip tasks for user:", this.ma.flip.id);
+      this.loadingTasks = true;
+
+      try {
+        const response = await fetchFlipTasks(this.ma.flip.id);
+        this.flipTasks = response || {
+          assignedToMe: [],
+          assignedByMe: [], 
+          available: [],
+          total: 0,
+          summary: { assignedToMe: 0, assignedByMe: 0, available: 0 }
+        };
+        this.tasksLoaded = true;
+        
+        console.log(`✅ Loaded ${this.flipTasks.total} Flip tasks for ${this.ma.vorname} ${this.ma.nachname}:`, this.flipTasks.summary);
+        
+        if (this.flipTasks.debug) {
+          console.log(`🔍 Debug info:`, this.flipTasks.debug);
+        }
+      } catch (error) {
+        console.error("❌ Error loading Flip tasks:", error);
+        this.flipTasks = {
+          assignedToMe: [],
+          assignedByMe: [], 
+          available: [],
+          total: 0,
+          summary: { assignedToMe: 0, assignedByMe: 0, available: 0 }
+        };
+        // Don't show error to user, just log it
+      } finally {
+        this.loadingTasks = false;
+      }
+    },
+
+    formatTaskStatus(status) {
+      const statusMap = {
+        'OPEN': 'Offen',
+        'IN_PROGRESS': 'In Bearbeitung', 
+        'DONE': 'Erledigt',
+        'FINISHED': 'Abgeschlossen',
+        'NEW': 'Neu'
+      };
+      return statusMap[status] || status || 'Offen';
+    },
+
+    formatDueDate(dateString) {
+      if (!dateString) return '';
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('de-DE', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+      } catch {
+        return dateString;
+      }
+    },
+
+    formatCreatedDate(dateString) {
+      if (!dateString) return '';
+      try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 0) {
+          return 'Heute';
+        } else if (diffDays === 1) {
+          return 'Gestern';
+        } else if (diffDays < 7) {
+          return `vor ${diffDays} Tagen`;
+        } else {
+          return date.toLocaleDateString('de-DE', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          });
+        }
+      } catch {
+        return dateString;
+      }
+    },
+
+    openFlipTask(link) {
+      if (link) {
+        window.open(link, '_blank');
+      }
+    },
+
+    formatTaskDescription(description) {
+      if (!description) return '';
+      
+      console.log('Original description:', description);
+      
+      // Replace URLs with a link icon
+      const urlRegex = /(https?:\/\/[^\s\[\]]+)/g;
+      const result = description.replace(urlRegex, '<span class="task-link-icon" title="Link verfügbar">[Link]</span>');
+      
+      console.log('Formatted description:', result);
+      return result;
+    },
   },
 };
 </script>
@@ -1030,24 +1426,345 @@ export default {
 .flip-view {
   height: 100%;
   overflow: auto;
-  padding: 1rem;
 
   &::-webkit-scrollbar {
     width: 8px;
   }
 
   &::-webkit-scrollbar-track {
-    background: var(--vs-background);
+    background: var(--soft);
     border-radius: 4px;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: var(--vs-border);
+    background: var(--border);
     border-radius: 4px;
   }
 
   &:hover::-webkit-scrollbar-thumb {
-    background: var(--vs-border-hover);
+    background: var(--text);
+  }
+}
+
+.flip-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 16px;
+}
+
+.flip-profile-section,
+.flip-tasks-section {
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    
+    .section-icon {
+      width: 18px;
+      height: 18px;
+    }
+    
+    .task-filters {
+      display: flex;
+      gap: 4px;
+      margin-left: auto;
+      margin-right: 8px;
+      
+      .filter-btn {
+        padding: 4px 8px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 4px;
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s ease;
+        
+        &:hover {
+          color: var(--text);
+          background: var(--soft);
+          border-color: var(--primary);
+        }
+        
+        &.active {
+          background: var(--primary);
+          color: white;
+          border-color: var(--primary);
+        }
+        
+        svg {
+          font-size: 10px;
+        }
+      }
+    }
+    
+    .refresh-btn {
+      padding: 4px;
+      border: none;
+      background: var(--surface);
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all 0.2s ease;
+      
+      &:hover {
+        color: var(--text);
+        background: var(--soft);
+      }
+      
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+}
+
+.tasks-loading,
+.tasks-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+  color: var(--muted);
+  text-align: center;
+  
+  svg {
+    font-size: 24px;
+  }
+  
+  p {
+    margin: 0;
+    font-weight: 500;
+  }
+  
+  small {
+    font-size: 12px;
+    opacity: 0.7;
+  }
+}
+
+.tasks-categorized {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.task-category {
+  .category-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px 0;
+    padding: 8px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    
+    svg {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+  }
+  
+  .category-tasks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+.task-item {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  transition: all 0.2s ease;
+  
+  &:hover {
+    border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+  
+  &.task-in-progress {
+    border-left: 3px solid var(--primary);
+    background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+  }
+  
+  // Kategorie-spezifische Farben
+  &.assigned-to-me {
+    border-left: 3px solid #10b981; // Grün für "an mich"
+    background: color-mix(in srgb, #10b981 3%, var(--surface));
+    
+    &:hover {
+      border-color: #10b981;
+    }
+  }
+  
+  &.assigned-by-me {
+    border-left: 3px solid #3b82f6; // Blau für "von mir"
+    background: color-mix(in srgb, #3b82f6 3%, var(--surface));
+    
+    &:hover {
+      border-color: #3b82f6;
+    }
+  }
+  
+  &.available-task {
+    border-left: 3px solid #f59e0b; // Orange für "verfügbar"
+    background: color-mix(in srgb, #f59e0b 3%, var(--surface));
+    
+    &:hover {
+      border-color: #f59e0b;
+    }
+  }
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+  
+  .task-title {
+    flex: 1;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+  }
+  
+  .task-status {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    white-space: nowrap;
+    
+    &.status-open,
+    &.status-new {
+      background: #f1f3f6;
+      color: var(--muted);
+    }
+    
+    &.status-in_progress {
+      background: #e8fbf3;
+      color: #1f8e5d;
+    }
+    
+    &.status-done,
+    &.status-finished {
+      background: #e0f2fe;
+      color: #0277bd;
+    }
+  }
+}
+
+.task-description {
+  margin-bottom: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+  max-height: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  
+  .task-link-icon {
+    display: inline-block;
+    background: var(--primary);
+    color: white;
+    padding: 2px 4px;
+    border-radius: 4px;
+    margin: 0 4px;
+    font-size: 12px;
+    cursor: help;
+    text-decoration: none;
+    
+    &:hover {
+      background: color-mix(in srgb, var(--primary) 80%, black);
+      transform: scale(1.1);
+    }
+  }
+}
+
+.task-meta {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  
+  .task-due,
+  .task-created {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    
+    svg {
+      font-size: 10px;
+    }
+  }
+  
+  .task-due {
+    color: #e67e22;
+    font-weight: 500;
+  }
+}
+
+.task-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.debug-info {
+  margin-top: 16px;
+  padding: 8px;
+  background: var(--soft);
+  border-radius: 4px;
+  font-size: 11px;
+  
+  details {
+    summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-weight: 500;
+      
+      &:hover {
+        color: var(--text);
+      }
+    }
+  }
+  
+  .debug-details {
+    margin-top: 8px;
+    padding-left: 12px;
+    
+    div {
+      padding: 2px 0;
+      color: var(--muted);
+      
+      strong {
+        color: var(--text);
+      }
+    }
   }
 }
 

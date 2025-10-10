@@ -59,40 +59,6 @@
         </div>
       </div>
     </section>
-
-    <!-- Tasks -->
-    <section class="profile-section">
-      <h3>
-        <font-awesome-icon icon="fa-solid fa-list-check" />
-        Aktive Aufgaben
-      </h3>
-      <div class="tasks-loading" v-if="loadingTasks">
-        <font-awesome-icon icon="fa-solid fa-spinner" spin />
-        <span>Lade Aufgaben...</span>
-      </div>
-      <div v-else-if="tasks.length" class="tasks">
-        <div v-for="task in tasks" :key="task.id" class="task">
-          <div class="task-title">{{ task.title }}</div>
-          <div class="task-meta">
-            <span :class="['task-status', task.progress_status.toLowerCase()]">
-              {{ formatTaskStatus(task.progress_status) }}
-            </span>
-            <span v-if="task.due_at?.date" class="task-due">
-              Fällig: {{ formatDate(task.due_at.date) }}
-            </span>
-          </div>
-          <div class="task-actions" v-if="task.link">
-            <a :href="task.link" target="_blank" class="task-link">
-              <font-awesome-icon icon="fa-solid fa-external-link-alt" /> In Flip öffnen
-            </a>
-          </div>
-        </div>
-      </div>
-      <div v-else class="empty">
-        <font-awesome-icon icon="fa-solid fa-clipboard-check" />
-        <p>Keine aktiven Aufgaben vorhanden</p>
-      </div>
-    </section>
   </div>
 </template>
 
@@ -114,8 +80,6 @@ export default {
 
   setup(props) {
     const flip = useFlipAll()
-    const tasks = ref([])
-    const loadingTasks = ref(false)
 
     // Computed
     const userStatus = computed(() => props.flipUser.status?.toLowerCase() || 'unknown')
@@ -131,16 +95,6 @@ export default {
       return map[status] || status
     }
 
-    const formatTaskStatus = (status) => {
-      const map = {
-        'OPEN': 'Offen',
-        'IN_PROGRESS': 'In Bearbeitung',
-        'DONE': 'Erledigt',
-        'BLOCKED': 'Blockiert'
-      }
-      return map[status] || status
-    }
-
     const formatDate = (date) => {
       if (!date) return '—'
       return new Date(date).toLocaleDateString('de-DE', {
@@ -150,28 +104,10 @@ export default {
       })
     }
 
-    // Load tasks on mount
-    onMounted(async () => {
-      if (props.flipUser.id) {
-        loadingTasks.value = true
-        try {
-          tasks.value = await flip.fetchFlipTasks(props.flipUser.id)
-        } catch (error) {
-          console.error('Fehler beim Laden der Tasks:', error)
-          tasks.value = []
-        } finally {
-          loadingTasks.value = false
-        }
-      }
-    })
-
     return {
-      tasks,
-      loadingTasks,
       userStatus,
       hasAttributes,
       formatStatus,
-      formatTaskStatus,
       formatDate
     }
   }
@@ -273,112 +209,6 @@ export default {
       margin: 0;
       font-size: 13px;
     }
-  }
-}
-
-.tasks {
-  display: grid;
-  gap: 12px;
-
-  .task {
-    background: var(--soft);
-    padding: 10px 12px;
-    border-radius: 10px;
-
-    .task-title {
-      font-weight: 500;
-      margin-bottom: 6px;
-    }
-
-    .task-meta {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 12px;
-    }
-
-    .task-status {
-      padding: 3px 8px;
-      border-radius: 999px;
-      
-      &.open {
-        background: #fff7e6;
-        color: #b46c00;
-      }
-      
-      &.in_progress {
-        background: #e9f8ff;
-        color: #1976d2;
-      }
-      
-      &.done {
-        background: #e8fbf3;
-        color: #1f8e5d;
-      }
-      
-      &.blocked {
-        background: #fee7e7;
-        color: #d42f2f;
-      }
-    }
-
-    .task-due {
-      color: var(--muted);
-    }
-    
-    .task-actions {
-      margin-top: 8px;
-      text-align: right;
-      
-      .task-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        color: var(--accent);
-        font-size: 12px;
-        text-decoration: none;
-        
-        &:hover {
-          text-decoration: underline;
-        }
-      }
-    }
-  }
-}
-
-.empty {
-  color: var(--muted);
-  font-size: 13px;
-  text-align: center;
-  padding: 20px;
-  background: var(--soft);
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  
-  svg {
-    font-size: 20px;
-    opacity: 0.6;
-  }
-  
-  p {
-    margin: 0;
-  }
-}
-
-.tasks-loading {
-  text-align: center;
-  color: var(--muted);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  
-  svg {
-    font-size: 20px;
   }
 }
 </style>

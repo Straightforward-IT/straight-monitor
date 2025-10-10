@@ -69,9 +69,52 @@ export async function completeFlipAssignment(id: UUID) {
   return data?.data ?? data;
 }
 
-export async function fetchFlipTasks(userId: UUID): Promise<IFlipTask[]> {
-  const { data } = await api.get(`/api/personal/flip/tasks/${userId}`);
-  return Array.isArray(data) ? data : data?.data || [];
+export async function fetchFlipTasks(userId: UUID) {
+  // Zuerst die umfassende Route versuchen
+  try {
+    console.log(`🔄 Trying comprehensive task loading for user: ${userId}`);
+    const { data } = await api.get(`/api/personal/flip/tasks/comprehensive/${userId}`);
+    
+    if (data && typeof data === 'object' && 'total' in data) {
+      console.log(`✅ Comprehensive task loading successful: ${data.total} tasks found`);
+      return data;
+    }
+    
+    console.log("⚠️ Comprehensive route returned unexpected format, trying fallback");
+    throw new Error("Unexpected response format from comprehensive route");
+    
+  } catch (comprehensiveError) {
+    const errorMessage = comprehensiveError instanceof Error ? comprehensiveError.message : String(comprehensiveError);
+    console.warn("❌ Comprehensive route failed, falling back to standard route:", errorMessage);
+    
+    // Fallback zur ursprünglichen Route
+    try {
+      const { data } = await api.get(`/api/personal/flip/tasks/${userId}`);
+      
+      // Handle new structured response format
+      if (data && typeof data === 'object' && 'total' in data) {
+        console.log(`✅ Standard route successful: ${data.total} tasks found`);
+        return data; // New structured format
+      }
+      
+      // Fallback for old array format
+      console.log("⚠️ Using array format fallback");
+      return {
+        assignedToMe: Array.isArray(data) ? data : [],
+        assignedByMe: [],
+        available: [],
+        total: Array.isArray(data) ? data.length : 0,
+        summary: { 
+          assignedToMe: Array.isArray(data) ? data.length : 0, 
+          assignedByMe: 0, 
+          available: 0 
+        }
+      };
+    } catch (fallbackError) {
+      console.error("❌ Both comprehensive and standard routes failed:", fallbackError);
+      throw fallbackError;
+    }
+  }
 }
 
 /* ==================
