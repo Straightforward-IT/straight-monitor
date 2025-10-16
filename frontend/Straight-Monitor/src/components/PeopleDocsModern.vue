@@ -1582,9 +1582,10 @@ export default {
 
 .search-sort {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) auto; /* ✅ verhindert Überlappungen */
-  gap: 12px;
+  grid-template-columns: minmax(280px, 1fr) auto;
+  gap: 16px;
   align-items: center;
+  isolation: isolate; /* Verhindert z-index Konflikte */
 }
 @container (max-width: 520px) {
   /* falls du container-queries nutzt */
@@ -1623,6 +1624,7 @@ export default {
 
 .search {
   position: relative;
+  z-index: 1;
   input {
     width: 100%;
     padding: 12px 38px 12px 40px;
@@ -1665,6 +1667,7 @@ export default {
 .sort {
   position: relative;
   justify-self: end;
+  z-index: 1;
 }
 .btn-ghost {
   border: 1px solid var(--border);
@@ -2129,8 +2132,8 @@ export default {
   justify-content: center;
   font-weight: 600;
   font-size: 14px;
-  background: hsl(var(--hue, 0), 70%, 90%);
-  color: hsl(var(--hue, 0), 70%, 30%);
+  background: hsl(0, 0%, calc(40% + (var(--hue, 0) / 360 * 35%)));
+  color: white;
 }
 
 .list .avatar-img {
@@ -2442,9 +2445,7 @@ html {
   width: 32px;
   height: 32px;
   border-radius: 6px;
-  background: linear-gradient(135deg, 
-    hsl(var(--hue, 200), 70%, 50%), 
-    hsl(calc(var(--hue, 200) + 30), 60%, 60%));
+  background: hsl(0, 0%, calc(40% + (var(--hue, 0) / 360 * 35%)));
   display: flex;
   align-items: center;
   justify-content: center;

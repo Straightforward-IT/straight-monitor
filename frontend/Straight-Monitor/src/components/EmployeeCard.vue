@@ -1273,7 +1273,7 @@ export default {
   place-items: center;
   font-weight: 800;
   color: #fff;
-  background: hsl(var(--hue, 200), 80%, 45%);
+  background: hsl(0, 0%, calc(15% + (var(--hue, 0) / 360 * 55%)));
   flex: 0 0 auto;
 }
 .avatar-img {

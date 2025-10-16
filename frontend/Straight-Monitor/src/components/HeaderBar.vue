@@ -234,13 +234,28 @@
 
         <div class="form-group">
           <label for="support-files">Dateien anhängen (optional)</label>
+          
+          <!-- Hidden File Input -->
           <input 
             id="support-files" 
+            ref="fileInput"
             type="file" 
             multiple
             @change="handleFileUpload"
             accept="image/*,.pdf,.doc,.docx,.txt,.log"
+            style="display: none;"
           />
+          
+          <!-- Custom File Upload Button -->
+          <button 
+            type="button" 
+            class="custom-file-btn"
+            @click="$refs.fileInput.click()"
+          >
+            <font-awesome-icon :icon="['fas', 'paperclip']" />
+            Dateien auswählen
+          </button>
+          
           <small class="file-info">
             Screenshots, Logs oder andere relevante Dateien (max. 10MB pro Datei)
           </small>
@@ -828,6 +843,37 @@ button:hover {
   margin-top: 4px;
   font-size: 12px;
   color: var(--muted);
+}
+
+/* Custom File Upload Button */
+.custom-file-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  margin-bottom: 6px;
+}
+
+.custom-file-btn:hover {
+  background: var(--hover);
+  border-color: #007acc;
+}
+
+.custom-file-btn:active {
+  transform: scale(0.98);
+}
+
+.custom-file-btn svg {
+  font-size: 16px;
+  opacity: 0.8;
 }
 
 .attached-files {

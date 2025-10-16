@@ -2,7 +2,7 @@
   <div class="tooltip-container">
     <div
       class="tooltip-trigger"
-      tabindex="0"
+      tabindex="-1"
       @mouseenter="scheduleShow"
       @mouseleave="scheduleHide"
       @focusin="scheduleShow"

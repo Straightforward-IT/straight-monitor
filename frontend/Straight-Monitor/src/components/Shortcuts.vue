@@ -42,16 +42,17 @@
 
           <h4>Logi-Paket</h4>
 
-          <label class="select-label">
-            Standort
-            <select v-model="selectedLocation">
-              <option value="Hamburg">Hamburg</option>
-              <option value="Köln">Köln</option>
-              <option value="Berlin">Berlin</option>
-            </select>
-          </label>
+          <div class="modal-scrollable">
+            <label class="select-label">
+              Standort
+              <select v-model="selectedLocation">
+                <option value="Hamburg">Hamburg</option>
+                <option value="Köln">Köln</option>
+                <option value="Berlin">Berlin</option>
+              </select>
+            </label>
 
-          <div class="grid">
+            <div class="grid">
             <label class="row">
               <span class="chk">
                 <input type="checkbox" v-model="cuttermesserChecked" />
@@ -270,12 +271,14 @@
               v-model="anmerkung"
             />
           </label>
-
-          <div class="btns">
-            <button @click="submitLogiModal('add')">Rückgabe</button>
-            <button @click="submitLogiModal('remove')">Entnahme</button>
-          </div>
         </div>
+        
+        <!-- Fixed Buttons Outside Modal Content -->
+        <div class="modal-buttons">
+          <button @click="submitLogiModal('add')">Rückgabe</button>
+          <button @click="submitLogiModal('remove')">Entnahme</button>
+        </div>
+      </div>
       </div>
     </teleport>
 
@@ -291,16 +294,17 @@
 
           <h4>Service-Paket</h4>
 
-          <label class="select-label">
-            Standort
-            <select v-model="selectedLocation">
-              <option value="Hamburg">Hamburg</option>
-              <option value="Köln">Köln</option>
-              <option value="Berlin">Berlin</option>
-            </select>
-          </label>
+          <div class="modal-scrollable">
+            <label class="select-label">
+              Standort
+              <select v-model="selectedLocation">
+                <option value="Hamburg">Hamburg</option>
+                <option value="Köln">Köln</option>
+                <option value="Berlin">Berlin</option>
+              </select>
+            </label>
 
-          <div class="grid">
+            <div class="grid">
             <label class="row"
               ><span class="chk"
                 ><input type="checkbox" v-model="kellnermesserChecked" /><span
@@ -489,12 +493,14 @@
               v-model="anmerkung"
             />
           </label>
-
-          <div class="btns">
-            <button @click="submitServiceModal('add')">Rückgabe</button>
-            <button @click="submitServiceModal('remove')">Entnahme</button>
-          </div>
         </div>
+        
+        <!-- Fixed Buttons Outside Modal Content -->
+        <div class="modal-buttons">
+          <button @click="submitServiceModal('add')">Rückgabe</button>
+          <button @click="submitServiceModal('remove')">Entnahme</button>
+        </div>
+      </div>
       </div>
     </teleport>
 
@@ -535,10 +541,11 @@
               />
             </label>
           </div>
-
-          <div class="btns">
-            <button @click="sendInventoryUpdate">Bestand senden</button>
-          </div>
+        </div>
+        
+        <!-- Fixed Buttons Outside Modal Content -->
+        <div class="modal-buttons">
+          <button @click="sendInventoryUpdate">Bestand senden</button>
         </div>
       </div>
     </teleport>
@@ -1161,19 +1168,39 @@ h4 {
   position: relative;
   width: 380px;
   max-width: calc(100vw - 32px);
-  max-height: min(78vh, 640px);
-  overflow: hidden;
+  height: min(85vh, 640px); /* Increased max height */
+  min-height: 300px; /* Minimum height to ensure buttons are always visible */
   background: var(--tile-bg);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 12px 12px 10px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Responsive adjustments for high zoom levels */
+@media screen and (max-height: 500px) {
+  .modal-content {
+    height: calc(100vh - 40px);
+    max-height: calc(100vh - 40px);
+  }
 }
 .modal-content > h4 {
   margin: 0 0 8px;
   font-size: 15px;
+  flex-shrink: 0; /* Prevent shrinking */
+  padding: 12px 12px 0 12px;
+}
+
+/* Scrollable content area */
+.modal-scrollable {
+  flex: 1; /* Take available space */
+  overflow-y: auto;
+  padding: 0 12px 12px 12px;
+  min-height: 0; /* Important for flex child to shrink */
 }
 .close {
   position: absolute;
@@ -1207,9 +1234,7 @@ h4 {
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
-  max-height: 48vh;
-  overflow: auto;
-  padding-right: 2px;
+  /* Remove max-height and overflow - parent handles it now */
 }
 .sub {
   margin: 4px 0 2px;
@@ -1286,13 +1311,22 @@ h4 {
   outline: none;
 }
 
-.btns {
+/* Fixed Modal Buttons - Always visible at bottom */
+.modal-buttons {
   display: flex;
   gap: 8px;
   justify-content: center;
-  margin-top: 10px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  background: var(--tile-bg);
+  border-radius: 0 0 10px 10px;
+  flex-shrink: 0; /* Never shrink */
+  min-height: 48px; /* Minimum height to ensure visibility */
+  position: relative; /* Ensure it stays in place */
+  z-index: 10; /* Above other content */
 }
-.btns button {
+
+.modal-buttons button {
   min-width: 110px;
   padding: 8px 12px;
   border: none;
@@ -1301,8 +1335,14 @@ h4 {
   color: #fff;
   cursor: pointer;
   font-size: 12.5px;
+  transition: filter 0.2s;
 }
-.btns button:hover {
+
+.modal-buttons button:hover {
   filter: brightness(0.95);
+}
+
+.modal-buttons button:active {
+  transform: scale(0.98);
 }
 </style>
