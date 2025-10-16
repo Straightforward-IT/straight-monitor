@@ -1,0 +1,25 @@
+/* Light (default) */
+:root{
+  --bg:          #f4f5f6;
+  --text:        #222;
+  --muted:       #666;
+  --panel:       #f4f5f6;
+  --tile-bg:     #fff;
+  --border:      #a4a4a470;
+  --hover:       #f7f7f7;
+  --primary:     #eeaf67; /* match $base-primary */
+  --overlay:     rgba(0,0,0,.45);
+}
+
+/* Dark */
+[data-theme="dark"]{
+  --bg:          #1d1d1d;
+  --text:        #eaeaea;
+  --muted:       #a6a6a6;
+  --panel:       #1d1d1d;
+  --tile-bg:     #1b1c1f;
+  --border:      #a4a4a470;
+  --hover:       #202226;
+  --primary:     #eeaf67;
+  --overlay:     rgba(0,0,0,.6);
+}

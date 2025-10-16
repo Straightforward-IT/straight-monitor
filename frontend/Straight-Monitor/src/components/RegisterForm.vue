@@ -1,197 +1,145 @@
 <template>
-  <h4>Registriere dich bei <span>Straightforward</span></h4>
-  <p>Erstelle ein Konto, um loszulegen.</p>
+  <form class="auth-form" @submit.prevent="submitRegister">
+    <h2>Konto <strong>erstellen</strong></h2>
+    <p>Einmal sauber registrieren, dann läuft der Laden.</p>
 
-  <!-- Standort -->
-  <div class="floating-label">
-    <select v-model="location" name="location" id="location">
-      <option value="" disabled>Standort wählen</option>
-      <option value="Berlin">Berlin</option>
-      <option value="Hamburg">Hamburg</option>
-      <option value="Köln">Köln</option>
-    </select>
-    <label for="location">Standort:</label>
-  </div>
+    <label class="field">
+      <span>Standort</span>
+      <select v-model="location" required>
+        <option value="" disabled>Standort wählen</option>
+        <option>Berlin</option><option>Hamburg</option><option>Köln</option>
+      </select>
+    </label>
 
-  <!-- Name -->
-  <div class="floating-label">
-    <input
-      placeholder="Name"
-      type="text"
-      v-model="name"
-      name="name"
-      id="name"
-      autocomplete="off"
-    />
-    <label for="name">Name:</label>
-    <div class="icon">
-      <!-- Add your icon here -->
+    <label class="field">
+      <span>Name</span>
+      <input type="text" v-model.trim="name" autocomplete="name" required />
+    </label>
+
+    <label class="field">
+      <span>Email</span>
+      <input
+        type="email"
+        v-model="email"
+        @input="normalizeEmail"
+        :class="{error: emailError}"
+        placeholder="…@straightforward.email"
+        autocomplete="email"
+        required
+      />
+      <small v-if="emailError" class="err">Nur @straightforward.email erlaubt.</small>
+    </label>
+
+    <label class="field">
+      <span>Passwort</span>
+      <input :type="showPw ? 'text':'password'" v-model="password" autocomplete="new-password" required />
+    </label>
+
+    <label class="field">
+      <span>Passwort bestätigen</span>
+      <input :type="showPw ? 'text':'password'" v-model="confirmPassword" :class="{error: passwordError}" required />
+      <small v-if="passwordError" class="err">Passwörter stimmen nicht überein.</small>
+    </label>
+
+    <label class="pw-toggle">
+      <input type="checkbox" v-model="showPw" />
+      <small>Passwort anzeigen</small>
+    </label>
+
+    <div class="actions">
+      <button type="submit" :disabled="loading">{{ loading ? 'Sende…' : 'Register' }}</button>
+      <button type="button" class="ghost" @click="$emit('switch-to-login')">Login</button>
     </div>
-  </div>
 
-  <!-- Email -->
-  <div class="floating-label">
-    <input
-      :placeholder="emailError ? 'Nur Anmeldung mit @straightforward.email möglich' : 'Email'"
-      :class="{ 'error-input': emailError }"
-      type="email"
-      v-model="email"
-      @input="normalizeEmail"
-      name="email"
-      id="email"
-      autocomplete="off"
-    />
-    <label for="email">Email:</label>
-    <div class="icon">
-      <!-- Add your icon here -->
-    </div>
-  </div>
-
-  <!-- Passwort -->
-  <div class="floating-label">
-    <input
-      placeholder="Passwort"
-      type="password"
-      v-model="password"
-      name="password"
-      id="password"
-      autocomplete="off"
-    />
-    <label for="password">Passwort:</label>
-    <div class="icon">
-      <!-- Add your icon here -->
-    </div>
-  </div>
-
-  <!-- Passwort Bestätigung -->
-  <div class="floating-label">
-    <input
-      placeholder="Passwort bestätigen"
-      type="password"
-      v-model="confirmPassword"
-      :class="{ 'error-input': passwordError }"
-      name="confirm-password"
-      id="confirm-password"
-      autocomplete="off"
-    />
-    <label for="confirm-password">Passwort bestätigen:</label>
-    <div class="icon">
-      <!-- Add your icon here -->
-    </div>
-  </div>
-
-  <button type="submit" @click="submitRegister()">Register</button>
-
-  <!-- Link zum Login-Formular -->
-  <a class="discrete" @click="$emit('switch-to-login')">Login</a>
+    <teleport to="body">
+      <div v-if="showModal" class="modal" @click.self="showModal=false">
+        <div class="modal-card">
+          <h3>Registrierung erfolgreich!</h3>
+          <p>Bitte prüfe deine E-Mails, um dein Konto zu bestätigen.</p>
+          <button @click="showModal=false">OK</button>
+        </div>
+      </div>
+    </teleport>
+  </form>
 </template>
 
-<script>
-import api from "@/utils/api";
+<script setup>
+import { ref } from 'vue';
+import api from '@/utils/api';
 
-export default {
-  name: "RegisterForm",
-  components: {},
-  emits: ["switch-to-login"],
-  data() {
-    return {
-      name: "",
-      email: "",
-      location: "",
-      password: "",
-      confirmPassword: "",
-      emailError: false, // Error state for email
-      passwordError: false, // Error state for password mismatch
-      showEmailError: false, // Controls visibility of flying tag
-    };
-  },
-  methods: {
-    // Normalize the email input to lowercase
-    normalizeEmail() {
-      this.email = this.email.toLowerCase().trim();
-    },
+const name = ref('');
+const email = ref('');
+const location = ref('');
+const password = ref('');
+const confirmPassword = ref('');
 
-    // Submit registration form
-    async submitRegister() {
-      try {
-        // Check if email ends with @straightforward.email
-        if (!this.email.endsWith("@straightforward.email")) {
-          this.emailError = true; // Set error state
-          this.showEmailError = true; // Show flying tag
-          this.email = ""; // Clear the email input field
+const emailError = ref(false);
+const passwordError = ref(false);
+const showPw = ref(false);
+const loading = ref(false);
+const showModal = ref(false);
 
-          // Hide the flying tag after 3 seconds
-          setTimeout(() => {
-            this.showEmailError = false;
-          }, 3000);
-          return;
-        }
+function normalizeEmail(){ email.value = email.value.toLowerCase().trim(); }
 
-        // Check if password and confirm password are equal
-        if (this.password !== this.confirmPassword) {
-          this.passwordError = true; // Set error state for mismatched passwords
-          return;
-        }
+async function submitRegister(){
+  if (loading.value) return;
 
-        // Clear error if passwords match
-        this.passwordError = false;
+  emailError.value = !email.value.endsWith('@straightforward.email');
+  passwordError.value = password.value !== confirmPassword.value;
+  if (emailError.value || passwordError.value) return;
 
-        const res = await api.post(
-          "/api/users/register",
-          {
-            name: this.name,
-            email: this.email,
-            password: this.password,
-            location: this.location,
-          },{
-          withCredentials: true,
-        }
-        );
-
-        // If valid, clear the error and proceed
-        this.emailError = false;
-        console.log("Registrierung erfolgreich:", res.data);
-
-        // Save the token to localStorage
-        const token = res.data.token;
-        localStorage.setItem('token', token);
-
-        // Redirect to the dashboard
-        this.$router.push('/dashboard');
-      } catch (err) {
-        console.error(
-          "Registrierungsfehler:",
-          err.response?.data?.msg || err.message
-        );
-      }
-    },
-  },
-};
+  loading.value = true;
+  try {
+    await api.post('/api/users/register', {
+      name: name.value,
+      email: email.value,
+      password: password.value,
+      location: location.value,
+    });
+    showModal.value = true;
+  } catch (err) {
+    console.error('Registrierungsfehler:', err?.response?.data?.msg || err.message);
+  } finally {
+    loading.value = false;
+  }
+}
 </script>
 
 <style scoped lang="scss">
-$primary: rgb(182, 157, 230);
-@import "@/assets/styles/login.scss";
+.auth-form{ display:flex; flex-direction:column; gap:14px; padding: 20px}
+h2{ font-size:20px; color:$base-text-dark; }
+p{ color:$base-text-medium; margin-top:-6px; margin-bottom:2px; }
 
-/* Add red color to input when error occurs */
-.error-input {
-  border-color: red;
-  &::placeholder {
-    color: red;
-    font-size: 10px;
-  }
-  
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field span{ font-size:12px; color:$base-text-medium; }
+input, select{
+  width:100%; border:1px solid $base-border-color; border-radius:8px; background:$base-panel-bg;
+  padding:12px 12px; font-size:14px; color:$base-text-dark;
+  transition:border-color .15s, box-shadow .15s;
+}
+input:focus, select:focus{ outline:none; border-color:$base-primary; box-shadow:0 0 0 3px rgba($base-primary, .15); }
+input.error{ border-color:$base-error; box-shadow:0 0 0 3px rgba($base-error, .15); }
+small.err{ color:$base-error; }
+
+.pw-toggle{ display:flex; align-items:center; gap:6px; color:$base-text-medium; user-select:none; }
+.pw-toggle input{ width:auto; }
+
+.actions{ display:flex; gap:10px; margin-top:4px; }
+button{
+  appearance:none; border:0; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; font-size:14px;
+  background:$base-primary; color:white; box-shadow:0 2px 6px rgba($base-primary,.35);
+}
+button[disabled]{ opacity:.6; cursor:default; }
+button.ghost{
+  background:transparent; color:$base-primary; border:1px solid $base-primary; box-shadow:none;
 }
 
-select {
-  width: 100%;
-  padding: 10px;
-  font-size: 16px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
+.modal{ position:fixed; inset:0; background:rgba(0,0,0,.5); display:grid; place-items:center; z-index:999; }
+.modal-card{
+  background:#fff; width:min(420px, 92vw); padding:18px; border-radius:12px; text-align:center;
+  border:1px solid $base-border-color; box-shadow:0 10px 30px rgba(0,0,0,.14);
 }
-
-button {
-  margin-top: 15px;
-}
+.modal-card h3{ margin-bottom:6px; color:$base-text-dark; }
+.modal-card p{ color:$base-text-notsodark; margin-bottom:10px; }
+.modal-card button{ width:100%; }
 </style>

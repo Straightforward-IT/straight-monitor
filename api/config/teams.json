@@ -1,0 +1,102 @@
+{
+  "shared": {
+    "emailAuthEnv": {
+      "clientId": "EMAIL_CLIENT_ID_IT",
+      "clientSecret": "EMAIL_SECRET_IT",
+      "authority": "EMAIL_AUTHORITY_IT"
+    }
+  },
+  "teams": [
+    {
+      "key": "it",
+      "aliases": ["tech", "support"],
+      "displayName": "IT",
+      "developmentOnly": true,
+      "email": { "address": "it@straightforward.email" },
+      "graph": {
+        "upn": "it@straightforward.email",
+        "folderId": "AAMkAGZlNjY5NTg0LTEyZDctNGQ4MC1hNGUyLTkxY2MzYmU2YmNjNQAuAAAAAADK2se2ylstR6FJ2el-dDVCAQAwQF6EUVItQo8XKGsza1MUAAD0HJjNAAA="
+      },
+      "asana": { 
+        "projectId": "1211585530209654"
+      },
+      "routine": {
+        "enabled": true,
+        "weekdays": ["Monday"],
+        "recipients": ["it@straightforward.email"]
+      }
+    },
+    {
+      "key": "hamburg",
+      "aliases": ["hh", "teamhamburg"],
+      "displayName": "Hamburg",
+      "email": { "address": "teamhamburg@straightforward.email" },
+      "graph": {
+        "upn": "teamhamburg@straightforward.email",
+        "folderId": "AAMkADc3N2U2OWM1LTQzYzYtNDZkYi1hOGU3LTMyZjcyZjYxZDhiMAAuAAAAAADsbxcaOkqtS6j2HA5oaQdWAQBE30WTJlpaQYh_UhE9m5icAAJbR5gHAAA="
+      },
+      "asana": { 
+        "projectId": "1204666703404588",
+        "dispositionProjectId": "1207021175334601",
+        "schulungProjectId": "1206622996192570"
+      },
+      "routine": {
+        "enabled": true,
+        "weekdays": ["Monday"],
+        "recipients": [
+          "teamhamburg@straightforward.email",
+          "einkauf@straightforward.email"
+        ],
+        "inventory": { "standort": "Hamburg" }
+      }
+    },
+    {
+      "key": "berlin",
+      "aliases": ["b", "teamberlin"],
+      "displayName": "Berlin",
+      "email": { "address": "teamberlin@straightforward.email" },
+      "graph": {
+        "upn": "teamberlin@straightforward.email",
+        "folderId": "AAMkAGMyMGFhN2FlLTIzNjItNGRiYy05M2JjLTMzY2I4NWVkNmYwYQAuAAAAAABXdjtxmi3RQKGPDm5p9TvXAQD-AqGf-78nSqrUvVdIVg-jAALYEeLUAAA="
+      },
+      "asana": { 
+        "projectId": "1209986644355933",
+        "dispositionProjectId": "1203882830937566",
+        "schulungProjectId": "1206484809128286"
+      },
+      "routine": {
+        "enabled": true,
+        "weekdays": ["Monday"],
+        "recipients": [
+          "teamberlin@straightforward.email",
+          "einkauf@straightforward.email"
+        ],
+        "inventory": { "standort": "Berlin" }
+      }
+    },
+    {
+      "key": "koeln",
+      "aliases": ["k", "köln", "teamkoeln", "teamköln"],
+      "displayName": "Köln",
+      "email": { "address": "teamkoeln@straightforward.email" },
+      "graph": {
+        "upn": "teamkoeln@straightforward.email",
+        "folderId": "AAMkADgzNmUzYTlmLWJiM2ItNDBlNS04M2EzLWU4ZTE1MWVkMjMzNAAuAAAAAAC5UmQRxi4DSJIc4SGSGqyrAQAuE9cxL75MRZSLnJLcoP_QAAFQf4ouAAA="
+      },
+      "asana": { 
+        "projectId": "1207192167671531",
+        "dispositionProjectId": "1208815878474860",
+        "schulungProjectId": "1207192167671539"
+      },
+      "routine": {
+        "enabled": true,
+        "weekdays": ["Monday"],
+        "recipients": [
+          "teamkoeln@straightforward.email",
+          "einkauf@straightforward.email"
+        ],
+        "inventory": { "standort": "Köln" }
+      }
+    }
+  ]
+}

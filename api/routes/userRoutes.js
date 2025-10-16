@@ -1,144 +1,141 @@
 const express = require("express");
 const router = express.Router();
-const auth = require("../middleware/auth"); // Import the auth middleware
-const User = require("../models/User"); // Import the User model
+const auth = require("../middleware/auth");
+const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-require('dotenv').config(); // Load environment variables from .env
+const { sollRoutine, sendConfirmationEmail} = require("../EmailService");
+require("dotenv").config(); // Load environment variables from .env
+const asyncHandler = require("../middleware/AsyncHandler");
 
 // GET /api/users/me
-router.get("/me", auth, async (req, res) => {
-  try {
-    // Find the user by ID
-    const user = await User.findById(req.user.id).select("-password"); // Exclude the password
-    res.json(user);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+router.get(
+  "/me",
+  auth,
+  asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user.id).select("-password");
+    res.status(200).json(user);
+  })
+);
 
 // GET /api/users/:id
-router.get("/:id", async (req, res) => {
-  try {
+router.get(
+  "/:id",
+  asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: "User not found" });
-    res.json(user);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    res.status(200).json(user);
+  })
+);
 
 // PUT /api/users/:id
-router.put("/update/:id", async (req, res) => {
-  const { name, email, password } = req.body;
-  try {
+router.put(
+  "/update/:id",
+  asyncHandler(async (req, res) => {
+    const { name, email, password } = req.body;
     let user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: "User not found" });
-
-    // Update fields
     user.name = name || user.name;
     user.email = email || user.email;
     if (password) {
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(password, salt);
     }
-
     await user.save();
-    res.json(user);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    res.status(200).json(user);
+  })
+);
 
 // POST /api/users/register
-router.post("/register", async (req, res) => {
-  const { name, email, password, location } = req.body;
+router.post(
+  "/register",
+  asyncHandler(async (req, res) => {
+    const { name, email, password, location } = req.body;
 
-  try {
-    // Check if the user already exists
     let user = await User.findOne({ email });
     if (user) {
-      return res.status(400).json({ msg: "User already exists" });
+      return res.status(400).json({ msg: "Benutzer mit dieser E-Mail existiert bereits" });
     }
 
-    // Check if company email @straightforward.email
     if (!email.includes("@straightforward.email")) {
-      return res.status(401).json({ msg: "Please use a company email" });
+      return res.status(401).json({ msg: "Bitte benutze eine E-Mail der Firma Straightforward" });
     }
 
-    // Create a new user instance
-    user = new User({
-      name,
-      email,
-      password,
-      location
-    });
-
-    // Save the new user
+    user = new User({ name, email, password, location, isConfirmed: false });
     await user.save();
 
-    // Create and sign JWT
-    const payload = {
-      user: {
-        id: user.id,
-      },
-    };
+    await sendConfirmationEmail(user); // 🔹 Use centralized function
 
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET, // Use the JWT secret from .env
-      { expiresIn: 360000 },
-      (err, token) => {
-        if (err) throw err;
-        res.json({ token });
-      }
-    );
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    res.status(200).json({ msg: "Registrierung erfolgreich. Bitte bestätige deine E-Mail." });
+  })
+);
+
+//POST /api/users/test-email
+router.post(
+  "/email-test",
+  asyncHandler(async (req, res) => {
+    await sollRoutine();
+    res.status(200).json({ msg: "Mails gesendet" });
+  })
+);
+
+// POST /api/users/confirm-email
+router.post(
+  "/confirm-email",
+  asyncHandler(async (req, res) => {
+    const { token } = req.body;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ msg: "Benutzer nicht gefunden" });
+    }
+    if (user.isConfirmed) {
+      return res.status(400).json({ msg: "E-Mail bereits bestätigt" });
+    }
+    user.isConfirmed = true;
+    await user.save();
+
+    res
+      .status(200)
+      .json({
+        msg: "E-Mail erfolgreich bestätigt. Du kannst dich nun anmelden.",
+      });
+  })
+);
 
 // POST /api/users/login
-router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    // Check if user exists
+router.post(
+  "/login",
+  asyncHandler(async (req, res) => {
+    const { email, password } = req.body;
     let user = await User.findOne({ email });
+
     if (!user) {
-      return res.status(400).json({ msg: "Invalid Credentials" });
+      return res.status(400).json({ msg: "Ungültige Anmeldedaten" });
     }
 
-    // Compare the provided password with the hashed password stored in the database
+    if (!user.isConfirmed) {
+      await sendConfirmationEmail(user); // 🔹 Use centralized function
+
+      return res.status(403).json({
+        msg: "Bitte bestätige zuerst deine E-Mail Adresse. Eine neue Bestätigungsmail wurde gesendet.",
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ msg: "Invalid Credentials" });
+      return res.status(400).json({ msg: "Ungültige Anmeldedaten" });
     }
 
-    // Generate a JWT token for the user
-    const payload = {
-      user: {
-        id: user.id,
-      },
-    };
+    const payload = { user: { id: user.id } };
 
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET, // Use the JWT secret from .env
-      { expiresIn: 360000 }, // Set token expiry time as needed
-      (err, token) => {
-        if (err) throw err;
-        res.json({ token });
-      }
-    );
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-});
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: 360000 }, (err, token) => {
+      if (err) throw err;
+      res.status(200).json({ token });
+    });
+  })
+);
 
 module.exports = router;
