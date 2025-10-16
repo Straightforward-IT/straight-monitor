@@ -8,6 +8,7 @@
         <component :is="panelComponent" />
       </aside>
     </div>
+    <AppFooter @open-support="handleOpenSupport" @open-shortcuts="handleOpenShortcuts" />
   </div>
 </template>
 
@@ -17,6 +18,7 @@ import { computed, watch } from 'vue';
 import { useUi } from '@/stores/ui';
 
 import HeaderBar from '@/components/HeaderBar.vue';
+import AppFooter from '@/components/AppFooter.vue';
 import Shortcuts from '@/components/Shortcuts.vue';
 import Tools from '@/components/Tools.vue';
 
@@ -52,6 +54,16 @@ const hasRight = computed(() => !!panelComponent.value);
 
 // Beim Routenwechsel nur den Override zurücksetzen – "hidden" respektieren
 watch(() => route.fullPath, () => { ui.panelType = null; });
+
+// Handler für Footer Events
+const handleOpenSupport = () => {
+  // Support Modal öffnen - hier kannst du später einen Support-Modal einbauen
+  console.log('Open Support Modal');
+};
+
+const handleOpenShortcuts = () => {
+  ui.toggle('shortcuts');
+};
 </script>
 
 <style scoped>

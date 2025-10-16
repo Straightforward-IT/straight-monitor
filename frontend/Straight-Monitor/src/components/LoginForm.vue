@@ -38,6 +38,25 @@
       </button>
     </div>
 
+    <!-- Login Footer -->
+    <footer class="login-footer">
+      <p class="login-notice">
+        Internes System für Mitarbeiter der H. & P. Straightforward GmbH
+      </p>
+      <div class="login-links">
+        <a href="#" @click.prevent="openLegalModal('privacy')">Datenschutz</a>
+        <span class="separator">•</span>
+        <a href="#" @click.prevent="openLegalModal('imprint')">Impressum</a>
+      </div>
+    </footer>
+
+    <!-- Legal Modal -->
+    <LegalModal
+      :show="showLegalModal"
+      :type="legalModalType"
+      @close="showLegalModal = false"
+    />
+
     <teleport to="body">
       <div v-if="showModal" class="modal" @click.self="closeModal">
         <div class="modal-card">
@@ -54,6 +73,7 @@
 import { ref } from "vue";
 import api from "@/utils/api";
 import { useRouter } from "vue-router";
+import LegalModal from "./LegalModal.vue";
 
 const router = useRouter();
 const email = ref("");
@@ -63,8 +83,17 @@ const loading = ref(false);
 const showModal = ref(false);
 const modalMessage = ref("");
 
+// Legal Modal State
+const showLegalModal = ref(false);
+const legalModalType = ref("privacy");
+
 function closeModal() {
   showModal.value = false;
+}
+
+function openLegalModal(type) {
+  legalModalType.value = type;
+  showLegalModal.value = true;
 }
 
 async function submitLogin() {
@@ -174,6 +203,44 @@ button.ghost {
   color: $base-primary;
   border: 1px solid $base-primary;
   box-shadow: none;
+}
+
+/* Login Footer */
+.login-footer {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid rgba($base-border-color, 0.5);
+  text-align: center;
+
+  .login-notice {
+    font-size: 12px;
+    color: $base-text-medium;
+    margin: 0 0 12px 0;
+    line-height: 1.5;
+  }
+
+  .login-links {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 12px;
+
+    a {
+      color: $base-primary;
+      text-decoration: none;
+      transition: color 0.2s ease;
+      
+      &:hover {
+        color: darken($base-primary, 10%);
+        text-decoration: underline;
+      }
+    }
+
+    .separator {
+      color: $base-text-medium;
+    }
+  }
 }
 
 .modal {
