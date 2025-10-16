@@ -1,7 +1,8 @@
 {
   "scripts": {
     "install:frontend": "cd frontend/Straight-Monitor && npm install",
-    "install:all": "npm install && npm run install:frontend",
+    "install:backend": "cd api && npm install",
+    "install:all": "npm install && npm run install:frontend && npm run install:backend",
     "build": "cd frontend/Straight-Monitor && npm install && npm run build",
     "frontend": "npm run dev --prefix frontend/Straight-Monitor",
     "backend": "nodemon --cwd api app.js",
