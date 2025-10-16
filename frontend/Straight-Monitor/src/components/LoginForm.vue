@@ -1,118 +1,207 @@
 <template>
-      <h4>Wir sind <span>Straightforward</span></h4>
-      <p>Schön, dass du hier bist. Bitte melde dich an.</p>
-      <div class="floating-label">
+  <form class="auth-form" @submit.prevent="submitLogin" autocomplete="off">
+    <h2>Wir sind <strong>Straightforward</strong></h2>
+    <p>Schön, dass du hier bist. Bitte melde dich an.</p>
+
+    <label class="field">
+      <span>Email</span>
+      <input
+        type="email"
+        v-model.trim="email"
+        autocomplete="username"
+        required
+      />
+    </label>
+
+    <label class="field">
+      <span>Passwort</span>
+      <div class="pw">
         <input
-          placeholder="Email"
-          type="email"
-          v-model="email"
-          name="email"
-          id="email"
-          autocomplete="off"
-        />
-        <label for="email">Email:</label>
-        <div class="icon">
-          <svg
-            enable-background="new 0 0 100 100"
-            version="1.1"
-            viewBox="0 0 100 100"
-            xml:space="preserve"
-            xmlns="http://www.w3.org/2000/svg"
-            class="icon-svg"
-          >
-            <g transform="translate(0 -952.36)">
-              <path
-                d="m17.5 977c-1.3 0-2.4 1.1-2.4 2.4v45.9c0 1.3 1.1 2.4 2.4 2.4h64.9c1.3 0 2.4-1.1 2.4-2.4v-45.9c0-1.3-1.1-2.4-2.4-2.4h-64.9zm2.4 4.8h60.2v1.2l-30.1 22-30.1-22v-1.2zm0 7l28.7 21c0.8 0.6 2 0.6 2.8 0l28.7-21v34.1h-60.2v-34.1z"
-              />
-            </g>
-          </svg>
-        </div>
-      </div>
-      <div class="floating-label">
-        <input
-          placeholder="Passwort"
-          type="password"
+          :type="showPw ? 'text' : 'password'"
           v-model="password"
-          name="password"
-          id="password"
-          autocomplete="off"
+          autocomplete="current-password"
+          required
         />
-        <label for="password">Passwort:</label>
-        <div class="icon">
-          <svg
-            enable-background="new 0 0 24 24"
-            version="1.1"
-            viewBox="0 0 24 24"
-            xml:space="preserve"
-            xmlns="http://www.w3.org/2000/svg"
-            class="icon-svg"
-          >
-            <rect class="st0" width="24" height="24" />
-            <path class="st1" d="M19,21H5V9h14V21z M6,20h12V10H6V20z" />
-            <path
-              class="st1"
-              d="M16.5,10h-1V7c0-1.9-1.6-3.5-3.5-3.5S8.5,5.1,8.5,7v3h-1V7c0-2.5,2-4.5,4.5-4.5s4.5,2,4.5,4.5V10z"
-            />
-            <path
-              class="st1"
-              d="m12 16.5c-0.8 0-1.5-0.7-1.5-1.5s0.7-1.5 1.5-1.5 1.5 0.7 1.5 1.5-0.7 1.5-1.5 1.5zm0-2c-0.3 0-0.5 0.2-0.5 0.5s0.2 0.5 0.5 0.5 0.5-0.2 0.5-0.5-0.2-0.5-0.5-0.5z"
-            />
-          </svg>
+        <label class="pw-toggle">
+          <input type="checkbox" v-model="showPw" />
+          <small>anzeigen</small>
+        </label>
+      </div>
+    </label>
+
+    <div class="actions">
+      <button type="submit" :disabled="loading">
+        {{ loading ? "Anmelden…" : "Log in" }}
+      </button>
+      <button type="button" class="ghost" @click="$emit('switch-to-register')">
+        Register
+      </button>
+    </div>
+
+    <teleport to="body">
+      <div v-if="showModal" class="modal" @click.self="closeModal">
+        <div class="modal-card">
+          <h3>Anmeldung fehlgeschlagen</h3>
+          <p>{{ modalMessage }}</p>
+          <button @click="closeModal">OK</button>
         </div>
       </div>
-      <button type="submit" @click="submitLogin()">Log in</button>
-      <a class="discrete" @click="$emit('switch-to-register')">
-      Register
-    </a>
-   
+    </teleport>
+  </form>
 </template>
 
-<script>
-import api from '@/utils/api';
+<script setup>
+import { ref } from "vue";
+import api from "@/utils/api";
+import { useRouter } from "vue-router";
 
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+const router = useRouter();
+const email = ref("");
+const password = ref("");
+const showPw = ref(false);
+const loading = ref(false);
+const showModal = ref(false);
+const modalMessage = ref("");
 
-export default {
-  name: 'LoginForm',
-  components: {
-    FontAwesomeIcon,
-  },
-  emits: ['switch-to-register'],
-  data() {
-    return {
-      email: '',
-      password: '',
-    };
-  },
-  methods: {
-    async submitLogin() {
-      try {
-        const res = await api.post('/api/users/login', {
-          email: this.email,
-          password: this.password,
-        },{
-          withCredentials: true,
-        }
-      );
+function closeModal() {
+  showModal.value = false;
+}
 
-        // Save the token to localStorage
-        const token = res.data.token;
-        localStorage.setItem('token', token);
-        console.log('Login successful:', res.data);
-
-        // Redirect to the dashboard
-        this.$router.push('/dashboard');
-        
-      } catch (err) {
-        console.error('Login error:', err.response?.data?.msg || err.message);
-        // Display error message in UI if needed
-      }
-    },
-  },
-};
+async function submitLogin() {
+  if (loading.value) return;
+  loading.value = true;
+  try {
+    const { data } = await api.post("/api/users/login", {
+      email: email.value,
+      password: password.value,
+    });
+    localStorage.setItem("token", data.token);
+    router.push("/dashboard");
+  } catch (err) {
+    modalMessage.value = err?.response?.data?.msg || "Unbekannter Fehler.";
+    showModal.value = true;
+  } finally {
+    loading.value = false;
+  }
+}
 </script>
 
 <style scoped lang="scss">
- $primary: rgb(182,157,230); 	
-@import '@/assets/styles/login.scss';
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+h2 {
+  font-size: 20px;
+  color: $base-text-dark;
+}
+p {
+  color: $base-text-medium;
+  margin-top: -6px;
+  margin-bottom: 2px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field span {
+  font-size: 12px;
+  color: $base-text-medium;
+}
+input {
+  width: 100%;
+  border: 1px solid $base-border-color;
+  border-radius: 8px;
+  background: $base-panel-bg;
+  padding: 12px 12px;
+  font-size: 14px;
+  color: $base-text-dark;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus {
+  outline: none;
+  border-color: $base-primary;
+  box-shadow: 0 0 0 3px rgba($base-primary, 0.15);
+}
+
+.pw {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pw-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: $base-text-medium;
+  user-select: none;
+}
+.pw-toggle input {
+  width: auto;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+button {
+  appearance: none;
+  border: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  background: $base-primary;
+  color: white;
+  box-shadow: 0 2px 6px rgba($base-primary, 0.35);
+  transition: transform 0.05s ease, filter 0.15s ease;
+}
+button:active {
+  transform: translateY(1px);
+}
+button[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+button.ghost {
+  background: transparent;
+  color: $base-primary;
+  border: 1px solid $base-primary;
+  box-shadow: none;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: grid;
+  place-items: center;
+  z-index: 999;
+}
+.modal-card {
+  background: #fff;
+  width: min(420px, 92vw);
+  padding: 18px;
+  border-radius: 12px;
+  text-align: center;
+  border: 1px solid $base-border-color;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+}
+.modal-card h3 {
+  margin-bottom: 6px;
+  color: $base-text-dark;
+}
+.modal-card p {
+  color: $base-text-notsodark;
+  margin-bottom: 10px;
+}
+.modal-card button {
+  width: 100%;
+}
 </style>

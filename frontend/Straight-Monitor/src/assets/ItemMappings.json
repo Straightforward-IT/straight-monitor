@@ -1,0 +1,317 @@
+{
+  "Hamburg": {
+    "cuttermesser": "66f409272bd7b954e71ded84",
+    "jutebeutel": {
+        "Gold": "66fbe89a6971ca198c0dd6f2",
+        "Weiß": "6724f2b1a7e40e0c31f8c608"
+      }, 
+    "logistikHose": {
+      "44": "66fbe9416971ca198c0dd709",
+      "46": "66fbec896eba044dba7610f8",
+      "48": "66fbeded6eba044dba761107",
+      "50": "66fbeb576eba044dba7610db",
+      "52": "66fbedf66eba044dba76110c",
+      "54": "66fbfac86eba044dba761217",
+      "56": "66fbfadb6eba044dba761222"
+    },
+    "tshirt": {
+      "S": "66fbee256eba044dba761111",
+      "M": "66fbee2e6eba044dba761116",
+      "L": "66fbef426eba044dba761127",
+      "XL": "66fbef5d6eba044dba76112c",
+      "XXL": "66fbef636eba044dba761131",
+      "3XL": "66fbef786eba044dba761136"
+    },
+    "kapuzenjacke": {
+      "S": "66fbf0316eba044dba761141",
+      "M": "66fbf0366eba044dba761146",
+      "L": "66fbf03b6eba044dba76114b",
+      "XL": "66fbf0436eba044dba761150",
+      "XXL": "66fbf04a6eba044dba761155",
+      "3XL": "66fbf04f6eba044dba76115a"
+    },
+    "sicherheitshelm": {
+      "Festis": "66fbf08e6eba044dba76115f",
+      "Normal": "66fbf0926eba044dba761164"
+    },
+    "softshelljacke": {
+      "S": "66fbf0b16eba044dba761169",
+      "M": "66fbf0b66eba044dba76116e",
+      "L": "66fbf0c96eba044dba761178",
+      "XL": "66fbf0d26eba044dba76117d",
+      "XXL": "66fbf0d76eba044dba761182",
+      "3XL": "66fbf0db6eba044dba761187"
+    },
+    "bundhose": {
+      "44": "66fbf5bc6eba044dba7611ec",
+      "46": "66fbf5c66eba044dba7611f1",
+      "48": "66fbf5ca6eba044dba7611f6",
+      "50": "66fbf5cf6eba044dba7611fb",
+      "52": "66fbf5d26eba044dba761200"
+    },
+    "sicherheitsschuhe": {
+      "36": "66fbff256eba044dba76127b",
+      "37": "66fbff1d6eba044dba761276",
+      "38": "66fbff176eba044dba761271",
+      "39": "66fbff0f6eba044dba76126c",
+      "40": "66fbff086eba044dba761267",
+      "41": "66fbff006eba044dba761262",
+      "42": "66fbfeea6eba044dba76125d",
+      "43": "66fbfec36eba044dba761254",
+      "44": "66fbfeb36eba044dba76124f",
+      "45": "66fbfdeb6eba044dba761246",
+      "46": "66fbfdde6eba044dba761241",
+      "47": "66fbfcdb6eba044dba761234",
+      "48": "66fbfcb56eba044dba76122b"
+    },
+    "handschuhe": {
+      "8": "66fc01306eba044dba761284",
+      "9": "66fc013a6eba044dba761289",
+      "10": "66fc01456eba044dba76128e"
+    },
+    "kellnermesser": "66fc02a16eba044dba7612ed",
+    "kellnerblock": "682b0f8bb5f004e621e6d5d3",
+    "kugelschreiber": "66fc02b36eba044dba7612f2",
+    "namensschild": "66fc02c16eba044dba7612f7",
+    "feuerzeug": "66fc02c76eba044dba7612fc",
+    "schuhputzzeug": "66fc02d36eba044dba761301",
+    "schwarzeKrawatte": "66fc02966eba044dba7612e8",
+    "schwarzeSchuerze": "66fc02826eba044dba7612e3",
+    "kleidersack": "66fc02696eba044dba7612de",
+    "serviceHandschuhe": "66fc03036eba044dba76130b",
+    "weisseHemdenDamen": {
+      "S": "66fc01d16eba044dba761293",
+      "M": "66fc01d86eba044dba761298",
+      "L": "66fc01dd6eba044dba76129d",
+      "XL": "66fc01e56eba044dba7612a2"
+    },
+    "schwarzeHemdenDamen": {
+      "S": "66fc01f66eba044dba7612a7",
+      "M": "66fc01f96eba044dba7612ac",
+      "L": "66fc01fc6eba044dba7612b1"
+    },
+    "weisseHemdenHerren": {
+      "S": "66fc020a6eba044dba7612b6",
+      "M": "66fc020d6eba044dba7612bb",
+      "L": "66fc02116eba044dba7612c0",
+      "XL": "66fc02156eba044dba7612c5"
+    },
+    "schwarzeHemdenHerren": {
+      "S": "66fc022f6eba044dba7612ca",
+      "M": "66fc02336eba044dba7612cf",
+      "L": "66fc02366eba044dba7612d4",
+      "XL": "66fc023b6eba044dba7612d9"
+    }
+  },
+  
+    "Köln": {
+      "cuttermesser": "676ebca653fe013a546dd650",
+      "jutebeutel": {
+        "Gold": "676ebc7b53fe013a546dd642",
+        "Weiß": "676ebc9153fe013a546dd649"
+      }, 
+      "logistikHose": {
+        "44": "676ebfca53fe013a546dd66c",
+        "46": "676ebfe153fe013a546dd673",
+        "48": "676ebfe953fe013a546dd67a",
+        "50": "676ebff553fe013a546dd681",
+        "52": "676ec00053fe013a546dd688",
+        "54": "676ec00a53fe013a546dd68f",
+        "56": "676ec01053fe013a546dd696"
+      },
+      "tshirt": {
+        "S": "676ec29353fe013a546dd76f",
+        "M": "676ec29953fe013a546dd776",
+        "L": "676ec29e53fe013a546dd77d",
+        "XL": "676ec2a453fe013a546dd784",
+        "XXL": "676ec2aa53fe013a546dd78b",
+        "3XL": "676ec2b053fe013a546dd792"
+      },
+      "kapuzenjacke": {
+        "S": "676ec07853fe013a546dd6ce",
+        "M": "676ec07e53fe013a546dd6d5",
+        "L": "676ec08353fe013a546dd6dc",
+        "XL": "676ec08953fe013a546dd6e3",
+        "XXL": "676ec08f53fe013a546dd6ea",
+        "3XL": "676ec0a453fe013a546dd6f1"
+      },
+        "softshelljacke": {
+          "S": "676ec23953fe013a546dd745",
+          "M": "676ec23f53fe013a546dd74c",
+          "L": "676ec24553fe013a546dd753",
+          "XL": "676ec24b53fe013a546dd75a",
+          "XXL": "676ec25153fe013a546dd761",
+          "3XL": "676ec25853fe013a546dd768"
+        },
+        "bundhose": {
+          "44": "676ec03253fe013a546dd69d",
+          "46": "676ec03853fe013a546dd6a4",
+          "48": "676ec04053fe013a546dd6ab",
+          "50": "676ec04753fe013a546dd6b2",
+          "52": "676ec04c53fe013a546dd6b9",
+          "54": "676ec05253fe013a546dd6c0",
+          "56": "676ec05853fe013a546dd6c7"
+        },      
+        
+      "sicherheitsschuhe": {
+        "37": "6772b7271d73c4bab886bc9a",
+        "38": "676ec12153fe013a546dd730",
+        "39": "676ec12753fe013a546dd737",
+        "40": "676ec12d53fe013a546dd73e",
+        "41": "676ec0d253fe013a546dd6f8",
+        "42": "676ec0d853fe013a546dd6ff",
+        "43": "676ec0dd53fe013a546dd706",
+        "44": "676ec0e253fe013a546dd70d",
+        "45": "676ec0e853fe013a546dd714",
+        "46": "676ec0ed53fe013a546dd71b",
+        "47": "676ec0f253fe013a546dd722",
+        "48": "676ec0f853fe013a546dd729"
+      },
+      "handschuhe": {
+        "8": "676ebcbd53fe013a546dd657",
+        "9": "676ebcce53fe013a546dd65e",
+        "10": "676ebcd453fe013a546dd665"
+      },
+      "kellnermesser": "676ec42d53fe013a546dd825",
+      "kugelschreiber": "676ec45553fe013a546dd83a",
+      "namensschild": "676ec46453fe013a546dd841",
+      "feuerzeug": "676ec2c753fe013a546dd799",
+      "schuhputzzeug": "676ec48d53fe013a546dd84f",
+      "schwarzeKrawatte": "676ec44653fe013a546dd833",
+      "schwarzeSchuerze": "676ec49a53fe013a546dd856",
+      "kleidersack": "676ec43a53fe013a546dd82c",
+      "serviceHandschuhe": "676ec2d353fe013a546dd7a0",
+      "weisseHemdenDamen": {
+        "S": "676ec31853fe013a546dd7c3",
+        "M": "676ec32153fe013a546dd7ca",
+        "L": "676ec32653fe013a546dd7d1",
+        "XL": "676ec32b53fe013a546dd7d8",
+        "XXL": "676ec33053fe013a546dd7df",
+        "3XL": "676ec33653fe013a546dd7e6"
+      },
+      "schwarzeHemdenDamen": {
+        "S": "676ec2e653fe013a546dd7a7",
+        "M": "676ec2ec53fe013a546dd7ae",
+        "L": "676ec2f253fe013a546dd7b5",
+        "XL": "676ec2f853fe013a546dd7bc"
+      },
+      "weisseHemdenHerren": {
+        "S": "676ec36d53fe013a546dd809",
+        "M": "676ec38553fe013a546dd817",
+        "L": "676ec37853fe013a546dd810",
+        "XL": "676ec38c53fe013a546dd81e"
+      },
+      "schwarzeHemdenHerren": {
+        "S": "676ec35353fe013a546dd7ed",
+        "M": "676ec35953fe013a546dd7f4",
+        "L": "676ec35e53fe013a546dd7fb",
+        "XL": "676ec36453fe013a546dd802"
+      }
+    },
+  
+    "Berlin": {
+      "cuttermesser": "676e8c74b2c6d81331df004b",
+      "jutebeutel": {
+        "Gold": "676eb79e53fe013a546dd634",
+        "Weiß": "676eb7b553fe013a546dd63b"
+      }, 
+      "sicherheitshelm": {
+        "Normal": "67d2e8aa73963b5275415283"
+      },
+      "logistikHose": {
+        "44": "676e711bb2c6d81331defef7",
+        "46": "676e7142b2c6d81331defefe",
+        "48": "676e7151b2c6d81331deff05",
+        "50": "676e7163b2c6d81331deff0c",
+        "52": "676e7188b2c6d81331deff19",
+        "54": "676e7197b2c6d81331deff20",
+        "56": "676e71b2b2c6d81331deff27",
+        "58": "676e71c1b2c6d81331deff2e"
+      },
+      "tshirt": {
+        "S": "676e77d8b2c6d81331deff82",
+        "M": "676e7a9bb2c6d81331deff89",
+        "L": "676e7f78b2c6d81331deff9d",
+        "XL": "676e84c7b2c6d81331deffa4",
+        "XXL": "676e85a7b2c6d81331deffab",
+        "3XL": "676e7be1b2c6d81331deff96"
+      },
+      "kapuzenjacke": {
+        "S": "676e88bdb2c6d81331deffb8",
+        "M": "676e88c5b2c6d81331deffbf",
+        "L": "676e88ceb2c6d81331deffc6",
+        "XL": "676e88d7b2c6d81331deffcd",
+        "XXL": "676e88e1b2c6d81331deffd4"
+      },
+      "softshelljacke": {
+        "S": "676e72a9b2c6d81331deff66",
+        "M": "676e72b6b2c6d81331deff6d",
+        "L": "676e72d6b2c6d81331deff74",
+        "XL": "676e72e6b2c6d81331deff7b"
+      },
+      "bundhose": {
+        "46": "676e7204b2c6d81331deff35",
+        "48": "676e721db2c6d81331deff3c",
+        "50": "676e7231b2c6d81331deff43",
+        "52": "676e723eb2c6d81331deff4a",
+        "54": "676e724eb2c6d81331deff51",
+        "56": "676e7262b2c6d81331deff58",
+        "58": "676e7274b2c6d81331deff5f"
+      },
+      "sicherheitsschuhe": {
+        "36": "676e8a12b2c6d81331deffdb",
+        "37": "676e8a19b2c6d81331deffe2",
+        "38": "676e8a24b2c6d81331deffe9",
+        "39": "676e8a2fb2c6d81331defff0",
+        "40": "676e8a4cb2c6d81331defff7",
+        "41": "676e8a52b2c6d81331defffe",
+        "42": "676e8a58b2c6d81331df0005",
+        "43": "676e8a5eb2c6d81331df000c",
+        "44": "676e8a63b2c6d81331df0013",
+        "45": "676e8a76b2c6d81331df001a",
+        "46": "676e8a7db2c6d81331df0021",
+        "47": "676e8a83b2c6d81331df0028",
+        "48": "676e8a87b2c6d81331df002f"
+      },
+      "handschuhe": {
+        "8": "676e8c61b2c6d81331df0044",
+        "9": "676e8c59b2c6d81331df003d",
+        "10": "676e8c52b2c6d81331df0036"
+      },
+      "kellnermesser": "676e9a5db2c6d81331df00da",
+      "kugelschreiber": "676e9c64b2c6d81331df0113",
+      "namensschild": "676e9b3cb2c6d81331df010c",
+      "feuerzeug": "676e99e5b2c6d81331df0084",
+      "schuhputzzeug": "676e9a21b2c6d81331df00a6",
+      "schwarzeKrawatte": "676e94cab2c6d81331df006d",
+      "schwarzeFliege": "676e8c98b2c6d81331df0052",
+      "schwarzeSchuerze": "676e94b3b2c6d81331df0066",
+      "kleidersack": "676e9a06b2c6d81331df009f",
+      "serviceHandschuhe": "676e9435b2c6d81331df005f",
+      
+    "weisseHemdenDamen": {
+      "S": "676ea935b2c6d81331df04af",
+      "M": "676ea93db2c6d81331df04b6",
+      "L": "676ea945b2c6d81331df04bd",
+      "XL": "676ea94fb2c6d81331df04c4"
+    },
+    "schwarzeHemdenDamen": {
+      "S": "676ea95bb2c6d81331df04cb",
+      "M": "676ea961b2c6d81331df04d2",
+      "L": "676ea96bb2c6d81331df04d9",
+      "XL": "676ea976b2c6d81331df04e0"
+    },
+    "weisseHemdenHerren": {
+      "S": "676ea764b2c6d81331df0472",
+      "M": "676ea76eb2c6d81331df0479",
+      "L": "676ea77bb2c6d81331df0480",
+      "XL": "676ea788b2c6d81331df0487"
+    },
+    "schwarzeHemdenHerren": {
+      "S": "676ea7a3b2c6d81331df048e",
+      "M": "676ea8f1b2c6d81331df0495",
+      "L": "676ea8f7b2c6d81331df049c",
+      "XL": "676ea8feb2c6d81331df04a3"
+    }
+    }
+}

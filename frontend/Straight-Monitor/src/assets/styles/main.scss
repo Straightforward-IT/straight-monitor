@@ -1,3 +1,10 @@
+@import "@/assets/styles/theme.scss";
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+}
+
 * {
   font-family: -apple-system, BlinkMacSystemFont, "San Francisco", Helvetica,
     Arial, sans-serif;
@@ -5,45 +12,9 @@
   margin: 0;
 }
 
-html,
-body {
-  height: 100vh;
-  width: 100vw;
-  margin: 0 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  background: #323231;
-}
-a.discrete {
-  color: rgba(#000, 0.4);
-  font-size: 14px;
-  border-bottom: solid 1px rgba(#000, 0);
-  cursor: pointer;
-  padding-bottom: 4px;
-  margin-left: auto;
-  font-weight: 300;
-  transition: all 0.3s ease;
-  margin-top: 40px;
-  &:hover {
-    border-bottom: solid 1px rgba(#000, 0.2);
-  }
-}
-h4 {
-  font-size: 24px;
-  font-weight: 600;
-  color: #000;
-  opacity: 0.85;
-}
-label {
-  font-size: 12.5px;
-  color: #000;
-  opacity: 0.8;
-  font-weight: 400;
-}
+
 
 #app {
-  max-width: 1280px;
   margin: 0 auto;
   padding: 2rem 2rem 2rem 2rem;
   font-weight: normal;
