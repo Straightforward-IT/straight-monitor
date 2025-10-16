@@ -16,14 +16,18 @@
     "axios": "^1.7.7",
     "chart.js": "^4.4.5",
     "chartjs-adapter-date-fns": "^3.0.0",
+    "file-saver": "^2.0.5",
     "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",
     "jwt-simple": "^0.5.6",
+    "lodash.debounce": "^4.0.8",
+    "pdfmake": "^0.2.18",
     "pinia": "^2.2.2",
     "sass": "^1.79.3",
     "vue": "^3.4.37",
     "vue-chartjs": "^5.3.1",
-    "vue-router": "^4.4.5"
+    "vue-router": "^4.4.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.7",
