@@ -232,7 +232,7 @@ button.ghost {
       transition: color 0.2s ease;
       
       &:hover {
-        color: darken($base-primary, 10%);
+        color: color.adjust($base-primary, $lightness: -10%);
         text-decoration: underline;
       }
     }

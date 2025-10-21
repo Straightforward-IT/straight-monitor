@@ -31,7 +31,12 @@ const allowedIPs = [
 const corsOptions = {
   origin: function (origin, callback) {
     logger.debug('CORS Origin:', origin);
-    if (!origin || allowedDomains.includes(origin)) {
+    // Check if origin is in allowed domains or matches dev domain pattern
+    const isAllowed = !origin || 
+      allowedDomains.includes(origin) || 
+      /^https:\/\/[a-z0-9]+\.straightmonitor\.pages\.dev$/.test(origin);
+    
+    if (isAllowed) {
       callback(null, true);
     } else {
       logger.warn(`Blocked by CORS: ${origin}`);

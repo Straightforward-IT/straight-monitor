@@ -306,7 +306,7 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
   //    Name bleibt wie bisher (Parser-Titel), damit S/L im Titel sichtbar bleibt
   const name = email.subject || "(kein Betreff)";
 
-  // Beschreibung (notes): NUR Telefon & E-Mail
+  // Beschreibung (notes): Telefon & E-Mail & Message
   const contacts = [];
   const tel = email.meta?.telefon;
   const mail = email.meta?.email;

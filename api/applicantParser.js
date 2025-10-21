@@ -522,10 +522,23 @@ function parseApplicantEmail({ subject = "", from = "", bodyHtml = "" }) {
   const title_suffix = (stelle === "S" || stelle === "L") ? stelle : "?";
   const asana_title = `${full_name || "Unbekannt"} - ${title_suffix}`;
 
-  // Task-Body: nur Telefon/E-Mail
+  // Task-Body: Kontaktmöglichkeiten + provider-spezifische Nachrichten
   const body_lines = [];
   if (telefon) body_lines.push(`Telefon: ${telefon}`);
   if (email) body_lines.push(`E-Mail: ${email}`);
+  
+  // Zusätzliche Nachrichten je Provider hinzufügen
+  if (provider === "indeed" && indeed_message) {
+    body_lines.push(""); // Leerzeile für Abstand
+    body_lines.push("Nachricht des Bewerbers:");
+    body_lines.push(indeed_message);
+  } else if (provider === "kontaktformular" && extras && extras.Nachricht) {
+    body_lines.push(""); // Leerzeile für Abstand
+    body_lines.push("Nachricht:");
+    body_lines.push(extras.Nachricht.trim());
+  }
+  // Hier kannst du weitere Provider hinzufügen, z.B. für studentjob oder recrudo, falls sie Nachrichten haben
+  
   const asana_body = body_lines.join("\n");
 
   const due_date = new Date().toISOString().slice(0, 10);

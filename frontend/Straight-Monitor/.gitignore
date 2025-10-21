@@ -1,3 +1,6 @@
+# GitHub directories (internal docs)
+.github/
+
 # Logs
 logs
 *.log

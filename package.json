@@ -6,7 +6,7 @@
     "build": "cd frontend/Straight-Monitor && npm install && npm run build",
     "frontend": "npm run dev --prefix frontend/Straight-Monitor",
     "backend": "nodemon --cwd api app.js",
-    "dev": "concurrently \"npm run frontend\" \"npm run backend\" \"cloudflared tunnel run dev-backend\""
+  "dev": "concurrently \"npm run frontend\" \"npm run backend\" \"cloudflared tunnel run dev-backend 2>&1 | grep -v 'INF'\""
   },
   "dependencies": {
     "@fortawesome/free-regular-svg-icons": "^7.0.1",
