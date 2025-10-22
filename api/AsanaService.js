@@ -83,13 +83,13 @@ function _extractPersonName(email = {}) {
   return (m && m[1] && m[1].trim()) || subj || "Unbekannt";
 }
 
-function buildEmailHtml({ subject, fromName, fromAddr, bodyText, receivedDateTime }) {
+function buildEmailHtml({ subject, fromName, fromAddr, bodyText, receivedDateTime, provider, teamKey }) {
   const safeText =
     String(bodyText || "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      // don’t overdo formatting; just keep line-breaks readable:
+      // don't overdo formatting; just keep line-breaks readable:
       .replace(/\n/g, "<br>") || "(kein Inhalt)";
 
   const meta = [
@@ -106,7 +106,6 @@ function buildEmailHtml({ subject, fromName, fromAddr, bodyText, receivedDateTim
     <div style="white-space:normal;line-height:1.4">${safeText}</div>
   </body>`;
 }
-
 
 /**
  * Fetch all tasks for a given project, handling pagination.

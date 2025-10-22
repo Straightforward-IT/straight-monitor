@@ -450,6 +450,7 @@ function parseApplicantEmail({ subject = "", from = "", bodyHtml = "" }) {
   let full_name = null, email = null, telefon = null, stadt = null, alter = null;
   let job_title = null, job_location = null, company = null, indeed_message = null, subject_used_as_fallback = false;
   let asana_comment = plainText; // Fallback: ganzer Klartext
+  let extras = null; // Speichern der Kontaktformular-Extras für später
 
   if (provider === "indeed") {
     const ex = extractIndeedFields(bodyHtml, subject, plainText);
@@ -471,6 +472,7 @@ function parseApplicantEmail({ subject = "", from = "", bodyHtml = "" }) {
   } else if (provider === "kontaktformular") {
     const ex = extractKontaktformular(plainText);
     ({ full_name, email, telefon, stadt, alter } = ex);
+    extras = ex.extras; // Speichere die Extras
     // Stelle aus Formular hat Vorrang vor Keyword-Erkennung
     if (ex.stelle) stelle = ex.stelle;
 
