@@ -78,7 +78,7 @@ router.post(
 
   logger.debug('Laufzettel data:', { location, name_mitarbeiter, name_teamleiter, email, datum });
 
-  let mitarbeiter = await Mitarbeiter.findOne({ email });
+  const mitarbeiter = await Mitarbeiter.findOne({ email });
   const teamleiterId = await findMitarbeiterByName(name_teamleiter);
 
   parsedBody = new Laufzettel({
