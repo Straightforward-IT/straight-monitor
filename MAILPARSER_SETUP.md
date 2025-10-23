@@ -269,16 +269,16 @@ Make sure these are set in `.env`:
 
 ```env
 # Microsoft Graph Configuration
-GRAPH_TENANT_ID=6be23ac8-0f72-42b9-9609-d566844d6f5d
-GRAPH_CLIENT_ID=135cd4d5-a077-407e-8eac-e6d972c9e68a
-GRAPH_CLIENT_SECRET=JRc8Q~~jpsZBICVU-SVS2h_lZNLmXfH2Iwxi5a8n
+GRAPH_TENANT_ID=YOUR_TENANT_ID_HERE
+GRAPH_CLIENT_ID=YOUR_CLIENT_ID_HERE
+GRAPH_CLIENT_SECRET=YOUR_CLIENT_SECRET_HERE
 GRAPH_NOTIFICATION_URL=https://dev-api.straightmonitor.com/api/graph/webhook
 GRAPH_CLIENT_STATE=sf-secret-dev
 
 # IT User (has access to parser shared mailbox)
-EMAIL_CLIENT_ID_IT=135cd4d5-a077-407e-8eac-e6d972c9e68a
-EMAIL_SECRET_IT=JRc8Q~~jpsZBICVU-SVS2h_lZNLmXfH2Iwxi5a8n
-EMAIL_AUTHORITY_IT=https://login.microsoftonline.com/6be23ac8-0f72-42b9-9609-d566844d6f5d
+EMAIL_CLIENT_ID_IT=YOUR_CLIENT_ID_HERE
+EMAIL_SECRET_IT=YOUR_CLIENT_SECRET_HERE
+EMAIL_AUTHORITY_IT=https://login.microsoftonline.com/YOUR_TENANT_ID_HERE
 ```
 
 ---
