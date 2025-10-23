@@ -137,6 +137,17 @@
         <span>Dokumente</span>
       </RouterLink>
 
+      <!-- Mail Parser -->
+      <RouterLink 
+        v-if="newPagesEnabled"
+        class="tile" 
+        to="/mailparser"
+        aria-label="Mail Parser"
+      >
+        <font-awesome-icon :icon="['fas','envelope']" />
+        <span>Mail Parser</span>
+      </RouterLink>
+
       <!-- Teamleiter Excel -->
       <RouterLink class="tile" to="/excelFormatierung" aria-label="Dokumente">
         <font-awesome-icon :icon="['fas','table']" />

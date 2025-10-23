@@ -2,6 +2,8 @@ const express = require("express");
 
 const router = express.Router();
 
+const logger = require("../utils/logger");
+
 const {
   Laufzettel,
 
@@ -54,9 +56,15 @@ router.post(
   asyncHandler(async (req, res) => {
     const type = req.headers["document-type"];
 
+    logger.debug(`📨 WPForms Webhook received: ${type}`, {
+      body: req.body,
+      headers: req.headers,
+    });
+
     let parsedBody;
 
     if (!type) {
+      logger.warn('⚠️ Document type missing in WPForms webhook');
       return res
 
         .status(400)
@@ -65,7 +73,10 @@ router.post(
     }
 
     if (type === "laufzettel") {
+  logger.info('📋 Processing Laufzettel...');
   const { location, name_mitarbeiter, name_teamleiter, email, datum } = req.body;
+
+  logger.debug('Laufzettel data:', { location, name_mitarbeiter, name_teamleiter, email, datum });
 
   let mitarbeiter = await Mitarbeiter.findOne({ email });
   const teamleiterId = await findMitarbeiterByName(name_teamleiter);
@@ -82,7 +93,10 @@ router.post(
 
   await parsedBody.save();
 
+  logger.info(`✅ Laufzettel created: ${parsedBody._id}`);
+
   if (mitarbeiter?.id) {
+    logger.debug(`Assigning Laufzettel to Mitarbeiter: ${mitarbeiter._id}`);
     await assignMitarbeiter(parsedBody._id, mitarbeiter.id);
     
     let formattedDate = formatDateFromDatum(datum);
@@ -93,9 +107,11 @@ router.post(
 
     if (mitarbeiter.asana_id) {
       try {
+        logger.info(`Creating Asana subtask for Mitarbeiter: ${mitarbeiter.asana_id}`);
         await createSubtasksOnTask(mitarbeiter.asana_id, data);
+        logger.info('✅ Asana subtask created successfully');
       } catch (err) {
-        console.error("❌ Fehler beim Erstellen des Subtasks:", err.message);
+        logger.error("❌ Fehler beim Erstellen des Subtasks:", err.message);
         await sendMail(
           "it@straightforward.email",
           "❌ Fehler beim Erstellen eines Subtasks (Laufzettel)",
@@ -116,14 +132,17 @@ router.post(
   }
 
   if (teamleiterId) {
+    logger.info(`Assigning Laufzettel to Teamleiter: ${teamleiterId}`);
     const task = await assignTeamleiter(parsedBody._id, teamleiterId);
     if (task?.id) {
       parsedBody.task_id = task.id;
       await parsedBody.save();
+      logger.info(`✅ Flip task created: ${task.id}`);
     }
   }
 
   if (!teamleiterId || !mitarbeiter) {
+    logger.warn(`⚠️ Laufzettel could not be fully assigned. Teamleiter: ${!!teamleiterId}, Mitarbeiter: ${!!mitarbeiter}`);
     await sendMail(
       "it@straightforward.email",
       "Laufzettel konnte nicht assigned werden",
@@ -133,6 +152,7 @@ router.post(
     );
   }
 } else if (type === "event_report") {
+      logger.info('📊 Processing Event Report...');
       const {
         location,
 
@@ -187,6 +207,8 @@ router.post(
 
       await parsedBody.save();
 
+      logger.info(`✅ Event Report created: ${parsedBody._id}`);
+
       if (!teamleiter) {
         sendMail(
           "it@straightforward.email",
@@ -203,6 +225,7 @@ router.post(
         await assignTeamleiter(parsedBody._id, teamleiter._id);
       }
     } else if (type === "evaluierung") {
+      logger.info('📝 Processing Evaluierung...');
       const {
         location,
 
@@ -230,6 +253,8 @@ router.post(
 
         sonstiges,
       } = req.body;
+
+      logger.debug('Evaluierung data:', { name_mitarbeiter, name_teamleiter, laufzettel_id, datum });
 
       const mitarbeiterId = await findMitarbeiterByName(name_mitarbeiter);
 
@@ -269,11 +294,15 @@ router.post(
 
       await parsedBody.save();
 
+      logger.info(`✅ Evaluierung created: ${parsedBody._id}`);
+
       if (mitarbeiterId) {
+        logger.debug(`Assigning Evaluierung to Mitarbeiter: ${mitarbeiterId}`);
         await assignMitarbeiter(parsedBody._id, mitarbeiterId);
       }
 
       if (!mitarbeiterId || !teamleiter?.id) {
+        logger.warn(`⚠️ Evaluierung could not be fully assigned. Mitarbeiter: ${!!mitarbeiterId}, Teamleiter: ${!!teamleiter?.id}`);
         sendMail(
           "it@straightforward.email",
 
@@ -334,10 +363,12 @@ console.log("⚠️ Kein Flip Task oder kein FlipUserId vorhanden");
       // ✅ Asana Kommentar & Subtask abschließen
 
       if (mitarbeiterId) {
+        logger.info('Processing Asana workflow for Evaluierung...');
         const mitarbeiter = await Mitarbeiter.findById(mitarbeiterId);
 
         if (mitarbeiter?.asana_id) {
           const formattedDate = formatDateFromDatum(datum);
+          logger.debug(`Formatted date: ${formattedDate}`);
 
           const taskResponse = await getTaskById(mitarbeiter.asana_id);
 
@@ -346,7 +377,7 @@ console.log("⚠️ Kein Flip Task oder kein FlipUserId vorhanden");
           const taskId = task?.gid;
 
           if (!taskId) {
-            console.warn(
+            logger.warn(
               "⚠️ Kein gültiger Asana Task gefunden für",
 
               mitarbeiter.asana_id
@@ -355,11 +386,15 @@ console.log("⚠️ Kein Flip Task oder kein FlipUserId vorhanden");
             return;
           }
 
+          logger.debug(`Found Asana task: ${taskId}`);
+
           const subtaskResponse = await getSubtaskByTask(taskId);
 
           const subtasks = Array.isArray(subtaskResponse?.data)
             ? subtaskResponse.data
             : [];
+
+          logger.debug(`Found ${subtasks.length} subtasks`);
 
           const matchingSubtask = subtasks.find(
             (sub) =>
@@ -370,15 +405,16 @@ console.log("⚠️ Kein Flip Task oder kein FlipUserId vorhanden");
           );
 
           if (matchingSubtask) {
+            logger.info(`Found matching subtask: ${matchingSubtask.name} (${matchingSubtask.gid})`);
             if (!matchingSubtask.completed) {
               await completeTaskById(matchingSubtask.gid);
 
-              console.log("✅ Asana Subtask marked complete");
+              logger.info("✅ Asana Subtask marked complete");
             } else {
-              console.log("ℹ️ Asana Subtask already completed");
+              logger.info("ℹ️ Asana Subtask already completed");
             }
           } else {
-            console.log("⚠️ No matching Asana Subtask found");
+            logger.warn(`⚠️ No matching Asana Subtask found. Searched for: "${formattedDate}" and "${name_teamleiter}"`);
           }
 
           const data = {
@@ -388,7 +424,7 @@ console.log("⚠️ Kein Flip Task oder kein FlipUserId vorhanden");
           const commentResponse = await createStoryOnTask(task.gid, data);
 
           if (!commentResponse || !commentResponse.data?.gid) {
-            console.log("📝 Kommentar Antwort Asana:", commentResponse);
+            logger.error("❌ Fehler beim Kommentieren einer Evaluierung (Asana)");
 
             await sendMail(
               "it@straightforward.email",
@@ -412,13 +448,14 @@ console.log("⚠️ Kein Flip Task oder kein FlipUserId vorhanden");
 `
             );
           } else {
-            console.log("✅ Asana Kommentar erstellt:", commentResponse.gid);
+            logger.info("✅ Asana Kommentar erstellt:", commentResponse.data.gid);
           }
         }
       }
 
       if (teamleiter?.id) await assignTeamleiter(parsedBody._id, teamleiter.id);
     } else {
+      logger.error(`Invalid document type: ${type}`);
       return res
 
         .status(400)
@@ -426,6 +463,7 @@ console.log("⚠️ Kein Flip Task oder kein FlipUserId vorhanden");
         .json({ success: false, error: "Invalid document type" });
     }
 
+    logger.info(`✅ WPForms webhook processed successfully: ${type}`);
     res.status(201).json({
       success: true,
 
@@ -631,12 +669,33 @@ router.post(
 );
 
 const formatDateFromDatum = (datum) => {
-  const date = new Date(datum.unix * 1000); // Unix-Timestamp → ms
+  let date;
 
-  const day = date.getDate().toString().padStart(2, "0");
+  // Handle verschiedene Input-Formate
+  if (datum instanceof Date) {
+    date = datum;
+  } else if (typeof datum === 'string') {
+    // ISO-String oder andere String-Formate
+    date = new Date(datum);
+  } else if (datum && typeof datum === 'object' && datum.unix) {
+    // Unix-Timestamp in Millisekunden
+    date = new Date(datum.unix * 1000);
+  } else if (typeof datum === 'number') {
+    // Direkt als Unix-Timestamp (Millisekunden)
+    date = new Date(datum);
+  } else {
+    // Fallback
+    date = new Date();
+  }
 
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  // Validierung
+  if (isNaN(date.getTime())) {
+    console.warn('⚠️ Ungültiges Datum-Format:', datum);
+    date = new Date();
+  }
 
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const year = date.getFullYear();
 
   return `${day}.${month}.${year}`;

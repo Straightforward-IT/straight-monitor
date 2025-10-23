@@ -27,6 +27,22 @@
       }
     },
     {
+      "key": "parser",
+      "aliases": ["mailparser", "email-parser"],
+      "displayName": "Mail Parser",
+      "developmentOnly": true,
+      "email": { "address": "parser@straightforward.email" },
+      "graph": {
+        "upn": "it@straightforward.email",
+        "folderId": "AQMkADMwMWI1ZWRiLTA4MGUtNDZkNC1hNGYyLTg0NTg0ZTE2MzRlMgAuAAAD6gQ5ZtScpEKQMqRImt2PzAEAY3Jrr6k_Nkqjkz-nLAuVewAAAgEMAAAA",
+        "sharedMailbox": "parser@straightforward.email"
+      },
+      "asana": null,
+      "routine": {
+        "enabled": false
+      }
+    },
+    {
       "key": "hamburg",
       "aliases": ["hh", "teamhamburg"],
       "displayName": "Hamburg",

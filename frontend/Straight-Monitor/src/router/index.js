@@ -14,6 +14,7 @@ import ExcelFormatierung from '@/components/ExcelFormatierung.vue';
 import Lohnabrechnungen from '@/components/Lohnabrechnungen.vue';
 import Personal from '@/components/PeopleDocsModern.vue';
 import Dokumente from '@/components/Dokumente.vue';
+import MailParser from '@/components/MailParser.vue';
 import FlipCreate from '@/components/FlipCreate.vue';
 import FlipExit from '@/components/FlipExit.vue';
 
@@ -37,6 +38,7 @@ const routes = [
       { path: 'lohnabrechnungen', name: 'Lohnabrechnungen', component: Lohnabrechnungen },
       { path: 'personal', name: 'Personal', component: Personal },
       { path: 'dokumente', name: 'Dokumente', component: Dokumente },
+      { path: 'mailparser', name: 'MailParser', component: MailParser },
       { path: 'flip/benutzer-erstellen/:id?', name: 'BenutzerErstellen', component: FlipCreate },
       { path: 'flip/austritte', name: 'Austritte', component: FlipExit },
       { path: '', redirect: '/dashboard' }
@@ -64,7 +66,7 @@ router.beforeEach((to, _from, next) => {
   
   // Feature flag check für neue Pages
   const newPagesEnabled = import.meta.env.VITE_ENABLE_NEW_PAGES === 'true';
-  const newPageRoutes = ['Personal', 'Dokumente'];
+  const newPageRoutes = ['Personal', 'Dokumente', 'MailParser'];
   
   if (!newPagesEnabled && newPageRoutes.includes(to.name)) {
     alert('Diese Funktion ist noch in Entwicklung und wird bald verfügbar sein.');

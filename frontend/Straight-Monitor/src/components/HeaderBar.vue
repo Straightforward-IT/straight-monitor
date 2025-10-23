@@ -159,6 +159,8 @@
         
         <div class="mobile-menu-divider"></div>
         
+        <div class="mobile-menu-divider"></div>
+        
         <!-- Mobile Tools & Support -->
         <button class="mobile-menu-btn" @click="ui.toggle('tools'); showMobileMenu = false">
           <font-awesome-icon :icon="['fas', 'tools']" />
@@ -693,6 +695,7 @@ a {
   display: flex;
   align-items: center;
   gap: 6px;
+  transition: all 0.2s;
 }
 a.active {
   background: var(--hover);

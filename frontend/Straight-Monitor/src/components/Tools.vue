@@ -19,6 +19,13 @@
         <span>Lohnabrechnungen</span>
       </button>
 
+
+      <!-- Email & Integration Tools -->
+      <button class="s-btn" @click="go('/mailparser')">
+        <img :src="logoSrc" alt="" />
+        <span>Mail Parser</span>
+      </button>
+
       <div class="sep"></div>
 
       <!-- Flip integriert -->
@@ -92,6 +99,7 @@ h4{ font-size:15px; font-weight:700; opacity:.9; margin:0; }
 .s-btn:hover{ background: var(--hover); transform: translateY(-1px); }
 .s-btn:disabled{ opacity:.6; cursor:not-allowed; transform:none; }
 .s-btn img{ width:16px; height:16px; opacity:.6; }
+.s-btn .icon{ width:16px; height:16px; opacity:.6; }
 
 .sep{ height:4px; }
 </style>
