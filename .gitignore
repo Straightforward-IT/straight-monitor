@@ -54,3 +54,15 @@ temp/
 # Legacy
 *.agdai
 MAlonzo/**
+
+# Documentation (local-only, may contain sensitive information)
+MAILPARSER_*.md
+WPFORMS_*.md
+LAUFZETTEL_*.md
+*_DEBUGGING.md
+*_FLOW.md
+*_SETUP.md
+*_DOCS.md
+*_API.md
+*_NAVIGATION_MAP.md
+*_INTEGRATION.md
