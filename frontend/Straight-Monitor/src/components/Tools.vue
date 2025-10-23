@@ -21,7 +21,11 @@
 
 
       <!-- Email & Integration Tools -->
-      <button class="s-btn" @click="go('/mailparser')">
+      <button 
+        v-if="newPagesEnabled"
+        class="s-btn" 
+        @click="go('/mailparser')"
+      >
         <img :src="logoSrc" alt="" />
         <span>Mail Parser</span>
       </button>
@@ -54,6 +58,9 @@ const go = (path) => router.push(path);
 
 const theme = useTheme();
 const ui = useUi();
+
+const newPagesEnabled = import.meta.env.VITE_ENABLE_NEW_PAGES === 'true';
+
 const logoSrc = computed(() =>
   theme.isDark
     ? new URL('@/assets/SF_000.svg', import.meta.url).href  // weiß (Dark Mode)
