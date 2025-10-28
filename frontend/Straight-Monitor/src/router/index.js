@@ -17,6 +17,7 @@ import Dokumente from '@/components/Dokumente.vue';
 import MailParser from '@/components/MailParser.vue';
 import FlipCreate from '@/components/FlipCreate.vue';
 import FlipExit from '@/components/FlipExit.vue';
+import VerlosungTool from '@/components/VerlosungTool.vue';
 
 import { jwtDecode } from 'jwt-decode';
 
@@ -41,6 +42,7 @@ const routes = [
       { path: 'mailparser', name: 'MailParser', component: MailParser },
       { path: 'flip/benutzer-erstellen/:id?', name: 'BenutzerErstellen', component: FlipCreate },
       { path: 'flip/austritte', name: 'Austritte', component: FlipExit },
+      { path: 'verlosung', name: 'VerlosungTool', component: VerlosungTool },
       { path: '', redirect: '/dashboard' }
     ]
   },
@@ -66,7 +68,7 @@ router.beforeEach((to, _from, next) => {
   
   // Feature flag check für neue Pages
   const newPagesEnabled = import.meta.env.VITE_ENABLE_NEW_PAGES === 'true';
-  const newPageRoutes = ['Personal', 'Dokumente', 'MailParser'];
+  const newPageRoutes = ['Personal', 'Dokumente', 'MailParser', 'VerlosungTool'];
   
   if (!newPagesEnabled && newPageRoutes.includes(to.name)) {
     alert('Diese Funktion ist noch in Entwicklung und wird bald verfügbar sein.');

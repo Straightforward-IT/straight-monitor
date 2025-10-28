@@ -42,6 +42,16 @@
         <img :src="logoSrc" alt="" />
         <span>Flip: Austritte</span>
       </button>
+
+      <div class="sep"></div>
+
+      <!-- Verlosungen -->
+      <button 
+      v-if="newPagesEnabled"
+      class="s-btn" @click="go('/verlosung')">
+        <img :src="logoSrc" alt="" />
+        <span>Adventsverlosungen</span>
+      </button>
     </div>
   </div>
 </template>

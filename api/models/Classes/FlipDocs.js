@@ -85,6 +85,158 @@ const EventReportSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
 });
 
+// ✅ Verlosung Enums
+const GUTSCHEIN_TYPES = {
+  ATENTO: "ATENTO",
+  BONBON: "BONBON",
+  WUNSCHGUTSCHEIN: "WUNSCHGUTSCHEIN",
+  GRAVUR: "GRAVUR",
+};
+
+const GRAVUR_TYPES = {
+  CUTTERMESSER: "cuttermesser",
+  KELLNERMESSER: "kellnermesser",
+};
+
+VerlosungEintragSchema = new mongoose.Schema({
+  location: { type: String, required: false },
+  name_mitarbeiter: { type: String, required: true },
+  email: { type: String, required: true },
+  gutschein_type: {
+    type: String,
+    required: true,
+    enum: Object.values(GUTSCHEIN_TYPES),
+  },
+  gravur_type: {
+    type: String,
+    enum: Object.values(GRAVUR_TYPES),
+    required: false, // Only required if gutschein_type === GRAVUR
+  },
+  mitarbeiter: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Mitarbeiter",
+    required: false,
+  },
+  assigned: { type: Boolean, required: true, default: false },
+  date: { type: Date, default: Date.now },
+});
+
+// ✅ Auto-populate mitarbeiter in Verlosung
+VerlosungEintragSchema.pre("find", function () {
+  this.populate({ path: "mitarbeiter", select: "vorname nachname email" });
+});
+VerlosungEintragSchema.pre("findOne", function () {
+  this.populate({ path: "mitarbeiter", select: "vorname nachname email" });
+});
+
+VerlosungEintragSchema.methods.toHtml = function () {
+  return `
+<strong>Location</strong>\n${this.location || "-"}\n
+<strong>Name Mitarbeiter</strong>\n${this.name_mitarbeiter || "-"}\n
+<strong>Email</strong>\n${this.email || "-"}\n
+<strong>Gutschein-Typ</strong>\n${this.gutschein_type || "-"}\n
+${this.gravur_type ? `<strong>Gravur-Typ</strong>\n${this.gravur_type}\n` : ""}
+<strong>Zugewiesen</strong>\n${this.assigned ? "Ja" : "Nein"}\n
+  `;
+};
+
+// ✅ Verlosung Schema (die Verlosung selbst mit Status, Teilnehmern, Gewinner)
+const VERLOSUNG_STATUS = {
+  OFFEN: "OFFEN",
+  GESCHLOSSEN: "GESCHLOSSEN",
+  ABGESCHLOSSEN: "ABGESCHLOSSEN",
+};
+
+const VerlosungSchema = new mongoose.Schema({
+  gutschein_type: {
+    type: String,
+    required: true,
+    enum: Object.values(GUTSCHEIN_TYPES),
+  },
+  gravur_type: {
+    type: String,
+    enum: Object.values(GRAVUR_TYPES),
+    required: false,
+  },
+  status: {
+    type: String,
+    enum: Object.values(VERLOSUNG_STATUS),
+    default: VERLOSUNG_STATUS.OFFEN,
+  },
+  titel: { type: String, required: true },
+  beschreibung: { type: String, required: false },
+  start_date: { type: Date, required: false },
+  end_date: { type: Date, required: false },
+  anzahl_gewinner: { type: Number, default: 1, min: 1 },
+  eintraege: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "VerlosungEintrag",
+    },
+  ],
+  gewinner_liste: [
+    {
+      eintrag: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "VerlosungEintrag",
+      },
+      mitarbeiter: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Mitarbeiter",
+      },
+      bestaetigt_am: {
+        type: Date,
+        default: Date.now,
+      },
+    },
+  ],
+  gewinner: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "VerlosungEintrag",
+    required: false,
+  },
+  gewinner_mitarbeiter: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Mitarbeiter",
+    required: false,
+  },
+  erstellt_am: { type: Date, default: Date.now },
+  geschlossen_am: { type: Date, required: false },
+  abgeschlossen_am: { type: Date, required: false },
+});
+
+// ✅ Auto-populate eintraege und gewinner in Verlosung
+VerlosungSchema.pre("find", function () {
+  this.populate([
+    { path: "eintraege", select: "-__v" },
+    { path: "gewinner", select: "-__v" },
+    { path: "gewinner_mitarbeiter", select: "vorname nachname email flip_id" },
+    { path: "gewinner_liste.eintrag", select: "-__v" },
+    { path: "gewinner_liste.mitarbeiter", select: "vorname nachname email flip_id" },
+  ]);
+});
+
+VerlosungSchema.pre("findOne", function () {
+  this.populate([
+    { path: "eintraege", select: "-__v" },
+    { path: "gewinner", select: "-__v" },
+    { path: "gewinner_mitarbeiter", select: "vorname nachname email flip_id" },
+    { path: "gewinner_liste.eintrag", select: "-__v" },
+    { path: "gewinner_liste.mitarbeiter", select: "vorname nachname email flip_id" },
+  ]);
+});
+
+VerlosungSchema.methods.toHtml = function () {
+  return `
+<strong>Gutschein-Typ</strong>\n${this.gutschein_type || "-"}\n
+${this.gravur_type ? `<strong>Gravur-Typ</strong>\n${this.gravur_type}\n` : ""}
+<strong>Titel</strong>\n${this.titel || "-"}\n
+<strong>Status</strong>\n${this.status}\n
+<strong>Teilnehmer</strong>\n${this.eintraege?.length || 0}\n
+<strong>Gewinner</strong>\n${this.gewinner_mitarbeiter ? `${this.gewinner_mitarbeiter.vorname} ${this.gewinner_mitarbeiter.nachname}` : "Noch nicht gezogen"}\n
+  `;
+};
+
 // ✅ Auto-populate teamleiter in EventReport
 EventReportSchema.pre("find", function () {
   this.populate({ path: "teamleiter", select: "vorname nachname email" });
@@ -202,5 +354,16 @@ const formatDateHTML = (d) => {
 const Laufzettel = mongoose.model("Laufzettel", LaufzettelSchema);
 const EventReport = mongoose.model("EventReport", EventReportSchema);
 const EvaluierungMA = mongoose.model("EvaluierungMA", EvaluierungSchema);
+const VerlosungEintrag = mongoose.model("VerlosungEintrag", VerlosungEintragSchema);
+const Verlosung = mongoose.model("Verlosung", VerlosungSchema);
 
-module.exports = { Laufzettel, EventReport, EvaluierungMA };
+module.exports = {
+  Laufzettel,
+  EventReport,
+  EvaluierungMA,
+  VerlosungEintrag,
+  Verlosung,
+  GUTSCHEIN_TYPES,
+  GRAVUR_TYPES,
+  VERLOSUNG_STATUS,
+};

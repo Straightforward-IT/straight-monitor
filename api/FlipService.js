@@ -7,9 +7,11 @@ const {
   Laufzettel,
   EventReport,
   EvaluierungMA,
+  VerlosungEintrag,
 } = require("./models/Classes/FlipDocs");
 const Mitarbeiter = require("./models/Mitarbeiter");
 const { sendMail } = require("./EmailService");
+const logger = require("./utils/logger");
 const {
   findTasks,
   findAllTasks,
@@ -678,7 +680,7 @@ const findMitarbeiterByName = async (fullName) => {
 
 const assignFields = async (documentId, updates, callback) => {
   try {
-    const models = [Laufzettel, EventReport, EvaluierungMA];
+    const models = [Laufzettel, EventReport, EvaluierungMA, VerlosungEintrag];
     let documentFound = null;
 
     // Find the document in one of the models using `findOne()` (so pre-hooks run)
@@ -697,6 +699,8 @@ const assignFields = async (documentId, updates, callback) => {
     // Update the "assigned" field based on the type of document
     if (documentFound instanceof EventReport) {
       documentFound.assigned = !!documentFound.teamleiter;
+    } else if (documentFound instanceof VerlosungEintrag) {
+      documentFound.assigned = !!documentFound.mitarbeiter;
     } else {
       documentFound.assigned =
         !!documentFound.teamleiter && !!documentFound.mitarbeiter;
@@ -712,6 +716,7 @@ const assignFields = async (documentId, updates, callback) => {
           mitarbeiter.laufzettel_submitted.push(documentFound._id);
         } else if (documentFound instanceof EvaluierungMA) {
           mitarbeiter.evaluierungen_received.push(documentFound._id);
+        } else if (documentFound instanceof VerlosungEintrag) {
         }
 
         await mitarbeiter.save();
@@ -728,6 +733,7 @@ const assignFields = async (documentId, updates, callback) => {
           teamleiter.eventreports.push(documentFound._id);
         } else if (documentFound instanceof EvaluierungMA) {
           teamleiter.evaluierungen_submitted.push(documentFound._id);
+        } else if (documentFound instanceof VerlosungEintrag) {
         }
 
         await teamleiter.save();
@@ -803,6 +809,17 @@ für ${mitarbeiter.vorname} aus.`,
 
 const assignMitarbeiter = async (documentId, mitarbeiterId) => {
   return assignFields(documentId, { mitarbeiter: mitarbeiterId });
+};
+
+const assignVerlosungEintrag = async (documentId, mitarbeiterId) => {
+  return assignFields(documentId, { mitarbeiter: mitarbeiterId }, async (document) => {
+    if (document instanceof VerlosungEintrag) {
+      await document.populate("mitarbeiter");
+      logger.info(
+        `✅ VerlosungEintrag assigned to: ${document.mitarbeiter?.vorname} ${document.mitarbeiter?.nachname}`
+      );
+    }
+  });
 };
 
 async function assignFlipTask(req) {
@@ -946,6 +963,7 @@ module.exports = {
   findMitarbeiterByName,
   assignTeamleiter,
   assignMitarbeiter,
+  assignVerlosungEintrag,
   assignFlipTask,
   getFlipTaskAssignments,
   markAssignmentAsCompleted,

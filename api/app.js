@@ -64,7 +64,7 @@ app.get('/', (req, res) => res.send('API Running'));
 app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
 app.use('/api/monitoring', monitoringRoutes);
-app.use('/api/reports', wpformsRoutes);
+app.use('/api/wordpress', wpformsRoutes);
 app.use('/api/personal', mitarbeiterRoutes);
 app.use('/api/asana', asanaRoutes);
 app.use('/api/yousign', yousignRoutes);
