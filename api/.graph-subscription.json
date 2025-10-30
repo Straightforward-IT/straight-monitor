@@ -1,15 +1,29 @@
 {
   "subscriptions": {
     "byId": {
-      "55406c7f-11fc-4ce6-b4b7-7dfb558b254c": {
-        "upn": "it@straightforward.email",
-        "folderId": "AAMkAGZlNjY5NTg0LTEyZDctNGQ4MC1hNGUyLTkxY2MzYmU2YmNjNQAuAAAAAADK2se2ylstR6FJ2el-dDVCAQAwQF6EUVItQo8XKGsza1MUAAD0HJjNAAA=",
-        "resource": "/users('it@straightforward.email')/mailFolders('AAMkAGZlNjY5NTg0LTEyZDctNGQ4MC1hNGUyLTkxY2MzYmU2YmNjNQAuAAAAAADK2se2ylstR6FJ2el-dDVCAQAwQF6EUVItQo8XKGsza1MUAAD0HJjNAAA=')/messages",
-        "expirationDateTime": "2025-10-11T10:51:25.25Z"
+      "cc49a0de-ac06-4ecc-a10f-2dc3ce93e441": {
+        "upn": "teamhamburg@straightforward.email",
+        "folderId": "AAMkADc3N2U2OWM1LTQzYzYtNDZkYi1hOGU3LTMyZjcyZjYxZDhiMAAuAAAAAADsbxcaOkqtS6j2HA5oaQdWAQBE30WTJlpaQYh_UhE9m5icAAJbR5gHAAA=",
+        "resource": "/users('teamhamburg@straightforward.email')/mailFolders('AAMkADc3N2U2OWM1LTQzYzYtNDZkYi1hOGU3LTMyZjcyZjYxZDhiMAAuAAAAAADsbxcaOkqtS6j2HA5oaQdWAQBE30WTJlpaQYh_UhE9m5icAAJbR5gHAAA=')/messages",
+        "expirationDateTime": "2025-11-01T08:23:53.123Z"
+      },
+      "3e1a4508-4e00-4d90-85ef-6177517f4c05": {
+        "upn": "teamberlin@straightforward.email",
+        "folderId": "AAMkAGMyMGFhN2FlLTIzNjItNGRiYy05M2JjLTMzY2I4NWVkNmYwYQAuAAAAAABXdjtxmi3RQKGPDm5p9TvXAQD-AqGf-78nSqrUvVdIVg-jAALYEeLUAAA=",
+        "resource": "/users('teamberlin@straightforward.email')/mailFolders('AAMkAGMyMGFhN2FlLTIzNjItNGRiYy05M2JjLTMzY2I4NWVkNmYwYQAuAAAAAABXdjtxmi3RQKGPDm5p9TvXAQD-AqGf-78nSqrUvVdIVg-jAALYEeLUAAA=')/messages",
+        "expirationDateTime": "2025-11-01T08:23:54.36Z"
+      },
+      "536135e7-ed5d-4f99-8393-3a57e0631ff1": {
+        "upn": "teamkoeln@straightforward.email",
+        "folderId": "AAMkADgzNmUzYTlmLWJiM2ItNDBlNS04M2EzLWU4ZTE1MWVkMjMzNAAuAAAAAAC5UmQRxi4DSJIc4SGSGqyrAQAuE9cxL75MRZSLnJLcoP_QAAFQf4ouAAA=",
+        "resource": "/users('teamkoeln@straightforward.email')/mailFolders('AAMkADgzNmUzYTlmLWJiM2ItNDBlNS04M2EzLWU4ZTE1MWVkMjMzNAAuAAAAAAC5UmQRxi4DSJIc4SGSGqyrAQAuE9cxL75MRZSLnJLcoP_QAAFQf4ouAAA=')/messages",
+        "expirationDateTime": "2025-11-01T08:23:55.231Z"
       }
     },
     "byKey": {
-      "it@straightforward.email|AAMkAGZlNjY5NTg0LTEyZDctNGQ4MC1hNGUyLTkxY2MzYmU2YmNjNQAuAAAAAADK2se2ylstR6FJ2el-dDVCAQAwQF6EUVItQo8XKGsza1MUAAD0HJjNAAA=": "55406c7f-11fc-4ce6-b4b7-7dfb558b254c"
+      "teamhamburg@straightforward.email|AAMkADc3N2U2OWM1LTQzYzYtNDZkYi1hOGU3LTMyZjcyZjYxZDhiMAAuAAAAAADsbxcaOkqtS6j2HA5oaQdWAQBE30WTJlpaQYh_UhE9m5icAAJbR5gHAAA=": "cc49a0de-ac06-4ecc-a10f-2dc3ce93e441",
+      "teamberlin@straightforward.email|AAMkAGMyMGFhN2FlLTIzNjItNGRiYy05M2JjLTMzY2I4NWVkNmYwYQAuAAAAAABXdjtxmi3RQKGPDm5p9TvXAQD-AqGf-78nSqrUvVdIVg-jAALYEeLUAAA=": "3e1a4508-4e00-4d90-85ef-6177517f4c05",
+      "teamkoeln@straightforward.email|AAMkADgzNmUzYTlmLWJiM2ItNDBlNS04M2EzLWU4ZTE1MWVkMjMzNAAuAAAAAAC5UmQRxi4DSJIc4SGSGqyrAQAuE9cxL75MRZSLnJLcoP_QAAFQf4ouAAA=": "536135e7-ed5d-4f99-8393-3a57e0631ff1"
     }
   }
 }

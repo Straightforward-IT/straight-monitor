@@ -53,11 +53,26 @@ function parseMessageIdFromResource(resource = "") {
 }
 // UPN/GUID aus /users(...)
 function extractUserFromResource(resource = "") {
+  // Format 1: /users('email@domain.com')/mailFolders/...
   const mQuoted = resource.match(/\/users\('([^']+)'\)\//i);
   if (mQuoted) return mQuoted[1];
-  const mPlain = resource.match(/\/users\/([^\/]+)\//i);
+  
+  // Format 2: /users/email@domain.com/mailFolders/...
+  const mPlain = resource.match(/\/users\/([^\/]+@[^\/]+)\//i);
   if (mPlain) return mPlain[1];
+  
+  // Format 3: Users/email@domain.com/Messages/... (no leading slash, capitalized)
+  const mCapital = resource.match(/Users\/([^\/]+@[^\/]+)\//i);
+  if (mCapital) return mCapital[1];
+  
   return null;
+}
+
+function extractUserGuidFromResource(resource = "") {
+  // Extract GUID from: Users/3326a1b7-a0c9-4f45-9d26-c0f8895d71f5/Messages/...
+  const guidPattern = /Users\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\//i;
+  const match = resource.match(guidPattern);
+  return match ? match[1] : null;
 }
 // simples pLimit
 function makePLimit(limit = 5) {
@@ -97,11 +112,20 @@ async function withRetry(fn, { tries = 5, delayMs = 200 } = {}) {
   throw new Error(`withRetry: failed after ${tries} attempts`);
 }
 // $expand Fallback
-async function getMessageWithExpandedAttachments(token, upn, messageId) {
-  const url =
-    `${GRAPH}/users/${encodeURIComponent(upn)}/messages/${messageId}` +
-    `?$select=id,subject,hasAttachments,from,receivedDateTime,internetMessageId` +
-    `&$expand=attachments($select=id,name,contentType,size,isInline)`;
+async function getMessageWithExpandedAttachments(token, upn, messageId, folderId = null) {
+  // Use folder-specific endpoint if folderId provided
+  let url;
+  if (folderId) {
+    url =
+      `${GRAPH}/users/${encodeURIComponent(upn)}/mailFolders/${encodeURIComponent(folderId)}/messages/${messageId}` +
+      `?$select=id,subject,hasAttachments,from,receivedDateTime,internetMessageId` +
+      `&$expand=attachments($select=id,name,contentType,size,isInline)`;
+  } else {
+    url =
+      `${GRAPH}/users/${encodeURIComponent(upn)}/messages/${messageId}` +
+      `?$select=id,subject,hasAttachments,from,receivedDateTime,internetMessageId` +
+      `&$expand=attachments($select=id,name,contentType,size,isInline)`;
+  }
   const { data } = await axios.get(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -165,23 +189,42 @@ router.post("/webhook", (req, res) => {
             continue;
           }
 
-          // 1) Favorisiert: aus unserem Store über subscriptionId
-          const subInfo = n.subscriptionId
-            ? getStoredSubscriptionById(n.subscriptionId)
-            : null;
-          let upn = subInfo?.upn || null;
+          const resource = n.resource || "";
+          let upn = null;
 
-          // 2) Notfalls aus resource extrahieren
-          if (!upn) {
-            const resource = n.resource || "";
-            const derivedUser = extractUserFromResource(resource);
-            upn = derivedUser || null;
+          // Strategy 1: Get UPN from stored subscription by ID (most reliable after proper setup)
+          if (n.subscriptionId) {
+            const subInfo = getStoredSubscriptionById(n.subscriptionId);
+            if (subInfo?.upn) {
+              upn = subInfo.upn;
+              console.log(`[upn-source] subscription-store (subId=${n.subscriptionId})`);
+            }
           }
 
-          // 3) Allerletzter Fallback: erstes Team aus Registry
+          // Strategy 2: Try to extract UPN/email from resource field
+          if (!upn) {
+            const derivedUser = extractUserFromResource(resource);
+            if (derivedUser) {
+              upn = derivedUser;
+              console.log(`[upn-source] resource-extraction (${resource})`);
+            }
+          }
+
+          // Strategy 3: Match GUID from resource to team configs
+          if (!upn) {
+            const guid = extractUserGuidFromResource(resource);
+            if (guid) {
+              console.log(`[upn-source] attempting GUID match (${guid})`);
+              // We can't reliably map GUID to UPN without Microsoft Graph lookup
+              // This is a limitation - GUID changes and isn't stable
+            }
+          }
+
+          // Strategy 4: Last fallback - first team from registry
           if (!upn) {
             const acc = registry.getSubscriptionAccounts()[0];
             upn = acc?.upn;
+            console.warn(`[upn-source] FALLBACK to first team (${upn}) - subscription store might be outdated!`);
           }
 
           if (!upn) {
@@ -189,7 +232,6 @@ router.post("/webhook", (req, res) => {
             continue;
           }
 
-          const resource = n.resource || "";
           const parsedId = parseMessageIdFromResource(resource);
           const messageId = n.resourceData?.id || parsedId;
           if (!messageId) {
@@ -234,8 +276,10 @@ router.post("/webhook", (req, res) => {
                       (upn || "").toLowerCase()
                   ) || null;
               const teamKey = teamForUpn?.key;
+              const folderId = teamForUpn?.graph?.folderId || null;
+              
               const msg = await withRetry(
-                () => getMessageById(appToken, upn, messageId),
+                () => getMessageById(appToken, upn, messageId, folderId),
                 { tries: 5, delayMs: 200 }
               );
 
@@ -248,7 +292,7 @@ router.post("/webhook", (req, res) => {
               );
 
               let atts = await withRetry(
-                () => listAttachments(appToken, upn, messageId),
+                () => listAttachments(appToken, upn, messageId, folderId),
                 { tries: 4, delayMs: 250 }
               ).catch(() => []);
 
@@ -262,7 +306,7 @@ router.post("/webhook", (req, res) => {
                 );
                 const msgExpanded = await withRetry(
                   () =>
-                    getMessageWithExpandedAttachments(appToken, upn, messageId),
+                    getMessageWithExpandedAttachments(appToken, upn, messageId, folderId),
                   { tries: 4, delayMs: 400 }
                 );
                 atts = (msgExpanded.attachments || []).map((a) => ({
@@ -291,7 +335,8 @@ router.post("/webhook", (req, res) => {
                     appToken,
                     upn,
                     messageId,
-                    a
+                    a,
+                    folderId
                   );
                   if (file) files.push(file);
                 } catch (e) {
@@ -471,6 +516,7 @@ router.post("/parser/webhook", (req, res) => {
       const appToken = await getAppToken();
       const parserTeam = registry.getTeam('parser');
       const parserUpn = parserTeam?.graph?.upn || 'it@straightforward.email';
+      const parserFolderId = parserTeam?.graph?.folderId || null;
 
       for (const n of notifications) {
         try {
@@ -492,7 +538,7 @@ router.post("/parser/webhook", (req, res) => {
 
           // Fetch the email
           const msg = await withRetry(
-            () => getMessageById(appToken, parserUpn, messageId),
+            () => getMessageById(appToken, parserUpn, messageId, parserFolderId),
             { tries: 5, delayMs: 200 }
           );
 

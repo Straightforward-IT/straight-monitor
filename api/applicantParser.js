@@ -273,11 +273,42 @@ function extractIndeedFields(html, subject, plainText) {
 
 function parseKeyValueLines(text = "", keys = []) {
   const out = {};
-  const lines = String(text).split(/\r?\n/).map((x) => x.trim());
-  for (const ln of lines) {
+  const lines = String(text).split(/\r?\n/);
+  
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i].trim();
+    
     for (const key of keys) {
-      const m = ln.match(new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*(.*)$`, "i"));
-      if (m) { out[key] = m[1].trim(); break; }
+      const pattern = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*(.*)$`, "i");
+      const m = ln.match(pattern);
+      
+      if (m) {
+        // Erste Zeile mit dem Wert
+        let value = m[1].trim();
+        
+        // Für "Nachricht" sammle alle folgenden Zeilen bis zum nächsten Key
+        if (key === "Nachricht") {
+          const nextLines = [];
+          for (let j = i + 1; j < lines.length; j++) {
+            const nextLn = lines[j];
+            // Stoppe wenn wir einen neuen Key finden
+            const isNewKey = keys.some(k => 
+              new RegExp(`^${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:`, "i").test(nextLn.trim())
+            );
+            if (isNewKey) break;
+            
+            // Sonst füge die Zeile zur Nachricht hinzu
+            nextLines.push(nextLn);
+          }
+          // Kombiniere erste Zeile + folgende Zeilen
+          if (nextLines.length > 0) {
+            value = value + "\n" + nextLines.join("\n");
+          }
+        }
+        
+        out[key] = value.trim();
+        break;
+      }
     }
   }
   return out;

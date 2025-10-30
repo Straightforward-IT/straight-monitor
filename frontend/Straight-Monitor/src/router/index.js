@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import '../assets/styles/main.scss';
 
 import EmailConfirmation from '@/components/EmailConfirmation.vue';
-import HomeLogin from '@/components/HomeLogin.vue'; // NEU
+import HomeLogin from '@/components/HomeLogin.vue';
 
 // Layout + Seiten (bestehend)
 import MainLayout from '@/layouts/MainLayout.vue';

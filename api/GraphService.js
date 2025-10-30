@@ -304,25 +304,47 @@ async function ensureMultipleGraphSubscriptions({ accounts = [], notificationUrl
 }
 
 /* --------------------------------- Mail ---------------------------------- */
-async function getMessageById(token, upn, messageId) {
-  const url =
-    `${GRAPH}/users/${encodeURIComponent(upn)}/messages/${messageId}` +
-    `?$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,body,hasAttachments,internetMessageId,parentFolderId`;
+async function getMessageById(token, upn, messageId, folderId = null) {
+  // Use folder-specific endpoint if folderId provided (more reliable for folder subscriptions)
+  let url;
+  if (folderId) {
+    url =
+      `${GRAPH}/users/${encodeURIComponent(upn)}/mailFolders/${encodeURIComponent(folderId)}/messages/${messageId}` +
+      `?$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,body,hasAttachments,internetMessageId,parentFolderId`;
+  } else {
+    url =
+      `${GRAPH}/users/${encodeURIComponent(upn)}/messages/${messageId}` +
+      `?$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,body,hasAttachments,internetMessageId,parentFolderId`;
+  }
   const { data } = await axios.get(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return data;
 }
-async function listAttachments(token, upn, messageId) {
-  const url =
-    `${GRAPH}/users/${encodeURIComponent(upn)}/messages/${messageId}/attachments` +
-    `?$select=id,name,contentType,size,isInline`;
+async function listAttachments(token, upn, messageId, folderId = null) {
+  // Use folder-specific endpoint if folderId provided
+  let url;
+  if (folderId) {
+    url =
+      `${GRAPH}/users/${encodeURIComponent(upn)}/mailFolders/${encodeURIComponent(folderId)}/messages/${messageId}/attachments` +
+      `?$select=id,name,contentType,size,isInline`;
+  } else {
+    url =
+      `${GRAPH}/users/${encodeURIComponent(upn)}/messages/${messageId}/attachments` +
+      `?$select=id,name,contentType,size,isInline`;
+  }
   const { data } = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
   return data.value || [];
 }
-async function downloadAttachment(token, upn, messageId, attachment) {
+async function downloadAttachment(token, upn, messageId, attachment, folderId = null) {
   try {
-    const url = `${GRAPH}/users/${encodeURIComponent(upn)}/messages/${messageId}/attachments/${attachment.id}`;
+    // Use folder-specific endpoint if folderId provided
+    let url;
+    if (folderId) {
+      url = `${GRAPH}/users/${encodeURIComponent(upn)}/mailFolders/${encodeURIComponent(folderId)}/messages/${messageId}/attachments/${attachment.id}`;
+    } else {
+      url = `${GRAPH}/users/${encodeURIComponent(upn)}/messages/${messageId}/attachments/${attachment.id}`;
+    }
     const { data } = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
     if (data["@odata.type"] === "#microsoft.graph.fileAttachment") {
       return {
