@@ -511,7 +511,7 @@
         class="modal"
         @click.self="closeAllModals"
       >
-        <div class="modal-content">
+        <div class="modal-content inventory-modal">
           <font-awesome-icon
             class="close"
             :icon="['fas', 'times']"
@@ -520,32 +520,35 @@
 
           <h4>Bestands-Update senden</h4>
 
-          <div class="form-group">
-            <label>
-              Standort
-              <select v-model="inventoryLocation">
-                <option value="all">Alle Standorte</option>
-                <option value="Hamburg">Hamburg</option>
-                <option value="Berlin">Berlin</option>
-                <option value="Köln">Köln</option>
-              </select>
-            </label>
+          <div class="modal-scrollable">
+            <div class="inventory-form">
+              <label>
+                Standort
+                <select v-model="inventoryLocation">
+                  <option value="all">Alle Standorte</option>
+                  <option value="Hamburg">Hamburg</option>
+                  <option value="Berlin">Berlin</option>
+                  <option value="Köln">Köln</option>
+                </select>
+              </label>
 
-            <label>
-              E-Mail
-              <input
-                type="email"
-                v-model="inventoryEmail"
-                placeholder="E-Mail-Adresse eingeben"
-                required
-              />
-            </label>
+              <label>
+                E-Mail-Adresse (Optional)
+                <input
+                  type="email"
+                  v-model="inventoryEmail"
+                  :placeholder="inventoryEmailPlaceholder"
+                />
+                <span class="help-text">
+                  {{ inventoryHelpText }}
+                </span>
+              </label>
+            </div>
           </div>
-        </div>
-        
-        <!-- Fixed Buttons Outside Modal Content -->
-        <div class="modal-buttons">
-          <button @click="sendInventoryUpdate">Bestand senden</button>
+
+          <div class="modal-buttons">
+            <button @click="sendInventoryUpdate">Bestand senden</button>
+          </div>
         </div>
       </div>
     </teleport>
@@ -642,6 +645,29 @@ export default {
     itemsMap() {
       return itemMappings[this.selectedLocation] || {};
     },
+    
+    inventoryEmailPlaceholder() {
+      const emailMap = {
+        'Hamburg': 'teamhamburg@straightforward.email',
+        'Berlin': 'teamberlin@straightforward.email',
+        'Köln': 'teamkoeln@straightforward.email',
+        'all': 'teamhamburg@..., teamberlin@..., teamkoeln@...'
+      };
+      return emailMap[this.inventoryLocation] || 'Team-E-Mail';
+    },
+    
+    inventoryHelpText() {
+      if (this.inventoryLocation === 'all') {
+        return 'Leer lassen → wird an alle Team-E-Mails gesendet';
+      }
+      const emailMap = {
+        'Hamburg': 'teamhamburg@straightforward.email',
+        'Berlin': 'teamberlin@straightforward.email',
+        'Köln': 'teamkoeln@straightforward.email'
+      };
+      const email = emailMap[this.inventoryLocation];
+      return email ? `Leer lassen → wird an ${email} gesendet` : 'Leer lassen → wird an Team-E-Mail gesendet';
+    }
   },
 
   methods: {
@@ -714,18 +740,19 @@ export default {
     },
 
     async sendInventoryUpdate() {
-      if (!this.inventoryEmail) {
-        alert("Bitte eine E-Mail-Adresse eingeben");
-        return;
-      }
-
       try {
         await api.post("/api/items/sendInventoryUpdate", {
           location: this.inventoryLocation,
-          email: this.inventoryEmail,
+          email: this.inventoryEmail || null, // null if empty
         });
-        alert("Bestandsupdate wurde verschickt!");
+        
+        const destination = this.inventoryEmail 
+          ? `an ${this.inventoryEmail}` 
+          : "an die Team-E-Mail(s)";
+        
+        alert(`Bestandsupdate wurde ${destination} verschickt!`);
         this.closeAllModals();
+        this.inventoryEmail = ""; // Reset
       } catch (error) {
         console.error("Fehler beim Senden des Bestandsupdates:", error);
         alert("Fehler beim Senden des Bestandsupdates");
@@ -1282,33 +1309,57 @@ h4 {
 }
 
 /* Inventory Update Form */
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin: 16px 0;
+.inventory-modal {
+  width: 420px;
+  height: auto;
+  max-height: 500px;
 }
 
-.form-group label {
+.inventory-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 8px;
+}
+
+.inventory-form label {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text);
 }
 
-.form-group select,
-.form-group input {
-  padding: 8px 12px;
+.inventory-form select,
+.inventory-form input {
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--tile-bg);
   color: var(--text);
-  font-size: 13px;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.form-group input:focus,
-.form-group select:focus {
+.inventory-form input:focus,
+.inventory-form select:focus {
   border-color: var(--primary);
   outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.inventory-form input::placeholder {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.help-text {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 /* Fixed Modal Buttons - Always visible at bottom */

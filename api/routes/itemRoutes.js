@@ -358,16 +358,17 @@ router.get(
 router.post("/sendInventoryUpdate", auth, asyncHandler(async (req, res) => {
   const { location, email } = req.body;
 
-  if (!email) {
-    return res.status(400).json({ msg: "Email address is required" });
-  }
-
   // If location is 'all', send update for each location, otherwise send for specific location
   try {
     if (location === 'all') {
       // Send updates for all locations
       for (const city of cities) {
-        await sendInventoryUpdateEmail(city, [email]);
+        const recipients = email ? [email] : [registry.getTeam(city).email?.address].filter(Boolean);
+        if (recipients.length === 0) {
+          console.warn(`No recipients for location ${city}, skipping`);
+          continue;
+        }
+        await sendInventoryUpdateEmail(city, recipients);
       }
     } else {
       // Validate location
@@ -376,13 +377,19 @@ router.post("/sendInventoryUpdate", auth, asyncHandler(async (req, res) => {
           msg: `Invalid location. Must be one of: ${cities.join(", ")} or 'all'` 
         });
       }
+      // Determine recipients: custom email or default team email
+      const recipients = email ? [email] : [registry.getTeam(location).email?.address].filter(Boolean);
+      if (recipients.length === 0) {
+        return res.status(400).json({ msg: "No email recipients configured for this location" });
+      }
       // Send update for specific location
-      await sendInventoryUpdateEmail(location, [email]);
+      await sendInventoryUpdateEmail(location, recipients);
     }
 
+    const recipientInfo = email || "team default email(s)";
     res.status(200).json({ 
       success: true, 
-      message: `Inventory update sent to ${email}${location === 'all' ? ' for all locations' : ` for ${location}`}` 
+      message: `Inventory update sent to ${recipientInfo}${location === 'all' ? ' for all locations' : ` for ${location}`}` 
     });
   } catch (error) {
     console.error("Error sending inventory update:", error);

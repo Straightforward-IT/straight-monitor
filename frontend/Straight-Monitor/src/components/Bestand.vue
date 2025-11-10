@@ -684,11 +684,15 @@ button {
   background-color: var(--primary);
   color: #fff;
   font-size: 14px;
-  margin-left: auto;
   font-weight: 500;
   box-shadow: 0px 2px 6px -1px rgba(0,0,0,0.13);
   border: none;
   outline: 0;
+}
+
+/* Modal Buttons spezifisch zentrieren */
+.modal-buttons button {
+  margin-left: 0;
 }
 
 /* --------- Modal Grundstruktur --------- */
