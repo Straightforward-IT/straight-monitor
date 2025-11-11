@@ -19,3 +19,6 @@ npm-debug.log*
 # Test files
 test/
 coverage/
+
+# Auto-generated runtime files
+.graph-subscription.json
