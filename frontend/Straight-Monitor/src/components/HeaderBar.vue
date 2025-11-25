@@ -26,12 +26,10 @@
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
         </router-link>
         <router-link
-          :to="newPagesEnabled ? '/dokumente' : '#'"
-          :class="{ active: $route.name === 'Dokumente', disabled: !newPagesEnabled }"
-          @click="handleNewPageClick($event, '/dokumente')"
+          to="/dokumente"
+          :class="{ active: $route.name === 'Dokumente'}"
         >
           Dokumente
-          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
         </router-link>
       </nav>
       
@@ -148,13 +146,12 @@
         </router-link>
         
         <router-link
-          :to="newPagesEnabled ? '/dokumente' : '#'"
-          :class="{ active: $route.name === 'Dokumente', disabled: !newPagesEnabled }"
-          @click="handleNewPageClick($event, '/dokumente'); showMobileMenu = false"
+          to="/dokumente"
+          :class="{ active: $route.name === 'Dokumente' }"
+          @click="showMobileMenu = false"
         >
           <font-awesome-icon :icon="['fas', 'file-alt']" />
           Dokumente
-          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
         </router-link>
         
         <div class="mobile-menu-divider"></div>
