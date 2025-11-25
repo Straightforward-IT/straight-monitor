@@ -31,6 +31,27 @@
           </button>
 
           <span class="divider" />
+          <span class="chip-label">Standort</span>
+          <button
+            class="chip"
+            :class="{ active: activeDocLocationFilter === 'Alle' }"
+            @click="setDocFilter('location', 'Alle')"
+          >
+            <font-awesome-icon icon="fa-solid fa-earth-europe" />
+            Alle
+          </button>
+          <button
+            v-for="loc in locations"
+            :key="loc"
+            class="chip"
+            :class="{ active: activeDocLocationFilter === loc }"
+            @click="setDocFilter('location', loc)"
+          >
+            <font-awesome-icon icon="fa-solid fa-location-dot" />
+            {{ loc }}
+          </button>
+
+          <span class="divider" />
           <span class="chip-label">Typ</span>
           <button
             class="chip"
@@ -54,7 +75,7 @@
             @click="setDocFilter('type', 'Event-Bericht')"
           >
             <font-awesome-icon icon="fa-solid fa-clipboard" />
-            Event-Berichte
+            Event Report
           </button>
           <button
             class="chip"
@@ -62,7 +83,7 @@
             @click="setDocFilter('type', 'Evaluierung')"
           >
             <font-awesome-icon icon="fa-solid fa-pen-clip" />
-            Evaluierungen
+            Evaluierung
           </button>
         </div>
 
@@ -80,25 +101,41 @@
             />
           </div>
 
-          <div class="sort">
-            <button class="btn-ghost" @click="toggleDocSort">
-              <font-awesome-icon icon="fa-solid fa-arrow-up-wide-short" />
-              Sortieren
-            </button>
-            <div
-              v-if="showDocSort"
-              class="menu"
-              @click.outside="showDocSort = false"
-            >
-              <button @click="setDocumentsSort('datum')">Datum</button>
-              <button @click="setDocumentsSort('docType')">Typ</button>
-              <button @click="setDocumentsSort('bezeichnung')">
-                Bezeichnung
+          <!-- Pagination Controls -->
+          <div v-if="!loading.documents && filteredDocumentsSorted.length > 0" class="pagination-compact">
+            <div class="pagination-info-compact">
+              <span class="pagination-text">{{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}</span>
+              
+              <select 
+                v-model="itemsPerPage" 
+                @change="setItemsPerPage(Number($event.target.value))"
+                class="pagination-select-compact"
+              >
+                <option v-for="size in pageOptions" :key="size" :value="size">
+                  {{ size }}
+                </option>
+              </select>
+            </div>
+            
+            <div class="pagination-controls-compact" v-if="totalPages > 1">
+              <button 
+                class="pagination-btn-compact" 
+                :disabled="currentPage === 1" 
+                @click="prevPage"
+                title="Vorherige Seite"
+              >
+                <font-awesome-icon icon="fa-solid fa-chevron-left" />
               </button>
-              <button class="sep" disabled />
-              <button @click="documentsIsAscending = !documentsIsAscending">
-                Richtung:
-                {{ documentsIsAscending ? "Aufsteigend" : "Absteigend" }}
+              
+              <span class="page-indicator">{{ currentPage }} / {{ totalPages }}</span>
+              
+              <button 
+                class="pagination-btn-compact" 
+                :disabled="currentPage === totalPages" 
+                @click="nextPage"
+                title="Nächste Seite"
+              >
+                <font-awesome-icon icon="fa-solid fa-chevron-right" />
               </button>
             </div>
           </div>
@@ -111,43 +148,138 @@
 
       <div v-else class="table">
         <div class="thead">
-          <div>Typ</div>
-          <div>Bezeichnung / Ort</div>
-          <div>Datum</div>
-          <div>Personen</div>
-          <div>Status</div>
+          <div @click="handleSort('docType')" class="sortable">
+            Typ
+            <font-awesome-icon v-if="sortKey === 'docType'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
+            <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
+          </div>
+          <div @click="handleSort('bezeichnung')" class="sortable">
+            Bezeichnung / Ort
+            <font-awesome-icon v-if="sortKey === 'bezeichnung'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
+            <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
+          </div>
+          <div @click="handleSort('datum')" class="sortable">
+            Datum
+            <font-awesome-icon v-if="sortKey === 'datum'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
+            <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
+          </div>
+          <div @click="handleSort('teamleiter')" class="sortable">
+            Teamleiter
+            <font-awesome-icon v-if="sortKey === 'teamleiter'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
+            <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
+          </div>
+          <div @click="handleSort('mitarbeiter')" class="sortable">
+            Mitarbeiter
+            <font-awesome-icon v-if="sortKey === 'mitarbeiter'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
+            <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
+          </div>
+          <div @click="handleSort('status')" class="sortable">
+            Status
+            <font-awesome-icon v-if="sortKey === 'status'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
+            <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
+          </div>
           <div>Aktionen</div>
         </div>
         <div
-          v-for="doc in filteredDocumentsSorted"
+          v-for="doc in paginatedDocuments"
           :key="doc.id || doc._id"
-          class="row"
+          class="row clickable-row"
+          @click="openDoc(doc)"
         >
           <div>
             <span
-              :class="['tag', doc.docType ? doc.docType.toLowerCase() : '']"
+              :class="['tag', doc.docType ? doc.docType.toLowerCase().replace(' ', '-') : '']"
             >
               {{ doc.docType || "—" }}
             </span>
           </div>
           <div class="truncate">{{ doc.bezeichnung || "—" }}</div>
           <div>{{ formatDate(doc.datum) }}</div>
-          <div class="truncate">{{ doc.personen || "—" }}</div>
+          <div class="truncate">{{ doc.details?.name_teamleiter || "—" }}</div>
+          <div class="truncate">{{ doc.details?.name_mitarbeiter || "—" }}</div>
           <div>
             <span :class="['status', (doc.status || '').toLowerCase()]">
               {{ doc.status || "—" }}
             </span>
           </div>
-          <div>
-            <button class="btn btn-ghost" @click="openDoc(doc)">
-              Details
+          <div class="actions-col" @click.stop>
+            <button class="btn-icon" @click="toggleQuickActions(doc.id || doc._id)">
+              <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
             </button>
+            <div v-if="activeQuickActionId === (doc.id || doc._id)" class="quick-actions-menu">
+              <button @click="openDoc(doc)">
+                <font-awesome-icon icon="fa-solid fa-magnifying-glass" /> Details
+              </button>
+            </div>
           </div>
         </div>
 
         <div v-if="filteredDocumentsSorted.length === 0" class="empty">
           <font-awesome-icon icon="fa-solid fa-face-meh-blank" />
           <p>Keine Dokumente gefunden.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div v-if="selectedDoc" class="modal-overlay" @click.self="closeDoc">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>{{ selectedDoc.docType }} Details</h3>
+          <button class="close-btn" @click="closeDoc">
+            <font-awesome-icon icon="fa-solid fa-xmark" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="detail-grid">
+            <div class="detail-item">
+              <label>Bezeichnung / Ort</label>
+              <p>{{ selectedDoc.bezeichnung }}</p>
+            </div>
+            <div class="detail-item">
+              <label>Datum</label>
+              <p>{{ formatDate(selectedDoc.datum) }}</p>
+            </div>
+            <div class="detail-item">
+              <label>Status</label>
+              <span :class="['status', (selectedDoc.status || '').toLowerCase()]">
+                {{ selectedDoc.status }}
+              </span>
+            </div>
+            <div class="detail-item">
+              <label>Teamleiter</label>
+              <div v-if="selectedDoc.details?.name_teamleiter">
+                {{ selectedDoc.details.name_teamleiter }}
+              </div>
+              <button v-else class="btn btn-sm btn-primary" @click="demoAssign('teamleiter')">
+                <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
+              </button>
+            </div>
+            <div class="detail-item" v-if="selectedDoc.docType !== 'Event-Bericht'">
+              <label>Mitarbeiter</label>
+              <div v-if="selectedDoc.details?.name_mitarbeiter">
+                {{ selectedDoc.details.name_mitarbeiter }}
+              </div>
+              <button v-else class="btn btn-sm btn-primary" @click="demoAssign('mitarbeiter')">
+                <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
+              </button>
+            </div>
+          </div>
+
+          <div class="raw-data">
+            <h4>Details</h4>
+            <div class="key-value-list">
+              <div v-for="(value, key) in selectedDoc.details" :key="key" class="kv-item">
+                <template v-if="!['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id'].includes(key)">
+                  <span class="key">{{ formatKey(key) }}:</span>
+                  <span class="value">{{ formatValue(key, value) }}</span>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" @click="closeDoc">Schließen</button>
         </div>
       </div>
     </div>
@@ -168,6 +300,17 @@ import {
   faClipboard,
   faPenClip,
   faFaceMehBlank,
+  faXmark,
+  faChevronUp,
+  faChevronDown,
+  faChevronLeft,
+  faChevronRight,
+  faSort,
+  faLink,
+  faUnlink,
+  faLocationDot,
+  faEarthEurope,
+  faEllipsisVertical
 } from "@fortawesome/free-solid-svg-icons";
 import { faCircle as faCircleRegular } from "@fortawesome/free-regular-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
@@ -182,7 +325,18 @@ library.add(
   faClipboard,
   faPenClip,
   faFaceMehBlank,
-  faCircleRegular
+  faCircleRegular,
+  faXmark,
+  faChevronUp,
+  faChevronDown,
+  faChevronLeft,
+  faChevronRight,
+  faSort,
+  faLink,
+  faUnlink,
+  faLocationDot,
+  faEarthEurope,
+  faEllipsisVertical
 );
 
 export default {
@@ -193,6 +347,7 @@ export default {
     return {
       // auth/user
       token: localStorage.getItem("token") || null,
+      userLocation: "",
 
       // state
       loading: { documents: true },
@@ -200,16 +355,26 @@ export default {
 
       // data sets
       documents: [],
+      locations: ["Hamburg", "Berlin", "Köln"],
 
       // filters and search
       activeDocStatusFilter: "Alle",
       activeDocTypeFilter: "Alle",
+      activeDocLocationFilter: "Alle",
       documentsSearchQuery: "",
-      documentsSortBy: "datum",
-      documentsIsAscending: true,
+      
+      // sorting
+      sortKey: 'datum',
+      sortOrder: 'desc',
+
+      // pagination
+      currentPage: 1,
+      itemsPerPage: 100,
+      pageOptions: [25, 50, 100],
 
       // ui
-      showDocSort: false,
+      selectedDoc: null,
+      activeQuickActionId: null,
     };
   },
 
@@ -223,6 +388,12 @@ export default {
       if (this.activeDocTypeFilter !== "Alle") {
         result = result.filter((d) => (d.docType || "") === this.activeDocTypeFilter);
       }
+      if (this.activeDocLocationFilter !== "Alle") {
+        result = result.filter((d) => {
+          const loc = d.details?.location || d.bezeichnung || "";
+          return loc === this.activeDocLocationFilter;
+        });
+      }
 
       const q = this.documentsSearchQuery.toLowerCase().trim();
       if (q) {
@@ -230,7 +401,8 @@ export default {
           const v = [
             d.docType || "",
             d.bezeichnung || "",
-            d.personen || "",
+            d.details?.name_teamleiter || "",
+            d.details?.name_mitarbeiter || "",
             this.formatDate(d.datum) || "",
           ]
             .join(" ")
@@ -244,24 +416,42 @@ export default {
 
     filteredDocumentsSorted() {
       const arr = [...this.filteredDocuments];
-      const key = this.documentsSortBy;
+      
       arr.sort((a, b) => {
-        let av = a?.[key];
-        let bv = b?.[key];
-
-        if (key === "datum") {
-          const ad = av ? new Date(av) : new Date(0);
-          const bd = bv ? new Date(bv) : new Date(0);
-          return this.documentsIsAscending ? ad - bd : bd - ad;
-        }
-
-        av = (av ?? "").toString().toLowerCase();
-        bv = (bv ?? "").toString().toLowerCase();
-        if (av < bv) return this.documentsIsAscending ? -1 : 1;
-        if (av > bv) return this.documentsIsAscending ? 1 : -1;
+        let valA = this.getSortValue(a, this.sortKey);
+        let valB = this.getSortValue(b, this.sortKey);
+        
+        if (valA < valB) return this.sortOrder === 'asc' ? -1 : 1;
+        if (valA > valB) return this.sortOrder === 'asc' ? 1 : -1;
         return 0;
       });
       return arr;
+    },
+
+    paginatedDocuments() {
+      const start = (this.currentPage - 1) * this.itemsPerPage;
+      const end = start + this.itemsPerPage;
+      return this.filteredDocumentsSorted.slice(start, end);
+    },
+
+    totalPages() {
+      return Math.ceil(this.filteredDocumentsSorted.length / this.itemsPerPage);
+    },
+
+    paginationInfo() {
+      const start = (this.currentPage - 1) * this.itemsPerPage + 1;
+      const end = Math.min(this.currentPage * this.itemsPerPage, this.filteredDocumentsSorted.length);
+      return {
+        start,
+        end,
+        total: this.filteredDocumentsSorted.length
+      };
+    },
+  },
+
+  watch: {
+    documentsSearchQuery() {
+      this.currentPage = 1;
     },
   },
 
@@ -276,24 +466,91 @@ export default {
         year: "numeric",
       });
     },
-
-    toggleDocSort() {
-      this.showDocSort = !this.showDocSort;
+    
+    formatKey(key) {
+      if (!key) return '';
+      // Replace underscores with spaces and capitalize first letter
+      return key
+        .replace(/_/g, ' ')
+        .replace(/^./, str => str.toUpperCase());
     },
 
-    setDocumentsSort(key) {
-      this.documentsSortBy = key;
-      this.showDocSort = false;
+    formatValue(key, value) {
+      if (!value) return '—';
+      if (typeof key === 'string' && (key.toLowerCase().includes('datum') || key.toLowerCase().includes('date'))) {
+        return this.formatDate(value);
+      }
+      return value;
+    },
+
+    handleSort(key) {
+      if (this.sortKey === key) {
+        this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+      } else {
+        this.sortKey = key;
+        this.sortOrder = 'desc'; // Default to newest/descending
+      }
+    },
+    
+    getSortValue(doc, key) {
+      if (key === 'datum') return new Date(doc.datum).getTime();
+      if (key === 'teamleiter') return (doc.details?.name_teamleiter || '').toLowerCase();
+      if (key === 'mitarbeiter') return (doc.details?.name_mitarbeiter || '').toLowerCase();
+      if (key === 'docType') return (doc.docType || '').toLowerCase();
+      if (key === 'bezeichnung') return (doc.bezeichnung || '').toLowerCase();
+      if (key === 'status') return (doc.status || '').toLowerCase();
+      return '';
     },
 
     setDocFilter(type, value) {
       if (type === "status") this.activeDocStatusFilter = value;
       if (type === "type") this.activeDocTypeFilter = value;
+      if (type === "location") this.activeDocLocationFilter = value;
+      this.currentPage = 1;
+    },
+
+    nextPage() {
+      if (this.currentPage < this.totalPages) {
+        this.currentPage++;
+      }
+    },
+
+    prevPage() {
+      if (this.currentPage > 1) {
+        this.currentPage--;
+      }
+    },
+
+    setItemsPerPage(count) {
+      this.itemsPerPage = count;
+      this.currentPage = 1;
     },
 
     openDoc(doc) {
-      console.log("Open document:", doc?.id || doc?._id);
-      // TODO: Implement document opening logic
+      this.selectedDoc = doc;
+    },
+
+    closeDoc() {
+      this.selectedDoc = null;
+    },
+    
+    toggleQuickActions(id) {
+      if (this.activeQuickActionId === id) {
+        this.activeQuickActionId = null;
+      } else {
+        this.activeQuickActionId = id;
+      }
+    },
+
+    handleClickOutside(event) {
+      // Close menu if clicking outside
+      if (this.activeQuickActionId && !event.target.closest('.actions-col')) {
+        this.activeQuickActionId = null;
+      }
+    },
+    
+    demoAssign(role) {
+      alert(`Demo: Zuweisen Dialog für ${role} würde sich öffnen.`);
     },
 
     /* -------------------- API wiring -------------------- */
@@ -303,9 +560,24 @@ export default {
       }
     },
 
+    async fetchUserData() {
+      if (!this.token) return;
+      try {
+        const { data } = await api.get("/api/users/me");
+        this.userLocation = data.location;
+        
+        // Setze userLocation als Standard für Location-Filter, falls verfügbar
+        if (this.userLocation && this.locations.includes(this.userLocation)) {
+          this.activeDocLocationFilter = this.userLocation;
+        }
+      } catch (e) {
+        console.error("Fehler beim Abrufen der Benutzerdaten:", e);
+      }
+    },
+
     async fetchDocuments() {
       try {
-        const res = await api.get("/api/reports");
+        const res = await api.get("/api/wordpress/reports");
         this.documents = res.data?.data || [];
       } catch (e) {
         this.error.documents = e?.message || "Fehler beim Laden der Dokumente.";
@@ -320,8 +592,17 @@ export default {
     // 1) Token setzen
     this.setAxiosAuthToken();
 
-    // 2) Dokumente laden
-    await this.fetchDocuments();
+    // 2) User Daten & Dokumente laden
+    await Promise.all([
+      this.fetchUserData(),
+      this.fetchDocuments()
+    ]);
+
+    document.addEventListener('click', this.handleClickOutside);
+  },
+
+  beforeUnmount() {
+    document.removeEventListener('click', this.handleClickOutside);
   },
 };
 </script>
@@ -406,20 +687,23 @@ export default {
 }
 
 .search-sort {
-  display: grid;
-  grid-template-columns: minmax(280px, 1fr) auto;
-  gap: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
   align-items: center;
+  justify-content: space-between;
 }
 
 @media (max-width: 640px) {
   .search-sort {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 
 .search {
   position: relative;
+  flex: 1 1 280px;
   
   input {
     width: 100%;
@@ -512,7 +796,7 @@ export default {
 .table .thead,
 .table .row {
   display: grid;
-  grid-template-columns: 1.2fr 2fr 1.2fr 1.4fr 1.2fr auto;
+  grid-template-columns: 1.2fr 2fr 1.2fr 1.4fr 1.4fr 1.2fr auto;
   gap: 12px;
   align-items: center;
   background: var(--surface);
@@ -525,6 +809,23 @@ export default {
   font-weight: 700;
   color: var(--text);
   border-bottom: 1px solid var(--border);
+}
+
+.table .thead .sortable {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+.table .thead .sortable:hover {
+  color: var(--brand);
+}
+
+.muted-icon {
+  color: var(--muted);
+  opacity: 0.5;
 }
 
 .table .row {
@@ -642,6 +943,339 @@ export default {
 }
 
 .btn:hover {
+  background: var(--soft);
+}
+
+.btn-primary {
+  background: var(--brand);
+  color: white;
+  border-color: var(--brand);
+}
+
+.btn-primary:hover {
+  background: color-mix(in srgb, var(--brand) 85%, black);
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-danger {
+  background: var(--bad);
+  color: white;
+  border-color: var(--bad);
+}
+
+.btn-danger:hover {
+  background: color-mix(in srgb, var(--bad) 85%, black);
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border);
+}
+
+.modal-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.25rem;
+  padding: 4px;
+  border-radius: 4px;
+  transition: 0.2s;
+}
+
+.close-btn:hover {
+  background: var(--soft);
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.detail-item label {
+  font-size: 0.875rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.detail-item p {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.raw-data {
+  background: var(--bg);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.raw-data h4 {
+  margin: 0 0 12px 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.key-value-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kv-item {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 12px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+
+.kv-item:last-child {
+  border-bottom: none;
+}
+
+.kv-item .key {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.kv-item .value {
+  color: var(--text);
+  word-break: break-word;
+}
+
+.modal-footer {
+  padding: 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.actions-left {
+  display: flex;
+  gap: 10px;
+}
+
+/* Compact Pagination Styles */
+.pagination-compact {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-self: end;
+}
+
+.pagination-info-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pagination-text {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.pagination-select-compact {
+  padding: 0.125rem 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  min-width: 50px;
+}
+
+.pagination-select-compact:hover {
+  border-color: var(--brand);
+}
+
+.pagination-select-compact:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 20%, transparent);
+}
+
+.pagination-controls-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pagination-btn-compact {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+
+.pagination-btn-compact:hover:not(:disabled) {
+  background: var(--soft);
+  border-color: var(--brand);
+}
+
+.pagination-btn-compact:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-indicator {
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 0 0.25rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .pagination-compact {
+    justify-self: start;
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* Quick Actions & Clickable Row */
+.clickable-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.clickable-row:hover {
+  background: var(--soft) !important;
+}
+
+.actions-col {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon:hover {
+  background: var(--soft);
+  color: var(--text);
+}
+
+.quick-actions-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+  z-index: 100;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.quick-actions-menu button {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.15s;
+}
+
+.quick-actions-menu button:hover {
   background: var(--soft);
 }
 </style>

@@ -21,6 +21,12 @@ export const useTheme = defineStore('theme', {
       this.theme = t;
       localStorage.setItem('theme', t);
       document.documentElement.setAttribute('data-theme', t);
+      
+      // Add transition class for smooth switching
+      document.documentElement.classList.add('theme-transition');
+      setTimeout(() => {
+        document.documentElement.classList.remove('theme-transition');
+      }, 300);
     },
     toggle() { this.set(this.isDark ? 'light' : 'dark'); }
   }

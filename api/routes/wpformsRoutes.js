@@ -812,6 +812,57 @@ const formatDateFromDatum = (datum) => {
   return `${day}.${month}.${year}`;
 };
 
+// 📌 GET - Alle Dokumente (Laufzettel, EventReport, Evaluierung)
+router.get(
+  "/reports",
+  auth,
+  asyncHandler(async (req, res) => {
+    logger.debug("Fetching all reports (Laufzettel, EventReport, Evaluierung)");
+
+    const [laufzettel, eventReports, evaluierungen] = await Promise.all([
+      Laufzettel.find().sort({ datum: -1 }),
+      EventReport.find().sort({ datum: -1 }),
+      EvaluierungMA.find().sort({ datum: -1 }),
+    ]);
+
+    const formatDoc = (doc, type) => {
+      let personen = [];
+      if (doc.name_mitarbeiter) personen.push(doc.name_mitarbeiter);
+      if (doc.name_teamleiter) personen.push(doc.name_teamleiter);
+      
+      // Remove duplicates and join
+      const personenStr = [...new Set(personen)].join(", ");
+
+      return {
+        _id: doc._id,
+        docType: type,
+        bezeichnung: doc.location || type,
+        datum: doc.datum || doc.date,
+        personen: personenStr,
+        status: doc.assigned ? "Zugewiesen" : "Offen",
+        details: doc, // Full object for details view
+      };
+    };
+
+    const allDocs = [
+      ...laufzettel.map((d) => formatDoc(d, "Laufzettel")),
+      ...eventReports.map((d) => formatDoc(d, "Event-Bericht")),
+      ...evaluierungen.map((d) => formatDoc(d, "Evaluierung")),
+    ];
+
+    // Sort by date desc
+    allDocs.sort((a, b) => new Date(b.datum) - new Date(a.datum));
+
+    logger.info(`✅ Fetched ${allDocs.length} total documents`);
+
+    res.status(200).json({
+      success: true,
+      count: allDocs.length,
+      data: allDocs,
+    });
+  })
+);
+
 // 📌 GET alle Verlosungen (mit optionalem Filtering)
 router.get(
   "/verlosung/all",

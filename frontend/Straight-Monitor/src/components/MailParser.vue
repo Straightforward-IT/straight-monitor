@@ -19,12 +19,31 @@
           </button>
           <button 
             v-if="emailHtml"
+            @click="showHtmlSource = !showHtmlSource" 
+            class="btn-inspector"
+            :class="{ active: showHtmlSource }"
+            title="HTML-Quellcode anzeigen"
+          >
+            <font-awesome-icon icon="code" />
+            HTML
+          </button>
+          <button 
+            v-if="emailHtml"
             @click="showRawData = !showRawData" 
             class="btn-inspector"
             title="E-Mail-Daten anzeigen/ausblenden"
           >
             <font-awesome-icon :icon="showRawData ? 'chevron-up' : 'chevron-down'" />
             {{ showRawData ? 'Ausblenden' : 'Anzeigen' }} Details
+          </button>
+          <button 
+            v-if="emailHtml"
+            @click="showHtmlSource = !showHtmlSource" 
+            class="btn-inspector"
+            title="HTML-Struktur anzeigen"
+          >
+            <font-awesome-icon icon="code" />
+            {{ showHtmlSource ? 'Vorschau' : 'HTML' }}
           </button>
         </div>
       </div>
@@ -70,8 +89,11 @@
     <!-- Main Content Area -->
     <div class="main-content">
       <!-- Email Content Preview (like Outlook) -->
-      <div v-if="emailHtml" class="email-content-wrapper" @mouseup="handleTextSelection">
-        <div class="email-content" v-html="emailHtml"></div>
+      <div v-if="emailHtml" class="email-content-wrapper" @click="handleTokenClick">
+        <div v-if="!showHtmlSource" class="email-content" v-html="emailHtml"></div>
+        <div v-else class="html-source-view">
+          <pre><code>{{ formattedHtml }}</code></pre>
+        </div>
       </div>
 
       <!-- Empty State -->
@@ -144,43 +166,59 @@
             </div>
 
             <div class="email-selector">
-              <select v-model="selectedParserEmailId" class="email-select-test">
+              <select v-model="selectedParserEmailId" @change="loadTestEmail" class="email-select-test">
                 <option value="">E-Mail wählen...</option>
                 <option v-for="email in cachedEmails" :key="email.id" :value="email.id">
                   {{ email.subject }} - {{ formatDate(email.receivedDateTime) }}
                 </option>
               </select>
-              <button @click="loadTestEmail" class="btn-load" :disabled="!selectedParserEmailId || fetchingEmail">
-                <font-awesome-icon :icon="fetchingEmail ? 'spinner' : 'download'" :spin="fetchingEmail" />
-                {{ fetchingEmail ? 'Lädt...' : 'Laden' }}
-              </button>
             </div>
 
             <div v-if="testModeEmail" class="email-info">
-              <div class="info-row">
-                <span class="label">Von:</span>
-                <span>{{ testModeEmail.from?.name || testModeEmail.from?.address }}</span>
-              </div>
-              <div class="info-row">
-                <span class="label">Betreff:</span>
-                <span>{{ testModeEmail.subject }}</span>
-              </div>
-              <div class="info-row">
-                <span class="label">Datum:</span>
-                <span>{{ formatDate(testModeEmail.receivedDateTime) }}</span>
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="label">Von:</span>
+                  <span class="value">{{ testModeEmail.from?.name || testModeEmail.from?.address }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">Betreff:</span>
+                  <span class="value">{{ testModeEmail.subject }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">Datum:</span>
+                  <span class="value">{{ formatDate(testModeEmail.receivedDateTime) }}</span>
+                </div>
               </div>
             </div>
 
-            <div v-if="testModeHtml" class="email-preview-container">
-              <div class="email-preview-content" v-html="testModeHtml"></div>
-            </div>
+            <div class="test-split-container">
+              <div v-if="testModeHtml" class="email-preview-container">
+                <div class="email-preview-content" v-html="testModeHtml"></div>
+              </div>
 
-            <div v-else-if="!testModeHtml && selectedParserEmailId" class="placeholder">
-              <p>E-Mail-Vorschau wird geladen...</p>
-            </div>
+              <div v-else-if="!testModeHtml && selectedParserEmailId" class="placeholder">
+                <p>E-Mail-Vorschau wird geladen...</p>
+              </div>
 
-            <div v-else class="placeholder">
-              <p>Wählen Sie eine E-Mail zur Vorschau aus</p>
+              <div v-else class="placeholder">
+                <p>Wählen Sie eine E-Mail zur Vorschau aus</p>
+              </div>
+
+              <!-- Results Panel -->
+              <div v-if="testModeEmail" class="test-results-panel">
+                  <div class="results-header">
+                      <h5>Erkannte Werte ({{ testResults.length }})</h5>
+                  </div>
+                  <div v-if="testResults.length" class="results-list">
+                      <div v-for="(res, idx) in testResults" :key="idx" class="result-item">
+                          <span class="res-label">{{ res.name }}</span>
+                          <span class="res-value" :title="res.text">{{ truncateText(res.text, 50) }}</span>
+                      </div>
+                  </div>
+                  <div v-else class="no-results">
+                      <p>Keine Werte basierend auf dem aktuellen Schema gefunden.</p>
+                  </div>
+              </div>
             </div>
           </div>
 
@@ -210,7 +248,17 @@
       @mouseleave="showSelectionMenu = false"
     >
       <div class="selection-menu-content">
-        <div class="selection-text">{{ selectedText }}</div>
+        <div class="selection-text">{{ truncateText(selectedText, 100) }}</div>
+        
+        <div class="selection-controls">
+          <button @click="expandSelection" class="control-btn" title="Auswahl erweitern (Parent)">
+            <font-awesome-icon icon="chevron-up" />
+          </button>
+          <button @click="shrinkSelection" class="control-btn" title="Auswahl verkleinern (Child)" :disabled="selectionLevel === 0">
+            <font-awesome-icon icon="chevron-down" />
+          </button>
+        </div>
+
         <button @click="setValueFromSelection" class="quick-action-btn set-value">
           <font-awesome-icon icon="database" /> Wert setzen
         </button>
@@ -220,13 +268,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
-import api from '@/utils/api';
+import { ref, watch, nextTick, computed } from 'vue';
+import api from '../utils/api';
 
 // State - Email Display
 const emailHtml = ref('');
 const currentEmail = ref<any>(null);
 const showRawData = ref(false);
+const showHtmlSource = ref(false);
+
 
 // State - Email Loading
 const fetchingEmail = ref(false);
@@ -244,12 +294,57 @@ const showSelectionMenu = ref(false);
 const selectionMenuX = ref(0);
 const selectionMenuY = ref(0);
 const selectedText = ref('');
+const selectedTokenNodes = ref<HTMLElement[]>([]);
+const currentSelectionNode = ref<HTMLElement | null>(null);
+const selectionLevel = ref(0);
 const lastSaveTime = ref('');
 const nameInputRefs = ref<any>({});
 const needsFocus = ref(false);
 const testMode = ref(false);
 const testModeEmail = ref<any>(null);
 const testModeHtml = ref('');
+const testResults = ref<ExtractedValue[]>([]);
+
+/**
+ * Preprocess HTML to wrap text nodes in selectable tokens
+ */
+function preprocessHtml(html: string): string {
+  if (!html) return '';
+  
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  
+  function walk(node: Node) {
+    const children = Array.from(node.childNodes);
+    for (const child of children) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        const text = child.textContent;
+        // Only wrap if it has non-whitespace content or is significant
+        // We trim to check for content, but preserve original text in the token
+        if (text && text.trim().length > 0) {
+          const span = document.createElement('span');
+          span.className = 'mail-token';
+          span.textContent = text; 
+          node.replaceChild(span, child);
+        }
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const el = child as Element;
+        const tagName = el.tagName.toLowerCase();
+        
+        // Skip existing tokens to prevent double wrapping if run multiple times
+        if (el.classList.contains('mail-token')) continue;
+        
+        // Don't recurse into script/style
+        if (!['script', 'style'].includes(tagName)) {
+          walk(child);
+        }
+      }
+    }
+  }
+  
+  walk(doc.body);
+  return doc.body.innerHTML;
+}
 
 // HTML Structure Analysis for Pattern Recognition
 
@@ -279,8 +374,8 @@ function parseHTMLStructure(html: string): HTMLNode[] {
         const el = child as Element;
         const tag = el.tagName.toLowerCase();
         
-        // Skip script and style tags
-        if (['script', 'style', 'meta', 'link'].includes(tag)) continue;
+        // Skip script, style, and formatting tags that don't contain content
+        if (['script', 'style', 'meta', 'link', 'br', 'hr'].includes(tag)) continue;
         
         const node: HTMLNode = {
           tag,
@@ -401,27 +496,7 @@ function levenshteinDistance(s1: string, s2: string): number {
   return costs[s2.length];
 }
 
-/**
- * Find text within nodes matching a pattern
- */
-function findTextInNodes(nodes: HTMLNode[], targetTag: string, targetClass?: string): string | null {
-  for (let node of nodes) {
-    if (node.tag === targetTag) {
-      if (targetClass && !node.attributes.class?.includes(targetClass)) {
-        continue;
-      }
-      
-      if (node.textContent) {
-        return node.textContent.substring(0, 100);
-      }
-    }
-    
-    const childResult = findTextInNodes(node.children, targetTag, targetClass);
-    if (childResult) return childResult;
-  }
-  
-  return null;
-}
+
 
 /**
  * Extract values from target email using source patterns
@@ -432,8 +507,11 @@ function autoParseEmail(
   sourceValues: ExtractedValue[]
 ): ExtractedValue[] {
   try {
+    // Ensure target is tokenized so structure matches source
+    const tokenizedTarget = preprocessHtml(targetHtml);
+    
     const sourceNodes = parseHTMLStructure(sourceHtml);
-    const targetNodes = parseHTMLStructure(targetHtml);
+    const targetNodes = parseHTMLStructure(tokenizedTarget);
     
     if (!sourceNodes || sourceNodes.length === 0 || !targetNodes || targetNodes.length === 0) {
       console.warn('Source or target nodes are empty');
@@ -447,6 +525,8 @@ function autoParseEmail(
       console.warn('Could not find matching structure. No match found.');
       return [];
     }
+    
+    console.log('Structure match found:', match);
 
     const matchedTargetNodes = targetNodes.slice(match.startIdx, match.endIdx);
     const results: ExtractedValue[] = [];
@@ -456,16 +536,28 @@ function autoParseEmail(
       const pattern = findTextLocationPattern(sourceNodes, value.text);
       
       if (pattern) {
-        // First try structured search
-        let extractedText = findTextInNodes(
-          matchedTargetNodes,
-          pattern.tag,
-          pattern.class
-        );
+        console.log(`Found pattern for "${value.name}":`, pattern);
         
-        // Fallback to flexible text search if structured search fails
+        let extractedText: string | null = null;
+
+        // Strategy 1: Try Anchor-based search (most robust to structural changes)
+        if (pattern.anchor) {
+          extractedText = findTextByAnchor(matchedTargetNodes, pattern.anchor);
+          if (extractedText) {
+             console.log(`Extracted "${value.name}" using anchor "${pattern.anchor}"`);
+          }
+        }
+
+        // Strategy 2: Fallback to Tag Index (precise for identical templates)
         if (!extractedText) {
-          extractedText = findSimilarText(matchedTargetNodes, value.text);
+          extractedText = findTextInNodes(
+            matchedTargetNodes,
+            pattern.tag,
+            pattern.index
+          );
+          if (extractedText) {
+             console.log(`Extracted "${value.name}" using tag index`);
+          }
         }
         
         if (extractedText) {
@@ -473,7 +565,11 @@ function autoParseEmail(
             name: value.name,
             text: extractedText
           });
+        } else {
+            console.warn(`Could not extract text for "${value.name}" using pattern`, pattern);
         }
+      } else {
+          console.warn(`Could not find location pattern for value: "${value.text}"`);
       }
     });
 
@@ -485,50 +581,186 @@ function autoParseEmail(
 }
 
 /**
- * Find the HTML location pattern of a text value
+ * Find the HTML location pattern of a text value (Tag + Index + Anchor)
  */
-function findTextLocationPattern(nodes: HTMLNode[], text: string): any {
-  function search(nodes: HTMLNode[]): any {
-    for (let node of nodes) {
-      if (node.textContent && node.textContent.includes(text.substring(0, Math.min(20, text.length)))) {
-        return {
-          tag: node.tag,
-          class: node.attributes.class?.split(' ')[0]
-        };
-      }
-      
-      const childResult = search(node.children);
-      if (childResult) return childResult;
-    }
-    return null;
-  }
+function findTextLocationPattern(nodes: HTMLNode[], text: string): { tag: string, index: number, anchor?: string } | null {
+  let tagCounts: Record<string, number> = {};
+  let found: { tag: string, index: number, anchor?: string } | null = null;
+  let lastTextContent = ''; // Track the last seen text content
   
-  return search(nodes);
-}
+  // Normalize text for search (collapse whitespace)
+  const searchText = text.trim().replace(/\s+/g, ' ');
 
-/**
- * Fallback: Find similar text in nodes by searching all text content
- */
-function findSimilarText(nodes: HTMLNode[], targetText: string): string | null {
-  const searchKey = targetText.substring(0, Math.min(15, targetText.length)).toLowerCase();
-  
-  function search(nodes: HTMLNode[]): string | null {
-    for (let node of nodes) {
+  function traverse(currentNodes: HTMLNode[]) {
+    if (found) return;
+    
+    for (let node of currentNodes) {
+      // Increment count for this tag type
+      if (!tagCounts[node.tag]) tagCounts[node.tag] = 0;
+      const currentIndex = tagCounts[node.tag]++;
+      
+      // Check if this node contains the text
       if (node.textContent) {
-        const nodeText = node.textContent.toLowerCase();
-        // Check if any part of the target text appears in this node
-        if (nodeText.includes(searchKey)) {
-          return node.textContent.substring(0, 100).trim();
+        const nodeText = node.textContent.replace(/\s+/g, ' ');
+        if (nodeText.includes(searchText)) {
+          found = {
+            tag: node.tag,
+            index: currentIndex,
+            anchor: lastTextContent ? lastTextContent.trim() : undefined
+          };
+          return;
+        }
+        // Update last seen text content for next iteration
+        if (node.textContent.trim().length > 0) {
+            lastTextContent = node.textContent;
         }
       }
       
-      const childResult = search(node.children);
-      if (childResult) return childResult;
+      if (node.children.length > 0) {
+        traverse(node.children);
+      }
+      if (found) return;
     }
-    return null;
   }
   
-  return search(nodes);
+  traverse(nodes);
+  return found;
+}
+
+/**
+ * Find text in nodes using Anchor (preceding text)
+ */
+function findTextByAnchor(nodes: HTMLNode[], anchor: string): string | null {
+  let anchorFound = false;
+  let result: string | null = null;
+  const normalizedAnchor = anchor.replace(/\s+/g, ' ');
+  
+  function traverse(currentNodes: HTMLNode[]) {
+    if (result) return;
+    
+    for (let node of currentNodes) {
+      if (node.textContent) {
+        const nodeText = node.textContent.replace(/\s+/g, ' ');
+        
+        if (anchorFound) {
+            // This is the first text node AFTER the anchor
+            result = node.textContent;
+            return;
+        }
+        
+        // Check if this is the anchor
+        // We use includes because the anchor might be a substring of a larger node
+        // or vice versa. Exact match is better if possible.
+        if (nodeText.includes(normalizedAnchor) || normalizedAnchor.includes(nodeText)) {
+            anchorFound = true;
+        }
+      }
+      
+      if (node.children.length > 0) {
+        traverse(node.children);
+      }
+      if (result) return;
+    }
+  }
+  
+  traverse(nodes);
+  return result;
+}
+
+/**
+ * Find text in nodes using Tag + Index
+ */
+function findTextInNodes(nodes: HTMLNode[], targetTag: string, targetIndex: number): string | null {
+  let currentCount = 0;
+  let result: string | null = null;
+  
+  function traverse(currentNodes: HTMLNode[]) {
+    if (result) return;
+    
+    for (let node of currentNodes) {
+      if (node.tag === targetTag) {
+        if (currentCount === targetIndex) {
+          result = node.textContent || null;
+          return;
+        }
+        currentCount++;
+      }
+      
+      if (node.children.length > 0) {
+        traverse(node.children);
+      }
+      if (result) return;
+    }
+  }
+  
+  traverse(nodes);
+  return result;
+}
+
+const formattedHtml = computed(() => {
+  if (!emailHtml.value) return '';
+  return getPrettyHtml(emailHtml.value);
+});
+
+function formatDomNode(node: Node, level: number): string {
+  const indent = '  '.repeat(level);
+  
+  if (node.nodeType === Node.TEXT_NODE) {
+    const text = node.textContent?.trim();
+    return text ? `${indent}${text}\n` : '';
+  }
+  
+  if (node.nodeType === Node.COMMENT_NODE) {
+    return `${indent}<!-- ${node.textContent} -->\n`;
+  }
+  
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    const el = node as Element;
+    const tagName = el.tagName.toLowerCase();
+    
+    // Build attributes string
+    const attrs = Array.from(el.attributes)
+      .map(a => `${a.name}="${a.value}"`)
+      .join(' ');
+      
+    const startTag = `<${tagName}${attrs ? ' ' + attrs : ''}>`;
+    
+    // Void elements (no closing tag)
+    const voidElements = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+    if (voidElements.includes(tagName)) {
+      return `${indent}${startTag}\n`;
+    }
+    
+    const endTag = `</${tagName}>`;
+    
+    // Check if it has only text content (shorten display)
+    const hasOnlyText = el.childNodes.length === 1 && el.childNodes[0].nodeType === Node.TEXT_NODE;
+    if (hasOnlyText) {
+       const text = el.textContent?.trim();
+       if (text && text.length < 50) {
+         return `${indent}${startTag}${text}${endTag}\n`;
+       }
+    }
+    
+    let childrenHtml = '';
+    el.childNodes.forEach(child => {
+      childrenHtml += formatDomNode(child, level + 1);
+    });
+    
+    return `${indent}${startTag}\n${childrenHtml}${indent}${endTag}\n`;
+  }
+  
+  return '';
+}
+
+function getPrettyHtml(html: string) {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    return formatDomNode(doc.body, 0);
+  } catch (e) {
+    return html; // Fallback
+  }
 }
 
 function formatDate(dateString: string): string {
@@ -539,20 +771,68 @@ function truncateText(text: string, length: number): string {
   return text.length > length ? text.substring(0, length) + '...' : text;
 }
 
-function handleTextSelection() {
-  const selection = window.getSelection();
-  const selectedTextContent = selection?.toString().trim();
-
-  if (selectedTextContent && selectedTextContent.length > 0) {
-    const range = selection?.getRangeAt(0);
-    const rect = range?.getBoundingClientRect();
+function handleTokenClick(event: MouseEvent) {
+  const target = event.target as HTMLElement;
+  
+  // Check if clicked element is a token
+  if (target.classList.contains('mail-token')) {
+    // Reset previous selection
+    document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
     
-    if (rect) {
-      selectedText.value = selectedTextContent;
-      selectionMenuX.value = rect.left + rect.width / 2 - 100;
-      selectionMenuY.value = rect.bottom + 10;
-      showSelectionMenu.value = true;
-    }
+    // Set new selection
+    target.classList.add('selected');
+    currentSelectionNode.value = target;
+    selectionLevel.value = 0;
+    selectedText.value = target.textContent?.trim() || '';
+    
+    // Position menu near the click
+    const rect = target.getBoundingClientRect();
+    selectionMenuX.value = rect.left + rect.width / 2 - 100;
+    selectionMenuY.value = rect.bottom + 5;
+    showSelectionMenu.value = true;
+  } else {
+    // Clicked outside token, clear all
+    showSelectionMenu.value = false;
+    selectedText.value = '';
+    currentSelectionNode.value = null;
+    selectionLevel.value = 0;
+    document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+  }
+}
+
+function expandSelection() {
+  if (!currentSelectionNode.value) return;
+  
+  const parent = currentSelectionNode.value.parentElement;
+  // Ensure we don't go outside the email content area
+  if (parent && parent.closest('.email-content')) {
+    // Remove highlight from current
+    currentSelectionNode.value.classList.remove('selected');
+    
+    // Update to parent
+    currentSelectionNode.value = parent;
+    currentSelectionNode.value.classList.add('selected');
+    selectionLevel.value++;
+    
+    // Update text
+    selectedText.value = currentSelectionNode.value.innerText?.trim() || '';
+  }
+}
+
+function shrinkSelection() {
+  // Simple implementation: just reset to initial state if we are expanded
+  // A full history stack would be better but this is a good start
+  if (selectionLevel.value > 0 && currentSelectionNode.value) {
+     // Try to find the first child that contains text or was likely the source
+     // For now, let's just go down to the first element child
+     const firstChild = currentSelectionNode.value.firstElementChild as HTMLElement;
+     if (firstChild) {
+        currentSelectionNode.value.classList.remove('selected');
+        currentSelectionNode.value = firstChild;
+        currentSelectionNode.value.classList.add('selected');
+        selectionLevel.value--;
+        selectedText.value = currentSelectionNode.value.innerText?.trim() || '';
+     }
   }
 }
 
@@ -562,8 +842,12 @@ function setValueFromSelection() {
       name: '',
       text: selectedText.value
     });
+    
+    // Clear selection
     showSelectionMenu.value = false;
     selectedText.value = '';
+    selectedTokenNodes.value = [];
+    document.querySelectorAll('.mail-token.selected').forEach(el => el.classList.remove('selected'));
     
     // Focus the newly added name input field
     needsFocus.value = true;
@@ -588,6 +872,7 @@ function startTestMode() {
   testModeEmail.value = null;
   testModeHtml.value = '';
   selectedParserEmailId.value = '';
+  testResults.value = [];
 }
 
 function exitTestMode() {
@@ -595,6 +880,82 @@ function exitTestMode() {
   testModeEmail.value = null;
   testModeHtml.value = '';
   selectedParserEmailId.value = '';
+  testResults.value = [];
+}
+
+function highlightValuesInHtml(html: string, values: ExtractedValue[]): string {
+  if (!values.length) return html;
+  
+  console.log('Highlighting values:', values);
+  
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  
+  // Helper to escape regex special characters
+  const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // We need to find text nodes that might be inside our tokens or just raw text
+  const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+  const nodesToReplace: {node: Node, text: string}[] = [];
+  
+  let currentNode;
+  while (currentNode = walker.nextNode()) {
+    let text = currentNode.textContent;
+    if (!text) continue;
+    
+    let hasMatch = false;
+    for (const val of values) {
+        // Simple check for single-node matches
+        if (text.includes(val.text)) {
+            hasMatch = true;
+            break;
+        }
+    }
+    
+    if (hasMatch) {
+        nodesToReplace.push({node: currentNode, text: text});
+    }
+  }
+  
+  console.log(`Found ${nodesToReplace.length} nodes to highlight`);
+
+  nodesToReplace.forEach(({node, text}) => {
+      let htmlContent = text;
+      // Sort values by length desc to handle overlapping (longest first)
+      const sortedValues = [...values].sort((a, b) => b.text.length - a.text.length);
+      
+      const replacements: {token: string, replacement: string}[] = [];
+      
+      sortedValues.forEach((val, idx) => {
+          if (htmlContent.includes(val.text)) {
+              const token = `__MATCH_${idx}__`;
+              const escaped = escapeRegExp(val.text);
+              const regex = new RegExp(escaped, 'g');
+              htmlContent = htmlContent.replace(regex, token);
+              replacements.push({
+                  token,
+                  replacement: `<mark style="background: #fff3cd; padding: 2px 4px; border-radius: 2px; border: 1px solid #ffeeba; color: #856404;" title="${val.name}">${val.text}</mark>`
+              });
+          }
+      });
+      
+      replacements.forEach(({token, replacement}) => {
+          htmlContent = htmlContent.replace(new RegExp(token, 'g'), replacement);
+      });
+      
+      const span = document.createElement('span');
+      span.innerHTML = htmlContent;
+      
+      // If the parent is already a mail-token, we just update its content
+      // Otherwise we replace the text node
+      if (node.parentNode && (node.parentNode as Element).classList?.contains('mail-token')) {
+         (node.parentNode as Element).innerHTML = htmlContent;
+      } else if (node.parentNode) {
+        node.parentNode.replaceChild(span, node);
+      }
+  });
+  
+  return doc.body.innerHTML;
 }
 
 async function loadTestEmail() {
@@ -614,7 +975,15 @@ async function loadTestEmail() {
     if (response.data.ok) {
       const email = response.data.email;
       testModeEmail.value = email;
-      testModeHtml.value = email.bodyHtml || email.body;
+      const rawHtml = email.bodyHtml || email.body;
+      
+      // Auto-parse (pass raw HTML, it will be tokenized internally)
+      const results = autoParseEmail(emailHtml.value, rawHtml, extractedValues.value);
+      testResults.value = results;
+      
+      // Highlight (tokenize first, then highlight)
+      const tokenized = preprocessHtml(rawHtml);
+      testModeHtml.value = highlightValuesInHtml(tokenized, results);
     }
   } catch (error: any) {
     console.error('Failed to load test email:', error);
@@ -631,7 +1000,10 @@ function useSelectedEmail() {
   }
   
   // Load test email into main panel
-  emailHtml.value = testModeHtml.value;
+  // Note: testModeHtml is already highlighted, but for main panel we want clean tokenized HTML
+  // So we re-process the raw body
+  const rawHtml = testModeEmail.value.bodyHtml || testModeEmail.value.body;
+  emailHtml.value = preprocessHtml(rawHtml);
   currentEmail.value = testModeEmail.value;
   
   // Add to cached emails if not already there
@@ -651,7 +1023,8 @@ async function fetchLatestParserEmail() {
     const response = await api.get('/api/graph/parser/fetch');
     if (response.data.ok && response.data.email) {
       const email = response.data.email;
-      emailHtml.value = email.bodyHtml || email.body;
+      const rawHtml = email.bodyHtml || email.body;
+      emailHtml.value = preprocessHtml(rawHtml);
       currentEmail.value = email;
       
       // Add to cached emails if not already there
@@ -688,7 +1061,8 @@ async function loadSelectedEmail() {
     const response = await api.get(`/api/graph/parser/emails-full/${selectedParserEmailId.value}`);
     if (response.data.ok) {
       const email = response.data.email;
-      emailHtml.value = email.bodyHtml || email.body;
+      const rawHtml = email.bodyHtml || email.body;
+      emailHtml.value = preprocessHtml(rawHtml);
       currentEmail.value = email;
     }
   } catch (error: any) {
@@ -780,6 +1154,13 @@ watch(extractedValues, (values) => {
     }
   });
 }, { deep: true });
+
+// Clear selection when email content changes
+watch(emailHtml, () => {
+  selectedText.value = '';
+  selectedTokenNodes.value = [];
+  showSelectionMenu.value = false;
+});
 
 // Initialize
 loadCachedEmails();
@@ -880,6 +1261,12 @@ loadFromStorage();
           background: color-mix(in srgb, var(--primary) 90%, black);
           transform: translateY(-1px);
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+        }
+
+        &.active {
+          background: color-mix(in srgb, var(--primary) 70%, black);
+          box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+          transform: translateY(1px);
         }
       }
     }
@@ -1008,7 +1395,7 @@ loadFromStorage();
       font-size: 0.95rem;
       line-height: 1.6;
       color: #333;
-      user-select: text;
+      user-select: none; // Disable native text selection for "block" feel
 
       // Ensure email HTML renders properly (like Outlook)
       ::deep {
@@ -1123,6 +1510,18 @@ loadFromStorage();
           border: none;
           border-top: 1px solid #ddd;
           margin: 1rem 0;
+        }
+        
+        .html-source-view {
+          padding: 1rem;
+          background: #f8f9fa;
+          border-radius: 4px;
+          overflow: auto;
+          font-family: monospace;
+          font-size: 0.85rem;
+          color: #333;
+          white-space: pre-wrap;
+          word-break: break-all;
         }
 
         // Remove unwanted margins from email signatures
@@ -1440,6 +1839,35 @@ loadFromStorage();
       white-space: nowrap;
     }
 
+    .selection-controls {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      padding: 0.25rem 0;
+      border-bottom: 1px solid #eee;
+      margin-bottom: 0.5rem;
+
+      .control-btn {
+        padding: 0.4rem 0.8rem;
+        background: #f8f9fa;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        color: #555;
+        transition: all 0.2s;
+
+        &:hover:not(:disabled) {
+          background: #e2e6ea;
+          color: #333;
+        }
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+    }
+
     .quick-action-btn {
       padding: 0.5rem 1rem;
       border: none;
@@ -1539,7 +1967,7 @@ loadFromStorage();
       height: 100%;
 
       .test-email-section {
-        flex: 0 0 45%;
+        flex: 1;
         background: var(--panel);
         border-bottom: 1px solid var(--border);
         display: flex;
@@ -1604,32 +2032,50 @@ loadFromStorage();
         }
 
         .email-info {
-          padding: 1rem;
+          padding: 0.75rem 1rem;
           background: color-mix(in srgb, var(--primary) 8%, var(--panel));
           border-bottom: 1px solid var(--border);
 
-          .info-row {
-            display: flex;
-            gap: 0.75rem;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-
-            &:last-child {
-              margin-bottom: 0;
-            }
-
-            .label {
-              font-weight: 600;
-              color: var(--muted);
-              min-width: 70px;
+          .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 0.5rem 1.5rem;
+            
+            .info-item {
+              display: flex;
+              align-items: baseline;
+              gap: 0.5rem;
+              font-size: 0.9rem;
+              
+              .label {
+                font-weight: 600;
+                color: var(--muted);
+                white-space: nowrap;
+              }
+              
+              .value {
+                color: var(--text);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+              }
             }
           }
         }
 
-        .email-preview-container {
+        .test-split-container {
           flex: 1;
-          overflow-y: auto;
-          padding: 1.5rem;
+          display: flex;
+          overflow: hidden;
+          min-height: 0; /* Important for flex scrolling */
+          
+          .email-preview-container, .placeholder {
+              flex: 1;
+              border-right: 1px solid var(--border);
+              overflow-y: auto;
+              padding: 1.5rem;
+              height: 100%;
+          }
 
           .email-preview-content {
             font-size: 0.9rem;
@@ -1642,15 +2088,66 @@ loadFromStorage();
               br { margin: 0.25rem 0; }
             }
           }
-        }
-
-        .placeholder {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--muted);
-          text-align: center;
+          
+          .test-results-panel {
+              width: 300px;
+              background: var(--bg);
+              display: flex;
+              flex-direction: column;
+              overflow: hidden;
+              
+              .results-header {
+                  padding: 0.75rem 1rem;
+                  background: var(--panel);
+                  border-bottom: 1px solid var(--border);
+                  
+                  h5 {
+                      margin: 0;
+                      font-size: 0.9rem;
+                      font-weight: 600;
+                      color: var(--text);
+                  }
+              }
+              
+              .results-list {
+                  flex: 1;
+                  overflow-y: auto;
+                  padding: 1rem;
+                  display: flex;
+                  flex-direction: column;
+                  gap: 0.75rem;
+                  
+                  .result-item {
+                      padding: 0.75rem;
+                      background: var(--panel);
+                      border: 1px solid var(--border);
+                      border-radius: 6px;
+                      display: flex;
+                      flex-direction: column;
+                      gap: 0.25rem;
+                      
+                      .res-label {
+                          font-size: 0.75rem;
+                          font-weight: 600;
+                          color: var(--muted);
+                          text-transform: uppercase;
+                      }
+                      
+                      .res-value {
+                          font-size: 0.9rem;
+                          color: var(--text);
+                          word-break: break-word;
+                      }
+                  }
+              }
+              
+              .no-results {
+                  padding: 2rem;
+                  text-align: center;
+                  color: var(--muted);
+                  font-size: 0.9rem;
+              }
+          }
         }
       }
 
@@ -1917,6 +2414,23 @@ loadFromStorage();
   }
 }
 
+.html-source-view {
+  padding: 1.5rem;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  overflow: auto;
+  height: 100%;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  width: 100%;
+  
+  pre {
+    margin: 0;
+    white-space: pre-wrap;
+  }
+}
+
 @keyframes slideUp {
   from {
     opacity: 0;
@@ -1936,6 +2450,38 @@ loadFromStorage();
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+</style>
+
+<style lang="scss">
+// Global styles for dynamically generated mail tokens
+// Must be non-scoped to affect v-html content
+.mail-parser .email-content {
+  .mail-token {
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.1s ease;
+    display: inline;
+    padding: 1px 0;
+    
+    &:hover {
+      background-color: rgba(0, 123, 255, 0.2) !important;
+      outline: 1px dashed rgba(0, 123, 255, 0.6);
+      box-shadow: 0 0 0 1px rgba(0, 123, 255, 0.1);
+      z-index: 10;
+      position: relative;
+      color: #0056b3;
+    }
+  }
+
+  // Apply selected style to ANY element (token or container)
+  .selected {
+    background-color: rgba(0, 123, 255, 0.3) !important;
+    outline: 2px solid rgba(0, 123, 255, 0.8);
+    font-weight: 600;
+    color: #000;
+    z-index: 5;
   }
 }
 </style>
