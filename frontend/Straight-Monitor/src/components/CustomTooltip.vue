@@ -1,6 +1,7 @@
 <template>
   <div class="tooltip-container">
     <div
+      ref="triggerRef"
       class="tooltip-trigger"
       tabindex="-1"
       @mouseenter="scheduleShow"
@@ -67,6 +68,7 @@ const props = defineProps({
 
 const isVisible = ref(false)
 const coords = ref({ top: 0, left: 0 })
+const triggerRef = ref(null)
 let inTimer = null
 let outTimer = null
 
@@ -75,9 +77,8 @@ const scheduleShow = () => {
   clearTimeout(inTimer)
   inTimer = setTimeout(() => {
     if (props.teleportToBody) {
-      const trigger = document.activeElement?.closest('.tooltip-trigger') || null
-      if (trigger) {
-        const r = trigger.getBoundingClientRect()
+      if (triggerRef.value) {
+        const r = triggerRef.value.getBoundingClientRect()
         const offset = 8
         let top = r.top - offset
         let left = r.left + r.width / 2

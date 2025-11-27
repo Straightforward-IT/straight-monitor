@@ -932,6 +932,63 @@ router.patch(
   })
 );
 
+router.get(
+  "/mitarbeiter/by-name/:name",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { name } = req.params;
+    
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Name parameter is required.",
+      });
+    }
+
+    try {
+      // Split name into parts and try to find by vorname nachname combination
+      const nameParts = name.trim().split(/\s+/);
+      let mitarbeiter = null;
+
+      if (nameParts.length >= 2) {
+        const vorname = nameParts[0];
+        const nachname = nameParts.slice(1).join(' ');
+        
+        // Try exact match first
+        mitarbeiter = await Mitarbeiter.findOne({
+          vorname: { $regex: new RegExp(`^${vorname}$`, 'i') },
+          nachname: { $regex: new RegExp(`^${nachname}$`, 'i') }
+        }).select('_id flip_id asana_id vorname nachname email isActive');
+      }
+
+      // If not found, try matching the full name
+      if (!mitarbeiter) {
+        mitarbeiter = await Mitarbeiter.findOne({
+          $or: [
+            { vorname: { $regex: new RegExp(name, 'i') } },
+            { nachname: { $regex: new RegExp(name, 'i') } },
+            { email: { $regex: new RegExp(name, 'i') } }
+          ]
+        }).select('_id flip_id asana_id vorname nachname email isActive');
+      }
+
+      if (!mitarbeiter) {
+        return res.status(404).json({
+          success: false,
+          message: `Mitarbeiter "${name}" not found.`,
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: mitarbeiter,
+      });
+    } catch (error) {
+      throw error;
+    }
+  })
+);
+
 module.exports = router;
 
 router.get(

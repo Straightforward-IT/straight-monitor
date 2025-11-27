@@ -55,32 +55,24 @@
           <span class="chip-label">Typ</span>
           <button
             class="chip"
-            :class="{ active: activeDocTypeFilter === 'Alle' }"
-            @click="setDocFilter('type', 'Alle')"
-          >
-            <font-awesome-icon icon="fa-solid fa-asterisk" />
-            Alle
-          </button>
-          <button
-            class="chip"
-            :class="{ active: activeDocTypeFilter === 'Laufzettel' }"
-            @click="setDocFilter('type', 'Laufzettel')"
+            :class="{ active: activeDocTypeFilters.includes('Laufzettel') }"
+            @click="toggleDocTypeFilter('Laufzettel')"
           >
             <font-awesome-icon icon="fa-solid fa-list-check" />
             Laufzettel
           </button>
           <button
             class="chip"
-            :class="{ active: activeDocTypeFilter === 'Event-Bericht' }"
-            @click="setDocFilter('type', 'Event-Bericht')"
+            :class="{ active: activeDocTypeFilters.includes('Event-Bericht') }"
+            @click="toggleDocTypeFilter('Event-Bericht')"
           >
             <font-awesome-icon icon="fa-solid fa-clipboard" />
             Event Report
           </button>
           <button
             class="chip"
-            :class="{ active: activeDocTypeFilter === 'Evaluierung' }"
-            @click="setDocFilter('type', 'Evaluierung')"
+            :class="{ active: activeDocTypeFilters.includes('Evaluierung') }"
+            @click="toggleDocTypeFilter('Evaluierung')"
           >
             <font-awesome-icon icon="fa-solid fa-pen-clip" />
             Evaluierung
@@ -195,8 +187,38 @@
           </div>
           <div class="truncate">{{ doc.bezeichnung || "—" }}</div>
           <div>{{ formatDate(doc.datum) }}</div>
-          <div class="truncate">{{ doc.details?.name_teamleiter || "—" }}</div>
-          <div class="truncate">{{ doc.details?.name_mitarbeiter || "—" }}</div>
+          <div class="truncate person-cell">
+            <CustomTooltip v-if="doc.details?.name_teamleiter" :text="getPersonTooltip(doc.details.name_teamleiter, 'teamleiter')" position="bottom" :delay-in="150" teleportToBody>
+              <button class="link-btn" @click.stop="filterByTeamleiter(doc.details.name_teamleiter)">
+                {{ doc.details.name_teamleiter }}
+              </button>
+            </CustomTooltip>
+            <button 
+              v-if="doc.details?.name_teamleiter && personDetails[doc.details.name_teamleiter]?.asana_id"
+              class="btn-icon-tiny"
+              @click.stop="openAsanaTask(doc.details.name_teamleiter, $event)"
+              title="Asana Task öffnen"
+            >
+              <img :src="asanaLogo" alt="Asana" class="asana-icon" />
+            </button>
+            <span v-if="!doc.details?.name_teamleiter">—</span>
+          </div>
+          <div class="truncate person-cell">
+            <CustomTooltip v-if="doc.details?.name_mitarbeiter" :text="getPersonTooltip(doc.details.name_mitarbeiter, 'mitarbeiter')" position="bottom" :delay-in="150" teleportToBody>
+              <button class="link-btn" @click.stop="filterByMitarbeiter(doc.details.name_mitarbeiter)">
+                {{ doc.details.name_mitarbeiter }}
+              </button>
+            </CustomTooltip>
+            <button 
+              v-if="doc.details?.name_mitarbeiter && doc.docType !== 'Event-Bericht' && personDetails[doc.details.name_mitarbeiter]?.asana_id"
+              class="btn-icon-tiny"
+              @click.stop="openAsanaTask(doc.details.name_mitarbeiter, $event)"
+              title="Asana Task öffnen"
+            >
+              <img :src="asanaLogo" alt="Asana" class="asana-icon" />
+            </button>
+            <span v-if="!doc.details?.name_mitarbeiter">—</span>
+          </div>
           <div>
             <span :class="['status', (doc.status || '').toLowerCase()]">
               {{ doc.status || "—" }}
@@ -209,6 +231,18 @@
             <div v-if="activeQuickActionId === (doc.id || doc._id)" class="quick-actions-menu">
               <button @click="openDoc(doc)">
                 <font-awesome-icon icon="fa-solid fa-magnifying-glass" /> Details
+              </button>
+              <button 
+                v-if="doc.details?.name_teamleiter && personDetails[doc.details.name_teamleiter]?.asana_id" 
+                @click="openAsanaTask(doc.details.name_teamleiter, $event)"
+              >
+                <img :src="asanaLogo" alt="Asana" class="asana-icon" /> Teamleiter Task
+              </button>
+              <button 
+                v-if="doc.details?.name_mitarbeiter && doc.docType !== 'Event-Bericht' && personDetails[doc.details.name_mitarbeiter]?.asana_id" 
+                @click="openAsanaTask(doc.details.name_mitarbeiter, $event)"
+              >
+                <img :src="asanaLogo" alt="Asana" class="asana-icon" /> Mitarbeiter Task
               </button>
             </div>
           </div>
@@ -248,8 +282,20 @@
             </div>
             <div class="detail-item">
               <label>Teamleiter</label>
-              <div v-if="selectedDoc.details?.name_teamleiter">
-                {{ selectedDoc.details.name_teamleiter }}
+              <div v-if="selectedDoc.details?.name_teamleiter" class="person-detail">
+                <CustomTooltip :text="getPersonTooltip(selectedDoc.details.name_teamleiter, 'teamleiter')" position="bottom" :delay-in="150" teleportToBody>
+                  <button class="link-btn" @click="filterByTeamleiter(selectedDoc.details.name_teamleiter)">
+                    {{ selectedDoc.details.name_teamleiter }}
+                  </button>
+                </CustomTooltip>
+                <button 
+                  v-if="personDetails[selectedDoc.details.name_teamleiter]?.asana_id"
+                  class="btn-icon-tiny"
+                  @click="openAsanaTask(selectedDoc.details.name_teamleiter, $event)"
+                  title="Asana Task öffnen"
+                >
+                  <img :src="asanaLogo" alt="Asana" class="asana-icon" />
+                </button>
               </div>
               <button v-else class="btn btn-sm btn-primary" @click="demoAssign('teamleiter')">
                 <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
@@ -257,8 +303,20 @@
             </div>
             <div class="detail-item" v-if="selectedDoc.docType !== 'Event-Bericht'">
               <label>Mitarbeiter</label>
-              <div v-if="selectedDoc.details?.name_mitarbeiter">
-                {{ selectedDoc.details.name_mitarbeiter }}
+              <div v-if="selectedDoc.details?.name_mitarbeiter" class="person-detail">
+                <CustomTooltip :text="getPersonTooltip(selectedDoc.details.name_mitarbeiter, 'mitarbeiter')" position="bottom" :delay-in="150" teleportToBody>
+                  <button class="link-btn" @click="filterByMitarbeiter(selectedDoc.details.name_mitarbeiter)">
+                    {{ selectedDoc.details.name_mitarbeiter }}
+                  </button>
+                </CustomTooltip>
+                <button 
+                  v-if="personDetails[selectedDoc.details.name_mitarbeiter]?.asana_id"
+                  class="btn-icon-tiny"
+                  @click="openAsanaTask(selectedDoc.details.name_mitarbeiter, $event)"
+                  title="Asana Task öffnen"
+                >
+                  <img :src="asanaLogo" alt="Asana" class="asana-icon" />
+                </button>
               </div>
               <button v-else class="btn btn-sm btn-primary" @click="demoAssign('mitarbeiter')">
                 <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
@@ -279,6 +337,22 @@
           </div>
         </div>
         <div class="modal-footer">
+          <div class="actions-left">
+            <button 
+              v-if="selectedDoc.details?.name_teamleiter && personDetails[selectedDoc.details.name_teamleiter]?.asana_id" 
+              class="btn btn-sm"
+              @click="openAsanaTask(selectedDoc.details.name_teamleiter, $event)"
+            >
+              <img :src="asanaLogo" alt="Asana" class="asana-icon" /> Teamleiter Task
+            </button>
+            <button 
+              v-if="selectedDoc.details?.name_mitarbeiter && selectedDoc.docType !== 'Event-Bericht' && personDetails[selectedDoc.details.name_mitarbeiter]?.asana_id" 
+              class="btn btn-sm"
+              @click="openAsanaTask(selectedDoc.details.name_mitarbeiter, $event)"
+            >
+              <img :src="asanaLogo" alt="Asana" class="asana-icon" /> Mitarbeiter Task
+            </button>
+          </div>
           <button class="btn" @click="closeDoc">Schließen</button>
         </div>
       </div>
@@ -289,6 +363,8 @@
 <script>
 import api from "@/utils/api";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import CustomTooltip from './CustomTooltip.vue';
+import asanaLogo from '@/assets/asana.png';
 
 import {
   faMagnifyingGlass,
@@ -310,7 +386,8 @@ import {
   faUnlink,
   faLocationDot,
   faEarthEurope,
-  faEllipsisVertical
+  faEllipsisVertical,
+  faExternalLink
 } from "@fortawesome/free-solid-svg-icons";
 import { faCircle as faCircleRegular } from "@fortawesome/free-regular-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
@@ -336,15 +413,19 @@ library.add(
   faUnlink,
   faLocationDot,
   faEarthEurope,
-  faEllipsisVertical
+  faEllipsisVertical,
+  faExternalLink
 );
 
 export default {
   name: "Dokumente",
-  components: { FontAwesomeIcon },
+  components: { FontAwesomeIcon, CustomTooltip },
 
   data() {
     return {
+      // assets
+      asanaLogo,
+      
       // auth/user
       token: localStorage.getItem("token") || null,
       userLocation: "",
@@ -359,8 +440,10 @@ export default {
 
       // filters and search
       activeDocStatusFilter: "Alle",
-      activeDocTypeFilter: "Alle",
+      activeDocTypeFilters: ["Event-Bericht", "Evaluierung"],
       activeDocLocationFilter: "Alle",
+      filteredTeamleiter: null,
+      filteredMitarbeiter: null,
       documentsSearchQuery: "",
       
       // sorting
@@ -375,6 +458,9 @@ export default {
       // ui
       selectedDoc: null,
       activeQuickActionId: null,
+
+      // person details cache (for Asana links)
+      personDetails: {},
     };
   },
 
@@ -385,14 +471,22 @@ export default {
       if (this.activeDocStatusFilter !== "Alle") {
         result = result.filter((d) => (d.status || "") === this.activeDocStatusFilter);
       }
-      if (this.activeDocTypeFilter !== "Alle") {
-        result = result.filter((d) => (d.docType || "") === this.activeDocTypeFilter);
+      if (this.activeDocTypeFilters.length > 0) {
+        result = result.filter((d) => this.activeDocTypeFilters.includes(d.docType || ""));
       }
       if (this.activeDocLocationFilter !== "Alle") {
         result = result.filter((d) => {
           const loc = d.details?.location || d.bezeichnung || "";
           return loc === this.activeDocLocationFilter;
         });
+      }
+
+      if (this.filteredTeamleiter) {
+        result = result.filter((d) => (d.details?.name_teamleiter || "") === this.filteredTeamleiter);
+      }
+
+      if (this.filteredMitarbeiter) {
+        result = result.filter((d) => (d.details?.name_mitarbeiter || "") === this.filteredMitarbeiter);
       }
 
       const q = this.documentsSearchQuery.toLowerCase().trim();
@@ -504,9 +598,83 @@ export default {
 
     setDocFilter(type, value) {
       if (type === "status") this.activeDocStatusFilter = value;
-      if (type === "type") this.activeDocTypeFilter = value;
       if (type === "location") this.activeDocLocationFilter = value;
       this.currentPage = 1;
+    },
+
+    toggleDocTypeFilter(type) {
+      const idx = this.activeDocTypeFilters.indexOf(type);
+      if (idx > -1) {
+        this.activeDocTypeFilters.splice(idx, 1);
+      } else {
+        this.activeDocTypeFilters.push(type);
+      }
+      this.currentPage = 1;
+    },
+
+    filterByTeamleiter(name) {
+      if (this.filteredTeamleiter === name) {
+        this.filteredTeamleiter = null;
+      } else {
+        this.filteredTeamleiter = name;
+        this.filteredMitarbeiter = null;
+      }
+      this.currentPage = 1;
+      this.closeDoc();
+    },
+
+    filterByMitarbeiter(name) {
+      if (this.filteredMitarbeiter === name) {
+        this.filteredMitarbeiter = null;
+      } else {
+        this.filteredMitarbeiter = name;
+        this.filteredTeamleiter = null;
+      }
+      this.currentPage = 1;
+      this.closeDoc();
+    },
+
+    async fetchPersonDetails(name) {
+      if (!name || this.personDetails[name]) return this.personDetails[name];
+      
+      try {
+        const response = await api.get(`/api/personal/mitarbeiter/by-name/${encodeURIComponent(name)}`);
+        if (response.data?.success && response.data?.data) {
+          this.personDetails[name] = response.data.data;
+          return response.data.data;
+        }
+      } catch (error) {
+        console.warn(`Could not fetch details for ${name}:`, error.message);
+      }
+      return null;
+    },
+
+    async openAsanaTask(name, event) {
+      event.stopPropagation();
+      event.preventDefault();
+      
+      const person = await this.fetchPersonDetails(name);
+      if (person?.asana_id) {
+        const asanaWebUrl = `https://app.asana.com/0/0/${person.asana_id}`;
+        window.open(asanaWebUrl, '_blank');
+      } else {
+        console.warn(`No Asana ID found for ${name}`);
+      }
+    },
+
+    getPersonTooltip(name, role) {
+      const isFiltered = role === 'teamleiter' 
+        ? this.filteredTeamleiter === name 
+        : this.filteredMitarbeiter === name;
+      
+      return isFiltered 
+        ? `Filter zurücksetzen` 
+        : `Filtern auf ${name}`;
+    },
+
+    async hasAsanaId(name) {
+      const person = await this.fetchPersonDetails(name);
+      return person?.asana_id ? true : false;
     },
 
     nextPage() {
@@ -1277,5 +1445,65 @@ export default {
 
 .quick-actions-menu button:hover {
   background: var(--soft);
+}
+
+/* Clickable Link Buttons */
+.link-btn {
+  background: transparent;
+  border: none;
+  color: var(--brand);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  text-decoration: underline;
+  transition: 140ms ease;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+}
+
+.link-btn:hover {
+  background: color-mix(in srgb, var(--brand) 15%, transparent);
+  color: var(--brand-ink);
+}
+
+/* Person Cell with Link and Icon */
+.person-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.person-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-icon-tiny {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: 140ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+
+.btn-icon-tiny:hover {
+  background: var(--soft);
+  color: var(--brand);
+}
+
+/* Asana Icon in Menus */
+.asana-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  vertical-align: middle;
 }
 </style>
