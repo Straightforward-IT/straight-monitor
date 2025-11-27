@@ -193,14 +193,6 @@
                 {{ doc.details.name_teamleiter }}
               </button>
             </CustomTooltip>
-            <button 
-              v-if="doc.details?.name_teamleiter && personDetails[doc.details.name_teamleiter]?.asana_id"
-              class="btn-icon-tiny"
-              @click.stop="openAsanaTask(doc.details.name_teamleiter, $event)"
-              title="Asana Task öffnen"
-            >
-              <img :src="asanaLogo" alt="Asana" class="asana-icon" />
-            </button>
             <span v-if="!doc.details?.name_teamleiter">—</span>
           </div>
           <div class="truncate person-cell">
@@ -209,14 +201,6 @@
                 {{ doc.details.name_mitarbeiter }}
               </button>
             </CustomTooltip>
-            <button 
-              v-if="doc.details?.name_mitarbeiter && doc.docType !== 'Event-Bericht' && personDetails[doc.details.name_mitarbeiter]?.asana_id"
-              class="btn-icon-tiny"
-              @click.stop="openAsanaTask(doc.details.name_mitarbeiter, $event)"
-              title="Asana Task öffnen"
-            >
-              <img :src="asanaLogo" alt="Asana" class="asana-icon" />
-            </button>
             <span v-if="!doc.details?.name_mitarbeiter">—</span>
           </div>
           <div>
@@ -288,14 +272,6 @@
                     {{ selectedDoc.details.name_teamleiter }}
                   </button>
                 </CustomTooltip>
-                <button 
-                  v-if="personDetails[selectedDoc.details.name_teamleiter]?.asana_id"
-                  class="btn-icon-tiny"
-                  @click="openAsanaTask(selectedDoc.details.name_teamleiter, $event)"
-                  title="Asana Task öffnen"
-                >
-                  <img :src="asanaLogo" alt="Asana" class="asana-icon" />
-                </button>
               </div>
               <button v-else class="btn btn-sm btn-primary" @click="demoAssign('teamleiter')">
                 <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
@@ -309,14 +285,6 @@
                     {{ selectedDoc.details.name_mitarbeiter }}
                   </button>
                 </CustomTooltip>
-                <button 
-                  v-if="personDetails[selectedDoc.details.name_mitarbeiter]?.asana_id"
-                  class="btn-icon-tiny"
-                  @click="openAsanaTask(selectedDoc.details.name_mitarbeiter, $event)"
-                  title="Asana Task öffnen"
-                >
-                  <img :src="asanaLogo" alt="Asana" class="asana-icon" />
-                </button>
               </div>
               <button v-else class="btn btn-sm btn-primary" @click="demoAssign('mitarbeiter')">
                 <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
@@ -458,7 +426,7 @@ export default {
       // ui
       selectedDoc: null,
       activeQuickActionId: null,
-
+      
       // person details cache (for Asana links)
       personDetails: {},
     };
@@ -662,6 +630,62 @@ export default {
       }
     },
 
+    async fetchPersonDetails(name) {
+      if (!name || this.personDetails[name]) return this.personDetails[name];
+      
+      try {
+        const response = await api.get(`/api/personal/mitarbeiter/by-name/${encodeURIComponent(name)}`);
+        if (response.data?.success && response.data?.data) {
+          this.personDetails[name] = response.data.data;
+          return response.data.data;
+        }
+      } catch (error) {
+        console.warn(`Could not fetch details for ${name}:`, error.message);
+      }
+      return null;
+    },
+
+    async openAsanaTask(name, event) {
+      event.stopPropagation();
+      event.preventDefault();
+      
+      const person = await this.fetchPersonDetails(name);
+      if (person?.asana_id) {
+        const asanaWebUrl = `https://app.asana.com/0/0/${person.asana_id}`;
+        window.open(asanaWebUrl, '_blank');
+      } else {
+        console.warn(`No Asana ID found for ${name}`);
+      }
+    },
+
+    async fetchPersonDetails(name) {
+      if (!name || this.personDetails[name]) return this.personDetails[name];
+      
+      try {
+        const response = await api.get(`/api/personal/mitarbeiter/by-name/${encodeURIComponent(name)}`);
+        if (response.data?.success && response.data?.data) {
+          this.personDetails[name] = response.data.data;
+          return response.data.data;
+        }
+      } catch (error) {
+        console.warn(`Could not fetch details for ${name}:`, error.message);
+      }
+      return null;
+    },
+
+    async openAsanaTask(name, event) {
+      event.stopPropagation();
+      event.preventDefault();
+      
+      const person = await this.fetchPersonDetails(name);
+      if (person?.asana_id) {
+        const asanaWebUrl = `https://app.asana.com/0/0/${person.asana_id}`;
+        window.open(asanaWebUrl, '_blank');
+      } else {
+        console.warn(`No Asana ID found for ${name}`);
+      }
+    },
+
     getPersonTooltip(name, role) {
       const isFiltered = role === 'teamleiter' 
         ? this.filteredTeamleiter === name 
@@ -670,11 +694,6 @@ export default {
       return isFiltered 
         ? `Filter zurücksetzen` 
         : `Filtern auf ${name}`;
-    },
-
-    async hasAsanaId(name) {
-      const person = await this.fetchPersonDetails(name);
-      return person?.asana_id ? true : false;
     },
 
     nextPage() {
@@ -694,8 +713,17 @@ export default {
       this.currentPage = 1;
     },
 
-    openDoc(doc) {
+    async openDoc(doc) {
       this.selectedDoc = doc;
+      this.activeQuickActionId = null;
+      
+      // Fetch person details when opening document
+      if (doc.details?.name_teamleiter) {
+        await this.fetchPersonDetails(doc.details.name_teamleiter);
+      }
+      if (doc.details?.name_mitarbeiter) {
+        await this.fetchPersonDetails(doc.details.name_mitarbeiter);
+      }
     },
 
     closeDoc() {
