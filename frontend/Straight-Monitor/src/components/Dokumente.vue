@@ -474,16 +474,33 @@ export default {
       const q = this.documentsSearchQuery.toLowerCase().trim();
       if (q) {
         result = result.filter((d) => {
-          const v = [
+          // Collect all searchable values
+          const values = [
             d.docType || "",
             d.bezeichnung || "",
-            d.details?.name_teamleiter || "",
-            d.details?.name_mitarbeiter || "",
+            d.status || "",
             this.formatDate(d.datum) || "",
-          ]
-            .join(" ")
-            .toLowerCase();
-          return v.includes(q);
+          ];
+          
+          // Add all detail fields (full-text search)
+          if (d.details && typeof d.details === 'object') {
+            Object.entries(d.details).forEach(([key, value]) => {
+              // Skip internal MongoDB fields and references
+              if (!['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id'].includes(key)) {
+                if (value) {
+                  // Format dates for searching
+                  if (typeof key === 'string' && (key.toLowerCase().includes('datum') || key.toLowerCase().includes('date'))) {
+                    values.push(this.formatDate(value));
+                  } else {
+                    values.push(String(value));
+                  }
+                }
+              }
+            });
+          }
+          
+          const searchText = values.join(" ").toLowerCase();
+          return searchText.includes(q);
         });
       }
 
