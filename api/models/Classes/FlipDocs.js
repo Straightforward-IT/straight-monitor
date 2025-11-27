@@ -58,7 +58,9 @@ LaufzettelSchema.methods.toHtml = function () {
 // EventReport Schema
 const EventReportSchema = new mongoose.Schema({
   location: { type: String, required: true },
+  kunde: { type: String, required: true },
   name_teamleiter: { type: String, required: true },
+  mitarbeiter_anzahl: { type: String, required: false },
   datum: {
     type: Date,
     required: true,
@@ -69,12 +71,10 @@ const EventReportSchema = new mongoose.Schema({
       return value;
     },
   },
-  kunde: { type: String, required: true },
   puenktlichkeit: { type: String, required: false },
   erscheinungsbild: { type: String, required: false },
   team: { type: String, required: false },
   mitarbeiter_job: { type: String, required: false },
-  mitarbeiter_anzahl: { type: String, required: false },
   feedback_auftraggeber: { type: String, required: false },
   sonstiges: { type: String, required: false },
   teamleiter: {
@@ -252,11 +252,11 @@ EventReportSchema.methods.toHtml = function () {
 <strong>Datum</strong>\n${formatDateHTML(this.datum)}\n
 <strong>Kunde</strong>\n${this.kunde}\n
 <strong>Name Teamleiter</strong>\n${this.name_teamleiter}\n
+<strong>Mitarbeiter Anzahl</strong>\n${this.mitarbeiter_anzahl || "-"}\n
 <strong>Pünktlichkeit</strong>\n${this.puenktlichkeit || "-"}\n
 <strong>Erscheinungsbild</strong>\n${this.erscheinungsbild || "-"}\n
 <strong>Team</strong>\n${this.team || "-"}\n
 <strong>Mitarbeiter Job</strong>\n${this.mitarbeiter_job || "-"}\n
-<strong>Mitarbeiter Anzahl</strong>\n${this.mitarbeiter_anzahl || "-"}\n
 <strong>Feedback Auftraggeber</strong>\n${this.feedback_auftraggeber || "-"}\n
 <strong>Sonstiges</strong>\n${this.sonstiges || "-"}\n
 <strong>Zugewiesen</strong>\n${this.assigned ? "Ja" : "Nein"}\n

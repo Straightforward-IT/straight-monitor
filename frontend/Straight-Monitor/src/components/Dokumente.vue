@@ -310,14 +310,10 @@
             <h4>Details</h4>
             <div class="key-value-list">
               <div v-for="(value, key) in selectedDoc.details" :key="key" class="kv-item">
-                <template v-if="!['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'mitarbeiter_anzahl'].includes(key)">
+                <template v-if="!['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id'].includes(key)">
                   <span class="key">{{ formatKey(key) }}:</span>
                   <span class="value">{{ formatValue(key, value) }}</span>
                 </template>
-              </div>
-              <div v-if="selectedDoc.details?.mitarbeiter_anzahl" class="kv-item">
-                <span class="key">Mitarbeiter Anzahl:</span>
-                <span class="value">{{ selectedDoc.details.mitarbeiter_anzahl }}</span>
               </div>
             </div>
           </div>
