@@ -30,6 +30,7 @@
           :class="{ active: $route.name === 'Dokumente'}"
         >
           Dokumente
+          <span class="beta-tag">NEU</span>
         </router-link>
       </nav>
       
@@ -144,7 +145,6 @@
           Personal
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
         </router-link>
-        
         <router-link
           to="/dokumente"
           :class="{ active: $route.name === 'Dokumente' }"
@@ -152,7 +152,9 @@
         >
           <font-awesome-icon :icon="['fas', 'file-alt']" />
           Dokumente
+          <span class="beta-tag">NEU</span>
         </router-link>
+       
         
         <div class="mobile-menu-divider"></div>
         
