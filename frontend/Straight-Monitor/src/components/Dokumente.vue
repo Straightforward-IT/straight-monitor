@@ -545,6 +545,9 @@ export default {
     
     formatKey(key) {
       if (!key) return '';
+      // Special cases
+      if (key === 'date') return 'Geschrieben am';
+      
       // Replace underscores with spaces and capitalize first letter
       return key
         .replace(/_/g, ' ')
