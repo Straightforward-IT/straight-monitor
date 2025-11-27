@@ -198,6 +198,8 @@ router.post(
 
         mitarbeiter_job,
 
+        mitarbeiter_anzahl,
+
         feedback_auftraggeber,
 
         sonstiges,
@@ -221,6 +223,8 @@ router.post(
         team,
 
         mitarbeiter_job,
+
+        mitarbeiter_anzahl,
 
         feedback_auftraggeber,
 

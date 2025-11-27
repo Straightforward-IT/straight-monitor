@@ -80,6 +80,10 @@
               <font-awesome-icon :icon="['fas', 'ticket-alt']" />
               <span>Support-Ticket-System</span>
             </div>
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'file-alt']" />
+              <span>Dokumente - Event-Reports & Evaluierungen</span>
+            </div>
           </div>
         </div>
 
@@ -92,10 +96,6 @@
             <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'users']" />
               <span>Personal - Mitarbeiterverwaltung mit Asana/Flip Verknüpfung</span>
-            </div>
-            <div class="feature-item">
-              <font-awesome-icon :icon="['fas', 'file-alt']" />
-              <span>Dokumente - Event-Reports & OneDrive/YouSign Integration</span>
             </div>
             <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'dice']" />

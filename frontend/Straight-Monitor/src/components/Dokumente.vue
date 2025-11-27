@@ -3,80 +3,94 @@
     <!-- Document Management Section -->
     <div class="panel">
       <div class="controls">
-        <div class="chips">
-          <span class="chip-label">Status</span>
-          <button
-            class="chip"
-            :class="{ active: activeDocStatusFilter === 'Alle' }"
-            @click="setDocFilter('status', 'Alle')"
-          >
-            <font-awesome-icon icon="fa-solid fa-filter-circle-xmark" />
-            Alle
-          </button>
-          <button
-            class="chip"
-            :class="{ active: activeDocStatusFilter === 'Zugewiesen' }"
-            @click="setDocFilter('status', 'Zugewiesen')"
-          >
-            <font-awesome-icon icon="fa-solid fa-user-check" />
-            Zugewiesen
-          </button>
-          <button
-            class="chip"
-            :class="{ active: activeDocStatusFilter === 'Offen' }"
-            @click="setDocFilter('status', 'Offen')"
-          >
-            <font-awesome-icon icon="fa-regular fa-circle" />
-            Offen
-          </button>
+        <div class="filter-chips">
+          <div class="chip-group">
+            <span class="chip-label">Status</span>
+            <div class="chips">
+              <button
+                class="chip"
+                :class="{ active: activeDocStatusFilter === 'Alle' }"
+                @click="setDocFilter('status', 'Alle')"
+              >
+                <font-awesome-icon icon="fa-solid fa-filter-circle-xmark" />
+                Alle
+              </button>
+              <button
+                class="chip"
+                :class="{ active: activeDocStatusFilter === 'Zugewiesen' }"
+                @click="setDocFilter('status', 'Zugewiesen')"
+              >
+                <font-awesome-icon icon="fa-solid fa-user-check" />
+                Zugewiesen
+              </button>
+              <button
+                class="chip"
+                :class="{ active: activeDocStatusFilter === 'Offen' }"
+                @click="setDocFilter('status', 'Offen')"
+              >
+                <font-awesome-icon icon="fa-regular fa-circle" />
+                Offen
+              </button>
+            </div>
+          </div>
 
           <span class="divider" />
-          <span class="chip-label">Standort</span>
-          <button
-            class="chip"
-            :class="{ active: activeDocLocationFilter === 'Alle' }"
-            @click="setDocFilter('location', 'Alle')"
-          >
-            <font-awesome-icon icon="fa-solid fa-earth-europe" />
-            Alle
-          </button>
-          <button
-            v-for="loc in locations"
-            :key="loc"
-            class="chip"
-            :class="{ active: activeDocLocationFilter === loc }"
-            @click="setDocFilter('location', loc)"
-          >
-            <font-awesome-icon icon="fa-solid fa-location-dot" />
-            {{ loc }}
-          </button>
+          
+          <div class="chip-group">
+            <span class="chip-label">Standort</span>
+            <div class="chips">
+              <button
+                class="chip"
+                :class="{ active: activeDocLocationFilter === 'Alle' }"
+                @click="setDocFilter('location', 'Alle')"
+              >
+                <font-awesome-icon icon="fa-solid fa-earth-europe" />
+                Alle
+              </button>
+              <button
+                v-for="loc in locations"
+                :key="loc"
+                class="chip"
+                :class="{ active: activeDocLocationFilter === loc }"
+                @click="setDocFilter('location', loc)"
+              >
+                <font-awesome-icon icon="fa-solid fa-location-dot" />
+                {{ loc }}
+              </button>
+            </div>
+          </div>
 
           <span class="divider" />
-          <span class="chip-label">Typ</span>
-          <button
-            class="chip"
-            :class="{ active: activeDocTypeFilters.includes('Laufzettel') }"
-            @click="toggleDocTypeFilter('Laufzettel')"
-          >
-            <font-awesome-icon icon="fa-solid fa-list-check" />
-            Laufzettel
-          </button>
-          <button
-            class="chip"
-            :class="{ active: activeDocTypeFilters.includes('Event-Bericht') }"
-            @click="toggleDocTypeFilter('Event-Bericht')"
-          >
-            <font-awesome-icon icon="fa-solid fa-clipboard" />
-            Event Report
-          </button>
-          <button
-            class="chip"
-            :class="{ active: activeDocTypeFilters.includes('Evaluierung') }"
-            @click="toggleDocTypeFilter('Evaluierung')"
-          >
-            <font-awesome-icon icon="fa-solid fa-pen-clip" />
-            Evaluierung
-          </button>
+          
+          <div class="chip-group">
+            <span class="chip-label">Typ</span>
+            <div class="chips">
+              <button
+                class="chip"
+                :class="{ active: activeDocTypeFilters.includes('Laufzettel') }"
+                @click="toggleDocTypeFilter('Laufzettel')"
+              >
+                <font-awesome-icon icon="fa-solid fa-list-check" />
+                Laufzettel
+              </button>
+              <button
+                class="chip"
+                :class="{ active: activeDocTypeFilters.includes('Event-Bericht') }"
+                @click="toggleDocTypeFilter('Event-Bericht')"
+              >
+                <font-awesome-icon icon="fa-solid fa-clipboard" />
+                Event Report
+              </button>
+              <button
+                class="chip"
+                :class="{ active: activeDocTypeFilters.includes('Evaluierung') }"
+                @click="toggleDocTypeFilter('Evaluierung')"
+              >
+                <font-awesome-icon icon="fa-solid fa-pen-clip" />
+                Evaluierung
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="search-sort">
@@ -296,10 +310,14 @@
             <h4>Details</h4>
             <div class="key-value-list">
               <div v-for="(value, key) in selectedDoc.details" :key="key" class="kv-item">
-                <template v-if="!['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id'].includes(key)">
+                <template v-if="!['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'mitarbeiter_anzahl'].includes(key)">
                   <span class="key">{{ formatKey(key) }}:</span>
                   <span class="value">{{ formatValue(key, value) }}</span>
                 </template>
+              </div>
+              <div v-if="selectedDoc.details?.mitarbeiter_anzahl" class="kv-item">
+                <span class="key">Mitarbeiter Anzahl:</span>
+                <span class="value">{{ selectedDoc.details.mitarbeiter_anzahl }}</span>
               </div>
             </div>
           </div>
@@ -840,6 +858,52 @@ export default {
 }
 
 /* Filter Chips */
+.filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px;
+  background: var(--soft);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.chip-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  transition: all 200ms ease;
+  position: relative;
+}
+
+.chip-group:hover {
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface));
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--border));
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 10%, transparent);
+}
+
+.chip-group::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--brand);
+  border-radius: 2px 0 0 2px;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.chip-group:hover::before {
+  opacity: 0.6;
+}
+
 .chips {
   display: flex;
   align-items: center;
@@ -848,38 +912,53 @@ export default {
 }
 
 .chip-label {
-  color: var(--muted);
-  font-weight: 600;
-  margin-right: 2px;
+  color: var(--brand);
+  font-weight: 700;
+  margin-right: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 0;
 }
 
 .chip {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  border-radius: 999px;
+  border-radius: 6px;
   padding: 6px 12px;
   display: inline-flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   cursor: pointer;
-  transition: 140ms ease;
+  transition: all 200ms ease;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .chip:hover {
-  box-shadow: var(--shadow);
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface));
 }
 
 .chip.active {
-  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
-  border-color: color-mix(in srgb, var(--brand) 35%, var(--border));
-  color: var(--brand-ink);
+  background: transparent;
+  border-color: var(--brand);
+  color: var(--brand);
+  box-shadow: inset 0 0 0 1px var(--brand);
+  font-weight: 600;
 }
 
 .divider {
-  width: 1px;
-  height: 18px;
-  background: var(--border);
+  width: 2px;
+  height: 32px;
+  background: linear-gradient(to bottom, 
+    transparent 0%,
+    var(--border) 20%,
+    var(--border) 80%,
+    transparent 100%);
+  border-radius: 1px;
+  margin: 0 4px;
 }
 
 .search-sort {
