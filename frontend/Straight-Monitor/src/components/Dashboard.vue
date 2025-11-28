@@ -84,6 +84,10 @@
               <font-awesome-icon :icon="['fas', 'file-alt']" />
               <span>Dokumente - Event-Reports & Evaluierungen</span>
             </div>
+             <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'dice']" />
+              <span>Verlosung - Dashboard für die Adventsverlosungen</span>
+            </div>
           </div>
         </div>
 
@@ -96,10 +100,6 @@
             <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'users']" />
               <span>Personal - Mitarbeiterverwaltung mit Asana/Flip Verknüpfung</span>
-            </div>
-            <div class="feature-item">
-              <font-awesome-icon :icon="['fas', 'dice']" />
-              <span>Verlosung - Dashboard für die Adventsverlosungen</span>
             </div>
           </div>
         </div>
