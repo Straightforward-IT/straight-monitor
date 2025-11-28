@@ -132,7 +132,6 @@
 
       <!-- Dokumente -->
       <RouterLink 
-        v-if="newPagesEnabled"
         class="tile" 
         to="/dokumente"
         aria-label="Dokumente"
