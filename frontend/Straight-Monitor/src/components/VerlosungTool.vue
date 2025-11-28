@@ -2,7 +2,7 @@
   <div class="verlosung-tool">
     <header class="tool-header">
       <h4>Verlosungs<span>verwaltung</span></h4>
-      <p class="subtitle">Erstellen und verwalten Sie Verlosungen</p>
+      <p class="subtitle">Erstellung und Ziehung von Verlosungen</p>
     </header>
 
     <!-- Tabs -->
@@ -125,7 +125,7 @@
         <h2>Alle Verlosungen</h2>
         <div class="filter-group">
           <select v-model="filterStatus">
-            <option value="">Alle Status</option>
+            <option value="">Alle</option>
             <option value="OFFEN">
               <font-awesome-icon :icon="['fas', 'unlock']" /> Offen
             </option>

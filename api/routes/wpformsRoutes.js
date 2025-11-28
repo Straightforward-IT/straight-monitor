@@ -531,15 +531,21 @@ router.post(
       const matchingVerlosung = await Verlosung.findOne({
         gutschein_type,
         status: VERLOSUNG_STATUS.OFFEN,
-        $or: [
-          { start_date: { $exists: false } },
-          { start_date: null },
-          { start_date: { $lte: new Date() } }
-        ],
-        $or: [
-          { end_date: { $exists: false } },
-          { end_date: null },
-          { end_date: { $gte: new Date() } }
+        $and: [
+          {
+            $or: [
+              { start_date: { $exists: false } },
+              { start_date: null },
+              { start_date: { $lte: new Date() } }
+            ]
+          },
+          {
+            $or: [
+              { end_date: { $exists: false } },
+              { end_date: null },
+              { end_date: { $gte: new Date() } }
+            ]
+          }
         ]
       }).sort({ erstellt_am: -1 });
 
