@@ -47,7 +47,6 @@
 
       <!-- Verlosungen -->
       <button 
-      v-if="newPagesEnabled"
       class="s-btn" @click="go('/verlosung')">
         <img :src="logoSrc" alt="" />
         <span>Adventsverlosungen</span>

@@ -68,7 +68,7 @@ router.beforeEach((to, _from, next) => {
   
   // Feature flag check für neue Pages
   const newPagesEnabled = import.meta.env.VITE_ENABLE_NEW_PAGES === 'true';
-  const newPageRoutes = ['Personal', 'MailParser', 'VerlosungTool'];
+  const newPageRoutes = ['Personal', 'MailParser'];
   
   if (!newPagesEnabled && newPageRoutes.includes(to.name)) {
     alert('Diese Funktion ist noch in Entwicklung und wird bald verfügbar sein.');
