@@ -348,7 +348,7 @@
     >
       <div class="teilnehmer-dialog">
         <div class="dialog-header">
-          <h2>👥 Teilnehmer: {{ selectedVerlosung?.titel }}</h2>
+          <h2>Teilnehmer: {{ selectedVerlosung?.titel }}</h2>
           <button @click="closeTeilnehmer" class="close-btn">✕</button>
         </div>
 
@@ -382,13 +382,6 @@
           >
            <font-awesome-icon :icon="['fas', 'dice']" />
              Ziehung starten
-          </button>
-          <button
-            v-if="!rouletteActive"
-            @click="addTestTeilnehmer"
-            class="btn-info btn-small"
-          >
-            🧪 Test-Teilnehmer hinzufügen (50 Personen)
           </button>
           <button @click="closeTeilnehmer" class="btn-secondary">
             Schließen
