@@ -314,7 +314,7 @@
                 <option>onesize</option>
               </select></label
             >
-            <label v-if="selectedLocation === 'Hamburg'" class="row"
+            <label v-if="selectedLocation === 'Hamburg' || selectedLocation === 'Berlin'" class="row"
               ><span class="chk"
                 ><input type="checkbox" v-model="kellnerblockChecked" /><span
                   >Kellnerblock</span
@@ -939,7 +939,7 @@ export default {
           _id: this.getItemId("kellnermesser"),
           size: "onesize",
         },
-        ...(this.selectedLocation === 'Hamburg' ? [{
+        ...(this.selectedLocation === 'Hamburg' || this.selectedLocation === 'Berlin' ? [{
           checked: this.kellnerblockChecked,
           _id: this.getItemId("kellnerblock"),
           size: "onesize",

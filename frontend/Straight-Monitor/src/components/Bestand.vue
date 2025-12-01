@@ -381,22 +381,27 @@ export default {
           })
         : this.items.slice(); // Kopie, damit sort() nicht das Original zerdeppert
 
-      // Sortieren
+      // Items im Edit-Modus von Sortierung ausschließen
+      const editing = filtered.filter(item => item.isEditing);
+      const notEditing = filtered.filter(item => !item.isEditing);
+
+      // Nur nicht-editierte Items sortieren
       if (this.sortBy === "count") {
-        filtered.sort((a, b) =>
+        notEditing.sort((a, b) =>
           this.isAscending
             ? (a.anzahl ?? 0) - (b.anzahl ?? 0)
             : (b.anzahl ?? 0) - (a.anzahl ?? 0)
         );
       } else {
-        filtered.sort((a, b) =>
+        notEditing.sort((a, b) =>
           this.isAscending
             ? collator.compare(a.bezeichnung || "", b.bezeichnung || "")
             : collator.compare(b.bezeichnung || "", a.bezeichnung || "")
         );
       }
 
-      return filtered;
+      // Editierte Items an ihrer Position behalten (am Anfang einfügen)
+      return [...editing, ...notEditing];
     },
   },
 
