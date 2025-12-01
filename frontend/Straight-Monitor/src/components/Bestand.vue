@@ -72,124 +72,146 @@
 
   
   <!-- Modal for adding an item -->
-  <div v-if="showAddModal" class="modal">
-    <div class="modal-content">
-      <font-awesome-icon
-        class="close-modal"
-        :icon="['fas', 'times']"
-        @click="
-          showAddModal = false;
-          closeModal();
-        "
-        style="bottom: 96%"
-      />
-      <h4>Artikel hinzufügen</h4>
+  <teleport to="body">
+    <div v-if="showAddModal" class="modal" @click.self="showAddModal = false; closeModal();">
+      <div class="modal-content add-item-modal">
+        <font-awesome-icon
+          class="close"
+          :icon="['fas', 'times']"
+          @click="
+            showAddModal = false;
+            closeModal();
+          "
+        />
+        <h4>Artikel hinzufügen</h4>
 
-      <!-- Input fields with keyup.enter event -->
-      <div class="ModalGroup">
-        <label for="standort">Standort</label>
-        <select
-          class="standort-dropdown"
-          v-model="newItem.standort"
-          id="standort"
-          required
-        >
-          <option value="" disabled>Standort auswählen</option>
-          <option value="Hamburg">Hamburg</option>
-          <option value="Köln">Köln</option>
-          <option value="Berlin">Berlin</option>
-        </select>
-      </div>
-      <div class="ModalGroup">
-        <label for="bezeichnung">Bezeichnung</label>
-        <input
-          v-model="newItem.bezeichnung"
-          id="bezeichnung"
-          type="text"
-          placeholder="Bezeichnung"
-          required
-        />
-      </div>
-      <div class="ModalGroup">
-        <label for="groesse">Größe</label>
-        <input
-          v-model="newItem.groesse"
-          id="groesse"
-          type="text"
-          placeholder="Größe (optional)"
-        />
-        <label for="anzahl">Anzahl / Soll</label>
-      </div>
-      <div class="ModalGroup CountGroup">
-          <input class="CountInput"
-          v-model="newItem.anzahl"
-          id="anzahl"
-          type="number"
-          placeholder="Anzahl"
-          min="0"
-          required
-        />
-        <input 
-          style="margin-left: auto;"
-          class="CountInput"
-          v-model="newItem.soll"
-          id="soll"
-          type="number"
-          placeholder="Sollwert"
-          min="1"
-          required
-        />
-      </div>
-      <div class="ModalGroup">
-        <label for="anmerkung">Anmerkung</label>
-        <input
-          ref="floatingInput"
-          type="text"
-          v-model="anmerkung"
-          placeholder="Anmerkung (Optional)"
-        />
-      </div>
+        <div class="modal-scrollable">
+          <!-- Input fields with keyup.enter event -->
+          <label class="select-label">
+            Standort
+            <select
+              v-model="newItem.standort"
+              id="standort"
+              required
+            >
+              <option value="" disabled>Standort auswählen</option>
+              <option value="Hamburg">Hamburg</option>
+              <option value="Köln">Köln</option>
+              <option value="Berlin">Berlin</option>
+            </select>
+          </label>
 
-      <!-- Submit button -->
-      <button @click="submitNewItem()">Hinzufügen</button>
+          <label class="select-label">
+            Bezeichnung
+            <input
+              v-model="newItem.bezeichnung"
+              id="bezeichnung"
+              type="text"
+              placeholder="Bezeichnung"
+              required
+            />
+          </label>
+
+          <label class="select-label">
+            Größe
+            <input
+              v-model="newItem.groesse"
+              id="groesse"
+              type="text"
+              placeholder="Größe (optional)"
+            />
+          </label>
+
+          <div class="count-row">
+            <label class="count-label">
+              Anzahl
+              <input
+                v-model="newItem.anzahl"
+                id="anzahl"
+                type="number"
+                placeholder="Anzahl"
+                min="0"
+                required
+              />
+            </label>
+            <label class="count-label">
+              Sollwert
+              <input
+                v-model="newItem.soll"
+                id="soll"
+                type="number"
+                placeholder="Sollwert"
+                min="1"
+                required
+              />
+            </label>
+          </div>
+
+          <label class="select-label">
+            Anmerkung
+            <input
+              type="text"
+              v-model="anmerkung"
+              placeholder="Anmerkung (Optional)"
+            />
+          </label>
+        </div>
+
+        <!-- Submit button -->
+        <div class="modal-buttons">
+          <button @click="submitNewItem()">Hinzufügen</button>
+        </div>
+      </div>
     </div>
-  </div>
+  </teleport>
 
-  <div v-if="showInputField" class="modal">
-    <div class="modal-content">
-      <font-awesome-icon
-        class="close-modal"
-        :icon="['fas', 'times']"
-        @click="resetInput()"
-      />
-
-      <h4>
-        {{ selectedItem?.bezeichnung }} ({{
-          selectedItem?.groesse || "onesize"
-        }}) ({{ selectedItem?.standort }})
-      </h4>
-
-      <div class="ModalGroup">
-        <label for="anzahl">Aktuell: {{ selectedItem?.anzahl }}</label>
-        <input
-          ref="floatingInput"
-          type="number"
-          v-model="inputValue"
-          min="0"
-          placeholder="Zahl eingeben"
+  <teleport to="body">
+    <div v-if="showInputField" class="modal" @click.self="resetInput()">
+      <div class="modal-content update-item-modal">
+        <font-awesome-icon
+          class="close"
+          :icon="['fas', 'times']"
+          @click="resetInput()"
         />
-        <input
-          ref="floatingInput"
-          type="text"
-          v-model="anmerkung"
-          placeholder="Anmerkung (Optional)"
-        />
+
+        <div class="modal-header">
+          <h4>{{ selectedItem?.bezeichnung }}</h4>
+          <div class="header-badges">
+            <span class="badge badge-size">{{ selectedItem?.groesse || "onesize" }}</span>
+            <span class="badge badge-location">
+              <font-awesome-icon :icon="['fas', 'location-dot']" />
+              {{ selectedItem?.standort }}
+            </span>
+          </div>
+        </div>
+
+        <div class="modal-scrollable">
+          <label class="select-label">
+            Aktuell: {{ selectedItem?.anzahl }}
+            <input
+              type="number"
+              v-model="inputValue"
+              min="0"
+              placeholder="Zahl eingeben"
+            />
+          </label>
+          <label class="select-label">
+            Anmerkung
+            <input
+              type="text"
+              v-model="anmerkung"
+              placeholder="Anmerkung (Optional)"
+            />
+          </label>
+        </div>
+
+        <div class="modal-buttons">
+          <button @click="submitAddOrRemove('add')">Rückgabe</button>
+          <button @click="submitAddOrRemove('remove')">Entnahme</button>
+        </div>
       </div>
-
-      <button @click="submitAddOrRemove('add')">Hinzufügen</button>
-      <button @click="submitAddOrRemove('remove')">Entnehmen</button>
     </div>
-  </div>
+  </teleport>
 
   <!-- Items Display -->
   <div class="items-container">
@@ -703,20 +725,17 @@ button {
 /* --------- Modal Grundstruktur --------- */
 .modal { z-index: 10; }
 
-.close-modal {
+.close {
   position: absolute;
-  cursor: pointer;
-  bottom: 94%;
-  left: 95%;
-  background-color: var(--tile-bg);
+  right: 8px;
+  top: 8px;
+  font-size: 20px;
   color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  width: 30px; height: 30px;
-  font-size: 16px;
-  display: flex; justify-content: center; align-items: center;
+  cursor: pointer;
+  z-index: 1;
+  padding: 4px;
 
-  &:hover { color: color-mix(in srgb, var(--text) 60%, transparent); }
+  &:hover { color: var(--text); }
 }
 
 /* --------- Floating Label Karte --------- */
@@ -972,6 +991,7 @@ $displacement: 3px;
 
     &:hover {
       background-color: var(--hover);
+      color: var(--text);
     }
   }
 
@@ -1137,33 +1157,219 @@ form {
 
 /* --------- Modal Overlay & Card --------- */
 .modal {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  position: fixed;
+  inset: 0;
   background: var(--overlay);
-  display: flex; justify-content: center; align-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
 }
 
 .modal-content {
+  position: relative;
+  width: 360px;
+  max-width: calc(100vw - 32px);
   background: var(--tile-bg);
   color: var(--text);
-  padding: 20px; border-radius: 8px;
-  width: 400px; text-align: center;
-  position: relative; border: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 
-  button {
-    margin: 10px; border-radius: 5px; cursor: pointer;
-    transition: background-color 0.3s ease;
-
-    &:hover { background-color: color-mix(in srgb, var(--primary) 90%, black); }
+  h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    flex-shrink: 0;
+    padding: 16px 16px 12px 16px;
+    text-align: left;
+    color: var(--text);
+    opacity: 0.9;
   }
 }
 
-/* --------- Gruppen --------- */
-.ModalGroup { display: inline-grid; }
+.modal-header {
+  padding: 16px 16px 12px 16px;
+  flex-shrink: 0;
 
-.CountGroup {
-  display: flex !important;
+  h4 {
+    margin: 0 0 8px 0;
+    padding: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    opacity: 0.95;
+  }
 
-  .CountInput { width: 40%; }
+  .header-badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+
+    svg {
+      font-size: 10px;
+      opacity: 0.8;
+    }
+  }
+
+  .badge-size {
+    background: color-mix(in srgb, var(--primary) 15%, var(--tile-bg));
+    color: color-mix(in srgb, var(--primary) 95%, black);
+    border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  }
+
+  .badge-location {
+    background: color-mix(in srgb, var(--muted) 10%, var(--tile-bg));
+    color: var(--text);
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    opacity: 0.85;
+  }
+}
+
+.add-item-modal,
+.update-item-modal {
+  height: auto;
+  max-height: min(80vh, 560px);
+  min-height: 260px;
+}
+
+@media screen and (max-height: 500px) {
+  .modal-content {
+    height: calc(100vh - 40px);
+    max-height: calc(100vh - 40px);
+  }
+}
+
+.modal-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 16px 16px;
+  min-height: 0;
+}
+
+.select-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  opacity: 0.85;
+
+  select,
+  input {
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--tile-bg);
+    color: var(--text);
+    font-size: 13px;
+    height: auto;
+    width: 100%;
+    transition: border-color 0.2s, box-shadow 0.2s;
+
+    &:focus {
+      border-color: var(--primary);
+      outline: none;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent);
+    }
+
+    &::placeholder {
+      color: var(--muted);
+      opacity: 0.5;
+      font-size: 12.5px;
+    }
+  }
+}
+
+.count-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+
+  .count-label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text);
+    opacity: 0.85;
+    min-width: 0;
+
+    input {
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--tile-bg);
+      color: var(--text);
+      font-size: 13px;
+      height: auto;
+      width: 100%;
+      box-sizing: border-box;
+      transition: border-color 0.2s, box-shadow 0.2s;
+
+      &:focus {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent);
+      }
+    }
+  }
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  padding: 14px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background: var(--tile-bg);
+  border-radius: 0 0 12px 12px;
+  flex-shrink: 0;
+  min-height: auto;
+  position: relative;
+  z-index: 10;
+
+  button {
+    flex: 1;
+    max-width: 140px;
+    padding: 9px 16px;
+    border: none;
+    border-radius: 6px;
+    background: var(--primary);
+    color: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: filter 0.2s, transform 0.1s;
+    margin: 0;
+
+    &:hover {
+      filter: brightness(0.95);
+    }
+
+    &:active {
+      transform: scale(0.97);
+    }
+  }
 }
 
 
