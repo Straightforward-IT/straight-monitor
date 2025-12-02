@@ -665,12 +665,26 @@ router.post(
       await assignMitarbeiter(documentId, mitarbeiterResolved);
 
       document.mitarbeiter = mitarbeiterResolved;
+      
+      // Update name with actual name from Mitarbeiter document
+      const mitarbeiterDoc = await Mitarbeiter.findById(mitarbeiterResolved);
+      if (mitarbeiterDoc) {
+        document.name_mitarbeiter = `${mitarbeiterDoc.vorname} ${mitarbeiterDoc.nachname}`;
+        logger.debug(`Updated name_mitarbeiter to: ${document.name_mitarbeiter}`);
+      }
     }
 
     if (teamleiterResolved && !document.teamleiter) {
       await assignTeamleiter(documentId, teamleiterResolved);
 
       document.teamleiter = teamleiterResolved;
+      
+      // Update name with actual name from Mitarbeiter document
+      const teamleiterDoc = await Mitarbeiter.findById(teamleiterResolved);
+      if (teamleiterDoc) {
+        document.name_teamleiter = `${teamleiterDoc.vorname} ${teamleiterDoc.nachname}`;
+        logger.debug(`Updated name_teamleiter to: ${document.name_teamleiter}`);
+      }
     }
 
     // 💼 Zusätzliche Aufgaben je nach Dokumenttyp

@@ -202,20 +202,36 @@
           <div class="truncate">{{ doc.bezeichnung || "—" }}</div>
           <div>{{ formatDate(doc.datum) }}</div>
           <div class="truncate person-cell">
-            <CustomTooltip v-if="doc.details?.name_teamleiter" :text="getPersonTooltip(doc.details.name_teamleiter, 'teamleiter')" position="bottom" :delay-in="150" teleportToBody>
-              <button class="link-btn" @click.stop="filterByTeamleiter(doc.details.name_teamleiter)">
+            <template v-if="doc.details?.name_teamleiter">
+              <CustomTooltip v-if="doc.details?.teamleiter" :text="getPersonTooltip(doc.details.name_teamleiter, 'teamleiter')" position="bottom" :delay-in="150" teleportToBody>
+                <button class="link-btn" @click.stop="filterByTeamleiter(doc.details.name_teamleiter)">
+                  {{ doc.details.name_teamleiter }}
+                </button>
+              </CustomTooltip>
+              <span v-else class="unassigned-name">
                 {{ doc.details.name_teamleiter }}
-              </button>
-            </CustomTooltip>
-            <span v-if="!doc.details?.name_teamleiter">—</span>
+                <CustomTooltip text="Nicht zugeordnet" position="bottom" :delay-in="150" teleportToBody>
+                  <font-awesome-icon icon="fa-solid fa-circle-exclamation" class="warn-icon" />
+                </CustomTooltip>
+              </span>
+            </template>
+            <span v-else>—</span>
           </div>
           <div class="truncate person-cell">
-            <CustomTooltip v-if="doc.details?.name_mitarbeiter" :text="getPersonTooltip(doc.details.name_mitarbeiter, 'mitarbeiter')" position="bottom" :delay-in="150" teleportToBody>
-              <button class="link-btn" @click.stop="filterByMitarbeiter(doc.details.name_mitarbeiter)">
+            <template v-if="doc.details?.name_mitarbeiter">
+              <CustomTooltip v-if="doc.details?.mitarbeiter" :text="getPersonTooltip(doc.details.name_mitarbeiter, 'mitarbeiter')" position="bottom" :delay-in="150" teleportToBody>
+                <button class="link-btn" @click.stop="filterByMitarbeiter(doc.details.name_mitarbeiter)">
+                  {{ doc.details.name_mitarbeiter }}
+                </button>
+              </CustomTooltip>
+              <span v-else class="unassigned-name">
                 {{ doc.details.name_mitarbeiter }}
-              </button>
-            </CustomTooltip>
-            <span v-if="!doc.details?.name_mitarbeiter">—</span>
+                <CustomTooltip text="Nicht zugeordnet" position="bottom" :delay-in="150" teleportToBody>
+                  <font-awesome-icon icon="fa-solid fa-circle-exclamation" class="warn-icon" />
+                </CustomTooltip>
+              </span>
+            </template>
+            <span v-else>—</span>
           </div>
           <div>
             <span :class="['status', (doc.status || '').toLowerCase()]">
@@ -281,26 +297,42 @@
             <div class="detail-item">
               <label>Teamleiter</label>
               <div v-if="selectedDoc.details?.name_teamleiter" class="person-detail">
-                <CustomTooltip :text="getPersonTooltip(selectedDoc.details.name_teamleiter, 'teamleiter')" position="bottom" :delay-in="150" teleportToBody>
-                  <button class="link-btn" @click="filterByTeamleiter(selectedDoc.details.name_teamleiter)">
-                    {{ selectedDoc.details.name_teamleiter }}
+                <template v-if="selectedDoc.details?.teamleiter">
+                  <CustomTooltip :text="getPersonTooltip(selectedDoc.details.name_teamleiter, 'teamleiter')" position="bottom" :delay-in="150" teleportToBody>
+                    <button class="link-btn" @click="filterByTeamleiter(selectedDoc.details.name_teamleiter)">
+                      {{ selectedDoc.details.name_teamleiter }}
+                    </button>
+                  </CustomTooltip>
+                </template>
+                <template v-else>
+                  <span class="unassigned-name">{{ selectedDoc.details.name_teamleiter }}</span>
+                  <button class="btn btn-sm btn-primary" @click="openAssignDialog('teamleiter')">
+                    <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
                   </button>
-                </CustomTooltip>
+                </template>
               </div>
-              <button v-else class="btn btn-sm btn-primary" @click="demoAssign('teamleiter')">
+              <button v-else class="btn btn-sm btn-primary" @click="openAssignDialog('teamleiter')">
                 <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
               </button>
             </div>
             <div class="detail-item" v-if="selectedDoc.docType !== 'Event-Bericht'">
               <label>Mitarbeiter</label>
               <div v-if="selectedDoc.details?.name_mitarbeiter" class="person-detail">
-                <CustomTooltip :text="getPersonTooltip(selectedDoc.details.name_mitarbeiter, 'mitarbeiter')" position="bottom" :delay-in="150" teleportToBody>
-                  <button class="link-btn" @click="filterByMitarbeiter(selectedDoc.details.name_mitarbeiter)">
-                    {{ selectedDoc.details.name_mitarbeiter }}
+                <template v-if="selectedDoc.details?.mitarbeiter">
+                  <CustomTooltip :text="getPersonTooltip(selectedDoc.details.name_mitarbeiter, 'mitarbeiter')" position="bottom" :delay-in="150" teleportToBody>
+                    <button class="link-btn" @click="filterByMitarbeiter(selectedDoc.details.name_mitarbeiter)">
+                      {{ selectedDoc.details.name_mitarbeiter }}
+                    </button>
+                  </CustomTooltip>
+                </template>
+                <template v-else>
+                  <span class="unassigned-name">{{ selectedDoc.details.name_mitarbeiter }}</span>
+                  <button class="btn btn-sm btn-primary" @click="openAssignDialog('mitarbeiter')">
+                    <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
                   </button>
-                </CustomTooltip>
+                </template>
               </div>
-              <button v-else class="btn btn-sm btn-primary" @click="demoAssign('mitarbeiter')">
+              <button v-else class="btn btn-sm btn-primary" @click="openAssignDialog('mitarbeiter')">
                 <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
               </button>
             </div>
@@ -339,11 +371,72 @@
         </div>
       </div>
     </div>
+
+    <!-- Assignment Modal -->
+    <div v-if="showAssignModal" class="modal-overlay" @click.self="closeAssignModal">
+      <div class="modal assign-modal">
+        <div class="modal-header">
+          <h3>{{ assignRole === 'teamleiter' ? 'Teamleiter' : 'Mitarbeiter' }} zuweisen</h3>
+          <button class="close-btn" @click="closeAssignModal">
+            <font-awesome-icon icon="fa-solid fa-xmark" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="assign-info">
+            <div class="info-row">
+              <span class="label">Dokument:</span>
+              <span class="value">{{ selectedDoc?.bezeichnung }}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Name im Formular:</span>
+              <span class="value unassigned-name">{{ selectedDoc?.details?.[`name_${assignRole}`] }}</span>
+            </div>
+          </div>
+
+          <div class="search">
+            <font-awesome-icon icon="fa-solid fa-magnifying-glass" class="search-ic" />
+            <input
+              v-model="assignSearchQuery"
+              type="text"
+              placeholder="Mitarbeiter suchen…"
+              aria-label="Mitarbeiter suchen"
+              ref="assignSearchInput"
+            />
+          </div>
+
+          <div v-if="loading.employees" class="loading-state">
+            <font-awesome-icon icon="fa-solid fa-spinner" spin />
+            Lade Mitarbeiter…
+          </div>
+
+          <div v-else-if="filteredEmployees.length === 0" class="empty-state">
+            <font-awesome-icon icon="fa-solid fa-user-slash" />
+            <p>Keine Mitarbeiter gefunden</p>
+          </div>
+
+          <div v-else class="employee-list">
+            <button
+              v-for="employee in filteredEmployees"
+              :key="employee._id"
+              class="employee-item"
+              @click="selectEmployee(employee)"
+            >
+              <div class="employee-info">
+                <span class="employee-name">{{ employee.vorname }} {{ employee.nachname }}</span>
+                <span v-if="employee.email" class="employee-email">{{ employee.email }}</span>
+              </div>
+              <font-awesome-icon icon="fa-solid fa-chevron-right" class="chevron" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import api from "@/utils/api";
+import logger from "@/utils/logger";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import asanaLogo from '@/assets/asana.png';
@@ -369,7 +462,10 @@ import {
   faLocationDot,
   faEarthEurope,
   faEllipsisVertical,
-  faExternalLink
+  faExternalLink,
+  faCircleExclamation,
+  faUserSlash,
+  faSpinner
 } from "@fortawesome/free-solid-svg-icons";
 import { faCircle as faCircleRegular } from "@fortawesome/free-regular-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
@@ -396,7 +492,10 @@ library.add(
   faLocationDot,
   faEarthEurope,
   faEllipsisVertical,
-  faExternalLink
+  faExternalLink,
+  faCircleExclamation,
+  faUserSlash,
+  faSpinner
 );
 
 export default {
@@ -404,6 +503,30 @@ export default {
   components: { FontAwesomeIcon, CustomTooltip },
 
   data() {
+    // Load filter settings from sessionStorage or use defaults
+    const savedFilters = sessionStorage.getItem('dokumente_filters');
+    let filterDefaults = {
+      activeDocStatusFilter: "Alle",
+      activeDocTypeFilters: ["Event-Bericht", "Evaluierung"],
+      activeDocLocationFilter: "Alle",
+      filteredTeamleiter: null,
+      filteredMitarbeiter: null,
+      documentsSearchQuery: "",
+      sortKey: 'datum',
+      sortOrder: 'desc',
+      currentPage: 1,
+      itemsPerPage: 100,
+    };
+
+    if (savedFilters) {
+      try {
+        const parsed = JSON.parse(savedFilters);
+        filterDefaults = { ...filterDefaults, ...parsed };
+      } catch (e) {
+        console.warn('Could not parse saved filters:', e);
+      }
+    }
+
     return {
       // assets
       asanaLogo,
@@ -413,36 +536,40 @@ export default {
       userLocation: "",
 
       // state
-      loading: { documents: true },
+      loading: { documents: true, employees: false },
       error: { documents: null },
 
       // data sets
       documents: [],
       locations: ["Hamburg", "Berlin", "Köln"],
 
-      // filters and search
-      activeDocStatusFilter: "Alle",
-      activeDocTypeFilters: ["Event-Bericht", "Evaluierung"],
-      activeDocLocationFilter: "Alle",
-      filteredTeamleiter: null,
-      filteredMitarbeiter: null,
-      documentsSearchQuery: "",
+      // filters and search (restored from session or defaults)
+      activeDocStatusFilter: filterDefaults.activeDocStatusFilter,
+      activeDocTypeFilters: filterDefaults.activeDocTypeFilters,
+      activeDocLocationFilter: filterDefaults.activeDocLocationFilter,
+      filteredTeamleiter: filterDefaults.filteredTeamleiter,
+      filteredMitarbeiter: filterDefaults.filteredMitarbeiter,
+      documentsSearchQuery: filterDefaults.documentsSearchQuery,
       
-      // sorting
-      sortKey: 'datum',
-      sortOrder: 'desc',
+      // sorting (restored from session or defaults)
+      sortKey: filterDefaults.sortKey,
+      sortOrder: filterDefaults.sortOrder,
 
-      // pagination
-      currentPage: 1,
-      itemsPerPage: 100,
+      // pagination (restored from session or defaults)
+      currentPage: filterDefaults.currentPage,
+      itemsPerPage: filterDefaults.itemsPerPage,
       pageOptions: [25, 50, 100],
 
       // ui
       selectedDoc: null,
       activeQuickActionId: null,
+      showAssignModal: false,
+      assignRole: null, // 'teamleiter' or 'mitarbeiter'
+      assignSearchQuery: '',
       
       // person details cache (for Asana links)
       personDetails: {},
+      employees: [],
     };
   },
 
@@ -540,11 +667,54 @@ export default {
         total: this.filteredDocumentsSorted.length
       };
     },
+
+    filteredEmployees() {
+      if (!this.assignSearchQuery.trim()) {
+        return this.employees;
+      }
+      const query = this.assignSearchQuery.toLowerCase();
+      return this.employees.filter(emp => {
+        const fullName = `${emp.vorname} ${emp.nachname}`.toLowerCase();
+        const email = (emp.email || '').toLowerCase();
+        return fullName.includes(query) || email.includes(query);
+      });
+    },
   },
 
   watch: {
     documentsSearchQuery() {
       this.currentPage = 1;
+      this.saveFilters();
+    },
+    activeDocStatusFilter() {
+      this.saveFilters();
+    },
+    activeDocTypeFilters: {
+      handler() {
+        this.saveFilters();
+      },
+      deep: true,
+    },
+    activeDocLocationFilter() {
+      this.saveFilters();
+    },
+    filteredTeamleiter() {
+      this.saveFilters();
+    },
+    filteredMitarbeiter() {
+      this.saveFilters();
+    },
+    sortKey() {
+      this.saveFilters();
+    },
+    sortOrder() {
+      this.saveFilters();
+    },
+    itemsPerPage() {
+      this.saveFilters();
+    },
+    currentPage() {
+      this.saveFilters();
     },
   },
 
@@ -596,6 +766,22 @@ export default {
       if (key === 'bezeichnung') return (doc.bezeichnung || '').toLowerCase();
       if (key === 'status') return (doc.status || '').toLowerCase();
       return '';
+    },
+
+    saveFilters() {
+      const filters = {
+        activeDocStatusFilter: this.activeDocStatusFilter,
+        activeDocTypeFilters: this.activeDocTypeFilters,
+        activeDocLocationFilter: this.activeDocLocationFilter,
+        filteredTeamleiter: this.filteredTeamleiter,
+        filteredMitarbeiter: this.filteredMitarbeiter,
+        documentsSearchQuery: this.documentsSearchQuery,
+        sortKey: this.sortKey,
+        sortOrder: this.sortOrder,
+        currentPage: this.currentPage,
+        itemsPerPage: this.itemsPerPage,
+      };
+      sessionStorage.setItem('dokumente_filters', JSON.stringify(filters));
     },
 
     setDocFilter(type, value) {
@@ -730,6 +916,84 @@ export default {
         : `Filtern auf ${name}`;
     },
 
+    async openAssignDialog(role) {
+      this.assignRole = role;
+      this.assignSearchQuery = '';
+      this.showAssignModal = true;
+      
+      // Fetch employees if not already loaded
+      if (this.employees.length === 0) {
+        await this.fetchEmployees();
+      }
+      
+      // Focus search input after modal opens
+      this.$nextTick(() => {
+        this.$refs.assignSearchInput?.focus();
+      });
+    },
+
+    closeAssignModal() {
+      this.showAssignModal = false;
+      this.assignRole = null;
+      this.assignSearchQuery = '';
+    },
+
+    async selectEmployee(employee) {
+      // Bestätigung anfordern
+      const roleName = this.assignRole === 'teamleiter' ? 'Teamleiter' : 'Mitarbeiter';
+      const formularName = this.selectedDoc.details?.[`name_${this.assignRole}`] || '(nicht angegeben)';
+      
+      const confirmed = confirm(
+        `${employee.vorname} ${employee.nachname} als ${roleName} zuweisen?\n\n` +
+        `Dokument: ${this.selectedDoc.bezeichnung}\n` +
+        `Name im Formular: ${formularName}\n\n` +
+        `Bitte bestätigen Sie die Zuweisung.`
+      );
+      
+      if (!confirmed) {
+        logger.debug('Assignment cancelled by user');
+        return;
+      }
+      
+      try {
+        const documentId = this.selectedDoc._id || this.selectedDoc.id;
+        const payload = {
+          documentId,
+        };
+        
+        // Set the appropriate ID field based on role
+        if (this.assignRole === 'teamleiter') {
+          payload.teamleiterId = employee._id;
+          payload.name_teamleiter = this.selectedDoc.details?.name_teamleiter;
+        } else {
+          payload.mitarbeiterId = employee._id;
+          payload.name_mitarbeiter = this.selectedDoc.details?.name_mitarbeiter;
+        }
+        
+        logger.debug('Assigning employee to document:', payload);
+        
+        const response = await api.post('/api/wordpress/assign', payload);
+        
+        if (response.data?.success) {
+          logger.info(`✅ ${employee.vorname} ${employee.nachname} assigned as ${this.assignRole}`);
+          
+          this.closeAssignModal();
+          this.closeDoc();
+          
+          // Refresh documents to show updated status
+          await this.fetchDocuments();
+          
+          // Show success message
+          alert(`✅ ${employee.vorname} ${employee.nachname} wurde erfolgreich als ${roleName} zugewiesen.`);
+        } else {
+          throw new Error(response.data?.error || 'Unbekannter Fehler');
+        }
+      } catch (error) {
+        logger.error('Assignment error:', error);
+        alert('❌ Fehler beim Zuweisen: ' + (error.response?.data?.error || error.message));
+      }
+    },
+
     nextPage() {
       if (this.currentPage < this.totalPages) {
         this.currentPage++;
@@ -796,9 +1060,11 @@ export default {
         const { data } = await api.get("/api/users/me");
         this.userLocation = data.location;
         
-        // Setze userLocation als Standard für Location-Filter, falls verfügbar
-        if (this.userLocation && this.locations.includes(this.userLocation)) {
+        // Setze userLocation als Standard nur wenn noch keine Session-Daten vorhanden
+        const savedFilters = sessionStorage.getItem('dokumente_filters');
+        if (!savedFilters && this.userLocation && this.locations.includes(this.userLocation)) {
           this.activeDocLocationFilter = this.userLocation;
+          this.saveFilters();
         }
       } catch (e) {
         console.error("Fehler beim Abrufen der Benutzerdaten:", e);
@@ -814,6 +1080,26 @@ export default {
         console.error(this.error.documents);
       } finally {
         this.loading.documents = false;
+      }
+    },
+
+    async fetchEmployees() {
+      this.loading.employees = true;
+      try {
+        const res = await api.get("/api/personal/mitarbeiter");
+        // Filter active employees and sort by name
+        this.employees = (res.data?.data || [])
+          .filter(emp => emp.isActive !== false)
+          .sort((a, b) => {
+            const nameA = `${a.vorname} ${a.nachname}`.toLowerCase();
+            const nameB = `${b.vorname} ${b.nachname}`.toLowerCase();
+            return nameA.localeCompare(nameB, 'de');
+          });
+      } catch (e) {
+        console.error("Fehler beim Laden der Mitarbeiter:", e);
+        this.employees = [];
+      } finally {
+        this.loading.employees = false;
       }
     },
   },
@@ -1603,6 +1889,21 @@ export default {
   gap: 8px;
 }
 
+.unassigned-name {
+  color: var(--muted);
+  opacity: 0.7;
+  font-style: italic;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.warn-icon {
+  color: var(--warn);
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
 .btn-icon-tiny {
   background: transparent;
   border: none;
@@ -1628,5 +1929,127 @@ export default {
   height: 14px;
   object-fit: contain;
   vertical-align: middle;
+}
+
+/* Assignment Modal */
+.assign-modal {
+  max-width: 500px;
+  height: 600px;
+  max-height: 85vh;
+}
+
+.assign-modal .modal-body {
+  padding: 24px;
+}
+
+.assign-info {
+  background: var(--bg);
+  padding: 16px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+.info-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+.info-row:last-child {
+  margin-bottom: 0;
+}
+
+.info-row .label {
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 140px;
+}
+
+.info-row .value {
+  color: var(--text);
+  flex: 1;
+}
+
+.employee-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  overflow-y: auto;
+  margin-top: 12px;
+  padding: 2px;
+  min-height: 0;
+}
+
+.employee-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.employee-item:hover {
+  background: var(--soft);
+  border-color: var(--brand);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 10%, transparent);
+}
+
+.employee-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.employee-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.employee-email {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.chevron {
+  color: var(--muted);
+  font-size: 0.9rem;
+  transition: transform 0.15s ease;
+}
+
+.employee-item:hover .chevron {
+  transform: translateX(3px);
+  color: var(--brand);
+}
+
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: var(--muted);
+  gap: 12px;
+}
+
+.loading-state svg,
+.empty-state svg {
+  font-size: 32px;
+  opacity: 0.5;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 0.95rem;
 }
 </style>
