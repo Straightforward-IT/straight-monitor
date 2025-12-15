@@ -186,7 +186,12 @@ export default {
         const workbook = XLSX.read(data, { type: "array" });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-        const sorted = rows.slice(1).sort((a, b) => a[1]?.localeCompare(b[1]));
+        // Sortiere primär nach Nachname (Spalte 1), sekundär nach Vorname (Spalte 2)
+        const sorted = rows.slice(1).sort((a, b) => {
+          const nachnameCompare = (a[1] || '').localeCompare(b[1] || '');
+          if (nachnameCompare !== 0) return nachnameCompare;
+          return (a[2] || '').localeCompare(b[2] || '');
+        });
         this.excelData = sorted;
         this.validateCounts();
       };
