@@ -15,5 +15,13 @@ export default defineConfig({
            api: 'modern-compiler'
       }
     }
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5050',
+        changeOrigin: true
+      }
+    }
   }
 })

@@ -249,6 +249,7 @@
               />
             </span>
           </span>
+          <span v-if="item.isEditing" class="item-id-label">ID: {{ item._id }}</span>
         </div>
 
         <div class="item-detail">
@@ -403,27 +404,36 @@ export default {
           })
         : this.items.slice(); // Kopie, damit sort() nicht das Original zerdeppert
 
-      // Items im Edit-Modus von Sortierung ausschließen
-      const editing = filtered.filter(item => item.isEditing);
-      const notEditing = filtered.filter(item => !item.isEditing);
-
-      // Nur nicht-editierte Items sortieren
-      if (this.sortBy === "count") {
-        notEditing.sort((a, b) =>
-          this.isAscending
+      // Sortiere mit stabilem Index für editierte Items
+      filtered.sort((a, b) => {
+        // Beide editiert: behalte relative Position aus items array
+        if (a.isEditing && b.isEditing) {
+          return this.items.indexOf(a) - this.items.indexOf(b);
+        }
+        
+        // Nur a editiert: behalte Position basierend auf original array
+        if (a.isEditing) {
+          return this.items.indexOf(a) - this.items.indexOf(b);
+        }
+        
+        // Nur b editiert: behalte Position basierend auf original array
+        if (b.isEditing) {
+          return this.items.indexOf(a) - this.items.indexOf(b);
+        }
+        
+        // Beide nicht editiert: normale Sortierung
+        if (this.sortBy === "count") {
+          return this.isAscending
             ? (a.anzahl ?? 0) - (b.anzahl ?? 0)
-            : (b.anzahl ?? 0) - (a.anzahl ?? 0)
-        );
-      } else {
-        notEditing.sort((a, b) =>
-          this.isAscending
+            : (b.anzahl ?? 0) - (a.anzahl ?? 0);
+        } else {
+          return this.isAscending
             ? collator.compare(a.bezeichnung || "", b.bezeichnung || "")
-            : collator.compare(b.bezeichnung || "", a.bezeichnung || "")
-        );
-      }
+            : collator.compare(b.bezeichnung || "", a.bezeichnung || "");
+        }
+      });
 
-      // Editierte Items an ihrer Position behalten (am Anfang einfügen)
-      return [...editing, ...notEditing];
+      return filtered;
     },
   },
 
@@ -1088,6 +1098,16 @@ form {
     outline: none;
     background: var(--tile-bg);
     color: var(--text);
+  }
+
+  .item-id-label {
+    display: block;
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--muted);
+    opacity: 0.6;
+    font-family: monospace;
+    letter-spacing: -0.5px;
   }
 }
 

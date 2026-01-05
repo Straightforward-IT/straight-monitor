@@ -397,16 +397,30 @@
                 <option>onesize</option>
               </select></label
             >
-            <label class="row"
-              ><span class="chk"
-                ><input
+            <label class="row">
+              <span class="chk">
+                <input
                   type="checkbox"
                   v-model="serviceHandschuheChecked"
-                /><span>Service Handschuhe</span></span
-              ><select class="sel" disabled>
+                />
+                <span>Service Handschuhe</span>
+              </span>
+              <select
+                v-if="selectedLocation === 'Hamburg'"
+                class="sel"
+                v-model="serviceHandschuheSize"
+                :disabled="!serviceHandschuheChecked"
+                @focus="serviceHandschuheChecked = true"
+              >
+                <option value="" disabled>Größe</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+              </select>
+              <select v-else class="sel" disabled>
                 <option>onesize</option>
-              </select></label
-            >
+              </select>
+            </label>
 
             <label class="row">
               <span class="chk"
@@ -630,6 +644,7 @@ export default {
       schwarzeSchuerzeChecked: true,
       kleidersackChecked: true,
       serviceHandschuheChecked: true,
+      serviceHandschuheSize: "",
       weisseHemdenDamenChecked: false,
       schwarzeHemdenDamenChecked: false,
       weisseHemdenHerrenChecked: false,
@@ -799,6 +814,8 @@ export default {
 
     validateServiceSelections() {
       const req = [];
+      if (this.serviceHandschuheChecked && !this.serviceHandschuheSize && this.selectedLocation === 'Hamburg')
+        req.push("Service Handschuhe");
       if (this.weisseHemdenDamenChecked && !this.weisseHemdenDamenSize)
         req.push("Weiße Hemden Damen");
       if (this.schwarzeHemdenDamenChecked && !this.schwarzeHemdenDamenSize)
@@ -986,8 +1003,10 @@ export default {
         },
         {
           checked: this.serviceHandschuheChecked,
-          _id: this.getItemId("serviceHandschuhe"),
-          size: "onesize",
+          _id: this.selectedLocation === 'Hamburg' 
+            ? this.getItemId("serviceHandschuhe", this.serviceHandschuheSize)
+            : this.getItemId("serviceHandschuhe"),
+          size: this.selectedLocation === 'Hamburg' ? this.serviceHandschuheSize : "onesize",
         },
         {
           checked: this.weisseHemdenDamenChecked,
@@ -1036,8 +1055,8 @@ export default {
     // resets
     resetLogiPaket() {
       this.anmerkung = "";
-      this.cuttermesserChecked = false;
-      this.jutebeutelChecked = false;
+      this.cuttermesserChecked = true;
+      this.jutebeutelChecked = true;
       this.logistikHoseChecked = false;
       this.tshirtChecked = [false, false, false];
       this.schwarzeKapuzenjackeChecked = false;
@@ -1076,6 +1095,7 @@ export default {
       this.weisseHemdenHerrenChecked = false;
       this.schwarzeHemdenHerrenChecked = false;
 
+      this.serviceHandschuheSize = "";
       this.weisseHemdenDamenSize = "";
       this.schwarzeHemdenDamenSize = "";
       this.weisseHemdenHerrenSize = "";

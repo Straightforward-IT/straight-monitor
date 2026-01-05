@@ -78,7 +78,11 @@
     "schwarzeKrawatte": "66fc02966eba044dba7612e8",
     "schwarzeSchuerze": "66fc02826eba044dba7612e3",
     "kleidersack": "66fc02696eba044dba7612de",
-    "serviceHandschuhe": "66fc03036eba044dba76130b",
+    "serviceHandschuhe": {
+      "8": "695b772a5dd46eff2df8098f",
+      "9": "695b77635dd46eff2df8099c",
+      "10": "695b77865dd46eff2df809a3"
+    },
     "weisseHemdenDamen": {
       "S": "66fc01d16eba044dba761293",
       "M": "66fc01d86eba044dba761298",
