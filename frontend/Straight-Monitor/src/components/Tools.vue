@@ -19,17 +19,6 @@
         <span>Lohnabrechnungen</span>
       </button>
 
-
-      <!-- Email & Integration Tools -->
-      <button 
-        v-if="newPagesEnabled"
-        class="s-btn" 
-        @click="go('/mailparser')"
-      >
-        <img :src="logoSrc" alt="" />
-        <span>Mail Parser</span>
-      </button>
-
       <div class="sep"></div>
 
       <!-- Flip integriert -->

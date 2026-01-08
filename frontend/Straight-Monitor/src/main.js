@@ -6,7 +6,7 @@ import router from './router';
 
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly, faPencil, faCheck, faSortDown, faSortUp, faList, faPersonThroughWindow, faPersonCircleExclamation, faUserPlus, faPeopleLine, faFileInvoice, faTable, faSun, faMoon, faChevronUp, faChevronDown, faTags, faIdBadge, faUsers, faListCheck, faSpinner, faClipboardCheck, faExternalLinkAlt, faExternalLink, faTicketAlt, faEnvelope, faMobileAlt, faFileAlt, faBars, faChartLine, faHistory, faTools, faSignOutAlt, faCalendarAlt, faCopy, faLink, faUnlink, faRotateRight, faHourglassHalf, faPaperPlane, faClock, faCalendar, faHeart, faKeyboard, faCodeBranch, faUser, faEye, faWrench, faPlay, faDownload, faSync, faSave, faTimes as faX, faDatabase, faTrash, faFlask, faInbox, faMagic, faRedo, faUnlock, faLock, faTrophy, faDice, faHandPointer, faCode } from '@fortawesome/free-solid-svg-icons';
+import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly, faPencil, faCheck, faSortDown, faSortUp, faList, faPersonThroughWindow, faPersonCircleExclamation, faUserPlus, faPeopleLine, faFileInvoice, faTable, faSun, faMoon, faChevronUp, faChevronDown, faTags, faIdBadge, faUsers, faListCheck, faSpinner, faClipboardCheck, faExternalLinkAlt, faExternalLink, faTicketAlt, faEnvelope, faMobileAlt, faFileAlt, faBars, faChartLine, faHistory, faTools, faSignOutAlt, faCalendarAlt, faCopy, faLink, faUnlink, faRotateRight, faHourglassHalf, faPaperPlane, faClock, faCalendar, faHeart, faKeyboard, faCodeBranch, faUser, faUnlock, faLock, faTrophy, faDice, faHome, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import { faCircleXmark } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
@@ -16,16 +16,16 @@ library.add(
   // Neue Icons
   faChevronUp, faChevronDown, faTags, faIdBadge, faUsers, faListCheck,
   faSpinner, faClipboardCheck, faExternalLinkAlt, faExternalLink, faTicketAlt, faEnvelope, faMobileAlt, faFileAlt,
-  faCopy, faLink, faUnlink, faRotateRight, faHourglassHalf, faClock, faPaperPlane, faCalendar, faDatabase, faTrash, faFlask, faInbox, faMagic, faRedo,
-  faUnlock, faLock, faTrophy, faDice, faHandPointer, faCode,
+  faCopy, faLink, faUnlink, faRotateRight, faHourglassHalf, faClock, faPaperPlane, faCalendar,
+  faUnlock, faLock, faTrophy, faDice,
   // Mobile Menu Icons
   faBars, faChartLine, faHistory, faTools, faSignOutAlt,
   // Calendar Icon
   faCalendarAlt,
   // Footer Icons
   faHeart, faKeyboard, faCodeBranch, faUser,
-  // MailParser Icons
-  faEye, faWrench, faPlay, faDownload, faSync, faSave, faX,
+  // 404 Page Icons
+  faHome, faArrowLeft,
   // Regular Icons
   faCircleXmark
 );

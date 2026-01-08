@@ -31,6 +31,8 @@ const apiUserGroup = "e9e8e278-08a9-4b0e-bdf6-681f8e26c43a";
 const user_role = "53267279-ffb8-4cb9-aced-e5d92ed9be05";
 async function flipUserRoutine() {
   let emailLogs = [];
+  let invalidLocations = [];
+  let invalidDepartments = [];
 
   try {
     emailLogs.push("🔄 Running Flip API user refresh...");
@@ -55,11 +57,39 @@ async function flipUserRoutine() {
     const activeFlipUserIds = new Set(
       allFlipUsers.filter((u) => u.status === "ACTIVE").map((u) => u.id)
     );
+    
+    const validLocations = ["Hamburg", "Köln", "Berlin"];
+    const validDepartmentParts = ["Service", "Logistik", "Office"];
 
     for (const flipUserData of allFlipUsers) {
       if (flipUserData.primary_user_group?.id === apiUserGroup) continue;
 
       const flipUser = new FlipUser(flipUserData);
+      
+      // Check location attribute
+      const location = flipUser.profile?.location;
+      if (location && !validLocations.includes(location)) {
+        invalidLocations.push({
+          name: `${flipUser.vorname} ${flipUser.nachname}`,
+          email: flipUser.email,
+          location: location
+        });
+      }
+      
+      // Check department attribute - allow combinations separated by " / "
+      const department = flipUser.profile?.department;
+      if (department) {
+        const departmentParts = department.split('/').map(part => part.trim());
+        const allPartsValid = departmentParts.every(part => validDepartmentParts.includes(part));
+        
+        if (!allPartsValid) {
+          invalidDepartments.push({
+            name: `${flipUser.vorname} ${flipUser.nachname}`,
+            email: flipUser.email,
+            department: department
+          });
+        }
+      }
 
       if (
         !flipUser.email &&
@@ -160,6 +190,22 @@ async function flipUserRoutine() {
     }
 
     emailLogs.push("✅ Flip user refresh completed successfully.");
+    
+    // Add invalid locations to email if any found
+    if (invalidLocations.length > 0) {
+      emailLogs.push("<br><br><strong>⚠️ Ungültige Location-Attribute gefunden:</strong>");
+      invalidLocations.forEach(user => {
+        emailLogs.push(`🔴 ${user.name} (${user.email}): <strong>${user.location}</strong>`);
+      });
+    }
+    
+    // Add invalid departments to email if any found
+    if (invalidDepartments.length > 0) {
+      emailLogs.push("<br><br><strong>⚠️ Ungültige Department-Attribute gefunden:</strong>");
+      invalidDepartments.forEach(user => {
+        emailLogs.push(`🔴 ${user.name} (${user.email}): <strong>${user.department}</strong>`);
+      });
+    }
 
     await sendMail(
       "it@straightforward.email",

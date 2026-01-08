@@ -14,10 +14,10 @@ import ExcelFormatierung from '@/components/ExcelFormatierung.vue';
 import Lohnabrechnungen from '@/components/Lohnabrechnungen.vue';
 import Personal from '@/components/PeopleDocsModern.vue';
 import Dokumente from '@/components/Dokumente.vue';
-import MailParser from '@/components/MailParser.vue';
 import FlipCreate from '@/components/FlipCreate.vue';
 import FlipExit from '@/components/FlipExit.vue';
 import VerlosungTool from '@/components/VerlosungTool.vue';
+import NotFound from '@/components/NotFound.vue';
 
 import { jwtDecode } from 'jwt-decode';
 
@@ -39,13 +39,20 @@ const routes = [
       { path: 'lohnabrechnungen', name: 'Lohnabrechnungen', component: Lohnabrechnungen },
       { path: 'personal', name: 'Personal', component: Personal },
       { path: 'dokumente', name: 'Dokumente', component: Dokumente },
-      { path: 'mailparser', name: 'MailParser', component: MailParser },
       { path: 'flip/benutzer-erstellen/:id?', name: 'BenutzerErstellen', component: FlipCreate },
       { path: 'flip/austritte', name: 'Austritte', component: FlipExit },
       { path: 'verlosung', name: 'VerlosungTool', component: VerlosungTool },
       { path: '', redirect: '/dashboard' }
     ]
   },
+  
+  // 404 Catch-All Route (muss am Ende sein)
+  { 
+    path: '/:pathMatch(.*)*', 
+    name: 'NotFound', 
+    component: NotFound,
+    meta: { requiresAuth: false }
+  }
 ];
 
 const router = createRouter({ history: createWebHistory(), routes });
@@ -68,7 +75,7 @@ router.beforeEach((to, _from, next) => {
   
   // Feature flag check für neue Pages
   const newPagesEnabled = import.meta.env.VITE_ENABLE_NEW_PAGES === 'true';
-  const newPageRoutes = ['Personal', 'MailParser'];
+  const newPageRoutes = ['Personal'];
   
   if (!newPagesEnabled && newPageRoutes.includes(to.name)) {
     alert('Diese Funktion ist noch in Entwicklung und wird bald verfügbar sein.');
