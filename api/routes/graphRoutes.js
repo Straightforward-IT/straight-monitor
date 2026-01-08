@@ -30,6 +30,19 @@ const parserEmailsCache = [];
 const MAX_PARSER_EMAILS = 10;
 
 /* ----------------------------- Helpers ----------------------------- */
+function normalizePersonName(name = "") {
+  if (!name || typeof name !== "string") return "";
+  // Normalisiert Namen: Erster Buchstabe jedes Wortes groß, Rest klein
+  return name
+    .trim()
+    .split(/\s+/)
+    .map(word => {
+      if (!word) return "";
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(" ");
+}
+
 function htmlToText(html = "") {
   if (!html) return "";
   try {
@@ -358,6 +371,15 @@ router.post("/webhook", (req, res) => {
                   from: senderAddr,
                   bodyHtml,
                 });
+                
+                // Normalisiere Bewerbername (Erster Buchstabe groß, Rest klein)
+                if (parsed.full_name) {
+                  parsed.full_name = normalizePersonName(parsed.full_name);
+                }
+                if (parsed.asana_title) {
+                  parsed.asana_title = normalizePersonName(parsed.asana_title);
+                }
+                
                 await createTaskFromEmail(
                   {
                     subject: parsed.asana_title, 
