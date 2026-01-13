@@ -579,7 +579,7 @@ import { computed } from "vue";
 
 export default {
   name: "Shortcuts",
-  emits: ["update-modal", "itemsUpdated"],
+  emits: ["update-modal", "items-updated"],
   components: { FontAwesomeIcon },
   props: { isModalOpen: Boolean },
   setup() {
@@ -837,13 +837,18 @@ export default {
         .filter((s) => s.checked)
         .map((s) => ({ _id: s._id, size: s.size }));
       try {
-        await api.put("/api/items/updateMultiple", {
+        const { data } = await api.put("/api/items/updateMultiple", {
           userID: this.userID,
           items,
           count,
           anmerkung: this.anmerkung,
         });
-        this.$emit("itemsUpdated");
+
+        if (data && data.warnings && data.warnings.length > 0) {
+          alert(data.warnings.join("\n"));
+        }
+
+        this.$emit("items-updated");
       } catch (e) {
         console.error("UpdateMultiple failed:", e);
         alert("Aktualisierung fehlgeschlagen.");

@@ -75,44 +75,79 @@ router.post("/addNew", auth, asyncHandler(async (req, res) => {
 router.put("/updateMultiple", auth, asyncHandler(async (req, res) => {
   const { userID, items, count, anmerkung } = req.body;
     const user = await findOrCreateUser(userID);
-    const updatedItems = [];
+    
+    // 1. Validation & Fetch Phase
+    // Verify all items exist and have valid IDs BEFORE modifying anything to prevent partial updates
+    const itemsToUpdate = [];
+    
+    for (let itemData of items) {
+      let idToCheck;
+      // Handle both object structure { _id: "...", size: "..." } and plain ID strings
+      if (typeof itemData === 'object' && itemData !== null) {
+          idToCheck = itemData._id;
+      } else {
+          idToCheck = itemData;
+      }
 
-    // Prepare an array for logging the changes to multiple items
-    const itemsForLog = [];
+      if (!idToCheck) {
+        return res.status(400).json({ msg: "Fehler: Ein Item hat keine gültige ID (Mapping fehlt?). Update abgebrochen." });
+      }
 
-    for (let itemId of items) {
-      const item = await Item.findById(itemId);
+      const item = await Item.findById(idToCheck);
       if (!item) {
         return res
           .status(404)
-          .json({ msg: `Item with id ${itemId} not found` });
+          .json({ msg: `Item with id ${idToCheck} not found` });
+      }
+      itemsToUpdate.push(item);
+    }
+
+    // 2. Update Phase
+    // If we passed validation, we can safely update all items
+    const updatedItems = [];
+    const itemsForLog = [];
+    const warnings = [];
+
+    for (let item of itemsToUpdate) {
+      const oldAnzahl = item.anzahl;
+      item.anzahl += count;
+      // Negative values are now allowed (no check for < 0)
+      
+      if (count < 0 && item.anzahl <= 0) {
+        let name = item.bezeichnung;
+        if (item.groesse && item.groesse !== 'onesize') {
+             name += ` (${item.groesse})`;
+        }
+        warnings.push(`Bestand von "${name}" geändert von ${oldAnzahl} -> ${item.anzahl}. Bitte kontrollieren!`);
       }
 
-      item.anzahl += count;
-      if (item.anzahl < 0) item.anzahl = 0;
-
       await item.save();
+      updatedItems.push(item);
 
-      // Prepare the item data for logging
       itemsForLog.push({
         itemId: item._id,
         bezeichnung: item.bezeichnung,
         groesse: item.groesse,
         anzahl: Math.abs(count),
       });
-
-      updatedItems.push(item);
     }
 
-    // Log the action for all updated items
-    await logMonitoring({
-      user,
-      standort: updatedItems[0].standort, // Assuming all items share the same location for simplicity
-      items: itemsForLog,
-      art: count > 0 ? "zugabe" : "entnahme",
-      anmerkung,
+    // 3. Allow Monitoring Log
+    if (updatedItems.length > 0) {
+      await logMonitoring({
+        user,
+        standort: updatedItems[0].standort, 
+        items: itemsForLog,
+        art: count > 0 ? "zugabe" : "entnahme",
+        anmerkung,
+      });
+    }
+    
+    // Return Object with data and warnings
+    res.status(200).json({ 
+        updatedItems, 
+        warnings 
     });
-    res.status(200).json(updatedItems);
 }));
 
 // PUT /api/items/name/:id

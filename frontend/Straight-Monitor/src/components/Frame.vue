@@ -4,7 +4,7 @@
     <Shortcuts
       :isModalOpen="isModalOpen"
       @update-modal="handleModalUpdate"
-      @itemsUpdated="handleItemsUpdated"
+      @items-updated="handleItemsUpdated"
     />
   </div>
 
@@ -44,7 +44,7 @@
         ref="shortcutsComponent"
         :isModalOpen="isModalOpen"
         @update-modal="handleModalUpdate"
-        @itemsUpdated="handleItemsUpdated"
+        @items-updated="handleItemsUpdated"
       />
     </div>
     <div v-if="toolsBarOpen" class="right">
