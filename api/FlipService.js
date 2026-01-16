@@ -69,11 +69,40 @@ async function flipUserRoutine() {
       // Check location attribute
       const location = flipUser.profile?.location;
       if (location && !validLocations.includes(location)) {
-        invalidLocations.push({
-          name: `${flipUser.vorname} ${flipUser.nachname}`,
-          email: flipUser.email,
-          location: location
-        });
+        const correctedLocation = validLocations.find(
+          (loc) => loc.toLowerCase() === location.toLowerCase()
+        );
+
+        if (correctedLocation) {
+          try {
+            // Update local object
+            if (!flipUser.profile) flipUser.profile = {};
+            flipUser.profile.location = correctedLocation;
+
+            // Call update method
+            await flipUser.update();
+
+            emailLogs.push(
+              `✅ Fixed location for ${flipUser.vorname} ${flipUser.nachname}: "${location}" -> "${correctedLocation}"`
+            );
+          } catch (err) {
+            emailLogs.push(
+              `❌ Failed to fix location for ${flipUser.vorname} ${flipUser.nachname}: ${err.message}`
+            );
+            // Still add to invalid because it failed to update
+            invalidLocations.push({
+              name: `${flipUser.vorname} ${flipUser.nachname}`,
+              email: flipUser.email,
+              location: location,
+            });
+          }
+        } else {
+          invalidLocations.push({
+            name: `${flipUser.vorname} ${flipUser.nachname}`,
+            email: flipUser.email,
+            location: location,
+          });
+        }
       }
       
       // Check department attribute - allow combinations separated by " / "

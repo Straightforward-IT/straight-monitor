@@ -35,6 +35,25 @@ class FlipUser {
         throw new Error("FlipUser must have a valid id to be updated.");
       }
 
+      // Convert profile fields to attributes array for PATCH
+      const attributesPayload = [];
+      if (this.profile?.location) {
+        attributesPayload.push({ name: 'location', value: this.profile.location });
+      }
+      if (this.profile?.department) {
+        attributesPayload.push({ name: 'department', value: this.profile.department });
+      }
+      
+      // Merge with existing attributes if needed, avoiding duplicates
+      if (Array.isArray(this.attributes)) {
+         this.attributes.forEach(attr => {
+             // Only add if not already added from profile
+             if (!attributesPayload.some(ap => ap.name === attr.name)) {
+                 attributesPayload.push(attr);
+             }
+         });
+      }
+
       const response = await flipAxios.patch(
         `/api/admin/users/v4/users/${this.id}`,
         { 
@@ -45,6 +64,7 @@ class FlipUser {
           username: this.benutzername,
           role: this.rolle,
           primary_user_group_id: this.primary_user_group?.id || null,
+          attributes: attributesPayload,
         },
         { headers: { "content-type": "application/merge-patch+json" } }
       );
