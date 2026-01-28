@@ -143,16 +143,6 @@
           <font-awesome-icon :icon="['fas', 'history']" />
           Verlauf
         </router-link>
-        
-        <router-link
-          :to="newPagesEnabled ? '/personal' : '#'"
-          :class="{ active: $route.name === 'Personal', disabled: !newPagesEnabled }"
-          @click="handleNewPageClick($event, '/personal'); showMobileMenu = false"
-        >
-          <font-awesome-icon :icon="['fas', 'users']" />
-          Personal
-          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
-        </router-link>
         <router-link
           to="/dokumente"
           :class="{ active: $route.name === 'Dokumente' }"
@@ -163,6 +153,15 @@
           <span class="beta-tag">NEU</span>
         </router-link>
         
+        <router-link
+          :to="newPagesEnabled ? '/personal' : '#'"
+          :class="{ active: $route.name === 'Personal', disabled: !newPagesEnabled }"
+          @click="handleNewPageClick($event, '/personal'); showMobileMenu = false"
+        >
+          <font-awesome-icon :icon="['fas', 'users']" />
+          Personal
+          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
+        </router-link>
         <router-link
           :to="newPagesEnabled ? '/auftraege' : '#'"
           :class="{ active: $route.name === 'Auftraege', disabled: !newPagesEnabled }"
