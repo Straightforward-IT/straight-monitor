@@ -32,6 +32,14 @@
           Dokumente
           <span class="beta-tag">NEU</span>
         </router-link>
+        <router-link
+          :to="newPagesEnabled ? '/auftraege' : '#'"
+          :class="{ active: $route.name === 'Auftraege', disabled: !newPagesEnabled }"
+          @click="handleNewPageClick($event, '/auftraege')"
+        >
+          Aufträge
+          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
+        </router-link>
       </nav>
       
       <!-- Mobile Burger Button -->
@@ -154,7 +162,16 @@
           Dokumente
           <span class="beta-tag">NEU</span>
         </router-link>
-       
+        
+        <router-link
+          :to="newPagesEnabled ? '/auftraege' : '#'"
+          :class="{ active: $route.name === 'Auftraege', disabled: !newPagesEnabled }"
+          @click="handleNewPageClick($event, '/auftraege'); showMobileMenu = false"
+        >
+          <font-awesome-icon :icon="['fas', 'calendar-alt']" />
+          Aufträge
+          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
+        </router-link>
         
         <div class="mobile-menu-divider"></div>
         

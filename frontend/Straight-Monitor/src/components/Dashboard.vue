@@ -135,6 +135,10 @@
                 Verknüpfung</span
               >
             </div>
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'calendar-days']" />
+              <span>Aufträge - Schichten, Jobs, Einsätze, in Kalender-Ansicht wie in L1</span>
+            </div>
           </div>
         </div>
       </div>

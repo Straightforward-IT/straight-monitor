@@ -48,7 +48,7 @@ export const useFlipAll = defineStore("flipAll", {
     mitarbeiters: [] as IMitarbeiter[],
 
     // Profile-Picture Cache (ObjectURLs)
-    enablePhotos: true, // ✅ Wieder aktiviert - URL ist korrekt
+    enablePhotos: false, // ❌ Disable loading to prevent 404s/spam logs
     pics: new Map<string, PicEntry>(),
     picTTL: 60 * 60 * 1000, // 1h
   }),
@@ -259,6 +259,8 @@ export const useFlipAll = defineStore("flipAll", {
      * Profilfoto (Blob Cache)
      * ======================= */
     async ensurePhoto(userOrId?: IFlipUser | string): Promise<string> {
+      if (!this.enablePhotos) return "";
+
       const id = typeof userOrId === "string" ? userOrId : userOrId?.id;
       if (!id) return "";
 

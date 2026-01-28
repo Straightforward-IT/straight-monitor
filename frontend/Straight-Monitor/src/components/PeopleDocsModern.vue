@@ -312,6 +312,7 @@
                 class="sort-indicator"
               />
             </div>
+            <div class="list-col list-col--createdby">Erstellt von</div>
             <div class="list-col list-col--trinity">Verknüpfungen</div>
             <div class="list-col list-col--actions">Aktionen</div>
           </div>
@@ -398,6 +399,10 @@
                 {{ getDisplayDepartment(ma) || '—' }}
               </div>
               
+              <div class="list-col list-col--createdby desktop-only">
+                {{ ma.erstellt_von || '—' }}
+              </div>
+
               <div class="list-col list-col--trinity desktop-only">
                 <div class="trinity-status">
                   <div class="trinity-badge" :class="getFlipStatus(ma)" title="Flip Status">
@@ -498,6 +503,7 @@
                 <div class="expansion-section">
                   <h4>System-IDs</h4>
                   <p><strong>Straight ID:</strong> {{ ma._id }}</p>
+                  <p><strong>Erstellt von:</strong> {{ ma.erstellt_von || '—' }}</p>
                   <p><strong>Flip ID:</strong> {{ ma.flip_id || '—' }}</p>
                   <p><strong>Asana ID:</strong> {{ ma.asana_id || '—' }}</p>
                 </div>
@@ -2288,7 +2294,7 @@ html {
 
 .list-header {
   display: grid;
-  grid-template-columns: 40px 40px 60px 1fr 120px 100px 100px 120px 80px;
+  grid-template-columns: 40px 40px 60px 1fr 120px 100px 100px 120px 120px 80px;
   gap: 1rem;
   padding: 0.375rem 1rem;
   border-bottom: 2px solid var(--border);
@@ -2324,7 +2330,7 @@ html {
 
 .list-row {
   display: grid;
-  grid-template-columns: 40px 40px 60px 1fr 120px 100px 100px 120px 80px;
+  grid-template-columns: 40px 40px 60px 1fr 120px 100px 100px 120px 120px 80px;
   gap: 1rem;
   padding: 0.25rem 1rem;
   border-bottom: 1px solid var(--border-light);
@@ -2391,6 +2397,12 @@ html {
     font-weight: 500;
   }
   
+  &--createdby {
+    justify-content: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
   &--trinity {
     justify-content: center;
   }

@@ -392,6 +392,7 @@ async function getFlipUsers(initialParams = {}) {
   let allUsers = [];
   let currentPage = 1;
   let totalPages = 1;
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   try {
     do {
@@ -402,22 +403,36 @@ async function getFlipUsers(initialParams = {}) {
         page_limit: 100,
       };
 
-      const response = await flipAxios.get("/api/admin/users/v4/users", {
-        params,
-      });
+      try {
+        const response = await flipAxios.get("/api/admin/users/v4/users", {
+          params,
+        });
 
-      if (response.data && response.data.users) {
-        allUsers.push(...response.data.users);
+        if (response.data && response.data.users) {
+          allUsers.push(...response.data.users);
+        }
+
+        // Update pagination details
+        const pagination = response.data.pagination;
+        if (pagination) {
+          totalPages = pagination.total_pages; // Total number of pages from response
+          currentPage++; // Move to the next page
+        } else {
+          break; // No pagination info, exit loop
+        }
+      } catch (reqError) {
+        if (reqError.response?.status === 429) {
+          // If rate limited, wait longer and retry current page
+          console.warn(`⏳ Rate limited (429). Waiting 2s before retrying page ${currentPage}...`);
+          await sleep(2000);
+          continue; // Retry the same page
+        }
+        throw reqError;
       }
 
-      // Update pagination details
-      const pagination = response.data.pagination;
-      if (pagination) {
-        totalPages = pagination.total_pages; // Total number of pages from response
-        currentPage++; // Move to the next page
-      } else {
-        break; // No pagination info, exit loop
-      }
+      // Small delay between successful requests to prevent 429
+      await sleep(200);
+
     } while (currentPage <= totalPages);
 
     return allUsers;

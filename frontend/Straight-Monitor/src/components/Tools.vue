@@ -19,6 +19,11 @@
         <span>Lohnabrechnungen</span>
       </button>
 
+      <button class="s-btn" @click="go('/daten-import')">
+        <img :src="logoSrc" alt="" />
+        <span>Daten Import</span>
+      </button>
+
       <div class="sep"></div>
 
       <!-- Flip integriert -->

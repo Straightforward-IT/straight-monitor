@@ -11,6 +11,9 @@ const asanaRoutes = require('./routes/asanaRoutes');
 const yousignRoutes = require('./routes/yousignRoutes');
 const graphRoutes = require("./routes/graphRoutes");
 const supportRoutes = require('./routes/supportRoutes');
+const zvooveRoutes = require('./routes/zvooveRoutes');
+const dataImportRoutes = require('./routes/dataImportRoutes');
+const auftraegeRoutes = require('./routes/auftraegeRoutes');
 const ErrorHandler = require('./middleware/ErrorHandler');
 const logger = require('./utils/logger');
 require('dotenv').config();
@@ -70,6 +73,9 @@ app.use('/api/asana', asanaRoutes);
 app.use('/api/yousign', yousignRoutes);
 app.use('/api/graph', graphRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/zvoove', zvooveRoutes);
+app.use('/api/import', dataImportRoutes);
+app.use('/api/auftraege', auftraegeRoutes);
 
 // Debug endpoint (moved to specific path instead of catch-all)
 app.get('/api/debug/headers', (req, res) => {
