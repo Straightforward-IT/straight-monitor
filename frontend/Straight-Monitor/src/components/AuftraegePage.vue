@@ -14,61 +14,45 @@
       </div>
     </div>
 
-    <div class="filter-section">
-      <div class="filter-header" @click="toggleFilters">
-        <h3>Filter</h3>
-        <button class="collapse-btn" type="button">
-          <font-awesome-icon :icon="filtersExpanded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
-        </button>
-      </div>
-      
-      <div v-show="filtersExpanded" class="filter-content">
-        <div class="filter-chips">
+    <FilterPanel v-model:expanded="filtersExpanded" title="Filter Optionen">
           <!-- GeschSt Filter -->
-          <div class="chip-group">
-            <span class="chip-label">Geschäftsstelle</span>
-            <button
-              class="chip"
-              :class="{ active: filters.geschSt === '1' }"
+          <FilterGroup label="Geschäftsstelle">
+            <FilterChip
+              :active="filters.geschSt === '1'"
               @click="setGeschStFilter('1')"
             >
               Berlin
-            </button>
-            <button
-              class="chip"
-              :class="{ active: filters.geschSt === '2' }"
+            </FilterChip>
+            <FilterChip
+              :active="filters.geschSt === '2'"
               @click="setGeschStFilter('2')"
             >
               Hamburg
-            </button>
-            <button
-              class="chip"
-              :class="{ active: filters.geschSt === '3' }"
+            </FilterChip>
+            <FilterChip
+              :active="filters.geschSt === '3'"
               @click="setGeschStFilter('3')"
             >
               Köln
-            </button>
-             <button
-              class="chip"
-              :class="{ active: !filters.geschSt }"
+            </FilterChip>
+             <FilterChip
+              :active="!filters.geschSt"
               @click="setGeschStFilter(null)"
             >
               Alle
-            </button>
-          </div>
+            </FilterChip>
+          </FilterGroup>
 
-          <span class="divider" />
+          <FilterDivider />
 
           <!-- Bediener Filter -->
-          <div class="chip-group dropdown-group">
-            <span class="chip-label">Bediener</span>
-            <div class="dropdown-trigger" @click.stop="showBedienerDropdown = !showBedienerDropdown">
-              <span v-if="filters.bediener.length === 0">Alle Bediener</span>
-              <span v-else>{{ filters.bediener.length }} ausgewählt</span>
-              <font-awesome-icon icon="fa-solid fa-chevron-down" />
-            </div>
-            
-            <div v-if="showBedienerDropdown" class="dropdown-menu" @click.stop>
+          <FilterGroup label="Bediener">
+            <FilterDropdown :has-value="filters.bediener.length > 0">
+              <template #label>
+                <span v-if="filters.bediener.length === 0">Alle Bediener</span>
+                <span v-else>{{ filters.bediener.length }} ausgewählt</span>
+              </template>
+              
               <div v-if="filterOptions.bediener.length === 0" class="no-options">Keine Bediener gefunden</div>
               <label v-for="bed in filterOptions.bediener" :key="bed" class="dropdown-item">
                 <input 
@@ -78,21 +62,17 @@
                 >
                 <span class="label-text">{{ bed }}</span>
               </label>
-            </div>
-          </div>
+            </FilterDropdown>
+          </FilterGroup>
 
-          <span class="divider" />
+          <FilterDivider />
           
            <!-- Reset Button -->
-            <div class="reset-button-container">
-              <button class="chip reset-chip" @click="resetAllFilters" title="Alle Filter zurücksetzen">
-                <font-awesome-icon icon="fa-solid fa-rotate-left" />
-                Zurücksetzen
-              </button>
-            </div>
-        </div>
-      </div>
-    </div>
+          <FilterChip class="reset-chip" @click="resetAllFilters" title="Alle Filter zurücksetzen">
+            <font-awesome-icon icon="fa-solid fa-rotate-left" />
+            Zurücksetzen
+          </FilterChip>
+      </FilterPanel>
 
     <div class="calendar-navigation">
       <button class="nav-btn" @click="previousWeek">
@@ -107,8 +87,61 @@
       <button class="nav-btn today-btn" @click="goToToday">Heute</button>
     </div>
 
-    <div v-if="loading" class="loading-state">
-      <span>Lade Aufträge...</span>
+    <!-- Mobile View -->
+    <div v-if="isMobile" class="mobile-calendar-view">
+      <div class="mobile-nav">
+        <button class="nav-btn-mobile" @click="prevDay">
+          <font-awesome-icon icon="fa-solid fa-chevron-left" />
+        </button>
+        
+        <div class="mobile-date-display" v-if="weekDays[mobileDayIndex]">
+          <span class="day-name">{{ weekDays[mobileDayIndex].name }}</span>
+          <span class="day-date">{{ formatDayDate(weekDays[mobileDayIndex].date) }}</span>
+        </div>
+        
+        <button class="nav-btn-mobile" @click="nextDay">
+            <font-awesome-icon icon="fa-solid fa-chevron-right" />
+        </button>
+      </div>
+
+      <div class="mobile-day-content" v-if="weekDays[mobileDayIndex]">
+        <!-- Reuse existing methods -->
+        <div class="day-stats" style="text-align: center; margin-bottom: 10px;">
+          {{ getEventsForDay(weekDays[mobileDayIndex].date).length }} Aufträge
+        </div>
+        
+        <div v-if="getEventsForDay(weekDays[mobileDayIndex].date).length === 0" class="empty-day-state">
+            Keine Aufträge heute
+        </div>
+        
+        <div 
+          v-for="event in getEventsForDay(weekDays[mobileDayIndex].date)" 
+          :key="event._id"
+          class="event-card-mobile"
+          :class="getEventStatusClass(event)"
+          @click="selectEvent(event)"
+        >
+            <div class="event-header">
+              <span class="event-time-badge">
+                {{ formatTime(event.vonDatum) }} - {{ formatTime(event.bisDatum) }}
+              </span>
+              <span class="event-status">{{ getStatusText(event.auftStatus) }}</span>
+            </div>
+            
+            <div class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
+            
+            <div class="event-details">
+              <div class="detail-row">
+                  <font-awesome-icon icon="fa-solid fa-user" class="icon" />
+                  <span>{{ event.kundeData?.kundName || '-' }}</span>
+              </div>
+              <div class="detail-row">
+                  <font-awesome-icon icon="fa-solid fa-location-dot" class="icon" />
+                  <span>{{ event.eventOrt || '-' }}</span>
+              </div>
+            </div>
+        </div>
+      </div>
     </div>
 
     <div v-else class="calendar-grid">
@@ -125,7 +158,11 @@
         </div>
       </div>
 
-      <div class="calendar-body">
+      <div v-if="loading" class="loading-body">
+        <span>Lade Aufträge...</span>
+      </div>
+
+      <div v-else class="calendar-body">
         <div class="kw-cell kw-number">{{ currentKW }}</div>
         <div 
           v-for="day in weekDays" 
@@ -232,12 +269,25 @@
 </template>
 
 <script>
+// Add imports for icons used in mobile view
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import { faChevronLeft, faChevronRight, faUser, faLocationDot } from "@fortawesome/free-solid-svg-icons";
+import { library } from "@fortawesome/fontawesome-svg-core";
+
+library.add(faChevronLeft, faChevronRight, faUser, faLocationDot);
+
 import api from "../utils/api";
 import { mapState } from 'pinia';
 import { useAuth } from '../stores/auth';
+import FilterPanel from '@/components/FilterPanel.vue';
+import FilterGroup from '@/components/FilterGroup.vue';
+import FilterChip from '@/components/FilterChip.vue';
+import FilterDivider from '@/components/FilterDivider.vue';
+import FilterDropdown from '@/components/FilterDropdown.vue';
 
 export default {
   name: "AuftraegePage",
+  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown },
   data() {
     return {
       auftraege: [],
@@ -257,7 +307,8 @@ export default {
         geschSt: null,
         bediener: []
       },
-      showBedienerDropdown: false
+      isMobile: false,
+      mobileDayIndex: 0
     };
   },
   computed: {
@@ -309,6 +360,25 @@ export default {
     }
   },
   methods: {
+    checkMobile() {
+      this.isMobile = window.innerWidth <= 768;
+    },
+    async prevDay() {
+      if (this.mobileDayIndex > 0) {
+        this.mobileDayIndex--;
+      } else {
+        await this.previousWeek();
+        this.mobileDayIndex = 6;
+      }
+    },
+    async nextDay() {
+      if (this.mobileDayIndex < 6) {
+        this.mobileDayIndex++;
+      } else {
+        await this.nextWeek();
+        this.mobileDayIndex = 0;
+      }
+    },
     initializeWeek() {
       const today = new Date();
       const dayOfWeek = today.getDay();
@@ -317,6 +387,9 @@ export default {
       monday.setDate(today.getDate() + diff);
       monday.setHours(0, 0, 0, 0);
       this.currentWeekStart = monday;
+      
+      // Set to today
+      this.mobileDayIndex = (dayOfWeek + 6) % 7;
     },
     async loadAuftraege(fromDate, toDate) {
       this.loading = true;
@@ -356,8 +429,11 @@ export default {
     },
     setDefaultFilters() {
       // 1=Berlin, 2=Hamburg, 3=Köln
-      if (this.user && this.user.standort) {
-        const loc = this.user.standort.toLowerCase();
+      // Check both standort (legacy) and location (model)
+      const userLoc = this.user?.location || this.user?.standort;
+      
+      if (userLoc) {
+        const loc = userLoc.toLowerCase();
         if (loc.includes('berlin')) this.filters.geschSt = '1';
         else if (loc.includes('hamburg')) this.filters.geschSt = '2';
         else if (loc.includes('köln') || loc.includes('koeln')) this.filters.geschSt = '3';
@@ -509,10 +585,15 @@ export default {
     }
   },
   async mounted() {
+    this.checkMobile();
+    window.addEventListener('resize', this.checkMobile);
     await this.fetchFilterOptions();
     this.setDefaultFilters();
     this.initializeWeek();
     await this.loadInitialData();
+  },
+  beforeUnmount() {
+    window.removeEventListener('resize', this.checkMobile);
   }
 };
 </script>
@@ -521,6 +602,15 @@ export default {
 @import "@/assets/styles/global.scss";
 
 .auftraege-page {
+  /* Variable Mappings to match new components */
+  --bg: var(--bg);
+  --surface: var(--panel);
+  --soft: var(--hover);
+  --border: var(--border);
+  --muted: var(--muted);
+  --text: var(--text);
+  --brand: var(--primary);
+  
   padding: 20px;
   max-width: 100%;
   overflow-x: auto;
@@ -605,9 +695,11 @@ export default {
   text-align: center;
 }
 
-.loading-state {
-  text-align: center;
-  padding: 60px 20px;
+.loading-body {
+  min-height: 500px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--muted);
   font-size: 1.1rem;
 }
@@ -905,166 +997,18 @@ export default {
 }
 
 /* Filter Section Styles */
-.filter-section {
-  background: var(--tile-bg);
-  border-radius: 8px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 
-  .filter-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 20px;
-    cursor: pointer;
-    user-select: none;
-
-    h3 {
-      margin: 0;
-      font-size: 1rem;
-      color: var(--text);
-    }
-    
-    .collapse-btn {
-      background: none;
-      border: none;
-      color: var(--muted);
-      cursor: pointer;
-      font-size: 1rem;
-    }
-  }
-
-  .filter-content {
-    padding: 0 20px 20px;
-    border-top: 1px solid var(--border);
+.reset-chip {
+  color: #ff4d4f !important;
+  border-color: #ff4d4f !important;
+  
+  &:hover {
+    background: rgba(255, 77, 79, 0.1) !important;
   }
 }
 
-.filter-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  margin-top: 15px;
-
-  .chip-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    
-    .chip-label {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--muted);
-      margin-right: 4px;
-    }
-  }
-
-  .chip {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    
-    &:hover {
-      border-color: var(--primary);
-    }
-    
-    &.active {
-      background: rgba(var(--primary-rgb), 0.1);
-      border-color: var(--primary);
-      color: var(--primary);
-    }
-    
-    &.reset-chip {
-      color: #ff4d4f;
-      border-color: #ff4d4f;
-       &:hover {
-         background: rgba(255, 77, 79, 0.1);
-       }
-    }
-  }
-
-  .divider {
-    width: 1px;
-    height: 24px;
-    background: var(--border);
-    margin: 0 8px;
-  }
-}
-
-/* Dropdown */
-.dropdown-group {
-  position: relative;
-  
-  .dropdown-trigger {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 140px;
-    justify-content: space-between;
-    color: var(--text);
-    
-    &:hover {
-      border-color: var(--primary);
-    }
-  }
-  
-  .dropdown-menu {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    margin-top: 4px;
-    background: var(--tile-bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    z-index: 100;
-    min-width: 200px;
-    max-height: 300px;
-    overflow-y: auto;
-    padding: 8px 0;
-    
-    .dropdown-item {
-      display: flex;
-      align-items: center;
-      padding: 8px 12px;
-      cursor: pointer;
-      font-size: 0.9rem;
-      color: var(--text);
-      
-      &:hover {
-        background: var(--bg);
-      }
-      
-      input {
-        margin-right: 8px;
-      }
-      
-      .label-text {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-    }
-    
-    .no-options {
-       padding: 8px 12px;
-       color: var(--muted);
-       font-style: italic;
-       font-size: 0.85rem;
-    }
-  }
+.filter-layout {
+  /* ... existing styles if any ... */
 }
 
 /* Mobile */
@@ -1090,17 +1034,145 @@ export default {
   }
 
   .calendar-navigation {
-    flex-direction: column;
-    gap: 10px;
+    display: none; /* Hide standard navigation in mobile view */
   }
+}
 
-  .calendar-grid {
-    overflow-x: auto;
-  }
+/* Mobile Calendar Styles */
+.mobile-calendar-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 
-  .calendar-header,
-  .calendar-body {
-    min-width: 800px;
-  }
+.mobile-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.mobile-date-display {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-date-display .day-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mobile-date-display .day-date {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.nav-btn-mobile {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.nav-btn-mobile:active {
+  background: var(--soft);
+  transform: scale(0.95);
+}
+
+.mobile-day-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.empty-day-state {
+  text-align: center;
+  padding: 40px;
+  color: var(--muted);
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+}
+
+.event-card-mobile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.event-card-mobile.status-draft { border-left: 4px solid #f59e0b; }
+.event-card-mobile.status-confirmed { border-left: 4px solid #22c55e; }
+.event-card-mobile.status-completed { border-left: 4px solid #3b82f6; }
+
+.event-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.event-time-badge {
+  background: var(--bg);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.event-status {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.event-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.event-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.detail-row .icon {
+  width: 16px;
+  text-align: center;
+  color: var(--primary);
 }
 </style>

@@ -6,17 +6,10 @@
         <!-- Controls -->
         <div class="controls">
           <!-- Minimierbare Filter-Sektion -->
-          <div class="filter-section">
-            <div class="filter-header" @click="toggleFilters">
-              <h3>Filter</h3>
-              <button class="collapse-btn" type="button">
-                <font-awesome-icon :icon="filtersExpanded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
-              </button>
-            </div>
+          <FilterPanel v-model:expanded="filtersExpanded">
             
             <!-- Enhanced Filter Chips (nur sichtbar wenn expanded) -->
-            <div v-show="filtersExpanded" class="filter-content">
-              <div class="filter-chips">
+            <div class="filter-chips">
             <!-- Basic Status Filter -->
             <div class="chip-group">
               <span class="chip-label">Status</span>
@@ -119,9 +112,8 @@
                 Zurücksetzen
               </button>
             </div>
-            </div> <!-- Ende filter-content -->
-          </div> <!-- Ende filter-section -->
-          </div> <!-- Ende filter-section -->
+            </div>
+          </FilterPanel>
 
           <div class="search-sort">
             <div class="search">
@@ -245,8 +237,9 @@
         </div>
 
         <!-- Loading State -->
-        <div v-if="loading.mitarbeiter" :class="mitarbeiterViewMode === 'grid' ? 'grid grid--skeleton' : 'list list--skeleton'">
-          <div v-for="n in 6" :key="'skel-' + n" class="skel"></div>
+        <div v-if="loading.mitarbeiter" class="loading-container">
+           <font-awesome-icon icon="fa-solid fa-spinner" spin class="loading-spinner" />
+           <span class="loading-text">Lade Mitarbeiter...</span>
         </div>
 
         <!-- Grid View (Standard auf Mobile) -->
@@ -531,6 +524,7 @@ import api from "@/utils/api";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import EmployeeCard from "@/components/EmployeeCard.vue";
+import FilterPanel from "@/components/FilterPanel.vue";
 import { useFlipAll } from "@/stores/flipAll";
 
 import {
@@ -565,6 +559,7 @@ import {
   faEnvelope,
   faEdit,
   faUser,
+  faSpinner
 } from "@fortawesome/free-solid-svg-icons";
 import { faCircle as faCircleRegular } from "@fortawesome/free-regular-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
@@ -601,12 +596,13 @@ library.add(
   faPhone,
   faEnvelope,
   faEdit,
-  faUser
+  faUser,
+  faSpinner
 );
 
 export default {
   name: "Personal",
-  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip },
+  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -685,19 +681,23 @@ export default {
   },
 
   computed: {
-    // Mitarbeiter mit Flip-Daten anreichern (per Email verknüpfen)
+    // Mitarbeiter mit Flip-Daten anreichern
     mitarbeitersEnriched() {
-      // einmal neu berechnen, wenn Flip Daten fertig sind
       const ready = this.flip?.loaded;
       const arr = this.mitarbeiters || [];
       if (!ready) return arr;
 
       return arr.map((ma) => {
-        // Inaktive haben oft keine Flip-Verlinkung -> nur versuchen, wenn aktiv
-        const flipUser =
-          ma?.email && ma.isActive
-            ? this.flip.getByEmail(ma.email)
-            : undefined;
+          let flipUser;
+          // Strategy 1: Match by ID
+          if (ma.flip_id) {
+              flipUser = this.flip.getById(ma.flip_id);
+          }
+          // Strategy 2: Match by Email (Fallback)
+          if (!flipUser && ma.email) {
+              flipUser = this.flip.getByEmail(ma.email);
+          }
+
         return { ...ma, flip: flipUser || null };
       });
     },
@@ -2958,8 +2958,30 @@ html {
   white-space: nowrap;
 }
 
+/* Loading Styles */
+.loading-container {
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  justify-content: center; 
+  padding: 60px; 
+  color: var(--muted);
+}
+
+.loading-spinner {
+  font-size: 40px; 
+  margin-bottom: 16px; 
+  color: var(--primary);
+}
+
+.loading-text {
+  font-size: 1.1rem; 
+  font-weight: 500;
+}
+
 /* Mobile Responsive Optimierungen */
 @media (max-width: 768px) {
+/* ==================== MINIMIERBARE FILTER SEKTION ==================== */
   .people-docs-modern {
     padding: 12px 8px;
   }
@@ -2990,11 +3012,6 @@ html {
     width: 100%;
   }
   
-  .filter-section {
-    flex-direction: column;
-    gap: 8px;
-  }
-  
   /* Cards kompakter */
   .grid {
     grid-template-columns: 1fr;
@@ -3023,7 +3040,7 @@ html {
     padding: 4px 8px;
     font-size: 12px;
   }
-}
+
 
 @media (max-width: 480px) {
   .people-docs-modern {
@@ -3049,19 +3066,6 @@ html {
     height: 32px;
   }
   
-  /* Filter-Sektion Mobile */
-  .filter-header {
-    padding: 8px 12px;
-  }
-  
-  .filter-header h3 {
-    font-size: 14px;
-  }
-  
-  .filter-content {
-    padding: 8px 12px;
-  }
-  
   .filter-chips {
     gap: 6px;
   }
@@ -3076,88 +3080,6 @@ html {
   }
 }
 
-/* ==================== MINIMIERBARE FILTER SEKTION ==================== */
-
-.filter-section {
-  margin-bottom: 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg); /* Gleicher Hintergrund wie Hauptbereich */
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-
-.filter-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 18px;
-  background: var(--bg); /* Gleicher Hintergrund */
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  user-select: none;
-}
-
-.filter-header:hover {
-  background: var(--hover);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.filter-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.filter-header h3::before {
-  content: '🔍'; /* Lupe Emoji */
-  font-size: 18px;
-  opacity: 0.7;
-}
-
-.collapse-btn {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
-  cursor: pointer;
-  padding: 6px 8px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  height: 28px;
-  opacity: 0.8;
-}
-
-.collapse-btn:hover {
-  background: var(--hover);
-  border-color: var(--primary);
-  color: var(--primary);
-  opacity: 1;
-  transform: translateY(-1px);
-}
-
-.filter-content {
-  padding: 18px;
-  background: var(--bg); /* Gleicher Hintergrund */
-  transition: all 0.3s ease;
-}
-
-/* Animation für das Ein-/Ausklappen */
-.filter-content[style*="display: none"] {
-  opacity: 0;
-  max-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
 /* Skeletons, Empty etc. bleiben wie gehabt */
 </style>

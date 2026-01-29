@@ -3,6 +3,7 @@
     <!-- Document Management Section -->
     <div class="panel">
       <div class="controls">
+        <FilterPanel v-model:expanded="filtersExpanded">
         <div class="filter-chips">
           <div class="chip-group">
             <span class="chip-label">Status</span>
@@ -92,6 +93,7 @@
             </div>
           </div>
         </div>
+        </FilterPanel>
 
         <div class="search-sort">
           <div class="search">
@@ -439,6 +441,7 @@ import api from "@/utils/api";
 import logger from "@/utils/logger";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
+import FilterPanel from '@/components/FilterPanel.vue';
 import asanaLogo from '@/assets/asana.png';
 
 import {
@@ -500,7 +503,7 @@ library.add(
 
 export default {
   name: "Dokumente",
-  components: { FontAwesomeIcon, CustomTooltip },
+  components: { FontAwesomeIcon, CustomTooltip, FilterPanel },
 
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -542,6 +545,7 @@ export default {
       // data sets
       documents: [],
       locations: ["Hamburg", "Berlin", "Köln"],
+      filtersExpanded: false,
 
       // filters and search (restored from session or defaults)
       activeDocStatusFilter: filterDefaults.activeDocStatusFilter,
