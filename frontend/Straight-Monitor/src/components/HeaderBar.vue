@@ -17,6 +17,13 @@
         <router-link to="/verlauf" :class="{ active: $route.name === 'Verlauf' }"
           >Verlauf</router-link
         >
+          <router-link
+          to="/dokumente"
+          :class="{ active: $route.name === 'Dokumente'}"
+        >
+          Dokumente
+          <span class="beta-tag">NEU</span>
+        </router-link>
         <router-link
           :to="newPagesEnabled ? '/personal' : '#'"
           :class="{ active: $route.name === 'Personal', disabled: !newPagesEnabled }"
@@ -24,13 +31,6 @@
         >
           Personal
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
-        </router-link>
-        <router-link
-          to="/dokumente"
-          :class="{ active: $route.name === 'Dokumente'}"
-        >
-          Dokumente
-          <span class="beta-tag">NEU</span>
         </router-link>
         <router-link
           :to="newPagesEnabled ? '/auftraege' : '#'"
@@ -355,9 +355,9 @@ const supportForm = reactive({
   files: []
 });
 
-// Feature flag für neue Pages
+// Feature flag für neue Pages (Now based on Role)
 const newPagesEnabled = computed(() => {
-  return import.meta.env.VITE_ENABLE_NEW_PAGES === 'true';
+  return auth.user && auth.user.role === 'ADMIN';
 });
 
 // Handler für deaktivierte neue Pages

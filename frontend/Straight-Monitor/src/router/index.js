@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import '../assets/styles/main.scss';
+import { useAuth } from '@/stores/auth';
 
 import EmailConfirmation from '@/components/EmailConfirmation.vue';
 import HomeLogin from '@/components/HomeLogin.vue';
@@ -66,23 +67,35 @@ function tokenIsExpired(token) {
   catch { return true; }
 }
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const token = localStorage.getItem('token');
+  const auth = useAuth();
   
   // Auth check
   if (to.matched.some(r => r.meta.requiresAuth)) {
     if (!token || tokenIsExpired(token)) {
+      auth.setToken(null); // Sync store state
       localStorage.removeItem('token');
       return next({ path: '/', query: { redirect: to.fullPath } });
+    }
+    
+    // Ensure User Data is loaded
+    if (token && !auth.user) {
+      try {
+        await auth.fetchMe();
+      } catch (e) {
+        console.error("Failed to fetch user in router", e);
+      }
     }
   }
   
   // Feature flag check für neue Pages
-  const newPagesEnabled = import.meta.env.VITE_ENABLE_NEW_PAGES === 'true';
+  // const newPagesEnabled = import.meta.env.VITE_ENABLE_NEW_PAGES === 'true';
+  const isAdmin = auth.user && auth.user.role === 'ADMIN'; 
   const newPageRoutes = ['Personal', 'Auftraege'];
   
-  if (!newPagesEnabled && newPageRoutes.includes(to.name)) {
-    alert('Diese Funktion ist noch in Entwicklung und wird bald verfügbar sein.');
+  if (newPageRoutes.includes(to.name) && !isAdmin) {
+    alert('Diese Funktion ist noch in Entwicklung und nur für Administratoren verfügbar.');
     return next('/dashboard');
   }
   

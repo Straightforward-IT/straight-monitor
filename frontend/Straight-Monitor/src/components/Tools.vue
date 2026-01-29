@@ -54,6 +54,7 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTheme } from '@/stores/theme';
 import { useUi } from '@/stores/ui';
+import { useAuth } from '@/stores/auth';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
 const router = useRouter();
@@ -61,8 +62,9 @@ const go = (path) => router.push(path);
 
 const theme = useTheme();
 const ui = useUi();
+const auth = useAuth();
 
-const newPagesEnabled = import.meta.env.VITE_ENABLE_NEW_PAGES === 'true';
+const newPagesEnabled = computed(() => auth.user && auth.user.role === 'ADMIN');
 
 const logoSrc = computed(() =>
   theme.isDark

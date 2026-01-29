@@ -129,6 +129,12 @@ router.post(
       return res.status(400).json({ msg: "Ungültige Anmeldedaten" });
     }
 
+    // Ensure user has a role (Lazy Migration)
+    if (!user.role) {
+      user.role = 'USER';
+      await user.save();
+    }
+
     const payload = { user: { id: user.id } };
 
     jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: 360000 }, (err, token) => {

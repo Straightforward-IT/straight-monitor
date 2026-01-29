@@ -7,7 +7,7 @@
 
     <!-- Deployment Update Modal -->
     <div
-      v-if="showUpdateModal"
+      v-if="false"
       class="update-modal-overlay"
       @click="closeModal"
     >
@@ -216,14 +216,16 @@ import { ref, onMounted, computed } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
+import { useAuth } from "@/stores/auth";
 
 const router = useRouter();
+const auth = useAuth();
 const userName = ref("…");
 const userFirstName = ref("");
 
 // Feature flag für neue Pages
 const newPagesEnabled = computed(() => {
-  return import.meta.env.VITE_ENABLE_NEW_PAGES === "true";
+  return auth.user && auth.user.role === 'ADMIN';
 });
 
 // Update Modal State

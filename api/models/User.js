@@ -19,6 +19,10 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: false
   },
+  role: {
+    type: String,
+    default: 'USER'
+  },
   isConfirmed: {
     type: Boolean,
     required: true
