@@ -805,6 +805,63 @@ router.get(
   })
 );
 
+// --- GET single Mitarbeiter by ID ---
+router.get(
+  "/mitarbeiter/:id",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const mitarbeiter = await Mitarbeiter.findById(id)
+      .populate([
+        { 
+          path: "laufzettel_received",
+          populate: [
+            { path: "mitarbeiter", select: "_id vorname nachname email" },
+            { path: "teamleiter", select: "_id vorname nachname email" }
+          ]
+        },
+        { 
+          path: "laufzettel_submitted",
+          populate: [
+            { path: "mitarbeiter", select: "_id vorname nachname email" },
+            { path: "teamleiter", select: "_id vorname nachname email" }
+          ]
+        },
+        { 
+          path: "eventreports",
+          populate: { path: "teamleiter", select: "_id vorname nachname email" }
+        },
+        { 
+          path: "evaluierungen_received",
+          populate: [
+            { path: "mitarbeiter", select: "_id vorname nachname email" },
+            { path: "teamleiter", select: "_id vorname nachname email" }
+          ]
+        },
+        { 
+          path: "evaluierungen_submitted",
+          populate: [
+            { path: "mitarbeiter", select: "_id vorname nachname email" },
+            { path: "teamleiter", select: "_id vorname nachname email" }
+          ]
+        },
+      ]);
+
+    if (!mitarbeiter) {
+      return res.status(404).json({
+        success: false,
+        message: "Mitarbeiter nicht gefunden.",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: mitarbeiter,
+    });
+  })
+);
+
 router.get(
   "/mitarbeiter",
   auth,
@@ -838,11 +895,38 @@ router.get(
     const mitarbeiter = await Mitarbeiter.find(filters)
       .sort(sortOptions)
       .populate([
-        { path: "laufzettel_received", select: "_id name" },
-        { path: "laufzettel_submitted", select: "_id name" },
-        { path: "eventreports", select: "_id title" },
-        { path: "evaluierungen_received", select: "_id score" },
-        { path: "evaluierungen_submitted", select: "_id score" },
+        { 
+          path: "laufzettel_received",
+          populate: [
+            { path: "mitarbeiter", select: "_id vorname nachname email" },
+            { path: "teamleiter", select: "_id vorname nachname email" }
+          ]
+        },
+        { 
+          path: "laufzettel_submitted",
+          populate: [
+            { path: "mitarbeiter", select: "_id vorname nachname email" },
+            { path: "teamleiter", select: "_id vorname nachname email" }
+          ]
+        },
+        { 
+          path: "eventreports",
+          populate: { path: "teamleiter", select: "_id vorname nachname email" }
+        },
+        { 
+          path: "evaluierungen_received",
+          populate: [
+            { path: "mitarbeiter", select: "_id vorname nachname email" },
+            { path: "teamleiter", select: "_id vorname nachname email" }
+          ]
+        },
+        { 
+          path: "evaluierungen_submitted",
+          populate: [
+            { path: "mitarbeiter", select: "_id vorname nachname email" },
+            { path: "teamleiter", select: "_id vorname nachname email" }
+          ]
+        },
       ]);
 
     res.status(200).json({
@@ -927,6 +1011,216 @@ router.patch(
       }
 
       // Alle anderen Fehler werden vom asyncHandler an die globale Fehlerbehandlung weitergeleitet
+      throw error;
+    }
+  })
+);
+
+// --- Personalnr Update Endpoint ---
+router.patch(
+  "/mitarbeiter/:id/personalnr",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { personalnr } = req.body;
+
+    try {
+      const mitarbeiter = await Mitarbeiter.findById(id);
+
+      if (!mitarbeiter) {
+        return res.status(404).json({
+          success: false,
+          message: "Mitarbeiter mit dieser ID nicht gefunden.",
+        });
+      }
+
+      // Check for conflicts (duplicate personalnr)
+      if (personalnr?.trim()) {
+        const existingWithSameNr = await Mitarbeiter.findOne({
+          personalnr: personalnr.trim(),
+          _id: { $ne: id }
+        });
+
+        if (existingWithSameNr) {
+          return res.status(409).json({
+            success: false,
+            message: "Diese Personalnummer wird bereits von einem anderen Mitarbeiter verwendet.",
+            conflict: {
+              email: existingWithSameNr.email,
+              name: `${existingWithSameNr.vorname} ${existingWithSameNr.nachname}`
+            }
+          });
+        }
+      }
+
+      // Prepare update with history tracking
+      const updateData = {
+        personalnr: personalnr?.trim() || null
+      };
+
+      // Add to history if there was a previous value
+      if (mitarbeiter.personalnr && mitarbeiter.personalnr !== personalnr?.trim()) {
+        await Mitarbeiter.updateOne(
+          { _id: id },
+          {
+            $set: { personalnr: personalnr?.trim() || null },
+            $push: {
+              personalnrHistory: {
+                value: mitarbeiter.personalnr,
+                updatedAt: new Date(),
+                updatedBy: req.user?.email || 'user',
+                source: 'manual'
+              }
+            }
+          }
+        );
+      } else {
+        await Mitarbeiter.updateOne(
+          { _id: id },
+          { $set: { personalnr: personalnr?.trim() || null } }
+        );
+      }
+
+      const updatedMitarbeiter = await Mitarbeiter.findById(id);
+
+      res.status(200).json({
+        success: true,
+        data: updatedMitarbeiter,
+        message: "Personalnummer erfolgreich aktualisiert.",
+      });
+    } catch (error) {
+      if (error.code === 11000) {
+        return res.status(409).json({
+          success: false,
+          message: "Diese Personalnummer wird bereits verwendet.",
+        });
+      }
+      throw error;
+    }
+  })
+);
+
+// --- Add Additional Email to Mitarbeiter ---
+router.post(
+  "/mitarbeiter/:id/additional-email",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { email } = req.body;
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "E-Mail Adresse ist erforderlich.",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    try {
+      // Check if email is already used as primary email
+      const existingPrimary = await Mitarbeiter.findOne({ email: normalizedEmail });
+      if (existingPrimary) {
+        return res.status(409).json({
+          success: false,
+          message: "Diese E-Mail wird bereits als primäre E-Mail verwendet.",
+          conflict: {
+            name: `${existingPrimary.vorname} ${existingPrimary.nachname}`,
+            email: existingPrimary.email
+          }
+        });
+      }
+
+      // Check if email is already in additionalEmails of another Mitarbeiter
+      const existingAdditional = await Mitarbeiter.findOne({ 
+        additionalEmails: normalizedEmail,
+        _id: { $ne: id }
+      });
+      if (existingAdditional) {
+        return res.status(409).json({
+          success: false,
+          message: "Diese E-Mail ist bereits einem anderen Mitarbeiter zugeordnet.",
+          conflict: {
+            name: `${existingAdditional.vorname} ${existingAdditional.nachname}`,
+            email: existingAdditional.email
+          }
+        });
+      }
+
+      const mitarbeiter = await Mitarbeiter.findById(id);
+      if (!mitarbeiter) {
+        return res.status(404).json({
+          success: false,
+          message: "Mitarbeiter nicht gefunden.",
+        });
+      }
+
+      // Check if already in this Mitarbeiter's additionalEmails
+      if (mitarbeiter.additionalEmails?.includes(normalizedEmail)) {
+        return res.status(400).json({
+          success: false,
+          message: "Diese E-Mail ist bereits diesem Mitarbeiter zugeordnet.",
+        });
+      }
+
+      // Add to additionalEmails
+      await Mitarbeiter.updateOne(
+        { _id: id },
+        { $addToSet: { additionalEmails: normalizedEmail } }
+      );
+
+      const updatedMitarbeiter = await Mitarbeiter.findById(id);
+
+      res.status(200).json({
+        success: true,
+        data: updatedMitarbeiter,
+        message: `E-Mail ${normalizedEmail} wurde erfolgreich hinzugefügt.`,
+      });
+    } catch (error) {
+      throw error;
+    }
+  })
+);
+
+// --- Remove Additional Email from Mitarbeiter ---
+router.delete(
+  "/mitarbeiter/:id/additional-email",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { email } = req.body;
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "E-Mail Adresse ist erforderlich.",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    try {
+      const mitarbeiter = await Mitarbeiter.findById(id);
+      if (!mitarbeiter) {
+        return res.status(404).json({
+          success: false,
+          message: "Mitarbeiter nicht gefunden.",
+        });
+      }
+
+      await Mitarbeiter.updateOne(
+        { _id: id },
+        { $pull: { additionalEmails: normalizedEmail } }
+      );
+
+      const updatedMitarbeiter = await Mitarbeiter.findById(id);
+
+      res.status(200).json({
+        success: true,
+        data: updatedMitarbeiter,
+        message: `E-Mail ${normalizedEmail} wurde entfernt.`,
+      });
+    } catch (error) {
       throw error;
     }
   })

@@ -76,14 +76,14 @@
             <div class="chip-group">
               <span class="chip-label">Flip Status</span>
               <button
-                v-for="flipStat in ['Alle', 'Aktiv', 'Gesperrt', 'Gelöscht', 'Nicht_verknüpft']"
+                v-for="flipStat in ['Alle', 'Aktiv', 'Gesperrt', 'Gelöscht', 'Nicht verknüpft']"
                 :key="flipStat"
                 class="chip"
                 :class="{ active: filters.flipStatus === flipStat }"
                 @click="setFilter('flipStatus', flipStat)"
               >
                 <font-awesome-icon icon="fa-solid fa-mobile-screen" />
-                {{ flipStat.replace('_', ' ') }}
+                {{ flipStat }}
               </button>
             </div>
 
@@ -100,6 +100,22 @@
               >
                 <font-awesome-icon icon="fa-solid fa-clipboard-list" />
                 {{ asanaStat.replace('_', ' ') }}
+              </button>
+            </div>
+            
+            <span class="divider" />
+
+            <div class="chip-group">
+              <span class="chip-label">Personalnr</span>
+              <button
+                v-for="pnrStat in ['Alle', 'Vorhanden', 'Fehlt']"
+                :key="pnrStat"
+                class="chip"
+                :class="{ active: filters.personalnrStatus === pnrStat }"
+                @click="setFilter('personalnrStatus', pnrStat)"
+              >
+                <font-awesome-icon icon="fa-solid fa-id-badge" />
+                {{ pnrStat }}
               </button>
             </div>
             
@@ -281,6 +297,14 @@
                 class="sort-indicator"
               />
             </div>
+            <div class="list-col list-col--personalnr list-header-sortable" @click="setSortBy('personalnr')">
+              Personalnr
+              <font-awesome-icon 
+                v-if="listSortBy === 'personalnr'"
+                :icon="listIsAscending ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"
+                class="sort-indicator"
+              />
+            </div>
             <div class="list-col list-col--status list-header-sortable" @click="setSortBy('status')">
               Status
               <font-awesome-icon 
@@ -340,6 +364,17 @@
               
               <div class="list-col list-col--name">
                 <div class="name">{{ ma.vorname }} {{ ma.nachname }}</div>
+              </div>
+              
+              <div class="list-col list-col--personalnr">
+                <span 
+                  class="personalnr-badge" 
+                  :class="{ 'missing': !ma.personalnr }"
+                  :title="ma.personalnr ? `Personalnr: ${ma.personalnr}` : 'Personalnr fehlt'"
+                >
+                  <font-awesome-icon icon="fa-solid fa-id-badge" />
+                  {{ ma.personalnr || "Fehlt" }}
+                </span>
               </div>
               
               <!-- Mobile-optimierte Info-Gruppierung -->
@@ -497,6 +532,43 @@
                   <h4>System-IDs</h4>
                   <p><strong>Straight ID:</strong> {{ ma._id }}</p>
                   <p><strong>Erstellt von:</strong> {{ ma.erstellt_von || '—' }}</p>
+                  <p class="personalnr-row">
+                    <strong>Personalnr:</strong> 
+                    <span v-if="editingPersonalnrId !== ma._id">{{ ma.personalnr || '—' }}</span>
+                    <input 
+                      v-else
+                      v-model="editingPersonalnrValue"
+                      type="text"
+                      class="personalnr-input"
+                      placeholder="Personalnr eingeben"
+                      @keyup.enter="savePersonalnr(ma)"
+                      @keyup.escape="cancelEditPersonalnr"
+                    />
+                    <button 
+                      v-if="editingPersonalnrId !== ma._id"
+                      class="edit-btn-inline"
+                      @click.stop="startEditPersonalnr(ma)"
+                      title="Personalnr bearbeiten"
+                    >
+                      <font-awesome-icon icon="fa-solid fa-edit" />
+                    </button>
+                    <template v-else>
+                      <button 
+                        class="save-btn-inline"
+                        @click.stop="savePersonalnr(ma)"
+                        title="Speichern"
+                      >
+                        <font-awesome-icon icon="fa-solid fa-check" />
+                      </button>
+                      <button 
+                        class="cancel-btn-inline"
+                        @click.stop="cancelEditPersonalnr"
+                        title="Abbrechen"
+                      >
+                        <font-awesome-icon icon="fa-solid fa-times" />
+                      </button>
+                    </template>
+                  </p>
                   <p><strong>Flip ID:</strong> {{ ma.flip_id || '—' }}</p>
                   <p><strong>Asana ID:</strong> {{ ma.asana_id || '—' }}</p>
                 </div>
@@ -508,10 +580,9 @@
 
 
         <div
-          v-if="!loading.mitarbeiter && filteredMitarbeitersSorted.length === 0"
+          v-if="!loading.mitarbeiter && mitarbeiters.length > 0 && filteredMitarbeitersSorted.length === 0"
           class="empty"
         >
-          <font-awesome-icon icon="fa-solid fa-face-meh-blank" />
           <p>Keine Mitarbeiter gefunden. Filter anpassen?</p>
         </div>
       </section>
@@ -559,7 +630,8 @@ import {
   faEnvelope,
   faEdit,
   faUser,
-  faSpinner
+  faSpinner,
+  faCheck
 } from "@fortawesome/free-solid-svg-icons";
 import { faCircle as faCircleRegular } from "@fortawesome/free-regular-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
@@ -597,7 +669,8 @@ library.add(
   faEnvelope,
   faEdit,
   faUser,
-  faSpinner
+  faSpinner,
+  faCheck
 );
 
 export default {
@@ -644,6 +717,10 @@ export default {
       
       // list expansion state
       listExpandedIds: new Set(),
+
+      // Personalnr editing state
+      editingPersonalnrId: null,
+      editingPersonalnrValue: "",
       
       // list sorting
       listSortBy: "name",
@@ -668,6 +745,7 @@ export default {
         department: "Alle", // Service, Logistik, Management, IT, Alle
         flipStatus: "Alle", // Aktiv, Gesperrt, Gelöscht, Nicht_verknüpft, Alle
         asanaStatus: "Alle", // Verknüpft, Nicht_verknüpft, Alle
+        personalnrStatus: "Alle", // Vorhanden, Fehlt, Alle
         profile: "Alle" // Vollständig, Unvollständig, Alle
       },
       mitarbeitersSearchQuery: "",
@@ -732,7 +810,14 @@ export default {
       if (this.filters.flipStatus !== "Alle") {
         result = result.filter((ma) => {
           const flipStatus = this.getFlipStatus(ma);
-          return flipStatus === this.filters.flipStatus.toLowerCase().replace(' ', '_');
+          // Map UI values to internal status values
+          const statusMap = {
+            'Aktiv': 'active',
+            'Gesperrt': 'locked',
+            'Gelöscht': 'deleted',
+            'Nicht verknüpft': 'not-linked'
+          };
+          return flipStatus === statusMap[this.filters.flipStatus];
         });
       }
 
@@ -741,6 +826,14 @@ export default {
         result = result.filter((ma) => {
           const hasAsana = ma.asana_id && ma.asana_id.trim() !== '';
           return this.filters.asanaStatus === "Verknüpft" ? hasAsana : !hasAsana;
+        });
+      }
+
+      // Personalnr Status Filter  
+      if (this.filters.personalnrStatus !== "Alle") {
+        result = result.filter((ma) => {
+          const hasPersonalnr = ma.personalnr && ma.personalnr.trim() !== '';
+          return this.filters.personalnrStatus === "Vorhanden" ? hasPersonalnr : !hasPersonalnr;
         });
       }
 
@@ -760,6 +853,7 @@ export default {
             ma.vorname || "",
             ma.nachname || "",
             ma.email || "",
+            ma.personalnr || "",
             this.getDisplayLocation(ma) || "",
             this.getDisplayDepartment(ma) || "",
             ma.asana_id || "",
@@ -832,6 +926,11 @@ export default {
             case 'name':
               av = `${a.vorname || ''} ${a.nachname || ''}`.toLowerCase();
               bv = `${b.vorname || ''} ${b.nachname || ''}`.toLowerCase();
+              break;
+            case 'personalnr':
+              // Sortiere fehlende Personalnr nach hinten
+              av = a.personalnr || 'zzz';
+              bv = b.personalnr || 'zzz';
               break;
             case 'status':
               av = a.isActive ? 'aktiv' : 'inaktiv';
@@ -1222,6 +1321,7 @@ export default {
         department: "Alle",
         flipStatus: "Alle",
         asanaStatus: "Alle",
+        personalnrStatus: "Alle",
         profile: "Alle"
       };
       this.mitarbeitersSearchQuery = "";
@@ -1229,6 +1329,48 @@ export default {
     },
 
     /* -------------------- Actions -------------------- */
+    // Personalnr editing methods
+    startEditPersonalnr(ma) {
+      this.editingPersonalnrId = ma._id;
+      this.editingPersonalnrValue = ma.personalnr || "";
+    },
+
+    cancelEditPersonalnr() {
+      this.editingPersonalnrId = null;
+      this.editingPersonalnrValue = "";
+    },
+
+    async savePersonalnr(ma) {
+      const newPersonalnr = this.editingPersonalnrValue.trim();
+      
+      try {
+        await api.patch(`/api/personal/mitarbeiter/${ma._id}/personalnr`, {
+          personalnr: newPersonalnr
+        });
+        
+        // Update local data
+        const mitarbeiter = this.mitarbeiters.find(m => m._id === ma._id);
+        if (mitarbeiter) {
+          mitarbeiter.personalnr = newPersonalnr;
+        }
+        
+        this.cancelEditPersonalnr();
+      } catch (error) {
+        console.error("Fehler beim Speichern der Personalnr:", error);
+        
+        // Show conflict details if available
+        if (error.response?.status === 409 && error.response?.data?.conflict) {
+          const conflict = error.response.data.conflict;
+          alert(`⚠️ KONFLIKT: Diese Personalnummer wird bereits verwendet!\n\n` +
+                `Von: ${conflict.name}\n` +
+                `E-Mail: ${conflict.email}\n\n` +
+                `Bitte wählen Sie eine andere Personalnummer.`);
+        } else {
+          alert("Fehler beim Speichern der Personalnummer: " + (error.response?.data?.message || error.message));
+        }
+      }
+    },
+
     isEmployeeExpanded(ma) {
       if (!this.expandedEmployeeId) return false;
       
@@ -1785,7 +1927,7 @@ export default {
 
 .list-header {
   display: grid;
-  grid-template-columns: 50px 60px 2fr 120px 120px 120px 180px 80px;
+  grid-template-columns: 50px 60px 2fr 120px 120px 120px 120px 180px 80px;
   gap: 12px;
   align-items: center;
   background: var(--soft);
@@ -1799,7 +1941,7 @@ export default {
 
 .list-row {
   display: grid;
-  grid-template-columns: 50px 60px 2fr 120px 120px 120px 180px 80px;
+  grid-template-columns: 50px 60px 2fr 120px 120px 120px 120px 180px 80px;
   gap: 12px;
   align-items: center;
   padding: 12px 16px;
@@ -2168,6 +2310,29 @@ export default {
 .status-badge.inactive {
   background: #fee7e7;
   color: #d42f2f;
+}
+
+/* Personalnr Badge */
+.personalnr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #e8fbf3;
+  color: #1f8e5d;
+}
+
+.personalnr-badge.missing {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.personalnr-badge.missing::after {
+  content: "⚠️";
+  margin-left: 4px;
 }
 
 /* Trinity Status */
@@ -2582,6 +2747,71 @@ html {
     strong {
       color: var(--muted);
     }
+  }
+}
+
+/* Personalnr row editing styles */
+.personalnr-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.personalnr-input {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  background: var(--surface);
+  color: var(--text);
+  width: 120px;
+  
+  &:focus {
+    outline: none;
+    border-color: var(--brand);
+  }
+}
+
+.edit-btn-inline,
+.save-btn-inline,
+.cancel-btn-inline {
+  padding: 0.25rem 0.4rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-btn-inline {
+  background: transparent;
+  color: var(--muted);
+  
+  &:hover {
+    background: var(--hover);
+    color: var(--brand);
+  }
+}
+
+.save-btn-inline {
+  background: color-mix(in srgb, var(--success, #22c55e) 15%, transparent);
+  color: var(--success, #22c55e);
+  
+  &:hover {
+    background: color-mix(in srgb, var(--success, #22c55e) 25%, transparent);
+  }
+}
+
+.cancel-btn-inline {
+  background: color-mix(in srgb, var(--danger, #ef4444) 15%, transparent);
+  color: var(--danger, #ef4444);
+  
+  &:hover {
+    background: color-mix(in srgb, var(--danger, #ef4444) 25%, transparent);
   }
 }
 

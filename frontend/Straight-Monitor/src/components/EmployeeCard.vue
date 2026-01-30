@@ -46,6 +46,12 @@
               {{ ma.isActive ? "Aktiv" : "Inaktiv" }}
             </span>
 
+            <!-- Personalnr mit visueller Warnung wenn fehlend -->
+            <span class="pill" :class="ma.personalnr ? 'ok' : 'warn'">
+              <font-awesome-icon icon="fa-solid fa-id-badge" />
+              {{ ma.personalnr || "Personalnr fehlt" }}
+            </span>
+
             <!-- Standort aus Flip (profile.location -> attributes.location -> fallback) -->
             <span class="pill" v-if="displayLocation">
               <font-awesome-icon icon="fa-solid fa-location-dot" />
@@ -202,22 +208,211 @@
     <transition name="expand">
       <div v-show="expanded" class="card-body">
         <!-- Straight View -->
-        <section v-if="view === 'straight'" class="kv">
-          <div>
-            <dt>E-Mail</dt>
-            <dd>{{ ma.email || "—" }}</dd>
+        <section v-if="view === 'straight'" class="straight-view">
+          <h4 class="section-title">
+            <img 
+              :src="effectiveTheme === 'dark' ? straightDark : straightLight" 
+              alt="Monitor" 
+              class="section-icon" 
+            />
+            Monitor Profil
+          </h4>
+          
+          <div class="kv">
+            <div>
+              <dt>Personalnr</dt>
+              <dd>
+                <div v-if="!editingPersonalnr && ma.personalnr" class="personalnr-display">
+                  {{ ma.personalnr }}
+                </div>
+                <div v-else-if="!editingPersonalnr && !ma.personalnr" class="personalnr-missing">
+                  <button 
+                    class="btn btn-sm btn-primary"
+                    @click="startEditingPersonalnr"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-plus" />
+                    Hinzufügen
+                  </button>
+                </div>
+                <div v-else class="personalnr-edit">
+                  <input
+                    v-model="personalnrInput"
+                    type="text"
+                    placeholder="Personalnr eingeben..."
+                    class="form-input"
+                    @keyup.enter="savePersonalnr"
+                    @keyup.esc="cancelEditingPersonalnr"
+                  />
+                  <button 
+                    class="btn btn-sm btn-primary"
+                    @click="savePersonalnr"
+                    :disabled="!personalnrInput.trim() || savingPersonalnr"
+                  >
+                    <font-awesome-icon 
+                      :icon="savingPersonalnr ? 'fa-solid fa-spinner' : 'fa-solid fa-check'"
+                      :class="{ 'fa-spin': savingPersonalnr }"
+                    />
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-ghost"
+                    @click="cancelEditingPersonalnr"
+                    :disabled="savingPersonalnr"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-times" />
+                  </button>
+                </div>
+              </dd>
+            </div>
+            <div>
+              <dt>E-Mail</dt>
+              <dd>{{ ma.email || "—" }}</dd>
+            </div>
+            <div v-if="ma.additionalEmails && ma.additionalEmails.length > 0">
+              <dt>Alternative E-Mails</dt>
+              <dd>
+                <div class="email-list">
+                  <span v-for="(email, idx) in ma.additionalEmails" :key="idx" class="email-badge">
+                    {{ email }}
+                  </span>
+                </div>
+              </dd>
+            </div>
+            <div>
+              <dt>Standort</dt>
+              <dd>{{ displayLocation || "—" }}</dd>
+            </div>
+            <div>
+              <dt>Bereich</dt>
+              <dd>{{ displayDepartment || "—" }}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>{{ ma.isActive ? "Aktiv" : "Inaktiv" }}</dd>
+            </div>
           </div>
-          <div>
-            <dt>Standort</dt>
-            <dd>{{ displayLocation || "—" }}</dd>
-          </div>
-          <div>
-            <dt>Bereich</dt>
-            <dd>{{ displayDepartment || "—" }}</dd>
-          </div>
-          <div>
-            <dt>Status</dt>
-            <dd>{{ ma.isActive ? "Aktiv" : "Inaktiv" }}</dd>
+
+          <!-- Dokumente Section -->
+          <div class="documents-section">
+            <h4 class="section-title">
+              <font-awesome-icon icon="fa-solid fa-file-lines" class="section-icon" />
+              Dokumente
+            </h4>
+
+            <!-- Laufzettel Erhalten (als Mitarbeiter) -->
+            <div v-if="ma.laufzettel_received && ma.laufzettel_received.length > 0" class="doc-category">
+              <h5 class="category-title">
+                <font-awesome-icon icon="fa-solid fa-inbox" />
+                Laufzettel erhalten ({{ ma.laufzettel_received.length }})
+              </h5>
+              <div class="doc-list">
+                <div 
+                  v-for="doc in ma.laufzettel_received" 
+                  :key="doc._id" 
+                  class="doc-item"
+                  @click="openDocument(doc, 'Laufzettel')"
+                >
+                  <font-awesome-icon icon="fa-solid fa-file-lines" class="doc-icon" />
+                  <div class="doc-info">
+                    <span class="doc-title">{{ doc.name_teamleiter || (doc.teamleiter ? `${doc.teamleiter.vorname} ${doc.teamleiter.nachname}` : 'Unbekannt') }}</span>
+                    <span class="doc-date">{{ formatDate(doc.datum) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Laufzettel Abgegeben (als Teamleiter) -->
+            <div v-if="ma.laufzettel_submitted && ma.laufzettel_submitted.length > 0" class="doc-category">
+              <h5 class="category-title">
+                <font-awesome-icon icon="fa-solid fa-paper-plane" />
+                Laufzettel abgegeben ({{ ma.laufzettel_submitted.length }})
+              </h5>
+              <div class="doc-list">
+                <div 
+                  v-for="doc in ma.laufzettel_submitted" 
+                  :key="doc._id" 
+                  class="doc-item"
+                  @click="openDocument(doc, 'Laufzettel')"
+                >
+                  <font-awesome-icon icon="fa-solid fa-file-lines" class="doc-icon" />
+                  <div class="doc-info">
+                    <span class="doc-title">{{ doc.name_mitarbeiter || (doc.mitarbeiter ? `${doc.mitarbeiter.vorname} ${doc.mitarbeiter.nachname}` : 'Unbekannt') }}</span>
+                    <span class="doc-date">{{ formatDate(doc.datum) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Event Reports (als Teamleiter) -->
+            <div v-if="ma.eventreports && ma.eventreports.length > 0" class="doc-category">
+              <h5 class="category-title">
+                <font-awesome-icon icon="fa-solid fa-clipboard" />
+                Event Reports ({{ ma.eventreports.length }})
+              </h5>
+              <div class="doc-list">
+                <div 
+                  v-for="doc in ma.eventreports" 
+                  :key="doc._id" 
+                  class="doc-item"
+                  @click="openDocument(doc, 'Event-Bericht')"
+                >
+                  <font-awesome-icon icon="fa-solid fa-clipboard" class="doc-icon" />
+                  <div class="doc-info">
+                    <span class="doc-title">{{ doc.kunde || 'Unbekannt' }}</span>
+                    <span class="doc-date">{{ formatDate(doc.datum) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Evaluierungen Erhalten (als Mitarbeiter) -->
+            <div v-if="ma.evaluierungen_received && ma.evaluierungen_received.length > 0" class="doc-category">
+              <h5 class="category-title">
+                <font-awesome-icon icon="fa-solid fa-inbox" />
+                Evaluierungen erhalten ({{ ma.evaluierungen_received.length }})
+              </h5>
+              <div class="doc-list">
+                <div 
+                  v-for="doc in ma.evaluierungen_received" 
+                  :key="doc._id" 
+                  class="doc-item"
+                  @click="openDocument(doc, 'Evaluierung')"
+                >
+                  <font-awesome-icon icon="fa-solid fa-star" class="doc-icon" />
+                  <div class="doc-info">
+                    <span class="doc-title">{{ doc.name_teamleiter || (doc.teamleiter ? `${doc.teamleiter.vorname} ${doc.teamleiter.nachname}` : 'Unbekannt') }}</span>
+                    <span class="doc-date">{{ formatDate(doc.datum) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Evaluierungen Abgegeben (als Teamleiter) -->
+            <div v-if="ma.evaluierungen_submitted && ma.evaluierungen_submitted.length > 0" class="doc-category">
+              <h5 class="category-title">
+                <font-awesome-icon icon="fa-solid fa-paper-plane" />
+                Evaluierungen abgegeben ({{ ma.evaluierungen_submitted.length }})
+              </h5>
+              <div class="doc-list">
+                <div 
+                  v-for="doc in ma.evaluierungen_submitted" 
+                  :key="doc._id" 
+                  class="doc-item"
+                  @click="openDocument(doc, 'Evaluierung')"
+                >
+                  <font-awesome-icon icon="fa-solid fa-star" class="doc-icon" />
+                  <div class="doc-info">
+                    <span class="doc-title">{{ doc.name_mitarbeiter || (doc.mitarbeiter ? `${doc.mitarbeiter.vorname} ${doc.mitarbeiter.nachname}` : 'Unbekannt') }}</span>
+                    <span class="doc-date">{{ formatDate(doc.datum) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Keine Dokumente -->
+            <div v-if="!hasAnyDocuments" class="no-documents">
+              <font-awesome-icon icon="fa-solid fa-inbox" />
+              <p>Keine Dokumente verknüpft</p>
+            </div>
           </div>
         </section>
 
@@ -469,7 +664,10 @@
           <!-- Asana Verknüpfung vorhanden -->
           <div v-if="ma.asana_id" class="asana-linked">
             <div class="asana-info">
-              <h4>🎯 Asana-Verknüpfung</h4>
+              <h4 class="section-title">
+                <img :src="asanaLogo" alt="Asana" class="section-icon" />
+                Asana-Verknüpfung
+              </h4>
               <div class="asana-id">
                 <strong>Task-ID:</strong> {{ ma.asana_id }}
                 <button
@@ -517,7 +715,10 @@
 
             <!-- Asana Link Formular -->
             <div v-else class="asana-link-form">
-              <h4>🔗 Asana-Task verknüpfen</h4>
+              <h4 class="section-title">
+                <img :src="asanaLogo" alt="Asana" class="section-icon" />
+                Asana-Task verknüpfen
+              </h4>
 
               <!-- Direkte GID Eingabe -->
               <div class="form-section">
@@ -665,12 +866,29 @@
         Bearbeiten
       </button>
     </footer>
+
+    <!-- Document Modal -->
+    <teleport to="body">
+      <div v-if="selectedDocument" class="modal-overlay" @click.self="selectedDocument = null">
+        <div class="modal-content modal-document">
+          <DocumentCard
+            :doc="selectedDocument"
+            @close="selectedDocument = null"
+            @open-employee="handleOpenEmployee"
+            @filter-teamleiter="handleFilterTeamleiter"
+            @filter-mitarbeiter="handleFilterMitarbeiter"
+          />
+        </div>
+      </div>
+    </teleport>
   </article>
 </template>
 <script>
 import { computed, ref, onMounted, onBeforeUnmount, watchEffect } from "vue";
+import { useRouter } from "vue-router";
 import CustomTooltip from "./CustomTooltip.vue";
 import FlipProfile from "./FlipProfile.vue";
+import DocumentCard from "./DocumentCard.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
 import { useFlipAll } from "@/stores/flipAll";
@@ -685,17 +903,18 @@ import asanaLogo from "@/assets/asana.png";
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DocumentCard },
   props: {
     ma: { type: Object, required: true },
     initiallyExpanded: { type: Boolean, default: false },
     showCheckbox: { type: Boolean, default: false },
     isSelected: { type: Boolean, default: false },
   },
-  emits: ["open", "edit", "toggle-selection", "quick-actions"],
+  emits: ["open", "edit", "toggle-selection", "quick-actions", "close", "open-employee"],
 
   setup(props) {
     const theme = useTheme(); // { current: 'light' | 'dark' | 'system' }
+    const router = useRouter();
 
     // System-Theme live auslesen
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -771,6 +990,7 @@ export default {
       photoUrl,
       displayLocation,
       displayDepartment,
+      router,
     };
   },
 
@@ -778,6 +998,10 @@ export default {
     return {
       expanded: this.initiallyExpanded,
       view: "straight",
+      // Personalnr editing
+      editingPersonalnr: false,
+      personalnrInput: "",
+      savingPersonalnr: false,
       // Asana-Verknüpfung States
       showAsanaLinkForm: false,
       asanaGidInput: "",
@@ -797,6 +1021,8 @@ export default {
       loadingTasks: false,
       tasksLoaded: false,
       showFinishedTasks: false, // Toggle für erledigte Tasks
+      // Document modal
+      selectedDocument: null,
     };
   },
 
@@ -822,6 +1048,15 @@ export default {
         const isFinished = task.progress_status === 'FINISHED' || task.progress_status === 'DONE';
         return this.showFinishedTasks ? isFinished : !isFinished;
       });
+    },
+    hasAnyDocuments() {
+      return (
+        (this.ma.laufzettel_received && this.ma.laufzettel_received.length > 0) ||
+        (this.ma.laufzettel_submitted && this.ma.laufzettel_submitted.length > 0) ||
+        (this.ma.eventreports && this.ma.eventreports.length > 0) ||
+        (this.ma.evaluierungen_received && this.ma.evaluierungen_received.length > 0) ||
+        (this.ma.evaluierungen_submitted && this.ma.evaluierungen_submitted.length > 0)
+      );
     }
   },
 
@@ -834,13 +1069,38 @@ export default {
     }
   },
 
+  mounted() {
+    document.addEventListener('keydown', this.handleEscapeKey);
+  },
+
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.handleEscapeKey);
+  },
+
   methods: {
     toggle() {
       this.expanded = !this.expanded;
 
       if (this.expanded) {
         this.$emit("open", this.ma);
-        console.log(this.ma);
+        console.log("Mitarbeiter Data:", this.ma);
+        
+        // Debug documents
+        if (this.ma.laufzettel_received?.length > 0) {
+          console.log("Laufzettel Received Sample:", this.ma.laufzettel_received[0]);
+        }
+        if (this.ma.laufzettel_submitted?.length > 0) {
+          console.log("Laufzettel Submitted Sample:", this.ma.laufzettel_submitted[0]);
+        }
+        if (this.ma.eventreports?.length > 0) {
+          console.log("EventReports Sample:", this.ma.eventreports[0]);
+        }
+        if (this.ma.evaluierungen_received?.length > 0) {
+          console.log("Evaluierungen Received Sample:", this.ma.evaluierungen_received[0]);
+        }
+        if (this.ma.evaluierungen_submitted?.length > 0) {
+          console.log("Evaluierungen Submitted Sample:", this.ma.evaluierungen_submitted[0]);
+        }
         
         // Auto-load tasks if flip view and not loaded yet
         if (this.view === 'flip' && this.ma.flip?.id && !this.tasksLoaded) {
@@ -858,6 +1118,75 @@ export default {
         .split("")
         .reduce((s, c) => s + c.charCodeAt(0), 0);
       return seed % 360;
+    },
+    formatDate(dateString) {
+      if (!dateString) return '—';
+      try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '—';
+        return date.toLocaleDateString('de-DE', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+      } catch {
+        return '—';
+      }
+    },
+
+    // Personalnr Methods
+    startEditingPersonalnr() {
+      this.editingPersonalnr = true;
+      this.personalnrInput = this.ma.personalnr || "";
+    },
+
+    cancelEditingPersonalnr() {
+      this.editingPersonalnr = false;
+      this.personalnrInput = "";
+    },
+
+    async savePersonalnr() {
+      if (!this.personalnrInput.trim()) return;
+
+      this.savingPersonalnr = true;
+
+      try {
+        const response = await api.patch(
+          `/api/personal/mitarbeiter/${this.ma._id}/personalnr`,
+          {
+            personalnr: this.personalnrInput.trim(),
+          }
+        );
+
+        if (response.data?.success) {
+          // Update lokales Mitarbeiter-Objekt
+          this.ma.personalnr = this.personalnrInput.trim();
+          this.cancelEditingPersonalnr();
+          console.log("✅ Personalnr gespeichert:", this.personalnrInput.trim());
+        } else {
+          throw new Error(response.data?.message || "Unbekannter Fehler");
+        }
+      } catch (error) {
+        console.error("❌ Fehler beim Speichern der Personalnr:", error);
+        
+        let userMessage = "Fehler beim Speichern: ";
+        if (error.response?.data?.conflict) {
+          // Unique constraint violation
+          userMessage = `⚠️ Konflikt: Diese Personalnr wird bereits verwendet!\n\nVerwendet von: ${error.response.data.conflict.name}`;
+        } else if (error.response?.data?.message) {
+          userMessage += error.response.data.message;
+        } else if (error.response?.status) {
+          userMessage += `HTTP ${error.response.status} - ${
+            error.response.statusText || "Unbekannter Fehler"
+          }`;
+        } else {
+          userMessage += error.message;
+        }
+
+        alert(userMessage);
+      } finally {
+        this.savingPersonalnr = false;
+      }
     },
 
     // Asana-Verknüpfung Methoden
@@ -880,7 +1209,7 @@ export default {
     },
 
     async removeAsanaLink() {
-      if (!confirm("Möchten Sie die Asana-Verknüpfung wirklich entfernen?")) {
+      if (!confirm("Asana-Verknüpfung wirklich entfernen?")) {
         return;
       }
 
@@ -1207,6 +1536,76 @@ export default {
       }
     },
 
+    openDocument(doc, docType) {
+      // Transform document to match DocumentCard expected format
+      this.selectedDocument = {
+        _id: doc._id,
+        docType: docType,
+        bezeichnung: this.getDocumentTitle(doc, docType),
+        datum: doc.datum,
+        status: doc.assigned ? 'Zugewiesen' : 'Offen',
+        details: doc
+      };
+    },
+
+    getDocumentTitle(doc, docType) {
+      if (docType === 'Laufzettel') {
+        return `${doc.location || 'Unbekannt'} - ${doc.name_mitarbeiter || 'Unbekannt'}`;
+      } else if (docType === 'Event-Bericht') {
+        return `${doc.kunde || 'Unbekannt'} - ${doc.location || 'Unbekannt'}`;
+      } else if (docType === 'Evaluierung') {
+        return `${doc.name_mitarbeiter || 'Unbekannt'} - ${doc.kunde || 'Unbekannt'}`;
+      }
+      return 'Dokument';
+    },
+
+    handleEscapeKey(event) {
+      if (event.key === 'Escape') {
+        if (this.selectedDocument) {
+          this.selectedDocument = null;
+        }
+      }
+    },
+
+    async handleOpenEmployee(role, employeeId) {
+      if (!employeeId) return;
+      
+      try {
+        // Schließe aktuelles DocumentCard Modal
+        this.selectedDocument = null;
+        
+        // Emitte Event zum Öffnen des neuen Mitarbeiters
+        // role und employeeId werden weitergegeben
+        this.$emit('open-employee', role, employeeId);
+      } catch (error) {
+        console.error('Fehler beim Öffnen des Mitarbeiters:', error);
+      }
+    },
+
+    handleFilterTeamleiter(name) {
+      // Schließe aktuelles Modal
+      this.selectedDocument = null;
+      this.$emit('close');
+      
+      // Navigiere zu Dokumente.vue mit Filter
+      this.$router.push({
+        name: 'Dokumente',
+        query: { filterTeamleiter: name }
+      });
+    },
+
+    handleFilterMitarbeiter(name) {
+      // Schließe aktuelles Modal
+      this.selectedDocument = null;
+      this.$emit('close');
+      
+      // Navigiere zu Dokumente.vue mit Filter
+      this.$router.push({
+        name: 'Dokumente',
+        query: { filterMitarbeiter: name }
+      });
+    },
+
     formatTaskDescription(description) {
       if (!description) return '';
       
@@ -1319,6 +1718,11 @@ export default {
   background: #f1f3f6;
   color: var(--muted);
 }
+.pill.warn {
+  background: #fff3cd;
+  color: #856404;
+  font-weight: 600;
+}
 
 /* ---------- Actions rechts ---------- */
 .card-actions {
@@ -1407,6 +1811,26 @@ export default {
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
+.kv dd.missing-value {
+  color: #d9534f;
+  font-weight: 600;
+}
+
+/* Email badges for alternative emails */
+.email-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.email-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  background: #e7f3ff;
+  color: #0066cc;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+}
 
 /* Empty */
 .emptystate {
@@ -1420,6 +1844,185 @@ export default {
 
   svg {
     font-size: 2rem;
+  }
+}
+
+/* Straight View */
+.straight-view {
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    
+    .section-icon {
+      width: 18px;
+      height: 18px;
+    }
+  }
+}
+
+.personalnr-display {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.personalnr-missing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  .missing-text {
+    color: #d9534f;
+    font-weight: 600;
+  }
+}
+
+.personalnr-edit {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  
+  .form-input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    transition: border-color 0.2s ease;
+
+    &:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    &::placeholder {
+      color: var(--muted);
+    }
+  }
+}
+
+/* Documents Section */
+.documents-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    
+    .section-icon {
+      width: 18px;
+      height: 18px;
+      color: var(--muted);
+    }
+  }
+}
+
+.doc-category {
+  margin-bottom: 20px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  .category-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    margin: 0 0 8px 0;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+
+    svg {
+      font-size: 11px;
+      opacity: 0.7;
+    }
+  }
+}
+
+.doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.doc-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--hover);
+    border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  }
+
+  .doc-icon {
+    color: var(--primary);
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .doc-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+
+    .doc-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .doc-date {
+      font-size: 11px;
+      color: var(--muted);
+    }
+  }
+}
+
+.no-documents {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 20px;
+  color: var(--muted);
+  text-align: center;
+
+  svg {
+    font-size: 32px;
+    opacity: 0.5;
+  }
+
+  p {
+    margin: 0;
+    font-size: 14px;
   }
 }
 
@@ -2006,10 +2609,19 @@ export default {
 
 .asana-linked {
   .asana-info {
-    h4 {
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       margin: 0 0 12px 0;
-      color: var(--text);
       font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      
+      .section-icon {
+        width: 18px;
+        height: 18px;
+      }
     }
 
     .asana-id {
@@ -2047,10 +2659,19 @@ export default {
 }
 
 .asana-link-form {
-  h4 {
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin: 0 0 16px 0;
-    color: var(--text);
     font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    
+    .section-icon {
+      width: 18px;
+      height: 18px;
+    }
   }
 
   .form-section {
@@ -2321,5 +2942,37 @@ export default {
   .featured-icon {
     font-size: 8px;
   }
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.modal-content {
+  background: var(--surface);
+  border-radius: 14px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-document {
+  max-width: 900px;
 }
 </style>

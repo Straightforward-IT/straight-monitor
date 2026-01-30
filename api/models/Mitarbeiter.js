@@ -3,10 +3,20 @@ const mongoose = require('mongoose');
 const MitarbeiterSchema = new mongoose.Schema({
     flip_id: { type: String, required: false, trim: true},
     asana_id: {type: String, unique: true, required: false, trim: true},
+    personalnr: { type: String, required: false, trim: true, sparse: true, unique: true },
+    personalnrHistory: [
+        {
+            value: { type: String, trim: true },
+            updatedAt: { type: Date, default: Date.now },
+            updatedBy: { type: String, default: 'system' },
+            source: { type: String, default: 'manual' } // 'manual', 'import', 'api'
+        }
+    ],
     vorname: { type: String, required: true, trim: true },
     nachname: { type: String, required: true, trim: true },
     erstellt_von: { type: String, required: false, trim: true},
     email: { type: String, unique: true, lowercase: true, trim: true },
+    additionalEmails: [{ type: String, lowercase: true, trim: true }],
     isActive: { type: Boolean, default: true },
     laufzettel_received: [
         {
@@ -46,17 +56,48 @@ function autoPopulate(next) {
     const pathsToPopulate = [];
 
     const fieldsToCheck = [
-        { key: "laufzettel_received", select: "_id name" },
-        { key: "laufzettel_submitted", select: "_id name" },
-        { key: "eventreports", select: "_id title" },
-        { key: "evaluierungen_received", select: "_id score" },
-        { key: "evaluierungen_submitted", select: "_id score" },
+        { 
+            key: "laufzettel_received",
+            populate: [
+                { path: "mitarbeiter", select: "_id vorname nachname email" },
+                { path: "teamleiter", select: "_id vorname nachname email" }
+            ]
+        },
+        { 
+            key: "laufzettel_submitted",
+            populate: [
+                { path: "mitarbeiter", select: "_id vorname nachname email" },
+                { path: "teamleiter", select: "_id vorname nachname email" }
+            ]
+        },
+        { 
+            key: "eventreports",
+            populate: { path: "teamleiter", select: "_id vorname nachname email" }
+        },
+        { 
+            key: "evaluierungen_received",
+            populate: [
+                { path: "mitarbeiter", select: "_id vorname nachname email" },
+                { path: "teamleiter", select: "_id vorname nachname email" }
+            ]
+        },
+        { 
+            key: "evaluierungen_submitted",
+            populate: [
+                { path: "mitarbeiter", select: "_id vorname nachname email" },
+                { path: "teamleiter", select: "_id vorname nachname email" }
+            ]
+        },
     ];
 
-    fieldsToCheck.forEach(({ key, select }) => {
+    fieldsToCheck.forEach(({ key, populate }) => {
         // Check if the field exists in the document and is not empty
         if (this[key] && this[key].length > 0) {
-            pathsToPopulate.push({ path: key, select });
+            const populateConfig = { path: key };
+            if (populate) {
+                populateConfig.populate = populate;
+            }
+            pathsToPopulate.push(populateConfig);
         }
     });
 

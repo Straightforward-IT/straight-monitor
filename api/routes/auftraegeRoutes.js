@@ -3,6 +3,7 @@ const router = express.Router();
 const Auftrag = require('../models/Auftrag');
 const Einsatz = require('../models/Einsatz');
 const Kunde = require('../models/Kunde');
+const Mitarbeiter = require('../models/Mitarbeiter');
 const logger = require('../utils/logger');
 
 // GET /api/auftraege/filters - Get available filter options (bediener, etc)
@@ -125,10 +126,26 @@ router.get('/:auftragNr/details', async (req, res) => {
       .sort({ idAuftragArbeitsschichten: 1, datumVon: 1 })
       .lean();
     
+    // Populate Mitarbeiter for each Einsatz
+    const einsaetzeWithMitarbeiter = await Promise.all(
+      einsaetze.map(async (einsatz) => {
+        if (einsatz.personalNr) {
+          const mitarbeiter = await Mitarbeiter.findOne({ personalnr: String(einsatz.personalNr) })
+            .select('vorname nachname email personalnr')
+            .lean();
+          return {
+            ...einsatz,
+            mitarbeiterData: mitarbeiter
+          };
+        }
+        return einsatz;
+      })
+    );
+    
     res.json({
       ...auftrag,
       kundeData,
-      einsaetze
+      einsaetze: einsaetzeWithMitarbeiter
     });
     
   } catch (error) {

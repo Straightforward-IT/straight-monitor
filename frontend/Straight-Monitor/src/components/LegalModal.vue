@@ -332,6 +332,25 @@ export default {
     title() {
       return this.type === 'privacy' ? 'Datenschutzerklärung' : 'Impressum';
     }
+  },
+  watch: {
+    show(newVal) {
+      if (newVal) {
+        document.addEventListener('keydown', this.handleEscapeKey);
+      } else {
+        document.removeEventListener('keydown', this.handleEscapeKey);
+      }
+    }
+  },
+  methods: {
+    handleEscapeKey(event) {
+      if (event.key === 'Escape' && this.show) {
+        this.$emit('close');
+      }
+    }
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.handleEscapeKey);
   }
 };
 </script>

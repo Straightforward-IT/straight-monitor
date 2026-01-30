@@ -3,7 +3,7 @@
     <!-- Document Management Section -->
     <div class="panel">
       <div class="controls">
-        <FilterPanel v-model:expanded="filtersExpanded">
+        <FilterPanel v-model:expanded="filtersExpanded" :locked="!!(filteredTeamleiter || filteredMitarbeiter)">
         <div class="filter-chips">
           <div class="chip-group">
             <span class="chip-label">Status</span>
@@ -92,6 +92,35 @@
               </button>
             </div>
           </div>
+
+          <!-- Person Filter Chips (wenn aktiv) -->
+          <template v-if="filteredTeamleiter || filteredMitarbeiter">
+            <span class="divider" />
+            
+            <div class="chip-group">
+              <span class="chip-label">Person</span>
+              <div class="chips">
+                <button
+                  v-if="filteredTeamleiter"
+                  class="chip active"
+                  @click="filterByTeamleiter(filteredTeamleiter)"
+                  :title="`Filter aktiv: ${filteredTeamleiter} - klicken zum Zurücksetzen`"
+                >
+                  <font-awesome-icon icon="fa-solid fa-user-tie" />
+                  TL: {{ filteredTeamleiter }}
+                </button>
+                <button
+                  v-if="filteredMitarbeiter"
+                  class="chip active"
+                  @click="filterByMitarbeiter(filteredMitarbeiter)"
+                  :title="`Filter aktiv: ${filteredMitarbeiter} - klicken zum Zurücksetzen`"
+                >
+                  <font-awesome-icon icon="fa-solid fa-user" />
+                  MA: {{ filteredMitarbeiter }}
+                </button>
+              </div>
+            </div>
+          </template>
         </div>
         </FilterPanel>
 
@@ -205,11 +234,18 @@
           <div>{{ formatDate(doc.datum) }}</div>
           <div class="truncate person-cell">
             <template v-if="doc.details?.name_teamleiter">
-              <CustomTooltip v-if="doc.details?.teamleiter" :text="getPersonTooltip(doc.details.name_teamleiter, 'teamleiter')" position="bottom" :delay-in="150" teleportToBody>
-                <button class="link-btn" @click.stop="filterByTeamleiter(doc.details.name_teamleiter)">
+              <template v-if="doc.details?.teamleiter">
+                <button 
+                  :class="['btn-icon-tiny', { 'filter-active': filteredTeamleiter === doc.details.name_teamleiter }]"
+                  @click.stop="filterByTeamleiter(doc.details.name_teamleiter)"
+                  :title="filteredTeamleiter === doc.details.name_teamleiter ? 'Filter aktiv - klicken zum Zurücksetzen' : 'Nach diesem Teamleiter filtern'"
+                >
+                  <font-awesome-icon icon="fa-solid fa-filter" />
+                </button>
+                <button class="link-btn" @click.stop="openMitarbeiterCard('teamleiter', getEmployeeId(doc, 'teamleiter'))">
                   {{ doc.details.name_teamleiter }}
                 </button>
-              </CustomTooltip>
+              </template>
               <span v-else class="unassigned-name">
                 {{ doc.details.name_teamleiter }}
                 <CustomTooltip text="Nicht zugeordnet" position="bottom" :delay-in="150" teleportToBody>
@@ -221,11 +257,18 @@
           </div>
           <div class="truncate person-cell">
             <template v-if="doc.details?.name_mitarbeiter">
-              <CustomTooltip v-if="doc.details?.mitarbeiter" :text="getPersonTooltip(doc.details.name_mitarbeiter, 'mitarbeiter')" position="bottom" :delay-in="150" teleportToBody>
-                <button class="link-btn" @click.stop="filterByMitarbeiter(doc.details.name_mitarbeiter)">
+              <template v-if="doc.details?.mitarbeiter">
+                <button 
+                  :class="['btn-icon-tiny', { 'filter-active': filteredMitarbeiter === doc.details.name_mitarbeiter }]"
+                  @click.stop="filterByMitarbeiter(doc.details.name_mitarbeiter)"
+                  :title="filteredMitarbeiter === doc.details.name_mitarbeiter ? 'Filter aktiv - klicken zum Zurücksetzen' : 'Nach diesem Mitarbeiter filtern'"
+                >
+                  <font-awesome-icon icon="fa-solid fa-filter" />
+                </button>
+                <button class="link-btn" @click.stop="openMitarbeiterCard('mitarbeiter', getEmployeeId(doc, 'mitarbeiter'))">
                   {{ doc.details.name_mitarbeiter }}
                 </button>
-              </CustomTooltip>
+              </template>
               <span v-else class="unassigned-name">
                 {{ doc.details.name_mitarbeiter }}
                 <CustomTooltip text="Nicht zugeordnet" position="bottom" :delay-in="150" teleportToBody>
@@ -273,104 +316,43 @@
 
     <!-- Detail Modal -->
     <div v-if="selectedDoc" class="modal-overlay" @click.self="closeDoc">
-      <div class="modal">
+      <div class="modal document-modal">
         <div class="modal-header">
           <h3>{{ selectedDoc.docType }} Details</h3>
           <button class="close-btn" @click="closeDoc">
             <font-awesome-icon icon="fa-solid fa-xmark" />
           </button>
         </div>
-        <div class="modal-body">
-          <div class="detail-grid">
-            <div class="detail-item">
-              <label>Bezeichnung / Ort</label>
-              <p>{{ selectedDoc.bezeichnung }}</p>
-            </div>
-            <div class="detail-item">
-              <label>Datum</label>
-              <p>{{ formatDate(selectedDoc.datum) }}</p>
-            </div>
-            <div class="detail-item">
-              <label>Status</label>
-              <span :class="['status', (selectedDoc.status || '').toLowerCase()]">
-                {{ selectedDoc.status }}
-              </span>
-            </div>
-            <div class="detail-item">
-              <label>Teamleiter</label>
-              <div v-if="selectedDoc.details?.name_teamleiter" class="person-detail">
-                <template v-if="selectedDoc.details?.teamleiter">
-                  <CustomTooltip :text="getPersonTooltip(selectedDoc.details.name_teamleiter, 'teamleiter')" position="bottom" :delay-in="150" teleportToBody>
-                    <button class="link-btn" @click="filterByTeamleiter(selectedDoc.details.name_teamleiter)">
-                      {{ selectedDoc.details.name_teamleiter }}
-                    </button>
-                  </CustomTooltip>
-                </template>
-                <template v-else>
-                  <span class="unassigned-name">{{ selectedDoc.details.name_teamleiter }}</span>
-                  <button class="btn btn-sm btn-primary" @click="openAssignDialog('teamleiter')">
-                    <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
-                  </button>
-                </template>
-              </div>
-              <button v-else class="btn btn-sm btn-primary" @click="openAssignDialog('teamleiter')">
-                <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
-              </button>
-            </div>
-            <div class="detail-item" v-if="selectedDoc.docType !== 'Event-Bericht'">
-              <label>Mitarbeiter</label>
-              <div v-if="selectedDoc.details?.name_mitarbeiter" class="person-detail">
-                <template v-if="selectedDoc.details?.mitarbeiter">
-                  <CustomTooltip :text="getPersonTooltip(selectedDoc.details.name_mitarbeiter, 'mitarbeiter')" position="bottom" :delay-in="150" teleportToBody>
-                    <button class="link-btn" @click="filterByMitarbeiter(selectedDoc.details.name_mitarbeiter)">
-                      {{ selectedDoc.details.name_mitarbeiter }}
-                    </button>
-                  </CustomTooltip>
-                </template>
-                <template v-else>
-                  <span class="unassigned-name">{{ selectedDoc.details.name_mitarbeiter }}</span>
-                  <button class="btn btn-sm btn-primary" @click="openAssignDialog('mitarbeiter')">
-                    <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
-                  </button>
-                </template>
-              </div>
-              <button v-else class="btn btn-sm btn-primary" @click="openAssignDialog('mitarbeiter')">
-                <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
-              </button>
-            </div>
-          </div>
+        <div class="modal-body modal-document-body">
+          <DocumentCard
+            :doc="selectedDoc"
+            :personDetails="personDetails"
+            :filteredTeamleiter="filteredTeamleiter"
+            :filteredMitarbeiter="filteredMitarbeiter"
+            @close="closeDoc"
+            @assign="openAssignDialog"
+            @filter-teamleiter="filterByTeamleiter"
+            @filter-mitarbeiter="filterByMitarbeiter"
+            @open-employee="openMitarbeiterCard"
+          />
+        </div>
+      </div>
+    </div>
 
-          <div class="raw-data">
-            <h4>Details</h4>
-            <div class="key-value-list">
-              <div v-for="(value, key) in selectedDoc.details" :key="key" class="kv-item">
-                <template v-if="!['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id'].includes(key)">
-                  <span class="key">{{ formatKey(key) }}:</span>
-                  <span class="value">{{ formatValue(key, value) }}</span>
-                </template>
-              </div>
-            </div>
-          </div>
+    <!-- Employee Modal -->
+    <div v-if="selectedMitarbeiter" class="modal-overlay" @click.self="closeMitarbeiterCard">
+      <div class="modal-container">
+        <div v-if="loadingMitarbeiter" class="loading-state">
+          <font-awesome-icon icon="fa-solid fa-spinner" spin />
+          Lade Mitarbeiterdaten...
         </div>
-        <div class="modal-footer">
-          <div class="actions-left">
-            <button 
-              v-if="selectedDoc.details?.name_teamleiter && personDetails[selectedDoc.details.name_teamleiter]?.asana_id" 
-              class="btn btn-sm"
-              @click="openAsanaTask(selectedDoc.details.name_teamleiter, $event)"
-            >
-              <img :src="asanaLogo" alt="Asana" class="asana-icon" /> Teamleiter Task
-            </button>
-            <button 
-              v-if="selectedDoc.details?.name_mitarbeiter && selectedDoc.docType !== 'Event-Bericht' && personDetails[selectedDoc.details.name_mitarbeiter]?.asana_id" 
-              class="btn btn-sm"
-              @click="openAsanaTask(selectedDoc.details.name_mitarbeiter, $event)"
-            >
-              <img :src="asanaLogo" alt="Asana" class="asana-icon" /> Mitarbeiter Task
-            </button>
-          </div>
-          <button class="btn" @click="closeDoc">Schließen</button>
-        </div>
+        <EmployeeCard
+          v-else-if="fullMitarbeiterData"
+          :ma="fullMitarbeiterData"
+          :initiallyExpanded="true"
+          @close="closeMitarbeiterCard"
+          @open-employee="openMitarbeiterCard"
+        />
       </div>
     </div>
 
@@ -442,6 +424,8 @@ import logger from "@/utils/logger";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import FilterPanel from '@/components/FilterPanel.vue';
+import DocumentCard from '@/components/DocumentCard.vue';
+import EmployeeCard from '@/components/EmployeeCard.vue';
 import asanaLogo from '@/assets/asana.png';
 
 import {
@@ -468,7 +452,8 @@ import {
   faExternalLink,
   faCircleExclamation,
   faUserSlash,
-  faSpinner
+  faSpinner,
+  faFilter
 } from "@fortawesome/free-solid-svg-icons";
 import { faCircle as faCircleRegular } from "@fortawesome/free-regular-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
@@ -498,12 +483,13 @@ library.add(
   faExternalLink,
   faCircleExclamation,
   faUserSlash,
-  faSpinner
+  faSpinner,
+  faFilter
 );
 
 export default {
   name: "Dokumente",
-  components: { FontAwesomeIcon, CustomTooltip, FilterPanel },
+  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, DocumentCard, EmployeeCard },
 
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -570,6 +556,9 @@ export default {
       showAssignModal: false,
       assignRole: null, // 'teamleiter' or 'mitarbeiter'
       assignSearchQuery: '',
+      selectedMitarbeiter: null,
+      fullMitarbeiterData: null,
+      loadingMitarbeiter: false,
       
       // person details cache (for Asana links)
       personDetails: {},
@@ -810,6 +799,8 @@ export default {
       } else {
         this.filteredTeamleiter = name;
         this.filteredMitarbeiter = null;
+        // Filter-Sektion automatisch öffnen
+        this.filtersExpanded = true;
       }
       this.currentPage = 1;
       this.closeDoc();
@@ -821,6 +812,8 @@ export default {
       } else {
         this.filteredMitarbeiter = name;
         this.filteredTeamleiter = null;
+        // Filter-Sektion automatisch öffnen
+        this.filtersExpanded = true;
       }
       this.currentPage = 1;
       this.closeDoc();
@@ -918,6 +911,64 @@ export default {
       return isFiltered 
         ? `Filter zurücksetzen` 
         : `Filtern auf ${name}`;
+    },
+
+    getEmployeeId(doc, role) {
+      const employee = doc.details?.[role];
+      if (!employee) return null;
+      // If it's already a string (ObjectId), return it
+      if (typeof employee === 'string') return employee;
+      // If it's an object (populated), return the _id
+      return employee._id || null;
+    },
+
+    // Mitarbeiter-Card öffnen
+    async openMitarbeiterCard(role, mitarbeiterId) {
+      console.log('Opening employee card:', role, mitarbeiterId);
+      this.loadingMitarbeiter = true;
+      this.selectedMitarbeiter = { _id: mitarbeiterId };
+
+      try {
+        // Load full Mitarbeiter data with all relationships
+        const response = await api.get(`/api/personal/mitarbeiter/${mitarbeiterId}`);
+        const mitarbeiterData = response.data.data;
+
+        // Load Flip profile if flip_id exists
+        if (mitarbeiterData.flip_id) {
+          try {
+            const flipResponse = await api.get(`/api/personal/flip/by-id/${mitarbeiterData.flip_id}`);
+            mitarbeiterData.flip = flipResponse.data;
+          } catch (flipError) {
+            console.error('Error loading Flip profile:', flipError);
+          }
+        }
+
+        this.fullMitarbeiterData = mitarbeiterData;
+      } catch (error) {
+        console.error('Error loading Mitarbeiter:', error);
+        alert('Fehler beim Laden der Mitarbeiterdaten');
+        this.selectedMitarbeiter = null;
+      } finally {
+        this.loadingMitarbeiter = false;
+      }
+    },
+
+    closeMitarbeiterCard() {
+      this.selectedMitarbeiter = null;
+      this.fullMitarbeiterData = null;
+    },
+
+    resetFiltersExceptSearch() {
+      // Reset all filters except search query
+      this.filteredTeamleiter = null;
+      this.filteredMitarbeiter = null;
+      this.activeDocStatusFilter = 'Alle';
+      this.activeDocTypeFilters = ['Event-Bericht', 'Evaluierung'];
+      this.activeDocLocationFilter = 'Alle';
+      // Keep documentsSearchQuery as is
+      
+      // Save to session storage
+      this.saveFilters();
     },
 
     async openAssignDialog(role) {
@@ -1046,6 +1097,20 @@ export default {
         this.activeQuickActionId = null;
       }
     },
+
+    handleEscapeKey(event) {
+      if (event.key !== 'Escape') return;
+
+      // Close modals in order of priority (topmost = last opened)
+      // Priority: Assign Modal > Employee Modal > Document Modal
+      if (this.showAssignModal) {
+        this.closeAssignModal();
+      } else if (this.selectedMitarbeiter) {
+        this.closeMitarbeiterCard();
+      } else if (this.selectedDoc) {
+        this.closeDoc();
+      }
+    },
     
     demoAssign(role) {
       alert(`Demo: Zuweisen Dialog für ${role} würde sich öffnen.`);
@@ -1118,11 +1183,40 @@ export default {
       this.fetchDocuments()
     ]);
 
+    // 3) Query-Parameter verarbeiten (Filter aus Navigation)
+    const hasFilterParam = this.$route.query.filterTeamleiter || this.$route.query.filterMitarbeiter;
+    
+    if (hasFilterParam) {
+      // Reset all other filters when navigating with a specific person filter
+      this.resetFiltersExceptSearch();
+      
+      // Set the specific person filter
+      if (this.$route.query.filterTeamleiter) {
+        this.filteredTeamleiter = this.$route.query.filterTeamleiter;
+      }
+      if (this.$route.query.filterMitarbeiter) {
+        this.filteredMitarbeiter = this.$route.query.filterMitarbeiter;
+      }
+      
+      // Open filter panel to show active person filters
+      this.filtersExpanded = true;
+      
+      // Save the new filter settings
+      this.saveFilters();
+      
+      // Clear query params from URL after applying (use setTimeout to ensure filters are applied first)
+      this.$nextTick(() => {
+        this.$router.replace({ query: {} });
+      });
+    }
+
     document.addEventListener('click', this.handleClickOutside);
+    document.addEventListener('keydown', this.handleEscapeKey);
   },
 
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside);
+    document.removeEventListener('keydown', this.handleEscapeKey);
   },
 };
 </script>
@@ -1618,6 +1712,17 @@ export default {
   overflow-y: auto;
 }
 
+/* Document Modal */
+.document-modal {
+  max-width: 700px;
+  width: 95%;
+}
+
+.modal-document-body {
+  padding: 0;
+  max-height: 80vh;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1920,11 +2025,21 @@ export default {
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
-}
 
-.btn-icon-tiny:hover {
-  background: var(--soft);
-  color: var(--brand);
+  &:hover {
+    background: var(--soft);
+    color: var(--brand);
+  }
+
+  &.filter-active {
+    color: #ff8c00;
+    background: color-mix(in srgb, #ff8c00 15%, transparent);
+    
+    &:hover {
+      color: #ff8c00;
+      background: color-mix(in srgb, #ff8c00 25%, transparent);
+    }
+  }
 }
 
 /* Asana Icon in Menus */
@@ -2055,5 +2170,20 @@ export default {
 .empty-state p {
   margin: 0;
   font-size: 0.95rem;
+}
+
+/* Employee Modal Container */
+.modal-container {
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow: auto;
+  position: relative;
+}
+
+.modal-container .loading-state {
+  padding: 60px 40px;
 }
 </style>

@@ -303,7 +303,7 @@
 </template>
 
 <script setup>
-import { computed, ref, reactive, onMounted } from "vue";
+import { computed, ref, reactive, onMounted, onBeforeUnmount } from "vue";
 import { useUi } from "@/stores/ui";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
@@ -442,6 +442,23 @@ function logout() {
   localStorage.removeItem("token");
   window.location.href = "/";
 }
+
+// ESC key handler
+const handleEscapeKey = (event) => {
+  if (event.key === 'Escape' && showSupportModal.value) {
+    closeSupportModal();
+  }
+};
+
+// Setup lifecycle hooks
+onMounted(() => {
+  document.addEventListener('keydown', handleEscapeKey);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleEscapeKey);
+});
+
 </script>
 
 <style scoped>

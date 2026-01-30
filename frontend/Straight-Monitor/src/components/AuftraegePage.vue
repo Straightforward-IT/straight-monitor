@@ -85,6 +85,15 @@
         <span>Nächste Woche →</span>
       </button>
       <button class="nav-btn today-btn" @click="goToToday">Heute</button>
+      <button class="nav-btn calendar-btn" @click="openDatePicker" title="Zu Woche springen (Datum wählen)">
+        <font-awesome-icon icon="fa-solid fa-calendar" />
+      </button>
+      <input 
+        ref="datePicker" 
+        type="date" 
+        class="hidden-date-input" 
+        @change="handleDatePick"
+      >
     </div>
 
     <!-- Mobile View -->
@@ -107,7 +116,7 @@
       <div class="mobile-day-content" v-if="weekDays[mobileDayIndex]">
         <!-- Reuse existing methods -->
         <div class="day-stats" style="text-align: center; margin-bottom: 10px;">
-          {{ getEventsForDay(weekDays[mobileDayIndex].date).length }} Aufträge
+          {{ getEventsForDay(weekDays[mobileDayIndex].date).length }} Aufträge • {{ getTotalPositionsForDay(weekDays[mobileDayIndex].date) }} Pos.
         </div>
         
         <div v-if="getEventsForDay(weekDays[mobileDayIndex].date).length === 0" class="empty-day-state">
@@ -122,9 +131,6 @@
           @click="selectEvent(event)"
         >
             <div class="event-header">
-              <span class="event-time-badge">
-                {{ formatTime(event.vonDatum) }} - {{ formatTime(event.bisDatum) }}
-              </span>
               <span class="event-status">{{ getStatusText(event.auftStatus) }}</span>
             </div>
             
@@ -171,7 +177,7 @@
           :class="{ 'is-today': isToday(day.date) }"
         >
           <div class="day-stats">
-            {{ getEventsForDay(day.date).length }} Aufträge
+            {{ getEventsForDay(day.date).length }} Aufträge • {{ getTotalPositionsForDay(day.date) }} Pos.
           </div>
           <div 
             v-for="event in getEventsForDay(day.date)" 
@@ -183,9 +189,6 @@
             <div class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
             <div class="event-kunde">{{ event.kundeData?.kundName || '-' }}</div>
             <div class="event-location">{{ event.eventOrt || '-' }}</div>
-            <div class="event-time">
-              {{ formatTime(event.vonDatum) }} - {{ formatTime(event.bisDatum) }}
-            </div>
             <div class="event-einsaetze" v-if="event.einsaetzeCount">
               {{ event.einsaetzeCount }} Einsätze
             </div>
@@ -252,15 +255,48 @@
                     :key="einsatz._id"
                     class="einsatz-item"
                   >
-                    <span class="einsatz-personal">{{ einsatz.personalNr || '-' }}</span>
-                    <span class="einsatz-bezeichnung">{{ einsatz.bezeichnung || '-' }}</span>
-                    <span class="einsatz-zeit">
-                      {{ formatTime(einsatz.datumVon) }} - {{ formatTime(einsatz.datumBis) }}
+                    <span class="einsatz-personal">
+                      <template v-if="einsatz.mitarbeiterData">
+                        <a 
+                          href="#" 
+                          class="mitarbeiter-link"
+                          @click.prevent="openMitarbeiterCard(einsatz.mitarbeiterData)"
+                        >
+                          {{ einsatz.mitarbeiterData.vorname }} {{ einsatz.mitarbeiterData.nachname }}
+                        </a>
+                        <span class="personalnr-badge">{{ einsatz.mitarbeiterData.personalnr }}</span>
+                      </template>
+                      <template v-else>
+                        {{ einsatz.personalNr || '-' }}
+                      </template>
                     </span>
+                    <span class="einsatz-bezeichnung">{{ einsatz.bezeichnung || '-' }}</span>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mitarbeiter Card Modal -->
+    <div v-if="selectedMitarbeiter" class="modal-overlay" @click.self="selectedMitarbeiter = null">
+      <div class="modal-content modal-employee">
+        <div class="modal-header">
+          <h2>Mitarbeiter Details</h2>
+          <button class="close-btn" @click="selectedMitarbeiter = null">×</button>
+        </div>
+        <div class="modal-body modal-employee-body">
+          <EmployeeCard
+            v-if="fullMitarbeiterData"
+            :ma="fullMitarbeiterData"
+            :initiallyExpanded="true"
+            :showCheckbox="false"
+          />
+          <div v-else class="loading-employee">
+            <font-awesome-icon icon="fa-solid fa-spinner" spin />
+            <span>Lade Mitarbeiter...</span>
           </div>
         </div>
       </div>
@@ -271,10 +307,10 @@
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faUser, faLocationDot } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faChevronLeft, faChevronRight, faUser, faLocationDot);
+library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
@@ -284,11 +320,28 @@ import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/FilterChip.vue';
 import FilterDivider from '@/components/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
+import EmployeeCard from '@/components/EmployeeCard.vue';
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown },
+  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCard },
   data() {
+    // Load filter settings from sessionStorage or use defaults
+    const savedFilters = sessionStorage.getItem('auftraege_filters');
+    let filterDefaults = {
+      geschSt: null,
+      bediener: []
+    };
+
+    if (savedFilters) {
+      try {
+        const parsed = JSON.parse(savedFilters);
+        filterDefaults = { ...filterDefaults, ...parsed };
+      } catch (e) {
+        console.warn('Could not parse saved auftraege filters:', e);
+      }
+    }
+
     return {
       auftraege: [],
       loading: false,
@@ -303,12 +356,11 @@ export default {
       filterOptions: {
         bediener: []
       },
-      filters: {
-        geschSt: null,
-        bediener: []
-      },
+      filters: filterDefaults,
       isMobile: false,
-      mobileDayIndex: 0
+      mobileDayIndex: 0,
+      selectedMitarbeiter: null,
+      fullMitarbeiterData: null
     };
   },
   computed: {
@@ -428,6 +480,13 @@ export default {
       }
     },
     setDefaultFilters() {
+      // Only set defaults if no saved filters in sessionStorage
+      const savedFilters = sessionStorage.getItem('auftraege_filters');
+      if (savedFilters) {
+        // Filters already loaded from storage in data()
+        return;
+      }
+
       // 1=Berlin, 2=Hamburg, 3=Köln
       // Check both standort (legacy) and location (model)
       const userLoc = this.user?.location || this.user?.standort;
@@ -439,12 +498,20 @@ export default {
         else if (loc.includes('köln') || loc.includes('koeln')) this.filters.geschSt = '3';
       }
     },
+    saveFiltersToStorage() {
+      const filters = {
+        geschSt: this.filters.geschSt,
+        bediener: this.filters.bediener
+      };
+      sessionStorage.setItem('auftraege_filters', JSON.stringify(filters));
+    },
     toggleFilters() {
       this.filtersExpanded = !this.filtersExpanded;
     },
     setGeschStFilter(val) {
       if (this.filters.geschSt === val) return;
       this.filters.geschSt = val;
+      this.saveFiltersToStorage();
       this.resetAndReload();
     },
     toggleBedienerFilter(val) {
@@ -454,12 +521,23 @@ export default {
       } else {
         this.filters.bediener.splice(idx, 1);
       }
+      this.saveFiltersToStorage();
       this.resetAndReload();
     },
     resetAllFilters() {
       this.filters.geschSt = null;
       this.filters.bediener = [];
-      this.setDefaultFilters(); // Or reset to completely empty? User probably wants default
+      // Clear storage on reset, then apply user defaults
+      sessionStorage.removeItem('auftraege_filters');
+      // Set defaults based on user location
+      const userLoc = this.user?.location || this.user?.standort;
+      if (userLoc) {
+        const loc = userLoc.toLowerCase();
+        if (loc.includes('berlin')) this.filters.geschSt = '1';
+        else if (loc.includes('hamburg')) this.filters.geschSt = '2';
+        else if (loc.includes('köln') || loc.includes('koeln')) this.filters.geschSt = '3';
+      }
+      this.saveFiltersToStorage();
       this.resetAndReload();
     },
     async resetAndReload() {
@@ -509,6 +587,43 @@ export default {
     },
     goToToday() {
       this.initializeWeek();
+    },
+    openDatePicker() {
+      if (this.$refs.datePicker) {
+        // showPicker() is supported in modern browsers to open the dialog directly
+        if (typeof this.$refs.datePicker.showPicker === 'function') {
+          this.$refs.datePicker.showPicker();
+        } else {
+          this.$refs.datePicker.click();
+        }
+      }
+    },
+    async handleDatePick(event) {
+      const val = event.target.value;
+      if (!val) return;
+      
+      const date = new Date(val);
+      // Calculate start of that week (Monday)
+      const Day = date.getDay() || 7; // Sunday is 0 -> make it 7
+      date.setDate(date.getDate() - Day + 1); // Set to Monday
+      
+      this.currentWeekStart = date;
+      await this.ensureMonthLoaded(date);
+      
+      // Reset picker
+      event.target.value = '';
+    },
+    getTotalPositionsForDay(date) {
+      const events = this.getEventsForDay(date);
+      return events.reduce((sum, event) => {
+        let count = 0;
+        if (typeof event.einsaetzeCount === 'number') {
+          count = event.einsaetzeCount;
+        } else if (Array.isArray(event.einsaetze)) {
+          count = event.einsaetze.length;
+        }
+        return sum + count;
+      }, 0);
     },
     getEventsForDay(date) {
       const dayStart = new Date(date);
@@ -582,11 +697,51 @@ export default {
       this.debounceTimer = setTimeout(() => {
         // Search is reactive via computed, no action needed
       }, 300);
+    },
+    async openMitarbeiterCard(mitarbeiterBasic) {
+      this.selectedMitarbeiter = mitarbeiterBasic;
+      this.fullMitarbeiterData = null;
+      
+      try {
+        // Load full mitarbeiter data
+        const response = await api.get(`/api/personal/mitarbeiter/${mitarbeiterBasic._id}`);
+        const mitarbeiterData = response.data.data;
+        
+        // Load Flip profile if flip_id exists
+        if (mitarbeiterData.flip_id) {
+          try {
+            const flipResponse = await api.get(`/api/personal/flip/by-id/${mitarbeiterData.flip_id}`);
+            mitarbeiterData.flip = flipResponse.data;
+          } catch (flipError) {
+            console.warn('Could not load Flip profile:', flipError);
+            mitarbeiterData.flip = null;
+          }
+        }
+        
+        this.fullMitarbeiterData = mitarbeiterData;
+      } catch (error) {
+        console.error('Error loading mitarbeiter details:', error);
+        // Fallback to basic data
+        this.fullMitarbeiterData = mitarbeiterBasic;
+      }
+    },
+
+    handleEscapeKey(event) {
+      if (event.key !== 'Escape') return;
+
+      // Close modals in order of priority (topmost = last opened)
+      if (this.selectedMitarbeiter) {
+        this.selectedMitarbeiter = null;
+        this.fullMitarbeiterData = null;
+      } else if (this.selectedEvent) {
+        this.selectedEvent = null;
+      }
     }
   },
   async mounted() {
     this.checkMobile();
     window.addEventListener('resize', this.checkMobile);
+    document.addEventListener('keydown', this.handleEscapeKey);
     await this.fetchFilterOptions();
     this.setDefaultFilters();
     this.initializeWeek();
@@ -594,6 +749,7 @@ export default {
   },
   beforeUnmount() {
     window.removeEventListener('resize', this.checkMobile);
+    document.removeEventListener('keydown', this.handleEscapeKey);
   }
 };
 </script>
@@ -685,6 +841,12 @@ export default {
       filter: brightness(0.95);
     }
   }
+}
+
+.nav-btn.calendar-btn:hover {
+  background-color: var(--primary); /* Uses component mapped variable */
+  color: #fff;
+  border-color: var(--primary);
 }
 
 .current-range {
@@ -983,6 +1145,31 @@ export default {
     font-weight: 600;
     min-width: 80px;
     color: var(--primary);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    
+    .mitarbeiter-link {
+      color: var(--primary);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      
+      &:hover {
+        text-decoration: underline;
+        color: color-mix(in srgb, var(--primary) 80%, black);
+      }
+    }
+    
+    .personalnr-badge {
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: var(--muted);
+      background: var(--hover);
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      width: fit-content;
+    }
   }
 
   .einsatz-bezeichnung {
@@ -1174,5 +1361,38 @@ export default {
   width: 16px;
   text-align: center;
   color: var(--primary);
+}
+
+.hidden-date-input {
+  position: absolute;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
+/* Employee Modal */
+.modal-employee {
+  max-width: 900px;
+  width: 95%;
+}
+
+.modal-employee-body {
+  padding: 0;
+  max-height: 80vh;
+}
+
+.loading-employee {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px;
+  color: var(--muted);
+  
+  svg {
+    font-size: 2rem;
+  }
 }
 </style>

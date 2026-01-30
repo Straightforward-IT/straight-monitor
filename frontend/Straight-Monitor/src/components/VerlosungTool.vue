@@ -393,7 +393,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import api from "@/utils/api";
 import logger from "@/utils/logger";
 
@@ -818,9 +818,26 @@ const formatGravurType = (type) => {
   return map[type] || type;
 };
 
+// ESC key handler
+const handleEscapeKey = (event) => {
+  if (event.key !== 'Escape') return;
+  
+  // Close modals in priority order (topmost = last opened)
+  if (showWinnerDialog.value) {
+    ablehnenGewinner();
+  } else if (showTeilnehmerDialog.value) {
+    closeTeilnehmer();
+  }
+};
+
 // Lifecycle
 onMounted(() => {
   loadVerlosungen();
+  document.addEventListener('keydown', handleEscapeKey);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleEscapeKey);
 });
 </script>
 

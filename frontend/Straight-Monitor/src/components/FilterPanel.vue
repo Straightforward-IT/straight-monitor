@@ -1,10 +1,11 @@
+
 <template>
-  <div class="filter-panel">
-    <div class="filter-header" @click="toggle" :title="expanded ? 'Filter einklappen' : 'Filter ausklappen'">
+  <div class="filter-panel" :class="{ 'is-expanded': expanded, 'is-locked': locked }">
+    <div class="filter-header" @click="toggle" :title="locked ? 'Filter kann nicht zugeklappt werden (aktiver Personenfilter)' : (expanded ? 'Filter einklappen' : 'Filter ausklappen')">
       <h3>
         <slot name="title">Filter</slot>
       </h3>
-      <button class="collapse-btn" type="button">
+      <button class="collapse-btn" type="button" :disabled="locked">
         <font-awesome-icon :icon="expanded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
       </button>
     </div>
@@ -31,11 +32,17 @@ export default {
     expanded: {
       type: Boolean,
       default: false
+    },
+    locked: {
+      type: Boolean,
+      default: false
     }
   },
   emits: ['update:expanded'],
   methods: {
     toggle() {
+      // Nur verhindern, dass zugeklappt wird wenn gelockt, aber Öffnen erlauben
+      if (this.locked && this.expanded) return;
       this.$emit('update:expanded', !this.expanded);
     }
   }
@@ -48,11 +55,38 @@ export default {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
-  overflow: hidden;
+  /* Use conditional overflow for dropdowns */
+  overflow: hidden; 
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 
   --soft: var(--hover);
   --brand: var(--primary);
+}
+
+.filter-panel.is-expanded {
+  overflow: visible;
+}
+
+.filter-panel.is-locked {
+  .filter-header {
+    cursor: not-allowed;
+    
+    &:hover {
+      background: var(--bg);
+      
+      .collapse-btn {
+        background: transparent;
+        border-color: var(--border);
+        color: var(--muted);
+        cursor: not-allowed;
+      }
+    }
+  }
+  
+  .collapse-btn {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 .filter-header {
