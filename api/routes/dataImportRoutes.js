@@ -74,11 +74,22 @@ router.post('/auftrag', upload.single('file'), async (req, res) => {
     }
 
     if (operations.length > 0) {
-      await Auftrag.bulkWrite(operations);
+      const result = await Auftrag.bulkWrite(operations);
+      const inserted = result.upsertedCount || 0;
+      const updated = result.modifiedCount || 0;
+      const unchanged = operations.length - inserted - updated;
+      
+      const response = { 
+        success: true, 
+        message: `${operations.length} Aufträge verarbeitet: ${inserted} neu, ${updated} aktualisiert, ${unchanged} unverändert.`,
+        details: { total: operations.length, inserted, updated, unchanged }
+      };
+      res.json(response);
+    } else {
+      res.json({ success: true, message: 'Keine Aufträge zum Verarbeiten gefunden.' });
     }
 
-    const result = { success: true, message: `${operations.length} Aufträge verarbeitet.` };
-    res.json(result);
+    const operations_length = operations.length;
 
     // Send email notification
     try {
@@ -91,8 +102,8 @@ router.post('/auftrag', upload.single('file'), async (req, res) => {
           <hr/>
           <h3>Ergebnis:</h3>
           <ul>
-            <li>Verarbeitet: <strong>${operations.length}</strong> Aufträge</li>
-            <li>Status: <strong style="color: green;">✓ Erfolgreich</strong></li>
+            <li>Verarbeitet: <strong>${operations_length}</strong> Aufträge</li>
+            <li>Status: <strong style="color: green;">✓ Erfolgreich (Updates werden automatisch durchgeführt)</strong></li>
           </ul>
         </div>
       `;
@@ -169,11 +180,22 @@ router.post('/kunde', upload.single('file'), async (req, res) => {
     }
 
     if (operations.length > 0) {
-      await Kunde.bulkWrite(operations);
+      const result = await Kunde.bulkWrite(operations);
+      const inserted = result.upsertedCount || 0;
+      const updated = result.modifiedCount || 0;
+      const unchanged = operations.length - inserted - updated;
+      
+      const response = { 
+        success: true, 
+        message: `${operations.length} Kunden verarbeitet: ${inserted} neu, ${updated} aktualisiert, ${unchanged} unverändert.`,
+        details: { total: operations.length, inserted, updated, unchanged }
+      };
+      res.json(response);
+    } else {
+      res.json({ success: true, message: 'Keine Kunden zum Verarbeiten gefunden.' });
     }
 
-    const result = { success: true, message: `${operations.length} Kunden verarbeitet.` };
-    res.json(result);
+    const operations_length = operations.length;
 
     // Send email notification
     try {
@@ -186,8 +208,8 @@ router.post('/kunde', upload.single('file'), async (req, res) => {
           <hr/>
           <h3>Ergebnis:</h3>
           <ul>
-            <li>Verarbeitet: <strong>${operations.length}</strong> Kunden</li>
-            <li>Status: <strong style="color: green;">✓ Erfolgreich</strong></li>
+            <li>Verarbeitet: <strong>${operations_length}</strong> Kunden</li>
+            <li>Status: <strong style="color: green;">✓ Erfolgreich (Updates werden automatisch durchgeführt)</strong></li>
           </ul>
         </div>
       `;

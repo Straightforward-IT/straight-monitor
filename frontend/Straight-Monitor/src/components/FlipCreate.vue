@@ -79,6 +79,15 @@
                 placeholder="E-Mail*"
               />
             </div>
+            <div class="input-item">
+              <label class="input-label">Personalnummer*</label>
+              <input
+                type="text"
+                v-model="personalnr"
+                class="text-input"
+                placeholder="Personalnummer*"
+              />
+            </div>
           </div>
 
           <!-- Standort Selection -->
@@ -228,6 +237,23 @@
         </div>
       </div>
     </div>
+    
+    <!-- Personalnr Hinweis Modal -->
+    <div v-if="showPersonalnrHinweis" class="modal">
+      <div class="modal-content info-modal">
+        <h3>ℹ Wichtige Information</h3>
+        <div class="info-content">
+          <p><strong>Ab sofort ist die Personalnummer ein Pflichtfeld!</strong></p>
+          <p>Bitte gib immer die Personalnummer des Mitarbeiters ein.</p>
+          <p><strong>Falls die Personalnummer nicht verfügbar ist:</strong></p>
+          <p>Trag eine <strong>0</strong> (Null) ein.</p>
+        </div>
+        <button class="info-modal-btn" @click="closePersonalnrHinweis">
+          Verstanden
+        </button>
+      </div>
+    </div>
+    
     <div v-if="showReentryModal" class="modal">
       <div class="modal-content">
         <font-awesome-icon
@@ -293,6 +319,7 @@ export default {
       userGroups: null,
       showHinweise: false,
       showReentryModal: false,
+      showPersonalnrHinweis: false,
       inactiveMitarbeiter: [],
       searchMitarbeiter: "",
       selectedIndex: -1,
@@ -306,6 +333,7 @@ export default {
       vorname: "",
       nachname: "",
       email: "",
+      personalnr: "",
       primary_user_group: "",
       locations: [],
       isService: false,
@@ -713,6 +741,7 @@ export default {
       this.vorname = "";
       this.nachname = "";
       this.email = "";
+      this.personalnr = "";
       this.primary_user_group = "";
       this.locations = [];
       this.isService = false;
@@ -731,6 +760,19 @@ export default {
     openReentryModal() {
       this.showReentryModal = true;
     },
+    
+    checkPersonalnrHinweis() {
+      const hasSeenHinweis = localStorage.getItem('hasSeenPersonalnrHinweis');
+      if (!hasSeenHinweis) {
+        this.showPersonalnrHinweis = true;
+      }
+    },
+    
+    closePersonalnrHinweis() {
+      localStorage.setItem('hasSeenPersonalnrHinweis', 'true');
+      this.showPersonalnrHinweis = false;
+    },
+    
     async submitNewUser() {
   if (this.isSubmitting) return;
 
@@ -739,9 +781,10 @@ export default {
     !this.vorname?.trim() ||
     !this.nachname?.trim() ||
     !this.email?.trim() ||
+    !this.personalnr?.trim() ||
     !this.locations[0] 
   ) {
-    alert("⚠️ Bitte fülle alle Pflichtfelder aus: Vorname, Nachname, E-Mail, Standort.");
+    alert("⚠️ Bitte fülle alle Pflichtfelder aus: Vorname, Nachname, E-Mail, Personalnummer (oder 0), Standort.");
     return;
   }
 
@@ -753,11 +796,15 @@ export default {
       ? this.user_group_ids[primaryLocation.toLowerCase()]
       : null;
 
+    const trimmedPersonalnr = this.personalnr.trim();
+    const personalnrValue = trimmedPersonalnr === '0' ? null : trimmedPersonalnr;
+    
     const userPayload = {
       asana_id: this.asana_id || null,
       first_name: this.vorname,
       last_name: this.nachname,
       email: this.email,
+      personalnr: personalnrValue,
       role: "USER",
       created_by: this.userEmail,
       primary_user_group_id: primaryUserGroupId,
@@ -893,6 +940,7 @@ Object.entries(groupMappings).forEach(([key, groupType]) => {
     this.fetchFlipUsers();
     this.fetchFlipUserGroups();
     this.fetchAsanaTask();
+    this.checkPersonalnrHinweis();
   },
 };
 </script>
@@ -902,7 +950,8 @@ Object.entries(groupMappings).forEach(([key, groupType]) => {
 
 /* Wrapper */
 .window{
-  width: 1600px;
+  max-width: 1600px;
+  width: calc(100% - 60px);
   margin: 30px auto;
   padding: 30px;
   background: var(--tile-bg);
@@ -1089,6 +1138,58 @@ Object.entries(groupMappings).forEach(([key, groupType]) => {
   border-radius: 16px; padding: 28px; width: 420px;
   box-shadow: 0 12px 40px rgba(0,0,0,.15);
 }
+
+.info-modal {
+  max-width: 500px;
+  width: calc(100% - 32px);
+  
+  h3 {
+    margin: 0 0 16px;
+    font-size: 1.4rem;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .info-content {
+    margin-bottom: 20px;
+    line-height: 1.6;
+    
+    p {
+      margin: 8px 0;
+      color: var(--text);
+      
+      strong {
+        color: var(--primary);
+      }
+    }
+  }
+  
+  .info-modal-btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter .2s, transform .08s;
+    
+    &:hover {
+      filter: brightness(.95);
+      transform: translateY(-1px);
+    }
+    
+    &:active {
+      filter: brightness(.9);
+      transform: translateY(0);
+    }
+  }
+}
+
 .close-modal{
   position:absolute; top:10px; right:10px; font-size:18px;
   color: var(--muted); cursor:pointer; transition: color .2s;

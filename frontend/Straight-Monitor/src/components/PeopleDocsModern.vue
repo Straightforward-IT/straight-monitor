@@ -598,7 +598,7 @@ import EmployeeCard from "@/components/EmployeeCard.vue";
 import FilterPanel from "@/components/FilterPanel.vue";
 import { useFlipAll } from "@/stores/flipAll";
 
-import {
+import {  
   faMagnifyingGlass,
   faArrowUpWideShort,
   faCircleCheck,

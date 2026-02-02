@@ -19,3 +19,9 @@ html, body {
   padding: 2rem 2rem 2rem 2rem;
   font-weight: normal;
 }
+
+@media (max-width: 768px) {
+  #app {
+    padding: 0;
+  }
+}

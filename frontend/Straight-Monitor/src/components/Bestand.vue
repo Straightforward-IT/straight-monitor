@@ -668,7 +668,8 @@ form {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  width: 500px;
+  width: 100%;
+  max-width: 500px;
 
   h4 {
     font-size: 24px;
@@ -934,7 +935,8 @@ $displacement: 3px;
 }
 
 .search-outer{
-  width: 500px;
+  width: 100%;
+  max-width: 500px;
   padding: 1vh;
 }
 
@@ -962,12 +964,21 @@ $displacement: 3px;
 @media (max-width: 768px) {
   .search-textarea {
     font-size: 16px; /* Explizit für Mobile */
-    padding: 12px; /* Größere Touch-Targets */
-    line-height: 1.4;
+    padding: 8px; /* Reduziert von 12px */
+    line-height: 1.3;
   }
   
   .search-textarea::placeholder {
     font-size: 16px;
+  }
+  
+  .add-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    font-size: 20px;
+    min-width: unset;
+    padding: 0;
   }
 }
 
@@ -1022,7 +1033,7 @@ $displacement: 3px;
   width: 100%;
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
 }
 
 @media (min-width: 700px)  { .items-container{ grid-template-columns: repeat(2, 1fr);} }
@@ -1152,15 +1163,29 @@ form {
 
 /* Add (+) Button neben Suche */
 .add-button {
-  width: 2rem; height: 2rem;
+  width: 40px;
+  height: 40px;
   margin: 0 10px;
-  display: flex; justify-content: center; align-items: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   z-index: 5;
-  background-color: var(--primary);
-  color: white; border: none; border-radius: 5px;
-  cursor: pointer; transition: background-color 0.3s ease;
+  background: var(--tile-bg);
+  color: var(--primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 200ms ease;
+  font-size: 20px;
+  font-weight: 600;
+  padding: 0;
+  min-width: unset;
 
-  &:hover { background-color: color-mix(in srgb, var(--primary) 95%, black); }
+  &:hover {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 5%, var(--tile-bg));
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 10%, transparent);
+  }
 }
 
 .floating-input {

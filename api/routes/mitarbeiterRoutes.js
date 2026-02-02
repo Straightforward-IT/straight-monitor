@@ -1700,6 +1700,7 @@ router.post(
       first_name,
       last_name,
       email,
+      personalnr,
       role = "USER",
       created_by,
       primary_user_group_id,
@@ -1772,6 +1773,12 @@ router.post(
         mitarbeiter.email = normalizedEmail;
         mitarbeiter.erstellt_von = created_by;
         mitarbeiter.isActive = true;
+        
+        // Update personalnr - always set if provided
+        if (personalnr) {
+          mitarbeiter.personalnr = personalnr.trim();
+        }
+        
         await mitarbeiter.save();
       } else {
         // Mitarbeiter neu erstellen
@@ -1780,6 +1787,7 @@ router.post(
           vorname: first_name,
           nachname: last_name,
           email: normalizedEmail,
+          personalnr: personalnr?.trim() || null,
           erstellt_von: created_by,
           isActive: true,
         });

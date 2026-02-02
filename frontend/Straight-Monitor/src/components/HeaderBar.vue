@@ -41,11 +41,6 @@
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
         </router-link>
       </nav>
-      
-      <!-- Mobile Burger Button -->
-      <button class="burger-btn" @click="showMobileMenu = !showMobileMenu">
-        <font-awesome-icon :icon="['fas', showMobileMenu ? 'times' : 'bars']" />
-      </button>
   
     </div>
     <div class="right">
@@ -83,26 +78,10 @@
         </custom-tooltip>
       </div>
       
-      <!-- Mobile: Nur Theme-Toggle und Burger -->
-      <div class="mobile-buttons">
-        <!-- Shortcuts Button nur auf Bestand-Seite und nur als Icon -->
-        <custom-tooltip v-if="$route.name === 'Bestand'" text="Shortcuts" position="bottom" :delay-in="150">
-          <button class="icon-btn" @click="ui.toggle('shortcuts')">
-            <font-awesome-icon :icon="['fas', 'list-check']" />
-          </button>
-        </custom-tooltip>
-        
-        <custom-tooltip :text="theme.isDark ? 'Hell' : 'Dunkel'" position="bottom" :delay-in="150">
-          <button
-            class="icon-btn"
-            @click="theme.toggle()"
-          >
-            <font-awesome-icon
-              :icon="theme.isDark ? ['fas', 'sun'] : ['fas', 'moon']"
-            />
-          </button>
-        </custom-tooltip>
-      </div>
+      <!-- Mobile Burger Button -->
+      <button class="burger-btn" @click="showMobileMenu = !showMobileMenu">
+        <font-awesome-icon :icon="['fas', showMobileMenu ? 'times' : 'bars']" />
+      </button>
     </div>
   </header>
 
@@ -497,7 +476,7 @@ onBeforeUnmount(() => {
   padding: 8px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 28px;
 }
 .burger-btn:hover {
   background: var(--hover);
@@ -545,11 +524,17 @@ onBeforeUnmount(() => {
   background: none;
   border: none;
   color: var(--text);
-  padding: 8px;
+  padding: 12px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 28px;
 }
+
+.close-mobile-menu svg {
+  width: 28px;
+  height: 28px;
+}
+
 .close-mobile-menu:hover {
   background: var(--hover);
 }
@@ -653,6 +638,13 @@ onBeforeUnmount(() => {
   /* Zeige Burger Button */
   .burger-btn {
     display: block;
+    padding: 12px;
+    font-size: 32px;
+  }
+  
+  .burger-btn svg {
+    width: 32px;
+    height: 32px;
   }
   
   /* Zeige Mobile Menu */
@@ -662,13 +654,14 @@ onBeforeUnmount(() => {
   
   /* H1 Monitor kleiner */
   .left h1 {
-    font-size: 16px;
+    font-size: 20px;
     margin: 0;
+    font-weight: 600;
   }
   
   /* Logo kleiner */
   .logo {
-    width: 28px;
+    width: 32px;
   }
   
   /* Buttons kompakter */

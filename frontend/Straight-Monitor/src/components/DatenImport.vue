@@ -212,9 +212,13 @@
           
           <!-- Statistics -->
           <div v-if="resultModalData.details" class="stats-grid">
-            <div class="stat-item" v-if="resultModalData.details.matched !== undefined">
-              <span class="stat-value">{{ resultModalData.details.matched }}</span>
-              <span class="stat-label">Gefunden</span>
+            <div class="stat-item" v-if="resultModalData.details.total !== undefined">
+              <span class="stat-value">{{ resultModalData.details.total }}</span>
+              <span class="stat-label">Gesamt</span>
+            </div>
+            <div class="stat-item success" v-if="resultModalData.details.inserted !== undefined">
+              <span class="stat-value">{{ resultModalData.details.inserted }}</span>
+              <span class="stat-label">Neu hinzugefügt</span>
             </div>
             <div class="stat-item success" v-if="resultModalData.details.updated !== undefined">
               <span class="stat-value">{{ resultModalData.details.updated }}</span>
@@ -223,6 +227,10 @@
             <div class="stat-item" v-if="resultModalData.details.unchanged !== undefined">
               <span class="stat-value">{{ resultModalData.details.unchanged }}</span>
               <span class="stat-label">Unverändert</span>
+            </div>
+            <div class="stat-item" v-if="resultModalData.details.matched !== undefined">
+              <span class="stat-value">{{ resultModalData.details.matched }}</span>
+              <span class="stat-label">Gefunden</span>
             </div>
             <div class="stat-item warning" v-if="resultModalData.details.conflicts > 0">
               <span class="stat-value">{{ resultModalData.details.conflicts }}</span>
@@ -284,6 +292,9 @@
                       @click="assignEntryToMitarbeiter(entry, ma)"
                     >
                       <strong>{{ ma.vorname }} {{ ma.nachname }}</strong>
+                      <span class="status-badge" :class="ma.isActive ? 'active' : 'inactive'">
+                        {{ ma.isActive ? 'Aktiv' : 'Inaktiv' }}
+                      </span>
                       <span class="primary-email">{{ ma.email }}</span>
                       <span v-if="ma.personalnr" class="existing-pnr">Personalnr: {{ ma.personalnr }}</span>
                       <span v-if="ma.additionalEmails?.length" class="additional-count">
@@ -978,9 +989,34 @@ export default {
     color: var(--text);
   }
   
+  .status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 8px;
+    
+    &.active {
+      background: color-mix(in oklab, var(--success, #22c55e) 20%, transparent);
+      color: var(--success, #22c55e);
+    }
+    
+    &.inactive {
+      background: color-mix(in oklab, var(--muted) 20%, transparent);
+      color: var(--muted);
+    }
+  }
+  
   .primary-email {
     font-size: 0.85rem;
     color: var(--muted);
+  }
+  
+  .existing-pnr {
+    font-size: 0.75rem;
+    color: var(--primary);
+    margin-left: 8px;
   }
   
   .additional-count {
