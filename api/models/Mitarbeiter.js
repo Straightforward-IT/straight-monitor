@@ -90,15 +90,22 @@ function autoPopulate(next) {
                 { path: "teamleiter", select: "_id vorname nachname email" }
             ]
         },
+        { key: "berufe" },
+        { key: "qualifikationen" }
     ];
 
     fieldsToCheck.forEach(({ key, populate }) => {
         // Check if the field exists in the document and is not empty
         if (this[key] && this[key].length > 0) {
             const populateConfig = { path: key };
+            
+            // For simple arrays of references (berufe/qualifikationen), 
+            // no nested populate config needed if we just want the document
+            // If populate is provided (for complex nested populations above), use it
             if (populate) {
                 populateConfig.populate = populate;
             }
+            
             pathsToPopulate.push(populateConfig);
         }
     });

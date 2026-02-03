@@ -297,6 +297,52 @@
             </div>
           </div>
 
+          <!-- Skills Section (Berufe & Qualifikationen) -->
+          <div v-if="ma.berufe?.length || ma.qualifikationen?.length" class="skills-section">
+            <h4 class="section-title">
+              <font-awesome-icon icon="fa-solid fa-star" class="section-icon" />
+              Kompetenzen
+            </h4>
+
+            <div v-if="ma.berufe?.length" class="skill-group">
+              <h5 class="skill-group-title">
+                <font-awesome-icon icon="fa-solid fa-briefcase" class="skill-icon-sm" />
+                Berufe
+              </h5>
+              <ul class="skill-list">
+                <li 
+                  v-for="beruf in ma.berufe" 
+                  :key="beruf.jobKey || beruf._id" 
+                  class="skill-item skill-clickable"
+                  @click.stop="$emit('filter-beruf', beruf._id)"
+                  title="Klicken um nach diesem Beruf zu filtern"
+                >
+                  <span class="skill-name">{{ beruf.designation }}</span>
+                  <span class="skill-badge">{{ beruf.jobKey }}</span>
+                </li>
+              </ul>
+            </div>
+
+            <div v-if="ma.qualifikationen?.length" class="skill-group">
+              <h5 class="skill-group-title">
+                <font-awesome-icon icon="fa-solid fa-graduation-cap" class="skill-icon-sm" />
+                Qualifikationen
+              </h5>
+              <ul class="skill-list">
+                <li 
+                  v-for="quali in ma.qualifikationen" 
+                  :key="quali.qualificationKey || quali._id" 
+                  class="skill-item skill-clickable"
+                  @click.stop="$emit('filter-qualifikation', quali._id)"
+                  title="Klicken um nach dieser Qualifikation zu filtern"
+                >
+                  <span class="skill-name">{{ quali.designation }}</span>
+                  <span class="skill-badge">{{ quali.qualificationKey }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
           <!-- Dokumente Section -->
           <div class="documents-section">
             <h4 class="section-title">
@@ -916,7 +962,7 @@ export default {
     showCheckbox: { type: Boolean, default: false },
     isSelected: { type: Boolean, default: false },
   },
-  emits: ["open", "edit", "toggle-selection", "quick-actions", "close", "open-employee"],
+  emits: ["open", "edit", "toggle-selection", "quick-actions", "close", "open-employee", "filter-beruf", "filter-qualifikation"],
 
   setup(props) {
     const theme = useTheme(); // { current: 'light' | 'dark' | 'system' }
@@ -999,7 +1045,15 @@ export default {
     
     // Check if user is a Teamleiter
     const isTeamleiter = computed(() => {
-      return props.ma?.flip ? flip.isTeamleiter(props.ma.flip) : false;
+      // Logic update: Teamleiter is defined by qualification key '00005' (or '5')
+      if (props.ma?.qualifikationen?.length > 0) {
+        return props.ma.qualifikationen.some(q => {
+            const key = String(q.qualificationKey).trim();
+            // Checking for '5', '05', '005', '0005', '00005' just to be safe, or just int conversion
+            return parseInt(key, 10) === 5;
+        });
+      }
+      return false;
     });
     
     // Logos via imports (Vite preloaded) – kein src-Swap → kein Flackern
@@ -2049,6 +2103,103 @@ export default {
   p {
     margin: 0;
     font-size: 14px;
+  }
+}
+
+/* Skills Section */
+.skills-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .skill-group {
+    margin-bottom: 20px;
+  }
+
+  .skill-group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 10px 0;
+
+    .skill-icon-sm {
+      width: 14px;
+    }
+  }
+
+  .skill-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .skill-item {
+    display: inline-flex;
+    align-items: center;
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    gap: 8px;
+    font-size: 13px;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: var(--surface);
+      border-color: var(--primary);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+  }
+  
+  .skill-clickable {
+    cursor: pointer;
+    
+    &:hover {
+      background: color-mix(in srgb, var(--primary) 15%, var(--surface));
+      border-color: var(--primary);
+      
+      .skill-name {
+        color: var(--primary);
+      }
+    }
+    
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  .skill-name {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .skill-badge {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
   }
 }
 

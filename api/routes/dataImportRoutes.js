@@ -859,6 +859,27 @@ router.post('/personal_quali', upload.single('file'), async (req, res) => {
   }
 });
 
+// --- GET all Berufe (for frontend cache) ---
+router.get('/berufe', async (req, res) => {
+  try {
+    const berufe = await Beruf.find({}).lean();
+    res.json({ success: true, data: berufe });
+  } catch (error) {
+    logger.error('GET Berufe Error:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Abrufen der Berufe.', error: error.message });
+  }
+});
+
+// --- GET all Qualifikationen (for frontend cache) ---
+router.get('/qualifikationen', async (req, res) => {
+  try {
+    const qualifikationen = await Qualifikation.find({}).lean();
+    res.json({ success: true, data: qualifikationen });
+  } catch (error) {
+    logger.error('GET Qualifikationen Error:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Abrufen der Qualifikationen.', error: error.message });
+  }
+});
 
 
 module.exports = router;

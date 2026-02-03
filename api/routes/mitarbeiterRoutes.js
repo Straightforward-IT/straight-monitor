@@ -2452,22 +2452,11 @@ router.post(
       FlipMappings.user_group_ids.koeln_teamleiter,
     ];
 
-    console.log("🔄 Starting FlipUser attribute sync...");
-
-    // TEST: Nur einen spezifischen User
-    const testUserId = "18670085-d167-48b7-a7e1-ceeabeef2ee6";
-    
-    // 1. Alle FlipUsers abrufen
-    const allUsersRaw = await getFlipUsers({
+    // 1. Alle FlipUsers abrufen (KEIN TEST FILTER MEHR)
+    const allUsers = await getFlipUsers({
       status: ["ACTIVE"],
       page_limit: 100,
     });
-
-    // Filter nur Test-User
-    const allUsers = allUsersRaw.filter(u => u.id === testUserId);
-    
-    console.log(`📊 Testing with user ${testUserId}`);
-    console.log(`📊 User found:`, allUsers.length > 0);
 
     // 2. Map: userId -> groups
     const userGroupsMap = new Map();
@@ -2481,17 +2470,8 @@ router.post(
       ...teamleadGroupIds,
     ];
 
-    console.log(`🔍 Searching assignments for ${allGroupIds.length} groups total`);
-    console.log(`   Service groups: ${serviceGroupIds.join(', ')}`);
-    console.log(`   Logistik groups: ${logistikGroupIds.join(', ')}`);
-    console.log(`   Festi groups: ${festiGroupIds.join(', ')}`);
-    console.log(`   Office groups: ${officeGroupIds.join(', ')}`);
-    console.log(`   TeamLead groups: ${teamleadGroupIds.join(', ')}`);
-
     for (const groupId of allGroupIds) {
       try {
-        console.log(`🔄 Fetching assignments for group ${groupId}...`);
-        
         // Handle pagination - fetch ALL pages
         let allAssignments = [];
         let currentPage = 1;
@@ -2501,66 +2481,36 @@ router.post(
           const assignmentsData = await getFlipUserGroupAssignments({
             group_id: groupId,
             page_number: currentPage,
-            page_limit: 100, // Increase page size
+            page_limit: 100,
           });
           
           const assignmentsList = assignmentsData?.assignments || [];
           allAssignments.push(...assignmentsList);
           
-          // Update pagination info
           if (assignmentsData?.pagination) {
             totalPages = assignmentsData.pagination.total_pages;
-            console.log(`   📄 Page ${currentPage}/${totalPages}: ${assignmentsList.length} assignments`);
           }
           
           currentPage++;
         } while (currentPage <= totalPages);
-        
-        console.log(`   ✅ Total assignments for group ${groupId}: ${allAssignments.length}`);
 
-        // Spezielles Debug für hamburg_logistik
-        if (groupId === '3365d98e-27e6-4965-9794-b05802290a49') {
-          console.log(`\n🔍 SPECIAL DEBUG for hamburg_logistik group:`);
-          console.log(`   Total assignments across all pages: ${allAssignments.length}`);
-          console.log(`   Assignment user IDs:`, allAssignments.map(a => a.id?.user_id || a.user_id));
-          console.log(`   Test user in list?`, allAssignments.some(a => 
-            (a.id?.user_id || a.user_id) === testUserId
-          ));
-        }
-
+        // Populate userGroupsMap
         for (const assignment of allAssignments) {
-          const userId = assignment.id?.user_id || assignment.user_id;
-          if (!userId) {
-            console.log(`   ⚠️ Assignment missing user_id:`, assignment);
-            continue;
-          }
-
-          if (!userGroupsMap.has(userId)) {
-            userGroupsMap.set(userId, []);
-          }
-          userGroupsMap.get(userId).push(groupId);
+          // Flip API returns nested user object or direct IDs depending on endpoint version
+          // Based on user logs, it seems we get objects with user.id
+          const userId = assignment.user?.id || assignment.id?.user_id || assignment.user_id;
           
-          // Log wenn es der Test-User ist
-          if (userId === testUserId) {
-            console.log(`   🎯 Test user found in group ${groupId}!`);
+          if (userId) {
+            if (!userGroupsMap.has(userId)) {
+              userGroupsMap.set(userId, []);
+            }
+            userGroupsMap.get(userId).push(groupId);
           }
         }
-      } catch (error) {
-        console.error(`❌ Error fetching assignments for group ${groupId}:`, error.message);
-        console.error(`   Full error:`, error.response?.data || error);
-      }
-    }
 
-    console.log(`📋 Built group assignments map for ${userGroupsMap.size} users`);
-    
-    // Spezielles Log für Test-User
-    if (userGroupsMap.has(testUserId)) {
-      const testUserGroups = userGroupsMap.get(testUserId);
-      console.log(`\n🎯 TEST USER GROUP MEMBERSHIPS:`);
-      console.log(`   Total groups found: ${testUserGroups.length}`);
-      console.log(`   Groups:`, testUserGroups);
-    } else {
-      console.log(`\n⚠️ Test user ${testUserId} NOT found in any group assignments!`);
+      } catch (error) {
+        console.error(`Error fetching assignments for group ${groupId}:`, error.message);
+      }
     }
 
     // 3. Für jeden User die Attribute setzen und updaten
@@ -2572,22 +2522,12 @@ router.post(
         const userId = userData.id;
         const userGroups = userGroupsMap.get(userId) || [];
 
-        console.log(`\n👤 Processing user: ${userData.first_name} ${userData.last_name} (${userId})`);
-        console.log(`   Groups:`, userGroups);
-
         // Bestimme Attribute basierend auf Gruppenzugehörigkeit
         const isService = userGroups.some((gid) => serviceGroupIds.includes(gid));
         const isLogistik = userGroups.some((gid) => logistikGroupIds.includes(gid));
         const isFesti = userGroups.some((gid) => festiGroupIds.includes(gid));
         const isOffice = userGroups.some((gid) => officeGroupIds.includes(gid));
         const isTeamLead = userGroups.some((gid) => teamleadGroupIds.includes(gid));
-
-        console.log(`   Attributes detected:`);
-        console.log(`     - isService: ${isService} (groups: ${serviceGroupIds.join(', ')})`);
-        console.log(`     - isLogistik: ${isLogistik} (groups: ${logistikGroupIds.join(', ')})`);
-        console.log(`     - isFesti: ${isFesti}`);
-        console.log(`     - isOffice: ${isOffice}`);
-        console.log(`     - isTeamLead: ${isTeamLead}`);
 
         // Baue attributes array
         const attributes = [];
@@ -2606,14 +2546,13 @@ router.post(
           attributes.push({ name: "department", value: userData.profile.department });
         }
 
-        console.log(`   Final attributes to send:`, attributes);
-
-        // Update nur wenn sich etwas geändert hat
+        // Update nur wenn sich etwas geändert hat oder überhaupt Attribute da sind
+        // Anmerkung: Flip überschreibt alle Attribute mit dem PUT/PATCH.
+        // Daher sollten wir immer updaten, wenn Attribute berechnet wurden.
         if (attributes.length > 0) {
           const flipUser = new FlipUser(userData);
           flipUser.attributes = attributes;
           
-          console.log(`   Calling update()...`);
           await flipUser.update();
           
           updates.push({
@@ -2621,12 +2560,8 @@ router.post(
             name: `${userData.first_name} ${userData.last_name}`,
             attributes: attributes.map((a) => a.name),
           });
-
-          console.log(`✅ Updated ${userData.first_name} ${userData.last_name}`);
         }
       } catch (error) {
-        console.error(`❌ Error updating user ${userData.id}:`, error.message);
-        console.error(`   Full error:`, error.response?.data || error);
         errors.push({
           id: userData.id,
           name: `${userData.first_name} ${userData.last_name}`,
@@ -2634,8 +2569,6 @@ router.post(
         });
       }
     }
-
-    console.log(`✅ Attribute sync completed. ${updates.length} users updated, ${errors.length} errors`);
 
     res.status(200).json({
       message: "Attribute sync completed",

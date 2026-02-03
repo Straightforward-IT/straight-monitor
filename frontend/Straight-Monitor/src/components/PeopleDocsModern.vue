@@ -10,130 +10,157 @@
             
             <!-- Enhanced Filter Chips (nur sichtbar wenn expanded) -->
             <div class="filter-chips">
-            <!-- Basic Status Filter -->
-            <div class="chip-group">
-              <span class="chip-label">Status</span>
-              <button
-                v-for="status in ['Alle', 'Aktiv', 'Inaktiv']"
-                :key="status"
-                class="chip"
-                :class="{ active: filters.status === status }"
-                @click="setFilter('status', status)"
-              >
-                <font-awesome-icon 
-                  :icon="status === 'Aktiv' ? 'fa-solid fa-circle-check' : 
-                         status === 'Inaktiv' ? 'fa-regular fa-circle-xmark' : 
-                         'fa-solid fa-filter'"
-                />
-                {{ status }}
-              </button>
-            </div>
-
-            <span class="divider" />
-
-            <!-- Location Filter -->
-            <div class="chip-group">
-              <span class="chip-label">Standort</span>
-              <button
-                v-for="loc in ['Alle', ...locations]"
-                :key="loc"
-                class="chip"
-                :class="{ active: filters.location === loc }"
-                @click="setFilter('location', loc)"
-              >
-                <font-awesome-icon 
-                  :icon="loc === 'Alle' ? 'fa-solid fa-earth-europe' : 'fa-solid fa-location-dot'"
-                />
-                {{ loc }}
-              </button>
-            </div>
-
-            <span class="divider" />
-
-            <!-- Department Filter -->
-            <div class="chip-group">
-              <span class="chip-label">Bereich</span>
-              <button
-                v-for="dept in ['Alle', ...departments]"
-                :key="dept"
-                class="chip"
-                :class="{ active: filters.department === dept }"
-                @click="setFilter('department', dept)"
-              >
-                <font-awesome-icon 
-                  :icon="dept === 'Service' ? 'fa-solid fa-utensils' :
-                         dept === 'Logistik' ? 'fa-solid fa-boxes-stacked' :
-                         dept === 'Office' ? 'fa-solid fa-user-tie' :
-                         'fa-solid fa-layer-group'"
-                />
-                {{ dept }}
-              </button>
-            </div>
-
-            <span class="divider" />
-
-            <!-- Trinity Status Filters -->
-            <div class="chip-group">
-              <span class="chip-label">Flip Status</span>
-              <button
-                v-for="flipStat in ['Alle', 'Aktiv', 'Gesperrt', 'Gelöscht', 'Nicht verknüpft']"
-                :key="flipStat"
-                class="chip"
-                :class="{ active: filters.flipStatus === flipStat }"
-                @click="setFilter('flipStatus', flipStat)"
-              >
-                <font-awesome-icon icon="fa-solid fa-mobile-screen" />
-                {{ flipStat }}
-              </button>
-            </div>
-
-            <span class="divider" />
-
-            <div class="chip-group">
-              <span class="chip-label">Asana Status</span>
-              <button
-                v-for="asanaStat in ['Alle', 'Verknüpft', 'Nicht_verknüpft']"
-                :key="asanaStat"
-                class="chip"
-                :class="{ active: filters.asanaStatus === asanaStat }"
-                @click="setFilter('asanaStatus', asanaStat)"
-              >
-                <font-awesome-icon icon="fa-solid fa-clipboard-list" />
-                {{ asanaStat.replace('_', ' ') }}
-              </button>
-            </div>
+            <!-- Compact Filters (Dropdowns) -->
             
+            <!-- Status Dropdown -->
+            <div class="chip-group compact-group">
+                <FilterDropdown ref="statusDropdown" :has-value="filters.status !== 'Alle'">
+                  <template #label><font-awesome-icon icon="fa-solid fa-filter" style="margin-right: 0.5rem" /> {{ filters.status === 'Alle' ? 'Status' : filters.status }}</template>
+                  <div class="dropdown-item clickable" :class="{ selected: filters.status === 'Alle' }"
+                       @click="setFilter('status', 'Alle'); $refs.statusDropdown.close()">
+                    Alle
+                  </div>
+                  <div v-for="status in ['Aktiv', 'Inaktiv']" :key="status" 
+                       class="dropdown-item clickable" :class="{ selected: filters.status === status }"
+                       @click="setFilter('status', status); $refs.statusDropdown.close()">
+                    <font-awesome-icon 
+                      :icon="status === 'Aktiv' ? 'fa-solid fa-circle-check' : 
+                             'fa-regular fa-circle-xmark'"
+                      style="margin-right: 8px; width: 16px;" 
+                      :class="status === 'Aktiv' ? 'text-success' : 'text-danger'"
+                    />
+                    {{ status }}
+                  </div>
+                </FilterDropdown>
+            </div>
+
+            <!-- Location Dropdown -->
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="locationDropdown" :has-value="filters.location !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-location-dot" style="margin-right: 0.5rem" /> {{ filters.location === 'Alle' ? 'Standort' : filters.location }}</template>
+                    <div class="dropdown-item clickable" :class="{ selected: filters.location === 'Alle' }"
+                        @click="setFilter('location', 'Alle'); $refs.locationDropdown.close()">
+                        Alle Standorte
+                    </div>
+                    <div v-for="loc in locations" :key="loc" 
+                         class="dropdown-item clickable"
+                         :class="{ selected: filters.location === loc }"
+                         @click="setFilter('location', loc); $refs.locationDropdown.close()">
+                      {{ loc }}
+                    </div>
+                 </FilterDropdown>
+            </div>
+
+            <!-- Department Dropdown -->
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="deptDropdown" :has-value="filters.department !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-layer-group" style="margin-right: 0.5rem" /> {{ filters.department === 'Alle' ? 'Bereich' : filters.department }}</template>
+                    <div class="dropdown-item clickable" :class="{ selected: filters.department === 'Alle' }"
+                        @click="setFilter('department', 'Alle'); $refs.deptDropdown.close()">
+                        Alle Bereiche
+                    </div>
+                    <div v-for="dept in departments" :key="dept" 
+                         class="dropdown-item clickable"
+                         :class="{ selected: filters.department === dept }"
+                         @click="setFilter('department', dept); $refs.deptDropdown.close()">
+                      {{ dept }}
+                    </div>
+                 </FilterDropdown>
+            </div>
+
             <span class="divider" />
 
-            <div class="chip-group">
-              <span class="chip-label">Personalnr</span>
-              <button
-                v-for="pnrStat in ['Alle', 'Vorhanden', 'Fehlt']"
-                :key="pnrStat"
-                class="chip"
-                :class="{ active: filters.personalnrStatus === pnrStat }"
-                @click="setFilter('personalnrStatus', pnrStat)"
-              >
-                <font-awesome-icon icon="fa-solid fa-id-badge" />
-                {{ pnrStat }}
-              </button>
+            <!-- Integration Filters -->
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="flipDropdown" :has-value="filters.flipStatus !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-mobile-screen" style="margin-right: 0.5rem" /> {{ filters.flipStatus === 'Alle' ? 'Flip' : filters.flipStatus }}</template>
+                     <div v-for="stat in ['Alle', 'Aktiv', 'Gesperrt', 'Gelöscht', 'Nicht verknüpft']" 
+                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.flipStatus === stat }"
+                          @click="setFilter('flipStatus', stat); $refs.flipDropdown.close()">
+                       {{ stat }}
+                     </div>
+                 </FilterDropdown>
             </div>
-            
+
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="asanaDropdown" :has-value="filters.asanaStatus !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-clipboard-list" style="margin-right: 0.5rem" /> {{ filters.asanaStatus === 'Alle' ? 'Asana' : filters.asanaStatus.replace('_', ' ') }}</template>
+                     <div v-for="stat in ['Alle', 'Verknüpft', 'Nicht_verknüpft']" 
+                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.asanaStatus === stat }"
+                          @click="setFilter('asanaStatus', stat); $refs.asanaDropdown.close()">
+                       {{ stat.replace('_', ' ') }}
+                     </div>
+                 </FilterDropdown>
+            </div>
+
             <span class="divider" />
             
-            <!-- Teamleiter Filter -->
-            <div class="chip-group">
-              <span class="chip-label">Teamleiter</span>
-              <button
-                v-for="tlStat in ['Alle', 'Nur Teamleiter', 'Keine Teamleiter']"
-                :key="tlStat"
-                class="chip"
-                :class="{ active: filters.teamleiter === tlStat }"
-                @click="setFilter('teamleiter', tlStat)"
-              >
-                <font-awesome-icon icon="fa-solid fa-user-tie" />
-                {{ tlStat }}
-              </button>
+            <!-- Metadata Group -->
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="pnrDropdown" :has-value="filters.personalnrStatus !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-id-badge" style="margin-right: 0.5rem" /> {{ filters.personalnrStatus === 'Alle' ? 'P-Nr.' : filters.personalnrStatus }}</template>
+                     <div v-for="stat in ['Alle', 'Vorhanden', 'Fehlt']" 
+                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.personalnrStatus === stat }"
+                          @click="setFilter('personalnrStatus', stat); $refs.pnrDropdown.close()">
+                       {{ stat }}
+                     </div>
+                 </FilterDropdown>
+            </div>
+
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="tlDropdown" :has-value="filters.teamleiter !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-user-tie" style="margin-right: 0.5rem" /> {{ filters.teamleiter === 'Alle' ? 'Rolle' : filters.teamleiter }}</template>
+                     <div v-for="stat in ['Alle', 'Nur Teamleiter', 'Keine Teamleiter']" 
+                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.teamleiter === stat }"
+                          @click="setFilter('teamleiter', stat); $refs.tlDropdown.close()">
+                       {{ stat }}
+                     </div>
+                 </FilterDropdown>
+            </div>
+
+            <span class="divider" />
+
+            <!-- Skills (Multi Select) -->
+            <div class="chip-group compact-group">
+                  <FilterDropdown :has-value="filters.berufe.length > 0">
+                    <template #label>
+                       <font-awesome-icon icon="fa-solid fa-briefcase" style="margin-right: 0.5rem" />
+                       <span v-if="filters.berufe.length === 0"> Berufe</span>
+                       <span v-else> {{ filters.berufe.length }} gewählt</span>
+                    </template>
+                    
+                    <div v-if="availableBerufe.length === 0" class="no-options">Keine Berufe gefunden</div>
+                    <label v-for="beruf in availableBerufe" :key="beruf._id" class="dropdown-item">
+                      <input 
+                        type="checkbox" 
+                        :checked="filters.berufe.includes(beruf._id)"
+                        @change="toggleBerufFilter(beruf._id)"
+                      >
+                      <span class="label-text">{{ beruf.designation }}</span>
+                      <span class="badge-small">{{ beruf.jobKey }}</span>
+                    </label>
+                  </FilterDropdown>
+            </div>
+            
+            <div class="chip-group compact-group">
+                  <FilterDropdown :has-value="filters.qualifikationen.length > 0">
+                    <template #label>
+                       <font-awesome-icon icon="fa-solid fa-graduation-cap" style="margin-right: 0.5rem" />
+                       <span v-if="filters.qualifikationen.length === 0"> Qualifikationen</span>
+                       <span v-else> {{ filters.qualifikationen.length }} gewählt</span>
+                    </template>
+                    
+                    <div v-if="availableQualifikationen.length === 0" class="no-options">Keine Qualifikationen gefunden</div>
+                    <label v-for="quali in availableQualifikationen" :key="quali._id" class="dropdown-item">
+                      <input 
+                        type="checkbox" 
+                        :checked="filters.qualifikationen.includes(quali._id)"
+                        @change="toggleQualifikationFilter(quali._id)"
+                      >
+                      <span class="label-text">{{ quali.designation }}</span>
+                      <span class="badge-small">{{ quali.qualificationKey }}</span>
+                    </label>
+                  </FilterDropdown>
             </div>
             
             <span class="divider" />
@@ -289,6 +316,8 @@
             @edit="editMitarbeiter"
             @toggle-selection="toggleSelection(ma._id)"
             @quick-actions="showQuickActions(ma, $event)"
+            @filter-beruf="activateBerufFilter"
+            @filter-qualifikation="activateQualifikationFilter"
           />
         </div>
 
@@ -613,6 +642,7 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import EmployeeCard from "@/components/EmployeeCard.vue";
 import FilterPanel from "@/components/FilterPanel.vue";
+import FilterDropdown from "@/components/FilterDropdown.vue";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
 
@@ -649,7 +679,9 @@ import {
   faEdit,
   faUser,
   faSpinner,
-  faCheck
+  faCheck,
+  faGraduationCap,
+  faStar
 } from "@fortawesome/free-solid-svg-icons";
 import { faCircle as faCircleRegular } from "@fortawesome/free-regular-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
@@ -688,12 +720,14 @@ library.add(
   faEdit,
   faUser,
   faSpinner,
-  faCheck
+  faCheck,
+  faGraduationCap,
+  faStar
 );
 
 export default {
   name: "Personal",
-  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel },
+  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel, FilterDropdown },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -766,7 +800,9 @@ export default {
         asanaStatus: "Alle", // Verknüpft, Nicht_verknüpft, Alle
         personalnrStatus: "Alle", // Vorhanden, Fehlt, Alle
         profile: "Alle", // Vollständig, Unvollständig, Alle
-        teamleiter: "Alle" // Alle, Nur Teamleiter, Keine Teamleiter
+        teamleiter: "Alle", // Alle, Nur Teamleiter, Keine Teamleiter
+        berufe: [], // Array of selected Beruf IDs
+        qualifikationen: [] // Array of selected Qualifikation IDs
       },
       mitarbeitersSearchQuery: "",
       mitarbeitersSortBy: "nachname",
@@ -779,7 +815,17 @@ export default {
   },
 
   computed: {
-    // Mitarbeiter mit Flip-Daten anreichern
+    // Verfügbare Berufe aus dem Cache
+    availableBerufe() {
+      return this.dataCache.berufe || [];
+    },
+    
+    // Verfügbare Qualifikationen aus dem Cache
+    availableQualifikationen() {
+      return this.dataCache.qualifikationen || [];
+    },
+    
+    // Mitarbeiter mit Flip-Daten und Skills anreichern
     mitarbeitersEnriched() {
       const ready = this.flip?.loaded;
       const arr = this.mitarbeiters || [];
@@ -795,8 +841,11 @@ export default {
           if (!flipUser && ma.email) {
               flipUser = this.flip.getByEmail(ma.email);
           }
+          
+          // Populate berufe and qualifikationen from cache
+          const enriched = this.dataCache.populateMitarbeiterSkills(ma);
 
-        return { ...ma, flip: flipUser || null };
+        return { ...enriched, flip: flipUser || null };
       });
     },
 
@@ -860,8 +909,29 @@ export default {
       // Teamleiter Filter
       if (this.filters.teamleiter !== "Alle") {
         result = result.filter((ma) => {
-          const isTeamleiter = this.flip.isTeamleiter(ma.flip);
+          let isTeamleiter = false;
+          if (ma.qualifikationen?.length) {
+             isTeamleiter = ma.qualifikationen.some(q => parseInt(String(q.qualificationKey), 10) === 5);
+          }
           return this.filters.teamleiter === "Nur Teamleiter" ? isTeamleiter : !isTeamleiter;
+        });
+      }
+      
+      // Berufe Filter (Mehrfachauswahl)
+      if (this.filters.berufe.length > 0) {
+        result = result.filter((ma) => {
+          if (!ma.berufe?.length) return false;
+          // MA muss mindestens einen der ausgewählten Berufe haben
+          return ma.berufe.some(b => this.filters.berufe.includes(b._id));
+        });
+      }
+      
+      // Qualifikationen Filter (Mehrfachauswahl)
+      if (this.filters.qualifikationen.length > 0) {
+        result = result.filter((ma) => {
+          if (!ma.qualifikationen?.length) return false;
+          // MA muss mindestens eine der ausgewählten Qualifikationen haben
+          return ma.qualifikationen.some(q => this.filters.qualifikationen.includes(q._id));
         });
       }
 
@@ -1406,6 +1476,47 @@ export default {
       // Save filters to cookie immediately
       this.saveFiltersToCookie();
     },
+    
+    // Toggle Beruf filter (für Mehrfachauswahl)
+    toggleBerufFilter(berufId) {
+      const idx = this.filters.berufe.indexOf(berufId);
+      if (idx >= 0) {
+        this.filters.berufe.splice(idx, 1);
+      } else {
+        this.filters.berufe.push(berufId);
+      }
+      this.currentPage = 1;
+      this.saveFiltersToCookie();
+    },
+    
+    // Toggle Qualifikation filter (für Mehrfachauswahl)
+    toggleQualifikationFilter(qualiId) {
+      const idx = this.filters.qualifikationen.indexOf(qualiId);
+      if (idx >= 0) {
+        this.filters.qualifikationen.splice(idx, 1);
+      } else {
+        this.filters.qualifikationen.push(qualiId);
+      }
+      this.currentPage = 1;
+      this.saveFiltersToCookie();
+    },
+    
+    // Aktiviere Filter von extern (z.B. von EmployeeCard)
+    activateBerufFilter(berufId) {
+      if (!this.filters.berufe.includes(berufId)) {
+        this.filters.berufe.push(berufId);
+        this.currentPage = 1;
+        this.saveFiltersToCookie();
+      }
+    },
+    
+    activateQualifikationFilter(qualiId) {
+      if (!this.filters.qualifikationen.includes(qualiId)) {
+        this.filters.qualifikationen.push(qualiId);
+        this.currentPage = 1;
+        this.saveFiltersToCookie();
+      }
+    },
 
     resetAllFilters() {
       this.filters = {
@@ -1415,7 +1526,10 @@ export default {
         flipStatus: "Alle",
         asanaStatus: "Alle",
         personalnrStatus: "Alle",
-        profile: "Alle"
+        profile: "Alle",
+        teamleiter: "Alle",
+        berufe: [],
+        qualifikationen: []
       };
       this.mitarbeitersSearchQuery = "";
       this.currentPage = 1;
@@ -1571,10 +1685,12 @@ export default {
     // 1) Token setzen, damit der Flip-Store dieselbe Axios-Instanz mit Auth nutzt
     this.setAxiosAuthToken();
 
-    // 2) API-Daten parallel laden
+    // 2) API-Daten parallel laden (inkl. Berufe & Qualifikationen für Skills)
     await Promise.allSettled([
       this.fetchUserData(),
       this.fetchMitarbeiters(),
+      this.dataCache.loadBerufe(),
+      this.dataCache.loadQualifikationen(),
     ]);
 
     // 3) Alle Flip-User vorladen (für spätere Filter & Verknüpfung)
@@ -1761,7 +1877,36 @@ export default {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  
+  svg {
+    font-size: 12px;
+  }
 }
+
+/* Dropdown Label Text & Badge */
+.label-text {
+  flex: 1;
+}
+
+.badge-small {
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.no-options {
+  padding: 12px;
+  text-align: center;
+  color: var(--muted);
+  font-style: italic;
+}
+
 .chip {
   border: 1px solid var(--border);
   background: var(--surface);
@@ -3405,4 +3550,19 @@ html {
 
 }
 /* Skeletons, Empty etc. bleiben wie gehabt */
+
+/* Compact Filter Styles */
+.clickable {
+    cursor: pointer;
+}
+
+.dropdown-item.selected {
+    background-color: color-mix(in srgb, var(--brand) 10%, transparent);
+    color: var(--brand);
+    font-weight: 500;
+}
+
+.dropdown-item.selected:hover {
+    background-color: color-mix(in srgb, var(--brand) 20%, transparent);
+}
 </style>

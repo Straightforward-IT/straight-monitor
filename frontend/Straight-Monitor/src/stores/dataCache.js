@@ -9,8 +9,8 @@ import api from '@/utils/api';
  */
 
 const DB_NAME = 'StraightMonitorCache';
-const DB_VERSION = 3;
-const STORES = ['mitarbeiter', 'items', 'auftraege', 'kunden', 'documents', 'flipusers'];
+const DB_VERSION = 4;
+const STORES = ['mitarbeiter', 'items', 'auftraege', 'kunden', 'documents', 'flipusers', 'berufe', 'qualifikationen'];
 
 // IndexedDB Helper
 function openDB() {
@@ -131,6 +131,8 @@ export const useDataCache = defineStore('dataCache', {
     kunden: [],
     documents: [],
     flipusers: [],
+    berufe: [],
+    qualifikationen: [],
     
     // Loading states
     loading: {
@@ -139,7 +141,9 @@ export const useDataCache = defineStore('dataCache', {
       auftraege: false,
       kunden: false,
       documents: false,
-      flipusers: false
+      flipusers: false,
+      berufe: false,
+      qualifikationen: false
     },
     
     // Last sync timestamps
@@ -149,7 +153,9 @@ export const useDataCache = defineStore('dataCache', {
       auftraege: null,
       kunden: null,
       documents: null,
-      flipusers: null
+      flipusers: null,
+      berufe: null,
+      qualifikationen: null
     },
     
     // Sync status
@@ -159,7 +165,9 @@ export const useDataCache = defineStore('dataCache', {
       documents: false,
       auftraege: false,
       kunden: false,
-      flipusers: false
+      flipusers: false,
+      berufe: false,
+      qualifikationen: false
     }
   }),
   
@@ -174,6 +182,63 @@ export const useDataCache = defineStore('dataCache', {
       if (!lastSync) return true;
       const ageMs = Date.now() - new Date(lastSync).getTime();
       return ageMs > maxAgeMinutes * 60 * 1000;
+    },
+    
+    // Lookup maps for Berufe and Qualifikationen (by _id)
+    berufeMap: (state) => {
+      const map = new Map();
+      state.berufe.forEach(b => map.set(b._id, b));
+      return map;
+    },
+    qualifikationenMap: (state) => {
+      const map = new Map();
+      state.qualifikationen.forEach(q => map.set(q._id, q));
+      return map;
+    },
+    
+    // Get populated Beruf by ID
+    getBerufById: (state) => (id) => {
+      return state.berufe.find(b => b._id === id) || null;
+    },
+    
+    // Get populated Qualifikation by ID
+    getQualifikationById: (state) => (id) => {
+      return state.qualifikationen.find(q => q._id === id) || null;
+    },
+    
+    // Populate berufe and qualifikationen for a Mitarbeiter object
+    populateMitarbeiterSkills: (state) => (ma) => {
+      if (!ma) return ma;
+      
+      const populated = { ...ma };
+      
+      // Populate berufe
+      if (ma.berufe && Array.isArray(ma.berufe)) {
+        populated.berufe = ma.berufe.map(berufRef => {
+          // If already populated (has designation), return as is
+          if (typeof berufRef === 'object' && berufRef.designation) {
+            return berufRef;
+          }
+          // Otherwise, look up by _id
+          const id = typeof berufRef === 'string' ? berufRef : berufRef?._id;
+          return state.berufe.find(b => b._id === id) || { _id: id, designation: 'Unbekannt', jobKey: null };
+        });
+      }
+      
+      // Populate qualifikationen
+      if (ma.qualifikationen && Array.isArray(ma.qualifikationen)) {
+        populated.qualifikationen = ma.qualifikationen.map(qualiRef => {
+          // If already populated (has designation), return as is
+          if (typeof qualiRef === 'object' && qualiRef.designation) {
+            return qualiRef;
+          }
+          // Otherwise, look up by _id
+          const id = typeof qualiRef === 'string' ? qualiRef : qualiRef?._id;
+          return state.qualifikationen.find(q => q._id === id) || { _id: id, designation: 'Unbekannt', qualificationKey: null };
+        });
+      }
+      
+      return populated;
     }
   },
   
@@ -755,6 +820,108 @@ export const useDataCache = defineStore('dataCache', {
     },
     
     /**
+     * Berufe (Jobs) - static reference data
+     */
+    async loadBerufe(forceRefresh = false) {
+      if (this.loading.berufe) return this.berufe;
+      
+      try {
+        this.loading.berufe = true;
+        
+        // Try to load from IndexedDB first
+        if (!forceRefresh && this.berufe.length === 0) {
+          const cached = await getFromStore('berufe');
+          if (cached && cached.length > 0) {
+            this.berufe = cached;
+            this.lastSync.berufe = await getMeta('lastSync_berufe');
+            console.log(`[Cache] Loaded ${cached.length} Berufe from cache`);
+          }
+        }
+        
+        // Berufe change rarely, use longer cache time (1 hour)
+        if (forceRefresh || this.berufe.length === 0 || this.isCacheStale('berufe', 60)) {
+          await this.fullSyncBerufe();
+        }
+        
+        return this.berufe;
+      } finally {
+        this.loading.berufe = false;
+      }
+    },
+    
+    async fullSyncBerufe() {
+      try {
+        console.log('[Cache] Full sync Berufe...');
+        const response = await api.get('/api/import/berufe');
+        const data = response.data?.data || response.data || [];
+        
+        await clearStore('berufe');
+        await saveToStore('berufe', data);
+        
+        this.berufe = data;
+        this.lastSync.berufe = new Date().toISOString();
+        await setMeta('lastSync_berufe', this.lastSync.berufe);
+        
+        console.log(`[Cache] Full sync complete: ${data.length} Berufe`);
+        return data;
+      } catch (error) {
+        console.error('[Cache] Full sync Berufe failed:', error);
+        throw error;
+      }
+    },
+    
+    /**
+     * Qualifikationen - static reference data
+     */
+    async loadQualifikationen(forceRefresh = false) {
+      if (this.loading.qualifikationen) return this.qualifikationen;
+      
+      try {
+        this.loading.qualifikationen = true;
+        
+        // Try to load from IndexedDB first
+        if (!forceRefresh && this.qualifikationen.length === 0) {
+          const cached = await getFromStore('qualifikationen');
+          if (cached && cached.length > 0) {
+            this.qualifikationen = cached;
+            this.lastSync.qualifikationen = await getMeta('lastSync_qualifikationen');
+            console.log(`[Cache] Loaded ${cached.length} Qualifikationen from cache`);
+          }
+        }
+        
+        // Qualifikationen change rarely, use longer cache time (1 hour)
+        if (forceRefresh || this.qualifikationen.length === 0 || this.isCacheStale('qualifikationen', 60)) {
+          await this.fullSyncQualifikationen();
+        }
+        
+        return this.qualifikationen;
+      } finally {
+        this.loading.qualifikationen = false;
+      }
+    },
+    
+    async fullSyncQualifikationen() {
+      try {
+        console.log('[Cache] Full sync Qualifikationen...');
+        const response = await api.get('/api/import/qualifikationen');
+        const data = response.data?.data || response.data || [];
+        
+        await clearStore('qualifikationen');
+        await saveToStore('qualifikationen', data);
+        
+        this.qualifikationen = data;
+        this.lastSync.qualifikationen = new Date().toISOString();
+        await setMeta('lastSync_qualifikationen', this.lastSync.qualifikationen);
+        
+        console.log(`[Cache] Full sync complete: ${data.length} Qualifikationen`);
+        return data;
+      } catch (error) {
+        console.error('[Cache] Full sync Qualifikationen failed:', error);
+        throw error;
+      }
+    },
+    
+    /**
      * Clear all caches
      */
     async clearAllCaches() {
@@ -768,6 +935,8 @@ export const useDataCache = defineStore('dataCache', {
       this.kunden = [];
       this.documents = [];
       this.flipusers = [];
+      this.berufe = [];
+      this.qualifikationen = [];
       
       this.lastSync = {
         mitarbeiter: null,
@@ -775,7 +944,9 @@ export const useDataCache = defineStore('dataCache', {
         auftraege: null,
         kunden: null,
         documents: null,
-        flipusers: null
+        flipusers: null,
+        berufe: null,
+        qualifikationen: null
       };
       
       console.log('[Cache] All caches cleared');

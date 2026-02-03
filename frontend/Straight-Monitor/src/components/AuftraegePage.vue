@@ -739,14 +739,25 @@ export default {
       }
     },
     
-    // Check if a mitarbeiter is a Teamleiter based on their Flip groups
+    // Check if a mitarbeiter is a Teamleiter based on qualifications (key=5) or Flip groups
     isTeamleiter(mitarbeiter) {
-      if (!mitarbeiter?.flip?.groups || !Array.isArray(mitarbeiter.flip.groups)) {
-        return false;
+      // Strategy 1: Check qualifications (preferred, more reliable)
+      if (mitarbeiter?.qualifikationen?.length) {
+        const hasTeamleiterQuali = mitarbeiter.qualifikationen.some(q => {
+          const key = parseInt(String(q.qualificationKey || q), 10);
+          return key === 5;
+        });
+        if (hasTeamleiterQuali) return true;
       }
-      return mitarbeiter.flip.groups.some(group => 
-        TEAMLEITER_GROUP_IDS.includes(group.id)
-      );
+      
+      // Strategy 2: Fallback to Flip groups
+      if (mitarbeiter?.flip?.groups && Array.isArray(mitarbeiter.flip.groups)) {
+        return mitarbeiter.flip.groups.some(group => 
+          TEAMLEITER_GROUP_IDS.includes(group.id)
+        );
+      }
+      
+      return false;
     },
 
     handleEscapeKey(event) {
