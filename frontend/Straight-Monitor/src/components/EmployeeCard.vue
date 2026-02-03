@@ -1045,12 +1045,12 @@ export default {
     
     // Check if user is a Teamleiter
     const isTeamleiter = computed(() => {
-      // Logic update: Teamleiter is defined by qualification key '00005' (or '5')
+      // Logic update: Teamleiter is defined by qualification key '50055'
       if (props.ma?.qualifikationen?.length > 0) {
         return props.ma.qualifikationen.some(q => {
             const key = String(q.qualificationKey).trim();
-            // Checking for '5', '05', '005', '0005', '00005' just to be safe, or just int conversion
-            return parseInt(key, 10) === 5;
+            const numKey = parseInt(key, 10);
+            return numKey === 50055;
         });
       }
       return false;

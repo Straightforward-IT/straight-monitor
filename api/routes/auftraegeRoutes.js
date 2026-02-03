@@ -4,6 +4,8 @@ const Auftrag = require('../models/Auftrag');
 const Einsatz = require('../models/Einsatz');
 const Kunde = require('../models/Kunde');
 const Mitarbeiter = require('../models/Mitarbeiter');
+const Beruf = require('../models/Beruf');
+const Qualifikation = require('../models/Qualifikation');
 const logger = require('../utils/logger');
 
 // GET /api/auftraege/filters - Get available filter options (bediener, etc)
@@ -126,19 +128,33 @@ router.get('/:auftragNr/details', async (req, res) => {
       .sort({ idAuftragArbeitsschichten: 1, datumVon: 1 })
       .lean();
     
-    // Populate Mitarbeiter for each Einsatz
+    // Populate Mitarbeiter, Beruf and Qualifikation for each Einsatz
     const einsaetzeWithMitarbeiter = await Promise.all(
       einsaetze.map(async (einsatz) => {
+        const result = { ...einsatz };
+        
+        // Load Mitarbeiter
         if (einsatz.personalNr) {
           const mitarbeiter = await Mitarbeiter.findOne({ personalnr: String(einsatz.personalNr) })
-            .select('vorname nachname email personalnr')
+            .select('vorname nachname email personalnr qualifikationen flip_id')
+            .populate('qualifikationen')
             .lean();
-          return {
-            ...einsatz,
-            mitarbeiterData: mitarbeiter
-          };
+          result.mitarbeiterData = mitarbeiter;
         }
-        return einsatz;
+        
+        // Load Beruf by berufSchl (jobKey)
+        if (einsatz.berufSchl) {
+          const beruf = await Beruf.findOne({ jobKey: parseInt(einsatz.berufSchl) }).lean();
+          result.berufData = beruf;
+        }
+        
+        // Load Qualifikation by qualSchl (qualificationKey)
+        if (einsatz.qualSchl) {
+          const qualifikation = await Qualifikation.findOne({ qualificationKey: parseInt(einsatz.qualSchl) }).lean();
+          result.qualifikationData = qualifikation;
+        }
+        
+        return result;
       })
     );
     

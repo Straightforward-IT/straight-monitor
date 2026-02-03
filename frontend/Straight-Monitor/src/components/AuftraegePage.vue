@@ -248,7 +248,19 @@
                 :key="schichtId"
                 class="schicht-group"
               >
-                <div class="schicht-header">Schicht {{ schichtId || 'Ohne Zuordnung' }}</div>
+                <div class="schicht-header">
+                  <span>Schicht {{ schichtId || 'Ohne Zuordnung' }}</span>
+                  <div class="schicht-badges">
+                    <span v-if="getCommonBeruf(schicht)" class="beruf-badge">
+                      <font-awesome-icon icon="fa-solid fa-briefcase" />
+                      {{ getCommonBeruf(schicht).designation }}
+                    </span>
+                    <span v-if="getCommonQualifikation(schicht)" class="quali-badge">
+                      <font-awesome-icon icon="fa-solid fa-graduation-cap" />
+                      {{ getCommonQualifikation(schicht).designation }}
+                    </span>
+                  </div>
+                </div>
                 <div class="einsatz-list">
                   <div 
                     v-for="einsatz in schicht" 
@@ -264,17 +276,26 @@
                         >
                           {{ einsatz.mitarbeiterData.vorname }} {{ einsatz.mitarbeiterData.nachname }}
                         </a>
-                        <span class="personalnr-badge">{{ einsatz.mitarbeiterData.personalnr }}</span>
                         <span v-if="isTeamleiter(einsatz.mitarbeiterData)" class="tl-badge">
                           <font-awesome-icon icon="fa-solid fa-user-tie" />
                           TL
                         </span>
                       </template>
                       <template v-else>
-                        {{ einsatz.personalNr || '-' }}
+                        <span class="personalnr-badge">{{ einsatz.personalNr || '-' }}</span>
                       </template>
                     </span>
-                    <span class="einsatz-bezeichnung">{{ einsatz.bezeichnung || '-' }}</span>
+                    <span class="einsatz-bezeichnung">
+                      {{ einsatz.bezeichnung || '-' }}
+                      <span v-if="einsatz.berufData && !getCommonBeruf(schicht)" class="beruf-badge">
+                        <font-awesome-icon icon="fa-solid fa-briefcase" />
+                        {{ einsatz.berufData.designation }}
+                      </span>
+                      <span v-if="einsatz.qualifikationData && !getCommonQualifikation(schicht)" class="quali-badge">
+                        <font-awesome-icon icon="fa-solid fa-graduation-cap" />
+                        {{ einsatz.qualifikationData.designation }}
+                      </span>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -425,6 +446,31 @@ export default {
     }
   },
   methods: {
+    // Check if all einsaetze in a schicht have the same beruf
+    getCommonBeruf(einsaetze) {
+      if (!einsaetze || einsaetze.length === 0) return null;
+      const firstBeruf = einsaetze[0].berufData;
+      if (!firstBeruf) return null;
+      
+      const allSame = einsaetze.every(e => 
+        e.berufData?.jobKey === firstBeruf.jobKey
+      );
+      
+      return allSame ? firstBeruf : null;
+    },
+    
+    // Check if all einsaetze in a schicht have the same qualifikation
+    getCommonQualifikation(einsaetze) {
+      if (!einsaetze || einsaetze.length === 0) return null;
+      const firstQuali = einsaetze[0].qualifikationData;
+      if (!firstQuali) return null;
+      
+      const allSame = einsaetze.every(e => 
+        e.qualifikationData?.qualificationKey === firstQuali.qualificationKey
+      );
+      
+      return allSame ? firstQuali : null;
+    },
     checkMobile() {
       this.isMobile = window.innerWidth <= 768;
     },
@@ -739,13 +785,13 @@ export default {
       }
     },
     
-    // Check if a mitarbeiter is a Teamleiter based on qualifications (key=5) or Flip groups
+    // Check if a mitarbeiter is a Teamleiter based on qualifications (key=50055) or Flip groups
     isTeamleiter(mitarbeiter) {
       // Strategy 1: Check qualifications (preferred, more reliable)
       if (mitarbeiter?.qualifikationen?.length) {
         const hasTeamleiterQuali = mitarbeiter.qualifikationen.some(q => {
           const key = parseInt(String(q.qualificationKey || q), 10);
-          return key === 5;
+          return key === 50055;
         });
         if (hasTeamleiterQuali) return true;
       }
@@ -1158,6 +1204,46 @@ export default {
   font-size: 0.9rem;
   color: var(--text);
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.schicht-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  
+  .beruf-badge,
+  .quali-badge {
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    
+    svg {
+      font-size: 0.65rem;
+    }
+  }
+  
+  .beruf-badge {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(251, 191, 36, 0.3);
+  }
+  
+  .quali-badge {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(52, 211, 153, 0.3);
+  }
 }
 
 .einsatz-list {
@@ -1227,6 +1313,38 @@ export default {
   .einsatz-bezeichnung {
     flex: 1;
     color: var(--text);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .beruf-badge,
+  .quali-badge {
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    
+    svg {
+      font-size: 0.65rem;
+    }
+  }
+  
+  .beruf-badge {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(251, 191, 36, 0.3);
+  }
+  
+  .quali-badge {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(52, 211, 153, 0.3);
   }
 
   .einsatz-zeit {

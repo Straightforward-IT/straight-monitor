@@ -5,9 +5,12 @@
       <h3>
         <slot name="title">Filter</slot>
       </h3>
-      <button class="collapse-btn" type="button" :disabled="locked">
-        <font-awesome-icon :icon="expanded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
-      </button>
+      <div class="header-actions">
+        <slot name="header-actions"></slot>
+        <button class="collapse-btn" type="button" :disabled="locked">
+          <font-awesome-icon :icon="expanded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
+        </button>
+      </div>
     </div>
     
     <div v-show="expanded" class="filter-content">
@@ -131,6 +134,12 @@ export default {
       background-repeat: no-repeat;
     }
   }
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .collapse-btn {

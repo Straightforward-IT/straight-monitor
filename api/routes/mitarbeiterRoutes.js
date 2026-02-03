@@ -903,6 +903,8 @@ router.get(
             { path: "teamleiter", select: "_id vorname nachname email" }
           ]
         },
+        "berufe",
+        "qualifikationen"
       ]);
 
     if (!mitarbeiter) {

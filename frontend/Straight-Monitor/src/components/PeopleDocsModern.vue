@@ -70,18 +70,6 @@
 
             <span class="divider" />
 
-            <!-- Integration Filters -->
-            <div class="chip-group compact-group">
-                 <FilterDropdown ref="flipDropdown" :has-value="filters.flipStatus !== 'Alle'">
-                    <template #label><font-awesome-icon icon="fa-solid fa-mobile-screen" style="margin-right: 0.5rem" /> {{ filters.flipStatus === 'Alle' ? 'Flip' : filters.flipStatus }}</template>
-                     <div v-for="stat in ['Alle', 'Aktiv', 'Gesperrt', 'Gelöscht', 'Nicht verknüpft']" 
-                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.flipStatus === stat }"
-                          @click="setFilter('flipStatus', stat); $refs.flipDropdown.close()">
-                       {{ stat }}
-                     </div>
-                 </FilterDropdown>
-            </div>
-
             <div class="chip-group compact-group">
                  <FilterDropdown ref="asanaDropdown" :has-value="filters.asanaStatus !== 'Alle'">
                     <template #label><font-awesome-icon icon="fa-solid fa-clipboard-list" style="margin-right: 0.5rem" /> {{ filters.asanaStatus === 'Alle' ? 'Asana' : filters.asanaStatus.replace('_', ' ') }}</template>
@@ -164,14 +152,6 @@
             </div>
             
             <span class="divider" />
-            
-            <!-- Reset Button -->
-            <div class="reset-button-container">
-              <button class="chip reset-chip" @click="resetAllFilters" title="Alle Filter zurücksetzen">
-                <font-awesome-icon icon="fa-solid fa-rotate-left" />
-                Zurücksetzen
-              </button>
-            </div>
             </div>
           </FilterPanel>
 
@@ -1844,24 +1824,6 @@ export default {
 .chip-group:hover {
   background: color-mix(in srgb, var(--brand) 5%, var(--surface));
   border-color: color-mix(in srgb, var(--brand) 30%, var(--border));
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 10%, transparent);
-}
-
-.chip-group::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--brand);
-  border-radius: 2px 0 0 2px;
-  opacity: 0;
-  transition: opacity 200ms ease;
-}
-
-.chip-group:hover::before {
-  opacity: 0.6;
 }
 .chips {
   display: flex;
@@ -1922,16 +1884,18 @@ export default {
   font-weight: 500;
 }
 .chip:hover {
-  box-shadow: var(--shadow);
-  transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--brand) 50%, var(--border));
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface));
 }
 .chip.active {
-  background: color-mix(in srgb, var(--brand) 15%, var(--surface));
+  background: transparent;
   border-color: var(--brand);
   color: var(--brand);
+  box-shadow: inset 0 0 0 1px var(--brand);
   font-weight: 600;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 20%, transparent);
+}
+.chip.active:hover {
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface));
 }
 
 .chip.reset-chip {
