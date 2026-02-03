@@ -864,6 +864,7 @@ router.get(
         datum: doc.datum || doc.date,
         personen: personenStr,
         status: doc.assigned ? "Zugewiesen" : "Offen",
+        updatedAt: doc.updatedAt, // Include for cache sync
         details: doc, // Full object for details view
       };
     };
@@ -883,6 +884,75 @@ router.get(
       success: true,
       count: allDocs.length,
       data: allDocs,
+    });
+  })
+);
+
+/**
+ * Sync endpoint for incremental document updates
+ * Returns only documents updated since the provided timestamp
+ */
+router.get(
+  "/reports/sync",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { since } = req.query;
+    
+    if (!since) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Parameter 'since' is required (ISO date string)" 
+      });
+    }
+    
+    const sinceDate = new Date(since);
+    
+    if (isNaN(sinceDate.getTime())) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid date format for 'since' parameter" 
+      });
+    }
+    
+    logger.debug(`Syncing documents since ${sinceDate.toISOString()}`);
+    
+    const [laufzettel, eventReports, evaluierungen] = await Promise.all([
+      Laufzettel.find({ updatedAt: { $gt: sinceDate } }),
+      EventReport.find({ updatedAt: { $gt: sinceDate } }),
+      EvaluierungMA.find({ updatedAt: { $gt: sinceDate } }),
+    ]);
+
+    const formatDoc = (doc, type) => {
+      let personen = [];
+      if (doc.name_mitarbeiter) personen.push(doc.name_mitarbeiter);
+      if (doc.name_teamleiter) personen.push(doc.name_teamleiter);
+      const personenStr = [...new Set(personen)].join(", ");
+
+      return {
+        _id: doc._id,
+        docType: type,
+        bezeichnung: doc.location || type,
+        datum: doc.datum || doc.date,
+        personen: personenStr,
+        status: doc.assigned ? "Zugewiesen" : "Offen",
+        updatedAt: doc.updatedAt,
+        details: doc,
+      };
+    };
+
+    const updated = [
+      ...laufzettel.map((d) => formatDoc(d, "Laufzettel")),
+      ...eventReports.map((d) => formatDoc(d, "Event-Bericht")),
+      ...evaluierungen.map((d) => formatDoc(d, "Evaluierung")),
+    ];
+    
+    logger.info(`✅ Sync found ${updated.length} updated documents`);
+
+    res.status(200).json({
+      success: true,
+      updated,
+      deleted: [],
+      syncedAt: new Date().toISOString()
     });
   })
 );

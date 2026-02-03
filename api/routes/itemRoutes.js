@@ -305,6 +305,43 @@ router.get("/", auth, asyncHandler( async (req, res) => {
     res.status(200).json(items);
 }));
 
+/**
+ * Sync endpoint for incremental updates
+ * Returns only items updated since the provided timestamp
+ * Used by frontend cache to minimize data transfer
+ */
+router.get("/sync", auth, asyncHandler(async (req, res) => {
+  const { since } = req.query;
+  
+  if (!since) {
+    return res.status(400).json({ 
+      success: false, 
+      message: "Parameter 'since' is required (ISO date string)" 
+    });
+  }
+  
+  const sinceDate = new Date(since);
+  
+  if (isNaN(sinceDate.getTime())) {
+    return res.status(400).json({ 
+      success: false, 
+      message: "Invalid date format for 'since' parameter" 
+    });
+  }
+  
+  // Find updated items
+  const updated = await Item.find({
+    updatedAt: { $gt: sinceDate }
+  });
+  
+  res.status(200).json({
+    success: true,
+    updated,
+    deleted: [], // Would need soft-delete implementation to track this
+    syncedAt: new Date().toISOString()
+  });
+}));
+
 // GET /api/items/find/:id - Get a single item by ID
 router.get("/find/:id", auth, asyncHandler( async (req, res) => {
     const item = await Item.findById(req.params.id);

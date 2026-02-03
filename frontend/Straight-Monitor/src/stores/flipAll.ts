@@ -1,5 +1,7 @@
 // src/stores/flipAll.ts
 import { defineStore } from "pinia";
+import { useDataCache } from "./dataCache";
+import FlipMappings from "@/assets/FlipMappings.json";
 import {
   fetchFlipUsers,
   fetchFlipProfilePicture,
@@ -30,6 +32,13 @@ import type {
   MitarbeiterFilters,
   IFlipUserGroup,
 } from "../types/flip";
+
+// Teamleiter UserGroup IDs from FlipMappings
+const TEAMLEITER_GROUP_IDS = [
+  FlipMappings.user_group_ids.berlin_teamleiter,
+  FlipMappings.user_group_ids.hamburg_teamleiter,
+  FlipMappings.user_group_ids.koeln_teamleiter,
+];
 
 export const useFlipAll = defineStore("flipAll", {
   state: () => ({
@@ -62,6 +71,14 @@ export const useFlipAll = defineStore("flipAll", {
       (user?: IFlipUser) =>
         (user?.id && s.pics.get(user.id)?.url) || "",
     allFlipUsers: (s) => Array.from(s.byId.values()),
+    
+    // Check if a FlipUser is a Teamleiter based on their groups
+    isTeamleiter: () => (user?: IFlipUser) => {
+      if (!user?.groups || !Array.isArray(user.groups)) return false;
+      return user.groups.some(group => 
+        TEAMLEITER_GROUP_IDS.includes(group.id)
+      );
+    },
   },
 
   actions: {
@@ -75,7 +92,10 @@ export const useFlipAll = defineStore("flipAll", {
       this.loading = true;
       this.error = null;
       try {
-        const arr = await fetchFlipUsers();
+        // Use IndexedDB cache via dataCache
+        const dataCache = useDataCache();
+        const arr = await dataCache.loadFlipUsers(force);
+        
         this.byId.clear();
         this.byEmail.clear();
 

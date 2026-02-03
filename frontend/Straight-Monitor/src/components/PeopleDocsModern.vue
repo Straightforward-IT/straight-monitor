@@ -121,6 +121,23 @@
             
             <span class="divider" />
             
+            <!-- Teamleiter Filter -->
+            <div class="chip-group">
+              <span class="chip-label">Teamleiter</span>
+              <button
+                v-for="tlStat in ['Alle', 'Nur Teamleiter', 'Keine Teamleiter']"
+                :key="tlStat"
+                class="chip"
+                :class="{ active: filters.teamleiter === tlStat }"
+                @click="setFilter('teamleiter', tlStat)"
+              >
+                <font-awesome-icon icon="fa-solid fa-user-tie" />
+                {{ tlStat }}
+              </button>
+            </div>
+            
+            <span class="divider" />
+            
             <!-- Reset Button -->
             <div class="reset-button-container">
               <button class="chip reset-chip" @click="resetAllFilters" title="Alle Filter zurücksetzen">
@@ -597,6 +614,7 @@ import CustomTooltip from './CustomTooltip.vue';
 import EmployeeCard from "@/components/EmployeeCard.vue";
 import FilterPanel from "@/components/FilterPanel.vue";
 import { useFlipAll } from "@/stores/flipAll";
+import { useDataCache } from "@/stores/dataCache";
 
 import {  
   faMagnifyingGlass,
@@ -680,8 +698,9 @@ export default {
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
     const flip = useFlipAll();
+    const dataCache = useDataCache();
     
-    return { flip };
+    return { flip, dataCache };
   },
 
   watch: {
@@ -746,7 +765,8 @@ export default {
         flipStatus: "Alle", // Aktiv, Gesperrt, Gelöscht, Nicht_verknüpft, Alle
         asanaStatus: "Alle", // Verknüpft, Nicht_verknüpft, Alle
         personalnrStatus: "Alle", // Vorhanden, Fehlt, Alle
-        profile: "Alle" // Vollständig, Unvollständig, Alle
+        profile: "Alle", // Vollständig, Unvollständig, Alle
+        teamleiter: "Alle" // Alle, Nur Teamleiter, Keine Teamleiter
       },
       mitarbeitersSearchQuery: "",
       mitarbeitersSortBy: "nachname",
@@ -834,6 +854,14 @@ export default {
         result = result.filter((ma) => {
           const hasPersonalnr = ma.personalnr && ma.personalnr.trim() !== '';
           return this.filters.personalnrStatus === "Vorhanden" ? hasPersonalnr : !hasPersonalnr;
+        });
+      }
+      
+      // Teamleiter Filter
+      if (this.filters.teamleiter !== "Alle") {
+        result = result.filter((ma) => {
+          const isTeamleiter = this.flip.isTeamleiter(ma.flip);
+          return this.filters.teamleiter === "Nur Teamleiter" ? isTeamleiter : !isTeamleiter;
         });
       }
 
@@ -1104,10 +1132,26 @@ export default {
 
     // Display Helper Methods
     getDisplayLocation(ma) {
-      return ma.flip?.profile?.location || 
+      // 1. Flip Location
+      const flipLoc = ma.flip?.profile?.location || 
              ma.flip?.attributes?.find(attr => attr.name?.toLowerCase().includes('standort') || 
-                                               attr.name?.toLowerCase().includes('location'))?.value ||
-             ma.standort || null;
+                                               attr.name?.toLowerCase().includes('location'))?.value;
+      
+      if (flipLoc) return flipLoc;
+
+      // 2. Database Location
+      if (ma.standort) return ma.standort;
+
+      // 3. Personalnr Logic (Fallback)
+      // 1... = Berlin, 2... = Hamburg, 3... = Köln
+      if (ma.personalnr) {
+        const s = String(ma.personalnr).trim();
+        if (s.startsWith('1')) return 'Berlin';
+        if (s.startsWith('2')) return 'Hamburg';
+        if (s.startsWith('3')) return 'Köln';
+      }
+
+      return null;
     },
 
     getDisplayDepartment(ma) {
@@ -1259,6 +1303,55 @@ export default {
         this.listExpandedIds.add(mitarbeiterId);
       }
       this.listExpandedIds = new Set(this.listExpandedIds);
+    },
+
+    // Personalnr editing
+    startEditPersonalnr(ma) {
+      this.editingPersonalnrId = ma._id;
+      this.editingPersonalnrValue = ma.personalnr || '';
+    },
+
+    cancelEditPersonalnr() {
+      this.editingPersonalnrId = null;
+      this.editingPersonalnrValue = '';
+    },
+
+    async savePersonalnr(ma) {
+      const newPersonalnr = this.editingPersonalnrValue.trim();
+      
+      // Validation
+      if (!newPersonalnr) {
+        alert('Bitte geben Sie eine Personalnummer ein.');
+        return;
+      }
+      
+      if (newPersonalnr === ma.personalnr) {
+        // No change
+        this.cancelEditPersonalnr();
+        return;
+      }
+      
+      try {
+        const response = await api.patch(`/api/personal/mitarbeiter/${ma._id}/personalnr`, {
+          personalnr: newPersonalnr
+        });
+        
+        if (response.data.success) {
+          // Update local data
+          ma.personalnr = newPersonalnr;
+          alert(`✓ Personalnummer erfolgreich aktualisiert auf: ${newPersonalnr}`);
+          this.cancelEditPersonalnr();
+        }
+      } catch (error) {
+        console.error('Error updating personalnr:', error);
+        if (error.response?.data?.conflict) {
+          alert(`⚠️ Konflikt: Diese Personalnummer ist bereits vergeben!\n\nVerwendet von: ${error.response.data.conflict.name}`);
+        } else if (error.response?.data?.message) {
+          alert(`Fehler: ${error.response.data.message}`);
+        } else {
+          alert('Fehler beim Aktualisieren der Personalnummer.');
+        }
+      }
     },
 
     // Selection management
@@ -1421,8 +1514,8 @@ export default {
     },
     async fetchMitarbeiters() {
       try {
-        const res = await api.get("/api/personal/mitarbeiter");
-        this.mitarbeiters = res.data?.data || [];
+        // Use cache store for optimized loading
+        this.mitarbeiters = await this.dataCache.loadMitarbeiter();
       } catch (e) {
         this.error.mitarbeiter =
           e?.message || "Fehler beim Laden von Mitarbeitern.";

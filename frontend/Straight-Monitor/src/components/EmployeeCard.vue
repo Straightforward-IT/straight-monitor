@@ -63,6 +63,12 @@
               <font-awesome-icon icon="fa-solid fa-briefcase" />
               {{ displayDepartment }}
             </span>
+            
+            <!-- Teamleiter Badge -->
+            <span class="pill featured-badge" v-if="isTeamleiter">
+              <font-awesome-icon icon="fa-solid fa-user-tie" />
+              TL
+            </span>
           </div>
         </div>
       </div>
@@ -952,13 +958,26 @@ export default {
     const getFlipAttr = (name) =>
       props.ma?.flip?.attributes?.find?.((a) => a?.name === name)?.value;
 
-    const displayLocation = computed(
-      () =>
-        props.ma?.flip?.profile?.location ||
-        getFlipAttr("location") ||
-        props.ma?.standort ||
-        ""
-    );
+    const displayLocation = computed(() => {
+        // 1. Flip Location
+        const flipLoc = props.ma?.flip?.profile?.location || getFlipAttr("location");
+        if (flipLoc) return flipLoc;
+
+        // 2. Database Location
+        if (props.ma?.standort) return props.ma?.standort;
+
+        // 3. Fallback: Personalnr Logic
+        // 1xxxx = Berlin, 2xxxx = Hamburg, 3xxxx = Köln
+        const pnr = props.ma?.personalnr;
+        if (pnr) {
+          const s = String(pnr).trim();
+          if (s.startsWith("1")) return "Berlin";
+          if (s.startsWith("2")) return "Hamburg";
+          if (s.startsWith("3")) return "Köln";
+        }
+
+        return "";
+    });
     const displayDepartment = computed(
       () =>
         props.ma?.flip?.profile?.department ||
@@ -977,6 +996,12 @@ export default {
       const id = props.ma?.flip?.id;
       photoUrl.value = id ? (await flip.ensurePhoto(id)) || "" : "";
     });
+    
+    // Check if user is a Teamleiter
+    const isTeamleiter = computed(() => {
+      return props.ma?.flip ? flip.isTeamleiter(props.ma.flip) : false;
+    });
+    
     // Logos via imports (Vite preloaded) – kein src-Swap → kein Flackern
     return {
       theme,
@@ -990,6 +1015,7 @@ export default {
       photoUrl,
       displayLocation,
       displayDepartment,
+      isTeamleiter,
       router,
     };
   },

@@ -197,4 +197,35 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// GET /api/auftraege/sync?since=<ISO_DATE> - Incremental sync endpoint
+router.get('/sync', async (req, res) => {
+  try {
+    const { since } = req.query;
+    
+    if (!since) {
+      return res.status(400).json({ success: false, message: 'Parameter "since" erforderlich' });
+    }
+    
+    const sinceDate = new Date(since);
+    
+    // Find all Aufträge updated since the provided timestamp
+    const updated = await Auftrag.find({
+      updatedAt: { $gt: sinceDate }
+    }).lean();
+    
+    // Note: We don't track deletions in this model, so deleted array is empty
+    const deleted = [];
+    
+    res.json({
+      updated,
+      deleted,
+      syncedAt: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('Error syncing Aufträge:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Sync', error: error.message });
+  }
+});
+
 module.exports = router;

@@ -265,6 +265,10 @@
                           {{ einsatz.mitarbeiterData.vorname }} {{ einsatz.mitarbeiterData.nachname }}
                         </a>
                         <span class="personalnr-badge">{{ einsatz.mitarbeiterData.personalnr }}</span>
+                        <span v-if="isTeamleiter(einsatz.mitarbeiterData)" class="tl-badge">
+                          <font-awesome-icon icon="fa-solid fa-user-tie" />
+                          TL
+                        </span>
                       </template>
                       <template v-else>
                         {{ einsatz.personalNr || '-' }}
@@ -307,20 +311,29 @@
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar);
+library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
 import { useAuth } from '../stores/auth';
+import { useFlipAll } from '../stores/flipAll';
+import FlipMappings from '@/assets/FlipMappings.json';
 import FilterPanel from '@/components/FilterPanel.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/FilterChip.vue';
 import FilterDivider from '@/components/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import EmployeeCard from '@/components/EmployeeCard.vue';
+
+// Teamleiter UserGroup IDs
+const TEAMLEITER_GROUP_IDS = [
+  FlipMappings.user_group_ids.berlin_teamleiter,
+  FlipMappings.user_group_ids.hamburg_teamleiter,
+  FlipMappings.user_group_ids.koeln_teamleiter,
+];
 
 export default {
   name: "AuftraegePage",
@@ -724,6 +737,16 @@ export default {
         // Fallback to basic data
         this.fullMitarbeiterData = mitarbeiterBasic;
       }
+    },
+    
+    // Check if a mitarbeiter is a Teamleiter based on their Flip groups
+    isTeamleiter(mitarbeiter) {
+      if (!mitarbeiter?.flip?.groups || !Array.isArray(mitarbeiter.flip.groups)) {
+        return false;
+      }
+      return mitarbeiter.flip.groups.some(group => 
+        TEAMLEITER_GROUP_IDS.includes(group.id)
+      );
     },
 
     handleEscapeKey(event) {
@@ -1169,6 +1192,24 @@ export default {
       border-radius: 4px;
       display: inline-block;
       width: fit-content;
+    }
+    
+    .tl-badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 3px 8px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      width: fit-content;
+      box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+      
+      svg {
+        font-size: 0.65rem;
+      }
     }
   }
 

@@ -6,198 +6,302 @@
       Laden Sie hier die entsprechenden Excel-Dateien für Aufträge, Kunden und Einsätze hoch.
     </div>
 
-    <!-- Auftrag Section -->
-    <div class="import-section">
-      <div class="section-header">
-        <h2>Aufträge</h2>
-        <span v-if="auftragFile" class="status-indicator ready">Bereit</span>
-      </div>
-
-      <div class="info-box">
-        <p><strong>Benötigte Spalten:</strong></p>
-        <div class="table-container">
-          <table class="sample-table">
-            <thead>
-              <tr>
-                <th>GESCHST</th>
-                <th>AUFTRAGNR</th>
-                <th>KUNDENNR</th>
-                <th>EVENTTITEL</th>
-                <th>BEDIENER</th>
-                <th>DTANGELEGTAM</th>
-                <th>BESTDATUM</th>
-                <th>VONDATUM</th>
-                <th>BISDATUM</th>
-                <th>EVENT_STRASSE</th>
-                <th>EVENT_PLZ</th>
-                <th>EVENT_ORT</th>
-                <th>EVENT_LOCATION</th>
-                <th>AKTIV</th>
-                <th>AUFTSTATUS</th>
-              </tr>
-            </thead>
-          </table>
+    <!-- Last Import Section -->
+    <div class="last-import-section">
+      <h3>Letzte Uploads</h3>
+      <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
+      <div v-else class="history-grid">
+        <div v-for="type in ['auftrag', 'kunde', 'einsatz', 'personal', 'beruf', 'qualifikation', 'personal_quali']" :key="type" class="history-card">
+          <div class="history-header">
+            <span class="history-title">{{ getLabel(type) }}</span>
+            <span class="status-dot" :class="lastUploads[type]?.status || 'none'"></span>
+          </div>
+          <div class="history-body">
+            <template v-if="lastUploads[type]">
+              <div class="history-date">{{ formatDate(lastUploads[type].timestamp) }}</div>
+              <div class="history-info">{{ lastUploads[type].filename }}</div>
+              <div class="history-count">{{ lastUploads[type].recordCount }} Einträge</div>
+            </template>
+            <template v-else>
+              <div class="no-history">- Noch keine Daten -</div>
+            </template>
+          </div>
         </div>
       </div>
+    </div>
+
+
+    <!-- Import-Bereich mit Tabs oder Accordion für Übersichtlichkeit -->
+    <div class="imports-layout">
       
-      <div class="upload-section">
-        <div 
-          class="drag-drop-area" 
-          :class="{ 'has-file': auftragFile }"
-          @dragover.prevent 
-          @drop="(e) => handleDragAndDrop(e, 'auftrag')"
-          @click="triggerFileInput('auftrag-upload')"
-        >
-          <span v-if="!auftragFile">Auftrag Excel hier ablegen oder klicken</span>
-          <span v-else>
-            Datei ausgewählt: <strong>{{ auftragFile.name }}</strong>
-            <br><small>(Zum Ändern klicken oder neue Datei ziehen)</small>
+      <!-- Auftrag Section -->
+      <div class="import-card">
+        <div class="card-header">
+          <div class="header-content">
+            <h2>Aufträge</h2>
+            <p class="subtitle">Importiert Auftragsdaten aus Zvoove</p>
+          </div>
+          <span v-if="auftragFile" class="status-indicator ready">
+            <i class="fas fa-check"></i> Bereit
           </span>
         </div>
-        <input
-          id="auftrag-upload"
-          type="file"
-          class="hidden-input"
-          @change="(e) => handleFileUpload(e, 'auftrag')"
-          accept=".xlsx, .xls"
-        />
-      </div>
-    </div>
 
-    <!-- Kunde Section -->
-    <div class="import-section">
-      <div class="section-header">
-        <h2>Kunden</h2>
-        <span v-if="kundeFile" class="status-indicator ready">Bereit</span>
-      </div>
+        <div class="card-content">
+          <div class="upload-area" 
+            :class="{ 'has-file': auftragFile }"
+            @dragover.prevent 
+            @drop="(e) => handleDragAndDrop(e, 'auftrag')"
+            @click="triggerFileInput('auftrag-upload')"
+          >
+            <div class="upload-content">
+              <i class="upload-icon" :class="auftragFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+              <div class="upload-text">
+                <span v-if="!auftragFile">Datei hier ablegen oder klicken</span>
+                <span v-else class="file-name">{{ auftragFile.name }}</span>
+              </div>
+            </div>
+            <input id="auftrag-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'auftrag')" accept=".xlsx, .xls" />
+          </div>
 
-      <div class="info-box">
-        <p><strong>Benötigte Spalten:</strong></p>
-        <div class="table-container">
-          <table class="sample-table">
-            <thead>
-              <tr>
-                <th>KUNDENNR</th>
-                <th>KUNDNAME</th>
-                <th>KUNDESEIT</th>
-                <th>KUNDSTATUS</th>
-                <th>GESCHST</th>
-                <th>KOSTENST</th>
-                <th>BEMERKUNG</th>
-                <th>BEMERKUNG2</th>
-                <th>BEMERKUNG3</th>
-              </tr>
-            </thead>
-          </table>
+          <div class="requirements-hint">
+            <details>
+              <summary>Benötigte Spalten anzeigen</summary>
+              <div class="table-scroll">
+                <table class="req-table"><tbody><tr><td>GESCHST</td><td>AUFTRAGNR</td><td>KUNDENNR</td><td>EVENTTITEL</td><td>BEDIENER</td><td>DTANGELEGTAM</td><td>BESTDATUM</td><td>VONDATUM</td><td>BISDATUM</td><td>EVENT_STRASSE</td><td>EVENT_PLZ</td><td>EVENT_ORT</td><td>EVENT_LOCATION</td><td>AKTIV</td><td>AUFTSTATUS</td></tr></tbody></table>
+              </div>
+            </details>
+          </div>
         </div>
       </div>
 
-      <div class="upload-section">
-        <div 
-          class="drag-drop-area" 
-          :class="{ 'has-file': kundeFile }"
-          @dragover.prevent 
-          @drop="(e) => handleDragAndDrop(e, 'kunde')"
-          @click="triggerFileInput('kunde-upload')"
-        >
-          <span v-if="!kundeFile">Kunden Excel hier ablegen oder klicken</span>
-          <span v-else>
-            Datei ausgewählt: <strong>{{ kundeFile.name }}</strong>
-            <br><small>(Zum Ändern klicken oder neue Datei ziehen)</small>
-          </span>
+      <!-- Kunde Section -->
+      <div class="import-card">
+        <div class="card-header">
+          <div class="header-content">
+            <h2>Kunden</h2>
+            <p class="subtitle">Stammdaten und Bemerkungen</p>
+          </div>
+          <span v-if="kundeFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
         </div>
-        <input
-          id="kunde-upload"
-          type="file"
-          class="hidden-input"
-          @change="(e) => handleFileUpload(e, 'kunde')"
-          accept=".xlsx, .xls"
-        />
-      </div>
-    </div>
 
-    <!-- Einsatz Section -->
-    <div class="import-section">
-      <div class="section-header">
-        <h2>Einsätze</h2>
-        <span v-if="einsatzFile" class="status-indicator ready">Bereit</span>
-      </div>
+        <div class="card-content">
+          <div class="upload-area" 
+            :class="{ 'has-file': kundeFile }"
+            @dragover.prevent 
+            @drop="(e) => handleDragAndDrop(e, 'kunde')"
+            @click="triggerFileInput('kunde-upload')"
+          >
+            <div class="upload-content">
+              <i class="upload-icon" :class="kundeFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+              <div class="upload-text">
+                <span v-if="!kundeFile">Datei hier ablegen oder klicken</span>
+                <span v-else class="file-name">{{ kundeFile.name }}</span>
+              </div>
+            </div>
+            <input id="kunde-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'kunde')" accept=".xlsx, .xls" />
+          </div>
 
-      <div class="upload-section">
-        <div 
-          class="drag-drop-area" 
-          :class="{ 'has-file': einsatzFile }"
-          @dragover.prevent 
-          @drop="(e) => handleDragAndDrop(e, 'einsatz')"
-          @click="triggerFileInput('einsatz-upload')"
-        >
-          <span v-if="!einsatzFile">Einsatz Excel hier ablegen oder klicken</span>
-          <span v-else>
-            Datei ausgewählt: <strong>{{ einsatzFile.name }}</strong>
-            <br><small>(Zum Ändern klicken oder neue Datei ziehen)</small>
-          </span>
+          <div class="requirements-hint">
+            <details>
+              <summary>Benötigte Spalten anzeigen</summary>
+              <div class="table-scroll">
+                <table class="req-table"><tbody><tr><td>KUNDENNR</td><td>KUNDNAME</td><td>KUNDESEIT</td><td>KUNDSTATUS</td><td>GESCHST</td><td>KOSTENST</td><td>BEMERKUNG</td><td>BEMERKUNG2</td><td>BEMERKUNG3</td></tr></tbody></table>
+              </div>
+            </details>
+          </div>
         </div>
-        <input
-          id="einsatz-upload"
-          type="file"
-          class="hidden-input"
-          @change="(e) => handleFileUpload(e, 'einsatz')"
-          accept=".xlsx, .xls"
-        />
-      </div>
-    </div>
-
-    <!-- Personal Section -->
-    <div class="import-section">
-      <div class="section-header">
-        <h2>Personal (Personalnummern)</h2>
-        <span v-if="personalFile" class="status-indicator ready">Bereit</span>
       </div>
 
-      <div class="info-box">
-        <p><strong>Benötigte Spalten:</strong></p>
-        <div class="table-container">
-          <table class="sample-table">
-            <thead>
-              <tr>
-                <th>Personalnr (Column A)</th>
-                <th>E-Mail (Column B)</th>
-              </tr>
-            </thead>
-          </table>
+      <!-- Einsatz Section -->
+      <div class="import-card">
+        <div class="card-header">
+          <div class="header-content">
+            <h2>Einsätze</h2>
+            <p class="subtitle">Schichtplanungen und Disposition</p>
+          </div>
+          <span v-if="einsatzFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
         </div>
-        <p class="info-note"><small>Verknüpft Mitarbeiter anhand der E-Mail mit der Personalnummer aus Zvoove.</small></p>
-      </div>
 
-      <div class="upload-section">
-        <div 
-          class="drag-drop-area" 
-          :class="{ 'has-file': personalFile }"
-          @dragover.prevent 
-          @drop="(e) => handleDragAndDrop(e, 'personal')"
-          @click="triggerFileInput('personal-upload')"
-        >
-          <span v-if="!personalFile">Personal Excel hier ablegen oder klicken</span>
-          <span v-else>
-            Datei ausgewählt: <strong>{{ personalFile.name }}</strong>
-            <br><small>(Zum Ändern klicken oder neue Datei ziehen)</small>
-          </span>
+        <div class="card-content">
+          <div class="upload-area" 
+            :class="{ 'has-file': einsatzFile }"
+            @dragover.prevent 
+            @drop="(e) => handleDragAndDrop(e, 'einsatz')"
+            @click="triggerFileInput('einsatz-upload')"
+          >
+            <div class="upload-content">
+              <i class="upload-icon" :class="einsatzFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+              <div class="upload-text">
+                <span v-if="!einsatzFile">Datei hier ablegen oder klicken</span>
+                <span v-else class="file-name">{{ einsatzFile.name }}</span>
+              </div>
+            </div>
+            <input id="einsatz-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'einsatz')" accept=".xlsx, .xls" />
+          </div>
         </div>
-        <input
-          id="personal-upload"
-          type="file"
-          class="hidden-input"
-          @change="(e) => handleFileUpload(e, 'personal')"
-          accept=".xlsx, .xls"
-        />
       </div>
-    </div>
 
-    <div class="actions">
-      <button @click="processFiles" :disabled="!hasAnyFile() || loading">
-        {{ loading ? 'Import läuft...' : 'Import Starten' }}
+      <!-- Personal Section -->
+      <div class="import-card">
+        <div class="card-header">
+          <div class="header-content">
+            <h2>Personal-Zuordnung</h2>
+            <p class="subtitle">Verknüpft Personalnr. via E-Mail</p>
+          </div>
+          <span v-if="personalFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+        </div>
+
+        <div class="card-content">
+          <div class="upload-area" 
+            :class="{ 'has-file': personalFile }"
+            @dragover.prevent 
+            @drop="(e) => handleDragAndDrop(e, 'personal')"
+            @click="triggerFileInput('personal-upload')"
+          >
+            <div class="upload-content">
+              <i class="upload-icon" :class="personalFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+              <div class="upload-text">
+                <span v-if="!personalFile">Datei hier ablegen oder klicken</span>
+                <span v-else class="file-name">{{ personalFile.name }}</span>
+              </div>
+            </div>
+            <input id="personal-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'personal')" accept=".xlsx, .xls" />
+          </div>
+
+          <div class="requirements-hint">
+            <details>
+              <summary>Benötigte Spalten anzeigen</summary>
+              <div class="table-scroll">
+                <table class="req-table"><tbody><tr><td>Personalnr (Col A)</td><td>E-Mail (Col B)</td></tr></tbody></table>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+
+      <!-- Beruf Section -->
+      <div class="import-card">
+        <div class="card-header">
+          <div class="header-content">
+            <h2>Berufe (Jobs)</h2>
+            <p class="subtitle">Berufsschlüssel und Bezeichnungen</p>
+          </div>
+          <span v-if="berufFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+        </div>
+
+        <div class="card-content">
+          <div class="upload-area" 
+            :class="{ 'has-file': berufFile }"
+            @dragover.prevent 
+            @drop="(e) => handleDragAndDrop(e, 'beruf')"
+            @click="triggerFileInput('beruf-upload')"
+          >
+            <div class="upload-content">
+              <i class="upload-icon" :class="berufFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+              <div class="upload-text">
+                <span v-if="!berufFile">Datei hier ablegen oder klicken</span>
+                <span v-else class="file-name">{{ berufFile.name }}</span>
+              </div>
+            </div>
+            <input id="beruf-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'beruf')" accept=".xlsx, .xls" />
+          </div>
+
+          <div class="requirements-hint">
+            <details>
+              <summary>Benötigte Spalten anzeigen</summary>
+              <div class="table-scroll">
+                <table class="req-table"><tbody><tr><td>Berufnr (Col A)</td><td>Bezeichnung (Col C)</td></tr></tbody></table>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+
+      <!-- Qualifikation Section -->
+      <div class="import-card">
+        <div class="card-header">
+          <div class="header-content">
+            <h2>Qualifikationen</h2>
+            <p class="subtitle">Qualifikationsschlüssel und Namen</p>
+          </div>
+          <span v-if="qualifikationFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+        </div>
+
+        <div class="card-content">
+          <div class="upload-area" 
+            :class="{ 'has-file': qualifikationFile }"
+            @dragover.prevent 
+            @drop="(e) => handleDragAndDrop(e, 'qualifikation')"
+            @click="triggerFileInput('qualifikation-upload')"
+          >
+            <div class="upload-content">
+              <i class="upload-icon" :class="qualifikationFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+              <div class="upload-text">
+                <span v-if="!qualifikationFile">Datei hier ablegen oder klicken</span>
+                <span v-else class="file-name">{{ qualifikationFile.name }}</span>
+              </div>
+            </div>
+            <input id="qualifikation-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'qualifikation')" accept=".xlsx, .xls" />
+          </div>
+
+          <div class="requirements-hint">
+            <details>
+              <summary>Benötigte Spalten anzeigen</summary>
+              <div class="table-scroll">
+                <table class="req-table"><tbody><tr><td>Quali-Nr (Col A)</td><td>Bezeichnung (Col B)</td></tr></tbody></table>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+
+      <!-- Personal-Skills Zuordnung Section -->
+      <div class="import-card">
+        <div class="card-header">
+          <div class="header-content">
+            <h2>Personal Skills</h2>
+            <p class="subtitle">Zuordnung: Personalnr ↔ Beruf/Quali</p>
+          </div>
+          <span v-if="personalQualiFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+        </div>
+
+        <div class="card-content">
+          <div class="upload-area" 
+            :class="{ 'has-file': personalQualiFile }"
+            @dragover.prevent 
+            @drop="(e) => handleDragAndDrop(e, 'personal_quali')"
+            @click="triggerFileInput('personal-quali-upload')"
+          >
+            <div class="upload-content">
+              <i class="upload-icon" :class="personalQualiFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+              <div class="upload-text">
+                <span v-if="!personalQualiFile">Datei hier ablegen oder klicken</span>
+                <span v-else class="file-name">{{ personalQualiFile.name }}</span>
+              </div>
+            </div>
+            <input id="personal-quali-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'personal_quali')" accept=".xlsx, .xls" />
+          </div>
+
+          <div class="requirements-hint">
+            <details>
+              <summary>Benötigte Spalten anzeigen</summary>
+              <div class="table-scroll">
+                <table class="req-table"><tbody><tr><td>Personalnr (Col A)</td><td>Beruf Key (Col B)</td><td>Quali Key (Col C)</td></tr></tbody></table>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    
+    </div><!-- End imports-layout -->
+
+    <div class="actions-bar">
+      <button class="primary-btn large" @click="processFiles" :disabled="!hasAnyFile() || loading">
+        <span v-if="loading"><i class="fas fa-spinner fa-spin"></i> Import läuft...</span>
+        <span v-else><i class="fas fa-file-import"></i> {{ hasAnyFile() ? 'Ausgewählte Dateien importieren' : 'Dateien auswählen zum Starten' }}</span>
       </button>
     </div>
+
 
     <!-- Import Result Modal -->
     <div v-if="showResultModal" class="modal-overlay" @click.self="closeModal">
@@ -208,7 +312,7 @@
         </div>
         
         <div class="modal-body">
-          <p class="result-message">{{ resultModalData.message }}</p>
+          <p class="result-message" v-html="resultModalData.message"></p>
           
           <!-- Statistics -->
           <div v-if="resultModalData.details" class="stats-grid">
@@ -263,7 +367,7 @@
               <div v-for="(entry, idx) in resultModalData.details.notFoundEntries" :key="idx" class="notfound-item">
                 <div class="entry-info">
                   <span class="email">{{ entry.email }}</span>
-                  <span class="personalnr-badge">Personalnr: {{ entry.personalnr }}</span>
+                  <span class="personalnr-badge"> Personalnr: {{ entry.personalnr }}</span>
                 </div>
                 <button 
                   v-if="!assigningEntry || assigningEntry.email !== entry.email"
@@ -331,6 +435,9 @@ export default {
       kundeFile: null,
       einsatzFile: null,
       personalFile: null,
+      berufFile: null,
+      qualifikationFile: null,
+      personalQualiFile: null,
       loading: false,
       // Modal state
       showResultModal: false,
@@ -341,9 +448,43 @@ export default {
       searchResults: [],
       searching: false,
       searchTimeout: null,
+      lastUploads: {},
+      loadingHistory: false
     };
   },
   methods: {
+    async fetchLastUploads() {
+      this.loadingHistory = true;
+      try {
+        const response = await api.get('/api/import/last-uploads');
+        if (response.data.success) {
+          this.lastUploads = response.data.data;
+        }
+      } catch (err) {
+        console.error("Error fetching last uploads:", err);
+      } finally {
+        this.loadingHistory = false;
+      }
+    },
+    getLabel(type) {
+      const labels = {
+        auftrag: 'Aufträge',
+        kunde: 'Kunden',
+        einsatz: 'Einsätze',
+        personal: 'Personal',
+        beruf: 'Berufe',
+        qualifikation: 'Qualifikationen',
+        personal_quali: 'Pers. Skills'
+      };
+      return labels[type] || type;
+    },
+    formatDate(dateString) {
+      if (!dateString) return '';
+      return new Date(dateString).toLocaleString('de-DE', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    },
     triggerFileInput(id) {
       document.getElementById(id).click();
     },
@@ -359,46 +500,77 @@ export default {
       if (file) this.setFile(file, type);
     },
     setFile(file, type) {
-      // Reset all files first - only one upload at a time
-      this.auftragFile = null;
-      this.kundeFile = null;
-      this.einsatzFile = null;
-      this.personalFile = null;
-      
-      // Then set the selected file
+      // Set the selected file for the specific type
       if (type === 'auftrag') this.auftragFile = file;
       if (type === 'kunde') this.kundeFile = file;
       if (type === 'einsatz') this.einsatzFile = file;
       if (type === 'personal') this.personalFile = file;
-    },
-    getCurrentFile() {
-      if (this.auftragFile) return { file: this.auftragFile, type: 'auftrag' };
-      if (this.kundeFile) return { file: this.kundeFile, type: 'kunde' };
-      if (this.einsatzFile) return { file: this.einsatzFile, type: 'einsatz' };
-      if (this.personalFile) return { file: this.personalFile, type: 'personal' };
-      return null;
+      if (type === 'beruf') this.berufFile = file;
+      if (type === 'qualifikation') this.qualifikationFile = file;
+      if (type === 'personal_quali') this.personalQualiFile = file;
     },
     async processFiles() {
-      const current = this.getCurrentFile();
-      if (!current) {
-        alert("Bitte wählen Sie zuerst eine Datei aus.");
+      if (!this.hasAnyFile()) {
+        alert("Bitte wählen Sie zuerst mindestens eine Datei aus.");
         return;
       }
 
-      if (!confirm("Import wirklich starten? Es kann einige Sekunden dauern.")) return;
+      const fileCount = [this.auftragFile, this.kundeFile, this.einsatzFile, this.personalFile, this.berufFile, this.qualifikationFile, this.personalQualiFile].filter(Boolean).length;
+      if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
       this.loading = true;
       const results = [];
-      const errors = [];
+      let hasErrors = false;
 
       try {
-        const response = await this.uploadFile(current.file, current.type);
+        // Upload all selected files
+        if (this.auftragFile) {
+          const response = await this.uploadFile(this.auftragFile, 'auftrag');
+          results.push({ type: 'Aufträge', ...response });
+          if (!response.success) hasErrors = true;
+        }
         
-        // Show modal with results
-        this.resultModalData = response;
+        if (this.kundeFile) {
+          const response = await this.uploadFile(this.kundeFile, 'kunde');
+          results.push({ type: 'Kunden', ...response });
+          if (!response.success) hasErrors = true;
+        }
+        
+        if (this.einsatzFile) {
+          const response = await this.uploadFile(this.einsatzFile, 'einsatz');
+          results.push({ type: 'Einsätze', ...response });
+          if (!response.success) hasErrors = true;
+        }
+        
+        if (this.personalFile) {
+          const response = await this.uploadFile(this.personalFile, 'personal');
+          results.push({ type: 'Personal', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.berufFile) {
+          const response = await this.uploadFile(this.berufFile, 'beruf');
+          results.push({ type: 'Berufe', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.qualifikationFile) {
+          const response = await this.uploadFile(this.qualifikationFile, 'qualifikation');
+          results.push({ type: 'Qualifikationen', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.personalQualiFile) {
+          const response = await this.uploadFile(this.personalQualiFile, 'personal_quali');
+          results.push({ type: 'Pers. Skills', ...response });
+          if (!response.success) hasErrors = true;
+        }
+        
+        // Combine results for modal
+        this.resultModalData = this.combineResults(results);
         this.showResultModal = true;
         
-        if (response.success) {
+        if (!hasErrors) {
           this.resetAll();
         }
       } catch (err) {
@@ -410,7 +582,50 @@ export default {
         this.showResultModal = true;
       } finally {
         this.loading = false;
+        await this.fetchLastUploads();
       }
+    },
+    combineResults(results) {
+      // Combine multiple import results into one modal view
+      let combinedMessage = '';
+      let allSuccessful = true;
+      let totalStats = {};
+      let combinedArrays = {
+        notFoundEntries: [],
+        conflictDetails: []
+      };
+      
+      results.forEach(result => {
+        if (!result.success) allSuccessful = false;
+        combinedMessage += `\n\n<strong>${result.type}:</strong> ${result.message}`;
+        
+        if (result.details) {
+          // Merge numeric stats
+          Object.keys(result.details).forEach(key => {
+            if (typeof result.details[key] === 'number') {
+              totalStats[key] = (totalStats[key] || 0) + result.details[key];
+            }
+          });
+          
+          // Merge arrays (notFoundEntries, conflictDetails)
+          if (result.details.notFoundEntries && Array.isArray(result.details.notFoundEntries)) {
+            combinedArrays.notFoundEntries.push(...result.details.notFoundEntries);
+          }
+          if (result.details.conflictDetails && Array.isArray(result.details.conflictDetails)) {
+            combinedArrays.conflictDetails.push(...result.details.conflictDetails);
+          }
+        }
+      });
+      
+      return {
+        success: allSuccessful,
+        message: `Import von ${results.length} Datei(en) abgeschlossen:${combinedMessage}`,
+        details: { 
+          ...totalStats,
+          notFoundEntries: combinedArrays.notFoundEntries,
+          conflictDetails: combinedArrays.conflictDetails
+        }
+      };
     },
     async uploadFile(file, endpointSuffix) {
       const formData = new FormData();
@@ -508,14 +723,20 @@ export default {
         }
       }
     },
+    // ... assign methods ... same as before ... 
+    
     resetAll() {
       this.auftragFile = null;
       this.kundeFile = null;
       this.einsatzFile = null;
       this.personalFile = null;
+      this.berufFile = null;
+      this.qualifikationFile = null;
+      this.personalQualiFile = null;
+      this.fetchLastUploads(); // Refresh history after upload
     },
     hasAnyFile() {
-      return this.auftragFile || this.kundeFile || this.einsatzFile || this.personalFile;
+      return this.auftragFile || this.kundeFile || this.einsatzFile || this.personalFile || this.berufFile || this.qualifikationFile || this.personalQualiFile;
     },
 
     handleEscapeKey(event) {
@@ -526,6 +747,7 @@ export default {
   },
 
   mounted() {
+    this.fetchLastUploads();
     document.addEventListener('keydown', this.handleEscapeKey);
   },
 
@@ -537,6 +759,81 @@ export default {
 
 <style scoped lang="scss">
 @import "@/assets/styles/global.scss";
+
+.last-import-section {
+  margin-bottom: 30px;
+  
+  h3 {
+    font-size: 1.1rem;
+    margin-bottom: 15px;
+    color: var(--text-muted);
+  }
+}
+
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.history-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 15px;
+  
+  .history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    
+    .history-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ccc;
+      
+      &.success { background: #4ade80; box-shadow: 0 0 5px rgba(74, 222, 128, 0.4); }
+      &.warning { background: #fbbf24; }
+      &.failed { background: #f87171; }
+      &.none { background: transparent; border: 1px solid var(--border); }
+    }
+  }
+  
+  .history-body {
+    font-size: 0.85rem;
+    
+    .history-date {
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    
+    .history-info {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    
+    .history-count {
+      color: var(--primary);
+    }
+    
+    .no-history {
+      color: var(--text-muted);
+      font-style: italic;
+      text-align: center;
+      padding: 10px 0;
+    }
+  }
+}
 
 .window {
   width: 900px;
@@ -564,160 +861,175 @@ export default {
   margin-bottom: 30px;
 }
 
-.import-section {
-  background: var(--panel);
+.imports-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.import-card {
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 15px 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 6px rgba(0,0,0,.06);
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-
-  h2 {
-    font-size: 1.1rem;
-    margin: 0;
-    color: var(--text);
-    font-weight: 600;
-  }
-}
-
-.info-box {
-  background: var(--tile-bg); /* slightly clearer than panel */
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 5px;
-  text-align: left;
-  color: var(--text);
-  font-size: 0.85rem;
-  
-  p { margin: 0 0 8px; }
-}
-
-.table-container {
-  overflow-x: auto;
-  max-width: 100%;
-}
-
-.sample-table {
-  width: 100%;
-  border-collapse: collapse;
-  white-space: nowrap;
-  
-  th {
-    padding: 6px 10px;
-    border: 1px solid var(--border);
-    font-size: 0.75rem;
-    text-align: center;
-    color: var(--text);
-    background: var(--hover);
-  }
-}
-
-.status-indicator {
-  font-size: 0.8rem;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background-color: var(--border);
-  color: var(--muted);
-  font-weight: bold;
-
-  &.ready {
-    background-color: color-mix(in oklab, var(--success, #22c55e) 20%, transparent);
-    color: var(--success, #22c55e);
-  }
-}
-
-.upload-section {
-  .hidden-input {
-    display: none;
-  }
-}
-
-.drag-drop-area {
-  width: 100%;
-  box-sizing: border-box; /* Ensures padding and border are included in width */
-  height: 80px;
-  border: 2px dashed var(--border);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  font-size: 0.95rem;
-  color: var(--muted);
-  background: var(--tile-bg);
-  cursor: pointer;
+  border-radius: 12px;
+  overflow: hidden;
   transition: all 0.2s ease;
-  padding: 10px;
-
+  
   &:hover {
-    background: var(--hover);
-    border-color: var(--primary);
-    color: var(--primary);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
   }
-
-  &.has-file {
-    border-color: var(--success, #22c55e);
-    background: color-mix(in oklab, var(--success, #22c55e) 5%, var(--tile-bg));
-    color: var(--text);
+  
+  .card-header {
+    background: var(--header-bg);
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     
-    strong {
-      color: var(--success, #22c55e);
-    }
-  }
-}
-
-.actions {
-  display: flex;
-  gap: 15px;
-  justify-content: center;
-  margin-top: 30px;
-
-  button {
-    padding: 12px 24px;
-    background: var(--primary);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform .08s ease, filter .2s ease;
-    font-size: 1rem;
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      filter: grayscale(0.5);
-    }
-    
-    &:hover:not(:disabled) {
-      filter: brightness(0.95);
-      transform: translateY(-1px);
-    }
-
-    &:active:not(:disabled) {
-      filter: brightness(0.9);
-      transform: translateY(0);
-    }
-
-    &.secondary {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--muted);
-
-      &:hover {
-        background: var(--hover);
+    .header-content {
+      h2 {
+        font-size: 1.1rem;
+        margin: 0;
         color: var(--text);
+      }
+      .subtitle {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin: 2px 0 0;
+      }
+    }
+    
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      
+      &.ready {
+        background: rgba(74, 222, 128, 0.1);
+        color: #4ade80;
+        border: 1px solid rgba(74, 222, 128, 0.2);
       }
     }
   }
+  
+  .card-content {
+    padding: 20px;
+  }
+}
+
+.upload-area {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 30px 20px;
+  cursor: pointer;
+  background: var(--bg-tertiary);
+  transition: all 0.2s;
+  text-align: center;
+  position: relative;
+  
+  &:hover {
+    border-color: var(--primary);
+    background: rgba(var(--primary-rgb), 0.02);
+  }
+  
+  &.has-file {
+    border-style: solid;
+    border-color: #4ade80;
+    background: rgba(74, 222, 128, 0.05);
+    
+    .upload-icon {
+      color: #4ade80;
+    }
+  }
+  
+  .upload-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    
+    .upload-icon {
+      font-size: 2rem;
+      color: var(--text-muted);
+      transition: color 0.2s;
+    }
+    
+    .upload-text {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      
+      .file-name {
+        color: var(--text);
+        font-weight: 500;
+        word-break: break-all;
+      }
+    }
+  }
+}
+
+.requirements-hint {
+  margin-top: 15px;
+  font-size: 0.85rem;
+  
+  details {
+    summary {
+      cursor: pointer;
+      color: var(--primary);
+      outline: none;
+      
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+  
+  .table-scroll {
+    margin-top: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    
+    .req-table {
+      width: 100%;
+      border-collapse: collapse;
+      
+      td {
+        padding: 4px 8px;
+        border: 1px solid var(--border);
+        background: var(--bg-tertiary);
+        font-family: monospace;
+        font-size: 0.8rem;
+      }
+    }
+  }
+}
+
+.actions-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  
+  .primary-btn.large {
+    padding: 12px 24px;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.hidden-input {
+  display: none;
 }
 
 /* Mobile Optimierungen */
@@ -1032,6 +1344,21 @@ export default {
   padding: 12px;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.primary-btn {
+  /* Default styling for primary button if not globally defined */
+  background-color: var(--primary, #3b82f6);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+
+  &:hover {
+    filter: brightness(0.9);
+  }
 }
 
 .modal-footer {

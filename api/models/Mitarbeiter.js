@@ -18,6 +18,8 @@ const MitarbeiterSchema = new mongoose.Schema({
     email: { type: String, unique: true, lowercase: true, trim: true },
     additionalEmails: [{ type: String, lowercase: true, trim: true }],
     isActive: { type: Boolean, default: true },
+    berufe: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Beruf' }],
+    qualifikationen: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Qualifikation' }],
     laufzettel_received: [
         {
             type: mongoose.Schema.Types.ObjectId,
@@ -49,7 +51,7 @@ const MitarbeiterSchema = new mongoose.Schema({
         },
     ],
     dateCreated: { type: Date, default: Date.now },
-});
+}, { timestamps: true });
 
 
 function autoPopulate(next) {

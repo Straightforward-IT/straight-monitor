@@ -295,6 +295,7 @@
 <script>
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
+import { useDataCache } from "@/stores/dataCache";
 
 const collator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
 
@@ -308,6 +309,11 @@ export default {
   ],
   components: { FontAwesomeIcon },
   props: { isModalOpen: Boolean },
+
+  setup() {
+    const dataCache = useDataCache();
+    return { dataCache };
+  },
 
   data() {
     return {
@@ -533,8 +539,8 @@ export default {
 
     async fetchItems() {
       try {
-        const { data } = await api.get("/api/items");
-        this.items = Array.isArray(data) ? data : [];
+        // Use cache store for optimized loading
+        this.items = await this.dataCache.loadItems();
       } catch (error) {
         console.error("Fehler beim Abrufen der Artikel:", error);
       }

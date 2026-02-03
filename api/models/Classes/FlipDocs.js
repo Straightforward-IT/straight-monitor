@@ -27,7 +27,7 @@ const LaufzettelSchema = new mongoose.Schema({
     },
   },
   date: { type: Date, default: Date.now },
-});
+}, { timestamps: true });
 
 LaufzettelSchema.pre("find", function () {
   this.populate([
@@ -84,7 +84,7 @@ const EventReportSchema = new mongoose.Schema({
   },
   assigned: { type: Boolean, required: true, default: false },
   date: { type: Date, default: Date.now },
-});
+}, { timestamps: true });
 
 // ✅ Verlosung Enums
 const GUTSCHEIN_TYPES = {
@@ -304,7 +304,7 @@ const EvaluierungSchema = new mongoose.Schema({
 },
   assigned: { type: Boolean, required: true, default: false },
   date: { type: Date, default: Date.now },
-});
+}, { timestamps: true });
 
 // ✅ Auto-populate mitarbeiter and teamleiter in EvaluierungMA
 EvaluierungSchema.pre("find", function () {

@@ -421,6 +421,7 @@
 <script>
 import api from "@/utils/api";
 import logger from "@/utils/logger";
+import { useDataCache } from "@/stores/dataCache";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import FilterPanel from '@/components/FilterPanel.vue';
@@ -490,6 +491,11 @@ library.add(
 export default {
   name: "Dokumente",
   components: { FontAwesomeIcon, CustomTooltip, FilterPanel, DocumentCard, EmployeeCard },
+
+  setup() {
+    const dataCache = useDataCache();
+    return { dataCache };
+  },
 
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -1142,8 +1148,7 @@ export default {
 
     async fetchDocuments() {
       try {
-        const res = await api.get("/api/wordpress/reports");
-        this.documents = res.data?.data || [];
+        this.documents = await this.dataCache.loadDocuments();
       } catch (e) {
         this.error.documents = e?.message || "Fehler beim Laden der Dokumente.";
         console.error(this.error.documents);

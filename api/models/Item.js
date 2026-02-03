@@ -22,7 +22,7 @@ const ItemSchema = new mongoose.Schema({
     type: String,
     required: true
   }
-});
+}, { timestamps: true });
 
 // Export the Item model
 module.exports = mongoose.model('Item', ItemSchema);

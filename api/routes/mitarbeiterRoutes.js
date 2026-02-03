@@ -216,8 +216,65 @@ router.get(
   "/flip",
   auth,
   asyncHandler(async (req, res) => {
-    const data = await getFlipUsers(req.query);
-    res.status(200).json(data);
+    // Fetch all users
+    const users = await getFlipUsers(req.query);
+    console.log(`📊 Fetched ${users.length} users from Flip API`);
+    
+    // Teamleiter group IDs from FlipMappings.json
+    const TEAMLEITER_GROUP_IDS = [
+      'b99df75f-eb8d-42f8-838f-413223ae1572', // berlin_teamleiter
+      '806cb6f0-ee73-4376-98c0-710679c9ef96', // hamburg_teamleiter
+      'a99dfeff-9ee3-4de2-b6d1-15c59081b2a1'  // koeln_teamleiter
+    ];
+    
+    // Build a map of userId -> groups array
+    const userGroupsMap = new Map();
+    
+    // Fetch assignments for each teamleiter group
+    for (const groupId of TEAMLEITER_GROUP_IDS) {
+      try {
+        console.log(`🔍 Fetching assignments for group: ${groupId}`);
+        const assignmentsData = await getFlipUserGroupAssignments({ group_id: groupId });
+        console.log(`📋 Raw assignments response for ${groupId}:`, JSON.stringify(assignmentsData, null, 2));
+        
+        const assignmentsList = assignmentsData?.assignments || [];
+        console.log(`✅ Found ${assignmentsList.length} assignments for group ${groupId}`);
+        
+        // Add this group to each user's groups array
+        for (const assignment of assignmentsList) {
+          const userId = assignment.id?.user_id || assignment.user_id;
+          if (!userId) {
+            console.warn(`⚠️ Assignment missing user_id:`, assignment);
+            continue;
+          }
+          if (!userGroupsMap.has(userId)) {
+            userGroupsMap.set(userId, []);
+          }
+          // Add group info to user's groups
+          userGroupsMap.get(userId).push({
+            id: groupId,
+            role_id: assignment.id?.role_id || assignment.role_id
+          });
+        }
+      } catch (err) {
+        console.error(`❌ Failed to fetch assignments for group ${groupId}:`, err.message);
+      }
+    }
+    
+    console.log(`👥 Total users with teamleiter groups: ${userGroupsMap.size}`);
+    console.log(`👥 User IDs with groups:`, Array.from(userGroupsMap.keys()));
+    
+    // Merge groups into user objects
+    const usersWithGroups = users.map(user => ({
+      ...user,
+      groups: userGroupsMap.get(user.id) || []
+    }));
+    
+    // Log sample of users with groups
+    const usersWithGroupsCount = usersWithGroups.filter(u => u.groups?.length > 0).length;
+    console.log(`✅ ${usersWithGroupsCount} users have groups assigned`);
+    
+    res.status(200).json(usersWithGroups);
   })
 );
 
@@ -932,6 +989,84 @@ router.get(
     res.status(200).json({
       success: true,
       data: mitarbeiter,
+    });
+  })
+);
+
+/**
+ * Sync endpoint for incremental updates
+ * Returns only documents updated since the provided timestamp
+ * Used by frontend cache to minimize data transfer
+ */
+router.get(
+  "/mitarbeiter/sync",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { since } = req.query;
+    
+    if (!since) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Parameter 'since' is required (ISO date string)" 
+      });
+    }
+    
+    const sinceDate = new Date(since);
+    
+    if (isNaN(sinceDate.getTime())) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid date format for 'since' parameter" 
+      });
+    }
+    
+    // Find updated documents
+    const updated = await Mitarbeiter.find({
+      updatedAt: { $gt: sinceDate }
+    }).populate([
+      { 
+        path: "laufzettel_received",
+        populate: [
+          { path: "mitarbeiter", select: "_id vorname nachname email" },
+          { path: "teamleiter", select: "_id vorname nachname email" }
+        ]
+      },
+      { 
+        path: "laufzettel_submitted",
+        populate: [
+          { path: "mitarbeiter", select: "_id vorname nachname email" },
+          { path: "teamleiter", select: "_id vorname nachname email" }
+        ]
+      },
+      { 
+        path: "eventreports",
+        populate: { path: "teamleiter", select: "_id vorname nachname email" }
+      },
+      { 
+        path: "evaluierungen_received",
+        populate: [
+          { path: "mitarbeiter", select: "_id vorname nachname email" },
+          { path: "teamleiter", select: "_id vorname nachname email" }
+        ]
+      },
+      { 
+        path: "evaluierungen_submitted",
+        populate: [
+          { path: "mitarbeiter", select: "_id vorname nachname email" },
+          { path: "teamleiter", select: "_id vorname nachname email" }
+        ]
+      },
+    ]);
+    
+    // Note: For deleted documents, you would need a separate "deletedDocuments" collection
+    // or soft-delete pattern. For now, we return empty array for deleted.
+    // In a production system, consider adding a "deletedAt" field for soft deletes.
+    
+    res.status(200).json({
+      success: true,
+      updated,
+      deleted: [], // Would need soft-delete implementation to track this
+      syncedAt: new Date().toISOString()
     });
   })
 );
@@ -2257,6 +2392,257 @@ router.delete(
         name: `${m.vorname} ${m.nachname}`,
       })),
       notFound,
+    });
+  })
+);
+
+/**
+ * POST /api/personal/sync-attributes
+ * Synchronisiert FlipUser attributes (isService, isLogistik, isFesti, isOffice, isTeamlead)
+ * basierend auf den UserGroup-Zuweisungen
+ */
+router.post(
+  "/sync-attributes",
+  auth,
+  asyncHandler(async (req, res) => {
+    const FlipMappings = {
+      user_group_ids: {
+        berlin_service: "18d4f311-7b51-430a-9e70-885cca7248e4",
+        berlin_logistik: "bdbb18bf-d0bd-4fba-b339-785533bb09b9",
+        berlin_festangestellte: "ce92c64b-46e2-4a31-93aa-a7ed1b1a6843",
+        berlin_office: "e5473746-c88f-4799-ae68-731a28ba595f",
+        berlin_teamleiter: "b99df75f-eb8d-42f8-838f-413223ae1572",
+        hamburg_service: "3808e874-a254-4731-843d-3df0844088a1",
+        hamburg_logistik: "3365d98e-27e6-4965-9794-b05802290a49",
+        hamburg_festangestellte: "e3e05ccf-e429-498a-a833-1b8b7a2feec9",
+        hamburg_office: "db9c176d-941b-49b4-ad3f-56df0a33e45b",
+        hamburg_teamleiter: "806cb6f0-ee73-4376-98c0-710679c9ef96",
+        koeln_service: "aa3c1034-0414-4a72-9917-5f3db06f0131",
+        koeln_logistik: "bf483217-f705-4bab-8150-ee7a7bf2a08f",
+        koeln_festangestellte: "67153127-21ae-4717-9f88-cb90638bbd48",
+        koeln_office: "63a3e1d1-4ce5-4962-ae32-939b5cc6ba5f",
+        koeln_teamleiter: "a99dfeff-9ee3-4de2-b6d1-15c59081b2a1",
+      },
+    };
+
+    // Gruppiere alle IDs nach Attributtyp
+    const serviceGroupIds = [
+      FlipMappings.user_group_ids.berlin_service,
+      FlipMappings.user_group_ids.hamburg_service,
+      FlipMappings.user_group_ids.koeln_service,
+    ];
+    const logistikGroupIds = [
+      FlipMappings.user_group_ids.berlin_logistik,
+      FlipMappings.user_group_ids.hamburg_logistik,
+      FlipMappings.user_group_ids.koeln_logistik,
+    ];
+    const festiGroupIds = [
+      FlipMappings.user_group_ids.berlin_festangestellte,
+      FlipMappings.user_group_ids.hamburg_festangestellte,
+      FlipMappings.user_group_ids.koeln_festangestellte,
+    ];
+    const officeGroupIds = [
+      FlipMappings.user_group_ids.berlin_office,
+      FlipMappings.user_group_ids.hamburg_office,
+      FlipMappings.user_group_ids.koeln_office,
+    ];
+    const teamleadGroupIds = [
+      FlipMappings.user_group_ids.berlin_teamleiter,
+      FlipMappings.user_group_ids.hamburg_teamleiter,
+      FlipMappings.user_group_ids.koeln_teamleiter,
+    ];
+
+    console.log("🔄 Starting FlipUser attribute sync...");
+
+    // TEST: Nur einen spezifischen User
+    const testUserId = "18670085-d167-48b7-a7e1-ceeabeef2ee6";
+    
+    // 1. Alle FlipUsers abrufen
+    const allUsersRaw = await getFlipUsers({
+      status: ["ACTIVE"],
+      page_limit: 100,
+    });
+
+    // Filter nur Test-User
+    const allUsers = allUsersRaw.filter(u => u.id === testUserId);
+    
+    console.log(`📊 Testing with user ${testUserId}`);
+    console.log(`📊 User found:`, allUsers.length > 0);
+
+    // 2. Map: userId -> groups
+    const userGroupsMap = new Map();
+
+    // Für jede Attribut-Gruppe die Assignments abrufen
+    const allGroupIds = [
+      ...serviceGroupIds,
+      ...logistikGroupIds,
+      ...festiGroupIds,
+      ...officeGroupIds,
+      ...teamleadGroupIds,
+    ];
+
+    console.log(`🔍 Searching assignments for ${allGroupIds.length} groups total`);
+    console.log(`   Service groups: ${serviceGroupIds.join(', ')}`);
+    console.log(`   Logistik groups: ${logistikGroupIds.join(', ')}`);
+    console.log(`   Festi groups: ${festiGroupIds.join(', ')}`);
+    console.log(`   Office groups: ${officeGroupIds.join(', ')}`);
+    console.log(`   TeamLead groups: ${teamleadGroupIds.join(', ')}`);
+
+    for (const groupId of allGroupIds) {
+      try {
+        console.log(`🔄 Fetching assignments for group ${groupId}...`);
+        
+        // Handle pagination - fetch ALL pages
+        let allAssignments = [];
+        let currentPage = 1;
+        let totalPages = 1;
+        
+        do {
+          const assignmentsData = await getFlipUserGroupAssignments({
+            group_id: groupId,
+            page_number: currentPage,
+            page_limit: 100, // Increase page size
+          });
+          
+          const assignmentsList = assignmentsData?.assignments || [];
+          allAssignments.push(...assignmentsList);
+          
+          // Update pagination info
+          if (assignmentsData?.pagination) {
+            totalPages = assignmentsData.pagination.total_pages;
+            console.log(`   📄 Page ${currentPage}/${totalPages}: ${assignmentsList.length} assignments`);
+          }
+          
+          currentPage++;
+        } while (currentPage <= totalPages);
+        
+        console.log(`   ✅ Total assignments for group ${groupId}: ${allAssignments.length}`);
+
+        // Spezielles Debug für hamburg_logistik
+        if (groupId === '3365d98e-27e6-4965-9794-b05802290a49') {
+          console.log(`\n🔍 SPECIAL DEBUG for hamburg_logistik group:`);
+          console.log(`   Total assignments across all pages: ${allAssignments.length}`);
+          console.log(`   Assignment user IDs:`, allAssignments.map(a => a.id?.user_id || a.user_id));
+          console.log(`   Test user in list?`, allAssignments.some(a => 
+            (a.id?.user_id || a.user_id) === testUserId
+          ));
+        }
+
+        for (const assignment of allAssignments) {
+          const userId = assignment.id?.user_id || assignment.user_id;
+          if (!userId) {
+            console.log(`   ⚠️ Assignment missing user_id:`, assignment);
+            continue;
+          }
+
+          if (!userGroupsMap.has(userId)) {
+            userGroupsMap.set(userId, []);
+          }
+          userGroupsMap.get(userId).push(groupId);
+          
+          // Log wenn es der Test-User ist
+          if (userId === testUserId) {
+            console.log(`   🎯 Test user found in group ${groupId}!`);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Error fetching assignments for group ${groupId}:`, error.message);
+        console.error(`   Full error:`, error.response?.data || error);
+      }
+    }
+
+    console.log(`📋 Built group assignments map for ${userGroupsMap.size} users`);
+    
+    // Spezielles Log für Test-User
+    if (userGroupsMap.has(testUserId)) {
+      const testUserGroups = userGroupsMap.get(testUserId);
+      console.log(`\n🎯 TEST USER GROUP MEMBERSHIPS:`);
+      console.log(`   Total groups found: ${testUserGroups.length}`);
+      console.log(`   Groups:`, testUserGroups);
+    } else {
+      console.log(`\n⚠️ Test user ${testUserId} NOT found in any group assignments!`);
+    }
+
+    // 3. Für jeden User die Attribute setzen und updaten
+    const updates = [];
+    const errors = [];
+
+    for (const userData of allUsers) {
+      try {
+        const userId = userData.id;
+        const userGroups = userGroupsMap.get(userId) || [];
+
+        console.log(`\n👤 Processing user: ${userData.first_name} ${userData.last_name} (${userId})`);
+        console.log(`   Groups:`, userGroups);
+
+        // Bestimme Attribute basierend auf Gruppenzugehörigkeit
+        const isService = userGroups.some((gid) => serviceGroupIds.includes(gid));
+        const isLogistik = userGroups.some((gid) => logistikGroupIds.includes(gid));
+        const isFesti = userGroups.some((gid) => festiGroupIds.includes(gid));
+        const isOffice = userGroups.some((gid) => officeGroupIds.includes(gid));
+        const isTeamLead = userGroups.some((gid) => teamleadGroupIds.includes(gid));
+
+        console.log(`   Attributes detected:`);
+        console.log(`     - isService: ${isService} (groups: ${serviceGroupIds.join(', ')})`);
+        console.log(`     - isLogistik: ${isLogistik} (groups: ${logistikGroupIds.join(', ')})`);
+        console.log(`     - isFesti: ${isFesti}`);
+        console.log(`     - isOffice: ${isOffice}`);
+        console.log(`     - isTeamLead: ${isTeamLead}`);
+
+        // Baue attributes array
+        const attributes = [];
+        
+        if (isService) attributes.push({ name: "isService", value: "true" });
+        if (isLogistik) attributes.push({ name: "isLogistik", value: "true" });
+        if (isFesti) attributes.push({ name: "isFesti", value: "true" });
+        if (isOffice) attributes.push({ name: "isOffice", value: "true" });
+        if (isTeamLead) attributes.push({ name: "isTeamLead", value: "true" });
+
+        // Behalte bestehende Attribute (location, department) bei
+        if (userData.profile?.location) {
+          attributes.push({ name: "location", value: userData.profile.location });
+        }
+        if (userData.profile?.department) {
+          attributes.push({ name: "department", value: userData.profile.department });
+        }
+
+        console.log(`   Final attributes to send:`, attributes);
+
+        // Update nur wenn sich etwas geändert hat
+        if (attributes.length > 0) {
+          const flipUser = new FlipUser(userData);
+          flipUser.attributes = attributes;
+          
+          console.log(`   Calling update()...`);
+          await flipUser.update();
+          
+          updates.push({
+            id: userId,
+            name: `${userData.first_name} ${userData.last_name}`,
+            attributes: attributes.map((a) => a.name),
+          });
+
+          console.log(`✅ Updated ${userData.first_name} ${userData.last_name}`);
+        }
+      } catch (error) {
+        console.error(`❌ Error updating user ${userData.id}:`, error.message);
+        console.error(`   Full error:`, error.response?.data || error);
+        errors.push({
+          id: userData.id,
+          name: `${userData.first_name} ${userData.last_name}`,
+          error: error.message,
+        });
+      }
+    }
+
+    console.log(`✅ Attribute sync completed. ${updates.length} users updated, ${errors.length} errors`);
+
+    res.status(200).json({
+      message: "Attribute sync completed",
+      updated: updates.length,
+      errors: errors.length,
+      updates,
+      errors,
     });
   })
 );

@@ -24,6 +24,8 @@ class FlipUser {
       language: data.primary_user_group?.title?.language || null,
       status: data.primary_user_group?.status || null,
     };
+    // Store groups array for teamleiter detection
+    this.groups = data.groups || [];
   }
 
   /**

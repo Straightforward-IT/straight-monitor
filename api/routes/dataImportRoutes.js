@@ -6,10 +6,56 @@ const Auftrag = require('../models/Auftrag');
 const Kunde = require('../models/Kunde');
 const Einsatz = require('../models/Einsatz');
 const Mitarbeiter = require('../models/Mitarbeiter');
+const Beruf = require('../models/Beruf');
+const Qualifikation = require('../models/Qualifikation');
+const ImportLog = require('../models/ImportLog');
 const logger = require('../utils/logger');
 const { sendMail } = require('../EmailService');
 
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Helper to log import
+const logImport = async (type, filename, status, count, details, userId = null) => {
+  try {
+    await ImportLog.create({
+      type,
+      filename,
+      status,
+      recordCount: count,
+      details,
+      importedBy: userId
+    });
+  } catch (err) {
+    logger.error(`Failed to create import log: ${err.message}`);
+  }
+};
+
+// Start: Get Last Uploads
+router.get('/last-uploads', async (req, res) => {
+  try {
+    // Aggregation to get the latest import for each type
+    const latestUploads = await ImportLog.aggregate([
+      { $sort: { timestamp: -1 } },
+      { $group: {
+          _id: "$type",
+          lastUpload: { $first: "$$ROOT" }
+      }},
+      { $replaceRoot: { newRoot: "$lastUpload" } }
+    ]);
+    
+    // Map to a cleaner object keyed by type
+    const result = {};
+    latestUploads.forEach(log => {
+      result[log.type] = log;
+    });
+
+    res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error(`Error fetching last uploads: ${err.message}`);
+    res.status(500).json({ success: false, message: "Fehler beim Laden der Upload-Historie." });
+  }
+});
+// End: Get Last Uploads
 
 // Helper to clean keys (trim spaces)
 const cleanKeys = (obj) => {
@@ -84,8 +130,12 @@ router.post('/auftrag', upload.single('file'), async (req, res) => {
         message: `${operations.length} Aufträge verarbeitet: ${inserted} neu, ${updated} aktualisiert, ${unchanged} unverändert.`,
         details: { total: operations.length, inserted, updated, unchanged }
       };
+
+      await logImport('auftrag', req.file.originalname, 'success', operations.length, response.details, req.user?._id);
+
       res.json(response);
     } else {
+      await logImport('auftrag', req.file.originalname, 'warning', 0, { message: 'Keine Aufträge gefunden' }, req.user?._id);
       res.json({ success: true, message: 'Keine Aufträge zum Verarbeiten gefunden.' });
     }
 
@@ -190,8 +240,12 @@ router.post('/kunde', upload.single('file'), async (req, res) => {
         message: `${operations.length} Kunden verarbeitet: ${inserted} neu, ${updated} aktualisiert, ${unchanged} unverändert.`,
         details: { total: operations.length, inserted, updated, unchanged }
       };
+
+      await logImport('kunde', req.file.originalname, 'success', operations.length, response.details, req.user?._id);
+
       res.json(response);
     } else {
+      await logImport('kunde', req.file.originalname, 'warning', 0, { message: 'Keine Kunden gefunden' }, req.user?._id);
       res.json({ success: true, message: 'Keine Kunden zum Verarbeiten gefunden.' });
     }
 
@@ -293,6 +347,7 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
     }
 
     const result = { success: true, message: `${newEinsaetze.length} Einsätze verarbeitet (alte für betroffene Aufträge ersetzt).` };
+    await logImport('einsatz', req.file.originalname, 'success', newEinsaetze.length, { auftragNrsCount: auftragNrs.size }, req.user?._id);
     res.json(result);
 
     // Send email notification
@@ -473,6 +528,8 @@ router.post('/personal', upload.single('file'), async (req, res) => {
       }
     };
 
+    await logImport('personal', req.file.originalname, response.success ? 'success' : 'warning', matched, response.details, req.user?._id);
+
     res.json(response);
 
     // Send email notification
@@ -547,5 +604,261 @@ router.post('/personal', upload.single('file'), async (req, res) => {
     res.status(500).json({ success: false, message: 'Fehler beim Importieren der Personalnummern.', error: error.message });
   }
 });
+
+// --- Beruf Import ---
+router.post('/beruf', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    // Read as array of arrays to handle column positions
+    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+    const operations = [];
+
+    // Skip potential header row? Let's check if first row is possibly header
+    // But user didn't specify, usually assumed. Let's start from 1 if row 0 looks like header, else 0.
+    // However, simplest is to iterate and check if column A is a number.
+    
+    for (const row of rawData) {
+      if (!row || row.length < 1) continue;
+      
+      // Column A (Index 0): Key
+      // Column C (Index 2): Designation
+      const keyVal = row[0];
+      const designationVal = row[2];
+
+      const jobKey = parseInt(keyVal, 10);
+      if (isNaN(jobKey)) continue; // Skip header or invalid rows
+
+      const designation = designationVal ? String(designationVal).trim() : '';
+      if (!designation) continue;
+
+      operations.push({
+        updateOne: {
+          filter: { jobKey: jobKey },
+          update: { $set: { designation: designation } },
+          upsert: true
+        }
+      });
+    }
+
+    if (operations.length > 0) {
+      const result = await Beruf.bulkWrite(operations);
+      const inserted = result.upsertedCount || 0;
+      const updated = result.modifiedCount || 0;
+      const unchanged = operations.length - inserted - updated;
+      
+      const response = { 
+        success: true, 
+        message: `${operations.length} Berufe verarbeitet: ${inserted} neu, ${updated} aktualisiert.`,
+        details: { total: operations.length, inserted, updated, unchanged }
+      };
+
+      await logImport('beruf', req.file.originalname, 'success', operations.length, response.details, req.user?._id);
+      res.json(response);
+
+    } else {
+      await logImport('beruf', req.file.originalname, 'warning', 0, { message: 'Keine gültigen Berufsdaten gefunden' }, req.user?._id);
+      res.json({ success: true, message: 'Keine gültigen Berufe gefunden. (Erwarte Spalte A: Key, Spalte C: Bezeichnung)' });
+    }
+
+  } catch (error) {
+    logger.error('Import Beruf Error:', error);
+    await logImport('beruf', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?._id);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Berufe.', error: error.message });
+  }
+});
+
+// --- Qualifikation Import ---
+router.post('/qualifikation', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+    const operations = [];
+
+    for (const row of rawData) {
+      if (!row || row.length < 1) continue;
+      
+      // Column A (Index 0): Key
+      // Column B (Index 1): Designation
+      const keyVal = row[0];
+      const designationVal = row[1];
+
+      const qualificationKey = parseInt(keyVal, 10);
+      if (isNaN(qualificationKey)) continue;
+
+      const designation = designationVal ? String(designationVal).trim() : '';
+      if (!designation) continue;
+
+      operations.push({
+        updateOne: {
+          filter: { qualificationKey: qualificationKey },
+          update: { $set: { designation: designation } },
+          upsert: true
+        }
+      });
+    }
+
+    if (operations.length > 0) {
+      const result = await Qualifikation.bulkWrite(operations);
+      const inserted = result.upsertedCount || 0;
+      const updated = result.modifiedCount || 0;
+      const unchanged = operations.length - inserted - updated;
+      
+      const response = { 
+        success: true, 
+        message: `${operations.length} Qualifikationen verarbeitet: ${inserted} neu, ${updated} aktualisiert.`,
+        details: { total: operations.length, inserted, updated, unchanged }
+      };
+
+      await logImport('qualifikation', req.file.originalname, 'success', operations.length, response.details, req.user?._id);
+      res.json(response);
+
+    } else {
+      await logImport('qualifikation', req.file.originalname, 'warning', 0, { message: 'Keine gültigen Qualifikationsdaten gefunden' }, req.user?._id);
+      res.json({ success: true, message: 'Keine gültigen Qualifikationen gefunden. (Erwarte Spalte A: Key, Spalte B: Bezeichnung)' });
+    }
+
+  } catch (error) {
+    logger.error('Import Qualifikation Error:', error);
+    await logImport('qualifikation', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?._id);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Qualifikationen.', error: error.message });
+  }
+});
+
+// --- Personal Qualifikation/Beruf Import ---
+router.post('/personal_quali', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+    }
+
+    // 1. Pre-fetch all Berufe and Qualifikationen for quick lookup
+    const allBerufe = await Beruf.find({}).lean();
+    const allQualis = await Qualifikation.find({}).lean();
+    
+    // Create maps: key -> _id
+    const berufMap = new Map();
+    allBerufe.forEach(b => berufMap.set(b.jobKey, b._id));
+    
+    const qualiMap = new Map();
+    allQualis.forEach(q => qualiMap.set(q.qualificationKey, q._id));
+    
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+    // 2. Group data by Personalnr
+    // Structure: Personalnr -> { berufKeys: Set, qualiKeys: Set }
+    const personalMap = new Map();
+    
+    let processedRows = 0;
+
+    for (const row of rawData) {
+      if (!row || row.length < 3) continue;
+
+      const pnr = row[0] ? String(row[0]).trim() : null;
+      const jobKey = parseInt(row[1], 10);
+      const qualiKey = parseInt(row[2], 10);
+
+      if (!pnr) continue;
+
+      if (!personalMap.has(pnr)) {
+        personalMap.set(pnr, { jobs: new Set(), qualis: new Set() });
+      }
+
+      const entry = personalMap.get(pnr);
+      if (!isNaN(jobKey)) entry.jobs.add(jobKey);
+      if (!isNaN(qualiKey)) entry.qualis.add(qualiKey);
+      
+      processedRows++;
+    }
+
+    if (personalMap.size === 0) {
+      await logImport('personal_quali', req.file.originalname, 'warning', 0, { message: 'Keine gültigen Zuordnungen gefunden' }, req.user?._id);
+      return res.json({ success: true, message: 'Keine gültigen Daten gefunden (Spalten: A=Personalnr, B=BerufKey, C=QualiKey).' });
+    }
+
+    // 3. Update Mitarbeiter
+    // For each unique personalnr found in file:
+    let updatedCount = 0;
+    let notFoundCount = 0;
+    const notFoundPnrs = [];
+
+    const operations = [];
+
+    for (const [pnr, data] of personalMap.entries()) {
+      // Resolve keys to IDs
+      const berufIds = [];
+      data.jobs.forEach(key => {
+        if (berufMap.has(key)) berufIds.push(berufMap.get(key));
+      });
+
+      const qualiIds = [];
+      data.qualis.forEach(key => {
+        if (qualiMap.has(key)) qualiIds.push(qualiMap.get(key));
+      });
+
+      // Prepare Bulk Update operation
+      // Finding user by personalnr
+      operations.push({
+        updateOne: {
+          filter: { personalnr: pnr },
+          update: { 
+            $addToSet: { 
+              berufe: { $each: berufIds },
+              qualifikationen: { $each: qualiIds }
+            } 
+          }
+        }
+      });
+    }
+
+    if (operations.length > 0) {
+      const result = await Mitarbeiter.bulkWrite(operations);
+      updatedCount = result.modifiedCount;
+      const matchedCount = result.matchedCount; // matched users
+      
+      // Calculate how many were not found (requested updates - matched)
+      // Note: matchedCount might double count if pnr duplicates were processed multiple times, but here we grouped by PNR first.
+      // So matchedCount == number of found employees.
+      notFoundCount = operations.length - matchedCount;
+      
+      // Since bulkWrite doesn't return which ones failed to match easily without ordered=false and checking errors for upserts, 
+      // strict 'not found list' requires a separate find or comparison.
+      // For performance, we'll just report counts. 
+      // If needed properly: Find all PNRs existing in DB from the Map keys first.
+
+      const response = {
+        success: true,
+        message: `Zuordnungen verarbeitet: ${updatedCount} Mitarbeiter aktualisiert. (${notFoundCount} Personalnummern nicht im System)`,
+        details: { totalFileRows: processedRows, uniquePersonalNrs: operations.length, updated: updatedCount, notFound: notFoundCount }
+      };
+
+      await logImport('personal_quali', req.file.originalname, 'success', operations.length, response.details, req.user?._id);
+      res.json(response);
+
+    } else {
+      res.json({ success: true, message: 'Keine verarbeitbaren Operationen.' });
+    }
+
+  } catch (error) {
+    logger.error('Import Personal-Quali Error:', error);
+    await logImport('personal_quali', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?._id);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Zuordnungen.', error: error.message });
+  }
+});
+
+
 
 module.exports = router;
