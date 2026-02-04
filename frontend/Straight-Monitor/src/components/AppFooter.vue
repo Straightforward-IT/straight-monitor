@@ -11,7 +11,7 @@
           Moderne Personalverwaltung und Bestandsüberwachung für H. & P. Straightforward GmbH.
         </p>
         <p class="footer-copyright">
-          © {{ currentYear }} Straightforward Hamburg. Alle Rechte vorbehalten.
+          © 2024 - {{ currentYear }} Straightforward Hamburg. Alle Rechte vorbehalten.
         </p>
       </div>
 
