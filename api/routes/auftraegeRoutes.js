@@ -8,11 +8,41 @@ const Beruf = require('../models/Beruf');
 const Qualifikation = require('../models/Qualifikation');
 const logger = require('../utils/logger');
 
-// GET /api/auftraege/filters - Get available filter options (bediener, etc)
+// GET /api/auftraege/filters - Get available filter options (bediener, kunden, etc)
 router.get('/filters', async (req, res) => {
   try {
-    // Get distinct operators
-    const bediener = await Auftrag.distinct('bediener');
+    const { geschSt } = req.query;
+    
+    // Base query for finding relevant orders if geschSt is provided
+    const filterQuery = {};
+    if (geschSt) {
+      const stList = geschSt.split(',').map(s => s.trim()).filter(Boolean);
+      if (stList.length > 0) {
+        filterQuery.geschSt = { $in: stList };
+      }
+    }
+
+    // Get distinct operators (filtered by geschSt)
+    const bediener = await Auftrag.find(filterQuery).distinct('bediener');
+    
+    // Get distinct kundenNrs used in Aufträge (filtered by geschSt AND future jobs)
+    // "Zukunft" = bisDatum >= today (including today)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const customerQuery = { 
+      ...filterQuery,
+      bisDatum: { $gte: today },
+      aktiv: { $ne: 0 } // only active orders
+    };
+
+    const usedKundenNrs = await Auftrag.find(customerQuery).distinct('kundenNr');
+    
+    // Fetch Customer details for these IDs
+    const kunden = await Kunde.find({ kundenNr: { $in: usedKundenNrs } })
+      .select('kundenNr kundName')
+      .sort({ kundName: 1 })
+      .lean();
     
     // Clean and sort list (remove null/empty)
     const cleanBediener = bediener
@@ -20,7 +50,8 @@ router.get('/filters', async (req, res) => {
       .sort((a, b) => a.localeCompare(b));
       
     res.json({
-      bediener: cleanBediener
+      bediener: cleanBediener,
+      kunden: kunden
     });
   } catch (error) {
     logger.error('Error fetching filter options:', error);
@@ -29,10 +60,10 @@ router.get('/filters', async (req, res) => {
 });
 
 // GET /api/auftraege - List auftraege with date filtering
-// Query params: from, to (ISO date strings), geschSt (string), bediener (comma-separated string)
+// Query params: from, to (ISO date strings), geschSt (string), bediener (comma-separated string), kunden (comma-separated numbers)
 router.get('/', async (req, res) => {
   try {
-    const { from, to, geschSt, bediener } = req.query;
+    const { from, to, geschSt, bediener, kunden: kundenQuery } = req.query;
     
     const query = {};
     
@@ -68,6 +99,14 @@ router.get('/', async (req, res) => {
         query.bediener = { $in: bedList }; // Case-sensitive exact match for now
       }
     }
+
+    // Kunden Filter (by kundenNr)
+    if (kundenQuery) {
+      const kundenList = kundenQuery.split(',').map(k => parseInt(k.trim())).filter(k => !isNaN(k));
+      if (kundenList.length > 0) {
+        query.kundenNr = { $in: kundenList };
+      }
+    }
     
     // Only get active/confirmed auftraege (auftStatus = 2 based on import query)
     // Filter out explicitly inactive ones (aktiv = 0)
@@ -79,9 +118,9 @@ router.get('/', async (req, res) => {
     
     // Populate with Kunde data
     const kundenNrs = [...new Set(auftraege.map(a => a.kundenNr).filter(Boolean))];
-    const kunden = await Kunde.find({ kundenNr: { $in: kundenNrs } }).lean();
+    const kundenData = await Kunde.find({ kundenNr: { $in: kundenNrs } }).lean();
     const kundenMap = {};
-    kunden.forEach(k => { kundenMap[k.kundenNr] = k; });
+    kundenData.forEach(k => { kundenMap[k.kundenNr] = k; });
     
     // Count einsätze per Auftrag
     const auftragNrs = auftraege.map(a => a.auftragNr);

@@ -22,7 +22,6 @@
           :class="{ active: $route.name === 'Dokumente'}"
         >
           Dokumente
-          <span class="beta-tag">NEU</span>
         </router-link>
         <router-link
           :to="newPagesEnabled ? '/personal' : '#'"
@@ -31,6 +30,7 @@
         >
           Personal
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
+          <span v-else class="beta-tag">NEU</span>
         </router-link>
         <router-link
           :to="newPagesEnabled ? '/auftraege' : '#'"
@@ -39,6 +39,7 @@
         >
           Aufträge
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
+          <span v-else class="beta-tag">NEU</span>
         </router-link>
       </nav>
   
@@ -129,7 +130,6 @@
         >
           <font-awesome-icon :icon="['fas', 'file-alt']" />
           Dokumente
-          <span class="beta-tag">NEU</span>
         </router-link>
         
         <router-link
@@ -140,6 +140,7 @@
           <font-awesome-icon :icon="['fas', 'users']" />
           Personal
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
+          <span v-else class="beta-tag">NEU</span>
         </router-link>
         <router-link
           :to="newPagesEnabled ? '/auftraege' : '#'"
@@ -149,6 +150,7 @@
           <font-awesome-icon :icon="['fas', 'calendar-alt']" />
           Aufträge
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
+          <span v-else class="beta-tag">NEU</span>
         </router-link>
         
         <div class="mobile-menu-divider"></div>

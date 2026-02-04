@@ -2,7 +2,13 @@
   <div class="auftraege-page" :class="{ 'sidebar-open': selectedEvent }">
     <div class="main-content">
     <div class="page-header">
-      <h1>Aufträge</h1>
+      <div class="header-title-group">
+        <h1>Aufträge</h1>
+        <div v-if="dataStatus" class="data-status-badge" title="Stand der Daten (Zvoove Import)">
+          <font-awesome-icon icon="fa-solid fa-clock" />
+          <span>Stand der Auftragsdaten von: {{ formatDataStatus(dataStatus) }}</span>
+        </div>
+      </div>
       <div class="header-controls">
         <div class="search-box">
           <input 
@@ -62,6 +68,28 @@
                   @change="toggleBedienerFilter(bed)"
                 >
                 <span class="label-text">{{ bed }}</span>
+              </label>
+            </FilterDropdown>
+          </FilterGroup>
+
+          <FilterDivider />
+
+          <!-- Kunden Filter -->
+          <FilterGroup label="Kunden">
+            <FilterDropdown :has-value="filters.kunden.length > 0">
+              <template #label>
+                <span v-if="filters.kunden.length === 0">Alle Kunden</span>
+                <span v-else>{{ filters.kunden.length }} ausgewählt</span>
+              </template>
+              
+              <div v-if="filterOptions.kunden.length === 0" class="no-options">Keine Kunden gefunden</div>
+              <label v-for="kunde in filterOptions.kunden" :key="kunde.kundenNr" class="dropdown-item">
+                <input 
+                  type="checkbox" 
+                  :checked="filters.kunden.includes(kunde.kundenNr)"
+                  @change="toggleKundeFilter(kunde.kundenNr)"
+                >
+                <span class="label-text">{{ kunde.kundName }}</span>
               </label>
             </FilterDropdown>
           </FilterGroup>
@@ -390,7 +418,8 @@ export default {
     const savedFilters = sessionStorage.getItem('auftraege_filters');
     let filterDefaults = {
       geschSt: null,
-      bediener: []
+      bediener: [],
+      kunden: []
     };
 
     if (savedFilters) {
@@ -414,14 +443,16 @@ export default {
       // Filter State
       filtersExpanded: false,
       filterOptions: {
-        bediener: []
+        bediener: [],
+        kunden: []
       },
       filters: filterDefaults,
       isMobile: false,
       mobileDayIndex: 0,
       selectedMitarbeiter: null,
       fullMitarbeiterData: null,
-      preparedSchichten: {} // Lazy loaded schichten data
+      preparedSchichten: {}, // Lazy loaded schichten data
+      dataStatus: null, // Last import timestamp
     };
   },
   computed: {
@@ -463,6 +494,38 @@ export default {
     }
   },
   methods: {
+    async fetchDataStatus() {
+      try {
+        const response = await api.get('/api/import/last-uploads');
+        if (response.data.success) {
+          const uploads = response.data.data;
+          const historyKomplett = uploads['einsatz-komplett'];
+          const historyEinsatz = uploads['einsatz'];
+          let lastUpload = null;
+
+          if (historyKomplett && historyEinsatz) {
+            lastUpload = new Date(historyKomplett.timestamp) > new Date(historyEinsatz.timestamp) 
+              ? historyKomplett 
+              : historyEinsatz;
+          } else {
+            lastUpload = historyKomplett || historyEinsatz;
+          }
+          
+          if (lastUpload) {
+             this.dataStatus = lastUpload.timestamp;
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching data status:", err);
+      }
+    },
+    formatDataStatus(dateStr) {
+       if (!dateStr) return '';
+       return new Date(dateStr).toLocaleString('de-DE', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    },
     // Determine shifts and metadata from event details (Lazy Load)
     calculateSchichten(event) {
       if (!event?.einsaetze) return {};
@@ -583,6 +646,9 @@ export default {
         if (this.filters.bediener && this.filters.bediener.length > 0) {
           params.append('bediener', this.filters.bediener.join(','));
         }
+        if (this.filters.kunden && this.filters.kunden.length > 0) {
+          params.append('kunden', this.filters.kunden.join(','));
+        }
         
         const response = await api.get(`/api/auftraege?${params.toString()}`);
         
@@ -599,8 +665,13 @@ export default {
     },
     async fetchFilterOptions() {
       try {
-        const res = await api.get('/api/auftraege/filters');
+        const params = new URLSearchParams();
+        if (this.filters.geschSt) {
+          params.append('geschSt', this.filters.geschSt);
+        }
+        const res = await api.get(`/api/auftraege/filters?${params.toString()}`);
         this.filterOptions.bediener = res.data.bediener || [];
+        this.filterOptions.kunden = res.data.kunden || [];
       } catch (e) {
         console.error("Error fetching filters", e);
       }
@@ -627,7 +698,8 @@ export default {
     saveFiltersToStorage() {
       const filters = {
         geschSt: this.filters.geschSt,
-        bediener: this.filters.bediener
+        bediener: this.filters.bediener,
+        kunden: this.filters.kunden
       };
       sessionStorage.setItem('auftraege_filters', JSON.stringify(filters));
     },
@@ -637,7 +709,11 @@ export default {
     setGeschStFilter(val) {
       if (this.filters.geschSt === val) return;
       this.filters.geschSt = val;
+      // Reset dependent filters as they might not apply to new location
+      this.filters.kunden = [];
+      this.filters.bediener = [];
       this.saveFiltersToStorage();
+      this.fetchFilterOptions(); // Update options based on selection
       this.resetAndReload();
     },
     toggleBedienerFilter(val) {
@@ -650,9 +726,20 @@ export default {
       this.saveFiltersToStorage();
       this.resetAndReload();
     },
+    toggleKundeFilter(val) {
+      const idx = this.filters.kunden.indexOf(val);
+      if (idx === -1) {
+        this.filters.kunden.push(val);
+      } else {
+        this.filters.kunden.splice(idx, 1);
+      }
+      this.saveFiltersToStorage();
+      this.resetAndReload();
+    },
     resetAllFilters() {
       this.filters.geschSt = null;
       this.filters.bediener = [];
+      this.filters.kunden = [];
       // Clear storage on reset, then apply user defaults
       sessionStorage.removeItem('auftraege_filters');
       // Set defaults based on user location
@@ -883,12 +970,17 @@ export default {
       }
     }
   },
-  async mounted() {
+    async mounted() {
     this.checkMobile();
     window.addEventListener('resize', this.checkMobile);
     document.addEventListener('keydown', this.handleEscapeKey);
-    await this.fetchFilterOptions();
+    
+    // Set default filters first (e.g. from user location if no storage)
     this.setDefaultFilters();
+    // Then fetch options which might depend on those filters
+    await this.fetchFilterOptions();
+    
+    this.fetchDataStatus();
     this.initializeWeek();
     await this.loadInitialData();
   },
@@ -1309,6 +1401,30 @@ export default {
     font-size: 1.8rem;
     color: var(--text);
     margin: 0;
+  }
+}
+
+.header-title-group {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.data-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: var(--hover);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  
+  svg {
+    font-size: 0.7rem;
+    color: var(--primary);
   }
 }
 
