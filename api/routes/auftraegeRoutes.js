@@ -70,7 +70,8 @@ router.get('/', async (req, res) => {
     }
     
     // Only get active/confirmed auftraege (auftStatus = 2 based on import query)
-    // But let's show all for now and let frontend filter if needed
+    // Filter out explicitly inactive ones (aktiv = 0)
+    query.aktiv = { $ne: 0 };
     
     const auftraege = await Auftrag.find(query)
       .sort({ vonDatum: 1 })
@@ -128,35 +129,45 @@ router.get('/:auftragNr/details', async (req, res) => {
       .sort({ idAuftragArbeitsschichten: 1, datumVon: 1 })
       .lean();
     
-    // Populate Mitarbeiter, Beruf and Qualifikation for each Einsatz
-    const einsaetzeWithMitarbeiter = await Promise.all(
-      einsaetze.map(async (einsatz) => {
-        const result = { ...einsatz };
-        
-        // Load Mitarbeiter
-        if (einsatz.personalNr) {
-          const mitarbeiter = await Mitarbeiter.findOne({ personalnr: String(einsatz.personalNr) })
-            .select('vorname nachname email personalnr qualifikationen flip_id')
-            .populate('qualifikationen')
-            .lean();
-          result.mitarbeiterData = mitarbeiter;
-        }
-        
-        // Load Beruf by berufSchl (jobKey)
-        if (einsatz.berufSchl) {
-          const beruf = await Beruf.findOne({ jobKey: parseInt(einsatz.berufSchl) }).lean();
-          result.berufData = beruf;
-        }
-        
-        // Load Qualifikation by qualSchl (qualificationKey)
-        if (einsatz.qualSchl) {
-          const qualifikation = await Qualifikation.findOne({ qualificationKey: parseInt(einsatz.qualSchl) }).lean();
-          result.qualifikationData = qualifikation;
-        }
-        
-        return result;
-      })
-    );
+    // -- Optimization: Batch fetch related data --
+    const personalNrs = [...new Set(einsaetze.map(e => e.personalNr).filter(Boolean).map(String))];
+    const berufKeys = [...new Set(einsaetze.map(e => parseInt(e.berufSchl)).filter(k => !isNaN(k)))];
+    const qualiKeys = [...new Set(einsaetze.map(e => parseInt(e.qualSchl)).filter(k => !isNaN(k)))];
+
+    const [mitarbeiterList, berufList, qualiList] = await Promise.all([
+      personalNrs.length ? Mitarbeiter.find({ personalnr: { $in: personalNrs } })
+        .select('vorname nachname email personalnr qualifikationen flip_id')
+        .populate('qualifikationen')
+        .lean() : [],
+      berufKeys.length ? Beruf.find({ jobKey: { $in: berufKeys } }).lean() : [],
+      qualiKeys.length ? Qualifikation.find({ qualificationKey: { $in: qualiKeys } }).lean() : []
+    ]);
+
+    // Create lookup maps
+    const mitarbeiterMap = new Map(mitarbeiterList.map(m => [String(m.personalnr), m]));
+    const berufMap = new Map(berufList.map(b => [b.jobKey, b]));
+    const qualiMap = new Map(qualiList.map(q => [q.qualificationKey, q]));
+
+    // Map data back to assignments
+    const einsaetzeWithMitarbeiter = einsaetze.map(einsatz => {
+      const result = { ...einsatz };
+      
+      if (einsatz.personalNr) {
+        result.mitarbeiterData = mitarbeiterMap.get(String(einsatz.personalNr)) || null;
+      }
+      
+      if (einsatz.berufSchl) {
+        const key = parseInt(einsatz.berufSchl);
+        result.berufData = berufMap.get(key) || null;
+      }
+      
+      if (einsatz.qualSchl) {
+        const key = parseInt(einsatz.qualSchl);
+        result.qualifikationData = qualiMap.get(key) || null;
+      }
+      
+      return result;
+    });
     
     res.json({
       ...auftrag,

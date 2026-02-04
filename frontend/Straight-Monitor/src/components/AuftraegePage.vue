@@ -1,5 +1,6 @@
 <template>
-  <div class="auftraege-page">
+  <div class="auftraege-page" :class="{ 'sidebar-open': selectedEvent }">
+    <div class="main-content">
     <div class="page-header">
       <h1>Aufträge</h1>
       <div class="header-controls">
@@ -131,7 +132,7 @@
           @click="selectEvent(event)"
         >
             <div class="event-header">
-              <span class="event-status">{{ getStatusText(event.auftStatus) }}</span>
+              <span v-if="event.auftStatus !== 2" class="event-status">{{ getStatusText(event.auftStatus) }}</span>
             </div>
             
             <div class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
@@ -196,114 +197,146 @@
         </div>
       </div>
     </div>
+    </div><!-- End main-content -->
 
-    <!-- Event Detail Modal -->
-    <div v-if="selectedEvent" class="modal-overlay" @click.self="selectedEvent = null">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>{{ selectedEvent.eventTitel || 'Auftrag Details' }}</h2>
-          <button class="close-btn" @click="selectedEvent = null">×</button>
+    <!-- Sidebar for Event Details -->
+    <transition name="sidebar-slide">
+      <div v-if="selectedEvent" class="detail-sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-title-area">
+            <span v-if="selectedEvent.auftStatus !== 2" class="sidebar-status" :class="getEventStatusClass(selectedEvent)">{{ getStatusText(selectedEvent.auftStatus) }}</span>
+            <h2>{{ selectedEvent.eventTitel || 'Auftrag Details' }}</h2>
+          </div>
+          <button class="close-btn" @click="selectedEvent = null" title="Schließen (Esc)">×</button>
         </div>
-        <div class="modal-body">
-          <div class="detail-grid">
-            <div class="detail-row">
-              <span class="label">Auftrag Nr:</span>
-              <span class="value">{{ selectedEvent.auftragNr }}</span>
+        
+        <div class="sidebar-body">
+          <!-- Compact Info Grid -->
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Auftrag</span>
+              <span class="info-value">#{{ selectedEvent.auftragNr }}</span>
             </div>
-            <div class="detail-row">
-              <span class="label">Kunde:</span>
-              <span class="value">{{ selectedEvent.kundeData?.kundName || '-' }}</span>
+            <div class="info-item">
+              <span class="info-label">Kunde</span>
+              <span class="info-value highlight">{{ selectedEvent.kundeData?.kundName || '-' }}</span>
             </div>
-            <div class="detail-row">
-              <span class="label">Von:</span>
-              <span class="value">{{ formatDateTime(selectedEvent.vonDatum) }}</span>
+            <div class="info-item">
+              <span class="info-label">Zeitraum</span>
+              <span class="info-value">{{ formatDateRange(new Date(selectedEvent.vonDatum), new Date(selectedEvent.bisDatum)) }}</span>
             </div>
-            <div class="detail-row">
-              <span class="label">Bis:</span>
-              <span class="value">{{ formatDateTime(selectedEvent.bisDatum) }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">Location:</span>
-              <span class="value">{{ selectedEvent.eventLocation || '-' }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">Adresse:</span>
-              <span class="value">
-                {{ selectedEvent.eventStrasse || '' }} 
-                {{ selectedEvent.eventPlz || '' }} 
-                {{ selectedEvent.eventOrt || '' }}
+            <div class="info-item full-width">
+              <span class="info-label">Adresse</span>
+              <span class="info-value">
+                <template v-if="selectedEvent.eventLocation">{{ selectedEvent.eventLocation }}<br></template>
+                {{ selectedEvent.eventStrasse || '' }} {{ selectedEvent.eventPlz || '' }} {{ selectedEvent.eventOrt || '' }}
               </span>
-            </div>
-            <div class="detail-row">
-              <span class="label">Status:</span>
-              <span class="value">{{ getStatusText(selectedEvent.auftStatus) }}</span>
             </div>
           </div>
 
-          <div class="einsaetze-section" v-if="selectedEvent.einsaetze?.length">
-            <h3>Einsätze ({{ selectedEvent.einsaetze.length }})</h3>
-            <div class="einsaetze-grouped">
+          <!-- Schichten Section -->
+          <div class="schichten-section" v-if="selectedEvent.einsaetze?.length">
+            <div class="section-header">
+              <h3>Schichten</h3>
+              <span class="section-count">{{ Object.keys(preparedSchichten).length }}</span>
+            </div>
+            
+            <div class="schichten-list">
               <div 
-                v-for="(schicht, schichtId) in groupedEinsaetze" 
+                v-for="(schichtData, schichtId) in preparedSchichten" 
                 :key="schichtId"
-                class="schicht-group"
+                class="schicht-card"
               >
-                <div class="schicht-header">
-                  <span>Schicht {{ schichtId || 'Ohne Zuordnung' }}</span>
-                  <div class="schicht-badges">
-                    <span v-if="getCommonBeruf(schicht)" class="beruf-badge">
-                      <font-awesome-icon icon="fa-solid fa-briefcase" />
-                      {{ getCommonBeruf(schicht).designation }}
+                <!-- Schicht Header with Times & Bedarf -->
+                <div class="schicht-header-compact">
+                  <div class="schicht-time-info">
+                    <span class="schicht-time" v-if="schichtData.meta.uhrzeitVon">
+                      <font-awesome-icon icon="fa-solid fa-clock" />
+                      {{ formatTime(schichtData.meta.uhrzeitVon) }}<template v-if="schichtData.meta.uhrzeitBis"> - {{ formatTime(schichtData.meta.uhrzeitBis) }}</template>
                     </span>
-                    <span v-if="getCommonQualifikation(schicht)" class="quali-badge">
-                      <font-awesome-icon icon="fa-solid fa-graduation-cap" />
-                      {{ getCommonQualifikation(schicht).designation }}
-                    </span>
+                    <span class="schicht-name" v-if="schichtData.meta.schichtBezeichnung">{{ schichtData.meta.schichtBezeichnung }}</span>
+                  </div>
+                  <div 
+                    class="bedarf-badge" 
+                    :class="schichtData.meta.bedarfMet ? 'met' : 'unmet'"
+                    :title="`${schichtData.einsaetze.length} von ${schichtData.meta.bedarf || '?'} Mitarbeitern geplant`"
+                  >
+                    {{ schichtData.einsaetze.length }}/{{ schichtData.meta.bedarf || '?' }}
                   </div>
                 </div>
-                <div class="einsatz-list">
+
+                <!-- Schicht Meta Row (Treffpunkt, Ansprechpartner) -->
+                <div class="schicht-meta" v-if="schichtData.meta.treffpunkt || schichtData.meta.ansprechpartnerName">
+                  <span class="meta-item" v-if="schichtData.meta.treffpunkt">
+                    <font-awesome-icon icon="fa-solid fa-location-dot" />
+                    Treffpunkt: {{ formatTime(schichtData.meta.treffpunkt) }}
+                  </span>
+                  <span class="meta-item ansprechpartner" v-if="schichtData.meta.ansprechpartnerName">
+                    <font-awesome-icon icon="fa-solid fa-user-tie" />
+                    {{ schichtData.meta.ansprechpartnerName }}
+                    <template v-if="schichtData.meta.ansprechpartnerTelefon">
+                      <a :href="'tel:' + schichtData.meta.ansprechpartnerTelefon" class="contact-link">{{ schichtData.meta.ansprechpartnerTelefon }}</a>
+                    </template>
+                  </span>
+                </div>
+
+                <!-- Badges Row (Quali wenn gemeinsam) -->
+                <div class="schicht-badges" v-if="getCommonQualifikation(schichtData.einsaetze)">
+                  <span v-if="getCommonQualifikation(schichtData.einsaetze)" class="badge quali">
+                    <font-awesome-icon icon="fa-solid fa-graduation-cap" />
+                    {{ getCommonQualifikation(schichtData.einsaetze).designation }}
+                  </span>
+                </div>
+
+                <!-- Mitarbeiter List (Compact) -->
+                <div class="mitarbeiter-list">
                   <div 
-                    v-for="einsatz in schicht" 
+                    v-for="einsatz in schichtData.einsaetze" 
                     :key="einsatz._id"
-                    class="einsatz-item"
+                    class="mitarbeiter-row"
                   >
-                    <span class="einsatz-personal">
+                    <div class="ma-info">
                       <template v-if="einsatz.mitarbeiterData">
                         <a 
                           href="#" 
-                          class="mitarbeiter-link"
+                          class="ma-name"
                           @click.prevent="openMitarbeiterCard(einsatz.mitarbeiterData)"
                         >
                           {{ einsatz.mitarbeiterData.vorname }} {{ einsatz.mitarbeiterData.nachname }}
                         </a>
-                        <span v-if="isTeamleiter(einsatz.mitarbeiterData)" class="tl-badge">
-                          <font-awesome-icon icon="fa-solid fa-user-tie" />
-                          TL
-                        </span>
+                        <span v-if="isTeamleiter(einsatz.mitarbeiterData)" class="tl-tag">TL</span>
                       </template>
                       <template v-else>
-                        <span class="personalnr-badge">{{ einsatz.personalNr || '-' }}</span>
+                        <span class="ma-placeholder">Personalnr: {{ einsatz.personalNr || '-' }}</span>
                       </template>
-                    </span>
-                    <span class="einsatz-bezeichnung">
-                      {{ einsatz.bezeichnung || '-' }}
-                      <span v-if="einsatz.berufData && !getCommonBeruf(schicht)" class="beruf-badge">
-                        <font-awesome-icon icon="fa-solid fa-briefcase" />
-                        {{ einsatz.berufData.designation }}
-                      </span>
-                      <span v-if="einsatz.qualifikationData && !getCommonQualifikation(schicht)" class="quali-badge">
-                        <font-awesome-icon icon="fa-solid fa-graduation-cap" />
+                    </div>
+                    <div class="ma-badges" v-if="!getCommonQualifikation(schichtData.einsaetze)">
+                      <span v-if="einsatz.qualifikationData && !getCommonQualifikation(schichtData.einsaetze)" class="badge quali small">
                         {{ einsatz.qualifikationData.designation }}
                       </span>
-                    </span>
+                    </div>
+                  </div>
+                  
+                  <!-- Empty State if no Mitarbeiter -->
+                  <div v-if="schichtData.einsaetze.length === 0" class="no-mitarbeiter">
+                    Keine Mitarbeiter geplant
                   </div>
                 </div>
               </div>
             </div>
           </div>
+
+          <!-- No Einsätze State -->
+          <div v-else class="no-einsaetze">
+            <font-awesome-icon icon="fa-solid fa-calendar-xmark" />
+            <span>Keine Schichten/Einsätze vorhanden</span>
+          </div>
         </div>
       </div>
-    </div>
+    </transition>
+
+    <!-- Sidebar Overlay for mobile only -->
+    <div v-if="selectedEvent && isMobile" class="sidebar-overlay" @click="selectedEvent = null"></div>
 
     <!-- Mitarbeiter Card Modal -->
     <div v-if="selectedMitarbeiter" class="modal-overlay" @click.self="selectedMitarbeiter = null">
@@ -332,16 +365,15 @@
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie);
+library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
 import { useAuth } from '../stores/auth';
 import { useFlipAll } from '../stores/flipAll';
-import FlipMappings from '@/assets/FlipMappings.json';
 import FilterPanel from '@/components/FilterPanel.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/FilterChip.vue';
@@ -349,12 +381,6 @@ import FilterDivider from '@/components/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import EmployeeCard from '@/components/EmployeeCard.vue';
 
-// Teamleiter UserGroup IDs
-const TEAMLEITER_GROUP_IDS = [
-  FlipMappings.user_group_ids.berlin_teamleiter,
-  FlipMappings.user_group_ids.hamburg_teamleiter,
-  FlipMappings.user_group_ids.koeln_teamleiter,
-];
 
 export default {
   name: "AuftraegePage",
@@ -394,7 +420,8 @@ export default {
       isMobile: false,
       mobileDayIndex: 0,
       selectedMitarbeiter: null,
-      fullMitarbeiterData: null
+      fullMitarbeiterData: null,
+      preparedSchichten: {} // Lazy loaded schichten data
     };
   },
   computed: {
@@ -433,19 +460,59 @@ export default {
         (a.kundeData?.kundName && a.kundeData.kundName.toLowerCase().includes(q)) ||
         (a.auftragNr && String(a.auftragNr).includes(q))
       );
-    },
-    groupedEinsaetze() {
-      if (!this.selectedEvent?.einsaetze) return {};
-      const grouped = {};
-      this.selectedEvent.einsaetze.forEach(e => {
-        const key = e.idAuftragArbeitsschichten || 'none';
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(e);
-      });
-      return grouped;
     }
   },
   methods: {
+    // Determine shifts and metadata from event details (Lazy Load)
+    calculateSchichten(event) {
+      if (!event?.einsaetze) return {};
+      const grouped = {};
+      
+      event.einsaetze.forEach(e => {
+        const key = e.idAuftragArbeitsschichten || 'none';
+        if (!grouped[key]) {
+          grouped[key] = {
+            einsaetze: [],
+            meta: {
+              schichtBezeichnung: e.schichtBezeichnung || null,
+              treffpunkt: e.treffpunkt || null,
+              ansprechpartnerName: e.ansprechpartnerName || null,
+              ansprechpartnerTelefon: e.ansprechpartnerTelefon || null,
+              ansprechpartnerEmail: e.ansprechpartnerEmail || null,
+              uhrzeitVon: e.uhrzeitVon || null,
+              uhrzeitBis: e.uhrzeitBis || null,
+              bedarf: e.bedarf || null,
+              bedarfMet: false
+            }
+          };
+        }
+        grouped[key].einsaetze.push(e);
+      });
+      
+      // Calculate bedarfMet for each schicht and sort employees (Teamleiter first)
+      Object.values(grouped).forEach(schicht => {
+        const bedarf = schicht.meta.bedarf;
+        const actual = schicht.einsaetze.length;
+        schicht.meta.bedarfMet = bedarf ? actual >= bedarf : true;
+
+        // Sort: Teamleiter first, then alphabetical by name
+        schicht.einsaetze.sort((a, b) => {
+          const isTLa = this.isTeamleiter(a.mitarbeiterData);
+          const isTLb = this.isTeamleiter(b.mitarbeiterData);
+          
+          if (isTLa && !isTLb) return -1;
+          if (!isTLa && isTLb) return 1;
+          
+          // Same status, sort by name
+          const nameA = (a.mitarbeiterData?.nachname || "").toLowerCase();
+          const nameB = (b.mitarbeiterData?.nachname || "").toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+      });
+      
+      return grouped;
+    },
+
     // Check if all einsaetze in a schicht have the same beruf
     getCommonBeruf(einsaetze) {
       if (!einsaetze || einsaetze.length === 0) return null;
@@ -702,9 +769,11 @@ export default {
       try {
         const response = await api.get(`/api/auftraege/${event.auftragNr}/details`);
         this.selectedEvent = response.data;
+        this.preparedSchichten = this.calculateSchichten(this.selectedEvent);
       } catch (error) {
         console.error('Error loading event details:', error);
         this.selectedEvent = event; // fallback to basic data
+        this.preparedSchichten = this.calculateSchichten(event);
       }
     },
     getEventStatusClass(event) {
@@ -716,7 +785,7 @@ export default {
       return 'status-default';
     },
     getStatusText(status) {
-      const map = { 1: 'Entwurf', 2: 'Bestätigt', 3: 'Abgeschlossen' };
+      const map = { 1: 'Unbestätigt', 2: 'Bestätigt', 3: 'Abgeschlossen' };
       return map[status] || 'Unbekannt';
     },
     getWeekNumber(date) {
@@ -740,7 +809,15 @@ export default {
     },
     formatTime(dateStr) {
       if (!dateStr) return '-';
+      
+      // If it looks like HH:MM or HH:MM:SS already, just return the first 5 chars
+      if (typeof dateStr === 'string' && /^\d{1,2}:\d{2}(:\d{2})?$/.test(dateStr)) {
+          return dateStr.substring(0, 5);
+      }
+
       const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr; // Fallback if invalid date
+      
       return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
     },
     formatDateTime(dateStr) {
@@ -785,25 +862,13 @@ export default {
       }
     },
     
-    // Check if a mitarbeiter is a Teamleiter based on qualifications (key=50055) or Flip groups
+    // Check if a mitarbeiter is a Teamleiter based on qualification 50055
     isTeamleiter(mitarbeiter) {
-      // Strategy 1: Check qualifications (preferred, more reliable)
-      if (mitarbeiter?.qualifikationen?.length) {
-        const hasTeamleiterQuali = mitarbeiter.qualifikationen.some(q => {
-          const key = parseInt(String(q.qualificationKey || q), 10);
-          return key === 50055;
-        });
-        if (hasTeamleiterQuali) return true;
-      }
-      
-      // Strategy 2: Fallback to Flip groups
-      if (mitarbeiter?.flip?.groups && Array.isArray(mitarbeiter.flip.groups)) {
-        return mitarbeiter.flip.groups.some(group => 
-          TEAMLEITER_GROUP_IDS.includes(group.id)
-        );
-      }
-      
-      return false;
+      if (!mitarbeiter?.qualifikationen?.length) return false;
+      return mitarbeiter.qualifikationen.some(q => {
+        const key = parseInt(String(q.qualificationKey || q), 10);
+        return key === 50055;
+      });
     },
 
     handleEscapeKey(event) {
@@ -847,9 +912,389 @@ export default {
   --text: var(--text);
   --brand: var(--primary);
   
+  display: flex;
+  height: calc(100vh - 88px);
+  overflow: hidden;
+  
+  &.sidebar-open {
+    .main-content {
+      margin-right: 420px;
+      
+      @media (max-width: 1200px) {
+        margin-right: 0;
+      }
+    }
+  }
+}
+
+.main-content {
+  flex: 1;
   padding: 20px;
-  max-width: 100%;
-  overflow-x: auto;
+  overflow-y: auto;
+  transition: margin-right 0.3s ease;
+}
+
+/* Sidebar Styles */
+.detail-sidebar {
+  position: fixed;
+  top: 88px; /* Increased to ensure it sits below header */
+  right: 0;
+  width: 420px;
+  height: calc(100vh - 88px);
+  background: var(--tile-bg);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+  
+  @media (max-width: 1200px) {
+    width: 100%;
+    max-width: 450px;
+  }
+  
+  @media (max-width: 600px) {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  
+  .sidebar-title-area {
+    flex: 1;
+    min-width: 0;
+    
+    h2 {
+      margin: 0;
+      font-size: 1.1rem;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+  
+  .sidebar-status {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    
+    &.status-draft { background: #fef3c7; color: #92400e; }
+    &.status-confirmed { background: #d1fae5; color: #065f46; }
+    &.status-completed { background: #dbeafe; color: #1e40af; }
+  }
+  
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.6rem;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    margin-left: 12px;
+    
+    &:hover { color: var(--text); }
+  }
+}
+
+.sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.sidebar-overlay {
+  display: none;
+  
+  @media (max-width: 1200px) {
+    display: block;
+    position: fixed;
+    top: 88px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 99;
+  }
+}
+
+/* Sidebar Animation */
+.sidebar-slide-enter-active,
+.sidebar-slide-leave-active {
+  transition: transform 0.3s ease;
+}
+
+.sidebar-slide-enter-from,
+.sidebar-slide-leave-to {
+  transform: translateX(100%);
+}
+
+/* Info Grid in Sidebar */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+  
+  .info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    
+    &.full-width {
+      grid-column: 1 / -1;
+    }
+    
+    .info-label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    
+    .info-value {
+      font-size: 0.9rem;
+      color: var(--text);
+      
+      &.highlight {
+        color: var(--primary);
+        font-weight: 600;
+      }
+    }
+  }
+}
+
+/* Schichten Section */
+.schichten-section {
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    
+    h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+    
+    .section-count {
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+  }
+}
+
+.schichten-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.schicht-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.schicht-header-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--hover);
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+  
+  .schicht-time-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    min-width: 0;
+    
+    .schicht-time {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--text);
+      
+      svg { color: var(--primary); font-size: 0.75rem; }
+    }
+    
+    .schicht-name {
+      font-size: 0.8rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+}
+
+.bedarf-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  
+  &.met {
+    background: #d1fae5;
+    color: #065f46;
+  }
+  
+  &.unmet {
+    background: #fef3c7;
+    color: #92400e;
+  }
+}
+
+.schicht-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  background: color-mix(in oklab, var(--hover) 50%, transparent);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--muted);
+  
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    
+    svg { color: var(--primary); font-size: 0.7rem; }
+    
+    &.ansprechpartner {
+      .contact-link {
+        color: var(--primary);
+        text-decoration: none;
+        margin-left: 4px;
+        
+        &:hover { text-decoration: underline; }
+      }
+    }
+  }
+}
+
+.schicht-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.badge {
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  
+  svg { font-size: 0.6rem; }
+  
+  &.beruf {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: #fff;
+  }
+  
+  &.quali {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    color: #fff;
+  }
+  
+  &.small {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+  }
+}
+
+.mitarbeiter-list {
+  padding: 6px 0;
+}
+
+.mitarbeiter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
+  
+  &:last-child { border-bottom: none; }
+  
+  .ma-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    
+    .ma-name {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.85rem;
+      
+      &:hover { text-decoration: underline; }
+    }
+    
+    .ma-placeholder {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    
+    .tl-tag {
+      font-size: 0.6rem;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+  }
+  
+  .ma-badges {
+    display: flex;
+    gap: 4px;
+  }
+}
+
+.no-mitarbeiter,
+.no-einsaetze {
+  text-align: center;
+  padding: 20px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  
+  svg {
+    display: block;
+    margin: 0 auto 8px;
+    font-size: 1.5rem;
+    opacity: 0.5;
+  }
 }
 
 .page-header {
@@ -1362,10 +1807,6 @@ export default {
   &:hover {
     background: rgba(255, 77, 79, 0.1) !important;
   }
-}
-
-.filter-layout {
-  /* ... existing styles if any ... */
 }
 
 /* Mobile */

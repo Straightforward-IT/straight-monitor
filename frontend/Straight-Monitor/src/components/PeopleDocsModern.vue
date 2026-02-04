@@ -389,7 +389,13 @@
               </div>
               
               <div class="list-col list-col--name">
-                <div class="name">{{ ma.vorname }} {{ ma.nachname }}</div>
+                <div class="name">
+                  {{ ma.vorname }} {{ ma.nachname }}
+                  <span v-if="isTeamleiter(ma)" class="teamleiter-badge-inline" title="Teamleiter">
+                    <font-awesome-icon icon="fa-solid fa-star" />
+                    TL
+                  </span>
+                </div>
               </div>
               
               <div class="list-col list-col--personalnr">
@@ -891,7 +897,7 @@ export default {
         result = result.filter((ma) => {
           let isTeamleiter = false;
           if (ma.qualifikationen?.length) {
-             isTeamleiter = ma.qualifikationen.some(q => parseInt(String(q.qualificationKey), 10) === 5);
+             isTeamleiter = ma.qualifikationen.some(q => parseInt(String(q.qualificationKey), 10) === 50055);
           }
           return this.filters.teamleiter === "Nur Teamleiter" ? isTeamleiter : !isTeamleiter;
         });
@@ -1058,6 +1064,10 @@ export default {
 
   methods: {
     /* -------------------- UX helpers -------------------- */
+    isTeamleiter(ma) {
+      if (!ma?.qualifikationen?.length) return false;
+      return ma.qualifikationen.some(q => parseInt(String(q.qualificationKey), 10) === 50055);
+    },
     toggleFilters() {
       this.filtersExpanded = !this.filtersExpanded;
     },
@@ -2299,6 +2309,28 @@ export default {
     overflow: visible;
     text-overflow: unset;
     margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .teamleiter-badge-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    color: #000;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(255, 165, 0, 0.3);
+    white-space: nowrap;
+  }
+  
+  .teamleiter-badge-inline svg {
+    font-size: 10px;
   }
   
   .list-col--status,
@@ -2451,6 +2483,9 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .list-col--name .email {

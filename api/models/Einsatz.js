@@ -40,7 +40,24 @@ const EinsatzSchema = new mongoose.Schema({
   idAuftragArbeitsschichten: {
     type: Number, // ID_AUFTRAG_ARBEITSSCHICHTEN - Gruppierung innerhalb eines Auftrags
     required: false
-  }
+  },
+  // --- Schicht Infos (aus AUFTRAG_ARBEITSSCHICHTEN) ---
+  schichtBezeichnung: { type: String, required: false }, // BEZEICHNUNG
+  treffpunkt: { type: String, required: false }, // TREFFPUNKTUHRZEIT
+  ansprechpartnerName: { type: String, required: false }, // ANSP_NAME
+  ansprechpartnerTelefon: { type: String, required: false }, // ANSP_TELEFON
+  ansprechpartnerEmail: { type: String, required: false }, // ANSP_EMAIL
+  letzteAusschreibung: { type: Date, required: false }, // LETZTEAUSSCHREIBUNG
+
+  // --- Detail Infos (aus AUFTRAG_ARBEITSSCHICHTENDETAIL) ---
+  detailDatumVon: { type: Date, required: false }, // DETAIL_DATUMVON
+  detailDatumBis: { type: Date, required: false }, // DETAIL_DATUMBIS
+  uhrzeitVon: { type: String, required: false }, // UHRZEITVON
+  uhrzeitBis: { type: String, required: false }, // UHRZEITBIS
+  typ: { type: String, required: false }, // TYP
+  bedarf: { type: Number, required: false }, // BEDARF
+  garantiestundenLohn: { type: Number, required: false }, // GARANTIESTD_LOHN
+  endeOffen: { type: Number, required: false } // ENDEOFFEN (0/1?)
 }, { timestamps: true });
 
 module.exports = mongoose.model('Einsatz', EinsatzSchema);

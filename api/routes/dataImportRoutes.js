@@ -297,7 +297,7 @@ router.post('/kunde', upload.single('file'), async (req, res) => {
   }
 });
 
-// --- Einsatz Import ---
+// --- Einsatz Import (Zvoove Komplett-Export) ---
 router.post('/einsatz', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -308,25 +308,79 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rawData = XLSX.utils.sheet_to_json(sheet);
 
-    // For Einsätze, maybe we want to delete old ones or just add?
-    // strategy: insertMany. Duplicates might happen if we import same file twice.
-    // Ideally we would delete for the imported AuftragNrs first, or have a unique key.
-    // For now: Plain Insert.
-    
-    // Better strategy: Delete all Einsätze contained in the imported file's AUFTRAGNR list, then insert new ones.
-    // This allows updating an Auftrag's shifts by re-uploading.
-    
+    const operationsAuftrag = [];
+    const operationsKunde = [];
     const newEinsaetze = [];
     const auftragNrs = new Set();
+    
+    // Sets to avoid duplicate operations in one batch
+    const processedAuftraege = new Set();
+    const processedKunden = new Set();
 
     for (const rawRow of rawData) {
       const row = cleanKeys(rawRow);
+      // Skip if no Order Number (Main linking key)
       if (!isValidRow(row, 'AUFTRAGNR')) continue;
 
-      auftragNrs.add(row['AUFTRAGNR']);
+      const auftragNr = row['AUFTRAGNR'];
+      auftragNrs.add(auftragNr);
 
+      // 1. Prepare Auftrag Update/Upsert
+      if (!processedAuftraege.has(auftragNr)) {
+        processedAuftraege.add(auftragNr);
+        operationsAuftrag.push({
+          updateOne: {
+            filter: { auftragNr: auftragNr },
+            update: { $set: {
+              geschSt: row['A_GESCHST'] || row['GESCHST'], // Fallback if old column name
+              kundenNr: row['KUNDENNR'],
+              eventTitel: row['EVENTTITEL'],
+              bediener: row['BEDIENER'],
+              dtAngelegtAm: row['DTANGELEGTAM'],
+              bestDatum: row['BESTDATUM'],
+              vonDatum: row['VONDATUM'],
+              bisDatum: row['BISDATUM'],
+              eventStrasse: row['EVENT_STRASSE'],
+              eventPlz: row['EVENT_PLZ'],
+              eventOrt: row['EVENT_ORT'],
+              eventLocation: row['EVENT_LOCATION'],
+              aktiv: row['AKTIV'],
+              auftStatus: row['AUFTSTATUS']
+            }},
+            upsert: true
+          }
+        });
+      }
+
+      // 2. Prepare Kunde Update/Upsert
+      if (isValidRow(row, 'KUNDENNR') && !processedKunden.has(row['KUNDENNR'])) {
+        const kundenNr = row['KUNDENNR'];
+        processedKunden.add(kundenNr);
+        
+        const bemerkungen = [];
+        if (row['BEMERKUNG']) bemerkungen.push(String(row['BEMERKUNG']));
+        if (row['BEMERKUNG2']) bemerkungen.push(String(row['BEMERKUNG2']));
+        if (row['BEMERKUNG3']) bemerkungen.push(String(row['BEMERKUNG3']));
+
+        operationsKunde.push({
+          updateOne: {
+            filter: { kundenNr: kundenNr },
+            update: { $set: {
+              kundName: row['KUNDNAME'],
+              kundeSeit: row['KUNDESEIT'],
+              kundStatus: row['KUNDSTATUS'],
+              geschSt: row['K_GESCHST'] || row['GESCHST'],
+              kostenSt: row['K_KOSTENST'] || row['KOSTENST'],
+              bemerkung: bemerkungen
+            }},
+            upsert: true
+          }
+        });
+      }
+
+      // 3. Prepare Einsatz Insert
       newEinsaetze.push({
-        auftragNr: row['AUFTRAGNR'],
+        auftragNr: auftragNr,
         personalNr: row['PERSONALNR'],
         berufSchl: row['BERUFSCHL'],
         qualSchl: row['QUALSCHL'],
@@ -335,40 +389,94 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
         datumBis: row['DATUMBIS'],
         cProtBediener: row['CPROTBEDIENER'],
         dtProtDatum: row['DTPROTDATUM'],
-        idAuftragArbeitsschichten: row['ID_AUFTRAG_ARBEITSSCHICHTEN']
+        idAuftragArbeitsschichten: row['ID_AUFTRAG_ARBEITSSCHICHTEN'],
+        
+        // New Detail Fields
+        schichtBezeichnung: row['BEZEICHNUNG'],
+        treffpunkt: row['TREFFPUNKTUHRZEIT'],
+        ansprechpartnerName: row['ANSP_NAME'],
+        ansprechpartnerTelefon: row['ANSP_TELEFON'],
+        ansprechpartnerEmail: row['ANSP_EMAIL'],
+        letzteAusschreibung: row['LETZTEAUSSCHREIBUNG'],
+
+        detailDatumVon: row['DETAIL_DATUMVON'],
+        detailDatumBis: row['DETAIL_DATUMBIS'],
+        uhrzeitVon: row['UHRZEITVON'],
+        uhrzeitBis: row['UHRZEITBIS'],
+        typ: row['TYP'],
+        bedarf: row['BEDARF'],
+        garantiestundenLohn: row['GARANTIESTD_LOHN'],
+        endeOffen: row['ENDEOFFEN']
       });
     }
 
-    if (newEinsaetze.length > 0) {
-      // Clean up existing entries for these orders to avoid duplication on re-import
-      await Einsatz.deleteMany({ auftragNr: { $in: Array.from(auftragNrs) } });
-      
-      await Einsatz.insertMany(newEinsaetze);
+    // Execute Operations
+    let stats = {
+      auftrag: { upserted: 0, matched: 0, deactivated: 0 },
+      kunde: { upserted: 0, matched: 0 },
+      einsatz: { inserted: 0, deleted: 0 }
+    };
+
+    // 4. Deactivate Auftraege not in the list
+    const deactivateResult = await Auftrag.updateMany(
+      { auftragNr: { $nin: Array.from(auftragNrs) }, aktiv: { $ne: 0 } },
+      { $set: { aktiv: 0 } }
+    );
+    stats.auftrag.deactivated = deactivateResult.modifiedCount;
+
+    // 5. Cleanup Einsätze for orders that are not in the list (orphaned/cancelled)
+    const cleanupEinsaetzeResult = await Einsatz.deleteMany({ auftragNr: { $nin: Array.from(auftragNrs) } });
+    stats.einsatz.deleted += cleanupEinsaetzeResult.deletedCount;
+
+    if (operationsAuftrag.length > 0) {
+      const resA = await Auftrag.bulkWrite(operationsAuftrag);
+      stats.auftrag.upserted = resA.upsertedCount;
+      stats.auftrag.matched = resA.matchedCount;
     }
 
-    const result = { success: true, message: `${newEinsaetze.length} Einsätze verarbeitet (alte für betroffene Aufträge ersetzt).` };
-    await logImport('einsatz', req.file.originalname, 'success', newEinsaetze.length, { auftragNrsCount: auftragNrs.size }, req.user?._id);
-    res.json(result);
+    if (operationsKunde.length > 0) {
+      const resK = await Kunde.bulkWrite(operationsKunde);
+      stats.kunde.upserted = resK.upsertedCount;
+      stats.kunde.matched = resK.matchedCount;
+    }
+
+    if (newEinsaetze.length > 0) {
+      // Clean up existing entries for these orders (Full Sync for these orders)
+      const delRes = await Einsatz.deleteMany({ auftragNr: { $in: Array.from(auftragNrs) } });
+      stats.einsatz.deleted = delRes.deletedCount;
+      
+      const insRes = await Einsatz.insertMany(newEinsaetze);
+      stats.einsatz.inserted = insRes.length;
+    }
+
+    const message = `Verarbeitung abgeschlossen:\n` +
+      `- Einsätze: ${stats.einsatz.inserted} neu, ${stats.einsatz.deleted} gelöscht/ersetzt\n` +
+      `- Aufträge: ${stats.auftrag.upserted} neu, ${stats.auftrag.matched} aktualisiert, ${stats.auftrag.deactivated} deaktiviert\n` +
+      `- Kunden: ${stats.kunde.upserted} neu, ${stats.kunde.matched} aktualisiert`;
+
+    await logImport('einsatz-komplett', req.file.originalname, 'success', newEinsaetze.length, stats, req.user?._id);
+    
+    // Simple response structure for frontend
+    res.json({ success: true, message: message, details: stats });
 
     // Send email notification
     try {
       const timestamp = new Date().toLocaleString('de-DE');
       const emailContent = `
         <div style="font-family: Arial, sans-serif; color: #333;">
-          <h2>📅 Einsätze Import - ${timestamp}</h2>
+          <h2>📦 Zvoove Komplett-Import - ${timestamp}</h2>
           <p><strong>Datei:</strong> ${req.file.originalname}</p>
-          <p><strong>Größe:</strong> ${(req.file.size / 1024).toFixed(2)} KB</p>
           <hr/>
-          <h3>Ergebnis:</h3>
+          <h3>Statistik:</h3>
           <ul>
-            <li>Verarbeitet: <strong>${newEinsaetze.length}</strong> Einsätze</li>
-            <li>Betroffene Aufträge: <strong>${auftragNrs.size}</strong></li>
-            <li>Status: <strong style="color: green;">✓ Erfolgreich</strong></li>
+            <li><strong>Einsätze:</strong> ${stats.einsatz.inserted} (Importiert), ${stats.einsatz.deleted} (Ersetzt)</li>
+            <li><strong>Aufträge:</strong> ${stats.auftrag.upserted} (Neu), ${stats.auftrag.matched} (Update)</li>
+            <li><strong>Kunden:</strong> ${stats.kunde.upserted} (Neu), ${stats.kunde.matched} (Update)</li>
           </ul>
-          <p><em>Alte Einsätze für betroffene Aufträge wurden ersetzt.</em></p>
+          <p style="color: green;">✓ System erfolgreich synchronisiert.</p>
         </div>
       `;
-      await sendMail('it@straightforward.email', `Einsätze Import - ${timestamp}`, emailContent, 'it');
+      await sendMail('it@straightforward.email', `Zvoove Import - ${timestamp}`, emailContent, 'it');
     } catch (emailError) {
       logger.error('Failed to send import notification email:', emailError);
     }
@@ -379,22 +487,10 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
     // Send error email notification
     try {
       const timestamp = new Date().toLocaleString('de-DE');
-      const emailContent = `
-        <div style="font-family: Arial, sans-serif; color: #333;">
-          <h2>❌ Einsätze Import Fehler - ${timestamp}</h2>
-          <p><strong>Datei:</strong> ${req.file?.originalname || 'Unbekannt'}</p>
-          <hr/>
-          <h3>Fehler:</h3>
-          <p style="color: red;">${error.message}</p>
-          <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">${error.stack}</pre>
-        </div>
-      `;
-      await sendMail('it@straightforward.email', `❌ Einsätze Import Fehler - ${timestamp}`, emailContent, 'it');
-    } catch (emailError) {
-      logger.error('Failed to send error notification email:', emailError);
-    }
+      await sendMail('it@straightforward.email', `❌ Zvoove Import Fehler - ${timestamp}`, `Fehler: ${error.message}\n${error.stack}`, 'it');
+    } catch (e) {}
     
-    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Einsätze.', error: error.message });
+    res.status(500).json({ success: false, message: 'Fehler beim Komplett-Import.', error: error.message });
   }
 });
 

@@ -59,6 +59,7 @@ LaufzettelSchema.methods.toHtml = function () {
 const EventReportSchema = new mongoose.Schema({
   location: { type: String, required: true },
   kunde: { type: String, required: true },
+  auftragnummer: { type: String, required: false },
   name_teamleiter: { type: String, required: true },
   mitarbeiter_anzahl: { type: String, required: false },
   datum: {
@@ -251,6 +252,7 @@ EventReportSchema.methods.toHtml = function () {
 <strong>Location</strong>\n${this.location}\n
 <strong>Datum</strong>\n${formatDateHTML(this.datum)}\n
 <strong>Kunde</strong>\n${this.kunde}\n
+<strong>Auftragnummer</strong>\n${this.auftragnummer || "-"}\n
 <strong>Name Teamleiter</strong>\n${this.name_teamleiter}\n
 <strong>Mitarbeiter Anzahl</strong>\n${this.mitarbeiter_anzahl || "-"}\n
 <strong>Pünktlichkeit</strong>\n${this.puenktlichkeit || "-"}\n

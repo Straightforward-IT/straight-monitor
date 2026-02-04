@@ -233,18 +233,18 @@ router.get(
     // Fetch assignments for each teamleiter group
     for (const groupId of TEAMLEITER_GROUP_IDS) {
       try {
-        console.log(`🔍 Fetching assignments for group: ${groupId}`);
+        // console.log(`🔍 Fetching assignments for group: ${groupId}`);
         const assignmentsData = await getFlipUserGroupAssignments({ group_id: groupId });
-        console.log(`📋 Raw assignments response for ${groupId}:`, JSON.stringify(assignmentsData, null, 2));
+        // console.log(`📋 Raw assignments response for ${groupId}:`, JSON.stringify(assignmentsData, null, 2));
         
         const assignmentsList = assignmentsData?.assignments || [];
-        console.log(`✅ Found ${assignmentsList.length} assignments for group ${groupId}`);
+        // console.log(`✅ Found ${assignmentsList.length} assignments for group ${groupId}`);
         
         // Add this group to each user's groups array
         for (const assignment of assignmentsList) {
           const userId = assignment.id?.user_id || assignment.user_id;
           if (!userId) {
-            console.warn(`⚠️ Assignment missing user_id:`, assignment);
+            // console.warn(`⚠️ Assignment missing user_id:`, assignment);
             continue;
           }
           if (!userGroupsMap.has(userId)) {
@@ -261,8 +261,8 @@ router.get(
       }
     }
     
-    console.log(`👥 Total users with teamleiter groups: ${userGroupsMap.size}`);
-    console.log(`👥 User IDs with groups:`, Array.from(userGroupsMap.keys()));
+    // console.log(`👥 Total users with teamleiter groups: ${userGroupsMap.size}`);
+    // console.log(`👥 User IDs with groups:`, Array.from(userGroupsMap.keys()));
     
     // Merge groups into user objects
     const usersWithGroups = users.map(user => ({
@@ -272,7 +272,7 @@ router.get(
     
     // Log sample of users with groups
     const usersWithGroupsCount = usersWithGroups.filter(u => u.groups?.length > 0).length;
-    console.log(`✅ ${usersWithGroupsCount} users have groups assigned`);
+    // console.log(`✅ ${usersWithGroupsCount} users have groups assigned`);
     
     res.status(200).json(usersWithGroups);
   })
@@ -954,6 +954,8 @@ router.get(
     const mitarbeiter = await Mitarbeiter.find(filters)
       .sort(sortOptions)
       .populate([
+        "berufe",
+        "qualifikationen",
         { 
           path: "laufzettel_received",
           populate: [
@@ -1026,6 +1028,8 @@ router.get(
     const updated = await Mitarbeiter.find({
       updatedAt: { $gt: sinceDate }
     }).populate([
+      "berufe",
+      "qualifikationen",
       { 
         path: "laufzettel_received",
         populate: [

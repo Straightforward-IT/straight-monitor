@@ -11,16 +11,16 @@
       <h3>Letzte Uploads</h3>
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in ['auftrag', 'kunde', 'einsatz', 'personal', 'beruf', 'qualifikation', 'personal_quali']" :key="type" class="history-card">
+        <div v-for="type in ['einsatz-komplett', 'auftrag', 'kunde', 'personal', 'beruf', 'qualifikation', 'personal_quali']" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
-            <span class="status-dot" :class="lastUploads[type]?.status || 'none'"></span>
+            <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
           </div>
           <div class="history-body">
-            <template v-if="lastUploads[type]">
-              <div class="history-date">{{ formatDate(lastUploads[type].timestamp) }}</div>
-              <div class="history-info">{{ lastUploads[type].filename }}</div>
-              <div class="history-count">{{ lastUploads[type].recordCount }} Einträge</div>
+            <template v-if="getDisplayUpload(type)">
+              <div class="history-date">{{ formatDate(getDisplayUpload(type).timestamp) }}</div>
+              <div class="history-info">{{ getDisplayUpload(type).filename }}</div>
+              <div class="history-count">{{ getDisplayUpload(type).recordCount }} Einträge</div>
             </template>
             <template v-else>
               <div class="no-history">- Noch keine Daten -</div>
@@ -33,13 +33,56 @@
 
     <!-- Import-Bereich mit Tabs oder Accordion für Übersichtlichkeit -->
     <div class="imports-layout">
-      
-      <!-- Auftrag Section -->
-      <div class="import-card">
+
+      <!-- Zvoove Komplett-Export (Ehemals Einsatz) Section -->
+      <div class="import-card featured-import">
         <div class="card-header">
           <div class="header-content">
-            <h2>Aufträge</h2>
-            <p class="subtitle">Importiert Auftragsdaten aus Zvoove</p>
+            <h2>Zvoove Komplett-Export</h2>
+            <p class="subtitle">Importiert Einsätze, Aufträge und Kunden aus einer Datei (Master-Import)</p>
+          </div>
+          <span v-if="einsatzFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+        </div>
+
+        <div class="card-content">
+          <div class="upload-area" 
+            :class="{ 'has-file': einsatzFile }"
+            @dragover.prevent 
+            @drop="(e) => handleDragAndDrop(e, 'einsatz')"
+            @click="triggerFileInput('einsatz-upload')"
+          >
+            <div class="upload-content">
+              <i class="upload-icon" :class="einsatzFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+              <div class="upload-text">
+                <span v-if="!einsatzFile"><strong>Zvoove Export hier ablegen</strong><br>Importiert alles in einem Schritt</span>
+                <span v-else class="file-name">{{ einsatzFile.name }}</span>
+              </div>
+            </div>
+            <input id="einsatz-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'einsatz')" accept=".xlsx, .xls" />
+          </div>
+          
+          <div class="requirements-hint">
+            <details>
+              <summary>Erwartete SQL-Export Struktur</summary>
+              <div class="table-scroll">
+                <table class="req-table"><tbody>
+                  <tr><td>AUFTRAGNR, GESCHST, ...</td><td>Auftragsdaten</td></tr>
+                  <tr><td>KUNDENNR, KUNDNAME, ...</td><td>Kundendaten</td></tr>
+                  <tr><td>ID_AUFTRAG_ARBEITSSCHICHTEN, BEZEICHNUNG, ...</td><td>Schichtdaten</td></tr>
+                  <tr><td>PERSONALNR, DATUMVON, BEZEICHN, ...</td><td>Einsatzdaten</td></tr>
+                </tbody></table>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Auftrag Section (Legacy) -->
+      <div class="import-card legacy-import">
+        <div class="card-header">
+          <div class="header-content">
+            <h2>Aufträge (Manuell)</h2>
+            <p class="subtitle">Importiert nur Auftragsdaten</p>
           </div>
           <span v-if="auftragFile" class="status-indicator ready">
             <i class="fas fa-check"></i> Bereit
@@ -74,12 +117,12 @@
         </div>
       </div>
 
-      <!-- Kunde Section -->
-      <div class="import-card">
+      <!-- Kunde Section (Legacy) -->
+      <div class="import-card legacy-import">
         <div class="card-header">
           <div class="header-content">
-            <h2>Kunden</h2>
-            <p class="subtitle">Stammdaten und Bemerkungen</p>
+            <h2>Kunden (Manuell)</h2>
+            <p class="subtitle">Nur Kundendaten</p>
           </div>
           <span v-if="kundeFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
         </div>
@@ -112,34 +155,8 @@
         </div>
       </div>
 
-      <!-- Einsatz Section -->
-      <div class="import-card">
-        <div class="card-header">
-          <div class="header-content">
-            <h2>Einsätze</h2>
-            <p class="subtitle">Schichtplanungen und Disposition</p>
-          </div>
-          <span v-if="einsatzFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
-        </div>
+      <!-- Einsatz Section (Old placeholder removed, merged into top) -->
 
-        <div class="card-content">
-          <div class="upload-area" 
-            :class="{ 'has-file': einsatzFile }"
-            @dragover.prevent 
-            @drop="(e) => handleDragAndDrop(e, 'einsatz')"
-            @click="triggerFileInput('einsatz-upload')"
-          >
-            <div class="upload-content">
-              <i class="upload-icon" :class="einsatzFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-              <div class="upload-text">
-                <span v-if="!einsatzFile">Datei hier ablegen oder klicken</span>
-                <span v-else class="file-name">{{ einsatzFile.name }}</span>
-              </div>
-            </div>
-            <input id="einsatz-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'einsatz')" accept=".xlsx, .xls" />
-          </div>
-        </div>
-      </div>
 
       <!-- Personal Section -->
       <div class="import-card">
@@ -314,8 +331,62 @@
         <div class="modal-body">
           <p class="result-message" v-html="resultModalData.message"></p>
           
-          <!-- Statistics -->
-          <div v-if="resultModalData.details" class="stats-grid">
+          <!-- Master Import Details (Zvoove Komplett) -->
+          <div v-if="resultModalData.details && (resultModalData.details.auftrag || resultModalData.details.einsatz)" class="master-stats-container">
+            <h3>📊 Detaillierte Auswertung</h3>
+            <div class="master-stats-grid">
+              <!-- Einsätze Card -->
+              <div v-if="resultModalData.details.einsatz" class="stat-card master-card">
+                <div class="stat-icon blue"><i class="fas fa-calendar-check"></i></div>
+                <div class="stat-content">
+                  <span class="stat-title">Einsätze</span>
+                  <div class="stat-row">
+                    <span class="val success">+{{ resultModalData.details.einsatz.inserted || 0 }}</span>
+                    <span class="lbl">Neu</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="val danger">-{{ resultModalData.details.einsatz.deleted || 0 }}</span>
+                    <span class="lbl">Ersetzt</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Aufträge Card -->
+              <div v-if="resultModalData.details.auftrag" class="stat-card master-card">
+                <div class="stat-icon orange"><i class="fas fa-file-invoice"></i></div>
+                <div class="stat-content">
+                  <span class="stat-title">Aufträge</span>
+                  <div class="stat-row">
+                    <span class="val success">+{{ resultModalData.details.auftrag.upserted || 0 }}</span>
+                    <span class="lbl">Neu</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="val info">~{{ resultModalData.details.auftrag.matched || 0 }}</span>
+                    <span class="lbl">Update</span>
+                  </div>
+                </div>
+              </div>
+
+               <!-- Kunden Card -->
+               <div v-if="resultModalData.details.kunde" class="stat-card master-card">
+                <div class="stat-icon purple"><i class="fas fa-users"></i></div>
+                <div class="stat-content">
+                  <span class="stat-title">Kunden</span>
+                  <div class="stat-row">
+                    <span class="val success">+{{ resultModalData.details.kunde.upserted || 0 }}</span>
+                    <span class="lbl">Neu</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="val info">~{{ resultModalData.details.kunde.matched || 0 }}</span>
+                    <span class="lbl">Update</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Legacy Simple Statistics -->
+          <div v-if="resultModalData.details && !resultModalData.details.einsatz" class="stats-grid">
             <div class="stat-item" v-if="resultModalData.details.total !== undefined">
               <span class="stat-value">{{ resultModalData.details.total }}</span>
               <span class="stat-label">Gesamt</span>
@@ -470,13 +541,28 @@ export default {
       const labels = {
         auftrag: 'Aufträge',
         kunde: 'Kunden',
-        einsatz: 'Einsätze',
+        einsatz: 'Einsätze (Legacy)',
+        'einsatz-komplett': 'Zvoove / Einsätze',
         personal: 'Personal',
         beruf: 'Berufe',
         qualifikation: 'Qualifikationen',
         personal_quali: 'Pers. Skills'
       };
       return labels[type] || type;
+    },
+    getDisplayUpload(type) {
+      if (type === 'einsatz-komplett') {
+        const historyKomplett = this.lastUploads['einsatz-komplett'];
+        const historyEinsatz = this.lastUploads['einsatz'];
+        
+        if (historyKomplett && historyEinsatz) {
+          return new Date(historyKomplett.timestamp) > new Date(historyEinsatz.timestamp) 
+            ? historyKomplett 
+            : historyEinsatz;
+        }
+        return historyKomplett || historyEinsatz;
+      }
+      return this.lastUploads[type];
     },
     formatDate(dateString) {
       if (!dateString) return '';
@@ -590,6 +676,8 @@ export default {
       let combinedMessage = '';
       let allSuccessful = true;
       let totalStats = {};
+      let nestedStats = {}; // To store structured stats from master import (auftrag, kunde, einsatz)
+
       let combinedArrays = {
         notFoundEntries: [],
         conflictDetails: []
@@ -597,9 +685,14 @@ export default {
       
       results.forEach(result => {
         if (!result.success) allSuccessful = false;
-        combinedMessage += `\n\n<strong>${result.type}:</strong> ${result.message}`;
+        combinedMessage += `<div class="mb-2"><strong>${result.type}:</strong> ${result.message}</div>`;
         
         if (result.details) {
+          // Check for nested master import structure
+          if (result.details.auftrag || result.details.kunde || result.details.einsatz) {
+             nestedStats = result.details;
+          }
+
           // Merge numeric stats
           Object.keys(result.details).forEach(key => {
             if (typeof result.details[key] === 'number') {
@@ -619,9 +712,10 @@ export default {
       
       return {
         success: allSuccessful,
-        message: `Import von ${results.length} Datei(en) abgeschlossen:${combinedMessage}`,
+        message: combinedMessage,
         details: { 
           ...totalStats,
+          ...nestedStats, // Include specific sub-objects (auftrag, kunde, einsatz)
           notFoundEntries: combinedArrays.notFoundEntries,
           conflictDetails: combinedArrays.conflictDetails
         }
@@ -1155,6 +1249,85 @@ export default {
   &.info {
     border-color: #3b82f6;
     .stat-value { color: #3b82f6; }
+  }
+}
+
+/* Master Import Specific Styles */
+.master-stats-container {
+  margin-bottom: 24px;
+
+  h3 {
+    margin: 0 0 16px;
+    font-size: 1rem;
+    color: var(--text);
+  }
+}
+
+.master-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.stat-card.master-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+
+    &.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+    &.orange { background: rgba(249, 115, 22, 0.1); color: #f97316; }
+    &.purple { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+  }
+
+  .stat-content {
+    flex: 1;
+  }
+
+  .stat-title {
+    display: block;
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+
+    .val {
+      font-weight: 700;
+      &.success { color: #22c55e; }
+      &.danger { color: #ef4444; }
+      &.info { color: #3b82f6; }
+    }
+    
+    .lbl {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
   }
 }
 
