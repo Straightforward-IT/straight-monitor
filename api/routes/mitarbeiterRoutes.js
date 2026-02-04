@@ -2671,8 +2671,14 @@ router.get(
     const reportLookupAuftrag = new Map();
     
     const toDateKey = (d) => {
-      const date = new Date(d);
-      return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+      // Use Europe/Berlin time to ensure consistency between Local (usually DE) and Prod (usually UTC)
+      // This solves issues where late shifts (e.g. 23:00 UTC) count as the previous day on Prod
+      return new Date(d).toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }); 
     };
 
     eventReports.forEach(rep => {
@@ -2793,7 +2799,7 @@ router.get(
         
         // Priority 1: Check by AuftragNr (if available in Einsatz)
         if (a.auftragNr) {
-            const auftragKey = `${tIdStr}_${a.auftragNr}`;
+            const auftragKey = `${tIdStr}_${a.auftragNr.toString().trim()}`;
             if (reportLookupAuftrag.has(auftragKey)) {
                 status = "present";
                 eventReport = reportLookupAuftrag.get(auftragKey);
