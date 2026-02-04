@@ -9,9 +9,9 @@
 
     <div class="actions">
       <!-- Admin/Bestand -->
-      <button class="s-btn" @click="go('/excelFormatierung')">
+      <button class="s-btn" @click="go('/teamleiter-auswertung')">
         <img :src="logoSrc" alt="" />
-        <span>Teamleiter&nbsp;Excel</span>
+        <span>Teamleiter&nbsp;Auswertung</span>
       </button>
 
       <button class="s-btn" @click="go('/lohnabrechnungen')">

@@ -5,6 +5,7 @@
       class="tooltip-trigger"
       tabindex="-1"
       @mouseenter="scheduleShow"
+      @mousemove="updateMousePosition"
       @mouseleave="scheduleHide"
       @focusin="scheduleShow"
       @focusout="scheduleHide"
@@ -16,7 +17,7 @@
         <template v-if="isVisible">
           <!-- Normale Variante -->
           <div
-            v-if="!teleportToBody"
+            v-if="!teleportToBody && position !== 'mouse'"
             class="tooltip"
             :class="[position, { interactive }]"
             role="tooltip"
@@ -58,11 +59,11 @@ const props = defineProps({
   position: {
     type: String,
     default: 'top',
-    validator: v => ['top', 'bottom', 'left', 'right'].includes(v),
+    validator: v => ['top', 'bottom', 'left', 'right', 'mouse'].includes(v),
   },
-  delayIn: { type: Number, default: 500 },
-  delayOut: { type: Number, default: 120 },
-  teleportToBody: { type: Boolean, default: false },
+  delayIn: { type: Number, default: 50 },
+  delayOut: { type: Number, default: 50 },
+  teleportToBody: { type: Boolean, default: true },
   interactive: { type: Boolean, default: false },
 })
 
@@ -71,13 +72,28 @@ const coords = ref({ top: 0, left: 0 })
 const triggerRef = ref(null)
 let inTimer = null
 let outTimer = null
+let mouseX = 0
+let mouseY = 0
 
-const scheduleShow = () => {
+const updateMousePosition = (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    
+    if (isVisible.value && props.position === 'mouse') {
+         coords.value = { top: mouseY + 20, left: mouseX };
+    }
+}
+
+const scheduleShow = (e) => {
+  if (e) updateMousePosition(e);
+  
   clearTimeout(outTimer)
   clearTimeout(inTimer)
   inTimer = setTimeout(() => {
-    if (props.teleportToBody) {
-      if (triggerRef.value) {
+    if (props.teleportToBody || props.position === 'mouse') {
+      if (props.position === 'mouse') {
+          coords.value = { top: mouseY + 20, left: mouseX };
+      } else if (triggerRef.value) {
         const r = triggerRef.value.getBoundingClientRect()
         const offset = 8
         let top = r.top - offset
@@ -118,10 +134,11 @@ onBeforeUnmount(() => {
 })
 
 const transformBy = pos => {
+  if (pos === 'mouse') return 'translate(-50%, 0)'
   if (pos === 'top') return 'translate(-50%, -100%)'
   if (pos === 'bottom') return 'translate(-50%, 0)'
   if (pos === 'left') return 'translate(-100%, -50%)'
-  if (pos === 'right') return 'translate(0, -50%)'
+
   return 'translate(-50%, -100%)'
 }
 </script>
@@ -133,6 +150,8 @@ const transformBy = pos => {
 }
 .tooltip-trigger {
   display: inline-block;
+  width: 100%; /* Ensure trigger fills parent cell if needed */
+  height: 100%;
 }
 
 .tooltip {
@@ -142,11 +161,11 @@ const transformBy = pos => {
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
-  color: var(--c-text-primary);
-  background: var(--c-bg);
-  border: 1px solid var(--c-border);
+  color: #333; /* Explicit solid color */
+  background: #ffffff; /* Explicit solid color */
+  border: 1px solid #ddd;
   border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); 
   user-select: none;
   pointer-events: none; /* blockt Maus */
 
@@ -154,10 +173,9 @@ const transformBy = pos => {
     pointer-events: auto; /* erlaubt Klicks */
   }
 
-  &.top {
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
+  &.mouse {
+     /* Position handled via style binding */
+     z-index: 9999;
   }
   &.bottom {
     top: calc(100% + 8px);

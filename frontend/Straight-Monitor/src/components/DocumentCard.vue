@@ -11,9 +11,7 @@
           <span class="bezeichnung">{{ doc.bezeichnung || 'Kein Titel' }}</span>
         </div>
       </div>
-      <div class="card-actions">
-        <span :class="['status-badge', statusClass]">{{ doc.status || 'Offen' }}</span>
-      </div>
+      <!-- Removed status badge -->
     </header>
 
     <!-- Body -->

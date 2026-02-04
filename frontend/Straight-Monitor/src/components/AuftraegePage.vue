@@ -402,6 +402,7 @@ import api from "../utils/api";
 import { mapState } from 'pinia';
 import { useAuth } from '../stores/auth';
 import { useFlipAll } from '../stores/flipAll';
+import { useUi } from '../stores/ui';
 import FilterPanel from '@/components/FilterPanel.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/FilterChip.vue';
@@ -457,6 +458,7 @@ export default {
   },
   computed: {
     ...mapState(useAuth, ['user']),
+    ...mapState(useUi, { isUiOpen: 'isOpen' }),
     currentWeekEnd() {
       if (!this.currentWeekStart) return null;
       const end = new Date(this.currentWeekStart);
@@ -631,6 +633,46 @@ export default {
       
       // Set to today
       this.mobileDayIndex = (dayOfWeek + 6) % 7;
+    },
+    async loadOrderDirectly(auftragNr, focusDate) {
+      try {
+        const response = await api.get(`/api/auftraege/${auftragNr}/details`);
+        const fullOrder = response.data;
+        
+        if (fullOrder) {
+          this.selectedEvent = fullOrder;
+          this.preparedSchichten = this.calculateSchichten(fullOrder);
+          
+          let targetDate = null;
+          if (focusDate) {
+             targetDate = new Date(focusDate);
+          } else if (fullOrder.vonDatum) {
+             targetDate = new Date(fullOrder.vonDatum);
+          }
+          
+          if (targetDate && !isNaN(targetDate.getTime())) {
+            await this.jumpToDate(targetDate);
+          }
+        }
+      } catch (err) {
+        console.error("Deep link load failed:", err);
+      }
+    },
+    async jumpToDate(date) {
+      const dayOfWeek = date.getDay(); // 0 = Sun
+      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(date);
+      monday.setDate(date.getDate() + diff);
+      monday.setHours(0,0,0,0);
+      
+      this.currentWeekStart = monday;
+      
+      const sunday = new Date(monday);
+      sunday.setDate(sunday.getDate() + 6);
+      
+      // Load both start and end month of the week to handle crossovers
+      await this.ensureMonthLoaded(monday);
+      await this.ensureMonthLoaded(sunday);
     },
     async loadAuftraege(fromDate, toDate) {
       this.loading = true;
@@ -983,6 +1025,18 @@ export default {
     this.fetchDataStatus();
     this.initializeWeek();
     await this.loadInitialData();
+    
+    // Check deep link & filters
+    const { auftragnr, geschSt, focusDate } = this.$route.query;
+    
+    // Apply filter first if present
+    if (geschSt) {
+        this.setGeschStFilter(geschSt);
+    }
+
+    if (auftragnr) {
+        await this.loadOrderDirectly(auftragnr, focusDate);
+    }
   },
   beforeUnmount() {
     window.removeEventListener('resize', this.checkMobile);
@@ -1007,47 +1061,48 @@ export default {
   display: flex;
   height: calc(100vh - 88px);
   overflow: hidden;
-  
-  &.sidebar-open {
-    .main-content {
-      margin-right: 420px;
-      
-      @media (max-width: 1200px) {
-        margin-right: 0;
-      }
-    }
-  }
 }
 
 .main-content {
   flex: 1;
   padding: 20px;
   overflow-y: auto;
-  transition: margin-right 0.3s ease;
+  /* Removed transition on margin-right as layout is now flex-driven */
 }
 
 /* Sidebar Styles */
 .detail-sidebar {
-  position: fixed;
-  top: 88px; /* Increased to ensure it sits below header */
-  right: 0;
+  /* Removed fixed positioning to act as a flow element */
+  position: relative;
   width: 420px;
-  height: calc(100vh - 88px);
+  min-width: 420px; /* Ensure it keeps size during flex resize of siblings */
+  height: 100%;
   background: var(--tile-bg);
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  z-index: 100;
-  box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+  /* z-index removed as it is no longer an overlay */
+  /* box-shadow removed for flat layout, border is sufficient */
   
   @media (max-width: 1200px) {
-    width: 100%;
-    max-width: 450px;
+    /* On smaller screens, fall back to overlay or full width behavior if needed, 
+       but for now we keep flow behavior until it breaks layout, then maybe overlay? 
+       Actually, standard responsiveness usually stacks or overlays. 
+       Let's keep it simple for now, maybe reduce width */
+    width: 350px;
+    min-width: 350px;
   }
   
-  @media (max-width: 600px) {
+  @media (max-width: 768px) {
+    /* Mobile: Overlay behavior might be better here, or full screen. 
+       Let's restore fixed overlay ONLY for mobile */
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
     width: 100%;
-    max-width: 100%;
+    min-width: 100%;
+    z-index: 1000;
   }
 }
 
@@ -1122,15 +1177,25 @@ export default {
   }
 }
 
-/* Sidebar Animation */
+/* Sidebar Animation - Push effect */
 .sidebar-slide-enter-active,
 .sidebar-slide-leave-active {
-  transition: transform 0.3s ease;
+  transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1), min-width 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.2s ease;
+  overflow: hidden;
+  white-space: nowrap; /* Prevent content wrapping during animation */
 }
 
 .sidebar-slide-enter-from,
 .sidebar-slide-leave-to {
-  transform: translateX(100%);
+  width: 0 !important;
+  min-width: 0 !important;
+  opacity: 0;
+}
+
+/* Ensure content inside doesn't reflow weirdly during shrink */
+.sidebar-slide-enter-from *,
+.sidebar-slide-leave-to * {
+  opacity: 0;
 }
 
 /* Info Grid in Sidebar */

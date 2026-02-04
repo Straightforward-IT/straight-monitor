@@ -341,18 +341,26 @@
 
     <!-- Employee Modal -->
     <div v-if="selectedMitarbeiter" class="modal-overlay" @click.self="closeMitarbeiterCard">
-      <div class="modal-container">
-        <div v-if="loadingMitarbeiter" class="loading-state">
-          <font-awesome-icon icon="fa-solid fa-spinner" spin />
-          Lade Mitarbeiterdaten...
+      <div class="modal large">
+        <div class="modal-header">
+          <h3>Mitarbeiter Details</h3>
+          <button class="close-btn" @click="closeMitarbeiterCard">
+            <font-awesome-icon icon="fa-solid fa-xmark" />
+          </button>
         </div>
-        <EmployeeCard
-          v-else-if="fullMitarbeiterData"
-          :ma="fullMitarbeiterData"
-          :initiallyExpanded="true"
-          @close="closeMitarbeiterCard"
-          @open-employee="openMitarbeiterCard"
-        />
+        <div class="modal-body no-padding">
+            <div v-if="loadingMitarbeiter" class="loading-state">
+            <font-awesome-icon icon="fa-solid fa-spinner" spin />
+            Lade Mitarbeiterdaten...
+            </div>
+            <EmployeeCard
+            v-else-if="fullMitarbeiterData"
+            :ma="fullMitarbeiterData"
+            :initiallyExpanded="true"
+            @close="closeMitarbeiterCard"
+            @open-employee="openMitarbeiterCard"
+            />
+        </div>
       </div>
     </div>
 
@@ -2177,18 +2185,16 @@ export default {
   font-size: 0.95rem;
 }
 
-/* Employee Modal Container */
-.modal-container {
-  background: var(--surface);
-  border-radius: 14px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  max-width: 95vw;
-  max-height: 90vh;
-  overflow: auto;
-  position: relative;
+.modal-contaner { /* Deprecated, using modal-content now */
+  display: none;
 }
 
-.modal-container .loading-state {
-  padding: 60px 40px;
+.modal.large {
+  max-width: 900px;
+  height: 90vh; /* Force height so inner scroll works */
+}
+
+.modal-body.no-padding {
+  padding: 0;
 }
 </style>

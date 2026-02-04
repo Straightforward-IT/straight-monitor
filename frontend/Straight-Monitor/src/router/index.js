@@ -20,6 +20,7 @@ import FlipExit from '@/components/FlipExit.vue';
 import VerlosungTool from '@/components/VerlosungTool.vue';
 import DatenImport from '@/components/DatenImport.vue';
 import AuftraegePage from '@/components/AuftraegePage.vue';
+import TeamleiterAuswertung from '@/components/TeamleiterAuswertung.vue';
 import NotFound from '@/components/NotFound.vue';
 
 import { jwtDecode } from 'jwt-decode';
@@ -47,6 +48,7 @@ const routes = [
       { path: 'verlosung', name: 'VerlosungTool', component: VerlosungTool },
       { path: 'daten-import', name: 'DatenImport', component: DatenImport },
       { path: 'auftraege', name: 'Auftraege', component: AuftraegePage },
+      { path: 'teamleiter-auswertung', name: 'TeamleiterAuswertung', component: TeamleiterAuswertung },
       { path: '', redirect: '/dashboard' }
     ]
   },

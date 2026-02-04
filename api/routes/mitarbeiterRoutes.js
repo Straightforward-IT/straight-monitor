@@ -10,6 +10,10 @@ const xlsx = require("xlsx");
 const multer = require("multer");
 const path = require("path");
 const Mitarbeiter = require("../models/Mitarbeiter");
+const Einsatz = require("../models/Einsatz");
+const Auftrag = require("../models/Auftrag");
+const Qualifikation = require("../models/Qualifikation");
+const { EventReport } = require("../models/Classes/FlipDocs");
 const FlipUser = require("../models/Classes/FlipUser");
 const { sendMail } = require("../EmailService");
 const storage = multer.memoryStorage();
@@ -2583,6 +2587,275 @@ router.post(
       updates,
       errors,
     });
+  })
+);
+
+// Route for getting Team Leader stats (Qual 50055) and their mapping to Einsätze
+router.get(
+  "/teamleiter-stats",
+  auth,
+  asyncHandler(async (req, res) => {
+    // 1. Find Qualification 50055
+    const qual = await Qualifikation.findOne({ qualificationKey: 50055 });
+    if (!qual) {
+      return res.status(404).json({ message: "Qualifikation mit Key 50055 nicht gefunden." });
+    }
+
+    // 2. Find all TLs
+    // Using lean() for better performance as we just read
+    const teamleiter = await Mitarbeiter.find({
+      qualifikationen: qual._id,
+    })
+    .select("vorname nachname personalnr")
+    .lean();
+
+    // 3. Get all personalNrs as numbers for querying Einsatz
+    // Filter out those without personalnr
+    const validTls = teamleiter.filter(tl => tl.personalnr);
+    
+    const pNrList = validTls
+      .map(tl => parseInt(tl.personalnr, 10))
+      .filter(n => !isNaN(n));
+
+    // Map PersonalNr (Number) -> MongoDB _id (ObjectId)
+    const pNrToIdMap = {};
+    validTls.forEach(tl => {
+      const nr = parseInt(tl.personalnr, 10);
+      if (!isNaN(nr)) {
+        pNrToIdMap[nr] = tl._id;
+      }
+    });
+
+    // Date Filter Logic
+    const { month, year } = req.query;
+    let startDate, endDate;
+    let dateMatch = {};
+    if (month && year) {
+      const m = parseInt(month, 10);
+      const y = parseInt(year, 10);
+      // Validierung
+      if (!isNaN(m) && !isNaN(y)) {
+         // Month is 1-based from frontend usually, Date constructor takes 0-based
+         startDate = new Date(y, m - 1, 1);
+         endDate = new Date(y, m, 1); 
+         dateMatch = { datumVon: { $gte: startDate, $lt: endDate } };
+      }
+    }
+
+    // Step A: Find all assignments of these TLs in the given timeframe
+    const tlAssignments = await Einsatz.find({
+      personalNr: { $in: pNrList },
+      ...dateMatch
+    }).lean();
+
+    if (tlAssignments.length === 0) {
+      return res.json([]);
+    }
+
+    // --- CHECK EVENT REPORTS ---
+    // Fetch EventReports for these TLs in the same timerange
+    // Note: EventReport.datum might have different times, so we match on day level later
+    // But we can limit the fetch to the range
+    let reportMatch = {};
+    if (startDate && endDate) {
+      reportMatch = { datum: { $gte: startDate, $lt: endDate } };
+    }
+
+    const eventReports = await EventReport.find({
+      teamleiter: { $in: validTls.map(tl => tl._id) },
+      ...reportMatch
+    }).lean(); // Select all fields for DocumentCard usage
+
+    // Create lookups
+    const reportLookupDate = new Map();
+    const reportLookupAuftrag = new Map();
+    
+    const toDateKey = (d) => {
+      const date = new Date(d);
+      return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    };
+
+    eventReports.forEach(rep => {
+      // Reconstitute docType for DocumentCard if missing
+      if(!rep.docType) rep.docType = "Event-Bericht"; 
+      
+      // Structure details for DocumentCard
+      // DocumentCard expects doc.details = { ... }
+      if(!rep.details) {
+         rep.details = { ...rep };
+         // Map some fields to standard names if needed?
+         // DocumentCard just iterates details.
+      }
+
+      const repData = {
+          _id: rep._id,
+          docType: rep.docType,
+          status: rep.assigned ? 'Zugewiesen' : 'Offen',
+          datum: rep.datum,
+          details: rep.details || rep // Fallback
+      };
+      
+      if (rep.teamleiter) {
+        // Handle populated teamleiter field (it might be an object due to pre-find hook)
+        const tId = rep.teamleiter._id ? rep.teamleiter._id.toString() : rep.teamleiter.toString();
+        
+        // Lookup by Date
+        if (rep.datum) {
+           const key = `${tId}_${toDateKey(rep.datum)}`;
+           reportLookupDate.set(key, repData);
+        }
+        
+        // Lookup by Auftragnummer
+        if (rep.auftragnummer) {
+           // Normalize: trim spaces
+           const key = `${tId}_${rep.auftragnummer.toString().trim()}`;
+           reportLookupAuftrag.set(key, repData);
+        }
+      }
+    });
+    
+    console.log(`[TeamleiterAuswertung] Found ${eventReports.length} reports.`);
+    // ---------------------------
+
+    // Step B: Get unique AuftragNrs to check if they are "Team" orders
+    const relevantAuftragNrs = [...new Set(tlAssignments.map(a => a.auftragNr))];
+
+    // -- FETCH AUFTRAG TITLES --
+    const auftragDetails = await Auftrag.find({ 
+      auftragNr: { $in: relevantAuftragNrs } 
+    }).select("auftragNr eventTitel geschSt kundenNr").lean();
+    
+    const auftragInfoMap = {};
+    auftragDetails.forEach(ad => {
+        auftragInfoMap[ad.auftragNr] = { 
+            titel: ad.eventTitel, 
+            geschSt: ad.geschSt,
+            kundenNr: ad.kundenNr
+        };
+    });
+    // -------------------------
+
+    // Step C: Check which of these orders have > 1 record total (Global check)
+    // We check if the order has more than 1 entry in the whole system
+    // "Komplett alleine" means count == 1. We want count > 1.
+    const multiPersonCheck = await Einsatz.aggregate([
+      { 
+        $match: { 
+          auftragNr: { $in: relevantAuftragNrs } 
+        } 
+      },
+      {
+        $group: {
+          _id: "$auftragNr",
+          totalCount: { $sum: 1 }
+        }
+      },
+      {
+        $match: {
+          totalCount: { $gt: 1 }
+        }
+      }
+    ]);
+
+    const validAuftragSet = new Set(multiPersonCheck.map(x => x._id));
+    
+    // Exceptions: Jobs not to be listed
+    const EXCLUDED_KUNDEN = [3100001, 2100003, 1100024];
+
+    // Step D: Filter the original TL assignments
+    const filteredAssignments = tlAssignments.filter(a => {
+        if (!validAuftragSet.has(a.auftragNr)) return false;
+        
+        // Exclude specific customers
+        const info = auftragInfoMap[a.auftragNr];
+        if (info && EXCLUDED_KUNDEN.includes(info.kundenNr)) return false;
+        
+        return true;
+    });
+
+    // Step E: Group by PersonalNr for Response
+    const dataMap = {};
+    
+    // Sort assignments by date for the details here (backend sorting)
+    filteredAssignments.sort((a, b) => new Date(a.datumVon) - new Date(b.datumVon));
+
+    filteredAssignments.forEach(a => {
+      const pNr = a.personalNr;
+      // Resolve TL ID
+      const tlId = pNrToIdMap[pNr];
+      
+      // Check Report
+      let status = "missing"; // default
+      let eventReport = null;
+      
+      if (tlId) {
+        const tIdStr = tlId.toString();
+        
+        // Priority 1: Check by AuftragNr (if available in Einsatz)
+        if (a.auftragNr) {
+            const auftragKey = `${tIdStr}_${a.auftragNr}`;
+            if (reportLookupAuftrag.has(auftragKey)) {
+                status = "present";
+                eventReport = reportLookupAuftrag.get(auftragKey);
+            }
+        }
+        
+        // Priority 2: Check by Date (Fallback)
+        if (status === "missing" && a.datumVon) {
+            const dateKey = `${tIdStr}_${toDateKey(a.datumVon)}`;
+            if (reportLookupDate.has(dateKey)) {
+                status = "present";
+                eventReport = reportLookupDate.get(dateKey);
+            }
+        }
+      }
+
+      if (!dataMap[pNr]) {
+        dataMap[pNr] = { count: 0, reportCount: 0, details: [] };
+      }
+      const info = auftragInfoMap[a.auftragNr] || {};
+
+      dataMap[pNr].count++;
+      if (status === "present") dataMap[pNr].reportCount++;
+
+      dataMap[pNr].details.push({
+        auftragNr: a.auftragNr,
+        eventTitel: info.titel || "",
+        geschSt: info.geschSt || "",
+        bezeichnung: a.bezeichnung,
+        datumVon: a.datumVon,
+        reportStatus: status, // 'present' | 'missing'
+        eventReport: eventReport
+      });
+    });
+
+    // 4. Merge results
+    const result = validTls.map(tl => {
+      const pNr = parseInt(tl.personalnr, 10);
+      const data = dataMap[pNr];
+      
+      // Only return TLs that actually have assignments in this filtered view?
+      // Or return all with 0? Usually lists show activity.
+      // Let's keep the list but filtered ones have 0.
+      // The user wants "Auswertung", seeing 0 might be relevant.
+      // But if we have 100 TLs and only 5 worked, 95 empty rows is annoying.
+      // The previous code returned all TLs. I'll stick to that, the frontend can sort/filter.
+      
+      return {
+        _id: tl._id,
+        vorname: tl.vorname,
+        nachname: tl.nachname,
+        personalnr: tl.personalnr,
+        einsatzCount: data ? data.count : 0,
+        reportCount: data ? data.reportCount : 0,
+        einsaetze: data ? data.details : []
+      };
+    });
+    
+    // Optional: Filter defaults to show only active? 
+    // Let's stick to returning all for now, frontend handles display.
+
+    res.json(result);
   })
 );
 
