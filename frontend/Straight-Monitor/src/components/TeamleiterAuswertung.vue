@@ -110,6 +110,7 @@
                           <th>Auftrag / Event</th>
                           <th>Status</th>
                           <th>Bericht</th>
+                          <th>Evaluierung</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -139,7 +140,7 @@
                           <td style="text-align: center;" @click="openOrder(einsatz.auftragNr, einsatz.geschSt, einsatz.datumVon)">
                             <CustomTooltip text="Job anzeigen" position="mouse">
                               <font-awesome-icon 
-                                v-if="einsatz.reportStatus === 'present'" 
+                                v-if="einsatz.reportStatus === 'present' || einsatz.evalStatus === 'present'" 
                                 icon="check-circle" 
                                 class="status-icon success"
                               />
@@ -160,9 +161,19 @@
                                 />
                             </CustomTooltip>
                           </td>
+                          <td style="text-align: center;">                           
+                             <CustomTooltip text="Evaluierung Öffnen" position="mouse" v-if="einsatz.evaluierung">
+                                <img 
+                                  :src="evaluierungIconUrl" 
+                                  class="action-icon" 
+                                  @click.stop="openReport(einsatz.evaluierung)"
+                                  alt="Report"
+                                />
+                            </CustomTooltip>
+                          </td>
                         </tr>
                          <tr v-if="!tl.einsaetze || tl.einsaetze.length === 0">
-                          <td colspan="5" class="muted">Keine Details verfügbar</td>
+                          <td colspan="6" class="muted">Keine Details verfügbar</td>
                         </tr>
                       </tbody>
                     </table>
@@ -191,6 +202,7 @@ import CustomTooltip from './CustomTooltip.vue';
 import DocumentCard from './DocumentCard.vue';
 import EmployeeCard from './EmployeeCard.vue';
 import eventReportIconUrl from '@/assets/eventreport.png';
+import evaluierungIconUrl from '@/assets/evaluierung.png';
 
 library.add(faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle);
 
@@ -591,6 +603,10 @@ onMounted(() => {
     &:hover {
         transform: scale(1.1);
     }
+}
+
+.ml-2 {
+    margin-left: 8px;
 }
 
 .modal-overlay {

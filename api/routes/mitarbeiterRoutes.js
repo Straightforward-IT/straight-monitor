@@ -13,7 +13,7 @@ const Mitarbeiter = require("../models/Mitarbeiter");
 const Einsatz = require("../models/Einsatz");
 const Auftrag = require("../models/Auftrag");
 const Qualifikation = require("../models/Qualifikation");
-const { EventReport } = require("../models/Classes/FlipDocs");
+const { EventReport, EvaluierungMA } = require("../models/Classes/FlipDocs");
 const FlipUser = require("../models/Classes/FlipUser");
 const { sendMail } = require("../EmailService");
 const storage = multer.memoryStorage();
@@ -2666,9 +2666,16 @@ router.get(
       ...reportMatch
     }).lean(); // Select all fields for DocumentCard usage
 
+    // --- CHECK EVALUIERUNGEN ---
+    const evaluierungen = await EvaluierungMA.find({
+      teamleiter: { $in: validTls.map(tl => tl._id) },
+      ...reportMatch
+    }).lean();
+
     // Create lookups
     const reportLookupDate = new Map();
     const reportLookupAuftrag = new Map();
+    const evalLookupDate = new Map();
     
     const toDateKey = (d) => {
       // Use Europe/Berlin time to ensure consistency between Local (usually DE) and Prod (usually UTC)
@@ -2721,6 +2728,28 @@ router.get(
     });
     
     console.log(`[TeamleiterAuswertung] Found ${eventReports.length} reports.`);
+
+    evaluierungen.forEach(ev => {
+      if(!ev.docType) ev.docType = "Evaluierung";
+      if(!ev.details) ev.details = { ...ev };
+
+      const evData = {
+          _id: ev._id,
+          docType: ev.docType,
+          status: ev.assigned ? 'Zugewiesen' : 'Offen',
+          datum: ev.datum,
+          details: ev.details
+      };
+
+      if (ev.teamleiter) {
+        const tId = ev.teamleiter._id ? ev.teamleiter._id.toString() : ev.teamleiter.toString();
+        if (ev.datum) {
+           const key = `${tId}_${toDateKey(ev.datum)}`;
+           evalLookupDate.set(key, evData);
+        }
+      }
+    });
+    console.log(`[TeamleiterAuswertung] Found ${evaluierungen.length} evaluations.`);
     // ---------------------------
 
     // Step B: Get unique AuftragNrs to check if they are "Team" orders
@@ -2793,6 +2822,8 @@ router.get(
       // Check Report
       let status = "missing"; // default
       let eventReport = null;
+      let evalStatus = "missing";
+      let evaluierung = null;
       
       if (tlId) {
         const tIdStr = tlId.toString();
@@ -2807,11 +2838,18 @@ router.get(
         }
         
         // Priority 2: Check by Date (Fallback)
-        if (status === "missing" && a.datumVon) {
+        if (a.datumVon) {
             const dateKey = `${tIdStr}_${toDateKey(a.datumVon)}`;
-            if (reportLookupDate.has(dateKey)) {
+            
+            if (status === "missing" && reportLookupDate.has(dateKey)) {
                 status = "present";
                 eventReport = reportLookupDate.get(dateKey);
+            }
+
+            // Check Evaluierung by Date
+            if (evalLookupDate.has(dateKey)) {
+                evalStatus = "present";
+                evaluierung = evalLookupDate.get(dateKey);
             }
         }
       }
@@ -2822,7 +2860,10 @@ router.get(
       const info = auftragInfoMap[a.auftragNr] || {};
 
       dataMap[pNr].count++;
-      if (status === "present") dataMap[pNr].reportCount++;
+      // Count if EITHER report OR evaluation is present (not counting double)
+      if (status === "present" || evalStatus === "present") {
+          dataMap[pNr].reportCount++;
+      }
 
       dataMap[pNr].details.push({
         auftragNr: a.auftragNr,
@@ -2831,7 +2872,9 @@ router.get(
         bezeichnung: a.bezeichnung,
         datumVon: a.datumVon,
         reportStatus: status, // 'present' | 'missing'
-        eventReport: eventReport
+        eventReport: eventReport,
+        evalStatus: evalStatus,
+        evaluierung: evaluierung
       });
     });
 
