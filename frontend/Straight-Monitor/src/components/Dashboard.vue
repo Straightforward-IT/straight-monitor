@@ -57,8 +57,6 @@
 
     <!-- Monitor 2.0 Section -->
     <section class="monitor-2-section">
-      <h2 class="section-title">🚀 Monitor 2.5</h2>
-
       <div class="features-overview">
         <div class="feature-group">
           <h3 class="group-title">
