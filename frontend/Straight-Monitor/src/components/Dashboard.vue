@@ -57,7 +57,7 @@
 
     <!-- Monitor 2.0 Section -->
     <section class="monitor-2-section">
-      <h2 class="section-title">🚀 Monitor 2.0</h2>
+      <h2 class="section-title">🚀 Monitor 2.5</h2>
 
       <div class="features-overview">
         <div class="feature-group">
@@ -66,6 +66,10 @@
             Veröffentlichte Features
           </h3>
           <div class="feature-list">
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'table']" />
+              <span>Teamleiter Auswertung - Evaluierungen & Performance Verbesserungen</span>
+            </div>
             <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'file-alt']" />
               <span>Dokumente - Event-Reports & Evaluierungen</span>
