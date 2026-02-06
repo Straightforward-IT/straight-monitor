@@ -2,9 +2,6 @@
   <div class="tl-page">
     <div class="header">
       <div class="title-section">
-        <button class="back-btn" @click="$router.push('/dashboard')">
-          <font-awesome-icon icon="arrow-left" /> Back
-        </button>
         <h1>Teamleiter Auswertung</h1>
       </div>
       
@@ -193,7 +190,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import api from '../utils/api'; 
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
@@ -207,6 +204,7 @@ import evaluierungIconUrl from '@/assets/evaluierung.png';
 library.add(faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle);
 
 const router = useRouter();
+const route = useRoute();
 const teamleiterList = ref([]);
 const loading = ref(true);
 const error = ref(null);
@@ -222,12 +220,30 @@ const yyyy = today.getFullYear();
 const mm = String(today.getMonth() + 1).padStart(2, '0');
 const selectedMonth = ref(`${yyyy}-${mm}`);
 
+const updateUrl = () => {
+  // Save to storage
+  localStorage.setItem('tl_stats_period', selectedMonth.value);
+
+  const [year, month] = selectedMonth.value.split('-');
+  const query = {
+    year,
+    month
+  };
+  
+  if (expandedRows.value.length > 0) {
+    query.expanded = expandedRows.value.join(',');
+  }
+  
+  router.replace({ query }); 
+};
+
 const toggleExpand = (id) => {
   if (expandedRows.value.includes(id)) {
     expandedRows.value = expandedRows.value.filter(rowId => rowId !== id);
   } else {
     expandedRows.value.push(id);
   }
+  updateUrl();
 };
 
 const formatDate = (val) => {
@@ -301,10 +317,15 @@ const handleOpenEmployee = async (role, id) => {
   }
 };
 
-const fetchData = async () => {
+const fetchData = async (keepExpanded) => {
   try {
     loading.value = true;
-    expandedRows.value = []; // Reset expanded on reload
+    // Check if keepExpanded is explicitly true (ignore Events from @change)
+    if (keepExpanded !== true) {
+      expandedRows.value = []; 
+    }
+    
+    updateUrl();
     
     // Parse selectedMonth (YYYY-MM)
     const [year, month] = selectedMonth.value.split('-');
@@ -322,7 +343,27 @@ const fetchData = async () => {
 };
 
 onMounted(() => {
-  fetchData();
+  const { month, year, expanded } = route.query;
+  let keep = false;
+  
+  // Priority 1: URL Params
+  if (month && year) {
+      selectedMonth.value = `${year}-${month.padStart(2, '0')}`;
+  } 
+  // Priority 2: LocalStorage
+  else {
+      const stored = localStorage.getItem('tl_stats_period');
+      if (stored) {
+          selectedMonth.value = stored;
+      }
+  }
+  
+  if (expanded) {
+      expandedRows.value = expanded.split(',');
+      keep = true;
+  }
+  
+  fetchData(keep);
 });
 </script>
 
