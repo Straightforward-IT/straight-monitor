@@ -2869,7 +2869,7 @@ router.get(
         auftragNr: a.auftragNr,
         eventTitel: info.titel || "",
         geschSt: info.geschSt || "",
-        bezeichnung: a.bezeichnung,
+        bezeichnung: a.schichtBezeichnung || a.bezeichnung,
         datumVon: a.datumVon,
         reportStatus: status, // 'present' | 'missing'
         eventReport: eventReport,

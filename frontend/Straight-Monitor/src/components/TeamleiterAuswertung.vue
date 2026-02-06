@@ -105,12 +105,12 @@
                     <table class="inner-table">
                       <thead>
                         <tr>
-                          <th>Datum</th>
+                          <th class="w-date">Datum</th>
                           <th>Bezeichnung</th>
                           <th>Auftrag / Event</th>
-                          <th>Status</th>
-                          <th>Bericht</th>
-                          <th>Evaluierung</th>
+                          <th class="w-status">Status</th>
+                          <th class="w-action">Bericht</th>
+                          <th class="w-action">Evaluierung</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -550,18 +550,38 @@ onMounted(() => {
 .inner-table {
   width: 100%;
   font-size: 13px;
+  table-layout: fixed; /* Ensures columns respect widths strictly */
   
   th {
     text-transform: none;
-    font-size: 12px;
-    padding: 6px 8px;
+    font-size: 11px; /* Slightly smaller font for headers */
+    padding: 6px 4px;
     background: transparent;
+    color: var(--muted);
+    font-weight: 600;
   }
   
+  .w-date {
+    width: 75px;
+  }
+
+  .w-status {
+    width: 45px;
+    text-align: center;
+  }
+  
+  .w-action {
+    width: 65px; /* Enough for title but compact */
+    text-align: center;
+  }
+
   td {
-    padding: 6px 8px;
+    padding: 6px 4px;
     border-bottom: 1px solid rgba(128,128,128, 0.2);
     color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   tr:last-child td {
