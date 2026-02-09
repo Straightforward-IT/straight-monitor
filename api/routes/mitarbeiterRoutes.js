@@ -2265,7 +2265,7 @@ router.get(
 router.post(
   "/flip/exit",
   asyncHandler(async (req, res) => {
-    let userList = req.body.filter((user) => user && user.vorname && user.nachname);
+    let userList = req.body.filter((user) => user && ((user.vorname && user.nachname) || user.personalnr));
     console.log(`👥 Eingehende Benutzer zur Löschung: ${userList.length}`);
 
     let flipUsers;
@@ -2287,44 +2287,91 @@ router.post(
         nachname: user.last_name.toLowerCase().trim(),
       }));
 
+    // Local DB Lookup by PersonalNr
+    const pNrList = userList.map((u) => u.personalnr).filter((p) => p);
+    const pNrMap = new Map();
+    if (pNrList.length > 0) {
+      try {
+        const mas = await Mitarbeiter.find({
+          personalnr: { $in: pNrList },
+        }).select("personalnr flip_id");
+        mas.forEach((m) => {
+          if (m.personalnr && m.flip_id) {
+            pNrMap.set(m.personalnr, m.flip_id);
+          }
+        });
+      } catch (err) {
+        console.warn("⚠️ Fehler beim Lookup von Personalnummern:", err);
+      }
+    }
+
     const foundIds = [];
     const notFound = [];
+    const activeFlipIds = new Set(flipUsers.map((u) => u.id));
 
-    for (const { vorname, nachname } of userList) {
-      const inputName = `${vorname} ${nachname}`.toLowerCase().trim();
-      console.log(`🔍 Suche nach Flip-User für: ${inputName}`);
+    for (const user of userList) {
+      const { vorname, nachname, personalnr } = user;
+      let match = null;
 
-      // 1. Exact match
-      let match = normalizedUsers.find((u) =>
-        u.fullName.replace(/\s+/g, "") === inputName.replace(/\s+/g, "")
-      );
-
-      // 2. Last name + partial first name
-      if (!match) {
-        const inputParts = inputName.split(/\s+/);
-        const inputLast = inputParts[inputParts.length - 1];
-        const inputFirst = inputParts.slice(0, -1).join(" ");
-        match = normalizedUsers.find(
-          (u) => u.nachname === inputLast && u.vorname.includes(inputFirst)
-        );
+      // 1. Try PersonalNr mapping
+      if (personalnr && pNrMap.has(personalnr)) {
+        const mappedFlipId = pNrMap.get(personalnr);
+        if (activeFlipIds.has(mappedFlipId)) {
+          match = { id: mappedFlipId, fullName: `[PNr: ${personalnr}]` };
+        }
       }
 
-      // 3. Similarity fallback
-      if (!match) {
-        const nameList = normalizedUsers.map((u) => u.fullName);
-        const similarityMatch = stringSimilarity.findBestMatch(inputName, nameList);
-        if (similarityMatch.bestMatch.rating > 0.8) {
-          match = normalizedUsers[similarityMatch.bestMatchIndex];
-          console.log(`🤖 Ähnlichkeits-Treffer: ${match.fullName} (${similarityMatch.bestMatch.rating})`);
+      // 2. Fallback to Name Matching
+      if (!match && vorname && nachname) {
+        const inputName = `${vorname} ${nachname}`.toLowerCase().trim();
+        console.log(`🔍 Suche nach Flip-User für: ${inputName}`);
+
+        // Exact match
+        match = normalizedUsers.find(
+          (u) =>
+            u.fullName.replace(/\s+/g, "") === inputName.replace(/\s+/g, "")
+        );
+
+        // Last name + partial first name
+        if (!match) {
+          const inputParts = inputName.split(/\s+/);
+          const inputLast = inputParts[inputParts.length - 1];
+          const inputFirst = inputParts.slice(0, -1).join(" ");
+          match = normalizedUsers.find(
+            (u) => u.nachname === inputLast && u.vorname.includes(inputFirst)
+          );
+        }
+
+        // Similarity fallback
+        if (!match) {
+          const nameList = normalizedUsers.map((u) => u.fullName);
+          const similarityMatch = stringSimilarity.findBestMatch(
+            inputName,
+            nameList
+          );
+          if (similarityMatch.bestMatch.rating > 0.8) {
+            match = normalizedUsers[similarityMatch.bestMatchIndex];
+            console.log(
+              `🤖 Ähnlichkeits-Treffer: ${match.fullName} (${similarityMatch.bestMatch.rating})`
+            );
+          }
         }
       }
 
       if (match) {
-        foundIds.push(match.id);
+        if (!foundIds.includes(match.id)) foundIds.push(match.id);
         console.log(`✅ Flip-User gefunden: ${match.fullName}`);
       } else {
-        notFound.push(`${vorname} ${nachname}`);
-        console.warn(`❌ Kein Flip-User gefunden für: ${vorname} ${nachname}`);
+        const displayName = [
+          personalnr ? `[PNr: ${personalnr}]` : "",
+          vorname,
+          nachname,
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        notFound.push(displayName || "Unbekannter Eintrag");
+        console.warn(`❌ Kein Flip-User gefunden für: ${displayName}`);
       }
     }
 

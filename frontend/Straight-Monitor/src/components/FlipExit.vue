@@ -70,6 +70,7 @@
           const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
   
           this.userList = json.slice(1).map(row => ({
+            personalnr: row[0] ? String(row[0]).trim() : null,
             nachname: row[1],
             vorname: row[2],
           }));
