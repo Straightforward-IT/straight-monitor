@@ -41,6 +41,15 @@
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
           <span v-else class="beta-tag">NEU</span>
         </router-link>
+        <router-link
+          :to="newPagesEnabled ? '/kunden' : '#'"
+          :class="{ active: $route.name === 'Kunden', disabled: !newPagesEnabled }"
+          @click="handleNewPageClick($event, '/kunden')"
+        >
+          Kunden
+          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
+          <span v-else class="beta-tag">NEU</span>
+        </router-link>
       </nav>
   
     </div>
@@ -149,6 +158,16 @@
         >
           <font-awesome-icon :icon="['fas', 'calendar-alt']" />
           Aufträge
+          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
+          <span v-else class="beta-tag">NEU</span>
+        </router-link>
+        <router-link
+          :to="newPagesEnabled ? '/kunden' : '#'"
+          :class="{ active: $route.name === 'Kunden', disabled: !newPagesEnabled }"
+          @click="handleNewPageClick($event, '/kunden'); showMobileMenu = false"
+        >
+          <font-awesome-icon :icon="['fas', 'building']" />
+          Kunden
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
           <span v-else class="beta-tag">NEU</span>
         </router-link>

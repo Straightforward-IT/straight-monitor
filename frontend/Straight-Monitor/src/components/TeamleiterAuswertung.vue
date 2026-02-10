@@ -83,6 +83,9 @@
               <th @click="sortBy('reportCount')">Anzahl Berichte
                 <span v-if="sortKey === 'reportCount'">{{ sortAsc ? '▲' : '▼' }}</span>
               </th>
+              <th @click="sortBy('quote')">Quote
+                <span v-if="sortKey === 'quote'">{{ sortAsc ? '▲' : '▼' }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -95,9 +98,10 @@
                 <td>{{ tl.personalnr }}</td>
                 <td class="text-right">{{ tl.einsatzCount }}</td>
                 <td class="text-right">{{ tl.reportCount }} / {{ tl.einsatzCount }}</td>
+                <td class="text-right">{{ tl.quote }}%</td>
               </tr>
               <tr v-if="expandedRows.includes(tl._id)" class="detail-row">
-                <td colspan="4">
+                <td colspan="5">
                   <div class="detail-content">
                     <table class="inner-table">
                       <thead>
@@ -179,7 +183,7 @@
               </tr>
             </template>
             <tr v-if="teamleiterList.length === 0">
-              <td colspan="4" class="no-data">Keine Teamleiter gefunden hab den Key 50055 geprüft.</td>
+              <td colspan="5" class="no-data">Keine Teamleiter gefunden hab den Key 50055 geprüft.</td>
             </tr>
           </tbody>
         </table>
@@ -333,7 +337,10 @@ const fetchData = async (keepExpanded) => {
     const response = await api.get('/api/personal/teamleiter-stats', {
       params: { month, year }
     }); 
-    teamleiterList.value = response.data;
+    teamleiterList.value = response.data.map(tl => ({
+      ...tl,
+      quote: tl.einsatzCount ? Math.round((tl.reportCount / tl.einsatzCount) * 100) : 0
+    }));
     loading.value = false;
   } catch (err) {
     console.error(err);

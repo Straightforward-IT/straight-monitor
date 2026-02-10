@@ -691,17 +691,9 @@ export const useDataCache = defineStore('dataCache', {
     async fullSyncKunden() {
       try {
         console.log('[Cache] Full sync Kunden...');
-        // Kunden are embedded in Aufträge response, extract unique Kunden
-        const auftraege = await this.loadAuftraege();
-        const kundenMap = new Map();
         
-        auftraege.forEach(auftrag => {
-          if (auftrag.kundeData && auftrag.kundeData._id) {
-            kundenMap.set(auftrag.kundeData._id, auftrag.kundeData);
-          }
-        });
-        
-        const data = Array.from(kundenMap.values());
+        const response = await api.get('/api/kunden');
+        const data = response.data;
         
         await clearStore('kunden');
         await saveToStore('kunden', data);
@@ -724,18 +716,8 @@ export const useDataCache = defineStore('dataCache', {
       try {
         this.syncing.kunden = true;
         
-        // Since Kunden are derived from Aufträge, sync Aufträge first
-        await this.incrementalSyncAuftraege();
-        
-        // Then extract updated Kunden
-        const kundenMap = new Map();
-        this.auftraege.forEach(auftrag => {
-          if (auftrag.kundeData && auftrag.kundeData._id) {
-            kundenMap.set(auftrag.kundeData._id, auftrag.kundeData);
-          }
-        });
-        
-        const data = Array.from(kundenMap.values());
+        const response = await api.get('/api/kunden');
+        const data = response.data;
         
         await clearStore('kunden');
         await saveToStore('kunden', data);

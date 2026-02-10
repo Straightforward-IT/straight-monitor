@@ -313,6 +313,9 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
     const newEinsaetze = [];
     const auftragNrs = new Set();
     
+    let minDate = null;
+    let maxDate = null;
+
     // Sets to avoid duplicate operations in one batch
     const processedAuftraege = new Set();
     const processedKunden = new Set();
@@ -324,6 +327,11 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
 
       const auftragNr = row['AUFTRAGNR'];
       auftragNrs.add(auftragNr);
+
+      if (row['DATUMVON'] && row['DATUMVON'] instanceof Date && !isNaN(row['DATUMVON'])) {
+        if (!minDate || row['DATUMVON'] < minDate) minDate = row['DATUMVON'];
+        if (!maxDate || row['DATUMVON'] > maxDate) maxDate = row['DATUMVON'];
+      }
 
       // 1. Prepare Auftrag Update/Upsert
       if (!processedAuftraege.has(auftragNr)) {
@@ -425,7 +433,12 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
     stats.auftrag.deactivated = deactivateResult.modifiedCount;
 
     // 5. Cleanup Einsätze for orders that are not in the list (orphaned/cancelled)
-    const cleanupEinsaetzeResult = await Einsatz.deleteMany({ auftragNr: { $nin: Array.from(auftragNrs) } });
+    // Only delete within the uploaded time range to preserve other periods
+    const cleanupFilter = { auftragNr: { $nin: Array.from(auftragNrs) } };
+    if (minDate && maxDate) {
+      cleanupFilter.datumVon = { $gte: minDate, $lte: maxDate };
+    }
+    const cleanupEinsaetzeResult = await Einsatz.deleteMany(cleanupFilter);
     stats.einsatz.deleted += cleanupEinsaetzeResult.deletedCount;
 
     if (operationsAuftrag.length > 0) {
@@ -442,7 +455,12 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
 
     if (newEinsaetze.length > 0) {
       // Clean up existing entries for these orders (Full Sync for these orders)
-      const delRes = await Einsatz.deleteMany({ auftragNr: { $in: Array.from(auftragNrs) } });
+      // Only delete within the uploaded time range
+      const delFilter = { auftragNr: { $in: Array.from(auftragNrs) } };
+      if (minDate && maxDate) {
+        delFilter.datumVon = { $gte: minDate, $lte: maxDate };
+      }
+      const delRes = await Einsatz.deleteMany(delFilter);
       stats.einsatz.deleted = delRes.deletedCount;
       
       const insRes = await Einsatz.insertMany(newEinsaetze);

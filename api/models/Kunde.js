@@ -30,7 +30,19 @@ const KundeSchema = new mongoose.Schema({
   bemerkung: {
     type: [String], // Array aus BEMERKUNG, BEMERKUNG2, BEMERKUNG3
     required: false
-  }
+  },
+  kontakte: [{
+    vorname: { type: String, required: false },
+    nachname: { type: String, required: true }, // Name* implies required
+    email: { type: String, required: false },
+    telefon: { type: String, required: false },
+    angelegtVon: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    kommentare: [{
+      text: String,
+      datum: { type: Date, default: Date.now },
+      verfasser: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    }]
+  }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('Kunde', KundeSchema);
