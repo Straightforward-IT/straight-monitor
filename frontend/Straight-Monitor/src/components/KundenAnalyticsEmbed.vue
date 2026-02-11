@@ -431,8 +431,8 @@ const chartData = computed(() => {
 
 const chartOptions = computed(() => {
   const isDark = theme.current === 'dark';
-  const textColor = isDark ? '#eaeaea' : '#333';
-  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const textColor = isDark ? '#fff' : '#333';
+  const gridColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
 
   return {
     responsive: true,
@@ -591,8 +591,8 @@ function handleDrillChartClick(event) {
 
 const drillChartOptions = computed(() => {
   const isDark = theme.current === 'dark';
-  const textColor = isDark ? '#eaeaea' : '#333';
-  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const textColor = isDark ? '#fff' : '#333';
+  const gridColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
   const hasMultiple = drillAuftraege.value.length > 1;
 
   return {

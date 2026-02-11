@@ -912,8 +912,8 @@ const chartData = computed(() => {
 
 const chartOptions = computed(() => {
   const isDark = theme.current === 'dark';
-  const textColor = isDark ? '#eaeaea' : '#333';
-  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const textColor = isDark ? '#fff' : '#333';
+  const gridColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
   const isStacked = (compareMode.value === 'kunden' && selectedKundenNrs.value.length > 0) || compareMode.value === 'standort';
   const isStandort = compareMode.value === 'standort';
 
@@ -1279,8 +1279,8 @@ function handleDrillChartClick(event) {
 
 const drillChartOptions = computed(() => {
   const isDark = theme.current === 'dark';
-  const textColor = isDark ? '#eaeaea' : '#333';
-  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const textColor = isDark ? '#fff' : '#333';
+  const gridColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
   const hasMultiple = drillAuftraege.value.length > 1;
 
   return {
@@ -1408,7 +1408,7 @@ const pieChartData = computed(() => {
 
 const pieChartOptions = computed(() => {
   const isDark = theme.current === 'dark';
-  const textColor = isDark ? '#eaeaea' : '#333';
+  const textColor = isDark ? '#fff' : '#333';
 
   return {
     responsive: true,
