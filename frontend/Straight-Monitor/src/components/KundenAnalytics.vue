@@ -3,16 +3,16 @@
 
     <!-- Tab Navigation -->
     <div class="tab-navigation">
-      <FilterChip :active="activeTab === 'balken'" @click="activeTab = 'balken'">
-        <font-awesome-icon :icon="['fas', 'chart-bar']" class="tab-icon" /> Balken
+      <FilterChip :active="activeTab === 'saeulen'" @click="activeTab = 'saeulen'">
+        <font-awesome-icon :icon="['fas', 'chart-bar']" class="tab-icon" /> Säulen
       </FilterChip>
       <FilterChip :active="activeTab === 'kuchen'" @click="activeTab = 'kuchen'">
         <font-awesome-icon :icon="['fas', 'chart-pie']" class="tab-icon" /> Kuchen
       </FilterChip>
     </div>
 
-    <!-- Balken Tab -->
-    <div v-if="activeTab === 'balken'" class="tab-content">
+    <!-- Säulen Tab -->
+    <div v-if="activeTab === 'saeulen'" class="tab-content">
     <!-- Filter Row 1: Zeitraum + Standort -->
     <div class="filter-section">
       <div class="filter-row top-row">
@@ -66,8 +66,16 @@
 
       <!-- Filter Row 2: Multi-Select Kunden (only when compareMode is kunden) -->
       <div v-if="compareMode === 'kunden'" class="filter-row">
+        <div class="control-group">
+          <label class="control-label">Status</label>
+          <div class="chip-row">
+            <FilterChip :active="kundenStatusFilter === 'aktiv'" @click="setKundenStatusFilter('aktiv')">Aktiv</FilterChip>
+            <FilterChip :active="kundenStatusFilter === 'inaktiv'" @click="setKundenStatusFilter('inaktiv')">Inaktiv</FilterChip>
+            <FilterChip :active="kundenStatusFilter === 'alle'" @click="setKundenStatusFilter('alle')">Alle</FilterChip>
+          </div>
+        </div>
         <div class="control-group control-group-wide">
-          <label class="control-label">Kunden vergleichen <span class="hint">(Einzelne Kunden auswählen)</span></label>
+          <label class="control-label">Kunden vergleichen <span class="hint">({{ selectedKundenNrs.length }} ausgewählt)</span></label>
           <div class="multi-select-wrapper" ref="dropdownRef">
             <div class="multi-select-trigger" @click="dropdownOpen = !dropdownOpen">
               <div class="selected-tags" v-if="selectedKundenNrs.length > 0">
@@ -153,7 +161,7 @@
       </div>
     </div>
     </div>
-    <!-- End Balken Tab -->
+    <!-- End Säulen Tab -->
 
     <!-- Kuchen (Pie) Tab -->
     <div v-if="activeTab === 'kuchen'" class="tab-content">
@@ -185,8 +193,16 @@
 
         <!-- Filter Row 2: Multi-Select Kunden (only when compareMode is kunden in pie mode) -->
         <div v-if="compareMode === 'kunden'" class="filter-row">
+          <div class="control-group">
+            <label class="control-label">Status</label>
+            <div class="chip-row">
+              <FilterChip :active="kundenStatusFilter === 'aktiv'" @click="setKundenStatusFilter('aktiv')">Aktiv</FilterChip>
+              <FilterChip :active="kundenStatusFilter === 'inaktiv'" @click="setKundenStatusFilter('inaktiv')">Inaktiv</FilterChip>
+              <FilterChip :active="kundenStatusFilter === 'alle'" @click="setKundenStatusFilter('alle')">Alle</FilterChip>
+            </div>
+          </div>
           <div class="control-group control-group-wide">
-            <label class="control-label">Kunden auswählen</label>
+            <label class="control-label">Kunden auswählen <span class="hint">({{ selectedKundenNrs.length }} ausgewählt)</span></label>
             <div class="multi-select-wrapper" ref="dropdownRef">
               <div class="multi-select-trigger" @click="dropdownOpen = !dropdownOpen">
                 <div class="selected-tags" v-if="selectedKundenNrs.length > 0">
@@ -359,118 +375,233 @@ const sameMonthPlugin = {
     const month = chart.$sameMonth;
     if (!month) return;
 
-    // Collect same-month points with their stack-top Y and total value
-    const points = [];
+    const indices = [];
     chart.data.labels.forEach((label, idx) => {
-      if (!label || label.split(' ')[0] !== month) return;
-
-      let topY = chart.chartArea.bottom;
-      let totalValue = 0;
-
-      for (let dsIdx = 0; dsIdx < chart.data.datasets.length; dsIdx++) {
-        const dsMeta = chart.getDatasetMeta(dsIdx);
-        if (dsMeta.hidden) continue;
-        const bar = dsMeta.data[idx];
-        if (bar && bar.y < topY) topY = bar.y;
-        totalValue += (chart.data.datasets[dsIdx].data[idx] || 0);
-      }
-
-      let x = null;
-      for (let dsIdx = 0; dsIdx < chart.data.datasets.length; dsIdx++) {
-        const dsMeta = chart.getDatasetMeta(dsIdx);
-        if (dsMeta.hidden) continue;
-        const bar = dsMeta.data[idx];
-        if (bar) { x = bar.x; break; }
-      }
-
-      if (x != null) {
-        points.push({ x, y: topY, value: totalValue });
-      }
+      if (label && label.split(' ')[0] === month) indices.push(idx);
     });
-
-    if (points.length < 2) return;
+    if (indices.length < 2) return;
 
     const ctx = chart.ctx;
     ctx.save();
 
-    // Dashed connecting line
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(238, 175, 103, 0.6)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) {
-      ctx.lineTo(points[i].x, points[i].y);
-    }
-    ctx.stroke();
-    ctx.setLineDash([]);
+    if (compareMode.value === 'standort') {
+      // ========= STANDORT MODE: per-Standort Verhältnis-Vergleich =========
 
-    // Dots at each point
-    points.forEach(p => {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(238, 175, 103, 1)';
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    });
+      // Total per highlighted index (for share/proportion calculation)
+      const indexTotals = {};
+      indices.forEach(idx => {
+        let total = 0;
+        for (let dsIdx = 0; dsIdx < chart.data.datasets.length; dsIdx++) {
+          const dsMeta = chart.getDatasetMeta(dsIdx);
+          if (dsMeta.hidden) continue;
+          total += (chart.data.datasets[dsIdx].data[idx] || 0);
+        }
+        indexTotals[idx] = total;
+      });
 
-    // % change labels on each line segment
-    ctx.font = 'bold 11px -apple-system, system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+      // For each dataset (Standort): connecting line + dots
+      // Collect all labels first to resolve overlaps
+      const allLabels = []; // { x, y, text, color }
 
-    for (let i = 1; i < points.length; i++) {
-      const prev = points[i - 1];
-      const curr = points[i];
-      if (prev.value === 0 && curr.value === 0) continue;
+      for (let dsIdx = 0; dsIdx < chart.data.datasets.length; dsIdx++) {
+        const dsMeta = chart.getDatasetMeta(dsIdx);
+        if (dsMeta.hidden) continue;
 
-      let percentText;
-      let isPositive = true;
-      if (prev.value === 0) {
-        percentText = 'neu';
-      } else {
-        const change = ((curr.value - prev.value) / prev.value) * 100;
-        isPositive = change >= 0;
-        const sign = change >= 0 ? '+' : '';
-        percentText = `${sign}${Math.round(change)}%`;
+        const ds = chart.data.datasets[dsIdx];
+        const dsColor = ds.backgroundColor;
+        const solidColor = typeof dsColor === 'string' ? dsColor.replace('0.85', '1') : dsColor;
+        const lineColor = typeof dsColor === 'string' ? dsColor.replace('0.85', '0.5') : dsColor;
+
+        const points = [];
+        indices.forEach(idx => {
+          const bar = dsMeta.data[idx];
+          if (!bar) return;
+          const value = ds.data[idx] || 0;
+          const total = indexTotals[idx];
+          const share = total > 0 ? (value / total) * 100 : 0;
+          points.push({ x: bar.x, y: bar.y, value, share });
+        });
+
+        if (points.length < 2) continue;
+
+        // Dashed connecting line in Standort color
+        ctx.beginPath();
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 3]);
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Dots at each point
+        points.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+          ctx.fillStyle = solidColor;
+          ctx.fill();
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        });
+
+        // Queue labels for later (with collision resolution)
+        points.forEach(p => {
+          allLabels.push({
+            x: p.x,
+            y: Math.max(chart.chartArea.top + 12, p.y - 8),
+            text: `${Math.round(p.share)}%`,
+            color: solidColor
+          });
+        });
       }
 
-      const midX = (prev.x + curr.x) / 2;
-      const ph = 20;
-      // Place label above the line midpoint, clamped to chart area
-      const rawMidY = (prev.y + curr.y) / 2 - 14;
-      const midY = Math.max(chart.chartArea.top + ph / 2 + 2, rawMidY);
+      // Resolve overlapping labels per column (same x)
+      const MIN_GAP = 13;
+      const columns = {};
+      allLabels.forEach(l => {
+        const key = Math.round(l.x);
+        if (!columns[key]) columns[key] = [];
+        columns[key].push(l);
+      });
+      Object.values(columns).forEach(col => {
+        col.sort((a, b) => a.y - b.y);
+        for (let i = 1; i < col.length; i++) {
+          const diff = col[i].y - col[i - 1].y;
+          if (diff < MIN_GAP) {
+            // Spread: push current down, pull previous up
+            const offset = (MIN_GAP - diff) / 2;
+            col[i - 1].y -= Math.ceil(offset);
+            col[i].y += Math.ceil(offset);
+            // Clamp to chart area
+            col[i - 1].y = Math.max(chart.chartArea.top + 6, col[i - 1].y);
+          }
+        }
+      });
 
-      // Pill background
-      const metrics = ctx.measureText(percentText);
-      const pw = metrics.width + 14;
-      const rx = midX - pw / 2;
-      const ry = midY - ph / 2;
-      const r = 6;
+      // Draw all labels
+      ctx.font = 'bold 10px -apple-system, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      allLabels.forEach(l => {
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(l.text, l.x, l.y);
+        ctx.fillStyle = l.color;
+        ctx.fillText(l.text, l.x, l.y);
+      });
 
-      ctx.fillStyle = isPositive
-        ? 'rgba(16, 185, 129, 0.95)'
-        : 'rgba(239, 68, 68, 0.95)';
+    } else {
+      // ========= NORMAL / KUNDEN MODE (original) =========
 
-      // Rounded rectangle
+      const points = [];
+      chart.data.labels.forEach((label, idx) => {
+        if (!label || label.split(' ')[0] !== month) return;
+
+        let topY = chart.chartArea.bottom;
+        let totalValue = 0;
+
+        for (let dsIdx = 0; dsIdx < chart.data.datasets.length; dsIdx++) {
+          const dsMeta = chart.getDatasetMeta(dsIdx);
+          if (dsMeta.hidden) continue;
+          const bar = dsMeta.data[idx];
+          if (bar && bar.y < topY) topY = bar.y;
+          totalValue += (chart.data.datasets[dsIdx].data[idx] || 0);
+        }
+
+        let x = null;
+        for (let dsIdx = 0; dsIdx < chart.data.datasets.length; dsIdx++) {
+          const dsMeta = chart.getDatasetMeta(dsIdx);
+          if (dsMeta.hidden) continue;
+          const bar = dsMeta.data[idx];
+          if (bar) { x = bar.x; break; }
+        }
+
+        if (x != null) {
+          points.push({ x, y: topY, value: totalValue });
+        }
+      });
+
+      if (points.length < 2) { ctx.restore(); return; }
+
+      // Dashed connecting line
       ctx.beginPath();
-      ctx.moveTo(rx + r, ry);
-      ctx.lineTo(rx + pw - r, ry);
-      ctx.arcTo(rx + pw, ry, rx + pw, ry + r, r);
-      ctx.lineTo(rx + pw, ry + ph - r);
-      ctx.arcTo(rx + pw, ry + ph, rx + pw - r, ry + ph, r);
-      ctx.lineTo(rx + r, ry + ph);
-      ctx.arcTo(rx, ry + ph, rx, ry + ph - r, r);
-      ctx.lineTo(rx, ry + r);
-      ctx.arcTo(rx, ry, rx + r, ry, r);
-      ctx.closePath();
-      ctx.fill();
+      ctx.strokeStyle = 'rgba(238, 175, 103, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-      // Label text
-      ctx.fillStyle = '#fff';
-      ctx.fillText(percentText, midX, midY);
+      // Dots at each point
+      points.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(238, 175, 103, 1)';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+
+      // % change labels on each line segment
+      ctx.font = 'bold 11px -apple-system, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      for (let i = 1; i < points.length; i++) {
+        const prev = points[i - 1];
+        const curr = points[i];
+        if (prev.value === 0 && curr.value === 0) continue;
+
+        let percentText;
+        let isPositive = true;
+        if (prev.value === 0) {
+          percentText = 'neu';
+        } else {
+          const change = ((curr.value - prev.value) / prev.value) * 100;
+          isPositive = change >= 0;
+          const sign = change >= 0 ? '+' : '';
+          percentText = `${sign}${Math.round(change)}%`;
+        }
+
+        const midX = (prev.x + curr.x) / 2;
+        const ph = 20;
+        const rawMidY = (prev.y + curr.y) / 2 - 14;
+        const midY = Math.max(chart.chartArea.top + ph / 2 + 2, rawMidY);
+
+        const metrics = ctx.measureText(percentText);
+        const pw = metrics.width + 14;
+        const rx = midX - pw / 2;
+        const ry = midY - ph / 2;
+        const r = 6;
+
+        ctx.fillStyle = isPositive
+          ? 'rgba(16, 185, 129, 0.95)'
+          : 'rgba(239, 68, 68, 0.95)';
+
+        ctx.beginPath();
+        ctx.moveTo(rx + r, ry);
+        ctx.lineTo(rx + pw - r, ry);
+        ctx.arcTo(rx + pw, ry, rx + pw, ry + r, r);
+        ctx.lineTo(rx + pw, ry + ph - r);
+        ctx.arcTo(rx + pw, ry + ph, rx + pw - r, ry + ph, r);
+        ctx.lineTo(rx + r, ry + ph);
+        ctx.arcTo(rx, ry + ph, rx, ry + ph - r, r);
+        ctx.lineTo(rx, ry + r);
+        ctx.arcTo(rx, ry, rx + r, ry, r);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#fff';
+        ctx.fillText(percentText, midX, midY);
+      }
     }
 
     ctx.restore();
@@ -497,8 +628,9 @@ const chartKey = ref(0);
 const monthChartRef = ref(null);
 const previousSliderRange = ref(null);
 const showMonthComparison = ref(true);
-const activeTab = ref('balken');
+const activeTab = ref('saeulen');
 const compareMode = ref('none'); // 'none' | 'kunden' | 'standort'
+const kundenStatusFilter = ref('aktiv'); // 'aktiv' | 'inaktiv' | 'alle'
 
 // --- Drill-down state ---
 const drillMonth = ref(null); // { year, month } or null
@@ -608,11 +740,19 @@ const kundenByStandort = computed(() => {
 });
 
 const filteredKundenList = computed(() => {
+  let list = kundenByStandort.value;
+  // Filter by status
+  if (kundenStatusFilter.value === 'aktiv') {
+    list = list.filter(k => k.kundStatus === 2);
+  } else if (kundenStatusFilter.value === 'inaktiv') {
+    list = list.filter(k => k.kundStatus === 3);
+  }
+  // Filter by search
   const q = kundenSearch.value.toLowerCase();
-  if (!q) return kundenByStandort.value;
-  return kundenByStandort.value.filter(k =>
-    (k.kundName || '').toLowerCase().includes(q)
-  );
+  if (q) {
+    list = list.filter(k => (k.kundName || '').toLowerCase().includes(q));
+  }
+  return list;
 });
 
 const hasData = computed(() => rawTotal.value.length > 0);
@@ -775,6 +915,7 @@ const chartOptions = computed(() => {
   const textColor = isDark ? '#eaeaea' : '#333';
   const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
   const isStacked = (compareMode.value === 'kunden' && selectedKundenNrs.value.length > 0) || compareMode.value === 'standort';
+  const isStandort = compareMode.value === 'standort';
 
   return {
     responsive: true,
@@ -796,6 +937,7 @@ const chartOptions = computed(() => {
         }
       },
       tooltip: {
+        enabled: !isStandort,
         position: 'followMouse', // Follow mouse cursor
         yAlign: 'top', // Arrow at top -> Tooltip body below mouse
         xAlign: 'center', // Center horizontally to mouse
@@ -858,6 +1000,10 @@ function setCompareMode(mode) {
     selectedGeschSt.value = null;
     selectedKundenNrs.value = [];
   }
+  // Auto-select all active customers when switching to kunden mode
+  if (mode === 'kunden') {
+    selectAllByStatus();
+  }
   // Reset kunden selection when switching away from kunden mode
   if (mode !== 'kunden') {
     selectedKundenNrs.value = [];
@@ -867,6 +1013,22 @@ function setCompareMode(mode) {
     compareMode.value = 'standort';
   }
   fetchData();
+}
+
+function setKundenStatusFilter(status) {
+  kundenStatusFilter.value = status;
+  selectAllByStatus();
+  fetchData();
+}
+
+function selectAllByStatus() {
+  let list = kundenByStandort.value;
+  if (kundenStatusFilter.value === 'aktiv') {
+    list = list.filter(k => k.kundStatus === 2);
+  } else if (kundenStatusFilter.value === 'inaktiv') {
+    list = list.filter(k => k.kundStatus === 3);
+  }
+  selectedKundenNrs.value = list.map(k => k.kundenNr);
 }
 
 function toggleKunde(nr) {
@@ -1343,6 +1505,8 @@ onMounted(() => {
   const qKundenNr = route.query.kundenNr;
   const qVon = route.query.von;
   const qBis = route.query.bis;
+  const qCompareMode = route.query.compareMode;
+  const qGeschSt = route.query.geschSt;
 
   if (qVon != null && qBis != null) {
     const von = parseInt(qVon, 10);
@@ -1352,11 +1516,21 @@ onMounted(() => {
     }
   }
 
+  // Pre-select Standort filter if provided
+  if (qGeschSt) {
+    selectedGeschSt.value = String(qGeschSt);
+  }
+
   if (qKundenNr) {
     const nr = parseInt(qKundenNr, 10);
     if (!isNaN(nr)) {
       selectedKundenNrs.value = [nr];
     }
+  }
+
+  // Set compare mode if provided (e.g. 'kunden' from CustomerCard deep link)
+  if (qCompareMode && ['kunden', 'standort'].includes(qCompareMode)) {
+    compareMode.value = qCompareMode;
   }
 
   fetchActiveKunden();

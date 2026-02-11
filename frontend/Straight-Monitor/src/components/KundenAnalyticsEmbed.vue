@@ -281,7 +281,8 @@ const sameMonthPlugin = {
 };
 
 const props = defineProps({
-  kundenNr: { type: Number, required: true }
+  kundenNr: { type: Number, required: true },
+  geschSt: { type: [String, Number], default: null }
 });
 
 const emit = defineEmits(['navigate']);
@@ -308,8 +309,12 @@ const startDate = new Date(2022, 0, 1);
 const now = new Date();
 const totalMonths = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
 const sliderRange = ref([0, totalMonths]);
+const skipNextWatch = ref(false);
 
-watch(sliderRange, () => { fetchData(); });
+watch(sliderRange, () => {
+  if (skipNextWatch.value) { skipNextWatch.value = false; return; }
+  fetchData();
+});
 watch(showMonthComparison, () => { chartKey.value++; });
 
 // --- Helpers ---
@@ -371,8 +376,10 @@ const fullAnalyticsLink = computed(() => {
     tab: 'analytics',
     kundenNr: String(props.kundenNr),
     von: String(sliderRange.value[0]),
-    bis: String(sliderRange.value[1])
+    bis: String(sliderRange.value[1]),
+    compareMode: 'kunden'
   };
+  if (props.geschSt) query.geschSt = String(props.geschSt);
   return { path: '/kunden', query };
 });
 
@@ -663,8 +670,23 @@ async function fetchData() {
   }
 }
 
-onMounted(() => {
-  fetchData();
+onMounted(async () => {
+  await fetchData();
+
+  // Auto-adjust slider start to first month with Einsätze
+  if (rawTotal.value.length > 0) {
+    let minIdx = totalMonths;
+    for (const d of rawTotal.value) {
+      if (d.count > 0) {
+        const idx = (d.year - startDate.getFullYear()) * 12 + (d.month - 1);
+        if (idx < minIdx) minIdx = idx;
+      }
+    }
+    if (minIdx > sliderRange.value[0]) {
+      skipNextWatch.value = true;
+      sliderRange.value = [minIdx, sliderRange.value[1]];
+    }
+  }
 });
 </script>
 

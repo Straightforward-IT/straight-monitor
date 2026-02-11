@@ -110,7 +110,7 @@
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'chart-bar']" /> Einsatz-Analytics
         </h4>
-        <KundenAnalyticsEmbed :kundenNr="kunde.kundenNr" @navigate="$emit('close')" />
+        <KundenAnalyticsEmbed :kundenNr="kunde.kundenNr" :geschSt="kunde.geschSt" @navigate="$emit('close')" />
       </section>
 
     </div>
