@@ -1,6 +1,18 @@
 <template>
   <div class="kunden-analytics">
 
+    <!-- Tab Navigation -->
+    <div class="tab-navigation">
+      <FilterChip :active="activeTab === 'balken'" @click="activeTab = 'balken'">
+        <font-awesome-icon :icon="['fas', 'chart-bar']" class="tab-icon" /> Balken
+      </FilterChip>
+      <FilterChip :active="activeTab === 'kuchen'" @click="activeTab = 'kuchen'">
+        <font-awesome-icon :icon="['fas', 'chart-pie']" class="tab-icon" /> Kuchen
+      </FilterChip>
+    </div>
+
+    <!-- Balken Tab -->
+    <div v-if="activeTab === 'balken'" class="tab-content">
     <!-- Filter Row 1: Zeitraum + Standort -->
     <div class="filter-section">
       <div class="filter-row top-row">
@@ -17,8 +29,8 @@
 
         <div class="filter-separator"></div>
 
-        <!-- Standort Filter -->
-        <div class="control-group">
+        <!-- Standort Filter (hidden when compareMode is standort) -->
+        <div v-if="compareMode !== 'standort'" class="control-group">
           <label class="control-label">Standort</label>
           <div class="chip-row">
             <FilterChip :active="!selectedGeschSt" @click="setGeschSt(null)">Alle</FilterChip>
@@ -27,12 +39,35 @@
             <FilterChip :active="selectedGeschSt === '3'" @click="setGeschSt('3')">Köln</FilterChip>
           </div>
         </div>
+
+        <div v-if="compareMode !== 'standort'" class="filter-separator"></div>
+
+        <!-- Compare Mode Toggle -->
+        <div class="control-group">
+          <label class="control-label">Vergleich</label>
+          <div class="chip-row">
+            <FilterChip :active="compareMode === 'none'" @click="setCompareMode('none')">Gesamt</FilterChip>
+            <FilterChip :active="compareMode === 'kunden'" @click="setCompareMode('kunden')">Kunden</FilterChip>
+            <FilterChip :active="compareMode === 'standort'" @click="setCompareMode('standort')">Standort</FilterChip>
+          </div>
+        </div>
+
+        <div class="filter-separator"></div>
+
+        <!-- Month Comparison Toggle -->
+        <div class="control-group">
+          <label class="control-label">Monatsvergleich</label>
+          <div class="chip-row">
+            <FilterChip :active="showMonthComparison" @click="showMonthComparison = true">An</FilterChip>
+            <FilterChip :active="!showMonthComparison" @click="showMonthComparison = false">Aus</FilterChip>
+          </div>
+        </div>
       </div>
 
-      <!-- Filter Row 2: Multi-Select Kunden -->
-      <div class="filter-row">
+      <!-- Filter Row 2: Multi-Select Kunden (only when compareMode is kunden) -->
+      <div v-if="compareMode === 'kunden'" class="filter-row">
         <div class="control-group control-group-wide">
-          <label class="control-label">Kunden vergleichen <span class="hint">(optional – für Aufschlüsselung)</span></label>
+          <label class="control-label">Kunden vergleichen <span class="hint">(Einzelne Kunden auswählen)</span></label>
           <div class="multi-select-wrapper" ref="dropdownRef">
             <div class="multi-select-trigger" @click="dropdownOpen = !dropdownOpen">
               <div class="selected-tags" v-if="selectedKundenNrs.length > 0">
@@ -99,7 +134,7 @@
       </div>
 
       <Bar v-else-if="drillMonth" :data="drillChartData" :options="drillChartOptions" :key="'drill-' + chartKey" @click="handleDrillChartClick" ref="drillChartRef" />
-      <Bar v-else :data="chartData" :options="chartOptions" :key="chartKey" @click="handleChartClick" ref="monthChartRef" />
+      <Bar v-else :data="chartData" :options="chartOptions" :plugins="monthChartPlugins" :key="chartKey" @click="handleChartClick" ref="monthChartRef" />
     </div>
 
     <!-- Summary -->
@@ -117,18 +152,126 @@
         <span class="summary-label">Stärkster Monat</span>
       </div>
     </div>
+    </div>
+    <!-- End Balken Tab -->
+
+    <!-- Kuchen (Pie) Tab -->
+    <div v-if="activeTab === 'kuchen'" class="tab-content">
+      <!-- Filter Section -->
+      <div class="filter-section">
+        <div class="filter-row top-row">
+          <!-- Date Slider -->
+          <div class="control-group slider-group">
+            <label class="control-label">Zeitraum: {{ formatSliderLabel(sliderRange[0]) }} – {{ formatSliderLabel(sliderRange[1]) }}</label>
+            <DoubleRangeSlider
+              :min="0"
+              :max="totalMonths"
+              v-model="sliderRange"
+              :format-label="formatSliderLabel"
+            />
+          </div>
+
+          <div class="filter-separator"></div>
+
+          <!-- Compare Mode Toggle -->
+          <div class="control-group">
+            <label class="control-label">Vergleich</label>
+            <div class="chip-row">
+              <FilterChip :active="compareMode === 'standort'" @click="setCompareMode('standort')">Standort</FilterChip>
+              <FilterChip :active="compareMode === 'kunden'" @click="setCompareMode('kunden')">Kunden</FilterChip>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Row 2: Multi-Select Kunden (only when compareMode is kunden in pie mode) -->
+        <div v-if="compareMode === 'kunden'" class="filter-row">
+          <div class="control-group control-group-wide">
+            <label class="control-label">Kunden auswählen</label>
+            <div class="multi-select-wrapper" ref="dropdownRef">
+              <div class="multi-select-trigger" @click="dropdownOpen = !dropdownOpen">
+                <div class="selected-tags" v-if="selectedKundenNrs.length > 0">
+                  <span v-for="nr in selectedKundenNrs" :key="nr" class="tag">
+                    {{ getKundeName(nr) }}
+                    <font-awesome-icon :icon="['fas', 'times']" class="tag-remove" @click.stop="removeKunde(nr)" />
+                  </span>
+                </div>
+                <span v-else class="placeholder-text">Top Kunden (automatisch)</span>
+                <font-awesome-icon :icon="['fas', dropdownOpen ? 'chevron-up' : 'chevron-down']" class="trigger-icon" />
+              </div>
+
+              <div v-if="dropdownOpen" class="dropdown-panel">
+                <input v-model="kundenSearch" type="text" class="dropdown-search" placeholder="Suchen…" />
+                <div class="dropdown-list">
+                  <label 
+                    v-for="k in filteredKundenList" 
+                    :key="k.kundenNr" 
+                    class="dropdown-item"
+                    :class="{ selected: selectedKundenNrs.includes(k.kundenNr) }"
+                  >
+                    <input 
+                      type="checkbox" 
+                      :checked="selectedKundenNrs.includes(k.kundenNr)"
+                      @change="toggleKunde(k.kundenNr)"
+                    />
+                    <span class="item-name">{{ k.kundName }}</span>
+                    <span class="item-status" :class="getStatusClass(k.kundStatus)">{{ getStatusLabel(k.kundStatus) }}</span>
+                  </label>
+                  <div v-if="filteredKundenList.length === 0" class="dropdown-empty">
+                    Keine Kunden gefunden
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pie Chart Area -->
+      <div class="chart-wrapper pie-wrapper">
+        <div v-if="loading" class="empty-state">
+          <font-awesome-icon :icon="['fas', 'spinner']" spin class="empty-icon" />
+          <p>Daten werden geladen…</p>
+        </div>
+
+        <div v-else-if="!hasPieData" class="empty-state">
+          <font-awesome-icon :icon="['fas', 'chart-pie']" class="empty-icon" />
+          <p>Keine Einsätze im gewählten Zeitraum</p>
+        </div>
+
+        <Pie v-else :data="pieChartData" :options="pieChartOptions" :key="'pie-' + chartKey" />
+      </div>
+
+      <!-- Pie Summary -->
+      <div v-if="hasPieData" class="summary-row">
+        <div class="summary-card">
+          <span class="summary-value">{{ pieTotalEinsaetze }}</span>
+          <span class="summary-label">Einsätze gesamt</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-value">{{ pieSegments }}</span>
+          <span class="summary-label">{{ compareMode === 'standort' ? 'Standorte' : 'Kunden' }}</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-value">{{ pieLargestSegment }}</span>
+          <span class="summary-label">Größter Anteil</span>
+        </div>
+      </div>
+    </div>
+    <!-- End Kuchen Tab -->
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { useRouter } from 'vue-router';
-import { Bar } from 'vue-chartjs';
+import { useRouter, useRoute } from 'vue-router';
+import { Bar, Pie } from 'vue-chartjs';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend
@@ -140,7 +283,7 @@ import { useDataCache } from '@/stores/dataCache';
 import { useTheme } from '@/stores/theme';
 import api from '@/utils/api';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
 
 // Custom Tooltip Positioner: Follows mouse
 Tooltip.positioners.followMouse = function(elements, eventPosition) {
@@ -150,7 +293,192 @@ Tooltip.positioners.followMouse = function(elements, eventPosition) {
   };
 };
 
+// --- Same-Month Highlight Plugin ---
+// On hover: highlights same calendar month across all years, connects them
+// with a dashed line, and shows year-over-year % change.
+const sameMonthPlugin = {
+  id: 'sameMonthHighlight',
+
+  afterEvent(chart, args) {
+    const event = args.event;
+    if (event.type === 'mousemove') {
+      const elements = chart.getElementsAtEventForMode(
+        event, 'index', { intersect: false }, false
+      );
+      let newMonth = null;
+      if (elements.length > 0) {
+        const idx = elements[0].index;
+        const label = chart.data.labels[idx];
+        newMonth = label ? label.split(' ')[0] : null;
+      }
+      if (newMonth !== chart.$sameMonth) {
+        chart.$sameMonth = newMonth || null;
+        args.changed = true;
+      }
+    } else if (event.type === 'mouseout') {
+      if (chart.$sameMonth) {
+        chart.$sameMonth = null;
+        args.changed = true;
+      }
+    }
+  },
+
+  // Draw subtle column highlights behind the bars
+  beforeDatasetsDraw(chart) {
+    const month = chart.$sameMonth;
+    if (!month) return;
+
+    const indices = [];
+    chart.data.labels.forEach((label, idx) => {
+      if (label && label.split(' ')[0] === month) indices.push(idx);
+    });
+    if (indices.length < 2) return;
+
+    const ctx = chart.ctx;
+    const { top, bottom } = chart.chartArea;
+    const meta = chart.getDatasetMeta(0);
+    if (!meta.data.length) return;
+
+    // Calculate column slot width from bar spacing
+    const slotWidth = meta.data.length > 1
+      ? meta.data[1].x - meta.data[0].x
+      : meta.data[0].width * 2;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(238, 175, 103, 0.08)';
+    indices.forEach(idx => {
+      const bar = meta.data[idx];
+      if (!bar) return;
+      ctx.fillRect(bar.x - slotWidth / 2, top, slotWidth, bottom - top);
+    });
+    ctx.restore();
+  },
+
+  // Draw connecting line, dots, and % change labels
+  afterDatasetsDraw(chart) {
+    const month = chart.$sameMonth;
+    if (!month) return;
+
+    // Collect same-month points with their stack-top Y and total value
+    const points = [];
+    chart.data.labels.forEach((label, idx) => {
+      if (!label || label.split(' ')[0] !== month) return;
+
+      let topY = chart.chartArea.bottom;
+      let totalValue = 0;
+
+      for (let dsIdx = 0; dsIdx < chart.data.datasets.length; dsIdx++) {
+        const dsMeta = chart.getDatasetMeta(dsIdx);
+        if (dsMeta.hidden) continue;
+        const bar = dsMeta.data[idx];
+        if (bar && bar.y < topY) topY = bar.y;
+        totalValue += (chart.data.datasets[dsIdx].data[idx] || 0);
+      }
+
+      let x = null;
+      for (let dsIdx = 0; dsIdx < chart.data.datasets.length; dsIdx++) {
+        const dsMeta = chart.getDatasetMeta(dsIdx);
+        if (dsMeta.hidden) continue;
+        const bar = dsMeta.data[idx];
+        if (bar) { x = bar.x; break; }
+      }
+
+      if (x != null) {
+        points.push({ x, y: topY, value: totalValue });
+      }
+    });
+
+    if (points.length < 2) return;
+
+    const ctx = chart.ctx;
+    ctx.save();
+
+    // Dashed connecting line
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(238, 175, 103, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Dots at each point
+    points.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(238, 175, 103, 1)';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+
+    // % change labels on each line segment
+    ctx.font = 'bold 11px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      if (prev.value === 0 && curr.value === 0) continue;
+
+      let percentText;
+      let isPositive = true;
+      if (prev.value === 0) {
+        percentText = 'neu';
+      } else {
+        const change = ((curr.value - prev.value) / prev.value) * 100;
+        isPositive = change >= 0;
+        const sign = change >= 0 ? '+' : '';
+        percentText = `${sign}${Math.round(change)}%`;
+      }
+
+      const midX = (prev.x + curr.x) / 2;
+      const ph = 20;
+      // Place label above the line midpoint, clamped to chart area
+      const rawMidY = (prev.y + curr.y) / 2 - 14;
+      const midY = Math.max(chart.chartArea.top + ph / 2 + 2, rawMidY);
+
+      // Pill background
+      const metrics = ctx.measureText(percentText);
+      const pw = metrics.width + 14;
+      const rx = midX - pw / 2;
+      const ry = midY - ph / 2;
+      const r = 6;
+
+      ctx.fillStyle = isPositive
+        ? 'rgba(16, 185, 129, 0.95)'
+        : 'rgba(239, 68, 68, 0.95)';
+
+      // Rounded rectangle
+      ctx.beginPath();
+      ctx.moveTo(rx + r, ry);
+      ctx.lineTo(rx + pw - r, ry);
+      ctx.arcTo(rx + pw, ry, rx + pw, ry + r, r);
+      ctx.lineTo(rx + pw, ry + ph - r);
+      ctx.arcTo(rx + pw, ry + ph, rx + pw - r, ry + ph, r);
+      ctx.lineTo(rx + r, ry + ph);
+      ctx.arcTo(rx, ry + ph, rx, ry + ph - r, r);
+      ctx.lineTo(rx, ry + r);
+      ctx.arcTo(rx, ry, rx + r, ry, r);
+      ctx.closePath();
+      ctx.fill();
+
+      // Label text
+      ctx.fillStyle = '#fff';
+      ctx.fillText(percentText, midX, midY);
+    }
+
+    ctx.restore();
+  }
+};
+
 const router = useRouter();
+const route = useRoute();
 const dataCache = useDataCache();
 const theme = useTheme();
 
@@ -158,6 +486,7 @@ const theme = useTheme();
 const loading = ref(false);
 const rawTotal = ref([]);          // Gesamt-Daten pro Monat
 const rawBreakdown = ref([]);      // Per-Kunde-Breakdown
+const rawStandortBreakdown = ref([]); // Per-Standort-Breakdown
 const activeKundenIds = ref(new Set()); // IDs von Kunden mit Aufträgen
 const selectedGeschSt = ref(null);
 const selectedKundenNrs = ref([]);
@@ -166,6 +495,10 @@ const dropdownRef = ref(null);
 const kundenSearch = ref('');
 const chartKey = ref(0);
 const monthChartRef = ref(null);
+const previousSliderRange = ref(null);
+const showMonthComparison = ref(true);
+const activeTab = ref('balken');
+const compareMode = ref('none'); // 'none' | 'kunden' | 'standort'
 
 // --- Drill-down state ---
 const drillMonth = ref(null); // { year, month } or null
@@ -187,6 +520,19 @@ const sliderRange = ref([0, totalMonths]); // [min, max] selected
 // Watch for slider changes to trigger fetch
 watch(sliderRange, () => {
   fetchData();
+});
+
+// Watch for month comparison toggle to re-render chart
+watch(showMonthComparison, () => {
+  chartKey.value++;
+});
+
+// Switch compareMode default when switching tabs
+watch(activeTab, (newTab) => {
+  if (newTab === 'kuchen' && compareMode.value === 'none') {
+    compareMode.value = 'standort';
+    fetchData();
+  }
 });
 
 // Helper to convert index to "YYYY-MM"
@@ -287,7 +633,20 @@ const peakMonth = computed(() => {
   return `${monthNames[peak.month - 1]} ${peak.year}`;
 });
 
+const monthChartPlugins = computed(() => {
+  return showMonthComparison.value ? [sameMonthPlugin] : [];
+});
+
 // --- Chart Data ---
+
+// Standort label helper
+const STANDORT_LABELS = { '1': 'Berlin', '2': 'Hamburg', '3': 'Köln' };
+const STANDORT_COLORS = {
+  '1': 'rgba(99, 179, 237, 0.85)',   // Blue - Berlin
+  '2': 'rgba(238, 175, 103, 0.85)',  // Gold - Hamburg
+  '3': 'rgba(129, 199, 132, 0.85)',  // Green - Köln
+  'unbekannt': 'rgba(144, 164, 174, 0.85)' // Slate
+};
 
 const chartData = computed(() => {
   const fromStr = indexToMonthStr(sliderRange.value[0]);
@@ -296,8 +655,47 @@ const chartData = computed(() => {
   const months = buildMonthLabels(fromStr, toStr);
   const isDark = theme.current === 'dark';
 
-  // Stacked mode: individual customers selected
-  if (selectedKundenNrs.value.length > 0) {
+  // Standort comparison mode
+  if (compareMode.value === 'standort') {
+    // Get unique standort keys from breakdown
+    const standortKeys = [...new Set(rawStandortBreakdown.value.map(b => b.geschSt))];
+    if (standortKeys.length === 0) {
+      return { labels: months.map(m => m.label), datasets: [] };
+    }
+
+    const datasets = standortKeys.map((st, idx) => {
+      const color = STANDORT_COLORS[st] || COLORS[idx % COLORS.length];
+      const hoverColor = color.replace('0.85', '1');
+      const dataArr = months.map(m => {
+        const match = rawStandortBreakdown.value.find(b =>
+          b.geschSt === st && b.year === m.year && b.month === m.month
+        );
+        return match ? match.count : 0;
+      });
+      const auftragCountArr = months.map(m => {
+        const match = rawStandortBreakdown.value.find(b =>
+          b.geschSt === st && b.year === m.year && b.month === m.month
+        );
+        return match ? (match.auftragCount || 0) : 0;
+      });
+
+      return {
+        label: STANDORT_LABELS[st] || `Standort ${st}`,
+        data: dataArr,
+        auftragCounts: auftragCountArr,
+        backgroundColor: color,
+        hoverBackgroundColor: hoverColor,
+        borderRadius: 0,
+        borderSkipped: false,
+        maxBarThickness: 56
+      };
+    });
+
+    return { labels: months.map(m => m.label), datasets };
+  }
+
+  // Kunden comparison mode
+  if (compareMode.value === 'kunden' && selectedKundenNrs.value.length > 0) {
     // 1. Calculate totals for sorting (descending)
     // We want the customer with the HIGHEST total volume to be at the bottom (index 0)
     // or top depending on preference. "Viel = Unten" means High Volume = Bottom of stack.
@@ -376,7 +774,7 @@ const chartOptions = computed(() => {
   const isDark = theme.current === 'dark';
   const textColor = isDark ? '#eaeaea' : '#333';
   const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
-  const isStacked = selectedKundenNrs.value.length > 0;
+  const isStacked = (compareMode.value === 'kunden' && selectedKundenNrs.value.length > 0) || compareMode.value === 'standort';
 
   return {
     responsive: true,
@@ -453,6 +851,24 @@ function setGeschSt(val) {
   }
 }
 
+function setCompareMode(mode) {
+  compareMode.value = mode;
+  // Reset standort filter when switching to standort mode
+  if (mode === 'standort') {
+    selectedGeschSt.value = null;
+    selectedKundenNrs.value = [];
+  }
+  // Reset kunden selection when switching away from kunden mode
+  if (mode !== 'kunden') {
+    selectedKundenNrs.value = [];
+  }
+  // Default pie to standort if no mode
+  if (activeTab.value === 'kuchen' && mode === 'none') {
+    compareMode.value = 'standort';
+  }
+  fetchData();
+}
+
 function toggleKunde(nr) {
   const idx = selectedKundenNrs.value.indexOf(nr);
   if (idx >= 0) {
@@ -500,6 +916,7 @@ async function fetchData() {
   loading.value = true;
   rawTotal.value = [];
   rawBreakdown.value = [];
+  rawStandortBreakdown.value = [];
 
   try {
     const params = {};
@@ -516,16 +933,29 @@ async function fetchData() {
       const [y, m] = toStr.split('-');
       params.bis = new Date(Number(y), Number(m), 0, 23, 59, 59).toISOString();
     }
-    if (selectedGeschSt.value) {
-      params.geschSt = selectedGeschSt.value;
-    }
-    if (selectedKundenNrs.value.length > 0) {
-      params.kundenNr = selectedKundenNrs.value.join(',');
+
+    if (compareMode.value === 'standort') {
+      // Use standort breakdown endpoint
+      const stParams = { ...params };
+      if (selectedKundenNrs.value.length > 0) {
+        stParams.kundenNr = selectedKundenNrs.value.join(',');
+      }
+      const { data } = await api.get('/api/kunden/analytics/einsaetze/standort', { params: stParams });
+      rawTotal.value = data.data || [];
+      rawStandortBreakdown.value = data.standortBreakdown || [];
+    } else {
+      // Normal / Kunden mode
+      if (selectedGeschSt.value) {
+        params.geschSt = selectedGeschSt.value;
+      }
+      if (selectedKundenNrs.value.length > 0) {
+        params.kundenNr = selectedKundenNrs.value.join(',');
+      }
+      const { data } = await api.get('/api/kunden/analytics/einsaetze', { params });
+      rawTotal.value = data.data || [];
+      rawBreakdown.value = data.breakdown || [];
     }
 
-    const { data } = await api.get('/api/kunden/analytics/einsaetze', { params });
-    rawTotal.value = data.data || [];
-    rawBreakdown.value = data.breakdown || [];
     chartKey.value++;
   } catch (err) {
     console.error('Analytics fetch error:', err);
@@ -582,6 +1012,18 @@ function handleChartClick(event) {
 }
 
 async function openDrill(year, month) {
+  // Store previous slider range and set to drilled month
+  if (!previousSliderRange.value) {
+    previousSliderRange.value = [...sliderRange.value];
+    const monthIndex = (year - startDate.getFullYear()) * 12 + (month - 1);
+    // Determine max index possible
+    const maxIdx = totalMonths; 
+    const targetIdx = Math.min(Math.max(0, monthIndex), maxIdx);
+    
+    // Set both to same index to show just that month on slider
+    sliderRange.value = [targetIdx, targetIdx]; 
+  }
+
   drillMonth.value = { year, month };
   loading.value = true;
   drillTotal.value = [];
@@ -604,6 +1046,10 @@ async function openDrill(year, month) {
 }
 
 function closeDrill() {
+  if (previousSliderRange.value) {
+    sliderRange.value = previousSliderRange.value;
+    previousSliderRange.value = null;
+  }
   drillMonth.value = null;
   drillTotal.value = [];
   drillAuftraege.value = [];
@@ -636,6 +1082,8 @@ const drillChartData = computed(() => {
       hoverBackgroundColor: color.replace('0.85', '1'),
       borderRadius: 0,
       borderSkipped: false,
+      borderWidth: 0,
+      borderColor: 'transparent',
       maxBarThickness: 28,
       auftragNr: a.auftragNr, // Custom prop for click handling
       vonDatum: a.vonDatum
@@ -701,6 +1149,7 @@ const drillChartOptions = computed(() => {
         filter: (item) => item.parsed.y > 0, // Hide 0 entries
         callbacks: {
           title: ctx => {
+            if (!ctx || !ctx.length) return '';
             const day = ctx[0].label;
             return `${day} ${drillMonthLabel.value}`;
           },
@@ -725,6 +1174,161 @@ const drillChartOptions = computed(() => {
   };
 });
 
+// --- Pie Chart Data ---
+
+const hasPieData = computed(() => {
+  if (compareMode.value === 'standort') {
+    return rawStandortBreakdown.value.length > 0;
+  }
+  // Kunden mode: use rawBreakdown or rawTotal
+  return rawTotal.value.length > 0;
+});
+
+const pieChartData = computed(() => {
+  const isDark = theme.current === 'dark';
+
+  if (compareMode.value === 'standort') {
+    // Aggregate standort breakdown across all months in range
+    const totals = {};
+    rawStandortBreakdown.value.forEach(b => {
+      if (!totals[b.geschSt]) totals[b.geschSt] = 0;
+      totals[b.geschSt] += b.count;
+    });
+    const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    return {
+      labels: entries.map(([st]) => STANDORT_LABELS[st] || `Standort ${st}`),
+      datasets: [{
+        data: entries.map(([, count]) => count),
+        backgroundColor: entries.map(([st], idx) => STANDORT_COLORS[st] || COLORS[idx % COLORS.length]),
+        hoverBackgroundColor: entries.map(([st], idx) => (STANDORT_COLORS[st] || COLORS[idx % COLORS.length]).replace('0.85', '1')),
+        borderWidth: 2,
+        borderColor: isDark ? '#1a1a1a' : '#fff'
+      }]
+    };
+  }
+
+  // Kunden mode
+  if (selectedKundenNrs.value.length > 0) {
+    // Aggregate per customer
+    const totals = {};
+    rawBreakdown.value.forEach(b => {
+      if (!totals[b.kundenNr]) totals[b.kundenNr] = 0;
+      totals[b.kundenNr] += b.count;
+    });
+    const entries = Object.entries(totals)
+      .map(([nr, count]) => ({ nr: Number(nr), count }))
+      .sort((a, b) => b.count - a.count);
+    return {
+      labels: entries.map(e => getKundeName(e.nr)),
+      datasets: [{
+        data: entries.map(e => e.count),
+        backgroundColor: entries.map((_, idx) => COLORS[idx % COLORS.length]),
+        hoverBackgroundColor: entries.map((_, idx) => COLORS[idx % COLORS.length].replace('0.85', '1')),
+        borderWidth: 2,
+        borderColor: isDark ? '#1a1a1a' : '#fff'
+      }]
+    };
+  }
+
+  // No specific kunden selected in kunden mode – show total (single segment)
+  const total = rawTotal.value.reduce((s, d) => s + d.count, 0);
+  return {
+    labels: ['Gesamt'],
+    datasets: [{
+      data: [total],
+      backgroundColor: [COLORS[0]],
+      hoverBackgroundColor: [COLORS[0].replace('0.85', '1')],
+      borderWidth: 2,
+      borderColor: isDark ? '#1a1a1a' : '#fff'
+    }]
+  };
+});
+
+const pieChartOptions = computed(() => {
+  const isDark = theme.current === 'dark';
+  const textColor = isDark ? '#eaeaea' : '#333';
+
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'right',
+        labels: {
+          color: textColor,
+          padding: 12,
+          usePointStyle: true,
+          pointStyleWidth: 12,
+          font: { size: 12 }
+        }
+      },
+      tooltip: {
+        backgroundColor: isDark ? '#2a2a2a' : '#fff',
+        titleColor: textColor,
+        bodyColor: textColor,
+        borderColor: isDark ? '#444' : '#ddd',
+        borderWidth: 1,
+        cornerRadius: 8,
+        padding: 12,
+        callbacks: {
+          label: ctx => {
+            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+            const value = ctx.parsed;
+            const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+            return ` ${ctx.label}: ${value} Einsätze (${pct}%)`;
+          }
+        }
+      }
+    }
+  };
+});
+
+const pieTotalEinsaetze = computed(() => {
+  if (compareMode.value === 'standort') {
+    return rawStandortBreakdown.value.reduce((s, b) => s + b.count, 0);
+  }
+  return rawTotal.value.reduce((s, d) => s + d.count, 0);
+});
+
+const pieSegments = computed(() => {
+  if (compareMode.value === 'standort') {
+    return new Set(rawStandortBreakdown.value.map(b => b.geschSt)).size;
+  }
+  if (selectedKundenNrs.value.length > 0) {
+    return new Set(rawBreakdown.value.map(b => b.kundenNr)).size;
+  }
+  return 1;
+});
+
+const pieLargestSegment = computed(() => {
+  if (compareMode.value === 'standort') {
+    const totals = {};
+    rawStandortBreakdown.value.forEach(b => {
+      if (!totals[b.geschSt]) totals[b.geschSt] = 0;
+      totals[b.geschSt] += b.count;
+    });
+    const entries = Object.entries(totals);
+    if (!entries.length) return '—';
+    const max = entries.reduce((a, b) => b[1] > a[1] ? b : a, entries[0]);
+    return STANDORT_LABELS[max[0]] || `Standort ${max[0]}`;
+  }
+
+  if (selectedKundenNrs.value.length > 0) {
+    const totals = {};
+    rawBreakdown.value.forEach(b => {
+      if (!totals[b.kundenNr]) totals[b.kundenNr] = 0;
+      totals[b.kundenNr] += b.count;
+    });
+    const entries = Object.entries(totals).map(([nr, c]) => ({ nr: Number(nr), count: c }));
+    if (!entries.length) return '—';
+    const max = entries.reduce((a, b) => b.count > a.count ? b : a, entries[0]);
+    return getKundeName(max.nr);
+  }
+
+  return '—';
+});
+
 // Close dropdown on outside click
 function handleClickOutside(e) {
   if (dropdownRef.value && !dropdownRef.value.contains(e.target)) {
@@ -734,6 +1338,27 @@ function handleClickOutside(e) {
 
 onMounted(() => {
   document.addEventListener('mousedown', handleClickOutside);
+
+  // Apply query params from deep link (e.g. from CustomerCard embed)
+  const qKundenNr = route.query.kundenNr;
+  const qVon = route.query.von;
+  const qBis = route.query.bis;
+
+  if (qVon != null && qBis != null) {
+    const von = parseInt(qVon, 10);
+    const bis = parseInt(qBis, 10);
+    if (!isNaN(von) && !isNaN(bis) && von >= 0 && bis <= totalMonths) {
+      sliderRange.value = [von, bis];
+    }
+  }
+
+  if (qKundenNr) {
+    const nr = parseInt(qKundenNr, 10);
+    if (!isNaN(nr)) {
+      selectedKundenNrs.value = [nr];
+    }
+  }
+
   fetchActiveKunden();
   fetchData();
 });
@@ -745,6 +1370,20 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .kunden-analytics {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ---- Tab Navigation ---- */
+.tab-navigation {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--border);
+}
+
+.tab-content {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -1058,5 +1697,24 @@ onBeforeUnmount(() => {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.3px;
+}
+
+/* ---- Tab Icons ---- */
+.tab-icon {
+  margin-right: 4px;
+  font-size: 13px;
+}
+
+/* ---- Pie Chart ---- */
+.pie-wrapper {
+  height: 460px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pie-wrapper canvas {
+  max-height: 400px !important;
+  max-width: 100% !important;
 }
 </style>

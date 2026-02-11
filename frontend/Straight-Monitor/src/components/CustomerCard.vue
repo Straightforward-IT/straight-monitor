@@ -105,6 +105,14 @@
         </div>
       </section>
 
+      <!-- Analytics -->
+      <section class="section analytics-section" v-if="kunde.kundenNr">
+        <h4 class="section-title">
+          <font-awesome-icon :icon="['fas', 'chart-bar']" /> Einsatz-Analytics
+        </h4>
+        <KundenAnalyticsEmbed :kundenNr="kunde.kundenNr" @navigate="$emit('close')" />
+      </section>
+
     </div>
 
     <!-- Footer -->
@@ -120,6 +128,7 @@
 import { computed, inject } from 'vue';
 import { useTheme } from '@/stores/theme';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import KundenAnalyticsEmbed from './KundenAnalyticsEmbed.vue';
 
 const props = defineProps({
   kunde: { type: Object, required: true }
@@ -172,7 +181,7 @@ function formatDate(dateStr) {
   background: var(--tile-bg);
   border-radius: 12px;
   overflow: hidden;
-  max-height: 85vh;
+  max-height: 90vh;
   width: 100%;
 }
 

@@ -247,7 +247,10 @@
             </div>
             <div class="info-item">
               <span class="info-label">Kunde</span>
-              <span class="info-value highlight">{{ selectedEvent.kundeData?.kundName || '-' }}</span>
+              <span class="info-value highlight">
+                <a v-if="selectedEvent.kundeData" href="#" class="kunde-link" @click.prevent="openKundeCard(selectedEvent.kundeData)">{{ selectedEvent.kundeData.kundName || '-' }}</a>
+                <template v-else>-</template>
+              </span>
             </div>
             <div class="info-item">
               <span class="info-label">Zeitraum</span>
@@ -366,6 +369,27 @@
     <!-- Sidebar Overlay for mobile only -->
     <div v-if="selectedEvent && isMobile" class="sidebar-overlay" @click="selectedEvent = null"></div>
 
+    <!-- Kunden Card Modal -->
+    <div v-if="selectedKunde" class="modal-overlay" @click.self="selectedKunde = null">
+      <div class="modal-content modal-customer">
+        <div class="modal-header">
+          <h2>Kunden Details</h2>
+          <button class="close-btn" @click="selectedKunde = null">×</button>
+        </div>
+        <div class="modal-body modal-customer-body">
+          <CustomerCard
+            v-if="fullKundeData"
+            :kunde="fullKundeData"
+            @close="selectedKunde = null"
+          />
+          <div v-else class="loading-employee">
+            <font-awesome-icon icon="fa-solid fa-spinner" spin />
+            <span>Lade Kunden...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Mitarbeiter Card Modal -->
     <div v-if="selectedMitarbeiter" class="modal-overlay" @click.self="selectedMitarbeiter = null">
       <div class="modal-content modal-employee">
@@ -409,11 +433,12 @@ import FilterChip from '@/components/FilterChip.vue';
 import FilterDivider from '@/components/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import EmployeeCard from '@/components/EmployeeCard.vue';
+import CustomerCard from '@/components/CustomerCard.vue';
 
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCard },
+  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCard, CustomerCard },
   data() {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
@@ -452,6 +477,8 @@ export default {
       mobileDayIndex: 0,
       selectedMitarbeiter: null,
       fullMitarbeiterData: null,
+      selectedKunde: null,
+      fullKundeData: null,
       preparedSchichten: {}, // Lazy loaded schichten data
       dataStatus: null, // Last import timestamp
     };
@@ -963,6 +990,19 @@ export default {
         // Search is reactive via computed, no action needed
       }, 300);
     },
+    async openKundeCard(kundeBasic) {
+      this.selectedKunde = kundeBasic;
+      this.fullKundeData = null;
+
+      try {
+        const response = await api.get(`/api/kunden/${kundeBasic._id}`);
+        this.fullKundeData = response.data;
+      } catch (error) {
+        console.error('Error loading Kunden details:', error);
+        // Fallback to basic data
+        this.fullKundeData = kundeBasic;
+      }
+    },
     async openMitarbeiterCard(mitarbeiterBasic) {
       this.selectedMitarbeiter = mitarbeiterBasic;
       this.fullMitarbeiterData = null;
@@ -1004,7 +1044,10 @@ export default {
       if (event.key !== 'Escape') return;
 
       // Close modals in order of priority (topmost = last opened)
-      if (this.selectedMitarbeiter) {
+      if (this.selectedKunde) {
+        this.selectedKunde = null;
+        this.fullKundeData = null;
+      } else if (this.selectedMitarbeiter) {
         this.selectedMitarbeiter = null;
         this.fullMitarbeiterData = null;
       } else if (this.selectedEvent) {
@@ -1228,6 +1271,17 @@ export default {
       &.highlight {
         color: var(--primary);
         font-weight: 600;
+      }
+      
+      .kunde-link {
+        color: var(--primary);
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        
+        &:hover {
+          text-decoration: underline;
+        }
       }
     }
   }
@@ -2173,6 +2227,18 @@ export default {
 .modal-employee-body {
   padding: 0;
   max-height: 80vh;
+}
+
+/* Customer Modal */
+.modal-customer {
+  max-width: 800px;
+  width: 95%;
+}
+
+.modal-customer-body {
+  padding: 0;
+  max-height: 80vh;
+  overflow-y: auto;
 }
 
 .loading-employee {

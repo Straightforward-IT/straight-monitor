@@ -184,6 +184,117 @@ router.get('/analytics/einsaetze', auth, asyncHandler(async (req, res) => {
   res.json({ data, breakdown });
 }));
 
+// @route   GET /api/kunden/analytics/einsaetze/standort
+// @desc    Monatliche Einsatz-Anzahl aufgeschlüsselt nach Standort (geschSt)
+// @access  Private
+// Query:  von, bis (ISO), kundenNr (optional, comma-separated)
+router.get('/analytics/einsaetze/standort', auth, asyncHandler(async (req, res) => {
+  const { von, bis, kundenNr } = req.query;
+
+  // 1. Bestimme relevante Kunden
+  let kundenNrs = [];
+  if (kundenNr) {
+    const explicitNrs = kundenNr.split(',').map(Number).filter(n => !isNaN(n));
+    kundenNrs = [...explicitNrs];
+    const parents = await Kunde.find({ kundenNr: { $in: explicitNrs } }).select('_id kundenNr');
+    const parentIds = parents.map(p => p._id);
+    const children = await Kunde.find({ parentKunde: { $in: parentIds } }).distinct('kundenNr');
+    kundenNrs.push(...children);
+    kundenNrs = [...new Set(kundenNrs)];
+  } else {
+    const kunden = await Kunde.find().select('kundenNr');
+    kundenNrs = kunden.map(k => k.kundenNr);
+  }
+
+  if (kundenNrs.length === 0) {
+    return res.json({ data: [], standortBreakdown: [] });
+  }
+
+  // 2. Map kundenNr -> geschSt
+  const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } }).select('kundenNr geschSt parentKunde').populate('parentKunde', 'geschSt');
+  const nrToGeschSt = {};
+  kundenDocs.forEach(k => {
+    // Use parent's geschSt if child, otherwise own
+    if (k.parentKunde && k.parentKunde.geschSt) {
+      nrToGeschSt[k.kundenNr] = k.parentKunde.geschSt;
+    } else {
+      nrToGeschSt[k.kundenNr] = k.geschSt || 'unbekannt';
+    }
+  });
+
+  // 3. Aufträge
+  const auftraege = await Auftrag.find({ kundenNr: { $in: kundenNrs } }).select('auftragNr kundenNr');
+  if (auftraege.length === 0) return res.json({ data: [], standortBreakdown: [] });
+
+  const auftragToKunde = {};
+  auftraege.forEach(a => { auftragToKunde[a.auftragNr] = a.kundenNr; });
+  const auftragNrs = auftraege.map(a => a.auftragNr);
+
+  // 4. Zeitraum
+  const matchStage = { auftragNr: { $in: auftragNrs } };
+  if (von || bis) {
+    matchStage.datumVon = {};
+    if (von) matchStage.datumVon.$gte = new Date(von);
+    if (bis) matchStage.datumVon.$lte = new Date(bis);
+  }
+
+  // 5. Gesamt-Aggregation pro Monat (same as main endpoint)
+  const totalPipeline = [
+    { $match: matchStage },
+    { $group: {
+      _id: {
+        auftragNr: '$auftragNr',
+        year: { $year: '$datumVon' },
+        month: { $month: '$datumVon' }
+      },
+      count: { $sum: 1 }
+    }},
+    { $group: {
+      _id: { year: '$_id.year', month: '$_id.month' },
+      count: { $sum: '$count' },
+      auftragCount: { $sum: 1 }
+    }},
+    { $sort: { '_id.year': 1, '_id.month': 1 } }
+  ];
+  const totalResult = await Einsatz.aggregate(totalPipeline);
+  const data = totalResult.map(r => ({
+    year: r._id.year, month: r._id.month,
+    count: r.count, auftragCount: r.auftragCount
+  }));
+
+  // 6. Breakdown nach Standort + Monat
+  const breakdownPipeline = [
+    { $match: matchStage },
+    { $group: {
+      _id: { auftragNr: '$auftragNr', year: { $year: '$datumVon' }, month: { $month: '$datumVon' } },
+      count: { $sum: 1 }
+    }}
+  ];
+  const bResult = await Einsatz.aggregate(breakdownPipeline);
+
+  const map = {}; // key: `geschSt-year-month`
+  bResult.forEach(r => {
+    const knr = auftragToKunde[r._id.auftragNr];
+    if (!knr) return;
+    const geschSt = nrToGeschSt[knr] || 'unbekannt';
+    const key = `${geschSt}-${r._id.year}-${r._id.month}`;
+    if (!map[key]) map[key] = { count: 0, auftraege: new Set() };
+    map[key].count += r.count;
+    map[key].auftraege.add(r._id.auftragNr);
+  });
+
+  const standortBreakdown = Object.entries(map).map(([key, val]) => {
+    const parts = key.split('-');
+    const geschSt = parts[0];
+    const year = Number(parts[1]);
+    const month = Number(parts[2]);
+    return { geschSt, year, month, count: val.count, auftragCount: val.auftraege.size };
+  });
+  standortBreakdown.sort((a, b) => a.year - b.year || a.month - b.month);
+
+  res.json({ data, standortBreakdown });
+}));
+
 // @route   GET /api/kunden/analytics/einsaetze/daily
 // @desc    Tägliche Einsatz-Anzahl für einen bestimmten Monat
 // @access  Private

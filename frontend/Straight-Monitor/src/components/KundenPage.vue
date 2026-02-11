@@ -152,7 +152,7 @@
     <KundenMergeModal 
       :is-open="showMergeModal" 
       @close="showMergeModal = false" 
-      @saved="dataCache.fetchKunden()" 
+      @saved="dataCache.loadKunden(true)" 
     />
 
     <!-- Customer Detail Modal -->
@@ -701,7 +701,7 @@ function formatDate(dateStr) {
 
 .modal-content-wrapper {
   width: 100%;
-  max-width: 800px;
+  max-width: 1200px;
   max-height: 90vh;
   display: flex;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);

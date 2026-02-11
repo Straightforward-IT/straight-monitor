@@ -125,7 +125,7 @@ async function save() {
     };
     
     await api.post('/api/kunden/group', payload);
-    await dataCache.fetchKunden(); // Refresh data
+    await dataCache.loadKunden(true); // Refresh data
     emit('saved');
     close();
   } catch (err) {
