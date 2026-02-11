@@ -14,6 +14,19 @@
           @click="$event.target.showPicker && $event.target.showPicker()"
           class="month-picker" 
         />
+
+        <div class="filter-divider"></div>
+
+        <label>Standort:</label>
+        <select 
+          v-model="selectedStandort" 
+          @change="updateUrl"
+          class="standort-select"
+        >
+          <option v-for="opt in standortOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
+        </select>
       </div>
     </div>
 
@@ -60,7 +73,7 @@
         <div class="stats-cards">
           <div class="card">
             <span class="label">Anzahl Teamleiter</span>
-            <span class="value">{{ teamleiterList.length }}</span>
+            <span class="value">{{ filteredTeamleiter.length }}</span>
           </div>
           <div class="card">
             <span class="label">Gesamt Einsätze</span>
@@ -223,16 +236,42 @@ const today = new Date();
 const yyyy = today.getFullYear();
 const mm = String(today.getMonth() + 1).padStart(2, '0');
 const selectedMonth = ref(`${yyyy}-${mm}`);
+const selectedStandort = ref(null); // null = Alle
+
+const standortOptions = [
+  { value: null, label: 'Alle' },
+  { value: '1', label: 'Berlin' },
+  { value: '2', label: 'Hamburg' },
+  { value: '3', label: 'Köln' }
+];
+
+function getStandortPrefix(personalnr) {
+  return String(personalnr).charAt(0);
+}
+
+function setStandort(val) {
+  selectedStandort.value = val;
+  updateUrl();
+}
 
 const updateUrl = () => {
   // Save to storage
   localStorage.setItem('tl_stats_period', selectedMonth.value);
+  if (selectedStandort.value) {
+    localStorage.setItem('tl_stats_standort', selectedStandort.value);
+  } else {
+    localStorage.removeItem('tl_stats_standort');
+  }
 
   const [year, month] = selectedMonth.value.split('-');
   const query = {
     year,
     month
   };
+  
+  if (selectedStandort.value) {
+    query.standort = selectedStandort.value;
+  }
   
   if (expandedRows.value.length > 0) {
     query.expanded = expandedRows.value.join(',');
@@ -257,12 +296,17 @@ const formatDate = (val) => {
   });
 };
 
+const filteredTeamleiter = computed(() => {
+  if (!selectedStandort.value) return teamleiterList.value;
+  return teamleiterList.value.filter(tl => getStandortPrefix(tl.personalnr) === selectedStandort.value);
+});
+
 const totalEinsaetze = computed(() => {
-  return teamleiterList.value.reduce((acc, curr) => acc + curr.einsatzCount, 0);
+  return filteredTeamleiter.value.reduce((acc, curr) => acc + curr.einsatzCount, 0);
 });
 
 const sortedTeamleiter = computed(() => {
-  return [...teamleiterList.value].sort((a, b) => {
+  return [...filteredTeamleiter.value].sort((a, b) => {
     let valA = a[sortKey.value];
     let valB = b[sortKey.value];
 
@@ -350,7 +394,7 @@ const fetchData = async (keepExpanded) => {
 };
 
 onMounted(() => {
-  const { month, year, expanded } = route.query;
+  const { month, year, expanded, standort } = route.query;
   let keep = false;
   
   // Priority 1: URL Params
@@ -363,6 +407,14 @@ onMounted(() => {
       if (stored) {
           selectedMonth.value = stored;
       }
+  }
+  
+  // Standort: URL > localStorage
+  if (standort) {
+      selectedStandort.value = standort;
+  } else {
+      const storedSt = localStorage.getItem('tl_stats_standort');
+      if (storedSt) selectedStandort.value = storedSt;
   }
   
   if (expanded) {
@@ -411,10 +463,39 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   
   label {
     font-weight: 500;
     font-size: 14px;
+  }
+}
+
+.filter-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 8px;
+}
+
+.standort-select {
+  padding: 8px 32px 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-body);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary);
   }
 }
 

@@ -866,6 +866,86 @@ router.get(
   })
 );
 
+/**
+ * Sync endpoint for incremental updates
+ * Returns only documents updated since the provided timestamp
+ * Used by frontend cache to minimize data transfer
+ */
+router.get(
+  "/mitarbeiter/sync",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { since } = req.query;
+    
+    if (!since) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Parameter 'since' is required (ISO date string)" 
+      });
+    }
+    
+    const sinceDate = new Date(since);
+    
+    if (isNaN(sinceDate.getTime())) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid date format for 'since' parameter" 
+      });
+    }
+    
+    // Find updated documents
+    const updated = await Mitarbeiter.find({
+      updatedAt: { $gt: sinceDate }
+    }).populate([
+      "berufe",
+      "qualifikationen",
+      { 
+        path: "laufzettel_received",
+        populate: [
+          { path: "mitarbeiter", select: "_id vorname nachname email" },
+          { path: "teamleiter", select: "_id vorname nachname email" }
+        ]
+      },
+      { 
+        path: "laufzettel_submitted",
+        populate: [
+          { path: "mitarbeiter", select: "_id vorname nachname email" },
+          { path: "teamleiter", select: "_id vorname nachname email" }
+        ]
+      },
+      { 
+        path: "eventreports",
+        populate: { path: "teamleiter", select: "_id vorname nachname email" }
+      },
+      { 
+        path: "evaluierungen_received",
+        populate: [
+          { path: "mitarbeiter", select: "_id vorname nachname email" },
+          { path: "teamleiter", select: "_id vorname nachname email" }
+        ]
+      },
+      { 
+        path: "evaluierungen_submitted",
+        populate: [
+          { path: "mitarbeiter", select: "_id vorname nachname email" },
+          { path: "teamleiter", select: "_id vorname nachname email" }
+        ]
+      },
+    ]);
+    
+    // Note: For deleted documents, you would need a separate "deletedDocuments" collection
+    // or soft-delete pattern. For now, we return empty array for deleted.
+    // In a production system, consider adding a "deletedAt" field for soft deletes.
+    
+    res.status(200).json({
+      success: true,
+      updated,
+      deleted: [], // Would need soft-delete implementation to track this
+      syncedAt: new Date().toISOString()
+    });
+  })
+);
+
 // --- GET single Mitarbeiter by ID ---
 router.get(
   "/mitarbeiter/:id",
@@ -1001,85 +1081,8 @@ router.get(
   })
 );
 
-/**
- * Sync endpoint for incremental updates
- * Returns only documents updated since the provided timestamp
- * Used by frontend cache to minimize data transfer
- */
-router.get(
-  "/mitarbeiter/sync",
-  auth,
-  asyncHandler(async (req, res) => {
-    const { since } = req.query;
-    
-    if (!since) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Parameter 'since' is required (ISO date string)" 
-      });
-    }
-    
-    const sinceDate = new Date(since);
-    
-    if (isNaN(sinceDate.getTime())) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid date format for 'since' parameter" 
-      });
-    }
-    
-    // Find updated documents
-    const updated = await Mitarbeiter.find({
-      updatedAt: { $gt: sinceDate }
-    }).populate([
-      "berufe",
-      "qualifikationen",
-      { 
-        path: "laufzettel_received",
-        populate: [
-          { path: "mitarbeiter", select: "_id vorname nachname email" },
-          { path: "teamleiter", select: "_id vorname nachname email" }
-        ]
-      },
-      { 
-        path: "laufzettel_submitted",
-        populate: [
-          { path: "mitarbeiter", select: "_id vorname nachname email" },
-          { path: "teamleiter", select: "_id vorname nachname email" }
-        ]
-      },
-      { 
-        path: "eventreports",
-        populate: { path: "teamleiter", select: "_id vorname nachname email" }
-      },
-      { 
-        path: "evaluierungen_received",
-        populate: [
-          { path: "mitarbeiter", select: "_id vorname nachname email" },
-          { path: "teamleiter", select: "_id vorname nachname email" }
-        ]
-      },
-      { 
-        path: "evaluierungen_submitted",
-        populate: [
-          { path: "mitarbeiter", select: "_id vorname nachname email" },
-          { path: "teamleiter", select: "_id vorname nachname email" }
-        ]
-      },
-    ]);
-    
-    // Note: For deleted documents, you would need a separate "deletedDocuments" collection
-    // or soft-delete pattern. For now, we return empty array for deleted.
-    // In a production system, consider adding a "deletedAt" field for soft deletes.
-    
-    res.status(200).json({
-      success: true,
-      updated,
-      deleted: [], // Would need soft-delete implementation to track this
-      syncedAt: new Date().toISOString()
-    });
-  })
-);
+
+
 
 router.patch(
   "/mitarbeiter/:id",
@@ -2394,7 +2397,24 @@ router.delete(
   "/mitarbeiter",
   auth,
   asyncHandler(async (req, res) => {
-    const mitarbeiterIds = req.body;
+    let mitarbeiterIds = [];
+    let deleteFlip = true;
+    let completeAsana = false;
+
+    // Support both legacy array format and new object format with options
+    if (Array.isArray(req.body)) {
+      mitarbeiterIds = req.body;
+    } else if (req.body && typeof req.body === "object") {
+      mitarbeiterIds = req.body.ids || [];
+      // If deleteFlip is explicitly provided, use it. Otherwise default to true (legacy behavior)
+      if (req.body.hasOwnProperty("deleteFlip")) {
+        deleteFlip = req.body.deleteFlip;
+      }
+      if (req.body.hasOwnProperty("completeAsana")) {
+        completeAsana = req.body.completeAsana;
+      }
+    }
+
     const flipIdsToDelete = [];
     const deletedMitarbeiter = [];
     const notFound = [];
@@ -2403,7 +2423,7 @@ router.delete(
       return res.status(400).json({ message: "Keine IDs übergeben." });
     }
 
-    // 1. Flip-IDs sammeln
+    // 1. Prepare deletions
     for (const mitarbeiterId of mitarbeiterIds) {
       const mitarbeiter = await Mitarbeiter.findById(mitarbeiterId);
       if (!mitarbeiter) {
@@ -2411,12 +2431,24 @@ router.delete(
         continue;
       }
 
-      if (mitarbeiter.flip_id) {
+      // Collect Flip IDs if deletion is requested
+      if (deleteFlip && mitarbeiter.flip_id) {
         flipIdsToDelete.push(mitarbeiter.flip_id);
+      }
+
+      // Handle Asana Task completion if requested
+      if (completeAsana && mitarbeiter.asana_id) {
+        try {
+          await completeTaskById(mitarbeiter.asana_id);
+          console.log(`✅ Asana Task ${mitarbeiter.asana_id} completed for deleted user.`);
+        } catch (asanaError) {
+          console.error(`⚠️ Failed to complete Asana task for user ${mitarbeiter._id}:`, asanaError.message);
+          // Non-blocking error
+        }
       }
     }
 
-    // 2. Flip-Nutzer löschen
+    // 2. Delete Flip Users
     try {
       if (flipIdsToDelete.length > 0) {
         await deleteManyFlipUsers(flipIdsToDelete);
@@ -2429,7 +2461,7 @@ router.delete(
       });
     }
 
-    // 3. Mitarbeiter löschen
+    // 3. Delete Mitarbeiter Documents
     for (const mitarbeiterId of mitarbeiterIds) {
       try {
         const deleted = await Mitarbeiter.findByIdAndDelete(mitarbeiterId);
@@ -2441,7 +2473,7 @@ router.delete(
       }
     }
 
-    // 4. Rückmeldung
+    // 4. Response
     res.status(200).json({
       message: "Löschvorgang abgeschlossen",
       deleted: deletedMitarbeiter.map((m) => ({
@@ -2449,6 +2481,10 @@ router.delete(
         name: `${m.vorname} ${m.nachname}`,
       })),
       notFound,
+      options: {
+        flipDeleted: deleteFlip ? flipIdsToDelete.length : 0,
+        asanaCompleted: completeAsana
+      }
     });
   })
 );

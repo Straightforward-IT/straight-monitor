@@ -295,7 +295,6 @@
             @open="openProfile"
             @edit="editMitarbeiter"
             @toggle-selection="toggleSelection(ma._id)"
-            @quick-actions="showQuickActions(ma, $event)"
             @filter-beruf="activateBerufFilter"
             @filter-qualifikation="activateQualifikationFilter"
           />
@@ -392,7 +391,7 @@
                 <div class="name">
                   {{ ma.vorname }} {{ ma.nachname }}
                   <span v-if="isTeamleiter(ma)" class="teamleiter-badge-inline" title="Teamleiter">
-                    <font-awesome-icon icon="fa-solid fa-star" />
+                    <font-awesome-icon icon="fa-solid fa-user-tie" />
                     TL
                   </span>
                 </div>
@@ -485,62 +484,10 @@
                     class="quick-actions-btn" 
                     :class="{ active: activeQuickActionId === ma._id }"
                     @click="showQuickActions(ma, $event)"
+                    :ref="el => { if (el) quickActionBtnRefs[ma._id] = el }"
                   >
                     <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
                   </button>
-                  
-                  <!-- Quick Actions Dropdown Menu -->
-                  <div 
-                    v-if="activeQuickActionId === ma._id" 
-                    class="quick-actions-menu"
-                    @click.stop
-                  >
-                    <!-- Kontakt Actions -->
-                    <div v-if="getPhoneNumber(ma) || ma.email" class="action-group">
-                      <div class="action-group-label">Kontakt</div>
-                      
-                      <!-- Sipgate Button -->
-                      <button 
-                        v-if="getPhoneNumber(ma)"
-                        class="quick-action-item"
-                        @click="executeQuickAction(ma, 'sipgate')"
-                        title="Anruf über Sipgate"
-                      >
-                        <font-awesome-icon icon="fa-solid fa-phone" />
-                        {{ getPhoneNumber(ma) }}
-                      </button>
-                      
-                      <!-- Outlook Button -->
-                      <button 
-                        v-if="ma.email"
-                        class="quick-action-item"
-                        @click="executeQuickAction(ma, 'outlook')"
-                        title="E-Mail über Outlook"
-                      >
-                        <font-awesome-icon icon="fa-solid fa-envelope" />
-                        {{ ma.email }}
-                      </button>
-                    </div>
-                    
-                    <!-- Weitere Actions -->
-                    <div class="action-group">
-                      <div class="action-group-label">Aktionen</div>
-                      <button 
-                        class="quick-action-item"
-                        @click="executeQuickAction(ma, 'profile')"
-                      >
-                        <font-awesome-icon icon="fa-solid fa-user" />
-                        Profil
-                      </button>
-                      <button 
-                        class="quick-action-item"
-                        @click="executeQuickAction(ma, 'edit')"
-                      >
-                        <font-awesome-icon icon="fa-solid fa-edit" />
-                        Bearbeiten
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -619,6 +566,50 @@
         </div>
       </section>
     </main>
+    
+    <!-- Teleported Quick Actions Menu (List View) -->
+    <teleport to="body">
+      <div v-if="activeQuickActionId && activeQuickActionMa" class="list-qa-overlay" @click="activeQuickActionId = null">
+        <div 
+          class="list-qa-menu"
+          :style="quickActionMenuStyle"
+          @click.stop
+        >
+          <!-- Kontakt Actions -->
+          <div v-if="getPhoneNumber(activeQuickActionMa) || activeQuickActionMa.email" class="list-qa-group">
+            <div class="list-qa-group-label">Kontakt</div>
+            <button 
+              v-if="getPhoneNumber(activeQuickActionMa)"
+              class="list-qa-item"
+              @click="executeQuickAction(activeQuickActionMa, 'sipgate')"
+            >
+              <font-awesome-icon icon="fa-solid fa-phone" />
+              {{ getPhoneNumber(activeQuickActionMa) }}
+            </button>
+            <button 
+              v-if="activeQuickActionMa.email"
+              class="list-qa-item"
+              @click="executeQuickAction(activeQuickActionMa, 'outlook')"
+            >
+              <font-awesome-icon icon="fa-solid fa-envelope" />
+              {{ activeQuickActionMa.email }}
+            </button>
+          </div>
+          <!-- Aktionen -->
+          <div class="list-qa-group">
+            <div class="list-qa-group-label">Aktionen</div>
+            <button class="list-qa-item" @click="executeQuickAction(activeQuickActionMa, 'profile')">
+              <font-awesome-icon icon="fa-solid fa-user" />
+              Profil
+            </button>
+            <button class="list-qa-item" @click="executeQuickAction(activeQuickActionMa, 'edit')">
+              <font-awesome-icon icon="fa-solid fa-edit" />
+              Bearbeiten
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -797,6 +788,9 @@ export default {
       // ui
       showMitarbeiterSort: false,
       activeQuickActionId: null, // Tracking für offene Quick-Action-Menüs
+      activeQuickActionMa: null, // Reference to the active employee
+      quickActionMenuStyle: {}, // Position for the teleported menu
+      quickActionBtnRefs: {}, // Refs for the quick action buttons
     };
   },
 
@@ -1303,16 +1297,28 @@ export default {
 
     // Quick Actions
     showQuickActions(ma, event) {
-      // Schließe andere offene Menüs
-      this.activeQuickActionId = null;
-      
-      // Toggle aktuelles Menü
-      this.$nextTick(() => {
-        this.activeQuickActionId = this.activeQuickActionId === ma._id ? null : ma._id;
-      });
-      
-      // Verhindere Event-Bubbling
       event.stopPropagation();
+      
+      // Toggle: close if same menu
+      if (this.activeQuickActionId === ma._id) {
+        this.activeQuickActionId = null;
+        this.activeQuickActionMa = null;
+        return;
+      }
+      
+      // Position berechnen basierend auf Button
+      const btn = event.target.closest('button');
+      if (btn) {
+        const rect = btn.getBoundingClientRect();
+        this.quickActionMenuStyle = {
+          position: 'fixed',
+          top: rect.bottom + 4 + 'px',
+          left: Math.min(rect.left, window.innerWidth - 220) + 'px',
+        };
+      }
+      
+      this.activeQuickActionMa = ma;
+      this.activeQuickActionId = ma._id;
     },
 
     // Quick Action ausführen
@@ -1326,9 +1332,7 @@ export default {
           break;
         case 'outlook':
           if (ma.email) {
-            // Direkt mailto verwenden - funktioniert universell und öffnet Standard-E-Mail-App (meist Outlook auf euren Macs)
             const mailtoUrl = `mailto:${ma.email}`;
-            
             try {
               window.open(mailtoUrl, '_self');
             } catch (error) {
@@ -1346,11 +1350,13 @@ export default {
       
       // Menü schließen
       this.activeQuickActionId = null;
+      this.activeQuickActionMa = null;
     },
 
     // Click outside handler
     handleClickOutside() {
       this.activeQuickActionId = null;
+      this.activeQuickActionMa = null;
     },
 
 
@@ -2320,17 +2326,17 @@ export default {
     align-items: center;
     gap: 4px;
     padding: 2px 8px;
-    background: linear-gradient(135deg, #FFD700, #FFA500);
-    color: #000;
-    font-size: 11px;
-    font-weight: 700;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
     border-radius: 12px;
-    box-shadow: 0 2px 4px rgba(255, 165, 0, 0.3);
+    box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
     white-space: nowrap;
   }
   
   .teamleiter-badge-inline svg {
-    font-size: 10px;
+    font-size: 9px;
   }
   
   .list-col--status,
@@ -2696,7 +2702,7 @@ html {
 
 .list-header {
   display: grid;
-  grid-template-columns: 40px 40px 60px 1fr 120px 100px 100px 120px 120px 80px;
+  grid-template-columns: 40px 40px 60px 1fr 140px 120px 130px 140px 140px 96px 50px;
   gap: 1rem;
   padding: 0.375rem 1rem;
   border-bottom: 2px solid var(--border);
@@ -2732,7 +2738,7 @@ html {
 
 .list-row {
   display: grid;
-  grid-template-columns: 40px 40px 60px 1fr 120px 100px 100px 120px 120px 80px;
+  grid-template-columns: 40px 40px 60px 1fr 140px 120px 130px 140px 140px 96px 50px;
   gap: 1rem;
   padding: 0.25rem 1rem;
   border-bottom: 1px solid var(--border-light);
@@ -2845,6 +2851,30 @@ html {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.teamleiter-badge-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
+  white-space: nowrap;
+  flex-shrink: 0;
+  
+  svg {
+    font-size: 9px;
+  }
 }
 
 .email {
@@ -3563,5 +3593,69 @@ html {
 
 .dropdown-item.selected:hover {
     background-color: color-mix(in srgb, var(--brand) 20%, transparent);
+}
+</style>
+
+<!-- Global styles for teleported list quick actions menu -->
+<style lang="scss">
+.list-qa-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99999;
+}
+
+.list-qa-menu {
+  min-width: 200px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  z-index: 100000;
+  padding: 6px 0;
+  
+  .list-qa-group {
+    &:not(:last-child) {
+      border-bottom: 1px solid var(--border, #e5e7eb);
+      margin-bottom: 6px;
+      padding-bottom: 6px;
+    }
+  }
+  
+  .list-qa-group-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted, #9ca3af);
+    padding: 4px 12px 6px;
+  }
+  
+  .list-qa-item {
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 8px 12px;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text, #1f2937);
+    transition: all 0.15s ease;
+    
+    &:hover {
+      background: var(--soft, #f3f4f6);
+      color: var(--primary, #3b82f6);
+    }
+    
+    .fa-phone { color: #22c55e; }
+    .fa-envelope { color: #f59e0b; }
+    .fa-edit { color: #8b5cf6; }
+    .fa-user { color: var(--primary, #3b82f6); }
+  }
 }
 </style>

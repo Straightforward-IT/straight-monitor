@@ -27,6 +27,11 @@ const KundeSchema = new mongoose.Schema({
     type: String, // KOSTENST
     required: false
   },
+  parentKunde: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Kunde',
+    default: null
+  },
   bemerkung: {
     type: [String], // Array aus BEMERKUNG, BEMERKUNG2, BEMERKUNG3
     required: false

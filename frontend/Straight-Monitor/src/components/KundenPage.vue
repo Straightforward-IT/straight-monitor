@@ -1,10 +1,6 @@
 <template>
   <div class="kunden-page">
-    <div class="header-section">
-      <h1>Kunden</h1>
-      <p class="subtitle">Verwaltung und Übersicht der Kunden</p>
-    </div>
-
+    
     <!-- Tabs Navigation -->
     <div class="tabs">
       <button 
@@ -75,8 +71,15 @@
       <!-- Übersicht Tab (Alle außer Status 1) -->
       <div v-if="currentTab === 'overview'" class="tab-content">
         <div class="toolbar">
-           <input v-model="searchQuery" type="text" placeholder="Suchen..." class="search-input" />
-           <span class="count-tag">{{ filteredKunden.length }} Kunden</span>
+           <div class="search-group">
+            <input v-model="searchQuery" type="text" placeholder="Suchen..." class="search-input" />
+            <span class="count-tag">{{ filteredKunden.length }} Kunden</span>
+           </div>
+           
+           <button class="btn-group" @click="showMergeModal = true">
+             <font-awesome-icon :icon="['fas', 'object-group']" />
+             Gruppieren
+           </button>
         </div>
         
         <div v-if="isLoading" class="loading-state">
@@ -146,6 +149,12 @@
 
     </div>
 
+    <KundenMergeModal 
+      :is-open="showMergeModal" 
+      @close="showMergeModal = false" 
+      @saved="dataCache.fetchKunden()" 
+    />
+
     <!-- Customer Detail Modal -->
     <teleport to="body">
       <div v-if="selectedKunde" class="modal-overlay" @click="selectedKunde = null">
@@ -162,7 +171,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useDataCache } from '@/stores/dataCache';
 import { useAuth } from '@/stores/auth'; // Import Auth Store
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
@@ -174,9 +184,12 @@ import FilterDropdown from './FilterDropdown.vue';
 import CustomerCard from './CustomerCard.vue';
 import CustomTooltip from './CustomTooltip.vue';
 import KundenAnalytics from './KundenAnalytics.vue';
+import KundenMergeModal from './KundenMergeModal.vue';
 
 const dataCache = useDataCache();
 const auth = useAuth(); // Init Auth Store
+const route = useRoute();
+const router = useRouter();
 
 const tabs = [
   { id: 'overview', label: 'Übersicht', icon: ['fas', 'list'] },
@@ -185,29 +198,59 @@ const tabs = [
 ];
 
 const currentTab = ref('overview');
+const showMergeModal = ref(false);
 const searchQuery = ref('');
 const isLoading = ref(false);
 const filtersExpanded = ref(false);
 const selectedKunde = ref(null);
 
 // Helper to map user location to GeschSt ID
-const getUserGeschSt = () => {
+function getUserGeschSt() {
   const loc = auth.user?.location?.toLowerCase();
   if (loc === 'berlin') return '1';
   if (loc === 'hamburg') return '2';
   if (loc === 'köln' || loc === 'koeln') return '3';
   return null;
-};
+}
 
-const filters = ref({
-  geschSt: getUserGeschSt(), // Default to user location
-  status: 2, // Default to Aktiv (2)
+// Get stored filters or set defaults
+const storedFilters = localStorage.getItem('kundenFilters');
+const defaultFilters = {
+  geschSt: getUserGeschSt(), 
+  status: 2, 
   sortBy: 'name', 
   sortDir: 'asc' 
+};
+
+const filters = ref(storedFilters ? { ...defaultFilters, ...JSON.parse(storedFilters) } : defaultFilters);
+
+// Watchers
+
+// 1. Sync Tab with URL
+watch(currentTab, (newTab) => {
+  if (route.query.tab !== newTab) {
+    router.replace({ query: { ...route.query, tab: newTab } });
+  }
 });
+
+watch(() => route.query.tab, (newTab) => {
+  if (newTab && ['overview', 'analytics', 'leads'].includes(newTab)) {
+    currentTab.value = newTab;
+  }
+}, { immediate: true });
+
+// 2. Persist Filters
+watch(filters, (newVal) => {
+  localStorage.setItem('kundenFilters', JSON.stringify(newVal));
+}, { deep: true });
 
 onMounted(async () => {
   isLoading.value = true;
+  // Initialize Tab from URL if present
+  if (route.query.tab && ['overview', 'analytics', 'leads'].includes(route.query.tab)) {
+    currentTab.value = route.query.tab;
+  }
+  
   try {
     await dataCache.loadKunden();
   } catch (e) {
@@ -455,6 +498,29 @@ function formatDate(dateStr) {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+
+.search-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text);
+    transition: background 0.2s;
+}
+
+.btn-group:hover {
+    background: var(--hover-bg, #f5f5f5);
 }
 
 .search-input {

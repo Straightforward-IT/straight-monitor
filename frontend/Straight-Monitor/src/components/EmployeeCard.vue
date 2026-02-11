@@ -51,16 +51,16 @@
               <font-awesome-icon icon="fa-solid fa-id-badge" />
               {{ ma.personalnr || "Personalnr fehlt" }}
             </span>
-
-            <!-- Standort aus Flip (profile.location -> attributes.location -> fallback) -->
-            <span class="pill" v-if="displayLocation">
+            
+            <!-- Location Badge -->
+            <span class="pill muted" v-if="displayLocation">
               <font-awesome-icon icon="fa-solid fa-location-dot" />
               {{ displayLocation }}
             </span>
-
-            <!-- Bereich aus Flip (profile.department -> attributes.department -> fallback) -->
-            <span class="pill" v-if="displayDepartment">
-              <font-awesome-icon icon="fa-solid fa-briefcase" />
+            
+            <!-- Department Badge -->
+            <span class="pill muted" v-if="displayDepartment">
+              <font-awesome-icon icon="fa-solid fa-layer-group" />
               {{ displayDepartment }}
             </span>
             
@@ -177,23 +177,73 @@
           </button>
         </template>
 
-        <!-- Actions Button -->
-        <template v-if="showTooltips">
-          <custom-tooltip
-            text="Aktionen"
-            :position="tooltipPosition"
-            :delay-in="150"
-          >
-            <button class="icon-btn" @click="$emit('quick-actions', $event)">
+        <!-- Actions Button with Dropdown -->
+        <div class="quick-actions-wrapper" @click.stop>
+          <template v-if="showTooltips">
+            <custom-tooltip
+              text="Aktionen"
+              :position="tooltipPosition"
+              :delay-in="150"
+            >
+              <button class="icon-btn" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
+                <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
+              </button>
+            </custom-tooltip>
+          </template>
+          <template v-else>
+            <button class="icon-btn" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
               <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
             </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button class="icon-btn" @click="$emit('quick-actions', $event)">
-            <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
-          </button>
-        </template>
+          </template>
+          
+          <!-- Quick Actions Dropdown Menu -->
+          <teleport to="body">
+            <div v-if="showQuickActionsMenu" class="qa-overlay" @click="showQuickActionsMenu = false">
+              <div 
+                class="qa-menu"
+                :style="quickActionsMenuStyle"
+                @click.stop
+              >
+                <!-- Kontakt Actions -->
+                <div v-if="getPhoneNumber() || ma.email" class="qa-group">
+                  <div class="qa-group-label">Kontakt</div>
+                  <button 
+                    v-if="getPhoneNumber()"
+                    class="qa-item"
+                    @click="executeQuickAction('sipgate')"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-phone" />
+                    {{ getPhoneNumber() }}
+                  </button>
+                  <button 
+                    v-if="ma.email"
+                    class="qa-item"
+                    @click="executeQuickAction('outlook')"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-envelope" />
+                    {{ ma.email }}
+                  </button>
+                </div>
+                <!-- Aktionen -->
+                <div class="qa-group">
+                  <div class="qa-group-label">Aktionen</div>
+                  <button class="qa-item" @click="executeQuickAction('edit')">
+                    <font-awesome-icon icon="fa-solid fa-edit" />
+                    Bearbeiten
+                  </button>
+                  <button class="qa-item" @click="executeQuickAction('toggle-active')">
+                    <font-awesome-icon :icon="ma.isActive ? 'fa-regular fa-circle' : 'fa-solid fa-circle-check'" />
+                    {{ ma.isActive ? 'Deaktivieren' : 'Aktivieren' }}
+                  </button>
+                  <button class="qa-item qa-item--danger" @click="executeQuickAction('delete')">
+                    <font-awesome-icon icon="fa-solid fa-trash" />
+                    Löschen
+                  </button>
+                </div>
+              </div>
+            </div>
+          </teleport>
+        </div>
 
         <button
           class="icon-btn chevron"
@@ -215,63 +265,45 @@
       <div v-show="expanded" class="card-body">
         <!-- Straight View -->
         <section v-if="view === 'straight'" class="straight-view">
-          <h4 class="section-title">
-            <img 
-              :src="effectiveTheme === 'dark' ? straightDark : straightLight" 
-              alt="Monitor" 
-              class="section-icon" 
-            />
-            Monitor Profil
-          </h4>
+          <div class="section-header-row">
+            <h4 class="section-title">
+              <img 
+                :src="effectiveTheme === 'dark' ? straightDark : straightLight" 
+                alt="Monitor" 
+                class="section-icon" 
+              />
+              Monitor Profil
+            </h4>
+            <div class="header-actions">
+              <button 
+                class="btn btn-sm btn-ghost icon-btn-sm" 
+                @click.stop="openContextMenu($event)" 
+                title="Optionen"
+              >
+                <font-awesome-icon icon="fa-solid fa-ellipsis" />
+              </button>
+            </div>
+          </div>
           
           <div class="kv">
             <div>
               <dt>Personalnr</dt>
               <dd>
-                <div v-if="!editingPersonalnr && ma.personalnr" class="personalnr-display">
+                <div v-if="ma.personalnr" class="personalnr-display">
                   {{ ma.personalnr }}
                 </div>
-                <div v-else-if="!editingPersonalnr && !ma.personalnr" class="personalnr-missing">
-                  <button 
-                    class="btn btn-sm btn-primary"
-                    @click="startEditingPersonalnr"
-                  >
-                    <font-awesome-icon icon="fa-solid fa-plus" />
-                    Hinzufügen
-                  </button>
-                </div>
-                <div v-else class="personalnr-edit">
-                  <input
-                    v-model="personalnrInput"
-                    type="text"
-                    placeholder="Personalnr eingeben..."
-                    class="form-input"
-                    @keyup.enter="savePersonalnr"
-                    @keyup.esc="cancelEditingPersonalnr"
-                  />
-                  <button 
-                    class="btn btn-sm btn-primary"
-                    @click="savePersonalnr"
-                    :disabled="!personalnrInput.trim() || savingPersonalnr"
-                  >
-                    <font-awesome-icon 
-                      :icon="savingPersonalnr ? 'fa-solid fa-spinner' : 'fa-solid fa-check'"
-                      :class="{ 'fa-spin': savingPersonalnr }"
-                    />
-                  </button>
-                  <button 
-                    class="btn btn-sm btn-ghost"
-                    @click="cancelEditingPersonalnr"
-                    :disabled="savingPersonalnr"
-                  >
-                    <font-awesome-icon icon="fa-solid fa-times" />
-                  </button>
+                <div v-else class="text-muted text-sm">
+                  —
                 </div>
               </dd>
             </div>
             <div>
               <dt>E-Mail</dt>
               <dd>{{ ma.email || "—" }}</dd>
+            </div>
+            <div v-if="ma.erstellt_von">
+              <dt>Erstellt von</dt>
+              <dd>{{ ma.erstellt_von }}</dd>
             </div>
             <div v-if="ma.additionalEmails && ma.additionalEmails.length > 0">
               <dt>Alternative E-Mails</dt>
@@ -282,14 +314,6 @@
                   </span>
                 </div>
               </dd>
-            </div>
-            <div>
-              <dt>Standort</dt>
-              <dd>{{ displayLocation || "—" }}</dd>
-            </div>
-            <div>
-              <dt>Bereich</dt>
-              <dd>{{ displayDepartment || "—" }}</dd>
             </div>
             <div>
               <dt>Status</dt>
@@ -933,6 +957,37 @@
         </div>
       </div>
     </teleport>
+
+    <teleport to="body">
+      <ContextMenu
+        v-if="showContextMenu"
+        :x="contextMenuX"
+        :y="contextMenuY"
+        :options="contextMenuOptions"
+        @select="handleContextMenuSelect"
+        @close="showContextMenu = false"
+      />
+    </teleport>
+
+    <!-- Modals -->
+    <teleport to="body">
+      <EditMitarbeiterDialog
+        v-if="showEditModal"
+        :mitarbeiter="ma"
+        :saving="savingEdit"
+        @close="closeEditModal"
+        @save="saveEdit"
+      />
+      
+      <DeleteMitarbeiterDialog
+        v-if="showDeleteModal"
+        :name="`${ma.vorname} ${ma.nachname}`"
+        :loading="deletingMitarbeiter"
+        @close="closeDeleteModal"
+        @confirm="confirmDelete"
+      />
+    </teleport>
+
   </article>
 </template>
 <script>
@@ -941,6 +996,9 @@ import { useRouter } from "vue-router";
 import CustomTooltip from "./CustomTooltip.vue";
 import FlipProfile from "./FlipProfile.vue";
 import DocumentCard from "./DocumentCard.vue";
+import ContextMenu from "./ContextMenu.vue";
+import EditMitarbeiterDialog from "./EditMitarbeiterDialog.vue";
+import DeleteMitarbeiterDialog from "./DeleteMitarbeiterDialog.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
 import { useFlipAll } from "@/stores/flipAll";
@@ -955,7 +1013,7 @@ import asanaLogo from "@/assets/asana.png";
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DocumentCard },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DocumentCard, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ContextMenu },
   props: {
     ma: { type: Object, required: true },
     initiallyExpanded: { type: Boolean, default: false },
@@ -1103,10 +1161,34 @@ export default {
       showFinishedTasks: false, // Toggle für erledigte Tasks
       // Document modal
       selectedDocument: null,
+      
+      // Edit Dialog
+      showEditModal: false,
+      savingEdit: false,
+      
+      // Delete Dialog
+      showDeleteModal: false,
+      deletingMitarbeiter: false,
+
+      // Context Menu
+      showContextMenu: false,
+      contextMenuX: 0,
+      contextMenuY: 0,
+
+      // Quick Actions Menu
+      showQuickActionsMenu: false,
+      quickActionsMenuStyle: {},
     };
   },
 
   computed: {
+    contextMenuOptions() {
+      return [
+        { label: 'Bearbeiten', action: 'edit' },
+        { label: this.ma.isActive ? 'Deaktivieren' : 'Aktivieren', action: 'toggle-active' },
+        { label: 'Löschen', action: 'delete' }
+      ];
+    },
     // Filtere Tasks nach Status (offen vs. erledigt)
     filteredTasksToMe() {
       if (!this.flipTasks.assignedToMe) return [];
@@ -1686,6 +1768,178 @@ export default {
       });
     },
 
+
+    // --- Context Menu ---
+    openContextMenu(event) {
+      const rect = event.target.closest('button').getBoundingClientRect();
+      this.contextMenuX = rect.left;
+      this.contextMenuY = rect.bottom + 5;
+      this.showContextMenu = true;
+    },
+
+    async handleContextMenuSelect(action) {
+      if (action === 'edit') {
+        this.openEditModal();
+      } else if (action === 'delete') {
+        this.openDeleteModal();
+      } else if (action === 'toggle-active') {
+        await this.toggleActiveStatus();
+      }
+    },
+
+    // --- Quick Actions Menu (Header 3-dot) ---
+    toggleQuickActions(event) {
+      if (this.showQuickActionsMenu) {
+        this.showQuickActionsMenu = false;
+        return;
+      }
+      const btn = event.target.closest('button');
+      if (btn) {
+        const rect = btn.getBoundingClientRect();
+        this.quickActionsMenuStyle = {
+          position: 'fixed',
+          top: rect.bottom + 4 + 'px',
+          left: Math.min(rect.left, window.innerWidth - 220) + 'px',
+        };
+      }
+      this.showQuickActionsMenu = true;
+    },
+
+    getPhoneNumber() {
+      if (!this.ma.flip?.attributes) return null;
+      const phoneAttribute = this.ma.flip.attributes.find(attr => {
+        const name = attr.name?.toLowerCase() || '';
+        return name.includes('telefon') || name.includes('phone') || 
+               name.includes('handy') || name.includes('mobile') || name.includes('tel');
+      });
+      return phoneAttribute?.value || null;
+    },
+
+    generateSipgateLink(phoneNumber) {
+      if (!phoneNumber) return null;
+      let cleanNumber = phoneNumber.toString().replace(/[^\d+]/g, '');
+      if (!cleanNumber) return null;
+      if (cleanNumber.startsWith('0') && !cleanNumber.startsWith('+')) {
+        cleanNumber = '+49' + cleanNumber.substring(1);
+      }
+      return `sipgate://phone/call?number=${cleanNumber}`;
+    },
+
+    executeQuickAction(action) {
+      this.showQuickActionsMenu = false;
+      switch (action) {
+        case 'sipgate': {
+          const phone = this.getPhoneNumber();
+          if (phone) {
+            const url = this.generateSipgateLink(phone);
+            window.open(url, '_self');
+          }
+          break;
+        }
+        case 'outlook':
+          if (this.ma.email) {
+            window.open(`mailto:${this.ma.email}`, '_self');
+          }
+          break;
+        case 'edit':
+          this.openEditModal();
+          break;
+        case 'toggle-active':
+          this.toggleActiveStatus();
+          break;
+        case 'delete':
+          this.openDeleteModal();
+          break;
+      }
+    },
+
+    async toggleActiveStatus() {
+      try {
+        const newStatus = !this.ma.isActive;
+        const response = await api.patch(`/api/personal/mitarbeiter/${this.ma._id}`, {
+          isActive: newStatus
+        });
+        
+        if (response.data?.success) {
+          this.ma.isActive = newStatus;
+        }
+      } catch (error) {
+        console.error("❌ Fehler beim Ändern des Status:", error);
+        alert("Fehler beim Ändern des Status.");
+      }
+    },
+
+    // --- Edit Dialog Methods ---
+    openEditModal() {
+      this.showEditModal = true;
+    },
+    
+    closeEditModal() {
+      this.showEditModal = false;
+    },
+    
+    async saveEdit(formData) {
+      this.savingEdit = true;
+      try {
+        const updatePayload = {
+          vorname: formData.vorname,
+          nachname: formData.nachname,
+          personalnr: formData.personalnr,
+          email: formData.email,
+          erstellt_von: formData.erstellt_von,
+          additionalEmails: formData.additionalEmails,
+          personalnrHistory: formData.personalnrHistory
+        };
+
+        const response = await api.patch(
+          `/api/personal/mitarbeiter/${this.ma._id}`,
+          updatePayload
+        );
+
+        if (response.data?.success) {
+           Object.assign(this.ma, response.data.data);
+           this.closeEditModal();
+        } else {
+           throw new Error(response.data?.message || "Fehler beim Speichern");
+        }
+      } catch (error) {
+        console.error("❌ Fehler beim Bearbeiten:", error);
+        alert(`Fehler beim Speichern: ${error.response?.data?.message || error.message}`);
+      } finally {
+        this.savingEdit = false;
+      }
+    },
+
+    // --- Delete Dialog Methods ---
+    openDeleteModal() {
+      this.showDeleteModal = true;
+    },
+    
+    closeDeleteModal() {
+      this.showDeleteModal = false;
+    },
+    
+    async confirmDelete(options) {
+      this.deletingMitarbeiter = true;
+      try {
+        await api.delete("/api/personal/mitarbeiter", {
+          data: {
+            ids: [this.ma._id],
+            deleteFlip: options.deleteFlip,
+            completeAsana: options.completeAsana
+          }
+        });
+        
+        this.$emit("deleted", this.ma._id); 
+        this.closeDeleteModal();
+      } catch (error) {
+        console.error("❌ Fehler beim Löschen:", error);
+        alert(`Fehler beim Löschen: ${error.response?.data?.message || error.message}`);
+      } finally {
+         this.deletingMitarbeiter = false;
+      }
+    },
+
     formatTaskDescription(description) {
       if (!description) return '';
       
@@ -1700,6 +1954,7 @@ export default {
     },
   },
 };
+  
 </script>
 
 <style scoped lang="scss">
@@ -3151,5 +3406,135 @@ export default {
 
 .modal-document {
   max-width: 900px;
+}
+
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  
+  .section-title {
+    margin-bottom: 0;
+  }
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-btn-sm {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  
+  &:hover {
+    background: var(--bg-hover) !important;
+  }
+}
+
+.text-danger {
+  color: #dc3545;
+  &:hover {
+    background: rgba(220, 53, 69, 0.1) !important;
+  }
+}
+
+.email-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.email-badge {
+  background: var(--soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.text-xs { font-size: 0.75rem; }
+
+/* Quick Actions Wrapper in header */
+.quick-actions-wrapper {
+  position: relative;
+}
+
+/* Quick Actions Overlay + Menu (teleported to body, so not scoped) */
+</style>
+
+<style lang="scss">
+/* Global styles for teleported quick actions menu */
+.qa-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99999;
+}
+
+.qa-menu {
+  min-width: 200px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  z-index: 100000;
+  padding: 6px 0;
+  
+  .qa-group {
+    &:not(:last-child) {
+      border-bottom: 1px solid var(--border, #e5e7eb);
+      margin-bottom: 6px;
+      padding-bottom: 6px;
+    }
+  }
+  
+  .qa-group-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted, #9ca3af);
+    padding: 4px 12px 6px;
+  }
+  
+  .qa-item {
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 8px 12px;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text, #1f2937);
+    transition: all 0.15s ease;
+    
+    &:hover {
+      background: var(--soft, #f3f4f6);
+      color: var(--primary, #3b82f6);
+    }
+    
+    .fa-phone { color: #22c55e; }
+    .fa-envelope { color: #f59e0b; }
+    .fa-edit { color: #8b5cf6; }
+    .fa-user { color: var(--primary, #3b82f6); }
+  }
+  
+  .qa-item--danger {
+    &:hover {
+      background: rgba(220, 53, 69, 0.08);
+      color: #dc3545;
+    }
+  }
 }
 </style>
