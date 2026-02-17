@@ -33,9 +33,14 @@
     </div>
 
     <div class="card">
-      <h2>4. Cookies</h2>
-      <p>Could session info be in cookies?</p>
-      <div class="code-block">{{ cookies || 'No cookies found' }}</div>
+      <h2>5. Flip Bridge (Experimental)</h2>
+      <p>Status: {{ bridgeStatus }}</p>
+      <div v-if="bridgeError" class="error-text">{{ bridgeError }}</div>
+      <div class="actions-mini">
+        <button @click="testToast">Test Toast Notification</button>
+        <button @click="testTheme">Get Theme</button>
+      </div>
+      <p class="small-text" v-if="bridgeResult">Last Result: {{ bridgeResult }}</p>
     </div>
 
     <div class="actions">
@@ -48,6 +53,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+// Import Flip Bridge
+import { initFlipBridge, showToast, getTheme } from '@getflip/bridge';
 
 const route = useRoute();
 const queryParams = computed(() => route.query);
@@ -56,6 +63,9 @@ const userAgent = navigator.userAgent;
 const cookies = document.cookie;
 
 const windowProps = ref([]);
+const bridgeStatus = ref('Not Initialized');
+const bridgeError = ref('');
+const bridgeResult = ref('');
 
 function checkWindowObjects() {
   const keys = ['flip', 'Flip', 'FLIP', 'oidc', 'user', 'User', 'Android', 'webkit', 'external'];
@@ -74,12 +84,51 @@ function checkWindowObjects() {
   windowProps.value = found;
 }
 
+async function initBridge() {
+  try {
+    bridgeStatus.value = 'Initializing...';
+    // Initialize the bridge
+    initFlipBridge({
+      hostAppOrigin: '*', // Allow any origin for testing
+      debug: true        // Enable debug logs in console
+    });
+    bridgeStatus.value = 'Initialized (Check Console)';
+  } catch (err) {
+    console.error("Bridge Init Error:", err);
+    bridgeStatus.value = 'Failed';
+    bridgeError.value = String(err);
+  }
+}
+
+async function testToast() {
+  try {
+    await showToast({
+      text: 'Hello from StraightMonitor!',
+      intent: 'success',
+      duration: 3000
+    });
+    bridgeResult.value = 'Toast sent successfully';
+  } catch (err) {
+    bridgeResult.value = 'Toast Error: ' + err.message;
+  }
+}
+
+async function testTheme() {
+  try {
+    const theme = await getTheme();
+    bridgeResult.value = 'Theme: ' + JSON.stringify(theme);
+  } catch (err) {
+    bridgeResult.value = 'Theme Error: ' + err.message;
+  }
+}
+
 function refreshPage() {
   window.location.reload();
 }
 
 onMounted(() => {
   checkWindowObjects();
+  initBridge();
 });
 </script>
 
@@ -130,9 +179,14 @@ h2 { font-size: 1.1rem; margin-top: 0; color: #444; border-bottom: 2px solid #ee
 
 .empty-state { color: #999; font-style: italic; }
 
+.error-text { color: #dc3545; font-weight: bold; margin: 0.5rem 0; }
+.small-text { font-size: 0.8rem; color: #666; margin-top: 0.5rem; }
+
 .actions { display: flex; gap: 10px; margin-top: 2rem; }
-.actions button {
-  padding: 0.8rem 1.5rem;
+.actions-mini { display: flex; gap: 10px; margin: 1rem 0; }
+
+.actions button, .actions-mini button {
+  padding: 0.6rem 1rem;
   background: #0066cc;
   color: white;
   border: none;
@@ -140,5 +194,6 @@ h2 { font-size: 1.1rem; margin-top: 0; color: #444; border-bottom: 2px solid #ee
   cursor: pointer;
   font-weight: bold;
 }
+.actions-mini button { background: #6c757d; font-size: 0.9rem; }
 </style>
 
