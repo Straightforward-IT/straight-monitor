@@ -306,7 +306,8 @@ onMounted(() => {
 <style scoped>
 .public-page {
   min-height: 100vh;
-  background: #f4f6f8;
+  background: var(--bg);
+  color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   padding: 1rem;
   padding-bottom: 3rem;
@@ -318,14 +319,14 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 60vh;
-  color: #666;
+  color: var(--muted);
 }
 
 .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid #e0e0e0;
-  border-top-color: #ff8c00;
+  border: 4px solid var(--border);
+  border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -341,7 +342,7 @@ onMounted(() => {
   justify-content: center;
   min-height: 40vh;
   text-align: center;
-  color: #666;
+  color: var(--muted);
 }
 
 .error-icon {
@@ -369,12 +370,12 @@ onMounted(() => {
 
 .page-header h1 {
   font-size: 1.5rem;
-  color: #222;
+  color: var(--text);
   margin: 0 0 0.25rem;
 }
 
 .subtitle {
-  color: #888;
+  color: var(--muted);
   font-size: 0.95rem;
   margin: 0;
 }
@@ -385,18 +386,18 @@ onMounted(() => {
 
 .section h2 {
   font-size: 1.15rem;
-  color: #333;
+  color: var(--text);
   margin-bottom: 0.75rem;
   padding-bottom: 0.5rem;
-  border-bottom: 2px solid #eee;
+  border-bottom: 2px solid var(--border);
 }
 
 .empty-state {
-  color: #999;
+  color: var(--muted);
   font-style: italic;
   padding: 1rem;
   text-align: center;
-  background: white;
+  background: var(--tile-bg);
   border-radius: 8px;
 }
 
@@ -408,7 +409,7 @@ onMounted(() => {
 }
 
 .einsatz-card {
-  background: white;
+  background: var(--tile-bg);
   border-radius: 8px;
   padding: 0.75rem 1rem;
   box-shadow: 0 1px 3px rgba(0,0,0,0.06);
@@ -423,13 +424,13 @@ onMounted(() => {
 
 .einsatz-title {
   font-weight: 600;
-  color: #222;
+  color: var(--text);
   font-size: 0.95rem;
 }
 
 .einsatz-date {
   font-size: 0.8rem;
-  color: #888;
+  color: var(--muted);
   white-space: nowrap;
 }
 
@@ -438,12 +439,13 @@ onMounted(() => {
   gap: 0.75rem;
   margin-top: 0.25rem;
   font-size: 0.8rem;
-  color: #666;
+  color: var(--muted);
   flex-wrap: wrap;
 }
 
 .auftrag-nr {
-  background: #eef2f7;
+  background: var(--hover);
+  color: var(--text);
   padding: 0.1rem 0.4rem;
   border-radius: 3px;
   font-family: monospace;
@@ -452,7 +454,7 @@ onMounted(() => {
 
 /* Form */
 .report-form {
-  background: white;
+  background: var(--tile-bg);
   border-radius: 8px;
   padding: 1.25rem;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
@@ -478,7 +480,7 @@ onMounted(() => {
   display: block;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #444;
+  color: var(--text);
   margin-bottom: 0.3rem;
 }
 
@@ -487,11 +489,12 @@ onMounted(() => {
 .form-group textarea {
   width: 100%;
   padding: 0.55rem 0.7rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 0.9rem;
   font-family: inherit;
-  background: #fafafa;
+  background: var(--bg);
+  color: var(--text);
   transition: border-color 0.2s;
   box-sizing: border-box;
 }
@@ -500,13 +503,13 @@ onMounted(() => {
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #ff8c00;
-  background: white;
+  border-color: var(--primary);
+  background: var(--tile-bg);
 }
 
 .readonly {
-  background: #f0f0f0 !important;
-  color: #888;
+  background: var(--hover) !important;
+  color: var(--muted);
 }
 
 .rating-group {
@@ -522,17 +525,18 @@ onMounted(() => {
   font-weight: 400;
   font-size: 0.85rem;
   cursor: pointer;
+  color: var(--text);
 }
 
 .radio-label input[type="radio"] {
   width: auto;
-  accent-color: #ff8c00;
+  accent-color: var(--primary);
 }
 
 .submit-btn {
   width: 100%;
   padding: 0.85rem;
-  background: #ff8c00;
+  background: var(--primary);
   color: white;
   border: none;
   border-radius: 8px;
@@ -544,7 +548,7 @@ onMounted(() => {
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: #e07b00;
+  filter: brightness(1.1);
 }
 
 .submit-btn:disabled {
@@ -560,6 +564,11 @@ onMounted(() => {
   text-align: center;
   font-weight: 600;
   font-size: 1.1rem;
+}
+/* Dark mode override specific for success msg */
+[data-theme="dark"] .success-message {
+  background: rgba(40, 167, 69, 0.2);
+  color: #75b798;
 }
 
 .success-message i {
