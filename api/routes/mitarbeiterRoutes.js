@@ -127,9 +127,9 @@ function normalizeUmlautsForSort(str) {
   if (!str) return "";
   return str
     .toLowerCase()
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
+    .replace(/ä/g, "a")
+    .replace(/ö/g, "o")
+    .replace(/ü/g, "u")
     .replace(/ß/g, "ss")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -145,7 +145,9 @@ async function sendAllMailsInBackground(
   jahr,
   stadt_full,
   stadt,
-  dokumentart
+  dokumentart,
+  ganzesJahr = false,
+  testMode = false
 ) {
   const senderMap = { HH: "teamhamburg", B: "teamberlin", K: "teamkoeln" };
   const senderKey = senderMap[stadt] || "it";
@@ -154,10 +156,15 @@ async function sendAllMailsInBackground(
     const row = data[i];
     const rawNachname = (row[1] || "Unbekannt").trim();
     const rawVorname = (row[2] || "Mitarbeiter").trim();
-    const email = row[4] || null;
+    let email = row[4] || null;
+
+    if (testMode) {
+      console.log(`Testmodus: E-Mail für ${rawVorname} ${rawNachname} an it@straightforward.email umgeleitet.`);
+      email = "it@straightforward.email";
+    }
 
     const safeVorname = rawVorname
-  .normalize("NFD") 
+  .normalize("NFD")  
   .replace(/[\u0300-\u036f]/g, "") 
   .replace(/[^a-zA-ZäöüÄÖÜß]/g, "") 
   .replace(/\s+/g, "_"); 
@@ -180,13 +187,18 @@ const safeNachname = rawNachname
       jahr,
       stadt_full,
       stadtVars,
+      ganzesJahr
     });
+
+    const subject = ganzesJahr 
+      ? `${dokumentart} ${jahr}` 
+      : `${dokumentart} ${monatLesbar} ${jahr}`;
 
     try {
       await sendMail(
          email || 
          "it@straightforward.email",
-        `${dokumentart} ${monatLesbar} ${jahr}`,
+        subject,
         content,
         senderKey,
         [
@@ -1631,14 +1643,20 @@ router.get("/sse-mailstatus", (req, res) => {
 });
 
 function getEmailTemplate(type, data) {
-  const { vorname, monatLesbar, jahr, stadt_full, stadtVars } = data;
+  const { vorname, monatLesbar, jahr, stadt_full, stadtVars, ganzesJahr } = data;
       let anrede = "";
       switch(type){
         case "LA": anrede = `<p>Hallo ${vorname},</p>
     <p>anbei deine Lohnabrechnung für ${monatLesbar} ${jahr}.</p>`;
     break;
-        case "LST": anrede = `<p>Hallo ${vorname},</p>
+        case "LST": 
+          if(ganzesJahr) {
+             anrede = `<p>Hallo ${vorname},</p>
+    <p>anbei dein Lohnsteuerbescheid für das Jahr ${jahr}.</p>`;
+          } else {
+             anrede = `<p>Hallo ${vorname},</p>
     <p>anbei dein Lohnsteuerbescheid für ${monatLesbar} ${jahr}.</p>`;
+          }
     break;
     default: anrede = `<p>Hallo ${vorname},</p>
     <p>anbei dein Dokument für ${monatLesbar} ${jahr}.</p>`;
@@ -1684,7 +1702,11 @@ router.post(
   ]),
   asyncHandler(async (req, res) => {
     try {
-      const { stadt, monat, stadt_full, dokumentart } = req.body;
+      const { stadt, monat, stadt_full, dokumentart, jahr: formJahr, ganzesJahr: formGanzesJahr, testMode: formTestMode } = req.body;
+      const ganzesJahr = formGanzesJahr === 'true';
+      const testMode = formTestMode === 'true';
+      const jahr = formJahr || new Date().getFullYear();
+
       const pdfBuffer = req.files?.pdf?.[0]?.buffer;
       const excelBuffer = req.files?.excel?.[0]?.buffer;
 
@@ -1692,7 +1714,7 @@ router.post(
         !pdfBuffer ||
         !excelBuffer ||
         !stadt ||
-        !monat ||
+        (!ganzesJahr && !monat) ||
         !stadt_full ||
         !dokumentart
       ) {
@@ -1711,11 +1733,16 @@ router.post(
         .filter((row) =>
           row.some((cell) => cell !== null && String(cell).trim() !== "")
         )
-        .sort((a, b) =>
-          normalizeUmlautsForSort(a[1])?.localeCompare(
+        .sort((a, b) => {
+          const nachnameCompare = normalizeUmlautsForSort(a[1])?.localeCompare(
             normalizeUmlautsForSort(b[1])
-          )
-        );
+          );
+          if (nachnameCompare !== 0) return nachnameCompare;
+          // Sortiere nach Personalnr (Index 0) statt Vorname
+          const personalnrA = String(a[0] || "");
+          const personalnrB = String(b[0] || "");
+          return personalnrA.localeCompare(personalnrB, undefined, { numeric: true });
+        });
 
       if (pageCount !== data.length) {
         return res
@@ -1724,8 +1751,8 @@ router.post(
       }
 
       const zip = new JSZip();
-      const jahr = new Date().getFullYear();
-      const monatLesbar = MONATSNAMEN[monat.padStart(2, "0")] || monat;
+      
+      const monatLesbar = ganzesJahr ? "" : (MONATSNAMEN[monat.padStart(2, "0")] || monat);
       const stadtVars = STADT_TEMPLATE_VARS[stadt_full];
 
       if (!stadtVars) {
@@ -1735,7 +1762,7 @@ router.post(
       }
 
       for (let i = 0; i < data.length; i++) {
-        console.log(data[i]);
+        // console.log(data[i]);
         const row = data[i];
         const rawNachname = (row[1] || "Unbekannt").trim();
         const rawVorname = (row[2] || "Mitarbeiter").trim();
@@ -1746,22 +1773,28 @@ router.post(
         const safeNachname = rawNachname
           .replace(/[^a-zA-ZäöüÄÖÜß]/g, "")
           .replace(/\s+/g, "_");
-        const email = row[4] || null;
+        // const email = row[4] || null;
 
         const outputPdf = await PDFDocument.create();
         const [page] = await outputPdf.copyPages(originalPdf, [i]);
         outputPdf.addPage(page);
 
         const fileBuffer = await outputPdf.save();
-        const filename = `${safeNachname}_${safeVorname}_${dokumentart}_${stadt}_${monat}.pdf`;
+        const filename = ganzesJahr 
+          ? `${safeNachname}_${safeVorname}_${dokumentart}_${stadt}_${jahr}.pdf`
+          : `${safeNachname}_${safeVorname}_${dokumentart}_${stadt}_${monat}.pdf`;
 
         zip.file(filename, fileBuffer);
       }
 
       const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+      const downloadName = ganzesJahr 
+        ? `Abrechnungen_${stadt}_${jahr}.zip` 
+        : `Abrechnungen_${stadt}_${monat}.zip`;
+        
       res.set({
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename=Abrechnungen_${stadt}_${monat}.zip`,
+        "Content-Disposition": `attachment; filename=${downloadName}`,
       });
       res.send(zipBuffer);
 
@@ -1778,7 +1811,9 @@ router.post(
             jahr,
             stadt_full,
             stadt,
-            dokumentart
+            dokumentart,
+            ganzesJahr,
+            testMode
           );
         } catch (err) {
           console.error("Fehler im asynchronen Mailversand:", err.message);
