@@ -45,7 +45,14 @@
 
     <div class="card">
       <h2>6. IndexedDB Probe</h2>
-      <button @click="probeIndexedDB">Reading IndexedDB...</button>
+      <div class="actions-mini">
+        <button @click="probeIndexedDB">Read Flip KeyValue</button>
+        <button @click="listAllDatabases">List All DBs</button>
+      </div>
+      <div v-if="databaseList.length" class="code-block">
+        <strong>Found Databases:</strong>
+        <div v-for="dbVal in databaseList" :key="dbVal">{{ dbVal }}</div>
+      </div>
       <div v-if="indexedDBStatus" class="status-text">{{ indexedDBStatus }}</div>
       <div v-if="indexedDBValue" class="code-block">{{ indexedDBValue }}</div>
     </div>
@@ -76,6 +83,22 @@ const bridgeResult = ref('');
 
 const indexedDBStatus = ref('');
 const indexedDBValue = ref('');
+const databaseList = ref([]);
+
+async function listAllDatabases() {
+  databaseList.value = [];
+  try {
+    if (indexedDB.databases) {
+      const dbs = await indexedDB.databases();
+      databaseList.value = dbs.map(d => `${d.name} (v${d.version})`);
+      if (dbs.length === 0) databaseList.value.push('No databases found.');
+    } else {
+      databaseList.value.push('indexedDB.databases() API not supported.');
+    }
+  } catch (e) {
+    databaseList.value.push('Error: ' + e.message);
+  }
+}
 
 async function probeIndexedDB() {
   indexedDBStatus.value = 'Opening DB: flip-keyvalue-db...';
