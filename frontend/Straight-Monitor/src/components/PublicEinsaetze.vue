@@ -181,16 +181,15 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
-import axios from 'axios';
+import apiPublic from '@/utils/api-public';
 
 const route = useRoute();
 const email = computed(() => route.query.email);
 const publicToken = computed(() => route.query.token);
 
 // Axios instance that sends the public token with every request
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL
-});
+const api = apiPublic;
+
 api.interceptors.request.use((config) => {
   if (publicToken.value) {
     config.headers['x-public-token'] = publicToken.value;
