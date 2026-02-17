@@ -23,6 +23,13 @@
     <div v-else-if="mitarbeiter" class="content">
       <PublicHeader :vorname="mitarbeiter.vorname" />
 
+      <!-- Debug Button Section -->
+      <div style="padding: 1rem; text-align: center;">
+         <button @click="testFlipTheme" style="background: var(--surface); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; cursor: pointer;">
+           🔍 Test Flip Darkmode
+         </button>
+      </div>
+
       <!-- Header -->
       <div class="page-content">
         <div class="page-header">
@@ -242,6 +249,7 @@ import { ref, reactive, onMounted, computed } from "vue";
 import { useRoute } from "vue-router";
 import apiPublic from "@/utils/api-public";
 import PublicHeader from "./PublicHeader.vue";
+import { getTheme, showToast } from "@getflip/bridge";
 
 const route = useRoute();
 const email = computed(() => route.query.email);
@@ -300,6 +308,37 @@ function onEinsatzSelect() {
     : "";
   form.location = einsatz.auftrag?.geschSt || einsatz.auftrag?.eventOrt || "";
   form.kunde = einsatz.auftrag?.eventTitel || einsatz.bezeichnung || "";
+}
+
+async function testFlipTheme() {
+  try {
+    await showToast({ text: "Prüfe Flip Theme...", intent: "info" });
+    const themeObj = await getTheme();
+    console.log("Flip Theme Response:", themeObj);
+    
+    // Check if it's an object or string and extract
+    const themeName = (themeObj && typeof themeObj === 'object') 
+      ? themeObj.activeTheme 
+      : themeObj;
+
+    if (themeName) {
+      await showToast({ 
+        text: `Flip Theme erkannt: ${themeName}`, 
+        intent: "success" 
+      });
+    } else {
+      await showToast({ 
+        text: "Kein Theme von Flip erhalten", 
+        intent: "warning" 
+      });
+    }
+  } catch (error) {
+    console.error("Flip Theme Error:", error);
+    await showToast({ 
+      text: `Fehler: ${error.message}`, 
+      intent: "danger"
+    });
+  }
 }
 
 async function loadData() {

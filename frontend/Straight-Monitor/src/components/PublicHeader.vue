@@ -16,7 +16,7 @@
 
     <!-- Burger Button (Mobile) -->
     <button class="burger-btn mobile-only" @click="showMobileMenu = !showMobileMenu">
-      <i class="fa-solid" :class="showMobileMenu ? 'fa-times' : 'fa-bars'"></i>
+      <font-awesome-icon :icon="showMobileMenu ? 'times' : 'bars'" />
     </button>
 
     <!-- Mobile Menu -->
@@ -25,7 +25,7 @@
         <div class="mobile-menu-header">
           <h3>Menu</h3>
           <button class="close-btn" @click="showMobileMenu = false">
-            <i class="fa-solid fa-times"></i>
+             <font-awesome-icon icon="times" />
           </button>
         </div>
         <div class="mobile-menu-content">
@@ -73,18 +73,22 @@ const handleThemeToggle = () => {
 onMounted(async () => {
   try {
     // Try to ensure bridge is inited (App.vue does this too but safe to re-call or check)
-    initFlipBridge({ hostAppOrigin: '*' });
+    // initFlipBridge({ hostAppOrigin: '*' }); // Commented out to avoid double init if not needed or potential error
     
+    // Check if flip bridge is available
     const t = await getTheme();
-    if (t) {
-      flipResponse.value = t;
-      theme.set(t);
+    
+    // Correctly handle the object response { activeTheme, preferredTheme }
+    const active = t?.activeTheme || t; // Fallback if it returns just string (older versions)
+
+    if (active === 'dark' || active === 'light') {
+      flipResponse.value = active;
+      theme.set(active);
     } else {
       flipResponse.value = 'default';
     }
   } catch (e) {
     flipResponse.value = 'extern';
-    // Console warning only if needed
     // console.warn('Flip theme fetch failed in header', e);
   }
 });
@@ -170,7 +174,7 @@ h1 {
 .mobile-only { display: none; }
 .desktop-only { display: flex; }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .mobile-only { display: block; }
   .desktop-only { display: none; }
 }
