@@ -4,6 +4,7 @@ import { useAuth } from '@/stores/auth';
 
 import EmailConfirmation from '@/components/EmailConfirmation.vue';
 import HomeLogin from '@/components/HomeLogin.vue';
+import FlipTest from '@/components/FlipTest.vue';
 
 // Layout + Seiten (bestehend)
 import MainLayout from '@/layouts/MainLayout.vue';
@@ -29,6 +30,7 @@ import { jwtDecode } from 'jwt-decode';
 const routes = [
   { path: '/', name: 'Home', component: HomeLogin, meta: { requiresAuth: false } },
   { path: '/confirm-email', name: 'EmailConfirmation', component: EmailConfirmation, meta: { requiresAuth: false } },
+  { path: '/flip-test', name: 'FlipTest', component: FlipTest, meta: { requiresAuth: false } },
 
   // Authentifizierter Bereich unter Layout:
   {
@@ -73,6 +75,11 @@ function tokenIsExpired(token) {
 
 router.beforeEach(async (to, _from, next) => {
   const token = localStorage.getItem('token');
+
+  // Check for Flip email parameter (Catch Flip users)
+  if ((to.query.email || to.query.oidc_email) && to.name !== 'FlipTest') {
+    return next({ path: '/flip-test', query: to.query });
+  }
   const auth = useAuth();
   
   // Auth check
