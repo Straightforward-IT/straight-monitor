@@ -1,11 +1,15 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/AsyncHandler");
+const publicAuth = require("../middleware/publicAuth");
 const Mitarbeiter = require("../models/Mitarbeiter");
 const Einsatz = require("../models/Einsatz");
 const Auftrag = require("../models/Auftrag");
 const { EventReport } = require("../models/Classes/FlipDocs");
 const logger = require("../utils/logger");
+
+// All routes in this file require FLIP_PUBLIC_JWT
+router.use(publicAuth);
 
 // ──────────────────────────────────────────────
 // GET /api/public/mitarbeiter?email=...

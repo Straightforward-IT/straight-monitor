@@ -14,9 +14,9 @@
     </div>
 
     <!-- No Email -->
-    <div v-else-if="!email" class="error-state">
+    <div v-else-if="!email || !publicToken" class="error-state">
       <h2>Kein Zugriff</h2>
-      <p>Kein Email-Parameter gefunden. Bitte öffne diese Seite über die Flip App.</p>
+      <p>Fehlende Zugangsdaten. Bitte öffne diese Seite über die Flip App.</p>
     </div>
 
     <!-- Main Content -->
@@ -185,6 +185,16 @@ import axios from 'axios';
 
 const route = useRoute();
 const email = computed(() => route.query.email);
+const publicToken = computed(() => route.query.token);
+
+// Axios instance that sends the public token with every request
+const api = axios.create();
+api.interceptors.request.use((config) => {
+  if (publicToken.value) {
+    config.headers['x-public-token'] = publicToken.value;
+  }
+  return config;
+});
 
 const loading = ref(true);
 const error = ref('');
@@ -226,21 +236,21 @@ function onEinsatzSelect() {
 }
 
 async function loadData() {
-  if (!email.value) {
+  if (!email.value || !publicToken.value) {
     loading.value = false;
     return;
   }
 
   try {
     // 1. Get Mitarbeiter by email
-    const maRes = await axios.get('/api/public/mitarbeiter', {
+    const maRes = await api.get('/api/public/mitarbeiter', {
       params: { email: email.value },
     });
     mitarbeiter.value = maRes.data;
 
     // 2. Get Einsätze by personalNr
     if (mitarbeiter.value.personalnr) {
-      const eRes = await axios.get('/api/public/einsaetze', {
+      const eRes = await api.get('/api/public/einsaetze', {
         params: { personalNr: mitarbeiter.value.personalnr },
       });
       einsaetze.value = eRes.data;
@@ -260,7 +270,7 @@ async function loadData() {
 async function submitReport() {
   submitting.value = true;
   try {
-    await axios.post('/api/public/eventreport', {
+    await api.post('/api/public/eventreport', {
       location: form.location,
       kunde: form.kunde,
       auftragnummer: form.auftragnummer,
