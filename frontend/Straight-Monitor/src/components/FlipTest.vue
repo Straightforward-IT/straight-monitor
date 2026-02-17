@@ -43,6 +43,13 @@
       <p class="small-text" v-if="bridgeResult">Last Result: {{ bridgeResult }}</p>
     </div>
 
+    <div class="card">
+      <h2>6. IndexedDB Probe</h2>
+      <button @click="probeIndexedDB">Reading IndexedDB...</button>
+      <div v-if="indexedDBStatus" class="status-text">{{ indexedDBStatus }}</div>
+      <div v-if="indexedDBValue" class="code-block">{{ indexedDBValue }}</div>
+    </div>
+
     <div class="actions">
       <button @click="refreshPage">Refresh Page</button>
       <button @click="$router.push('/')">Back to Home</button>
@@ -66,6 +73,68 @@ const windowProps = ref([]);
 const bridgeStatus = ref('Not Initialized');
 const bridgeError = ref('');
 const bridgeResult = ref('');
+
+const indexedDBStatus = ref('');
+const indexedDBValue = ref('');
+
+async function probeIndexedDB() {
+  indexedDBStatus.value = 'Opening DB: flip-keyvalue-db...';
+  indexedDBValue.value = '';
+  
+  try {
+    const dbName = 'flip-keyvalue-db';
+    const storeName = 'generalPurpose';
+    const key = 'token';
+
+    const request = indexedDB.open(dbName);
+    
+    request.onerror = (event) => {
+      indexedDBStatus.value = `Error opening DB: ${event.target.error}`;
+    };
+
+    request.onsuccess = (event) => {
+      const db = event.target.result;
+      
+      if (!db.objectStoreNames.contains(storeName)) {
+        indexedDBStatus.value = `Store "${storeName}" not found in DB "${dbName}".`;
+        // List available stores for debugging
+        const stores = Array.from(db.objectStoreNames);
+        indexedDBValue.value = `Available stores: ${JSON.stringify(stores)}`;
+        return;
+      }
+
+      const transaction = db.transaction([storeName], 'readonly');
+      const store = transaction.objectStore(storeName);
+      
+      const getRequest = store.get(key);
+
+      getRequest.onsuccess = () => {
+        if (getRequest.result) {
+          indexedDBStatus.value = 'Success!';
+          // If result is an object, display formatted JSON, else string
+          indexedDBValue.value = typeof getRequest.result === 'object' 
+            ? JSON.stringify(getRequest.result, null, 2) 
+            : String(getRequest.result);
+        } else {
+          indexedDBStatus.value = `Key "${key}" not found in store "${storeName}".`;
+          
+          // Try to list all keys in store to see what IS there
+          const allKeysReq = store.getAllKeys();
+          allKeysReq.onsuccess = () => {
+             indexedDBValue.value = `Available keys: ${JSON.stringify(allKeysReq.result)}`;
+          };
+        }
+      };
+
+      getRequest.onerror = (err) => {
+        indexedDBStatus.value = `Error reading key: ${err.target.error}`;
+      };
+    };
+
+  } catch (err) {
+    indexedDBStatus.value = `Exception: ${err.message}`;
+  }
+}
 
 function checkWindowObjects() {
   const keys = ['flip', 'Flip', 'FLIP', 'oidc', 'user', 'User', 'Android', 'webkit', 'external'];
