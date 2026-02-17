@@ -11,6 +11,7 @@ import { getTheme, initFlipBridge } from "@getflip/bridge";
 
 const route = useRoute();
 const isFlipCreate = computed(() => route.name === "BenutzerErstellen");
+// Make sure to match the route name, kept 'PublicEinsaetze' in router.js for now, but component Changed
 const isPublicEinsaetze = computed(() => route.name === "PublicEinsaetze");
 
 // Dynamically update `#app` margin
