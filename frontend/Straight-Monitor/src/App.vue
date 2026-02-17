@@ -7,7 +7,7 @@
 <script setup>
 import { watch, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRoute } from "vue-router";
-import { getTheme } from "@getflip/bridge";
+import { getTheme, initFlipBridge } from "@getflip/bridge";
 
 const route = useRoute();
 const isFlipCreate = computed(() => route.name === "BenutzerErstellen");
@@ -31,14 +31,23 @@ const updateAppMargin = () => {
 };
 
 // Theme setzen basierend auf Flip Bridge
-const syncTheme = () => {
+const syncTheme = async () => {
   try {
-    const theme = getTheme(); // 'light' oder 'dark'
+    // Versuchen, die Bridge zu initialisieren
+    // hostAppOrigin: '*' erlaubt Kommunikation mit beliebigen Origins (für Tests/Dev hilfreich),
+    // in Prod wäre die spezifische Flip-Origin besser, aber '*' funktioniert oft.
+    initFlipBridge({ hostAppOrigin: '*' });
+    
+    // Nach Init: Theme abfragen
+    const theme = await getTheme(); // 'light' oder 'dark'
     if (theme) {
       document.documentElement.setAttribute("data-theme", theme);
     }
   } catch (e) {
-    console.warn("Flip theme detection failed", e);
+    // Fehler abfangen: Wahrscheinlich laufen wir nicht im Flip IFrame
+    console.warn("Flip Bridge init failed (running outside Flip?):", e);
+    // Hier könnte man einen Fallback setzen, z.B. force light mode
+    // document.documentElement.setAttribute("data-theme", "light");
   }
 };
 
