@@ -236,12 +236,15 @@ function onEinsatzSelect() {
 }
 
 async function loadData() {
+  console.log('PublicEinsaetze: loadData called', { email: email.value, token: publicToken.value }); // DEBUG
   if (!email.value || !publicToken.value) {
+    console.warn('PublicEinsaetze: Missing email or token');
     loading.value = false;
     return;
   }
 
   try {
+    console.log('PublicEinsaetze: Fetching mitarbeiter...');
     // 1. Get Mitarbeiter by email
     const maRes = await api.get('/api/public/mitarbeiter', {
       params: { email: email.value },
