@@ -1,3 +1,4 @@
+const path = require('path');
 const cors = require('cors');
 const express = require('express');
 const mongoose = require('mongoose');
@@ -62,9 +63,6 @@ app.use(cors(corsOptions));  // Apply the CORS options
 app.options('*', cors(corsOptions));
 app.use(express.json({ verify: rawBodySaver }));
 
-// Basic route
-app.get('/', (req, res) => res.send('API Running'));
-
 // Use the user-related routes
 app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
@@ -86,7 +84,16 @@ app.get('/api/debug/headers', (req, res) => {
   res.json({ headers: req.headers, ip: req.ip, method: req.method, url: req.url });
 });
 
-// 404 handler for unmatched routes
+// Serve Vue SPA static files in production
+const distPath = path.join(__dirname, '../frontend/Straight-Monitor/dist');
+app.use(express.static(distPath));
+
+// SPA fallback: serve index.html for any non-API GET request
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
+// 404 handler for unmatched non-GET routes (POST, PUT, etc.)
 app.use('*', (req, res) => {
   res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found` });
 });
