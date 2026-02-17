@@ -188,7 +188,9 @@ const email = computed(() => route.query.email);
 const publicToken = computed(() => route.query.token);
 
 // Axios instance that sends the public token with every request
-const api = axios.create();
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL
+});
 api.interceptors.request.use((config) => {
   if (publicToken.value) {
     config.headers['x-public-token'] = publicToken.value;
