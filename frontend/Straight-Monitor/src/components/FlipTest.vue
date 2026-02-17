@@ -159,6 +159,44 @@ async function probeIndexedDB() {
   }
 }
 
+const fetchStatus = ref('');
+const fetchResult = ref('');
+
+async function fetchFlipUser() {
+  fetchStatus.value = 'Fetching...';
+  fetchResult.value = '';
+  
+  // Endpoint guessed based on typical Flip API patterns or the user's specific domain
+  const url = 'https://straightforward.flip-app.com/api/v2/users/me';
+  
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        // We do NOT set Authorization header here, hoping the browser sends cookies
+      },
+      credentials: 'include' // This asks the browser to send cookies for flip-app.com
+    });
+    
+    fetchStatus.value = `Response Status: ${response.status}`;
+    
+    if (response.ok) {
+      const data = await response.json();
+      fetchResult.value = JSON.stringify(data, null, 2);
+    } else {
+      fetchResult.value = `Request failed: ${response.statusText}`;
+      try {
+        const errText = await response.text();
+        fetchResult.value += `\nBody: ${errText.substring(0, 200)}`;
+      } catch (e) { /* ignore */ }
+    }
+  } catch (err) {
+    fetchStatus.value = 'Fetch Failed (Likely CORS)';
+    fetchResult.value = err.message;
+  }
+}
+
 function checkWindowObjects() {
   const keys = ['flip', 'Flip', 'FLIP', 'oidc', 'user', 'User', 'Android', 'webkit', 'external'];
   const found = [];
