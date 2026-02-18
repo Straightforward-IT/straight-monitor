@@ -111,14 +111,14 @@
               class="ma-card"
               :class="{ 'checked-in': ma.checkedIn }"
             >
-              <div v-if="isTeamleiter" class="ma-check" @click="toggleCheckIn(ma)">
+              <div v-if="isTeamleiter && !isPast" class="ma-check" @click="toggleCheckIn(ma)">
                 <font-awesome-icon :icon="ma.checkedIn ? 'fa-solid fa-circle-check' : ['far', 'circle']" />
               </div>
               <div class="ma-info">
                 <span class="ma-name">{{ ma.vorname }} {{ ma.nachname }}</span>
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
               </div>
-              <a v-if="ma.telefon" :href="'tel:' + ma.telefon" class="ma-phone" @click.stop>
+              <a v-if="ma.telefon" :href="'tel:' + cleanPhone(ma.telefon)" class="ma-phone" @click.stop>
                 <font-awesome-icon icon="fa-solid fa-phone" />
                 <span class="ma-phone-number">{{ ma.telefon }}</span>
               </a>
@@ -129,7 +129,7 @@
     </div>
 
     <!-- Teamleiter: Event Report Button -->
-    <div v-if="isTeamleiter" class="action-bar">
+    <div v-if="isTeamleiter && !isPast" class="action-bar">
       <button class="action-btn" @click="$emit('write-report', einsatz)">
         <font-awesome-icon icon="fa-solid fa-file-pen" /> Event Report schreiben
       </button>
@@ -143,6 +143,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 const props = defineProps({
   einsatz: { type: Object, required: true },
   isTeamleiter: { type: Boolean, default: false },
+  isPast: { type: Boolean, default: false },
   api: { type: Object, required: true }
 });
 
@@ -190,6 +191,11 @@ function formatTreffpunkt(val) {
     if (d.getUTCFullYear() <= 1900) return `${h}:${m} Uhr`;
   }
   return String(val);
+}
+
+function cleanPhone(tel) {
+  // Keeps +, digits, and strips everything else so tel: links work reliably
+  return tel.replace(/[^\d+]/g, '');
 }
 
 function storageKey(auftragNr) {

@@ -63,6 +63,7 @@
           v-else-if="currentView === 'job-detail' && selectedJob"
           :einsatz="selectedJob"
           :is-teamleiter="isTeamleiter"
+          :is-past="previousView === 'vergangene-jobs'"
           :api="api"
           @back="goBackFromJob"
           @write-report="writeReportForJob"
