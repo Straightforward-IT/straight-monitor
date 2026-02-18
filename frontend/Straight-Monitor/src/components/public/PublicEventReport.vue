@@ -471,9 +471,9 @@ async function submitReport() {
   background: none;
   border: none;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 1.1rem;
   cursor: pointer;
-  padding: 0.2rem;
+  padding: 0.4rem;
   -webkit-tap-highlight-color: transparent;
   z-index: 1;
 }
@@ -753,11 +753,11 @@ async function submitReport() {
 
 /* Submit */
 .submit-btn {
-  width: 100%;
-  padding: 0.85rem;
-  background: var(--primary);
-  color: white;
-  border: none;
+  width: auto;
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  color: var(--primary);
+  border: 2px solid var(--primary);
   border-radius: 12px;
   font-size: 1rem;
   font-weight: 700;
@@ -766,7 +766,7 @@ async function submitReport() {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin-top: 0.5rem;
+  margin: 0.5rem auto 0;
   -webkit-tap-highlight-color: transparent;
   transition: all 0.2s;
 }

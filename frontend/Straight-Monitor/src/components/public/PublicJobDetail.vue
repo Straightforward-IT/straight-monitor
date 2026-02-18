@@ -12,11 +12,8 @@
         {{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung || `Auftrag #${einsatz.auftragNr}` }}
       </h2>
       <div class="job-badges">
-        <span class="badge">
-          <font-awesome-icon icon="fa-solid fa-hashtag" /> {{ einsatz.auftragNr }}
-        </span>
         <span v-if="einsatz.schichtBezeichnung" class="badge">
-          <font-awesome-icon icon="fa-solid fa-clock" /> {{ einsatz.schichtBezeichnung }}
+          <font-awesome-icon icon="fa-solid fa-clipboard" /> {{ einsatz.schichtBezeichnung }}
         </span>
       </div>
     </div>
@@ -121,7 +118,7 @@
                 <span class="ma-name">{{ ma.vorname }} {{ ma.nachname }}</span>
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
               </div>
-              <a v-if="ma.telefon" :href="'tel:' + cleanPhone(ma.telefon)" class="ma-phone" @click.stop="copyPhone(ma.telefon, $event)">
+              <a v-if="isTeamleiter && ma.telefon" :href="'tel:' + cleanPhone(ma.telefon)" class="ma-phone" @click.stop="copyPhone(ma.telefon, $event)">
                 <font-awesome-icon icon="fa-solid fa-phone" />
                 <span class="ma-phone-number">{{ ma.telefon }}</span>
               </a>
@@ -143,7 +140,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
-import { createDialog, openDialog } from '@getflip/bridge';
+import { showToast } from '@getflip/bridge';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 const theme = useTheme();
@@ -220,15 +217,9 @@ async function copyPhone(tel, event) {
     document.body.removeChild(el);
   }
   try {
-    await createDialog({
-      id: 'phone-copied-dialog',
-      label: 'Telefonnummer kopiert',
-      text: tel,
-      primaryAction: { label: 'OK' },
-    });
-    await openDialog({ id: 'phone-copied-dialog' });
+    await showToast({ text: 'Telefonnummer kopiert.', intent: 'success', duration: 2500 });
   } catch {
-    // dialog not available outside Flip context
+    // showToast not available outside Flip context
   }
 }
 
