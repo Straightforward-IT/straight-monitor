@@ -21,7 +21,12 @@
 
     <!-- Loaded -->
     <div v-else-if="mitarbeiter" class="content">
-      <PublicHeader :vorname="mitarbeiter.vorname" />
+      <PublicHeader
+        :vorname="mitarbeiter.vorname"
+        :is-teamleiter="isTeamleiter"
+        :current-view="currentView"
+        @navigate="navigateTo"
+      />
 
       <div class="page-body">
         <!-- Dashboard -->
@@ -47,6 +52,14 @@
           v-else-if="currentView === 'laufzettel'"
           :received="laufzettelReceived"
           :submitted="laufzettelSubmitted"
+          @back="navigateTo('dashboard')"
+        />
+
+        <!-- Evaluierungen (Teamleiter) -->
+        <PublicEvaluierungen
+          v-else-if="currentView === 'evaluierungen'"
+          :received="laufzettelReceived"
+          :submitted="evaluierungenSubmitted"
           @back="navigateTo('dashboard')"
         />
 
@@ -85,7 +98,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import apiPublic from '@/utils/api-public';
 
@@ -93,6 +106,7 @@ import PublicHeader from './PublicHeader.vue';
 import PublicDashboard from './public/PublicDashboard.vue';
 import PublicKalender from './public/PublicKalender.vue';
 import PublicLaufzettel from './public/PublicLaufzettel.vue';
+import PublicEvaluierungen from './public/PublicEvaluierungen.vue';
 import PublicVergangeneJobs from './public/PublicVergangeneJobs.vue';
 import PublicJobDetail from './public/PublicJobDetail.vue';
 import PublicEventReport from './public/PublicEventReport.vue';
@@ -127,9 +141,48 @@ const previousView = ref('dashboard');
 const selectedJob = ref(null);
 const reportPrefillEinsatz = ref(null);
 
+// Persist nav state to localStorage
+function navStateKey() {
+  const nr = mitarbeiter.value?.personalnr || email.value || 'public';
+  return `nav_state_${nr}`;
+}
+function saveNavState() {
+  try {
+    localStorage.setItem(navStateKey(), JSON.stringify({
+      currentView: currentView.value,
+      previousView: previousView.value,
+      selectedJobId: selectedJob.value?._id || null
+    }));
+  } catch {}
+}
+function restoreNavState() {
+  try {
+    const raw = localStorage.getItem(navStateKey());
+    if (!raw) return;
+    const state = JSON.parse(raw);
+    // Only restore non-sensitive views (not job-detail/eventreport without data)
+    if (state.currentView && ['dashboard', 'kalender', 'laufzettel', 'vergangene-jobs', 'evaluierungen'].includes(state.currentView)) {
+      currentView.value = state.currentView;
+      previousView.value = state.previousView || 'dashboard';
+    } else if (state.currentView === 'job-detail' && state.selectedJobId) {
+      const job = einsaetze.value.find(e => e._id === state.selectedJobId);
+      if (job) {
+        selectedJob.value = job;
+        currentView.value = 'job-detail';
+        previousView.value = state.previousView || 'dashboard';
+      }
+    } else if (state.currentView === 'eventreport') {
+      currentView.value = 'eventreport';
+      previousView.value = state.previousView || 'dashboard';
+    }
+  } catch {}
+}
+watch([currentView, selectedJob], saveNavState, { deep: true });
+
 // Laufzettel data (from Mitarbeiter refs)
 const laufzettelReceived = computed(() => mitarbeiter.value?.laufzettel_received || []);
 const laufzettelSubmitted = computed(() => mitarbeiter.value?.laufzettel_submitted || []);
+const evaluierungenSubmitted = computed(() => mitarbeiter.value?.evaluierungen_submitted || []);
 
 // Teamleiter detection
 const isTeamleiter = computed(() => {
@@ -205,7 +258,10 @@ async function loadData() {
   }
 }
 
-onMounted(() => loadData());
+onMounted(async () => {
+  await loadData();
+  restoreNavState();
+});
 </script>
 
 <style scoped>

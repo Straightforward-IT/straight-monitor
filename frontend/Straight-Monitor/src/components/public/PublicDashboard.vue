@@ -9,7 +9,7 @@
       <!-- Tiles for ALL employees -->
       <div class="tile" @click="$emit('navigate', 'kalender')">
         <div class="tile-icon tile-icon--blue">
-          <font-awesome-icon icon="fa-solid fa-calendar-days" />
+          <img src="@/assets/calender.png" class="tile-img" alt="Kalender" />
         </div>
         <div class="tile-content">
           <h3>Kalender</h3>
@@ -18,9 +18,9 @@
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
       </div>
 
-      <div class="tile" @click="$emit('navigate', 'laufzettel')">
+      <div v-if="!isTeamleiter" class="tile" @click="$emit('navigate', 'laufzettel')">
         <div class="tile-icon tile-icon--purple">
-          <font-awesome-icon icon="fa-solid fa-clipboard-list" />
+          <img src="@/assets/laufzettel.png" class="tile-img" alt="Laufzettel" />
         </div>
         <div class="tile-content">
           <h3>Laufzettel</h3>
@@ -29,9 +29,20 @@
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
       </div>
 
+      <div v-if="isTeamleiter" class="tile" @click="$emit('navigate', 'evaluierungen')">
+        <div class="tile-icon tile-icon--purple">
+          <img src="@/assets/evaluierung.png" class="tile-img" alt="Evaluierungen" />
+        </div>
+        <div class="tile-content">
+          <h3>Evaluierungen</h3>
+          <p>Offene Laufzettel & eingereichte Evaluierungen</p>
+        </div>
+        <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
+      </div>
+
       <div class="tile" @click="$emit('navigate', 'vergangene-jobs')">
         <div class="tile-icon tile-icon--green">
-          <font-awesome-icon icon="fa-solid fa-briefcase" />
+          <img src="@/assets/tasks.png" class="tile-img" alt="Vergangene Jobs" />
         </div>
         <div class="tile-content">
           <h3>Vergangene Jobs</h3>
@@ -43,7 +54,7 @@
       <!-- Teamleiter only -->
       <div v-if="isTeamleiter" class="tile tile--teamleiter" @click="$emit('navigate', 'eventreport')">
         <div class="tile-icon">
-          <font-awesome-icon icon="fa-solid fa-file-pen" />
+          <img src="@/assets/eventreport.png" class="tile-img" alt="Event Report" />
         </div>
         <div class="tile-content">
           <h3>Event Report</h3>
@@ -191,6 +202,12 @@ const upcomingEinsaetze = computed(() => {
   font-size: 1.25rem;
   color: var(--text);
   flex-shrink: 0;
+}
+
+.tile-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 
 .tile-icon--blue {

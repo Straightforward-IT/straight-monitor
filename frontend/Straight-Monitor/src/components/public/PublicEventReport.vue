@@ -95,50 +95,17 @@
 
         <div class="form-group">
           <label>Pünktlichkeit</label>
-          <div class="rating-chips">
-            <button
-              v-for="option in ratingOptions"
-              :key="'p-' + option"
-              type="button"
-              class="chip"
-              :class="{ active: form.puenktlichkeit === option }"
-              @click="form.puenktlichkeit = option"
-            >
-              {{ option }}
-            </button>
-          </div>
+          <textarea v-model="form.puenktlichkeit" rows="2" placeholder="Wie pünktlich waren die Mitarbeiter?" />
         </div>
 
         <div class="form-group">
           <label>Erscheinungsbild</label>
-          <div class="rating-chips">
-            <button
-              v-for="option in ratingOptions"
-              :key="'e-' + option"
-              type="button"
-              class="chip"
-              :class="{ active: form.erscheinungsbild === option }"
-              @click="form.erscheinungsbild = option"
-            >
-              {{ option }}
-            </button>
-          </div>
+          <textarea v-model="form.erscheinungsbild" rows="2" placeholder="Wie war das Erscheinungsbild?" />
         </div>
 
         <div class="form-group">
           <label>Team</label>
-          <div class="rating-chips">
-            <button
-              v-for="option in ratingOptions"
-              :key="'t-' + option"
-              type="button"
-              class="chip"
-              :class="{ active: form.team === option }"
-              @click="form.team = option"
-            >
-              {{ option }}
-            </button>
-          </div>
+          <textarea v-model="form.team" rows="2" placeholder="Wie hat das Team zusammengearbeitet?" />
         </div>
       </div>
 
@@ -209,7 +176,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 
 const props = defineProps({
   einsaetze: { type: Array, default: () => [] },
@@ -271,10 +238,53 @@ const form = reactive({
   sonstiges: ''
 });
 
+// localStorage draft helpers
+function draftKey() {
+  const nr = props.prefillEinsatz?.auftragNr || form.auftragnummer || 'new';
+  return `eventreport_draft_${props.mitarbeiter?.personalnr || props.email || 'u'}_${nr}`;
+}
+function saveDraft() {
+  try {
+    localStorage.setItem(
+      `eventreport_draft_${props.mitarbeiter?.personalnr || props.email || 'u'}`,
+      JSON.stringify({
+        selectedEinsatzId: selectedEinsatzId.value,
+        form: { ...form },
+        mitarbeiterRows: mitarbeiterRows.value
+      })
+    );
+  } catch {}
+}
+function clearDraft() {
+  try {
+    localStorage.removeItem(`eventreport_draft_${props.mitarbeiter?.personalnr || props.email || 'u'}`);
+  } catch {}
+}
+function loadDraft() {
+  // Don't restore if we have a fresh prefill from job detail
+  if (props.prefillEinsatz) return false;
+  try {
+    const raw = localStorage.getItem(`eventreport_draft_${props.mitarbeiter?.personalnr || props.email || 'u'}`);
+    if (!raw) return false;
+    const draft = JSON.parse(raw);
+    if (draft.selectedEinsatzId) selectedEinsatzId.value = draft.selectedEinsatzId;
+    if (draft.form) Object.assign(form, draft.form);
+    if (draft.mitarbeiterRows?.length) mitarbeiterRows.value = draft.mitarbeiterRows;
+    return true;
+  } catch { return false; }
+}
+
+// Watch for changes and auto-save draft
+watch([() => ({ ...form }), mitarbeiterRows, selectedEinsatzId], saveDraft, { deep: true });
+
 // Pre-fill if coming from job detail
 if (props.prefillEinsatz) {
   prefillFromEinsatz(props.prefillEinsatz);
 }
+
+onMounted(() => {
+  loadDraft();
+});
 
 function formatDate(d) {
   if (!d) return '—';
@@ -314,6 +324,7 @@ async function loadEinsatzMitarbeiter(auftragNr) {
 
 
 function resetForm() {
+  clearDraft();
   submitSuccess.value = false;
   selectedEinsatzId.value = '';
   mitarbeiterRows.value = [];
@@ -342,6 +353,7 @@ async function submitReport() {
       teamleiter_email: props.email
     });
     submitSuccess.value = true;
+    clearDraft();
   } catch (err) {
     console.error('Submit error:', err);
     alert('Fehler beim Absenden: ' + (err.response?.data?.msg || err.message));

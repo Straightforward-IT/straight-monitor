@@ -5,16 +5,8 @@
       <h1>Straightforward</h1>
     </div>
 
-    <!-- Right Side (Desktop) -->
-    <div class="right desktop-only">
-      <small v-if="flipResponse" class="theme-label" title="Theme from Flip">Flip: {{ flipResponse }}</small>
-      <button class="theme-toggle" @click="handleThemeToggle">
-        {{ theme.isDark ? '☀️' : '🌙' }}
-      </button>
-    </div>
-
-    <!-- Burger Button (Mobile) -->
-    <button class="burger-btn mobile-only" @click="showMobileMenu = !showMobileMenu">
+    <!-- Burger Button -->
+    <button class="burger-btn" @click="showMobileMenu = !showMobileMenu">
       <font-awesome-icon :icon="showMobileMenu ? 'times' : 'bars'" />
     </button>
 
@@ -28,6 +20,63 @@
           </button>
         </div>
         <div class="mobile-menu-content">
+          <!-- Navigation -->
+          <div class="menu-nav">
+            <button
+              class="menu-nav-item"
+              :class="{ active: currentView === 'dashboard' }"
+              @click="navigate('dashboard')"
+            >
+              <font-awesome-icon icon="fa-solid fa-house" />
+              <span>Startseite</span>
+            </button>
+            <button
+              class="menu-nav-item"
+              :class="{ active: currentView === 'kalender' }"
+              @click="navigate('kalender')"
+            >
+              <font-awesome-icon icon="fa-solid fa-calendar-days" />
+              <span>Kalender</span>
+            </button>
+            <button
+              v-if="!isTeamleiter"
+              class="menu-nav-item"
+              :class="{ active: currentView === 'laufzettel' }"
+              @click="navigate('laufzettel')"
+            >
+              <font-awesome-icon icon="fa-solid fa-clipboard-list" />
+              <span>Laufzettel</span>
+            </button>
+            <button
+              v-if="isTeamleiter"
+              class="menu-nav-item"
+              :class="{ active: currentView === 'evaluierungen' }"
+              @click="navigate('evaluierungen')"
+            >
+              <font-awesome-icon icon="fa-solid fa-star" />
+              <span>Evaluierungen</span>
+            </button>
+            <button
+              class="menu-nav-item"
+              :class="{ active: currentView === 'vergangene-jobs' }"
+              @click="navigate('vergangene-jobs')"
+            >
+              <font-awesome-icon icon="fa-solid fa-briefcase" />
+              <span>Vergangene Jobs</span>
+            </button>
+            <button
+              v-if="isTeamleiter"
+              class="menu-nav-item"
+              :class="{ active: currentView === 'eventreport' }"
+              @click="navigate('eventreport')"
+            >
+              <font-awesome-icon icon="fa-solid fa-file-pen" />
+              <span>Event Report</span>
+            </button>
+          </div>
+
+          <div class="menu-divider"></div>
+
           <div class="menu-item">
             <span>Theme</span>
             <button class="theme-toggle" @click="handleThemeToggle">
@@ -55,8 +104,23 @@ const props = defineProps({
   vorname: {
     type: String,
     default: ""
+  },
+  isTeamleiter: {
+    type: Boolean,
+    default: false
+  },
+  currentView: {
+    type: String,
+    default: 'dashboard'
   }
 });
+
+const emit = defineEmits(['navigate']);
+
+function navigate(view) {
+  showMobileMenu.value = false;
+  emit('navigate', view);
+}
 
 const theme = useTheme();
 const logoSrc = computed(() => (theme.isDark ? darkLogo : lightLogo));
@@ -221,6 +285,47 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.menu-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.menu-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+
+.menu-nav-item:hover,
+.menu-nav-item:active {
+  background: var(--hover);
+}
+
+.menu-nav-item.active {
+  background: rgba(238, 175, 103, 0.15);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0.25rem 0;
 }
 
 .menu-item {

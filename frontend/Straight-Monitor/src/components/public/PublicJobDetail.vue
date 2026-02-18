@@ -129,7 +129,7 @@
     </div>
 
     <!-- Teamleiter: Event Report Button -->
-    <div v-if="isTeamleiter && !isPast" class="action-bar">
+    <div v-if="isTeamleiter" class="action-bar">
       <button class="action-btn" @click="$emit('write-report', einsatz)">
         <font-awesome-icon icon="fa-solid fa-file-pen" /> Event Report schreiben
       </button>
