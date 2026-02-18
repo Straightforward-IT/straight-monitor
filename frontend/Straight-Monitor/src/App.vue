@@ -41,7 +41,7 @@ const initializeFlipBridge = async () => {
   try {
     initFlipBridge({ 
       hostAppOrigin: '*',
-      debug: false 
+      debug: true 
     });
     flipBridgeInitialized = true;
     console.log("✅ Flip Bridge initialized");
