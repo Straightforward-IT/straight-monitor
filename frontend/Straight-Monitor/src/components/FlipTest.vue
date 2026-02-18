@@ -39,6 +39,7 @@
       <div class="actions-mini">
         <button @click="testToast">Test Toast Notification</button>
         <button @click="testTheme">Get Theme</button>
+        <button @click="testThemeSubscription">Subscribe to Theme Changes</button>
       </div>
       <p class="small-text" v-if="bridgeResult">Last Result: {{ bridgeResult }}</p>
     </div>
@@ -68,7 +69,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 // Import Flip Bridge
-import { initFlipBridge, showToast, getTheme } from '@getflip/bridge';
+import { initFlipBridge, showToast, getTheme, subscribe, BridgeEventType } from '@getflip/bridge';
 
 const route = useRoute();
 const queryParams = computed(() => route.query);
@@ -249,6 +250,20 @@ async function testTheme() {
     bridgeResult.value = 'Theme: ' + JSON.stringify(theme);
   } catch (err) {
     bridgeResult.value = 'Theme Error: ' + err.message;
+  }
+}
+
+async function testThemeSubscription() {
+  try {
+    const unsubscribe = await subscribe(BridgeEventType.THEME_CHANGE, (event) => {
+      bridgeResult.value = 'Theme changed! New theme: ' + JSON.stringify(event.data);
+      console.log('Theme change event:', event);
+    });
+    bridgeResult.value = 'Theme subscription active! Change the theme in Flip to see updates.';
+    // Store unsubscribe for later cleanup if needed
+    window.flipThemeUnsubscribe = unsubscribe;
+  } catch (err) {
+    bridgeResult.value = 'Theme Subscription Error: ' + err.message;
   }
 }
 

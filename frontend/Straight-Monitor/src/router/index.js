@@ -1,6 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import '../assets/styles/main.scss';
 import { useAuth } from '@/stores/auth';
+import { jwtDecode } from 'jwt-decode';
+
+// Flip Bridge imports
+import { getTheme, initFlipBridge, subscribe, BridgeEventType } from '@getflip/bridge';
 
 import EmailConfirmation from '@/components/EmailConfirmation.vue';
 import HomeLogin from '@/components/HomeLogin.vue';
@@ -24,8 +28,6 @@ import AuftraegePage from '@/components/AuftraegePage.vue';
 import KundenPage from '@/components/KundenPage.vue';
 import TeamleiterAuswertung from '@/components/TeamleiterAuswertung.vue';
 import NotFound from '@/components/NotFound.vue';
-
-import { jwtDecode } from 'jwt-decode';
 
 const routes = [
   { path: '/', name: 'Home', component: HomeLogin, meta: { requiresAuth: false } },
@@ -118,11 +120,45 @@ router.beforeEach(async (to, from, next) => {
   next();
 });
 
+// Sync Flip Bridge theme on every route change
+const syncFlipTheme = async () => {
+  try {
+    initFlipBridge({ hostAppOrigin: '*' });
+    const theme = await getTheme();
+    if (theme?.activeTheme) {
+      document.documentElement.setAttribute("data-theme", theme.activeTheme);
+    }
+  } catch (e) {
+    console.warn("Flip Bridge init failed (running outside Flip?):", e);
+  }
+};
+
+// Subscribe to theme changes from Flip
+const subscribeToThemeChanges = async () => {
+  try {
+    initFlipBridge({ hostAppOrigin: '*' });
+    await subscribe(BridgeEventType.THEME_CHANGE, (event) => {
+      if (event?.data?.activeTheme) {
+        document.documentElement.setAttribute("data-theme", event.data.activeTheme);
+        console.log(`Theme changed to: ${event.data.activeTheme}`);
+      }
+    });
+  } catch (e) {
+    console.warn("Flip Bridge theme subscription failed:", e);
+  }
+};
+
+// Initialize theme subscription once on app load
+subscribeToThemeChanges();
+
 // Save last visited path (only for authenticated routes)
 router.afterEach((to) => {
   if (to.matched.some(r => r.meta.requiresAuth) && to.path !== '/') {
     localStorage.setItem('lastVisitedPath', to.fullPath);
   }
+  
+  // Sync theme with Flip Bridge on route change
+  syncFlipTheme();
 });
 
 export default router;

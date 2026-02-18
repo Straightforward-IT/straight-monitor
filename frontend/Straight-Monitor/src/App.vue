@@ -7,7 +7,7 @@
 <script setup>
 import { watch, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRoute } from "vue-router";
-import { getTheme, initFlipBridge } from "@getflip/bridge";
+import { getTheme, initFlipBridge, subscribe, BridgeEventType } from "@getflip/bridge";
 
 const route = useRoute();
 const isFlipCreate = computed(() => route.name === "BenutzerErstellen");
@@ -40,9 +40,9 @@ const syncTheme = async () => {
     initFlipBridge({ hostAppOrigin: '*' });
     
     // Nach Init: Theme abfragen
-    const theme = await getTheme(); // 'light' oder 'dark'
-    if (theme) {
-      document.documentElement.setAttribute("data-theme", theme);
+    const theme = await getTheme(); // returns { activeTheme: 'light' | 'dark', preferredTheme: ... }
+    if (theme?.activeTheme) {
+      document.documentElement.setAttribute("data-theme", theme.activeTheme);
     }
   } catch (e) {
     // Fehler abfangen: Wahrscheinlich laufen wir nicht im Flip IFrame
@@ -52,9 +52,32 @@ const syncTheme = async () => {
   }
 };
 
+// Subscribe to theme changes from Flip
+const subscribeToThemeChanges = async () => {
+  try {
+    initFlipBridge({ hostAppOrigin: '*' });
+    const unsubscribe = await subscribe(BridgeEventType.THEME_CHANGE, (event) => {
+      if (event?.data?.activeTheme) {
+        document.documentElement.setAttribute("data-theme", event.data.activeTheme);
+        console.log(`Theme changed to: ${event.data.activeTheme}`);
+      }
+    });
+    
+    // Cleanup function when component unmounts
+    onBeforeUnmount(async () => {
+      if (unsubscribe) {
+        await unsubscribe();
+      }
+    });
+  } catch (e) {
+    console.warn("Flip Bridge theme subscription failed:", e);
+  }
+};
+
 onMounted(() => {
   updateAppMargin();
   syncTheme();
+  subscribeToThemeChanges();
 });
 
 // Watch for route changes

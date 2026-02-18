@@ -50,7 +50,7 @@ import { computed, ref, onMounted } from "vue";
 import darkLogo from "@/assets/SF_000.svg";
 import lightLogo from "@/assets/SF_002.png";
 import { useTheme } from "@/stores/theme";
-import { getTheme, initFlipBridge } from '@getflip/bridge';
+import { getTheme, initFlipBridge, subscribe, BridgeEventType } from '@getflip/bridge';
 
 const props = defineProps({
   vorname: {
@@ -72,21 +72,31 @@ const handleThemeToggle = () => {
 
 onMounted(async () => {
   try {
-    // Try to ensure bridge is inited (App.vue does this too but safe to re-call or check)
-    // initFlipBridge({ hostAppOrigin: '*' }); // Commented out to avoid double init if not needed or potential error
+    // Initialize Flip Bridge
+    initFlipBridge({ hostAppOrigin: '*' });
     
-    // Check if flip bridge is available
+    // Get initial theme
     const t = await getTheme();
-    
-    // Correctly handle the object response { activeTheme, preferredTheme }
-    const active = t?.activeTheme || t; // Fallback if it returns just string (older versions)
+    const active = t?.activeTheme || t;
 
     if (active === 'dark' || active === 'light') {
       flipResponse.value = active;
       theme.set(active);
+      document.documentElement.setAttribute("data-theme", active);
     } else {
       flipResponse.value = 'default';
     }
+    
+    // Subscribe to theme changes
+    await subscribe(BridgeEventType.THEME_CHANGE, (event) => {
+      if (event?.data?.activeTheme) {
+        const newTheme = event.data.activeTheme;
+        flipResponse.value = newTheme;
+        theme.set(newTheme);
+        document.documentElement.setAttribute("data-theme", newTheme);
+        console.log(`Theme changed to: ${newTheme}`);
+      }
+    });
   } catch (e) {
     flipResponse.value = 'extern';
     // console.warn('Flip theme fetch failed in header', e);
