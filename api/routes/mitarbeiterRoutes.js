@@ -33,6 +33,7 @@ const {
   markAssignmentAsCompleted,
   getFlipAssignments,
   getFlipProfilePicture,
+  syncFlipAttributes,
 } = require("../FlipService");
 const {
   findTasks,
@@ -2533,177 +2534,11 @@ router.post(
   "/sync-attributes",
   auth,
   asyncHandler(async (req, res) => {
-    const FlipMappings = {
-      user_group_ids: {
-        berlin_service: "18d4f311-7b51-430a-9e70-885cca7248e4",
-        berlin_logistik: "bdbb18bf-d0bd-4fba-b339-785533bb09b9",
-        berlin_festangestellte: "ce92c64b-46e2-4a31-93aa-a7ed1b1a6843",
-        berlin_office: "e5473746-c88f-4799-ae68-731a28ba595f",
-        berlin_teamleiter: "b99df75f-eb8d-42f8-838f-413223ae1572",
-        hamburg_service: "3808e874-a254-4731-843d-3df0844088a1",
-        hamburg_logistik: "3365d98e-27e6-4965-9794-b05802290a49",
-        hamburg_festangestellte: "e3e05ccf-e429-498a-a833-1b8b7a2feec9",
-        hamburg_office: "db9c176d-941b-49b4-ad3f-56df0a33e45b",
-        hamburg_teamleiter: "806cb6f0-ee73-4376-98c0-710679c9ef96",
-        koeln_service: "aa3c1034-0414-4a72-9917-5f3db06f0131",
-        koeln_logistik: "bf483217-f705-4bab-8150-ee7a7bf2a08f",
-        koeln_festangestellte: "67153127-21ae-4717-9f88-cb90638bbd48",
-        koeln_office: "63a3e1d1-4ce5-4962-ae32-939b5cc6ba5f",
-        koeln_teamleiter: "a99dfeff-9ee3-4de2-b6d1-15c59081b2a1",
-      },
-    };
-
-    // Gruppiere alle IDs nach Attributtyp
-    const serviceGroupIds = [
-      FlipMappings.user_group_ids.berlin_service,
-      FlipMappings.user_group_ids.hamburg_service,
-      FlipMappings.user_group_ids.koeln_service,
-    ];
-    const logistikGroupIds = [
-      FlipMappings.user_group_ids.berlin_logistik,
-      FlipMappings.user_group_ids.hamburg_logistik,
-      FlipMappings.user_group_ids.koeln_logistik,
-    ];
-    const festiGroupIds = [
-      FlipMappings.user_group_ids.berlin_festangestellte,
-      FlipMappings.user_group_ids.hamburg_festangestellte,
-      FlipMappings.user_group_ids.koeln_festangestellte,
-    ];
-    const officeGroupIds = [
-      FlipMappings.user_group_ids.berlin_office,
-      FlipMappings.user_group_ids.hamburg_office,
-      FlipMappings.user_group_ids.koeln_office,
-    ];
-    const teamleadGroupIds = [
-      FlipMappings.user_group_ids.berlin_teamleiter,
-      FlipMappings.user_group_ids.hamburg_teamleiter,
-      FlipMappings.user_group_ids.koeln_teamleiter,
-    ];
-
-    // 1. Alle FlipUsers abrufen (KEIN TEST FILTER MEHR)
-    const allUsers = await getFlipUsers({
-      status: ["ACTIVE"],
-      page_limit: 100,
-    });
-
-    // 2. Map: userId -> groups
-    const userGroupsMap = new Map();
-
-    // Für jede Attribut-Gruppe die Assignments abrufen
-    const allGroupIds = [
-      ...serviceGroupIds,
-      ...logistikGroupIds,
-      ...festiGroupIds,
-      ...officeGroupIds,
-      ...teamleadGroupIds,
-    ];
-
-    for (const groupId of allGroupIds) {
-      try {
-        // Handle pagination - fetch ALL pages
-        let allAssignments = [];
-        let currentPage = 1;
-        let totalPages = 1;
-        
-        do {
-          const assignmentsData = await getFlipUserGroupAssignments({
-            group_id: groupId,
-            page_number: currentPage,
-            page_limit: 100,
-          });
-          
-          const assignmentsList = assignmentsData?.assignments || [];
-          allAssignments.push(...assignmentsList);
-          
-          if (assignmentsData?.pagination) {
-            totalPages = assignmentsData.pagination.total_pages;
-          }
-          
-          currentPage++;
-        } while (currentPage <= totalPages);
-
-        // Populate userGroupsMap
-        for (const assignment of allAssignments) {
-          // Flip API returns nested user object or direct IDs depending on endpoint version
-          // Based on user logs, it seems we get objects with user.id
-          const userId = assignment.user?.id || assignment.id?.user_id || assignment.user_id;
-          
-          if (userId) {
-            if (!userGroupsMap.has(userId)) {
-              userGroupsMap.set(userId, []);
-            }
-            userGroupsMap.get(userId).push(groupId);
-          }
-        }
-
-      } catch (error) {
-        console.error(`Error fetching assignments for group ${groupId}:`, error.message);
-      }
-    }
-
-    // 3. Für jeden User die Attribute setzen und updaten
-    const updates = [];
-    const errors = [];
-
-    for (const userData of allUsers) {
-      try {
-        const userId = userData.id;
-        const userGroups = userGroupsMap.get(userId) || [];
-
-        // Bestimme Attribute basierend auf Gruppenzugehörigkeit
-        const isService = userGroups.some((gid) => serviceGroupIds.includes(gid));
-        const isLogistik = userGroups.some((gid) => logistikGroupIds.includes(gid));
-        const isFesti = userGroups.some((gid) => festiGroupIds.includes(gid));
-        const isOffice = userGroups.some((gid) => officeGroupIds.includes(gid));
-        const isTeamLead = userGroups.some((gid) => teamleadGroupIds.includes(gid));
-
-        // Baue attributes array
-        const attributes = [];
-        
-        if (isService) attributes.push({ name: "isService", value: "true" });
-        if (isLogistik) attributes.push({ name: "isLogistik", value: "true" });
-        if (isFesti) attributes.push({ name: "isFesti", value: "true" });
-        if (isOffice) attributes.push({ name: "isOffice", value: "true" });
-        if (isTeamLead) attributes.push({ name: "isTeamLead", value: "true" });
-
-        // Behalte bestehende Attribute (location, department) bei
-        if (userData.profile?.location) {
-          attributes.push({ name: "location", value: userData.profile.location });
-        }
-        if (userData.profile?.department) {
-          attributes.push({ name: "department", value: userData.profile.department });
-        }
-
-        // Update nur wenn sich etwas geändert hat oder überhaupt Attribute da sind
-        // Anmerkung: Flip überschreibt alle Attribute mit dem PUT/PATCH.
-        // Daher sollten wir immer updaten, wenn Attribute berechnet wurden.
-        if (attributes.length > 0) {
-          const flipUser = new FlipUser(userData);
-          flipUser.attributes = attributes;
-          
-          await flipUser.update();
-          
-          updates.push({
-            id: userId,
-            name: `${userData.first_name} ${userData.last_name}`,
-            attributes: attributes.map((a) => a.name),
-          });
-        }
-      } catch (error) {
-        errors.push({
-          id: userData.id,
-          name: `${userData.first_name} ${userData.last_name}`,
-          error: error.message,
-        });
-      }
-    }
-
+    const result = await syncFlipAttributes();
+    
     res.status(200).json({
       message: "Attribute sync completed",
-      updated: updates.length,
-      errors: errors.length,
-      updates,
-      errors,
+      ...result
     });
   })
 );

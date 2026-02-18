@@ -220,6 +220,25 @@ async function flipUserRoutine() {
 
     emailLogs.push("✅ Flip user refresh completed successfully.");
     
+    // Sync attributes based on UserGroup assignments
+    try {
+      emailLogs.push("<br><br>🔄 Synchronizing Flip user attributes...");
+      const syncResult = await syncFlipAttributes();
+      emailLogs.push(`✅ Attribute sync completed: ${syncResult.updated} users updated`);
+      
+      if (syncResult.errors.length > 0) {
+        emailLogs.push(`⚠️ ${syncResult.errors.length} errors during attribute sync:`);
+        syncResult.errors.slice(0, 10).forEach(err => {
+          emailLogs.push(`   🔴 ${err.name}: ${err.error}`);
+        });
+        if (syncResult.errors.length > 10) {
+          emailLogs.push(`   ... and ${syncResult.errors.length - 10} more errors`);
+        }
+      }
+    } catch (syncError) {
+      emailLogs.push(`❌ Error during attribute sync: ${syncError.message}`);
+    }
+    
     // Add invalid locations to email if any found
     if (invalidLocations.length > 0) {
       emailLogs.push("<br><br><strong>⚠️ Ungültige Location-Attribute gefunden:</strong>");
@@ -1040,9 +1059,102 @@ async function deleteManyFlipUsers(ids) {
   return results;
 }
 
+/**
+ * Synchronisiert FlipUser attributes (isService, isLogistik, isFesti, isOffice, isTeamLead)
+ * basierend auf Berufen/Qualifikationen in MongoDB
+ * 
+ * Regeln:
+ * - isService: Beruf 10001
+ * - isLogistik: Beruf 10002
+ * - isOffice: Beruf 10004 oder 10005
+ * - isTeamLead: Qualifikation 50055
+ */
+async function syncFlipAttributes() {
+  const Mitarbeiter = require('./models/Mitarbeiter');
+  
+  // 1. Alle Mitarbeiter mit flip_id holen (populated berufe/qualifikationen)
+  const mitarbeiter = await Mitarbeiter.find({ 
+    flip_id: { $exists: true, $ne: null },
+    isActive: true 
+  })
+  .populate('berufe')
+  .populate('qualifikationen')
+  .lean();
+
+  const updates = [];
+  const errors = [];
+
+  for (const ma of mitarbeiter) {
+    try {
+      // Extrahiere Beruf- und Qualifikations-Keys
+      const berufKeys = (ma.berufe || []).map(b => b.jobKey).filter(Boolean);
+      const qualiKeys = (ma.qualifikationen || []).map(q => q.qualificationKey).filter(Boolean);
+
+      // Bestimme Attribute basierend auf Keys
+      const isService = berufKeys.includes(10001);
+      const isLogistik = berufKeys.includes(10002);
+      const isOffice = berufKeys.includes(10004) || berufKeys.includes(10005);
+      const isTeamLead = qualiKeys.includes(50055);
+
+      // Lade aktuellen Flip-User für location/department
+      const flipUserData = await findFlipUserById(ma.flip_id);
+      if (!flipUserData) {
+        errors.push({
+          id: ma._id,
+          name: `${ma.vorname} ${ma.nachname}`,
+          error: 'Flip User nicht gefunden'
+        });
+        continue;
+      }
+
+      // Baue attributes array
+      const attributes = [];
+      
+      if (isService) attributes.push({ name: "isService", value: "true" });
+      if (isLogistik) attributes.push({ name: "isLogistik", value: "true" });
+      if (isOffice) attributes.push({ name: "isOffice", value: "true" });
+      if (isTeamLead) attributes.push({ name: "isTeamLead", value: "true" });
+
+      // Behalte bestehende Attribute (location, department) bei
+      if (flipUserData.profile?.location) {
+        attributes.push({ name: "location", value: flipUserData.profile.location });
+      }
+      if (flipUserData.profile?.department) {
+        attributes.push({ name: "department", value: flipUserData.profile.department });
+      }
+
+      // Update Flip User
+      const flipUser = new FlipUser(flipUserData);
+      flipUser.attributes = attributes;
+      
+      await flipUser.update();
+      
+      updates.push({
+        id: ma._id,
+        name: `${ma.vorname} ${ma.nachname}`,
+        attributes: attributes.map((a) => a.name),
+      });
+    } catch (error) {
+      errors.push({
+        id: ma._id,
+        name: `${ma.vorname} ${ma.nachname}`,
+        error: error.message,
+      });
+    }
+  }
+
+  return {
+    updated: updates.length,
+    errors: errors.length,
+    updates,
+    errors,
+  };
+}
+
 
 module.exports = {
   flipUserRoutine,
+  syncFlipAttributes,
   asanaTransferRoutine,
   getFlipUsers,
   getFlipUserGroups,

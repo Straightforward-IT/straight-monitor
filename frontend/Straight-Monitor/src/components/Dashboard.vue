@@ -159,6 +159,12 @@
         <span>Verlauf</span>
       </RouterLink>
 
+      <!-- Dokumente -->
+      <RouterLink class="tile" to="/dokumente" aria-label="Dokumente">
+        <font-awesome-icon :icon="['fas', 'file-alt']" />
+        <span>Dokumente</span>
+      </RouterLink>
+
       <!-- Personal -->
       <RouterLink
         v-if="newPagesEnabled"
@@ -170,16 +176,10 @@
         <span>Personal</span>
       </RouterLink>
 
-      <!-- Dokumente -->
-      <RouterLink class="tile" to="/dokumente" aria-label="Dokumente">
-        <font-awesome-icon :icon="['fas', 'file-alt']" />
-        <span>Dokumente</span>
-      </RouterLink>
-
-      <!-- Teamleiter Excel -->
-      <RouterLink class="tile" to="/excelFormatierung" aria-label="Dokumente">
+      <!-- Teamleiter Auswertung -->
+      <RouterLink class="tile" to="/teamleiter-auswertung" aria-label="Teamleiter Auswertung">
         <font-awesome-icon :icon="['fas', 'table']" />
-        <span>Teamleiter Excel</span>
+        <span>Teamleiter Auswertung</span>
       </RouterLink>
 
       <!-- Lohnabrechnungen -->

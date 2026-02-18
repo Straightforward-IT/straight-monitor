@@ -73,7 +73,7 @@ function tokenIsExpired(token) {
   catch { return true; }
 }
 
-router.beforeEach(async (to, _from, next) => {
+router.beforeEach(async (to, from, next) => {
   const token = localStorage.getItem('token');
 
   const auth = useAuth();
@@ -106,8 +106,23 @@ router.beforeEach(async (to, _from, next) => {
     return next('/dashboard');
   }
   
-  if (to.path === '/' && token && !tokenIsExpired(token)) return next('/dashboard');
+  // Restore last visited page on login
+  if (to.path === '/' && token && !tokenIsExpired(token)) {
+    const lastPath = localStorage.getItem('lastVisitedPath');
+    if (lastPath && lastPath !== '/' && lastPath !== '/dashboard') {
+      return next(lastPath);
+    }
+    return next('/dashboard');
+  }
+  
   next();
+});
+
+// Save last visited path (only for authenticated routes)
+router.afterEach((to) => {
+  if (to.matched.some(r => r.meta.requiresAuth) && to.path !== '/') {
+    localStorage.setItem('lastVisitedPath', to.fullPath);
+  }
 });
 
 export default router;

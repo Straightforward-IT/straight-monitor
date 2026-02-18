@@ -105,7 +105,14 @@ async function submitLogin() {
       password: password.value,
     });
     localStorage.setItem("token", data.token);
-    router.push("/dashboard");
+    
+    // Check for last visited path
+    const lastPath = localStorage.getItem('lastVisitedPath');
+    if (lastPath && lastPath !== '/' && lastPath !== '/dashboard') {
+      router.push(lastPath);
+    } else {
+      router.push("/dashboard");
+    }
   } catch (err) {
     modalMessage.value = err?.response?.data?.msg || "Unbekannter Fehler.";
     showModal.value = true;
