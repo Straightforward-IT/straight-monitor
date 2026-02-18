@@ -143,7 +143,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
-import { showToast } from '@getflip/bridge';
+import { createDialog, openDialog } from '@getflip/bridge';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 const theme = useTheme();
@@ -220,9 +220,15 @@ async function copyPhone(tel, event) {
     document.body.removeChild(el);
   }
   try {
-    await showToast({ text: 'Telefonnummer kopiert.', intent: 'success', duration: 2500 });
+    await createDialog({
+      id: 'phone-copied-dialog',
+      label: 'Telefonnummer kopiert',
+      text: tel,
+      primaryAction: { label: 'OK' },
+    });
+    await openDialog({ id: 'phone-copied-dialog' });
   } catch {
-    // showToast not available outside Flip context
+    // dialog not available outside Flip context
   }
 }
 
