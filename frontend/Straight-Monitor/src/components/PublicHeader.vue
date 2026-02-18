@@ -27,7 +27,7 @@
               :class="{ active: currentView === 'dashboard' }"
               @click="navigate('dashboard')"
             >
-              <font-awesome-icon icon="fa-solid fa-house" />
+              <font-awesome-icon icon="fa-solid fa-house" class="menu-nav-fa-icon" />
               <span>Startseite</span>
             </button>
             <button
@@ -35,7 +35,7 @@
               :class="{ active: currentView === 'kalender' }"
               @click="navigate('kalender')"
             >
-              <font-awesome-icon icon="fa-solid fa-calendar-days" />
+              <img src="@/assets/calender.png" class="menu-nav-img" alt="" />
               <span>Kalender</span>
             </button>
             <button
@@ -44,7 +44,7 @@
               :class="{ active: currentView === 'laufzettel' }"
               @click="navigate('laufzettel')"
             >
-              <font-awesome-icon icon="fa-solid fa-clipboard-list" />
+              <img src="@/assets/laufzettel.png" class="menu-nav-img" alt="" />
               <span>Laufzettel</span>
             </button>
             <button
@@ -53,7 +53,7 @@
               :class="{ active: currentView === 'evaluierungen' }"
               @click="navigate('evaluierungen')"
             >
-              <font-awesome-icon icon="fa-solid fa-star" />
+              <img src="@/assets/evaluierung.png" class="menu-nav-img" alt="" />
               <span>Evaluierungen</span>
             </button>
             <button
@@ -61,7 +61,7 @@
               :class="{ active: currentView === 'vergangene-jobs' }"
               @click="navigate('vergangene-jobs')"
             >
-              <font-awesome-icon icon="fa-solid fa-briefcase" />
+              <img src="@/assets/tasks.png" class="menu-nav-img" alt="" />
               <span>Vergangene Jobs</span>
             </button>
             <button
@@ -70,7 +70,7 @@
               :class="{ active: currentView === 'eventreport' }"
               @click="navigate('eventreport')"
             >
-              <font-awesome-icon icon="fa-solid fa-file-pen" />
+              <img src="@/assets/eventreport.png" class="menu-nav-img" alt="" />
               <span>Event Report</span>
             </button>
           </div>
@@ -320,6 +320,23 @@ h1 {
   background: rgba(238, 175, 103, 0.15);
   color: var(--primary);
   font-weight: 600;
+}
+
+.menu-nav-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.menu-nav-fa-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.menu-nav-item.active .menu-nav-img {
+  filter: invert(72%) sepia(60%) saturate(400%) hue-rotate(345deg) brightness(105%);
 }
 
 .menu-divider {
