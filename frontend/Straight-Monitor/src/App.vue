@@ -8,8 +8,10 @@
 import { watch, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRoute } from "vue-router";
 import { getTheme, initFlipBridge, subscribe, BridgeEventType } from "@getflip/bridge";
+import { useTheme } from "@/stores/theme";
 
 const route = useRoute();
+const themeStore = useTheme();
 const isFlipCreate = computed(() => route.name === "BenutzerErstellen");
 // Make sure to match the route name, kept 'PublicEinsaetze' in router.js for now, but component Changed
 const isPublicEinsaetze = computed(() => route.name === "PublicEinsaetze");
@@ -61,14 +63,17 @@ const initializeFlipBridge = async () => {
     const theme = await getTheme();
     if (theme?.activeTheme) {
       document.documentElement.setAttribute("data-theme", theme.activeTheme);
+      themeStore.set(theme.activeTheme); // Sync Pinia store
       console.log(`🎨 Initial theme: ${theme.activeTheme}`);
     }
     
     // Theme changes abonnieren
     themeUnsubscribe = await subscribe(BridgeEventType.THEME_CHANGE, (event) => {
       if (event?.data?.activeTheme) {
-        document.documentElement.setAttribute("data-theme", event.data.activeTheme);
-        console.log(`🎨 Theme changed to: ${event.data.activeTheme}`);
+        const newTheme = event.data.activeTheme;
+        document.documentElement.setAttribute("data-theme", newTheme);
+        themeStore.set(newTheme); // Sync Pinia store for logo reactivity
+        console.log(`🎨 Theme changed to: ${newTheme}`);
       }
     });
     

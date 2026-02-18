@@ -75,7 +75,7 @@
         <custom-tooltip :text="theme.isDark ? 'Helles Theme' : 'Dunkles Theme'" position="bottom" :delay-in="150">
           <button
             class="icon-btn"
-            @click="theme.toggle()"
+            @click="toggleTheme"
           >
             <font-awesome-icon
               :icon="theme.isDark ? ['fas', 'sun'] : ['fas', 'moon']"
@@ -187,7 +187,7 @@
           Support
         </button>
         
-        <button class="mobile-menu-btn" @click="theme.toggle()">
+        <button class="mobile-menu-btn" @click="toggleTheme">
           <font-awesome-icon :icon="theme.isDark ? ['fas', 'sun'] : ['fas', 'moon']" />
           {{ theme.isDark ? 'Helles Theme' : 'Dunkles Theme' }}
         </button>
@@ -310,6 +310,7 @@ import { useAuth } from "@/stores/auth";
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import CustomTooltip from './CustomTooltip.vue';
 import api from '@/utils/api';
+import { setTheme } from '@getflip/bridge';
 
 // Logos vorher importieren
 import darkLogo from "@/assets/SF_000.svg";
@@ -435,6 +436,22 @@ const submitSupportRequest = async () => {
     alert('Fehler beim Senden des Support-Requests. Bitte versuchen Sie es später erneut.');
   } finally {
     isSubmitting.value = false;
+  }
+};
+
+// Theme Toggle with Flip Bridge sync
+const toggleTheme = async () => {
+  const newTheme = theme.isDark ? 'light' : 'dark';
+  
+  // Toggle local theme store
+  theme.toggle();
+  
+  // Try to sync with Flip Bridge
+  try {
+    await setTheme(newTheme);
+    console.log(`🎨 Flip theme updated to: ${newTheme}`);
+  } catch (e) {
+    console.warn('Flip Bridge setTheme failed (running outside Flip?):', e.code || e);
   }
 };
 
@@ -587,7 +604,6 @@ onBeforeUnmount(() => {
 }
 
 .mobile-menu-items a.active {
-  background: var(--tile-bg);
   color: var(--accent);
   font-weight: 600;
 }
@@ -744,7 +760,6 @@ a {
   transition: all 0.2s;
 }
 a.active {
-  background: var(--hover);
   font-weight: 600;
 }
 a.disabled {
