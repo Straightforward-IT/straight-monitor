@@ -182,10 +182,8 @@ onMounted(async () => {
   align-items: center;
   padding: 8px 16px;
   background: var(--panel);
-  border-bottom: 1px solid var(--border);
   min-height: 56px;
   color: var(--text);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .left {

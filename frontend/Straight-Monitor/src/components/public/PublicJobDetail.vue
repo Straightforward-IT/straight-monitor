@@ -1,6 +1,11 @@
 <template>
   <div class="job-detail-view">
 
+    <!-- Back Button -->
+    <button class="back-btn" @click="$emit('back')">
+      <font-awesome-icon icon="fa-solid fa-arrow-left" /> Zurück
+    </button>
+
     <!-- Job Header -->
     <div class="job-header">
       <h2 class="job-title">
@@ -60,6 +65,7 @@
             v-if="isTeamleiter && einsatz.ansprechpartnerTelefon"
             :href="'tel:' + einsatz.ansprechpartnerTelefon"
             class="info-link"
+            @click="copyPhone(einsatz.ansprechpartnerTelefon, $event)"
           >
             <font-awesome-icon icon="fa-solid fa-phone" /> {{ einsatz.ansprechpartnerTelefon }}
           </a>
@@ -115,7 +121,7 @@
                 <span class="ma-name">{{ ma.vorname }} {{ ma.nachname }}</span>
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
               </div>
-              <a v-if="ma.telefon" :href="'tel:' + cleanPhone(ma.telefon)" class="ma-phone" @click.stop>
+              <a v-if="ma.telefon" :href="'tel:' + cleanPhone(ma.telefon)" class="ma-phone" @click.stop="copyPhone(ma.telefon, $event)">
                 <font-awesome-icon icon="fa-solid fa-phone" />
                 <span class="ma-phone-number">{{ ma.telefon }}</span>
               </a>
@@ -137,6 +143,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
+import { showToast } from '@getflip/bridge';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 const theme = useTheme();
@@ -198,6 +205,25 @@ function formatTreffpunkt(val) {
 function cleanPhone(tel) {
   // Keeps +, digits, and strips everything else so tel: links work reliably
   return tel.replace(/[^\d+]/g, '');
+}
+
+async function copyPhone(tel, event) {
+  event?.preventDefault();
+  try {
+    await navigator.clipboard.writeText(tel);
+  } catch {
+    const el = document.createElement('input');
+    el.value = tel;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+  }
+  try {
+    await showToast({ text: 'Telefonnummer kopiert.', intent: 'success', duration: 2500 });
+  } catch {
+    // showToast not available outside Flip context
+  }
 }
 
 function storageKey(auftragNr) {

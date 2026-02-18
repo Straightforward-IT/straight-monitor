@@ -1,6 +1,11 @@
 <template>
   <div class="evaluierungen-view">
 
+    <!-- Back Button -->
+    <button class="back-btn" @click="$emit('back')">
+      <font-awesome-icon icon="fa-solid fa-arrow-left" /> Zurück
+    </button>
+
     <h2 class="view-title">Evaluierungen</h2>
 
     <!-- Offen (received but not yet submitted) -->
