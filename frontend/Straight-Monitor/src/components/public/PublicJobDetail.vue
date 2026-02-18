@@ -1,8 +1,5 @@
 <template>
   <div class="job-detail-view">
-    <button class="back-btn" @click="$emit('back')">
-      <font-awesome-icon icon="fa-solid fa-arrow-left" /> Zurück
-    </button>
 
     <!-- Job Header -->
     <div class="job-header">
@@ -131,7 +128,7 @@
     <!-- Teamleiter: Event Report Button -->
     <div v-if="isTeamleiter" class="action-bar">
       <button class="action-btn" @click="$emit('write-report', einsatz)">
-        <font-awesome-icon icon="fa-solid fa-file-pen" /> Event Report schreiben
+        <img :src="imgEventreport" class="action-btn-icon" alt="" /> Event Report schreiben
       </button>
     </div>
   </div>
@@ -139,6 +136,11 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import { useTheme } from '@/stores/theme';
+import eventreportLight from '@/assets/eventreport.png';
+import eventreportDark from '@/assets/eventreport-dark.png';
+const theme = useTheme();
+const imgEventreport = computed(() => theme.isDark ? eventreportDark : eventreportLight);
 
 const props = defineProps({
   einsatz: { type: Object, required: true },
@@ -553,17 +555,20 @@ watch(() => props.einsatz?._id, () => {
   background: var(--panel);
   border-top: 1px solid var(--border);
   z-index: 40;
+  display: flex;
+  justify-content: center;
 }
 
 .action-btn {
-  width: 100%;
-  padding: 0.85rem;
-  background: var(--primary);
-  color: white;
-  border: none;
+  width: auto;
+  max-width: 100%;
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  color: var(--primary);
+  border: 2px solid var(--primary);
   border-radius: 12px;
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -571,6 +576,12 @@ watch(() => props.einsatz?._id, () => {
   gap: 0.5rem;
   -webkit-tap-highlight-color: transparent;
   transition: all 0.2s;
+}
+
+.action-btn-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
 .action-btn:active {

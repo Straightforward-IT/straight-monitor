@@ -1,8 +1,5 @@
 <template>
   <div class="evaluierungen-view">
-    <button class="back-btn" @click="$emit('back')">
-      <font-awesome-icon icon="fa-solid fa-arrow-left" /> Zurück
-    </button>
 
     <h2 class="view-title">Evaluierungen</h2>
 

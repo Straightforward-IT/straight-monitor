@@ -9,7 +9,7 @@
       <!-- Tiles for ALL employees -->
       <div class="tile" @click="$emit('navigate', 'kalender')">
         <div class="tile-icon tile-icon--blue">
-          <img src="@/assets/calender.png" class="tile-img" alt="Kalender" />
+          <img :src="imgCalender" class="tile-img" alt="Kalender" />
         </div>
         <div class="tile-content">
           <h3>Kalender</h3>
@@ -20,7 +20,7 @@
 
       <div v-if="!isTeamleiter" class="tile" @click="$emit('navigate', 'laufzettel')">
         <div class="tile-icon tile-icon--purple">
-          <img src="@/assets/laufzettel.png" class="tile-img" alt="Laufzettel" />
+          <img :src="imgLaufzettel" class="tile-img" alt="Laufzettel" />
         </div>
         <div class="tile-content">
           <h3>Laufzettel</h3>
@@ -31,7 +31,7 @@
 
       <div v-if="isTeamleiter" class="tile" @click="$emit('navigate', 'evaluierungen')">
         <div class="tile-icon tile-icon--purple">
-          <img src="@/assets/evaluierung.png" class="tile-img" alt="Evaluierungen" />
+          <img :src="imgEvaluierung" class="tile-img" alt="Evaluierungen" />
         </div>
         <div class="tile-content">
           <h3>Evaluierungen</h3>
@@ -42,7 +42,7 @@
 
       <div class="tile" @click="$emit('navigate', 'vergangene-jobs')">
         <div class="tile-icon tile-icon--green">
-          <img src="@/assets/tasks.png" class="tile-img" alt="Vergangene Jobs" />
+          <img :src="imgTasks" class="tile-img" alt="Vergangene Jobs" />
         </div>
         <div class="tile-content">
           <h3>Vergangene Jobs</h3>
@@ -54,7 +54,7 @@
       <!-- Teamleiter only -->
       <div v-if="isTeamleiter" class="tile tile--teamleiter" @click="$emit('navigate', 'eventreport')">
         <div class="tile-icon">
-          <img src="@/assets/eventreport.png" class="tile-img" alt="Event Report" />
+          <img :src="imgEventreport" class="tile-img" alt="Event Report" />
         </div>
         <div class="tile-content">
           <h3>Event Report</h3>
@@ -97,6 +97,22 @@
 
 <script setup>
 import { computed } from 'vue';
+import calenderLight from '@/assets/calender.png';
+import calenderDark from '@/assets/calender-dark.png';
+import laufzettelLight from '@/assets/laufzettel.png';
+import laufzettelDark from '@/assets/laufzettel-dark.png';
+import evaluierungLight from '@/assets/evaluierung.png';
+import evaluierungDark from '@/assets/evaluierung-dark.png';
+import tasksLight from '@/assets/tasks.png';
+import tasksDark from '@/assets/tasks-dark.png';
+import eventreportLight from '@/assets/eventreport.png';
+import eventreportDark from '@/assets/eventreport-dark.png';
+// Tiles always use light icons (colored tile backgrounds)
+const imgCalender = calenderLight;
+const imgLaufzettel = laufzettelLight;
+const imgEvaluierung = evaluierungLight;
+const imgTasks = tasksLight;
+const imgEventreport = eventreportLight;
 
 const props = defineProps({
   vorname: { type: String, default: '' },

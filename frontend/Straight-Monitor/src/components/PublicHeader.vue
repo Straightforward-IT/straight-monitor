@@ -1,8 +1,8 @@
 <template>
   <header class="public-header">
     <div class="left">
-      <img :src="logoSrc" class="logo" alt="logo" />
-      <h1>Straightforward</h1>
+      <img :src="logoSrc" class="logo logo--clickable" alt="logo" @click="navigate('dashboard')" />
+      <h1 class="title--clickable" @click="navigate('dashboard')">Straightforward</h1>
     </div>
 
     <!-- Burger Button -->
@@ -27,7 +27,7 @@
               :class="{ active: currentView === 'dashboard' }"
               @click="navigate('dashboard')"
             >
-              <font-awesome-icon icon="fa-solid fa-house" class="menu-nav-fa-icon" />
+              <img :src="imgStraightforward" class="menu-nav-img" alt="" />
               <span>Startseite</span>
             </button>
             <button
@@ -35,7 +35,7 @@
               :class="{ active: currentView === 'kalender' }"
               @click="navigate('kalender')"
             >
-              <img src="@/assets/calender.png" class="menu-nav-img" alt="" />
+              <img :src="imgCalender" class="menu-nav-img" alt="" />
               <span>Kalender</span>
             </button>
             <button
@@ -44,7 +44,7 @@
               :class="{ active: currentView === 'laufzettel' }"
               @click="navigate('laufzettel')"
             >
-              <img src="@/assets/laufzettel.png" class="menu-nav-img" alt="" />
+              <img :src="imgLaufzettel" class="menu-nav-img" alt="" />
               <span>Laufzettel</span>
             </button>
             <button
@@ -53,7 +53,7 @@
               :class="{ active: currentView === 'evaluierungen' }"
               @click="navigate('evaluierungen')"
             >
-              <img src="@/assets/evaluierung.png" class="menu-nav-img" alt="" />
+              <img :src="imgEvaluierung" class="menu-nav-img" alt="" />
               <span>Evaluierungen</span>
             </button>
             <button
@@ -61,7 +61,7 @@
               :class="{ active: currentView === 'vergangene-jobs' }"
               @click="navigate('vergangene-jobs')"
             >
-              <img src="@/assets/tasks.png" class="menu-nav-img" alt="" />
+              <img :src="imgTasks" class="menu-nav-img" alt="" />
               <span>Vergangene Jobs</span>
             </button>
             <button
@@ -70,7 +70,7 @@
               :class="{ active: currentView === 'eventreport' }"
               @click="navigate('eventreport')"
             >
-              <img src="@/assets/eventreport.png" class="menu-nav-img" alt="" />
+              <img :src="imgEventreport" class="menu-nav-img" alt="" />
               <span>Event Report</span>
             </button>
           </div>
@@ -80,7 +80,8 @@
           <div class="menu-item">
             <span>Theme</span>
             <button class="theme-toggle" @click="handleThemeToggle">
-              {{ theme.isDark ? '☀️ Light Mode' : '🌙 Dark Mode' }}
+              <font-awesome-icon :icon="theme.isDark ? ['fas', 'sun'] : ['fas', 'moon']" />
+              {{ theme.isDark ? 'Light Mode' : 'Dark Mode' }}
             </button>
           </div>
           <div v-if="flipResponse" class="menu-item info">
@@ -99,6 +100,18 @@ import darkLogo from "@/assets/SF_000.svg";
 import lightLogo from "@/assets/SF_002.png";
 import { useTheme } from "@/stores/theme";
 import { getTheme } from '@getflip/bridge';
+import straightforwardLight from "@/assets/straightforward.png";
+import straightforwardDark from "@/assets/straightforward-dark.png";
+import calenderLight from "@/assets/calender.png";
+import calenderDark from "@/assets/calender-dark.png";
+import laufzettelLight from "@/assets/laufzettel.png";
+import laufzettelDark from "@/assets/laufzettel-dark.png";
+import evaluierungLight from "@/assets/evaluierung.png";
+import evaluierungDark from "@/assets/evaluierung-dark.png";
+import tasksLight from "@/assets/tasks.png";
+import tasksDark from "@/assets/tasks-dark.png";
+import eventreportLight from "@/assets/eventreport.png";
+import eventreportDark from "@/assets/eventreport-dark.png";
 
 const props = defineProps({
   vorname: {
@@ -124,6 +137,12 @@ function navigate(view) {
 
 const theme = useTheme();
 const logoSrc = computed(() => (theme.isDark ? darkLogo : lightLogo));
+const imgStraightforward = computed(() => theme.isDark ? straightforwardDark : straightforwardLight);
+const imgCalender = computed(() => theme.isDark ? calenderDark : calenderLight);
+const imgLaufzettel = computed(() => theme.isDark ? laufzettelDark : laufzettelLight);
+const imgEvaluierung = computed(() => theme.isDark ? evaluierungDark : evaluierungLight);
+const imgTasks = computed(() => theme.isDark ? tasksDark : tasksLight);
+const imgEventreport = computed(() => theme.isDark ? eventreportDark : eventreportLight);
 
 const showMobileMenu = ref(false);
 const flipResponse = ref('');
@@ -178,6 +197,16 @@ onMounted(async () => {
 .logo {
   width: 36px;
   height: auto;
+}
+
+.logo--clickable,
+.title--clickable {
+  cursor: pointer;
+}
+
+.title--clickable:hover {
+  color: var(--primary);
+  transition: color 0.15s;
 }
 
 h1 {
@@ -320,6 +349,7 @@ h1 {
   background: rgba(238, 175, 103, 0.15);
   color: var(--primary);
   font-weight: 600;
+  border-left: 3px solid var(--primary);
 }
 
 .menu-nav-img {
@@ -327,16 +357,6 @@ h1 {
   height: 22px;
   object-fit: contain;
   flex-shrink: 0;
-}
-
-.menu-nav-fa-icon {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-}
-
-.menu-nav-item.active .menu-nav-img {
-  filter: invert(72%) sepia(60%) saturate(400%) hue-rotate(345deg) brightness(105%);
 }
 
 .menu-divider {
