@@ -38,11 +38,22 @@ let themeUnsubscribe = null;
 const initializeFlipBridge = async () => {
   if (flipBridgeInitialized) return;
   
+  // Prüfen ob wir in einem iframe laufen (Flip Desktop nutzt iframes)
+  const isInIframe = window.self !== window.top;
+  
   try {
-    initFlipBridge({ 
-      hostAppOrigin: '*',
+    // Verschiedene hostAppOrigin-Strategien für Desktop vs Mobile
+    const config = {
+      hostAppOrigin: isInIframe 
+        ? window.location.ancestorOrigins?.[0] || 'https://straightforward.flip-app.com'
+        : '*',
       debug: true 
-    });
+    };
+    
+    console.log(`🔧 Initializing Flip Bridge with config:`, config);
+    console.log(`📍 Context: isInIframe=${isInIframe}, origin=${window.location.origin}`);
+    
+    initFlipBridge(config);
     flipBridgeInitialized = true;
     console.log("✅ Flip Bridge initialized");
     
@@ -50,6 +61,7 @@ const initializeFlipBridge = async () => {
     const theme = await getTheme();
     if (theme?.activeTheme) {
       document.documentElement.setAttribute("data-theme", theme.activeTheme);
+      console.log(`🎨 Initial theme: ${theme.activeTheme}`);
     }
     
     // Theme changes abonnieren
@@ -61,7 +73,12 @@ const initializeFlipBridge = async () => {
     });
     
   } catch (e) {
-    console.warn("Flip Bridge not available (running outside Flip App):", e.code || e);
+    console.warn("Flip Bridge not available:", {
+      code: e.code || e,
+      isInIframe,
+      origin: window.location.origin,
+      ancestorOrigins: window.location.ancestorOrigins?.[0]
+    });
   }
 };
 
