@@ -17,6 +17,7 @@ const MitarbeiterSchema = new mongoose.Schema({
     erstellt_von: { type: String, required: false, trim: true},
     email: { type: String, unique: true, lowercase: true, trim: true },
     additionalEmails: [{ type: String, lowercase: true, trim: true }],
+    telefon: { type: String, required: false, trim: true },
     isActive: { type: Boolean, default: true },
     berufe: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Beruf' }],
     qualifikationen: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Qualifikation' }],

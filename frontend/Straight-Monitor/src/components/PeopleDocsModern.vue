@@ -498,7 +498,12 @@
                 <div class="expansion-section">
                   <h4>Kontakt</h4>
                   <p><strong>E-Mail:</strong> {{ ma.email || '—' }}</p>
-                  <p><strong>Telefon:</strong> {{ getPhoneNumber(ma) || '—' }}</p>
+                  <p><strong>Telefon:</strong> 
+                    <a v-if="getPhoneNumber(ma)" :href="generateSipgateLink(getPhoneNumber(ma))" class="phone-link">
+                      <font-awesome-icon icon="fa-solid fa-phone" /> {{ getPhoneNumber(ma) }}
+                    </a>
+                    <span v-else>—</span>
+                  </p>
                 </div>
                 
                 <div class="expansion-section" v-if="ma.flip">
@@ -1216,8 +1221,11 @@ export default {
              ma.abteilung || null;
     },
 
-    // Telefonnummer aus Flip-Profil extrahieren
+    // Telefonnummer: bevorzugt direkt aus Mitarbeiter-Modell (Zvoove Import), Fallback: Flip-Profil
     getPhoneNumber(ma) {
+      // Prefer direct telefon field from Mitarbeiter model (imported from Zvoove)
+      if (ma.telefon) return ma.telefon;
+      
       if (!ma.flip?.attributes) return null;
       
       // Verschiedene mögliche Attributnamen für Telefonnummer

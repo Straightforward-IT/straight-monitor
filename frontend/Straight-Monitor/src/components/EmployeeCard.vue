@@ -301,6 +301,14 @@
               <dt>E-Mail</dt>
               <dd>{{ ma.email || "—" }}</dd>
             </div>
+            <div v-if="ma.telefon">
+              <dt>Telefon</dt>
+              <dd>
+                <a :href="generateSipgateLink(ma.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')">
+                  <font-awesome-icon icon="fa-solid fa-phone" /> {{ ma.telefon }}
+                </a>
+              </dd>
+            </div>
             <div v-if="ma.erstellt_von">
               <dt>Erstellt von</dt>
               <dd>{{ ma.erstellt_von }}</dd>
@@ -1806,6 +1814,9 @@ export default {
     },
 
     getPhoneNumber() {
+      // Prefer direct telefon field from Mitarbeiter model (imported from Zvoove)
+      if (this.ma.telefon) return this.ma.telefon;
+      // Fallback: extract from Flip attributes
       if (!this.ma.flip?.attributes) return null;
       const phoneAttribute = this.ma.flip.attributes.find(attr => {
         const name = attr.name?.toLowerCase() || '';

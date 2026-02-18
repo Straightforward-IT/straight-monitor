@@ -37,7 +37,7 @@ router.get(
 
 // ──────────────────────────────────────────────
 // GET /api/public/einsaetze?personalNr=...
-// Gets Einsätze for a Mitarbeiter (past events only)
+// Gets all Einsätze for a Mitarbeiter (past + future)
 // Enriches with Auftrag info (eventTitel, Kunde etc.)
 // ──────────────────────────────────────────────
 router.get(
@@ -48,13 +48,9 @@ router.get(
       return res.status(400).json({ msg: "personalNr parameter is required" });
     }
 
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-
-    // Only past einsätze (datumBis <= today)
+    // All einsätze (past and future) - filtering happens client-side
     const einsaetze = await Einsatz.find({
       personalNr: parseInt(personalNr),
-      datumBis: { $lte: today },
     })
       .sort({ datumBis: -1 })
       .lean();
@@ -81,6 +77,65 @@ router.get(
     }));
 
     res.json(enriched);
+  })
+);
+
+// ──────────────────────────────────────────────
+// GET /api/public/einsatz-mitarbeiter?auftragNr=...
+// Gets all Einsätze for an Auftrag, enriched with
+// Mitarbeiter info (vorname, nachname, telefon),
+// grouped by Schicht (idAuftragArbeitsschichten)
+// ──────────────────────────────────────────────
+router.get(
+  "/einsatz-mitarbeiter",
+  asyncHandler(async (req, res) => {
+    const { auftragNr } = req.query;
+    if (!auftragNr) {
+      return res.status(400).json({ msg: "auftragNr parameter is required" });
+    }
+
+    const einsaetze = await Einsatz.find({ auftragNr: parseInt(auftragNr) })
+      .sort({ idAuftragArbeitsschichten: 1, personalNr: 1 })
+      .lean();
+
+    if (!einsaetze.length) return res.json([]);
+
+    // Collect all personalNrs to fetch Mitarbeiter in one query
+    const personalNrs = [...new Set(einsaetze.map((e) => e.personalNr).filter(Boolean))];
+    const mitarbeiterList = await Mitarbeiter.find({ personalnr: { $in: personalNrs } })
+      .select("personalnr vorname nachname telefon")
+      .lean();
+
+    const maMap = {};
+    mitarbeiterList.forEach((ma) => { maMap[ma.personalnr] = ma; });
+
+    // Group by schicht (idAuftragArbeitsschichten)
+    const schichtMap = {};
+    einsaetze.forEach((e) => {
+      const key = e.idAuftragArbeitsschichten ?? 0;
+      if (!schichtMap[key]) {
+        schichtMap[key] = {
+          id: key,
+          bezeichnung: e.schichtBezeichnung || null,
+          uhrzeitVon: e.uhrzeitVon || null,
+          uhrzeitBis: e.uhrzeitBis || null,
+          treffpunkt: e.treffpunkt || null,
+          mitarbeiter: []
+        };
+      }
+      const ma = maMap[e.personalNr];
+      schichtMap[key].mitarbeiter.push({
+        personalNr: e.personalNr,
+        vorname: ma?.vorname || null,
+        nachname: ma?.nachname || null,
+        telefon: ma?.telefon || null,
+        bezeichnung: e.bezeichnung || null,
+        checkedIn: false
+      });
+    });
+
+    const result = Object.values(schichtMap).sort((a, b) => a.id - b.id);
+    res.json(result);
   })
 );
 

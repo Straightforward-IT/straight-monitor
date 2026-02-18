@@ -1,195 +1,106 @@
 <template>
   <div class="public-page">
-    <!-- Loading State -->
+    <!-- Loading -->
     <div v-if="loading" class="loading-state">
       <div class="spinner"></div>
       <p>Daten werden geladen...</p>
     </div>
 
-    <!-- Error State -->
+    <!-- Error -->
     <div v-else-if="error" class="error-state">
       <div class="error-icon">!</div>
       <h2>Fehler</h2>
       <p>{{ error }}</p>
     </div>
 
-    <!-- No Email -->
+    <!-- No Access -->
     <div v-else-if="!email || !publicToken" class="error-state">
       <h2>Kein Zugriff</h2>
       <p>Fehlende Zugangsdaten. Bitte öffne diese Seite über die Flip App.</p>
     </div>
 
-    <!-- Main Content -->
+    <!-- Loaded -->
     <div v-else-if="mitarbeiter" class="content">
-      <!-- Header -->
-      <div class="page-header">
-        <h1>Hallo, {{ mitarbeiter.vorname }}!</h1>
-        <p class="subtitle">Deine Einsätze & Event Reports</p>
-      </div>
+      <PublicHeader :vorname="mitarbeiter.vorname" />
 
-      <!-- Einsätze List -->
-      <div class="section">
-        <h2>Vergangene Einsätze</h2>
-        <div v-if="einsaetze.length === 0" class="empty-state">
-          Keine vergangenen Einsätze gefunden.
-        </div>
-        <div v-else class="einsatz-list">
-          <div
-            v-for="einsatz in einsaetze"
-            :key="einsatz._id"
-            class="einsatz-card"
-          >
-            <div class="einsatz-header">
-              <span class="einsatz-title">
-                {{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung || `Auftrag #${einsatz.auftragNr}` }}
-              </span>
-              <span class="einsatz-date">
-                {{ formatDate(einsatz.datumVon) }} – {{ formatDate(einsatz.datumBis) }}
-              </span>
-            </div>
-            <div class="einsatz-details">
-              <span v-if="einsatz.auftrag?.eventLocation">
-                <i class="fa-solid fa-location-dot"></i> {{ einsatz.auftrag.eventLocation }}
-              </span>
-              <span v-if="einsatz.auftrag?.eventOrt">
-                {{ einsatz.auftrag.eventOrt }}
-              </span>
-              <span class="auftrag-nr">Nr. {{ einsatz.auftragNr }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <div class="page-body">
+        <!-- Dashboard -->
+        <PublicDashboard
+          v-if="currentView === 'dashboard'"
+          :vorname="mitarbeiter.vorname"
+          :is-teamleiter="isTeamleiter"
+          :einsaetze="einsaetze"
+          @navigate="navigateTo"
+          @open-job="openJob"
+        />
 
-      <!-- EventReport Section -->
-      <div class="section">
-        <h2>Event Report schreiben</h2>
+        <!-- Kalender -->
+        <PublicKalender
+          v-else-if="currentView === 'kalender'"
+          :einsaetze="einsaetze"
+          @back="navigateTo('dashboard')"
+          @open-job="openJob"
+        />
 
-        <!-- Success Message -->
-        <div v-if="submitSuccess" class="success-message">
-          <i class="fa-solid fa-check-circle"></i>
-          EventReport erfolgreich eingereicht!
-        </div>
+        <!-- Laufzettel -->
+        <PublicLaufzettel
+          v-else-if="currentView === 'laufzettel'"
+          :received="laufzettelReceived"
+          :submitted="laufzettelSubmitted"
+          @back="navigateTo('dashboard')"
+        />
 
-        <form v-else @submit.prevent="submitReport" class="report-form">
-          <!-- Einsatz Dropdown -->
-          <div class="form-group">
-            <label>Einsatz auswählen *</label>
-            <select v-model="selectedEinsatz" required @change="onEinsatzSelect">
-              <option value="" disabled>— Einsatz wählen —</option>
-              <option
-                v-for="einsatz in einsaetze"
-                :key="einsatz._id"
-                :value="einsatz._id"
-              >
-                {{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung || `Auftrag #${einsatz.auftragNr}` }}
-                ({{ formatDate(einsatz.datumVon) }})
-              </option>
-            </select>
-          </div>
+        <!-- Vergangene Jobs -->
+        <PublicVergangeneJobs
+          v-else-if="currentView === 'vergangene-jobs'"
+          :einsaetze="einsaetze"
+          @back="navigateTo('dashboard')"
+          @open-job="openJob"
+        />
 
-          <!-- Pre-filled from Einsatz -->
-          <div class="form-row">
-            <div class="form-group">
-              <label>Standort *</label>
-              <input v-model="form.location" type="text" required />
-            </div>
-            <div class="form-group">
-              <label>Kunde *</label>
-              <input v-model="form.kunde" type="text" required />
-            </div>
-          </div>
+        <!-- Job Detail -->
+        <PublicJobDetail
+          v-else-if="currentView === 'job-detail' && selectedJob"
+          :einsatz="selectedJob"
+          :is-teamleiter="isTeamleiter"
+          :api="api"
+          @back="goBackFromJob"
+          @write-report="writeReportForJob"
+        />
 
-          <div class="form-row">
-            <div class="form-group">
-              <label>Auftragnummer</label>
-              <input v-model="form.auftragnummer" type="text" readonly class="readonly" />
-            </div>
-            <div class="form-group">
-              <label>Datum *</label>
-              <input v-model="form.datum" type="date" required />
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>Teamleiter</label>
-              <input :value="mitarbeiter.vorname + ' ' + mitarbeiter.nachname" type="text" readonly class="readonly" />
-            </div>
-            <div class="form-group">
-              <label>Mitarbeiter Anzahl</label>
-              <input v-model="form.mitarbeiter_anzahl" type="text" />
-            </div>
-          </div>
-
-          <!-- Rating Fields -->
-          <div class="form-group">
-            <label>Pünktlichkeit</label>
-            <div class="rating-group">
-              <label v-for="option in ratingOptions" :key="'p-' + option" class="radio-label">
-                <input type="radio" v-model="form.puenktlichkeit" :value="option" />
-                {{ option }}
-              </label>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>Erscheinungsbild</label>
-            <div class="rating-group">
-              <label v-for="option in ratingOptions" :key="'e-' + option" class="radio-label">
-                <input type="radio" v-model="form.erscheinungsbild" :value="option" />
-                {{ option }}
-              </label>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>Team</label>
-            <div class="rating-group">
-              <label v-for="option in ratingOptions" :key="'t-' + option" class="radio-label">
-                <input type="radio" v-model="form.team" :value="option" />
-                {{ option }}
-              </label>
-            </div>
-          </div>
-
-          <!-- Text Fields -->
-          <div class="form-group">
-            <label>Mitarbeiter & Job</label>
-            <textarea v-model="form.mitarbeiter_job" rows="3" placeholder="Wie haben die Mitarbeiter ihre Aufgaben erledigt?"></textarea>
-          </div>
-
-          <div class="form-group">
-            <label>Feedback Auftraggeber</label>
-            <textarea v-model="form.feedback_auftraggeber" rows="3" placeholder="Was hat der Auftraggeber gesagt?"></textarea>
-          </div>
-
-          <div class="form-group">
-            <label>Sonstiges</label>
-            <textarea v-model="form.sonstiges" rows="3" placeholder="Weitere Anmerkungen..."></textarea>
-          </div>
-
-          <button type="submit" class="submit-btn" :disabled="submitting">
-            <span v-if="submitting">Wird gesendet...</span>
-            <span v-else>EventReport absenden</span>
-          </button>
-        </form>
+        <!-- Event Report (Teamleiter) -->
+        <PublicEventReport
+          v-else-if="currentView === 'eventreport'"
+          :einsaetze="einsaetze"
+          :mitarbeiter="mitarbeiter"
+          :api="api"
+          :email="email"
+          :prefill-einsatz="reportPrefillEinsatz"
+          @back="goBackFromReport"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import apiPublic from '@/utils/api-public';
+
+import PublicHeader from './PublicHeader.vue';
+import PublicDashboard from './public/PublicDashboard.vue';
+import PublicKalender from './public/PublicKalender.vue';
+import PublicLaufzettel from './public/PublicLaufzettel.vue';
+import PublicVergangeneJobs from './public/PublicVergangeneJobs.vue';
+import PublicJobDetail from './public/PublicJobDetail.vue';
+import PublicEventReport from './public/PublicEventReport.vue';
 
 const route = useRoute();
 const email = computed(() => route.query.email);
 const publicToken = computed(() => route.query.token);
 
-// Axios instance that sends the public token with every request
 const api = apiPublic;
-
 api.interceptors.request.use((config) => {
   if (publicToken.value) {
     config.headers['x-public-token'] = publicToken.value;
@@ -197,65 +108,81 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// State
 const loading = ref(true);
 const error = ref('');
 const mitarbeiter = ref(null);
 const einsaetze = ref([]);
-const selectedEinsatz = ref('');
-const submitSuccess = ref(false);
-const submitting = ref(false);
 
-const ratingOptions = ['Sehr gut', 'Gut', 'Befriedigend', 'Mangelhaft'];
+// Navigation
+const currentView = ref('dashboard');
+const previousView = ref('dashboard');
+const selectedJob = ref(null);
+const reportPrefillEinsatz = ref(null);
 
-const form = reactive({
-  location: '',
-  kunde: '',
-  auftragnummer: '',
-  datum: '',
-  mitarbeiter_anzahl: '',
-  puenktlichkeit: '',
-  erscheinungsbild: '',
-  team: '',
-  mitarbeiter_job: '',
-  feedback_auftraggeber: '',
-  sonstiges: '',
+// Laufzettel data (from Mitarbeiter refs)
+const laufzettelReceived = computed(() => mitarbeiter.value?.laufzettel_received || []);
+const laufzettelSubmitted = computed(() => mitarbeiter.value?.laufzettel_submitted || []);
+
+// Teamleiter detection
+const isTeamleiter = computed(() => {
+  const ma = mitarbeiter.value;
+  if (!ma) return false;
+  // TODO: Determine teamleiter status from backend field
+  return (ma.eventreports && ma.eventreports.length > 0) || ma.isTeamleiter === true;
 });
 
-function formatDate(d) {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+function navigateTo(view) {
+  previousView.value = currentView.value;
+  currentView.value = view;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function onEinsatzSelect() {
-  const einsatz = einsaetze.value.find((e) => e._id === selectedEinsatz.value);
-  if (!einsatz) return;
+function openJob(einsatz) {
+  previousView.value = currentView.value;
+  selectedJob.value = einsatz;
+  currentView.value = 'job-detail';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
-  form.auftragnummer = String(einsatz.auftragNr || '');
-  form.datum = einsatz.datumVon ? new Date(einsatz.datumVon).toISOString().split('T')[0] : '';
-  form.location = einsatz.auftrag?.geschSt || einsatz.auftrag?.eventOrt || '';
-  form.kunde = einsatz.auftrag?.eventTitel || einsatz.bezeichnung || '';
+function goBackFromJob() {
+  currentView.value = previousView.value || 'dashboard';
+  selectedJob.value = null;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function writeReportForJob(einsatz) {
+  reportPrefillEinsatz.value = einsatz;
+  previousView.value = 'job-detail';
+  currentView.value = 'eventreport';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goBackFromReport() {
+  if (previousView.value === 'job-detail' && selectedJob.value) {
+    currentView.value = 'job-detail';
+  } else {
+    currentView.value = 'dashboard';
+  }
+  reportPrefillEinsatz.value = null;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function loadData() {
-  console.log('PublicEinsaetze: loadData called', { email: email.value, token: publicToken.value }); // DEBUG
   if (!email.value || !publicToken.value) {
-    console.warn('PublicEinsaetze: Missing email or token');
     loading.value = false;
     return;
   }
 
   try {
-    console.log('PublicEinsaetze: Fetching mitarbeiter...');
-    // 1. Get Mitarbeiter by email
     const maRes = await api.get('/api/public/mitarbeiter', {
-      params: { email: email.value },
+      params: { email: email.value }
     });
     mitarbeiter.value = maRes.data;
 
-    // 2. Get Einsätze by personalNr
     if (mitarbeiter.value.personalnr) {
       const eRes = await api.get('/api/public/einsaetze', {
-        params: { personalNr: mitarbeiter.value.personalnr },
+        params: { personalNr: mitarbeiter.value.personalnr }
       });
       einsaetze.value = eRes.data;
     }
@@ -264,53 +191,23 @@ async function loadData() {
     if (err.response?.status === 404) {
       error.value = 'Mitarbeiter mit dieser E-Mail nicht gefunden.';
     } else {
-      error.value = 'Daten konnten nicht geladen werden. Bitte versuche es später erneut.';
+      error.value = 'Daten konnten nicht geladen werden.';
     }
   } finally {
     loading.value = false;
   }
 }
 
-async function submitReport() {
-  submitting.value = true;
-  try {
-    await api.post('/api/public/eventreport', {
-      location: form.location,
-      kunde: form.kunde,
-      auftragnummer: form.auftragnummer,
-      name_teamleiter: `${mitarbeiter.value.vorname} ${mitarbeiter.value.nachname}`,
-      mitarbeiter_anzahl: form.mitarbeiter_anzahl,
-      datum: form.datum,
-      puenktlichkeit: form.puenktlichkeit,
-      erscheinungsbild: form.erscheinungsbild,
-      team: form.team,
-      mitarbeiter_job: form.mitarbeiter_job,
-      feedback_auftraggeber: form.feedback_auftraggeber,
-      sonstiges: form.sonstiges,
-      teamleiter_email: email.value,
-    });
-    submitSuccess.value = true;
-  } catch (err) {
-    console.error('Submit error:', err);
-    alert('Fehler beim Absenden: ' + (err.response?.data?.msg || err.message));
-  } finally {
-    submitting.value = false;
-  }
-}
-
-onMounted(() => {
-  loadData();
-});
+onMounted(() => loadData());
 </script>
 
 <style scoped>
 .public-page {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  padding: 1rem;
-  padding-bottom: 3rem;
 }
 
 .loading-state {
@@ -323,12 +220,12 @@ onMounted(() => {
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--border);
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
   border-top-color: var(--primary);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.7s linear infinite;
 }
 
 @keyframes spin {
@@ -343,15 +240,16 @@ onMounted(() => {
   min-height: 40vh;
   text-align: center;
   color: var(--muted);
+  padding: 1rem;
 }
 
 .error-icon {
-  width: 60px;
-  height: 60px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   background: #dc3545;
   color: white;
-  font-size: 2rem;
+  font-size: 1.8rem;
   font-weight: bold;
   display: flex;
   align-items: center;
@@ -360,219 +258,12 @@ onMounted(() => {
 }
 
 .content {
-  max-width: 700px;
+  max-width: 600px;
   margin: 0 auto;
 }
 
-.page-header {
-  margin-bottom: 1.5rem;
-}
-
-.page-header h1 {
-  font-size: 1.5rem;
-  color: var(--text);
-  margin: 0 0 0.25rem;
-}
-
-.subtitle {
-  color: var(--muted);
-  font-size: 0.95rem;
-  margin: 0;
-}
-
-.section {
-  margin-bottom: 2rem;
-}
-
-.section h2 {
-  font-size: 1.15rem;
-  color: var(--text);
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 2px solid var(--border);
-}
-
-.empty-state {
-  color: var(--muted);
-  font-style: italic;
+.page-body {
   padding: 1rem;
-  text-align: center;
-  background: var(--tile-bg);
-  border-radius: 8px;
-}
-
-/* Einsatz Cards */
-.einsatz-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.einsatz-card {
-  background: var(--tile-bg);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-}
-
-.einsatz-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.5rem;
-}
-
-.einsatz-title {
-  font-weight: 600;
-  color: var(--text);
-  font-size: 0.95rem;
-}
-
-.einsatz-date {
-  font-size: 0.8rem;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.einsatz-details {
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 0.25rem;
-  font-size: 0.8rem;
-  color: var(--muted);
-  flex-wrap: wrap;
-}
-
-.auftrag-nr {
-  background: var(--hover);
-  color: var(--text);
-  padding: 0.1rem 0.4rem;
-  border-radius: 3px;
-  font-family: monospace;
-  font-size: 0.75rem;
-}
-
-/* Form */
-.report-form {
-  background: var(--tile-bg);
-  border-radius: 8px;
-  padding: 1.25rem;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-@media (max-width: 500px) {
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 0.3rem;
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-  width: 100%;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-family: inherit;
-  background: var(--bg);
-  color: var(--text);
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-}
-
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: var(--primary);
-  background: var(--tile-bg);
-}
-
-.readonly {
-  background: var(--hover) !important;
-  color: var(--muted);
-}
-
-.rating-group {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.radio-label {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-weight: 400;
-  font-size: 0.85rem;
-  cursor: pointer;
-  color: var(--text);
-}
-
-.radio-label input[type="radio"] {
-  width: auto;
-  accent-color: var(--primary);
-}
-
-.submit-btn {
-  width: 100%;
-  padding: 0.85rem;
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  margin-top: 0.5rem;
-  transition: background 0.2s;
-}
-
-.submit-btn:hover:not(:disabled) {
-  filter: brightness(1.1);
-}
-
-.submit-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.success-message {
-  background: #d4edda;
-  color: #155724;
-  padding: 1.5rem;
-  border-radius: 8px;
-  text-align: center;
-  font-weight: 600;
-  font-size: 1.1rem;
-}
-/* Dark mode override specific for success msg */
-[data-theme="dark"] .success-message {
-  background: rgba(40, 167, 69, 0.2);
-  color: #75b798;
-}
-
-.success-message i {
-  margin-right: 0.5rem;
-  color: #28a745;
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom));
 }
 </style>

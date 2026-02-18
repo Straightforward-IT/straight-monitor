@@ -545,6 +545,7 @@ router.post('/personal', upload.single('file'), async (req, res) => {
 
       const personalnr = row[0] ? String(row[0]).trim() : null;
       const email = row[1] ? String(row[1]).trim().toLowerCase() : null;
+      const telefon = row[2] ? String(row[2]).trim() : null;
 
       if (!personalnr || !email) continue;
 
@@ -558,8 +559,14 @@ router.post('/personal', upload.single('file'), async (req, res) => {
         matched++;
 
         // Check if personalnr needs to be updated
+        const telefonChanged = telefon && mitarbeiter.telefon !== telefon;
         if (mitarbeiter.personalnr === personalnr) {
-          unchanged++;
+          if (telefonChanged) {
+            await Mitarbeiter.updateOne({ _id: mitarbeiter._id }, { telefon });
+            updated++;
+          } else {
+            unchanged++;
+          }
           continue;
         }
 
@@ -588,6 +595,10 @@ router.post('/personal', upload.single('file'), async (req, res) => {
           const updateData = {
             personalnr: personalnr
           };
+
+          if (telefon) {
+            updateData.telefon = telefon;
+          }
 
           // Add to history if there was a previous value
           if (mitarbeiter.personalnr) {

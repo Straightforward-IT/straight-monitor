@@ -163,7 +163,7 @@
         <div class="card-header">
           <div class="header-content">
             <h2>Personal-Zuordnung</h2>
-            <p class="subtitle">Verknüpft Personalnr. via E-Mail</p>
+            <p class="subtitle">Verknüpft Personalnr. via E-Mail und fügt Telefonnummer hinzu</p>
           </div>
           <span v-if="personalFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
         </div>
@@ -189,7 +189,7 @@
             <details>
               <summary>Benötigte Spalten anzeigen</summary>
               <div class="table-scroll">
-                <table class="req-table"><tbody><tr><td>Personalnr (Col A)</td><td>E-Mail (Col B)</td></tr></tbody></table>
+                <table class="req-table"><tbody><tr><td>Personalnr (Col A)</td><td>E-Mail (Col B)</td><td>Telefon (Col C)</td></tr></tbody></table>
               </div>
             </details>
           </div>

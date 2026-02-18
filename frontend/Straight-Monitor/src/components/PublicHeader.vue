@@ -2,8 +2,7 @@
   <header class="public-header">
     <div class="left">
       <img :src="logoSrc" class="logo" alt="logo" />
-      <h1 v-if="vorname">{{ vorname }}</h1>
-      <h1 v-else>Straight Monitor</h1>
+      <h1>Straightforward</h1>
     </div>
 
     <!-- Right Side (Desktop) -->
