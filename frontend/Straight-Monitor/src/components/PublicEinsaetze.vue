@@ -72,7 +72,7 @@
         <!-- Event Report (Teamleiter) -->
         <PublicEventReport
           v-else-if="currentView === 'eventreport'"
-          :einsaetze="einsaetze"
+          :einsaetze="recentEinsaetze"
           :mitarbeiter="mitarbeiter"
           :api="api"
           :email="email"
@@ -114,6 +114,12 @@ const loading = ref(true);
 const error = ref('');
 const mitarbeiter = ref(null);
 const einsaetze = ref([]);
+
+const recentEinsaetze = computed(() => {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  return einsaetze.value.filter(e => e.datumVon && new Date(e.datumVon) >= cutoff);
+});
 
 // Navigation
 const currentView = ref('dashboard');

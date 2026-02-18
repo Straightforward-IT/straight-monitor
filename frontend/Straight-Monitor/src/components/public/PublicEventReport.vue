@@ -143,9 +143,47 @@
       </div>
 
       <!-- Text fields -->
+      <!-- Mitarbeiter & Job -->
       <div class="form-group">
         <label>Mitarbeiter & Job</label>
-        <textarea v-model="form.mitarbeiter_job" rows="3" placeholder="Wie haben die Mitarbeiter ihre Aufgaben erledigt?"></textarea>
+
+        <!-- Remaining chips -->
+        <div v-if="availableMitarbeiter.length" class="ma-chips">
+          <button
+            v-for="ma in availableMitarbeiter"
+            :key="ma.personalNr"
+            type="button"
+            class="ma-chip"
+            @click="addMitarbeiterRow(ma)"
+          >
+            + {{ maDisplayName(ma) }}
+          </button>
+        </div>
+
+        <!-- Per-Mitarbeiter rows -->
+        <div class="ma-rows">
+          <div v-for="row in mitarbeiterRows" :key="row.personalNr" class="ma-row">
+            <div class="ma-row-field">
+              <span class="ma-row-legend">{{ row.name }}</span>
+              <textarea
+                v-model="row.text"
+                class="ma-row-input"
+                rows="2"
+                :placeholder="'Feedback zu ' + row.name + '…'"
+              ></textarea>
+              <button type="button" class="ma-row-remove" @click="removeMitarbeiterRow(row)">
+                <font-awesome-icon icon="fa-solid fa-times" />
+              </button>
+            </div>
+          </div>
+          <!-- Fallback free-text if no Mitarbeiter loaded -->
+          <textarea
+            v-if="!einsatzMitarbeiter.length"
+            v-model="form.mitarbeiter_job"
+            rows="3"
+            placeholder="Wie haben die Mitarbeiter ihre Aufgaben erledigt?"
+          ></textarea>
+        </div>
       </div>
 
       <div class="form-group">
@@ -188,6 +226,26 @@ const selectedEinsatzId = ref(props.prefillEinsatz?._id || '');
 const showEinsatzPicker = ref(false);
 const submitSuccess = ref(false);
 const submitting = ref(false);
+const einsatzMitarbeiter = ref([]);
+const mitarbeiterRows = ref([]); // { personalNr, name, text }
+
+const availableMitarbeiter = computed(() =>
+  einsatzMitarbeiter.value.filter(ma => !mitarbeiterRows.value.find(r => r.personalNr === ma.personalNr))
+);
+
+function maDisplayName(ma) {
+  const first = ma.vorname || ma.bezeichnung || '';
+  const last = ma.nachname || '';
+  return (first + ' ' + last).trim();
+}
+
+function addMitarbeiterRow(ma) {
+  mitarbeiterRows.value.push({ personalNr: ma.personalNr, name: maDisplayName(ma), text: '' });
+}
+
+function removeMitarbeiterRow(row) {
+  mitarbeiterRows.value = mitarbeiterRows.value.filter(r => r.personalNr !== row.personalNr);
+}
 
 const teamleiterName = computed(() =>
   `${props.mitarbeiter.vorname} ${props.mitarbeiter.nachname}`
@@ -234,11 +292,32 @@ function prefillFromEinsatz(einsatz) {
   form.datum = einsatz.datumVon ? new Date(einsatz.datumVon).toISOString().split('T')[0] : '';
   form.location = einsatz.auftrag?.geschSt || einsatz.auftrag?.eventOrt || '';
   form.kunde = einsatz.auftrag?.eventTitel || einsatz.bezeichnung || '';
+  loadEinsatzMitarbeiter(einsatz.auftragNr);
 }
+
+async function loadEinsatzMitarbeiter(auftragNr) {
+  if (!auftragNr) return;
+  mitarbeiterRows.value = [];
+  try {
+    const res = await props.api.get('/api/public/einsatz-mitarbeiter', { params: { auftragNr } });
+    const all = [];
+    (res.data || []).forEach(s => s.mitarbeiter?.forEach(ma => {
+      if (!all.find(m => m.personalNr === ma.personalNr)) all.push(ma);
+    }));
+    einsatzMitarbeiter.value = all;
+    mitarbeiterRows.value = [];
+    // Pre-fill Mitarbeiter count
+    if (all.length) form.mitarbeiter_anzahl = String(all.length);
+  } catch { einsatzMitarbeiter.value = []; }
+}
+
+
 
 function resetForm() {
   submitSuccess.value = false;
   selectedEinsatzId.value = '';
+  mitarbeiterRows.value = [];
+  einsatzMitarbeiter.value = [];
   Object.keys(form).forEach(k => form[k] = '');
 }
 
@@ -255,7 +334,9 @@ async function submitReport() {
       puenktlichkeit: form.puenktlichkeit,
       erscheinungsbild: form.erscheinungsbild,
       team: form.team,
-      mitarbeiter_job: form.mitarbeiter_job,
+      mitarbeiter_job: mitarbeiterRows.value.length
+        ? mitarbeiterRows.value.filter(r => r.text.trim()).map(r => `• ${r.name}: ${r.text.trim()}`).join('\n')
+        : form.mitarbeiter_job,
       feedback_auftraggeber: form.feedback_auftraggeber,
       sonstiges: form.sonstiges,
       teamleiter_email: props.email
@@ -273,6 +354,118 @@ async function submitReport() {
 <style scoped>
 .eventreport-view {
   padding: 0 0 2rem;
+}
+
+.ma-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.ma-chip {
+  background: var(--tile-bg);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.ma-chip:active,
+.ma-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(238, 175, 103, 0.08);
+}
+
+.ma-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.ma-row-pill {
+  display: none;
+}
+
+.ma-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.ma-row-field {
+  position: relative;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 1.1rem 0.65rem 0.5rem;
+  margin: 0;
+  transition: border-color 0.2s;
+  background: var(--tile-bg);
+}
+
+.ma-row-field:focus-within {
+  border-color: var(--primary);
+}
+
+.ma-row-legend {
+  position: absolute;
+  top: 0;
+  left: 0.6rem;
+  transform: translateY(-50%);
+  background: linear-gradient(to bottom, var(--bg) 50%, var(--tile-bg) 50%);
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0 0.25rem;
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.ma-row-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  box-shadow: none;
+  padding: 0.1rem 1.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text);
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+  line-height: 1.4;
+  display: block;
+}
+
+.ma-row-input:focus {
+  outline: none;
+}
+
+.ma-row-remove {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.4rem;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.2rem;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 1;
+}
+
+.ma-row-remove:hover {
+  color: #e74c3c;
 }
 
 .back-btn {
@@ -374,7 +567,7 @@ async function submitReport() {
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea:not(.ma-row-input) {
   width: 100%;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--border);
@@ -390,7 +583,7 @@ async function submitReport() {
 }
 
 .form-group input:focus,
-.form-group textarea:focus {
+.form-group textarea:not(.ma-row-input):focus {
   outline: none;
   border-color: var(--primary);
 }
