@@ -446,12 +446,16 @@ const toggleTheme = async () => {
   // Toggle local theme store
   theme.toggle();
   
-  // Try to sync with Flip Bridge
+  // Try to sync with Flip Bridge (may not be supported in all contexts)
   try {
     await setTheme(newTheme);
     console.log(`🎨 Flip theme updated to: ${newTheme}`);
   } catch (e) {
-    console.warn('Flip Bridge setTheme failed (running outside Flip?):', e.code || e);
+    // INVALID_REQUEST means setTheme is not available in this context (e.g., regular app vs admin)
+    // This is expected behavior - Flip Bridge subscription still works for Flip → App sync
+    if (e?.code !== 'INVALID_REQUEST') {
+      console.warn('Flip Bridge setTheme failed:', e.code || e);
+    }
   }
 };
 
