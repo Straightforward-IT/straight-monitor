@@ -78,7 +78,7 @@
         <!-- Straight Button -->
         <template v-if="showTooltips">
           <custom-tooltip
-            text="Straight-Profil"
+            text="Monitor-Profil"
             :position="tooltipPosition"
             :delay-in="150"
           >

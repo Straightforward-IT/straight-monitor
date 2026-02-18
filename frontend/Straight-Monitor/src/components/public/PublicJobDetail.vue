@@ -23,7 +23,7 @@
       <div class="info-card">
         <div class="info-icon"><font-awesome-icon icon="fa-solid fa-calendar" /></div>
         <div class="info-content">
-          <span class="info-label">Zeitraum</span>
+          <span class="info-label">Datum</span>
           <span class="info-value">{{ formatZeitraum(einsatz.datumVon, einsatz.datumBis) }}</span>
         </div>
       </div>

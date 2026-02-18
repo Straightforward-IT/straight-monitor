@@ -329,11 +329,15 @@
             :personDetails="personDetails"
             :filteredTeamleiter="filteredTeamleiter"
             :filteredMitarbeiter="filteredMitarbeiter"
+            :linkedEvaluierung="linkedEvaluierung"
+            :linkedLaufzettel="linkedLaufzettel"
             @close="closeDoc"
             @assign="openAssignDialog"
             @filter-teamleiter="filterByTeamleiter"
             @filter-mitarbeiter="filterByMitarbeiter"
             @open-employee="openMitarbeiterCard"
+            @open-laufzettel="openLinkedLaufzettel"
+            @open-evaluierung="openLinkedEvaluierung"
           />
         </div>
       </div>
@@ -641,6 +645,30 @@ export default {
       return result;
     },
 
+    linkedEvaluierung() {
+      if (!this.selectedDoc || this.selectedDoc.docType !== 'Laufzettel') return null;
+      const lzId = String(this.selectedDoc._id);
+      return this.documents.find(d =>
+        d.docType === 'Evaluierung' && (
+          String(d.details?.laufzettel?._id) === lzId ||
+          String(d.details?.laufzettel) === lzId
+        )
+      ) || null;
+    },
+
+    linkedLaufzettel() {
+      if (!this.selectedDoc || this.selectedDoc.docType !== 'Evaluierung') return null;
+      const lzRef = this.selectedDoc.details?.laufzettel;
+      if (!lzRef) return null;
+      const lzId = String(lzRef?._id || lzRef);
+      return this.documents.find(d =>
+        d.docType === 'Laufzettel' && (
+          String(d._id) === lzId ||
+          String(d.details?._id) === lzId
+        )
+      ) || null;
+    },
+
     filteredDocumentsSorted() {
       const arr = [...this.filteredDocuments];
       
@@ -861,62 +889,6 @@ export default {
       }
     },
 
-    async fetchPersonDetails(name) {
-      if (!name || this.personDetails[name]) return this.personDetails[name];
-      
-      try {
-        const response = await api.get(`/api/personal/mitarbeiter/by-name/${encodeURIComponent(name)}`);
-        if (response.data?.success && response.data?.data) {
-          this.personDetails[name] = response.data.data;
-          return response.data.data;
-        }
-      } catch (error) {
-        console.warn(`Could not fetch details for ${name}:`, error.message);
-      }
-      return null;
-    },
-
-    async openAsanaTask(name, event) {
-      event.stopPropagation();
-      event.preventDefault();
-      
-      const person = await this.fetchPersonDetails(name);
-      if (person?.asana_id) {
-        const asanaWebUrl = `https://app.asana.com/0/0/${person.asana_id}`;
-        window.open(asanaWebUrl, '_blank');
-      } else {
-        console.warn(`No Asana ID found for ${name}`);
-      }
-    },
-
-    async fetchPersonDetails(name) {
-      if (!name || this.personDetails[name]) return this.personDetails[name];
-      
-      try {
-        const response = await api.get(`/api/personal/mitarbeiter/by-name/${encodeURIComponent(name)}`);
-        if (response.data?.success && response.data?.data) {
-          this.personDetails[name] = response.data.data;
-          return response.data.data;
-        }
-      } catch (error) {
-        console.warn(`Could not fetch details for ${name}:`, error.message);
-      }
-      return null;
-    },
-
-    async openAsanaTask(name, event) {
-      event.stopPropagation();
-      event.preventDefault();
-      
-      const person = await this.fetchPersonDetails(name);
-      if (person?.asana_id) {
-        const asanaWebUrl = `https://app.asana.com/0/0/${person.asana_id}`;
-        window.open(asanaWebUrl, '_blank');
-      } else {
-        console.warn(`No Asana ID found for ${name}`);
-      }
-    },
-
     getPersonTooltip(name, role) {
       const isFiltered = role === 'teamleiter' 
         ? this.filteredTeamleiter === name 
@@ -970,6 +942,52 @@ export default {
     closeMitarbeiterCard() {
       this.selectedMitarbeiter = null;
       this.fullMitarbeiterData = null;
+    },
+
+    async openLinkedEvaluierung(evaluierungId) {
+      if (!evaluierungId) return;
+      const ev = this.documents.find(
+        d => d.docType === 'Evaluierung' && (
+          String(d._id) === String(evaluierungId) ||
+          String(d.details?._id) === String(evaluierungId)
+        )
+      );
+      if (ev) {
+        this.selectedDoc = ev;
+        if (ev.details?.name_teamleiter) await this.fetchPersonDetails(ev.details.name_teamleiter);
+        if (ev.details?.name_mitarbeiter) await this.fetchPersonDetails(ev.details.name_mitarbeiter);
+      }
+    },
+
+    async openLinkedLaufzettel(laufzettelId) {
+      if (!laufzettelId) return;
+      // Suche den Laufzettel in den bereits geladenen Dokumenten
+      // documents[i]._id ist die Top-Level-ID des formatted doc (= details._id)
+      const lz = this.documents.find(
+        d => d.docType === 'Laufzettel' && (
+          String(d._id) === String(laufzettelId) ||
+          String(d.details?._id) === String(laufzettelId)
+        )
+      );
+      if (lz) {
+        this.selectedDoc = lz;
+        if (lz.details?.name_teamleiter) {
+          await this.fetchPersonDetails(lz.details.name_teamleiter);
+        }
+        if (lz.details?.name_mitarbeiter) {
+          await this.fetchPersonDetails(lz.details.name_mitarbeiter);
+        }
+      } else {
+        // Fallback: direkt via API laden
+        try {
+          const res = await api.get(`/api/docs/laufzettel/${laufzettelId}`);
+          if (res.data) {
+            this.selectedDoc = res.data;
+          }
+        } catch (e) {
+          console.error('Laufzettel nicht gefunden:', e);
+        }
+      }
     },
 
     resetFiltersExceptSearch() {
@@ -1986,7 +2004,6 @@ export default {
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 4px;
-  text-decoration: underline;
   transition: 140ms ease;
   font-family: inherit;
   font-size: inherit;

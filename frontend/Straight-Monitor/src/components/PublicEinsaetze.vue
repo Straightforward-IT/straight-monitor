@@ -50,9 +50,12 @@
         <!-- Laufzettel -->
         <PublicLaufzettel
           v-else-if="currentView === 'laufzettel'"
-          :received="laufzettelReceived"
           :submitted="laufzettelSubmitted"
+          :einsaetze="einsaetze"
+          :api="api"
+          :email="email"
           @back="navigateTo('dashboard')"
+          @laufzettel-submitted="loadData"
         />
 
         <!-- Evaluierungen (Teamleiter) -->
@@ -61,6 +64,17 @@
           :received="laufzettelReceived"
           :submitted="evaluierungenSubmitted"
           @back="navigateTo('dashboard')"
+          @write-evaluierung="openEvaluierungForm"
+        />
+
+        <!-- Evaluierung schreiben -->
+        <PublicEvaluierung
+          v-else-if="currentView === 'evaluierung' && selectedLaufzettel"
+          :laufzettel="selectedLaufzettel"
+          :api="api"
+          :email="email"
+          @back="navigateTo('evaluierungen')"
+          @evaluierung-submitted="loadData"
         />
 
         <!-- Vergangene Jobs -->
@@ -107,6 +121,7 @@ import PublicDashboard from './public/PublicDashboard.vue';
 import PublicKalender from './public/PublicKalender.vue';
 import PublicLaufzettel from './public/PublicLaufzettel.vue';
 import PublicEvaluierungen from './public/PublicEvaluierungen.vue';
+import PublicEvaluierung from './public/PublicEvaluierung.vue';
 import PublicVergangeneJobs from './public/PublicVergangeneJobs.vue';
 import PublicJobDetail from './public/PublicJobDetail.vue';
 import PublicEventReport from './public/PublicEventReport.vue';
@@ -140,6 +155,7 @@ const currentView = ref('dashboard');
 const previousView = ref('dashboard');
 const selectedJob = ref(null);
 const reportPrefillEinsatz = ref(null);
+const selectedLaufzettel = ref(null);
 
 // Persist nav state to localStorage
 function navStateKey() {
@@ -209,6 +225,11 @@ function goBackFromJob() {
   currentView.value = previousView.value || 'dashboard';
   selectedJob.value = null;
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function openEvaluierungForm(lz) {
+  selectedLaufzettel.value = lz;
+  navigateTo('evaluierung');
 }
 
 function writeReportForJob(einsatz) {

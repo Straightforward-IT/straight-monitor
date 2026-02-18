@@ -108,6 +108,31 @@
               </button>
             </dd>
           </div>
+
+          <!-- Evaluierung Link (nur für Laufzettel, immer anzeigen) -->
+          <div v-if="doc.docType === 'Laufzettel'">
+            <dt>Evaluierung</dt>
+            <dd>
+              <button v-if="linkedEvaluierung" class="link-btn" @click="$emit('open-evaluierung', linkedEvaluierung._id)">
+                <img :src="evaluierungImg" alt="Evaluierung" class="link-doc-icon" />
+                {{ linkedEvaluierung.details?.name_mitarbeiter }} – {{ linkedEvaluierung.details?.name_teamleiter }}
+              </button>
+              <span v-else class="unassigned-name">Keine Evaluierung verknüpft</span>
+            </dd>
+          </div>
+
+          <!-- Laufzettel Link (nur für Evaluierung, immer anzeigen) -->
+          <div v-if="doc.docType === 'Evaluierung'">
+            <dt>Laufzettel</dt>
+            <dd>
+              <button v-if="linkedLaufzettel" class="link-btn" @click="$emit('open-laufzettel', getLaufzettelId())">
+                <img :src="laufzettelImg" alt="Laufzettel" class="link-doc-icon" />
+                {{ linkedLaufzettel.details?.name_teamleiter }} – {{ linkedLaufzettel.details?.name_mitarbeiter }}
+              </button>
+              <span v-else-if="doc.details?.laufzettel" class="unassigned-name">Laufzettel nicht geladen</span>
+              <span v-else class="unassigned-name">Kein Laufzettel verknüpft</span>
+            </dd>
+          </div>
         </div>
       </section>
 
@@ -154,23 +179,27 @@
 </template>
 
 <script>
-import { computed, ref, onMounted, onBeforeUnmount } from "vue";
+import { computed } from "vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
 import asanaLogo from "@/assets/asana.png";
 import laufzettelIcon from "@/assets/laufzettel.png";
+import laufzettelDarkIcon from "@/assets/laufzettel-dark.png";
 import eventreportIcon from "@/assets/eventreport.png";
+import eventreportDarkIcon from "@/assets/eventreport-dark.png";
 import evaluierungIcon from "@/assets/evaluierung.png";
-
+import evaluierungDarkIcon from "@/assets/evaluierung-dark.png";
 import {
   faLink,
   faCircleExclamation,
   faList,
   faFilter,
+  faFileLines,
+  faClipboardCheck,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faLink, faCircleExclamation, faList, faFilter);
+library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck);
 
 export default {
   name: "DocumentCard",
@@ -179,34 +208,30 @@ export default {
     doc: { type: Object, required: true },
     personDetails: { type: Object, default: () => ({}) },
     filteredTeamleiter: { type: String, default: null },
-    filteredMitarbeiter: { type: String, default: null }
+    filteredMitarbeiter: { type: String, default: null },
+    linkedEvaluierung: { type: Object, default: null },
+    linkedLaufzettel: { type: Object, default: null }
   },
-  emits: ["close", "assign", "filter-teamleiter", "filter-mitarbeiter", "open-employee"],
+  emits: ["close", "assign", "filter-teamleiter", "filter-mitarbeiter", "open-employee", "open-laufzettel", "open-evaluierung"],
 
   setup(props) {
     const theme = useTheme();
-    
-    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
-    const systemDark = ref(media ? media.matches : false);
-    const handleMedia = (e) => (systemDark.value = e.matches);
-    onMounted(() => media && media.addEventListener?.("change", handleMedia));
-    onBeforeUnmount(() => media && media.removeEventListener?.("change", handleMedia));
 
-    const effectiveTheme = computed(() => {
-      if (theme.current === "system") return systemDark.value ? "dark" : "light";
-      return theme.current || "light";
-    });
+    const isDark = computed(() => theme.isDark);
+    const laufzettelImg = computed(() => isDark.value ? laufzettelDarkIcon : laufzettelIcon);
+    const evaluierungImg = computed(() => isDark.value ? evaluierungDarkIcon : evaluierungIcon);
+    const eventreportImg = computed(() => isDark.value ? eventreportDarkIcon : eventreportIcon);
 
-    return { effectiveTheme, asanaLogo, laufzettelIcon, eventreportIcon, evaluierungIcon };
+    return { asanaLogo, laufzettelImg, evaluierungImg, eventreportImg };
   },
 
   computed: {
     docTypeImage() {
       const type = (this.doc.docType || '').toLowerCase();
-      if (type.includes('laufzettel')) return laufzettelIcon;
-      if (type.includes('event') || type.includes('bericht')) return eventreportIcon;
-      if (type.includes('evaluierung')) return evaluierungIcon;
-      return eventreportIcon; // fallback
+      if (type.includes('laufzettel')) return this.laufzettelImg;
+      if (type.includes('event') || type.includes('bericht')) return this.eventreportImg;
+      if (type.includes('evaluierung')) return this.evaluierungImg;
+      return this.eventreportImg;
     },
     statusClass() {
       const status = (this.doc.status || '').toLowerCase();
@@ -222,7 +247,7 @@ export default {
     },
     filteredDetails() {
       if (!this.doc.details) return {};
-      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id'];
+      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date'];
       const filtered = {};
       for (const [key, value] of Object.entries(this.doc.details)) {
         if (!excludeKeys.includes(key)) {
@@ -277,6 +302,18 @@ export default {
         const asanaWebUrl = `https://app.asana.com/0/0/${asanaId}`;
         window.open(asanaWebUrl, '_blank');
       }
+    },
+    getLaufzettelId() {
+      const lz = this.doc.details?.laufzettel;
+      if (!lz) return null;
+      if (typeof lz === 'string') return lz;
+      return lz._id || null;
+    },
+    getLaufzettelLabel() {
+      const lz = this.doc.details?.laufzettel;
+      if (!lz) return 'Verknüpfter Laufzettel';
+      if (typeof lz === 'object' && lz.task_id) return `Laufzettel #${lz.task_id}`;
+      return 'Verknüpfter Laufzettel';
     }
   }
 };
@@ -425,7 +462,6 @@ export default {
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 4px;
-  text-decoration: underline;
   transition: 140ms ease;
   font-family: inherit;
   font-size: inherit;
@@ -483,6 +519,15 @@ export default {
   width: 14px;
   height: 14px;
   object-fit: contain;
+}
+
+.link-doc-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  margin-right: 5px;
+  vertical-align: middle;
+  image-rendering: crisp-edges;
 }
 
 /* Raw Details Section */

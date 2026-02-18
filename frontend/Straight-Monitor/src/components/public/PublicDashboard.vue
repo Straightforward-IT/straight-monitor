@@ -65,7 +65,7 @@
     </div>
 
     <!-- Upcoming jobs -->
-    <div v-if="upcomingEinsaetze.length > 0" class="section">
+    <div class="section">
       <h2 class="section-title">Nächste Jobs</h2>
       <div
         v-for="einsatz in upcomingEinsaetze"
@@ -91,6 +91,7 @@
         </div>
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="soon-arrow" />
       </div>
+      <p v-if="upcomingEinsaetze.length === 0" class="empty-hint">Keine bevorstehenden Jobs.</p>
     </div>
   </div>
 </template>
@@ -352,5 +353,12 @@ const upcomingEinsaetze = computed(() => {
   display: flex;
   align-items: center;
   gap: 0.3rem;
+}
+
+.empty-hint {
+  font-size: 0.875rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 0.75rem 0;
 }
 </style>

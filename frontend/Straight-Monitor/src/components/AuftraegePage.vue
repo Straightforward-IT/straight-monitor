@@ -974,7 +974,10 @@ export default {
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return dateStr; // Fallback if invalid date
       
-      return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      // Use UTC to avoid timezone shifting the 1899 Excel base date
+      const h = String(d.getUTCHours()).padStart(2, '0');
+      const m = String(d.getUTCMinutes()).padStart(2, '0');
+      return `${h}:${m}`;
     },
     formatDateTime(dateStr) {
       if (!dateStr) return '-';
