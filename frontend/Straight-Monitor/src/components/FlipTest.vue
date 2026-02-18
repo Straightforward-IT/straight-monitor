@@ -68,8 +68,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-// Import Flip Bridge
-import { initFlipBridge, showToast, getTheme, subscribe, BridgeEventType } from '@getflip/bridge';
+// Import Flip Bridge (Bridge wird zentral in App.vue initialisiert)
+import { showToast, getTheme, subscribe, BridgeEventType } from '@getflip/bridge';
 
 const route = useRoute();
 const queryParams = computed(() => route.query);
@@ -217,17 +217,16 @@ function checkWindowObjects() {
 
 async function initBridge() {
   try {
-    bridgeStatus.value = 'Initializing...';
-    // Initialize the bridge
-    initFlipBridge({
-      hostAppOrigin: '*', // Allow any origin for testing
-      debug: true        // Enable debug logs in console
-    });
-    bridgeStatus.value = 'Initialized (Check Console)';
+    bridgeStatus.value = 'Checking...';
+    // Bridge wird zentral in App.vue initialisiert
+    // Hier nur testen ob sie verfügbar ist
+    const theme = await getTheme();
+    bridgeStatus.value = 'Bridge is available! (initialized in App.vue)';
+    bridgeResult.value = 'Current theme: ' + JSON.stringify(theme);
   } catch (err) {
-    console.error("Bridge Init Error:", err);
-    bridgeStatus.value = 'Failed';
-    bridgeError.value = String(err);
+    console.error("Bridge not available:", err);
+    bridgeStatus.value = 'Not Available (running outside Flip?)';
+    bridgeError.value = err.code || String(err);
   }
 }
 

@@ -50,7 +50,7 @@ import { computed, ref, onMounted } from "vue";
 import darkLogo from "@/assets/SF_000.svg";
 import lightLogo from "@/assets/SF_002.png";
 import { useTheme } from "@/stores/theme";
-import { getTheme, initFlipBridge, subscribe, BridgeEventType } from '@getflip/bridge';
+import { getTheme } from '@getflip/bridge';
 
 const props = defineProps({
   vorname: {
@@ -72,10 +72,7 @@ const handleThemeToggle = () => {
 
 onMounted(async () => {
   try {
-    // Initialize Flip Bridge
-    initFlipBridge({ hostAppOrigin: '*' });
-    
-    // Get initial theme
+    // Bridge wird zentral in App.vue initialisiert, hier nur Theme abrufen
     const t = await getTheme();
     const active = t?.activeTheme || t;
 
@@ -86,20 +83,9 @@ onMounted(async () => {
     } else {
       flipResponse.value = 'default';
     }
-    
-    // Subscribe to theme changes
-    await subscribe(BridgeEventType.THEME_CHANGE, (event) => {
-      if (event?.data?.activeTheme) {
-        const newTheme = event.data.activeTheme;
-        flipResponse.value = newTheme;
-        theme.set(newTheme);
-        document.documentElement.setAttribute("data-theme", newTheme);
-        console.log(`Theme changed to: ${newTheme}`);
-      }
-    });
   } catch (e) {
     flipResponse.value = 'extern';
-    // console.warn('Flip theme fetch failed in header', e);
+    // App läuft außerhalb von Flip - normal behavior
   }
 });
 </script>

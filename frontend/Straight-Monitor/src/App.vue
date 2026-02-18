@@ -31,53 +31,50 @@ const updateAppMargin = () => {
   }
 };
 
-// Theme setzen basierend auf Flip Bridge
-const syncTheme = async () => {
+// Zentrale Flip Bridge Initialisierung (nur EINMAL in der ganzen App)
+let flipBridgeInitialized = false;
+let themeUnsubscribe = null;
+
+const initializeFlipBridge = async () => {
+  if (flipBridgeInitialized) return;
+  
   try {
-    // Versuchen, die Bridge zu initialisieren
-    // hostAppOrigin: '*' erlaubt Kommunikation mit beliebigen Origins (für Tests/Dev hilfreich),
-    // in Prod wäre die spezifische Flip-Origin besser, aber '*' funktioniert oft.
-    initFlipBridge({ hostAppOrigin: '*' });
+    initFlipBridge({ 
+      hostAppOrigin: '*',
+      debug: false 
+    });
+    flipBridgeInitialized = true;
+    console.log("✅ Flip Bridge initialized");
     
-    // Nach Init: Theme abfragen
-    const theme = await getTheme(); // returns { activeTheme: 'light' | 'dark', preferredTheme: ... }
+    // Initial theme holen
+    const theme = await getTheme();
     if (theme?.activeTheme) {
       document.documentElement.setAttribute("data-theme", theme.activeTheme);
     }
-  } catch (e) {
-    // Fehler abfangen: Wahrscheinlich laufen wir nicht im Flip IFrame
-    console.warn("Flip Bridge init failed (running outside Flip?):", e);
-    // Hier könnte man einen Fallback setzen, z.B. force light mode
-    // document.documentElement.setAttribute("data-theme", "light");
-  }
-};
-
-// Subscribe to theme changes from Flip
-const subscribeToThemeChanges = async () => {
-  try {
-    initFlipBridge({ hostAppOrigin: '*' });
-    const unsubscribe = await subscribe(BridgeEventType.THEME_CHANGE, (event) => {
+    
+    // Theme changes abonnieren
+    themeUnsubscribe = await subscribe(BridgeEventType.THEME_CHANGE, (event) => {
       if (event?.data?.activeTheme) {
         document.documentElement.setAttribute("data-theme", event.data.activeTheme);
-        console.log(`Theme changed to: ${event.data.activeTheme}`);
+        console.log(`🎨 Theme changed to: ${event.data.activeTheme}`);
       }
     });
     
-    // Cleanup function when component unmounts
-    onBeforeUnmount(async () => {
-      if (unsubscribe) {
-        await unsubscribe();
-      }
-    });
   } catch (e) {
-    console.warn("Flip Bridge theme subscription failed:", e);
+    console.warn("Flip Bridge not available (running outside Flip App):", e.code || e);
   }
 };
 
+// Cleanup bei Unmount
+onBeforeUnmount(async () => {
+  if (themeUnsubscribe) {
+    await themeUnsubscribe();
+  }
+});
+
 onMounted(() => {
   updateAppMargin();
-  syncTheme();
-  subscribeToThemeChanges();
+  initializeFlipBridge(); // Einmalige Bridge-Initialisierung
 });
 
 // Watch for route changes
@@ -87,7 +84,6 @@ watch(route, () => {
     : "Straight Monitor";
 
   updateAppMargin();
-  syncTheme();
 });
 
 // Ensure margin is set correctly when the app loads
