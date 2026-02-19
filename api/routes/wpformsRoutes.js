@@ -1622,15 +1622,15 @@ router.get(
 );
 
 // ============================================
-// 📌 MIGRATION: Laufzettel v1 → v2
-// Mergt alte EvaluierungMA-Dokumente in die zugehörigen Laufzettel
-// und konvertiert sie in das v2-Format.
+// 📌 MIGRATION: Laufzettel v1 → v2  +  Cleanup
 //
-// Stufe 1: EvaluierungMA mit direkter laufzettel-Referenz
-// Stufe 2: Fuzzy-Match via mitarbeiter + teamleiter + datum (±24h)
+// Stufe 1: EvaluierungMA mit direkter laufzettel-Referenz → in Laufzettel mergen
+// Stufe 2: Fuzzy-Match via mitarbeiter + teamleiter + datum
+// Stufe 3: Alle verbleibenden v1-Laufzettel löschen
+//          Alle EvaluierungMA-Dokumente löschen (komplett obsolet)
 //
 // Query-Params:
-//   ?dry_run=true  → nur analysieren, nichts speichern
+//   ?dry_run=true  → nur analysieren, nichts speichern/löschen
 // ============================================
 router.post(
   "/migrate/v1-to-v2",
@@ -1643,6 +1643,7 @@ router.post(
       dry_run: dryRun,
       stage1: { matched: 0, skipped_already_v2: 0, laufzettel_not_found: 0, items: [] },
       stage2: { matched: 0, no_match: 0, items: [] },
+      stage3: { laufzettel_v1_deleted: 0, evaluierungen_deleted: 0, laufzettel_v1_ids: [], evaluierung_ids: [] },
       unmatched_evaluierungen: [],
     };
 
@@ -1664,33 +1665,21 @@ router.post(
       if (!lz) {
         logger.warn(`⚠️ Laufzettel ${laufzettelId} nicht gefunden (EvaluierungMA: ${ev._id})`);
         results.stage1.laufzettel_not_found++;
-        results.stage1.items.push({
-          evaluierung_id: ev._id,
-          laufzettel_id: laufzettelId,
-          reason: "laufzettel_not_found",
-        });
+        results.stage1.items.push({ evaluierung_id: ev._id, laufzettel_id: laufzettelId, reason: "laufzettel_not_found" });
         continue;
       }
 
       if (lz.version === "v2") {
         logger.debug(`⏭️ Laufzettel ${lz._id} ist bereits v2 – übersprungen`);
         results.stage1.skipped_already_v2++;
-        results.stage1.items.push({
-          evaluierung_id: ev._id,
-          laufzettel_id: lz._id,
-          reason: "already_v2",
-        });
+        results.stage1.items.push({ evaluierung_id: ev._id, laufzettel_id: lz._id, reason: "already_v2" });
         migratedLaufzettelIds.add(lz._id.toString());
         continue;
       }
 
       results.stage1.matched++;
       migratedLaufzettelIds.add(lz._id.toString());
-      results.stage1.items.push({
-        evaluierung_id: ev._id,
-        laufzettel_id: lz._id,
-        reason: "migrated",
-      });
+      results.stage1.items.push({ evaluierung_id: ev._id, laufzettel_id: lz._id, reason: "migrated" });
 
       if (!dryRun) {
         await Laufzettel.findByIdAndUpdate(lz._id, {
@@ -1704,7 +1693,6 @@ router.post(
             technische_fertigkeiten: ev.technische_fertigkeiten,
             lernbereitschaft: ev.lernbereitschaft,
             sonstiges: ev.sonstiges,
-            // Referenzen aus Evaluierung übernehmen falls im Laufzettel leer
             ...((!lz.mitarbeiter && ev.mitarbeiter) && { mitarbeiter: ev.mitarbeiter }),
             ...((!lz.teamleiter && ev.teamleiter) && { teamleiter: ev.teamleiter }),
           },
@@ -1717,13 +1705,9 @@ router.post(
 
     // ──────────────────────────────────────────────────
     // STUFE 2: Fuzzy-Match (kein laufzettel-Ref)
-    // Matching via mitarbeiter + teamleiter + datum (±24h)
     // ──────────────────────────────────────────────────
     const evalWithoutRef = await EvaluierungMA.find({
-      $or: [
-        { laufzettel: { $exists: false } },
-        { laufzettel: null },
-      ],
+      $or: [{ laufzettel: { $exists: false } }, { laufzettel: null }],
     }).lean();
 
     logger.info(`📋 Stufe 2: ${evalWithoutRef.length} Evaluierungen ohne laufzettel-Referenz`);
@@ -1733,7 +1717,6 @@ router.post(
       const teamleiterId = ev.teamleiter?._id || ev.teamleiter;
       const datum = ev.datum ? new Date(ev.datum) : null;
 
-      // Fuzzy-Match benötigt mindestens eine Personen-Referenz + Datum
       if (!datum || (!mitarbeiterId && !teamleiterId)) {
         logger.debug(`⏭️ EvaluierungMA ${ev._id}: nicht genug Infos für Fuzzy-Match`);
         results.stage2.no_match++;
@@ -1741,30 +1724,18 @@ router.post(
         continue;
       }
 
-      // ±24h Fenster um das Datum
       const dayStart = new Date(datum);
       dayStart.setHours(0, 0, 0, 0);
       const dayEnd = new Date(datum);
       dayEnd.setHours(23, 59, 59, 999);
 
-      const query = {
-        datum: { $gte: dayStart, $lte: dayEnd },
-        version: { $ne: "v2" },
-      };
+      const query = { datum: { $gte: dayStart, $lte: dayEnd }, version: { $ne: "v2" } };
       if (mitarbeiterId) query.mitarbeiter = mitarbeiterId;
       if (teamleiterId) query.teamleiter = teamleiterId;
-
-      // Namen-Fallback falls keine ObjectId-Refs vorhanden
-      if (!mitarbeiterId && ev.name_mitarbeiter) {
-        query.name_mitarbeiter = { $regex: new RegExp(ev.name_mitarbeiter.trim(), "i") };
-      }
-      if (!teamleiterId && ev.name_teamleiter) {
-        query.name_teamleiter = { $regex: new RegExp(ev.name_teamleiter.trim(), "i") };
-      }
+      if (!mitarbeiterId && ev.name_mitarbeiter) query.name_mitarbeiter = { $regex: new RegExp(ev.name_mitarbeiter.trim(), "i") };
+      if (!teamleiterId && ev.name_teamleiter) query.name_teamleiter = { $regex: new RegExp(ev.name_teamleiter.trim(), "i") };
 
       const candidates = await Laufzettel.find(query).lean();
-
-      // Noch nicht durch Stufe 1 migrierte Kandidaten bevorzugen
       const notYetMigrated = candidates.filter((c) => !migratedLaufzettelIds.has(c._id.toString()));
       const candidate = notYetMigrated[0] || candidates[0];
 
@@ -1786,11 +1757,7 @@ router.post(
       results.stage2.items.push({
         evaluierung_id: ev._id,
         laufzettel_id: candidate._id,
-        match_basis: {
-          mitarbeiter: !!mitarbeiterId,
-          teamleiter: !!teamleiterId,
-          datum: datum.toISOString(),
-        },
+        match_basis: { mitarbeiter: !!mitarbeiterId, teamleiter: !!teamleiterId, datum: datum.toISOString() },
       });
 
       if (!dryRun) {
@@ -1809,12 +1776,37 @@ router.post(
             ...((!candidate.teamleiter && teamleiterId) && { teamleiter: teamleiterId }),
           },
         });
-        logger.info(
-          `✅ Stufe 2: Laufzettel ${candidate._id} → v2 (via Fuzzy-Match, EvaluierungMA: ${ev._id})`
-        );
+        logger.info(`✅ Stufe 2: Laufzettel ${candidate._id} → v2 (Fuzzy-Match, EvaluierungMA: ${ev._id})`);
       } else {
         logger.info(`[DRY RUN] Stufe 2: Laufzettel ${candidate._id} würde → v2`);
       }
+    }
+
+    // ──────────────────────────────────────────────────
+    // STUFE 3: Cleanup – alle verbleibenden v1-Dokumente löschen
+    //   • Laufzettel ohne version: "v2"
+    //   • Alle EvaluierungMA (komplett obsolet nach Migration)
+    // ──────────────────────────────────────────────────
+    const v1Laufzettel = await Laufzettel.find({ version: { $ne: "v2" } }).lean();
+    const allEvaluierungen = await EvaluierungMA.find({}).lean();
+
+    results.stage3.laufzettel_v1_ids = v1Laufzettel.map((l) => ({ _id: l._id, name_mitarbeiter: l.name_mitarbeiter, datum: l.datum }));
+    results.stage3.evaluierung_ids = allEvaluierungen.map((e) => ({ _id: e._id, name_mitarbeiter: e.name_mitarbeiter, datum: e.datum }));
+    results.stage3.laufzettel_v1_deleted = v1Laufzettel.length;
+    results.stage3.evaluierungen_deleted = allEvaluierungen.length;
+
+    if (!dryRun) {
+      if (v1Laufzettel.length > 0) {
+        const ids = v1Laufzettel.map((l) => l._id);
+        await Laufzettel.deleteMany({ _id: { $in: ids } });
+        logger.info(`🗑️ Stufe 3: ${v1Laufzettel.length} v1-Laufzettel gelöscht`);
+      }
+      if (allEvaluierungen.length > 0) {
+        await EvaluierungMA.deleteMany({});
+        logger.info(`🗑️ Stufe 3: ${allEvaluierungen.length} EvaluierungMA-Dokumente gelöscht`);
+      }
+    } else {
+      logger.info(`[DRY RUN] Stufe 3: ${v1Laufzettel.length} v1-Laufzettel + ${allEvaluierungen.length} EvaluierungMA würden gelöscht`);
     }
 
     const summary = {
@@ -1824,10 +1816,11 @@ router.post(
       stage2_matched: results.stage2.matched,
       stage2_no_match: results.stage2.no_match,
       total_migrated: results.stage1.matched + results.stage2.matched,
-      unmatched_count: results.unmatched_evaluierungen.length,
+      stage3_laufzettel_v1_deleted: results.stage3.laufzettel_v1_deleted,
+      stage3_evaluierungen_deleted: results.stage3.evaluierungen_deleted,
     };
 
-    logger.info(`✅ Migration abgeschlossen:`, summary);
+    logger.info(`✅ Migration + Cleanup abgeschlossen:`, summary);
 
     res.status(200).json({
       success: true,

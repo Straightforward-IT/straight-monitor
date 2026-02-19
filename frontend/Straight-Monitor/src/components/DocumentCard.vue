@@ -109,30 +109,7 @@
             </dd>
           </div>
 
-          <!-- Evaluierung Link (nur für Laufzettel, immer anzeigen) -->
-          <div v-if="doc.docType === 'Laufzettel'">
-            <dt>Evaluierung</dt>
-            <dd>
-              <button v-if="linkedEvaluierung" class="link-btn" @click="$emit('open-evaluierung', linkedEvaluierung._id)">
-                <img :src="evaluierungImg" alt="Evaluierung" class="link-doc-icon" />
-                {{ linkedEvaluierung.details?.name_mitarbeiter }} – {{ linkedEvaluierung.details?.name_teamleiter }}
-              </button>
-              <span v-else class="unassigned-name">Keine Evaluierung verknüpft</span>
-            </dd>
-          </div>
 
-          <!-- Laufzettel Link (nur für Evaluierung, immer anzeigen) -->
-          <div v-if="doc.docType === 'Evaluierung'">
-            <dt>Laufzettel</dt>
-            <dd>
-              <button v-if="linkedLaufzettel" class="link-btn" @click="$emit('open-laufzettel', getLaufzettelId())">
-                <img :src="laufzettelImg" alt="Laufzettel" class="link-doc-icon" />
-                {{ linkedLaufzettel.details?.name_teamleiter }} – {{ linkedLaufzettel.details?.name_mitarbeiter }}
-              </button>
-              <span v-else-if="doc.details?.laufzettel" class="unassigned-name">Laufzettel nicht geladen</span>
-              <span v-else class="unassigned-name">Kein Laufzettel verknüpft</span>
-            </dd>
-          </div>
         </div>
       </section>
 
@@ -155,13 +132,21 @@
         </div>
       </section>
 
-      <!-- Evaluierung-Felder (nur für v2 Laufzettel mit Status ABGESCHLOSSEN) -->
-      <section v-if="doc.docType === 'Laufzettel' && doc.details?.version === 'v2' && doc.details?.status === 'ABGESCHLOSSEN'" class="feedback-section">
+      <!-- Bewertung (alle Laufzettel) -->
+      <section v-if="doc.docType === 'Laufzettel'" class="feedback-section">
         <h4 class="section-title">
           <font-awesome-icon icon="fa-solid fa-clipboard-check" class="section-icon" />
-          Evaluierung
+          Bewertung
         </h4>
-        <div class="kv-list">
+
+        <!-- Noch offen -->
+        <div v-if="doc.details?.status !== 'ABGESCHLOSSEN'" class="pending-hint">
+          <font-awesome-icon icon="fa-solid fa-clock" class="pending-icon" />
+          Bewertung steht noch aus
+        </div>
+
+        <!-- Abgeschlossen: Felder anzeigen -->
+        <div v-else class="kv-list">
           <div v-if="doc.details?.kunde" class="kv-item">
             <span class="key">Kunde</span>
             <span class="value">{{ doc.details.kunde }}</span>
@@ -266,10 +251,8 @@ export default {
     personDetails: { type: Object, default: () => ({}) },
     filteredTeamleiter: { type: String, default: null },
     filteredMitarbeiter: { type: String, default: null },
-    linkedEvaluierung: { type: Object, default: null },
-    linkedLaufzettel: { type: Object, default: null }
   },
-  emits: ["close", "assign", "filter-teamleiter", "filter-mitarbeiter", "open-employee", "open-laufzettel", "open-evaluierung"],
+  emits: ["close", "assign", "filter-teamleiter", "filter-mitarbeiter", "open-employee"],
 
   setup(props) {
     const theme = useTheme();
@@ -365,18 +348,7 @@ export default {
         window.open(asanaWebUrl, '_blank');
       }
     },
-    getLaufzettelId() {
-      const lz = this.doc.details?.laufzettel;
-      if (!lz) return null;
-      if (typeof lz === 'string') return lz;
-      return lz._id || null;
-    },
-    getLaufzettelLabel() {
-      const lz = this.doc.details?.laufzettel;
-      if (!lz) return 'Verknüpfter Laufzettel';
-      if (typeof lz === 'object' && lz.task_id) return `Laufzettel #${lz.task_id}`;
-      return 'Verknüpfter Laufzettel';
-    }
+
   }
 };
 </script>
@@ -682,6 +654,21 @@ export default {
 }
 
 /* Feedback Section */
+.pending-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.9rem;
+  padding: 4px 0;
+
+  .pending-icon {
+    color: #f6a019;
+    opacity: 0.85;
+  }
+}
+
 .feedback-section {
   background: var(--bg);
   padding: 16px;

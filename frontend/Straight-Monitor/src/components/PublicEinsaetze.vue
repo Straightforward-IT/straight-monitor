@@ -62,7 +62,6 @@
         <PublicEvaluierungen
           v-else-if="currentView === 'evaluierungen'"
           :received="laufzettelReceived"
-          :submitted="evaluierungenSubmitted"
           @back="navigateTo('dashboard')"
           @write-evaluierung="openEvaluierungForm"
         />

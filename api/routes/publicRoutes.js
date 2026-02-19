@@ -40,13 +40,6 @@ router.get(
           { path: "mitarbeiter", select: "vorname nachname" },
           { path: "teamleiter", select: "vorname nachname" }
         ]
-      })
-      .populate({
-        path: "evaluierungen_submitted",
-        populate: [
-          { path: "mitarbeiter", select: "vorname nachname" },
-          { path: "teamleiter", select: "vorname nachname" }
-        ]
       });
 
     if (!mitarbeiter) {
@@ -54,17 +47,24 @@ router.get(
     }
 
     // Enrich laufzettel_submitted with status
-    const laufzettelIds = (mitarbeiter.laufzettel_submitted || []).map(l => l._id);
-    const evaluierungen = await EvaluierungMA.find(
-      { laufzettel: { $in: laufzettelIds } },
-      { laufzettel: 1 }
-    ).lean();
-    const bearbeitetSet = new Set(evaluierungen.map(e => String(e.laufzettel)));
-
+    // v2 docs have status directly; v1 docs fall back to checking for linked EvaluierungMA
     const mitarbeiterObj = mitarbeiter.toObject();
+    const v1Ids = mitarbeiterObj.laufzettel_submitted
+      .filter(l => !l.version || l.version !== 'v2')
+      .map(l => l._id);
+    const bearbeitetSet = new Set();
+    if (v1Ids.length > 0) {
+      const evaluierungen = await EvaluierungMA.find(
+        { laufzettel: { $in: v1Ids } },
+        { laufzettel: 1 }
+      ).lean();
+      evaluierungen.forEach(e => bearbeitetSet.add(String(e.laufzettel)));
+    }
     mitarbeiterObj.laufzettel_submitted = mitarbeiterObj.laufzettel_submitted.map(l => ({
       ...l,
-      status: bearbeitetSet.has(String(l._id)) ? "Bearbeitet" : "Eingereicht"
+      status: l.version === 'v2'
+        ? (l.status || 'OFFEN')   // use the document's own status
+        : (bearbeitetSet.has(String(l._id)) ? 'Bearbeitet' : 'Eingereicht')
     }));
 
     res.json(mitarbeiterObj);
@@ -427,7 +427,7 @@ router.post(
 
 // ──────────────────────────────────────────────
 // POST /api/public/evaluierung
-// Submit an EvaluierungMA linked to a Laufzettel
+// Merges evaluation fields into the existing Laufzettel (v2)
 // ──────────────────────────────────────────────
 router.post(
   "/evaluierung",
@@ -455,51 +455,28 @@ router.post(
       return res.status(404).json({ msg: "Teamleiter nicht gefunden" });
     }
 
-    // Resolve Laufzettel with mitarbeiter info
-    const laufzettel = await Laufzettel.findById(laufzettel_id).lean();
+    // Resolve and update Laufzettel
+    const laufzettel = await Laufzettel.findById(laufzettel_id);
     if (!laufzettel) {
       return res.status(404).json({ msg: "Laufzettel nicht gefunden" });
     }
 
-    // Resolve Mitarbeiter from Laufzettel
-    const mitarbeiter = laufzettel.mitarbeiter
-      ? await Mitarbeiter.findById(
-          typeof laufzettel.mitarbeiter === "object" ? laufzettel.mitarbeiter._id ?? laufzettel.mitarbeiter : laufzettel.mitarbeiter
-        )
-      : null;
+    // Merge evaluation fields into the Laufzettel (v2)
+    laufzettel.version = 'v2';
+    laufzettel.status = 'ABGESCHLOSSEN';
+    laufzettel.kunde = kunde;
+    if (puenktlichkeit) laufzettel.puenktlichkeit = puenktlichkeit;
+    if (grooming) laufzettel.grooming = grooming;
+    if (motivation) laufzettel.motivation = motivation;
+    if (technische_fertigkeiten) laufzettel.technische_fertigkeiten = technische_fertigkeiten;
+    if (lernbereitschaft) laufzettel.lernbereitschaft = lernbereitschaft;
+    if (sonstiges) laufzettel.sonstiges = sonstiges;
+    if (datum) laufzettel.datum = new Date(datum);
 
-    const evaluierung = new EvaluierungMA({
-      location: laufzettel.location || "",
-      datum: datum ? new Date(datum) : (laufzettel.datum || new Date()),
-      kunde,
-      name_teamleiter: laufzettel.name_teamleiter,
-      name_mitarbeiter: laufzettel.name_mitarbeiter,
-      puenktlichkeit: puenktlichkeit || "",
-      grooming: grooming || "",
-      motivation: motivation || "",
-      technische_fertigkeiten: technische_fertigkeiten || "",
-      lernbereitschaft: lernbereitschaft || "",
-      sonstiges: sonstiges || "",
-      teamleiter: teamleiter._id,
-      mitarbeiter: mitarbeiter?._id || null,
-      laufzettel: laufzettel._id,
-      assigned: true,
-    });
+    await laufzettel.save();
+    logger.info(`✅ Public Evaluierung merged into Laufzettel ${laufzettel._id} by ${email}`);
 
-    await evaluierung.save();
-    logger.info(`✅ Public Evaluierung created: ${evaluierung._id} by ${email}`);
-
-    // Link to Teamleiter evaluierungen_submitted
-    teamleiter.evaluierungen_submitted.push(evaluierung._id);
-    await teamleiter.save();
-
-    // Link to Mitarbeiter evaluierungen_received
-    if (mitarbeiter) {
-      mitarbeiter.evaluierungen_received.push(evaluierung._id);
-      await mitarbeiter.save();
-    }
-
-    res.status(201).json({ msg: "Evaluierung erfolgreich eingereicht", id: evaluierung._id });
+    res.status(200).json({ msg: "Bewertung erfolgreich gespeichert", id: laufzettel._id });
   })
 );
 

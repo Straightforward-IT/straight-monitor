@@ -290,15 +290,11 @@
             :personDetails="personDetails"
             :filteredTeamleiter="filteredTeamleiter"
             :filteredMitarbeiter="filteredMitarbeiter"
-            :linkedEvaluierung="linkedEvaluierung"
-            :linkedLaufzettel="linkedLaufzettel"
             @close="closeDoc"
             @assign="openAssignDialog"
             @filter-teamleiter="filterByTeamleiter"
             @filter-mitarbeiter="filterByMitarbeiter"
             @open-employee="openMitarbeiterCard"
-            @open-laufzettel="openLinkedLaufzettel"
-            @open-evaluierung="openLinkedEvaluierung"
           />
         </div>
       </div>
@@ -608,30 +604,6 @@ export default {
       }
 
       return result;
-    },
-
-    linkedEvaluierung() {
-      if (!this.selectedDoc || this.selectedDoc.docType !== 'Laufzettel') return null;
-      const lzId = String(this.selectedDoc._id);
-      return this.documents.find(d =>
-        d.docType === 'Evaluierung' && (
-          String(d.details?.laufzettel?._id) === lzId ||
-          String(d.details?.laufzettel) === lzId
-        )
-      ) || null;
-    },
-
-    linkedLaufzettel() {
-      if (!this.selectedDoc || this.selectedDoc.docType !== 'Evaluierung') return null;
-      const lzRef = this.selectedDoc.details?.laufzettel;
-      if (!lzRef) return null;
-      const lzId = String(lzRef?._id || lzRef);
-      return this.documents.find(d =>
-        d.docType === 'Laufzettel' && (
-          String(d._id) === lzId ||
-          String(d.details?._id) === lzId
-        )
-      ) || null;
     },
 
     filteredDocumentsSorted() {

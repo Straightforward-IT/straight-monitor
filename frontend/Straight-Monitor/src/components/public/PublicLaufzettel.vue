@@ -142,7 +142,7 @@
             {{ formatDate(doc.datum || doc.createdAt) }}
           </span>
         </div>
-        <span :class="['doc-status', doc.status === 'Bearbeitet' ? 'done' : 'submitted']">{{ doc.status || 'Eingereicht' }}</span>
+        <span :class="['doc-status', doc.status === 'ABGESCHLOSSEN' || doc.status === 'Bearbeitet' ? 'done' : 'submitted']">{{ doc.status === 'ABGESCHLOSSEN' ? 'Bewertet' : doc.status === 'Bearbeitet' ? 'Bewertet' : 'Eingereicht' }}</span>
       </div>
     </div>
 

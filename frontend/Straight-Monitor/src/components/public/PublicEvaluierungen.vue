@@ -30,23 +30,23 @@
       </div>
     </div>
 
-    <!-- Eingereicht: alle evaluierungen_submitted -->
+    <!-- Eingereicht: abgeschlossene Laufzettel -->
     <div class="section">
       <h3 class="section-title">
-        <font-awesome-icon icon="fa-solid fa-paper-plane" /> Eingereichte Evaluierungen
-        <span class="count">{{ submitted.length }}</span>
+        <font-awesome-icon icon="fa-solid fa-file-circle-check" /> Bewertungen eingereicht
+        <span class="count">{{ doneLaufzettel.length }}</span>
       </h3>
-      <div v-if="submitted.length === 0" class="empty">Noch keine Evaluierungen eingereicht.</div>
-      <div v-for="ev in sortedSubmitted" :key="ev._id" class="doc-card">
+      <div v-if="doneLaufzettel.length === 0" class="empty">Noch keine Bewertungen eingereicht.</div>
+      <div v-for="lz in doneLaufzettel" :key="lz._id" class="doc-card">
         <div class="doc-icon submitted-icon">
           <font-awesome-icon icon="fa-solid fa-file-circle-check" />
         </div>
         <div class="doc-info">
-          <span class="doc-title">{{ getEvaluierungLabel(ev) }}</span>
-          <span class="doc-date" v-if="ev.datum || ev.createdAt">{{ formatDate(ev.datum || ev.createdAt) }}</span>
-          <span class="doc-sub" v-if="ev.name_teamleiter">Teamleiter: {{ ev.name_teamleiter }}</span>
+          <span class="doc-title">{{ getLaufzettelLabel(lz) }}</span>
+          <span class="doc-date" v-if="lz.datum || lz.createdAt">{{ formatDate(lz.datum || lz.createdAt) }}</span>
+          <span class="doc-sub" v-if="lz.name_mitarbeiter">Mitarbeiter: {{ lz.name_mitarbeiter }}</span>
         </div>
-        <span class="doc-status done">Eingereicht</span>
+        <span class="doc-status done">Bewertet</span>
       </div>
     </div>
   </div>
@@ -57,46 +57,28 @@ import { computed } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
-  faArrowLeft, faClock, faPaperPlane, faFileLines, faFileCircleCheck, faPen
+  faArrowLeft, faClock, faCheckCircle, faFileLines, faFileCircleCheck, faPen
 } from '@fortawesome/free-solid-svg-icons';
 
-library.add(faArrowLeft, faClock, faPaperPlane, faFileLines, faFileCircleCheck, faPen);
+library.add(faArrowLeft, faClock, faCheckCircle, faFileLines, faFileCircleCheck, faPen);
 
 const props = defineProps({
-  received: { type: Array, default: () => [] },  // laufzettel_received
-  submitted: { type: Array, default: () => [] }, // evaluierungen_submitted
+  received: { type: Array, default: () => [] }, // laufzettel_received (all)
 });
 
 defineEmits(['back', 'write-evaluierung']);
 
-// ── Filter / sort ─────────────────────────────
-const submittedLaufzettelIds = computed(() => {
-  const ids = new Set();
-  for (const ev of props.submitted) {
-    const lz = ev.laufzettel;
-    if (!lz) continue;
-    let id;
-    if (typeof lz === 'string') {
-      id = lz;
-    } else if (lz._id) {
-      id = String(lz._id);
-    } else {
-      id = lz.toString();
-    }
-    if (id) ids.add(id);
-  }
-  return ids;
-});
-
+// ── Split by status ───────────────────────────
 const openLaufzettel = computed(() =>
   props.received
-    .filter(lz => !submittedLaufzettelIds.value.has(String(lz._id)))
+    .filter(lz => lz.status !== 'ABGESCHLOSSEN')
     .slice()
     .sort((a, b) => new Date(b.datum || b.createdAt) - new Date(a.datum || a.createdAt))
 );
 
-const sortedSubmitted = computed(() =>
-  props.submitted
+const doneLaufzettel = computed(() =>
+  props.received
+    .filter(lz => lz.status === 'ABGESCHLOSSEN')
     .slice()
     .sort((a, b) => new Date(b.datum || b.createdAt) - new Date(a.datum || a.createdAt))
 );
@@ -104,15 +86,7 @@ const sortedSubmitted = computed(() =>
 function getLaufzettelLabel(lz) {
   if (lz.name_mitarbeiter && lz.name_teamleiter)
     return `${lz.name_mitarbeiter} – ${lz.name_teamleiter}`;
-  if (lz.task_id) return `Laufzettel #${lz.task_id}`;
   return 'Laufzettel';
-}
-
-function getEvaluierungLabel(ev) {
-  if (ev.name_mitarbeiter && ev.name_teamleiter)
-    return `${ev.name_mitarbeiter} – ${ev.name_teamleiter}`;
-  if (ev.task_id) return `Evaluierung #${ev.task_id}`;
-  return 'Evaluierung';
 }
 
 function formatDate(d) {
