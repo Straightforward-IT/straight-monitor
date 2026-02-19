@@ -936,13 +936,14 @@ router.post('/personal_quali', upload.single('file'), async (req, res) => {
 
       // Prepare Bulk Update operation
       // Finding user by personalnr
+      // Use $set to fully replace berufe/qualifikationen — entries not in the import are removed
       operations.push({
         updateOne: {
           filter: { personalnr: pnr },
           update: { 
-            $addToSet: { 
-              berufe: { $each: berufIds },
-              qualifikationen: { $each: qualiIds }
+            $set: { 
+              berufe: berufIds,
+              qualifikationen: qualiIds
             } 
           }
         }

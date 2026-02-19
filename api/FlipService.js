@@ -1093,7 +1093,8 @@ async function syncFlipAttributes() {
       // Bestimme Attribute basierend auf Keys
       const isService = berufKeys.includes(10001);
       const isLogistik = berufKeys.includes(10002);
-      const isOffice = berufKeys.includes(10004) || berufKeys.includes(10005);
+      // isOffice temporarily disabled until classification is properly fixed
+      // const isOffice = berufKeys.includes(10004) || berufKeys.includes(10005);
       const isTeamLead = qualiKeys.includes(50055);
 
       // Lade aktuellen Flip-User für location/department
@@ -1112,7 +1113,8 @@ async function syncFlipAttributes() {
       
       if (isService) attributes.push({ name: "isService", value: "true" });
       if (isLogistik) attributes.push({ name: "isLogistik", value: "true" });
-      if (isOffice) attributes.push({ name: "isOffice", value: "true" });
+      // isOffice temporarily disabled:
+      // if (isOffice) attributes.push({ name: "isOffice", value: "true" });
       if (isTeamLead) attributes.push({ name: "isTeamLead", value: "true" });
 
       // Behalte bestehende Attribute (location, department) bei
