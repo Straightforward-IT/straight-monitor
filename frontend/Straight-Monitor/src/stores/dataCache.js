@@ -477,7 +477,7 @@ export const useDataCache = defineStore('dataCache', {
     async fullSyncDocuments() {
       try {
         console.log('[Cache] Full sync Documents...');
-        const response = await api.get('/api/wordpress/reports');
+        const response = await api.get('/api/reports/reports');
         const data = response.data?.data || response.data || [];
         
         await clearStore('documents');
@@ -502,7 +502,7 @@ export const useDataCache = defineStore('dataCache', {
         this.syncing.documents = true;
         const since = this.lastSync.documents;
         
-        const response = await api.get('/api/wordpress/reports/sync', {
+        const response = await api.get('/api/reports/reports/sync', {
           params: { since }
         });
         

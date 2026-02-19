@@ -66,6 +66,7 @@
 import Banner from "./LoginBanner.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
+import { useAuth } from "@/stores/auth";
 import Dashboard from "./Dashboard.vue";
 import Bestand from "./Bestand.vue"; // Import Bestand component
 import Shortcuts from "./Shortcuts.vue";
@@ -164,10 +165,8 @@ export default {
     switchToDashboard() {
       this.currentComponent = "Dashboard"; // Switch back to Dashboard
     },
-    logout() {
-      // Perform logout action
-      localStorage.removeItem("token"); // Clear token
-      this.$router.push("/"); // Redirect to home or login page
+    async logout() {
+      await useAuth().logout();
     },
   },
   mounted() {

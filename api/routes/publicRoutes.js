@@ -8,6 +8,7 @@ const Auftrag = require("../models/Auftrag");
 const Qualifikation = require("../models/Qualifikation");
 const { EventReport, Laufzettel, EvaluierungMA } = require("../models/Classes/FlipDocs");
 const logger = require("../utils/logger");
+const AsanaService = require("../AsanaService");
 
 // All routes in this file require FLIP_PUBLIC_JWT
 router.use(publicAuth);
@@ -192,6 +193,7 @@ router.post(
       erscheinungsbild,
       team,
       mitarbeiter_job,
+      mitarbeiter_feedback,
       feedback_auftraggeber,
       sonstiges,
       teamleiter_email,
@@ -207,6 +209,22 @@ router.post(
       teamleiter = await Mitarbeiter.findOne({ email: teamleiter_email.toLowerCase().trim() });
     }
 
+    // Resolve mitarbeiter_feedback personalNr → ObjectId + collect full MA data for Asana
+    let resolvedFeedback = [];
+    let maByNr = {}; // personalNr → { _id, asana_id, vorname, nachname }
+    if (Array.isArray(mitarbeiter_feedback) && mitarbeiter_feedback.length) {
+      const personalNrs = mitarbeiter_feedback.map(f => String(f.personalNr)).filter(Boolean);
+      const maLookup = await Mitarbeiter.find({ personalnr: { $in: personalNrs } })
+        .select('_id personalnr asana_id vorname nachname').lean();
+      maByNr = Object.fromEntries(maLookup.map(m => [String(m.personalnr), m]));
+      resolvedFeedback = mitarbeiter_feedback
+        .filter(f => f.text && f.text.trim())
+        .map(f => ({
+          mitarbeiter: maByNr[String(f.personalNr)]?._id || null,
+          text: f.text.trim(),
+        }));
+    }
+
     const eventReport = new EventReport({
       location,
       kunde,
@@ -218,6 +236,7 @@ router.post(
       erscheinungsbild: erscheinungsbild || "",
       team: team || "",
       mitarbeiter_job: mitarbeiter_job || "",
+      mitarbeiter_feedback: resolvedFeedback,
       feedback_auftraggeber: feedback_auftraggeber || "",
       sonstiges: sonstiges || "",
       teamleiter: teamleiter?._id,
@@ -227,13 +246,87 @@ router.post(
     await eventReport.save();
     logger.info(`✅ Public EventReport created: ${eventReport._id} by ${name_teamleiter}`);
 
-    // Link to Mitarbeiter if found
-    if (teamleiter) {
+    // v2: no array push – query-based referencing
+    // Legacy: still push to eventreports array for v1 compat
+    if (teamleiter && eventReport.version !== "v2") {
       teamleiter.eventreports.push(eventReport._id);
       await teamleiter.save();
     }
 
     res.status(201).json({ msg: "EventReport erfolgreich gespeichert", id: eventReport._id });
+
+    // ── Asana: Feedback-Subtask pro Mitarbeiter (fire-and-forget) ──
+    if (resolvedFeedback.length && auftragnummer) {
+      (async () => {
+        try {
+          // Auftrag-Infos laden
+          const auftrag = await Auftrag.findOne({ auftragNr: Number(auftragnummer) }).lean();
+          const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+
+          for (const fb of mitarbeiter_feedback.filter(f => f.text?.trim())) {
+            const ma = maByNr[String(fb.personalNr)];
+            if (!ma?.asana_id) continue;
+
+            try {
+              // 1) Subtasks des MA-Tasks holen
+              const subtasksRes = await AsanaService.getSubtaskByTask(ma.asana_id);
+              const subtasks = subtasksRes?.data || [];
+              let feedbackTask = subtasks.find(s => s.name === 'Feedback');
+
+              // 2) "Feedback"-Subtask erstellen falls nicht vorhanden
+              if (!feedbackTask) {
+                const created = await AsanaService.createSubtasksOnTask(ma.asana_id, {
+                  name: 'Feedback',
+                  notes: `Feedback von Laufzetteln und Event Reports für ${ma.vorname} ${ma.nachname}`,
+                });
+                feedbackTask = created?.data || created;
+              }
+
+              if (!feedbackTask?.gid) continue;
+
+              // 3) Sub-subtask mit Feedback-Text + Links
+              const eventTitle = auftrag?.eventTitel || kunde || `Auftrag #${auftragnummer}`;
+              const eventDate = fmtDate(auftrag?.vonDatum || datum);
+              const eventLocation = auftrag?.eventLocation || auftrag?.eventOrt || location || '';
+              const subtaskName = `${eventTitle} – ${eventDate}${eventLocation ? ` (${eventLocation})` : ''}`;
+
+              // HTML-Sonderzeichen escapen
+              const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              const feedbackText = esc(fb.text.trim());
+
+              const baseUrl = 'https://straightmonitor.com';
+              const auftragLink = auftragnummer
+                ? `${baseUrl}/auftraege?auftragnr=${auftragnummer}&amp;focusDate=${encodeURIComponent(auftrag?.vonDatum || datum || '')}`
+                : '';
+              const teamleiterLink = teamleiter?._id
+                ? `${baseUrl}/personal?mitarbeiter_id=${teamleiter._id}`
+                : '';
+              const berichtLink = `${baseUrl}/dokumente?docId=${eventReport._id}`;
+
+              const htmlBody = [
+                `Feedback von <strong>${esc(name_teamleiter)}</strong>:`,
+                feedbackText,
+                '',
+                teamleiterLink ? `<a href="${teamleiterLink}">Teamleiter öffnen</a>` : null,
+                auftragLink ? `<a href="${auftragLink}">Auftrag öffnen</a>` : null,
+                `<a href="${berichtLink}">Bericht öffnen</a>`,
+              ].filter(v => v != null).join('\n');
+
+              await AsanaService.createSubtasksOnTask(feedbackTask.gid, {
+                name: subtaskName,
+                html_notes: `<body>${htmlBody}</body>`,
+              });
+
+              logger.info(`✅ Asana Feedback-Subtask created for MA ${ma.vorname} ${ma.nachname} (${ma.asana_id})`);
+            } catch (asanaErr) {
+              logger.warn(`⚠️ Asana Feedback failed for MA ${ma.personalnr}: ${asanaErr.message}`);
+            }
+          }
+        } catch (err) {
+          logger.warn(`⚠️ Asana Feedback routine failed: ${err.message}`);
+        }
+      })();
+    }
   })
 );
 

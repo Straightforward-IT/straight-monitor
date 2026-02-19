@@ -460,8 +460,7 @@ const toggleTheme = async () => {
 };
 
 function logout() {
-  localStorage.removeItem("token");
-  window.location.href = "/";
+  auth.logout();
 }
 
 // ESC key handler

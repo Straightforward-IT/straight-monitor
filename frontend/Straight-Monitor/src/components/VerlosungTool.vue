@@ -509,7 +509,7 @@ const createVerlosung = async () => {
       anzahl_gewinner: form.value.anzahl_gewinner,
     };
 
-    const response = await api.post("/api/wordpress/verlosung/create", payload);
+    const response = await api.post("/api/reports/verlosung/create", payload);
 
     logger.apiSuccess("Verlosung erstellt", response.data);
     successMessage.value = `✅ Verlosung "${form.value.titel}" erfolgreich erstellt!`;
@@ -542,7 +542,7 @@ const resetForm = () => {
 
 const loadVerlosungen = async () => {
   try {
-    const response = await api.get("/api/wordpress/verlosung/list");
+    const response = await api.get("/api/reports/verlosung/list");
     verlosungen.value = response.data.data;
     logger.debug("Verlosungen geladen:", verlosungen.value);
   } catch (error) {
@@ -553,7 +553,7 @@ const loadVerlosungen = async () => {
 
 const schließeVerlosung = async (id) => {
   try {
-    await api.put(`/api/wordpress/verlosung/${id}/close`);
+    await api.put(`/api/reports/verlosung/${id}/close`);
     successMessage.value = "✅ Verlosung geschlossen!";
     loadVerlosungen();
   } catch (error) {
@@ -565,7 +565,7 @@ const schließeVerlosung = async (id) => {
 const zieheGewinner = async (id) => {
   try {
     errorMessage.value = "";
-    const response = await api.post(`/api/wordpress/verlosung/${id}/draw`);
+    const response = await api.post(`/api/reports/verlosung/${id}/draw`);
 
     // Gewinner-Daten speichern und Dialog öffnen
     currentWinner.value = response.data.gewinner;
@@ -586,7 +586,7 @@ const bestaetigenGewinner = async () => {
     successMessage.value = "";
 
     const response = await api.post(
-      `/api/wordpress/verlosung/${currentVerlosungId.value}/confirm-winner`,
+      `/api/reports/verlosung/${currentVerlosungId.value}/confirm-winner`,
       { eintrag_id: currentWinner.value.eintrag_id }
     );
 
@@ -646,7 +646,7 @@ const startRoulette = async () => {
   try {
     // 🎯 ZUERST: Gewinner vom Backend ziehen
     logger.debug("Ziehe Gewinner vom Backend...");
-    const response = await api.post(`/api/wordpress/verlosung/${selectedVerlosung.value._id}/draw`);
+    const response = await api.post(`/api/reports/verlosung/${selectedVerlosung.value._id}/draw`);
     const gewinner = response.data.gewinner;
     
     logger.debug("Gewinner gezogen:", gewinner);
@@ -754,7 +754,7 @@ const addTestTeilnehmer = async () => {
     
     // Rufe Backend-Endpoint auf, um echte Einträge zu erstellen
     const response = await api.post(
-      `/api/wordpress/verlosung/${selectedVerlosung.value._id}/add-test-participants`,
+      `/api/reports/verlosung/${selectedVerlosung.value._id}/add-test-participants`,
       { count: 50 }
     );
     
@@ -795,7 +795,7 @@ const seeDetails = (id) => {
 const deleteVerlosung = async (id) => {
   if (confirm("Verlosung wirklich löschen?")) {
     try {
-      await api.delete(`/api/wordpress/verlosung/${id}`);
+      await api.delete(`/api/reports/verlosung/${id}`);
       successMessage.value = "✅ Verlosung gelöscht!";
       loadVerlosungen();
     } catch (error) {

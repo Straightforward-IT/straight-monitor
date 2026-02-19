@@ -1683,8 +1683,13 @@ export default {
     this.loadFiltersFromCookie();
     
     // Check URL parameters for employee to expand
-    const { mitarbeiter_id, asana_id, flip_id } = this.$route.query;
+    const { mitarbeiter_id, asana_id, flip_id, search } = this.$route.query;
     this.expandedEmployeeId = mitarbeiter_id || asana_id || flip_id;
+    
+    // Pre-fill search from URL param
+    if (search) {
+      this.mitarbeitersSearchQuery = search;
+    }
     
     // 1) Token setzen, damit der Flip-Store dieselbe Axios-Instanz mit Auth nutzt
     this.setAxiosAuthToken();

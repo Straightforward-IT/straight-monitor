@@ -6,38 +6,6 @@
         <FilterPanel v-model:expanded="filtersExpanded" :locked="!!(filteredTeamleiter || filteredMitarbeiter)">
         <div class="filter-chips">
           <div class="chip-group">
-            <span class="chip-label">Status</span>
-            <div class="chips">
-              <button
-                class="chip"
-                :class="{ active: activeDocStatusFilter === 'Alle' }"
-                @click="setDocFilter('status', 'Alle')"
-              >
-                <font-awesome-icon icon="fa-solid fa-filter-circle-xmark" />
-                Alle
-              </button>
-              <button
-                class="chip"
-                :class="{ active: activeDocStatusFilter === 'Zugewiesen' }"
-                @click="setDocFilter('status', 'Zugewiesen')"
-              >
-                <font-awesome-icon icon="fa-solid fa-user-check" />
-                Zugewiesen
-              </button>
-              <button
-                class="chip"
-                :class="{ active: activeDocStatusFilter === 'Offen' }"
-                @click="setDocFilter('status', 'Offen')"
-              >
-                <font-awesome-icon icon="fa-regular fa-circle" />
-                Offen
-              </button>
-            </div>
-          </div>
-
-          <span class="divider" />
-          
-          <div class="chip-group">
             <span class="chip-label">Standort</span>
             <div class="chips">
               <button
@@ -68,11 +36,11 @@
             <div class="chips">
               <button
                 class="chip"
-                :class="{ active: activeDocTypeFilters.includes('Laufzettel') }"
-                @click="toggleDocTypeFilter('Laufzettel')"
+                :class="{ active: activeDocTypeFilters.includes('Laufzettel (v2)') }"
+                @click="toggleDocTypeFilter('Laufzettel (v2)')"
               >
-                <font-awesome-icon icon="fa-solid fa-list-check" />
-                Laufzettel
+                <font-awesome-icon icon="fa-solid fa-file-lines" />
+                Laufzettel (v2)
               </button>
               <button
                 class="chip"
@@ -81,14 +49,6 @@
               >
                 <font-awesome-icon icon="fa-solid fa-clipboard" />
                 Event Report
-              </button>
-              <button
-                class="chip"
-                :class="{ active: activeDocTypeFilters.includes('Evaluierung') }"
-                @click="toggleDocTypeFilter('Evaluierung')"
-              >
-                <font-awesome-icon icon="fa-solid fa-pen-clip" />
-                Evaluierung
               </button>
             </div>
           </div>
@@ -229,6 +189,7 @@
             >
               {{ doc.docType || "—" }}
             </span>
+            <span v-if="doc.version === 'v2'" class="version-badge">v2</span>
           </div>
           <div class="truncate">{{ doc.bezeichnung || "—" }}</div>
           <div>{{ formatDate(doc.datum) }}</div>
@@ -513,8 +474,7 @@ export default {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('dokumente_filters');
     let filterDefaults = {
-      activeDocStatusFilter: "Alle",
-      activeDocTypeFilters: ["Event-Bericht", "Evaluierung"],
+      activeDocTypeFilters: ["Laufzettel (v2)", "Event-Bericht"],
       activeDocLocationFilter: "Alle",
       filteredTeamleiter: null,
       filteredMitarbeiter: null,
@@ -552,7 +512,6 @@ export default {
       filtersExpanded: false,
 
       // filters and search (restored from session or defaults)
-      activeDocStatusFilter: filterDefaults.activeDocStatusFilter,
       activeDocTypeFilters: filterDefaults.activeDocTypeFilters,
       activeDocLocationFilter: filterDefaults.activeDocLocationFilter,
       filteredTeamleiter: filterDefaults.filteredTeamleiter,
@@ -588,11 +547,17 @@ export default {
     filteredDocuments() {
       let result = this.documents || [];
 
-      if (this.activeDocStatusFilter !== "Alle") {
-        result = result.filter((d) => (d.status || "") === this.activeDocStatusFilter);
-      }
       if (this.activeDocTypeFilters.length > 0) {
-        result = result.filter((d) => this.activeDocTypeFilters.includes(d.docType || ""));
+        const typeFilterFns = {
+          'Laufzettel': (d) => d.docType === 'Laufzettel' && d.version !== 'v2',
+          'Laufzettel (v2)': (d) => d.docType === 'Laufzettel' && d.version === 'v2',
+        };
+        result = result.filter((d) =>
+          this.activeDocTypeFilters.some((f) => {
+            const fn = typeFilterFns[f];
+            return fn ? fn(d) : (d.docType || '') === f;
+          })
+        );
       }
       if (this.activeDocLocationFilter !== "Alle") {
         result = result.filter((d) => {
@@ -721,9 +686,6 @@ export default {
       this.currentPage = 1;
       this.saveFilters();
     },
-    activeDocStatusFilter() {
-      this.saveFilters();
-    },
     activeDocTypeFilters: {
       handler() {
         this.saveFilters();
@@ -750,6 +712,9 @@ export default {
     },
     currentPage() {
       this.saveFilters();
+    },
+    '$route.query.docId'(docId) {
+      if (docId) this.handleDocIdParam(docId);
     },
   },
 
@@ -805,7 +770,6 @@ export default {
 
     saveFilters() {
       const filters = {
-        activeDocStatusFilter: this.activeDocStatusFilter,
         activeDocTypeFilters: this.activeDocTypeFilters,
         activeDocLocationFilter: this.activeDocLocationFilter,
         filteredTeamleiter: this.filteredTeamleiter,
@@ -820,7 +784,6 @@ export default {
     },
 
     setDocFilter(type, value) {
-      if (type === "status") this.activeDocStatusFilter = value;
       if (type === "location") this.activeDocLocationFilter = value;
       this.currentPage = 1;
     },
@@ -994,8 +957,7 @@ export default {
       // Reset all filters except search query
       this.filteredTeamleiter = null;
       this.filteredMitarbeiter = null;
-      this.activeDocStatusFilter = 'Alle';
-      this.activeDocTypeFilters = ['Event-Bericht', 'Evaluierung'];
+      this.activeDocTypeFilters = ['Laufzettel (v2)', 'Event-Bericht'];
       this.activeDocLocationFilter = 'Alle';
       // Keep documentsSearchQuery as is
       
@@ -1059,7 +1021,7 @@ export default {
         
         logger.debug('Assigning employee to document:', payload);
         
-        const response = await api.post('/api/wordpress/assign', payload);
+        const response = await api.post('/api/reports/assign', payload);
         
         if (response.data?.success) {
           logger.info(`✅ ${employee.vorname} ${employee.nachname} assigned as ${this.assignRole}`);
@@ -1096,6 +1058,30 @@ export default {
     setItemsPerPage(count) {
       this.itemsPerPage = count;
       this.currentPage = 1;
+    },
+
+    async handleDocIdParam(docId) {
+      try {
+        let targetDoc = this.documents.find(d => String(d._id) === String(docId));
+
+        if (!targetDoc) {
+          this.documents = await this.dataCache.loadDocuments(true);
+          await this.$nextTick();
+          targetDoc = this.documents.find(d => String(d._id) === String(docId));
+        }
+
+        if (targetDoc) {
+          await this.openDoc(targetDoc);
+        } else {
+          console.warn(`[Dokumente] docId=${docId} nicht gefunden`);
+        }
+      } catch (err) {
+        console.error('[Dokumente] handleDocIdParam error:', err);
+      } finally {
+        if (this.$route.query.docId) {
+          this.$router.replace({ query: {} });
+        }
+      }
     },
 
     async openDoc(doc) {
@@ -1239,6 +1225,12 @@ export default {
       this.$nextTick(() => {
         this.$router.replace({ query: {} });
       });
+    }
+
+    // 4) docId-Parameter: Dokument direkt öffnen
+    const docId = this.$route.query.docId;
+    if (docId) {
+      await this.handleDocIdParam(docId);
     }
 
     document.addEventListener('click', this.handleClickOutside);
@@ -1576,6 +1568,19 @@ export default {
   color: #1e8e57;
 }
 
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--brand-ink);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 .status {
   display: inline-flex;
   align-items: center;
@@ -1595,6 +1600,11 @@ export default {
 .status.offen {
   background: #fff7e6;
   color: #b46c00;
+}
+
+.status.abgeschlossen {
+  background: #eaf8f0;
+  color: #1e8e57;
 }
 
 /* Skeleton */

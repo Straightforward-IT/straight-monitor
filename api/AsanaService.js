@@ -553,8 +553,9 @@ async function createSubtasksOnTask(task_gid, data) {
         const response = await api.createSubtaskForTask(body, task_gid, opts);
         return response;
     } catch (error) {
-        console.error(`❌ Error creating Subtask on task ${task_gid}:`, error.response?.body || error.message);
-        throw new Error("Failed to create Subtask in Asana");
+        const detail = error.response?.body || error.message;
+        console.error(`❌ Error creating Subtask on task ${task_gid}:`, detail);
+        throw new Error(`Failed to create Subtask in Asana: ${typeof detail === 'object' ? JSON.stringify(detail) : detail}`);
     }
 }
 

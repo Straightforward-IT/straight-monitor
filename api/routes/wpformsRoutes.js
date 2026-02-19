@@ -6,21 +6,14 @@ const auth = require("../middleware/auth");
 
 const {
   Laufzettel,
-
+  LAUFZETTEL_STATUS,
   EventReport,
-
   EvaluierungMA,
-
   VerlosungEintrag,
-
   Verlosung,
-
   GUTSCHEIN_TYPES,
-
   GRAVUR_TYPES,
-
-  VERLOSUNG_STATUS
-
+  VERLOSUNG_STATUS,
 } = require("../models/Classes/FlipDocs");
 
 const { sendMail } = require("../EmailService"); // Ensure sendMail is properly imported
@@ -86,7 +79,7 @@ router.post(
     }
 
     if (type === "laufzettel") {
-      logger.info("📋 Processing Laufzettel...");
+      logger.info("📋 Processing Laufzettel (v2)...");
       const { location, name_mitarbeiter, name_teamleiter, email, datum } =
         req.body;
 
@@ -101,6 +94,7 @@ router.post(
       const mitarbeiter = await Mitarbeiter.findOne({ email });
       const teamleiterId = await findMitarbeiterByName(name_teamleiter);
 
+      // v2: Refs auf dem Laufzettel sind Source of Truth (keine Array-Pushes auf Mitarbeiter)
       parsedBody = new Laufzettel({
         location,
         name_mitarbeiter,
@@ -109,16 +103,14 @@ router.post(
         mitarbeiter: mitarbeiter?.id,
         teamleiter: teamleiterId,
         assigned: !!(mitarbeiter?.id && teamleiterId),
+        status: LAUFZETTEL_STATUS.OFFEN,
       });
 
       await parsedBody.save();
+      logger.info(`✅ Laufzettel v2 created: ${parsedBody._id}`);
 
-      logger.info(`✅ Laufzettel created: ${parsedBody._id}`);
-
+      // Asana Subtask für Mitarbeiter
       if (mitarbeiter?.id) {
-        logger.debug(`Assigning Laufzettel to Mitarbeiter: ${mitarbeiter._id}`);
-        await assignMitarbeiter(parsedBody._id, mitarbeiter.id);
-
         let formattedDate = formatDateFromDatum(datum);
         const data = {
           name: `LZ [${formattedDate}] - TL: ${name_teamleiter}`,
@@ -127,9 +119,7 @@ router.post(
 
         if (mitarbeiter.asana_id) {
           try {
-            logger.info(
-              `Creating Asana subtask for Mitarbeiter: ${mitarbeiter.asana_id}`
-            );
+            logger.info(`Creating Asana subtask for Mitarbeiter: ${mitarbeiter.asana_id}`);
             await createSubtasksOnTask(mitarbeiter.asana_id, data);
             logger.info("✅ Asana subtask created successfully");
           } catch (err) {
@@ -138,9 +128,7 @@ router.post(
               "it@straightforward.email",
               "❌ Fehler beim Erstellen eines Subtasks (Laufzettel)",
               `<h2>Subtask konnte nicht erstellt werden</h2>
-          <p><strong>Mitarbeiter:</strong> ${mitarbeiter.vorname} ${
-                mitarbeiter.nachname
-              }</p>
+          <p><strong>Mitarbeiter:</strong> ${mitarbeiter.vorname} ${mitarbeiter.nachname}</p>
           <pre>${JSON.stringify(data, null, 2)}</pre>
           <pre>${err.message}</pre>`
             );
@@ -155,14 +143,10 @@ router.post(
         }
       }
 
+      // Flip Task für Teamleiter
       if (teamleiterId) {
-        logger.info(`Assigning Laufzettel to Teamleiter: ${teamleiterId}`);
-        const task = await assignTeamleiter(parsedBody._id, teamleiterId);
-        if (task?.id) {
-          parsedBody.task_id = task.id;
-          await parsedBody.save();
-          logger.info(`✅ Flip task created: ${task.id}`);
-        }
+        logger.info(`Creating Flip task for Teamleiter: ${teamleiterId}`);
+        await assignTeamleiter(parsedBody._id, teamleiterId);
       }
 
       if (!teamleiterId || !mitarbeiter) {
@@ -178,109 +162,68 @@ router.post(
         );
       }
     } else if (type === "event_report") {
-      logger.info("📊 Processing Event Report...");
+      logger.info("📊 Processing Event Report (v2)...");
       const {
         location,
-
         name_teamleiter,
-
         email,
-
         datum,
-
         kunde,
-
         puenktlichkeit,
-
         erscheinungsbild,
-
         team,
-
         mitarbeiter_job,
-
         mitarbeiter_anzahl,
-
         feedback_auftraggeber,
-
         sonstiges,
       } = req.body;
 
       let teamleiter = await Mitarbeiter.findOne({ email });
 
+      // v2: Ref auf dem EventReport ist Source of Truth (kein Array-Push auf Mitarbeiter)
       parsedBody = new EventReport({
         location,
-
         name_teamleiter,
-
         datum,
-
         kunde,
-
         puenktlichkeit,
-
         erscheinungsbild,
-
         team,
-
         mitarbeiter_job,
-
         mitarbeiter_anzahl,
-
         feedback_auftraggeber,
-
         sonstiges,
-
         teamleiter: teamleiter?._id,
-
         assigned: !!teamleiter,
       });
 
       await parsedBody.save();
-
-      logger.info(`✅ Event Report created: ${parsedBody._id}`);
+      logger.info(`✅ Event Report v2 created: ${parsedBody._id}`);
 
       if (!teamleiter) {
         sendMail(
           "it@straightforward.email",
-
           "Eventreport konnte nicht assigned werden",
-
           `<h2>Neuer Eventreport eingegangen</h2>${parsedBody
-
             .toHtml()
-
             .replace(/\n/g, "<br />")}`
         );
-      } else {
-        await assignTeamleiter(parsedBody._id, teamleiter._id);
       }
     } else if (type === "evaluierung") {
       logger.info("📝 Processing Evaluierung...");
       const {
         location,
-
         laufzettel_id,
-
         name_teamleiter,
-
         email,
-
         datum,
-
         kunde,
-
         name_mitarbeiter,
-
         puenktlichkeit,
-
         grooming,
-
         motivation,
-
         technische_fertigkeiten,
-
         lernbereitschaft,
-
         sonstiges,
       } = req.body;
 
@@ -291,8 +234,87 @@ router.post(
         datum,
       });
 
-      const mitarbeiterId = await findMitarbeiterByName(name_mitarbeiter);
+      // ── v2: Laufzettel direkt updaten (wenn laufzettel_id vorhanden) ──
+      if (laufzettel_id) {
+        const laufzettel = await Laufzettel.findById(laufzettel_id);
 
+        if (!laufzettel) {
+          logger.warn(`⚠️ Laufzettel not found: ${laufzettel_id}`);
+          return res.status(404).json({
+            success: false,
+            error: `Laufzettel ${laufzettel_id} nicht gefunden`,
+          });
+        }
+
+        if (laufzettel.version === "v2") {
+          logger.info(`📝 v2: Updating Laufzettel ${laufzettel_id} with Evaluierung...`);
+
+          // Evaluierung-Felder auf dem Laufzettel setzen
+          laufzettel.kunde = kunde;
+          laufzettel.puenktlichkeit = puenktlichkeit;
+          laufzettel.grooming = grooming;
+          laufzettel.motivation = motivation;
+          laufzettel.technische_fertigkeiten = technische_fertigkeiten;
+          laufzettel.lernbereitschaft = lernbereitschaft;
+          laufzettel.sonstiges = sonstiges;
+          laufzettel.status = LAUFZETTEL_STATUS.ABGESCHLOSSEN;
+
+          await laufzettel.save();
+          parsedBody = laufzettel;
+          logger.info(`✅ Laufzettel v2 ${laufzettel._id} → ABGESCHLOSSEN`);
+
+          // Asana Subtask abschließen + Kommentar
+          const mitarbeiterId = laufzettel.mitarbeiter?._id || laufzettel.mitarbeiter;
+          if (mitarbeiterId) {
+            const mitarbeiter = await Mitarbeiter.findById(mitarbeiterId);
+            if (mitarbeiter?.asana_id) {
+              const formattedDate = formatDateFromDatum(datum || laufzettel.datum);
+              const taskResponse = await getTaskById(mitarbeiter.asana_id);
+              const task = taskResponse?.data || taskResponse;
+              const taskId = task?.gid;
+
+              if (taskId) {
+                // Subtask suchen und abschließen
+                const subtaskResponse = await getSubtaskByTask(taskId);
+                const subtasks = Array.isArray(subtaskResponse?.data) ? subtaskResponse.data : [];
+                const matchingSubtask = subtasks.find(
+                  (sub) =>
+                    (sub.name?.includes(formattedDate) && sub.name?.includes(name_teamleiter)) ||
+                    sub.name?.includes(formattedDate) ||
+                    sub.name?.includes(name_teamleiter)
+                );
+
+                if (matchingSubtask && !matchingSubtask.completed) {
+                  await completeTaskById(matchingSubtask.gid);
+                  logger.info("✅ Asana Subtask marked complete");
+                }
+
+                // Kommentar erstellen
+                const commentData = {
+                  html_text: `<body><strong>Evaluierung erhalten</strong>\n\n${laufzettel.toHtml()}</body>`,
+                };
+                const commentResponse = await createStoryOnTask(task.gid, commentData);
+                if (commentResponse?.data?.gid) {
+                  logger.info("✅ Asana Kommentar erstellt:", commentResponse.data.gid);
+                } else {
+                  logger.error("❌ Fehler beim Kommentieren (Asana)");
+                }
+              }
+            }
+          }
+
+          // Response direkt senden (kein Legacy-Flow)
+          return res.status(200).json({
+            success: true,
+            message: "Laufzettel v2 mit Evaluierung abgeschlossen",
+            document: parsedBody,
+          });
+        }
+      }
+
+      // ── Legacy (v1): EvaluierungMA als eigenes Dokument erstellen ──
+      logger.info("📝 Legacy v1: Creating separate EvaluierungMA...");
+      const mitarbeiterId = await findMitarbeiterByName(name_mitarbeiter);
       let teamleiter = await Mitarbeiter.findOne({ email });
 
       parsedBody = new EvaluierungMA({
@@ -314,7 +336,8 @@ router.post(
       });
 
       await parsedBody.save();
-      logger.info(`✅ Evaluierung created: ${parsedBody._id}`);
+      logger.info(`✅ EvaluierungMA (legacy) created: ${parsedBody._id}`);
+
       if (mitarbeiterId) {
         logger.debug(`Assigning Evaluierung to Mitarbeiter: ${mitarbeiterId}`);
         await assignMitarbeiter(parsedBody._id, mitarbeiterId);
@@ -333,104 +356,50 @@ router.post(
         );
       }
 
-      // ✅ Asana Kommentar & Subtask abschließen
-
+      // ✅ Asana Kommentar & Subtask abschließen (Legacy)
       if (mitarbeiterId) {
-        logger.info("Processing Asana workflow for Evaluierung...");
+        logger.info("Processing Asana workflow for Evaluierung (legacy)...");
         const mitarbeiter = await Mitarbeiter.findById(mitarbeiterId);
 
         if (mitarbeiter?.asana_id) {
           const formattedDate = formatDateFromDatum(datum);
-          logger.debug(`Formatted date: ${formattedDate}`);
-
           const taskResponse = await getTaskById(mitarbeiter.asana_id);
-
-          const task = taskResponse?.data || taskResponse; // fallback if data exists
-
+          const task = taskResponse?.data || taskResponse;
           const taskId = task?.gid;
 
-          if (!taskId) {
-            logger.warn(
-              "⚠️ Kein gültiger Asana Task gefunden für",
+          if (taskId) {
+            const subtaskResponse = await getSubtaskByTask(taskId);
+            const subtasks = Array.isArray(subtaskResponse?.data) ? subtaskResponse.data : [];
 
-              mitarbeiter.asana_id
+            const matchingSubtask = subtasks.find(
+              (sub) =>
+                (sub.name?.includes(formattedDate) && sub.name?.includes(name_teamleiter)) ||
+                sub.name?.includes(formattedDate) ||
+                sub.name?.includes(name_teamleiter)
             );
 
-            return;
-          }
-
-          logger.debug(`Found Asana task: ${taskId}`);
-
-          const subtaskResponse = await getSubtaskByTask(taskId);
-
-          const subtasks = Array.isArray(subtaskResponse?.data)
-            ? subtaskResponse.data
-            : [];
-
-          logger.debug(`Found ${subtasks.length} subtasks`);
-
-          const matchingSubtask = subtasks.find(
-            (sub) =>
-              (sub.name?.includes(formattedDate) &&
-                sub.name?.includes(name_teamleiter)) ||
-              sub.name?.includes(formattedDate) ||
-              sub.name?.includes(name_teamleiter)
-          );
-
-          if (matchingSubtask) {
-            logger.info(
-              `Found matching subtask: ${matchingSubtask.name} (${matchingSubtask.gid})`
-            );
-            if (!matchingSubtask.completed) {
+            if (matchingSubtask && !matchingSubtask.completed) {
               await completeTaskById(matchingSubtask.gid);
-
               logger.info("✅ Asana Subtask marked complete");
-            } else {
-              logger.info("ℹ️ Asana Subtask already completed");
             }
-          } else {
-            logger.warn(
-              `⚠️ No matching Asana Subtask found. Searched for: "${formattedDate}" and "${name_teamleiter}"`
-            );
-          }
 
-          const data = {
-            html_text: `<body><strong>Evaluierung erhalten</strong>\n\n${parsedBody.toHtml()}</body>`,
-          };
-
-          const commentResponse = await createStoryOnTask(task.gid, data);
-
-          if (!commentResponse || !commentResponse.data?.gid) {
-            logger.error(
-              "❌ Fehler beim Kommentieren einer Evaluierung (Asana)"
-            );
-
-            await sendMail(
-              "it@straightforward.email",
-
-              "❌ Fehler beim Kommentieren einer Evaluierung (Asana)",
-
-              `
-
-<h2>Fehler beim Erstellen eines Kommentars</h2>
-
+            const data = {
+              html_text: `<body><strong>Evaluierung erhalten</strong>\n\n${parsedBody.toHtml()}</body>`,
+            };
+            const commentResponse = await createStoryOnTask(task.gid, data);
+            if (!commentResponse?.data?.gid) {
+              logger.error("❌ Fehler beim Kommentieren einer Evaluierung (Asana)");
+              await sendMail(
+                "it@straightforward.email",
+                "❌ Fehler beim Kommentieren einer Evaluierung (Asana)",
+                `<h2>Fehler beim Erstellen eines Kommentars</h2>
 <p><strong>Mitarbeiter:</strong> ${name_mitarbeiter}</p>
-
 <p><strong>Gesuchtes Datum:</strong> ${formattedDate}</p>
-
-<p><strong>Zieltask:</strong> ${task.gid}</p>
-
-<p><strong>Gefundener Subtask:</strong> ${matchingSubtask?.name || "Keiner"}</p>
-
-<pre>${JSON.stringify(commentResponse, null, 2)}</pre>
-
-`
-            );
-          } else {
-            logger.info(
-              "✅ Asana Kommentar erstellt:",
-              commentResponse.data.gid
-            );
+<pre>${JSON.stringify(commentResponse, null, 2)}</pre>`
+              );
+            } else {
+              logger.info("✅ Asana Kommentar erstellt:", commentResponse.data.gid);
+            }
           }
         }
       }
@@ -843,10 +812,13 @@ router.get(
   asyncHandler(async (req, res) => {
     logger.debug("Fetching all reports (Laufzettel, EventReport, Evaluierung)");
 
+    // .lean() is critical here: prevents Mongoose from applying schema defaults
+    // (e.g. version: 'v2') to old documents that don't have the field in the DB.
+    // Without lean(), every old Laufzettel/EventReport would appear as version 'v2'.
     const [laufzettel, eventReports, evaluierungen] = await Promise.all([
-      Laufzettel.find().sort({ datum: -1 }),
-      EventReport.find().sort({ datum: -1 }),
-      EvaluierungMA.find().sort({ datum: -1 }),
+      Laufzettel.find().lean().sort({ datum: -1 }),
+      EventReport.find().lean().sort({ datum: -1 }),
+      EvaluierungMA.find().lean().sort({ datum: -1 }),
     ]);
 
     const formatDoc = (doc, type) => {
@@ -857,13 +829,23 @@ router.get(
       // Remove duplicates and join
       const personenStr = [...new Set(personen)].join(", ");
 
+      // v2 Laufzettel: Status vom Dokument, sonst assigned-basiert
+      let status;
+      if (doc.version === "v2" && doc.status) {
+        status = doc.status; // OFFEN / ABGESCHLOSSEN
+      } else {
+        status = doc.assigned ? "Zugewiesen" : "Offen";
+      }
+
       return {
         _id: doc._id,
         docType: type,
+        version: doc.version || "v1",
         bezeichnung: doc.location || type,
         datum: doc.datum || doc.date,
         personen: personenStr,
-        status: doc.assigned ? "Zugewiesen" : "Offen",
+        status,
+        assigned: doc.assigned,
         updatedAt: doc.updatedAt, // Include for cache sync
         details: doc, // Full object for details view
       };
@@ -916,10 +898,11 @@ router.get(
     
     logger.debug(`Syncing documents since ${sinceDate.toISOString()}`);
     
+    // .lean() prevents schema defaults (version: 'v2') from applying to old docs
     const [laufzettel, eventReports, evaluierungen] = await Promise.all([
-      Laufzettel.find({ updatedAt: { $gt: sinceDate } }),
-      EventReport.find({ updatedAt: { $gt: sinceDate } }),
-      EvaluierungMA.find({ updatedAt: { $gt: sinceDate } }),
+      Laufzettel.find({ updatedAt: { $gt: sinceDate } }).lean(),
+      EventReport.find({ updatedAt: { $gt: sinceDate } }).lean(),
+      EvaluierungMA.find({ updatedAt: { $gt: sinceDate } }).lean(),
     ]);
 
     const formatDoc = (doc, type) => {
@@ -928,13 +911,22 @@ router.get(
       if (doc.name_teamleiter) personen.push(doc.name_teamleiter);
       const personenStr = [...new Set(personen)].join(", ");
 
+      let status;
+      if (doc.version === "v2" && doc.status) {
+        status = doc.status;
+      } else {
+        status = doc.assigned ? "Zugewiesen" : "Offen";
+      }
+
       return {
         _id: doc._id,
         docType: type,
+        version: doc.version || "v1",
         bezeichnung: doc.location || type,
         datum: doc.datum || doc.date,
         personen: personenStr,
-        status: doc.assigned ? "Zugewiesen" : "Offen",
+        status,
+        assigned: doc.assigned,
         updatedAt: doc.updatedAt,
         details: doc,
       };
@@ -1625,6 +1617,223 @@ router.get(
             : "0",
       },
       data: verlosungenEintraege,
+    });
+  })
+);
+
+// ============================================
+// 📌 MIGRATION: Laufzettel v1 → v2
+// Mergt alte EvaluierungMA-Dokumente in die zugehörigen Laufzettel
+// und konvertiert sie in das v2-Format.
+//
+// Stufe 1: EvaluierungMA mit direkter laufzettel-Referenz
+// Stufe 2: Fuzzy-Match via mitarbeiter + teamleiter + datum (±24h)
+//
+// Query-Params:
+//   ?dry_run=true  → nur analysieren, nichts speichern
+// ============================================
+router.post(
+  "/migrate/v1-to-v2",
+  auth,
+  asyncHandler(async (req, res) => {
+    const dryRun = req.query.dry_run === "true";
+    logger.info(`🔄 Migration v1→v2 gestartet (dry_run=${dryRun})`);
+
+    const results = {
+      dry_run: dryRun,
+      stage1: { matched: 0, skipped_already_v2: 0, laufzettel_not_found: 0, items: [] },
+      stage2: { matched: 0, no_match: 0, items: [] },
+      unmatched_evaluierungen: [],
+    };
+
+    // ──────────────────────────────────────────────────
+    // STUFE 1: EvaluierungMA mit direkter Laufzettel-Ref
+    // ──────────────────────────────────────────────────
+    const evalWithRef = await EvaluierungMA.find({
+      laufzettel: { $exists: true, $ne: null },
+    }).lean();
+
+    logger.info(`📋 Stufe 1: ${evalWithRef.length} Evaluierungen mit laufzettel-Referenz gefunden`);
+
+    const migratedLaufzettelIds = new Set();
+
+    for (const ev of evalWithRef) {
+      const laufzettelId = ev.laufzettel?._id || ev.laufzettel;
+      const lz = await Laufzettel.findById(laufzettelId).lean();
+
+      if (!lz) {
+        logger.warn(`⚠️ Laufzettel ${laufzettelId} nicht gefunden (EvaluierungMA: ${ev._id})`);
+        results.stage1.laufzettel_not_found++;
+        results.stage1.items.push({
+          evaluierung_id: ev._id,
+          laufzettel_id: laufzettelId,
+          reason: "laufzettel_not_found",
+        });
+        continue;
+      }
+
+      if (lz.version === "v2") {
+        logger.debug(`⏭️ Laufzettel ${lz._id} ist bereits v2 – übersprungen`);
+        results.stage1.skipped_already_v2++;
+        results.stage1.items.push({
+          evaluierung_id: ev._id,
+          laufzettel_id: lz._id,
+          reason: "already_v2",
+        });
+        migratedLaufzettelIds.add(lz._id.toString());
+        continue;
+      }
+
+      results.stage1.matched++;
+      migratedLaufzettelIds.add(lz._id.toString());
+      results.stage1.items.push({
+        evaluierung_id: ev._id,
+        laufzettel_id: lz._id,
+        reason: "migrated",
+      });
+
+      if (!dryRun) {
+        await Laufzettel.findByIdAndUpdate(lz._id, {
+          $set: {
+            version: "v2",
+            status: LAUFZETTEL_STATUS.ABGESCHLOSSEN,
+            kunde: ev.kunde,
+            puenktlichkeit: ev.puenktlichkeit,
+            grooming: ev.grooming,
+            motivation: ev.motivation,
+            technische_fertigkeiten: ev.technische_fertigkeiten,
+            lernbereitschaft: ev.lernbereitschaft,
+            sonstiges: ev.sonstiges,
+            // Referenzen aus Evaluierung übernehmen falls im Laufzettel leer
+            ...((!lz.mitarbeiter && ev.mitarbeiter) && { mitarbeiter: ev.mitarbeiter }),
+            ...((!lz.teamleiter && ev.teamleiter) && { teamleiter: ev.teamleiter }),
+          },
+        });
+        logger.info(`✅ Stufe 1: Laufzettel ${lz._id} → v2 (EvaluierungMA: ${ev._id})`);
+      } else {
+        logger.info(`[DRY RUN] Stufe 1: Laufzettel ${lz._id} würde → v2`);
+      }
+    }
+
+    // ──────────────────────────────────────────────────
+    // STUFE 2: Fuzzy-Match (kein laufzettel-Ref)
+    // Matching via mitarbeiter + teamleiter + datum (±24h)
+    // ──────────────────────────────────────────────────
+    const evalWithoutRef = await EvaluierungMA.find({
+      $or: [
+        { laufzettel: { $exists: false } },
+        { laufzettel: null },
+      ],
+    }).lean();
+
+    logger.info(`📋 Stufe 2: ${evalWithoutRef.length} Evaluierungen ohne laufzettel-Referenz`);
+
+    for (const ev of evalWithoutRef) {
+      const mitarbeiterId = ev.mitarbeiter?._id || ev.mitarbeiter;
+      const teamleiterId = ev.teamleiter?._id || ev.teamleiter;
+      const datum = ev.datum ? new Date(ev.datum) : null;
+
+      // Fuzzy-Match benötigt mindestens eine Personen-Referenz + Datum
+      if (!datum || (!mitarbeiterId && !teamleiterId)) {
+        logger.debug(`⏭️ EvaluierungMA ${ev._id}: nicht genug Infos für Fuzzy-Match`);
+        results.stage2.no_match++;
+        results.unmatched_evaluierungen.push({ evaluierung_id: ev._id, reason: "insufficient_data" });
+        continue;
+      }
+
+      // ±24h Fenster um das Datum
+      const dayStart = new Date(datum);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(datum);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const query = {
+        datum: { $gte: dayStart, $lte: dayEnd },
+        version: { $ne: "v2" },
+      };
+      if (mitarbeiterId) query.mitarbeiter = mitarbeiterId;
+      if (teamleiterId) query.teamleiter = teamleiterId;
+
+      // Namen-Fallback falls keine ObjectId-Refs vorhanden
+      if (!mitarbeiterId && ev.name_mitarbeiter) {
+        query.name_mitarbeiter = { $regex: new RegExp(ev.name_mitarbeiter.trim(), "i") };
+      }
+      if (!teamleiterId && ev.name_teamleiter) {
+        query.name_teamleiter = { $regex: new RegExp(ev.name_teamleiter.trim(), "i") };
+      }
+
+      const candidates = await Laufzettel.find(query).lean();
+
+      // Noch nicht durch Stufe 1 migrierte Kandidaten bevorzugen
+      const notYetMigrated = candidates.filter((c) => !migratedLaufzettelIds.has(c._id.toString()));
+      const candidate = notYetMigrated[0] || candidates[0];
+
+      if (!candidate) {
+        logger.debug(`❌ Stufe 2: Kein Match für EvaluierungMA ${ev._id}`);
+        results.stage2.no_match++;
+        results.unmatched_evaluierungen.push({
+          evaluierung_id: ev._id,
+          name_mitarbeiter: ev.name_mitarbeiter,
+          name_teamleiter: ev.name_teamleiter,
+          datum: ev.datum,
+          reason: "no_laufzettel_match",
+        });
+        continue;
+      }
+
+      results.stage2.matched++;
+      migratedLaufzettelIds.add(candidate._id.toString());
+      results.stage2.items.push({
+        evaluierung_id: ev._id,
+        laufzettel_id: candidate._id,
+        match_basis: {
+          mitarbeiter: !!mitarbeiterId,
+          teamleiter: !!teamleiterId,
+          datum: datum.toISOString(),
+        },
+      });
+
+      if (!dryRun) {
+        await Laufzettel.findByIdAndUpdate(candidate._id, {
+          $set: {
+            version: "v2",
+            status: LAUFZETTEL_STATUS.ABGESCHLOSSEN,
+            kunde: ev.kunde,
+            puenktlichkeit: ev.puenktlichkeit,
+            grooming: ev.grooming,
+            motivation: ev.motivation,
+            technische_fertigkeiten: ev.technische_fertigkeiten,
+            lernbereitschaft: ev.lernbereitschaft,
+            sonstiges: ev.sonstiges,
+            ...((!candidate.mitarbeiter && mitarbeiterId) && { mitarbeiter: mitarbeiterId }),
+            ...((!candidate.teamleiter && teamleiterId) && { teamleiter: teamleiterId }),
+          },
+        });
+        logger.info(
+          `✅ Stufe 2: Laufzettel ${candidate._id} → v2 (via Fuzzy-Match, EvaluierungMA: ${ev._id})`
+        );
+      } else {
+        logger.info(`[DRY RUN] Stufe 2: Laufzettel ${candidate._id} würde → v2`);
+      }
+    }
+
+    const summary = {
+      stage1_migrated: results.stage1.matched,
+      stage1_already_v2: results.stage1.skipped_already_v2,
+      stage1_not_found: results.stage1.laufzettel_not_found,
+      stage2_matched: results.stage2.matched,
+      stage2_no_match: results.stage2.no_match,
+      total_migrated: results.stage1.matched + results.stage2.matched,
+      unmatched_count: results.unmatched_evaluierungen.length,
+    };
+
+    logger.info(`✅ Migration abgeschlossen:`, summary);
+
+    res.status(200).json({
+      success: true,
+      dry_run: dryRun,
+      summary,
+      details: results,
     });
   })
 );

@@ -818,34 +818,42 @@ const assignFields = async (documentId, updates, callback) => {
     await documentFound.save();
 
     // If updates include mitarbeiter, update their document references
+    // v2: Skip array pushes — refs on the document are the source of truth
     if (updates.mitarbeiter) {
       const mitarbeiter = await Mitarbeiter.findById(updates.mitarbeiter);
       if (mitarbeiter) {
-        if (documentFound instanceof Laufzettel) {
-          mitarbeiter.laufzettel_submitted.push(documentFound._id);
-        } else if (documentFound instanceof EvaluierungMA) {
-          mitarbeiter.evaluierungen_received.push(documentFound._id);
-        } else if (documentFound instanceof VerlosungEintrag) {
-        }
+        const isV2 = documentFound.version === "v2";
 
-        await mitarbeiter.save();
+        if (!isV2) {
+          // Legacy v1: push to arrays on Mitarbeiter
+          if (documentFound instanceof Laufzettel) {
+            mitarbeiter.laufzettel_submitted.push(documentFound._id);
+          } else if (documentFound instanceof EvaluierungMA) {
+            mitarbeiter.evaluierungen_received.push(documentFound._id);
+          }
+          await mitarbeiter.save();
+        }
       }
     }
 
     // If updates include teamleiter, update their document references
+    // v2: Skip array pushes — refs on the document are the source of truth
     if (updates.teamleiter) {
       const teamleiter = await Mitarbeiter.findById(updates.teamleiter);
       if (teamleiter) {
-        if (documentFound instanceof Laufzettel) {
-          teamleiter.laufzettel_received.push(documentFound._id);
-        } else if (documentFound instanceof EventReport) {
-          teamleiter.eventreports.push(documentFound._id);
-        } else if (documentFound instanceof EvaluierungMA) {
-          teamleiter.evaluierungen_submitted.push(documentFound._id);
-        } else if (documentFound instanceof VerlosungEintrag) {
-        }
+        const isV2 = documentFound.version === "v2";
 
-        await teamleiter.save();
+        if (!isV2) {
+          // Legacy v1: push to arrays on Mitarbeiter
+          if (documentFound instanceof Laufzettel) {
+            teamleiter.laufzettel_received.push(documentFound._id);
+          } else if (documentFound instanceof EventReport) {
+            teamleiter.eventreports.push(documentFound._id);
+          } else if (documentFound instanceof EvaluierungMA) {
+            teamleiter.evaluierungen_submitted.push(documentFound._id);
+          }
+          await teamleiter.save();
+        }
       }
     }
 
@@ -1108,14 +1116,15 @@ async function syncFlipAttributes() {
         continue;
       }
 
-      // Baue attributes array
-      const attributes = [];
-      
-      if (isService) attributes.push({ name: "isService", value: "true" });
-      if (isLogistik) attributes.push({ name: "isLogistik", value: "true" });
-      // isOffice temporarily disabled:
-      // if (isOffice) attributes.push({ name: "isOffice", value: "true" });
-      if (isTeamLead) attributes.push({ name: "isTeamLead", value: "true" });
+      // Baue attributes array – IMMER alle Boolean-Attribute explizit senden,
+      // damit alte Werte bei merge-patch überschrieben werden
+      const attributes = [
+        { name: "isService",  value: String(isService) },
+        { name: "isLogistik", value: String(isLogistik) },
+        // isOffice temporarily disabled:
+        // { name: "isOffice", value: String(isOffice) },
+        { name: "isTeamLead", value: String(isTeamLead) },
+      ];
 
       // Behalte bestehende Attribute (location, department) bei
       if (flipUserData.profile?.location) {

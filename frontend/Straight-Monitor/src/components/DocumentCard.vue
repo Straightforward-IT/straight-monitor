@@ -7,7 +7,7 @@
           <img :src="docTypeImage" :alt="doc.docType" class="doc-icon-img" />
         </div>
         <div class="title">
-          <span class="doc-type">{{ doc.docType }}</span>
+          <span class="doc-type">{{ doc.docType }} <span v-if="doc.version === 'v2'" class="version-badge">v2</span></span>
           <span class="bezeichnung">{{ doc.bezeichnung || 'Kein Titel' }}</span>
         </div>
       </div>
@@ -136,6 +136,63 @@
         </div>
       </section>
 
+      <!-- Mitarbeiter Feedback (nur für Event-Berichte mit v2 feedback array) -->
+      <section v-if="doc.docType === 'Event-Bericht' && feedbackEntries.length" class="feedback-section">
+        <h4 class="section-title">
+          <font-awesome-icon icon="fa-solid fa-clipboard-check" class="section-icon" />
+          Mitarbeiter Feedback ({{ feedbackEntries.length }})
+        </h4>
+        <div class="feedback-list">
+          <div v-for="(fb, idx) in feedbackEntries" :key="idx" class="feedback-item">
+            <div class="feedback-header">
+              <button v-if="fb.mitarbeiter?._id" class="link-btn" @click="$emit('open-employee', 'mitarbeiter', fb.mitarbeiter._id)">
+                {{ fb.mitarbeiter.vorname }} {{ fb.mitarbeiter.nachname }}
+              </button>
+              <span v-else class="unassigned-name">Unbekannter MA</span>
+            </div>
+            <p class="feedback-text">{{ fb.text || '—' }}</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Evaluierung-Felder (nur für v2 Laufzettel mit Status ABGESCHLOSSEN) -->
+      <section v-if="doc.docType === 'Laufzettel' && doc.details?.version === 'v2' && doc.details?.status === 'ABGESCHLOSSEN'" class="feedback-section">
+        <h4 class="section-title">
+          <font-awesome-icon icon="fa-solid fa-clipboard-check" class="section-icon" />
+          Evaluierung
+        </h4>
+        <div class="kv-list">
+          <div v-if="doc.details?.kunde" class="kv-item">
+            <span class="key">Kunde</span>
+            <span class="value">{{ doc.details.kunde }}</span>
+          </div>
+          <div v-if="doc.details?.puenktlichkeit" class="kv-item">
+            <span class="key">Pünktlichkeit</span>
+            <span class="value">{{ doc.details.puenktlichkeit }}</span>
+          </div>
+          <div v-if="doc.details?.grooming" class="kv-item">
+            <span class="key">Grooming</span>
+            <span class="value">{{ doc.details.grooming }}</span>
+          </div>
+          <div v-if="doc.details?.motivation" class="kv-item">
+            <span class="key">Motivation</span>
+            <span class="value">{{ doc.details.motivation }}</span>
+          </div>
+          <div v-if="doc.details?.technische_fertigkeiten" class="kv-item">
+            <span class="key">Techn. Fertigkeiten</span>
+            <span class="value">{{ doc.details.technische_fertigkeiten }}</span>
+          </div>
+          <div v-if="doc.details?.lernbereitschaft" class="kv-item">
+            <span class="key">Lernbereitschaft</span>
+            <span class="value">{{ doc.details.lernbereitschaft }}</span>
+          </div>
+          <div v-if="doc.details?.sonstiges" class="kv-item">
+            <span class="key">Sonstiges</span>
+            <span class="value">{{ doc.details.sonstiges }}</span>
+          </div>
+        </div>
+      </section>
+
       <!-- Raw Details -->
       <section class="raw-details-section">
         <h4 class="section-title">
@@ -247,7 +304,7 @@ export default {
     },
     filteredDetails() {
       if (!this.doc.details) return {};
-      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date'];
+      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date', 'mitarbeiter_feedback', 'version', 'createdAt', 'updatedAt', 'status', 'kunde', 'puenktlichkeit', 'grooming', 'motivation', 'technische_fertigkeiten', 'lernbereitschaft', 'sonstiges'];
       const filtered = {};
       for (const [key, value] of Object.entries(this.doc.details)) {
         if (!excludeKeys.includes(key)) {
@@ -255,6 +312,11 @@ export default {
         }
       }
       return filtered;
+    },
+    feedbackEntries() {
+      const fb = this.doc.details?.mitarbeiter_feedback;
+      if (!Array.isArray(fb)) return [];
+      return fb.filter(entry => entry.text?.trim());
     }
   },
 
@@ -617,6 +679,66 @@ export default {
   &:hover {
     background: var(--soft, var(--hover));
   }
+}
+
+/* Feedback Section */
+.feedback-section {
+  background: var(--bg);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    
+    .section-icon {
+      color: var(--muted);
+    }
+  }
+}
+
+.feedback-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedback-item {
+  background: var(--surface, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.feedback-header {
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.feedback-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+  letter-spacing: 0.3px;
 }
 
 .btn-sm {

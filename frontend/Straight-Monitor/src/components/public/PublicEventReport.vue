@@ -41,7 +41,7 @@
             </div>
             <div class="picker-list">
               <div
-                v-for="einsatz in einsaetze"
+                v-for="einsatz in pastEinsaetze"
                 :key="einsatz._id"
                 class="picker-item"
                 :class="{ active: selectedEinsatzId === einsatz._id }"
@@ -183,7 +183,7 @@ import { ref, reactive, computed, watch, onMounted } from 'vue';
 const props = defineProps({
   einsaetze: { type: Array, default: () => [] },
   mitarbeiter: { type: Object, required: true },
-  api: { type: Object, required: true },
+  api: { type: Function, required: true },
   email: { type: String, default: '' },
   prefillEinsatz: { type: Object, default: null }
 });
@@ -191,6 +191,17 @@ const props = defineProps({
 defineEmits(['back']);
 
 const ratingOptions = ['Sehr gut', 'Gut', 'Befriedigend', 'Mangelhaft'];
+const STANDORT_MAP = { '1': 'Berlin', '2': 'Hamburg', '3': 'Köln' };
+
+const pastEinsaetze = computed(() => {
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+  return props.einsaetze.filter(e => {
+    if (!e.datumVon) return true;
+    return new Date(e.datumVon) <= endOfToday;
+  });
+});
+
 const selectedEinsatzId = ref(props.prefillEinsatz?._id || '');
 const showEinsatzPicker = ref(false);
 const submitSuccess = ref(false);
@@ -302,7 +313,8 @@ function selectEinsatz(einsatz) {
 function prefillFromEinsatz(einsatz) {
   form.auftragnummer = String(einsatz.auftragNr || '');
   form.datum = einsatz.datumVon ? new Date(einsatz.datumVon).toISOString().split('T')[0] : '';
-  form.location = einsatz.auftrag?.geschSt || einsatz.auftrag?.eventOrt || '';
+  const rawLoc = einsatz.auftrag?.geschSt || einsatz.auftrag?.eventOrt || '';
+  form.location = STANDORT_MAP[String(rawLoc)] || rawLoc;
   form.kunde = einsatz.auftrag?.eventTitel || einsatz.bezeichnung || '';
   loadEinsatzMitarbeiter(einsatz.auftragNr);
 }
@@ -347,9 +359,10 @@ async function submitReport() {
       puenktlichkeit: form.puenktlichkeit,
       erscheinungsbild: form.erscheinungsbild,
       team: form.team,
-      mitarbeiter_job: mitarbeiterRows.value.length
-        ? mitarbeiterRows.value.filter(r => r.text.trim()).map(r => `• ${r.name}: ${r.text.trim()}`).join('\n')
-        : form.mitarbeiter_job,
+      mitarbeiter_job: !mitarbeiterRows.value.length ? form.mitarbeiter_job : '',
+      mitarbeiter_feedback: mitarbeiterRows.value
+        .filter(r => r.text.trim())
+        .map(r => ({ personalNr: r.personalNr, name: r.name, text: r.text.trim() })),
       feedback_auftraggeber: form.feedback_auftraggeber,
       sonstiges: form.sonstiges,
       teamleiter_email: props.email

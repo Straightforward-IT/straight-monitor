@@ -21,6 +21,11 @@ const MitarbeiterSchema = new mongoose.Schema({
     isActive: { type: Boolean, default: true },
     berufe: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Beruf' }],
     qualifikationen: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Qualifikation' }],
+    // ── Legacy v1 Arrays (nicht mehr für v2 Laufzettel benutzen!) ──
+    // v2 nutzt query-basiertes Referenzieren:
+    //   Laufzettel.find({ mitarbeiter: userId })  → MA-Sicht
+    //   Laufzettel.find({ teamleiter: userId })   → TL-Sicht
+    //   EventReport.find({ teamleiter: userId })  → TL EventReports
     laufzettel_received: [
         {
             type: mongoose.Schema.Types.ObjectId,
