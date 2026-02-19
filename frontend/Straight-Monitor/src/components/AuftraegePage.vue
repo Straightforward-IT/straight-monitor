@@ -528,20 +528,9 @@ export default {
         const response = await api.get('/api/import/last-uploads');
         if (response.data.success) {
           const uploads = response.data.data;
-          const historyKomplett = uploads['einsatz-komplett'];
-          const historyEinsatz = uploads['einsatz'];
-          let lastUpload = null;
-
-          if (historyKomplett && historyEinsatz) {
-            lastUpload = new Date(historyKomplett.timestamp) > new Date(historyEinsatz.timestamp) 
-              ? historyKomplett 
-              : historyEinsatz;
-          } else {
-            lastUpload = historyKomplett || historyEinsatz;
-          }
-          
-          if (lastUpload) {
-             this.dataStatus = lastUpload.timestamp;
+          const lastKomplettImport = uploads['einsatz-komplett'];
+          if (lastKomplettImport) {
+            this.dataStatus = lastKomplettImport.timestamp;
           }
         }
       } catch (err) {
@@ -1604,19 +1593,19 @@ export default {
   }
 
   &.today-btn {
-    background: var(--primary);
-    color: #fff;
+    background: transparent;
+    color: var(--primary);
     border-color: var(--primary);
 
     &:hover {
-      filter: brightness(0.95);
+      background: color-mix(in oklab, var(--primary) 10%, transparent);
     }
   }
 }
 
 .nav-btn.calendar-btn:hover {
-  background-color: var(--primary); /* Uses component mapped variable */
-  color: #fff;
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  color: var(--primary);
   border-color: var(--primary);
 }
 

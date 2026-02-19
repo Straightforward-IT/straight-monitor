@@ -3,7 +3,7 @@
     <h1>Daten Import</h1>
     
     <div class="info-text">
-      Laden Sie hier die entsprechenden Excel-Dateien für Aufträge, Kunden und Einsätze hoch.
+      Hochladen von Erweiterten Listen aus L1.
     </div>
 
     <!-- Last Import Section -->
@@ -34,11 +34,11 @@
     <!-- Import-Bereich mit Tabs oder Accordion für Übersichtlichkeit -->
     <div class="imports-layout">
 
-      <!-- Zvoove Komplett-Export (Ehemals Einsatz) Section -->
+      <!-- Zvoove Komplett Import Section -->
       <div class="import-card featured-import">
         <div class="card-header">
           <div class="header-content">
-            <h2>Zvoove Komplett-Export</h2>
+            <h2>Zvoove Komplett Import</h2>
             <p class="subtitle">Importiert Einsätze, Aufträge und Kunden aus einer Datei (Master-Import)</p>
           </div>
           <span v-if="einsatzFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
@@ -542,7 +542,7 @@ export default {
         auftrag: 'Aufträge',
         kunde: 'Kunden',
         einsatz: 'Einsätze (Legacy)',
-        'einsatz-komplett': 'Zvoove / Einsätze',
+        'einsatz-komplett': 'Zvoove Komplett Import',
         personal: 'Personal',
         beruf: 'Berufe',
         qualifikation: 'Qualifikationen',
