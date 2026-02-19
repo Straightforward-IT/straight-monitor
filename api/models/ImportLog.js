@@ -4,7 +4,7 @@ const ImportLogSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['auftrag', 'kunde', 'einsatz', 'personal', 'beruf', 'qualifikation', 'personal_quali', 'other'] 
+    enum: ['auftrag', 'kunde', 'einsatz', 'einsatz-komplett', 'personal', 'beruf', 'qualifikation', 'personal_quali', 'other'] 
     // We can add more types as needed
   },
   filename: {

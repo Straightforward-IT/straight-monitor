@@ -11,7 +11,7 @@
       <h3>Letzte Uploads</h3>
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in ['einsatz-komplett', 'auftrag', 'kunde', 'personal', 'beruf', 'qualifikation', 'personal_quali']" :key="type" class="history-card">
+        <div v-for="type in ['einsatz-komplett', 'kunde', 'personal', 'beruf', 'qualifikation', 'personal_quali']" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -77,46 +77,6 @@
         </div>
       </div>
       
-      <!-- Auftrag Section (Legacy) -->
-      <div class="import-card legacy-import">
-        <div class="card-header">
-          <div class="header-content">
-            <h2>Aufträge (Manuell)</h2>
-            <p class="subtitle">Importiert nur Auftragsdaten</p>
-          </div>
-          <span v-if="auftragFile" class="status-indicator ready">
-            <i class="fas fa-check"></i> Bereit
-          </span>
-        </div>
-
-        <div class="card-content">
-          <div class="upload-area" 
-            :class="{ 'has-file': auftragFile }"
-            @dragover.prevent 
-            @drop="(e) => handleDragAndDrop(e, 'auftrag')"
-            @click="triggerFileInput('auftrag-upload')"
-          >
-            <div class="upload-content">
-              <i class="upload-icon" :class="auftragFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-              <div class="upload-text">
-                <span v-if="!auftragFile">Datei hier ablegen oder klicken</span>
-                <span v-else class="file-name">{{ auftragFile.name }}</span>
-              </div>
-            </div>
-            <input id="auftrag-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'auftrag')" accept=".xlsx, .xls" />
-          </div>
-
-          <div class="requirements-hint">
-            <details>
-              <summary>Benötigte Spalten anzeigen</summary>
-              <div class="table-scroll">
-                <table class="req-table"><tbody><tr><td>GESCHST</td><td>AUFTRAGNR</td><td>KUNDENNR</td><td>EVENTTITEL</td><td>BEDIENER</td><td>DTANGELEGTAM</td><td>BESTDATUM</td><td>VONDATUM</td><td>BISDATUM</td><td>EVENT_STRASSE</td><td>EVENT_PLZ</td><td>EVENT_ORT</td><td>EVENT_LOCATION</td><td>AKTIV</td><td>AUFTSTATUS</td></tr></tbody></table>
-              </div>
-            </details>
-          </div>
-        </div>
-      </div>
-
       <!-- Kunde Section (Legacy) -->
       <div class="import-card legacy-import">
         <div class="card-header">
@@ -502,7 +462,7 @@ export default {
   name: "DatenImport",
   data() {
     return {
-      auftragFile: null,
+
       kundeFile: null,
       einsatzFile: null,
       personalFile: null,
@@ -539,7 +499,6 @@ export default {
     },
     getLabel(type) {
       const labels = {
-        auftrag: 'Aufträge',
         kunde: 'Kunden',
         einsatz: 'Einsätze (Legacy)',
         'einsatz-komplett': 'Zvoove Komplett Import',
@@ -576,7 +535,6 @@ export default {
     },
     setFile(file, type) {
       // Set the selected file for the specific type
-      if (type === 'auftrag') this.auftragFile = file;
       if (type === 'kunde') this.kundeFile = file;
       if (type === 'einsatz') this.einsatzFile = file;
       if (type === 'personal') this.personalFile = file;
@@ -590,7 +548,7 @@ export default {
         return;
       }
 
-      const fileCount = [this.auftragFile, this.kundeFile, this.einsatzFile, this.personalFile, this.berufFile, this.qualifikationFile, this.personalQualiFile].filter(Boolean).length;
+      const fileCount = [this.kundeFile, this.einsatzFile, this.personalFile, this.berufFile, this.qualifikationFile, this.personalQualiFile].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
       this.loading = true;
@@ -599,12 +557,6 @@ export default {
 
       try {
         // Upload all selected files
-        if (this.auftragFile) {
-          const response = await this.uploadFile(this.auftragFile, 'auftrag');
-          results.push({ type: 'Aufträge', ...response });
-          if (!response.success) hasErrors = true;
-        }
-        
         if (this.kundeFile) {
           const response = await this.uploadFile(this.kundeFile, 'kunde');
           results.push({ type: 'Kunden', ...response });
@@ -809,7 +761,6 @@ export default {
     // ... assign methods ... same as before ... 
     
     resetAll() {
-      this.auftragFile = null;
       this.kundeFile = null;
       this.einsatzFile = null;
       this.personalFile = null;
@@ -819,7 +770,7 @@ export default {
       this.fetchLastUploads(); // Refresh history after upload
     },
     hasAnyFile() {
-      return this.auftragFile || this.kundeFile || this.einsatzFile || this.personalFile || this.berufFile || this.qualifikationFile || this.personalQualiFile;
+      return this.kundeFile || this.einsatzFile || this.personalFile || this.berufFile || this.qualifikationFile || this.personalQualiFile;
     },
 
     handleEscapeKey(event) {
