@@ -551,17 +551,6 @@ export default {
       return labels[type] || type;
     },
     getDisplayUpload(type) {
-      if (type === 'einsatz-komplett') {
-        const historyKomplett = this.lastUploads['einsatz-komplett'];
-        const historyEinsatz = this.lastUploads['einsatz'];
-        
-        if (historyKomplett && historyEinsatz) {
-          return new Date(historyKomplett.timestamp) > new Date(historyEinsatz.timestamp) 
-            ? historyKomplett 
-            : historyEinsatz;
-        }
-        return historyKomplett || historyEinsatz;
-      }
       return this.lastUploads[type];
     },
     formatDate(dateString) {
