@@ -1,10 +1,7 @@
 <template>
   <div class="public-page">
     <!-- Loading -->
-    <div v-if="loading" class="loading-state">
-      <div class="spinner"></div>
-      <p>Daten werden geladen...</p>
-    </div>
+    <LoadingSpinner v-if="loading" label="Daten werden geladen..." class="full-page-loader" />
 
     <!-- Error -->
     <div v-else-if="error" class="error-state">
@@ -35,6 +32,7 @@
           :vorname="mitarbeiter.vorname"
           :is-teamleiter="isTeamleiter"
           :einsaetze="einsaetze"
+          :open-laufzettel-count="openLaufzettelCount"
           @navigate="navigateTo"
           @open-job="openJob"
         />
@@ -106,6 +104,8 @@
           @back="goBackFromReport"
         />
       </div>
+
+      <PublicFooter />
     </div>
   </div>
 </template>
@@ -116,14 +116,16 @@ import { useRoute } from 'vue-router';
 import apiPublic from '@/utils/api-public';
 
 import PublicHeader from './PublicHeader.vue';
-import PublicDashboard from './public/PublicDashboard.vue';
-import PublicKalender from './public/PublicKalender.vue';
-import PublicLaufzettel from './public/PublicLaufzettel.vue';
-import PublicEvaluierungen from './public/PublicEvaluierungen.vue';
-import PublicEvaluierung from './public/PublicEvaluierung.vue';
-import PublicVergangeneJobs from './public/PublicVergangeneJobs.vue';
-import PublicJobDetail from './public/PublicJobDetail.vue';
-import PublicEventReport from './public/PublicEventReport.vue';
+import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
+import PublicFooter from './PublicFooter.vue';
+import PublicDashboard from './PublicDashboard.vue';
+import PublicKalender from './PublicKalender.vue';
+import PublicLaufzettel from './PublicLaufzettel.vue';
+import PublicEvaluierungen from './PublicEvaluierungen.vue';
+import PublicEvaluierung from './PublicEvaluierung.vue';
+import PublicVergangeneJobs from './PublicVergangeneJobs.vue';
+import PublicJobDetail from './PublicJobDetail.vue';
+import PublicEventReport from './PublicEventReport.vue';
 
 const route = useRoute();
 const email = computed(() => route.query.email);
@@ -198,6 +200,9 @@ watch([currentView, selectedJob], saveNavState, { deep: true });
 const laufzettelReceived = computed(() => mitarbeiter.value?.laufzettel_received || []);
 const laufzettelSubmitted = computed(() => mitarbeiter.value?.laufzettel_submitted || []);
 const evaluierungenSubmitted = computed(() => mitarbeiter.value?.evaluierungen_submitted || []);
+const openLaufzettelCount = computed(() =>
+  laufzettelReceived.value.filter(lz => lz.status !== 'ABGESCHLOSSEN').length
+);
 
 // Teamleiter detection
 const isTeamleiter = computed(() => {
@@ -293,26 +298,8 @@ onMounted(async () => {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+.full-page-loader {
   min-height: 60vh;
-  color: var(--muted);
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .error-state {
@@ -347,6 +334,6 @@ onMounted(async () => {
 
 .page-body {
   padding: 1rem;
-  padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+  padding-bottom: 2rem;
 }
 </style>

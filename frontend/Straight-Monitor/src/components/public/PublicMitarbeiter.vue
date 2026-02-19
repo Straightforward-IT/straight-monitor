@@ -1,10 +1,7 @@
 <template>
   <div class="public-page">
     <!-- Loading State -->
-    <div v-if="loading" class="loading-state">
-      <div class="spinner"></div>
-      <p>Daten werden geladen...</p>
-    </div>
+    <LoadingSpinner v-if="loading" label="Daten werden geladen..." class="full-page-loader" />
 
     <!-- Error State -->
     <div v-else-if="error" class="error-state">
@@ -249,6 +246,7 @@ import { ref, reactive, onMounted, computed } from "vue";
 import { useRoute } from "vue-router";
 import apiPublic from "@/utils/api-public";
 import PublicHeader from "./PublicHeader.vue";
+import LoadingSpinner from "@/components/ui-elements/LoadingSpinner.vue";
 import { getTheme, showToast } from "@getflip/bridge";
 
 const route = useRoute();
@@ -423,28 +421,8 @@ onMounted(() => {
   padding-bottom: 3rem;
 }
 
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+.full-page-loader {
   min-height: 60vh;
-  color: var(--muted);
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .error-state {

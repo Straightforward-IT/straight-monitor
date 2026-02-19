@@ -5,8 +5,8 @@ import { jwtDecode } from 'jwt-decode';
 
 import EmailConfirmation from '@/components/EmailConfirmation.vue';
 import HomeLogin from '@/components/HomeLogin.vue';
-import PublicMitarbeiter from '@/components/PublicMitarbeiter.vue';
-import PublicEinsaetze from '@/components/PublicEinsaetze.vue';
+import PublicMitarbeiter from '@/components/public/PublicMitarbeiter.vue';
+import PublicEinsaetze from '@/components/public/PublicEinsaetze.vue';
 
 // Layout + Seiten (bestehend)
 import MainLayout from '@/layouts/MainLayout.vue';

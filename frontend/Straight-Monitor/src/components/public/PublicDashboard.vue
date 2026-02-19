@@ -31,11 +31,14 @@
 
       <div v-if="isTeamleiter" class="tile" @click="$emit('navigate', 'evaluierungen')">
         <div class="tile-icon tile-icon--purple">
-          <img :src="imgEvaluierung" class="tile-img" alt="Evaluierungen" />
+          <img :src="imgEvaluierung" class="tile-img" alt="Laufzettel" />
         </div>
         <div class="tile-content">
-          <h3>Evaluierungen</h3>
-          <p>Offene Laufzettel & eingereichte Evaluierungen</p>
+          <div class="tile-title-row">
+            <h3>Laufzettel</h3>
+            <CountBadge :count="openLaufzettelCount" color="orange" />
+          </div>
+          <p>Offene Laufzettel bewerten & verwalten</p>
         </div>
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
       </div>
@@ -98,6 +101,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import CountBadge from '@/components/ui-elements/CountBadge.vue';
 import calenderLight from '@/assets/calender.png';
 import calenderDark from '@/assets/calender-dark.png';
 import laufzettelLight from '@/assets/laufzettel.png';
@@ -118,7 +122,8 @@ const imgEventreport = eventreportLight;
 const props = defineProps({
   vorname: { type: String, default: '' },
   isTeamleiter: { type: Boolean, default: false },
-  einsaetze: { type: Array, default: () => [] }
+  einsaetze: { type: Array, default: () => [] },
+  openLaufzettelCount: { type: Number, default: 0 }
 });
 
 defineEmits(['navigate', 'open-job']);
@@ -250,8 +255,15 @@ const upcomingEinsaetze = computed(() => {
 .tile-content h3 {
   font-size: 1rem;
   font-weight: 600;
-  margin: 0 0 0.15rem;
+  margin: 0;
   color: var(--text);
+}
+
+.tile-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.15rem;
 }
 
 .tile-content p {

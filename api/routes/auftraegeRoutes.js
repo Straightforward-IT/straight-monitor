@@ -122,20 +122,25 @@ router.get('/', async (req, res) => {
     const kundenMap = {};
     kundenData.forEach(k => { kundenMap[k.kundenNr] = k; });
     
-    // Count einsätze per Auftrag
+    // Count einsätze per Auftrag and find earliest start time
     const auftragNrs = auftraege.map(a => a.auftragNr);
-    const einsatzCounts = await Einsatz.aggregate([
+    const einsatzAgg = await Einsatz.aggregate([
       { $match: { auftragNr: { $in: auftragNrs } } },
-      { $group: { _id: '$auftragNr', count: { $sum: 1 } } }
+      { $group: { _id: '$auftragNr', count: { $sum: 1 }, earliestUhrzeitVon: { $min: '$uhrzeitVon' }, earliestDatumVon: { $min: '$datumVon' } } }
     ]);
     const countMap = {};
-    einsatzCounts.forEach(e => { countMap[e._id] = e.count; });
+    const earliestTimeMap = {};
+    einsatzAgg.forEach(e => {
+      countMap[e._id] = e.count;
+      earliestTimeMap[e._id] = { uhrzeitVon: e.earliestUhrzeitVon, datumVon: e.earliestDatumVon };
+    });
     
     // Merge data
     const result = auftraege.map(a => ({
       ...a,
       kundeData: kundenMap[a.kundenNr] || null,
-      einsaetzeCount: countMap[a.auftragNr] || 0
+      einsaetzeCount: countMap[a.auftragNr] || 0,
+      earliestEinsatzTime: earliestTimeMap[a.auftragNr] || null
     }));
     
     res.json(result);

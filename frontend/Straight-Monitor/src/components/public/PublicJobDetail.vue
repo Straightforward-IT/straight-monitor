@@ -84,10 +84,7 @@
         <span class="count">{{ totalMitarbeiter }}</span>
       </h3>
 
-      <div v-if="loadingMa" class="loading-ma">
-        <div class="mini-spinner"></div>
-        Mitarbeiter werden geladen...
-      </div>
+      <LoadingSpinner v-if="loadingMa" label="Mitarbeiter werden geladen..." class="inline-loader" />
 
       <div v-else-if="schichtGruppen.length === 0" class="empty">
         Keine Mitarbeiter für diesen Auftrag gefunden.
@@ -109,16 +106,24 @@
               v-for="ma in schicht.mitarbeiter"
               :key="ma.personalNr"
               class="ma-card"
-              :class="{ 'checked-in': ma.checkedIn }"
+              :class="{ 'checked-in': ma.checkedIn, 'is-teamleiter': ma.isTeamleiter }"
             >
               <div v-if="isTeamleiter && !isPast" class="ma-check" @click="toggleCheckIn(ma)">
                 <font-awesome-icon :icon="ma.checkedIn ? 'fa-solid fa-circle-check' : ['far', 'circle']" />
               </div>
               <div class="ma-info">
-                <span class="ma-name">{{ ma.vorname }} {{ ma.nachname }}</span>
+                <span class="ma-name">
+                  {{ ma.vorname }} {{ ma.nachname }}
+                  <TlBadge v-if="ma.isTeamleiter" />
+                </span>
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
               </div>
-              <a v-if="isTeamleiter && ma.telefon" :href="'tel:' + cleanPhone(ma.telefon)" class="ma-phone" @click.stop="copyPhone(ma.telefon, $event)">
+              <a
+                v-if="(isTeamleiter || ma.isTeamleiter) && ma.telefon"
+                :href="'tel:' + cleanPhone(ma.telefon)"
+                class="ma-phone"
+                @click.stop="copyPhone(ma.telefon, $event)"
+              >
                 <font-awesome-icon icon="fa-solid fa-phone" />
                 <span class="ma-phone-number">{{ ma.telefon }}</span>
               </a>
@@ -140,6 +145,8 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
+import TlBadge from '@/components/ui-elements/TlBadge.vue';
+import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import { showToast } from '@getflip/bridge';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
@@ -417,26 +424,8 @@ watch(() => props.einsatz?._id, () => {
   border-radius: 10px;
 }
 
-.loading-ma {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--muted);
-  font-size: 0.85rem;
-  padding: 1rem;
-}
-
-.mini-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.inline-loader {
+  padding: 0.75rem 1rem;
 }
 
 .empty {
@@ -565,6 +554,11 @@ watch(() => props.einsatz?._id, () => {
 
 .ma-phone-number {
   font-size: 0.75rem;
+}
+
+.ma-card.is-teamleiter {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.04);
 }
 
 /* Action Bar */

@@ -139,11 +139,20 @@ router.get(
     // Collect all personalNrs to fetch Mitarbeiter in one query
     const personalNrs = [...new Set(einsaetze.map((e) => e.personalNr).filter(Boolean))];
     const mitarbeiterList = await Mitarbeiter.find({ personalnr: { $in: personalNrs } })
-      .select("personalnr vorname nachname telefon")
+      .select("personalnr vorname nachname telefon qualifikationen")
       .lean();
 
+    // Resolve Teamleiter qualification (key 50055) to mark TL MAs
+    const teamleiterQual = await Qualifikation.findOne({ qualificationKey: 50055 }).lean();
+    const tlQualId = teamleiterQual ? String(teamleiterQual._id) : null;
+
     const maMap = {};
-    mitarbeiterList.forEach((ma) => { maMap[ma.personalnr] = ma; });
+    mitarbeiterList.forEach((ma) => {
+      ma._isTeamleiter = tlQualId
+        ? (ma.qualifikationen || []).some((q) => String(q) === tlQualId)
+        : false;
+      maMap[ma.personalnr] = ma;
+    });
 
     // Group by schicht (idAuftragArbeitsschichten)
     const schichtMap = {};
@@ -165,6 +174,7 @@ router.get(
         vorname: ma?.vorname || null,
         nachname: ma?.nachname || null,
         telefon: ma?.telefon || null,
+        isTeamleiter: ma?._isTeamleiter || false,
         bezeichnung: e.bezeichnung || null,
         checkedIn: false
       });

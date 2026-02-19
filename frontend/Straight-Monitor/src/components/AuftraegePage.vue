@@ -918,7 +918,15 @@ export default {
         const bis = new Date(a.bisDatum);
         // Event spans this day if: vonDatum <= dayEnd AND bisDatum >= dayStart
         return von <= dayEnd && bis >= dayStart;
-      }).sort((a, b) => new Date(a.vonDatum) - new Date(b.vonDatum));
+      }).sort((a, b) => {
+        // Sort by earliest Einsatz time (uhrzeitVon e.g. "08:00"), falling back to vonDatum
+        const aTime = a.earliestEinsatzTime?.uhrzeitVon;
+        const bTime = b.earliestEinsatzTime?.uhrzeitVon;
+        if (aTime && bTime) return aTime.localeCompare(bTime);
+        if (aTime) return -1;
+        if (bTime) return 1;
+        return new Date(a.vonDatum) - new Date(b.vonDatum);
+      });
     },
     async selectEvent(event) {
       // Load full details including Einsätze
@@ -1750,6 +1758,7 @@ export default {
 }
 
 .event-title {
+  font-size: 0.7rem;
   font-weight: 600;
   color: var(--text);
   margin-bottom: 3px;
@@ -2186,7 +2195,7 @@ export default {
 }
 
 .event-title {
-  font-size: 1rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--text);
   line-height: 1.4;

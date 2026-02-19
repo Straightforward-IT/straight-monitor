@@ -65,10 +65,7 @@
             </span>
             
             <!-- Teamleiter Badge -->
-            <span class="pill featured-badge" v-if="isTeamleiter">
-              <font-awesome-icon icon="fa-solid fa-user-tie" />
-              TL
-            </span>
+            <TlBadge v-if="isTeamleiter" />
           </div>
         </div>
       </div>
@@ -1007,6 +1004,7 @@ import DocumentCard from "./DocumentCard.vue";
 import ContextMenu from "./ContextMenu.vue";
 import EditMitarbeiterDialog from "./EditMitarbeiterDialog.vue";
 import DeleteMitarbeiterDialog from "./DeleteMitarbeiterDialog.vue";
+import TlBadge from "./ui-elements/TlBadge.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
 import { useFlipAll } from "@/stores/flipAll";
@@ -1021,7 +1019,7 @@ import asanaLogo from "@/assets/asana.png";
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DocumentCard, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ContextMenu },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DocumentCard, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ContextMenu, TlBadge },
   props: {
     ma: { type: Object, required: true },
     initiallyExpanded: { type: Boolean, default: false },
