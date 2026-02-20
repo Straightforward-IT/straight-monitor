@@ -308,10 +308,10 @@ function formatDate(d) {
   gap: 0.4rem;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s;
-}
 
-.btn-new:active {
-  background: rgba(255, 117, 24, 0.08);
+  &:hover {
+    background: color-mix(in oklab, var(--primary) 10%, transparent);
+  }
 }
 
 /* ── Success ── */
