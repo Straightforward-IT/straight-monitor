@@ -154,9 +154,9 @@ getTeamByUpn(upn) {
   getEventReportRecipients(location) {
     try {
       const t = this.getTeam(location);
-      return t?.eventReport?.recipients || ['er@straightforward.email'];
+      return t?.eventReport?.recipients || ['it@straightforward.email'];
     } catch {
-      return ['er@straightforward.email'];
+      return ['it@straightforward.email'];
     }
   }
 
