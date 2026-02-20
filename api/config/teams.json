@@ -48,7 +48,7 @@
       "displayName": "Hamburg",
       "email": { "address": "teamhamburg@straightforward.email" },
       "eventReport": {
-        "recipients": ["er-hh@straightforward.email", "er@straightforward.email"]
+        "recipients": ["er-hh@straightforward.email"]
       },
       "graph": {
         "upn": "teamhamburg@straightforward.email",
@@ -102,7 +102,7 @@
       "displayName": "Köln",
       "email": { "address": "teamkoeln@straightforward.email" },
       "eventReport": {
-        "recipients": ["er-kln@straightforward.email", "er@straightforward.email"]
+        "recipients": ["er-kln@straightforward.email"]
       },
       "graph": {
         "upn": "teamkoeln@straightforward.email",

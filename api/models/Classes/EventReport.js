@@ -46,6 +46,14 @@ const EventReportSchema = new mongoose.Schema(
     },
     assigned: { type: Boolean, required: true, default: false },
     date: { type: Date, default: Date.now },
+    comments: [
+      {
+        date: { type: Date, default: Date.now },
+        text: { type: String, required: true },
+        author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
+        authorName: { type: String, required: false },
+      }
+    ],
   },
   { timestamps: true }
 );

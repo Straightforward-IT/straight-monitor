@@ -195,6 +195,41 @@
           </div>
         </div>
       </section>
+
+      <!-- Kommentare (nur für Event-Berichte) -->
+      <section v-if="doc.docType === 'Event-Bericht'" class="comments-section">
+        <h4 class="section-title">
+          <font-awesome-icon icon="fa-solid fa-comments" class="section-icon" />
+          Kommentare<span v-if="commentList.length" class="comments-count">{{ commentList.length }}</span>
+        </h4>
+        <div class="comments-list">
+          <p v-if="!commentList.length" class="no-comments">Noch keine Kommentare.</p>
+          <div v-for="(c, i) in commentList" :key="i" class="comment-item">
+            <div class="comment-meta">
+              <span class="comment-author">{{ c.authorName || 'Unbekannt' }}</span>
+              <span class="comment-date">{{ formatDate(c.date) }}</span>
+            </div>
+            <p class="comment-text">{{ c.text }}</p>
+          </div>
+        </div>
+        <div class="comment-input-wrapper">
+          <textarea
+            v-model="newCommentText"
+            rows="3"
+            placeholder="Kommentar schreiben..."
+            class="comment-textarea"
+            @keydown.ctrl.enter.prevent="postComment(false)"
+          />
+          <button
+            class="comment-send-btn"
+            :disabled="!newCommentText.trim() || commentLoading"
+            @click="postComment(false)"
+          >
+            <font-awesome-icon :icon="commentLoading ? 'fa-solid fa-spinner' : 'fa-solid fa-paper-plane'" :spin="commentLoading" />
+            Senden
+          </button>
+        </div>
+      </section>
     </div>
 
     <!-- Footer -->
@@ -215,7 +250,19 @@
           <img :src="asanaLogo" alt="Asana" class="asana-icon" /> Mitarbeiter Task
         </button>
       </div>
-      <button class="btn" @click="$emit('close')">Schließen</button>
+      <div class="footer-right">
+        <template v-if="doc.docType === 'Event-Bericht'">
+          <button
+            class="btn btn-primary"
+            :disabled="!newCommentText.trim() || commentLoading"
+            @click="postComment(true)"
+          >
+            <font-awesome-icon icon="fa-solid fa-envelope" />
+            An alle ausliefern
+          </button>
+        </template>
+        <button class="btn" @click="$emit('close')">Schließen</button>
+      </div>
     </footer>
   </article>
 </template>
@@ -224,6 +271,8 @@
 import { computed } from "vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
+import { useAuth } from "@/stores/auth";
+import api from "@/utils/api";
 import asanaLogo from "@/assets/asana.png";
 import laufzettelIcon from "@/assets/laufzettel.png";
 import laufzettelDarkIcon from "@/assets/laufzettel-dark.png";
@@ -238,10 +287,15 @@ import {
   faFilter,
   faFileLines,
   faClipboardCheck,
+  faComments,
+  faPaperPlane,
+  faSpinner,
+  faFloppyDisk,
+  faEnvelope,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck);
+library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope);
 
 export default {
   name: "DocumentCard",
@@ -254,15 +308,25 @@ export default {
   },
   emits: ["close", "assign", "filter-teamleiter", "filter-mitarbeiter", "open-employee"],
 
+  data() {
+    return {
+      newCommentText: '',
+      commentLoading: false,
+      localComments: null,
+    };
+  },
+
   setup(props) {
     const theme = useTheme();
+    const auth = useAuth();
 
     const isDark = computed(() => theme.isDark);
     const laufzettelImg = computed(() => isDark.value ? laufzettelDarkIcon : laufzettelIcon);
     const evaluierungImg = computed(() => isDark.value ? evaluierungDarkIcon : evaluierungIcon);
     const eventreportImg = computed(() => isDark.value ? eventreportDarkIcon : eventreportIcon);
+    const currentUser = computed(() => auth.user);
 
-    return { asanaLogo, laufzettelImg, evaluierungImg, eventreportImg };
+    return { asanaLogo, laufzettelImg, evaluierungImg, eventreportImg, currentUser };
   },
 
   computed: {
@@ -300,7 +364,11 @@ export default {
       const fb = this.doc.details?.mitarbeiter_feedback;
       if (!Array.isArray(fb)) return [];
       return fb.filter(entry => entry.text?.trim());
-    }
+    },
+    commentList() {
+      const base = Array.isArray(this.doc.details?.comments) ? this.doc.details.comments : [];
+      return this.localComments !== null ? this.localComments : base;
+    },
   },
 
   methods: {
@@ -349,6 +417,27 @@ export default {
       }
     },
 
+    async postComment(sendEmail) {
+      if (!this.newCommentText.trim() || this.commentLoading) return;
+      this.commentLoading = true;
+      try {
+        const res = await api.post(`/api/reports/eventreport/${this.doc._id}/comment`, {
+          text: this.newCommentText.trim(),
+          sendUpdate: sendEmail,
+        });
+        if (this.localComments === null) {
+          this.localComments = [...(this.doc.details?.comments || [])];
+        }
+        this.localComments.push(res.data.comment);
+        this.newCommentText = '';
+      } catch (err) {
+        console.error('Kommentar-Fehler:', err);
+        alert('Fehler: ' + (err.response?.data?.msg || err.message));
+      } finally {
+        this.commentLoading = false;
+      }
+    },
+
   }
 };
 </script>
@@ -362,7 +451,8 @@ export default {
   border-radius: 14px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   overflow: hidden;
-  max-height: 85vh;
+  flex: 1;
+  min-height: 0;
 }
 
 /* Header */
@@ -616,7 +706,6 @@ export default {
   }
 }
 
-/* Footer */
 .card-footer {
   display: flex;
   gap: 10px;
@@ -631,6 +720,145 @@ export default {
 .actions-left {
   display: flex;
   gap: 10px;
+}
+
+.footer-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Comments */
+.comments-section {
+  background: var(--bg);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+
+    .section-icon { color: var(--muted); }
+  }
+}
+
+.comments-count {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  margin-left: 4px;
+}
+
+.comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.no-comments {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.88rem;
+  margin: 0;
+}
+
+.comment-item {
+  background: var(--surface, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.comment-meta {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.comment-author {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.comment-date {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.comment-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.comment-input-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.comment-textarea {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  padding-bottom: 2.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: var(--tile-bg, var(--surface));
+  color: var(--text);
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+  resize: vertical;
+  -webkit-appearance: none;
+  appearance: none;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+}
+
+.comment-send-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: 140ms ease;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--primary) 85%, black);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 }
 
 /* Buttons */

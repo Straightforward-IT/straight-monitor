@@ -308,9 +308,12 @@ router.post(
 
         const html = `
           <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;color:#111;">
-            <div style="background:#ff7518;padding:16px 24px;border-radius:8px 8px 0 0;">
-              <h2 style="margin:0;color:#fff;font-size:1.1rem;">Neuer Event Report</h2>
-              <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:0.85rem;">Eingereicht von ${name_teamleiter}</p>
+            <div style="background:#ff7518;padding:16px 24px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+              <img src="https://straightmonitor.com/SF_002.png" alt="Straightforward" style="height:32px;width:auto;display:block;flex-shrink:0;" />
+              <div>
+                <h2 style="margin:0;color:#fff;font-size:1.1rem;">Neuer Event Report</h2>
+                <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:0.85rem;">Eingereicht von ${name_teamleiter}</p>
+              </div>
             </div>
             <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:20px 24px;">
               <table style="border-collapse:collapse;width:100%;">

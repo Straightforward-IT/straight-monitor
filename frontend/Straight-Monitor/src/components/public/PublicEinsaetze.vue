@@ -22,8 +22,11 @@
         :vorname="mitarbeiter.vorname"
         :is-teamleiter="isTeamleiter"
         :current-view="currentView"
+        :email="email"
+        :debug-tl-active="debugTLMode"
         @navigate="navigateTo"
         @back="handleBack"
+        @toggle-debug-tl="toggleDebugTL"
       />
 
       <div class="page-body">
@@ -34,8 +37,11 @@
           :is-teamleiter="isTeamleiter"
           :einsaetze="einsaetze"
           :open-laufzettel-count="openLaufzettelCount"
+          :email="email"
+          :debug-tl-active="debugTLMode"
           @navigate="navigateTo"
           @open-job="openJob"
+          @toggle-debug-tl="toggleDebugTL"
         />
 
         <!-- Kalender -->
@@ -210,12 +216,19 @@ const openLaufzettelCount = computed(() =>
 );
 
 // Teamleiter detection
+const DEBUG_EMAIL = 'cedricbglx@gmail.com';
+const debugTLMode = ref(false);
+
 const isTeamleiter = computed(() => {
   const ma = mitarbeiter.value;
   if (!ma) return false;
-  // TODO: Determine teamleiter status from backend field
-  return (ma.eventreports && ma.eventreports.length > 0) || ma.isTeamleiter === true;
+  if (email.value === DEBUG_EMAIL && debugTLMode.value) return true;
+  return ma.isTeamleiter === true;
 });
+
+function toggleDebugTL() {
+  debugTLMode.value = !debugTLMode.value;
+}
 
 function handleBack() {
   switch (currentView.value) {

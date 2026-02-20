@@ -1733,7 +1733,11 @@ export default {
 
 .modal-document-body {
   padding: 0;
-  max-height: 80vh;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .detail-grid {

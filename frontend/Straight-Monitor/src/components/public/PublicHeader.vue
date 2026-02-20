@@ -13,6 +13,17 @@
       </template>
     </div>
 
+    <!-- Debug TL Toggle (dev only) -->
+    <button
+      v-if="isDebugUser"
+      class="debug-tl-btn"
+      :class="{ active: debugTlActive }"
+      @click="emit('toggle-debug-tl')"
+    >
+      <font-awesome-icon icon="fa-solid fa-user-tie" />
+      TL
+    </button>
+
     <!-- Burger Button -->
     <button class="burger-btn" @click="showMobileMenu = !showMobileMenu">
       <font-awesome-icon :icon="showMobileMenu ? 'times' : 'bars'" />
@@ -130,10 +141,21 @@ const props = defineProps({
   currentView: {
     type: String,
     default: 'dashboard'
+  },
+  email: {
+    type: String,
+    default: ''
+  },
+  debugTlActive: {
+    type: Boolean,
+    default: false
   }
 });
 
-const emit = defineEmits(['navigate', 'back']);
+const emit = defineEmits(['navigate', 'back', 'toggle-debug-tl']);
+
+const DEBUG_EMAIL = 'cedricbglx@gmail.com';
+const isDebugUser = computed(() => props.email === DEBUG_EMAIL);
 
 const viewTitleMap = {
   'kalender': 'Kalender',
@@ -242,6 +264,28 @@ h1 {
   margin: 0;
   font-weight: 600;
   color: var(--text);
+}
+
+.debug-tl-btn {
+  background: none;
+  border: 1px dashed var(--muted);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+
+  &.active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(255, 117, 24, 0.1);
+  }
 }
 
 /* Right Side */

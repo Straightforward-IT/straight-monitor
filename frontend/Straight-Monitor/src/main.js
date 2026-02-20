@@ -6,7 +6,7 @@ import router from './router';
 
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly, faPencil, faCheck, faSortDown, faSortUp, faList, faPersonThroughWindow, faPersonCircleExclamation, faUserPlus, faPeopleLine, faFileInvoice, faTable, faSun, faMoon, faChevronUp, faChevronDown, faChevronLeft, faChevronRight, faTags, faIdBadge, faUsers, faListCheck, faSpinner, faClipboardCheck, faExternalLinkAlt, faExternalLink, faTicketAlt, faEnvelope, faMobileAlt, faFileAlt, faBars, faChartLine, faHistory, faTools, faSignOutAlt, faCalendarAlt, faCalendarDays, faCopy, faLink, faUnlink, faRotateRight, faHourglassHalf, faPaperPlane, faClock, faCalendar, faHeart, faKeyboard, faCodeBranch, faUser, faUnlock, faLock, faTrophy, faDice, faHome, faArrowLeft, faInbox, faStar, faUserTie, faGraduationCap, faBuilding, faBullseye, faSortAlphaDown, faSortAlphaUp, faSortNumericDown, faSortNumericUp, faPaperclip, faChartBar as faChartBarSolid, faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faObjectGroup, faChartPie, faClipboardList, faBriefcase, faFilePen, faLocationDot, faFileLines, faFileCircleCheck, faMagnifyingGlass, faHashtag, faMapPin, faCircleCheck, faEllipsisVertical, faComment } from '@fortawesome/free-solid-svg-icons';
+import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly, faPencil, faCheck, faSortDown, faSortUp, faList, faPersonThroughWindow, faPersonCircleExclamation, faUserPlus, faPeopleLine, faFileInvoice, faTable, faSun, faMoon, faChevronUp, faChevronDown, faChevronLeft, faChevronRight, faTags, faIdBadge, faUsers, faListCheck, faSpinner, faClipboardCheck, faExternalLinkAlt, faExternalLink, faTicketAlt, faEnvelope, faMobileAlt, faFileAlt, faBars, faChartLine, faHistory, faTools, faSignOutAlt, faCalendarAlt, faCalendarDays, faCopy, faLink, faUnlink, faRotateRight, faHourglassHalf, faPaperPlane, faClock, faCalendar, faHeart, faKeyboard, faCodeBranch, faUser, faUnlock, faLock, faTrophy, faDice, faHome, faArrowLeft, faInbox, faStar, faUserTie, faGraduationCap, faBuilding, faBullseye, faSortAlphaDown, faSortAlphaUp, faSortNumericDown, faSortNumericUp, faPaperclip, faChartBar as faChartBarSolid, faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faObjectGroup, faChartPie, faClipboardList, faBriefcase, faFilePen, faLocationDot, faFileLines, faFileCircleCheck, faMagnifyingGlass, faHashtag, faMapPin, faCircleCheck, faEllipsisVertical, faComment, faToggleOn, faToggleOff } from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
@@ -36,6 +36,7 @@ library.add(
   faClipboardList, faBriefcase, faFilePen, faLocationDot, faFileLines, faFileCircleCheck,
   faMagnifyingGlass, faHashtag, faMapPin, faCircleCheck,
   faEllipsisVertical, faComment,
+  faToggleOn, faToggleOff,
   // Regular Icons
   faCircleXmark, faCircle
 );

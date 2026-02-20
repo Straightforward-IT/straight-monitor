@@ -3,6 +3,8 @@ const express = require("express");
 const router = express.Router();
 const logger = require("../utils/logger");
 const auth = require("../middleware/auth");
+const User = require("../models/User");
+const registry = require("../config/registry");
 
 const {
   Laufzettel,
@@ -1925,6 +1927,66 @@ router.post(
       verlosung_id: verlosung._id,
       total_eintraege: verlosung.eintraege.length,
     });
+  })
+);
+
+// ── POST /api/reports/eventreport/:id/comment ──
+// Adds a comment to an EventReport and optionally sends an update email
+router.post(
+  "/eventreport/:id/comment",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { text, sendUpdate } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, msg: "text ist erforderlich" });
+    }
+
+    const report = await EventReport.findById(req.params.id);
+    if (!report) return res.status(404).json({ success: false, msg: "EventReport nicht gefunden" });
+
+    const user = await User.findById(req.user.id).select("name email");
+    const authorName = user?.name || user?.email || "Unbekannt";
+
+    const comment = { date: new Date(), text: text.trim(), author: req.user.id, authorName };
+    report.comments.push(comment);
+    await report.save();
+
+    const newComment = report.comments[report.comments.length - 1];
+    logger.info(`💬 Kommentar zu EventReport ${report._id} von ${authorName}`);
+
+    if (sendUpdate) {
+      try {
+        const recipients = registry.getEventReportRecipients(report.location);
+        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+        const html = `
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;color:#111;">
+            <div style="background:#ff7518;padding:16px 24px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+              <img src="https://straightmonitor.com/SF_002.png" alt="Straightforward" style="height:32px;width:auto;display:block;flex-shrink:0;" />
+              <div>
+                <h2 style="margin:0;color:#fff;font-size:1.1rem;">Update: Event Report</h2>
+                <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:0.85rem;">${report.kunde} – ${fmtDate(report.datum)} (${report.location})</p>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:20px 24px;">
+              <div style="background:#fff8f3;border-left:3px solid #ff7518;padding:12px 16px;border-radius:0 8px 8px 0;">
+                <p style="margin:0 0 6px;font-size:0.8rem;font-weight:600;color:#666;">${authorName} – ${fmtDate(new Date())}</p>
+                <p style="margin:0;font-size:0.95rem;color:#111;white-space:pre-wrap;">${text.trim()}</p>
+              </div>
+            </div>
+          </div>`;
+        await sendMail(
+          recipients,
+          `Update Event Report: ${report.kunde} – ${fmtDate(report.datum)}`,
+          html,
+          'it'
+        );
+        logger.info(`📧 Update-Email gesendet für EventReport ${report._id} an ${recipients.join(', ')}`);
+      } catch (emailErr) {
+        logger.error('❌ Update-Email fehlgeschlagen:', emailErr.message);
+      }
+    }
+
+    res.status(201).json({ success: true, comment: newComment });
   })
 );
 

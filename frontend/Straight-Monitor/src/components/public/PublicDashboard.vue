@@ -65,6 +65,18 @@
         </div>
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
       </div>
+
+      <!-- Debug: Teamleiter Toggle -->
+      <div v-if="isDebugUser" class="tile tile--debug" @click="$emit('toggle-debug-tl')">
+        <div class="tile-icon tile-icon--debug">
+          <font-awesome-icon icon="fa-solid fa-user-tie" />
+        </div>
+        <div class="tile-content">
+          <h3>Teamleiter Modus</h3>
+          <p>{{ debugTlActive ? 'Aktiv — klicken zum Deaktivieren' : 'Inaktiv — klicken zum Aktivieren' }}</p>
+        </div>
+        <font-awesome-icon :icon="debugTlActive ? 'fa-solid fa-toggle-on' : 'fa-solid fa-toggle-off'" class="tile-arrow" :style="{ color: debugTlActive ? 'var(--primary)' : undefined }" />
+      </div>
     </div>
 
     <!-- Upcoming jobs -->
@@ -123,10 +135,15 @@ const props = defineProps({
   vorname: { type: String, default: '' },
   isTeamleiter: { type: Boolean, default: false },
   einsaetze: { type: Array, default: () => [] },
-  openLaufzettelCount: { type: Number, default: 0 }
+  openLaufzettelCount: { type: Number, default: 0 },
+  email: { type: String, default: '' },
+  debugTlActive: { type: Boolean, default: false },
 });
 
-defineEmits(['navigate', 'open-job']);
+defineEmits(['navigate', 'open-job', 'toggle-debug-tl']);
+
+const DEBUG_EMAIL = 'cedricbglx@gmail.com';
+const isDebugUser = computed(() => props.email === DEBUG_EMAIL);
 
 function formatTime(val) {
   if (!val) return '';
@@ -280,6 +297,17 @@ const upcomingEinsaetze = computed(() => {
   color: var(--muted);
   font-size: 0.8rem;
   flex-shrink: 0;
+}
+
+.tile--debug {
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+.tile-icon--debug {
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 1.1rem;
 }
 
 /* Section */
