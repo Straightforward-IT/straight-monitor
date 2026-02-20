@@ -24,6 +24,14 @@
           <span class="prefill-label">Teamleiter</span>
           <span class="prefill-value">{{ laufzettel?.name_teamleiter }}</span>
         </div>
+        <div class="prefill-row" v-if="laufzettel?.auftragnummer">
+          <span class="prefill-label">Auftragnr.</span>
+          <span class="prefill-value">{{ laufzettel.auftragnummer }}</span>
+        </div>
+        <div class="prefill-row" v-if="laufzettel?.kunde">
+          <span class="prefill-label">Kunde</span>
+          <span class="prefill-value">{{ laufzettel.kunde }}</span>
+        </div>
         <div class="prefill-row" v-if="laufzettel?.location">
           <span class="prefill-label">Location</span>
           <span class="prefill-value">{{ laufzettel.location }}</span>
@@ -34,8 +42,8 @@
         </div>
       </div>
 
-      <!-- Kunde -->
-      <div class="form-group">
+      <!-- Kunde (nur wenn nicht aus Laufzettel vorhanden) -->
+      <div class="form-group" v-if="!laufzettel?.kunde">
         <label>Kunde *</label>
         <input v-model="form.kunde" type="text" required placeholder="Kundenname" />
       </div>
@@ -46,47 +54,27 @@
 
         <div class="form-group">
           <label>Pünktlichkeit</label>
-          <div class="rating-chips">
-            <button v-for="r in ratings" :key="r" type="button"
-              :class="['chip', { active: form.puenktlichkeit === r }]"
-              @click="form.puenktlichkeit = r">{{ r }}</button>
-          </div>
+          <textarea v-model="form.puenktlichkeit" rows="2" placeholder="z.B. Pünktlich erschienen, 10 min zu spät…" />
         </div>
 
         <div class="form-group">
           <label>Grooming / Erscheinungsbild</label>
-          <div class="rating-chips">
-            <button v-for="r in ratings" :key="r" type="button"
-              :class="['chip', { active: form.grooming === r }]"
-              @click="form.grooming = r">{{ r }}</button>
-          </div>
+          <textarea v-model="form.grooming" rows="2" placeholder="z.B. Gepflegt, Uniform korrekt…" />
         </div>
 
         <div class="form-group">
           <label>Motivation</label>
-          <div class="rating-chips">
-            <button v-for="r in ratings" :key="r" type="button"
-              :class="['chip', { active: form.motivation === r }]"
-              @click="form.motivation = r">{{ r }}</button>
-          </div>
+          <textarea v-model="form.motivation" rows="2" placeholder="z.B. Sehr engagiert, hat proaktiv geholfen…" />
         </div>
 
         <div class="form-group">
           <label>Technische Fertigkeiten</label>
-          <div class="rating-chips">
-            <button v-for="r in ratings" :key="r" type="button"
-              :class="['chip', { active: form.technische_fertigkeiten === r }]"
-              @click="form.technische_fertigkeiten = r">{{ r }}</button>
-          </div>
+          <textarea v-model="form.technische_fertigkeiten" rows="2" placeholder="z.B. Kassensystem gut bedient…" />
         </div>
 
         <div class="form-group">
           <label>Lernbereitschaft</label>
-          <div class="rating-chips">
-            <button v-for="r in ratings" :key="r" type="button"
-              :class="['chip', { active: form.lernbereitschaft === r }]"
-              @click="form.lernbereitschaft = r">{{ r }}</button>
-          </div>
+          <textarea v-model="form.lernbereitschaft" rows="2" placeholder="z.B. Schnell gelernt, hat Rückfragen gestellt…" />
         </div>
       </div>
 
@@ -96,7 +84,7 @@
         <textarea v-model="form.sonstiges" rows="3" placeholder="Optionaler Kommentar…"></textarea>
       </div>
 
-      <button type="submit" class="submit-btn" :disabled="!form.kunde || submitting">
+      <button type="submit" class="submit-btn" :disabled="!canSubmit || submitting">
         <span v-if="submitting">
           <font-awesome-icon icon="fa-solid fa-spinner" spin /> Wird gesendet…
         </span>
@@ -109,7 +97,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 
 const props = defineProps({
   laufzettel: { type: Object, required: true },
@@ -119,7 +107,6 @@ const props = defineProps({
 
 const emit = defineEmits(['back', 'evaluierung-submitted']);
 
-const ratings = ['1', '2', '3', '4', '5'];
 const submitSuccess = ref(false);
 const submitting = ref(false);
 
@@ -131,6 +118,20 @@ const form = reactive({
   technische_fertigkeiten: '',
   lernbereitschaft: '',
   sonstiges: '',
+});
+
+onMounted(() => {
+  if (props.laufzettel?.kunde) {
+    form.kunde = props.laufzettel.kunde;
+  }
+});
+
+const canSubmit = computed(() => {
+  // Require kunde (auto-filled or entered) + at least one rating field
+  return !!form.kunde && (
+    !!form.puenktlichkeit || !!form.grooming || !!form.motivation ||
+    !!form.technische_fertigkeiten || !!form.lernbereitschaft || !!form.sonstiges
+  );
 });
 
 async function submitEvaluierung() {

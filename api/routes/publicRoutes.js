@@ -499,10 +499,13 @@ router.post(
       .lean();
 
     const location = auftrag?.eventLocation || auftrag?.eventOrt || "";
+    const kunde = auftrag?.eventTitel || "";
     const datum = auftrag?.vonDatum ? new Date(auftrag.vonDatum) : new Date();
 
     const laufzettel = new Laufzettel({
       location,
+      auftragnummer: parseInt(auftragNr),
+      kunde,
       name_mitarbeiter: `${mitarbeiter.vorname} ${mitarbeiter.nachname}`.trim(),
       name_teamleiter: `${teamleiter.vorname} ${teamleiter.nachname}`.trim(),
       mitarbeiter: mitarbeiter._id,

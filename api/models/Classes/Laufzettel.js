@@ -36,6 +36,7 @@ const LaufzettelSchema = new mongoose.Schema(
       required: false,
     },
     assigned: { type: Boolean, required: true, default: false },
+    auftragnummer: { type: Number, required: false },
     datum: {
       type: Date,
       required: false,
