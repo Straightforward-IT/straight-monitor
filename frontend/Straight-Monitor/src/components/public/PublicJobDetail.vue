@@ -118,15 +118,26 @@
                 </span>
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
               </div>
-              <a
-                v-if="(isTeamleiter || ma.isTeamleiter) && ma.telefon"
-                :href="'tel:' + cleanPhone(ma.telefon)"
-                class="ma-phone"
-                @click.stop="copyPhone(ma.telefon, $event)"
-              >
-                <font-awesome-icon icon="fa-solid fa-phone" />
-                <span class="ma-phone-number">{{ ma.telefon }}</span>
-              </a>
+              <div class="ma-actions">
+                <button
+                  v-if="ma.flip_id && bridgeAvailable"
+                  class="ma-flip-btn"
+                  @click.stop="openFlipChat(ma.flip_id)"
+                  title="In Flip öffnen"
+                >
+                  <font-awesome-icon icon="fa-solid fa-comment" />
+                  <span>Flip</span>
+                </button>
+                <a
+                  v-if="(isTeamleiter || ma.isTeamleiter) && ma.telefon"
+                  :href="'tel:' + cleanPhone(ma.telefon)"
+                  class="ma-phone"
+                  @click.stop="copyPhone(ma.telefon, $event)"
+                >
+                  <font-awesome-icon icon="fa-solid fa-phone" />
+                  <span class="ma-phone-number">{{ ma.telefon }}</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -147,7 +158,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
-import { showToast } from '@getflip/bridge';
+import { showToast, navigate, getTheme } from '@getflip/bridge';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 const theme = useTheme();
@@ -164,6 +175,16 @@ defineEmits(['back', 'write-report']);
 
 const loadingMa = ref(false);
 const schichtGruppen = ref([]);
+const bridgeAvailable = ref(false);
+
+async function detectBridge() {
+  try {
+    await getTheme();
+    bridgeAvailable.value = true;
+  } catch {
+    bridgeAvailable.value = false;
+  }
+}
 
 const totalMitarbeiter = computed(() =>
   schichtGruppen.value.reduce((sum, s) => sum + s.mitarbeiter.length, 0)
@@ -249,6 +270,16 @@ function saveCheckIns(auftragNr, gruppen) {
   localStorage.setItem(storageKey(auftragNr), JSON.stringify(state));
 }
 
+async function openFlipChat(flipId) {
+  if (!flipId) return;
+  try {
+    await navigate(`/chats/${flipId}`);
+  } catch {
+    // Fallback außerhalb der Flip-App
+    window.open(`https://straightforward.flip-app.com/chats/${flipId}`, '_blank');
+  }
+}
+
 function toggleCheckIn(ma) {
   ma.checkedIn = !ma.checkedIn;
   saveCheckIns(props.einsatz.auftragNr, schichtGruppen.value);
@@ -274,7 +305,10 @@ async function loadMitarbeiter() {
   }
 }
 
-onMounted(() => loadMitarbeiter());
+onMounted(() => {
+  detectBridge();
+  loadMitarbeiter();
+});
 
 watch(() => props.einsatz?._id, () => {
   loadMitarbeiter();
@@ -550,6 +584,35 @@ watch(() => props.einsatz?._id, () => {
 
 .ma-phone:active {
   background: rgba(40, 167, 69, 0.2);
+}
+
+.ma-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.ma-flip-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+
+.ma-flip-btn:active {
+  background: var(--hover);
 }
 
 .ma-phone-number {

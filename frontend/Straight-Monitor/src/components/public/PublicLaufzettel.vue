@@ -295,9 +295,9 @@ function formatDate(d) {
 }
 
 .btn-new {
-  background: var(--primary);
-  color: #fff;
-  border: none;
+  background: transparent;
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
   border-radius: 8px;
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
@@ -307,6 +307,11 @@ function formatDate(d) {
   align-items: center;
   gap: 0.4rem;
   -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+
+.btn-new:active {
+  background: rgba(255, 117, 24, 0.08);
 }
 
 /* ── Success ── */
