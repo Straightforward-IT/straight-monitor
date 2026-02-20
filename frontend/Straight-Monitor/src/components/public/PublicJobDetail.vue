@@ -118,25 +118,33 @@
                 </span>
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
               </div>
-              <div class="ma-actions">
-                <button
-                  v-if="ma.flip_id && bridgeAvailable"
-                  class="ma-flip-btn"
-                  @click.stop="openFlipChat(ma.flip_id)"
-                  title="In Flip öffnen"
-                >
-                  <font-awesome-icon icon="fa-solid fa-comment" />
-                  <span>Flip</span>
+              <!-- Three-dots context menu -->
+              <div
+                v-if="(ma.flip_id && bridgeAvailable) || ((isTeamleiter || ma.isTeamleiter) && ma.telefon)"
+                class="ma-menu-wrap"
+              >
+                <button class="ma-menu-btn" @click.stop="toggleMenu(ma.personalNr)">
+                  <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
                 </button>
-                <a
-                  v-if="(isTeamleiter || ma.isTeamleiter) && ma.telefon"
-                  :href="'tel:' + cleanPhone(ma.telefon)"
-                  class="ma-phone"
-                  @click.stop="copyPhone(ma.telefon, $event)"
-                >
-                  <font-awesome-icon icon="fa-solid fa-phone" />
-                  <span class="ma-phone-number">{{ ma.telefon }}</span>
-                </a>
+                <div v-if="openMenuFor === ma.personalNr" class="ma-menu-dropdown">
+                  <button
+                    v-if="ma.flip_id && bridgeAvailable"
+                    class="ma-menu-item"
+                    @click.stop="openFlipChat(ma.flip_id); openMenuFor = null"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-comment" />
+                    In Flip öffnen
+                  </button>
+                  <a
+                    v-if="(isTeamleiter || ma.isTeamleiter) && ma.telefon"
+                    :href="'tel:' + cleanPhone(ma.telefon)"
+                    class="ma-menu-item"
+                    @click.stop="copyPhone(ma.telefon, $event); openMenuFor = null"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-phone" />
+                    {{ ma.telefon }}
+                  </a>
+                </div>
               </div>
             </div>
           </div>
@@ -154,7 +162,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
@@ -176,6 +184,15 @@ defineEmits(['back', 'write-report']);
 const loadingMa = ref(false);
 const schichtGruppen = ref([]);
 const bridgeAvailable = ref(false);
+const openMenuFor = ref(null);
+
+function toggleMenu(personalNr) {
+  openMenuFor.value = openMenuFor.value === personalNr ? null : personalNr;
+}
+
+function handleOutsideClick() {
+  openMenuFor.value = null;
+}
 
 async function detectBridge() {
   try {
@@ -273,10 +290,10 @@ function saveCheckIns(auftragNr, gruppen) {
 async function openFlipChat(flipId) {
   if (!flipId) return;
   try {
-    await navigate(`/chats/${flipId}`);
+    await navigate(`/contacts/${flipId}`);
   } catch {
     // Fallback außerhalb der Flip-App
-    window.open(`https://straightforward.flip-app.com/chats/${flipId}`, '_blank');
+    window.open(`https://straightforward.flip-app.com/contacts/${flipId}`, '_blank');
   }
 }
 
@@ -308,6 +325,11 @@ async function loadMitarbeiter() {
 onMounted(() => {
   detectBridge();
   loadMitarbeiter();
+  document.addEventListener('click', handleOutsideClick);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleOutsideClick);
 });
 
 watch(() => props.einsatz?._id, () => {
@@ -586,33 +608,67 @@ watch(() => props.einsatz?._id, () => {
   background: rgba(40, 167, 69, 0.2);
 }
 
-.ma-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
+.ma-menu-wrap {
+  position: relative;
   flex-shrink: 0;
 }
 
-.ma-flip-btn {
+.ma-menu-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.6rem;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-  font-size: 0.8rem;
-  font-weight: 600;
+  justify-content: center;
   cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
+  font-size: 0.9rem;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s;
 }
 
-.ma-flip-btn:active {
+.ma-menu-btn:active {
   background: var(--hover);
+}
+
+.ma-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  min-width: 170px;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.ma-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s;
+}
+
+.ma-menu-item:active {
+  background: var(--hover);
+}
+
+.ma-menu-item + .ma-menu-item {
+  border-top: 1px solid var(--border);
 }
 
 .ma-phone-number {
