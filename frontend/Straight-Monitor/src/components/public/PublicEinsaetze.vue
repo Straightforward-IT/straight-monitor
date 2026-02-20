@@ -23,6 +23,7 @@
         :is-teamleiter="isTeamleiter"
         :current-view="currentView"
         @navigate="navigateTo"
+        @back="handleBack"
       />
 
       <div class="page-body">
@@ -215,6 +216,22 @@ const isTeamleiter = computed(() => {
   // TODO: Determine teamleiter status from backend field
   return (ma.eventreports && ma.eventreports.length > 0) || ma.isTeamleiter === true;
 });
+
+function handleBack() {
+  switch (currentView.value) {
+    case 'evaluierung':
+      navigateTo('evaluierungen');
+      break;
+    case 'job-detail':
+      goBackFromJob();
+      break;
+    case 'eventreport':
+      goBackFromReport();
+      break;
+    default:
+      navigateTo('dashboard');
+  }
+}
 
 function navigateTo(view) {
   previousView.value = currentView.value;

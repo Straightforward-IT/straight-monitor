@@ -1,8 +1,16 @@
 <template>
   <header class="public-header">
     <div class="left">
-      <img :src="logoSrc" class="logo logo--clickable" alt="logo" @click="navigate('dashboard')" />
-      <h1 class="title--clickable" @click="navigate('dashboard')">Straightforward</h1>
+      <template v-if="currentView === 'dashboard'">
+        <img :src="logoSrc" class="logo logo--clickable" alt="logo" @click="navigate('dashboard')" />
+        <h1 class="title--clickable" @click="navigate('dashboard')">Straightforward</h1>
+      </template>
+      <template v-else>
+        <button class="header-back-btn" @click="$emit('back')">
+          <font-awesome-icon icon="fa-solid fa-arrow-left" />
+        </button>
+        <h1 class="header-view-title">{{ viewTitle }}</h1>
+      </template>
     </div>
 
     <!-- Burger Button -->
@@ -125,7 +133,18 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['navigate']);
+const emit = defineEmits(['navigate', 'back']);
+
+const viewTitleMap = {
+  'kalender': 'Kalender',
+  'laufzettel': 'Laufzettel',
+  'evaluierungen': 'Evaluierungen',
+  'evaluierung': 'Evaluierung',
+  'vergangene-jobs': 'Vergangene Jobs',
+  'job-detail': 'Job Details',
+  'eventreport': 'Event Report'
+};
+const viewTitle = computed(() => viewTitleMap[props.currentView] || '');
 
 function navigate(view) {
   showMobileMenu.value = false;
@@ -197,6 +216,25 @@ onMounted(async () => {
 .title--clickable:hover {
   color: var(--primary);
   transition: color 0.15s;
+}
+
+.header-back-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px 8px 4px 0;
+  display: flex;
+  align-items: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.header-view-title {
+  font-size: 1.1rem;
+  margin: 0;
+  font-weight: 600;
+  color: var(--text);
 }
 
 h1 {

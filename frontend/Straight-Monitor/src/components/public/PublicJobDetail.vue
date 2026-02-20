@@ -1,11 +1,6 @@
 <template>
   <div class="job-detail-view">
 
-    <!-- Back Button -->
-    <button class="back-btn" @click="$emit('back')">
-      <font-awesome-icon icon="fa-solid fa-arrow-left" /> Zurück
-    </button>
-
     <!-- Job Header -->
     <div class="job-header">
       <h2 class="job-title">
@@ -181,16 +176,17 @@ function formatZeitraum(von, bis) {
   return vonStr === bisStr ? vonStr : `${vonStr} – ${bisStr}`;
 }
 
-// Excel time values come in as Date objects with a 1899 base date.
-// We extract only the HH:MM portion regardless of the date part.
 function formatTime(val) {
   if (!val) return '';
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return String(val);
-  // Use UTC to avoid timezone shifting the 1899 base date
-  const h = String(d.getUTCHours()).padStart(2, '0');
-  const m = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${h}:${m}`;
+  if (typeof val === 'string' && /^\d{1,2}:\d{2}(:\d{2})?$/.test(val)) {
+    return val.substring(0, 5);
+  }
+  // Full JS .toString() date string — extract HH:MM directly
+  if (typeof val === 'string') {
+    const m = val.match(/\d{4} (\d{2}:\d{2}):\d{2}/);
+    if (m) return m[1];
+  }
+  return '';
 }
 
 function formatTreffpunkt(val) {
@@ -284,21 +280,6 @@ watch(() => props.einsatz?._id, () => {
 <style scoped>
 .job-detail-view {
   padding: 0 0 2rem;
-}
-
-.back-btn {
-  background: none;
-  border: none;
-  color: var(--primary);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  -webkit-tap-highlight-color: transparent;
 }
 
 /* Job Header */

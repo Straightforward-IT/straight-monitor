@@ -1,13 +1,6 @@
 <template>
   <div class="eventreport-view">
 
-    <!-- Back Button -->
-    <button class="back-btn" @click="$emit('back')">
-      <font-awesome-icon icon="fa-solid fa-arrow-left" /> Zurück
-    </button>
-
-    <h2 class="view-title">Event Report</h2>
-
     <!-- Success -->
     <div v-if="submitSuccess" class="success-state">
       <div class="success-icon">
@@ -273,7 +266,7 @@ function clearDraft() {
     localStorage.removeItem(`eventreport_draft_${props.mitarbeiter?.personalnr || props.email || 'u'}`);
   } catch {}
 }
-function loadDraft() {
+async function loadDraft() {
   // Don't restore if we have a fresh prefill from job detail
   if (props.prefillEinsatz) return false;
   try {
@@ -282,7 +275,15 @@ function loadDraft() {
     const draft = JSON.parse(raw);
     if (draft.selectedEinsatzId) selectedEinsatzId.value = draft.selectedEinsatzId;
     if (draft.form) Object.assign(form, draft.form);
-    if (draft.mitarbeiterRows?.length) mitarbeiterRows.value = draft.mitarbeiterRows;
+    // Re-fetch Mitarbeiter list so chips are available again
+    if (draft.form?.auftragnummer) {
+      const savedRows = draft.mitarbeiterRows || [];
+      await loadEinsatzMitarbeiter(draft.form.auftragnummer);
+      // loadEinsatzMitarbeiter clears rows – restore saved ones
+      if (savedRows.length) mitarbeiterRows.value = savedRows;
+    } else if (draft.mitarbeiterRows?.length) {
+      mitarbeiterRows.value = draft.mitarbeiterRows;
+    }
     return true;
   } catch { return false; }
 }
@@ -295,8 +296,8 @@ if (props.prefillEinsatz) {
   prefillFromEinsatz(props.prefillEinsatz);
 }
 
-onMounted(() => {
-  loadDraft();
+onMounted(async () => {
+  await loadDraft();
 });
 
 function formatDate(d) {
@@ -493,28 +494,6 @@ async function submitReport() {
 
 .ma-row-remove:hover {
   color: #e74c3c;
-}
-
-.back-btn {
-  background: none;
-  border: none;
-  color: var(--primary);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.view-title {
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0 0 1.25rem;
 }
 
 /* Success */

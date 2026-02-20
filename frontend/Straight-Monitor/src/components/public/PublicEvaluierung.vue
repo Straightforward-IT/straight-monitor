@@ -1,13 +1,6 @@
 <template>
   <div class="evaluierung-view">
 
-    <!-- Back Button -->
-    <button class="back-btn" @click="$emit('back')">
-      <font-awesome-icon icon="fa-solid fa-arrow-left" /> Zurück
-    </button>
-
-    <h2 class="view-title">Evaluierung schreiben</h2>
-
     <!-- Success -->
     <div v-if="submitSuccess" class="success-state">
       <div class="success-icon">
@@ -177,27 +170,7 @@ function formatDate(d) {
   padding: 0 0 2rem;
 }
 
-.back-btn {
-  background: none;
-  border: none;
-  color: var(--primary);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  -webkit-tap-highlight-color: transparent;
-}
 
-.view-title {
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0 0 1.25rem;
-}
 
 /* Success */
 .success-state {

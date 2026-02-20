@@ -1,11 +1,6 @@
 <template>
   <div class="laufzettel-view">
 
-    <!-- Back Button -->
-    <button class="back-btn" @click="$emit('back')">
-      <font-awesome-icon icon="fa-solid fa-arrow-left" /> Zurück
-    </button>
-
     <div class="title-row">
       <h2 class="view-title">Laufzettel</h2>
       <button class="btn-new" @click="openForm" v-if="!showForm && !submitSuccess">
@@ -263,21 +258,6 @@ function formatDate(d) {
 <style scoped>
 .laufzettel-view {
   padding: 0 0 2rem;
-}
-
-.back-btn {
-  background: none;
-  border: none;
-  color: var(--primary);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  -webkit-tap-highlight-color: transparent;
 }
 
 .title-row {
