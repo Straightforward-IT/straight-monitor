@@ -150,6 +150,16 @@ getTeamByUpn(upn) {
       }));
   }
 
+  // EventReport E-Mail-Empfänger basierend auf Standort/Location-String
+  getEventReportRecipients(location) {
+    try {
+      const t = this.getTeam(location);
+      return t?.eventReport?.recipients || ['er@straightforward.email'];
+    } catch {
+      return ['er@straightforward.email'];
+    }
+  }
+
   // Items
   getInventoryStandort(input) {
     const t = this.getTeam(input); // input kann "hamburg", "HH", "Köln", "koeln", etc. sein

@@ -9,6 +9,8 @@ const Qualifikation = require("../models/Qualifikation");
 const { EventReport, Laufzettel, EvaluierungMA } = require("../models/Classes/FlipDocs");
 const logger = require("../utils/logger");
 const AsanaService = require("../AsanaService");
+const { sendMail } = require("../EmailService");
+const registry = require("../config/registry");
 
 // All routes in this file require FLIP_PUBLIC_JWT
 router.use(publicAuth);
@@ -264,6 +266,71 @@ router.post(
     }
 
     res.status(201).json({ msg: "EventReport erfolgreich gespeichert", id: eventReport._id });
+
+    // ── E-Mail: Event Report Benachrichtigung (fire-and-forget) ──
+    (async () => {
+      try {
+        const recipients = registry.getEventReportRecipients(location);
+        const fmtField = (v) => v && v.trim() ? v.trim() : '<span style="color:#999;">—</span>';
+        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+        const row = (label, value) =>
+          `<tr><td style="padding:6px 12px 6px 0;font-size:0.85rem;color:#666;font-weight:600;white-space:nowrap;vertical-align:top;">${label}</td><td style="padding:6px 0;font-size:0.9rem;color:#111;">${value}</td></tr>`;
+
+        let maFeedbackHtml = '';
+        if (Array.isArray(mitarbeiter_feedback) && mitarbeiter_feedback.length) {
+          maFeedbackHtml = mitarbeiter_feedback
+            .filter(f => f.text?.trim())
+            .map(f => `<div style="margin:4px 0 8px;"><strong style="font-size:0.8rem;color:#555;">${f.name || f.personalNr}</strong><br/><span style="font-size:0.9rem;">${f.text.trim()}</span></div>`)
+            .join('');
+        }
+        if (!maFeedbackHtml && mitarbeiter_job) maFeedbackHtml = fmtField(mitarbeiter_job);
+        if (!maFeedbackHtml) maFeedbackHtml = '<span style="color:#999;">—</span>';
+
+        const html = `
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;color:#111;">
+            <div style="background:#ff7518;padding:16px 24px;border-radius:8px 8px 0 0;">
+              <h2 style="margin:0;color:#fff;font-size:1.1rem;">📋 Neuer Event Report</h2>
+              <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:0.85rem;">Eingereicht von ${name_teamleiter}</p>
+            </div>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:20px 24px;">
+              <table style="border-collapse:collapse;width:100%;">
+                ${row('Datum', fmtDate(datum))}
+                ${row('Standort', fmtField(location))}
+                ${row('Kunde / Event', fmtField(kunde))}
+                ${row('Auftragsnr.', fmtField(auftragnummer))}
+                ${row('Teamleiter', fmtField(name_teamleiter))}
+                ${row('Mitarbeiter Anz.', fmtField(mitarbeiter_anzahl))}
+              </table>
+              <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
+              <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Bewertung</h3>
+              <table style="border-collapse:collapse;width:100%;">
+                ${row('Pünktlichkeit', fmtField(puenktlichkeit))}
+                ${row('Erscheinungsbild', fmtField(erscheinungsbild))}
+                ${row('Team', fmtField(team))}
+              </table>
+              <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
+              <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Mitarbeiter & Job</h3>
+              ${maFeedbackHtml}
+              <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
+              <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Feedback Auftraggeber</h3>
+              <p style="margin:0;font-size:0.9rem;">${fmtField(feedback_auftraggeber)}</p>
+              <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
+              <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Sonstiges</h3>
+              <p style="margin:0;font-size:0.9rem;">${fmtField(sonstiges)}</p>
+            </div>
+          </div>`;
+
+        await sendMail(
+          recipients,
+          `Event Report: ${kunde} – ${fmtDate(datum)} (${location})`,
+          html,
+          'it'
+        );
+        logger.info(`📧 EventReport email sent to ${recipients.join(', ')} for ${name_teamleiter}`);
+      } catch (emailErr) {
+        logger.error('❌ EventReport email failed:', emailErr.message);
+      }
+    })();
 
     // ── Asana: Feedback-Subtask pro Mitarbeiter (fire-and-forget) ──
     if (resolvedFeedback.length && auftragnummer) {
