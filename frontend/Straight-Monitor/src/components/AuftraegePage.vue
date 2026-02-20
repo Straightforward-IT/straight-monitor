@@ -958,30 +958,28 @@ export default {
       return `${start.toLocaleDateString('de-DE', opts)} - ${end.toLocaleDateString('de-DE', opts)}`;
     },
     formatDayDate(date) {
-      return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+      return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Berlin' });
     },
     formatTime(dateStr) {
       if (!dateStr) return '-';
-      
-      // If it looks like HH:MM or HH:MM:SS already, just return the first 5 chars
+      // Already a clean HH:MM or HH:MM:SS string
       if (typeof dateStr === 'string' && /^\d{1,2}:\d{2}(:\d{2})?$/.test(dateStr)) {
-          return dateStr.substring(0, 5);
+        return dateStr.substring(0, 5);
       }
-
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr; // Fallback if invalid date
-      
-      // Use UTC to avoid timezone shifting the 1899 Excel base date
-      const h = String(d.getUTCHours()).padStart(2, '0');
-      const m = String(d.getUTCMinutes()).padStart(2, '0');
-      return `${h}:${m}`;
+      // Full JS .toString() date string e.g. "Sun Dec 31 1899 10:00:00 GMT+0100 (...)"
+      // Extract HH:MM directly from the string — no timezone conversion!
+      if (typeof dateStr === 'string') {
+        const m = dateStr.match(/\d{4} (\d{2}:\d{2}):\d{2}/);
+        if (m) return m[1];
+      }
+      return '-';
     },
     formatDateTime(dateStr) {
       if (!dateStr) return '-';
       const d = new Date(dateStr);
       return d.toLocaleString('de-DE', { 
         day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit' 
+        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin'
       });
     },
     debouncedSearch() {

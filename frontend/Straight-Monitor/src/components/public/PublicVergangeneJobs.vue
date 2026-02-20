@@ -110,7 +110,7 @@ const visibleGroups = computed(() => {
     const d = e.datumVon ? new Date(e.datumVon) : null;
     const key = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : 'unknown';
     const label = d
-      ? d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+      ? d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric', timeZone: 'Europe/Berlin' })
       : 'Unbekannt';
     if (!groupMap.has(key)) groupMap.set(key, { key, label, jobs: [] });
     groupMap.get(key).jobs.push(e);
@@ -121,17 +121,17 @@ const visibleGroups = computed(() => {
 
 function formatDate(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Berlin' });
 }
 
 function getDay(d) {
   if (!d) return '';
-  return new Date(d).getDate();
+  return new Date(d).toLocaleDateString('de-DE', { day: 'numeric', timeZone: 'Europe/Berlin' });
 }
 
 function getMonthShort(d) {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('de-DE', { month: 'short' }).toUpperCase();
+  return new Date(d).toLocaleDateString('de-DE', { month: 'short', timeZone: 'Europe/Berlin' }).toUpperCase();
 }
 </script>
 

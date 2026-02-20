@@ -54,7 +54,7 @@
               @click="navigate('evaluierungen')"
             >
               <img :src="imgEvaluierung" class="menu-nav-img" alt="" />
-              <span>Evaluierungen</span>
+              <span>Laufzettel</span>
             </button>
             <button
               class="menu-nav-item"
@@ -84,10 +84,7 @@
               {{ theme.isDark ? 'Light Mode' : 'Dark Mode' }}
             </button>
           </div>
-          <div v-if="flipResponse" class="menu-item info">
-            <span>Flip Status:</span>
-            <small>{{ flipResponse }}</small>
-          </div>
+
         </div>
       </nav>
     </div>
@@ -145,7 +142,6 @@ const imgTasks = computed(() => theme.isDark ? tasksDark : tasksLight);
 const imgEventreport = computed(() => theme.isDark ? eventreportDark : eventreportLight);
 
 const showMobileMenu = ref(false);
-const flipResponse = ref('');
 
 const handleThemeToggle = () => {
   const newTheme = theme.isDark ? 'light' : 'dark';
@@ -159,14 +155,10 @@ onMounted(async () => {
     const active = t?.activeTheme || t;
 
     if (active === 'dark' || active === 'light') {
-      flipResponse.value = active;
       theme.set(active);
       document.documentElement.setAttribute("data-theme", active);
-    } else {
-      flipResponse.value = 'default';
     }
   } catch (e) {
-    flipResponse.value = 'extern';
     // App läuft außerhalb von Flip - normal behavior
   }
 });

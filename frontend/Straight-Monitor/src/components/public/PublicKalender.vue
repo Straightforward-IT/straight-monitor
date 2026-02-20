@@ -100,23 +100,27 @@ const weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
 const currentMonthName = computed(() => {
   return new Date(currentYear.value, currentMonth.value)
-    .toLocaleDateString('de-DE', { month: 'long' });
+    .toLocaleDateString('de-DE', { month: 'long', timeZone: 'Europe/Berlin' });
 });
 
 function formatDateFull(d) {
   if (!d) return '';
   return new Date(d).toLocaleDateString('de-DE', {
-    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Europe/Berlin'
   });
 }
 
 function formatTime(val) {
   if (!val) return '';
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return String(val);
-  const h = String(d.getUTCHours()).padStart(2, '0');
-  const m = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${h}:${m}`;
+  if (typeof val === 'string' && /^\d{1,2}:\d{2}(:\d{2})?$/.test(val)) {
+    return val.substring(0, 5);
+  }
+  // Full JS .toString() date string — extract HH:MM directly
+  if (typeof val === 'string') {
+    const m = val.match(/\d{4} (\d{2}:\d{2}):\d{2}/);
+    if (m) return m[1];
+  }
+  return '';
 }
 
 function isEinsatzOnDay(einsatz, day) {

@@ -130,16 +130,20 @@ defineEmits(['navigate', 'open-job']);
 
 function formatTime(val) {
   if (!val) return '';
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return String(val);
-  const h = String(d.getUTCHours()).padStart(2, '0');
-  const m = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${h}:${m}`;
+  if (typeof val === 'string' && /^\d{1,2}:\d{2}(:\d{2})?$/.test(val)) {
+    return val.substring(0, 5);
+  }
+  // Full JS .toString() date string — extract HH:MM directly
+  if (typeof val === 'string') {
+    const m = val.match(/\d{4} (\d{2}:\d{2}):\d{2}/);
+    if (m) return m[1];
+  }
+  return '';
 }
 
 function formatShortDate(d) {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Berlin' });
 }
 
 const upcomingEinsaetze = computed(() => {

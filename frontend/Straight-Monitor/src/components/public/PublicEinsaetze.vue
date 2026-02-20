@@ -105,6 +105,10 @@
         />
       </div>
 
+      <div class="time-hint">
+        <span>&#9432;</span> Kontrolliere immer deine Uhrzeiten. Sollten Uhrzeiten abweichen, stimmen immer die Daten in der Zvoove Work App.
+      </div>
+
       <PublicFooter />
     </div>
   </div>
@@ -335,5 +339,18 @@ onMounted(async () => {
 .page-body {
   padding: 1rem;
   padding-bottom: 2rem;
+}
+
+.time-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 0.5rem 1rem 1rem;
+  line-height: 1.5;
+
+  span {
+    color: var(--primary);
+    margin-right: 4px;
+  }
 }
 </style>

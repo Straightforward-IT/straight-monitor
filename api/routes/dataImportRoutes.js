@@ -57,6 +57,24 @@ router.get('/last-uploads', async (req, res) => {
 });
 // End: Get Last Uploads
 
+// Helper to parse Excel time (Date object or time string) to clean "HH:MM" string (always UTC-based)
+const parseExcelTime = (val) => {
+  if (!val) return null;
+  // Already a clean HH:MM or HH:MM:SS string
+  if (typeof val === 'string' && /^\d{1,2}:\d{2}(:\d{2})?$/.test(val)) {
+    return val.substring(0, 5);
+  }
+  // Date object from xlsx cellDates: true — xlsx stores time-only values as UTC midnight + offset,
+  // so getUTCHours/Minutes gives the correct local time directly (no timezone conversion needed)
+  const d = (val instanceof Date) ? val : new Date(val);
+  if (!isNaN(d.getTime())) {
+    const h = String(d.getUTCHours()).padStart(2, '0');
+    const m = String(d.getUTCMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+  }
+  return String(val);
+};
+
 // Helper to clean keys (trim spaces)
 const cleanKeys = (obj) => {
   const newObj = {};
@@ -409,8 +427,8 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
 
         detailDatumVon: row['DETAIL_DATUMVON'],
         detailDatumBis: row['DETAIL_DATUMBIS'],
-        uhrzeitVon: row['UHRZEITVON'],
-        uhrzeitBis: row['UHRZEITBIS'],
+        uhrzeitVon: parseExcelTime(row['UHRZEITVON']),
+        uhrzeitBis: parseExcelTime(row['UHRZEITBIS']),
         typ: row['TYP'],
         bedarf: row['BEDARF'],
         garantiestundenLohn: row['GARANTIESTD_LOHN'],
