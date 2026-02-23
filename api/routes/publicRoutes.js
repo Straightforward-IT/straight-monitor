@@ -27,8 +27,13 @@ router.get(
       return res.status(400).json({ msg: "Email parameter is required" });
     }
 
-    const mitarbeiter = await Mitarbeiter.findOne({ email: email.toLowerCase().trim() })
-      .select("_id vorname nachname email personalnr eventreports laufzettel_submitted laufzettel_received evaluierungen_submitted")
+    const mitarbeiter = await Mitarbeiter.findOne({
+        $or: [
+          { email: email.toLowerCase().trim() },
+          { additionalEmails: email.toLowerCase().trim() }
+        ]
+      })
+      .select("_id vorname nachname email personalnr qualifikationen eventreports laufzettel_submitted laufzettel_received evaluierungen_submitted")
       .populate({ path: "eventreports", select: "auftragnummer datum" })
       .populate({
         path: "laufzettel_submitted",
@@ -69,6 +74,15 @@ router.get(
         ? (l.status || 'OFFEN')   // use the document's own status
         : (bearbeitetSet.has(String(l._id)) ? 'Bearbeitet' : 'Eingereicht')
     }));
+
+    // Determine Teamleiter status via Qualifikation key 50055
+    const teamleiterQual = await Qualifikation.findOne({ qualificationKey: 50055 }).select('_id').lean();
+    const tlQualId = teamleiterQual ? String(teamleiterQual._id) : null;
+    mitarbeiterObj.isTeamleiter = tlQualId
+      ? (mitarbeiterObj.qualifikationen || []).some(q => String(q._id || q) === tlQualId)
+      : false;
+    // Don't expose qualification details to the client
+    delete mitarbeiterObj.qualifikationen;
 
     res.json(mitarbeiterObj);
   })

@@ -50,6 +50,7 @@
               <span>Startseite</span>
             </button>
             <button
+              v-if="isTeamleiter"
               class="menu-nav-item"
               :class="{ active: currentView === 'kalender' }"
               @click="navigate('kalender')"

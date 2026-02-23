@@ -114,7 +114,7 @@
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
               </div>
               <a
-                v-if="(isTeamleiter || ma.isTeamleiter) && ma.telefon"
+                v-if="isTeamleiter && ma.telefon"
                 :href="'tel:' + cleanPhone(ma.telefon)"
                 class="ma-phone"
                 @click.stop="copyPhone(ma.telefon, $event)"
@@ -130,8 +130,14 @@
 
     <!-- Teamleiter: Event Report Button -->
     <div v-if="isTeamleiter" class="action-bar">
-      <button class="action-btn" @click="$emit('write-report', einsatz)">
-        <img :src="imgEventreport" class="action-btn-icon" alt="" /> Event Report schreiben
+      <button
+        class="action-btn"
+        :class="{ 'action-btn--done': hasReport }"
+        :disabled="hasReport"
+        @click="!hasReport && $emit('write-report', einsatz)"
+      >
+        <img :src="imgEventreport" class="action-btn-icon" alt="" />
+        {{ hasReport ? 'Bericht wurde bereits geschrieben' : 'Event Report schreiben' }}
       </button>
     </div>
   </div>
@@ -152,7 +158,15 @@ const props = defineProps({
   einsatz: { type: Object, required: true },
   isTeamleiter: { type: Boolean, default: false },
   isPast: { type: Boolean, default: false },
-  api: { type: Object, required: true }
+  api: { type: Object, required: true },
+  mitarbeiter: { type: Object, default: null }
+});
+
+const hasReport = computed(() => {
+  if (!props.mitarbeiter?.eventreports || !props.einsatz?.auftragNr) return false;
+  return props.mitarbeiter.eventreports.some(
+    r => r?.auftragnummer && String(r.auftragnummer) === String(props.einsatz.auftragNr)
+  );
 });
 
 defineEmits(['back', 'write-report']);
@@ -585,5 +599,17 @@ watch(() => props.einsatz?._id, () => {
 .action-btn:active {
   transform: scale(0.98);
   filter: brightness(1.1);
+}
+
+.action-btn--done {
+  color: var(--muted);
+  border-color: var(--border);
+  cursor: default;
+  opacity: 0.65;
+}
+
+.action-btn--done:active {
+  transform: none;
+  filter: none;
 }
 </style>

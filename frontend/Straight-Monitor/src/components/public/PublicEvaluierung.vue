@@ -54,34 +54,34 @@
 
         <div class="form-group">
           <label>Pünktlichkeit</label>
-          <textarea v-model="form.puenktlichkeit" rows="2" placeholder="z.B. Pünktlich erschienen, 10 min zu spät…" />
+          <textarea v-model="form.puenktlichkeit" rows="2" />
         </div>
 
         <div class="form-group">
           <label>Grooming / Erscheinungsbild</label>
-          <textarea v-model="form.grooming" rows="2" placeholder="z.B. Gepflegt, Uniform korrekt…" />
+          <textarea v-model="form.grooming" rows="2" />
         </div>
 
         <div class="form-group">
           <label>Motivation</label>
-          <textarea v-model="form.motivation" rows="2" placeholder="z.B. Sehr engagiert, hat proaktiv geholfen…" />
+          <textarea v-model="form.motivation" rows="2" />
         </div>
 
         <div class="form-group">
           <label>Technische Fertigkeiten</label>
-          <textarea v-model="form.technische_fertigkeiten" rows="2" placeholder="z.B. Kassensystem gut bedient…" />
+          <textarea v-model="form.technische_fertigkeiten" rows="2" />
         </div>
 
         <div class="form-group">
           <label>Lernbereitschaft</label>
-          <textarea v-model="form.lernbereitschaft" rows="2" placeholder="z.B. Schnell gelernt, hat Rückfragen gestellt…" />
+          <textarea v-model="form.lernbereitschaft" rows="2" />
         </div>
       </div>
 
       <!-- Sonstiges -->
       <div class="form-group">
         <label>Sonstiges / Kommentar</label>
-        <textarea v-model="form.sonstiges" rows="3" placeholder="Optionaler Kommentar…"></textarea>
+        <textarea v-model="form.sonstiges" rows="3"></textarea>
       </div>
 
       <button type="submit" class="submit-btn" :disabled="!canSubmit || submitting">

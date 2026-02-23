@@ -7,7 +7,7 @@
 
     <div class="tiles">
       <!-- Tiles for ALL employees -->
-      <div class="tile" @click="$emit('navigate', 'kalender')">
+      <div v-if="isTeamleiter" class="tile" @click="$emit('navigate', 'kalender')">
         <div class="tile-icon tile-icon--blue">
           <img :src="imgCalender" class="tile-img" alt="Kalender" />
         </div>
@@ -79,8 +79,11 @@
       </div>
     </div>
 
-    <!-- Upcoming jobs -->
-    <div class="section">
+    <!-- Upcoming jobs (Teamleiter only) -->
+    <div v-if="isTeamleiter" class="section">
+      <p class="data-hint">
+        <span>&#9432;</span> Daten wie Uhrzeiten und Personallisten in dieser App sind nicht Live-Updated und können von denen in der Zvoove Work App abweichen.
+      </p>
       <h2 class="section-title">Nächste Jobs</h2>
       <div
         v-for="einsatz in upcomingEinsaetze"
@@ -404,5 +407,17 @@ const upcomingEinsaetze = computed(() => {
   color: var(--muted);
   text-align: center;
   padding: 0.75rem 0;
+}
+
+.data-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+
+  span {
+    color: var(--primary);
+    margin-right: 4px;
+  }
 }
 </style>

@@ -96,6 +96,7 @@
           :is-teamleiter="isTeamleiter"
           :is-past="previousView === 'vergangene-jobs'"
           :api="api"
+          :mitarbeiter="mitarbeiter"
           @back="goBackFromJob"
           @write-report="writeReportForJob"
         />
@@ -110,10 +111,6 @@
           :prefill-einsatz="reportPrefillEinsatz"
           @back="goBackFromReport"
         />
-      </div>
-
-      <div class="time-hint">
-        <span>&#9432;</span> Kontrolliere immer deine Uhrzeiten. Sollten Uhrzeiten abweichen, stimmen immer die Daten in der Zvoove Work App.
       </div>
 
       <PublicFooter />
@@ -189,7 +186,9 @@ function restoreNavState() {
     if (!raw) return;
     const state = JSON.parse(raw);
     // Only restore non-sensitive views (not job-detail/eventreport without data)
-    if (state.currentView && ['dashboard', 'kalender', 'laufzettel', 'vergangene-jobs', 'evaluierungen'].includes(state.currentView)) {
+    const allowedViews = ['dashboard', 'laufzettel', 'vergangene-jobs', 'evaluierungen'];
+    if (isTeamleiter.value) allowedViews.push('kalender');
+    if (state.currentView && allowedViews.includes(state.currentView)) {
       currentView.value = state.currentView;
       previousView.value = state.previousView || 'dashboard';
     } else if (state.currentView === 'job-detail' && state.selectedJobId) {
@@ -247,6 +246,8 @@ function handleBack() {
 }
 
 function navigateTo(view) {
+  // Guard: calendar is Teamleiter-only
+  if (view === 'kalender' && !isTeamleiter.value) return;
   previousView.value = currentView.value;
   currentView.value = view;
   window.scrollTo({ top: 0, behavior: 'smooth' });
