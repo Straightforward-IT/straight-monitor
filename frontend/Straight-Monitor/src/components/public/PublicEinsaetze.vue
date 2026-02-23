@@ -221,7 +221,8 @@ const debugTLMode = ref(false);
 const isTeamleiter = computed(() => {
   const ma = mitarbeiter.value;
   if (!ma) return false;
-  if (email.value === DEBUG_EMAIL && debugTLMode.value) return true;
+  // For the debug user, the toggle exclusively controls TL mode (ignores real isTeamleiter)
+  if (email.value === DEBUG_EMAIL) return debugTLMode.value;
   return ma.isTeamleiter === true;
 });
 

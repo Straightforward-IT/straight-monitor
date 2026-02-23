@@ -98,7 +98,10 @@ const currentMonthName = computed(() => {
 
 function formatDateFull(d) {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('de-DE', {
+  const dt = new Date(d);
+  const now = new Date();
+  if (dt.toDateString() === now.toDateString()) return 'Heute';
+  return dt.toLocaleDateString('de-DE', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Europe/Berlin'
   });
 }

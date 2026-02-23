@@ -958,6 +958,8 @@ export default {
       return `${start.toLocaleDateString('de-DE', opts)} - ${end.toLocaleDateString('de-DE', opts)}`;
     },
     formatDayDate(date) {
+      const today = new Date();
+      if (date.toDateString() === today.toDateString()) return 'Heute';
       return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Berlin' });
     },
     formatTime(dateStr) {

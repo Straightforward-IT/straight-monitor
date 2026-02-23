@@ -78,7 +78,9 @@ watch(search, () => { visibleCount.value = INITIAL; });
 
 const filteredJobs = computed(() => {
   const q = search.value.toLowerCase().trim();
-  const sorted = [...props.einsaetze].sort((a, b) => new Date(b.datumVon) - new Date(a.datumVon));
+  const now = new Date();
+  const past = props.einsaetze.filter(e => e.datumBis && new Date(e.datumBis) < now);
+  const sorted = past.sort((a, b) => new Date(b.datumVon) - new Date(a.datumVon));
   if (!q) return sorted;
   return sorted.filter(e => {
     const title = (e.auftrag?.eventTitel || e.bezeichnung || '').toLowerCase();
@@ -114,7 +116,10 @@ const visibleGroups = computed(() => {
 
 function formatDate(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Berlin' });
+  const dt = new Date(d);
+  const now = new Date();
+  if (dt.toDateString() === now.toDateString()) return 'Heute';
+  return dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Berlin' });
 }
 
 function getDay(d) {

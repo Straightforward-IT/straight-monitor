@@ -180,7 +180,10 @@ const totalMitarbeiter = computed(() =>
 
 function formatDate(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const dt = new Date(d);
+  const now = new Date();
+  if (dt.toDateString() === now.toDateString()) return 'Heute';
+  return dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function formatZeitraum(von, bis) {

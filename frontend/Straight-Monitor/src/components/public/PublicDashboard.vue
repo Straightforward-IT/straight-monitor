@@ -163,7 +163,10 @@ function formatTime(val) {
 
 function formatShortDate(d) {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Berlin' });
+  const dt = new Date(d);
+  const now = new Date();
+  if (dt.toDateString() === now.toDateString()) return 'Heute';
+  return dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Berlin' });
 }
 
 const upcomingEinsaetze = computed(() => {
