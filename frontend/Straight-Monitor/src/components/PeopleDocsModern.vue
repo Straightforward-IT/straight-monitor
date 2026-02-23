@@ -663,7 +663,9 @@ import {
   faSpinner,
   faCheck,
   faGraduationCap,
-  faStar
+  faStar,
+  faTriangleExclamation,
+  faRightLeft
 } from "@fortawesome/free-solid-svg-icons";
 import { faCircle as faCircleRegular } from "@fortawesome/free-regular-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
@@ -704,7 +706,9 @@ library.add(
   faSpinner,
   faCheck,
   faGraduationCap,
-  faStar
+  faStar,
+  faTriangleExclamation,
+  faRightLeft
 );
 
 export default {

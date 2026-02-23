@@ -279,6 +279,19 @@ export const useDataCache = defineStore('dataCache', {
       }
     },
     
+    // Patch a single Mitarbeiter in cache + IndexedDB after an edit
+    async updateOneMitarbeiter(updatedMa) {
+      if (!updatedMa?._id) return;
+      const idx = this.mitarbeiter.findIndex(m => m._id === updatedMa._id);
+      if (idx !== -1) {
+        this.mitarbeiter.splice(idx, 1, updatedMa);
+      } else {
+        this.mitarbeiter.push(updatedMa);
+      }
+      // Persist to IndexedDB
+      try { await saveToStore('mitarbeiter', [updatedMa]); } catch (e) { /* ignore */ }
+    },
+
     async fullSyncMitarbeiter() {
       try {
         console.log('[Cache] Full sync Mitarbeiter...');

@@ -1104,6 +1104,10 @@ router.patch(
     const { id } = req.params;
     const updateData = req.body;
 
+    // Extract force flag before stripping
+    const forcePersonalnr = !!updateData.forcePersonalnr;
+    delete updateData.forcePersonalnr;
+
     // Sicherheitsmaßnahme: Verhindern, dass kritische oder automatisch
     // verwaltete Felder direkt über diesen Endpunkt geändert werden.
     delete updateData._id;
@@ -1117,6 +1121,42 @@ router.patch(
     // Email immer in Kleinbuchstaben speichern, falls sie aktualisiert wird
     if (updateData.email) {
       updateData.email = updateData.email.toLowerCase();
+    }
+
+    // Personalnr conflict check
+    if (updateData.personalnr?.trim()) {
+      const conflicting = await Mitarbeiter.findOne({
+        personalnr: updateData.personalnr.trim(),
+        _id: { $ne: id }
+      }).select('_id vorname nachname').lean();
+
+      if (conflicting) {
+        if (!forcePersonalnr) {
+          return res.status(409).json({
+            success: false,
+            message: `Diese Personalnr wird bereits verwendet.`,
+            conflict: {
+              id: conflicting._id,
+              name: `${conflicting.vorname} ${conflicting.nachname}`
+            }
+          });
+        }
+        // Force: clear personalnr from the other mitarbeiter
+        await Mitarbeiter.updateOne(
+          { _id: conflicting._id },
+          {
+            $set: { personalnr: null },
+            $push: {
+              personalnrHistory: {
+                value: updateData.personalnr.trim(),
+                updatedAt: new Date(),
+                updatedBy: req.user?.email || 'system',
+                source: 'manual'
+              }
+            }
+          }
+        );
+      }
     }
 
     try {

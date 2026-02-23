@@ -271,15 +271,6 @@
               />
               Monitor Profil
             </h4>
-            <div class="header-actions">
-              <button 
-                class="btn btn-sm btn-ghost icon-btn-sm" 
-                @click.stop="openContextMenu($event)" 
-                title="Optionen"
-              >
-                <font-awesome-icon icon="fa-solid fa-ellipsis" />
-              </button>
-            </div>
           </div>
           
           <div class="kv">
@@ -980,8 +971,11 @@
         v-if="showEditModal"
         :mitarbeiter="ma"
         :saving="savingEdit"
+        :conflict-info="editConflictInfo"
         @close="closeEditModal"
         @save="saveEdit"
+        @save-force="saveEditForce"
+        @cancel-conflict="editConflictInfo = null"
       />
       
       <DeleteMitarbeiterDialog
@@ -1008,6 +1002,7 @@ import TlBadge from "./ui-elements/TlBadge.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
 import { useFlipAll } from "@/stores/flipAll";
+import { useDataCache } from "@/stores/dataCache";
 import api from "@/utils/api";
 import { fetchFlipTasks } from "@/utils/flipApi";
 
@@ -1119,7 +1114,9 @@ export default {
       }
       return false;
     });
-    
+
+    const dataCache = useDataCache();
+
     // Logos via imports (Vite preloaded) – kein src-Swap → kein Flackern
     return {
       theme,
@@ -1135,6 +1132,7 @@ export default {
       displayDepartment,
       isTeamleiter,
       router,
+      dataCache,
     };
   },
 
@@ -1171,6 +1169,7 @@ export default {
       // Edit Dialog
       showEditModal: false,
       savingEdit: false,
+      editConflictInfo: null,
       
       // Delete Dialog
       showDeleteModal: false,
@@ -1885,10 +1884,12 @@ export default {
     
     closeEditModal() {
       this.showEditModal = false;
+      this.editConflictInfo = null;
     },
     
     async saveEdit(formData) {
       this.savingEdit = true;
+      this.editConflictInfo = null;
       try {
         const updatePayload = {
           vorname: formData.vorname,
@@ -1907,12 +1908,52 @@ export default {
 
         if (response.data?.success) {
            Object.assign(this.ma, response.data.data);
+           this.dataCache.updateOneMitarbeiter(response.data.data);
            this.closeEditModal();
         } else {
            throw new Error(response.data?.message || "Fehler beim Speichern");
         }
       } catch (error) {
-        console.error("❌ Fehler beim Bearbeiten:", error);
+        if (error.response?.status === 409 && error.response.data?.conflict) {
+          this.editConflictInfo = error.response.data.conflict;
+          this._pendingEditFormData = formData;
+        } else {
+          console.error("❌ Fehler beim Bearbeiten:", error);
+          alert(`Fehler beim Speichern: ${error.response?.data?.message || error.message}`);
+        }
+      } finally {
+        this.savingEdit = false;
+      }
+    },
+
+    async saveEditForce(formData) {
+      this.savingEdit = true;
+      try {
+        const updatePayload = {
+          vorname: formData.vorname,
+          nachname: formData.nachname,
+          personalnr: formData.personalnr,
+          email: formData.email,
+          erstellt_von: formData.erstellt_von,
+          additionalEmails: formData.additionalEmails,
+          personalnrHistory: formData.personalnrHistory,
+          forcePersonalnr: true
+        };
+
+        const response = await api.patch(
+          `/api/personal/mitarbeiter/${this.ma._id}`,
+          updatePayload
+        );
+
+        if (response.data?.success) {
+          Object.assign(this.ma, response.data.data);
+          this.dataCache.updateOneMitarbeiter(response.data.data);
+          this.closeEditModal();
+        } else {
+          throw new Error(response.data?.message || "Fehler beim Speichern");
+        }
+      } catch (error) {
+        console.error("❌ Fehler beim Force-Speichern:", error);
         alert(`Fehler beim Speichern: ${error.response?.data?.message || error.message}`);
       } finally {
         this.savingEdit = false;

@@ -92,14 +92,33 @@
       </div>
 
       <footer class="modal-footer">
-        <button class="btn btn-ghost" @click="$emit('close')">Abbrechen</button>
-        <button class="btn btn-primary" @click="save" :disabled="saving">
-          <font-awesome-icon
-            :icon="saving ? 'fa-solid fa-spinner' : 'fa-solid fa-save'"
-            :class="{ 'fa-spin': saving }"
-          />
-          Speichern
-        </button>
+        <!-- Conflict confirmation -->
+        <template v-if="conflictInfo">
+          <div class="conflict-warning">
+            <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
+            Personalnr <strong>{{ form.personalnr }}</strong> wird verwendet von <strong>{{ conflictInfo.name }}</strong>.
+            Trotzdem zuweisen? <em>{{ conflictInfo.name }} verliert dadurch die Personalnr.</em>
+          </div>
+          <div class="conflict-actions">
+            <button class="btn btn-ghost" @click="$emit('cancel-conflict')">Abbrechen</button>
+            <button class="btn btn-danger" @click="saveForce" :disabled="saving">
+              <font-awesome-icon :icon="saving ? 'fa-solid fa-spinner' : 'fa-solid fa-right-left'" :class="{ 'fa-spin': saving }" />
+              Trotzdem zuweisen
+            </button>
+          </div>
+        </template>
+        <template v-else>
+          <div class="modal-footer-actions">
+            <button class="btn btn-ghost" @click="$emit('close')">Abbrechen</button>
+            <button class="btn btn-primary" @click="save" :disabled="saving">
+              <font-awesome-icon
+                :icon="saving ? 'fa-solid fa-spinner' : 'fa-solid fa-save'"
+                :class="{ 'fa-spin': saving }"
+              />
+              Speichern
+            </button>
+          </div>
+        </template>
       </footer>
     </div>
   </div>
@@ -119,9 +138,13 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  conflictInfo: {
+    type: Object,
+    default: null, // { id, name }
+  },
 });
 
-const emit = defineEmits(["close", "save"]);
+const emit = defineEmits(["close", "save", "save-force", "cancel-conflict"]);
 
 const form = ref({
   vorname: "",
@@ -178,6 +201,13 @@ function save() {
   );
   emit("save", form.value);
 }
+
+function saveForce() {
+  form.value.additionalEmails = form.value.additionalEmails.filter(
+    (e) => e && e.trim() !== ""
+  );
+  emit("save-force", form.value);
+}
 </script>
 
 <style scoped lang="scss">
@@ -195,7 +225,7 @@ function save() {
 }
 
 .modal-content {
-  background: var(--surface, #ffffff);
+  background: var(--panel, var(--surface, #ffffff));
   border-radius: 12px;
   width: 90%;
   max-width: 600px;
@@ -203,17 +233,17 @@ function save() {
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--border-color);
-  color: var(--text-color);
+  border: 1px solid var(--border, #e5e7eb);
+  color: var(--text, #111827);
 }
 
 .modal-header {
   padding: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: var(--surface);
+  background: var(--panel, var(--surface, #ffffff));
 
   h3 {
     margin: 0;
@@ -226,16 +256,16 @@ function save() {
   padding: 1.5rem;
   overflow-y: auto;
   flex: 1;
-  background: var(--surface);
+  background: var(--panel, var(--surface, #ffffff));
 }
 
 .modal-footer {
   padding: 1rem 1.5rem;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border, #e5e7eb);
   display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  background: var(--surface);
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--panel, var(--surface, #ffffff));
 }
 
 .form-grid {
@@ -252,7 +282,7 @@ function save() {
     margin-bottom: 0.5rem;
     font-weight: 500;
     font-size: 0.9rem;
-    color: var(--text-muted);
+    color: var(--muted);
   }
 }
 
@@ -260,28 +290,29 @@ function save() {
   width: 100%;
   padding: 0.75rem;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-input);
-  color: var(--text-color);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
   font-size: 0.95rem;
+  box-sizing: border-box;
 
   &:focus {
-    border-color: var(--primary-color);
+    border-color: var(--primary);
     outline: none;
-    box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.1);
+    box-shadow: 0 0 0 2px rgba(255, 117, 24, 0.15);
   }
 }
 
 .help-text {
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: var(--muted);
   margin-top: 0.25rem;
 }
 
 .form-section {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
 
   h4 {
     margin: 0 0 1rem 0;
@@ -299,7 +330,7 @@ function save() {
   &.history-row {
     justify-content: space-between;
     padding: 0.5rem;
-    background: var(--bg-hover);
+    background: var(--hover);
     border-radius: 6px;
   }
 }
@@ -314,7 +345,7 @@ function save() {
 
   .meta {
     font-size: 0.8rem;
-    color: var(--text-muted);
+    color: var(--muted);
   }
 }
 
@@ -323,7 +354,7 @@ function save() {
 }
 
 .empty-state {
-  color: var(--text-muted);
+  color: var(--muted);
   font-style: italic;
   font-size: 0.9rem;
 }
@@ -340,7 +371,7 @@ function save() {
   transition: all 0.2s;
 
   &.btn-primary {
-    background: var(--primary-color);
+    background: var(--primary);
     color: white;
     &:hover {
       filter: brightness(1.1);
@@ -348,20 +379,20 @@ function save() {
   }
 
   &.btn-secondary {
-    background: var(--bg-element);
-    border: 1px solid var(--border-color);
-    color: var(--text-color);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
     &:hover {
-      background: var(--bg-hover);
+      background: var(--hover);
     }
   }
 
   &.btn-ghost {
     background: transparent;
-    color: var(--text-muted);
+    color: var(--muted);
     &:hover {
-      color: var(--text-color);
-      background: var(--bg-hover);
+      color: var(--text);
+      background: var(--hover);
     }
   }
 
@@ -383,16 +414,46 @@ function save() {
   }
 }
 
+.conflict-warning {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--text);
+  line-height: 1.5;
+
+  svg {
+    color: #f59e0b;
+    margin-right: 0.4rem;
+  }
+
+  em {
+    color: var(--muted);
+    font-style: normal;
+  }
+}
+
+.conflict-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  justify-content: flex-end;
+}
+
+.modal-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
 .close-btn {
   background: transparent;
   border: none;
-  color: var(--text-muted);
+  color: var(--muted);
   font-size: 1.25rem;
   cursor: pointer;
   padding: 0.25rem;
 
   &:hover {
-    color: var(--text-color);
+    color: var(--text);
   }
 }
 </style>
