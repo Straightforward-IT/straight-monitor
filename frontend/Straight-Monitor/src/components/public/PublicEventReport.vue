@@ -189,9 +189,18 @@ const STANDORT_MAP = { '1': 'Berlin', '2': 'Hamburg', '3': 'Köln' };
 const pastEinsaetze = computed(() => {
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
+
+  // Collect auftragnummern that already have a report by this teamleiter
+  const reportedNrs = new Set(
+    (props.mitarbeiter?.eventreports || [])
+      .map(r => r?.auftragnummer ? String(r.auftragnummer) : null)
+      .filter(Boolean)
+  );
+
   return props.einsaetze.filter(e => {
-    if (!e.datumVon) return true;
-    return new Date(e.datumVon) <= endOfToday;
+    if (e.datumVon && new Date(e.datumVon) > endOfToday) return false;
+    if (e.auftragNr && reportedNrs.has(String(e.auftragNr))) return false;
+    return true;
   });
 });
 

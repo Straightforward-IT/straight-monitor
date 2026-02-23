@@ -38,7 +38,7 @@
             <h3>Laufzettel</h3>
             <CountBadge :count="openLaufzettelCount" color="orange" />
           </div>
-          <p>Offene Laufzettel bewerten & verwalten</p>
+          <p>Laufzettel ausfüllen (Evaluierungen)</p>
         </div>
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
       </div>

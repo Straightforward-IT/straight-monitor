@@ -96,16 +96,6 @@ router.beforeEach(async (to, from, next) => {
     }
   }
   
-  // Feature flag check für neue Pages
-  // const newPagesEnabled = import.meta.env.VITE_ENABLE_NEW_PAGES === 'true';
-  const isAdmin = auth.user && auth.user.role === 'ADMIN'; 
-  const newPageRoutes = ['Personal', 'Auftraege'];
-  
-  if (newPageRoutes.includes(to.name) && !isAdmin) {
-    alert('Diese Funktion ist noch in Entwicklung und nur für Administratoren verfügbar.');
-    return next('/dashboard');
-  }
-  
   // Restore last visited page on login
   if (to.path === '/' && token && !tokenIsExpired(token)) {
     const lastPath = localStorage.getItem('lastVisitedPath');

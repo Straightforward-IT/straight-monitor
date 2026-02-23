@@ -160,7 +160,7 @@ const isDebugUser = computed(() => props.email === DEBUG_EMAIL);
 const viewTitleMap = {
   'kalender': 'Kalender',
   'laufzettel': 'Laufzettel',
-  'evaluierungen': 'Evaluierungen',
+  'evaluierungen': 'Laufzettel',
   'evaluierung': 'Evaluierung',
   'vergangene-jobs': 'Vergangene Jobs',
   'job-detail': 'Job Details',

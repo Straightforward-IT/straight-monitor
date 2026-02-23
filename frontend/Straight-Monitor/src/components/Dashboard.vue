@@ -66,12 +66,21 @@
           <div class="feature-list">
             <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'table']" />
-              <span>Teamleiter Auswertung - Evaluierungen & Performance Verbesserungen</span>
+              <span>Teamleiter Auswertung - Live Tracking der Teamleiter-Berichte</span>
             </div>
             <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'file-alt']" />
-              <span>Dokumente - Event-Reports & Evaluierungen</span>
+              <span>Dokumente - Event-Reports & Laufzettel</span>
             </div>
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'users']" />
+              <span>Personal - Mitarbeiterverwaltung mit Asana/Flip Verknüpfung</span>
+            </div>
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'calendar-days']" />
+              <span>Aufträge - Schichten, Jobs & Einsätze in Kalender-Ansicht</span>
+            </div>
+
             <!-- Ältere Features (ausklappbar) -->
             <div class="older-features">
               <button
@@ -131,15 +140,16 @@
           </h3>
           <div class="feature-list">
             <div class="feature-item">
-              <font-awesome-icon :icon="['fas', 'users']" />
-              <span
-                >Personal - Mitarbeiterverwaltung mit Asana/Flip
-                Verknüpfung</span
-              >
+              <font-awesome-icon :icon="['fas', 'mobile-alt']" />
+              <span>Public Monitor - Integriert in Flip unter "Jobs" für alle Mitarbeiter</span>
             </div>
             <div class="feature-item">
-              <font-awesome-icon :icon="['fas', 'calendar-days']" />
-              <span>Aufträge - Schichten, Jobs, Einsätze, in Kalender-Ansicht wie in L1</span>
+              <font-awesome-icon :icon="['fas', 'chart-bar']" />
+              <span>Dashboard Widgets - Letzte Event-Reports, heutige Jobs, Bestandsveränderungen & mehr</span>
+            </div>
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'dolly']" />
+              <span>Bestand - Zuordnung von Service- & Logi-Paketen zu Mitarbeitern</span>
             </div>
           </div>
         </div>
@@ -225,10 +235,8 @@ const auth = useAuth();
 const userName = ref("…");
 const userFirstName = ref("");
 
-// Feature flag für neue Pages
-const newPagesEnabled = computed(() => {
-  return auth.user && auth.user.role === 'ADMIN';
-});
+// Neue Pages für alle authentifizierten Nutzer freigeschaltet
+const newPagesEnabled = computed(() => !!auth.user);
 
 // Update Modal State
 const showUpdateModal = ref(false);

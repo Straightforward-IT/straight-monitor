@@ -29,6 +29,7 @@ router.get(
 
     const mitarbeiter = await Mitarbeiter.findOne({ email: email.toLowerCase().trim() })
       .select("_id vorname nachname email personalnr eventreports laufzettel_submitted laufzettel_received evaluierungen_submitted")
+      .populate({ path: "eventreports", select: "auftragnummer datum" })
       .populate({
         path: "laufzettel_submitted",
         populate: [

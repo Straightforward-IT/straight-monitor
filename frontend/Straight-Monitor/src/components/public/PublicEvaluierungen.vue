@@ -7,7 +7,7 @@
         <font-awesome-icon icon="fa-solid fa-clock" /> Offene Laufzettel
         <span class="count">{{ openLaufzettel.length }}</span>
       </h3>
-      <div v-if="openLaufzettel.length === 0" class="empty">Keine offenen Evaluierungen.</div>
+      <div v-if="openLaufzettel.length === 0" class="empty">Keine offenen Laufzettel.</div>
       <div v-for="lz in openLaufzettel" :key="lz._id" class="doc-card">
         <div class="doc-icon">
           <font-awesome-icon icon="fa-solid fa-file-lines" />
@@ -26,10 +26,10 @@
     <!-- Eingereicht: abgeschlossene Laufzettel -->
     <div class="section">
       <h3 class="section-title">
-        <font-awesome-icon icon="fa-solid fa-file-circle-check" /> Bewertungen eingereicht
+        <font-awesome-icon icon="fa-solid fa-file-circle-check" /> Evaluierungen abgegeben
         <span class="count">{{ doneLaufzettel.length }}</span>
       </h3>
-      <div v-if="doneLaufzettel.length === 0" class="empty">Noch keine Bewertungen eingereicht.</div>
+      <div v-if="doneLaufzettel.length === 0" class="empty">Noch keine Evaluierungen abgegeben.</div>
       <div v-for="lz in doneLaufzettel" :key="lz._id" class="doc-card">
         <div class="doc-icon submitted-icon">
           <font-awesome-icon icon="fa-solid fa-file-circle-check" />

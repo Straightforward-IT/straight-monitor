@@ -356,10 +356,8 @@ const supportForm = reactive({
   files: []
 });
 
-// Feature flag für neue Pages (Now based on Role)
-const newPagesEnabled = computed(() => {
-  return auth.user && auth.user.role === 'ADMIN';
-});
+// Neue Pages für alle authentifizierten Nutzer freigeschaltet
+const newPagesEnabled = computed(() => !!auth.user);
 
 // Handler für deaktivierte neue Pages
 const handleNewPageClick = (event, path) => {
