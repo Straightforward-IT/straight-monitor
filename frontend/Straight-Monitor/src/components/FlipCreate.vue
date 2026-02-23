@@ -93,29 +93,12 @@
           <!-- Standort Selection -->
           <div class="input-group">
             <div class="input-item">
-              <label class="input-label">1. Standort*</label>
-              <select class="standort-dropdown" v-model="locations[0]" required>
+              <label class="input-label">Standort*</label>
+              <select class="standort-dropdown" v-model="location" required>
                 <option value="">-</option>
-                <option
-                  v-for="location in availableLocations(0)"
-                  :key="location"
-                  :value="location"
-                >
-                  {{ location }}
-                </option>
-              </select>
-            </div>
-            <div class="input-item">
-              <label class="input-label">2. Standort</label>
-              <select class="standort-dropdown" v-model="locations[1]">
-                <option value="">-</option>
-                <option
-                  v-for="location in availableLocations(1)"
-                  :key="location"
-                  :value="location"
-                >
-                  {{ location }}
-                </option>
+                <option value="Hamburg">Hamburg</option>
+                <option value="Berlin">Berlin</option>
+                <option value="Köln">Köln</option>
               </select>
             </div>
           </div>
@@ -152,11 +135,6 @@
                   class="check-input"
               /></label>
             </div>
-            <div class="check-item" v-if="locations.includes('Hamburg')">
-              <label class="check-label"
-                >UKE <input type="checkbox" v-model="isUKE" class="check-input"
-              /></label>
-            </div>
             <div class="check-item">
               <label class="check-label"
                 >Office
@@ -174,15 +152,6 @@
                 v-model="job_title"
                 class="text-input"
                 placeholder="Job Titel"
-              />
-            </div>
-            <div class="input-item">
-              <label class="input-label">Standort</label>
-              <input
-                type="text"
-                v-model="location"
-                class="text-input"
-                placeholder="Standort"
               />
             </div>
             <div class="input-item">
@@ -335,15 +304,13 @@ export default {
       email: "",
       personalnr: "",
       primary_user_group: "",
-      locations: [],
+      location: "",
       isService: false,
       isLogistik: false,
       isTeamleiter: false,
       isFestangestellt: false,
       isOffice: false,
-      isUKE: false,
       job_title: "Mitarbeiter/in",
-      location: "",
       department: "",
       userGroups: [],
 
@@ -392,15 +359,8 @@ export default {
         localStorage.removeItem("token");
       }
     },
-    locations: {
-      deep: true,
-      handler(newLocations) {
-        this.location = newLocations[0] || "";
-      },
-    },
     isService: "setDepartment",
     isLogistik: "setDepartment",
-    isUKE: "setDepartment",
   },
   computed: {
     availableLocations() {
@@ -464,7 +424,6 @@ export default {
 
       if (this.isService) departments.push("Service");
       if (this.isLogistik) departments.push("Logistik");
-      if (this.isUKE) departments.push("UKE");
 
       // Join all selected departments with "/" or set empty string if none
       this.department = departments.length ? departments.join("/") : "";
@@ -614,14 +573,13 @@ export default {
       name = name.trim();
 
       // Define job-related keywords to be removed
-      const jobKeywords = ["s", "service", "l", "logi", "logistik", "uke", "s+l", "l+s"];
+      const jobKeywords = ["s", "service", "l", "logi", "logistik", "s+l", "l+s"];
 
       // Split into words while preserving order
       let words = name.split(" ");
       let filteredWords = [];
       let isService = false;
       let isLogistik = false;
-      let isUKE = false;
 
       // Remove job-related keywords and detect role flags
       words.forEach((word) => {
@@ -631,8 +589,6 @@ export default {
           isService = true;
         } else if (["l", "logi", "logistik"].includes(lowerWord)) {
           isLogistik = true;
-        } else if (["uke"].includes(lowerWord)) {
-          isUKE = true;
         } else if(["s+l", "l+s"].includes(lowerWord)) {
           isService = true;
           isLogistik = true;
@@ -644,7 +600,6 @@ export default {
       // Assign detected fields
       this.isService = isService;
       this.isLogistik = isLogistik;
-      this.isUKE = isUKE;
       // Check if the name is in "Last, First" format (contains a comma)
       let firstNames = [];
       let lastName = "";
@@ -743,17 +698,14 @@ export default {
       this.email = "";
       this.personalnr = "";
       this.primary_user_group = "";
-      this.locations = [];
+      this.location = "";
       this.isService = false;
       this.isLogistik = false;
       this.isTeamleiter = false;
       this.isFestangestellt = false;
       this.isOffice = false;
-      this.isUKE = false;
       this.job_title = "Mitarbeiter/in";
-      this.location = "";
       this.department = "";
-      this.userGroups = [];
       this.showReentryModal = false;
       this.createdFlipUser = null;
     },
@@ -782,7 +734,7 @@ export default {
     !this.nachname?.trim() ||
     !this.email?.trim() ||
     !this.personalnr?.trim() ||
-    !this.locations[0] 
+    !this.location
   ) {
     alert("⚠️ Bitte fülle alle Pflichtfelder aus: Vorname, Nachname, E-Mail, Personalnummer (oder 0), Standort.");
     return;
@@ -790,12 +742,6 @@ export default {
 
   this.isSubmitting = true;
   try {
-    this.setUserGroups();
-    const primaryLocation = this.locations[0] || null;
-    const primaryUserGroupId = primaryLocation
-      ? this.user_group_ids[primaryLocation.toLowerCase()]
-      : null;
-
     const trimmedPersonalnr = this.personalnr.trim();
     const personalnrValue = trimmedPersonalnr === '0' ? null : trimmedPersonalnr;
     
@@ -807,20 +753,16 @@ export default {
       personalnr: personalnrValue,
       role: "USER",
       created_by: this.userEmail,
-      primary_user_group_id: primaryUserGroupId,
       attributes: [
-        {
-          name: "job_title",
-          value: this.job_title
-        },{
-          name: "location",
-          value: this.location
-        },{
-          name: "department",
-          value: this.department
-        },
-    ],
-      user_group_ids: this.userGroups || [],
+        { name: "job_title",  value: this.job_title },
+        { name: "location",   value: this.location },
+        { name: "department", value: this.department },
+        { name: "isService",  value: String(this.isService) },
+        { name: "isLogistik", value: String(this.isLogistik) },
+        { name: "isTeamLead", value: String(this.isTeamleiter) },
+        { name: "isOffice",   value: String(this.isOffice) },
+        { name: "isFesti",    value: String(this.isFestangestellt) },
+      ],
     };
 
     const response = await api.post("/api/personal/create", userPayload);
@@ -844,91 +786,24 @@ export default {
   const projectGids = memberships.map((m) => m.project.gid);
   const projectMapping = {};
 
-  for (const [location, projects] of Object.entries(this.bewerber_project_gids)) {
+  for (const [loc, projects] of Object.entries(this.bewerber_project_gids)) {
     for (const projectType in projects) {
-      projectMapping[projects[projectType]] = location;
+      projectMapping[projects[projectType]] = loc;
     }
   }
 
-  const normalize = (s) =>
-    s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  // Map canonical display names
+  const canonicalMap = { Hamburg: "Hamburg", Berlin: "Berlin", "Köln": "Köln" };
 
-  let foundLocations = new Set();
   for (const gid of projectGids) {
     const rawLocation = projectMapping[gid];
-    if (rawLocation) {
-      foundLocations.add(normalize(rawLocation));
+    if (rawLocation && canonicalMap[rawLocation]) {
+      this.location = canonicalMap[rawLocation];
+      return; // Use first match
     }
   }
-
-  this.locations = [...foundLocations];
 },
-    getGroupsFor(groupType, location) {
-      const mapping = {
-        service: {
-          Berlin: this.user_group_ids.berlin_service,
-          Hamburg: this.user_group_ids.hamburg_service,
-          Koeln: this.user_group_ids.koeln_service,
-        },
-        logistik: {
-          Berlin: this.user_group_ids.berlin_logistik,
-          Hamburg: this.user_group_ids.hamburg_logistik,
-          Koeln: this.user_group_ids.koeln_logistik,
-        },
-        festangestellte: {
-          Berlin: this.user_group_ids.berlin_festangestellte,
-          Hamburg: this.user_group_ids.hamburg_festangestellte,
-          Koeln: this.user_group_ids.koeln_festangestellte,
-        },
-        teamleiter: {
-          Berlin: this.user_group_ids.berlin_teamleiter,
-          Hamburg: this.user_group_ids.hamburg_teamleiter,
-          Koeln: this.user_group_ids.koeln_teamleiter,
-        },
-        office: {
-          Berlin: this.user_group_ids.berlin_office,
-          Hamburg: this.user_group_ids.hamburg_office,
-          Koeln: this.user_group_ids.koeln_office,
-        },
-      };
 
-      return mapping[groupType]?.[location] || null;
-    },
-    setUserGroups() {
-      let userGroups = [];
-
-      const groupMappings = {
-        isService: "service",
-        isLogistik: "logistik",
-        isFestangestellt: "festangestellte",
-        isTeamleiter: "teamleiter",
-        isOffice: "office",
-      };
-
-      this.locations.forEach((location) => {
-       const normalizedLocation = this.normalizeLocation(location);
-
-if (this.user_group_ids[normalizedLocation]) {
-  userGroups.push(this.user_group_ids[normalizedLocation]);
-}
-
-Object.entries(groupMappings).forEach(([key, groupType]) => {
-  if (this[key]) {
-    const groupId =
-      this.user_group_ids[`${normalizedLocation}_${groupType}`];
-    if (groupId) {
-      userGroups.push(groupId);
-    }
-  }
-});
-      });
-
-      if (this.isUKE && this.user_group_ids.hamburg_uke) {
-        userGroups.push(this.user_group_ids.hamburg_uke);
-      }
-
-      this.userGroups = [...new Set(userGroups)];
-    },
     switchToDashboard() {
       this.$router.push("/");
     },
