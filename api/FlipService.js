@@ -10,6 +10,7 @@ const {
   VerlosungEintrag,
 } = require("./models/Classes/FlipDocs");
 const Mitarbeiter = require("./models/Mitarbeiter");
+const Qualifikation = require("./models/Qualifikation");
 const { sendMail } = require("./EmailService");
 const logger = require("./utils/logger");
 const {
@@ -29,6 +30,7 @@ require("dotenv").config();
 
 const apiUserGroup = "e9e8e278-08a9-4b0e-bdf6-681f8e26c43a";
 const user_role = "53267279-ffb8-4cb9-aced-e5d92ed9be05";
+const FLIP_LAUFZETTEL_MENU_ITEM_ID = process.env.FLIP_LAUFZETTEL_MENU_ITEM_ID || "c672be9c-d742-4034-8aa3-5ff5afaf8e3c";
 async function flipUserRoutine() {
   let emailLogs = [];
   let invalidLocations = [];
@@ -219,6 +221,15 @@ async function flipUserRoutine() {
     }
 
     emailLogs.push("✅ Flip user refresh completed successfully.");
+
+    // 🔔 Update Laufzettel badges for all Teamleiter
+    try {
+      emailLogs.push("<br><br>🔔 Updating Flip Laufzettel badges...");
+      const badgeResult = await updateAllTeamleiterBadges();
+      emailLogs.push(`✅ Laufzettel badges updated for ${badgeResult} Teamleiter`);
+    } catch (badgeErr) {
+      emailLogs.push(`⚠️ Laufzettel badge update failed: ${badgeErr.message}`);
+    }
     
     // Sync attributes based on UserGroup assignments
     try {
@@ -1157,6 +1168,62 @@ async function syncFlipAttributes() {
 }
 
 
+// ──────────────────────────────────────────────────────────────────────────────
+// 🔔 Flip Menu Badge: Offene Laufzettel für Teamleiter
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Updates the Flip navigation badge for a single Teamleiter.
+ * badge_count = number of Laufzettel with status OFFEN assigned to this TL.
+ * @param {mongoose.Types.ObjectId|string} mitarbeiterId - DB _id of the Teamleiter Mitarbeiter
+ */
+async function updateLaufzettelBadge(mitarbeiterId) {
+  const ma = await Mitarbeiter.findById(mitarbeiterId).select('flip_id vorname nachname').lean();
+  if (!ma?.flip_id) return;
+
+  const count = await Laufzettel.countDocuments({ teamleiter: mitarbeiterId, status: 'OFFEN' });
+
+  await flipAxios.put(`/api/navigation/v4/menu-items/${FLIP_LAUFZETTEL_MENU_ITEM_ID}/badge`, {
+    badges: [{ user_id: ma.flip_id, badge_count: count }],
+  });
+
+  logger.info(`🔔 Flip badge updated: ${ma.vorname} ${ma.nachname} → ${count} offene Laufzettel`);
+}
+
+/**
+ * Updates Flip navigation badges for ALL Teamleiter (qualification key 50055).
+ * Sends a single API call with all badge entries.
+ * @returns {number} number of Teamleiter updated
+ */
+async function updateAllTeamleiterBadges() {
+  const teamleiterQual = await Qualifikation.findOne({ qualificationKey: 50055 }).lean();
+  if (!teamleiterQual) return 0;
+
+  const allTL = await Mitarbeiter.find({
+    qualifikationen: teamleiterQual._id,
+    flip_id: { $exists: true, $ne: null },
+  }).select('_id flip_id vorname nachname').lean();
+
+  if (!allTL.length) return 0;
+
+  const tlIds = allTL.map(t => t._id);
+  const counts = await Laufzettel.aggregate([
+    { $match: { status: 'OFFEN', teamleiter: { $in: tlIds } } },
+    { $group: { _id: '$teamleiter', count: { $sum: 1 } } },
+  ]);
+
+  const countMap = new Map(counts.map(c => [String(c._id), c.count]));
+
+  const badges = allTL
+    .filter(t => t.flip_id)
+    .map(t => ({ user_id: t.flip_id, badge_count: countMap.get(String(t._id)) || 0 }));
+
+  await flipAxios.put(`/api/navigation/v4/menu-items/${FLIP_LAUFZETTEL_MENU_ITEM_ID}/badge`, { badges });
+
+  logger.info(`🔔 Flip badges bulk-updated for ${badges.length} Teamleiter`);
+  return badges.length;
+}
+
 module.exports = {
   flipUserRoutine,
   syncFlipAttributes,
@@ -1177,4 +1244,6 @@ module.exports = {
   assignFlipUserGroups,
   deleteManyFlipUsers,
   getFlipAssignments,
+  updateLaufzettelBadge,
+  updateAllTeamleiterBadges,
 };

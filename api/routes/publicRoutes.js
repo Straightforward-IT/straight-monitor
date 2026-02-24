@@ -11,7 +11,7 @@ const logger = require("../utils/logger");
 const AsanaService = require("../AsanaService");
 const { sendMail } = require("../EmailService");
 const registry = require("../config/registry");
-const { assignTeamleiter } = require("../FlipService");
+const { assignTeamleiter, updateLaufzettelBadge } = require("../FlipService");
 const { flipAxios } = require("../flipAxios");
 
 // All routes in this file require FLIP_PUBLIC_JWT
@@ -554,6 +554,11 @@ router.post(
     teamleiter.laufzettel_received.push(laufzettel._id);
     await teamleiter.save();
 
+    // 🔔 Update Flip badge for Teamleiter (fire-and-forget)
+    updateLaufzettelBadge(teamleiter._id).catch((err) =>
+      logger.warn(`⚠️ Flip badge update failed for ${teamleiter.email}: ${err.message}`)
+    );
+
     res.status(201).json({ msg: "Laufzettel erfolgreich eingereicht", id: laufzettel._id });
   })
 );
@@ -609,6 +614,13 @@ router.post(
     await laufzettel.save();
     logger.info(`✅ Public Evaluierung merged into Laufzettel ${laufzettel._id} by ${email}`);
 
+    // 🔔 Update Flip badge for Teamleiter (fire-and-forget)
+    if (laufzettel.teamleiter) {
+      updateLaufzettelBadge(laufzettel.teamleiter).catch((err) =>
+        logger.warn(`⚠️ Flip badge update after Evaluierung failed: ${err.message}`)
+      );
+    }
+
     // Delete the Flip task now that the evaluation is done (fire-and-forget)
     const laufzettelIdStr = laufzettel._id.toString();
     flipAxios.get("/api/tasks/v4/tasks", { params: { external_id: laufzettelIdStr } })
@@ -620,6 +632,76 @@ router.post(
       })
       .then(() => logger.info(`🗑️  Flip task deleted for Laufzettel ${laufzettelIdStr}`))
       .catch((err) => logger.warn(`⚠️  Could not delete Flip task for Laufzettel ${laufzettelIdStr}:`, err.message));
+
+    // ── Asana: Feedback-Subtask on Mitarbeiter task (fire-and-forget) ──
+    if (laufzettel.mitarbeiter) {
+      (async () => {
+        try {
+          const ma = await Mitarbeiter.findById(laufzettel.mitarbeiter).select("vorname nachname asana_id personalnr").lean();
+          if (!ma?.asana_id) return;
+
+          const auftrag = laufzettel.auftragnummer
+            ? await Auftrag.findOne({ auftragNr: laufzettel.auftragnummer }).lean()
+            : null;
+
+          const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+
+          // 1) Subtasks des MA-Tasks holen
+          const subtasksRes = await AsanaService.getSubtaskByTask(ma.asana_id);
+          const subtasks = subtasksRes?.data || [];
+          let feedbackTask = subtasks.find(s => s.name === 'Feedback');
+
+          // 2) "Feedback"-Subtask erstellen falls nicht vorhanden
+          if (!feedbackTask) {
+            const created = await AsanaService.createSubtasksOnTask(ma.asana_id, {
+              name: 'Feedback',
+              notes: `Feedback von Laufzetteln und Event Reports für ${ma.vorname} ${ma.nachname}`,
+            });
+            feedbackTask = created?.data || created;
+          }
+
+          if (!feedbackTask?.gid) return;
+
+          // 3) Sub-subtask mit Bewertungs-Feldern
+          const eventTitle = auftrag?.eventTitel || laufzettel.kunde || (laufzettel.auftragnummer ? `Auftrag #${laufzettel.auftragnummer}` : 'Laufzettel');
+          const eventDate = fmtDate(auftrag?.vonDatum || laufzettel.datum);
+          const eventLocation = auftrag?.eventLocation || auftrag?.eventOrt || laufzettel.location || '';
+          const subtaskName = `${eventTitle} – ${eventDate}${eventLocation ? ` (${eventLocation})` : ''}`;
+
+          const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+          const ratings = [
+            puenktlichkeit && `Pünktlichkeit: ${esc(puenktlichkeit)}`,
+            grooming && `Erscheinungsbild: ${esc(grooming)}`,
+            motivation && `Motivation: ${esc(motivation)}`,
+            technische_fertigkeiten && `Techn. Fertigkeiten: ${esc(technische_fertigkeiten)}`,
+            lernbereitschaft && `Lernbereitschaft: ${esc(lernbereitschaft)}`,
+            sonstiges && `Sonstiges: ${esc(sonstiges)}`,
+          ].filter(Boolean).join('\n');
+
+          const baseUrl = 'https://straightmonitor.com';
+          const laufzettelLink = `${baseUrl}/dokumente?docId=${laufzettel._id}`;
+          const teamleiterLink = teamleiter?._id ? `${baseUrl}/personal?mitarbeiter_id=${teamleiter._id}` : '';
+
+          const htmlBody = [
+            `Evaluierung von <strong>${esc(laufzettel.name_teamleiter || teamleiter.vorname + ' ' + teamleiter.nachname)}</strong>:`,
+            ratings || '—',
+            '',
+            teamleiterLink ? `<a href="${teamleiterLink}">Teamleiter öffnen</a>` : null,
+            `<a href="${laufzettelLink}">Laufzettel öffnen</a>`,
+          ].filter(v => v != null).join('\n');
+
+          await AsanaService.createSubtasksOnTask(feedbackTask.gid, {
+            name: subtaskName,
+            html_notes: `<body>${htmlBody}</body>`,
+          });
+
+          logger.info(`✅ Asana Evaluierung-Subtask created for MA ${ma.vorname} ${ma.nachname} (${ma.asana_id})`);
+        } catch (err) {
+          logger.warn(`⚠️ Asana Evaluierung Feedback failed for Laufzettel ${laufzettelIdStr}: ${err.message}`);
+        }
+      })();
+    }
 
     res.status(200).json({ msg: "Bewertung erfolgreich gespeichert", id: laufzettel._id });
   })
