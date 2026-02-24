@@ -83,7 +83,7 @@
 
       <!-- Step 2: Teamleiter auswählen -->
       <div class="form-group" v-if="selectedEinsatz">
-        <label>Teamleiter auswählen *</label>
+        <label>Teamleitung auswählen *</label>
         <div v-if="loadingTeamleiter" class="loading-hint">
           <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade Mitarbeiter…
         </div>
@@ -189,9 +189,16 @@ const selectedEinsatz = ref(null);
 
 const pastEinsaetze = computed(() => {
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  today.setHours(23, 59, 59, 999);
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
   return props.einsaetze
-    .filter(e => e.datumBis && new Date(e.datumBis) < today)
+    .filter(e => {
+      if (!e.datumVon) return false;
+      const start = new Date(e.datumVon);
+      return start >= sevenDaysAgo && start <= today;
+    })
     .sort((a, b) => new Date(b.datumVon) - new Date(a.datumVon));
 });
 
