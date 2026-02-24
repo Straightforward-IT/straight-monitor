@@ -70,6 +70,23 @@
         </div>
       </div>
 
+      <!-- Step 1b: Standort -->
+      <div class="form-group" v-if="selectedEinsatz">
+        <label>Niederlassung *</label>
+        <div class="tl-chips">
+          <button
+            v-for="s in STANDORTE"
+            :key="s"
+            type="button"
+            class="tl-chip"
+            :class="{ active: selectedStandort === s }"
+            @click="selectedStandort = s"
+          >
+            {{ s }}
+          </button>
+        </div>
+      </div>
+
       <!-- Step 2: Teamleiter auswählen -->
       <div class="form-group" v-if="selectedEinsatz">
         <label>Teamleiter auswählen *</label>
@@ -99,7 +116,7 @@
         <button
           class="submit-btn"
           type="button"
-          :disabled="!selectedTeamleiter || submitting"
+          :disabled="!selectedTeamleiter || !selectedStandort || submitting"
           @click="submitLaufzettel"
         >
           <span v-if="submitting">
@@ -161,6 +178,18 @@ const showForm = ref(false);
 const submitSuccess = ref(false);
 const submitting = ref(false);
 
+// ── Standort ──────────────────────────────────
+const STANDORTE = ['Hamburg', 'Berlin', 'Köln'];
+const selectedStandort = ref('');
+
+function detectStandort(einsatz) {
+  const gs = einsatz?.auftrag?.geschSt;
+  if (gs == 1) return 'Berlin';
+  if (gs == 2) return 'Hamburg';
+  if (gs == 3) return 'Köln';
+  return '';
+}
+
 // ── Job selection ─────────────────────────────
 const showJobPicker = ref(false);
 const selectedEinsatz = ref(null);
@@ -183,6 +212,7 @@ async function selectEinsatz(e) {
   selectedEinsatz.value = e;
   showJobPicker.value = false;
   selectedTeamleiter.value = null;
+  selectedStandort.value = detectStandort(e);
   await loadTeamleiter(e.auftragNr);
 }
 
@@ -215,6 +245,7 @@ function openForm() {
   submitSuccess.value = false;
   selectedEinsatz.value = null;
   selectedTeamleiter.value = null;
+  selectedStandort.value = '';
   teamleiterCandidates.value = [];
 }
 
@@ -235,7 +266,8 @@ async function submitLaufzettel() {
     await props.api.post('/api/public/laufzettel', {
       email: props.email,
       auftragNr: selectedEinsatz.value.auftragNr,
-      teamleiter_email: selectedTeamleiter.value.email
+      teamleiter_email: selectedTeamleiter.value.email,
+      standort: selectedStandort.value
     });
     showForm.value = false;
     submitSuccess.value = true;

@@ -890,26 +890,21 @@ const assignTeamleiter = async (documentId, teamleiterId) => {
 
         const formattedDueDate = dueDate.toISOString().split("T")[0]; // "yyyy-mm-dd"
 
+        const laufzettelId = document._id.toString();
+        const evaluierungUrl = `https://flipcms.de/integration/flipcms/hpstraightforward/evaluierung-ma/?wpf176_20_first=${encodeURIComponent(mitarbeiter.vorname)}&wpf176_20_last=${encodeURIComponent(mitarbeiter.nachname)}&wpf176_23=${laufzettelId}`;
+        const finishUrl = `https://flipcms.de/integration/flipcms/hpstraightforward/task-bestaetigen?id=${laufzettelId}`;
+
         try {
           const task = await assignFlipTask({
             body: {
-              external_id: document._id.toString(),
+              external_id: laufzettelId,
               title: `Laufzettel erhalten: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`,
               recipients: [{ id: teamleiter.flip_id, type: "USER" }],
               due_at: {
                 date: formattedDueDate,
                 due_at_type: "DATE",
               },
-              description: `
-Du wurdest als Teamleitung auf einem Laufzettel angegeben.<br><br>
-Bitte fülle eine 
-<a href="https://flipcms.de/integration/flipcms/hpstraightforward/evaluierung-ma/?wpf176_20_first=${encodeURIComponent(
-                mitarbeiter.vorname
-              )}&wpf176_20_last=${encodeURIComponent(
-                mitarbeiter.nachname
-              )}&wpf176_23=${document._id.toString()}" 
-target="_self" rel="noopener noreferrer">Evaluierung</a> 
-für ${mitarbeiter.vorname} aus.`,
+              description: `Du wurdest als Teamleitung auf einem Laufzettel angegeben.<br><br>Bitte fülle eine <a href="${evaluierungUrl}" target="_self" rel="noopener noreferrer">Evaluierung</a> für ${mitarbeiter.vorname} aus.<br><br>Danach kannst du diesen Task als erledigt markieren: <a href="${finishUrl}" target="_self" rel="noopener noreferrer">Task erledigt ✓</a>`,
             },
           });
 

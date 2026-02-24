@@ -490,10 +490,14 @@ router.get(
 router.post(
   "/laufzettel",
   asyncHandler(async (req, res) => {
-    const { email, auftragNr, teamleiter_email } = req.body;
+    const { email, auftragNr, teamleiter_email, standort } = req.body;
 
+    const VALID_STANDORTE = ['Hamburg', 'Berlin', 'Köln'];
     if (!email || !auftragNr || !teamleiter_email) {
       return res.status(400).json({ msg: "Pflichtfelder fehlen (email, auftragNr, teamleiter_email)" });
+    }
+    if (!standort || !VALID_STANDORTE.includes(standort)) {
+      return res.status(400).json({ msg: `Ungültige Niederlassung. Erlaubt: ${VALID_STANDORTE.join(', ')}` });
     }
 
     // Resolve Mitarbeiter (submitter)
@@ -513,7 +517,7 @@ router.post(
       .select("eventTitel eventLocation eventOrt kundenNr geschSt vonDatum")
       .lean();
 
-    const location = auftrag?.eventLocation || auftrag?.eventOrt || "";
+    const location = standort; // Niederlassung (Hamburg/Berlin/Köln), not event venue
     const kunde = auftrag?.eventTitel || "";
     const datum = auftrag?.vonDatum ? new Date(auftrag.vonDatum) : new Date();
 

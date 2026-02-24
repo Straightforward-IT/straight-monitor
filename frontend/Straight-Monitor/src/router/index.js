@@ -7,6 +7,7 @@ import EmailConfirmation from '@/components/EmailConfirmation.vue';
 import HomeLogin from '@/components/HomeLogin.vue';
 import PublicMitarbeiter from '@/components/public/PublicMitarbeiter.vue';
 import PublicEinsaetze from '@/components/public/PublicEinsaetze.vue';
+import TaskBestaetigen from '@/components/public/TaskBestaetigen.vue';
 
 // Layout + Seiten (bestehend)
 import MainLayout from '@/layouts/MainLayout.vue';
@@ -31,6 +32,7 @@ const routes = [
   { path: '/', name: 'Home', component: HomeLogin, meta: { requiresAuth: false } },
   { path: '/confirm-email', name: 'EmailConfirmation', component: EmailConfirmation, meta: { requiresAuth: false } },
   { path: '/mitarbeiter/einsaetze', name: 'PublicEinsaetze', component: PublicEinsaetze, meta: { requiresAuth: false } },
+  { path: '/task-bestaetigen', name: 'TaskBestaetigen', component: TaskBestaetigen, meta: { requiresAuth: false } },
 
   // Authentifizierter Bereich unter Layout:
   {

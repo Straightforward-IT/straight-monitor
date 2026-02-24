@@ -11,7 +11,7 @@
     </div>
 
     <!-- No Access -->
-    <div v-else-if="!email || !publicToken" class="error-state">
+    <div v-else-if="!email || !activeToken" class="error-state">
       <h2>Kein Zugriff</h2>
       <p>Fehlende Zugangsdaten. Bitte öffne diese Seite über die Flip App.</p>
     </div>
@@ -136,16 +136,147 @@ import PublicJobDetail from './PublicJobDetail.vue';
 import PublicEventReport from './PublicEventReport.vue';
 
 const route = useRoute();
-const email = computed(() => route.query.email);
-const publicToken = computed(() => route.query.token);
+
+// ── Auth state ────────────────────────────────────────────────────────────
+// Auth can come from two sources (OIDC takes priority over legacy URL params):
+//   1. OIDC: POST /api/public/oidc/callback → session JWT stored in sessionStorage
+//   2. Legacy: ?email=...&token=... from WPForms redirect (backwards compat)
+const oidcEmail = ref('');
+const sessionToken = ref('');  // Our session JWT (OIDC flow)
+
+const legacyEmail = computed(() => route.query.email);
+const legacyToken = computed(() => route.query.token);
+
+// Unified values used everywhere in this component
+const email = computed(() => oidcEmail.value || legacyEmail.value || '');
+const activeToken = computed(() => sessionToken.value || legacyToken.value || '');
 
 const api = apiPublic;
 api.interceptors.request.use((config) => {
-  if (publicToken.value) {
-    config.headers['x-public-token'] = publicToken.value;
-  }
+  const t = activeToken.value;
+  if (t) config.headers['x-public-token'] = t;
   return config;
 });
+
+// ── PKCE helpers (Web Crypto API — no extra packages) ─────────────────────
+async function generatePKCE() {
+  const array = new Uint8Array(64);
+  crypto.getRandomValues(array);
+  const verifier = btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  const challenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  return { verifier, challenge };
+}
+
+function generateState() {
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ── Session storage ───────────────────────────────────────────────────────
+const SESSION_KEY = 'oidc_session';
+
+function saveSession(token, emailValue) {
+  try {
+    // Decode exp from JWT payload without external library
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: emailValue, exp: payload.exp }));
+  } catch { /* ignore */ }
+}
+
+function loadStoredSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const sess = JSON.parse(raw);
+    if (!sess.token || !sess.email) return null;
+    if (sess.exp && sess.exp < Date.now() / 1000) {
+      sessionStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return sess;
+  } catch { return null; }
+}
+
+// ── OIDC redirect — sends user to Keycloak (prompt=none for silent SSO) ──
+async function redirectToOIDC(promptValue = 'none') {
+  let authEndpoint, clientId;
+  try {
+    const res = await api.get('/api/oidc/config');
+    authEndpoint = res.data.authorization_endpoint;
+    clientId = res.data.client_id;
+    if (!clientId) {
+      error.value = 'OIDC ist noch nicht konfiguriert. Bitte wende dich an den Administrator.';
+      loading.value = false;
+      return;
+    }
+  } catch {
+    error.value = 'Login-Konfiguration konnte nicht geladen werden.';
+    loading.value = false;
+    return;
+  }
+
+  const { verifier, challenge } = await generatePKCE();
+  const state = generateState();
+  const redirectUri = window.location.origin + window.location.pathname;
+
+  sessionStorage.setItem('oidc_pkce_verifier', verifier);
+  sessionStorage.setItem('oidc_state', state);
+  sessionStorage.setItem('oidc_redirect_uri', redirectUri);
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    scope: 'openid email profile',
+    state,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    prompt: promptValue,
+  });
+
+  window.location.href = `${authEndpoint}?${params}`;
+}
+
+// ── OIDC code exchange — called when ?code= is in the URL ─────────────────
+async function handleOIDCCallback(code, returnedState) {
+  const expectedState = sessionStorage.getItem('oidc_state');
+  const verifier = sessionStorage.getItem('oidc_pkce_verifier');
+  const redirectUri = sessionStorage.getItem('oidc_redirect_uri');
+
+  sessionStorage.removeItem('oidc_state');
+  sessionStorage.removeItem('oidc_pkce_verifier');
+  sessionStorage.removeItem('oidc_redirect_uri');
+
+  // Remove ?code= and ?state= from the URL without reloading the page
+  window.history.replaceState({}, '', window.location.pathname);
+
+  if (returnedState !== expectedState) {
+    error.value = 'Sicherheitsvalidierung fehlgeschlagen. Bitte die Seite neu laden.';
+    loading.value = false;
+    return;
+  }
+  if (!verifier || !redirectUri) {
+    error.value = 'Sitzungsdaten fehlen. Bitte die Seite neu laden.';
+    loading.value = false;
+    return;
+  }
+
+  try {
+    const res = await api.post('/api/oidc/callback', { code, code_verifier: verifier, redirect_uri: redirectUri });
+    oidcEmail.value = res.data.email;
+    sessionToken.value = res.data.session_token;
+    saveSession(res.data.session_token, res.data.email);
+  } catch (err) {
+    const detail = err.response?.data?.msg || 'Login fehlgeschlagen.';
+    error.value = detail;
+    loading.value = false;
+  }
+}
 
 // State
 const loading = ref(true);
@@ -290,7 +421,7 @@ function goBackFromReport() {
 }
 
 async function loadData() {
-  if (!email.value || !publicToken.value) {
+  if (!email.value || !activeToken.value) {
     loading.value = false;
     return;
   }
@@ -320,8 +451,52 @@ async function loadData() {
 }
 
 onMounted(async () => {
-  await loadData();
-  restoreNavState();
+  const queryCode = route.query.code;
+  const queryState = route.query.state;
+  const queryError = route.query.error;
+
+  // 1. OIDC authorization code callback (?code= in URL)
+  if (queryCode) {
+    await handleOIDCCallback(queryCode, queryState);
+    if (!error.value) {
+      await loadData();
+      restoreNavState();
+    }
+    return;
+  }
+
+  // 2. OIDC error returned by Keycloak (e.g. prompt=none but no session)
+  if (queryError) {
+    window.history.replaceState({}, '', window.location.pathname);
+    if (queryError === 'login_required' || queryError === 'interaction_required') {
+      // Retry with full login UI (user is not logged into Flip)
+      await redirectToOIDC('login');
+    } else {
+      error.value = `Login-Fehler: ${queryError}`;
+      loading.value = false;
+    }
+    return;
+  }
+
+  // 3. Existing valid OIDC session in sessionStorage
+  const sess = loadStoredSession();
+  if (sess) {
+    oidcEmail.value = sess.email;
+    sessionToken.value = sess.token;
+    await loadData();
+    restoreNavState();
+    return;
+  }
+
+  // 4. Legacy WPForms flow: ?email= + ?token= already in URL
+  if (legacyEmail.value && legacyToken.value) {
+    await loadData();
+    restoreNavState();
+    return;
+  }
+
+  // 5. No auth info — initiate OIDC silent login
+  await redirectToOIDC('none');
 });
 </script>
 
