@@ -558,6 +558,10 @@ export default {
 
       this.loading = true;
 
+      // ⚡ Connect SSE BEFORE the upload POST so the progressMap entry exists
+      // when the backend starts sending emails.
+      this.listenToMailProgress();
+
       const formData = new FormData();
       formData.append("pdf", this.pdfFile);
       formData.append("excel", this.excelFile);
@@ -578,7 +582,6 @@ export default {
           responseType: "blob", // ⬅️ wichtig! sonst wird die ZIP nicht richtig empfangen
         })
         .then((res) => {
-          this.listenToMailProgress();
           const blob = res.data;
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement("a");
@@ -600,35 +603,36 @@ export default {
         });
     },
     listenToMailProgress() {
-  this.progressActive = true;
-  this.progressPercent = 0;
-  this.progressMessage = "📤 Versand gestartet ...";
+      this.progressActive = true;
+      this.progressPercent = 0;
+      this.progressMessage = "📤 Versand gestartet ...";
 
-  const token = this.token;
-  const url = `${import.meta.env.VITE_API_BASE_URL}/api/personal/sse-mailstatus?token=${this.token}`;
-const eventSource = new EventSource(url);
+      // Strip any trailing slash from the base URL to avoid double-slash paths
+      const base = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+      const url = `${base}/api/personal/sse-mailstatus?token=${this.token}`;
+      const eventSource = new EventSource(url);
 
-  eventSource.onmessage = (e) => {
-    const [index, totalName] = e.data.split(" ");
-    const [current, total] = index.split("/").map(Number);
-    this.progressPercent = Math.floor((current / total) * 100);
-    this.progressMessage = `📧 ${current}/${total}: ${totalName}`;
-  };
+      eventSource.onmessage = (e) => {
+        const [index, totalName] = e.data.split(" ");
+        const [current, total] = index.split("/").map(Number);
+        this.progressPercent = Math.floor((current / total) * 100);
+        this.progressMessage = `📧 ${current}/${total}: ${totalName}`;
+      };
 
-  eventSource.addEventListener("done", (e) => {
-    this.progressMessage = "✅ Alle E-Mails verschickt!";
-    this.progressPercent = 100;
-    setTimeout(() => {
-      this.progressActive = false;
-    }, 4000);
-    eventSource.close();
-  });
+      eventSource.addEventListener("done", (e) => {
+        this.progressMessage = "✅ Alle E-Mails verschickt!";
+        this.progressPercent = 100;
+        setTimeout(() => {
+          this.progressActive = false;
+        }, 4000);
+        eventSource.close();
+      });
 
-  eventSource.onerror = (err) => {
-    console.warn("SSE-Fehler:", err);
-    eventSource.close();
-  };
-}
+      eventSource.onerror = (err) => {
+        console.warn("SSE-Fehler:", err);
+        eventSource.close();
+      };
+    }
 
   },
   mounted() {

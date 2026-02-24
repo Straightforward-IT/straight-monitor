@@ -11,6 +11,7 @@ const logger = require("../utils/logger");
 const AsanaService = require("../AsanaService");
 const { sendMail } = require("../EmailService");
 const registry = require("../config/registry");
+const { assignTeamleiter } = require("../FlipService");
 
 // All routes in this file require FLIP_PUBLIC_JWT
 router.use(publicAuth);
@@ -535,6 +536,15 @@ router.post(
 
     await laufzettel.save();
     logger.info(`✅ Public Laufzettel created: ${laufzettel._id} by ${mitarbeiter.email}`);
+
+    // Assign Flip task to Teamleiter (same as the wpforms flow)
+    if (teamleiter.flip_id) {
+      assignTeamleiter(laufzettel._id, teamleiter._id).catch((err) =>
+        logger.error(`❌ Flip task assignment failed for Laufzettel ${laufzettel._id}:`, err.message)
+      );
+    } else {
+      logger.warn(`⚠️ Teamleiter ${teamleiter.email} has no flip_id — Flip task skipped`);
+    }
 
     // Link to both Mitarbeiter
     mitarbeiter.laufzettel_submitted.push(laufzettel._id);

@@ -70,21 +70,15 @@
         </div>
       </div>
 
-      <!-- Step 1b: Standort -->
+      <!-- Step 1b: Standort (auto-detected from Auftrag.geschSt, read-only) -->
       <div class="form-group" v-if="selectedEinsatz">
-        <label>Niederlassung *</label>
-        <div class="tl-chips">
-          <button
-            v-for="s in STANDORTE"
-            :key="s"
-            type="button"
-            class="tl-chip"
-            :class="{ active: selectedStandort === s }"
-            @click="selectedStandort = s"
-          >
-            {{ s }}
-          </button>
+        <label>Niederlassung</label>
+        <div v-if="selectedStandort" class="prefill-info">
+          <div class="prefill-row">
+            <span class="prefill-value">{{ selectedStandort }}</span>
+          </div>
         </div>
+        <div v-else class="empty-hint-sm">Keine Niederlassung ermittelbar.</div>
       </div>
 
       <!-- Step 2: Teamleiter auswählen -->
@@ -179,7 +173,6 @@ const submitSuccess = ref(false);
 const submitting = ref(false);
 
 // ── Standort ──────────────────────────────────
-const STANDORTE = ['Hamburg', 'Berlin', 'Köln'];
 const selectedStandort = ref('');
 
 function detectStandort(einsatz) {
