@@ -12,6 +12,7 @@ const AsanaService = require("../AsanaService");
 const { sendMail } = require("../EmailService");
 const registry = require("../config/registry");
 const { assignTeamleiter } = require("../FlipService");
+const { flipAxios } = require("../flipAxios");
 
 // All routes in this file require FLIP_PUBLIC_JWT
 router.use(publicAuth);
@@ -607,6 +608,18 @@ router.post(
 
     await laufzettel.save();
     logger.info(`✅ Public Evaluierung merged into Laufzettel ${laufzettel._id} by ${email}`);
+
+    // Delete the Flip task now that the evaluation is done (fire-and-forget)
+    const laufzettelIdStr = laufzettel._id.toString();
+    flipAxios.get("/api/tasks/v4/tasks", { params: { external_id: laufzettelIdStr } })
+      .then((r) => {
+        const tasks = r.data?.tasks || [];
+        if (tasks.length > 0) {
+          return flipAxios.delete(`/api/tasks/v4/tasks/${tasks[0].id}`);
+        }
+      })
+      .then(() => logger.info(`🗑️  Flip task deleted for Laufzettel ${laufzettelIdStr}`))
+      .catch((err) => logger.warn(`⚠️  Could not delete Flip task for Laufzettel ${laufzettelIdStr}:`, err.message));
 
     res.status(200).json({ msg: "Bewertung erfolgreich gespeichert", id: laufzettel._id });
   })
