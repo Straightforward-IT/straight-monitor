@@ -30,7 +30,7 @@ require("dotenv").config();
 
 const apiUserGroup = "e9e8e278-08a9-4b0e-bdf6-681f8e26c43a";
 const user_role = "53267279-ffb8-4cb9-aced-e5d92ed9be05";
-const FLIP_LAUFZETTEL_MENU_ITEM_ID = process.env.FLIP_LAUFZETTEL_MENU_ITEM_ID || "c672be9c-d742-4034-8aa3-5ff5afaf8e3c";
+const FLIP_JOBS_MENU_ITEM_ID = process.env.FLIP_JOBS_MENU_ITEM_ID || "c672be9c-d742-4034-8aa3-5ff5afaf8e3c";
 async function flipUserRoutine() {
   let emailLogs = [];
   let invalidLocations = [];
@@ -228,14 +228,25 @@ async function flipUserRoutine() {
       const badgeResult = await updateAllTeamleiterBadges();
       emailLogs.push(`✅ Laufzettel badges updated for ${badgeResult} Teamleiter`);
     } catch (badgeErr) {
-      emailLogs.push(`⚠️ Laufzettel badge update failed: ${badgeErr.message}`);
+      const detail = badgeErr.response?.data ? JSON.stringify(badgeErr.response.data) : '';
+      emailLogs.push(`⚠️ Laufzettel badge update failed: ${badgeErr.message}${detail ? ` — ${detail}` : ''}`);
     }
     
     // Sync attributes based on UserGroup assignments
     try {
       emailLogs.push("<br><br>🔄 Synchronizing Flip user attributes...");
-      const syncResult = await syncFlipAttributes();
-      emailLogs.push(`✅ Attribute sync completed: ${syncResult.updated} users updated`);
+      const syncResult = await syncFlipAttributes(Object.fromEntries(
+        allFlipUsers.map(u => [u.id, u])
+      ));
+      emailLogs.push(`✅ Attribute sync completed: ${syncResult.updated} users synced, ${syncResult.changed.length} changed`);
+
+      if (syncResult.changed.length > 0) {
+        emailLogs.push(`<br><strong>🔄 Attribute-Änderungen (${syncResult.changed.length}):</strong>`);
+        syncResult.changed.forEach(({ name, diff }) => {
+          const parts = diff.map(d => `${d.attr}: <em>${d.before}</em> → <strong>${d.after}</strong>`).join(' &nbsp;·&nbsp; ');
+          emailLogs.push(`&nbsp;&nbsp;👤 ${name}: ${parts}`);
+        });
+      }
       
       if (syncResult.errors.length > 0) {
         emailLogs.push(`⚠️ ${syncResult.errors.length} errors during attribute sync:`);
@@ -1072,90 +1083,113 @@ async function deleteManyFlipUsers(ids) {
   return results;
 }
 
+const TRACKED_ATTRS = ['isService', 'isLogistik', 'isOffice', 'isTeamLead', 'isFesti'];
+
 /**
- * Synchronisiert FlipUser attributes (isService, isLogistik, isFesti, isOffice, isTeamLead)
- * basierend auf Berufen/Qualifikationen in MongoDB
- * 
- * Regeln:
- * - isService: Beruf 10001
- * - isLogistik: Beruf 10002
- * - isOffice: Beruf 10004 oder 10005
- * - isTeamLead: Qualifikation 50055
+ * Sync Flip user attributes (isService, isLogistik, isOffice, isTeamLead, isFesti)
+ * based on Berufe/Qualifikationen in MongoDB.
+ *
+ * @param {Object} [flipUsersById={}]  Pre-fetched map of flip_id → raw Flip user object.
+ *   When provided, individual GET calls are skipped (saves N API requests).
+ *   Pass `Object.fromEntries(allFlipUsers.map(u => [u.id, u]))` from flipUserRoutine.
  */
-async function syncFlipAttributes() {
+async function syncFlipAttributes(flipUsersById = {}) {
   const Mitarbeiter = require('./models/Mitarbeiter');
-  
+
   // 1. Alle Mitarbeiter mit flip_id holen (populated berufe/qualifikationen)
-  const mitarbeiter = await Mitarbeiter.find({ 
+  const mitarbeiter = await Mitarbeiter.find({
     flip_id: { $exists: true, $ne: null },
-    isActive: true 
+    isActive: true
   })
   .populate('berufe')
   .populate('qualifikationen')
   .lean();
 
-  const updates = [];
+  const batchItems = [];
   const errors = [];
+  const updates = [];
+  const changed = []; // users where tracked attrs differ from Flip's current state
 
   for (const ma of mitarbeiter) {
     try {
-      // Extrahiere Beruf- und Qualifikations-Keys
-      const berufKeys = (ma.berufe || []).map(b => b.jobKey).filter(Boolean);
-      const qualiKeys = (ma.qualifikationen || []).map(q => q.qualificationKey).filter(Boolean);
+      const berufKeys  = (ma.berufe        || []).map(b => b.jobKey).filter(Boolean);
+      const qualiKeys  = (ma.qualifikationen || []).map(q => q.qualificationKey).filter(Boolean);
 
-      // Bestimme Attribute basierend auf Keys
-      const isService = berufKeys.includes(10001);
+      const isService  = berufKeys.includes(10001);
       const isLogistik = berufKeys.includes(10002);
-      // isOffice temporarily disabled until classification is properly fixed
-      // const isOffice = berufKeys.includes(10004) || berufKeys.includes(10005);
+      const isOffice   = qualiKeys.includes(40) || qualiKeys.includes('00040');
       const isTeamLead = qualiKeys.includes(50055);
+      const isFesti    = ma.persgruppe == 101;
 
-      // Lade aktuellen Flip-User für location/department
-      const flipUserData = await findFlipUserById(ma.flip_id);
+      // Re-use pre-fetched data or fall back to individual GET
+      let flipUserData = flipUsersById[ma.flip_id];
       if (!flipUserData) {
-        errors.push({
-          id: ma._id,
-          name: `${ma.vorname} ${ma.nachname}`,
-          error: 'Flip User nicht gefunden'
-        });
+        flipUserData = await findFlipUserById(ma.flip_id);
+      }
+      if (!flipUserData) {
+        errors.push({ id: ma._id, name: `${ma.vorname} ${ma.nachname}`, error: 'Flip User nicht gefunden' });
         continue;
       }
 
-      // Baue attributes array – IMMER alle Boolean-Attribute explizit senden,
-      // damit alte Werte bei merge-patch überschrieben werden
+      // Build before-map from existing Flip attributes
+      const beforeMap = {};
+      (flipUserData.attributes || []).forEach(a => {
+        const key = a.name || a.technical_name;
+        if (TRACKED_ATTRS.includes(key)) beforeMap[key] = a.value;
+      });
+
+      const afterMap = { isService: String(isService), isLogistik: String(isLogistik), isOffice: String(isOffice), isTeamLead: String(isTeamLead), isFesti: String(isFesti) };
+
+      // Detect changes among tracked attributes
+      const diff = TRACKED_ATTRS
+        .map(attr => ({ attr, before: beforeMap[attr] ?? '?', after: afterMap[attr] }))
+        .filter(d => d.before !== d.after);
+      if (diff.length > 0) {
+        changed.push({ name: `${ma.vorname} ${ma.nachname}`, diff });
+      }
+
+      // Attributes: computed booleans + preserve existing location/department
       const attributes = [
-        { name: "isService",  value: String(isService) },
-        { name: "isLogistik", value: String(isLogistik) },
-        // isOffice temporarily disabled:
-        // { name: "isOffice", value: String(isOffice) },
-        { name: "isTeamLead", value: String(isTeamLead) },
+        { name: 'isService',  value: String(isService)  },
+        { name: 'isLogistik', value: String(isLogistik) },
+        { name: 'isOffice',   value: String(isOffice)   },
+        { name: 'isTeamLead', value: String(isTeamLead) },
+        { name: 'isFesti',    value: String(isFesti)    },
       ];
 
-      // Behalte bestehende Attribute (location, department) bei
-      if (flipUserData.profile?.location) {
-        attributes.push({ name: "location", value: flipUserData.profile.location });
-      }
-      if (flipUserData.profile?.department) {
-        attributes.push({ name: "department", value: flipUserData.profile.department });
-      }
+      const profile = flipUserData.profile || {};
+      if (profile.location)   attributes.push({ name: 'location',   value: profile.location   });
+      if (profile.department) attributes.push({ name: 'department', value: profile.department });
 
-      // Update Flip User
-      const flipUser = new FlipUser(flipUserData);
-      flipUser.attributes = attributes;
-      
-      await flipUser.update();
-      
-      updates.push({
-        id: ma._id,
-        name: `${ma.vorname} ${ma.nachname}`,
-        attributes: attributes.map((a) => a.name),
+      batchItems.push({
+        id: ma.flip_id,
+        body: { attributes },
       });
+
+      updates.push({ id: ma._id, name: `${ma.vorname} ${ma.nachname}`, attributes: attributes.map(a => a.name) });
     } catch (error) {
-      errors.push({
-        id: ma._id,
-        name: `${ma.vorname} ${ma.nachname}`,
-        error: error.message,
+      errors.push({ id: ma._id, name: `${ma.vorname} ${ma.nachname}`, error: error.message });
+    }
+  }
+
+  // 2. Batch-Updates in 100er-Chunks senden
+  const CHUNK = 100;
+  for (let i = 0; i < batchItems.length; i += CHUNK) {
+    const chunk = batchItems.slice(i, i + CHUNK);
+    try {
+      const res = await flipAxios.patch('/api/admin/users/v4/users/batch', { items: chunk }, {
+        headers: { 'content-type': 'application/json' },
       });
+      // Log per-item failures returned by the batch endpoint
+      (res.data?.items || []).forEach(item => {
+        if (item.status !== 200) {
+          const maName = updates.find(u => u.id)?.name || item.id;
+          errors.push({ id: item.id, name: maName, error: item.error?.code || `HTTP ${item.status}` });
+        }
+      });
+    } catch (batchErr) {
+      logger.warn(`⚠️ Flip batch update chunk ${i}–${i + chunk.length} failed: ${batchErr.message}`);
+      chunk.forEach(item => errors.push({ id: item.id, name: item.id, error: batchErr.message }));
     }
   }
 
@@ -1164,6 +1198,7 @@ async function syncFlipAttributes() {
     errors: errors.length,
     updates,
     errors,
+    changed,
   };
 }
 
@@ -1183,12 +1218,17 @@ async function updateLaufzettelBadge(mitarbeiterId) {
 
   const count = await Laufzettel.countDocuments({ teamleiter: mitarbeiterId, status: 'OFFEN' });
 
-  await flipAxios.put(`/api/navigation/v4/menu-items/${FLIP_LAUFZETTEL_MENU_ITEM_ID}/badge`, {
+  await flipAxios.post(`/api/navigation/v4/menu-items/${FLIP_JOBS_MENU_ITEM_ID}/badge`, {
     badges: [{ user_id: ma.flip_id, badge_count: count }],
+  }).catch(err => {
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    logger.warn(`⚠️ Flip badge POST failed (${err.response?.status ?? '?'}): ${detail}`);
+    throw err;
   });
 
   logger.info(`🔔 Flip badge updated: ${ma.vorname} ${ma.nachname} → ${count} offene Laufzettel`);
 }
+
 
 /**
  * Updates Flip navigation badges for ALL Teamleiter (qualification key 50055).
@@ -1218,7 +1258,13 @@ async function updateAllTeamleiterBadges() {
     .filter(t => t.flip_id)
     .map(t => ({ user_id: t.flip_id, badge_count: countMap.get(String(t._id)) || 0 }));
 
-  await flipAxios.put(`/api/navigation/v4/menu-items/${FLIP_LAUFZETTEL_MENU_ITEM_ID}/badge`, { badges });
+  try {
+    await flipAxios.post(`/api/navigation/v4/menu-items/${FLIP_JOBS_MENU_ITEM_ID}/badge`, { badges });
+  } catch (err) {
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    logger.warn(`⚠️ Flip bulk badge POST failed (${err.response?.status ?? '?'}): ${detail}`);
+    throw err;
+  }
 
   logger.info(`🔔 Flip badges bulk-updated for ${badges.length} Teamleiter`);
   return badges.length;

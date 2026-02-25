@@ -401,11 +401,10 @@ router.post(
 
               if (!feedbackTask?.gid) continue;
 
-              // 3) Sub-subtask mit Feedback-Text + Links
+              // 3) Feedback als Kommentar auf den Feedback-Task schreiben
               const eventTitle = auftrag?.eventTitel || kunde || `Auftrag #${auftragnummer}`;
               const eventDate = fmtDate(auftrag?.vonDatum || datum);
               const eventLocation = auftrag?.eventLocation || auftrag?.eventOrt || location || '';
-              const subtaskName = `${eventTitle} – ${eventDate}${eventLocation ? ` (${eventLocation})` : ''}`;
 
               // HTML-Sonderzeichen escapen
               const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -420,7 +419,9 @@ router.post(
                 : '';
               const berichtLink = `${baseUrl}/dokumente?docId=${eventReport._id}`;
 
-              const htmlBody = [
+              const commentHeader = `<strong>${esc(eventTitle)} – ${esc(eventDate)}${eventLocation ? ` (${esc(eventLocation)})` : ''}</strong>`;
+              const htmlComment = [
+                commentHeader,
                 `Feedback von <strong>${esc(name_teamleiter)}</strong>:`,
                 feedbackText,
                 '',
@@ -429,12 +430,11 @@ router.post(
                 `<a href="${berichtLink}">Bericht öffnen</a>`,
               ].filter(v => v != null).join('\n');
 
-              await AsanaService.createSubtasksOnTask(feedbackTask.gid, {
-                name: subtaskName,
-                html_notes: `<body>${htmlBody}</body>`,
+              await AsanaService.createStoryOnTask(feedbackTask.gid, {
+                html_text: `<body>${htmlComment}</body>`,
               });
 
-              logger.info(`✅ Asana Feedback-Subtask created for MA ${ma.vorname} ${ma.nachname} (${ma.asana_id})`);
+              logger.info(`✅ Asana Feedback-Kommentar für MA ${ma.vorname} ${ma.nachname} (${ma.asana_id}) geschrieben`);
             } catch (asanaErr) {
               logger.warn(`⚠️ Asana Feedback failed for MA ${ma.personalnr}: ${asanaErr.message}`);
             }
@@ -662,11 +662,10 @@ router.post(
 
           if (!feedbackTask?.gid) return;
 
-          // 3) Sub-subtask mit Bewertungs-Feldern
+          // 3) Bewertung als Kommentar auf den Feedback-Task schreiben
           const eventTitle = auftrag?.eventTitel || laufzettel.kunde || (laufzettel.auftragnummer ? `Auftrag #${laufzettel.auftragnummer}` : 'Laufzettel');
           const eventDate = fmtDate(auftrag?.vonDatum || laufzettel.datum);
           const eventLocation = auftrag?.eventLocation || auftrag?.eventOrt || laufzettel.location || '';
-          const subtaskName = `${eventTitle} – ${eventDate}${eventLocation ? ` (${eventLocation})` : ''}`;
 
           const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -683,7 +682,9 @@ router.post(
           const laufzettelLink = `${baseUrl}/dokumente?docId=${laufzettel._id}`;
           const teamleiterLink = teamleiter?._id ? `${baseUrl}/personal?mitarbeiter_id=${teamleiter._id}` : '';
 
-          const htmlBody = [
+          const commentHeader = `<strong>${esc(eventTitle)} – ${esc(eventDate)}${eventLocation ? ` (${esc(eventLocation)})` : ''}</strong>`;
+          const htmlComment = [
+            commentHeader,
             `Evaluierung von <strong>${esc(laufzettel.name_teamleiter || teamleiter.vorname + ' ' + teamleiter.nachname)}</strong>:`,
             ratings || '—',
             '',
@@ -691,12 +692,11 @@ router.post(
             `<a href="${laufzettelLink}">Laufzettel öffnen</a>`,
           ].filter(v => v != null).join('\n');
 
-          await AsanaService.createSubtasksOnTask(feedbackTask.gid, {
-            name: subtaskName,
-            html_notes: `<body>${htmlBody}</body>`,
+          await AsanaService.createStoryOnTask(feedbackTask.gid, {
+            html_text: `<body>${htmlComment}</body>`,
           });
 
-          logger.info(`✅ Asana Evaluierung-Subtask created for MA ${ma.vorname} ${ma.nachname} (${ma.asana_id})`);
+          logger.info(`✅ Asana Evaluierung-Kommentar für MA ${ma.vorname} ${ma.nachname} (${ma.asana_id}) geschrieben`);
         } catch (err) {
           logger.warn(`⚠️ Asana Evaluierung Feedback failed for Laufzettel ${laufzettelIdStr}: ${err.message}`);
         }

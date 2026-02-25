@@ -4,6 +4,11 @@ const multer = require("multer");
 const auth = require("../middleware/auth");
 const asyncHandler = require("../middleware/AsyncHandler");
 const { sendMail } = require("../EmailService");
+const Mitarbeiter = require("../models/Mitarbeiter");
+const Qualifikation = require("../models/Qualifikation");
+const { Laufzettel } = require("../models/Classes/FlipDocs");
+const { flipAxios } = require("../flipAxios");
+const logger = require("../utils/logger");
 
 // Multer setup for file uploads
 const storage = multer.memoryStorage();
@@ -173,6 +178,81 @@ router.get(
         "Documents (PDF, DOC, DOCX)",
         "Text files (TXT, CSV, JSON, LOG)"
       ]
+    });
+  })
+);
+
+// POST /api/support/debug/flip-badges
+// Dry-run + live update of Flip menu badges for all Teamleiter. Returns full detail per user.
+router.post(
+  "/debug/flip-badges",
+  auth,
+  asyncHandler(async (req, res) => {
+    const FLIP_JOBS_MENU_ITEM_ID = process.env.FLIP_JOBS_MENU_ITEM_ID || "c672be9c-d742-4034-8aa3-5ff5afaf8e3c";
+    const dryRun = req.query.dry === "1";
+
+    // 1. Teamleiter-Qualifikation
+    const teamleiterQual = await Qualifikation.findOne({ qualificationKey: 50055 }).lean();
+    if (!teamleiterQual) {
+      return res.status(404).json({ msg: "Teamleiter-Qualifikation (50055) nicht gefunden" });
+    }
+
+    // 2. Alle Teamleiter mit flip_id
+    const allTL = await Mitarbeiter.find({
+      qualifikationen: teamleiterQual._id,
+      flip_id: { $exists: true, $ne: null },
+    }).select("_id flip_id vorname nachname email").lean();
+
+    // 3. Offene Laufzettel pro TL zählen
+    const tlIds = allTL.map(t => t._id);
+    const counts = await Laufzettel.aggregate([
+      { $match: { status: "OFFEN", teamleiter: { $in: tlIds } } },
+      { $group: { _id: "$teamleiter", count: { $sum: 1 } } },
+    ]);
+    const countMap = new Map(counts.map(c => [String(c._id), c.count]));
+
+    const entries = allTL.map(t => ({
+      name: `${t.vorname} ${t.nachname}`,
+      email: t.email,
+      flip_id: t.flip_id,
+      badge_count: countMap.get(String(t._id)) || 0,
+    }));
+
+    const TEST_OVERRIDE_ID = "f8611901-b889-4c13-944c-fb9063815021";
+    const badges = entries.map(e => ({
+      user_id: e.flip_id,
+      badge_count: e.flip_id === TEST_OVERRIDE_ID ? 5 : e.badge_count,
+    }));
+
+    let apiResult = null;
+    let apiError = null;
+
+    if (!dryRun) {
+      try {
+        const response = await flipAxios.post(
+          `/api/navigation/v4/menu-items/${FLIP_JOBS_MENU_ITEM_ID}/badge`,
+          { badges }
+        );
+        apiResult = response.data;
+        logger.info(`🔔 [debug] Flip badges updated for ${badges.length} TL`);
+      } catch (err) {
+        apiError = {
+          status: err.response?.status,
+          data: err.response?.data,
+          message: err.message,
+        };
+        logger.warn(`⚠️ [debug] Flip badge POST failed: ${JSON.stringify(apiError)}`);
+      }
+    }
+
+    res.json({
+      menuItemId: FLIP_JOBS_MENU_ITEM_ID,
+      dryRun,
+      teamleiterCount: entries.length,
+      nonZero: entries.filter(e => e.badge_count > 0).length,
+      entries,
+      apiResult,
+      apiError,
     });
   })
 );

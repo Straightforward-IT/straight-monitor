@@ -19,6 +19,12 @@ const MitarbeiterSchema = new mongoose.Schema({
     additionalEmails: [{ type: String, lowercase: true, trim: true }],
     telefon: { type: String, required: false, trim: true },
     isActive: { type: Boolean, default: true },
+    persgruppe: {
+        type: Number,
+        required: false,
+        enum: [101, 110, 109, 106],
+        // 101 = Festangestellt, 110 = Kurzfristig Angestellt, 109 = Geringfügig Angestellt, 106 = Werkstudent
+    },
     berufe: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Beruf' }],
     qualifikationen: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Qualifikation' }],
     // ── Legacy v1 Arrays (nicht mehr für v2 Laufzettel benutzen!) ──

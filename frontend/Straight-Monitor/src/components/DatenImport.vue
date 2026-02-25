@@ -8,10 +8,9 @@
 
     <!-- Last Import Section -->
     <div class="last-import-section">
-      <h3>Letzte Uploads</h3>
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in ['einsatz-komplett', 'kunde', 'personal', 'beruf', 'qualifikation', 'personal_quali']" :key="type" class="history-card">
+        <div v-for="type in ['einsatz-komplett', 'personal', 'beruf', 'qualifikation', 'personal_quali']" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -31,246 +30,212 @@
     </div>
 
 
-    <!-- Import-Bereich mit Tabs oder Accordion für Übersichtlichkeit -->
-    <div class="imports-layout">
-
-      <!-- Zvoove Komplett Import Section -->
-      <div class="import-card featured-import">
-        <div class="card-header">
-          <div class="header-content">
-            <h2>Zvoove Komplett Import</h2>
-            <p class="subtitle">Importiert Einsätze, Aufträge und Kunden aus einer Datei (Master-Import)</p>
-          </div>
-          <span v-if="einsatzFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
-        </div>
-
-        <div class="card-content">
-          <div class="upload-area" 
-            :class="{ 'has-file': einsatzFile }"
-            @dragover.prevent 
-            @drop="(e) => handleDragAndDrop(e, 'einsatz')"
-            @click="triggerFileInput('einsatz-upload')"
-          >
-            <div class="upload-content">
-              <i class="upload-icon" :class="einsatzFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-              <div class="upload-text">
-                <span v-if="!einsatzFile"><strong>Zvoove Export hier ablegen</strong><br>Importiert alles in einem Schritt</span>
-                <span v-else class="file-name">{{ einsatzFile.name }}</span>
-              </div>
-            </div>
-            <input id="einsatz-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'einsatz')" accept=".xlsx, .xls" />
-          </div>
-          
-          <div class="requirements-hint">
-            <details>
-              <summary>Erwartete SQL-Export Struktur</summary>
-              <div class="table-scroll">
-                <table class="req-table"><tbody>
-                  <tr><td>AUFTRAGNR, GESCHST, ...</td><td>Auftragsdaten</td></tr>
-                  <tr><td>KUNDENNR, KUNDNAME, ...</td><td>Kundendaten</td></tr>
-                  <tr><td>ID_AUFTRAG_ARBEITSSCHICHTEN, BEZEICHNUNG, ...</td><td>Schichtdaten</td></tr>
-                  <tr><td>PERSONALNR, DATUMVON, BEZEICHN, ...</td><td>Einsatzdaten</td></tr>
-                </tbody></table>
-              </div>
-            </details>
-          </div>
-        </div>
+    <!-- Personal Bereich -->
+    <div class="import-section">
+      <div class="import-section-header">
+        <i class="fas fa-users"></i>
+        <h2>Personal</h2>
       </div>
-      
-      <!-- Kunde Section (Legacy) -->
-      <div class="import-card legacy-import">
-        <div class="card-header">
-          <div class="header-content">
-            <h2>Kunden (Manuell)</h2>
-            <p class="subtitle">Nur Kundendaten</p>
-          </div>
-          <span v-if="kundeFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
-        </div>
+      <div class="imports-layout">
 
-        <div class="card-content">
-          <div class="upload-area" 
-            :class="{ 'has-file': kundeFile }"
-            @dragover.prevent 
-            @drop="(e) => handleDragAndDrop(e, 'kunde')"
-            @click="triggerFileInput('kunde-upload')"
-          >
-            <div class="upload-content">
-              <i class="upload-icon" :class="kundeFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-              <div class="upload-text">
-                <span v-if="!kundeFile">Datei hier ablegen oder klicken</span>
-                <span v-else class="file-name">{{ kundeFile.name }}</span>
-              </div>
+        <!-- Zvoove Komplett Import -->
+        <div class="import-card featured-import">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Zvoove Komplett Import</h2>
+              <p class="subtitle">Importiert Einsätze, Aufträge und Kunden aus einer Datei (Master-Import)</p>
             </div>
-            <input id="kunde-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'kunde')" accept=".xlsx, .xls" />
+            <span v-if="einsatzFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
-
-          <div class="requirements-hint">
-            <details>
-              <summary>Benötigte Spalten anzeigen</summary>
-              <div class="table-scroll">
-                <table class="req-table"><tbody><tr><td>KUNDENNR</td><td>KUNDNAME</td><td>KUNDESEIT</td><td>KUNDSTATUS</td><td>GESCHST</td><td>KOSTENST</td><td>BEMERKUNG</td><td>BEMERKUNG2</td><td>BEMERKUNG3</td></tr></tbody></table>
+          <div class="card-content">
+            <div class="upload-area" 
+              :class="{ 'has-file': einsatzFile }"
+              @dragover.prevent 
+              @drop="(e) => handleDragAndDrop(e, 'einsatz')"
+              @click="triggerFileInput('einsatz-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="einsatzFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!einsatzFile"><strong>Zvoove Export hier ablegen</strong><br>Importiert alles in einem Schritt</span>
+                  <span v-else class="file-name">{{ einsatzFile.name }}</span>
+                </div>
               </div>
-            </details>
-          </div>
-        </div>
-      </div>
-
-      <!-- Einsatz Section (Old placeholder removed, merged into top) -->
-
-
-      <!-- Personal Section -->
-      <div class="import-card">
-        <div class="card-header">
-          <div class="header-content">
-            <h2>Personal-Zuordnung</h2>
-            <p class="subtitle">Verknüpft Personalnr. via E-Mail und fügt Telefonnummer hinzu</p>
-          </div>
-          <span v-if="personalFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
-        </div>
-
-        <div class="card-content">
-          <div class="upload-area" 
-            :class="{ 'has-file': personalFile }"
-            @dragover.prevent 
-            @drop="(e) => handleDragAndDrop(e, 'personal')"
-            @click="triggerFileInput('personal-upload')"
-          >
-            <div class="upload-content">
-              <i class="upload-icon" :class="personalFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-              <div class="upload-text">
-                <span v-if="!personalFile">Datei hier ablegen oder klicken</span>
-                <span v-else class="file-name">{{ personalFile.name }}</span>
-              </div>
+              <input id="einsatz-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'einsatz')" accept=".xlsx, .xls" />
             </div>
-            <input id="personal-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'personal')" accept=".xlsx, .xls" />
-          </div>
-
-          <div class="requirements-hint">
-            <details>
-              <summary>Benötigte Spalten anzeigen</summary>
-              <div class="table-scroll">
-                <table class="req-table"><tbody><tr><td>Personalnr (Col A)</td><td>E-Mail (Col B)</td><td>Telefon (Col C)</td></tr></tbody></table>
-              </div>
-            </details>
-          </div>
-        </div>
-      </div>
-
-      <!-- Beruf Section -->
-      <div class="import-card">
-        <div class="card-header">
-          <div class="header-content">
-            <h2>Berufe (Jobs)</h2>
-            <p class="subtitle">Berufsschlüssel und Bezeichnungen</p>
-          </div>
-          <span v-if="berufFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
-        </div>
-
-        <div class="card-content">
-          <div class="upload-area" 
-            :class="{ 'has-file': berufFile }"
-            @dragover.prevent 
-            @drop="(e) => handleDragAndDrop(e, 'beruf')"
-            @click="triggerFileInput('beruf-upload')"
-          >
-            <div class="upload-content">
-              <i class="upload-icon" :class="berufFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-              <div class="upload-text">
-                <span v-if="!berufFile">Datei hier ablegen oder klicken</span>
-                <span v-else class="file-name">{{ berufFile.name }}</span>
-              </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Erwartete SQL-Export Struktur</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody>
+                    <tr><td>AUFTRAGNR, GESCHST, ...</td><td>Auftragsdaten</td></tr>
+                    <tr><td>KUNDENNR, KUNDNAME, ...</td><td>Kundendaten</td></tr>
+                    <tr><td>ID_AUFTRAG_ARBEITSSCHICHTEN, BEZEICHNUNG, ...</td><td>Schichtdaten</td></tr>
+                    <tr><td>PERSONALNR, DATUMVON, BEZEICHN, ...</td><td>Einsatzdaten</td></tr>
+                  </tbody></table>
+                </div>
+              </details>
             </div>
-            <input id="beruf-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'beruf')" accept=".xlsx, .xls" />
-          </div>
-
-          <div class="requirements-hint">
-            <details>
-              <summary>Benötigte Spalten anzeigen</summary>
-              <div class="table-scroll">
-                <table class="req-table"><tbody><tr><td>Berufnr (Col A)</td><td>Bezeichnung (Col C)</td></tr></tbody></table>
-              </div>
-            </details>
           </div>
         </div>
-      </div>
 
-      <!-- Qualifikation Section -->
-      <div class="import-card">
-        <div class="card-header">
-          <div class="header-content">
-            <h2>Qualifikationen</h2>
-            <p class="subtitle">Qualifikationsschlüssel und Namen</p>
-          </div>
-          <span v-if="qualifikationFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
-        </div>
-
-        <div class="card-content">
-          <div class="upload-area" 
-            :class="{ 'has-file': qualifikationFile }"
-            @dragover.prevent 
-            @drop="(e) => handleDragAndDrop(e, 'qualifikation')"
-            @click="triggerFileInput('qualifikation-upload')"
-          >
-            <div class="upload-content">
-              <i class="upload-icon" :class="qualifikationFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-              <div class="upload-text">
-                <span v-if="!qualifikationFile">Datei hier ablegen oder klicken</span>
-                <span v-else class="file-name">{{ qualifikationFile.name }}</span>
-              </div>
+        <!-- Personal-Zuordnung -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Personal-Zuordnung</h2>
+              <p class="subtitle">Verknüpft Personalnr. via E-Mail und fügt Telefonnummer hinzu</p>
             </div>
-            <input id="qualifikation-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'qualifikation')" accept=".xlsx, .xls" />
+            <span v-if="personalFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
-
-          <div class="requirements-hint">
-            <details>
-              <summary>Benötigte Spalten anzeigen</summary>
-              <div class="table-scroll">
-                <table class="req-table"><tbody><tr><td>Quali-Nr (Col A)</td><td>Bezeichnung (Col B)</td></tr></tbody></table>
+          <div class="card-content">
+            <div class="upload-area" 
+              :class="{ 'has-file': personalFile }"
+              @dragover.prevent 
+              @drop="(e) => handleDragAndDrop(e, 'personal')"
+              @click="triggerFileInput('personal-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="personalFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!personalFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ personalFile.name }}</span>
+                </div>
               </div>
-            </details>
-          </div>
-        </div>
-      </div>
-
-      <!-- Personal-Skills Zuordnung Section -->
-      <div class="import-card">
-        <div class="card-header">
-          <div class="header-content">
-            <h2>Personal Skills</h2>
-            <p class="subtitle">Zuordnung: Personalnr ↔ Beruf/Quali</p>
-          </div>
-          <span v-if="personalQualiFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
-        </div>
-
-        <div class="card-content">
-          <div class="upload-area" 
-            :class="{ 'has-file': personalQualiFile }"
-            @dragover.prevent 
-            @drop="(e) => handleDragAndDrop(e, 'personal_quali')"
-            @click="triggerFileInput('personal-quali-upload')"
-          >
-            <div class="upload-content">
-              <i class="upload-icon" :class="personalQualiFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-              <div class="upload-text">
-                <span v-if="!personalQualiFile">Datei hier ablegen oder klicken</span>
-                <span v-else class="file-name">{{ personalQualiFile.name }}</span>
-              </div>
+              <input id="personal-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'personal')" accept=".xlsx, .xls" />
             </div>
-            <input id="personal-quali-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'personal_quali')" accept=".xlsx, .xls" />
-          </div>
-
-          <div class="requirements-hint">
-            <details>
-              <summary>Benötigte Spalten anzeigen</summary>
-              <div class="table-scroll">
-                <table class="req-table"><tbody><tr><td>Personalnr (Col A)</td><td>Beruf Key (Col B)</td><td>Quali Key (Col C)</td></tr></tbody></table>
-              </div>
-            </details>
+            <div class="requirements-hint">
+              <details>
+                <summary>Benötigte Spalten anzeigen</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody><tr><td>Personalnr (Col A)</td><td>E-Mail (Col B)</td><td>Telefon (Col C)</td></tr></tbody></table>
+                </div>
+              </details>
+            </div>
           </div>
         </div>
+
+        <!-- Personal Skills -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Personal Qualifikationen</h2>
+              <p class="subtitle">Zuordnung: Personalnr ↔ Beruf/Quali</p>
+            </div>
+            <span v-if="personalQualiFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area" 
+              :class="{ 'has-file': personalQualiFile }"
+              @dragover.prevent 
+              @drop="(e) => handleDragAndDrop(e, 'personal_quali')"
+              @click="triggerFileInput('personal-quali-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="personalQualiFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!personalQualiFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ personalQualiFile.name }}</span>
+                </div>
+              </div>
+              <input id="personal-quali-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'personal_quali')" accept=".xlsx, .xls" />
+            </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Benötigte Spalten anzeigen</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody><tr><td>Personalnr (Col A)</td><td>Beruf Key (Col B)</td><td>Quali Key (Col C)</td></tr></tbody></table>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+
       </div>
-    
-    </div><!-- End imports-layout -->
+    </div><!-- End Personal -->
+
+    <!-- System Bereich -->
+    <div class="import-section">
+      <div class="import-section-header">
+        <i class="fas fa-cogs"></i>
+        <h2>System</h2>
+      </div>
+      <div class="imports-layout">
+
+        <!-- Berufe -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Berufe (Jobs)</h2>
+              <p class="subtitle">Berufsschlüssel und Bezeichnungen</p>
+            </div>
+            <span v-if="berufFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area" 
+              :class="{ 'has-file': berufFile }"
+              @dragover.prevent 
+              @drop="(e) => handleDragAndDrop(e, 'beruf')"
+              @click="triggerFileInput('beruf-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="berufFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!berufFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ berufFile.name }}</span>
+                </div>
+              </div>
+              <input id="beruf-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'beruf')" accept=".xlsx, .xls" />
+            </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Benötigte Spalten anzeigen</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody><tr><td>Berufnr (Col A)</td><td>Bezeichnung (Col C)</td></tr></tbody></table>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+
+        <!-- Qualifikationen -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Qualifikationen</h2>
+              <p class="subtitle">Qualifikationsschlüssel und Bezeichnungen</p>
+            </div>
+            <span v-if="qualifikationFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area" 
+              :class="{ 'has-file': qualifikationFile }"
+              @dragover.prevent 
+              @drop="(e) => handleDragAndDrop(e, 'qualifikation')"
+              @click="triggerFileInput('qualifikation-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="qualifikationFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!qualifikationFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ qualifikationFile.name }}</span>
+                </div>
+              </div>
+              <input id="qualifikation-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'qualifikation')" accept=".xlsx, .xls" />
+            </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Benötigte Spalten anzeigen</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody><tr><td>Quali-Nr (Col A)</td><td>Bezeichnung (Col B)</td></tr></tbody></table>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- End System -->
 
     <div class="actions-bar">
       <button class="primary-btn large" @click="processFiles" :disabled="!hasAnyFile() || loading">
@@ -463,7 +428,6 @@ export default {
   data() {
     return {
 
-      kundeFile: null,
       einsatzFile: null,
       personalFile: null,
       berufFile: null,
@@ -535,7 +499,6 @@ export default {
     },
     setFile(file, type) {
       // Set the selected file for the specific type
-      if (type === 'kunde') this.kundeFile = file;
       if (type === 'einsatz') this.einsatzFile = file;
       if (type === 'personal') this.personalFile = file;
       if (type === 'beruf') this.berufFile = file;
@@ -548,7 +511,7 @@ export default {
         return;
       }
 
-      const fileCount = [this.kundeFile, this.einsatzFile, this.personalFile, this.berufFile, this.qualifikationFile, this.personalQualiFile].filter(Boolean).length;
+      const fileCount = [this.einsatzFile, this.personalFile, this.berufFile, this.qualifikationFile, this.personalQualiFile].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
       this.loading = true;
@@ -557,12 +520,6 @@ export default {
 
       try {
         // Upload all selected files
-        if (this.kundeFile) {
-          const response = await this.uploadFile(this.kundeFile, 'kunde');
-          results.push({ type: 'Kunden', ...response });
-          if (!response.success) hasErrors = true;
-        }
-        
         if (this.einsatzFile) {
           const response = await this.uploadFile(this.einsatzFile, 'einsatz');
           results.push({ type: 'Einsätze', ...response });
@@ -761,7 +718,6 @@ export default {
     // ... assign methods ... same as before ... 
     
     resetAll() {
-      this.kundeFile = null;
       this.einsatzFile = null;
       this.personalFile = null;
       this.berufFile = null;
@@ -770,7 +726,7 @@ export default {
       this.fetchLastUploads(); // Refresh history after upload
     },
     hasAnyFile() {
-      return this.kundeFile || this.einsatzFile || this.personalFile || this.berufFile || this.qualifikationFile || this.personalQualiFile;
+      return this.einsatzFile || this.personalFile || this.berufFile || this.qualifikationFile || this.personalQualiFile;
     },
 
     handleEscapeKey(event) {
@@ -895,11 +851,37 @@ export default {
   margin-bottom: 30px;
 }
 
+.import-section {
+  margin-bottom: 32px;
+}
+
+.import-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--border);
+
+  i {
+    font-size: 1rem;
+    color: var(--primary);
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+}
+
 .imports-layout {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
   gap: 20px;
-  margin-bottom: 30px;
 }
 
 .import-card {

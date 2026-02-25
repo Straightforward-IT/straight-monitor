@@ -64,6 +64,10 @@
             Veröffentlichte Features
           </h3>
           <div class="feature-list">
+             <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'mobile-alt']" />
+              <span>Public Monitor - Integriert in Flip unter "Jobs" für alle Mitarbeiter</span>
+            </div>
             <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'table']" />
               <span>Teamleiter Auswertung - Live Tracking der Teamleiter-Berichte</span>
@@ -140,16 +144,16 @@
           </h3>
           <div class="feature-list">
             <div class="feature-item">
-              <font-awesome-icon :icon="['fas', 'mobile-alt']" />
-              <span>Public Monitor - Integriert in Flip unter "Jobs" für alle Mitarbeiter</span>
-            </div>
-            <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'chart-bar']" />
               <span>Dashboard Widgets - Letzte Event-Reports, heutige Jobs, Bestandsveränderungen & mehr</span>
             </div>
             <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'dolly']" />
               <span>Bestand - Zuordnung von Service- & Logi-Paketen zu Mitarbeitern</span>
+            </div>
+            <div class="feature-item">
+              <font-awesome-icon :icon="['fas', 'table-list']" />
+              <span>Dispo-Tabelle - Wir ziehen die Dispo Tabelle in den Monitor</span>
             </div>
           </div>
         </div>

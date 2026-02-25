@@ -74,6 +74,12 @@
             <FilterChip :active="kundenStatusFilter === 'alle'" @click="setKundenStatusFilter('alle')">Alle</FilterChip>
           </div>
         </div>
+        <div class="control-group">
+          <label class="control-label">Straightforward</label>
+          <div class="chip-row">
+            <FilterChip :active="excludeStraightforward" @click="excludeStraightforward = !excludeStraightforward; selectAllByStatus(); fetchData()">Ausschließen</FilterChip>
+          </div>
+        </div>
         <div class="control-group control-group-wide">
           <label class="control-label">Kunden vergleichen <span class="hint">({{ selectedKundenNrs.length }} ausgewählt)</span></label>
           <div class="multi-select-wrapper" ref="dropdownRef">
@@ -194,11 +200,27 @@
         <!-- Filter Row 2: Multi-Select Kunden (only when compareMode is kunden in pie mode) -->
         <div v-if="compareMode === 'kunden'" class="filter-row">
           <div class="control-group">
+            <label class="control-label">Standort</label>
+            <div class="chip-row">
+              <FilterChip :active="!selectedGeschSt" @click="setGeschSt(null)">Alle</FilterChip>
+              <FilterChip :active="selectedGeschSt === '1'" @click="setGeschSt('1')">Berlin</FilterChip>
+              <FilterChip :active="selectedGeschSt === '2'" @click="setGeschSt('2')">Hamburg</FilterChip>
+              <FilterChip :active="selectedGeschSt === '3'" @click="setGeschSt('3')">Köln</FilterChip>
+            </div>
+          </div>
+          <div class="filter-separator"></div>
+          <div class="control-group">
             <label class="control-label">Status</label>
             <div class="chip-row">
               <FilterChip :active="kundenStatusFilter === 'aktiv'" @click="setKundenStatusFilter('aktiv')">Aktiv</FilterChip>
               <FilterChip :active="kundenStatusFilter === 'inaktiv'" @click="setKundenStatusFilter('inaktiv')">Inaktiv</FilterChip>
               <FilterChip :active="kundenStatusFilter === 'alle'" @click="setKundenStatusFilter('alle')">Alle</FilterChip>
+            </div>
+          </div>
+          <div class="control-group">
+            <label class="control-label">Straightforward</label>
+            <div class="chip-row">
+              <FilterChip :active="excludeStraightforward" @click="excludeStraightforward = !excludeStraightforward; selectAllByStatus(); fetchData()">Ausschließen</FilterChip>
             </div>
           </div>
           <div class="control-group control-group-wide">
@@ -631,6 +653,15 @@ const showMonthComparison = ref(true);
 const activeTab = ref('saeulen');
 const compareMode = ref('none'); // 'none' | 'kunden' | 'standort'
 const kundenStatusFilter = ref('aktiv'); // 'aktiv' | 'inaktiv' | 'alle'
+const excludeStraightforward = ref(true);
+
+// All top-level non-Straightforward customer NRs (used to always exclude SF in Gesamt/Standort mode)
+const nonSFKundenNrs = computed(() =>
+  (dataCache.kunden || [])
+    .filter(k => k.kundenNr && !k.parentKunde)
+    .filter(k => !(k.kundName || '').toLowerCase().includes('straightforward'))
+    .map(k => k.kundenNr)
+);
 
 // --- Drill-down state ---
 const drillMonth = ref(null); // { year, month } or null
@@ -746,6 +777,10 @@ const filteredKundenList = computed(() => {
     list = list.filter(k => k.kundStatus === 2);
   } else if (kundenStatusFilter.value === 'inaktiv') {
     list = list.filter(k => k.kundStatus === 3);
+  }
+  // Filter out Straightforward internal customers
+  if (excludeStraightforward.value) {
+    list = list.filter(k => !(k.kundName || '').toLowerCase().includes('straightforward'));
   }
   // Filter by search
   const q = kundenSearch.value.toLowerCase();
@@ -1028,6 +1063,9 @@ function selectAllByStatus() {
   } else if (kundenStatusFilter.value === 'inaktiv') {
     list = list.filter(k => k.kundStatus === 3);
   }
+  if (excludeStraightforward.value) {
+    list = list.filter(k => !(k.kundName || '').toLowerCase().includes('straightforward'));
+  }
   selectedKundenNrs.value = list.map(k => k.kundenNr);
 }
 
@@ -1101,6 +1139,8 @@ async function fetchData() {
       const stParams = { ...params };
       if (selectedKundenNrs.value.length > 0) {
         stParams.kundenNr = selectedKundenNrs.value.join(',');
+      } else if (excludeStraightforward.value && nonSFKundenNrs.value.length > 0) {
+        stParams.kundenNr = nonSFKundenNrs.value.join(',');
       }
       const { data } = await api.get('/api/kunden/analytics/einsaetze/standort', { params: stParams });
       rawTotal.value = data.data || [];
@@ -1112,6 +1152,8 @@ async function fetchData() {
       }
       if (selectedKundenNrs.value.length > 0) {
         params.kundenNr = selectedKundenNrs.value.join(',');
+      } else if (compareMode.value === 'none' && excludeStraightforward.value && nonSFKundenNrs.value.length > 0) {
+        params.kundenNr = nonSFKundenNrs.value.join(',');
       }
       const { data } = await api.get('/api/kunden/analytics/einsaetze', { params });
       rawTotal.value = data.data || [];
