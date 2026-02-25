@@ -38,6 +38,21 @@
           <input v-model="form.erstellt_von" type="text" class="form-input" />
         </div>
 
+        <div class="form-group">
+          <label>Personengruppe</label>
+          <select v-model="form.persgruppe" class="form-input">
+            <option :value="null">— nicht gesetzt —</option>
+            <option :value="101">101 – Festangestellt (Festi)</option>
+            <option :value="110">110 – Kurzfristig angestellt (KZF)</option>
+            <option :value="109">109 – Geringfügig angestellt (Mini)</option>
+            <option :value="106">106 – Werkstudent (Werkst.)</option>
+          </select>
+          <label class="checkbox-label" style="margin-top:8px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)">
+            <input type="checkbox" v-model="form.persgruppe_set_explicitly" />
+            Manuell gesetzt – nicht vom Import überschreiben
+          </label>
+        </div>
+
         <!-- Additional Emails -->
         <div class="form-section">
           <h4>Alternative E-Mails</h4>
@@ -154,6 +169,8 @@ const form = ref({
   erstellt_von: "",
   additionalEmails: [],
   personalnrHistory: [],
+  persgruppe: null,
+  persgruppe_set_explicitly: false,
 });
 
 // Initialize form from props
@@ -169,6 +186,8 @@ watch(
         erstellt_von: newVal.erstellt_von || "",
         additionalEmails: [...(newVal.additionalEmails || [])],
         personalnrHistory: [...(newVal.personalnrHistory || [])],
+        persgruppe: newVal.persgruppe ?? null,
+        persgruppe_set_explicitly: !!newVal.persgruppe_set_explicitly,
       };
     }
   },

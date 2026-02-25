@@ -64,6 +64,12 @@
               {{ displayDepartment }}
             </span>
             
+            <!-- Personengruppe Badge -->
+            <span class="pill" style="background:var(--soft);color:var(--muted);" v-if="persgruppeLabel">
+              <font-awesome-icon icon="fa-solid fa-user" />
+              {{ persgruppeLabel }}
+            </span>
+            
             <!-- Teamleiter Badge -->
             <TlBadge v-if="isTeamleiter" />
           </div>
@@ -1193,6 +1199,10 @@ export default {
         { label: this.ma.isActive ? 'Deaktivieren' : 'Aktivieren', action: 'toggle-active' },
         { label: 'Löschen', action: 'delete' }
       ];
+    },
+    persgruppeLabel() {
+      const map = { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' };
+      return this.ma?.persgruppe ? map[this.ma.persgruppe] ?? null : null;
     },
     // Filtere Tasks nach Status (offen vs. erledigt)
     filteredTasksToMe() {
@@ -3054,7 +3064,8 @@ export default {
   transform: translateY(-4px);
 }
 
-.card:hover .selection-overlay {
+.card:hover .selection-overlay,
+.selection-overlay:has(.selection-checkbox:checked) {
   opacity: 1;
   transform: translateY(0);
 }

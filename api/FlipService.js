@@ -1112,14 +1112,14 @@ async function syncFlipAttributes(flipUsersById = {}) {
 
   for (const ma of mitarbeiter) {
     try {
-      const berufKeys  = (ma.berufe        || []).map(b => b.jobKey).filter(Boolean);
-      const qualiKeys  = (ma.qualifikationen || []).map(q => q.qualificationKey).filter(Boolean);
+      const berufKeys  = (ma.berufe        || []).map(b => Number(b.jobKey)).filter(k => !isNaN(k));
+      const qualiKeys  = (ma.qualifikationen || []).map(q => Number(q.qualificationKey)).filter(k => !isNaN(k));
 
       const isService  = berufKeys.includes(10001);
       const isLogistik = berufKeys.includes(10002);
-      const isOffice   = qualiKeys.includes(40) || qualiKeys.includes('00040');
+      const isOffice   = qualiKeys.includes(40);    // Quali-Key 40 = Office
       const isTeamLead = qualiKeys.includes(50055);
-      const isFesti    = ma.persgruppe == 101;
+      const isFesti    = ma.persgruppe === 101 || ma.persgruppe == 101; // persgruppe 101 = Festangestellt
 
       // Re-use pre-fetched data or fall back to individual GET
       let flipUserData = flipUsersById[ma.flip_id];

@@ -96,6 +96,25 @@
             </div>
 
             <div class="chip-group compact-group">
+                 <FilterDropdown ref="pgDropdown" :has-value="filters.persgruppe !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-user" style="margin-right: 0.5rem" /> {{ filters.persgruppe === 'Alle' ? 'Persgruppe' : filters.persgruppe === 'Keine' ? 'Keine' : { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' }[filters.persgruppe] }}</template>
+                    <div class="dropdown-item clickable" :class="{ selected: filters.persgruppe === 'Alle' }"
+                        @click="setFilter('persgruppe', 'Alle'); $refs.pgDropdown.close()">
+                        Alle
+                    </div>
+                    <div class="dropdown-item clickable" :class="{ selected: filters.persgruppe === 'Keine' }"
+                        @click="setFilter('persgruppe', 'Keine'); $refs.pgDropdown.close()">
+                        Keine
+                    </div>
+                    <div v-for="pg in [{ val: 101, label: 'Festi (101)' }, { val: 110, label: 'KZF (110)' }, { val: 109, label: 'Mini (109)' }, { val: 106, label: 'Werkst. (106)' }]" :key="pg.val"
+                         class="dropdown-item clickable" :class="{ selected: filters.persgruppe === pg.val }"
+                         @click="setFilter('persgruppe', pg.val); $refs.pgDropdown.close()">
+                      {{ pg.label }}
+                    </div>
+                 </FilterDropdown>
+            </div>
+
+            <div class="chip-group compact-group">
                  <FilterDropdown ref="tlDropdown" :has-value="filters.teamleiter !== 'Alle'">
                     <template #label><font-awesome-icon icon="fa-solid fa-user-tie" style="margin-right: 0.5rem" /> {{ filters.teamleiter === 'Alle' ? 'Rolle' : filters.teamleiter }}</template>
                      <div v-for="stat in ['Alle', 'Nur Teamleiter', 'Keine Teamleiter']" 
@@ -227,6 +246,17 @@
             <!-- Selection Info -->
             <div v-if="selectedMitarbeiterIds.size > 0" class="selection-info">
               <span class="selection-count">{{ selectedMitarbeiterIds.size }} ausgewählt</span>
+              <button
+                v-if="selectedMitarbeiterIds.size < filteredMitarbeitersSorted.length"
+                class="btn-select-all-filtered"
+                @click="selectAllFiltered"
+              >
+                Alle {{ filteredMitarbeitersSorted.length }} auswählen
+              </button>
+              <button class="btn-export-action" @click="showExportModal = true">
+                <font-awesome-icon icon="fa-solid fa-table" />
+                Exportieren
+              </button>
               <button class="btn-clear" @click="clearSelection">
                 <font-awesome-icon icon="fa-solid fa-times" />
                 Auswahl löschen
@@ -572,6 +602,13 @@
       </section>
     </main>
     
+    <!-- Export Modal -->
+    <ExportMitarbeiterModal
+      v-if="showExportModal"
+      :mitarbeiter-list="selectedMitarbeiterData"
+      @close="showExportModal = false"
+    />
+
     <!-- Teleported Quick Actions Menu (List View) -->
     <teleport to="body">
       <div v-if="activeQuickActionId && activeQuickActionMa" class="list-qa-overlay" @click="activeQuickActionId = null">
@@ -625,6 +662,7 @@ import CustomTooltip from './CustomTooltip.vue';
 import EmployeeCard from "@/components/EmployeeCard.vue";
 import FilterPanel from "@/components/FilterPanel.vue";
 import FilterDropdown from "@/components/FilterDropdown.vue";
+import ExportMitarbeiterModal from "@/components/ExportMitarbeiterModal.vue";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
 
@@ -665,7 +703,9 @@ import {
   faGraduationCap,
   faStar,
   faTriangleExclamation,
-  faRightLeft
+  faRightLeft,
+  faTable,
+  faDownload
 } from "@fortawesome/free-solid-svg-icons";
 import { faCircle as faCircleRegular } from "@fortawesome/free-regular-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
@@ -708,12 +748,14 @@ library.add(
   faGraduationCap,
   faStar,
   faTriangleExclamation,
-  faRightLeft
+  faRightLeft,
+  faTable,
+  faDownload
 );
 
 export default {
   name: "Personal",
-  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel, FilterDropdown },
+  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel, FilterDropdown, ExportMitarbeiterModal },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -753,6 +795,7 @@ export default {
       // selection state
       selectedMitarbeiterIds: new Set(),
       selectAllMode: false,
+      showExportModal: false,
       
       // list expansion state
       listExpandedIds: new Set(),
@@ -788,7 +831,8 @@ export default {
         profile: "Alle", // Vollständig, Unvollständig, Alle
         teamleiter: "Alle", // Alle, Nur Teamleiter, Keine Teamleiter
         berufe: [], // Array of selected Beruf IDs
-        qualifikationen: [] // Array of selected Qualifikation IDs
+        qualifikationen: [], // Array of selected Qualifikation IDs
+        persgruppe: 'Alle' // 'Alle', 101, 110, 109, 106
       },
       mitarbeitersSearchQuery: "",
       mitarbeitersSortBy: "nachname",
@@ -924,6 +968,13 @@ export default {
         });
       }
 
+      // Persgruppe Filter
+      if (this.filters.persgruppe === 'Keine') {
+        result = result.filter((ma) => ma.persgruppe == null);
+      } else if (this.filters.persgruppe !== 'Alle') {
+        result = result.filter((ma) => ma.persgruppe === this.filters.persgruppe);
+      }
+
       // Profile Completeness Filter
       if (this.filters.profile !== "Alle") {
         result = result.filter((ma) => {
@@ -985,6 +1036,11 @@ export default {
         end,
         total: this.filteredMitarbeitersSorted.length
       };
+    },
+
+    // Enriched data for the currently selected IDs (for export)
+    selectedMitarbeiterData() {
+      return this.filteredMitarbeitersSorted.filter(ma => this.selectedMitarbeiterIds.has(ma._id));
     },
 
     isAllSelected() {
@@ -1161,6 +1217,13 @@ export default {
         });
         this.selectedMitarbeiterIds = new Set(this.selectedMitarbeiterIds);
       }
+    },
+
+    selectAllFiltered() {
+      this.filteredMitarbeitersSorted.forEach(ma => {
+        this.selectedMitarbeiterIds.add(ma._id);
+      });
+      this.selectedMitarbeiterIds = new Set(this.selectedMitarbeiterIds);
     },
 
     clearSelection() {
@@ -1537,7 +1600,8 @@ export default {
         profile: "Alle",
         teamleiter: "Alle",
         berufe: [],
-        qualifikationen: []
+        qualifikationen: [],
+        persgruppe: 'Alle'
       };
       this.mitarbeitersSearchQuery = "";
       this.currentPage = 1;
@@ -3271,6 +3335,44 @@ html {
   &:hover {
     background: var(--soft);
     border-color: var(--brand);
+  }
+}
+
+.btn-select-all-filtered {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--brand);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--brand);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--brand) 8%, transparent);
+  }
+}
+
+.btn-export-action {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border: none;
+  border-radius: 4px;
+  background: #1d6f42;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #155c35;
   }
 }
 

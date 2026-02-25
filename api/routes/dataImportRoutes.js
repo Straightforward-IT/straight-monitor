@@ -530,223 +530,154 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
   }
 });
 
-// --- Personal Import (Personalnummern) ---
-// Verknüpft Mitarbeiter mit Personalnummern aus Zvoove anhand der E-Mail
+// --- Personal Import (kombiniert: Personalnr, Austrittsdatum, Beruf/Quali, Persgruppe, Email, Telefon) ---
+// Spalten: A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 router.post('/personal', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
     }
 
+    // Pre-fetch Beruf/Quali lookup maps
+    const [allBerufe, allQualis] = await Promise.all([
+      Beruf.find({}).lean(),
+      Qualifikation.find({}).lean(),
+    ]);
+    const berufMap = new Map(allBerufe.map(b => [String(b.jobKey), b._id]));
+    const qualiMap = new Map(allQualis.map(q => [String(q.qualificationKey), q._id]));
+
+    const VALID_PERSGRUPPEN = new Set([101, 110, 109, 106]);
+
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Read as array of arrays
+    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-    let matched = 0;
-    let updated = 0;
-    let unchanged = 0;
-    let notFound = 0;
-    let conflicts = 0;
-    const notFoundEntries = [];
-    const conflictDetails = [];
-    const updateErrors = [];
+    // Skip header row if first cell looks like text
+    const startRow = (rawData.length > 0 && isNaN(rawData[0][0])) ? 1 : 0;
 
-    // Skip header row if present (check if first row looks like headers)
-    const startRow = (rawData.length > 0 && typeof rawData[0][0] === 'string' && 
-                      (rawData[0][0].toLowerCase().includes('personal') || 
-                       rawData[0][0].toLowerCase().includes('nr') ||
-                       rawData[0][1]?.toLowerCase().includes('mail'))) ? 1 : 0;
+    let matched = 0, updated = 0, unchanged = 0, skipped = 0;
+    const notFoundPnrs = [];
+
+    const operations = [];
 
     for (let i = startRow; i < rawData.length; i++) {
       const row = rawData[i];
-      if (!row || row.length < 2) continue;
+      if (!row || row.length < 1) continue;
 
-      const personalnr = row[0] ? String(row[0]).trim() : null;
-      const email = row[1] ? String(row[1]).trim().toLowerCase() : null;
-      const telefon = row[2] ? String(row[2]).trim() : null;
+      const personalnr = row[0] != null ? String(row[0]).trim() : null;
+      if (!personalnr) continue;
 
-      if (!personalnr || !email) continue;
-
-      // Find Mitarbeiter by primary email OR in additionalEmails array
-      let mitarbeiter = await Mitarbeiter.findOne({ email: email });
-      if (!mitarbeiter) {
-        mitarbeiter = await Mitarbeiter.findOne({ additionalEmails: email });
+      // Col C (index 2): Austrittsdatum
+      let austrittsdatum = null;
+      if (row[2]) {
+        const d = row[2] instanceof Date ? row[2] : new Date(row[2]);
+        if (!isNaN(d.getTime())) austrittsdatum = d;
       }
 
-      if (mitarbeiter) {
-        matched++;
+      // Col D (index 3): Berufsschlüssel kommagetrennt
+      const berufKeys = row[3]
+        ? String(row[3]).split(',').map(k => k.trim()).filter(Boolean)
+        : [];
+      const berufIds = berufKeys.map(k => berufMap.get(k)).filter(Boolean);
 
-        // Check if personalnr needs to be updated
-        const telefonChanged = telefon && mitarbeiter.telefon !== telefon;
-        if (mitarbeiter.personalnr === personalnr) {
-          if (telefonChanged) {
-            await Mitarbeiter.updateOne({ _id: mitarbeiter._id }, { telefon });
-            updated++;
-          } else {
-            unchanged++;
-          }
-          continue;
-        }
+      // Col E (index 4): Qualifikationsschlüssel kommagetrennt
+      const qualiKeys = row[4]
+        ? String(row[4]).split(',').map(k => k.trim()).filter(Boolean)
+        : [];
+      const qualiIds = qualiKeys.map(k => qualiMap.get(k)).filter(Boolean);
 
-        // Check if this personalnr is already used by another Mitarbeiter (conflict)
-        const existingWithSameNr = await Mitarbeiter.findOne({ 
-          personalnr: personalnr,
-          _id: { $ne: mitarbeiter._id }
-        });
+      // Col F (index 5): Personengruppe
+      const persgruppRaw = row[5] != null ? parseInt(row[5], 10) : null;
+      const persgruppe = persgruppRaw != null && VALID_PERSGRUPPEN.has(persgruppRaw) ? persgruppRaw : null;
 
-        if (existingWithSameNr) {
-          conflicts++;
-          conflictDetails.push({
-            personalnr: personalnr,
-            email: email,
-            name: `${mitarbeiter.vorname} ${mitarbeiter.nachname}`,
-            conflictWith: {
-              email: existingWithSameNr.email,
-              name: `${existingWithSameNr.vorname} ${existingWithSameNr.nachname}`
-            }
-          });
-          continue;
-        }
+      // Col G (index 6): Email
+      const email = row[6] ? String(row[6]).trim().toLowerCase() : null;
 
-        try {
-          // Update with history tracking
-          const updateData = {
-            personalnr: personalnr
-          };
+      // Col H (index 7): Telefon
+      const telefon = row[7] ? String(row[7]).trim() : null;
 
-          if (telefon) {
-            updateData.telefon = telefon;
-          }
+      // Build $set payload — only include fields that have a value
+      const setFields = {
+        berufe: berufIds,
+        qualifikationen: qualiIds,
+      };
+      if (austrittsdatum) setFields.austrittsdatum = austrittsdatum;
+      if (persgruppe != null) setFields.persgruppe = persgruppe;
+      if (email) setFields.email = email;
+      if (telefon) setFields.telefon = telefon;
 
-          // Add to history if there was a previous value
-          if (mitarbeiter.personalnr) {
-            updateData.$push = {
-              personalnrHistory: {
-                value: mitarbeiter.personalnr,
-                updatedAt: new Date(),
-                updatedBy: 'system',
-                source: 'import'
-              }
-            };
-          }
-
-          await Mitarbeiter.updateOne(
-            { _id: mitarbeiter._id },
-            updateData
-          );
-          updated++;
-        } catch (updateError) {
-          updateErrors.push({
-            email: email,
-            personalnr: personalnr,
-            error: updateError.message
-          });
-        }
-      } else {
-        notFound++;
-        if (notFoundEntries.length < 20) { // Limit to first 20 for the response
-          notFoundEntries.push({ email, personalnr });
-        }
-      }
+      operations.push({ personalnr, setFields });
     }
 
-    let message = `${matched} Mitarbeiter gefunden, ${updated} Personalnummern aktualisiert`;
-    if (unchanged > 0) message += `, ${unchanged} unverändert`;
-    if (conflicts > 0) message += `, ${conflicts} Konflikte`;
-    if (notFound > 0) message += `, ${notFound} E-Mails nicht gefunden`;
-    message += '.';
+    if (operations.length === 0) {
+      return res.json({ success: true, message: 'Keine gültigen Zeilen gefunden.' });
+    }
 
-    const response = { 
-      success: conflicts === 0 && updateErrors.length === 0, 
+    // Execute bulk updates (find by Personalnr)
+    for (const op of operations) {
+      const ma = await Mitarbeiter.findOne({ personalnr: op.personalnr }).select('_id personalnr persgruppe_set_explicitly').lean();
+      if (!ma) {
+        skipped++;
+        if (notFoundPnrs.length < 30) notFoundPnrs.push(op.personalnr);
+        continue;
+      }
+      matched++;
+      // Respektiere manuell gesetztes persgruppe
+      if (ma.persgruppe_set_explicitly && op.setFields.persgruppe != null) {
+        delete op.setFields.persgruppe;
+      }
+      const result = await Mitarbeiter.updateOne({ _id: ma._id }, { $set: op.setFields });
+      if (result.modifiedCount > 0) updated++; else unchanged++;
+    }
+
+    const message = `${matched} Mitarbeiter aktualisiert, ${updated} geändert, ${unchanged} unverändert, ${skipped} Personalnr nicht gefunden.`;
+    const responseData = {
+      success: true,
       message,
       details: {
+        total: operations.length,
         matched,
         updated,
         unchanged,
-        conflicts,
-        notFound,
-        conflictDetails: conflictDetails.length > 0 ? conflictDetails : undefined,
-        notFoundEntries: notFoundEntries.length > 0 ? notFoundEntries : undefined,
-        updateErrors: updateErrors.length > 0 ? updateErrors : undefined
+        notFound: skipped,
+        notFoundPnrs: notFoundPnrs.length > 0 ? notFoundPnrs : undefined,
       }
     };
 
-    await logImport('personal', req.file.originalname, response.success ? 'success' : 'warning', matched, response.details, req.user?._id);
+    await logImport('personal', req.file.originalname, 'success', matched, responseData.details, req.user?._id);
+    res.json(responseData);
 
-    res.json(response);
-
-    // Send email notification
+    // Email notification
     try {
       const timestamp = new Date().toLocaleString('de-DE');
-      let conflictsHtml = '';
-      if (conflictDetails.length > 0) {
-        conflictsHtml = '<h3 style="color: orange;">⚠️ Konflikte:</h3><ul>';
-        conflictDetails.forEach(c => {
-          conflictsHtml += `<li><strong>Personalnr ${c.personalnr}</strong> für ${c.name} (${c.email})<br/>wird bereits verwendet von ${c.conflictWith.name} (${c.conflictWith.email})</li>`;
-        });
-        conflictsHtml += '</ul>';
-      }
-      
-      let notFoundHtml = '';
-      if (notFoundEntries.length > 0) {
-        notFoundHtml = '<h3>ℹ️ Nicht gefunden:</h3><ul>';
-        notFoundEntries.forEach(entry => {
-          notFoundHtml += `<li>${entry.email} (Personalnr: ${entry.personalnr})</li>`;
-        });
-        notFoundHtml += '</ul>';
-      }
-      
-      const statusColor = response.success ? 'green' : 'orange';
-      const statusIcon = response.success ? '✓' : '⚠';
-      
+      const notFoundHtml = notFoundPnrs.length
+        ? `<h3>ℹ️ Nicht gefunden (${skipped}):</h3><ul>${notFoundPnrs.map(p => `<li>${p}</li>`).join('')}${skipped > notFoundPnrs.length ? `<li>…und ${skipped - notFoundPnrs.length} weitere</li>` : ''}</ul>`
+        : '';
       const emailContent = `
-        <div style="font-family: Arial, sans-serif; color: #333;">
-          <h2>Personal Import - ${timestamp}</h2>
+        <div style="font-family:Arial,sans-serif;color:#333">
+          <h2>Personal Import (kombiniert) – ${timestamp}</h2>
           <p><strong>Datei:</strong> ${req.file.originalname}</p>
-          <p><strong>Größe:</strong> ${(req.file.size / 1024).toFixed(2)} KB</p>
           <hr/>
-          <h3>Ergebnis:</h3>
           <ul>
-            <li>Gefunden: <strong>${matched}</strong> Mitarbeiter</li>
-            <li>Aktualisiert: <strong>${updated}</strong> Personalnummern</li>
+            <li>Zeilen: <strong>${operations.length}</strong></li>
+            <li>Gefunden &amp; aktualisiert: <strong>${matched}</strong></li>
+            <li>Davon geändert: <strong>${updated}</strong></li>
             <li>Unverändert: <strong>${unchanged}</strong></li>
-            <li>Konflikte: <strong>${conflicts}</strong></li>
-            <li>Nicht gefunden: <strong>${notFound}</strong> E-Mails</li>
-            <li>Status: <strong style="color: ${statusColor};">${statusIcon} ${response.success ? 'Erfolgreich' : 'Mit Warnungen'}</strong></li>
+            <li>Nicht gefunden: <strong>${skipped}</strong></li>
           </ul>
-          ${conflictsHtml}
           ${notFoundHtml}
-        </div>
-      `;
-      await sendMail('it@straightforward.email', `Personal Import - ${timestamp}`, emailContent, 'it');
+        </div>`;
+      await sendMail('it@straightforward.email', `Personal Import – ${timestamp}`, emailContent, 'it');
     } catch (emailError) {
       logger.error('Failed to send import notification email:', emailError);
     }
 
   } catch (error) {
     logger.error('Import Personal Error:', error);
-    
-    // Send error email notification
-    try {
-      const timestamp = new Date().toLocaleString('de-DE');
-      const emailContent = `
-        <div style="font-family: Arial, sans-serif; color: #333;">
-          <h2>❌ Personal Import Fehler - ${timestamp}</h2>
-          <p><strong>Datei:</strong> ${req.file?.originalname || 'Unbekannt'}</p>
-          <hr/>
-          <h3>Fehler:</h3>
-          <p style="color: red;">${error.message}</p>
-          <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">${error.stack}</pre>
-        </div>
-      `;
-      await sendMail('it@straightforward.email', `❌ Personal Import Fehler - ${timestamp}`, emailContent, 'it');
-    } catch (emailError) {
-      logger.error('Failed to send error notification email:', emailError);
-    }
-    
-    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Personalnummern.', error: error.message });
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren.', error: error.message });
   }
 });
+
 
 // --- Beruf Import ---
 router.post('/beruf', upload.single('file'), async (req, res) => {

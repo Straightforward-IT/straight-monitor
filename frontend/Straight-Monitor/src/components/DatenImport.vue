@@ -10,7 +10,7 @@
     <div class="last-import-section">
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in ['einsatz-komplett', 'personal', 'beruf', 'qualifikation', 'personal_quali']" :key="type" class="history-card">
+        <div v-for="type in ['einsatz-komplett', 'personal', 'beruf', 'qualifikation']" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -79,19 +79,19 @@
           </div>
         </div>
 
-        <!-- Personal-Zuordnung -->
+        <!-- Personal Import (kombiniert) -->
         <div class="import-card">
           <div class="card-header">
             <div class="header-content">
-              <h2>Personal-Zuordnung</h2>
-              <p class="subtitle">Verknüpft Personalnr. via E-Mail und fügt Telefonnummer hinzu</p>
+              <h2>Personal Import</h2>
+              <p class="subtitle">Personalnr., Austrittsdatum, Berufe, Qualifikationen, Persgruppe, E-Mail, Telefon</p>
             </div>
             <span v-if="personalFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area" 
+            <div class="upload-area"
               :class="{ 'has-file': personalFile }"
-              @dragover.prevent 
+              @dragover.prevent
               @drop="(e) => handleDragAndDrop(e, 'personal')"
               @click="triggerFileInput('personal-upload')"
             >
@@ -108,43 +108,11 @@
               <details>
                 <summary>Benötigte Spalten anzeigen</summary>
                 <div class="table-scroll">
-                  <table class="req-table"><tbody><tr><td>Personalnr (Col A)</td><td>E-Mail (Col B)</td><td>Telefon (Col C)</td></tr></tbody></table>
-                </div>
-              </details>
-            </div>
-          </div>
-        </div>
-
-        <!-- Personal Skills -->
-        <div class="import-card">
-          <div class="card-header">
-            <div class="header-content">
-              <h2>Personal Qualifikationen</h2>
-              <p class="subtitle">Zuordnung: Personalnr ↔ Beruf/Quali</p>
-            </div>
-            <span v-if="personalQualiFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
-          </div>
-          <div class="card-content">
-            <div class="upload-area" 
-              :class="{ 'has-file': personalQualiFile }"
-              @dragover.prevent 
-              @drop="(e) => handleDragAndDrop(e, 'personal_quali')"
-              @click="triggerFileInput('personal-quali-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="personalQualiFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!personalQualiFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ personalQualiFile.name }}</span>
-                </div>
-              </div>
-              <input id="personal-quali-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'personal_quali')" accept=".xlsx, .xls" />
-            </div>
-            <div class="requirements-hint">
-              <details>
-                <summary>Benötigte Spalten anzeigen</summary>
-                <div class="table-scroll">
-                  <table class="req-table"><tbody><tr><td>Personalnr (Col A)</td><td>Beruf Key (Col B)</td><td>Quali Key (Col C)</td></tr></tbody></table>
+                  <table class="req-table"><tbody>
+                    <tr><td>A – Personalnr</td><td>B – ignoriert</td><td>C – Austrittsdatum</td></tr>
+                    <tr><td>D – Berufsschlüssel (kommasep.)</td><td>E – Qualischlüssel (kommasep.)</td><td>F – Personengruppe</td></tr>
+                    <tr><td>G – E-Mail</td><td>H – Telefon</td></tr>
+                  </tbody></table>
                 </div>
               </details>
             </div>
@@ -432,7 +400,6 @@ export default {
       personalFile: null,
       berufFile: null,
       qualifikationFile: null,
-      personalQualiFile: null,
       loading: false,
       // Modal state
       showResultModal: false,
@@ -469,7 +436,6 @@ export default {
         personal: 'Personal',
         beruf: 'Berufe',
         qualifikation: 'Qualifikationen',
-        personal_quali: 'Pers. Skills'
       };
       return labels[type] || type;
     },
@@ -503,7 +469,6 @@ export default {
       if (type === 'personal') this.personalFile = file;
       if (type === 'beruf') this.berufFile = file;
       if (type === 'qualifikation') this.qualifikationFile = file;
-      if (type === 'personal_quali') this.personalQualiFile = file;
     },
     async processFiles() {
       if (!this.hasAnyFile()) {
@@ -511,7 +476,7 @@ export default {
         return;
       }
 
-      const fileCount = [this.einsatzFile, this.personalFile, this.berufFile, this.qualifikationFile, this.personalQualiFile].filter(Boolean).length;
+      const fileCount = [this.einsatzFile, this.personalFile, this.berufFile, this.qualifikationFile].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
       this.loading = true;
@@ -544,12 +509,6 @@ export default {
           if (!response.success) hasErrors = true;
         }
 
-        if (this.personalQualiFile) {
-          const response = await this.uploadFile(this.personalQualiFile, 'personal_quali');
-          results.push({ type: 'Pers. Skills', ...response });
-          if (!response.success) hasErrors = true;
-        }
-        
         // Combine results for modal
         this.resultModalData = this.combineResults(results);
         this.showResultModal = true;
@@ -722,11 +681,10 @@ export default {
       this.personalFile = null;
       this.berufFile = null;
       this.qualifikationFile = null;
-      this.personalQualiFile = null;
-      this.fetchLastUploads(); // Refresh history after upload
+      this.fetchLastUploads();
     },
     hasAnyFile() {
-      return this.einsatzFile || this.personalFile || this.berufFile || this.qualifikationFile || this.personalQualiFile;
+      return this.einsatzFile || this.personalFile || this.berufFile || this.qualifikationFile;
     },
 
     handleEscapeKey(event) {
