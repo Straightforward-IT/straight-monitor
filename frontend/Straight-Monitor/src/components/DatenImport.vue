@@ -42,7 +42,7 @@
         <div class="import-card featured-import">
           <div class="card-header">
             <div class="header-content">
-              <h2>Zvoove Komplett Import</h2>
+              <h2>Zvoove Komplett Import (Liste 7001)</h2>
               <p class="subtitle">Importiert Einsätze, Aufträge und Kunden aus einer Datei (Master-Import)</p>
             </div>
             <span v-if="einsatzFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
@@ -83,7 +83,7 @@
         <div class="import-card">
           <div class="card-header">
             <div class="header-content">
-              <h2>Personal Import</h2>
+              <h2>Personal Import (Liste 7002)</h2>
               <p class="subtitle">Personalnr., Austrittsdatum, Berufe, Qualifikationen, Persgruppe, E-Mail, Telefon</p>
             </div>
             <span v-if="personalFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>

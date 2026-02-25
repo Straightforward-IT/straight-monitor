@@ -13,9 +13,10 @@ const Mitarbeiter = require("../models/Mitarbeiter");
 const Einsatz = require("../models/Einsatz");
 const Auftrag = require("../models/Auftrag");
 const Qualifikation = require("../models/Qualifikation");
-const { EventReport, EvaluierungMA } = require("../models/Classes/FlipDocs");
+const { EventReport, EvaluierungMA, Laufzettel } = require("../models/Classes/FlipDocs");
 const FlipUser = require("../models/Classes/FlipUser");
 const { sendMail } = require("../EmailService");
+const logger = require("../utils/logger");
 const storage = multer.memoryStorage();
 const { flipAxios } = require("../flipAxios");
 const {
@@ -34,6 +35,8 @@ const {
   getFlipAssignments,
   getFlipProfilePicture,
   syncFlipAttributes,
+  assignTeamleiter,
+  updateLaufzettelBadge,
 } = require("../FlipService");
 const {
   findTasks,
@@ -956,6 +959,234 @@ router.get(
       deleted: [], // Would need soft-delete implementation to track this
       syncedAt: new Date().toISOString()
     });
+  })
+);
+
+// --- GET Mitarbeiter search ---
+// GET /api/personal/mitarbeiter/search?q=<name|personalnr>&teamleiter=1
+router.get(
+  "/mitarbeiter/search",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { q, teamleiter } = req.query;
+    if (!q || q.trim().length < 2) return res.json([]);
+
+    const search = q.trim();
+    let query;
+
+    if (/^\d+$/.test(search)) {
+      query = { personalnr: parseInt(search) };
+    } else {
+      const parts = search.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        query = {
+          $and: [
+            { $or: [{ vorname: { $regex: parts[0], $options: 'i' } }, { nachname: { $regex: parts[0], $options: 'i' } }] },
+            { $or: [{ vorname: { $regex: parts[1], $options: 'i' } }, { nachname: { $regex: parts[1], $options: 'i' } }] },
+          ]
+        };
+      } else {
+        query = {
+          $or: [
+            { vorname: { $regex: search, $options: 'i' } },
+            { nachname: { $regex: search, $options: 'i' } },
+            { email: { $regex: search, $options: 'i' } },
+          ]
+        };
+      }
+    }
+
+    // Optionally filter to Teamleiter only (qualification key 50055)
+    if (teamleiter === '1') {
+      const tlQual = await Qualifikation.findOne({ qualificationKey: 50055 }).select('_id').lean();
+      if (tlQual) query.qualifikationen = tlQual._id;
+    }
+
+    const results = await Mitarbeiter.find(query)
+      .select('_id vorname nachname email personalnr')
+      .limit(12)
+      .lean();
+    res.json(results);
+  })
+);
+
+// --- POST manual Laufzettel creation (admin) ---
+// POST /api/personal/laufzettel/manual
+router.post(
+  "/laufzettel/manual",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { mitarbeiter_id, teamleiter_id, auftragNr, datum, standort } = req.body;
+    const VALID_STANDORTE = ['Hamburg', 'Berlin', 'Köln'];
+
+    if (!mitarbeiter_id || !teamleiter_id || !datum || !standort) {
+      return res.status(400).json({ msg: 'Pflichtfelder fehlen (mitarbeiter_id, teamleiter_id, datum, standort)' });
+    }
+    if (!VALID_STANDORTE.includes(standort)) {
+      return res.status(400).json({ msg: `Ungültige Niederlassung. Erlaubt: ${VALID_STANDORTE.join(', ')}` });
+    }
+
+    const mitarbeiter = await Mitarbeiter.findById(mitarbeiter_id);
+    if (!mitarbeiter) return res.status(404).json({ msg: 'Mitarbeiter nicht gefunden' });
+
+    const teamleiter = await Mitarbeiter.findById(teamleiter_id);
+    if (!teamleiter) return res.status(404).json({ msg: 'Teamleiter nicht gefunden' });
+
+    let kunde = '';
+    if (auftragNr) {
+      const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) }).lean();
+      kunde = auftrag?.eventTitel || '';
+    }
+
+    const laufzettel = new Laufzettel({
+      location: standort,
+      auftragnummer: auftragNr ? parseInt(auftragNr) : undefined,
+      kunde,
+      name_mitarbeiter: `${mitarbeiter.vorname} ${mitarbeiter.nachname}`.trim(),
+      name_teamleiter: `${teamleiter.vorname} ${teamleiter.nachname}`.trim(),
+      mitarbeiter: mitarbeiter._id,
+      teamleiter: teamleiter._id,
+      assigned: true,
+      datum: new Date(datum),
+    });
+
+    await laufzettel.save();
+    logger.info(`✅ Manual Laufzettel created: ${laufzettel._id} by admin`);
+
+    if (teamleiter.flip_id) {
+      assignTeamleiter(laufzettel._id, teamleiter._id).catch(err =>
+        logger.error(`❌ Flip task assignment failed: ${err.message}`)
+      );
+    }
+
+    mitarbeiter.laufzettel_submitted.push(laufzettel._id);
+    await mitarbeiter.save();
+
+    teamleiter.laufzettel_received.push(laufzettel._id);
+    await teamleiter.save();
+
+    updateLaufzettelBadge(teamleiter._id).catch(err =>
+      logger.warn(`⚠️ Flip badge update failed: ${err.message}`)
+    );
+
+    res.status(201).json({ msg: 'Laufzettel erfolgreich erstellt', id: laufzettel._id });
+  })
+);
+
+// --- POST manual Evaluierung (admin) ---
+// POST /api/personal/evaluierung/manual
+// Creates a fully-completed Laufzettel (status=ABGESCHLOSSEN) with evaluation fields merged in.
+router.post(
+  "/evaluierung/manual",
+  auth,
+  asyncHandler(async (req, res) => {
+    const {
+      mitarbeiter_id, teamleiter_id, datum, standort,
+      auftragNr, kunde,
+      puenktlichkeit, grooming, motivation,
+      technische_fertigkeiten, lernbereitschaft, sonstiges,
+    } = req.body;
+
+    const VALID_STANDORTE = ['Hamburg', 'Berlin', 'Köln'];
+    if (!mitarbeiter_id || !teamleiter_id || !datum || !standort) {
+      return res.status(400).json({ msg: 'Pflichtfelder fehlen (mitarbeiter_id, teamleiter_id, datum, standort)' });
+    }
+    if (!VALID_STANDORTE.includes(standort)) {
+      return res.status(400).json({ msg: `Ungültige Niederlassung. Erlaubt: ${VALID_STANDORTE.join(', ')}` });
+    }
+
+    const mitarbeiter = await Mitarbeiter.findById(mitarbeiter_id);
+    if (!mitarbeiter) return res.status(404).json({ msg: 'Mitarbeiter nicht gefunden' });
+
+    const teamleiter = await Mitarbeiter.findById(teamleiter_id);
+    if (!teamleiter) return res.status(404).json({ msg: 'Teamleiter nicht gefunden' });
+
+    let resolvedKunde = kunde || '';
+    if (!resolvedKunde && auftragNr) {
+      const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) }).lean();
+      resolvedKunde = auftrag?.eventTitel || '';
+    }
+
+    const laufzettel = new Laufzettel({
+      version: 'v2',
+      status: 'ABGESCHLOSSEN',
+      location: standort,
+      auftragnummer: auftragNr ? parseInt(auftragNr) : undefined,
+      kunde: resolvedKunde,
+      name_mitarbeiter: `${mitarbeiter.vorname} ${mitarbeiter.nachname}`.trim(),
+      name_teamleiter: `${teamleiter.vorname} ${teamleiter.nachname}`.trim(),
+      mitarbeiter: mitarbeiter._id,
+      teamleiter: teamleiter._id,
+      assigned: true,
+      datum: new Date(datum),
+      puenktlichkeit: puenktlichkeit || undefined,
+      grooming: grooming || undefined,
+      motivation: motivation || undefined,
+      technische_fertigkeiten: technische_fertigkeiten || undefined,
+      lernbereitschaft: lernbereitschaft || undefined,
+      sonstiges: sonstiges || undefined,
+    });
+
+    await laufzettel.save();
+    logger.info(`✅ Manual Evaluierung (Laufzettel) created: ${laufzettel._id} by admin`);
+
+    mitarbeiter.laufzettel_submitted.push(laufzettel._id);
+    await mitarbeiter.save();
+
+    teamleiter.laufzettel_received.push(laufzettel._id);
+    await teamleiter.save();
+
+    res.status(201).json({ msg: 'Evaluierung erfolgreich erstellt', id: laufzettel._id });
+  })
+);
+
+// --- POST manual EventReport (admin) ---
+// POST /api/personal/eventreport/manual
+router.post(
+  "/eventreport/manual",
+  auth,
+  asyncHandler(async (req, res) => {
+    const {
+      teamleiter_id, datum, standort, kunde, auftragNr,
+      mitarbeiter_anzahl, puenktlichkeit, erscheinungsbild,
+      team, mitarbeiter_job, feedback_auftraggeber, sonstiges,
+    } = req.body;
+
+    const VALID_STANDORTE = ['Hamburg', 'Berlin', 'Köln'];
+    if (!teamleiter_id || !datum || !standort || !kunde) {
+      return res.status(400).json({ msg: 'Pflichtfelder fehlen (teamleiter_id, datum, standort, kunde)' });
+    }
+    if (!VALID_STANDORTE.includes(standort)) {
+      return res.status(400).json({ msg: `Ungültige Niederlassung. Erlaubt: ${VALID_STANDORTE.join(', ')}` });
+    }
+
+    const teamleiter = await Mitarbeiter.findById(teamleiter_id);
+    if (!teamleiter) return res.status(404).json({ msg: 'Teamleiter nicht gefunden' });
+
+    const eventReport = new EventReport({
+      location: standort,
+      kunde,
+      auftragnummer: auftragNr ? String(auftragNr) : '',
+      name_teamleiter: `${teamleiter.vorname} ${teamleiter.nachname}`.trim(),
+      mitarbeiter_anzahl: mitarbeiter_anzahl || '',
+      datum: new Date(datum),
+      puenktlichkeit: puenktlichkeit || '',
+      erscheinungsbild: erscheinungsbild || '',
+      team: team || '',
+      mitarbeiter_job: mitarbeiter_job || '',
+      feedback_auftraggeber: feedback_auftraggeber || '',
+      sonstiges: sonstiges || '',
+      teamleiter: teamleiter._id,
+      assigned: true,
+    });
+
+    await eventReport.save();
+    logger.info(`✅ Manual EventReport created: ${eventReport._id} by admin`);
+
+    teamleiter.eventreports.push(eventReport._id);
+    await teamleiter.save();
+
+    res.status(201).json({ msg: 'Event Report erfolgreich erstellt', id: eventReport._id });
   })
 );
 

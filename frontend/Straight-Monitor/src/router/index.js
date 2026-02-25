@@ -26,6 +26,7 @@ import DatenImport from '@/components/DatenImport.vue';
 import AuftraegePage from '@/components/AuftraegePage.vue';
 import KundenPage from '@/components/KundenPage.vue';
 import TeamleiterAuswertung from '@/components/TeamleiterAuswertung.vue';
+import DokumenteNachpflegen from '@/components/DokumenteNachpflegen.vue';
 import NotFound from '@/components/NotFound.vue';
 
 const routes = [
@@ -56,6 +57,7 @@ const routes = [
       { path: 'auftraege', name: 'Auftraege', component: AuftraegePage },
       { path: 'kunden', name: 'Kunden', component: KundenPage },
       { path: 'teamleiter-auswertung', name: 'TeamleiterAuswertung', component: TeamleiterAuswertung },
+      { path: 'dokumente-nachpflegen', name: 'DokumenteNachpflegen', component: DokumenteNachpflegen },
       { path: '', redirect: '/dashboard' }
     ]
   },

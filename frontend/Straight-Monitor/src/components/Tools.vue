@@ -24,6 +24,11 @@
         <span>Daten Import</span>
       </button>
 
+      <button class="s-btn" @click="go('/dokumente-nachpflegen')">
+        <img :src="logoSrc" alt="" />
+        <span>Dokumente nachpflegen</span>
+      </button>
+
       <div class="sep"></div>
 
       <!-- Flip integriert -->
