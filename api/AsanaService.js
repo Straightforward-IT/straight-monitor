@@ -5,6 +5,7 @@ require("dotenv").config();
 
 const { sendMail } = require("./EmailService");
 const registry = require("./config/registry");
+const Mitarbeiter = require("./models/Mitarbeiter");
 
 /* ------------------------------- Asana inits ------------------------------- */
 function initTasksApi() {
@@ -196,7 +197,8 @@ async function updateTask(task_gid, updateData, opts = {}) {
 
 
 /**
- * Adds Bewerber erstellen link to a task if not already present
+ * Adds either "Im Monitor anzeigen" (if a Mitarbeiter with this asana_id exists)
+ * or "Bewerber erstellen" link to a task if not already present.
  */
 async function addLinkToTask(taskOrGid) {
   // taskOrGid kann { gid, html_notes } oder nur "gid" sein
@@ -215,21 +217,39 @@ async function addLinkToTask(taskOrGid) {
     }
   }
 
-  // 2) Wenn Link schon vorhanden → nichts tun
-  if (currentHtml.includes("Bewerber erstellen</a>")) return;
+  // 2) Wenn "Im Monitor anzeigen" bereits vorhanden → nichts tun
+  if (currentHtml.includes("Im Monitor anzeigen</a>")) return;
 
-  // 3) Link-Header vor den existierenden Body setzen
-  const header = `<h1><a href="https://straightmonitor.com/flip/benutzer-erstellen/${gid}">Bewerber erstellen</a></h1>\n`;
+  // 3) Prüfen ob ein Mitarbeiter mit dieser asana_id existiert
+  let ma = null;
+  try {
+    ma = await Mitarbeiter.findOne({ asana_id: gid }).select("_id").lean();
+  } catch (e) {
+    console.warn("⚠️ addLinkToTask: DB-Abfrage fehlgeschlagen", e.message);
+  }
 
-  // a) Falls es ein <body> gibt: direkt dahinter einfügen
+  let header;
+  if (ma) {
+    // Mitarbeiter bekannt → Link zur EmployeeCard im Monitor
+    header = `<h1><a href="https://straightmonitor.com/personal?asana_id=${gid}">Im Monitor anzeigen</a></h1>\n`;
+    // Alten "Bewerber erstellen"-Link entfernen falls vorhanden
+    currentHtml = currentHtml.replace(
+      /<h1><a href="[^"]*">Bewerber erstellen<\/a><\/h1>\n?/g,
+      ""
+    );
+  } else {
+    // Noch kein Mitarbeiter → "Bewerber erstellen" einfügen (falls noch nicht vorhanden)
+    if (currentHtml.includes("Bewerber erstellen</a>")) return;
+    header = `<h1><a href="https://straightmonitor.com/flip/benutzer-erstellen/${gid}">Bewerber erstellen</a></h1>\n`;
+  }
+
+  // 4) Link-Header vor den existierenden Body setzen
   let updatedHtml;
   if (currentHtml.includes("<body>")) {
     updatedHtml = currentHtml.replace("<body>", `<body>${header}`);
   } else if (currentHtml.trim()) {
-    // b) Es gibt Inhalt, aber keinen Body → umhüllen und Header voranstellen
     updatedHtml = `<body>${header}${currentHtml}</body>`;
   } else {
-    // c) Komplett leer → minimaler Body mit Header
     updatedHtml = `<body>${header}</body>`;
   }
 
@@ -238,10 +258,12 @@ async function addLinkToTask(taskOrGid) {
 
 
 /**
- * Routine to check tasks and append the link if missing
+ * Routine to check tasks and append the appropriate link if missing.
+ * Covers Bewerber-, Disposition- and Schulungs-Projekte.
  */
 async function bewerberRoutine(teamKeys = null) {
-  const project_ids = registry.getAsanaProjectIds(teamKeys);
+  // Alle Projekttypen einbeziehen: Bewerber + Disposition + Schulung
+  const project_ids = registry.getAllAsanaProjectIds(teamKeys);
   if (project_ids.length === 0) {
     console.warn("⚠️ bewerberRoutine: keine Asana-Projekt-IDs in registry gefunden.");
     return;
@@ -256,12 +278,14 @@ async function bewerberRoutine(teamKeys = null) {
       };
 
       const tasks = await findTasks(opts);
+      // Verarbeite alle Tasks die noch kein aktuelles Link haben
+      // ("Im Monitor anzeigen" hat Priorität; "Bewerber erstellen" wird ggf. in addLinkToTask geprüft)
       const tasksToUpdate = tasks.filter(
-        (t) => !t.html_notes?.includes("Bewerber erstellen</a>")
+        (t) => !t.html_notes?.includes("Im Monitor anzeigen</a>")
       );
 
       tasksToUpdate.forEach(addLinkToTask);
-      console.log(`✅ ${tasksToUpdate.length} tasks queued for project ${id}.`);
+      console.log(`✅ ${tasksToUpdate.length} tasks queued for project ${id}`);
     }
   } catch (error) {
     console.error("❌ Error in Bewerber Routine:", error.message);

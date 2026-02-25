@@ -419,15 +419,19 @@ router.post(
                 : '';
               const berichtLink = `${baseUrl}/dokumente?docId=${eventReport._id}`;
 
-              const commentHeader = `<strong>${esc(eventTitle)} – ${esc(eventDate)}${eventLocation ? ` (${esc(eventLocation)})` : ''}</strong>`;
+              const pair = (label, value) => `<strong>${label}</strong>\n${value}`;
+
               const htmlComment = [
-                commentHeader,
-                `Feedback von <strong>${esc(name_teamleiter)}</strong>:`,
-                feedbackText,
+                `<strong>${esc(eventTitle)} \u2013 ${esc(eventDate)}${eventLocation ? ` (${esc(eventLocation)})` : ''}</strong>`,
+                'Feedback erhalten',
                 '',
-                teamleiterLink ? `<a href="${teamleiterLink}">Teamleiter öffnen</a>` : null,
-                auftragLink ? `<a href="${auftragLink}">Auftrag öffnen</a>` : null,
-                `<a href="${berichtLink}">Bericht öffnen</a>`,
+                pair('Teamleiter', esc(name_teamleiter)),
+                '',
+                pair('Kommentar', feedbackText),
+                '',
+                teamleiterLink ? `<a href="${teamleiterLink}">Teamleiter \u00f6ffnen</a>` : null,
+                auftragLink ? `<a href="${auftragLink}">Auftrag \u00f6ffnen</a>` : null,
+                `<a href="${berichtLink}">Bericht \u00f6ffnen</a>`,
               ].filter(v => v != null).join('\n');
 
               await AsanaService.createStoryOnTask(feedbackTask.gid, {
@@ -682,14 +686,26 @@ router.post(
           const laufzettelLink = `${baseUrl}/dokumente?docId=${laufzettel._id}`;
           const teamleiterLink = teamleiter?._id ? `${baseUrl}/personal?mitarbeiter_id=${teamleiter._id}` : '';
 
-          const commentHeader = `<strong>${esc(eventTitle)} – ${esc(eventDate)}${eventLocation ? ` (${esc(eventLocation)})` : ''}</strong>`;
+          const pair = (label, value) => `<strong>${label}</strong>\n${value}`;
+
+          const ratingPairs = [
+            puenktlichkeit           && pair('P\u00fcnktlichkeit',       esc(puenktlichkeit)),
+            grooming                 && pair('Erscheinungsbild',         esc(grooming)),
+            motivation               && pair('Motivation',               esc(motivation)),
+            technische_fertigkeiten  && pair('Techn. Fertigkeiten',      esc(technische_fertigkeiten)),
+            lernbereitschaft         && pair('Lernbereitschaft',         esc(lernbereitschaft)),
+            sonstiges                && pair('Sonstiges',                esc(sonstiges)),
+          ].filter(Boolean);
+
           const htmlComment = [
-            commentHeader,
-            `Evaluierung von <strong>${esc(laufzettel.name_teamleiter || teamleiter.vorname + ' ' + teamleiter.nachname)}</strong>:`,
-            ratings || '—',
+            `<strong>${esc(eventTitle)} \u2013 ${esc(eventDate)}${eventLocation ? ` (${esc(eventLocation)})` : ''}</strong>`,
+            'Evaluierung erhalten',
             '',
-            teamleiterLink ? `<a href="${teamleiterLink}">Teamleiter öffnen</a>` : null,
-            `<a href="${laufzettelLink}">Laufzettel öffnen</a>`,
+            pair('Teamleiter', esc(laufzettel.name_teamleiter || teamleiter.vorname + ' ' + teamleiter.nachname)),
+            '',
+            ...ratingPairs.flatMap(p => [p, '']),
+            teamleiterLink ? `<a href="${teamleiterLink}">Teamleiter \u00f6ffnen</a>` : null,
+            `<a href="${laufzettelLink}">Laufzettel \u00f6ffnen</a>`,
           ].filter(v => v != null).join('\n');
 
           await AsanaService.createStoryOnTask(feedbackTask.gid, {
