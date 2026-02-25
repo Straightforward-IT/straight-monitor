@@ -23,7 +23,8 @@ async function sendMail(
   subject,
   content,
   senderKey = "it",
-  additionalAttachments = []
+  additionalAttachments = [],
+  replyTo = null
 ) {
   try {
     if (!Array.isArray(recipients)) recipients = [recipients];
@@ -64,6 +65,7 @@ async function sendMail(
           emailAddress: { address: email },
         })),
         from: { emailAddress: { address: sender.address } },
+        ...(replyTo ? { replyTo: [{ emailAddress: { address: replyTo } }] } : {}),
         attachments: combinedAttachments,
       },
     };

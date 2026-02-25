@@ -364,7 +364,9 @@ router.post(
           recipients,
           `Event Report: ${kunde} – ${fmtDate(datum)} (${location})`,
           html,
-          'it'
+          'it',
+          [],
+          teamleiter_email || null
         );
         logger.info(`📧 EventReport email sent to ${recipients.join(', ')} for ${name_teamleiter}`);
       } catch (emailErr) {
