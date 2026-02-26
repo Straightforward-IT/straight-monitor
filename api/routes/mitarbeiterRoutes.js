@@ -37,6 +37,7 @@ const {
   syncFlipAttributes,
   assignTeamleiter,
   updateLaufzettelBadge,
+  restoreFlipUser,
 } = require("../FlipService");
 const {
   findTasks,
@@ -2458,6 +2459,205 @@ router.patch(
     res.status(200).json({ success: true, data: response.data });
   })
 );
+
+// ── Restore a deleted/pending-deletion Flip user ──────────────────────
+router.post(
+  "/flip/restore/:id",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    try {
+      const restored = await restoreFlipUser(id);
+      res.status(200).json({ success: true, message: "Flip-User wiederhergestellt", data: restored });
+    } catch (err) {
+      const status = err.response?.status || 500;
+      const detail = err.response?.data || err.message;
+      res.status(status).json({ success: false, message: "Fehler beim Wiederherstellen des Flip-Users", error: detail });
+    }
+  })
+);
+
+// ── Create a FlipUser for an existing Mitarbeiter (without creating the MA) ──
+router.post(
+  "/flip/create-for-mitarbeiter",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { mitarbeiterId, attributes, primary_user_group_id, user_group_ids } = req.body;
+
+    const mitarbeiter = await Mitarbeiter.findById(mitarbeiterId);
+    if (!mitarbeiter) {
+      return res.status(404).json({ success: false, message: "Mitarbeiter nicht gefunden" });
+    }
+
+    // Check if MA already has a flip_id
+    if (mitarbeiter.flip_id) {
+      try {
+        const existing = await findFlipUserById(mitarbeiter.flip_id);
+        if (existing?.data?.status === "ACTIVE") {
+          return res.status(409).json({ success: false, message: "Mitarbeiter hat bereits einen aktiven Flip-User." });
+        }
+      } catch (lookupErr) {
+        // flip_id might be stale → proceed with creation
+        if (lookupErr.response?.status === 403 || lookupErr.response?.status === 404) {
+          mitarbeiter.flip_id = null;
+          await mitarbeiter.save();
+        }
+      }
+    }
+
+    // Create FlipUser
+    const flipUser = new FlipUser({
+      first_name: mitarbeiter.vorname,
+      last_name: mitarbeiter.nachname,
+      email: mitarbeiter.email,
+      status: "ACTIVE",
+      username: mitarbeiter.email,
+      role: "USER",
+      attributes: attributes || [],
+      primary_user_group_id: primary_user_group_id || null,
+    });
+
+    let createdFlipUser;
+    try {
+      createdFlipUser = await flipUser.create();
+      await createdFlipUser.setDefaultPassword();
+    } catch (flipError) {
+      const errorDetail = flipError.message || JSON.stringify(flipError.response?.data);
+      // Likely a pending-deletion conflict
+      return res.status(409).json({
+        success: false,
+        message: "Fehler beim Erstellen des FlipUsers. Möglicherweise existiert noch ein User im Status 'Pending Deletion'. Bitte warte, bis dieser endgültig gelöscht ist, oder stelle ihn über die Flip-Admin-Oberfläche wieder her.",
+        error: errorDetail,
+      });
+    }
+
+    mitarbeiter.flip_id = createdFlipUser.id;
+    await mitarbeiter.save();
+
+    // Assign user groups
+    if (user_group_ids?.length) {
+      try {
+        await assignFlipUserGroups({
+          body: {
+            items: user_group_ids.map((groupId) => ({
+              user_id: createdFlipUser.id,
+              user_group_id: groupId,
+            })),
+          },
+        });
+      } catch (groupErr) {
+        console.error("⚠️ Fehler beim Zuweisen der Usergruppen:", groupErr.message);
+      }
+    }
+
+    // Create welcome task
+    try {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 3);
+      dueDate.setHours(18, 0, 0, 0);
+      await assignFlipTask({
+        body: {
+          title: "Aufgabe erhalten: Flip Profil einrichten 😎",
+          recipients: [{ id: createdFlipUser.id, type: "USER" }],
+          due_at: { date_time: dueDate.toISOString(), due_at_type: "DATE_TIME" },
+          description: `
+          <p>Gehe auf „<strong>Menü</strong>" und tippe oben links auf den Kreis. Tippe dann auf deinen Namen und „<strong>Bearbeiten</strong>"</p>
+          <ul>
+            <li>📋 Profilbild wählen</li>
+            <li>📋 Absatz 'Über Mich' ausfüllen</li>
+            <li>📋 Telefonnummer hinzufügen (optional)</li>
+          </ul>`,
+        },
+      });
+    } catch (taskErr) {
+      console.error("⚠️ Fehler beim Erstellen der Welcome-Task:", taskErr.message);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: "Flip-User erfolgreich erstellt und verknüpft",
+      flipUser: createdFlipUser,
+    });
+  })
+);
+
+// ── Link an existing FlipUser to a Mitarbeiter ──────────────────────
+router.patch(
+  "/mitarbeiter/:id/link-flip",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { flip_id } = req.body;
+
+    if (!flip_id) {
+      return res.status(400).json({ success: false, message: "flip_id ist erforderlich" });
+    }
+
+    const mitarbeiter = await Mitarbeiter.findById(id);
+    if (!mitarbeiter) {
+      return res.status(404).json({ success: false, message: "Mitarbeiter nicht gefunden" });
+    }
+
+    // Verify the Flip user exists
+    let flipUserData;
+    try {
+      flipUserData = await findFlipUserById(flip_id);
+    } catch (err) {
+      return res.status(404).json({ success: false, message: "Flip-User nicht gefunden oder kein Zugriff" });
+    }
+
+    // Check if another Mitarbeiter already has this flip_id
+    const existingLink = await Mitarbeiter.findOne({ flip_id, _id: { $ne: id } });
+    if (existingLink) {
+      return res.status(409).json({
+        success: false,
+        message: `Dieser Flip-User ist bereits mit ${existingLink.vorname} ${existingLink.nachname} verknüpft.`,
+      });
+    }
+
+    mitarbeiter.flip_id = flip_id;
+    await mitarbeiter.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Flip-User erfolgreich verknüpft",
+      data: { flip_id, flipUser: flipUserData },
+    });
+  })
+);
+
+// ── Get unlinked Flip users (no Mitarbeiter linked) ─────────────────
+router.get(
+  "/flip/unlinked",
+  auth,
+  asyncHandler(async (req, res) => {
+    // Get all linked flip_ids from Mitarbeiter
+    const linkedFlipIds = await Mitarbeiter.distinct("flip_id", { flip_id: { $exists: true, $ne: null } });
+
+    // Get all active Flip users
+    const allFlipUsers = await getFlipUsers({
+      sort: "LAST_NAME_ASC",
+      page_limit: 100,
+      status: ["ACTIVE"],
+    });
+
+    // Filter out those that are already linked
+    const linkedSet = new Set(linkedFlipIds);
+    const unlinked = (allFlipUsers || []).filter(u => !linkedSet.has(u.id));
+
+    res.status(200).json({
+      success: true,
+      data: unlinked.map(u => ({
+        id: u.id,
+        first_name: u.first_name,
+        last_name: u.last_name,
+        email: u.email,
+        status: u.status,
+      })),
+    });
+  })
+);
+
 router.get(
   "/duplicates/flip-id",
   auth,

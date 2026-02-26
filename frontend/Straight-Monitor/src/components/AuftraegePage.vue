@@ -585,25 +585,35 @@
                 v-for="ma in pseudoSearchResults"
                 :key="ma._id"
                 class="qa-search-result"
-                :class="{ 'selected': pseudoSelectedMa?._id === ma._id }"
-                @click="pseudoSelectedMa = ma"
+                :class="{ 'selected': pseudoSelectedMas.some(m => m._id === ma._id) }"
+                @click="togglePseudoMa(ma)"
               >
-                <div class="qa-result-name">{{ ma.vorname }} {{ ma.nachname }}</div>
+                <div class="qa-result-name">
+                  <font-awesome-icon v-if="pseudoSelectedMas.some(m => m._id === ma._id)" icon="fa-solid fa-check" class="qa-result-check" />
+                  {{ ma.vorname }} {{ ma.nachname }}
+                </div>
                 <div class="qa-result-sub">{{ ma.email }}</div>
               </div>
             </div>
-            <div v-if="pseudoSelectedMa" class="qa-selected-ma">
-              <font-awesome-icon icon="fa-solid fa-check" />
-              Ausgewählt: <strong>{{ pseudoSelectedMa.vorname }} {{ pseudoSelectedMa.nachname }}</strong>
-              <button class="qa-deselect" @click="pseudoSelectedMa = null">×</button>
+            <div v-if="pseudoSelectedMas.length" class="qa-selected-chips">
+              <div class="qa-chips-label">
+                <font-awesome-icon icon="fa-solid fa-users" />
+                {{ pseudoSelectedMas.length }} {{ pseudoSelectedMas.length === 1 ? 'Mitarbeiter' : 'Mitarbeiter' }} ausgewählt
+              </div>
+              <div class="qa-chips-list">
+                <div v-for="ma in pseudoSelectedMas" :key="ma._id" class="qa-chip">
+                  {{ ma.vorname }} {{ ma.nachname }}
+                  <button class="qa-chip-remove" @click="togglePseudoMa(ma)">×</button>
+                </div>
+              </div>
             </div>
           </div>
 
           <div class="qa-section">
-            <button class="qa-submit-btn" :disabled="!pseudoSelectedMa || pseudoSaving" @click="savePseudoEinsatz">
+            <button class="qa-submit-btn" :disabled="!pseudoSelectedMas.length || pseudoSaving" @click="savePseudoEinsatz">
               <font-awesome-icon v-if="pseudoSaving" icon="fa-solid fa-spinner" spin />
               <font-awesome-icon v-else icon="fa-solid fa-check" />
-              Einplanen
+              {{ pseudoSelectedMas.length > 1 ? `${pseudoSelectedMas.length} Mitarbeiter einplanen` : 'Einplanen' }}
             </button>
           </div>
         </div>
@@ -693,7 +703,7 @@ export default {
       pseudoSearchResults: [],
       pseudoSearching: false,
       pseudoSearchTimer: null,
-      pseudoSelectedMa: null,
+      pseudoSelectedMas: [],
       pseudoSelectedSchicht: null,
       pseudoSaving: false,
       // Three-dots dropdown
@@ -1312,9 +1322,17 @@ export default {
       this.showQuickActions = false;
       this.pseudoSearch = '';
       this.pseudoSearchResults = [];
-      this.pseudoSelectedMa = null;
+      this.pseudoSelectedMas = [];
       this.pseudoSelectedSchicht = null;
       this.showPseudoDialog = true;
+    },
+    togglePseudoMa(ma) {
+      const idx = this.pseudoSelectedMas.findIndex(m => m._id === ma._id);
+      if (idx === -1) {
+        this.pseudoSelectedMas.push(ma);
+      } else {
+        this.pseudoSelectedMas.splice(idx, 1);
+      }
     },
     debouncedPseudoSearch() {
       clearTimeout(this.pseudoSearchTimer);
@@ -1332,17 +1350,25 @@ export default {
       }, 300);
     },
     async savePseudoEinsatz() {
-      if (!this.pseudoSelectedMa) return;
+      if (!this.pseudoSelectedMas.length) return;
       this.pseudoSaving = true;
+      const errors = [];
       try {
-        const payload = { mitarbeiterId: this.pseudoSelectedMa._id };
-        if (this.pseudoSelectedSchicht) payload.schichtId = this.pseudoSelectedSchicht;
-        const res = await api.post(`/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz`, payload);
+        await Promise.all(this.pseudoSelectedMas.map(async (ma) => {
+          try {
+            const payload = { mitarbeiterId: ma._id };
+            if (this.pseudoSelectedSchicht) payload.schichtId = this.pseudoSelectedSchicht;
+            await api.post(`/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz`, payload);
+          } catch (err) {
+            errors.push(`${ma.vorname} ${ma.nachname}: ${err.response?.data?.message || 'Fehler'}`);
+          }
+        }));
         // Reload full event details to refresh schichten
         const detailsRes = await api.get(`/api/auftraege/${this.selectedEvent.auftragNr}/details`);
         this.selectedEvent = detailsRes.data;
         this.preparedSchichten = this.calculateSchichten(this.selectedEvent);
         this.showPseudoDialog = false;
+        if (errors.length) alert('Einige konnten nicht eingeplant werden:\n' + errors.join('\n'));
       } catch (err) {
         alert(err.response?.data?.message || 'Fehler beim Einplanen');
       } finally {
@@ -2902,6 +2928,15 @@ export default {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qa-result-check {
+  color: var(--primary);
+  font-size: 0.75rem;
+  flex-shrink: 0;
 }
 
 .qa-result-sub {
@@ -2909,27 +2944,52 @@ export default {
   color: var(--muted);
 }
 
-.qa-selected-ma {
-  margin-top: 8px;
-  padding: 7px 10px;
-  background: rgba(238,175,103,0.1);
-  border: 1.5px solid var(--primary);
-  border-radius: 6px;
-  font-size: 0.85rem;
-  color: var(--primary);
+/* Multi-select chips area */
+.qa-selected-chips {
+  margin-top: 10px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
 }
 
-.qa-deselect {
+.qa-chips-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.qa-chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.qa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  border: 1.5px solid color-mix(in oklab, var(--primary) 35%, transparent);
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 3px 8px 3px 10px;
+  border-radius: 20px;
+}
+
+.qa-chip-remove {
   background: none;
   border: none;
   color: var(--primary);
   cursor: pointer;
-  font-size: 1rem;
-  margin-left: auto;
-  padding: 0 2px;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 1px;
+  opacity: 0.7;
+  &:hover { opacity: 1; }
 }
 
 .qa-submit-btn {

@@ -236,7 +236,7 @@
                   </button>
                   <button class="qa-item" @click="executeQuickAction('toggle-active')">
                     <font-awesome-icon :icon="ma.isActive ? 'fa-regular fa-circle' : 'fa-solid fa-circle-check'" />
-                    {{ ma.isActive ? 'Deaktivieren' : 'Aktivieren' }}
+                    {{ ma.isActive ? 'Deaktivieren' : 'Reaktivieren' }}
                   </button>
                   <button class="qa-item qa-item--danger" @click="executeQuickAction('delete')">
                     <font-awesome-icon icon="fa-solid fa-trash" />
@@ -248,18 +248,7 @@
           </teleport>
         </div>
 
-        <button
-          class="icon-btn chevron"
-          :aria-label="expanded ? 'Zuklappen' : 'Aufklappen'"
-          :aria-expanded="expanded"
-          @click="toggle"
-        >
-          <font-awesome-icon
-            :icon="
-              expanded ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'
-            "
-          />
-        </button>
+       
       </div>
     </header>
 
@@ -748,9 +737,132 @@
           </div>
           
           <!-- No Flip Connection -->
-          <div v-else class="emptystate">
-            <font-awesome-icon icon="fa-solid fa-plug-circle-xmark" />
-            <p>Keine Flip-Verknüpfung vorhanden</p>
+          <div v-else class="flip-no-connection">
+            <div class="emptystate">
+              <font-awesome-icon icon="fa-solid fa-plug-circle-xmark" />
+              <p>Keine aktive Flip-Verknüpfung</p>
+            </div>
+
+            <!-- Status Messages -->
+            <div v-if="flipActionError" class="flip-action-msg error">
+              <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
+              <span>{{ flipActionError }}</span>
+              <button class="close-msg" @click="flipActionError = ''">×</button>
+            </div>
+            <div v-if="flipActionSuccess" class="flip-action-msg success">
+              <font-awesome-icon icon="fa-solid fa-check-circle" />
+              <span>{{ flipActionSuccess }}</span>
+              <button class="close-msg" @click="flipActionSuccess = ''">×</button>
+            </div>
+
+            <!-- Case 1: MA has flip_id → try restore -->
+            <div v-if="ma.flip_id" class="flip-action-section">
+              <p class="hint-text">
+                <font-awesome-icon icon="fa-solid fa-info-circle" />
+                Dieser Mitarbeiter hat eine gespeicherte Flip-ID (<code>{{ ma.flip_id }}</code>), aber der Account ist nicht aktiv.
+              </p>
+              <button
+                class="btn btn-primary btn-sm"
+                @click="restoreFlipUser"
+                :disabled="flipActionLoading"
+              >
+                <font-awesome-icon :icon="flipActionLoading ? 'fa-solid fa-spinner' : 'fa-solid fa-rotate-left'" :class="{ 'fa-spin': flipActionLoading }" />
+                {{ flipActionLoading ? 'Wird wiederhergestellt...' : 'Flip-User wiederherstellen' }}
+              </button>
+            </div>
+
+            <!-- Case 2: No flip_id → create or link -->
+            <div v-else class="flip-action-section">
+              <p class="hint-text">
+                <font-awesome-icon icon="fa-solid fa-info-circle" />
+                Kein Flip-Account verknüpft. Du kannst einen neuen erstellen oder einen bestehenden verknüpfen.
+              </p>
+              <div class="flip-action-buttons">
+                <button
+                  class="btn btn-primary btn-sm"
+                  @click="showFlipCreateConfirm = true"
+                  :disabled="flipActionLoading"
+                >
+                  <font-awesome-icon icon="fa-solid fa-user-plus" />
+                  Flip-User erstellen
+                </button>
+                <button
+                  class="btn btn-ghost btn-sm"
+                  @click="openFlipLinkModal"
+                  :disabled="flipActionLoading"
+                >
+                  <font-awesome-icon icon="fa-solid fa-link" />
+                  Bestehenden verknüpfen
+                </button>
+              </div>
+            </div>
+
+            <!-- Create Confirmation Dialog (inline) -->
+            <div v-if="showFlipCreateConfirm" class="flip-confirm-box">
+              <p><strong>Flip-User erstellen für:</strong></p>
+              <p>{{ ma.vorname }} {{ ma.nachname }} ({{ ma.email }})</p>
+              <div class="flip-confirm-actions">
+                <button
+                  class="btn btn-primary btn-sm"
+                  @click="createFlipUserForMa"
+                  :disabled="flipActionLoading"
+                >
+                  <font-awesome-icon :icon="flipActionLoading ? 'fa-solid fa-spinner' : 'fa-solid fa-check'" :class="{ 'fa-spin': flipActionLoading }" />
+                  {{ flipActionLoading ? 'Erstelle...' : 'Bestätigen' }}
+                </button>
+                <button class="btn btn-ghost btn-sm" @click="showFlipCreateConfirm = false" :disabled="flipActionLoading">
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+
+            <!-- Link Modal (inline) -->
+            <div v-if="showFlipLinkModal" class="flip-link-section">
+              <h5 class="section-subtitle">
+                <font-awesome-icon icon="fa-solid fa-link" />
+                Flip-User verknüpfen
+              </h5>
+              <div v-if="loadingUnlinkedUsers" class="tasks-loading">
+                <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" />
+                <span>Lade verfügbare Flip-User...</span>
+              </div>
+              <template v-else>
+                <input
+                  type="text"
+                  v-model="flipLinkSearch"
+                  placeholder="Flip-User suchen (Name oder Email)..."
+                  class="flip-link-search"
+                />
+                <div class="flip-link-list">
+                  <div
+                    v-for="user in filteredUnlinkedUsers"
+                    :key="user.id"
+                    class="flip-link-item"
+                    :class="{ selected: selectedFlipUser?.id === user.id }"
+                    @click="selectedFlipUser = user"
+                  >
+                    <div class="flip-link-name">{{ user.first_name }} {{ user.last_name }}</div>
+                    <div class="flip-link-email">{{ user.email }}</div>
+                  </div>
+                  <div v-if="filteredUnlinkedUsers.length === 0" class="flip-link-empty">
+                    Keine unverknüpften Flip-User gefunden.
+                  </div>
+                </div>
+                <div class="flip-link-actions">
+                  <button
+                    class="btn btn-primary btn-sm"
+                    @click="linkFlipUser"
+                    :disabled="!selectedFlipUser || linkingFlip"
+                  >
+                    <font-awesome-icon :icon="linkingFlip ? 'fa-solid fa-spinner' : 'fa-solid fa-link'" :class="{ 'fa-spin': linkingFlip }" />
+                    {{ linkingFlip ? 'Verknüpfe...' : 'Verknüpfen' }}
+                  </button>
+                  <button class="btn btn-ghost btn-sm" @click="closeFlipLinkModal">
+                    Abbrechen
+                  </button>
+                </div>
+              </template>
+            </div>
           </div>
         </section>
 
@@ -1210,6 +1322,18 @@ export default {
       // EventReport Feedback (lazy-loaded on expand)
       eventreportFeedback: [],
       loadingFeedback: false,
+
+      // Flip Management (restore/create/link)
+      flipActionLoading: false,
+      flipActionError: "",
+      flipActionSuccess: "",
+      showFlipCreateConfirm: false,
+      showFlipLinkModal: false,
+      flipLinkSearch: "",
+      flipUnlinkedUsers: [],
+      loadingUnlinkedUsers: false,
+      selectedFlipUser: null,
+      linkingFlip: false,
     };
   },
 
@@ -1217,7 +1341,7 @@ export default {
     contextMenuOptions() {
       return [
         { label: 'Bearbeiten', action: 'edit' },
-        { label: this.ma.isActive ? 'Deaktivieren' : 'Aktivieren', action: 'toggle-active' },
+        { label: this.ma.isActive ? 'Deaktivieren' : 'Reaktivieren', action: 'toggle-active' },
         { label: 'Löschen', action: 'delete' }
       ];
     },
@@ -1256,6 +1380,15 @@ export default {
         (this.ma.evaluierungen_submitted && this.ma.evaluierungen_submitted.length > 0) ||
         this.eventreportFeedback.length > 0
       );
+    },
+    filteredUnlinkedUsers() {
+      const q = this.flipLinkSearch.toLowerCase().trim();
+      if (!q) return this.flipUnlinkedUsers.slice(0, 50);
+      return this.flipUnlinkedUsers.filter(u => {
+        const name = `${u.first_name} ${u.last_name}`.toLowerCase();
+        const email = (u.email || '').toLowerCase();
+        return name.includes(q) || email.includes(q);
+      }).slice(0, 50);
     }
   },
 
@@ -1732,6 +1865,102 @@ export default {
     openFlipTask(link) {
       if (link) {
         window.open(link, '_blank');
+      }
+    },
+
+    // ── Flip Management Methods ──────────────────────────────────────
+    async restoreFlipUser() {
+      if (!this.ma.flip_id) return;
+      this.flipActionLoading = true;
+      this.flipActionError = "";
+      this.flipActionSuccess = "";
+      try {
+        await api.post(`/api/personal/flip/restore/${this.ma.flip_id}`);
+        // Re-fetch the flip user data
+        const flipRes = await api.get(`/api/personal/flip/by-id/${this.ma.flip_id}`);
+        this.ma.flip = flipRes.data;
+        this.flipActionSuccess = "Flip-User erfolgreich wiederhergestellt!";
+      } catch (err) {
+        const msg = err.response?.data?.message || err.response?.data?.error?.title || err.message;
+        this.flipActionError = `Wiederherstellung fehlgeschlagen: ${msg}`;
+      } finally {
+        this.flipActionLoading = false;
+      }
+    },
+
+    async createFlipUserForMa() {
+      this.flipActionLoading = true;
+      this.flipActionError = "";
+      this.flipActionSuccess = "";
+      try {
+        const res = await api.post("/api/personal/flip/create-for-mitarbeiter", {
+          mitarbeiterId: this.ma._id,
+        });
+        // Update local data
+        this.ma.flip_id = res.data.flipUser?.id;
+        // Re-fetch flip data
+        if (this.ma.flip_id) {
+          try {
+            const flipRes = await api.get(`/api/personal/flip/by-id/${this.ma.flip_id}`);
+            this.ma.flip = flipRes.data;
+          } catch { /* flip profile will show on next load */ }
+        }
+        this.flipActionSuccess = "Flip-User erfolgreich erstellt und verknüpft!";
+        this.showFlipCreateConfirm = false;
+      } catch (err) {
+        const data = err.response?.data;
+        this.flipActionError = data?.message || "Fehler beim Erstellen des Flip-Users.";
+        this.showFlipCreateConfirm = false;
+      } finally {
+        this.flipActionLoading = false;
+      }
+    },
+
+    async openFlipLinkModal() {
+      this.showFlipLinkModal = true;
+      this.flipLinkSearch = "";
+      this.selectedFlipUser = null;
+      this.loadingUnlinkedUsers = true;
+      try {
+        const res = await api.get("/api/personal/flip/unlinked");
+        this.flipUnlinkedUsers = res.data.data || [];
+      } catch (err) {
+        console.error("Fehler beim Laden unverknüpfter Flip-User:", err);
+        this.flipUnlinkedUsers = [];
+      } finally {
+        this.loadingUnlinkedUsers = false;
+      }
+    },
+
+    closeFlipLinkModal() {
+      this.showFlipLinkModal = false;
+      this.flipLinkSearch = "";
+      this.selectedFlipUser = null;
+      this.flipUnlinkedUsers = [];
+    },
+
+    async linkFlipUser() {
+      if (!this.selectedFlipUser) return;
+      this.linkingFlip = true;
+      this.flipActionError = "";
+      this.flipActionSuccess = "";
+      try {
+        const res = await api.patch(`/api/personal/mitarbeiter/${this.ma._id}/link-flip`, {
+          flip_id: this.selectedFlipUser.id,
+        });
+        this.ma.flip_id = this.selectedFlipUser.id;
+        // Re-fetch full flip data
+        try {
+          const flipRes = await api.get(`/api/personal/flip/by-id/${this.selectedFlipUser.id}`);
+          this.ma.flip = flipRes.data;
+        } catch { /* will show on next load */ }
+        this.flipActionSuccess = `Verknüpft mit ${this.selectedFlipUser.first_name} ${this.selectedFlipUser.last_name}`;
+        this.closeFlipLinkModal();
+      } catch (err) {
+        const msg = err.response?.data?.message || err.message;
+        this.flipActionError = msg;
+      } finally {
+        this.linkingFlip = false;
       }
     },
 
@@ -2672,6 +2901,174 @@ export default {
   flex-direction: column;
   gap: 20px;
   padding: 16px;
+}
+
+.flip-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 16px;
+}
+
+/* ── Flip No Connection (Restore / Create / Link) ──────────────── */
+.flip-no-connection {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.flip-action-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+
+  .close-msg {
+    margin-left: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: inherit;
+    opacity: 0.7;
+    &:hover { opacity: 1; }
+  }
+
+  &.error {
+    background: rgba(239, 68, 68, 0.08);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+  &.success {
+    background: rgba(16, 185, 129, 0.08);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+  }
+}
+
+.flip-action-section {
+  .hint-text {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+
+    code {
+      font-size: 11px;
+      background: var(--soft);
+      padding: 1px 5px;
+      border-radius: 4px;
+      word-break: break-all;
+    }
+  }
+}
+
+.flip-action-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.flip-confirm-box {
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 13px;
+  color: var(--text);
+
+  p { margin: 0 0 6px; }
+
+  .flip-confirm-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+}
+
+.flip-link-section {
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+
+  .section-subtitle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 12px;
+  }
+}
+
+.flip-link-search {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--tile-bg);
+  color: var(--text);
+  font-size: 13px;
+  margin-bottom: 8px;
+  transition: border-color 0.2s;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+}
+
+.flip-link-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--tile-bg);
+  margin-bottom: 10px;
+}
+
+.flip-link-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+
+  &:last-child { border-bottom: none; }
+  &:hover { background: rgba(var(--primary-rgb), 0.06); }
+  &.selected {
+    background: rgba(var(--primary-rgb), 0.12);
+    border-left: 3px solid var(--primary);
+  }
+
+  .flip-link-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .flip-link-email {
+    font-size: 11px;
+    color: var(--muted);
+  }
+}
+
+.flip-link-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.flip-link-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .flip-profile-section,

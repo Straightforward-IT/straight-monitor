@@ -2,7 +2,6 @@
   <div class="page-wrapper">
     <div class="page-header">
       <h1 class="page-title">
-        <font-awesome-icon icon="fa-solid fa-file-pen" />
         Dokumente nachpflegen
       </h1>
       <p class="page-subtitle">Laufzettel, Evaluierungen und Event Reports manuell erstellen</p>
@@ -17,7 +16,7 @@
         :class="{ active: activeTab === tab.id }"
         @click="switchTab(tab.id)"
       >
-        <font-awesome-icon :icon="tab.icon" />
+        <img :src="tabIcon(tab.id)" class="tab-icon" />
         {{ tab.label }}
       </button>
     </div>
@@ -26,7 +25,7 @@
       <!-- ── LAUFZETTEL FORM ─────────────────────────────── -->
       <div class="card form-card" v-if="activeTab === 'laufzettel'">
         <h2 class="card-title">
-          <font-awesome-icon icon="fa-solid fa-file-lines" />
+          <img :src="iconLaufzettel" class="card-icon" />
           Neuer Laufzettel
         </h2>
 
@@ -40,6 +39,39 @@
         </div>
 
         <form v-else @submit.prevent="submitLaufzettel" class="form-body">
+          <div class="field-group">
+            <label class="field-label">
+              Auftragsnummer
+              <span class="field-hint">Einsatzdaten werden automatisch geladen</span>
+            </label>
+            <div class="auftrag-input-wrap">
+              <input v-model="lz.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" />
+              <font-awesome-icon v-if="auftragLoading.laufzettel" icon="fa-solid fa-spinner" spin class="auftrag-spinner" />
+            </div>
+          </div>
+
+          <div v-if="auftragData.laufzettel" class="einsatz-panel">
+            <div class="einsatz-panel-header">
+              <div class="einsatz-panel-icon"><font-awesome-icon icon="fa-solid fa-briefcase" /></div>
+              <div>
+                <span class="einsatz-panel-title">{{ auftragDisplayTitle('laufzettel') }}</span>
+                <span class="einsatz-panel-meta">{{ auftragDisplayMeta('laufzettel') }}</span>
+              </div>
+            </div>
+            <div v-if="lzEinsatzMAs.length" class="einsatz-ma-section">
+              <span class="einsatz-ma-label"><font-awesome-icon icon="fa-solid fa-users" /> Mitarbeiter im Einsatz <span class="count-badge">{{ lzEinsatzMAs.length }}</span></span>
+              <div class="einsatz-ma-grid">
+                <button v-for="ma in lzEinsatzMAs" :key="ma._id" type="button"
+                  class="einsatz-ma-btn" :class="{ selected: lz.ma?._id === ma._id }"
+                  @click="lz.ma = ma">
+                  <font-awesome-icon icon="fa-solid fa-user" />
+                  {{ ma.vorname }} {{ ma.nachname }}
+                  <span v-if="ma.personalnr" class="einsatz-ma-nr">{{ ma.personalnr }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <PersonSearch label="Mitarbeiter *" hint="Vorname, Nachname oder Personalnr." v-model="lz.ma" />
           <PersonSearch label="Teamleitung *" hint="Vorname, Nachname oder Personalnr." v-model="lz.tl" />
 
@@ -54,14 +86,6 @@
             </div>
           </div>
 
-          <div class="field-group">
-            <label class="field-label">
-              Auftragsnummer
-              <span class="field-hint">Optional – aber wäre hilfreich wenn du die auch mit angibst.</span>
-            </label>
-            <input v-model="lz.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" />
-          </div>
-
           <ValidationError :msg="errors.laufzettel" />
           <div class="form-actions">
             <SubmitBtn :loading="loading.laufzettel" :disabled="!lzValid">Laufzettel erstellen</SubmitBtn>
@@ -72,7 +96,7 @@
       <!-- ── EVALUIERUNG FORM ───────────────────────────── -->
       <div class="card form-card" v-if="activeTab === 'evaluierung'">
         <h2 class="card-title">
-          <font-awesome-icon icon="fa-solid fa-star-half-stroke" />
+          <img :src="iconEvaluierung" class="card-icon" />
           Neue Evaluierung
         </h2>
         <p class="card-desc">Erstellt einen abgeschlossenen Laufzettel mit Bewertungsfeldern.</p>
@@ -87,6 +111,39 @@
         </div>
 
         <form v-else @submit.prevent="submitEvaluierung" class="form-body">
+          <div class="field-group">
+            <label class="field-label">
+              Auftragsnummer
+              <span class="field-hint">Einsatzdaten werden automatisch geladen</span>
+            </label>
+            <div class="auftrag-input-wrap">
+              <input v-model="ev.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" />
+              <font-awesome-icon v-if="auftragLoading.evaluierung" icon="fa-solid fa-spinner" spin class="auftrag-spinner" />
+            </div>
+          </div>
+
+          <div v-if="auftragData.evaluierung" class="einsatz-panel">
+            <div class="einsatz-panel-header">
+              <div class="einsatz-panel-icon"><font-awesome-icon icon="fa-solid fa-briefcase" /></div>
+              <div>
+                <span class="einsatz-panel-title">{{ auftragDisplayTitle('evaluierung') }}</span>
+                <span class="einsatz-panel-meta">{{ auftragDisplayMeta('evaluierung') }}</span>
+              </div>
+            </div>
+            <div v-if="evEinsatzMAs.length" class="einsatz-ma-section">
+              <span class="einsatz-ma-label"><font-awesome-icon icon="fa-solid fa-users" /> Mitarbeiter im Einsatz <span class="count-badge">{{ evEinsatzMAs.length }}</span></span>
+              <div class="einsatz-ma-grid">
+                <button v-for="ma in evEinsatzMAs" :key="ma._id" type="button"
+                  class="einsatz-ma-btn" :class="{ selected: ev.ma?._id === ma._id }"
+                  @click="ev.ma = ma">
+                  <font-awesome-icon icon="fa-solid fa-user" />
+                  {{ ma.vorname }} {{ ma.nachname }}
+                  <span v-if="ma.personalnr" class="einsatz-ma-nr">{{ ma.personalnr }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <PersonSearch label="Mitarbeiter *" hint="Person die bewertet wird" v-model="ev.ma" />
           <PersonSearch label="Teamleitung *" hint="Person die bewertet" v-model="ev.tl" />
 
@@ -101,15 +158,9 @@
             </div>
           </div>
 
-          <div class="field-row">
-            <div class="field-group">
-              <label class="field-label">Auftragsnummer <span class="field-hint">Optional</span></label>
-              <input v-model="ev.auftragNr" type="number" class="input-field" placeholder="z.B. 12345" min="1" />
-            </div>
-            <div class="field-group">
-              <label class="field-label">Kunde / Event <span class="field-hint">Optional</span></label>
-              <input v-model="ev.kunde" type="text" class="input-field" placeholder="z.B. Messe Berlin" />
-            </div>
+          <div class="field-group">
+            <label class="field-label">Kunde / Event <span class="field-hint">Optional – wird aus Auftrag übernommen</span></label>
+            <input v-model="ev.kunde" type="text" class="input-field" placeholder="z.B. Messe Berlin" />
           </div>
 
           <div class="rating-grid">
@@ -131,7 +182,7 @@
       <!-- ── EVENT REPORT FORM ──────────────────────────── -->
       <div class="card form-card" v-if="activeTab === 'eventreport'">
         <h2 class="card-title">
-          <font-awesome-icon icon="fa-solid fa-clipboard-list" />
+          <img :src="iconEventreport" class="card-icon" />
           Neuer Event Report
         </h2>
 
@@ -145,6 +196,30 @@
         </div>
 
         <form v-else @submit.prevent="submitEventReport" class="form-body">
+          <div class="field-group">
+            <label class="field-label">
+              Auftragsnummer
+              <span class="field-hint">Einsatzdaten werden automatisch geladen</span>
+            </label>
+            <div class="auftrag-input-wrap">
+              <input v-model="er.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" />
+              <font-awesome-icon v-if="auftragLoading.eventreport" icon="fa-solid fa-spinner" spin class="auftrag-spinner" />
+            </div>
+          </div>
+
+          <div v-if="auftragData.eventreport" class="einsatz-panel">
+            <div class="einsatz-panel-header">
+              <div class="einsatz-panel-icon"><font-awesome-icon icon="fa-solid fa-briefcase" /></div>
+              <div>
+                <span class="einsatz-panel-title">{{ auftragDisplayTitle('eventreport') }}</span>
+                <span class="einsatz-panel-meta">{{ auftragDisplayMeta('eventreport') }}</span>
+              </div>
+            </div>
+            <div v-if="erEinsatzMAs.length" class="einsatz-ma-section">
+              <span class="einsatz-ma-label"><font-awesome-icon icon="fa-solid fa-users" /> {{ erEinsatzMAs.length }} Mitarbeiter im Einsatz</span>
+            </div>
+          </div>
+
           <PersonSearch label="Teamleitung *" hint="Vorname, Nachname oder Personalnr." v-model="er.tl" />
 
           <div class="field-row">
@@ -164,21 +239,60 @@
               <input v-model="er.kunde" type="text" class="input-field" placeholder="z.B. Messe Berlin" required />
             </div>
             <div class="field-group">
-              <label class="field-label">Auftragsnummer <span class="field-hint">Optional</span></label>
-              <input v-model="er.auftragNr" type="number" class="input-field" placeholder="z.B. 12345" min="1" />
+              <label class="field-label">Mitarbeiter Anzahl <span class="field-hint">Optional – wird aus Einsatz übernommen</span></label>
+              <input v-model="er.mitarbeiter_anzahl" type="text" class="input-field" placeholder="z.B. 12" />
             </div>
-          </div>
-
-          <div class="field-group">
-            <label class="field-label">Mitarbeiter Anzahl <span class="field-hint">Optional</span></label>
-            <input v-model="er.mitarbeiter_anzahl" type="text" class="input-field input-narrow" placeholder="z.B. 12" />
           </div>
 
           <div class="rating-grid">
             <RatingField label="Pünktlichkeit" v-model="er.puenktlichkeit" />
             <RatingField label="Erscheinungsbild" v-model="er.erscheinungsbild" />
             <RatingField label="Team" v-model="er.team" />
-            <RatingField label="Mitarbeiter / Job" v-model="er.mitarbeiter_job" />
+
+            <!-- ── Mitarbeiter / Job – per-MA rows ── -->
+            <div class="field-group field-group--wide">
+              <label class="field-label">Mitarbeiter / Job</label>
+
+              <!-- Chip row: available MAs not yet added -->
+              <div v-if="erMaAvailable.length" class="er-ma-chips">
+                <button
+                  v-for="ma in erMaAvailable"
+                  :key="ma._id"
+                  type="button"
+                  class="er-ma-chip"
+                  @click="addErMaRow(ma)"
+                >
+                  <font-awesome-icon icon="fa-solid fa-plus" />
+                  {{ ma.vorname }} {{ ma.nachname }}
+                </button>
+              </div>
+
+              <!-- Per-MA feedback rows -->
+              <div class="er-ma-rows">
+                <div v-for="row in erMaRows" :key="row._id" class="er-ma-row-field">
+                  <span class="er-ma-row-legend">{{ row.name }}</span>
+                  <textarea
+                    v-model="row.text"
+                    class="er-ma-row-input"
+                    rows="2"
+                    :placeholder="'Feedback zu ' + row.name + '\u2026'"
+                  />
+                  <button type="button" class="er-ma-row-remove" @click="removeErMaRow(row)">
+                    <font-awesome-icon icon="fa-solid fa-times" />
+                  </button>
+                </div>
+
+                <!-- Fallback free-text when no Einsatz MAs available -->
+                <textarea
+                  v-if="!erEinsatzMAs.length"
+                  v-model="er.mitarbeiter_job"
+                  class="input-field textarea-field"
+                  rows="2"
+                  placeholder="Mitarbeiter / Job\u2026"
+                />
+              </div>
+            </div>
+
             <RatingField label="Feedback Auftraggeber" v-model="er.feedback_auftraggeber" :wide="true" />
             <RatingField label="Sonstiges" v-model="er.sonstiges" :wide="true" />
           </div>
@@ -223,9 +337,16 @@
 </template>
 
 <script setup>
-import { ref, computed, defineComponent, h } from 'vue';
+import { ref, computed, watch, defineComponent, h } from 'vue';
 import api from '@/utils/api';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import { useTheme } from '@/stores/theme';
+import laufzettelImg from '@/assets/laufzettel.png';
+import laufzettelDarkImg from '@/assets/laufzettel-dark.png';
+import evaluierungImg from '@/assets/evaluierung.png';
+import evaluierungDarkImg from '@/assets/evaluierung-dark.png';
+import eventreportImg from '@/assets/eventreport.png';
+import eventreportDarkImg from '@/assets/eventreport-dark.png';
 
 // ─────────────────────────────────────────────────────────
 // Sub-components (inline to keep everything in one file)
@@ -435,10 +556,21 @@ const SubmitBtn = defineComponent({
 // ─────────────────────────────────────────────────────────
 
 const tabs = [
-  { id: 'laufzettel',  label: 'Laufzettel',   icon: 'fa-solid fa-file-lines' },
-  { id: 'evaluierung', label: 'Evaluierung',  icon: 'fa-solid fa-star-half-stroke' },
-  { id: 'eventreport', label: 'Event Report', icon: 'fa-solid fa-clipboard-list' },
+  { id: 'laufzettel',  label: 'Laufzettel' },
+  { id: 'evaluierung', label: 'Evaluierung' },
+  { id: 'eventreport', label: 'Event Report' },
 ];
+
+const theme = useTheme();
+const isDark = computed(() => theme.isDark);
+const iconLaufzettel  = computed(() => isDark.value ? laufzettelDarkImg  : laufzettelImg);
+const iconEvaluierung = computed(() => isDark.value ? evaluierungDarkImg : evaluierungImg);
+const iconEventreport = computed(() => isDark.value ? eventreportDarkImg : eventreportImg);
+function tabIcon(id) {
+  if (id === 'laufzettel')  return iconLaufzettel.value;
+  if (id === 'evaluierung') return iconEvaluierung.value;
+  return iconEventreport.value;
+}
 
 const activeTab = ref('laufzettel');
 function switchTab(id) {
@@ -504,6 +636,16 @@ async function submitEvaluierung() {
 
 // ── EventReport form state ──
 const er = ref({ tl: null, datum: todayStr.value, standort: '', kunde: '', auftragNr: '', mitarbeiter_anzahl: '', puenktlichkeit: '', erscheinungsbild: '', team: '', mitarbeiter_job: '', feedback_auftraggeber: '', sonstiges: '' });
+const erMaRows = ref([]); // [{ _id, name, text }]
+const erMaAvailable = computed(() =>
+  erEinsatzMAs.value.filter(ma => !erMaRows.value.some(r => r._id === ma._id))
+);
+function addErMaRow(ma) {
+  erMaRows.value.push({ _id: ma._id, name: `${ma.vorname} ${ma.nachname}`, text: '' });
+}
+function removeErMaRow(row) {
+  erMaRows.value = erMaRows.value.filter(r => r._id !== row._id);
+}
 const erValid = computed(() => !!er.value.tl && !!er.value.datum && !!er.value.standort && !!er.value.kunde);
 
 async function submitEventReport() {
@@ -511,8 +653,12 @@ async function submitEventReport() {
   loading.value.eventreport = true;
   try {
     const payload = { teamleiter_id: er.value.tl._id, datum: er.value.datum, standort: er.value.standort, kunde: er.value.kunde };
-    ['auftragNr','mitarbeiter_anzahl','puenktlichkeit','erscheinungsbild','team','mitarbeiter_job','feedback_auftraggeber','sonstiges']
+    ['auftragNr','mitarbeiter_anzahl','puenktlichkeit','erscheinungsbild','team','feedback_auftraggeber','sonstiges']
       .forEach(k => { if (er.value[k]) payload[k] = er.value[k]; });
+    // Per-MA feedback rows take priority over generic mitarbeiter_job field
+    const maFeedback = erMaRows.value.filter(r => r.text.trim()).map(r => ({ mitarbeiterId: r._id, name: r.name, text: r.text.trim() }));
+    if (maFeedback.length) payload.mitarbeiter_feedback = maFeedback;
+    else if (er.value.mitarbeiter_job) payload.mitarbeiter_job = er.value.mitarbeiter_job;
     await api.post('/api/personal/eventreport/manual', payload);
     sessionHistory.value.unshift({
       id: Date.now(), type: 'eventreport',
@@ -528,11 +674,102 @@ async function submitEventReport() {
 function resetForm(type) {
   success.value[type] = false;
   errors.value[type] = '';
+  auftragData.value[type] = null;
   const d = todayStr.value;
   if (type === 'laufzettel') lz.value = { ma: null, tl: null, datum: d, standort: '', auftragNr: '' };
   if (type === 'evaluierung') ev.value = { ma: null, tl: null, datum: d, standort: '', auftragNr: '', kunde: '', puenktlichkeit: '', grooming: '', motivation: '', technische_fertigkeiten: '', lernbereitschaft: '', sonstiges: '' };
-  if (type === 'eventreport') er.value = { tl: null, datum: d, standort: '', kunde: '', auftragNr: '', mitarbeiter_anzahl: '', puenktlichkeit: '', erscheinungsbild: '', team: '', mitarbeiter_job: '', feedback_auftraggeber: '', sonstiges: '' };
+  if (type === 'eventreport') {
+    er.value = { tl: null, datum: d, standort: '', kunde: '', auftragNr: '', mitarbeiter_anzahl: '', puenktlichkeit: '', erscheinungsbild: '', team: '', mitarbeiter_job: '', feedback_auftraggeber: '', sonstiges: '' };
+    erMaRows.value = [];
+  }
 }
+
+// ── Auftrag/Einsatz Lookup ──────────────────────────────
+const geschStToStandort = { '1': 'Berlin', '2': 'Hamburg', '3': 'Köln' };
+const auftragData = ref({ laufzettel: null, evaluierung: null, eventreport: null });
+const auftragLoading = ref({ laufzettel: false, evaluierung: false, eventreport: false });
+const _auftragTimers = {};
+
+function debouncedAuftragFetch(formType, nr) {
+  clearTimeout(_auftragTimers[formType]);
+  if (!nr || String(nr).length < 3) { auftragData.value[formType] = null; return; }
+  _auftragTimers[formType] = setTimeout(async () => {
+    auftragLoading.value[formType] = true;
+    try {
+      const { data } = await api.get(`/api/auftraege/${nr}/details`);
+      auftragData.value[formType] = data;
+      applyAuftragAutoFill(formType, data);
+    } catch { auftragData.value[formType] = null; }
+    finally { auftragLoading.value[formType] = false; }
+  }, 400);
+}
+
+function applyAuftragAutoFill(formType, data) {
+  const standort = geschStToStandort[data.geschSt] || '';
+  const kundeLabel = data.kundeData?.kundName || data.eventTitel || '';
+  const datum = data.vonDatum ? data.vonDatum.slice(0, 10) : '';
+
+  if (formType === 'laufzettel') {
+    if (standort) lz.value.standort = standort;
+    if (datum) lz.value.datum = datum;
+  } else if (formType === 'evaluierung') {
+    if (standort) ev.value.standort = standort;
+    if (datum) ev.value.datum = datum;
+    if (kundeLabel) ev.value.kunde = kundeLabel;
+  } else if (formType === 'eventreport') {
+    if (standort) er.value.standort = standort;
+    if (datum) er.value.datum = datum;
+    if (kundeLabel) er.value.kunde = kundeLabel;
+    erMaRows.value = []; // Clear MA rows when a new Auftrag is loaded
+    if (data.einsaetze?.length) {
+      const uniqueNrs = new Set(data.einsaetze.filter(e => e.personalNr && !e.isPseudo).map(e => e.personalNr));
+      if (uniqueNrs.size) er.value.mitarbeiter_anzahl = String(uniqueNrs.size);
+    }
+  }
+}
+
+function getEinsatzMAs(formType) {
+  const d = auftragData.value[formType];
+  if (!d?.einsaetze?.length) return [];
+  const seen = new Set();
+  return d.einsaetze
+    .filter(e => {
+      if (!e.mitarbeiterData?._id || seen.has(e.mitarbeiterData._id)) return false;
+      seen.add(e.mitarbeiterData._id);
+      return true;
+    })
+    .map(e => e.mitarbeiterData);
+}
+
+const lzEinsatzMAs = computed(() => getEinsatzMAs('laufzettel'));
+const evEinsatzMAs = computed(() => getEinsatzMAs('evaluierung'));
+const erEinsatzMAs = computed(() => getEinsatzMAs('eventreport'));
+
+function auftragDisplayTitle(formType) {
+  const d = auftragData.value[formType];
+  if (!d) return '';
+  return d.eventTitel || d.kundeData?.kundName || `Auftrag #${d.auftragNr}`;
+}
+
+function auftragDisplayMeta(formType) {
+  const d = auftragData.value[formType];
+  if (!d) return '';
+  const parts = [];
+  if (d.vonDatum) {
+    const von = formatDate(d.vonDatum);
+    const bis = d.bisDatum ? formatDate(d.bisDatum) : '';
+    parts.push(bis && bis !== von ? `${von} – ${bis}` : von);
+  }
+  if (d.eventOrt) parts.push(d.eventOrt);
+  if (d.eventLocation) parts.push(d.eventLocation);
+  const standort = geschStToStandort[d.geschSt];
+  if (standort) parts.push(standort);
+  return parts.join(' · ');
+}
+
+watch(() => lz.value.auftragNr, (v) => debouncedAuftragFetch('laufzettel', v));
+watch(() => ev.value.auftragNr, (v) => debouncedAuftragFetch('evaluierung', v));
+watch(() => er.value.auftragNr, (v) => debouncedAuftragFetch('eventreport', v));
 
 function typeIcon(type) {
   if (type === 'laufzettel') return 'fa-solid fa-file-lines';
@@ -609,6 +846,18 @@ function formatDate(d) {
   }
 }
 
+.tab-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+
+  .tab-btn:hover & { opacity: 0.85; }
+  .tab-btn.active & { opacity: 1; }
+}
+
 /* ── Content ── */
 .content-grid {
   display: flex;
@@ -633,6 +882,13 @@ function formatDate(d) {
   align-items: center;
   gap: 0.5rem;
   svg { color: var(--primary); }
+}
+
+.card-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .card-desc {
@@ -1018,5 +1274,210 @@ function formatDate(d) {
   &--laufzettel  { background: rgba(40, 167, 69, 0.15);  color: #28a745; }
   &--evaluierung { background: rgba(255, 193, 7, 0.15);  color: #d4a017; }
   &--eventreport { background: rgba(238, 175, 103, 0.15); color: var(--primary); }
+}
+
+/* ── Auftrag Lookup ── */
+.auftrag-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.auftrag-spinner {
+  color: var(--primary);
+  font-size: 0.9rem;
+}
+
+/* ── Einsatz Panel ── */
+.einsatz-panel {
+  background: color-mix(in oklab, var(--primary) 6%, var(--bg));
+  border: 1px solid color-mix(in oklab, var(--primary) 25%, transparent);
+  border-radius: 10px;
+  padding: 1rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.einsatz-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.einsatz-panel-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--primary) 15%, transparent);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.einsatz-panel-title {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.einsatz-panel-meta {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.einsatz-ma-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.einsatz-ma-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.einsatz-ma-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.einsatz-ma-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--tile-bg);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+
+  svg { font-size: 0.7rem; color: var(--muted); }
+
+  &:hover {
+    border-color: var(--primary);
+    background: color-mix(in oklab, var(--primary) 8%, transparent);
+  }
+
+  &.selected {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    svg { color: var(--primary); }
+  }
+}
+
+.einsatz-ma-nr {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* ── Per-MA feedback rows (Event Report) ── */
+.er-ma-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+
+.er-ma-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+
+  svg { font-size: 0.65rem; }
+
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: color-mix(in oklab, var(--primary) 8%, transparent);
+  }
+}
+
+.er-ma-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.er-ma-row-field {
+  position: relative;
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  padding: 1.1rem 0.65rem 0.5rem;
+  background: var(--tile-bg);
+  transition: border-color 0.15s;
+
+  &:focus-within { border-color: var(--primary); }
+}
+
+.er-ma-row-legend {
+  position: absolute;
+  top: 0;
+  left: 0.65rem;
+  transform: translateY(-50%);
+  background: var(--tile-bg);
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0 0.25rem;
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.er-ma-row-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0.1rem 1.8rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text);
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+  line-height: 1.45;
+  display: block;
+
+  &::placeholder { color: var(--muted); }
+}
+
+.er-ma-row-remove {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.4rem;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0.35rem;
+
+  &:hover { color: #e74c3c; }
 }
 </style>

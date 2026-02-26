@@ -1112,6 +1112,15 @@ async function markAssignmentAsCompleted(assignmentId) {
   }
 }
 
+/**
+ * Restore a deleted/pending-deletion Flip user by ID.
+ * Flip API: POST /api/admin/users/v4/users/{id}/restore
+ */
+async function restoreFlipUser(id) {
+  const response = await flipAxios.post(`/api/admin/users/v4/users/${id}/restore`);
+  return response.data;
+}
+
 async function deleteManyFlipUsers(ids) {
   const chunkSize = 100;
   const results = [];
@@ -1347,6 +1356,7 @@ module.exports = {
   getFlipTaskAssignments,
   markAssignmentAsCompleted,
   assignFlipUserGroups,
+  restoreFlipUser,
   deleteManyFlipUsers,
   getFlipAssignments,
   updateLaufzettelBadge,

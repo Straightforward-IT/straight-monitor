@@ -20,6 +20,7 @@ const publicRoutes = require('./routes/publicRoutes');
 const oidcRoutes = require('./routes/oidcRoutes');
 const flipTaskRoutes = require('./routes/flipTaskRoutes');
 const flipUserFixRoutes = require('./routes/flipUserFixRoutes');
+const pdfTemplateRoutes = require('./routes/pdfTemplateRoutes');
 const ErrorHandler = require('./middleware/ErrorHandler');
 const logger = require('./utils/logger');
 require('dotenv').config();
@@ -85,6 +86,7 @@ app.use('/api/public', publicRoutes);
 app.use('/api/oidc', oidcRoutes);
 app.use('/api/flip-tasks', flipTaskRoutes);
 app.use('/api/flip-user-fix', flipUserFixRoutes);
+app.use('/api/pdf-templates', pdfTemplateRoutes);
 
 // Debug endpoint (moved to specific path instead of catch-all)
 app.get('/api/debug/headers', (req, res) => {

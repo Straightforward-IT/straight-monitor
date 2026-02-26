@@ -46,6 +46,12 @@
           Kunden
       
         </router-link>
+        <router-link
+          to="/pdf-vorlagen"
+          :class="{ active: $route.name === 'PdfVorlagen' || $route.name === 'PdfAusfuellen' }"
+        >
+          PDF-Vorlagen
+        </router-link>
       </nav>
   
     </div>
@@ -166,6 +172,15 @@
           Kunden
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
           <span v-else class="beta-tag">NEU</span>
+        </router-link>
+        <router-link
+          to="/pdf-vorlagen"
+          :class="{ active: $route.name === 'PdfVorlagen' || $route.name === 'PdfAusfuellen' }"
+          @click="showMobileMenu = false"
+        >
+          <font-awesome-icon :icon="['fas', 'file-contract']" />
+          PDF-Vorlagen
+          <span class="beta-tag">NEU</span>
         </router-link>
         
         <div class="mobile-menu-divider"></div>

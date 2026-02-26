@@ -28,6 +28,8 @@ import AuftraegePage from '@/components/AuftraegePage.vue';
 import KundenPage from '@/components/KundenPage.vue';
 import TeamleiterAuswertung from '@/components/TeamleiterAuswertung.vue';
 import DokumenteNachpflegen from '@/components/DokumenteNachpflegen.vue';
+import PdfBuilder from '@/components/PdfBuilder.vue';
+import PdfFormFill from '@/components/PdfFormFill.vue';
 import NotFound from '@/components/NotFound.vue';
 
 const routes = [
@@ -60,6 +62,8 @@ const routes = [
       { path: 'kunden', name: 'Kunden', component: KundenPage },
       { path: 'teamleiter-auswertung', name: 'TeamleiterAuswertung', component: TeamleiterAuswertung },
       { path: 'dokumente-nachpflegen', name: 'DokumenteNachpflegen', component: DokumenteNachpflegen },
+      { path: 'pdf-vorlagen', name: 'PdfVorlagen', component: PdfBuilder },
+      { path: 'pdf-ausfuellen/:id', name: 'PdfAusfuellen', component: PdfFormFill },
       { path: '', redirect: '/dashboard' }
     ]
   },
