@@ -25,16 +25,24 @@ router.get(
   "/mitarbeiter",
   asyncHandler(async (req, res) => {
     const { email } = req.query;
-    if (!email) {
+    // Prefer flip_id from the OIDC session (most reliable – avoids all email mismatch issues)
+    const flipIdFromSession = req.oidcFlipId || null;
+
+    if (!email && !flipIdFromSession) {
       return res.status(400).json({ msg: "Email parameter is required" });
     }
 
-    const mitarbeiter = await Mitarbeiter.findOne({
-        $or: [
-          { email: email.toLowerCase().trim() },
-          { additionalEmails: email.toLowerCase().trim() }
-        ]
-      })
+    // Build an OR query: flip_id takes priority, email covers legacy / non-OIDC
+    const orConditions = [];
+    if (flipIdFromSession) orConditions.push({ flip_id: flipIdFromSession });
+    if (email) {
+      orConditions.push(
+        { email: email.toLowerCase().trim() },
+        { additionalEmails: email.toLowerCase().trim() }
+      );
+    }
+
+    const mitarbeiter = await Mitarbeiter.findOne({ $or: orConditions })
       .select("_id vorname nachname email personalnr qualifikationen eventreports laufzettel_submitted laufzettel_received evaluierungen_submitted")
       .populate({ path: "eventreports", select: "auftragnummer datum" })
       .populate({

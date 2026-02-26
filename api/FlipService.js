@@ -35,6 +35,7 @@ async function flipUserRoutine() {
   let emailLogs = [];
   let invalidLocations = [];
   let invalidDepartments = [];
+  let emailMismatches = []; // { name, flipId, type, from, to }
 
   try {
     emailLogs.push("🔄 Running Flip API user refresh...");
@@ -67,6 +68,22 @@ async function flipUserRoutine() {
       if (flipUserData.primary_user_group?.id === apiUserGroup) continue;
 
       const flipUser = new FlipUser(flipUserData);
+
+      // ── Check Flip-side username ↔ email mismatch ──────────────────────────
+      if (
+        flipUser.benutzername &&
+        flipUser.benutzername.includes('@') &&
+        flipUser.email &&
+        flipUser.benutzername.toLowerCase() !== flipUser.email.toLowerCase()
+      ) {
+        emailMismatches.push({
+          name: `${flipUser.vorname} ${flipUser.nachname}`,
+          flipId: flipUser.id,
+          type: 'username≠email',
+          from: flipUser.benutzername,
+          to: flipUser.email,
+        });
+      }
       
       // Check location attribute
       const location = flipUser.profile?.location;
@@ -163,6 +180,27 @@ async function flipUserRoutine() {
         }
 
         if (changesMade) await mitarbeiter.save();
+      }
+
+      // ── Check Mitarbeiter.email ↔ Flip email mismatch ─────────────────────
+      // If the stored primary email differs from Flip's email, add the Flip
+      // email to additionalEmails so OIDC-based lookups still succeed.
+      if (flipUser.email && mitarbeiter.email && mitarbeiter.email.toLowerCase() !== flipUser.email.toLowerCase()) {
+        emailMismatches.push({
+          name: `${mitarbeiter.vorname} ${mitarbeiter.nachname}`,
+          flipId: flipUser.id,
+          type: 'db≠flip',
+          from: mitarbeiter.email,
+          to: flipUser.email,
+        });
+        const normalizedFlipEmail = flipUser.email.toLowerCase().trim();
+        if (!mitarbeiter.additionalEmails?.includes(normalizedFlipEmail)) {
+          mitarbeiter.additionalEmails = [...(mitarbeiter.additionalEmails || []), normalizedFlipEmail];
+          await mitarbeiter.save();
+          emailLogs.push(
+            `📧 Flip-E-Mail als additionalEmail gespeichert: ${mitarbeiter.vorname} ${mitarbeiter.nachname} → ${normalizedFlipEmail}`
+          );
+        }
       }
 
       const shouldBeActive = (flipUser.status === "ACTIVE" || flipUser.status === "PENDING_DELETION");
@@ -275,6 +313,19 @@ async function flipUserRoutine() {
       invalidDepartments.forEach(user => {
         emailLogs.push(`🔴 ${user.name} (${user.email}): <strong>${user.department}</strong>`);
       });
+    }
+
+    // Add email mismatch report
+    if (emailMismatches.length > 0) {
+      emailLogs.push("<br><br><strong>⚠️ E-Mail-Mismatches gefunden:</strong>");
+      emailMismatches.forEach(({ name, flipId, type, from, to }) => {
+        const label = type === 'username≠email'
+          ? '🔁 Flip Username ≠ E-Mail'
+          : '🔀 DB-E-Mail ≠ Flip-E-Mail (→ additionalEmails ergänzt)';
+        emailLogs.push(`${label}: <strong>${name}</strong> (${flipId})<br>&nbsp;&nbsp;&nbsp;Von: <em>${from}</em> → Zu: <strong>${to}</strong>`);
+      });
+    } else {
+      emailLogs.push("<br>✅ Keine E-Mail-Mismatches gefunden.");
     }
 
     await sendMail(
@@ -1115,8 +1166,11 @@ async function syncFlipAttributes(flipUsersById = {}) {
       const berufKeys  = (ma.berufe        || []).map(b => Number(b.jobKey)).filter(k => !isNaN(k));
       const qualiKeys  = (ma.qualifikationen || []).map(q => Number(q.qualificationKey)).filter(k => !isNaN(k));
 
-      const isService  = berufKeys.includes(10001);
-      const isLogistik = berufKeys.includes(10002);
+      // Wenn keine Berufe hinterlegt sind, isService/isLogistik nicht überschreiben —
+      // der MA wurde initial evtl. mit isService=true angelegt und hat noch keinen Einsatz.
+      const hasBeruf   = berufKeys.length > 0;
+      const isService  = hasBeruf ? berufKeys.includes(10001) : null;
+      const isLogistik = hasBeruf ? berufKeys.includes(10002) : null;
       const isOffice   = qualiKeys.includes(40);    // Quali-Key 40 = Office
       const isTeamLead = qualiKeys.includes(50055);
       const isFesti    = ma.persgruppe === 101 || ma.persgruppe == 101; // persgruppe 101 = Festangestellt
@@ -1138,10 +1192,14 @@ async function syncFlipAttributes(flipUsersById = {}) {
         if (TRACKED_ATTRS.includes(key)) beforeMap[key] = a.value;
       });
 
-      const afterMap = { isService: String(isService), isLogistik: String(isLogistik), isOffice: String(isOffice), isTeamLead: String(isTeamLead), isFesti: String(isFesti) };
+      // isService/isLogistik sind null wenn keine Berufe → nicht in afterMap aufnehmen
+      const afterMap = { isOffice: String(isOffice), isTeamLead: String(isTeamLead), isFesti: String(isFesti) };
+      if (isService  !== null) afterMap.isService  = String(isService);
+      if (isLogistik !== null) afterMap.isLogistik = String(isLogistik);
 
-      // Detect changes among tracked attributes
+      // Detect changes among tracked attributes (nur gesetzte Werte vergleichen)
       const diff = TRACKED_ATTRS
+        .filter(attr => afterMap[attr] !== undefined)
         .map(attr => ({ attr, before: beforeMap[attr] ?? '?', after: afterMap[attr] }))
         .filter(d => d.before !== d.after);
       if (diff.length > 0) {
@@ -1149,9 +1207,10 @@ async function syncFlipAttributes(flipUsersById = {}) {
       }
 
       // Attributes: computed booleans + preserve existing location/department
+      // isService/isLogistik werden übersprungen wenn keine Berufe hinterlegt
       const attributes = [
-        { name: 'isService',  value: String(isService)  },
-        { name: 'isLogistik', value: String(isLogistik) },
+        ...(isService  !== null ? [{ name: 'isService',  value: String(isService)  }] : []),
+        ...(isLogistik !== null ? [{ name: 'isLogistik', value: String(isLogistik) }] : []),
         { name: 'isOffice',   value: String(isOffice)   },
         { name: 'isTeamLead', value: String(isTeamLead) },
         { name: 'isFesti',    value: String(isFesti)    },

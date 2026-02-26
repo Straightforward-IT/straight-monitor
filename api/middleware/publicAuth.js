@@ -28,6 +28,7 @@ module.exports = function publicAuth(req, res, next) {
       });
       if (decoded.source === 'oidc' && decoded.email) {
         req.oidcEmail = decoded.email;
+        req.oidcFlipId = decoded.flip_id || null; // Flip UserID from claims.sub
         req.oidcUser = decoded;
         return next();
       }

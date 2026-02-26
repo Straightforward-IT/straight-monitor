@@ -128,15 +128,16 @@ router.post(
       return res.status(400).json({ msg: 'Kein E-Mail-Anspruch im Token gefunden' });
     }
 
-    // Issue our own short-lived session JWT containing the verified email
+    // Issue our own short-lived session JWT containing the verified email and Flip user ID
+    // claims.sub from Flip's Keycloak realm IS the Flip user UUID (= flip_id in Mitarbeiter)
     const sessionToken = jwt.sign(
-      { email, sub: claims.sub, source: 'oidc' },
+      { email, flip_id: claims.sub, source: 'oidc' },
       process.env.JWT_SECRET,
       { expiresIn: '12h', issuer: 'straight-monitor' }
     );
 
-    logger.info(`OIDC login successful: ${email}`);
-    return res.json({ session_token: sessionToken, email });
+    logger.info(`OIDC login successful: ${email} (flip_id: ${claims.sub})`);
+    return res.json({ session_token: sessionToken, email, flip_id: claims.sub });
   })
 );
 
