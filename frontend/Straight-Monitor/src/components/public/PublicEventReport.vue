@@ -13,6 +13,17 @@
 
     <!-- Form -->
     <form v-else @submit.prevent="submitReport" class="report-form">
+      <!-- Notizen -->
+      <div class="er-notes-row">
+        <button type="button" class="er-notes-btn" :class="{ 'er-notes-btn--active': !!form.notizen }" @click="showNotizModal = true">
+          <font-awesome-icon icon="fa-solid fa-comment" />
+          {{ form.notizen ? 'Notizen bearbeiten' : 'Notizen hinzufügen' }}
+          <span v-if="form.notizen" class="er-notes-dot"></span>
+        </button>
+        <p v-if="form.notizen" class="er-notes-preview">{{ form.notizen }}</p>
+      </div>
+
+      
       <!-- Einsatz auswählen -->
       <div class="form-group">
         <label>Einsatz auswählen *</label>
@@ -158,6 +169,7 @@
         <textarea v-model="form.sonstiges" rows="3" placeholder="Weitere Anmerkungen..."></textarea>
       </div>
 
+      
       <button type="submit" class="submit-btn" :disabled="submitting">
         <span v-if="submitting">
           <font-awesome-icon icon="fa-solid fa-spinner" spin /> Wird gesendet...
@@ -167,6 +179,30 @@
         </span>
       </button>
     </form>
+
+    <!-- Notizen Modal -->
+    <Transition name="er-notiz">
+      <div v-if="showNotizModal" class="er-modal-overlay" @click.self="showNotizModal = false">
+        <div class="er-modal-sheet">
+          <div class="er-modal-handle"></div>
+          <div class="er-modal-icon">
+            <font-awesome-icon icon="fa-solid fa-comment" />
+          </div>
+          <h3 class="er-modal-title">Notizen</h3>
+          <textarea
+            class="er-notiz-textarea"
+            v-model="form.notizen"
+            placeholder="Notizen zu diesem Einsatz…"
+            rows="5"
+            autofocus
+          ></textarea>
+          <div class="er-modal-actions">
+            <button class="er-modal-btn er-modal-btn--cancel" type="button" @click="showNotizModal = false">Schließen</button>
+            <button class="er-modal-btn er-modal-btn--confirm" type="button" @click="showNotizModal = false">Speichern</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -239,6 +275,8 @@ const selectedEinsatzLabel = computed(() => {
   return `${e.auftrag?.eventTitel || e.bezeichnung || `#${e.auftragNr}`} (${formatDate(e.datumVon)})`;
 });
 
+const showNotizModal = ref(false);
+
 const form = reactive({
   location: '',
   kunde: '',
@@ -250,7 +288,8 @@ const form = reactive({
   team: '',
   mitarbeiter_job: '',
   feedback_auftraggeber: '',
-  sonstiges: ''
+  sonstiges: '',
+  notizen: ''
 });
 
 // localStorage draft helpers
@@ -368,11 +407,11 @@ async function loadEinsatzMitarbeiter(auftragNr) {
       mitarbeiterRows.value = prefilledRows;
     }
 
-    // Pre-fill Sonstiges from job-level note
+    // Pre-fill Notizen from job-level note
     try {
       const jobNote = localStorage.getItem(`jobnote_${auftragNr}`);
       if (jobNote && jobNote.trim()) {
-        form.sonstiges = jobNote.trim();
+        form.notizen = jobNote.trim();
       }
     } catch { /* ignore */ }
   } catch { einsatzMitarbeiter.value = []; }
@@ -408,6 +447,7 @@ async function submitReport() {
         .map(r => ({ personalNr: r.personalNr, name: r.name, text: r.text.trim() })),
       feedback_auftraggeber: form.feedback_auftraggeber,
       sonstiges: form.sonstiges,
+      notizen: form.notizen,
       teamleiter_email: props.email
     });
     submitSuccess.value = true;
@@ -814,4 +854,144 @@ async function submitReport() {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Notizen button row */
+.er-notes-row {
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.er-notes-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--tile-bg);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.er-notes-btn--active {
+  border-color: #0ea5e9;
+  color: #0ea5e9;
+  background: rgba(14, 165, 233, 0.07);
+}
+.er-notes-btn:active { opacity: 0.75; }
+.er-notes-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0ea5e9;
+  flex-shrink: 0;
+}
+.er-notes-preview {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--hover);
+  border-radius: 8px;
+  border-left: 3px solid #0ea5e9;
+}
+
+/* Notizen Modal */
+.er-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+}
+.er-modal-sheet {
+  width: 100%;
+  background: var(--panel);
+  border-radius: 20px 20px 0 0;
+  padding: 0.75rem 1.25rem 2rem;
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+.er-modal-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--border);
+  margin-bottom: 0.25rem;
+}
+.er-modal-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.12);
+  border: 1.5px solid rgba(14, 165, 233, 0.3);
+  color: #0ea5e9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+.er-modal-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+.er-notiz-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--tile-bg);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  line-height: 1.5;
+}
+.er-notiz-textarea:focus { border-color: #0ea5e9; }
+.er-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+}
+.er-modal-btn {
+  flex: 1;
+  padding: 0.8rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+.er-modal-btn:active { opacity: 0.75; }
+.er-modal-btn--cancel {
+  background: var(--hover);
+  color: var(--muted);
+}
+.er-modal-btn--confirm {
+  background: #0ea5e9;
+  color: white;
+}
+
+/* Modal transition */
+.er-notiz-enter-active { transition: opacity 0.2s; }
+.er-notiz-leave-active { transition: opacity 0.15s; }
+.er-notiz-enter-from, .er-notiz-leave-to { opacity: 0; }
+.er-notiz-enter-active .er-modal-sheet { transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
+.er-notiz-leave-active .er-modal-sheet { transition: transform 0.2s ease-in; }
+.er-notiz-enter-from .er-modal-sheet, .er-notiz-leave-to .er-modal-sheet { transform: translateY(100%); }
 </style>

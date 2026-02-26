@@ -27,19 +27,6 @@
           <span v-if="getJobNote()" class="job-notes-dot"></span>
         </button>
       </div>
-      <!-- DEBUG ONLY: Bridge download test -->
-      <div v-if="isDebugUser" class="debug-bar">
-        <span class="debug-label">🔧 Download Test</span>
-        <button class="debug-btn" :disabled="debugTesting" @click="testNavigatorShare">
-          {{ debugTesting ? '…' : 'Share API' }}
-        </button>
-        <button class="debug-btn" :disabled="debugTesting" @click="testWindowOpen">
-          {{ debugTesting ? '…' : 'window.open' }}
-        </button>
-        <button class="debug-btn" :disabled="debugTesting" @click="testAnchorClick">
-          {{ debugTesting ? '…' : 'a[download]' }}
-        </button>
-      </div>
     </div>
 
     <!-- Info Cards -->
@@ -50,9 +37,7 @@
           <span class="info-label">Datum</span>
           <span class="info-value">{{ formatZeitraum(einsatz.datumVon, einsatz.datumBis) }}</span>
         </div>
-        <button v-if="isTeamleiter" class="info-share-btn" @click.stop="exportToCalendar" title="Zum Kalender hinzufügen">
-          <font-awesome-icon icon="fa-solid fa-arrow-up-from-bracket" />
-        </button>
+
       </div>
 
       <div v-if="einsatz.uhrzeitVon" class="info-card">
@@ -258,30 +243,7 @@
       </div>
     </Transition>
 
-    <!-- Kalender Export Confirmation Modal -->
-    <Transition name="calmodal">
-      <div v-if="showCalExportModal" class="calmodal-overlay" @click.self="showCalExportModal = false">
-        <div class="calmodal-sheet">
-          <div class="calmodal-handle"></div>
-          <div class="calmodal-icon">
-            <font-awesome-icon icon="fa-solid fa-arrow-up-from-bracket" />
-          </div>
-          <h3 class="calmodal-title">Zum Kalender exportieren</h3>
-          <div class="calmodal-info">
-            <span class="calmodal-event">{{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung || `Auftrag #${einsatz.auftragNr}` }}</span>
-            <span class="calmodal-date">{{ formatZeitraum(einsatz.datumVon, einsatz.datumBis) }}<span v-if="einsatz.uhrzeitVon"> &middot; {{ formatTime(einsatz.uhrzeitVon) }}{{ einsatz.uhrzeitBis ? ' – ' + formatTime(einsatz.uhrzeitBis) : '' }}</span></span>
-          </div>
-          <p class="calmodal-hint">Öffnet den nativen Share-Dialog zum direkten Importieren in Apple Kalender oder eine andere App.</p>
-          <div class="calmodal-actions">
-            <button class="calmodal-btn calmodal-btn--cancel" @click="showCalExportModal = false">Abbrechen</button>
-            <button class="calmodal-btn calmodal-btn--confirm" :disabled="calExporting" @click="confirmExport">
-              <font-awesome-icon v-if="calExporting" icon="fa-solid fa-spinner" spin />
-              {{ calExporting ? 'Teile…' : 'Teilen' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
+
   </div>
 </template>
 
@@ -291,7 +253,6 @@ import { useTheme } from '@/stores/theme';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import { showToast } from '@getflip/bridge';
-import { downloadEinsaetze, buildIcsString } from '@/composables/useCalendarExport';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 const theme = useTheme();
@@ -317,9 +278,6 @@ defineEmits(['back', 'write-report']);
 
 const loadingMa = ref(false);
 const schichtGruppen = ref([]);
-const showCalExportModal = ref(false);
-const calExporting = ref(false);
-const debugTesting = ref(false);
 
 // MA Annotation state
 const actionSheet = ref({ open: false, ma: null });
@@ -390,8 +348,6 @@ function saveNotiz() {
   try { showToast({ text: 'Notiz gespeichert', intent: 'success', duration: 2000 }); } catch {}
 }
 
-const DEBUG_EMAIL = 'cedricbglx@gmail.com';
-const isDebugUser = computed(() => props.email?.toLowerCase() === DEBUG_EMAIL);
 
 const totalMitarbeiter = computed(() =>
   schichtGruppen.value.reduce((sum, s) => sum + s.mitarbeiter.length, 0)
@@ -512,98 +468,7 @@ watch(() => props.einsatz?._id, () => {
   loadMitarbeiter();
 });
 
-async function exportToCalendar() {
-  showCalExportModal.value = true;
-}
 
-async function testNavigatorShare() {
-  debugTesting.value = true;
-  const icsContent = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nSUMMARY:Test\r\nDTSTART;VALUE=DATE:20260301\r\nDTEND;VALUE=DATE:20260302\r\nEND:VEVENT\r\nEND:VCALENDAR';
-  try {
-    if (!navigator.share) throw new Error('navigator.share nicht verfügbar');
-    const file = new File([icsContent], 'test.ics', { type: 'text/calendar' });
-    if (navigator.canShare && !navigator.canShare({ files: [file] })) throw new Error('canShare: false');
-    await navigator.share({ title: 'Test Kalender', files: [file] });
-    showToast({ text: '✅ navigator.share klappt! ICS möglich.', intent: 'success', duration: 6000 });
-  } catch (err) {
-    showToast({ text: `❌ Share: ${err?.message || err}`, intent: 'critical', duration: 6000 });
-  } finally {
-    debugTesting.value = false;
-  }
-}
-
-async function testWindowOpen() {
-  debugTesting.value = true;
-  try {
-    const txt = 'Hello from Straight Monitor';
-    const b64 = btoa(unescape(encodeURIComponent(txt)));
-    const w = window.open(`data:text/plain;base64,${b64}`, '_blank');
-    showToast({ text: w ? '✅ window.open: Fenster geöffnet' : '❌ window.open: blockiert (null)', intent: w ? 'success' : 'critical', duration: 6000 });
-  } catch (err) {
-    showToast({ text: `❌ window.open Fehler: ${err?.message || err}`, intent: 'critical', duration: 6000 });
-  } finally {
-    debugTesting.value = false;
-  }
-}
-
-async function testAnchorClick() {
-  debugTesting.value = true;
-  try {
-    const icsContent = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nSUMMARY:Test\r\nDTSTART;VALUE=DATE:20260301\r\nDTEND;VALUE=DATE:20260302\r\nEND:VEVENT\r\nEND:VCALENDAR';
-    const blob = new Blob([icsContent], { type: 'text/calendar' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'test.ics';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showToast({ text: '✅ a[download] click ausgeführt — hat was passiert?', intent: 'success', duration: 6000 });
-  } catch (err) {
-    showToast({ text: `❌ a[download] Fehler: ${err?.message || err}`, intent: 'critical', duration: 6000 });
-  } finally {
-    debugTesting.value = false;
-  }
-}
-
-async function confirmExport() {
-  calExporting.value = true;
-  const dbg = isDebugUser.value;
-
-  function dlog(text) {
-    if (dbg) showToast({ text: `🚧 ${text}`, duration: 4000 });
-  }
-
-  try {
-    const ics = buildIcsString([props.einsatz]);
-    const file = new File([ics], 'Einsatz.ics', { type: 'text/calendar' });
-
-    dlog(`canShare files: ${navigator.canShare?.({ files: [file] })}`);
-
-    if (!navigator.share) throw new Error('navigator.share nicht verfügbar');
-    if (navigator.canShare && !navigator.canShare({ files: [file] })) throw new Error('canShare: false');
-
-    await navigator.share({
-      title: props.einsatz.auftrag?.eventTitel || `Auftrag #${props.einsatz.auftragNr}`,
-      files: [file],
-    });
-
-    dlog('share() resolved OK');
-    showCalExportModal.value = false;
-  } catch (err) {
-    const msg = err?.message || String(err);
-    if (msg.includes('AbortError') || msg.toLowerCase().includes('cancel') || err?.name === 'AbortError') {
-      // user cancelled share sheet — not an error
-      showCalExportModal.value = false;
-    } else {
-      dlog(`Fehler: ${msg}`);
-      showToast({ text: `Export fehlgeschlagen: ${msg}`, intent: 'critical', duration: 5000 });
-    }
-  } finally {
-    calExporting.value = false;
-  }
-}
 </script>
 
 <style scoped>
