@@ -271,12 +271,12 @@
             <span class="calmodal-event">{{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung || `Auftrag #${einsatz.auftragNr}` }}</span>
             <span class="calmodal-date">{{ formatZeitraum(einsatz.datumVon, einsatz.datumBis) }}<span v-if="einsatz.uhrzeitVon"> &middot; {{ formatTime(einsatz.uhrzeitVon) }}{{ einsatz.uhrzeitBis ? ' – ' + formatTime(einsatz.uhrzeitBis) : '' }}</span></span>
           </div>
-          <p class="calmodal-hint">Der Termin wird als .ics-Datei heruntergeladen und kann in Apple Kalender oder Google Kalender importiert werden.</p>
+          <p class="calmodal-hint">Öffnet den nativen Share-Dialog zum direkten Importieren in Apple Kalender oder eine andere App.</p>
           <div class="calmodal-actions">
             <button class="calmodal-btn calmodal-btn--cancel" @click="showCalExportModal = false">Abbrechen</button>
             <button class="calmodal-btn calmodal-btn--confirm" :disabled="calExporting" @click="confirmExport">
               <font-awesome-icon v-if="calExporting" icon="fa-solid fa-spinner" spin />
-              {{ calExporting ? 'Exportiere…' : 'Exportieren' }}
+              {{ calExporting ? 'Teile…' : 'Teilen' }}
             </button>
           </div>
         </div>
@@ -291,7 +291,7 @@ import { useTheme } from '@/stores/theme';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import { showToast } from '@getflip/bridge';
-import { downloadEinsaetze } from '@/composables/useCalendarExport';
+import { downloadEinsaetze, buildIcsString } from '@/composables/useCalendarExport';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 const theme = useTheme();
@@ -576,24 +576,30 @@ async function confirmExport() {
   }
 
   try {
-    dlog(`Starte Export für Einsatz #${props.einsatz.auftragNr}`);
-    dlog(`datumVon: ${props.einsatz.datumVon} | uhrzeitVon: ${props.einsatz.uhrzeitVon}`);
+    const ics = buildIcsString([props.einsatz]);
+    const file = new File([ics], 'Einsatz.ics', { type: 'text/calendar' });
 
-    const result = await downloadEinsaetze([props.einsatz], 'Einsatz.ics');
+    dlog(`canShare files: ${navigator.canShare?.({ files: [file] })}`);
 
-    dlog(`download() result: ${JSON.stringify(result)}`);
+    if (!navigator.share) throw new Error('navigator.share nicht verfügbar');
+    if (navigator.canShare && !navigator.canShare({ files: [file] })) throw new Error('canShare: false');
+
+    await navigator.share({
+      title: props.einsatz.auftrag?.eventTitel || `Auftrag #${props.einsatz.auftragNr}`,
+      files: [file],
+    });
+
+    dlog('share() resolved OK');
     showCalExportModal.value = false;
-
-    if (result === false) {
-      showToast({ text: 'Kalender Export nicht verfügbar in dieser Umgebung', intent: 'warning', duration: 4000 });
-    } else {
-      showToast({ text: 'Export gestartet', intent: 'success', duration: 2000 });
-    }
   } catch (err) {
-    const msg = err?.code || err?.message || String(err);
-    dlog(`Fehler: ${msg}`);
-    showToast({ text: `Export fehlgeschlagen: ${msg}`, intent: 'critical', duration: 5000 });
-    showCalExportModal.value = false;
+    const msg = err?.message || String(err);
+    if (msg.includes('AbortError') || msg.toLowerCase().includes('cancel') || err?.name === 'AbortError') {
+      // user cancelled share sheet — not an error
+      showCalExportModal.value = false;
+    } else {
+      dlog(`Fehler: ${msg}`);
+      showToast({ text: `Export fehlgeschlagen: ${msg}`, intent: 'critical', duration: 5000 });
+    }
   } finally {
     calExporting.value = false;
   }
