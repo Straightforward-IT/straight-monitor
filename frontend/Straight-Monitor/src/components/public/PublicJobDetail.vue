@@ -19,6 +19,16 @@
           {{ label.name }}
         </span>
       </div>
+      <!-- DEBUG ONLY: Bridge download test -->
+      <div v-if="isDebugUser" class="debug-bar">
+        <span class="debug-label">🔧 Bridge Test</span>
+        <button class="debug-btn" :disabled="debugTesting" @click="testBridgeDownloadUrl">
+          {{ debugTesting ? 'Teste…' : 'URL (PDF)' }}
+        </button>
+        <button class="debug-btn" :disabled="debugTesting" @click="testBridgeDownloadDataUrl">
+          {{ debugTesting ? 'Teste…' : 'dataUrl (TXT)' }}
+        </button>
+      </div>
     </div>
 
     <!-- Info Cards -->
@@ -185,6 +195,7 @@ import { useTheme } from '@/stores/theme';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import { showToast } from '@getflip/bridge';
+import { download } from '@getflip/bridge';
 import { downloadEinsaetze } from '@/composables/useCalendarExport';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
@@ -213,6 +224,7 @@ const loadingMa = ref(false);
 const schichtGruppen = ref([]);
 const showCalExportModal = ref(false);
 const calExporting = ref(false);
+const debugTesting = ref(false);
 
 const DEBUG_EMAIL = 'cedricbglx@gmail.com';
 const isDebugUser = computed(() => props.email?.toLowerCase() === DEBUG_EMAIL);
@@ -340,6 +352,48 @@ async function exportToCalendar() {
   showCalExportModal.value = true;
 }
 
+async function testBridgeDownloadUrl() {
+  debugTesting.value = true;
+  showToast({ text: '🚧 Teste Bridge url-Download...', duration: 3000 });
+  try {
+    const result = await Promise.race([
+      download({
+        fileName: 'test-sample.pdf',
+        fileType: 'application/pdf',
+        url: 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/img/table-word.pdf',
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_10S')), 10000))
+    ]);
+    showToast({ text: `✅ url result: ${JSON.stringify(result)}`, duration: 6000 });
+  } catch (err) {
+    showToast({ text: `❌ url Fehler: ${err?.code || err?.message || err}`, intent: 'critical', duration: 6000 });
+  } finally {
+    debugTesting.value = false;
+  }
+}
+
+async function testBridgeDownloadDataUrl() {
+  debugTesting.value = true;
+  showToast({ text: '🚧 Teste Bridge dataUrl-Download...', duration: 3000 });
+  try {
+    const txt = 'Hello from Straight Monitor!';
+    const b64 = btoa(txt);
+    const result = await Promise.race([
+      download({
+        fileName: 'test.txt',
+        fileType: 'text/plain',
+        dataUrl: `data:text/plain;base64,${b64}`,
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_10S')), 10000))
+    ]);
+    showToast({ text: `✅ dataUrl result: ${JSON.stringify(result)}`, duration: 6000 });
+  } catch (err) {
+    showToast({ text: `❌ dataUrl Fehler: ${err?.code || err?.message || err}`, intent: 'critical', duration: 6000 });
+  } finally {
+    debugTesting.value = false;
+  }
+}
+
 async function confirmExport() {
   calExporting.value = true;
   const dbg = isDebugUser.value;
@@ -395,6 +449,37 @@ async function confirmExport() {
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+
+/* Debug bar */
+.debug-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(255, 200, 0, 0.1);
+  border: 1px dashed rgba(255, 200, 0, 0.5);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+.debug-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #b45309;
+  flex: 1;
+}
+.debug-btn {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid #b45309;
+  border-radius: 6px;
+  background: transparent;
+  color: #b45309;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.debug-btn:disabled { opacity: 0.5; }
 
 .badge {
   font-size: 0.7rem;
