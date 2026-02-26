@@ -200,6 +200,7 @@ function getMonthShort(d) {
 .job-card {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.75rem;
   padding: 0.75rem;
   background: var(--tile-bg);

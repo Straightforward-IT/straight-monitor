@@ -369,7 +369,7 @@ export default {
     },
     filteredDetails() {
       if (!this.doc.details) return {};
-      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date', 'mitarbeiter_feedback', 'version', 'createdAt', 'updatedAt', 'status', 'kunde', 'puenktlichkeit', 'grooming', 'motivation', 'technische_fertigkeiten', 'lernbereitschaft', 'sonstiges'];
+      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date', 'mitarbeiter_feedback', 'comments', 'version', 'createdAt', 'updatedAt', 'status', 'kunde', 'puenktlichkeit', 'grooming', 'motivation', 'technische_fertigkeiten', 'lernbereitschaft', 'sonstiges'];
       const filtered = {};
       for (const [key, value] of Object.entries(this.doc.details)) {
         if (!excludeKeys.includes(key)) {
@@ -464,6 +464,9 @@ export default {
           this.localComments = [...(this.doc.details?.comments || [])];
         }
         this.localComments.push(res.data.comment);
+        // Also persist into the cached reference so reopening without reload shows the comment
+        if (!Array.isArray(this.doc.details.comments)) this.doc.details.comments = [];
+        this.doc.details.comments.push(res.data.comment);
         this.newCommentText = '';
       } catch (err) {
         console.error('Kommentar-Fehler:', err);

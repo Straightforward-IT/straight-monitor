@@ -118,7 +118,6 @@
                 <span class="ma-name">
                   {{ ma.vorname }} {{ ma.nachname }}
                   <TlBadge v-if="ma.isTeamleiter" />
-                  <span v-if="ma.isPseudo" class="pseudo-badge">Pseudo</span>
                 </span>
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
               </div>
@@ -633,16 +632,4 @@ watch(() => props.einsatz?._id, () => {
   border: 1.5px solid;
 }
 
-.pseudo-badge {
-  display: inline-block;
-  font-size: 0.62rem;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: rgba(139, 92, 246, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.45);
-  color: #8b5cf6;
-  margin-left: 5px;
-  vertical-align: middle;
-}
 </style>
