@@ -1570,10 +1570,12 @@ router.get(
       .lean();
 
     // For each report, extract only the feedback entry for this MA
+    // Note: mitarbeiter_feedback.mitarbeiter is auto-populated (object) due to pre-find hook
     const result = reports.map(report => {
-      const feedback = report.mitarbeiter_feedback.find(
-        fb => fb.mitarbeiter?.toString() === id
-      );
+      const feedback = report.mitarbeiter_feedback.find(fb => {
+        const fbId = fb.mitarbeiter?._id ?? fb.mitarbeiter;
+        return fbId?.toString() === id;
+      });
       return {
         _id: report._id,
         kunde: report.kunde,

@@ -29,6 +29,9 @@
           <span class="info-label">Datum</span>
           <span class="info-value">{{ formatZeitraum(einsatz.datumVon, einsatz.datumBis) }}</span>
         </div>
+        <button v-if="isTeamleiter" class="info-share-btn" @click.stop="exportToCalendar" title="Zum Kalender hinzufügen">
+          <font-awesome-icon icon="fa-solid fa-share-nodes" />
+        </button>
       </div>
 
       <div v-if="einsatz.uhrzeitVon" class="info-card">
@@ -138,10 +141,6 @@
 
     <!-- Teamleiter: Action Buttons -->
     <div v-if="isTeamleiter" class="action-bar">
-      <button class="action-btn action-btn--cal" @click="exportToCalendar">
-        <font-awesome-icon icon="fa-solid fa-calendar-plus" />
-        Zum Kalender
-      </button>
       <button
         class="action-btn"
         :class="{ 'action-btn--done': hasReport }"
@@ -308,9 +307,14 @@ watch(() => props.einsatz?._id, () => {
 
 async function exportToCalendar() {
   try {
-    await downloadEinsaetze([props.einsatz], 'Einsatz.ics');
-  } catch {
-    showToast({ text: 'Export fehlgeschlagen', intent: 'critical', duration: 3000 });
+    const result = await downloadEinsaetze([props.einsatz], 'Einsatz.ics');
+    console.log('[CalExport] download() result:', result);
+    if (result === false) {
+      showToast({ text: 'Kalender Export nicht verfügbar', intent: 'warning', duration: 3000 });
+    }
+  } catch (err) {
+    console.error('[CalExport] Fehler:', err);
+    showToast({ text: `Export fehlgeschlagen: ${err?.code || err?.message || err}`, intent: 'critical', duration: 4000 });
   }
 }
 </script>
@@ -593,13 +597,30 @@ async function exportToCalendar() {
   z-index: 40;
   display: flex;
   justify-content: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
 }
 
-.action-btn--cal {
+.info-share-btn {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--tile-bg);
   color: var(--muted);
-  border-color: var(--border);
+  cursor: pointer;
+  font-size: 0.85rem;
+  align-self: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s;
+}
+
+.info-share-btn:active {
+  background: var(--hover);
+  color: var(--primary);
+  border-color: var(--primary);
 }
 
 .action-btn {
