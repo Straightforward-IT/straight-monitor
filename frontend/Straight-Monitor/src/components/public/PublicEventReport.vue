@@ -346,23 +346,20 @@ async function loadEinsatzMitarbeiter(auftragNr) {
     // Pre-fill Mitarbeiter count
     if (all.length) form.mitarbeiter_anzahl = String(all.length);
 
-    // Pre-fill rows from stored annotations (Verspätung / Notizen)
+    // Pre-fill MA rows from stored Verspätung annotations
     const prefilledRows = [];
     for (const ma of all) {
       try {
         const raw = localStorage.getItem(`maannot_${auftragNr}_${ma.personalNr}`);
         if (!raw) continue;
         const ann = JSON.parse(raw);
-        const parts = [];
-        if (ann.verspaetung > 0) parts.push(`Verspätung: ${ann.verspaetung} min`);
-        if (ann.note && ann.note.trim()) parts.push(ann.note.trim());
-        if (parts.length) {
+        if (ann.verspaetung > 0) {
           const first = ma.vorname || ma.bezeichnung || '';
           const last = ma.nachname || '';
           prefilledRows.push({
             personalNr: ma.personalNr,
             name: (first + ' ' + last).trim(),
-            text: parts.join('\n')
+            text: `Verspätung: ${ann.verspaetung} min`
           });
         }
       } catch { /* ignore */ }
@@ -370,6 +367,14 @@ async function loadEinsatzMitarbeiter(auftragNr) {
     if (prefilledRows.length) {
       mitarbeiterRows.value = prefilledRows;
     }
+
+    // Pre-fill Sonstiges from job-level note
+    try {
+      const jobNote = localStorage.getItem(`jobnote_${auftragNr}`);
+      if (jobNote && jobNote.trim()) {
+        form.sonstiges = jobNote.trim();
+      }
+    } catch { /* ignore */ }
   } catch { einsatzMitarbeiter.value = []; }
 }
 

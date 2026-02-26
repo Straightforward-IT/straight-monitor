@@ -19,6 +19,14 @@
           {{ label.name }}
         </span>
       </div>
+      <!-- Notes button for Teamleiter -->
+      <div v-if="isTeamleiter" class="job-notes-row">
+        <button class="job-notes-btn" :class="{ 'job-notes-btn--active': !!getJobNote() }" @click="openNotiz()">
+          <font-awesome-icon icon="fa-solid fa-comment" />
+          {{ getJobNote() ? 'Notizen bearbeiten' : 'Notizen' }}
+          <span v-if="getJobNote()" class="job-notes-dot"></span>
+        </button>
+      </div>
       <!-- DEBUG ONLY: Bridge download test -->
       <div v-if="isDebugUser" class="debug-bar">
         <span class="debug-label">🔧 Download Test</span>
@@ -141,9 +149,6 @@
                   <span v-if="getAnnotation(ma.personalNr).verspaetung" class="ma-annot-badge ma-annot-badge--delay">
                     <font-awesome-icon icon="fa-solid fa-clock" /> {{ getAnnotation(ma.personalNr).verspaetung }} min
                   </span>
-                  <span v-if="getAnnotation(ma.personalNr).note" class="ma-annot-badge ma-annot-badge--note">
-                    <font-awesome-icon icon="fa-solid fa-note-sticky" />
-                  </span>
                 </span>
               </div>
               <a
@@ -196,11 +201,6 @@
               {{ getAnnotation(actionSheet.ma.personalNr).verspaetung }} min
             </span>
           </button>
-          <button class="annot-action-item" @click="openNotiz(actionSheet.ma)">
-            <span class="annot-action-icon annot-action-icon--note"><font-awesome-icon icon="fa-solid fa-note-sticky" /></span>
-            Notiz schreiben
-            <span v-if="actionSheet.ma && getAnnotation(actionSheet.ma.personalNr).note" class="annot-action-dot"></span>
-          </button>
           <button class="calmodal-btn calmodal-btn--cancel annot-cancel-btn" @click="actionSheet.open = false">Abbrechen</button>
         </div>
       </div>
@@ -215,27 +215,18 @@
             <font-awesome-icon icon="fa-solid fa-clock" />
           </div>
           <h3 class="calmodal-title">Verspätung eintragen</h3>
-          <p class="calmodal-hint" style="margin-bottom: 0.25rem;">{{ verspaetungModal.ma?.vorname }} {{ verspaetungModal.ma?.nachname }}</p>
-          <!-- Stepper -->
-          <div class="verspaetung-stepper">
-            <button class="stepper-btn" @click="verspaetungModal.value = Math.max(0, verspaetungModal.value - 5)" :disabled="verspaetungModal.value <= 0">
-              <font-awesome-icon icon="fa-solid fa-minus" />
-            </button>
-            <div class="stepper-display">
-              <input
-                class="stepper-input"
-                type="number"
-                inputmode="numeric"
-                min="0"
-                max="240"
-                v-model.number="verspaetungModal.value"
-                @input="verspaetungModal.value = Math.max(0, Math.min(240, verspaetungModal.value || 0))"
-              />
-              <span class="stepper-unit">min</span>
-            </div>
-            <button class="stepper-btn" @click="verspaetungModal.value = Math.min(240, verspaetungModal.value + 5)">
-              <font-awesome-icon icon="fa-solid fa-plus" />
-            </button>
+          <p class="calmodal-hint" style="margin-bottom: 0.75rem;">{{ verspaetungModal.ma?.vorname }} {{ verspaetungModal.ma?.nachname }}</p>
+          <div class="verspaetung-input-wrap">
+            <input
+              class="verspaetung-input"
+              type="number"
+              inputmode="numeric"
+              min="0"
+              max="240"
+              placeholder="0"
+              v-model.number="verspaetungModal.value"
+            />
+            <span class="verspaetung-unit">min</span>
           </div>
           <p class="calmodal-hint">Wird beim Schreiben des Event Reports automatisch vorausgefüllt.</p>
           <div class="calmodal-actions">
@@ -251,19 +242,14 @@
       <div v-if="notizModal.open" class="calmodal-overlay" @click.self="notizModal.open = false">
         <div class="calmodal-sheet notiz-sheet">
           <div class="calmodal-handle"></div>
-          <div class="calmodal-icon" style="background: rgba(14,165,233,0.12); border-color: rgba(14,165,233,0.3); color: #0ea5e9;">
-            <font-awesome-icon icon="fa-solid fa-note-sticky" />
-          </div>
-          <h3 class="calmodal-title">Notiz</h3>
-          <p class="calmodal-hint" style="margin-bottom: 0.5rem;">{{ notizModal.ma?.vorname }} {{ notizModal.ma?.nachname }}</p>
+          <h3 class="calmodal-title">Notizen</h3>
           <textarea
             class="notiz-textarea"
             v-model="notizModal.text"
-            placeholder="Notiz zu diesem Mitarbeiter…"
-            rows="4"
+            placeholder="…"
+            rows="5"
             autofocus
           ></textarea>
-          <p class="calmodal-hint">Wird beim Schreiben des Event Reports automatisch vorausgefüllt.</p>
           <div class="calmodal-actions">
             <button class="calmodal-btn calmodal-btn--cancel" @click="notizModal.open = false">Abbrechen</button>
             <button class="calmodal-btn calmodal-btn--confirm" @click="saveNotiz">Speichern</button>
@@ -338,7 +324,7 @@ const debugTesting = ref(false);
 // MA Annotation state
 const actionSheet = ref({ open: false, ma: null });
 const verspaetungModal = ref({ open: false, ma: null, value: 0 });
-const notizModal = ref({ open: false, ma: null, text: '' });
+const notizModal = ref({ open: false, text: '' });
 // Reactivity trigger for annotation badges
 const annotationTick = ref(0);
 
@@ -379,17 +365,27 @@ function saveVerspaetung() {
   try { showToast({ text: value > 0 ? `Verspätung: ${value} min gespeichert` : 'Verspätung entfernt', intent: 'success', duration: 2000 }); } catch {}
 }
 
-function openNotiz(ma) {
-  const ann = getAnnotation(ma.personalNr);
-  notizModal.value = { open: true, ma, text: ann.note || '' };
-  actionSheet.value.open = false;
+function jobNoteKey() {
+  return `jobnote_${props.einsatz?.auftragNr}`;
+}
+
+function getJobNote() {
+  annotationTick.value; // reactive dependency
+  return localStorage.getItem(jobNoteKey()) || '';
+}
+
+function openNotiz() {
+  notizModal.value = { open: true, text: getJobNote() };
 }
 
 function saveNotiz() {
-  const { ma, text } = notizModal.value;
-  const ann = getAnnotation(ma.personalNr);
-  ann.note = text.trim();
-  saveAnnotation(ma.personalNr, ann);
+  const text = notizModal.value.text.trim();
+  if (text) {
+    localStorage.setItem(jobNoteKey(), text);
+  } else {
+    localStorage.removeItem(jobNoteKey());
+  }
+  annotationTick.value++;
   notizModal.value.open = false;
   try { showToast({ text: 'Notiz gespeichert', intent: 'success', duration: 2000 }); } catch {}
 }
@@ -1154,11 +1150,7 @@ async function confirmExport() {
   color: #ea580c;
   border: 1px solid rgba(234, 88, 12, 0.3);
 }
-.ma-annot-badge--note {
-  background: rgba(14, 165, 233, 0.1);
-  color: #0ea5e9;
-  border: 1px solid rgba(14, 165, 233, 0.3);
-}
+
 
 /* Action Sheet */
 .annot-actionsheet {
@@ -1207,10 +1199,6 @@ async function confirmExport() {
   background: rgba(234, 88, 12, 0.12);
   color: #ea580c;
 }
-.annot-action-icon--note {
-  background: rgba(14, 165, 233, 0.12);
-  color: #0ea5e9;
-}
 .annot-action-badge {
   margin-left: auto;
   font-size: 0.72rem;
@@ -1220,78 +1208,80 @@ async function confirmExport() {
   background: rgba(234, 88, 12, 0.1);
   color: #ea580c;
 }
-.annot-action-dot {
-  margin-left: auto;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #0ea5e9;
-  flex-shrink: 0;
-}
+
 .annot-cancel-btn {
   width: 100%;
   margin-top: 0.25rem;
   font-size: 0.95rem;
 }
 
-/* Verspätung Stepper */
-.verspaetung-stepper {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin: 0.5rem 0;
-}
-.stepper-btn {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  border: 2px solid var(--border);
-  background: var(--tile-bg);
-  color: var(--text);
-  font-size: 1.1rem;
+/* Verspätung Input */
+.verspaetung-input-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.75rem;
+}
+.verspaetung-input {
+  width: 120px;
+  text-align: center;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--tile-bg);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+  appearance: textfield;
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+}
+.verspaetung-input:focus {
+  border-color: var(--primary);
+}
+.verspaetung-input::-webkit-inner-spin-button,
+.verspaetung-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.verspaetung-unit {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Notes button in header */
+.job-notes-row {
+  margin-top: 0.6rem;
+}
+.job-notes-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--tile-bg);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
   cursor: pointer;
-  flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
   transition: border-color 0.15s, color 0.15s;
 }
-.stepper-btn:active {
-  border-color: var(--primary);
-  color: var(--primary);
+.job-notes-btn--active {
+  border-color: #0ea5e9;
+  color: #0ea5e9;
+  background: rgba(14, 165, 233, 0.07);
 }
-.stepper-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
+.job-notes-btn:active {
+  opacity: 0.75;
 }
-.stepper-display {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-}
-.stepper-input {
-  width: 100%;
-  text-align: center;
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: var(--text);
-  background: transparent;
-  border: none;
-  outline: none;
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: textfield;
-  line-height: 1;
-}
-.stepper-input::-webkit-inner-spin-button,
-.stepper-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.stepper-unit {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--muted);
-  margin-top: -0.25rem;
+.job-notes-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0ea5e9;
+  flex-shrink: 0;
 }
 
 /* Notiz Sheet */
