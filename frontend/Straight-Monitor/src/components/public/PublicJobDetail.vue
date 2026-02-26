@@ -136,8 +136,12 @@
       </div>
     </div>
 
-    <!-- Teamleiter: Event Report Button -->
+    <!-- Teamleiter: Action Buttons -->
     <div v-if="isTeamleiter" class="action-bar">
+      <button class="action-btn action-btn--cal" @click="exportToCalendar">
+        <font-awesome-icon icon="fa-solid fa-calendar-plus" />
+        Zum Kalender
+      </button>
       <button
         class="action-btn"
         :class="{ 'action-btn--done': hasReport }"
@@ -157,6 +161,7 @@ import { useTheme } from '@/stores/theme';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import { showToast } from '@getflip/bridge';
+import { downloadEinsaetze } from '@/composables/useCalendarExport';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 const theme = useTheme();
@@ -300,6 +305,14 @@ onMounted(() => loadMitarbeiter());
 watch(() => props.einsatz?._id, () => {
   loadMitarbeiter();
 });
+
+async function exportToCalendar() {
+  try {
+    await downloadEinsaetze([props.einsatz], 'Einsatz.ics');
+  } catch {
+    showToast({ text: 'Export fehlgeschlagen', intent: 'critical', duration: 3000 });
+  }
+}
 </script>
 
 <style scoped>
@@ -580,6 +593,13 @@ watch(() => props.einsatz?._id, () => {
   z-index: 40;
   display: flex;
   justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.action-btn--cal {
+  color: var(--muted);
+  border-color: var(--border);
 }
 
 .action-btn {

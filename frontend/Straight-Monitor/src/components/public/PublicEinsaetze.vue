@@ -48,6 +48,7 @@
         <PublicKalender
           v-else-if="currentView === 'kalender'"
           :einsaetze="einsaetze"
+          :is-teamleiter="isTeamleiter"
           @back="navigateTo('dashboard')"
           @open-job="openJob"
         />

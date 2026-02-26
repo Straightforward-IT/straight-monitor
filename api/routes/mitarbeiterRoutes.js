@@ -1572,7 +1572,7 @@ router.get(
     // For each report, extract only the feedback entry for this MA
     const result = reports.map(report => {
       const feedback = report.mitarbeiter_feedback.find(
-        fb => String(fb.mitarbeiter) === String(id)
+        fb => fb.mitarbeiter?.toString() === id
       );
       return {
         _id: report._id,

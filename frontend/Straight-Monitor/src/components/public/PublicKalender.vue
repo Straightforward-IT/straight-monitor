@@ -12,6 +12,14 @@
       </button>
     </div>
 
+    <!-- Teamleiter: Export all future jobs -->
+    <div v-if="isTeamleiter" class="kalender-actions">
+      <button class="cal-export-btn" @click="exportAllToCalendar">
+        <font-awesome-icon icon="fa-solid fa-calendar-plus" />
+        Alle zukünftigen Jobs exportieren
+      </button>
+    </div>
+
     <!-- Calendar Grid -->
     <div class="calendar">
       <div v-for="day in weekdays" :key="day" class="calendar-header">{{ day }}</div>
@@ -78,9 +86,12 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { showToast } from '@getflip/bridge';
+import { downloadEinsaetze } from '@/composables/useCalendarExport';
 
 const props = defineProps({
-  einsaetze: { type: Array, default: () => [] }
+  einsaetze: { type: Array, default: () => [] },
+  isTeamleiter: { type: Boolean, default: false },
 });
 
 defineEmits(['back', 'open-job']);
@@ -185,6 +196,25 @@ function nextMonth() {
 function onDayClick(day) {
   if (!day.isCurrentMonth) return;
   selectedDay.value = day;
+}
+
+async function exportAllToCalendar() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const future = props.einsaetze.filter(e => {
+    const bis = new Date(e.datumBis || e.datumVon);
+    bis.setHours(23, 59, 59, 999);
+    return bis >= today;
+  });
+  if (!future.length) {
+    showToast({ text: 'Keine zukünftigen Einsätze vorhanden', intent: 'info', duration: 3000 });
+    return;
+  }
+  try {
+    await downloadEinsaetze(future, 'Meine-Jobs.ics');
+  } catch {
+    showToast({ text: 'Export fehlgeschlagen', intent: 'critical', duration: 3000 });
+  }
 }
 </script>
 
@@ -396,5 +426,33 @@ function onDayClick(day) {
   padding: 1.5rem 1rem;
   background: var(--tile-bg);
   border-radius: 10px;
+}
+
+.kalender-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.cal-export-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s;
+}
+
+.cal-export-btn:active {
+  background: var(--hover);
+  color: var(--primary);
+  border-color: var(--primary);
 }
 </style>

@@ -395,19 +395,21 @@
               <div v-if="loadingFeedback" class="doc-loading">
                 <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" /> Lade Feedback...
               </div>
-              <div v-else-if="eventreportFeedback.length > 0" class="doc-list">
+              <div v-else-if="eventreportFeedback.length > 0" class="feedback-inline-list">
                 <div 
                   v-for="fb in eventreportFeedback" 
                   :key="fb._id" 
-                  class="doc-item"
-                  @click="openDocument(fb, 'Event-Bericht')"
+                  class="feedback-inline-item"
                 >
-                  <font-awesome-icon icon="fa-solid fa-comment" class="doc-icon" />
-                  <div class="doc-info">
-                    <span class="doc-title">{{ fb.kunde || fb.location || 'Unbekannt' }}</span>
-                    <span class="doc-subtitle" v-if="fb.feedback_text">{{ fb.feedback_text }}</span>
-                    <span class="doc-date">{{ formatDate(fb.datum) }}</span>
+                  <div class="feedback-inline-header">
+                    <span class="feedback-inline-event">{{ fb.kunde || fb.location || 'Unbekannt' }}</span>
+                    <span class="feedback-inline-date">{{ formatDate(fb.datum) }}</span>
+                    <button class="btn-report-small" @click.stop="openDocument(fb, 'Event-Bericht')" title="Report öffnen">
+                      <font-awesome-icon icon="fa-solid fa-file-lines" />
+                      Report
+                    </button>
                   </div>
+                  <p class="feedback-inline-text">{{ fb.feedback_text || '—' }}</p>
                 </div>
               </div>
               <div v-else class="doc-empty-inline">Kein Feedback vorhanden</div>
@@ -2456,6 +2458,73 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.feedback-inline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.feedback-inline-item {
+  background: var(--bg-card, rgba(0,0,0,0.04));
+  border: 1px solid var(--border-color, rgba(0,0,0,0.08));
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.feedback-inline-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+
+.feedback-inline-event {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feedback-inline-date {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.btn-report-small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--primary, #e07b00);
+  color: var(--primary, #e07b00);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover {
+    background: var(--primary, #e07b00);
+    color: #fff;
+  }
+}
+
+.feedback-inline-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+  white-space: pre-wrap;
 }
 
 .no-documents {
