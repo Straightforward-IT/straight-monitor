@@ -215,6 +215,14 @@
             :class="getEventStatusClass(event)"
             @click="selectEvent(event)"
           >
+            <div v-if="event.labels && event.labels.length" class="event-labels">
+              <span
+                v-for="label in event.labels"
+                :key="label._id"
+                class="event-label-chip"
+                :style="{ background: label.color + '33', borderColor: label.color, color: label.color }"
+              >{{ label.name }}</span>
+            </div>
             <div class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
             <div class="event-kunde">{{ event.kundeData?.kundName || '-' }}</div>
             <div class="event-location">{{ event.eventOrt || '-' }}</div>
@@ -235,9 +243,29 @@
             <span v-if="selectedEvent.auftStatus !== 2" class="sidebar-status" :class="getEventStatusClass(selectedEvent)">{{ getStatusText(selectedEvent.auftStatus) }}</span>
             <h2>{{ selectedEvent.eventTitel || 'Auftrag Details' }}</h2>
           </div>
-          <button class="close-btn" @click="selectedEvent = null" title="Schließen (Esc)">×</button>
+          <div class="sidebar-header-actions">
+            <!-- Three-dots quick-actions menu -->
+            <div class="qa-menu-wrap">
+              <button class="qa-dots-btn" @click.stop="showQuickActions = !showQuickActions" title="Aktionen">
+                <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
+              </button>
+              <transition name="qa-dropdown-fade">
+                <div v-if="showQuickActions" class="qa-dropdown" @click.stop>
+                  <button class="qa-dropdown-item" @click="openLabelDialog">
+                    <font-awesome-icon icon="fa-solid fa-tag" />
+                    Label verwalten
+                  </button>
+                  <button class="qa-dropdown-item" @click="openPseudoDialog">
+                    <font-awesome-icon icon="fa-solid fa-user-plus" />
+                    Pseudo-MA einplanen
+                  </button>
+                </div>
+              </transition>
+            </div>
+            <button class="close-btn" @click="selectedEvent = null" title="Schließen (Esc)">×</button>
+          </div>
         </div>
-        
+
         <div class="sidebar-body">
           <!-- Compact Info Grid -->
           <div class="info-grid">
@@ -262,6 +290,20 @@
                 <template v-if="selectedEvent.eventLocation">{{ selectedEvent.eventLocation }}<br></template>
                 {{ selectedEvent.eventStrasse || '' }} {{ selectedEvent.eventPlz || '' }} {{ selectedEvent.eventOrt || '' }}
               </span>
+            </div>
+            <!-- Label badges -->
+            <div v-if="selectedEvent.labels && selectedEvent.labels.length" class="info-item full-width">
+              <span class="info-label">Labels</span>
+              <div class="label-chips-row">
+                <span
+                  v-for="label in selectedEvent.labels"
+                  :key="label._id"
+                  class="label-chip"
+                  :style="{ background: label.color + '22', borderColor: label.color, color: label.color }"
+                >
+                  {{ label.name }}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -336,15 +378,25 @@
                           {{ einsatz.mitarbeiterData.vorname }} {{ einsatz.mitarbeiterData.nachname }}
                         </a>
                         <span v-if="isTeamleiter(einsatz.mitarbeiterData)" class="tl-tag">TL</span>
+                        <span v-if="einsatz.isPseudo" class="pseudo-tag" title="Manuell eingeplant (Pseudo-Einsatz)">Pseudo</span>
                       </template>
                       <template v-else>
                         <span class="ma-placeholder">Personalnr: {{ einsatz.personalNr || '-' }}</span>
+                        <span v-if="einsatz.isPseudo" class="pseudo-tag" title="Manuell eingeplant (Pseudo-Einsatz)">Pseudo</span>
                       </template>
                     </div>
-                    <div class="ma-badges" v-if="!getCommonQualifikation(schichtData.einsaetze)">
+                    <div class="ma-badges ma-badges--right">
                       <span v-if="einsatz.qualifikationData && !getCommonQualifikation(schichtData.einsaetze)" class="badge quali small">
                         {{ einsatz.qualifikationData.designation }}
                       </span>
+                      <button
+                        v-if="einsatz.isPseudo"
+                        class="pseudo-remove-btn"
+                        title="Pseudo-Einsatz entfernen"
+                        @click.stop="removePseudoEinsatz(einsatz._id)"
+                      >
+                        <font-awesome-icon icon="fa-solid fa-times" />
+                      </button>
                     </div>
                   </div>
                   
@@ -411,16 +463,162 @@
         </div>
       </div>
     </div>
+
+    <!-- ── Label Dialog ──────────────────────────────────────────────── -->
+    <div v-if="showLabelDialog" class="modal-overlay" @click.self="showLabelDialog = false">
+      <div class="modal-content modal-qa">
+        <div class="modal-header">
+          <h2><font-awesome-icon icon="fa-solid fa-tag" /> Label hinzufügen</h2>
+          <button class="close-btn" @click="showLabelDialog = false">×</button>
+        </div>
+        <div class="modal-body">
+          <!-- Current Labels on this Auftrag -->
+          <div class="qa-section" v-if="selectedEvent.labels && selectedEvent.labels.length">
+            <div class="qa-section-label">Aktuelle Labels</div>
+            <div class="label-chips-row">
+              <span
+                v-for="label in selectedEvent.labels"
+                :key="label._id"
+                class="label-chip label-chip--removable"
+                :style="{ background: label.color + '22', borderColor: label.color, color: label.color }"
+              >
+                {{ label.name }}
+                <button class="label-chip-remove" @click="removeLabel(label._id)" title="Entfernen">×</button>
+              </span>
+            </div>
+          </div>
+
+          <!-- Quick-add: Global labels -->
+          <div class="qa-section" v-if="availableGlobalLabels.length">
+            <div class="qa-section-label">Vorhandene Labels</div>
+            <div class="label-chips-row">
+              <span
+                v-for="gl in availableGlobalLabels"
+                :key="gl.name"
+                class="label-chip label-chip--add"
+                :style="{ background: gl.color + '22', borderColor: gl.color, color: gl.color }"
+                @click="quickAddLabel(gl)"
+              >
+                + {{ gl.name }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Create new label -->
+          <div class="qa-section">
+            <div class="qa-section-label">Neues Label</div>
+            <div class="qa-form-row">
+              <input
+                v-model="newLabelName"
+                class="qa-input"
+                placeholder="Name (max. 20 Zeichen)"
+                maxlength="20"
+                @keyup.enter="saveLabel"
+              />
+              <span class="label-count">{{ newLabelName.length }}/20</span>
+            </div>
+            <div class="qa-form-row">
+              <span class="qa-form-field-label">Farbe:</span>
+              <div class="color-palette">
+                <button
+                  v-for="c in labelPresetColors"
+                  :key="c"
+                  class="color-swatch"
+                  :class="{ active: newLabelColor === c }"
+                  :style="{ background: c }"
+                  @click="newLabelColor = c"
+                  :title="c"
+                />
+              </div>
+              <input type="color" v-model="newLabelColor" class="color-input-native" title="Benutzerdefinierte Farbe" />
+            </div>
+            <div class="qa-form-row">
+              <button class="qa-submit-btn" :disabled="!newLabelName.trim() || labelSaving" @click="saveLabel">
+                <font-awesome-icon v-if="labelSaving" icon="fa-solid fa-spinner" spin />
+                <font-awesome-icon v-else icon="fa-solid fa-check" />
+                Hinzufügen
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Pseudo-MA Dialog ──────────────────────────────────────────── -->
+    <div v-if="showPseudoDialog" class="modal-overlay" @click.self="showPseudoDialog = false">
+      <div class="modal-content modal-qa">
+        <div class="modal-header">
+          <h2><font-awesome-icon icon="fa-solid fa-user-plus" /> Pseudo-Mitarbeiter einplanen</h2>
+          <button class="close-btn" @click="showPseudoDialog = false">×</button>
+        </div>
+        <div class="modal-body">
+          <!-- Schicht selector -->
+          <div class="qa-section">
+            <div class="qa-section-label">Schicht (optional)</div>
+            <select v-model="pseudoSelectedSchicht" class="qa-select">
+              <option :value="null">— Automatisch (erste Schicht) —</option>
+              <option
+                v-for="(schicht, key) in preparedSchichten"
+                :key="key"
+                :value="key === 'none' ? null : key"
+              >
+                {{ schicht.meta.schichtBezeichnung || ('Schicht ' + key) }}
+                <template v-if="schicht.meta.uhrzeitVon"> · {{ schicht.meta.uhrzeitVon.substring(0,5) }}</template>
+              </option>
+            </select>
+          </div>
+
+          <!-- Mitarbeiter search -->
+          <div class="qa-section">
+            <div class="qa-section-label">Mitarbeiter suchen</div>
+            <div class="qa-search-wrap">
+              <input
+                v-model="pseudoSearch"
+                class="qa-input"
+                placeholder="Name oder E-Mail..."
+                @input="debouncedPseudoSearch"
+              />
+              <font-awesome-icon v-if="pseudoSearching" icon="fa-solid fa-spinner" spin class="qa-search-spin" />
+            </div>
+            <div v-if="pseudoSearchResults.length" class="qa-search-results">
+              <div
+                v-for="ma in pseudoSearchResults"
+                :key="ma._id"
+                class="qa-search-result"
+                :class="{ 'selected': pseudoSelectedMa?._id === ma._id }"
+                @click="pseudoSelectedMa = ma"
+              >
+                <div class="qa-result-name">{{ ma.vorname }} {{ ma.nachname }}</div>
+                <div class="qa-result-sub">{{ ma.email }}</div>
+              </div>
+            </div>
+            <div v-if="pseudoSelectedMa" class="qa-selected-ma">
+              <font-awesome-icon icon="fa-solid fa-check" />
+              Ausgewählt: <strong>{{ pseudoSelectedMa.vorname }} {{ pseudoSelectedMa.nachname }}</strong>
+              <button class="qa-deselect" @click="pseudoSelectedMa = null">×</button>
+            </div>
+          </div>
+
+          <div class="qa-section">
+            <button class="qa-submit-btn" :disabled="!pseudoSelectedMa || pseudoSaving" @click="savePseudoEinsatz">
+              <font-awesome-icon v-if="pseudoSaving" icon="fa-solid fa-spinner" spin />
+              <font-awesome-icon v-else icon="fa-solid fa-check" />
+              Einplanen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark);
+library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
@@ -481,6 +679,25 @@ export default {
       fullKundeData: null,
       preparedSchichten: {}, // Lazy loaded schichten data
       dataStatus: null, // Last import timestamp
+      // ── Quick Actions ──────────────────────────────────────────────────────
+      // Label dialog
+      showLabelDialog: false,
+      globalLabels: [], // All known labels for autocomplete
+      newLabelName: '',
+      newLabelColor: '#4f46e5',
+      labelPresetColors: ['#4f46e5','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#64748b'],
+      labelSaving: false,
+      // Pseudo-MA dialog
+      showPseudoDialog: false,
+      pseudoSearch: '',
+      pseudoSearchResults: [],
+      pseudoSearching: false,
+      pseudoSearchTimer: null,
+      pseudoSelectedMa: null,
+      pseudoSelectedSchicht: null,
+      pseudoSaving: false,
+      // Three-dots dropdown
+      showQuickActions: false,
     };
   },
   computed: {
@@ -520,7 +737,12 @@ export default {
         (a.kundeData?.kundName && a.kundeData.kundName.toLowerCase().includes(q)) ||
         (a.auftragNr && String(a.auftragNr).includes(q))
       );
-    }
+    },
+    availableGlobalLabels() {
+      if (!this.selectedEvent) return this.globalLabels;
+      const existing = new Set((this.selectedEvent.labels || []).map(l => l.name.toLowerCase()));
+      return this.globalLabels.filter(gl => !existing.has(gl.name.toLowerCase()));
+    },
   },
   methods: {
     async fetchDataStatus() {
@@ -918,6 +1140,7 @@ export default {
       });
     },
     async selectEvent(event) {
+      this.showQuickActions = false;
       // Load full details including Einsätze
       try {
         const response = await api.get(`/api/auftraege/${event.auftragNr}/details`);
@@ -1040,11 +1263,115 @@ export default {
       });
     },
 
+    // ── Quick Actions ────────────────────────────────────────────────────────
+    async openLabelDialog() {
+      this.showQuickActions = false;
+      this.newLabelName = '';
+      this.newLabelColor = '#4f46e5';
+      try {
+        const res = await api.get('/api/auftraege/labels');
+        this.globalLabels = res.data || [];
+      } catch { this.globalLabels = []; }
+      this.showLabelDialog = true;
+    },
+    async quickAddLabel(gl) {
+      await this.saveLabel(gl.name, gl.color);
+    },
+    async saveLabel(nameArg, colorArg) {
+      const name = typeof nameArg === 'string' ? nameArg : this.newLabelName.trim();
+      const color = typeof colorArg === 'string' ? colorArg : this.newLabelColor;
+      if (!name) return;
+      this.labelSaving = true;
+      try {
+        const res = await api.post(`/api/auftraege/${this.selectedEvent.auftragNr}/labels`, { name, color });
+        this.selectedEvent.labels = res.data.labels;
+        // Sync to auftraege list
+        const idx = this.auftraege.findIndex(a => a.auftragNr === this.selectedEvent.auftragNr);
+        if (idx !== -1) this.auftraege[idx].labels = res.data.labels;
+        this.newLabelName = '';
+        // Refresh global labels
+        const gr = await api.get('/api/auftraege/labels');
+        this.globalLabels = gr.data || [];
+      } catch (err) {
+        alert(err.response?.data?.message || 'Fehler beim Speichern');
+      } finally {
+        this.labelSaving = false;
+      }
+    },
+    async removeLabel(labelId) {
+      try {
+        const res = await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}/labels/${labelId}`);
+        this.selectedEvent.labels = res.data.labels;
+        const idx = this.auftraege.findIndex(a => a.auftragNr === this.selectedEvent.auftragNr);
+        if (idx !== -1) this.auftraege[idx].labels = res.data.labels;
+      } catch (err) {
+        alert(err.response?.data?.message || 'Fehler beim Entfernen');
+      }
+    },
+    openPseudoDialog() {
+      this.showQuickActions = false;
+      this.pseudoSearch = '';
+      this.pseudoSearchResults = [];
+      this.pseudoSelectedMa = null;
+      this.pseudoSelectedSchicht = null;
+      this.showPseudoDialog = true;
+    },
+    debouncedPseudoSearch() {
+      clearTimeout(this.pseudoSearchTimer);
+      if (this.pseudoSearch.trim().length < 2) {
+        this.pseudoSearchResults = [];
+        return;
+      }
+      this.pseudoSearchTimer = setTimeout(async () => {
+        this.pseudoSearching = true;
+        try {
+          const res = await api.get(`/api/personal/search?q=${encodeURIComponent(this.pseudoSearch.trim())}`);
+          this.pseudoSearchResults = res.data || [];
+        } catch { this.pseudoSearchResults = []; }
+        finally { this.pseudoSearching = false; }
+      }, 300);
+    },
+    async savePseudoEinsatz() {
+      if (!this.pseudoSelectedMa) return;
+      this.pseudoSaving = true;
+      try {
+        const payload = { mitarbeiterId: this.pseudoSelectedMa._id };
+        if (this.pseudoSelectedSchicht) payload.schichtId = this.pseudoSelectedSchicht;
+        const res = await api.post(`/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz`, payload);
+        // Reload full event details to refresh schichten
+        const detailsRes = await api.get(`/api/auftraege/${this.selectedEvent.auftragNr}/details`);
+        this.selectedEvent = detailsRes.data;
+        this.preparedSchichten = this.calculateSchichten(this.selectedEvent);
+        this.showPseudoDialog = false;
+      } catch (err) {
+        alert(err.response?.data?.message || 'Fehler beim Einplanen');
+      } finally {
+        this.pseudoSaving = false;
+      }
+    },
+    async removePseudoEinsatz(einsatzId) {
+      if (!confirm('Pseudo-Einsatz entfernen?')) return;
+      try {
+        await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz/${einsatzId}`);
+        const res = await api.get(`/api/auftraege/${this.selectedEvent.auftragNr}/details`);
+        this.selectedEvent = res.data;
+        this.preparedSchichten = this.calculateSchichten(this.selectedEvent);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Fehler beim Entfernen');
+      }
+    },
+
     handleEscapeKey(event) {
       if (event.key !== 'Escape') return;
 
       // Close modals in order of priority (topmost = last opened)
-      if (this.selectedKunde) {
+      if (this.showQuickActions) {
+        this.showQuickActions = false;
+      } else if (this.showLabelDialog) {
+        this.showLabelDialog = false;
+      } else if (this.showPseudoDialog) {
+        this.showPseudoDialog = false;
+      } else if (this.selectedKunde) {
         this.selectedKunde = null;
         this.fullKundeData = null;
       } else if (this.selectedMitarbeiter) {
@@ -1055,10 +1382,14 @@ export default {
       }
     }
   },
+    handleDocumentClick() {
+      this.showQuickActions = false;
+    },
     async mounted() {
     this.checkMobile();
     window.addEventListener('resize', this.checkMobile);
     document.addEventListener('keydown', this.handleEscapeKey);
+    document.addEventListener('click', this.handleDocumentClick);
     
     // Set default filters first (e.g. from user location if no storage)
     this.setDefaultFilters();
@@ -1084,6 +1415,7 @@ export default {
   beforeUnmount() {
     window.removeEventListener('resize', this.checkMobile);
     document.removeEventListener('keydown', this.handleEscapeKey);
+    document.removeEventListener('click', this.handleDocumentClick);
   }
 };
 </script>
@@ -2253,5 +2585,368 @@ export default {
   svg {
     font-size: 2rem;
   }
+}
+
+/* ── Sidebar header actions (three-dots + close) ─────────────────── */
+.sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.qa-menu-wrap {
+  position: relative;
+}
+
+.qa-dots-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+
+  &:hover {
+    background: var(--hover);
+    border-color: var(--border);
+    color: var(--text);
+  }
+}
+
+.qa-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+  z-index: 200;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.qa-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+
+  svg { color: var(--muted); font-size: 0.85rem; }
+
+  &:hover {
+    background: var(--hover);
+    color: var(--primary);
+    svg { color: var(--primary); }
+  }
+}
+
+.qa-dropdown-fade-enter-active,
+.qa-dropdown-fade-leave-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.qa-dropdown-fade-enter-from,
+.qa-dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* ── Label chips ────────────────────────────────────────────────────── */
+.label-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.label-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1.5px solid;
+  white-space: nowrap;
+}
+
+.label-chip--removable {
+  cursor: default;
+}
+
+.label-chip--add {
+  cursor: pointer;
+  opacity: 0.8;
+  &:hover { opacity: 1; }
+}
+
+.label-chip-remove {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 2px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: inherit;
+  opacity: 0.7;
+  &:hover { opacity: 1; }
+}
+
+/* Event card labels */
+.event-labels {
+  margin-bottom: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.event-label-chip {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 20px;
+  border: 1.5px solid;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+/* ── Pseudo tag & remove button ─────────────────────────────────────── */
+.pseudo-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.5);
+  color: #8b5cf6;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.ma-badges--right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pseudo-remove-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 0.8rem;
+  border-radius: 3px;
+  line-height: 1;
+  &:hover { color: #e74c3c; background: rgba(231, 76, 60, 0.1); }
+}
+
+/* ── Quick Actions Modal ────────────────────────────────────────────── */
+.modal-qa {
+  max-width: 480px;
+  width: 95%;
+}
+
+.qa-section {
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+
+  &:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+}
+
+.qa-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.qa-form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.qa-form-field-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.qa-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+
+  &:focus { border-color: var(--primary); }
+}
+
+.qa-select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  &:focus { border-color: var(--primary); }
+}
+
+.label-count {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.color-palette {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s, border-color 0.1s;
+
+  &:hover { transform: scale(1.15); }
+  &.active { border-color: var(--text); transform: scale(1.15); }
+}
+
+.color-input-native {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  background: none;
+}
+
+.qa-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qa-search-spin {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.qa-search-results {
+  margin-top: 6px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.qa-search-result {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+
+  &:last-child { border-bottom: none; }
+  &:hover, &.selected { background: var(--hover); }
+  &.selected { color: var(--primary); }
+}
+
+.qa-result-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.qa-result-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.qa-selected-ma {
+  margin-top: 8px;
+  padding: 7px 10px;
+  background: rgba(238,175,103,0.1);
+  border: 1.5px solid var(--primary);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qa-deselect {
+  background: none;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 1rem;
+  margin-left: auto;
+  padding: 0 2px;
+}
+
+.qa-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 20px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+
+  &:hover { opacity: 0.88; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 </style>

@@ -41,6 +41,11 @@
         <img :src="logoSrc" alt="" />
         <span>Flip: Austritte</span>
       </button>
+
+      <button class="s-btn" @click="go('/flip/user-fix')">
+        <img :src="logoSrc" alt="" />
+        <span>Flip: Quick User Fix</span>
+      </button>
     </div>
   </div>
 </template>

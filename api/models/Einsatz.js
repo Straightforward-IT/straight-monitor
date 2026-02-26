@@ -57,7 +57,8 @@ const EinsatzSchema = new mongoose.Schema({
   typ: { type: String, required: false }, // TYP
   bedarf: { type: Number, required: false }, // BEDARF
   garantiestundenLohn: { type: Number, required: false }, // GARANTIESTD_LOHN
-  endeOffen: { type: Number, required: false } // ENDEOFFEN (0/1?)
+  endeOffen: { type: Number, required: false }, // ENDEOFFEN (0/1?)
+  isPseudo: { type: Boolean, default: false } // Manually added pseudo-employee entry
 }, { timestamps: true });
 
 module.exports = mongoose.model('Einsatz', EinsatzSchema);

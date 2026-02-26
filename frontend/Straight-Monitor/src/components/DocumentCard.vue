@@ -326,7 +326,25 @@ export default {
     const eventreportImg = computed(() => isDark.value ? eventreportDarkIcon : eventreportIcon);
     const currentUser = computed(() => auth.user);
 
-    return { asanaLogo, laufzettelImg, evaluierungImg, eventreportImg, currentUser };
+    const effectiveTheme = computed(() => theme.isDark ? 'dark' : 'light');
+
+    return { asanaLogo, laufzettelImg, evaluierungImg, eventreportImg, currentUser, effectiveTheme };
+  },
+
+  mounted() {
+    // If opened with partial data (e.g. from feedback list), lazy-fetch the full EventReport
+    if (this.doc.docType === 'Event-Bericht' && !Array.isArray(this.doc.details?.comments)) {
+      this.fetchFullReport();
+    }
+  },
+
+  watch: {
+    'doc._id'(newId, oldId) {
+      if (newId !== oldId && this.doc.docType === 'Event-Bericht' && !Array.isArray(this.doc.details?.comments)) {
+        this.localComments = null;
+        this.fetchFullReport();
+      }
+    }
   },
 
   computed: {
@@ -414,6 +432,23 @@ export default {
       if (asanaId) {
         const asanaWebUrl = `https://app.asana.com/0/0/${asanaId}`;
         window.open(asanaWebUrl, '_blank');
+      }
+    },
+
+    async fetchFullReport() {
+      try {
+        const res = await api.get(`/api/reports/eventreport/${this.doc._id}`);
+        if (res.data?.success && res.data.data) {
+          const full = res.data.data;
+          // Merge fetched fields into doc.details reactively
+          Object.assign(this.doc.details, full);
+          // Seed localComments so they display immediately
+          if (Array.isArray(full.comments)) {
+            this.localComments = [...full.comments];
+          }
+        }
+      } catch (err) {
+        console.error('DocumentCard: could not fetch full report', err);
       }
     },
 

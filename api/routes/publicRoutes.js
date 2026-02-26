@@ -125,7 +125,7 @@ router.get(
     // Get unique auftragNrs to enrich with Auftrag details
     const auftragNrs = [...new Set(einsaetze.map((e) => e.auftragNr))];
     const auftraege = await Auftrag.find({ auftragNr: { $in: auftragNrs } })
-      .select("auftragNr eventTitel kundenNr geschSt eventLocation eventOrt vonDatum bisDatum")
+      .select("auftragNr eventTitel kundenNr geschSt eventLocation eventOrt vonDatum bisDatum labels")
       .lean();
 
     const auftragMap = {};
@@ -203,7 +203,8 @@ router.get(
         telefon: ma?.telefon || null,
         isTeamleiter: ma?._isTeamleiter || false,
         bezeichnung: e.bezeichnung || null,
-        checkedIn: false
+        checkedIn: false,
+        isPseudo: e.isPseudo || false
       });
     });
 

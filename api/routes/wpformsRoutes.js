@@ -1930,6 +1930,18 @@ router.post(
   })
 );
 
+// ── GET /api/reports/eventreport/:id ──
+// Returns a single EventReport with full populated data
+router.get(
+  "/eventreport/:id",
+  auth,
+  asyncHandler(async (req, res) => {
+    const report = await EventReport.findById(req.params.id).lean();
+    if (!report) return res.status(404).json({ success: false, msg: "EventReport nicht gefunden" });
+    res.json({ success: true, data: report });
+  })
+);
+
 // ── POST /api/reports/eventreport/:id/comment ──
 // Adds a comment to an EventReport and optionally sends an update email
 router.post(

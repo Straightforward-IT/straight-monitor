@@ -25,30 +25,26 @@
         </router-link>
         <router-link
           :to="newPagesEnabled ? '/personal' : '#'"
-          :class="{ active: $route.name === 'Personal', disabled: !newPagesEnabled }"
+          :class="{ active: $route.name === 'Personal'}"
           @click="handleNewPageClick($event, '/personal')"
         >
           Personal
-          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
-          <span v-else class="beta-tag">NEU</span>
         </router-link>
         <router-link
           :to="newPagesEnabled ? '/auftraege' : '#'"
-          :class="{ active: $route.name === 'Auftraege', disabled: !newPagesEnabled }"
+          :class="{ active: $route.name === 'Auftraege'}"
           @click="handleNewPageClick($event, '/auftraege')"
         >
           Aufträge
-          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
-          <span v-else class="beta-tag">NEU</span>
+        
         </router-link>
         <router-link
           :to="newPagesEnabled ? '/kunden' : '#'"
-          :class="{ active: $route.name === 'Kunden', disabled: !newPagesEnabled }"
+          :class="{ active: $route.name === 'Kunden'}"
           @click="handleNewPageClick($event, '/kunden')"
         >
           Kunden
-          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
-          <span v-else class="beta-tag">NEU</span>
+      
         </router-link>
       </nav>
   

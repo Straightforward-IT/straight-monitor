@@ -10,6 +10,14 @@
         <span v-if="einsatz.schichtBezeichnung" class="badge">
           <font-awesome-icon icon="fa-solid fa-clipboard" /> {{ einsatz.schichtBezeichnung }}
         </span>
+        <span
+          v-for="label in (einsatz.auftrag?.labels || [])"
+          :key="label._id"
+          class="badge badge-label"
+          :style="{ background: label.color + '22', borderColor: label.color, color: label.color }"
+        >
+          {{ label.name }}
+        </span>
       </div>
     </div>
 
@@ -110,6 +118,7 @@
                 <span class="ma-name">
                   {{ ma.vorname }} {{ ma.nachname }}
                   <TlBadge v-if="ma.isTeamleiter" />
+                  <span v-if="ma.isPseudo" class="pseudo-badge">Pseudo</span>
                 </span>
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
               </div>
@@ -614,5 +623,26 @@ watch(() => props.einsatz?._id, () => {
 .action-btn--done:active {
   transform: none;
   filter: none;
+}
+
+.badge-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 1.5px solid;
+}
+
+.pseudo-badge {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.45);
+  color: #8b5cf6;
+  margin-left: 5px;
+  vertical-align: middle;
 }
 </style>

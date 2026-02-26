@@ -280,28 +280,19 @@
           </div>
           
           <div class="kv">
-            <div>
-              <dt>Personalnr</dt>
-              <dd>
-                <div v-if="ma.personalnr" class="personalnr-display">
-                  {{ ma.personalnr }}
-                </div>
-                <div v-else class="text-muted text-sm">
-                  —
-                </div>
-              </dd>
-            </div>
-            <div>
-              <dt>E-Mail</dt>
-              <dd>{{ ma.email || "—" }}</dd>
-            </div>
-            <div v-if="ma.telefon">
-              <dt>Telefon</dt>
-              <dd>
-                <a :href="generateSipgateLink(ma.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')">
-                  <font-awesome-icon icon="fa-solid fa-phone" /> {{ ma.telefon }}
-                </a>
-              </dd>
+            <div class="kv-inline">
+              <div>
+                <dt>E-Mail</dt>
+                <dd>{{ ma.email || "—" }}</dd>
+              </div>
+              <div v-if="ma.telefon">
+                <dt>Telefon</dt>
+                <dd>
+                  <a :href="generateSipgateLink(ma.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')">
+                    <font-awesome-icon icon="fa-solid fa-phone" /> {{ ma.telefon }}
+                  </a>
+                </dd>
+              </div>
             </div>
             <div v-if="ma.erstellt_von">
               <dt>Erstellt von</dt>
@@ -316,10 +307,6 @@
                   </span>
                 </div>
               </dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{{ ma.isActive ? "Aktiv" : "Inaktiv" }}</dd>
             </div>
           </div>
 
@@ -376,6 +363,56 @@
               Dokumente
             </h4>
 
+            <!-- Event Reports (als Teamleiter) — geschrieben, immer zuerst -->
+            <div v-if="ma.eventreports && ma.eventreports.length > 0" class="doc-category">
+              <h5 class="category-title">
+                <font-awesome-icon icon="fa-solid fa-clipboard" />
+                Event Reports – geschrieben ({{ ma.eventreports.length }})
+              </h5>
+              <div class="doc-list">
+                <div 
+                  v-for="doc in ma.eventreports" 
+                  :key="doc._id" 
+                  class="doc-item"
+                  @click="openDocument(doc, 'Event-Bericht')"
+                >
+                  <font-awesome-icon icon="fa-solid fa-clipboard" class="doc-icon" />
+                  <div class="doc-info">
+                    <span class="doc-title">{{ doc.kunde || doc.location || 'Unbekannt' }}</span>
+                    <span class="doc-date">{{ formatDate(doc.datum) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- EventReport Feedback (als Mitarbeiter) — lazy-loaded -->
+            <div class="doc-category">
+              <h5 class="category-title">
+                <font-awesome-icon icon="fa-solid fa-comment-dots" />
+                Event Report – Feedback erhalten
+                <span v-if="!loadingFeedback && eventreportFeedback.length > 0">({{ eventreportFeedback.length }})</span>
+              </h5>
+              <div v-if="loadingFeedback" class="doc-loading">
+                <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" /> Lade Feedback...
+              </div>
+              <div v-else-if="eventreportFeedback.length > 0" class="doc-list">
+                <div 
+                  v-for="fb in eventreportFeedback" 
+                  :key="fb._id" 
+                  class="doc-item"
+                  @click="openDocument(fb, 'Event-Bericht')"
+                >
+                  <font-awesome-icon icon="fa-solid fa-comment" class="doc-icon" />
+                  <div class="doc-info">
+                    <span class="doc-title">{{ fb.kunde || fb.location || 'Unbekannt' }}</span>
+                    <span class="doc-subtitle" v-if="fb.feedback_text">{{ fb.feedback_text }}</span>
+                    <span class="doc-date">{{ formatDate(fb.datum) }}</span>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="doc-empty-inline">Kein Feedback vorhanden</div>
+            </div>
+
             <!-- Laufzettel Erhalten (als Mitarbeiter) -->
             <div v-if="ma.laufzettel_received && ma.laufzettel_received.length > 0" class="doc-category">
               <h5 class="category-title">
@@ -391,7 +428,7 @@
                 >
                   <font-awesome-icon icon="fa-solid fa-file-lines" class="doc-icon" />
                   <div class="doc-info">
-                    <span class="doc-title">{{ doc.name_teamleiter || (doc.teamleiter ? `${doc.teamleiter.vorname} ${doc.teamleiter.nachname}` : 'Unbekannt') }}</span>
+                    <span class="doc-title">{{ doc.kunde || doc.location || 'Unbekannt' }}</span>
                     <span class="doc-date">{{ formatDate(doc.datum) }}</span>
                   </div>
                 </div>
@@ -414,28 +451,6 @@
                   <font-awesome-icon icon="fa-solid fa-file-lines" class="doc-icon" />
                   <div class="doc-info">
                     <span class="doc-title">{{ doc.name_mitarbeiter || (doc.mitarbeiter ? `${doc.mitarbeiter.vorname} ${doc.mitarbeiter.nachname}` : 'Unbekannt') }}</span>
-                    <span class="doc-date">{{ formatDate(doc.datum) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Event Reports (als Teamleiter) -->
-            <div v-if="ma.eventreports && ma.eventreports.length > 0" class="doc-category">
-              <h5 class="category-title">
-                <font-awesome-icon icon="fa-solid fa-clipboard" />
-                Event Reports ({{ ma.eventreports.length }})
-              </h5>
-              <div class="doc-list">
-                <div 
-                  v-for="doc in ma.eventreports" 
-                  :key="doc._id" 
-                  class="doc-item"
-                  @click="openDocument(doc, 'Event-Bericht')"
-                >
-                  <font-awesome-icon icon="fa-solid fa-clipboard" class="doc-icon" />
-                  <div class="doc-info">
-                    <span class="doc-title">{{ doc.kunde || 'Unbekannt' }}</span>
                     <span class="doc-date">{{ formatDate(doc.datum) }}</span>
                   </div>
                 </div>
@@ -1189,6 +1204,10 @@ export default {
       // Quick Actions Menu
       showQuickActionsMenu: false,
       quickActionsMenuStyle: {},
+
+      // EventReport Feedback (lazy-loaded on expand)
+      eventreportFeedback: [],
+      loadingFeedback: false,
     };
   },
 
@@ -1232,7 +1251,8 @@ export default {
         (this.ma.laufzettel_submitted && this.ma.laufzettel_submitted.length > 0) ||
         (this.ma.eventreports && this.ma.eventreports.length > 0) ||
         (this.ma.evaluierungen_received && this.ma.evaluierungen_received.length > 0) ||
-        (this.ma.evaluierungen_submitted && this.ma.evaluierungen_submitted.length > 0)
+        (this.ma.evaluierungen_submitted && this.ma.evaluierungen_submitted.length > 0) ||
+        this.eventreportFeedback.length > 0
       );
     }
   },
@@ -1260,29 +1280,29 @@ export default {
 
       if (this.expanded) {
         this.$emit("open", this.ma);
-        console.log("Mitarbeiter Data:", this.ma);
-        
-        // Debug documents
-        if (this.ma.laufzettel_received?.length > 0) {
-          console.log("Laufzettel Received Sample:", this.ma.laufzettel_received[0]);
+
+        // Lazy-load EventReport feedback
+        if (this.eventreportFeedback.length === 0 && !this.loadingFeedback) {
+          this.loadEventReportFeedback();
         }
-        if (this.ma.laufzettel_submitted?.length > 0) {
-          console.log("Laufzettel Submitted Sample:", this.ma.laufzettel_submitted[0]);
-        }
-        if (this.ma.eventreports?.length > 0) {
-          console.log("EventReports Sample:", this.ma.eventreports[0]);
-        }
-        if (this.ma.evaluierungen_received?.length > 0) {
-          console.log("Evaluierungen Received Sample:", this.ma.evaluierungen_received[0]);
-        }
-        if (this.ma.evaluierungen_submitted?.length > 0) {
-          console.log("Evaluierungen Submitted Sample:", this.ma.evaluierungen_submitted[0]);
-        }
-        
+
         // Auto-load tasks if flip view and not loaded yet
         if (this.view === 'flip' && this.ma.flip?.id && !this.tasksLoaded) {
           this.loadFlipTasks();
         }
+      }
+    },
+    async loadEventReportFeedback() {
+      if (!this.ma._id) return;
+      this.loadingFeedback = true;
+      try {
+        const res = await api.get(`/api/personal/mitarbeiter/${this.ma._id}/eventreport-feedback`);
+        this.eventreportFeedback = res.data?.data || [];
+      } catch (err) {
+        console.error('Error loading EventReport feedback:', err);
+        this.eventreportFeedback = [];
+      } finally {
+        this.loadingFeedback = false;
       }
     },
     initials(ma) {
@@ -2260,6 +2280,17 @@ export default {
   }
 }
 
+/* KV inline row: two fields side by side */
+.kv-inline {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
 .personalnr-display {
   color: var(--text);
   font-weight: 500;
@@ -2394,11 +2425,37 @@ export default {
       text-overflow: ellipsis;
     }
 
+    .doc-subtitle {
+      font-size: 12px;
+      color: var(--text);
+      opacity: 0.75;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-style: italic;
+    }
+
     .doc-date {
       font-size: 11px;
       color: var(--muted);
     }
   }
+}
+
+.doc-empty-inline {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  padding: 6px 0 4px;
+}
+
+.doc-loading {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .no-documents {

@@ -380,6 +380,19 @@
           </div>
         </div>
 
+        <!-- Flip Sync Status -->
+        <div v-if="flipRoutineStatus" class="flip-routine-status" :class="flipRoutineStatus">
+          <template v-if="flipRoutineStatus === 'running'">
+            <i class="fas fa-spinner fa-spin"></i> Flip Benutzer-Synchronisation läuft...
+          </template>
+          <template v-else-if="flipRoutineStatus === 'success'">
+            <i class="fas fa-check-circle"></i> Flip Sync abgeschlossen.
+          </template>
+          <template v-else-if="flipRoutineStatus === 'error'">
+            <i class="fas fa-exclamation-triangle"></i> Flip Sync fehlgeschlagen.
+          </template>
+        </div>
+
         <div class="modal-footer">
           <button class="primary-btn" @click="closeModal">Schließen</button>
         </div>
@@ -411,7 +424,8 @@ export default {
       searching: false,
       searchTimeout: null,
       lastUploads: {},
-      loadingHistory: false
+      loadingHistory: false,
+      flipRoutineStatus: null // null | 'running' | 'success' | 'error'
     };
   },
   methods: {
@@ -516,6 +530,15 @@ export default {
         if (!hasErrors) {
           this.resetAll();
         }
+
+        // Trigger Flip user sync in the background after a successful personal import
+        const personalResult = results.find(r => r.type === 'Personal');
+        if (personalResult?.success) {
+          this.flipRoutineStatus = 'running';
+          api.get('/api/personal/initialRoutine')
+            .then(() => { this.flipRoutineStatus = 'success'; })
+            .catch(() => { this.flipRoutineStatus = 'error'; });
+        }
       } catch (err) {
         console.error("Global import error:", err);
         this.resultModalData = {
@@ -598,6 +621,7 @@ export default {
     closeModal() {
       this.showResultModal = false;
       this.resultModalData = {};
+      this.flipRoutineStatus = null;
       this.cancelAssign();
     },
     startAssign(entry) {
@@ -1397,6 +1421,33 @@ export default {
   padding: 12px;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.flip-routine-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin: 0 24px 16px;
+
+  &.running {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.25);
+  }
+  &.success {
+    background: rgba(74, 222, 128, 0.1);
+    color: #4ade80;
+    border: 1px solid rgba(74, 222, 128, 0.25);
+  }
+  &.error {
+    background: rgba(248, 113, 113, 0.1);
+    color: #f87171;
+    border: 1px solid rgba(248, 113, 113, 0.25);
+  }
 }
 
 .primary-btn {

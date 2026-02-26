@@ -5,8 +5,7 @@ const auth = require("../middleware/auth");
 const asyncHandler = require("../middleware/AsyncHandler");
 const { sendMail } = require("../EmailService");
 const Mitarbeiter = require("../models/Mitarbeiter");
-const Qualifikation = require("../models/Qualifikation");
-const { Laufzettel } = require("../models/Classes/FlipDocs");
+const Qualifikation = require("../models/Qualifikation");const Auftrag = require('../models/Auftrag');const { Laufzettel } = require("../models/Classes/FlipDocs");
 const { flipAxios } = require("../flipAxios");
 const logger = require("../utils/logger");
 
@@ -256,5 +255,16 @@ router.post(
     });
   })
 );
+
+// ONE-TIME FIX: Re-activate all Aufträge that were incorrectly deactivated by bulk import logic
+// Safe to run multiple times (idempotent). Remove after confirmed fix.
+router.post('/fix-auftrag-aktiv', auth, asyncHandler(async (req, res) => {
+  const result = await Auftrag.updateMany(
+    { aktiv: 0 },
+    { $set: { aktiv: 1 } }
+  );
+  logger.info(`[FIX] Re-activated ${result.modifiedCount} Aufträge (aktiv 0 → 1)`);
+  res.json({ success: true, reactivated: result.modifiedCount });
+}));
 
 module.exports = router;

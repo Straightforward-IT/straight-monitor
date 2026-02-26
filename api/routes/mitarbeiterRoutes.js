@@ -232,6 +232,29 @@ const safeNachname = rawNachname
   }
 }
 
+// GET /api/personal/search?q=... – Lightweight name/email search for quick-add dialogs
+router.get(
+  '/search',
+  auth,
+  asyncHandler(async (req, res) => {
+    const { q } = req.query;
+    if (!q || String(q).trim().length < 2) return res.json([]);
+    const regex = new RegExp(String(q).trim(), 'i');
+    const results = await Mitarbeiter.find({
+      isActive: true,
+      $or: [
+        { vorname: regex },
+        { nachname: regex },
+        { email: regex },
+      ]
+    })
+      .select('_id vorname nachname email personalnr')
+      .limit(20)
+      .lean();
+    res.json(results);
+  })
+);
+
 router.get(
   "/flip",
   auth,
@@ -1529,6 +1552,40 @@ router.patch(
       }
       throw error;
     }
+  })
+);
+
+// --- EventReport Feedback for a specific Mitarbeiter ---
+// GET /api/personal/mitarbeiter/:id/eventreport-feedback
+router.get(
+  "/mitarbeiter/:id/eventreport-feedback",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    // Find all EventReports where this MA appears in mitarbeiter_feedback
+    const reports = await EventReport.find({ "mitarbeiter_feedback.mitarbeiter": id })
+      .select("_id kunde location name_teamleiter datum mitarbeiter_feedback teamleiter")
+      .populate({ path: "teamleiter", select: "vorname nachname" })
+      .sort({ datum: -1 })
+      .lean();
+
+    // For each report, extract only the feedback entry for this MA
+    const result = reports.map(report => {
+      const feedback = report.mitarbeiter_feedback.find(
+        fb => String(fb.mitarbeiter) === String(id)
+      );
+      return {
+        _id: report._id,
+        kunde: report.kunde,
+        location: report.location,
+        datum: report.datum,
+        name_teamleiter: report.name_teamleiter,
+        teamleiter: report.teamleiter,
+        feedback_text: feedback?.text || null,
+      };
+    });
+
+    res.json({ success: true, data: result });
   })
 );
 

@@ -21,6 +21,7 @@ import Personal from '@/components/PeopleDocsModern.vue';
 import Dokumente from '@/components/Dokumente.vue';
 import FlipCreate from '@/components/FlipCreate.vue';
 import FlipExit from '@/components/FlipExit.vue';
+import FlipUserFix from '@/components/FlipUserFix.vue';
 import VerlosungTool from '@/components/VerlosungTool.vue';
 import DatenImport from '@/components/DatenImport.vue';
 import AuftraegePage from '@/components/AuftraegePage.vue';
@@ -52,6 +53,7 @@ const routes = [
       { path: 'dokumente', name: 'Dokumente', component: Dokumente },
       { path: 'flip/benutzer-erstellen/:id?', name: 'BenutzerErstellen', component: FlipCreate },
       { path: 'flip/austritte', name: 'Austritte', component: FlipExit },
+      { path: 'flip/user-fix', name: 'FlipUserFix', component: FlipUserFix },
       { path: 'verlosung', name: 'VerlosungTool', component: VerlosungTool },
       { path: 'daten-import', name: 'DatenImport', component: DatenImport },
       { path: 'auftraege', name: 'Auftraege', component: AuftraegePage },

@@ -6,6 +6,7 @@ const Kunde = require('../models/Kunde');
 const Mitarbeiter = require('../models/Mitarbeiter');
 const Beruf = require('../models/Beruf');
 const Qualifikation = require('../models/Qualifikation');
+const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
 
 // GET /api/auftraege/filters - Get available filter options (bediener, kunden, etc)
@@ -299,4 +300,123 @@ router.get('/sync', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────
+// LABELS
+// ─────────────────────────────────────────────────────────────
+
+// GET /api/auftraege/labels – All unique label names used across all Aufträge (for autocomplete)
+router.get('/labels', asyncHandler(async (req, res) => {
+  const auftraege = await Auftrag.find({ 'labels.0': { $exists: true } }).select('labels').lean();
+  const labelMap = new Map();
+  auftraege.forEach(a => {
+    (a.labels || []).forEach(l => {
+      if (!labelMap.has(l.name)) labelMap.set(l.name, l.color);
+    });
+  });
+  const result = Array.from(labelMap.entries()).map(([name, color]) => ({ name, color }));
+  res.json(result);
+}));
+
+// POST /api/auftraege/:auftragNr/labels – Add a label to an Auftrag
+router.post('/:auftragNr/labels', asyncHandler(async (req, res) => {
+  const { auftragNr } = req.params;
+  const { name, color } = req.body;
+  if (!name || String(name).trim().length === 0 || String(name).trim().length > 20) {
+    return res.status(400).json({ message: 'Label-Name erforderlich (max. 20 Zeichen)' });
+  }
+  const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) });
+  if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
+
+  const trimmedName = String(name).trim();
+  const exists = (auftrag.labels || []).some(l => l.name.toLowerCase() === trimmedName.toLowerCase());
+  if (exists) return res.status(400).json({ message: 'Label bereits vorhanden' });
+
+  auftrag.labels = auftrag.labels || [];
+  auftrag.labels.push({ name: trimmedName, color: color || '#4f46e5' });
+  await auftrag.save();
+  res.json({ labels: auftrag.labels });
+}));
+
+// DELETE /api/auftraege/:auftragNr/labels/:labelId – Remove a label from an Auftrag
+router.delete('/:auftragNr/labels/:labelId', asyncHandler(async (req, res) => {
+  const { auftragNr, labelId } = req.params;
+  const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) });
+  if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
+  auftrag.labels = (auftrag.labels || []).filter(l => String(l._id) !== labelId);
+  await auftrag.save();
+  res.json({ labels: auftrag.labels });
+}));
+
+// ─────────────────────────────────────────────────────────────
+// PSEUDO-EINSÄTZE
+// ─────────────────────────────────────────────────────────────
+
+// POST /api/auftraege/:auftragNr/pseudo-einsatz – Schedule a pseudo-employee
+router.post('/:auftragNr/pseudo-einsatz', asyncHandler(async (req, res) => {
+  const { auftragNr } = req.params;
+  const { mitarbeiterId, schichtId } = req.body;
+  if (!mitarbeiterId) return res.status(400).json({ message: 'mitarbeiterId erforderlich' });
+
+  const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) });
+  if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
+
+  const mitarbeiter = await Mitarbeiter.findById(mitarbeiterId).lean();
+  if (!mitarbeiter) return res.status(404).json({ message: 'Mitarbeiter nicht gefunden' });
+
+  const personalnrInt = mitarbeiter.personalnr ? parseInt(mitarbeiter.personalnr) : null;
+
+  // Check for duplicate pseudo-einsatz
+  const duplicate = await Einsatz.findOne({
+    auftragNr: parseInt(auftragNr),
+    personalNr: personalnrInt,
+    isPseudo: true,
+    ...(schichtId ? { idAuftragArbeitsschichten: parseInt(schichtId) } : {})
+  });
+  if (duplicate) return res.status(400).json({ message: 'Mitarbeiter bereits in dieser Schicht eingeplant' });
+
+  // Copy metadata from an existing Einsatz in the same schicht
+  const templateQuery = { auftragNr: parseInt(auftragNr) };
+  if (schichtId) templateQuery.idAuftragArbeitsschichten = parseInt(schichtId);
+  const template = await Einsatz.findOne(templateQuery).lean();
+
+  const newEinsatz = new Einsatz({
+    auftragNr: parseInt(auftragNr),
+    personalNr: personalnrInt,
+    datumVon: template?.datumVon || auftrag.vonDatum,
+    datumBis: template?.datumBis || auftrag.bisDatum,
+    idAuftragArbeitsschichten: schichtId ? parseInt(schichtId) : template?.idAuftragArbeitsschichten,
+    schichtBezeichnung: template?.schichtBezeichnung,
+    uhrzeitVon: template?.uhrzeitVon,
+    uhrzeitBis: template?.uhrzeitBis,
+    treffpunkt: template?.treffpunkt,
+    ansprechpartnerName: template?.ansprechpartnerName,
+    ansprechpartnerTelefon: template?.ansprechpartnerTelefon,
+    bezeichnung: template?.bezeichnung,
+    berufSchl: template?.berufSchl,
+    qualSchl: template?.qualSchl,
+    isPseudo: true,
+  });
+  await newEinsatz.save();
+
+  res.status(201).json({
+    ...newEinsatz.toObject(),
+    mitarbeiterData: {
+      _id: mitarbeiter._id,
+      vorname: mitarbeiter.vorname,
+      nachname: mitarbeiter.nachname,
+      personalnr: mitarbeiter.personalnr,
+    }
+  });
+}));
+
+// DELETE /api/auftraege/:auftragNr/pseudo-einsatz/:einsatzId – Remove a pseudo-Einsatz
+router.delete('/:auftragNr/pseudo-einsatz/:einsatzId', asyncHandler(async (req, res) => {
+  const { einsatzId } = req.params;
+  const einsatz = await Einsatz.findOne({ _id: einsatzId, isPseudo: true });
+  if (!einsatz) return res.status(404).json({ message: 'Pseudo-Einsatz nicht gefunden' });
+  await einsatz.deleteOne();
+  res.json({ ok: true });
+}));
+
 module.exports = router;
+

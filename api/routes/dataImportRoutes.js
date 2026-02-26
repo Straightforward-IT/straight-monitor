@@ -443,11 +443,17 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
       einsatz: { inserted: 0, deleted: 0 }
     };
 
-    // 4. Deactivate Auftraege not in the list
-    const deactivateResult = await Auftrag.updateMany(
-      { auftragNr: { $nin: Array.from(auftragNrs) }, aktiv: { $ne: 0 } },
-      { $set: { aktiv: 0 } }
-    );
+    // 4. Deactivate Auftraege not in the list, but only within the imported date range
+    // This prevents deactivating past orders that are not part of the current export
+    const deactivateQuery = { auftragNr: { $nin: Array.from(auftragNrs) }, aktiv: { $ne: 0 } };
+    if (minDate && maxDate) {
+      // Only deactivate orders whose date range overlaps with the imported period
+      deactivateQuery.$and = [
+        { bisDatum: { $gte: minDate } },
+        { vonDatum: { $lte: maxDate } }
+      ];
+    }
+    const deactivateResult = await Auftrag.updateMany(deactivateQuery, { $set: { aktiv: 0 } });
     stats.auftrag.deactivated = deactivateResult.modifiedCount;
 
     // 5. Cleanup Einsätze for orders that are not in the list (orphaned/cancelled)
@@ -575,14 +581,15 @@ router.post('/personal', upload.single('file'), async (req, res) => {
       }
 
       // Col D (index 3): Berufsschlüssel kommagetrennt
+      // Normalize keys: "00040" → "40" so leading zeros in the Excel don't break the lookup
       const berufKeys = row[3]
-        ? String(row[3]).split(',').map(k => k.trim()).filter(Boolean)
+        ? String(row[3]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
         : [];
       const berufIds = berufKeys.map(k => berufMap.get(k)).filter(Boolean);
 
       // Col E (index 4): Qualifikationsschlüssel kommagetrennt
       const qualiKeys = row[4]
-        ? String(row[4]).split(',').map(k => k.trim()).filter(Boolean)
+        ? String(row[4]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
         : [];
       const qualiIds = qualiKeys.map(k => qualiMap.get(k)).filter(Boolean);
 
