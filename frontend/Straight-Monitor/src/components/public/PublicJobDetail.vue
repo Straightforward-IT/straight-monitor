@@ -21,12 +21,15 @@
       </div>
       <!-- DEBUG ONLY: Bridge download test -->
       <div v-if="isDebugUser" class="debug-bar">
-        <span class="debug-label">🔧 Bridge Test</span>
-        <button class="debug-btn" :disabled="debugTesting" @click="testBridgeDownloadUrl">
-          {{ debugTesting ? 'Teste…' : 'URL (PDF)' }}
+        <span class="debug-label">🔧 Download Test</span>
+        <button class="debug-btn" :disabled="debugTesting" @click="testNavigatorShare">
+          {{ debugTesting ? '…' : 'Share API' }}
         </button>
-        <button class="debug-btn" :disabled="debugTesting" @click="testBridgeDownloadDataUrl">
-          {{ debugTesting ? 'Teste…' : 'dataUrl (TXT)' }}
+        <button class="debug-btn" :disabled="debugTesting" @click="testWindowOpen">
+          {{ debugTesting ? '…' : 'window.open' }}
+        </button>
+        <button class="debug-btn" :disabled="debugTesting" @click="testAnchorClick">
+          {{ debugTesting ? '…' : 'a[download]' }}
         </button>
       </div>
     </div>
@@ -133,6 +136,15 @@
                   <TlBadge v-if="ma.isTeamleiter" />
                 </span>
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
+                <!-- Annotation badges -->
+                <span v-if="isTeamleiter" class="ma-annot-badges">
+                  <span v-if="getAnnotation(ma.personalNr).verspaetung" class="ma-annot-badge ma-annot-badge--delay">
+                    <font-awesome-icon icon="fa-solid fa-clock" /> {{ getAnnotation(ma.personalNr).verspaetung }} min
+                  </span>
+                  <span v-if="getAnnotation(ma.personalNr).note" class="ma-annot-badge ma-annot-badge--note">
+                    <font-awesome-icon icon="fa-solid fa-note-sticky" />
+                  </span>
+                </span>
               </div>
               <a
                 v-if="isTeamleiter && ma.telefon"
@@ -143,6 +155,15 @@
                 <font-awesome-icon icon="fa-solid fa-phone" />
                 <span class="ma-phone-number">{{ ma.telefon }}</span>
               </a>
+              <!-- Three-dot menu trigger (Teamleiter only) -->
+              <button
+                v-if="isTeamleiter"
+                class="ma-menu-btn"
+                @click.stop="openActionSheet(ma)"
+                aria-label="Optionen"
+              >
+                <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
+              </button>
             </div>
           </div>
         </div>
@@ -161,6 +182,95 @@
         {{ hasReport ? 'Bericht wurde bereits geschrieben' : 'Event Report schreiben' }}
       </button>
     </div>
+
+    <!-- MA Action Sheet -->
+    <Transition name="calmodal">
+      <div v-if="actionSheet.open" class="calmodal-overlay" @click.self="actionSheet.open = false">
+        <div class="calmodal-sheet annot-actionsheet">
+          <div class="calmodal-handle"></div>
+          <p class="annot-actionsheet-name">{{ actionSheet.ma?.vorname }} {{ actionSheet.ma?.nachname }}</p>
+          <button class="annot-action-item" @click="openVerspaetung(actionSheet.ma)">
+            <span class="annot-action-icon annot-action-icon--delay"><font-awesome-icon icon="fa-solid fa-clock" /></span>
+            Verspätung eintragen
+            <span v-if="actionSheet.ma && getAnnotation(actionSheet.ma.personalNr).verspaetung" class="annot-action-badge">
+              {{ getAnnotation(actionSheet.ma.personalNr).verspaetung }} min
+            </span>
+          </button>
+          <button class="annot-action-item" @click="openNotiz(actionSheet.ma)">
+            <span class="annot-action-icon annot-action-icon--note"><font-awesome-icon icon="fa-solid fa-note-sticky" /></span>
+            Notiz schreiben
+            <span v-if="actionSheet.ma && getAnnotation(actionSheet.ma.personalNr).note" class="annot-action-dot"></span>
+          </button>
+          <button class="calmodal-btn calmodal-btn--cancel annot-cancel-btn" @click="actionSheet.open = false">Abbrechen</button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Verspätung Modal -->
+    <Transition name="calmodal">
+      <div v-if="verspaetungModal.open" class="calmodal-overlay" @click.self="verspaetungModal.open = false">
+        <div class="calmodal-sheet">
+          <div class="calmodal-handle"></div>
+          <div class="calmodal-icon" style="background: rgba(234,88,12,0.12); border-color: rgba(234,88,12,0.3); color: #ea580c;">
+            <font-awesome-icon icon="fa-solid fa-clock" />
+          </div>
+          <h3 class="calmodal-title">Verspätung eintragen</h3>
+          <p class="calmodal-hint" style="margin-bottom: 0.25rem;">{{ verspaetungModal.ma?.vorname }} {{ verspaetungModal.ma?.nachname }}</p>
+          <!-- Stepper -->
+          <div class="verspaetung-stepper">
+            <button class="stepper-btn" @click="verspaetungModal.value = Math.max(0, verspaetungModal.value - 5)" :disabled="verspaetungModal.value <= 0">
+              <font-awesome-icon icon="fa-solid fa-minus" />
+            </button>
+            <div class="stepper-display">
+              <input
+                class="stepper-input"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                max="240"
+                v-model.number="verspaetungModal.value"
+                @input="verspaetungModal.value = Math.max(0, Math.min(240, verspaetungModal.value || 0))"
+              />
+              <span class="stepper-unit">min</span>
+            </div>
+            <button class="stepper-btn" @click="verspaetungModal.value = Math.min(240, verspaetungModal.value + 5)">
+              <font-awesome-icon icon="fa-solid fa-plus" />
+            </button>
+          </div>
+          <p class="calmodal-hint">Wird beim Schreiben des Event Reports automatisch vorausgefüllt.</p>
+          <div class="calmodal-actions">
+            <button class="calmodal-btn calmodal-btn--cancel" @click="verspaetungModal.open = false">Abbrechen</button>
+            <button class="calmodal-btn calmodal-btn--confirm" @click="saveVerspaetung">Speichern</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Notiz Modal -->
+    <Transition name="calmodal">
+      <div v-if="notizModal.open" class="calmodal-overlay" @click.self="notizModal.open = false">
+        <div class="calmodal-sheet notiz-sheet">
+          <div class="calmodal-handle"></div>
+          <div class="calmodal-icon" style="background: rgba(14,165,233,0.12); border-color: rgba(14,165,233,0.3); color: #0ea5e9;">
+            <font-awesome-icon icon="fa-solid fa-note-sticky" />
+          </div>
+          <h3 class="calmodal-title">Notiz</h3>
+          <p class="calmodal-hint" style="margin-bottom: 0.5rem;">{{ notizModal.ma?.vorname }} {{ notizModal.ma?.nachname }}</p>
+          <textarea
+            class="notiz-textarea"
+            v-model="notizModal.text"
+            placeholder="Notiz zu diesem Mitarbeiter…"
+            rows="4"
+            autofocus
+          ></textarea>
+          <p class="calmodal-hint">Wird beim Schreiben des Event Reports automatisch vorausgefüllt.</p>
+          <div class="calmodal-actions">
+            <button class="calmodal-btn calmodal-btn--cancel" @click="notizModal.open = false">Abbrechen</button>
+            <button class="calmodal-btn calmodal-btn--confirm" @click="saveNotiz">Speichern</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Kalender Export Confirmation Modal -->
     <Transition name="calmodal">
@@ -195,7 +305,6 @@ import { useTheme } from '@/stores/theme';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import { showToast } from '@getflip/bridge';
-import { download } from '@getflip/bridge';
 import { downloadEinsaetze } from '@/composables/useCalendarExport';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
@@ -206,7 +315,7 @@ const props = defineProps({
   einsatz: { type: Object, required: true },
   isTeamleiter: { type: Boolean, default: false },
   isPast: { type: Boolean, default: false },
-  api: { type: Object, required: true },
+  api: { type: [Object, Function], required: true },
   mitarbeiter: { type: Object, default: null },
   email: { type: String, default: '' },
 });
@@ -225,6 +334,65 @@ const schichtGruppen = ref([]);
 const showCalExportModal = ref(false);
 const calExporting = ref(false);
 const debugTesting = ref(false);
+
+// MA Annotation state
+const actionSheet = ref({ open: false, ma: null });
+const verspaetungModal = ref({ open: false, ma: null, value: 0 });
+const notizModal = ref({ open: false, ma: null, text: '' });
+// Reactivity trigger for annotation badges
+const annotationTick = ref(0);
+
+function annotationKey(personalNr) {
+  return `maannot_${props.einsatz?.auftragNr}_${personalNr}`;
+}
+
+function getAnnotation(personalNr) {
+  // eslint-disable-next-line no-unused-expressions
+  annotationTick.value; // reactive dependency
+  try {
+    const raw = localStorage.getItem(annotationKey(personalNr));
+    return raw ? JSON.parse(raw) : { verspaetung: null, note: '' };
+  } catch { return { verspaetung: null, note: '' }; }
+}
+
+function saveAnnotation(personalNr, data) {
+  localStorage.setItem(annotationKey(personalNr), JSON.stringify(data));
+  annotationTick.value++; // trigger reactivity
+}
+
+function openActionSheet(ma) {
+  actionSheet.value = { open: true, ma };
+}
+
+function openVerspaetung(ma) {
+  const ann = getAnnotation(ma.personalNr);
+  verspaetungModal.value = { open: true, ma, value: ann.verspaetung || 0 };
+  actionSheet.value.open = false;
+}
+
+function saveVerspaetung() {
+  const { ma, value } = verspaetungModal.value;
+  const ann = getAnnotation(ma.personalNr);
+  ann.verspaetung = value > 0 ? value : null;
+  saveAnnotation(ma.personalNr, ann);
+  verspaetungModal.value.open = false;
+  try { showToast({ text: value > 0 ? `Verspätung: ${value} min gespeichert` : 'Verspätung entfernt', intent: 'success', duration: 2000 }); } catch {}
+}
+
+function openNotiz(ma) {
+  const ann = getAnnotation(ma.personalNr);
+  notizModal.value = { open: true, ma, text: ann.note || '' };
+  actionSheet.value.open = false;
+}
+
+function saveNotiz() {
+  const { ma, text } = notizModal.value;
+  const ann = getAnnotation(ma.personalNr);
+  ann.note = text.trim();
+  saveAnnotation(ma.personalNr, ann);
+  notizModal.value.open = false;
+  try { showToast({ text: 'Notiz gespeichert', intent: 'success', duration: 2000 }); } catch {}
+}
 
 const DEBUG_EMAIL = 'cedricbglx@gmail.com';
 const isDebugUser = computed(() => props.email?.toLowerCase() === DEBUG_EMAIL);
@@ -352,43 +520,52 @@ async function exportToCalendar() {
   showCalExportModal.value = true;
 }
 
-async function testBridgeDownloadUrl() {
+async function testNavigatorShare() {
   debugTesting.value = true;
-  showToast({ text: '🚧 Teste Bridge url-Download...', duration: 3000 });
+  const icsContent = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nSUMMARY:Test\r\nDTSTART;VALUE=DATE:20260301\r\nDTEND;VALUE=DATE:20260302\r\nEND:VEVENT\r\nEND:VCALENDAR';
   try {
-    const result = await Promise.race([
-      download({
-        fileName: 'test-sample.pdf',
-        fileType: 'application/pdf',
-        url: 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/img/table-word.pdf',
-      }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_10S')), 10000))
-    ]);
-    showToast({ text: `✅ url result: ${JSON.stringify(result)}`, duration: 6000 });
+    if (!navigator.share) throw new Error('navigator.share nicht verfügbar');
+    const file = new File([icsContent], 'test.ics', { type: 'text/calendar' });
+    if (navigator.canShare && !navigator.canShare({ files: [file] })) throw new Error('canShare: false');
+    await navigator.share({ title: 'Test Kalender', files: [file] });
+    showToast({ text: '✅ navigator.share klappt! ICS möglich.', intent: 'success', duration: 6000 });
   } catch (err) {
-    showToast({ text: `❌ url Fehler: ${err?.code || err?.message || err}`, intent: 'critical', duration: 6000 });
+    showToast({ text: `❌ Share: ${err?.message || err}`, intent: 'critical', duration: 6000 });
   } finally {
     debugTesting.value = false;
   }
 }
 
-async function testBridgeDownloadDataUrl() {
+async function testWindowOpen() {
   debugTesting.value = true;
-  showToast({ text: '🚧 Teste Bridge dataUrl-Download...', duration: 3000 });
   try {
-    const txt = 'Hello from Straight Monitor!';
-    const b64 = btoa(txt);
-    const result = await Promise.race([
-      download({
-        fileName: 'test.txt',
-        fileType: 'text/plain',
-        dataUrl: `data:text/plain;base64,${b64}`,
-      }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_10S')), 10000))
-    ]);
-    showToast({ text: `✅ dataUrl result: ${JSON.stringify(result)}`, duration: 6000 });
+    const txt = 'Hello from Straight Monitor';
+    const b64 = btoa(unescape(encodeURIComponent(txt)));
+    const w = window.open(`data:text/plain;base64,${b64}`, '_blank');
+    showToast({ text: w ? '✅ window.open: Fenster geöffnet' : '❌ window.open: blockiert (null)', intent: w ? 'success' : 'critical', duration: 6000 });
   } catch (err) {
-    showToast({ text: `❌ dataUrl Fehler: ${err?.code || err?.message || err}`, intent: 'critical', duration: 6000 });
+    showToast({ text: `❌ window.open Fehler: ${err?.message || err}`, intent: 'critical', duration: 6000 });
+  } finally {
+    debugTesting.value = false;
+  }
+}
+
+async function testAnchorClick() {
+  debugTesting.value = true;
+  try {
+    const icsContent = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nSUMMARY:Test\r\nDTSTART;VALUE=DATE:20260301\r\nDTEND;VALUE=DATE:20260302\r\nEND:VEVENT\r\nEND:VCALENDAR';
+    const blob = new Blob([icsContent], { type: 'text/calendar' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'test.ics';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast({ text: '✅ a[download] click ausgeführt — hat was passiert?', intent: 'success', duration: 6000 });
+  } catch (err) {
+    showToast({ text: `❌ a[download] Fehler: ${err?.message || err}`, intent: 'critical', duration: 6000 });
   } finally {
     debugTesting.value = false;
   }
@@ -932,6 +1109,211 @@ async function confirmExport() {
   padding: 3px 9px;
   border-radius: 20px;
   border: 1.5px solid;
+}
+
+/* MA three-dot menu button */
+.ma-menu-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.95rem;
+  cursor: pointer;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s, background 0.15s;
+}
+.ma-menu-btn:active {
+  color: var(--text);
+  background: var(--hover);
+}
+
+/* Annotation badges on MA cards */
+.ma-annot-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+}
+.ma-annot-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+}
+.ma-annot-badge--delay {
+  background: rgba(234, 88, 12, 0.1);
+  color: #ea580c;
+  border: 1px solid rgba(234, 88, 12, 0.3);
+}
+.ma-annot-badge--note {
+  background: rgba(14, 165, 233, 0.1);
+  color: #0ea5e9;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+}
+
+/* Action Sheet */
+.annot-actionsheet {
+  gap: 0;
+  padding-top: 0.5rem;
+}
+.annot-actionsheet-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 0 0 0.75rem;
+  text-align: center;
+}
+.annot-action-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+.annot-action-item:active {
+  background: var(--hover);
+}
+.annot-action-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.annot-action-icon--delay {
+  background: rgba(234, 88, 12, 0.12);
+  color: #ea580c;
+}
+.annot-action-icon--note {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0ea5e9;
+}
+.annot-action-badge {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(234, 88, 12, 0.1);
+  color: #ea580c;
+}
+.annot-action-dot {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0ea5e9;
+  flex-shrink: 0;
+}
+.annot-cancel-btn {
+  width: 100%;
+  margin-top: 0.25rem;
+  font-size: 0.95rem;
+}
+
+/* Verspätung Stepper */
+.verspaetung-stepper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.5rem 0;
+}
+.stepper-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--tile-bg);
+  color: var(--text);
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, color 0.15s;
+}
+.stepper-btn:active {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.stepper-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.stepper-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+.stepper-input {
+  width: 100%;
+  text-align: center;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  line-height: 1;
+}
+.stepper-input::-webkit-inner-spin-button,
+.stepper-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.stepper-unit {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: -0.25rem;
+}
+
+/* Notiz Sheet */
+.notiz-sheet {
+  align-items: stretch;
+}
+.notiz-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--tile-bg);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  line-height: 1.5;
+}
+.notiz-textarea:focus {
+  border-color: var(--primary);
 }
 
 </style>

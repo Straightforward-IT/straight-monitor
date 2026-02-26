@@ -345,6 +345,31 @@ async function loadEinsatzMitarbeiter(auftragNr) {
     mitarbeiterRows.value = [];
     // Pre-fill Mitarbeiter count
     if (all.length) form.mitarbeiter_anzahl = String(all.length);
+
+    // Pre-fill rows from stored annotations (Verspätung / Notizen)
+    const prefilledRows = [];
+    for (const ma of all) {
+      try {
+        const raw = localStorage.getItem(`maannot_${auftragNr}_${ma.personalNr}`);
+        if (!raw) continue;
+        const ann = JSON.parse(raw);
+        const parts = [];
+        if (ann.verspaetung > 0) parts.push(`Verspätung: ${ann.verspaetung} min`);
+        if (ann.note && ann.note.trim()) parts.push(ann.note.trim());
+        if (parts.length) {
+          const first = ma.vorname || ma.bezeichnung || '';
+          const last = ma.nachname || '';
+          prefilledRows.push({
+            personalNr: ma.personalNr,
+            name: (first + ' ' + last).trim(),
+            text: parts.join('\n')
+          });
+        }
+      } catch { /* ignore */ }
+    }
+    if (prefilledRows.length) {
+      mitarbeiterRows.value = prefilledRows;
+    }
   } catch { einsatzMitarbeiter.value = []; }
 }
 
