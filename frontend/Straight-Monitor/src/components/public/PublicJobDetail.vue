@@ -151,6 +151,31 @@
         {{ hasReport ? 'Bericht wurde bereits geschrieben' : 'Event Report schreiben' }}
       </button>
     </div>
+
+    <!-- Kalender Export Confirmation Modal -->
+    <Transition name="calmodal">
+      <div v-if="showCalExportModal" class="calmodal-overlay" @click.self="showCalExportModal = false">
+        <div class="calmodal-sheet">
+          <div class="calmodal-handle"></div>
+          <div class="calmodal-icon">
+            <font-awesome-icon icon="fa-solid fa-arrow-up-from-bracket" />
+          </div>
+          <h3 class="calmodal-title">Zum Kalender exportieren</h3>
+          <div class="calmodal-info">
+            <span class="calmodal-event">{{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung || `Auftrag #${einsatz.auftragNr}` }}</span>
+            <span class="calmodal-date">{{ formatZeitraum(einsatz.datumVon, einsatz.datumBis) }}<span v-if="einsatz.uhrzeitVon"> &middot; {{ formatTime(einsatz.uhrzeitVon) }}{{ einsatz.uhrzeitBis ? ' – ' + formatTime(einsatz.uhrzeitBis) : '' }}</span></span>
+          </div>
+          <p class="calmodal-hint">Der Termin wird als .ics-Datei heruntergeladen und kann in Apple Kalender oder Google Kalender importiert werden.</p>
+          <div class="calmodal-actions">
+            <button class="calmodal-btn calmodal-btn--cancel" @click="showCalExportModal = false">Abbrechen</button>
+            <button class="calmodal-btn calmodal-btn--confirm" :disabled="calExporting" @click="confirmExport">
+              <font-awesome-icon v-if="calExporting" icon="fa-solid fa-spinner" spin />
+              {{ calExporting ? 'Exportiere…' : 'Exportieren' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -171,7 +196,8 @@ const props = defineProps({
   isTeamleiter: { type: Boolean, default: false },
   isPast: { type: Boolean, default: false },
   api: { type: Object, required: true },
-  mitarbeiter: { type: Object, default: null }
+  mitarbeiter: { type: Object, default: null },
+  email: { type: String, default: '' },
 });
 
 const hasReport = computed(() => {
@@ -185,6 +211,11 @@ defineEmits(['back', 'write-report']);
 
 const loadingMa = ref(false);
 const schichtGruppen = ref([]);
+const showCalExportModal = ref(false);
+const calExporting = ref(false);
+
+const DEBUG_EMAIL = 'cedricbglx@gmail.com';
+const isDebugUser = computed(() => props.email?.toLowerCase() === DEBUG_EMAIL);
 
 const totalMitarbeiter = computed(() =>
   schichtGruppen.value.reduce((sum, s) => sum + s.mitarbeiter.length, 0)
@@ -306,15 +337,38 @@ watch(() => props.einsatz?._id, () => {
 });
 
 async function exportToCalendar() {
+  showCalExportModal.value = true;
+}
+
+async function confirmExport() {
+  calExporting.value = true;
+  const dbg = isDebugUser.value;
+
+  function dlog(text) {
+    if (dbg) showToast({ text: `🚧 ${text}`, duration: 4000 });
+  }
+
   try {
+    dlog(`Starte Export für Einsatz #${props.einsatz.auftragNr}`);
+    dlog(`datumVon: ${props.einsatz.datumVon} | uhrzeitVon: ${props.einsatz.uhrzeitVon}`);
+
     const result = await downloadEinsaetze([props.einsatz], 'Einsatz.ics');
-    console.log('[CalExport] download() result:', result);
+
+    dlog(`download() result: ${JSON.stringify(result)}`);
+    showCalExportModal.value = false;
+
     if (result === false) {
-      showToast({ text: 'Kalender Export nicht verfügbar', intent: 'warning', duration: 3000 });
+      showToast({ text: 'Kalender Export nicht verfügbar in dieser Umgebung', intent: 'warning', duration: 4000 });
+    } else {
+      showToast({ text: 'Export gestartet', intent: 'success', duration: 2000 });
     }
   } catch (err) {
-    console.error('[CalExport] Fehler:', err);
-    showToast({ text: `Export fehlgeschlagen: ${err?.code || err?.message || err}`, intent: 'critical', duration: 4000 });
+    const msg = err?.code || err?.message || String(err);
+    dlog(`Fehler: ${msg}`);
+    showToast({ text: `Export fehlgeschlagen: ${msg}`, intent: 'critical', duration: 5000 });
+    showCalExportModal.value = false;
+  } finally {
+    calExporting.value = false;
   }
 }
 </script>
@@ -664,6 +718,128 @@ async function exportToCalendar() {
   transform: none;
   filter: none;
 }
+
+/* Calendar Export Modal */
+.calmodal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+}
+
+.calmodal-sheet {
+  width: 100%;
+  background: var(--panel);
+  border-radius: 20px 20px 0 0;
+  padding: 0.75rem 1.25rem 2rem;
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.calmodal-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--border);
+  margin-bottom: 0.25rem;
+}
+
+.calmodal-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(255, 117, 24, 0.12);
+  border: 1.5px solid rgba(255, 117, 24, 0.3);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+}
+
+.calmodal-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.calmodal-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  text-align: center;
+}
+
+.calmodal-event {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.calmodal-date {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.calmodal-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+  margin: 0;
+  line-height: 1.4;
+  max-width: 300px;
+}
+
+.calmodal-actions {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.calmodal-btn {
+  flex: 1;
+  padding: 0.8rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.calmodal-btn:active { opacity: 0.75; }
+.calmodal-btn:disabled { opacity: 0.5; }
+
+.calmodal-btn--cancel {
+  background: var(--hover);
+  color: var(--muted);
+}
+
+.calmodal-btn--confirm {
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+/* Transition */
+.calmodal-enter-active { transition: opacity 0.2s; }
+.calmodal-leave-active { transition: opacity 0.15s; }
+.calmodal-enter-from, .calmodal-leave-to { opacity: 0; }
+.calmodal-enter-active .calmodal-sheet { transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
+.calmodal-leave-active .calmodal-sheet { transition: transform 0.2s ease-in; }
+.calmodal-enter-from .calmodal-sheet, .calmodal-leave-to .calmodal-sheet { transform: translateY(100%); }
 
 .badge-label {
   font-size: 0.72rem;

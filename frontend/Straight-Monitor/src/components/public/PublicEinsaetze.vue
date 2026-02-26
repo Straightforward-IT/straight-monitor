@@ -97,6 +97,7 @@
           :is-teamleiter="isTeamleiter"
           :is-past="previousView === 'vergangene-jobs'"
           :api="api"
+          :email="email"
           :mitarbeiter="mitarbeiter"
           @back="goBackFromJob"
           @write-report="writeReportForJob"
