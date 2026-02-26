@@ -30,7 +30,7 @@
           <span class="info-value">{{ formatZeitraum(einsatz.datumVon, einsatz.datumBis) }}</span>
         </div>
         <button v-if="isTeamleiter" class="info-share-btn" @click.stop="exportToCalendar" title="Zum Kalender hinzufügen">
-          <font-awesome-icon icon="fa-solid fa-share-nodes" />
+          <font-awesome-icon icon="fa-solid fa-arrow-up-from-bracket" />
         </button>
       </div>
 

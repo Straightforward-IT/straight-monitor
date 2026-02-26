@@ -15,7 +15,7 @@
     <!-- Teamleiter: Export all future jobs -->
     <div v-if="isTeamleiter" class="kalender-actions">
       <button class="cal-export-btn" @click="exportAllToCalendar">
-        <font-awesome-icon icon="fa-solid fa-calendar-plus" />
+        <font-awesome-icon icon="fa-solid fa-arrow-up-from-bracket" />
         Alle zukünftigen Jobs exportieren
       </button>
     </div>
