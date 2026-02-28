@@ -393,7 +393,18 @@ function formatTreffpunkt(val) {
 }
 
 function callPhone(tel) {
-  window.location.href = 'tel:' + cleanPhone(tel);
+  const number = 'tel:' + cleanPhone(tel);
+  // _system tells Cordova/hybrid webviews to hand off to the OS
+  const w = window.open(number, '_system');
+  if (!w) {
+    // Fallback: dynamic anchor click (works in some webviews where open() is blocked)
+    const a = document.createElement('a');
+    a.href = number;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 500);
+  }
 }
 
 function cleanPhone(tel) {
