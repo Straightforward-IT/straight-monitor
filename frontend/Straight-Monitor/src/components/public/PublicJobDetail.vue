@@ -74,7 +74,6 @@
             v-if="isTeamleiter && einsatz.ansprechpartnerTelefon"
             :href="'tel:' + einsatz.ansprechpartnerTelefon"
             class="info-link"
-            @click="copyPhone(einsatz.ansprechpartnerTelefon, $event)"
           >
             <font-awesome-icon icon="fa-solid fa-phone" /> {{ einsatz.ansprechpartnerTelefon }}
           </a>
@@ -140,7 +139,7 @@
                 v-if="isTeamleiter && ma.telefon"
                 :href="'tel:' + cleanPhone(ma.telefon)"
                 class="ma-phone"
-                @click.stop="copyPhone(ma.telefon, $event)"
+                @click.stop
               >
                 <font-awesome-icon icon="fa-solid fa-phone" />
                 <span class="ma-phone-number">{{ ma.telefon }}</span>
