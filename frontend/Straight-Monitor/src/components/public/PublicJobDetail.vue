@@ -70,13 +70,13 @@
         <div class="info-content">
           <span class="info-label">Ansprechpartner</span>
           <span class="info-value">{{ einsatz.ansprechpartnerName }}</span>
-          <a
+          <button
             v-if="isTeamleiter && einsatz.ansprechpartnerTelefon"
-            :href="'tel:' + einsatz.ansprechpartnerTelefon"
-            class="info-link"
+            class="info-link info-link--btn"
+            @click="callPhone(einsatz.ansprechpartnerTelefon)"
           >
             <font-awesome-icon icon="fa-solid fa-phone" /> {{ einsatz.ansprechpartnerTelefon }}
-          </a>
+          </button>
           <a
             v-if="isTeamleiter && einsatz.ansprechpartnerEmail"
             :href="'mailto:' + einsatz.ansprechpartnerEmail"
@@ -135,15 +135,14 @@
                   </span>
                 </span>
               </div>
-              <a
+              <button
                 v-if="isTeamleiter && ma.telefon"
-                :href="'tel:' + cleanPhone(ma.telefon)"
                 class="ma-phone"
-                @click.stop
+                @click.stop="callPhone(ma.telefon)"
               >
                 <font-awesome-icon icon="fa-solid fa-phone" />
                 <span class="ma-phone-number">{{ ma.telefon }}</span>
-              </a>
+              </button>
               <!-- Three-dot menu trigger (Teamleiter only) -->
               <button
                 v-if="isTeamleiter"
@@ -393,6 +392,10 @@ function formatTreffpunkt(val) {
   return String(val);
 }
 
+function callPhone(tel) {
+  window.location.href = 'tel:' + cleanPhone(tel);
+}
+
 function cleanPhone(tel) {
   // Keeps +, digits, and strips everything else so tel: links work reliably
   return tel.replace(/[^\d+]/g, '');
@@ -603,6 +606,14 @@ watch(() => props.einsatz?._id, () => {
   margin-top: 0.15rem;
 }
 
+.info-link--btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
 /* Section */
 .section {
   margin-bottom: 1.5rem;
@@ -743,12 +754,15 @@ watch(() => props.einsatz?._id, () => {
   gap: 0.35rem;
   padding: 0.35rem 0.6rem;
   border-radius: 8px;
+  border: none;
   background: rgba(40, 167, 69, 0.08);
   color: #28a745;
   font-size: 0.8rem;
   font-weight: 600;
+  font-family: inherit;
   flex-shrink: 0;
   text-decoration: none;
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   white-space: nowrap;
 }
