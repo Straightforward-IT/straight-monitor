@@ -70,13 +70,13 @@
         <div class="info-content">
           <span class="info-label">Ansprechpartner</span>
           <span class="info-value">{{ einsatz.ansprechpartnerName }}</span>
-          <button
+          <a
             v-if="isTeamleiter && einsatz.ansprechpartnerTelefon"
-            class="info-link info-link--btn"
-            @click="callPhone(einsatz.ansprechpartnerTelefon)"
+            :href="'tel:' + cleanPhone(einsatz.ansprechpartnerTelefon)"
+            class="info-link"
           >
             <font-awesome-icon icon="fa-solid fa-phone" /> {{ einsatz.ansprechpartnerTelefon }}
-          </button>
+          </a>
           <a
             v-if="isTeamleiter && einsatz.ansprechpartnerEmail"
             :href="'mailto:' + einsatz.ansprechpartnerEmail"
@@ -135,14 +135,14 @@
                   </span>
                 </span>
               </div>
-              <button
+              <a
                 v-if="isTeamleiter && ma.telefon"
+                :href="'tel:' + cleanPhone(ma.telefon)"
                 class="ma-phone"
-                @click.stop="callPhone(ma.telefon)"
               >
                 <font-awesome-icon icon="fa-solid fa-phone" />
                 <span class="ma-phone-number">{{ ma.telefon }}</span>
-              </button>
+              </a>
               <!-- Three-dot menu trigger (Teamleiter only) -->
               <button
                 v-if="isTeamleiter"
@@ -392,21 +392,6 @@ function formatTreffpunkt(val) {
   return String(val);
 }
 
-function callPhone(tel) {
-  const number = 'tel:' + cleanPhone(tel);
-  // _system tells Cordova/hybrid webviews to hand off to the OS
-  const w = window.open(number, '_system');
-  if (!w) {
-    // Fallback: dynamic anchor click (works in some webviews where open() is blocked)
-    const a = document.createElement('a');
-    a.href = number;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => document.body.removeChild(a), 500);
-  }
-}
-
 function cleanPhone(tel) {
   // Keeps +, digits, and strips everything else so tel: links work reliably
   return tel.replace(/[^\d+]/g, '');
@@ -617,14 +602,6 @@ watch(() => props.einsatz?._id, () => {
   margin-top: 0.15rem;
 }
 
-.info-link--btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  font-family: inherit;
-}
-
 /* Section */
 .section {
   margin-bottom: 1.5rem;
@@ -765,15 +742,12 @@ watch(() => props.einsatz?._id, () => {
   gap: 0.35rem;
   padding: 0.35rem 0.6rem;
   border-radius: 8px;
-  border: none;
   background: rgba(40, 167, 69, 0.08);
   color: #28a745;
   font-size: 0.8rem;
   font-weight: 600;
-  font-family: inherit;
   flex-shrink: 0;
   text-decoration: none;
-  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   white-space: nowrap;
 }
