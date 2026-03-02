@@ -1240,8 +1240,8 @@ async function syncFlipAttributes(flipUsersById = {}) {
     }
   }
 
-  // 2. Batch-Updates in 100er-Chunks senden
-  const CHUNK = 100;
+  // 2. Batch-Updates in 50er-Chunks senden
+  const CHUNK = 50;
   for (let i = 0; i < batchItems.length; i += CHUNK) {
     const chunk = batchItems.slice(i, i + CHUNK);
     try {
