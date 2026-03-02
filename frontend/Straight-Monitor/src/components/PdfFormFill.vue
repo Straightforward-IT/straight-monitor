@@ -132,7 +132,10 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 // Suppress harmless TrueType font warnings from pdfjs worker
 const _warn = console.warn.bind(console);
-console.warn = (...args) => { if (typeof args[0] === 'string' && args[0].startsWith('TT:')) return; _warn(...args); };
+console.warn = (...args) => {
+  if (typeof args[0] === 'string' && (args[0].startsWith('TT:') || args[0].includes('getHexString'))) return;
+  _warn(...args);
+};
 
 const route = useRoute();
 const token = localStorage.getItem('token');
