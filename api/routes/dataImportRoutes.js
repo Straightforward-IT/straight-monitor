@@ -622,7 +622,7 @@ router.post('/personal', upload.single('file'), async (req, res) => {
 
     // Execute bulk updates (find by Personalnr)
     for (const op of operations) {
-      const ma = await Mitarbeiter.findOne({ personalnr: op.personalnr }).select('_id personalnr persgruppe_set_explicitly').lean();
+      const ma = await Mitarbeiter.findOne({ personalnr: op.personalnr }).select('_id personalnr persgruppe_set_explicitly email additionalEmails').lean();
       if (!ma) {
         skipped++;
         if (notFoundPnrs.length < 30) notFoundPnrs.push(op.personalnr);
@@ -633,7 +633,26 @@ router.post('/personal', upload.single('file'), async (req, res) => {
       if (ma.persgruppe_set_explicitly && op.setFields.persgruppe != null) {
         delete op.setFields.persgruppe;
       }
-      const result = await Mitarbeiter.updateOne({ _id: ma._id }, { $set: op.setFields });
+
+      // Flip ist Primary Source für E-Mail: Zvoove-E-Mail darf die
+      // primäre E-Mail nicht überschreiben. Stattdessen wird sie zu
+      // additionalEmails hinzugefügt (falls abweichend und noch nicht vorhanden).
+      const addToAdditional = [];
+      if (op.setFields.email && ma.email && ma.email !== op.setFields.email) {
+        const zvooveEmail = op.setFields.email;
+        const existing = (ma.additionalEmails || []).map(e => e.toLowerCase());
+        if (!existing.includes(zvooveEmail) && zvooveEmail !== ma.email) {
+          addToAdditional.push(zvooveEmail);
+        }
+        delete op.setFields.email; // nicht als Primary überschreiben
+      }
+
+      const updateOps = { $set: op.setFields };
+      if (addToAdditional.length > 0) {
+        updateOps.$addToSet = { additionalEmails: { $each: addToAdditional } };
+      }
+
+      const result = await Mitarbeiter.updateOne({ _id: ma._id }, updateOps);
       if (result.modifiedCount > 0) updated++; else unchanged++;
     }
 

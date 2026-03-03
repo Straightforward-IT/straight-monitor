@@ -52,6 +52,21 @@ const MonitoringSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
+  // Optionale Mitarbeiter-Verknüpfung
+  mitarbeiter: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Mitarbeiter",
+    required: false,
+  },
+  // Snapshot für unveränderlichen Verlauf
+  mitarbeiterName: {
+    type: String,
+    required: false,
+  },
+  mitarbeiterPersonalnr: {
+    type: String,
+    required: false,
+  },
 });
 
 module.exports = mongoose.model("Monitoring", MonitoringSchema);

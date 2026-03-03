@@ -28,6 +28,7 @@
           :grouped-data="group"
           :active-groups="activeGroups"
           :level="level + 1"
+          @open-mitarbeiter="$emit('open-mitarbeiter', $event)"
         />
         <div v-else class="log-list">
           <div v-for="log in group" :key="log._id" class="log-card">
@@ -36,6 +37,16 @@
                 <span><strong>Benutzer:</strong> {{ log.benutzerMail }}</span>
                 <span><strong>Art:</strong> {{ log.art }}</span>
                 <span><strong>Timestamp:</strong> {{ formatTimestamp(log.timestamp) }}</span>
+                <span
+                  v-if="log.mitarbeiterName"
+                  class="ma-badge"
+                  :class="{ 'ma-badge--clickable': log.mitarbeiter }"
+                  @click.stop="log.mitarbeiter && $emit('open-mitarbeiter', log.mitarbeiter)"
+                >
+                  <font-awesome-icon :icon="['fas', 'user']" class="ma-badge__icon" />
+                  <span v-if="log.mitarbeiterPersonalnr" class="ma-badge__nr">{{ log.mitarbeiterPersonalnr }}</span>
+                  {{ log.mitarbeiterName }}
+                </span>
               </div>
               <font-awesome-icon class="expand-icon small" :icon="['fas', log.isExpanded ? 'eye-slash' : 'eye']" />
             </div>
@@ -63,13 +74,14 @@
 <script>
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { library } from "@fortawesome/fontawesome-svg-core";
-import { faChevronRight, faChevronDown, faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
+import { faChevronRight, faChevronDown, faEye, faEyeSlash, faUser } from "@fortawesome/free-solid-svg-icons";
 import CustomTooltip from './CustomTooltip.vue';
-library.add(faChevronRight, faChevronDown, faEye, faEyeSlash);
+library.add(faChevronRight, faChevronDown, faEye, faEyeSlash, faUser);
 
 export default {
   name: "VerlaufGroup",
   components: { FontAwesomeIcon, CustomTooltip },
+  emits: ['open-mitarbeiter'],
   props: {
     groupedData: { type: Object, required: true },
     activeGroups: { type: Array, required: true },
@@ -219,6 +231,28 @@ export default {
 }
 .log-meta span{ font-size:.92rem; color: var(--c-text-secondary); }
 .log-meta span strong{ color: var(--c-text-primary); }
+
+.ma-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: color-mix(in oklab, var(--c-primary) 14%, var(--c-surface));
+  border: 1px solid color-mix(in oklab, var(--c-primary) 28%, transparent);
+  color: color-mix(in oklab, var(--c-primary) 90%, var(--c-text-primary));
+  font-size: .85rem;
+  font-weight: 500;
+  white-space: nowrap;
+
+  &__icon { font-size: .75rem; opacity: .75; }
+  &__nr { font-family: monospace; font-size: .78rem; opacity: .6; letter-spacing: .3px; }
+  &--clickable { cursor: pointer; transition: background .15s, border-color .15s; }
+  &--clickable:hover {
+    background: color-mix(in oklab, var(--c-primary) 25%, var(--c-surface));
+    border-color: color-mix(in oklab, var(--c-primary) 55%, transparent);
+  }
+}
 
 .log-annotation{
   font-size:.95rem;

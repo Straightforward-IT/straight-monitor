@@ -8,7 +8,7 @@
           type="text"
           v-model="searchQuery"
           @input="groupLogs"
-          placeholder="in Anmerkungen & Items..."
+          placeholder="in Anmerkungen, Items, Mitarbeiter..."
         />
       </div>
 
@@ -74,6 +74,7 @@
         :grouped-data="groupedLogs"
         :active-groups="activeGroupsArray"
         :level="0"
+        @open-mitarbeiter="openMitarbeiterCard"
       />
     </div>
 
@@ -90,20 +91,53 @@
       <p v-else>Keine Log-Einträge vorhanden.</p>
     </div>
   </div>
+
+  <teleport to="body">
+    <div
+      v-if="selectedMitarbeiterId"
+      class="verlauf-ma-modal-overlay"
+      @click.self="closeMitarbeiterModal"
+    >
+      <div class="verlauf-ma-modal-content modal-employee">
+        <div class="verlauf-ma-modal-header">
+          <h2>Mitarbeiter Details</h2>
+          <button class="verlauf-ma-close-btn" @click="closeMitarbeiterModal">&times;</button>
+        </div>
+        <div class="verlauf-ma-modal-body">
+          <div v-if="employeeModalLoading" class="verlauf-ma-modal-loading">
+            <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" />
+            Mitarbeiter wird geladen...
+          </div>
+          <employee-card
+            v-else-if="fullMitarbeiterData"
+            :ma="fullMitarbeiterData"
+            :initially-expanded="true"
+            :show-checkbox="false"
+            @close="closeMitarbeiterModal"
+          />
+        </div>
+      </div>
+    </div>
+  </teleport>
 </template>
 
 <script>
 import api from "@/utils/api";
 import VerlaufGroup from "./VerlaufGroup.vue";
+import EmployeeCard from "./EmployeeCard.vue";
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
 export default {
   name: "Verlauf",
-  components: { VerlaufGroup, FontAwesomeIcon },
+  components: { VerlaufGroup, FontAwesomeIcon, EmployeeCard },
   data() {
     return {
       token: localStorage.getItem("token") || null,
       logs: [],
+      // EmployeeCard modal
+      selectedMitarbeiterId: null,
+      fullMitarbeiterData: null,
+      employeeModalLoading: false,
       groupBy: { standort: true, monat: true, tag: false, benutzer: false, art: false },
       sortBy: "timestamp_desc",
       searchQuery: "",
@@ -126,7 +160,9 @@ export default {
             log.items.some(
               (item) => item.bezeichnung && item.bezeichnung.toLowerCase().includes(searchTerm)
             );
-          return annotationMatch || itemMatch;
+          const maNameMatch = log.mitarbeiterName && log.mitarbeiterName.toLowerCase().includes(searchTerm);
+          const maNrMatch = log.mitarbeiterPersonalnr && log.mitarbeiterPersonalnr.toLowerCase().includes(searchTerm);
+          return annotationMatch || itemMatch || maNameMatch || maNrMatch;
         });
       }
 
@@ -222,10 +258,48 @@ export default {
       });
     },
     switchToDashboard() { this.$router.push("/"); },
+    async openMitarbeiterCard(mitarbeiterId) {
+      if (!mitarbeiterId) return;
+      // Normalize: handle ObjectId objects vs plain strings
+      const id = mitarbeiterId?._id ? String(mitarbeiterId._id) : String(mitarbeiterId);
+      if (!id || id === 'null' || id === 'undefined') return;
+      this.selectedMitarbeiterId = id;
+      this.fullMitarbeiterData = null;
+      this.employeeModalLoading = true;
+      try {
+        const response = await api.get(`/api/personal/mitarbeiter/${id}`);
+        const mitarbeiterData = response.data.data;
+        // Load Flip profile if flip_id exists (same as Dokumente.vue)
+        if (mitarbeiterData.flip_id) {
+          try {
+            const flipResponse = await api.get(`/api/personal/flip/by-id/${mitarbeiterData.flip_id}`);
+            mitarbeiterData.flip = flipResponse.data;
+          } catch (flipError) {
+            console.error('Error loading Flip profile:', flipError);
+          }
+        }
+        this.fullMitarbeiterData = mitarbeiterData;
+      } catch (e) {
+        console.error("Fehler beim Laden des Mitarbeiters:", e);
+      } finally {
+        this.employeeModalLoading = false;
+      }
+    },
+    closeMitarbeiterModal() {
+      this.selectedMitarbeiterId = null;
+      this.fullMitarbeiterData = null;
+    },
+    handleKeydown(e) {
+      if (e.key === 'Escape' && this.selectedMitarbeiterId) this.closeMitarbeiterModal();
+    },
   },
   mounted() {
     this.setAxiosAuthToken();
     this.fetchLogs();
+    window.addEventListener('keydown', this.handleKeydown);
+  },
+  beforeUnmount() {
+    window.removeEventListener('keydown', this.handleKeydown);
   },
 };
 </script>
@@ -518,5 +592,73 @@ input[type="checkbox"]:checked::before{ transform: scale(1); }
     padding: 1.5rem;
     font-size: 0.9rem;
   }
+}
+</style>
+
+<style lang="scss">
+.verlauf-ma-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay, rgba(0, 0, 0, 0.55));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  padding: 1rem;
+}
+
+.verlauf-ma-modal-content {
+  background: var(--tile-bg, #fff);
+  border-radius: 12px;
+  width: 95%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.verlauf-ma-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+
+  h2 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: var(--text);
+  }
+}
+
+.verlauf-ma-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+.verlauf-ma-modal-body {
+  padding: 0;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.verlauf-ma-modal-loading {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: 2rem;
+  color: var(--muted, #9ca3af);
+  font-size: 1rem;
 }
 </style>

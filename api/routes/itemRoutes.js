@@ -4,6 +4,7 @@ const auth = require("../middleware/auth");
 const User = require("../models/User");
 const Item = require("../models/Item");
 const Monitoring = require("../models/Monitoring");
+const Mitarbeiter = require("../models/Mitarbeiter");
 const xlsx = require("xlsx");
 const asyncHandler = require("../middleware/AsyncHandler");
 const { sollRoutine, sendInventoryUpdateEmail} = require("../EmailService");
@@ -27,7 +28,7 @@ async function findOrCreateUser(userID) {
 }
 
 // Helper function to log monitoring actions
-async function logMonitoring({ user, standort, items, art, anmerkung }) {
+async function logMonitoring({ user, standort, items, art, anmerkung, mitarbeiterId }) {
   const logEntry = new Monitoring({
     benutzer: user._id,
     benutzerMail: user.email,
@@ -37,6 +38,16 @@ async function logMonitoring({ user, standort, items, art, anmerkung }) {
     anmerkung,
     timestamp: new Date(),
   });
+
+  if (mitarbeiterId) {
+    const ma = await Mitarbeiter.findById(mitarbeiterId).select('vorname nachname personalnr').lean();
+    if (ma) {
+      logEntry.mitarbeiter = ma._id;
+      logEntry.mitarbeiterName = `${ma.vorname} ${ma.nachname}`;
+      logEntry.mitarbeiterPersonalnr = ma.personalnr || null;
+    }
+  }
+
   await logEntry.save();
 }
 
@@ -73,7 +84,7 @@ router.post("/addNew", auth, asyncHandler(async (req, res) => {
 
 // PUT /api/items/updateMultiple
 router.put("/updateMultiple", auth, asyncHandler(async (req, res) => {
-  const { userID, items, count, anmerkung } = req.body;
+  const { userID, items, count, anmerkung, mitarbeiterId } = req.body;
     const user = await findOrCreateUser(userID);
     
     // 1. Validation & Fetch Phase
@@ -140,6 +151,7 @@ router.put("/updateMultiple", auth, asyncHandler(async (req, res) => {
         items: itemsForLog,
         art: count > 0 ? "zugabe" : "entnahme",
         anmerkung,
+        mitarbeiterId,
       });
     }
     
@@ -236,7 +248,7 @@ router.put("/edit/:id", auth, asyncHandler( async (req, res) => {
   
 // PUT /api/items/add/:id
 router.put("/add/:id", auth, asyncHandler( async (req, res) => {
-  const { userID, anzahl, anmerkung } = req.body;
+  const { userID, anzahl, anmerkung, mitarbeiterId } = req.body;
  
     const user = await findOrCreateUser(userID);
     const item = await Item.findById(req.params.id);
@@ -261,13 +273,14 @@ router.put("/add/:id", auth, asyncHandler( async (req, res) => {
       ],
       art: "zugabe",
       anmerkung,
+      mitarbeiterId,
     });
     res.status(200).json(item);
 }));
 
 // PUT /api/items/remove/:id
 router.put("/remove/:id", auth, asyncHandler( async (req, res) => {
-  const { userID, anzahl, anmerkung } = req.body;
+  const { userID, anzahl, anmerkung, mitarbeiterId } = req.body;
   
     const user = await findOrCreateUser(userID);
     const item = await Item.findById(req.params.id);
@@ -293,6 +306,7 @@ router.put("/remove/:id", auth, asyncHandler( async (req, res) => {
       ],
       art: "entnahme",
       anmerkung,
+      mitarbeiterId,
     });
 
     res.status(200).json(item);

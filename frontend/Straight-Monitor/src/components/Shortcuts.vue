@@ -271,6 +271,10 @@
               v-model="anmerkung"
             />
           </label>
+          <label class="full">
+            Mitarbeiter <span class="optional-hint">(optional)</span>
+            <MitarbeiterSearch v-model="mitarbeiterId" />
+          </label>
         </div>
         
         <!-- Fixed Buttons Outside Modal Content -->
@@ -507,6 +511,10 @@
               v-model="anmerkung"
             />
           </label>
+          <label class="full">
+            Mitarbeiter <span class="optional-hint">(optional)</span>
+            <MitarbeiterSearch v-model="mitarbeiterId" />
+          </label>
         </div>
         
         <!-- Fixed Buttons Outside Modal Content -->
@@ -576,11 +584,12 @@ import itemMappings from "@/assets/ItemMappings.json";
 import { useTheme } from "@/stores/theme";
 import { useUi } from "@/stores/ui";
 import { computed } from "vue";
+import MitarbeiterSearch from "@/components/ui-elements/MitarbeiterSearch.vue";
 
 export default {
   name: "Shortcuts",
   emits: ["update-modal", "items-updated"],
-  components: { FontAwesomeIcon },
+  components: { FontAwesomeIcon, MitarbeiterSearch },
   props: { isModalOpen: Boolean },
   setup() {
     const theme = useTheme();
@@ -605,6 +614,7 @@ export default {
       showBestandUpdateModal: false,
       downloading: false,
       anmerkung: "",
+      mitarbeiterId: null,
       selectedLocation: "Hamburg",
 
       // inventory update
@@ -842,6 +852,7 @@ export default {
           items,
           count,
           anmerkung: this.anmerkung,
+          mitarbeiterId: this.mitarbeiterId || undefined,
         });
 
         if (data && data.warnings && data.warnings.length > 0) {
@@ -1060,6 +1071,7 @@ export default {
     // resets
     resetLogiPaket() {
       this.anmerkung = "";
+      this.mitarbeiterId = null;
       this.cuttermesserChecked = true;
       this.jutebeutelChecked = true;
       this.logistikHoseChecked = false;
@@ -1084,6 +1096,7 @@ export default {
 
     resetServicePaket() {
       this.anmerkung = "";
+      this.mitarbeiterId = null;
       this.kellnermesserChecked = true;
       this.kellnerblockChecked = true;
       this.kugelschreiberChecked = true;
@@ -1280,6 +1293,13 @@ h4 {
   border-radius: 8px;
   background: var(--tile-bg);
   color: var(--text);
+}
+
+.optional-hint {
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--muted);
+  opacity: 0.7;
 }
 
 .grid {

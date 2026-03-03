@@ -185,18 +185,19 @@ async function flipUserRoutine() {
       // ── Check Mitarbeiter.email ↔ Flip email mismatch ─────────────────────
       // If the stored primary email differs from Flip's email, add the Flip
       // email to additionalEmails so OIDC-based lookups still succeed.
+      // Only report mismatch when a NEW additionalEmail is actually added.
       if (flipUser.email && mitarbeiter.email && mitarbeiter.email.toLowerCase() !== flipUser.email.toLowerCase()) {
-        emailMismatches.push({
-          name: `${mitarbeiter.vorname} ${mitarbeiter.nachname}`,
-          flipId: flipUser.id,
-          type: 'db≠flip',
-          from: mitarbeiter.email,
-          to: flipUser.email,
-        });
         const normalizedFlipEmail = flipUser.email.toLowerCase().trim();
         if (!mitarbeiter.additionalEmails?.includes(normalizedFlipEmail)) {
           mitarbeiter.additionalEmails = [...(mitarbeiter.additionalEmails || []), normalizedFlipEmail];
           await mitarbeiter.save();
+          emailMismatches.push({
+            name: `${mitarbeiter.vorname} ${mitarbeiter.nachname}`,
+            flipId: flipUser.id,
+            type: 'db≠flip',
+            from: mitarbeiter.email,
+            to: flipUser.email,
+          });
           emailLogs.push(
             `📧 Flip-E-Mail als additionalEmail gespeichert: ${mitarbeiter.vorname} ${mitarbeiter.nachname} → ${normalizedFlipEmail}`
           );

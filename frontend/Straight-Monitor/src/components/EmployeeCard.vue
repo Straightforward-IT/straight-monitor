@@ -180,6 +180,34 @@
           </button>
         </template>
 
+        <!-- Inventar Button -->
+        <template v-if="showTooltips">
+          <custom-tooltip
+            text="Inventar"
+            :position="tooltipPosition"
+            :delay-in="150"
+          >
+            <button
+              class="icon-btn"
+              :class="{ active: view === 'inventar' }"
+              @click="view = 'inventar'"
+              :aria-pressed="view === 'inventar'"
+            >
+              <font-awesome-icon icon="fa-solid fa-box-open" />
+            </button>
+          </custom-tooltip>
+        </template>
+        <template v-else>
+          <button
+            class="icon-btn"
+            :class="{ active: view === 'inventar' }"
+            @click="view = 'inventar'"
+            :aria-pressed="view === 'inventar'"
+          >
+            <font-awesome-icon icon="fa-solid fa-box-open" />
+          </button>
+        </template>
+
         <!-- Actions Button with Dropdown -->
         <div class="quick-actions-wrapper" @click.stop>
           <template v-if="showTooltips">
@@ -780,7 +808,7 @@
               <div class="flip-action-buttons">
                 <button
                   class="btn btn-primary btn-sm"
-                  @click="showFlipCreateConfirm = true"
+                  @click="openFlipCreateForm"
                   :disabled="flipActionLoading"
                 >
                   <font-awesome-icon icon="fa-solid fa-user-plus" />
@@ -797,18 +825,64 @@
               </div>
             </div>
 
-            <!-- Create Confirmation Dialog (inline) -->
-            <div v-if="showFlipCreateConfirm" class="flip-confirm-box">
-              <p><strong>Flip-User erstellen für:</strong></p>
-              <p>{{ ma.vorname }} {{ ma.nachname }} ({{ ma.email }})</p>
+            <!-- Create Form (inline) -->
+            <div v-if="showFlipCreateConfirm" class="flip-confirm-box flip-create-form">
+              <div class="fc-header">
+                <strong>Flip-User erstellen</strong>
+                <span class="fc-name">{{ ma.vorname }} {{ ma.nachname }} &middot; <span class="fc-email">{{ ma.email }}</span></span>
+              </div>
+
+              <div class="fc-row">
+                <label class="fc-label">Standort <span class="fc-required">*</span></label>
+                <select v-model="flipCreateOptions.location" class="fc-select">
+                  <option value="">— auswählen —</option>
+                  <option value="Hamburg">Hamburg</option>
+                  <option value="Berlin">Berlin</option>
+                  <option value="Köln">Köln</option>
+                </select>
+              </div>
+
+              <div class="fc-checkboxes">
+                <label class="fc-check-item">
+                  <input type="checkbox" v-model="flipCreateOptions.isService" @change="flipCreateSetDepartment" />
+                  Service
+                </label>
+                <label class="fc-check-item">
+                  <input type="checkbox" v-model="flipCreateOptions.isLogistik" @change="flipCreateSetDepartment" />
+                  Logistik
+                </label>
+                <label class="fc-check-item">
+                  <input type="checkbox" v-model="flipCreateOptions.isTeamleiter" @change="flipCreateUpdateJobTitle" />
+                  Teamleiter
+                </label>
+                <label class="fc-check-item">
+                  <input type="checkbox" v-model="flipCreateOptions.isFestangestellt" />
+                  Festangestellt
+                </label>
+                <label class="fc-check-item">
+                  <input type="checkbox" v-model="flipCreateOptions.isOffice" />
+                  Office
+                </label>
+              </div>
+
+              <div class="fc-row">
+                <label class="fc-label">Job-Titel</label>
+                <input v-model="flipCreateOptions.job_title" type="text" class="fc-input" />
+              </div>
+
+              <div v-if="flipCreateOptions.department" class="fc-row">
+                <label class="fc-label">Abteilung</label>
+                <span class="fc-value-muted">{{ flipCreateOptions.department }}</span>
+              </div>
+
               <div class="flip-confirm-actions">
                 <button
                   class="btn btn-primary btn-sm"
                   @click="createFlipUserForMa"
-                  :disabled="flipActionLoading"
+                  :disabled="flipActionLoading || !flipCreateOptions.location"
                 >
                   <font-awesome-icon :icon="flipActionLoading ? 'fa-solid fa-spinner' : 'fa-solid fa-check'" :class="{ 'fa-spin': flipActionLoading }" />
-                  {{ flipActionLoading ? 'Erstelle...' : 'Bestätigen' }}
+                  {{ flipActionLoading ? 'Erstelle...' : 'Erstellen' }}
                 </button>
                 <button class="btn btn-ghost btn-sm" @click="showFlipCreateConfirm = false" :disabled="flipActionLoading">
                   Abbrechen
@@ -867,7 +941,7 @@
         </section>
 
         <!-- Asana View -->
-        <section v-else class="asana-view">
+        <section v-else-if="view === 'asana'" class="asana-view">
           <!-- Asana Verknüpfung vorhanden -->
           <div v-if="ma.asana_id" class="asana-linked">
             <div class="asana-info">
@@ -1064,6 +1138,62 @@
             </div>
           </div>
         </section>
+
+        <!-- Inventar View -->
+        <section v-else-if="view === 'inventar'" class="inventar-view">
+          <div v-if="inventarLoading" class="inventar-loading">
+            <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" />
+            Inventar wird geladen...
+          </div>
+          <template v-else>
+            <!-- Aktuell im Besitz -->
+            <div class="inventar-section">
+              <h4 class="section-title">
+                <font-awesome-icon icon="fa-solid fa-box-open" class="section-icon" />
+                Aktuell im Besitz
+              </h4>
+              <div v-if="currentHoldings.length > 0" class="holdings-list">
+                <div v-for="item in currentHoldings" :key="item.itemId || item.bezeichnung" class="holding-item">
+                  <span class="holding-name">{{ item.bezeichnung }}</span>
+                  <span v-if="item.groesse" class="holding-size">{{ item.groesse }}</span>
+                  <span class="holding-count">× {{ item.net }}</span>
+                </div>
+              </div>
+              <div v-else class="emptystate">
+                <font-awesome-icon icon="fa-solid fa-box-open" />
+                <p>Keine Gegenstände im Besitz</p>
+              </div>
+            </div>
+
+            <!-- Monitoring Verlauf -->
+            <div class="inventar-section">
+              <h4 class="section-title">
+                <font-awesome-icon icon="fa-solid fa-clock-rotate-left" class="section-icon" />
+                Verlauf
+              </h4>
+              <div v-if="inventarLogs.length > 0" class="inventar-log-list">
+                <div v-for="log in inventarLogs" :key="log._id" class="inventar-log-card">
+                  <div class="inventar-log-header">
+                    <span class="inventar-log-art" :class="'art--' + log.art">{{ log.art }}</span>
+                    <span class="inventar-log-date">{{ formatDate(log.timestamp) }}</span>
+                    <span class="inventar-log-user">{{ log.benutzerMail }}</span>
+                  </div>
+                  <div class="inventar-log-items">
+                    <span v-for="(item, i) in log.items" :key="i" class="inventar-log-item">
+                      {{ item.bezeichnung }}<template v-if="item.groesse"> ({{ item.groesse }})</template>
+                      × {{ item.anzahl }}
+                    </span>
+                  </div>
+                  <p v-if="log.anmerkung" class="inventar-log-annotation">{{ log.anmerkung }}</p>
+                </div>
+              </div>
+              <div v-else class="emptystate">
+                <font-awesome-icon icon="fa-solid fa-clock-rotate-left" />
+                <p>Keine Transaktionen vorhanden</p>
+              </div>
+            </div>
+          </template>
+        </section>
       </div>
     </transition>
 
@@ -1140,6 +1270,7 @@ import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
 import api from "@/utils/api";
 import { fetchFlipTasks } from "@/utils/flipApi";
+import FlipMappings from "@/assets/FlipMappings.json";
 
 // Assets importieren (Vite handled cache+preload)
 import straightLight from "@/assets/SF_002.png";
@@ -1328,12 +1459,26 @@ export default {
       flipActionError: "",
       flipActionSuccess: "",
       showFlipCreateConfirm: false,
+      flipCreateOptions: {
+        location: '',
+        isService: false,
+        isLogistik: false,
+        isTeamleiter: false,
+        isFestangestellt: false,
+        isOffice: false,
+        job_title: 'Mitarbeiter/in',
+        department: '',
+      },
       showFlipLinkModal: false,
       flipLinkSearch: "",
       flipUnlinkedUsers: [],
       loadingUnlinkedUsers: false,
       selectedFlipUser: null,
       linkingFlip: false,
+
+      // Inventar
+      inventarLogs: [],
+      inventarLoading: false,
     };
   },
 
@@ -1389,20 +1534,68 @@ export default {
         const email = (u.email || '').toLowerCase();
         return name.includes(q) || email.includes(q);
       }).slice(0, 50);
-    }
+    },
+    currentHoldings() {
+      const holdings = {};
+      for (const log of this.inventarLogs) {
+        // entnahme = item was taken out of stock and given TO the employee → positive
+        // zugabe   = item was returned by the employee back to stock → negative
+        const isAdd = log.art === 'entnahme';
+        const isRemove = log.art === 'zugabe';
+        if (!isAdd && !isRemove) continue;
+        for (const item of (log.items || [])) {
+          const key = item.itemId || item.bezeichnung;
+          if (!holdings[key]) {
+            holdings[key] = { itemId: item.itemId, bezeichnung: item.bezeichnung, groesse: item.groesse, net: 0 };
+          }
+          holdings[key].net += isAdd ? (item.anzahl || 1) : -(item.anzahl || 1);
+          // Never go below 0 — old returns without tracked entnahme don't create -1 entries
+          holdings[key].net = Math.max(0, holdings[key].net);
+        }
+      }
+      return Object.values(holdings).filter(h => h.net > 0);
+    },
   },
 
   watch: {
+    'ma._id'(newId, oldId) {
+      if (newId !== oldId) {
+        // Reset inventar state when a different mitarbeiter is shown
+        this.inventarLogs = [];
+        this.inventarLoading = false;
+        if (this.view === 'inventar' && this.expanded) {
+          this.fetchInventar();
+        }
+      }
+    },
     view(newView) {
       // Load tasks when switching to flip view
       if (newView === 'flip' && this.expanded && this.ma.flip?.id && !this.tasksLoaded) {
         this.loadFlipTasks();
+      }
+      // Load inventar when switching to inventar view
+      if (newView === 'inventar' && this.expanded && this.inventarLogs.length === 0 && !this.inventarLoading) {
+        this.fetchInventar();
       }
     }
   },
 
   mounted() {
     document.addEventListener('keydown', this.handleEscapeKey);
+
+    // When opened with initiallyExpanded=true, toggle() is never called,
+    // so we must trigger lazy-loading manually.
+    if (this.expanded) {
+      if (this.eventreportFeedback.length === 0 && !this.loadingFeedback) {
+        this.loadEventReportFeedback();
+      }
+      if (this.view === 'flip' && this.ma.flip?.id && !this.tasksLoaded) {
+        this.loadFlipTasks();
+      }
+      if (this.view === 'inventar' && this.inventarLogs.length === 0 && !this.inventarLoading) {
+        this.fetchInventar();
+      }
+    }
   },
 
   beforeUnmount() {
@@ -1438,6 +1631,19 @@ export default {
         this.eventreportFeedback = [];
       } finally {
         this.loadingFeedback = false;
+      }
+    },
+    async fetchInventar() {
+      if (!this.ma._id) return;
+      this.inventarLoading = true;
+      try {
+        const { data } = await api.get(`/api/monitoring/mitarbeiter/${this.ma._id}`);
+        this.inventarLogs = data || [];
+      } catch (e) {
+        console.error('Fehler beim Laden des Inventars:', e);
+        this.inventarLogs = [];
+      } finally {
+        this.inventarLoading = false;
       }
     },
     initials(ma) {
@@ -1888,13 +2094,78 @@ export default {
       }
     },
 
+    openFlipCreateForm() {
+      const rawLoc = this.displayLocation || this.ma.standort || '';
+      const canonMap = { 'hamburg': 'Hamburg', 'berlin': 'Berlin', 'köln': 'Köln', 'koeln': 'Köln', 'koln': 'Köln' };
+      const canonLoc = canonMap[rawLoc.toLowerCase()] || (['Hamburg','Berlin','Köln'].includes(rawLoc) ? rawLoc : '');
+      const isTl = this.isTeamleiter;
+      const isFesti = this.ma.persgruppe === 101;
+      this.flipCreateOptions = {
+        location: canonLoc,
+        isService: false,
+        isLogistik: false,
+        isTeamleiter: isTl,
+        isFestangestellt: isFesti,
+        isOffice: false,
+        job_title: isTl ? 'Teamleiter/in' : 'Mitarbeiter/in',
+        department: '',
+      };
+      this.showFlipCreateConfirm = true;
+    },
+
+    flipCreateSetDepartment() {
+      const depts = [];
+      if (this.flipCreateOptions.isService) depts.push('Service');
+      if (this.flipCreateOptions.isLogistik) depts.push('Logistik');
+      this.flipCreateOptions.department = depts.join('/');
+    },
+
+    flipCreateUpdateJobTitle() {
+      this.flipCreateOptions.job_title = this.flipCreateOptions.isTeamleiter ? 'Teamleiter/in' : 'Mitarbeiter/in';
+    },
+
+    buildFlipAttributesFromOptions() {
+      const o = this.flipCreateOptions;
+      return [
+        { name: 'job_title',  value: o.job_title },
+        { name: 'location',   value: o.location },
+        { name: 'department', value: o.department },
+        { name: 'isService',  value: String(o.isService) },
+        { name: 'isLogistik', value: String(o.isLogistik) },
+        { name: 'isTeamLead', value: String(o.isTeamleiter) },
+        { name: 'isOffice',   value: String(o.isOffice) },
+        { name: 'isFesti',    value: String(o.isFestangestellt) },
+      ];
+    },
+
+    buildFlipUserGroupIds() {
+      const o = this.flipCreateOptions;
+      const gids = FlipMappings.user_group_ids;
+      const locKey = o.location.toLowerCase()
+        .replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ä/g, 'ae');
+      const ids = [];
+      if (gids.all_users) ids.push(gids.all_users);
+      if (gids[locKey]) ids.push(gids[locKey]);
+      if (o.isService       && gids[`${locKey}_service`])        ids.push(gids[`${locKey}_service`]);
+      if (o.isLogistik      && gids[`${locKey}_logistik`])       ids.push(gids[`${locKey}_logistik`]);
+      if (o.isFestangestellt && gids[`${locKey}_festangestellte`]) ids.push(gids[`${locKey}_festangestellte`]);
+      if (o.isOffice        && gids[`${locKey}_office`])         ids.push(gids[`${locKey}_office`]);
+      if (o.isTeamleiter    && gids[`${locKey}_teamleiter`])     ids.push(gids[`${locKey}_teamleiter`]);
+      return ids;
+    },
+
     async createFlipUserForMa() {
       this.flipActionLoading = true;
       this.flipActionError = "";
       this.flipActionSuccess = "";
       try {
+        const locKey = this.flipCreateOptions.location.toLowerCase()
+          .replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ä/g, 'ae');
         const res = await api.post("/api/personal/flip/create-for-mitarbeiter", {
           mitarbeiterId: this.ma._id,
+          attributes: this.buildFlipAttributesFromOptions(),
+          user_group_ids: this.buildFlipUserGroupIds(),
+          primary_user_group_id: FlipMappings.user_group_ids[locKey] || null,
         });
         // Update local data
         this.ma.flip_id = res.data.flipUser?.id;
@@ -2989,6 +3260,74 @@ export default {
     display: flex;
     gap: 8px;
     margin-top: 12px;
+  }
+}
+
+/* ── Flip Create Form ─────────────────────────────────────────────── */
+.flip-create-form {
+  .fc-header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .fc-name { font-size: 13px; color: var(--text); }
+  .fc-email { color: var(--muted); font-size: 12px; }
+
+  .fc-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .fc-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    min-width: 80px;
+    flex-shrink: 0;
+  }
+  .fc-required { color: #e07b00; }
+
+  .fc-select, .fc-input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    background: var(--tile-bg, var(--surface));
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+    &:focus { border-color: var(--primary); }
+  }
+
+  .fc-value-muted {
+    font-size: 13px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .fc-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    background: var(--hover);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .fc-check-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
   }
 }
 
@@ -4120,5 +4459,126 @@ export default {
       color: #dc3545;
     }
   }
+}
+
+// ─── Inventar View ────────────────────────────────────────────────────────────
+.inventar-view {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.inventar-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.inventar-section {
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    .section-icon { font-size: 14px; color: var(--primary); }
+  }
+}
+
+.holdings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.holding-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--soft, var(--tile-bg));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.holding-name { flex: 1; font-weight: 500; color: var(--text); }
+.holding-size { color: var(--muted); font-size: 0.82rem; }
+.holding-count {
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 0.88rem;
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+.inventar-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inventar-log-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.88rem;
+}
+
+.inventar-log-header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--soft, var(--tile-bg));
+  border-bottom: 1px solid var(--border);
+  font-size: 0.83rem;
+  color: var(--muted);
+}
+
+.inventar-log-art {
+  font-weight: 600;
+  text-transform: capitalize;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  &.art--zugabe  { background: rgba(34,197,94,.15); color: #16a34a; }
+  &.art--entnahme { background: rgba(239,68,68,.15); color: #dc2626; }
+  &.art--änderung { background: rgba(234,179,8,.15);  color: #ca8a04; }
+}
+
+.inventar-log-date { margin-left: auto; }
+
+.inventar-log-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.inventar-log-item {
+  padding: 2px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.inventar-log-annotation {
+  margin: 0;
+  padding: 6px 12px;
+  background: color-mix(in oklab, var(--primary) 8%, var(--surface));
+  border-top: 1px solid var(--border);
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-style: italic;
 }
 </style>

@@ -203,6 +203,10 @@
               placeholder="Anmerkung (Optional)"
             />
           </label>
+          <label class="select-label">
+            Mitarbeiter <span class="optional-hint">(optional)</span>
+            <MitarbeiterSearch v-model="mitarbeiterId" />
+          </label>
         </div>
 
         <div class="modal-buttons">
@@ -296,6 +300,7 @@
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
 import { useDataCache } from "@/stores/dataCache";
+import MitarbeiterSearch from "@/components/ui-elements/MitarbeiterSearch.vue";
 
 const collator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
 
@@ -307,7 +312,7 @@ export default {
     "switch-to-dashboard",
     "switch-to-verlauf",
   ],
-  components: { FontAwesomeIcon },
+  components: { FontAwesomeIcon, MitarbeiterSearch },
   props: { isModalOpen: Boolean },
 
   setup() {
@@ -332,6 +337,7 @@ export default {
       // Modal / Eingaben
       inputValue: "",
       anmerkung: "",
+      mitarbeiterId: null,
       showInputField: false,
       showAddModal: false,
       modalOpen: false,
@@ -602,6 +608,7 @@ export default {
           userID: this.userID,
           anzahl: value,
           anmerkung: this.anmerkung,
+          mitarbeiterId: this.mitarbeiterId || undefined,
         });
 
         const idx = this.items.findIndex((x) => x._id === updated._id);
@@ -616,6 +623,7 @@ export default {
     resetInput() {
       this.inputValue = "";
       this.anmerkung = "";
+      this.mitarbeiterId = null;
       this.showInputField = false;
       this.closeModal();
       this.selectedItem = null;
@@ -1322,6 +1330,13 @@ form {
   font-weight: 500;
   color: var(--text);
   opacity: 0.85;
+
+  .optional-hint {
+    font-size: 10.5px;
+    font-weight: 400;
+    color: var(--muted);
+    opacity: 0.7;
+  }
 
   select,
   input {

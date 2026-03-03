@@ -247,6 +247,7 @@ router.get(
         { vorname: regex },
         { nachname: regex },
         { email: regex },
+        { personalnr: regex },
       ]
     })
       .select('_id vorname nachname email personalnr')

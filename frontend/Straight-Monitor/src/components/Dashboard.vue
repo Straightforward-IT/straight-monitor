@@ -64,25 +64,9 @@
             Veröffentlichte Features
           </h3>
           <div class="feature-list">
-             <div class="feature-item">
-              <font-awesome-icon :icon="['fas', 'mobile-alt']" />
-              <span>Public Monitor - Integriert in Flip unter "Jobs" für alle Mitarbeiter</span>
-            </div>
             <div class="feature-item">
-              <font-awesome-icon :icon="['fas', 'table']" />
-              <span>Teamleiter Auswertung - Live Tracking der Teamleiter-Berichte</span>
-            </div>
-            <div class="feature-item">
-              <font-awesome-icon :icon="['fas', 'file-alt']" />
-              <span>Dokumente - Event-Reports & Laufzettel</span>
-            </div>
-            <div class="feature-item">
-              <font-awesome-icon :icon="['fas', 'users']" />
-              <span>Personal - Mitarbeiterverwaltung mit Asana/Flip Verknüpfung</span>
-            </div>
-            <div class="feature-item">
-              <font-awesome-icon :icon="['fas', 'calendar-days']" />
-              <span>Aufträge - Schichten, Jobs & Einsätze in Kalender-Ansicht</span>
+              <font-awesome-icon :icon="['fas', 'dolly']" />
+              <span>Bestand - Zuordnung von Service- &amp; Logi-Paketen zu Mitarbeitern</span>
             </div>
 
             <!-- Ältere Features (ausklappbar) -->
@@ -106,10 +90,28 @@
               <transition name="expand">
                 <div v-if="showOlderFeatures" class="older-features-list">
                   <div class="feature-item">
+                    <font-awesome-icon :icon="['fas', 'mobile-alt']" />
+                    <span>Public Monitor - Integriert in Flip unter "Jobs" für alle Mitarbeiter</span>
+                  </div>
+                  <div class="feature-item">
+                    <font-awesome-icon :icon="['fas', 'table']" />
+                    <span>Teamleiter Auswertung - Live Tracking der Teamleiter-Berichte</span>
+                  </div>
+                  <div class="feature-item">
+                    <font-awesome-icon :icon="['fas', 'file-alt']" />
+                    <span>Dokumente - Event-Reports & Laufzettel</span>
+                  </div>
+                  <div class="feature-item">
+                    <font-awesome-icon :icon="['fas', 'users']" />
+                    <span>Personal - Mitarbeiterverwaltung mit Asana/Flip Verknüpfung</span>
+                  </div>
+                  <div class="feature-item">
+                    <font-awesome-icon :icon="['fas', 'calendar-days']" />
+                    <span>Aufträge - Schichten, Jobs & Einsätze in Kalender-Ansicht</span>
+                  </div>
+                  <div class="feature-item">
                     <font-awesome-icon :icon="['fas', 'dice']" />
-                    <span
-                      >Verlosung - Dashboard für die Adventsverlosungen</span
-                    >
+                    <span>Verlosung - Dashboard für die Adventsverlosungen</span>
                   </div>
                   <div class="feature-item">
                     <font-awesome-icon :icon="['fas', 'envelope']" />
@@ -146,10 +148,6 @@
             <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'chart-bar']" />
               <span>Dashboard Widgets - Letzte Event-Reports, heutige Jobs, Bestandsveränderungen & mehr</span>
-            </div>
-            <div class="feature-item">
-              <font-awesome-icon :icon="['fas', 'dolly']" />
-              <span>Bestand - Zuordnung von Service- & Logi-Paketen zu Mitarbeitern</span>
             </div>
             <div class="feature-item">
               <font-awesome-icon :icon="['fas', 'table-list']" />

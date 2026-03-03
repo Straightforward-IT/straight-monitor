@@ -11,6 +11,14 @@ router.get("/", auth, asyncHandler( async (req, res) => {
     res.status(200).json(monitoringLogs);
 }));
 
+// GET all monitoring logs for a specific Mitarbeiter
+router.get("/mitarbeiter/:mitarbeiterId", auth, asyncHandler(async (req, res) => {
+  const logs = await Monitoring.find({ mitarbeiter: req.params.mitarbeiterId })
+    .sort({ timestamp: -1 })
+    .lean();
+  res.status(200).json(logs);
+}));
+
 // GET a specific monitoring log by ID
 router.get("/:id", auth, asyncHandler( async (req, res) => {
     const monitoringLog = await Monitoring.findById(req.params.id);
