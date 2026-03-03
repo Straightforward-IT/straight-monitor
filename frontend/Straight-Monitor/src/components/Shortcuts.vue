@@ -264,16 +264,16 @@
           </div>
 
           <label class="full">
+            Mitarbeiter <span class="optional-hint">(optional)</span>
+            <MitarbeiterSearch v-model="mitarbeiterId" :dropup="true" />
+          </label>
+          <label class="full">
             Anmerkung
             <input
               type="text"
               placeholder="Anmerkung (optional)"
               v-model="anmerkung"
             />
-          </label>
-          <label class="full">
-            Mitarbeiter <span class="optional-hint">(optional)</span>
-            <MitarbeiterSearch v-model="mitarbeiterId" />
           </label>
         </div>
         
@@ -504,16 +504,16 @@
           </div>
 
           <label class="full">
+            Mitarbeiter <span class="optional-hint">(optional)</span>
+            <MitarbeiterSearch v-model="mitarbeiterId" :dropup="true" />
+          </label>
+          <label class="full">
             Anmerkung
             <input
               type="text"
               placeholder="Anmerkung (optional)"
               v-model="anmerkung"
             />
-          </label>
-          <label class="full">
-            Mitarbeiter <span class="optional-hint">(optional)</span>
-            <MitarbeiterSearch v-model="mitarbeiterId" />
           </label>
         </div>
         

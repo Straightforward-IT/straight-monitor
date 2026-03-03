@@ -44,7 +44,7 @@
     </div>
 
     <!-- Dropdown -->
-    <ul v-if="showDropdown && results.length" class="ma-search__dropdown">
+    <ul v-if="showDropdown && results.length" :class="['ma-search__dropdown', { 'ma-search__dropdown--dropup': dropup }]">
       <li
         v-for="(ma, i) in results"
         :key="ma._id"
@@ -85,6 +85,7 @@ const props = defineProps({
   multiple:    { type: Boolean, default: false },
   label:       { type: String,  default: '' },
   placeholder: { type: String,  default: 'Mitarbeiter suchen (Name, Nr.)…' },
+  dropup:      { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue', 'select']);
 
@@ -267,6 +268,12 @@ watch(() => props.modelValue, (val) => {
   position: absolute;
   top: calc(100% + 3px);
   left: 0; right: 0;
+
+  &--dropup {
+    top: auto;
+    bottom: calc(100% + 3px);
+    box-shadow: 0 -6px 20px rgba(0,0,0,0.12);
+  }
   background: var(--tile-bg);
   border: 1px solid var(--border);
   border-radius: 7px;
