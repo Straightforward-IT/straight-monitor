@@ -257,12 +257,8 @@ import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
-// Suppress harmless font/encoding warnings from pdfjs worker
-const _warn = console.warn.bind(console);
-console.warn = (...args) => {
-  if (typeof args[0] === 'string' && (args[0].startsWith('TT:') || args[0].includes('getHexString'))) return;
-  _warn(...args);
-};
+// Suppress harmless font/encoding warnings (getHexString, TT:) inside the worker
+pdfjsLib.GlobalWorkerOptions.verbosity = 0; // VerbosityLevel.ERRORS only
 
 // ── State ────────────────────────────────────────────────────────────────
 const view = ref('list');       // 'list' | 'upload' | 'editor'
@@ -465,7 +461,7 @@ async function loadPdfPage(pageIdx) {
       headers,
       responseType: 'arraybuffer'
     });
-    pdfDoc = await pdfjsLib.getDocument({ data: res.data }).promise;
+    pdfDoc = await pdfjsLib.getDocument({ data: res.data, verbosity: 0 }).promise;
   }
 
   const page = await pdfDoc.getPage(pageIdx + 1); // 1-indexed

@@ -130,12 +130,8 @@ import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
-// Suppress harmless TrueType font warnings from pdfjs worker
-const _warn = console.warn.bind(console);
-console.warn = (...args) => {
-  if (typeof args[0] === 'string' && (args[0].startsWith('TT:') || args[0].includes('getHexString'))) return;
-  _warn(...args);
-};
+// Suppress harmless font/encoding warnings (getHexString, TT:) inside the worker
+pdfjsLib.GlobalWorkerOptions.verbosity = 0; // VerbosityLevel.ERRORS only
 
 const route = useRoute();
 const token = localStorage.getItem('token');
@@ -193,7 +189,7 @@ async function loadPdfPreview(pageIdx) {
       headers,
       responseType: 'arraybuffer'
     });
-    pdfDoc = await pdfjsLib.getDocument({ data: res.data }).promise;
+    pdfDoc = await pdfjsLib.getDocument({ data: res.data, verbosity: 0 }).promise;
   }
 
   const page = await pdfDoc.getPage(pageIdx + 1);

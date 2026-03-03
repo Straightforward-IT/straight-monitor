@@ -10,7 +10,7 @@
     <div class="last-import-section">
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in ['einsatz-komplett', 'personal', 'beruf', 'qualifikation']" :key="type" class="history-card">
+        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'beruf', 'qualifikation'] : ['einsatz-komplett', 'personal'])" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -122,8 +122,8 @@
       </div>
     </div><!-- End Personal -->
 
-    <!-- System Bereich -->
-    <div class="import-section">
+    <!-- System Bereich (nur für Admins) -->
+    <div v-if="isAdmin" class="import-section">
       <div class="import-section-header">
         <i class="fas fa-cogs"></i>
         <h2>System</h2>
@@ -380,19 +380,6 @@
           </div>
         </div>
 
-        <!-- Flip Sync Status -->
-        <div v-if="flipRoutineStatus" class="flip-routine-status" :class="flipRoutineStatus">
-          <template v-if="flipRoutineStatus === 'running'">
-            <i class="fas fa-spinner fa-spin"></i> Flip Benutzer-Synchronisation läuft...
-          </template>
-          <template v-else-if="flipRoutineStatus === 'success'">
-            <i class="fas fa-check-circle"></i> Flip Sync abgeschlossen.
-          </template>
-          <template v-else-if="flipRoutineStatus === 'error'">
-            <i class="fas fa-exclamation-triangle"></i> Flip Sync fehlgeschlagen.
-          </template>
-        </div>
-
         <div class="modal-footer">
           <button class="primary-btn" @click="closeModal">Schließen</button>
         </div>
@@ -403,9 +390,19 @@
 
 <script>
 import api from "../utils/api";
+import { useAuth } from "../stores/auth";
 
 export default {
   name: "DatenImport",
+  setup() {
+    const authStore = useAuth();
+    return { authStore };
+  },
+  computed: {
+    isAdmin() {
+      return this.authStore?.user?.role === 'ADMIN';
+    }
+  },
   data() {
     return {
 
@@ -424,8 +421,7 @@ export default {
       searching: false,
       searchTimeout: null,
       lastUploads: {},
-      loadingHistory: false,
-      flipRoutineStatus: null // null | 'running' | 'success' | 'error'
+      loadingHistory: false
     };
   },
   methods: {
@@ -490,7 +486,8 @@ export default {
         return;
       }
 
-      const fileCount = [this.einsatzFile, this.personalFile, this.berufFile, this.qualifikationFile].filter(Boolean).length;
+      const adminFiles = this.isAdmin ? [this.berufFile, this.qualifikationFile] : [];
+      const fileCount = [this.einsatzFile, this.personalFile, ...adminFiles].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
       this.loading = true;
@@ -511,13 +508,13 @@ export default {
           if (!response.success) hasErrors = true;
         }
 
-        if (this.berufFile) {
+        if (this.berufFile && this.isAdmin) {
           const response = await this.uploadFile(this.berufFile, 'beruf');
           results.push({ type: 'Berufe', ...response });
           if (!response.success) hasErrors = true;
         }
 
-        if (this.qualifikationFile) {
+        if (this.qualifikationFile && this.isAdmin) {
           const response = await this.uploadFile(this.qualifikationFile, 'qualifikation');
           results.push({ type: 'Qualifikationen', ...response });
           if (!response.success) hasErrors = true;
@@ -531,13 +528,10 @@ export default {
           this.resetAll();
         }
 
-        // Trigger Flip user sync in the background after a successful personal import
+        // Trigger Flip user sync silently in the background after a successful personal import
         const personalResult = results.find(r => r.type === 'Personal');
         if (personalResult?.success) {
-          this.flipRoutineStatus = 'running';
-          api.get('/api/personal/initialRoutine')
-            .then(() => { this.flipRoutineStatus = 'success'; })
-            .catch(() => { this.flipRoutineStatus = 'error'; });
+          api.get('/api/personal/initialRoutine').catch(() => {});
         }
       } catch (err) {
         console.error("Global import error:", err);
@@ -621,7 +615,6 @@ export default {
     closeModal() {
       this.showResultModal = false;
       this.resultModalData = {};
-      this.flipRoutineStatus = null;
       this.cancelAssign();
     },
     startAssign(entry) {
@@ -708,7 +701,8 @@ export default {
       this.fetchLastUploads();
     },
     hasAnyFile() {
-      return this.einsatzFile || this.personalFile || this.berufFile || this.qualifikationFile;
+      const adminFiles = this.isAdmin ? (this.berufFile || this.qualifikationFile) : false;
+      return this.einsatzFile || this.personalFile || adminFiles;
     },
 
     handleEscapeKey(event) {
@@ -1421,33 +1415,6 @@ export default {
   padding: 12px;
   color: var(--muted);
   font-size: 0.9rem;
-}
-
-.flip-routine-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  margin: 0 24px 16px;
-
-  &.running {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
-    border: 1px solid rgba(59, 130, 246, 0.25);
-  }
-  &.success {
-    background: rgba(74, 222, 128, 0.1);
-    color: #4ade80;
-    border: 1px solid rgba(74, 222, 128, 0.25);
-  }
-  &.error {
-    background: rgba(248, 113, 113, 0.1);
-    color: #f87171;
-    border: 1px solid rgba(248, 113, 113, 0.25);
-  }
 }
 
 .primary-btn {

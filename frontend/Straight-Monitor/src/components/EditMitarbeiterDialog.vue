@@ -213,11 +213,29 @@ function formatDate(dateStr) {
   return format(new Date(dateStr), "dd.MM.yyyy HH:mm", { locale: de });
 }
 
+function archiveOldPersonalnrIfChanged() {
+  const oldNr = props.mitarbeiter?.personalnr?.trim();
+  const newNr = form.value.personalnr?.trim();
+  if (oldNr && newNr && oldNr !== newNr) {
+    const alreadyInHistory = form.value.personalnrHistory.some(
+      (e) => e.value === oldNr
+    );
+    if (!alreadyInHistory) {
+      form.value.personalnrHistory.unshift({
+        value: oldNr,
+        updatedAt: new Date().toISOString(),
+        updatedBy: "user",
+        source: "manual",
+      });
+    }
+  }
+}
+
 function save() {
-  // Filter empty emails
   form.value.additionalEmails = form.value.additionalEmails.filter(
     (e) => e && e.trim() !== ""
   );
+  archiveOldPersonalnrIfChanged();
   emit("save", form.value);
 }
 
@@ -225,6 +243,7 @@ function saveForce() {
   form.value.additionalEmails = form.value.additionalEmails.filter(
     (e) => e && e.trim() !== ""
   );
+  archiveOldPersonalnrIfChanged();
   emit("save-force", form.value);
 }
 </script>
@@ -240,7 +259,7 @@ function saveForce() {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 9999;
 }
 
 .modal-content {

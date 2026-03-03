@@ -1,5 +1,14 @@
 <template>
   <div class="window">
+    <!-- Notification Banner -->
+    <transition name="notify">
+      <div v-if="notification.visible" :class="['notify-banner', `notify-${notification.type}`]" role="status">
+        <span class="notify-dot" aria-hidden="true"></span>
+        <span class="notify-text">{{ notification.message }}</span>
+        <button class="notify-close" @click="notification.visible = false" aria-label="Schließen">&times;</button>
+      </div>
+    </transition>
+
     <div class="window-panels">
       <div class="create-panel">
         <!-- Top Panel -->
@@ -14,7 +23,8 @@
             </button>
             <button @click="resetNewUser">Formular Zurücksetzen</button>
             <button @click="fetchAsanaTask">Asana Task neu laden</button>
-           <!-- <button @click="openReentryModal">Wiedereintritt MA</button>-->
+            <button v-if="isDev" class="dev-notify-btn" @click="testNotify">Feedback testen</button>
+           <!-- <button @click="openReentryModal">Wiedereintritt MA</button> -->
           </div>
 
           <!-- Hinweise Section (toggleable) -->
@@ -47,6 +57,19 @@
                 class="text-input"
                 placeholder="e.g. 1209453587596953"
               />
+              <div v-if="fieldStatus.asana_id.state !== 'idle'" class="field-hint" :class="`hint-${fieldStatus.asana_id.state}`">
+                <span v-if="fieldStatus.asana_id.state === 'checking'">Wird geprüft …</span>
+                <span v-else-if="fieldStatus.asana_id.state === 'clear'">Nicht vorhanden</span>
+                <span v-else-if="fieldStatus.asana_id.state === 'error'">Prüfung fehlgeschlagen</span>
+                <template v-else-if="fieldStatus.asana_id.state === 'found'">
+                  <span>Gefunden: {{ fieldStatus.asana_id.mitarbeiter.vorname }} {{ fieldStatus.asana_id.mitarbeiter.nachname }}
+                    <span class="hint-badge" :class="fieldStatus.asana_id.mitarbeiter.isActive ? 'badge-active' : 'badge-inactive'">
+                      {{ fieldStatus.asana_id.mitarbeiter.isActive ? 'aktiv' : 'inaktiv' }}
+                    </span>
+                  </span>
+                  <button class="reentry-btn" @click="openReentryForMitarbeiter(fieldStatus.asana_id.mitarbeiter)">Wiedereintritt</button>
+                </template>
+              </div>
             </div>
           </div>
 
@@ -78,6 +101,19 @@
                 class="text-input email"
                 placeholder="E-Mail*"
               />
+              <div v-if="fieldStatus.email.state !== 'idle'" class="field-hint" :class="`hint-${fieldStatus.email.state}`">
+                <span v-if="fieldStatus.email.state === 'checking'">Wird geprüft …</span>
+                <span v-else-if="fieldStatus.email.state === 'clear'">Nicht vorhanden</span>
+                <span v-else-if="fieldStatus.email.state === 'error'">Prüfung fehlgeschlagen</span>
+                <template v-else-if="fieldStatus.email.state === 'found'">
+                  <span>Gefunden: {{ fieldStatus.email.mitarbeiter.vorname }} {{ fieldStatus.email.mitarbeiter.nachname }}
+                    <span class="hint-badge" :class="fieldStatus.email.mitarbeiter.isActive ? 'badge-active' : 'badge-inactive'">
+                      {{ fieldStatus.email.mitarbeiter.isActive ? 'aktiv' : 'inaktiv' }}
+                    </span>
+                  </span>
+                  <button class="reentry-btn" @click="openReentryForMitarbeiter(fieldStatus.email.mitarbeiter)">Wiedereintritt</button>
+                </template>
+              </div>
             </div>
             <div class="input-item">
               <label class="input-label">Personalnummer*</label>
@@ -87,6 +123,19 @@
                 class="text-input"
                 placeholder="Personalnummer*"
               />
+              <div v-if="fieldStatus.personalnr.state !== 'idle'" class="field-hint" :class="`hint-${fieldStatus.personalnr.state}`">
+                <span v-if="fieldStatus.personalnr.state === 'checking'">Wird geprüft …</span>
+                <span v-else-if="fieldStatus.personalnr.state === 'clear'">Nicht vorhanden</span>
+                <span v-else-if="fieldStatus.personalnr.state === 'error'">Prüfung fehlgeschlagen</span>
+                <template v-else-if="fieldStatus.personalnr.state === 'found'">
+                  <span>Gefunden: {{ fieldStatus.personalnr.mitarbeiter.vorname }} {{ fieldStatus.personalnr.mitarbeiter.nachname }}
+                    <span class="hint-badge" :class="fieldStatus.personalnr.mitarbeiter.isActive ? 'badge-active' : 'badge-inactive'">
+                      {{ fieldStatus.personalnr.mitarbeiter.isActive ? 'aktiv' : 'inaktiv' }}
+                    </span>
+                  </span>
+                  <button class="reentry-btn" @click="openReentryForMitarbeiter(fieldStatus.personalnr.mitarbeiter)">Wiedereintritt</button>
+                </template>
+              </div>
             </div>
           </div>
 
@@ -259,7 +308,31 @@
         </div>
       </div>
     </div>
+
   </div>
+
+  <!-- Wiedereintritt: EmployeeCard Modal -->
+  <div v-if="reentryMitarbeiter" class="modal-overlay reentry-modal" @click.self="reentryMitarbeiter = null">
+    <div class="modal-content modal-employee">
+      <div class="modal-header">
+        <h2>Wiedereintritt — Bestandsdaten</h2>
+        <button class="close-btn" @click="reentryMitarbeiter = null">&times;</button>
+      </div>
+      <div class="modal-body modal-employee-body">
+        <EmployeeCard
+          v-if="reentryFullData"
+          :ma="reentryFullData"
+          :initiallyExpanded="true"
+          :showCheckbox="false"
+        />
+        <div v-else class="loading-employee">
+          <font-awesome-icon icon="fa-solid fa-spinner" spin />
+          <span>Lade Mitarbeiter…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </template>
 
 <script>
@@ -268,12 +341,13 @@ import api from "@/utils/api";
 import debounce from "lodash.debounce";
 import AsanaMappings from "@/assets/AsanaMappings.json";
 import FlipMappings from "@/assets/FlipMappings.json";
-
+import EmployeeCard from "@/components/EmployeeCard.vue";
 export default {
   name: "Erstellen",
   emits: [],
   components: {
     FontAwesomeIcon,
+    EmployeeCard,
   },
   props: {},
   data() {
@@ -316,6 +390,26 @@ export default {
 
       //Response
       createdFlipUser: null,
+
+      // Field existence checks (live, debounced)
+      // state: 'idle' | 'checking' | 'found' | 'clear' | 'error'
+      fieldStatus: {
+        email:      { state: 'idle', mitarbeiter: null },
+        personalnr: { state: 'idle', mitarbeiter: null },
+        asana_id:   { state: 'idle', mitarbeiter: null },
+      },
+
+      // Wiedereintritt modal
+      reentryMitarbeiter: null,  // basic stub — triggers modal v-if
+      reentryFullData: null,     // full DB + Flip merged object
+
+      // Notification
+      notification: {
+        visible: false,
+        type: 'info', // 'success' | 'error' | 'warning' | 'info'
+        message: '',
+        _timer: null,
+      },
     };
   },
   watch: {
@@ -327,12 +421,29 @@ export default {
           if (!taskFound) {
             this.asanaTask = null;
           }
+          this.checkField('asana_id', trimmedId);
         } else {
           this.asanaTask = null;
+          this.fieldStatus.asana_id = { state: 'idle', mitarbeiter: null };
         }
-      }, 1000), // 500ms debounce (half a second wait)
+      }, 1000),
       immediate: false,
-    }, isTeamleiter: {
+    },
+    email: debounce(function (val) {
+      if (val && val.trim().length > 4 && val.includes('@')) {
+        this.checkField('email', val.trim());
+      } else {
+        this.fieldStatus.email = { state: 'idle', mitarbeiter: null };
+      }
+    }, 600),
+    personalnr: debounce(function (val) {
+      if (val && val.trim().length > 0 && val.trim() !== '0') {
+        this.checkField('personalnr', val.trim());
+      } else {
+        this.fieldStatus.personalnr = { state: 'idle', mitarbeiter: null };
+      }
+    }, 600),
+    isTeamleiter: {
       immediate: true,
       handler(newVal) {
         if(newVal) {
@@ -363,6 +474,9 @@ export default {
     isLogistik: "setDepartment",
   },
   computed: {
+    isDev() {
+      return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    },
     availableLocations() {
       return (index) => {
         const allLocations = Object.keys(this.bewerber_project_gids);
@@ -408,6 +522,65 @@ export default {
     }
   },
   methods: {
+    async checkField(field, value) {
+      if (!value) return;
+      this.fieldStatus[field] = { state: 'checking', mitarbeiter: null };
+      try {
+        const params = {};
+        params[field] = value;
+        const { data } = await api.get('/api/personal/check', { params });
+        if (data.found) {
+          this.fieldStatus[field] = { state: 'found', mitarbeiter: data.mitarbeiter };
+        } else {
+          this.fieldStatus[field] = { state: 'clear', mitarbeiter: null };
+        }
+      } catch {
+        this.fieldStatus[field] = { state: 'error', mitarbeiter: null };
+      }
+    },
+    async openReentryForMitarbeiter(mitarbeiter) {
+      this.reentryMitarbeiter = mitarbeiter;  // open modal immediately
+      this.reentryFullData = null;
+      try {
+        const response = await api.get(`/api/personal/mitarbeiter/${mitarbeiter._id}`);
+        const mitarbeiterData = response.data.data;
+        if (mitarbeiterData.flip_id) {
+          try {
+            const flipResponse = await api.get(`/api/personal/flip/by-id/${mitarbeiterData.flip_id}`);
+            mitarbeiterData.flip = flipResponse.data;
+          } catch {
+            mitarbeiterData.flip = null;
+          }
+        }
+        this.reentryFullData = mitarbeiterData;
+      } catch {
+        this.showNotification('error', 'Mitarbeiter-Daten konnten nicht geladen werden.');
+        this.reentryMitarbeiter = null;
+      }
+    },
+    showNotification(type, message, duration = null) {
+      if (this.notification._timer) clearTimeout(this.notification._timer);
+      this.notification.type = type;
+      this.notification.message = message;
+      this.notification.visible = true;
+
+      const defaultDuration = type === 'error' ? 10000 : type === 'warning' ? 7000 : 4000;
+      const ms = duration ?? defaultDuration;
+      this.notification._timer = setTimeout(() => {
+        this.notification.visible = false;
+      }, ms);
+    },
+    testNotify() {
+      const samples = [
+        { type: 'success', message: 'Benutzer Max Mustermann wurde angelegt.' },
+        { type: 'info',    message: 'Asana-Task geladen. Felder wurden automatisch befüllt.' },
+        { type: 'warning', message: 'E-Mail-Adresse bereits vergeben. Bitte eine andere angeben.' },
+        { type: 'error',   message: 'Verbindung zum Server fehlgeschlagen. Status 503.' },
+      ];
+      const currentIdx = samples.findIndex(s => s.type === this.notification.type);
+      const next = samples[(currentIdx + 1) % samples.length];
+      this.showNotification(next.type, next.message);
+    },
     setAxiosAuthToken() {
       api.defaults.headers.common["x-auth-token"] = this.token;
     },
@@ -707,7 +880,14 @@ export default {
       this.job_title = "Mitarbeiter/in";
       this.department = "";
       this.showReentryModal = false;
+      this.reentryMitarbeiter = null;
+      this.reentryFullData = null;
       this.createdFlipUser = null;
+      this.fieldStatus = {
+        email:      { state: 'idle', mitarbeiter: null },
+        personalnr: { state: 'idle', mitarbeiter: null },
+        asana_id:   { state: 'idle', mitarbeiter: null },
+      };
     },
     openReentryModal() {
       this.showReentryModal = true;
@@ -736,7 +916,7 @@ export default {
     !this.personalnr?.trim() ||
     !this.location
   ) {
-    alert("⚠️ Bitte fülle alle Pflichtfelder aus: Vorname, Nachname, E-Mail, Personalnummer (oder 0), Standort.");
+    this.showNotification('warning', 'Bitte fülle alle Pflichtfelder aus: Vorname, Nachname, E-Mail, Personalnummer (oder 0), Standort.');
     return;
   }
 
@@ -744,7 +924,7 @@ export default {
   try {
     const trimmedPersonalnr = this.personalnr.trim();
     const personalnrValue = trimmedPersonalnr === '0' ? null : trimmedPersonalnr;
-    
+
     const userPayload = {
       asana_id: this.asana_id || null,
       first_name: this.vorname,
@@ -767,16 +947,28 @@ export default {
 
     const response = await api.post("/api/personal/create", userPayload);
     this.createdFlipUser = response.data.flipUser;
-    alert("✅ Benutzer erfolgreich erstellt!");
+    this.showNotification('success', `Benutzer ${this.vorname} ${this.nachname} wurde erfolgreich erstellt.`);
   } catch (error) {
     console.error("❌ Fehler beim Erstellen:", error);
 
     if (error.response && error.response.status === 409) {
-      alert(`⚠️ ${error.response.data.message}`);
+      const d = error.response.data;
+      this.showNotification('warning', d.message || 'Ein Benutzer mit diesen Daten existiert bereits.');
+      // If the server returned the conflicting mitarbeiter, open the Wiedereintritt modal automatically
+      if (d.mitarbeiter_id) {
+        await this.openReentryForMitarbeiter({ _id: d.mitarbeiter_id });
+      }
+    } else if (error.response?.status === 422) {
+      const details = error.response.data?.errors?.map(e => e.msg).join(', ');
+      this.showNotification('error', `Ungültige Eingabe: ${details || error.response.data?.message || 'Bitte Felder prüfen.'}`);
+    } else if (error.response?.status === 500) {
+      this.showNotification('error', `Serverfehler: ${error.response.data?.message || 'Interner Fehler. Bitte Logs prüfen.'}`);
+    } else if (!error.response) {
+      this.showNotification('error', 'Keine Verbindung zum Server. Bitte Netzwerk und Backend prüfen.');
     } else {
-      alert("❌ Fehler beim Erstellen! Bitte versuche es später erneut.");
+      this.showNotification('error', `Fehler beim Erstellen (${error.response?.status ?? 'unbekannt'}): ${error.response?.data?.message || error.message}`);
     }
-  }  finally {
+  } finally {
     this.isSubmitting = false;
   }
 },
@@ -1088,6 +1280,207 @@ export default {
 .mitarbeiter-list li.highlighted,
 .mitarbeiter-list li:hover{
   background: var(--primary); color:#fff;
+}
+
+/* ============= NOTIFICATION BANNER ============= */
+
+.notify-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-radius: 6px;
+  border-left: 4px solid currentColor;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  font-weight: 500;
+
+  .notify-dot {
+    width: 6px;
+    height: 6px;
+    min-width: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.65;
+  }
+
+  .notify-text {
+    flex: 1;
+    word-break: break-word;
+  }
+
+  .notify-close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    opacity: 0.35;
+    font-size: 1.15rem;
+    line-height: 1;
+    padding: 0 2px;
+    color: inherit;
+    transition: opacity 0.12s;
+    &:hover { opacity: 0.75; }
+  }
+}
+
+.notify-success {
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+  border-color: rgba(34, 197, 94, 0.7);
+}
+
+.notify-error {
+  background: rgba(239, 68, 68, 0.11);
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.7);
+}
+
+.notify-warning {
+  background: rgba(245, 158, 11, 0.11);
+  color: #92400e;
+  border-color: rgba(245, 158, 11, 0.7);
+}
+
+.notify-info {
+  background: rgba(var(--border-rgb), 0.08);
+  color: var(--text);
+  border-color: rgba(var(--border-rgb), 0.45);
+}
+
+/* Fade only — kein Slide */
+.notify-enter-active,
+.notify-leave-active {
+  transition: opacity 0.18s ease;
+}
+.notify-enter-from,
+.notify-leave-to {
+  opacity: 0;
+}
+
+/* Dev-only preview button */
+.dev-notify-btn {
+  opacity: 0.45 !important;
+  font-style: italic;
+  font-size: 0.78rem !important;
+  border-style: dashed !important;
+  &:hover { opacity: 0.85 !important; }
+}
+
+/* ============= FIELD HINTS ============= */
+
+.field-hint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.hint-checking { color: var(--muted); font-style: italic; }
+.hint-clear    { color: #15803d; }
+.hint-error    { color: #b91c1c; }
+.hint-found    { color: #92400e; font-weight: 500; }
+
+.hint-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.badge-active   { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
+.badge-inactive { background: rgba(107, 114, 128, 0.12); color: var(--muted); }
+
+.reentry-btn {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  &:hover { background: var(--primary); color: #fff; }
+}
+
+/* ============= WIEDEREINTRITT MODAL ============= */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: var(--tile-bg);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-employee {
+  max-width: 900px;
+  width: 95%;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+
+  h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    line-height: 1;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0 4px;
+    opacity: 0.6;
+    transition: opacity 0.12s;
+    &:hover { opacity: 1; }
+  }
+}
+
+.modal-body {
+  overflow-y: auto;
+}
+
+.modal-employee-body {
+  padding: 0;
+  max-height: 80vh;
+}
+
+.loading-employee {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px;
+  color: var(--muted);
 }
 
 /* ============= MOBILE RESPONSIVE OPTIMIERUNGEN ============= */

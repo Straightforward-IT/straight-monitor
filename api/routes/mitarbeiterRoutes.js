@@ -1034,6 +1034,37 @@ router.get(
   })
 );
 
+// --- GET Mitarbeiter field-existence check ---
+// GET /api/personal/check?email=&personalnr=&asana_id=
+// Returns { found: bool, mitarbeiter: { _id, vorname, nachname, email, personalnr, isActive, flip_id } | null }
+router.get(
+  "/check",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { email, personalnr, asana_id } = req.query;
+    const conditions = [];
+
+    if (email && email.trim()) {
+      conditions.push({ email: email.trim().toLowerCase() });
+    }
+    if (personalnr && personalnr.trim() && personalnr.trim() !== "0") {
+      conditions.push({ personalnr: personalnr.trim() });
+    }
+    if (asana_id && asana_id.trim()) {
+      conditions.push({ asana_id: asana_id.trim() });
+    }
+
+    if (conditions.length === 0) return res.json({ found: false, mitarbeiter: null });
+
+    const mitarbeiter = await Mitarbeiter.findOne({ $or: conditions })
+      .select("_id vorname nachname email personalnr isActive flip_id")
+      .lean();
+
+    if (!mitarbeiter) return res.json({ found: false, mitarbeiter: null });
+    return res.json({ found: true, mitarbeiter });
+  })
+);
+
 // --- POST manual Laufzettel creation (admin) ---
 // POST /api/personal/laufzettel/manual
 router.post(
@@ -2250,20 +2281,29 @@ router.post(
         if (mitarbeiter.flip_id) {
           try {
             let flipUserFound = await findFlipUserById(mitarbeiter.flip_id);
-            if (flipUserFound?.data?.status === "ACTIVE") {
+            const flipStatus = flipUserFound?.data?.status ?? "UNBEKANNT";
+            const conflictBase = {
+              mitarbeiter_id: mitarbeiter._id,
+              flipStatus,
+              isActive: mitarbeiter.isActive,
+              vorname: mitarbeiter.vorname,
+              nachname: mitarbeiter.nachname,
+              email: mitarbeiter.email,
+            };
+            if (flipStatus === "ACTIVE") {
               return res.status(409).json({
-                message:
-                  "Aktiver Flip-User mit identischer Email/Asana-ID existiert bereits.",
+                ...conflictBase,
+                message: "Aktiver Flip-User mit identischer E-Mail/Asana-ID existiert bereits.",
               });
-            } else if (flipUserFound?.data?.status === "PENDING_DELETION") {
+            } else if (flipStatus === "PENDING_DELETION") {
               return res.status(409).json({
-                message:
-                  "Flip-User befindet sich im Status 'PENDING_DELETION'. Bitte prüfen.",
+                ...conflictBase,
+                message: `Flip-User steht auf 'Ausstehende Löschung'. Bitte in der Flip Admin-Konsole prüfen.`,
               });
             } else {
               return res.status(409).json({
-                message:
-                  "Flip-User befindet sich im Status 'LOCKED'. Bitte prüfen.",
+                ...conflictBase,
+                message: `Flip-User hat unbekannten Status: '${flipStatus}'. Bitte in der Flip Admin-Konsole prüfen.`,
               });
             }
           } catch (error) {
