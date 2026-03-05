@@ -602,6 +602,7 @@ export default {
       try {
         const response = await api.post(`/api/import/${endpointSuffix}`, formData, {
           headers: { "Content-Type": "multipart/form-data" },
+          timeout: 600000, // 10 min – large imports can take a while
         });
         return response.data;
       } catch (error) {

@@ -201,7 +201,7 @@ function confirm() {
     background: #dc3545;
     color: white;
     &:hover {
-      background: darken(#dc3545, 10%);
+      background: color.adjust(#dc3545, $lightness: -10%);
     }
   }
 

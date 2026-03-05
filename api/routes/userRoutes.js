@@ -18,6 +18,18 @@ router.get(
   })
 );
 
+// PUT /api/users/me/dashboard-prefs
+router.put(
+  "/me/dashboard-prefs",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { prefs } = req.body;
+    if (!Array.isArray(prefs)) return res.status(400).json({ msg: "prefs must be an array" });
+    await User.findByIdAndUpdate(req.user.id, { dashboardPrefs: prefs });
+    res.status(200).json({ msg: "Dashboard preferences saved" });
+  })
+);
+
 // GET /api/users/:id
 router.get(
   "/:id",

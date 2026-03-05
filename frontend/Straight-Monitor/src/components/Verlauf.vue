@@ -74,6 +74,7 @@
         :grouped-data="groupedLogs"
         :active-groups="activeGroupsArray"
         :level="0"
+        :highlight-id="highlightedLogId"
         @open-mitarbeiter="openMitarbeiterCard"
       />
     </div>
@@ -143,6 +144,8 @@ export default {
       searchQuery: "",
       dateFilter: "",
       groupedLogs: {},
+      highlightedLogId: null, // For URL parameter highlighting
+      highlightScrolled: false, // Track if we've already scrolled to highlight
     };
   },
   computed: {
@@ -200,6 +203,17 @@ export default {
         const { data } = await api.get("/api/monitoring");
         this.logs = (data || []).map((log) => ({ ...log, isExpanded: false }));
         this.groupLogs();
+        // After render, scroll to highlighted log if present
+        if (this.highlightedLogId) {
+          this.$nextTick(() => {
+            setTimeout(() => {
+              const el = document.getElementById(`highlight-${this.highlightedLogId}`);
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 100);
+          });
+        }
       } catch (e) {
         console.error("Fehler beim Abrufen der Logs:", e);
       }
@@ -295,6 +309,11 @@ export default {
   },
   mounted() {
     this.setAxiosAuthToken();
+    // Check for highlight parameter in URL
+    const highlightId = this.$route.query.highlight;
+    if (highlightId) {
+      this.highlightedLogId = highlightId;
+    }
     this.fetchLogs();
     window.addEventListener('keydown', this.handleKeydown);
   },

@@ -284,6 +284,35 @@ router.get('/sync', async (req, res) => {
     const updated = await Auftrag.find({
       updatedAt: { $gt: sinceDate }
     }).lean();
+
+    // Enrich with kundeData + einsaetzeCount (same as main GET /)
+    if (updated.length > 0) {
+      const kundenNrs = [...new Set(updated.map(a => a.kundenNr).filter(Boolean))];
+      const kundenData = await Kunde.find({ kundenNr: { $in: kundenNrs } }).lean();
+      const kundenMap = {};
+      kundenData.forEach(k => { kundenMap[k.kundenNr] = k; });
+
+      const auftragNrs = updated.map(a => a.auftragNr);
+      const einsatzAgg = await Einsatz.aggregate([
+        { $match: { auftragNr: { $in: auftragNrs } } },
+        { $group: { _id: '$auftragNr', count: { $sum: 1 }, earliestUhrzeitVon: { $min: '$uhrzeitVon' }, earliestDatumVon: { $min: '$datumVon' } } }
+      ]);
+      const countMap = {};
+      const earliestTimeMap = {};
+      einsatzAgg.forEach(e => {
+        countMap[e._id] = e.count;
+        earliestTimeMap[e._id] = { uhrzeitVon: e.earliestUhrzeitVon, datumVon: e.earliestDatumVon };
+      });
+
+      updated.forEach((a, i) => {
+        updated[i] = {
+          ...a,
+          kundeData: kundenMap[a.kundenNr] || null,
+          einsaetzeCount: countMap[a.auftragNr] || 0,
+          earliestEinsatzTime: earliestTimeMap[a.auftragNr] || null,
+        };
+      });
+    }
     
     // Note: We don't track deletions in this model, so deleted array is empty
     const deleted = [];

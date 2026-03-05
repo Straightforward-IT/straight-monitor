@@ -30,6 +30,10 @@ const UserSchema = new mongoose.Schema({
   date: {
     type: Date,
     default: Date.now
+  },
+  dashboardPrefs: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
   }
 });
 

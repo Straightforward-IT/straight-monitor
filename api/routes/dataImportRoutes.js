@@ -11,8 +11,16 @@ const Qualifikation = require('../models/Qualifikation');
 const ImportLog = require('../models/ImportLog');
 const logger = require('../utils/logger');
 const { sendMail } = require('../EmailService');
+const auth = require('../middleware/auth');
 
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Middleware: extend request timeout for long-running imports (10 min)
+const extendTimeout = (req, res, next) => {
+  req.setTimeout(600000);
+  res.setTimeout(600000);
+  next();
+};
 
 // Helper to log import
 const logImport = async (type, filename, status, count, details, userId = null) => {
@@ -57,6 +65,21 @@ router.get('/last-uploads', async (req, res) => {
 });
 // End: Get Last Uploads
 
+// Recent imports (last N, any type) – used by the dashboard widget
+router.get('/recent', auth, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 3;
+    const logs = await ImportLog.find()
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .populate('importedBy', 'name email');
+    res.json({ success: true, data: logs });
+  } catch (err) {
+    logger.error(`Error fetching recent imports: ${err.message}`);
+    res.status(500).json({ success: false, message: 'Fehler beim Laden der Import-Historie.' });
+  }
+});
+
 // Helper to parse Excel time (Date object or time string) to clean "HH:MM" string (always UTC-based)
 const parseExcelTime = (val) => {
   if (!val) return null;
@@ -90,7 +113,7 @@ const isValidRow = (row, idField) => {
 };
 
 // --- Auftrag Import ---
-router.post('/auftrag', upload.single('file'), async (req, res) => {
+router.post('/auftrag', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
@@ -149,11 +172,11 @@ router.post('/auftrag', upload.single('file'), async (req, res) => {
         details: { total: operations.length, inserted, updated, unchanged }
       };
 
-      await logImport('auftrag', req.file.originalname, 'success', operations.length, response.details, req.user?._id);
+      await logImport('auftrag', req.file.originalname, 'success', operations.length, response.details, req.user?.id);
 
       res.json(response);
     } else {
-      await logImport('auftrag', req.file.originalname, 'warning', 0, { message: 'Keine Aufträge gefunden' }, req.user?._id);
+      await logImport('auftrag', req.file.originalname, 'warning', 0, { message: 'Keine Aufträge gefunden' }, req.user?.id);
       res.json({ success: true, message: 'Keine Aufträge zum Verarbeiten gefunden.' });
     }
 
@@ -206,7 +229,7 @@ router.post('/auftrag', upload.single('file'), async (req, res) => {
 });
 
 // --- Kunde Import ---
-router.post('/kunde', upload.single('file'), async (req, res) => {
+router.post('/kunde', auth, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
@@ -259,11 +282,11 @@ router.post('/kunde', upload.single('file'), async (req, res) => {
         details: { total: operations.length, inserted, updated, unchanged }
       };
 
-      await logImport('kunde', req.file.originalname, 'success', operations.length, response.details, req.user?._id);
+      await logImport('kunde', req.file.originalname, 'success', operations.length, response.details, req.user?.id);
 
       res.json(response);
     } else {
-      await logImport('kunde', req.file.originalname, 'warning', 0, { message: 'Keine Kunden gefunden' }, req.user?._id);
+      await logImport('kunde', req.file.originalname, 'warning', 0, { message: 'Keine Kunden gefunden' }, req.user?.id);
       res.json({ success: true, message: 'Keine Kunden zum Verarbeiten gefunden.' });
     }
 
@@ -316,7 +339,7 @@ router.post('/kunde', upload.single('file'), async (req, res) => {
 });
 
 // --- Einsatz Import (Zvoove Komplett-Export) ---
-router.post('/einsatz', upload.single('file'), async (req, res) => {
+router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
@@ -496,7 +519,7 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
       `- Aufträge: ${stats.auftrag.upserted} neu, ${stats.auftrag.matched} aktualisiert, ${stats.auftrag.deactivated} deaktiviert\n` +
       `- Kunden: ${stats.kunde.upserted} neu, ${stats.kunde.matched} aktualisiert`;
 
-    await logImport('einsatz-komplett', req.file.originalname, 'success', newEinsaetze.length, stats, req.user?._id);
+    await logImport('einsatz-komplett', req.file.originalname, 'success', newEinsaetze.length, stats, req.user?.id);
     
     // Simple response structure for frontend
     res.json({ success: true, message: message, details: stats });
@@ -538,7 +561,7 @@ router.post('/einsatz', upload.single('file'), async (req, res) => {
 
 // --- Personal Import (kombiniert: Personalnr, Austrittsdatum, Beruf/Quali, Persgruppe, Email, Telefon) ---
 // Spalten: A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
-router.post('/personal', upload.single('file'), async (req, res) => {
+router.post('/personal', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
@@ -670,7 +693,7 @@ router.post('/personal', upload.single('file'), async (req, res) => {
       }
     };
 
-    await logImport('personal', req.file.originalname, 'success', matched, responseData.details, req.user?._id);
+    await logImport('personal', req.file.originalname, 'success', matched, responseData.details, req.user?.id);
     res.json(responseData);
 
     // Email notification
@@ -706,7 +729,7 @@ router.post('/personal', upload.single('file'), async (req, res) => {
 
 
 // --- Beruf Import ---
-router.post('/beruf', upload.single('file'), async (req, res) => {
+router.post('/beruf', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
@@ -758,23 +781,23 @@ router.post('/beruf', upload.single('file'), async (req, res) => {
         details: { total: operations.length, inserted, updated, unchanged }
       };
 
-      await logImport('beruf', req.file.originalname, 'success', operations.length, response.details, req.user?._id);
+      await logImport('beruf', req.file.originalname, 'success', operations.length, response.details, req.user?.id);
       res.json(response);
 
     } else {
-      await logImport('beruf', req.file.originalname, 'warning', 0, { message: 'Keine gültigen Berufsdaten gefunden' }, req.user?._id);
+      await logImport('beruf', req.file.originalname, 'warning', 0, { message: 'Keine gültigen Berufsdaten gefunden' }, req.user?.id);
       res.json({ success: true, message: 'Keine gültigen Berufe gefunden. (Erwarte Spalte A: Key, Spalte C: Bezeichnung)' });
     }
 
   } catch (error) {
     logger.error('Import Beruf Error:', error);
-    await logImport('beruf', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?._id);
+    await logImport('beruf', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
     res.status(500).json({ success: false, message: 'Fehler beim Importieren der Berufe.', error: error.message });
   }
 });
 
 // --- Qualifikation Import ---
-router.post('/qualifikation', upload.single('file'), async (req, res) => {
+router.post('/qualifikation', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
@@ -821,23 +844,23 @@ router.post('/qualifikation', upload.single('file'), async (req, res) => {
         details: { total: operations.length, inserted, updated, unchanged }
       };
 
-      await logImport('qualifikation', req.file.originalname, 'success', operations.length, response.details, req.user?._id);
+      await logImport('qualifikation', req.file.originalname, 'success', operations.length, response.details, req.user?.id);
       res.json(response);
 
     } else {
-      await logImport('qualifikation', req.file.originalname, 'warning', 0, { message: 'Keine gültigen Qualifikationsdaten gefunden' }, req.user?._id);
+      await logImport('qualifikation', req.file.originalname, 'warning', 0, { message: 'Keine gültigen Qualifikationsdaten gefunden' }, req.user?.id);
       res.json({ success: true, message: 'Keine gültigen Qualifikationen gefunden. (Erwarte Spalte A: Key, Spalte B: Bezeichnung)' });
     }
 
   } catch (error) {
     logger.error('Import Qualifikation Error:', error);
-    await logImport('qualifikation', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?._id);
+    await logImport('qualifikation', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
     res.status(500).json({ success: false, message: 'Fehler beim Importieren der Qualifikationen.', error: error.message });
   }
 });
 
 // --- Personal Qualifikation/Beruf Import ---
-router.post('/personal_quali', upload.single('file'), async (req, res) => {
+router.post('/personal_quali', auth, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
@@ -885,7 +908,7 @@ router.post('/personal_quali', upload.single('file'), async (req, res) => {
     }
 
     if (personalMap.size === 0) {
-      await logImport('personal_quali', req.file.originalname, 'warning', 0, { message: 'Keine gültigen Zuordnungen gefunden' }, req.user?._id);
+      await logImport('personal_quali', req.file.originalname, 'warning', 0, { message: 'Keine gültigen Zuordnungen gefunden' }, req.user?.id);
       return res.json({ success: true, message: 'Keine gültigen Daten gefunden (Spalten: A=Personalnr, B=BerufKey, C=QualiKey).' });
     }
 
@@ -946,7 +969,7 @@ router.post('/personal_quali', upload.single('file'), async (req, res) => {
         details: { totalFileRows: processedRows, uniquePersonalNrs: operations.length, updated: updatedCount, notFound: notFoundCount }
       };
 
-      await logImport('personal_quali', req.file.originalname, 'success', operations.length, response.details, req.user?._id);
+      await logImport('personal_quali', req.file.originalname, 'success', operations.length, response.details, req.user?.id);
       res.json(response);
 
     } else {
@@ -955,7 +978,7 @@ router.post('/personal_quali', upload.single('file'), async (req, res) => {
 
   } catch (error) {
     logger.error('Import Personal-Quali Error:', error);
-    await logImport('personal_quali', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?._id);
+    await logImport('personal_quali', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
     res.status(500).json({ success: false, message: 'Fehler beim Importieren der Zuordnungen.', error: error.message });
   }
 });

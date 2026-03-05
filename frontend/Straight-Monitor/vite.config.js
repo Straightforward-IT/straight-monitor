@@ -20,7 +20,9 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:5050',
-        changeOrigin: true
+        changeOrigin: true,
+        timeout: 600000,      // 10 min – large Excel imports
+        proxyTimeout: 600000
       }
     }
   }

@@ -28,10 +28,16 @@
           :grouped-data="group"
           :active-groups="activeGroups"
           :level="level + 1"
+          :highlight-id="highlightId"
           @open-mitarbeiter="$emit('open-mitarbeiter', $event)"
         />
         <div v-else class="log-list">
-          <div v-for="log in group" :key="log._id" class="log-card">
+          <div 
+            v-for="log in group"
+            :key="log._id"
+            :id="highlightId && log._id === highlightId ? `highlight-${log._id}` : undefined"
+            :class="['log-card', { 'log-card--highlighted': highlightId && log._id === highlightId }]"
+          >
             <div class="log-card-header" @click="toggleExpandLog(log)">
               <div class="log-meta">
                 <span><strong>Benutzer:</strong> {{ log.benutzerMail }}</span>
@@ -86,13 +92,19 @@ export default {
     groupedData: { type: Object, required: true },
     activeGroups: { type: Array, required: true },
     level: { type: Number, default: 0 },
+    highlightId: { type: String, default: null },
   },
   data() {
     return { expandedKeys: new Set() };
   },
   mounted() {
     if (this.level === 0) {
+      // At root level, start with all groups expanded
       Object.keys(this.groupedData).forEach((k) => this.expandedKeys.add(k));
+    }
+    // At ANY level: if a highlightId is set, expand relevant groups
+    if (this.highlightId) {
+      this.expandGroupsForHighlight();
     }
   },
   methods: {
@@ -119,6 +131,38 @@ export default {
         + " - " +
         d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
         + " Uhr";
+    },
+    // Check if a specific group/key contains the highlighted log
+    groupContainsHighlight(group) {
+      if (!this.highlightId) return false;
+      
+      if (this.isGroup(group)) {
+        // Recursively check nested groups
+        return Object.values(group).some(v => this.groupContainsHighlight(v));
+      }
+      
+      if (Array.isArray(group)) {
+        // Check if any log in this array has the matching ID
+        return group.some(log => log._id === this.highlightId);
+      }
+      
+      return false;
+    },
+    expandGroupsForHighlight() {
+      // Recursively expand all groups that contain the highlighted log
+      Object.entries(this.groupedData).forEach(([key, group]) => {
+        if (this.groupContainsHighlight(group)) {
+          this.expandedKeys.add(key);
+          // Also expand the log if it's at the leaf level
+          if (Array.isArray(group)) {
+            group.forEach(log => {
+              if (log._id === this.highlightId) {
+                log.isExpanded = true;
+              }
+            });
+          }
+        }
+      });
     },
   },
 };
@@ -217,6 +261,12 @@ export default {
   overflow:hidden;
 }
 .log-card:hover{ box-shadow: 0 6px 12px -3px rgba(0,0,0,.10); transform: translateY(-2px); }
+
+.log-card--highlighted {
+  border-left: 4px solid var(--c-primary);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--c-primary) 20%, var(--c-bg)), 0 6px 16px -3px rgba(0,0,0,.12);
+  transform: translateY(-2px);
+}
 
 .log-card-header{
   display:flex; justify-content:space-between; align-items:center;

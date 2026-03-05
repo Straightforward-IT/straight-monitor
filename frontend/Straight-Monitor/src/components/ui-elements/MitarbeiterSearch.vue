@@ -268,12 +268,6 @@ watch(() => props.modelValue, (val) => {
   position: absolute;
   top: calc(100% + 3px);
   left: 0; right: 0;
-
-  &--dropup {
-    top: auto;
-    bottom: calc(100% + 3px);
-    box-shadow: 0 -6px 20px rgba(0,0,0,0.12);
-  }
   background: var(--tile-bg);
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -283,6 +277,12 @@ watch(() => props.modelValue, (val) => {
   margin: 0; padding: 4px 0;
   max-height: 200px;
   overflow-y: auto;
+
+  &--dropup {
+    top: auto;
+    bottom: calc(100% + 3px);
+    box-shadow: 0 -6px 20px rgba(0,0,0,0.12);
+  }
 }
 
 .ma-search__item {

@@ -11,6 +11,24 @@ router.get("/", auth, asyncHandler( async (req, res) => {
     res.status(200).json(monitoringLogs);
 }));
 
+// GET recent monitoring logs for dashboard widget
+router.get("/recent", auth, asyncHandler(async (req, res) => {
+  const count = parseInt(req.query.count) || 3;
+  const standort = req.query.standort;
+
+  let filter = {};
+  if (standort && standort !== "Alle") {
+    filter.standort = standort;
+  }
+
+  const logs = await Monitoring.find(filter)
+    .sort({ timestamp: -1 })
+    .limit(count)
+    .lean();
+
+  res.status(200).json(logs);
+}));
+
 // GET all monitoring logs for a specific Mitarbeiter
 router.get("/mitarbeiter/:mitarbeiterId", auth, asyncHandler(async (req, res) => {
   const logs = await Monitoring.find({ mitarbeiter: req.params.mitarbeiterId })

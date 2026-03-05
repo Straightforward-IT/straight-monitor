@@ -101,17 +101,17 @@
 
         <div class="form-group">
           <label>Pünktlichkeit</label>
-          <textarea v-model="form.puenktlichkeit" rows="2" placeholder="Wie pünktlich waren die Mitarbeiter?" />
+          <textarea v-model="form.puenktlichkeit" v-auto-grow rows="4" placeholder="Wie pünktlich waren die Mitarbeiter?" />
         </div>
 
         <div class="form-group">
           <label>Erscheinungsbild</label>
-          <textarea v-model="form.erscheinungsbild" rows="2" placeholder="Wie war das Erscheinungsbild?" />
+          <textarea v-model="form.erscheinungsbild" v-auto-grow rows="4" placeholder="Wie war das Erscheinungsbild?" />
         </div>
 
         <div class="form-group">
           <label>Team</label>
-          <textarea v-model="form.team" rows="2" placeholder="Wie hat das Team zusammengearbeitet?" />
+          <textarea v-model="form.team" v-auto-grow rows="4" placeholder="Wie hat das Team zusammengearbeitet?" />
         </div>
       </div>
 
@@ -161,12 +161,12 @@
 
       <div class="form-group">
         <label>Feedback Auftraggeber</label>
-        <textarea v-model="form.feedback_auftraggeber" rows="3" placeholder="Was hat der Auftraggeber gesagt?"></textarea>
+        <textarea v-model="form.feedback_auftraggeber" v-auto-grow rows="5" placeholder="Was hat der Auftraggeber gesagt?"></textarea>
       </div>
 
       <div class="form-group">
         <label>Sonstiges</label>
-        <textarea v-model="form.sonstiges" rows="3" placeholder="Weitere Anmerkungen..."></textarea>
+        <textarea v-model="form.sonstiges" v-auto-grow rows="5" placeholder="Weitere Anmerkungen..."></textarea>
       </div>
 
       
@@ -192,6 +192,7 @@
           <textarea
             class="er-notiz-textarea"
             v-model="form.notizen"
+            v-auto-grow
             placeholder="Notizen zu diesem Einsatz…"
             rows="5"
             autofocus
@@ -208,6 +209,19 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
+
+// Auto-grow directive for textareas
+const vAutoGrow = {
+  mounted(el) {
+    function adjust() {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 600) + 'px';
+    }
+    el.addEventListener('input', adjust);
+    new ResizeObserver(adjust).observe(el);
+    adjust();
+  }
+};
 
 const props = defineProps({
   einsaetze: { type: Array, default: () => [] },
@@ -550,7 +564,8 @@ async function submitReport() {
   font-size: 0.85rem;
   color: var(--text);
   font-family: inherit;
-  resize: vertical;
+  resize: none;
+  overflow: hidden;
   box-sizing: border-box;
   line-height: 1.4;
   display: block;
@@ -668,6 +683,8 @@ async function submitReport() {
   box-sizing: border-box;
   -webkit-appearance: none;
   appearance: none;
+  resize: none;
+  overflow: hidden;
 }
 
 .form-group input:focus,
@@ -957,6 +974,7 @@ async function submitReport() {
   color: var(--text);
   font-family: inherit;
   resize: none;
+  overflow: hidden;
   outline: none;
   line-height: 1.5;
 }

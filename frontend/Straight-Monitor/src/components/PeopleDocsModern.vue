@@ -1014,6 +1014,19 @@ export default {
         });
       }
 
+      // If a specific employee was requested via URL param, always include them
+      // regardless of active filters (e.g. isActive filter shouldn't hide a
+      // deliberately opened employee from a deep-link or "Im Monitor anzeigen").
+      if (this.expandedEmployeeId) {
+        const alreadyIncluded = result.some((ma) => this.isEmployeeExpanded(ma));
+        if (!alreadyIncluded) {
+          const pinned = (this.mitarbeitersEnriched || []).find((ma) =>
+            this.isEmployeeExpanded(ma)
+          );
+          if (pinned) result = [pinned, ...result];
+        }
+      }
+
       return result;
     },
 
