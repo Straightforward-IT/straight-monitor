@@ -23,7 +23,6 @@
             </button>
             <button @click="resetNewUser">Formular Zurücksetzen</button>
             <button @click="fetchAsanaTask">Asana Task neu laden</button>
-            <button v-if="isDev" class="dev-notify-btn" @click="testNotify">Feedback testen</button>
            <!-- <button @click="openReentryModal">Wiedereintritt MA</button> -->
           </div>
 
