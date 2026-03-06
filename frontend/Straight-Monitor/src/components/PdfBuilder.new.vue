@@ -230,14 +230,12 @@
           </label>
 
           <template v-if="selectedPlacement">
-            <div class="auswahl-section">
-              <div class="panel-header">
-                <h3><font-awesome-icon :icon="['fas', 'sliders']" /> Auswahl</h3>
-              </div>
-              <div class="fe-row">
-                <label class="fe-label">Schriftgröße</label>
-                <input v-model.number="selectedPlacement.fontSize" type="number" min="6" max="72" class="fe-input" />
-              </div>
+            <div class="panel-header" style="margin-top:16px">
+              <h3><font-awesome-icon :icon="['fas', 'sliders']" /> Auswahl</h3>
+            </div>
+            <div class="fe-row">
+              <label class="fe-label">Schriftgröße</label>
+              <input v-model.number="selectedPlacement.fontSize" type="number" min="6" max="72" class="fe-input" />
             </div>
           </template>
         </div>
@@ -479,17 +477,6 @@ async function onPdfFileChange(e) {
       headers: { ...headers, 'Content-Type': 'multipart/form-data' },
     });
     currentPdfs.value.push(res.data);
-    // Navigate to the first page of the newly uploaded PDF
-    await nextTick();
-    // Find the global page index where the new PDF starts
-    const newPdfIdx = orderedPdfs.value.findIndex(p => p.id === res.data.id);
-    let globalStart = 0;
-    for (let i = 0; i < newPdfIdx; i++) {
-      globalStart += orderedPdfs.value[i].pageCount || 1;
-    }
-    currentGlobalPage.value = globalStart;
-    pdfDocCache.clear();
-    await loadPdfPage(globalStart);
   } finally {
     uploadingPdf.value = false;
   }
@@ -523,7 +510,7 @@ async function movePdf(pdfId, direction) {
 
 // ── Bookmarks ─────────────────────────────────────────────────────────────
 function addBookmark() {
-  const bm = { id: uid(), label: '', fillRole: 'bediener', dataType: 'text', defaultValue: '' };
+  const bm = { id: uid(), label: 'Neue Textmarke', fillRole: 'bediener', dataType: 'text', defaultValue: '' };
   bookmarks.value.push(bm);
   selectedBookmarkId.value = bm.id;
   editingBookmarkId.value  = bm.id;
@@ -878,9 +865,9 @@ onUnmounted(() => {
 /* ── PDF panel ───────────────────────────────────────────────────────── */
 .pdf-panel {
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-  padding: 14px; display: flex; flex-direction: column; gap: 8px; align-self: start;
+  padding: 14px; display: flex; flex-direction: column; gap: 0; align-self: start;
 }
-.pdf-list { display: flex; flex-direction: column; gap: 4px; }
+.pdf-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
 .pdf-list-item {
   display: flex; align-items: center; gap: 6px; padding: 6px;
   border: 1px solid var(--border); border-radius: 6px; font-size: 12px;
@@ -899,10 +886,6 @@ onUnmounted(() => {
 }
 .fe-row { display: flex; flex-direction: column; gap: 4px; }
 .fe-label { font-size: 11px; color: var(--text-muted); }
-.auswahl-section {
-  border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 8px;
-  .panel-header { margin-bottom: 0; }
-}
 .fe-input {
   border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px;
   font-size: 12px; background: var(--bg); color: var(--text); font-family: inherit; width: 100%;
@@ -911,11 +894,11 @@ onUnmounted(() => {
 
 /* ── Modal ───────────────────────────────────────────────────────────── */
 .modal-overlay {
-  position: fixed; inset: 0; background: var(--overlay); z-index: 9999;
+  position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9999;
   display: flex; align-items: center; justify-content: center;
 }
 .modal-box {
-  background: var(--modal-bg); border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
   padding: 28px; width: 420px; max-width: 95vw;
   h2 { font-size: 1.1rem; margin: 0 0 20px; }
 }

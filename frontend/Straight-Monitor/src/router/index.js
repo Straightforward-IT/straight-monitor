@@ -30,6 +30,8 @@ import TeamleiterAuswertung from '@/components/TeamleiterAuswertung.vue';
 import DokumenteNachpflegen from '@/components/DokumenteNachpflegen.vue';
 import PdfBuilder from '@/components/PdfBuilder.vue';
 import PdfFormFill from '@/components/PdfFormFill.vue';
+import PdfVorgaenge from '@/components/PdfVorgaenge.vue';
+import PdfMitarbeiterForm from '@/components/PdfMitarbeiterForm.vue';
 import NotFound from '@/components/NotFound.vue';
 
 const routes = [
@@ -38,6 +40,7 @@ const routes = [
   { path: '/integration/mitarbeiter/einsaetze', name: 'PublicEinsaetze', component: PublicEinsaetze, meta: { requiresAuth: false } },
   { path: '/integration/mitarbeiter/einsaetze/localhost', name: 'PublicEinsaetzesLocalhost', beforeEnter: () => { window.location.href = 'http://localhost:5173/integration/mitarbeiter/einsaetze'; return false; }, component: PublicEinsaetze, meta: { requiresAuth: false } },
   { path: '/integration/task-bestaetigen', name: 'TaskBestaetigen', component: TaskBestaetigen, meta: { requiresAuth: false } },
+  { path: '/formular/:token', name: 'PdfMitarbeiterForm', component: PdfMitarbeiterForm, meta: { requiresAuth: false } },
 
   // Authentifizierter Bereich unter Layout:
   {
@@ -63,6 +66,7 @@ const routes = [
       { path: 'teamleiter-auswertung', name: 'TeamleiterAuswertung', component: TeamleiterAuswertung },
       { path: 'dokumente-nachpflegen', name: 'DokumenteNachpflegen', component: DokumenteNachpflegen },
       { path: 'pdf-vorlagen', name: 'PdfVorlagen', component: PdfBuilder },
+      { path: 'pdf-vorgaenge', name: 'PdfVorgaenge', component: PdfVorgaenge },
       { path: 'pdf-ausfuellen/:id', name: 'PdfAusfuellen', component: PdfFormFill },
       { path: '', redirect: '/dashboard' }
     ]

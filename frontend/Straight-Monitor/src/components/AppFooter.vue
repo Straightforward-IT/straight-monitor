@@ -131,7 +131,20 @@ export default {
   background: var(--surface);
   border-top: 1px solid var(--border);
   margin-top: auto;
-  padding: 48px 24px 24px;
+  padding: 48px calc(24px + 2rem) 24px;
+  margin-left: -2rem;
+  margin-right: -2rem;
+  margin-bottom: -2rem;
+}
+
+@media (max-width: 768px) {
+  .app-footer {
+    margin-left: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
 }
 
 .footer-content {
