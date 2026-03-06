@@ -215,6 +215,12 @@ h4 span {
   }
 }
 
+@media (max-width: 480px) {
+  .widget-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 
 </style>
 
