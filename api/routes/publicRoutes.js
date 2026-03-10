@@ -241,10 +241,11 @@ router.post(
       return res.status(400).json({ msg: "Pflichtfelder fehlen (datum, name_teamleiter, kunde, location)" });
     }
 
-    // Find the Teamleiter by email
+    // Find the Teamleiter by email (check additionalEmails too)
     let teamleiter = null;
     if (teamleiter_email) {
-      teamleiter = await Mitarbeiter.findOne({ email: teamleiter_email.toLowerCase().trim() });
+      const tlEmail = teamleiter_email.toLowerCase().trim();
+      teamleiter = await Mitarbeiter.findOne({ $or: [{ email: tlEmail }, { additionalEmails: tlEmail }] });
     }
 
     // Resolve mitarbeiter_feedback personalNr → ObjectId + collect full MA data for Asana
@@ -517,14 +518,16 @@ router.post(
       return res.status(400).json({ msg: `Ungültige Niederlassung. Erlaubt: ${VALID_STANDORTE.join(', ')}` });
     }
 
-    // Resolve Mitarbeiter (submitter)
-    const mitarbeiter = await Mitarbeiter.findOne({ email: email.toLowerCase().trim() });
+    // Resolve Mitarbeiter (submitter — check additionalEmails too)
+    const maEmail = email.toLowerCase().trim();
+    const mitarbeiter = await Mitarbeiter.findOne({ $or: [{ email: maEmail }, { additionalEmails: maEmail }] });
     if (!mitarbeiter) {
       return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
     }
 
-    // Resolve Teamleiter
-    const teamleiter = await Mitarbeiter.findOne({ email: teamleiter_email.toLowerCase().trim() });
+    // Resolve Teamleiter (check additionalEmails too)
+    const tlEmail = teamleiter_email.toLowerCase().trim();
+    const teamleiter = await Mitarbeiter.findOne({ $or: [{ email: tlEmail }, { additionalEmails: tlEmail }] });
     if (!teamleiter) {
       return res.status(404).json({ msg: "Teamleiter nicht gefunden" });
     }
@@ -602,8 +605,9 @@ router.post(
       return res.status(400).json({ msg: "Pflichtfelder fehlen (email, laufzettel_id, kunde)" });
     }
 
-    // Resolve Teamleiter (submitter)
-    const teamleiter = await Mitarbeiter.findOne({ email: email.toLowerCase().trim() });
+    // Resolve Teamleiter (submitter — check additionalEmails too)
+    const tlEmail = email.toLowerCase().trim();
+    const teamleiter = await Mitarbeiter.findOne({ $or: [{ email: tlEmail }, { additionalEmails: tlEmail }] });
     if (!teamleiter) {
       return res.status(404).json({ msg: "Teamleiter nicht gefunden" });
     }
