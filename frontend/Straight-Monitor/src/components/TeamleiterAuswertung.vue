@@ -114,7 +114,7 @@
                 <td class="text-right">{{ tl.quote }}%</td>
               </tr>
               <tr v-if="expandedRows.includes(tl._id)" class="detail-row">
-                <td colspan="5">
+                <td colspan="6">
                   <div class="detail-content">
                     <table class="inner-table">
                       <thead>
@@ -125,6 +125,7 @@
                           <th class="w-status">Status</th>
                           <th class="w-action">Bericht</th>
                           <th class="w-action">Evaluierung</th>
+                          <th class="w-action"></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -132,6 +133,7 @@
                           v-for="(einsatz, idx) in tl.einsaetze" 
                           :key="idx"
                           class="clickable-row"
+                          :class="{ 'excluded-row': einsatz.excluded }"
                         >
                           <td @click="openOrder(einsatz.auftragNr, einsatz.geschSt, einsatz.datumVon)">
                             <CustomTooltip text="Job anzeigen" position="mouse">
@@ -185,9 +187,19 @@
                                 />
                             </CustomTooltip>
                           </td>
+                          <td style="text-align: center;">
+                            <CustomTooltip :text="einsatz.excluded ? 'Wieder einschließen' : 'Von Quote ausschließen'" position="mouse">
+                              <font-awesome-icon 
+                                :icon="einsatz.excluded ? 'eye' : 'eye-slash'"
+                                class="exclude-toggle"
+                                :class="{ active: einsatz.excluded }"
+                                @click.stop="toggleExclude(tl, einsatz)"
+                              />
+                            </CustomTooltip>
+                          </td>
                         </tr>
                          <tr v-if="!tl.einsaetze || tl.einsaetze.length === 0">
-                          <td colspan="6" class="muted">Keine Details verfügbar</td>
+                          <td colspan="7" class="muted">Keine Details verfügbar</td>
                         </tr>
                       </tbody>
                     </table>
@@ -211,14 +223,14 @@ import { useRouter, useRoute } from 'vue-router';
 import api from '../utils/api'; 
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle } from '@fortawesome/free-solid-svg-icons';
+import { faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import CustomTooltip from './CustomTooltip.vue';
 import DocumentCard from './DocumentCard.vue';
 import EmployeeCard from './EmployeeCard.vue';
 import eventReportIconUrl from '@/assets/eventreport.png';
 import evaluierungIconUrl from '@/assets/evaluierung.png';
 
-library.add(faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle);
+library.add(faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle, faEye, faEyeSlash);
 
 const router = useRouter();
 const route = useRoute();
@@ -340,6 +352,23 @@ const openOrder = (nr, geschSt, date) => {
 
 const openReport = (doc) => {
   if (doc) selectedDoc.value = doc;
+};
+
+const toggleExclude = async (tl, einsatz) => {
+  try {
+    const { data } = await api.post('/api/personal/teamleiter-stats/exclude', {
+      teamleiterId: tl._id,
+      auftragNr: einsatz.auftragNr
+    });
+    einsatz.excluded = data.excluded;
+    // Recalculate counts locally
+    const active = tl.einsaetze.filter(e => !e.excluded);
+    tl.einsatzCount = active.length;
+    tl.reportCount = active.filter(e => e.reportStatus === 'present' || e.evalStatus === 'present').length;
+    tl.quote = tl.einsatzCount ? Math.round((tl.reportCount / tl.einsatzCount) * 100) : 0;
+  } catch (err) {
+    console.error('Exclude toggle failed:', err);
+  }
 };
 
 const handleOpenEmployee = async (role, id) => {
@@ -740,6 +769,28 @@ onMounted(() => {
 .small-sub {
   font-size: 0.85em;
   color: var(--muted);
+}
+
+.exclude-toggle {
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--muted);
+  opacity: 0.4;
+  transition: color 0.15s, opacity 0.15s;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &.active {
+    color: var(--primary);
+    opacity: 1;
+  }
+}
+
+.inner-table tr.excluded-row td {
+  opacity: 0.4;
+  text-decoration: line-through;
 }
 
 .action-icon {

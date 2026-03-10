@@ -58,7 +58,7 @@
               />
               <div v-if="fieldStatus.asana_id.state !== 'idle'" class="field-hint" :class="`hint-${fieldStatus.asana_id.state}`">
                 <span v-if="fieldStatus.asana_id.state === 'checking'">Wird geprüft …</span>
-                <span v-else-if="fieldStatus.asana_id.state === 'clear'">Nicht vorhanden</span>
+                <span v-else-if="fieldStatus.asana_id.state === 'clear'">Neueinstellung</span>
                 <span v-else-if="fieldStatus.asana_id.state === 'error'">Prüfung fehlgeschlagen</span>
                 <template v-else-if="fieldStatus.asana_id.state === 'found'">
                   <span>Gefunden: {{ fieldStatus.asana_id.mitarbeiter.vorname }} {{ fieldStatus.asana_id.mitarbeiter.nachname }}
@@ -102,7 +102,7 @@
               />
               <div v-if="fieldStatus.email.state !== 'idle'" class="field-hint" :class="`hint-${fieldStatus.email.state}`">
                 <span v-if="fieldStatus.email.state === 'checking'">Wird geprüft …</span>
-                <span v-else-if="fieldStatus.email.state === 'clear'">Nicht vorhanden</span>
+                <span v-else-if="fieldStatus.email.state === 'clear'">Neueinstellung</span>
                 <span v-else-if="fieldStatus.email.state === 'error'">Prüfung fehlgeschlagen</span>
                 <template v-else-if="fieldStatus.email.state === 'found'">
                   <span>Gefunden: {{ fieldStatus.email.mitarbeiter.vorname }} {{ fieldStatus.email.mitarbeiter.nachname }}
@@ -124,7 +124,7 @@
               />
               <div v-if="fieldStatus.personalnr.state !== 'idle'" class="field-hint" :class="`hint-${fieldStatus.personalnr.state}`">
                 <span v-if="fieldStatus.personalnr.state === 'checking'">Wird geprüft …</span>
-                <span v-else-if="fieldStatus.personalnr.state === 'clear'">Nicht vorhanden</span>
+                <span v-else-if="fieldStatus.personalnr.state === 'clear'">Neueinstellung</span>
                 <span v-else-if="fieldStatus.personalnr.state === 'error'">Prüfung fehlgeschlagen</span>
                 <template v-else-if="fieldStatus.personalnr.state === 'found'">
                   <span>Gefunden: {{ fieldStatus.personalnr.mitarbeiter.vorname }} {{ fieldStatus.personalnr.mitarbeiter.nachname }}

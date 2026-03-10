@@ -62,6 +62,7 @@ const AuftragSchema = new mongoose.Schema({
     type: Number, // AUFTSTATUS
     required: false
   },
+  excludedTeamleiter: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Mitarbeiter' }],
   labels: [{
     name: { type: String, required: true, maxlength: 20, trim: true },
     color: { type: String, default: '#4f46e5', trim: true }

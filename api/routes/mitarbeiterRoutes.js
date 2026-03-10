@@ -3114,6 +3114,33 @@ router.post(
   })
 );
 
+// Toggle exclusion of a specific Einsatz for a Teamleiter (stored on Auftrag)
+router.post(
+  "/teamleiter-stats/exclude",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { teamleiterId, auftragNr } = req.body;
+    if (!teamleiterId || !auftragNr) {
+      return res.status(400).json({ message: "teamleiterId und auftragNr erforderlich" });
+    }
+    const auftrag = await Auftrag.findOne({ auftragNr: Number(auftragNr) });
+    if (!auftrag) {
+      return res.status(404).json({ message: "Auftrag nicht gefunden" });
+    }
+    const idx = (auftrag.excludedTeamleiter || []).findIndex(
+      id => id.toString() === teamleiterId
+    );
+    if (idx >= 0) {
+      auftrag.excludedTeamleiter.splice(idx, 1);
+      await auftrag.save();
+      return res.json({ excluded: false });
+    }
+    auftrag.excludedTeamleiter.push(teamleiterId);
+    await auftrag.save();
+    res.json({ excluded: true });
+  })
+);
+
 // Route for getting Team Leader stats (Qual 50055) and their mapping to Einsätze
 router.get(
   "/teamleiter-stats",
@@ -3282,14 +3309,15 @@ router.get(
     // -- FETCH AUFTRAG TITLES --
     const auftragDetails = await Auftrag.find({ 
       auftragNr: { $in: relevantAuftragNrs } 
-    }).select("auftragNr eventTitel geschSt kundenNr").lean();
+    }).select("auftragNr eventTitel geschSt kundenNr excludedTeamleiter").lean();
     
     const auftragInfoMap = {};
     auftragDetails.forEach(ad => {
         auftragInfoMap[ad.auftragNr] = { 
             titel: ad.eventTitel, 
             geschSt: ad.geschSt,
-            kundenNr: ad.kundenNr
+            kundenNr: ad.kundenNr,
+            excludedTl: (ad.excludedTeamleiter || []).map(id => id.toString())
         };
     });
     // -------------------------
@@ -3383,10 +3411,15 @@ router.get(
       }
       const info = auftragInfoMap[a.auftragNr] || {};
 
-      dataMap[pNr].count++;
-      // Count if EITHER report OR evaluation is present (not counting double)
-      if (status === "present" || evalStatus === "present") {
-          dataMap[pNr].reportCount++;
+      // Check if this TL is excluded from this Auftrag
+      const excluded = tlId && info.excludedTl ? info.excludedTl.includes(tlId.toString()) : false;
+
+      if (!excluded) {
+        dataMap[pNr].count++;
+        // Count if EITHER report OR evaluation is present (not counting double)
+        if (status === "present" || evalStatus === "present") {
+            dataMap[pNr].reportCount++;
+        }
       }
 
       dataMap[pNr].details.push({
@@ -3398,7 +3431,8 @@ router.get(
         reportStatus: status, // 'present' | 'missing'
         eventReport: eventReport,
         evalStatus: evalStatus,
-        evaluierung: evaluierung
+        evaluierung: evaluierung,
+        excluded: excluded
       });
     });
 
