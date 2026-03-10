@@ -353,6 +353,18 @@ async function loadDraft() {
 // Watch for changes and auto-save draft
 watch([() => ({ ...form }), mitarbeiterRows, selectedEinsatzId], saveDraft, { deep: true });
 
+// Persist notizen per Auftrag so they survive across sessions & Einsatz switches
+watch(() => form.notizen, (val) => {
+  if (!form.auftragnummer) return;
+  try {
+    if (val && val.trim()) {
+      localStorage.setItem(`jobnote_${form.auftragnummer}`, val.trim());
+    } else {
+      localStorage.removeItem(`jobnote_${form.auftragnummer}`);
+    }
+  } catch { /* ignore */ }
+});
+
 // Pre-fill if coming from job detail
 if (props.prefillEinsatz) {
   prefillFromEinsatz(props.prefillEinsatz);
@@ -377,6 +389,7 @@ function selectEinsatz(einsatz) {
 }
 
 function prefillFromEinsatz(einsatz) {
+  form.notizen = ''; // Clear before loading auftrag-specific note
   form.auftragnummer = String(einsatz.auftragNr || '');
   form.datum = einsatz.datumVon ? new Date(einsatz.datumVon).toISOString().split('T')[0] : '';
   const rawLoc = einsatz.auftrag?.geschSt || einsatz.auftrag?.eventOrt || '';
