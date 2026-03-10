@@ -731,6 +731,87 @@ router.post(
     }
 
     res.status(200).json({ msg: "Bewertung erfolgreich gespeichert", id: laufzettel._id });
+
+    // ── E-Mail: Evaluierung Benachrichtigung (fire-and-forget) ──
+    (async () => {
+      try {
+        const BASE_URL = 'https://straightmonitor.com';
+        const recipients = registry.getEventReportRecipients(laufzettel.location);
+        const fmtField = (v) => v && String(v).trim() ? String(v).trim() : '<span style="color:#999;">—</span>';
+        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+        const link = (href, label) =>
+          `<a href="${href}" style="color:#ff7518;text-decoration:none;font-weight:600;">${label}</a>`;
+        const row = (label, value) =>
+          `<tr><td style="padding:6px 12px 6px 0;font-size:0.85rem;color:#666;font-weight:600;white-space:nowrap;vertical-align:top;">${label}</td><td style="padding:6px 0;font-size:0.9rem;color:#111;">${value}</td></tr>`;
+
+        // Auftragsnr. mit Link
+        const auftragCell = laufzettel.auftragnummer
+          ? link(`${BASE_URL}/auftraege?auftragnr=${laufzettel.auftragnummer}`, `#${laufzettel.auftragnummer}`)
+          : '<span style="color:#999;">—</span>';
+
+        // Teamleiter mit Link
+        const teamleiterName = laufzettel.name_teamleiter || `${teamleiter.vorname} ${teamleiter.nachname}`.trim();
+        const teamleiterCell = teamleiter?._id
+          ? link(`${BASE_URL}/personal?mitarbeiter_id=${teamleiter._id}`, teamleiterName)
+          : fmtField(teamleiterName);
+
+        // Mitarbeiter mit Link
+        const mitarbeiterName = laufzettel.name_mitarbeiter || '';
+        const mitarbeiterCell = laufzettel.mitarbeiter
+          ? link(`${BASE_URL}/personal?mitarbeiter_id=${laufzettel.mitarbeiter}`, mitarbeiterName)
+          : fmtField(mitarbeiterName);
+
+        // Laufzettel-Link
+        const laufzettelLink = link(`${BASE_URL}/dokumente?docId=${laufzettel._id}`, 'Laufzettel öffnen');
+
+        const html = `
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;color:#111;">
+            <div style="background:#ff7518;padding:16px 24px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+              <img src="https://straightmonitor.com/SF_002.png" alt="Straightforward" style="height:32px;width:auto;display:block;flex-shrink:0;" />
+              <div>
+                <h2 style="margin:0;color:#fff;font-size:1.1rem;">Neue Evaluierung</h2>
+                <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:0.85rem;">Eingereicht von ${teamleiterName}</p>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:20px 24px;">
+              <table style="border-collapse:collapse;width:100%;">
+                ${row('Datum', fmtDate(laufzettel.datum))}
+                ${row('Standort', fmtField(laufzettel.location))}
+                ${row('Kunde', fmtField(laufzettel.kunde))}
+                ${row('Auftragsnr.', auftragCell)}
+                ${row('Teamleiter', teamleiterCell)}
+                ${row('Mitarbeiter', mitarbeiterCell)}
+              </table>
+              <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
+              <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Bewertung</h3>
+              <table style="border-collapse:collapse;width:100%;">
+                ${row('Pünktlichkeit', fmtField(puenktlichkeit))}
+                ${row('Erscheinungsbild', fmtField(grooming))}
+                ${row('Motivation', fmtField(motivation))}
+                ${row('Techn. Fertigkeiten', fmtField(technische_fertigkeiten))}
+                ${row('Lernbereitschaft', fmtField(lernbereitschaft))}
+              </table>
+              <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
+              <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Sonstiges</h3>
+              <p style="margin:0;font-size:0.9rem;">${fmtField(sonstiges)}</p>
+              <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
+              <p style="margin:0;">${laufzettelLink}</p>
+            </div>
+          </div>`;
+
+        await sendMail(
+          recipients,
+          `Evaluierung: ${laufzettel.kunde || 'Laufzettel'} – ${fmtDate(laufzettel.datum)} (${laufzettel.location})`,
+          html,
+          'it',
+          [],
+          email || null
+        );
+        logger.info(`📧 Evaluierung email sent to ${recipients.join(', ')} for ${teamleiterName}`);
+      } catch (emailErr) {
+        logger.error('❌ Evaluierung email failed:', emailErr.message);
+      }
+    })();
   })
 );
 
