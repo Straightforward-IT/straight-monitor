@@ -481,7 +481,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 
     // 5. Cleanup Einsätze for orders that are not in the list (orphaned/cancelled)
     // Only delete within the uploaded time range to preserve other periods
-    const cleanupFilter = { auftragNr: { $nin: Array.from(auftragNrs) } };
+    // Never delete pseudo-Einsätze (manually created)
+    const cleanupFilter = { auftragNr: { $nin: Array.from(auftragNrs) }, isPseudo: { $ne: true } };
     if (minDate && maxDate) {
       cleanupFilter.datumVon = { $gte: minDate, $lte: maxDate };
     }
@@ -503,7 +504,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
     if (newEinsaetze.length > 0) {
       // Clean up existing entries for these orders (Full Sync for these orders)
       // Only delete within the uploaded time range
-      const delFilter = { auftragNr: { $in: Array.from(auftragNrs) } };
+      // Never delete pseudo-Einsätze (manually created)
+      const delFilter = { auftragNr: { $in: Array.from(auftragNrs) }, isPseudo: { $ne: true } };
       if (minDate && maxDate) {
         delFilter.datumVon = { $gte: minDate, $lte: maxDate };
       }
