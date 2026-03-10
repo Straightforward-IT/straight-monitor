@@ -140,6 +140,7 @@
               <span class="ma-row-legend">{{ row.name }}</span>
               <textarea
                 v-model="row.text"
+                v-auto-grow
                 class="ma-row-input"
                 rows="2"
                 :placeholder="'Feedback zu ' + row.name + '…'"
@@ -213,9 +214,12 @@ import { ref, reactive, computed, watch, onMounted } from 'vue';
 // Auto-grow directive for textareas
 const vAutoGrow = {
   mounted(el) {
+    const MAX = 600;
     function adjust() {
       el.style.height = 'auto';
-      el.style.height = Math.min(el.scrollHeight, 600) + 'px';
+      const h = Math.min(el.scrollHeight, MAX);
+      el.style.height = h + 'px';
+      el.style.overflowY = el.scrollHeight > MAX ? 'auto' : 'hidden';
     }
     el.addEventListener('input', adjust);
     new ResizeObserver(adjust).observe(el);
@@ -578,7 +582,7 @@ async function submitReport() {
   color: var(--text);
   font-family: inherit;
   resize: none;
-  overflow: hidden;
+  overflow-y: auto;
   box-sizing: border-box;
   line-height: 1.4;
   display: block;
