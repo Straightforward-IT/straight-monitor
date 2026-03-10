@@ -1216,19 +1216,34 @@ async function syncFlipAttributes(flipUsersById = {}) {
         changed.push({ name: `${ma.vorname} ${ma.nachname}`, diff });
       }
 
-      // Attributes: computed booleans + preserve existing location/department
-      // isService/isLogistik werden übersprungen wenn keine Berufe hinterlegt
-      const attributes = [
-        ...(isService  !== null ? [{ name: 'isService',  value: String(isService)  }] : []),
-        ...(isLogistik !== null ? [{ name: 'isLogistik', value: String(isLogistik) }] : []),
-        { name: 'isOffice',   value: String(isOffice)   },
-        { name: 'isTeamLead', value: String(isTeamLead) },
-        { name: 'isFesti',    value: String(isFesti)    },
-      ];
+      // Attributes: start from existing Flip attributes, then overlay computed values.
+      // This preserves any attributes not managed by this sync (e.g. job_title, phone).
+      const managedKeys = new Set([
+        ...TRACKED_ATTRS,
+        'location',
+        'department',
+      ]);
+
+      const newAttrsMap = {};
+      if (isService  !== null) newAttrsMap.isService  = String(isService);
+      if (isLogistik !== null) newAttrsMap.isLogistik = String(isLogistik);
+      newAttrsMap.isOffice   = String(isOffice);
+      newAttrsMap.isTeamLead = String(isTeamLead);
+      newAttrsMap.isFesti    = String(isFesti);
 
       const profile = flipUserData.profile || {};
-      if (profile.location)   attributes.push({ name: 'location',   value: profile.location   });
-      if (profile.department) attributes.push({ name: 'department', value: profile.department });
+      if (profile.location)   newAttrsMap.location   = profile.location;
+      if (profile.department) newAttrsMap.department = profile.department;
+
+      // Preserve all existing attributes that we don't manage
+      const attributes = (flipUserData.attributes || [])
+        .filter(a => !managedKeys.has(a.name || a.technical_name))
+        .map(a => ({ name: a.name || a.technical_name, value: a.value }));
+
+      // Append managed attributes with computed values
+      for (const [name, value] of Object.entries(newAttrsMap)) {
+        attributes.push({ name, value });
+      }
 
       batchItems.push({
         id: ma.flip_id,
