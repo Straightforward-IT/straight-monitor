@@ -416,28 +416,24 @@ async function copyPhone(tel, event) {
   }
 }
 
-function storageKey(auftragNr) {
-  return `checkin_${auftragNr}`;
-}
-
-function loadCheckIns(auftragNr) {
+async function loadCheckIns(auftragNr) {
   try {
-    const raw = localStorage.getItem(storageKey(auftragNr));
-    return raw ? JSON.parse(raw) : {};
+    const res = await props.api.get('/api/public/checkins', { params: { auftragNr } });
+    const arr = res.data?.checkedIn || [];
+    return Object.fromEntries(arr.map(nr => [nr, true]));
   } catch { return {}; }
 }
 
-function saveCheckIns(auftragNr, gruppen) {
-  const state = {};
-  gruppen.forEach(s => s.mitarbeiter.forEach(ma => {
-    if (ma.checkedIn) state[ma.personalNr] = true;
-  }));
-  localStorage.setItem(storageKey(auftragNr), JSON.stringify(state));
-}
-
-function toggleCheckIn(ma) {
+async function toggleCheckIn(ma) {
   ma.checkedIn = !ma.checkedIn;
-  saveCheckIns(props.einsatz.auftragNr, schichtGruppen.value);
+  try {
+    await props.api.post('/api/public/checkins/toggle', {
+      auftragNr: props.einsatz.auftragNr,
+      personalNr: ma.personalNr,
+    });
+  } catch {
+    ma.checkedIn = !ma.checkedIn; // revert on error
+  }
 }
 
 async function loadMitarbeiter() {
@@ -447,7 +443,7 @@ async function loadMitarbeiter() {
     const res = await props.api.get('/api/public/einsatz-mitarbeiter', {
       params: { auftragNr: props.einsatz.auftragNr }
     });
-    const saved = loadCheckIns(props.einsatz.auftragNr);
+    const saved = await loadCheckIns(props.einsatz.auftragNr);
     schichtGruppen.value = (res.data || []).map(schicht => ({
       ...schicht,
       mitarbeiter: schicht.mitarbeiter.map(ma => ({ ...ma, checkedIn: !!saved[ma.personalNr] }))

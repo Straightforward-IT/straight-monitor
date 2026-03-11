@@ -7,6 +7,7 @@ const Einsatz = require("../models/Einsatz");
 const Auftrag = require("../models/Auftrag");
 const Qualifikation = require("../models/Qualifikation");
 const { EventReport, Laufzettel, EvaluierungMA } = require("../models/Classes/FlipDocs");
+const CheckIn = require("../models/CheckIn");
 const logger = require("../utils/logger");
 const AsanaService = require("../AsanaService");
 const { sendMail } = require("../EmailService");
@@ -816,6 +817,56 @@ router.post(
         logger.error('❌ Evaluierung email failed:', emailErr.message);
       }
     })();
+  })
+);
+
+// ──────────────────────────────────────────────
+// GET /api/public/checkins?auftragNr=...
+// Returns the array of checked-in personalNr values
+// ──────────────────────────────────────────────
+router.get(
+  "/checkins",
+  asyncHandler(async (req, res) => {
+    const { auftragNr } = req.query;
+    if (!auftragNr) {
+      return res.status(400).json({ msg: "auftragNr parameter is required" });
+    }
+    const doc = await CheckIn.findOne({ auftragNr: parseInt(auftragNr) }).lean();
+    res.json({ checkedIn: doc?.checkedIn || [] });
+  })
+);
+
+// ──────────────────────────────────────────────
+// POST /api/public/checkins/toggle
+// Toggles a single personalNr in the check-in list
+// Body: { auftragNr, personalNr }
+// Returns: { checkedIn: boolean } — the new state
+// ──────────────────────────────────────────────
+router.post(
+  "/checkins/toggle",
+  asyncHandler(async (req, res) => {
+    const { auftragNr, personalNr } = req.body;
+    if (!auftragNr || !personalNr) {
+      return res.status(400).json({ msg: "auftragNr and personalNr are required" });
+    }
+    const nr = parseInt(auftragNr);
+    const pNr = parseInt(personalNr);
+
+    let doc = await CheckIn.findOne({ auftragNr: nr });
+    if (!doc) {
+      doc = new CheckIn({ auftragNr: nr, checkedIn: [pNr] });
+      await doc.save();
+      return res.json({ checkedIn: true });
+    }
+
+    const idx = doc.checkedIn.indexOf(pNr);
+    if (idx === -1) {
+      doc.checkedIn.push(pNr);
+    } else {
+      doc.checkedIn.splice(idx, 1);
+    }
+    await doc.save();
+    res.json({ checkedIn: idx === -1 });
   })
 );
 
