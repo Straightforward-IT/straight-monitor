@@ -1010,7 +1010,8 @@ export default {
             );
           }
 
-          return parts.join(" ").toLowerCase().includes(q);
+          const haystack = parts.join(" ").toLowerCase();
+          return q.split(/\s+/).every((word) => haystack.includes(word));
         });
       }
 

@@ -347,6 +347,17 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+    // Prüffeld-Validierung: Spalte A muss 7001 enthalten
+    const rawCheck = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    const checkStart = (rawCheck.length > 0 && isNaN(rawCheck[0][0])) ? 1 : 0;
+    if (rawCheck.length > checkStart) {
+      const prueffeld = parseInt(rawCheck[checkStart][0], 10);
+      if (prueffeld === 7002) {
+        return res.status(400).json({ success: false, message: 'Falsche Liste: Die Datei enthält das Prüffeld 7002 (Personal). Für den Einsatz-Import wird Liste 7001 erwartet.' });
+      }
+    }
+
     const rawData = XLSX.utils.sheet_to_json(sheet);
 
     const operationsAuftrag = [];
@@ -562,7 +573,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 });
 
 // --- Personal Import (kombiniert: Personalnr, Austrittsdatum, Beruf/Quali, Persgruppe, Email, Telefon) ---
-// Spalten: A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
+// Spalten (mit Prüffeld): A=Prüffeld(7002), B=Personalnr, C=ignoriert, D=Austrittsdatum, E=Berufsschlüssel(komma), F=Qualischlüssel(komma), G=Persgruppe, H=Email, I=Telefon
+// Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 router.post('/personal', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -586,6 +598,19 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
     // Skip header row if first cell looks like text
     const startRow = (rawData.length > 0 && isNaN(rawData[0][0])) ? 1 : 0;
 
+    // Prüffeld-Validierung: Spalte A muss 7002 enthalten (falls vorhanden)
+    // If present, all data columns are shifted one to the right
+    let colOffset = 0;
+    if (rawData.length > startRow) {
+      const firstVal = parseInt(rawData[startRow][0], 10);
+      if (firstVal === 7001) {
+        return res.status(400).json({ success: false, message: 'Falsche Liste: Die Datei enthält das Prüffeld 7001 (Einsatz-Komplett). Für den Personal-Import wird Liste 7002 erwartet.' });
+      }
+      if (firstVal === 7002) {
+        colOffset = 1;
+      }
+    }
+
     let matched = 0, updated = 0, unchanged = 0, skipped = 0;
     const notFoundPnrs = [];
 
@@ -595,38 +620,38 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       const row = rawData[i];
       if (!row || row.length < 1) continue;
 
-      const personalnr = row[0] != null ? String(row[0]).trim() : null;
+      const personalnr = row[0 + colOffset] != null ? String(row[0 + colOffset]).trim() : null;
       if (!personalnr) continue;
 
       // Col C (index 2): Austrittsdatum
       let austrittsdatum = null;
-      if (row[2]) {
-        const d = row[2] instanceof Date ? row[2] : new Date(row[2]);
+      if (row[2 + colOffset]) {
+        const d = row[2 + colOffset] instanceof Date ? row[2 + colOffset] : new Date(row[2 + colOffset]);
         if (!isNaN(d.getTime())) austrittsdatum = d;
       }
 
       // Col D (index 3): Berufsschlüssel kommagetrennt
       // Normalize keys: "00040" → "40" so leading zeros in the Excel don't break the lookup
-      const berufKeys = row[3]
-        ? String(row[3]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
+      const berufKeys = row[3 + colOffset]
+        ? String(row[3 + colOffset]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
         : [];
       const berufIds = berufKeys.map(k => berufMap.get(k)).filter(Boolean);
 
       // Col E (index 4): Qualifikationsschlüssel kommagetrennt
-      const qualiKeys = row[4]
-        ? String(row[4]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
+      const qualiKeys = row[4 + colOffset]
+        ? String(row[4 + colOffset]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
         : [];
       const qualiIds = qualiKeys.map(k => qualiMap.get(k)).filter(Boolean);
 
       // Col F (index 5): Personengruppe
-      const persgruppRaw = row[5] != null ? parseInt(row[5], 10) : null;
+      const persgruppRaw = row[5 + colOffset] != null ? parseInt(row[5 + colOffset], 10) : null;
       const persgruppe = persgruppRaw != null && VALID_PERSGRUPPEN.has(persgruppRaw) ? persgruppRaw : null;
 
       // Col G (index 6): Email
-      const email = row[6] ? String(row[6]).trim().toLowerCase() : null;
+      const email = row[6 + colOffset] ? String(row[6 + colOffset]).trim().toLowerCase() : null;
 
       // Col H (index 7): Telefon
-      const telefon = row[7] ? String(row[7]).trim() : null;
+      const telefon = row[7 + colOffset] ? String(row[7 + colOffset]).trim() : null;
 
       // Build $set payload — only include fields that have a value
       const setFields = {

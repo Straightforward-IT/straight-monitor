@@ -68,6 +68,7 @@
                 <summary>Erwartete SQL-Export Struktur</summary>
                 <div class="table-scroll">
                   <table class="req-table"><tbody>
+                    <tr><td>A – Prüffeld (7001)</td><td colspan="2">Muss in jeder Zeile 7001 enthalten</td></tr>
                     <tr><td>AUFTRAGNR, GESCHST, ...</td><td>Auftragsdaten</td></tr>
                     <tr><td>KUNDENNR, KUNDNAME, ...</td><td>Kundendaten</td></tr>
                     <tr><td>ID_AUFTRAG_ARBEITSSCHICHTEN, BEZEICHNUNG, ...</td><td>Schichtdaten</td></tr>
@@ -109,9 +110,9 @@
                 <summary>Benötigte Spalten anzeigen</summary>
                 <div class="table-scroll">
                   <table class="req-table"><tbody>
-                    <tr><td>A – Personalnr</td><td>B – ignoriert</td><td>C – Austrittsdatum</td></tr>
-                    <tr><td>D – Berufsschlüssel (kommasep.)</td><td>E – Qualischlüssel (kommasep.)</td><td>F – Personengruppe</td></tr>
-                    <tr><td>G – E-Mail</td><td>H – Telefon</td></tr>
+                    <tr><td>A – Prüffeld (7002)</td><td>B – Personalnr</td><td>C – ignoriert</td></tr>
+                    <tr><td>D – Austrittsdatum</td><td>E – Berufsschlüssel (kommasep.)</td><td>F – Qualischlüssel (kommasep.)</td></tr>
+                    <tr><td>G – Personengruppe</td><td>H – E-Mail</td><td>I – Telefon</td></tr>
                   </tbody></table>
                 </div>
               </details>
@@ -391,6 +392,7 @@
 <script>
 import api from "../utils/api";
 import { useAuth } from "../stores/auth";
+import * as XLSX from 'xlsx';
 
 export default {
   name: "DatenImport",
@@ -473,12 +475,49 @@ export default {
       const file = event.dataTransfer.files[0];
       if (file) this.setFile(file, type);
     },
-    setFile(file, type) {
-      // Set the selected file for the specific type
+    async setFile(file, type) {
+      // Validate Prüffeld for einsatz/personal imports
+      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : null;
+      if (expectedCode) {
+        const valid = await this.validatePrueffeld(file, expectedCode);
+        if (!valid) return;
+      }
       if (type === 'einsatz') this.einsatzFile = file;
       if (type === 'personal') this.personalFile = file;
       if (type === 'beruf') this.berufFile = file;
       if (type === 'qualifikation') this.qualifikationFile = file;
+    },
+    validatePrueffeld(file, expectedCode) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            const startRow = rows.length > 0 && isNaN(rows[0][0]) ? 1 : 0;
+            if (rows.length <= startRow) {
+              alert('Die Datei enthält keine Daten.');
+              resolve(false);
+              return;
+            }
+            const prueffeld = parseInt(rows[startRow][0], 10);
+            if (prueffeld !== expectedCode) {
+              const labels = { 7001: 'Einsatz-Komplett (Liste 7001)', 7002: 'Personal (Liste 7002)' };
+              alert(`⚠️ Prüffeld-Fehler: Spalte A enthält "${rows[startRow][0] ?? '(leer)'}" – erwartet wird ${expectedCode} (${labels[expectedCode]}).`);
+              resolve(false);
+              return;
+            }
+            resolve(true);
+          } catch (err) {
+            console.error('Prüffeld validation error:', err);
+            alert('Fehler beim Lesen der Datei.');
+            resolve(false);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      });
     },
     async processFiles() {
       if (!this.hasAnyFile()) {
