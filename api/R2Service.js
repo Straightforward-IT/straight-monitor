@@ -111,6 +111,19 @@ class R2Service {
       throw error;
     }
   }
+  async testConnection() {
+    try {
+      const { HeadBucketCommand } = require('@aws-sdk/client-s3');
+      const command = new HeadBucketCommand({ Bucket: this.bucketName });
+      await this.client.send(command);
+      logger.info(`Successfully connected to Cloudflare R2 bucket: ${this.bucketName}`);
+      return true;
+    } catch (error) {
+      logger.error(`Error connecting to Cloudflare R2 bucket ${this.bucketName}:`, error.message);
+      return false;
+    }
+  }
+
 }
 
 // Export as an instantiated singleton

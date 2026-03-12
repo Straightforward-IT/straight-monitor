@@ -122,7 +122,12 @@ async function logCurrentIP() {
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => logger.dbConnect())
+  .then(async () => {
+    logger.dbConnect();
+    // Verify R2 connection on startup
+    const R2Service = require('./R2Service');
+    await R2Service.testConnection();
+  })
   .catch(async (err) => {
     logger.dbError(err);
     await logCurrentIP();
