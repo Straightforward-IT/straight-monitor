@@ -2,6 +2,7 @@
  * Shared PDF rendering utilities used by both template and Vorgang routes.
  */
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+const R2Service = require('../R2Service');
 
 /**
  * Returns template.pdfs sorted by their `order` field.
@@ -24,7 +25,15 @@ async function buildFilledPdf(template, values = {}) {
   const pageMaps = []; // pageMaps[i] = { startIdx, pageCount }
   let globalOffset = 0;
   for (let i = 0; i < ordered.length; i++) {
-    const srcDoc = await PDFDocument.load(ordered[i].pdfData);
+    const pdfDef = ordered[i];
+    
+    // Fetch from R2 if pdfKey is set, otherwise fallback to local pdfData (backward compat)
+    let buffer = pdfDef.pdfData;
+    if (pdfDef.pdfKey) {
+      buffer = await R2Service.downloadFile(pdfDef.pdfKey);
+    }
+    
+    const srcDoc = await PDFDocument.load(buffer);
     const copiedPages = await mergedDoc.copyPages(srcDoc, srcDoc.getPageIndices());
     const startIdx = globalOffset;
     for (const page of copiedPages) mergedDoc.addPage(page);

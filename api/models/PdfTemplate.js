@@ -4,7 +4,9 @@ const mongoose = require('mongoose');
 const PdfFileSchema = new mongoose.Schema({
   id:        { type: String, required: true },   // uuid, used as stable reference
   filename:  { type: String, required: true },
-  pdfData:   { type: Buffer, required: true },
+  pdfKey:    { type: String },                   // R2 object key
+  pdfUrl:    { type: String },                   // Optionally store the direct URL
+  pdfData:   { type: Buffer },                   // Legacy buffer (can be phased out)
   pageCount: { type: Number, default: 1 },
   order:     { type: Number, default: 0 },        // display / merge order
 }, { _id: false });

@@ -17,6 +17,11 @@
       <font-awesome-icon :icon="['fas', 'circle-check']" size="3x" />
       <h2>Bereits übermittelt</h2>
       <p>Dieses Formular wurde bereits ausgefüllt. Vielen Dank!</p>
+      
+      <a v-if="data.pdfUrl" :href="data.pdfUrl" target="_blank" class="btn-download-public">
+        <font-awesome-icon :icon="['fas', 'file-pdf']" />
+        Dokument ansehen / herunterladen
+      </a>
     </div>
 
     <!-- Form -->
@@ -37,6 +42,11 @@
         <font-awesome-icon :icon="['fas', 'circle-check']" size="3x" />
         <h2>Vielen Dank!</h2>
         <p>Deine Angaben wurden erfolgreich übermittelt.</p>
+        
+        <a v-if="data?.pdfUrl" :href="data.pdfUrl" target="_blank" class="btn-download-public">
+          <font-awesome-icon :icon="['fas', 'file-pdf']" />
+          Dokument ansehen / herunterladen
+        </a>
       </div>
 
       <!-- Form fields -->
@@ -148,7 +158,11 @@ async function submit() {
         serialized[bm.id] = raw || '';
       }
     }
-    await axios.post(`/api/pdf-vorgaenge/formular/${token}/submit`, { values: serialized });
+    const res = await axios.post(`/api/pdf-vorgaenge/formular/${token}/submit`, { values: serialized });
+    if (res.data?.pdfUrl) {
+      if (!data.value) data.value = {};
+      data.value.pdfUrl = res.data.pdfUrl;
+    }
     submitted.value = true;
   } catch (e) {
     alert('Fehler beim Absenden: ' + (e.response?.data?.message || e.message));
@@ -173,6 +187,15 @@ onMounted(fetchForm);
   gap: 14px; text-align: center; padding: 60px 20px; color: #6b7280;
   &.error-state   { color: #dc2626; }
   &.success-state { color: #16a34a; h2 { color: #15803d; margin: 0; font-size: 1.3rem; } p { margin: 0; font-size: 14px; } }
+}
+
+.btn-download-public {
+  margin-top: 20px; padding: 12px 20px;
+  background: white; color: #15803d; border: 1px solid #16a34a; border-radius: 8px;
+  font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex;
+  align-items: center; gap: 8px; text-decoration: none;
+  transition: all 150ms;
+  &:hover { background: #f0fdf4; }
 }
 
 .form-card {

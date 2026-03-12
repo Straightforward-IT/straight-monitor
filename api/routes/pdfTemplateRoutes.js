@@ -7,6 +7,7 @@ const auth = require('../middleware/auth');
 const logger = require('../utils/logger');
 const PdfTemplate = require('../models/PdfTemplate');
 const { sortedPdfs, buildFilledPdf } = require('../utils/pdfRender');
+const R2Service = require('../R2Service');
 
 const router = express.Router();
 const upload = multer({
@@ -87,6 +88,18 @@ router.put('/:id', auth, asyncHandler(async (req, res) => {
 router.delete('/:id', auth, asyncHandler(async (req, res) => {
   const template = await PdfTemplate.findByIdAndDelete(req.params.id);
   if (!template) return res.status(404).json({ message: 'Vorlage nicht gefunden' });
+
+  // Delete all associated PDFs from R2
+  for (const pdf of template.pdfs) {
+    if (pdf.pdfKey) {
+      try {
+        await R2Service.deleteFile(pdf.pdfKey);
+      } catch (err) {
+        logger.warn(`Could not delete file ${pdf.pdfKey} from R2 when deleting template:`, err.message);
+      }
+    }
+  }
+
   logger.info(`PDF-Template gelöscht: ${template.name}`);
   res.json({ message: 'Gelöscht' });
 }));
@@ -111,10 +124,23 @@ router.post('/:id/pdfs', auth, upload.single('pdf'), asyncHandler(async (req, re
     ? Math.max(...template.pdfs.map(p => p.order))
     : -1;
 
+  const pdfId = crypto.randomBytes(8).toString('hex');
+  const safeName = req.file.originalname.replace(/[^a-z0-9_\-]/gi, '_');
+  const fileKey = `templates/${template._id}/${pdfId}_${safeName}`;
+  const pdfUrl = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET_NAME}/${fileKey}`;
+
+  try {
+    await R2Service.uploadFile(fileKey, req.file.buffer, 'application/pdf');
+  } catch (err) {
+    logger.error('Failed to upload PDF template to R2:', err);
+    return res.status(500).json({ message: 'Fehler beim Upload der Datei zu Cloudflare R2' });
+  }
+
   const pdfEntry = {
-    id: crypto.randomBytes(8).toString('hex'),
+    id: pdfId,
     filename: req.file.originalname,
-    pdfData: req.file.buffer,
+    pdfKey: fileKey,
+    pdfUrl: pdfUrl,
     pageCount,
     order: maxOrder + 1,
   };
@@ -124,7 +150,7 @@ router.post('/:id/pdfs', auth, upload.single('pdf'), asyncHandler(async (req, re
   await template.save();
   logger.info(`PDF hinzugefügt zu Vorlage "${template.name}": ${req.file.originalname} (${pageCount} Seiten)`);
 
-  res.status(201).json({ id: pdfEntry.id, filename: pdfEntry.filename, pageCount, order: pdfEntry.order });
+  res.status(201).json({ id: pdfEntry.id, filename: pdfEntry.filename, pageCount, order: pdfEntry.order, pdfUrl: pdfEntry.pdfUrl, pdfKey: pdfEntry.pdfKey });
 }));
 
 // ─── DELETE /api/pdf-templates/:id/pdfs/:pdfId ────────────────────────────
@@ -135,9 +161,21 @@ router.delete('/:id/pdfs/:pdfId', auth, asyncHandler(async (req, res) => {
   const idx = template.pdfs.findIndex(p => p.id === req.params.pdfId);
   if (idx === -1) return res.status(404).json({ message: 'PDF nicht gefunden' });
 
-  const removedOrder = template.pdfs[idx].order;
+  const targetPdf = template.pdfs[idx];
+  const removedOrder = targetPdf.order;
+  const pdfKeyToDelete = targetPdf.pdfKey;
+
   template.pdfs.splice(idx, 1);
   template.version = (template.version || 1) + 1;
+
+  // Remove file from R2
+  if (pdfKeyToDelete) {
+    try {
+      await R2Service.deleteFile(pdfKeyToDelete);
+    } catch (err) {
+      logger.warn(`Could not delete file ${pdfKeyToDelete} from R2:`, err.message);
+    }
+  }
 
   // Remove placements that reference this pdf by order-index
   const orderedIds = [...template.pdfs].sort((a, b) => a.order - b.order).map(p => p.id);
@@ -209,6 +247,18 @@ router.get('/:id/pdfs/:pdfIndex', auth, asyncHandler(async (req, res) => {
     'Content-Type': 'application/pdf',
     'Content-Disposition': `inline; filename="${pdf.filename}"`,
   });
+
+  if (pdf.pdfKey) {
+    try {
+      const buffer = await R2Service.downloadFile(pdf.pdfKey);
+      return res.send(buffer);
+    } catch (err) {
+      logger.error(`Error downloading PDF from R2 (key: ${pdf.pdfKey}):`, err);
+      return res.status(500).json({ message: 'Fehler beim Laden der PDF von Cloudflare R2' });
+    }
+  }
+
+  // Fallback to local mongo data for legacy templates
   res.send(pdf.pdfData);
 }));
 

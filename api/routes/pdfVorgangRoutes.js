@@ -5,6 +5,7 @@ const logger = require('../utils/logger');
 const PdfVorgang = require('../models/PdfVorgang');
 const PdfTemplate = require('../models/PdfTemplate');
 const { buildFilledPdf } = require('../utils/pdfRender');
+const R2Service = require('../R2Service');
 
 const router = express.Router();
 
@@ -37,6 +38,7 @@ router.get('/formular/:token', asyncHandler(async (req, res) => {
     bookmarks: mitarbeiterBookmarks,
     values: vorgang.mitarbeiterValues || {},
     status: vorgang.status,
+    pdfUrl: vorgang.pdfUrl,
   });
 }));
 
@@ -67,10 +69,36 @@ router.post('/formular/:token/submit', asyncHandler(async (req, res) => {
 
   vorgang.mitarbeiterValues = safeValues;
   vorgang.status = 'bereit';
+
+  // Generate the PDF straight away and upload to Cloudflare R2
+  try {
+    const template = await PdfTemplate.findById(vorgang.templateId);
+    if (template && template.pdfs.length > 0) {
+      const renderTemplate = {
+        pdfs:       template.pdfs,
+        bookmarks:  (vorgang.snapshotBookmarks && vorgang.snapshotBookmarks.length > 0) ? vorgang.snapshotBookmarks : template.bookmarks,
+        placements: (vorgang.snapshotPlacements && vorgang.snapshotPlacements.length > 0) ? vorgang.snapshotPlacements : template.placements,
+      };
+
+      const mergedValues = { ...(vorgang.operatorValues || {}), ...safeValues };
+      const pdfBytes = await buildFilledPdf(renderTemplate, mergedValues);
+      
+      const safeName = vorgang.name.replace(/[^a-z0-9_\-]/gi, '_');
+      const fileKey = `vorgaenge/${vorgang._id}/${safeName}.pdf`;
+      
+      await R2Service.uploadFile(fileKey, pdfBytes, 'application/pdf');
+      
+      vorgang.pdfKey = fileKey;
+      vorgang.pdfUrl = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET_NAME}/${fileKey}`;
+    }
+  } catch (err) {
+    logger.error(`Fehler bei der PDF-Generierung für Vorgang ${vorgang._id}:`, err);
+  }
+
   await vorgang.save();
 
   logger.info(`Mitarbeiter-Formular ausgefüllt für Vorgang: ${vorgang.name}`);
-  res.json({ message: 'Danke, deine Angaben wurden übermittelt.' });
+  res.json({ message: 'Danke, deine Angaben wurden übermittelt.', pdfUrl: vorgang.pdfUrl });
 }));
 
 // ─── Authenticated endpoints ───────────────────────────────────────────────
@@ -137,11 +165,46 @@ router.put('/:id', auth, asyncHandler(async (req, res) => {
   const vorgang = await PdfVorgang.findById(req.params.id);
   if (!vorgang) return res.status(404).json({ message: 'Vorgang nicht gefunden' });
 
+  let needsPdfRegen = false;
+
   if (name !== undefined)             vorgang.name             = name;
   if (mitarbeiterEmail !== undefined) vorgang.mitarbeiterEmail = mitarbeiterEmail;
   if (mitarbeiterName !== undefined)  vorgang.mitarbeiterName  = mitarbeiterName;
-  if (operatorValues !== undefined)   vorgang.operatorValues   = operatorValues;
-  if (status !== undefined)           vorgang.status           = status;
+  
+  if (operatorValues !== undefined) {
+    vorgang.operatorValues = operatorValues;
+    needsPdfRegen = true;
+  }
+  
+  if (status !== undefined) {
+    vorgang.status = status;
+    if (status === 'bereit') needsPdfRegen = true;
+  }
+
+  // If data changed and it is "bereit", regenerate and upload to R2
+  if (needsPdfRegen && vorgang.status === 'bereit') {
+    try {
+      const template = await PdfTemplate.findById(vorgang.templateId);
+      if (template && template.pdfs.length > 0) {
+        const renderTemplate = {
+          pdfs:       template.pdfs,
+          bookmarks:  (vorgang.snapshotBookmarks && vorgang.snapshotBookmarks.length > 0) ? vorgang.snapshotBookmarks : template.bookmarks,
+          placements: (vorgang.snapshotPlacements && vorgang.snapshotPlacements.length > 0) ? vorgang.snapshotPlacements : template.placements,
+        };
+        const mergedValues = { ...(vorgang.operatorValues || {}), ...(vorgang.mitarbeiterValues || {}) };
+        const pdfBytes = await buildFilledPdf(renderTemplate, mergedValues);
+        
+        const safeName = vorgang.name.replace(/[^a-z0-9_\-]/gi, '_');
+        const fileKey = `vorgaenge/${vorgang._id}/${safeName}.pdf`;
+        
+        await R2Service.uploadFile(fileKey, pdfBytes, 'application/pdf');
+        vorgang.pdfKey = fileKey;
+        vorgang.pdfUrl = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET_NAME}/${fileKey}`;
+      }
+    } catch (err) {
+      logger.error(`Fehler bei der PDF-Neugenerierung für Vorgang ${vorgang._id}:`, err);
+    }
+  }
 
   await vorgang.save();
   res.json(vorgang);
@@ -151,6 +214,15 @@ router.put('/:id', auth, asyncHandler(async (req, res) => {
 router.delete('/:id', auth, asyncHandler(async (req, res) => {
   const vorgang = await PdfVorgang.findByIdAndDelete(req.params.id);
   if (!vorgang) return res.status(404).json({ message: 'Vorgang nicht gefunden' });
+
+  if (vorgang.pdfKey) {
+    try {
+      await R2Service.deleteFile(vorgang.pdfKey);
+    } catch (err) {
+      logger.warn(`Could not delete file ${vorgang.pdfKey} from R2 when deleting Vorgang:`, err.message);
+    }
+  }
+
   logger.info(`Vorgang gelöscht: ${vorgang.name}`);
   res.json({ message: 'Gelöscht' });
 }));
@@ -173,17 +245,34 @@ router.post('/:id/send-email', auth, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/pdf-vorgaenge/:id/download
-// Generate and return the filled PDF (merges operator + mitarbeiter values)
+// Return the filled PDF from R2 (or generate on the fly and upload if missing)
 router.get('/:id/download', auth, asyncHandler(async (req, res) => {
   const vorgang = await PdfVorgang.findById(req.params.id);
   if (!vorgang) return res.status(404).json({ message: 'Vorgang nicht gefunden' });
+  const safeName = vorgang.name.replace(/[^a-z0-9_\-]/gi, '_');
+
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `attachment; filename="${safeName}.pdf"`,
+  });
+
+  // If we already have the finalized PDF in R2, stream it directly
+  if (vorgang.pdfKey) {
+    try {
+      const buffer = await R2Service.downloadFile(vorgang.pdfKey);
+      return res.send(buffer);
+    } catch (err) {
+      logger.error(`Error downloading Vorgang PDF from R2 (key: ${vorgang.pdfKey}):`, err);
+      // Fallback: continue to re-generate it on the fly
+    }
+  }
 
   const template = await PdfTemplate.findById(vorgang.templateId);
   if (!template) return res.status(404).json({ message: 'Vorlage nicht gefunden' });
   if (template.pdfs.length === 0) return res.status(400).json({ message: 'Vorlage hat keine PDFs' });
 
   // Use the snapshot bookmarks + placements so the PDF reflects the state at Vorgang creation.
-  // The live template PDFs are still used (PDF binary data is not snapshotted).
+  // The live template PDFs are still used.
   const renderTemplate = {
     pdfs:       template.pdfs,
     bookmarks:  (vorgang.snapshotBookmarks  && vorgang.snapshotBookmarks.length  > 0)
@@ -196,12 +285,20 @@ router.get('/:id/download', auth, asyncHandler(async (req, res) => {
   const values = { ...(vorgang.operatorValues || {}), ...(vorgang.mitarbeiterValues || {}) };
 
   const pdfBytes = await buildFilledPdf(renderTemplate, values);
-  const safeName = vorgang.name.replace(/[^a-z0-9_\-]/gi, '_');
 
-  res.set({
-    'Content-Type': 'application/pdf',
-    'Content-Disposition': `attachment; filename="${safeName}.pdf"`,
-  });
+  // Since it was missing, let's cache it to R2 now for future fast downloads
+  if (vorgang.status === 'bereit') {
+    const fileKey = `vorgaenge/${vorgang._id}/${safeName}.pdf`;
+    try {
+      await R2Service.uploadFile(fileKey, pdfBytes, 'application/pdf');
+      vorgang.pdfKey = fileKey;
+      vorgang.pdfUrl = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET_NAME}/${fileKey}`;
+      await vorgang.save();
+    } catch (uploadErr) {
+      logger.warn('Failed to upload dynamically generated Vorgang PDF to R2:', uploadErr);
+    }
+  }
+
   res.send(pdfBytes);
 }));
 

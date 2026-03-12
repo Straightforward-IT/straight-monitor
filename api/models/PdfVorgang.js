@@ -39,6 +39,10 @@ const PdfVorgangSchema = new mongoose.Schema({
     default: () => crypto.randomBytes(24).toString('hex'),
   },
 
+  // Final rendered PDF data stored in R2 bucket
+  pdfKey: { type: String },
+  pdfUrl: { type: String },
+
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
