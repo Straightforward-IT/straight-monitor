@@ -1,0 +1,1 @@
+require('mongoose').connect('mongodb+srv://dev:2GuGwKvTP7DtSXvl@straight2000.2qzd0.mongodb.net/DB_01?retryWrites=true&w=majority&appName=STRAIGHT2000').then(async () => { const PdfTemplate = require('./api/models/PdfTemplate'); const t = await PdfTemplate.find({}, 'name pdfs.length'); console.log(JSON.stringify(t, null, 2)); process.exit(0); })

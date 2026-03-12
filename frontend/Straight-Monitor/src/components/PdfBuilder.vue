@@ -266,7 +266,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import axios from 'axios';
+import api from '@/utils/api';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
@@ -346,7 +346,7 @@ function bookmarkIcon(dataType) {
 async function fetchTemplates() {
   loading.value = true;
   try {
-    const res = await axios.get('/api/pdf-templates', { headers });
+    const res = await api.get('/api/pdf-templates', { headers });
     templates.value = res.data;
     for (const t of res.data) renderThumbnail(t);
   } finally {
@@ -357,7 +357,7 @@ async function fetchTemplates() {
 async function renderThumbnail(t) {
   if (!t.pdfs || t.pdfs.length === 0) return;
   try {
-    const res  = await axios.get(`/api/pdf-templates/${t._id}/pdfs/0`, { headers, responseType: 'arraybuffer' });
+    const res  = await api.get(`/api/pdf-templates/${t._id}/pdfs/0`, { headers, responseType: 'arraybuffer' });
     const doc  = await pdfjsLib.getDocument({ data: res.data, verbosity: 0 }).promise;
     const page = await doc.getPage(1);
     const vp   = page.getViewport({ scale: 0.35 });
@@ -376,7 +376,7 @@ function openCreateDialog() {
 async function confirmCreate() {
   const { name, description } = createDialog.value;
   if (!name.trim()) return;
-  const res = await axios.post('/api/pdf-templates', { name: name.trim(), description }, { headers });
+  const res = await api.post('/api/pdf-templates', { name: name.trim(), description }, { headers });
   createDialog.value.visible = false;
   templates.value.unshift(res.data);
   openEditor(res.data._id);
@@ -384,13 +384,13 @@ async function confirmCreate() {
 
 async function deleteTemplate(t) {
   if (!confirm(`Vorlage "${t.name}" wirklich löschen?`)) return;
-  await axios.delete(`/api/pdf-templates/${t._id}`, { headers });
+  await api.delete(`/api/pdf-templates/${t._id}`, { headers });
   templates.value = templates.value.filter(x => x._id !== t._id);
 }
 
 // ── API: editor ───────────────────────────────────────────────────────────
 async function openEditor(id) {
-  const res = await axios.get(`/api/pdf-templates/${id}`, { headers });
+  const res = await api.get(`/api/pdf-templates/${id}`, { headers });
   currentTemplate.value = { _id: res.data._id, name: res.data.name, description: res.data.description };
   currentPdfs.value   = res.data.pdfs       ? [...res.data.pdfs]      : [];
   bookmarks.value     = res.data.bookmarks   ? [...res.data.bookmarks]  : [];
@@ -419,7 +419,7 @@ async function saveTemplate() {
   if (saving.value || !currentTemplate.value) return;
   saving.value = true;
   try {
-    await axios.put(`/api/pdf-templates/${currentTemplate.value._id}`, {
+    await api.put(`/api/pdf-templates/${currentTemplate.value._id}`, {
       name:        currentTemplate.value.name,
       description: currentTemplate.value.description,
       bookmarks:   bookmarks.value,
@@ -434,7 +434,7 @@ async function saveTemplate() {
 async function getPdfDoc(pdfIdx) {
   if (pdfDocCache.has(pdfIdx)) return pdfDocCache.get(pdfIdx);
   const id  = currentTemplate.value._id;
-  const res = await axios.get(`/api/pdf-templates/${id}/pdfs/${pdfIdx}`, { headers, responseType: 'arraybuffer' });
+  const res = await api.get(`/api/pdf-templates/${id}/pdfs/${pdfIdx}`, { headers, responseType: 'arraybuffer' });
   const doc = await pdfjsLib.getDocument({ data: res.data, verbosity: 0 }).promise;
   pdfDocCache.set(pdfIdx, doc);
   return doc;
@@ -475,7 +475,7 @@ async function onPdfFileChange(e) {
   try {
     const fd = new FormData();
     fd.append('pdf', file);
-    const res = await axios.post(`/api/pdf-templates/${currentTemplate.value._id}/pdfs`, fd, {
+    const res = await api.post(`/api/pdf-templates/${currentTemplate.value._id}/pdfs`, fd, {
       headers: { ...headers, 'Content-Type': 'multipart/form-data' },
     });
     currentPdfs.value.push(res.data);
@@ -497,7 +497,7 @@ async function onPdfFileChange(e) {
 
 async function removePdf(pdfId) {
   if (!confirm('Dieses PDF aus der Vorlage entfernen? Platzierungen auf diesen Seiten werden gelöscht.')) return;
-  await axios.delete(`/api/pdf-templates/${currentTemplate.value._id}/pdfs/${pdfId}`, { headers });
+  await api.delete(`/api/pdf-templates/${currentTemplate.value._id}/pdfs/${pdfId}`, { headers });
   currentPdfs.value = currentPdfs.value.filter(p => p.id !== pdfId);
   pdfDocCache.clear();
   const maxPage = allPages.value.length - 1;
@@ -515,7 +515,7 @@ async function movePdf(pdfId, direction) {
   [a.order, b.order] = [b.order, a.order];
   const newOrder = orderedPdfs.value.map(p => p.id);
   try {
-    await axios.put(`/api/pdf-templates/${currentTemplate.value._id}/pdfs/reorder`, { order: newOrder }, { headers });
+    await api.put(`/api/pdf-templates/${currentTemplate.value._id}/pdfs/reorder`, { order: newOrder }, { headers });
   } catch {}
   pdfDocCache.clear();
   if (allPages.value.length > 0) await loadPdfPage(currentGlobalPage.value);

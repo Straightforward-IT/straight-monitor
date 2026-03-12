@@ -124,7 +124,7 @@
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
-import axios from 'axios';
+import api from '@/utils/api';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
@@ -151,7 +151,7 @@ let pdfDoc = null;
 async function loadTemplate() {
   loading.value = true;
   try {
-    const res = await axios.get(`/api/pdf-templates/${route.params.id}`, { headers });
+    const res = await api.get(`/api/pdf-templates/${route.params.id}`, { headers });
     template.value = res.data;
 
     // Init form values from field defaults
@@ -185,7 +185,7 @@ async function loadPdfPreview(pageIdx) {
   if (!template.value) return;
 
   if (!pdfDoc) {
-    const res = await axios.get(`/api/pdf-templates/${template.value._id}/pdf`, {
+    const res = await api.get(`/api/pdf-templates/${template.value._id}/pdf`, {
       headers,
       responseType: 'arraybuffer'
     });
@@ -271,7 +271,7 @@ async function fillAndDownload() {
       }
     }
 
-    const res = await axios.post(`/api/pdf-templates/${template.value._id}/fill`, { values }, {
+    const res = await api.post(`/api/pdf-templates/${template.value._id}/fill`, { values }, {
       headers,
       responseType: 'blob'
     });

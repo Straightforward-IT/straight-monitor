@@ -103,7 +103,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import axios from 'axios';
+import apiPublic from '@/utils/api-public';
 
 const route  = useRoute();
 const token  = route.params.token;
@@ -123,7 +123,7 @@ function dataTypeLabel(t) {
 async function fetchForm() {
   loading.value = true;
   try {
-    const res = await axios.get(`/api/pdf-vorgaenge/formular/${token}`);
+    const res = await apiPublic.get(`/api/pdf-vorgaenge/formular/${token}`);
     data.value = res.data;
     // Pre-fill values from backend (existing mitarbeiterValues or defaults)
     for (const bm of res.data.bookmarks) {
@@ -158,7 +158,7 @@ async function submit() {
         serialized[bm.id] = raw || '';
       }
     }
-    const res = await axios.post(`/api/pdf-vorgaenge/formular/${token}/submit`, { values: serialized });
+    const res = await apiPublic.post(`/api/pdf-vorgaenge/formular/${token}/submit`, { values: serialized });
     if (res.data?.pdfUrl) {
       if (!data.value) data.value = {};
       data.value.pdfUrl = res.data.pdfUrl;

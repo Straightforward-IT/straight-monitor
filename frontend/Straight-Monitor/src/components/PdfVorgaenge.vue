@@ -185,7 +185,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import axios from 'axios';
+import api from '@/utils/api';
 
 const route  = useRoute();
 const router = useRouter();
@@ -229,9 +229,9 @@ async function fetchData() {
   loading.value = true;
   try {
     const [vRes, tRes] = await Promise.all([
-      axios.get('/api/pdf-vorgaenge', { headers, params: templateId.value ? { templateId: templateId.value } : {} }),
+      api.get('/api/pdf-vorgaenge', { headers, params: templateId.value ? { templateId: templateId.value } : {} }),
       templateId.value
-        ? axios.get(`/api/pdf-templates/${templateId.value}`, { headers })
+        ? api.get(`/api/pdf-templates/${templateId.value}`, { headers })
         : Promise.resolve(null),
     ]);
     vorgaenge.value = vRes.data;
@@ -253,7 +253,7 @@ async function confirmCreate() {
   }
   creating.value = true;
   try {
-    const res = await axios.post('/api/pdf-vorgaenge', {
+    const res = await api.post('/api/pdf-vorgaenge', {
       templateId:        templateId.value,
       name:              createDialog.value.name.trim(),
       mitarbeiterEmail:  createDialog.value.mitarbeiterEmail,
@@ -268,7 +268,7 @@ async function confirmCreate() {
 
 async function deleteVorgang(v) {
   if (!confirm(`Vorgang "${v.name}" wirklich löschen?`)) return;
-  await axios.delete(`/api/pdf-vorgaenge/${v._id}`, { headers });
+  await api.delete(`/api/pdf-vorgaenge/${v._id}`, { headers });
   vorgaenge.value = vorgaenge.value.filter(x => x._id !== v._id);
 }
 
@@ -283,7 +283,7 @@ async function openFillDialog(v) {
     bedienerBookmarks = template.value.bookmarks?.filter(b => b.fillRole === 'bediener') ?? [];
   } else if (v.templateId) {
     try {
-      const res = await axios.get(`/api/pdf-templates/${v.templateId}`, { headers });
+      const res = await api.get(`/api/pdf-templates/${v.templateId}`, { headers });
       bedienerBookmarks = res.data.bookmarks?.filter(b => b.fillRole === 'bediener') ?? [];
     } catch {}
   }
@@ -318,7 +318,7 @@ async function saveFill() {
         operatorValues[bm.id] = raw || '';
       }
     }
-    const res = await axios.put(`/api/pdf-vorgaenge/${fillDialog.value.vorgang._id}`, { operatorValues }, { headers });
+    const res = await api.put(`/api/pdf-vorgaenge/${fillDialog.value.vorgang._id}`, { operatorValues }, { headers });
     // Update local list
     const idx = vorgaenge.value.findIndex(v => v._id === res.data._id);
     if (idx !== -1) vorgaenge.value[idx] = res.data;
@@ -330,7 +330,7 @@ async function saveFill() {
 
 async function copyFormLink(v) {
   try {
-    const res = await axios.get(`/api/pdf-vorgaenge/${v._id}/formlink`, { headers });
+    const res = await api.get(`/api/pdf-vorgaenge/${v._id}/formlink`, { headers });
     await navigator.clipboard.writeText(res.data.formUrl);
     alert('Link kopiert:\n' + res.data.formUrl);
   } catch (e) {
@@ -340,7 +340,7 @@ async function copyFormLink(v) {
 
 async function sendEmail(v) {
   try {
-    const res = await axios.post(`/api/pdf-vorgaenge/${v._id}/send-email`, {}, { headers });
+    const res = await api.post(`/api/pdf-vorgaenge/${v._id}/send-email`, {}, { headers });
     alert(res.data.message + '\n\nLink: ' + res.data.formUrl);
   } catch (e) {
     alert('Fehler: ' + (e.response?.data?.message || e.message));
@@ -349,7 +349,7 @@ async function sendEmail(v) {
 
 async function downloadPdf(v) {
   try {
-    const res = await axios.get(`/api/pdf-vorgaenge/${v._id}/download`, { headers, responseType: 'blob' });
+    const res = await api.get(`/api/pdf-vorgaenge/${v._id}/download`, { headers, responseType: 'blob' });
     const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
     const a   = document.createElement('a');
     a.href     = url;
