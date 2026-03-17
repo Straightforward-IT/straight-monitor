@@ -19,8 +19,9 @@ const BookmarkSchema = new mongoose.Schema({
   //   'bediener'    = the logged-in operator fills it on the website
   //   'mitarbeiter' = the employee fills it via the email-link form
   fillRole:     { type: String, enum: ['bediener', 'mitarbeiter'], default: 'bediener' },
-  dataType:     { type: String, enum: ['text', 'date', 'checkbox'], default: 'text' },
+  dataType:     { type: String, enum: ['text', 'date', 'checkbox', 'checkbox-group-single', 'checkbox-group-multi'], default: 'text' },
   defaultValue: { type: String, default: '' },
+  options:      [{ type: String }],              // for checkbox-group: list of option labels
 }, { _id: false });
 
 // A concrete placement of a bookmark on a specific page of a specific PDF
@@ -34,6 +35,7 @@ const PlacementSchema = new mongoose.Schema({
   width:      { type: Number, default: 20 },      // % of page width
   height:     { type: Number, default: 5 },       // % of page height (used for checkboxes)
   fontSize:   { type: Number, default: 11 },
+  optionIndex:{ type: Number, default: null },       // for checkbox-group: which option this placement represents
 }, { _id: false });
 
 const PdfTemplateSchema = new mongoose.Schema({

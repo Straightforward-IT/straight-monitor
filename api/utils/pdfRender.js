@@ -70,6 +70,19 @@ async function buildFilledPdf(template, values = {}) {
         page.drawLine({ start: { x: absX, y: absY - absH }, end: { x: absX + absW, y: absY }, thickness: 1.5, color: rgb(0, 0, 0) });
         page.drawLine({ start: { x: absX + absW, y: absY - absH }, end: { x: absX, y: absY }, thickness: 1.5, color: rgb(0, 0, 0) });
       }
+    } else if (bm.dataType === 'checkbox-group-single' || bm.dataType === 'checkbox-group-multi') {
+      const options = bm.options || [];
+      const optLabel = options[pl.optionIndex] ?? '';
+      let checked = false;
+      if (bm.dataType === 'checkbox-group-single') {
+        checked = value === optLabel;
+      } else {
+        checked = value.split(',').map(o => o.trim()).includes(optLabel);
+      }
+      if (checked) {
+        page.drawLine({ start: { x: absX, y: absY - absH }, end: { x: absX + absW, y: absY }, thickness: 1.5, color: rgb(0, 0, 0) });
+        page.drawLine({ start: { x: absX + absW, y: absY - absH }, end: { x: absX, y: absY }, thickness: 1.5, color: rgb(0, 0, 0) });
+      }
     } else if (value) {
       const fs = pl.fontSize || 11;
       const fieldBottom = absY - (fs * 1.5);

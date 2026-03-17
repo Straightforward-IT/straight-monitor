@@ -132,9 +132,9 @@ function normalizeUmlautsForSort(str) {
   if (!str) return "";
   return str
     .toLowerCase()
-    .replace(/ä/g, "a")
-    .replace(/ö/g, "o")
-    .replace(/ü/g, "u")
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
     .replace(/ß/g, "ss")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -2102,10 +2102,8 @@ router.post(
             normalizeUmlautsForSort(b[1])
           );
           if (nachnameCompare !== 0) return nachnameCompare;
-          // Sortiere nach Personalnr (Index 0) statt Vorname
-          const personalnrA = String(a[0] || "");
-          const personalnrB = String(b[0] || "");
-          return personalnrA.localeCompare(personalnrB, undefined, { numeric: true });
+          // Tiebreaker: Vorname alphabetisch (wie in der Quell-PDF)
+          return normalizeUmlautsForSort(a[2])?.localeCompare(normalizeUmlautsForSort(b[2])) ?? 0;
         });
 
       if (pageCount !== data.length) {

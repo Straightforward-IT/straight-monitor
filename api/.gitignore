@@ -5,7 +5,7 @@
 .env
 .env.local
 .env.*.local
-
+.env.save
 # Dependencies
 node_modules/
 

@@ -152,6 +152,37 @@
               <input :id="`fill-${bm.id}`" v-model="fillDialog.values[bm.id]" type="checkbox" class="form-checkbox" />
               <span>{{ fillDialog.values[bm.id] ? 'Ja / Angekreuzt' : 'Nein / Leer' }}</span>
             </div>
+            <div v-else-if="bm.dataType === 'checkbox-group-single'" class="group-options">
+              <label
+                v-for="opt in (bm.options || [])"
+                :key="opt"
+                class="group-option"
+              >
+                <input
+                  type="radio"
+                  :name="`group-${bm.id}`"
+                  :value="opt"
+                  v-model="fillDialog.values[bm.id]"
+                  class="form-radio"
+                />
+                <span>{{ opt }}</span>
+              </label>
+            </div>
+            <div v-else-if="bm.dataType === 'checkbox-group-multi'" class="group-options">
+              <label
+                v-for="opt in (bm.options || [])"
+                :key="opt"
+                class="group-option"
+              >
+                <input
+                  type="checkbox"
+                  :value="opt"
+                  v-model="fillDialog.values[bm.id]"
+                  class="form-checkbox"
+                />
+                <span>{{ opt }}</span>
+              </label>
+            </div>
             <input
               v-else-if="bm.dataType === 'date'"
               :id="`fill-${bm.id}`"
@@ -220,7 +251,11 @@ function formatDate(iso) {
 }
 
 function bookmarkIcon(dataType) {
-  const map = { text: ['fas', 'font'], date: ['fas', 'calendar'], checkbox: ['fas', 'check'] };
+  const map = {
+    text: ['fas', 'font'], date: ['fas', 'calendar'], checkbox: ['fas', 'check'],
+    'checkbox-group-single': ['fas', 'circle-dot'],
+    'checkbox-group-multi': ['fas', 'list-check'],
+  };
   return map[dataType] || ['fas', 'font'];
 }
 
@@ -294,6 +329,10 @@ async function openFillDialog(v) {
     const existing = v.operatorValues?.[bm.id];
     if (bm.dataType === 'checkbox') {
       values[bm.id] = existing === 'true' || existing === true || existing === '1';
+    } else if (bm.dataType === 'checkbox-group-multi') {
+      values[bm.id] = existing ? existing.split(',') : [];
+    } else if (bm.dataType === 'checkbox-group-single') {
+      values[bm.id] = existing || '';
     } else {
       values[bm.id] = existing ?? (bm.defaultValue || '');
     }
@@ -311,6 +350,10 @@ async function saveFill() {
       const raw = fillDialog.value.values[bm.id];
       if (bm.dataType === 'checkbox') {
         operatorValues[bm.id] = raw ? 'true' : 'false';
+      } else if (bm.dataType === 'checkbox-group-multi') {
+        operatorValues[bm.id] = Array.isArray(raw) ? raw.join(',') : (raw || '');
+      } else if (bm.dataType === 'checkbox-group-single') {
+        operatorValues[bm.id] = raw || '';
       } else if (bm.dataType === 'date' && raw) {
         const d = new Date(raw);
         operatorValues[bm.id] = isNaN(d) ? raw : d.toLocaleDateString('de-DE');
@@ -460,6 +503,15 @@ onMounted(fetchData);
   background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 13px;
 }
 .form-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
+.form-radio { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
+.group-options {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 10px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px;
+}
+.group-option {
+  display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;
+}
 .no-fields-hint {
   font-size: 13px; color: var(--text-muted); display: flex; gap: 8px;
   align-items: flex-start; padding: 12px; background: var(--bg); border-radius: 6px;

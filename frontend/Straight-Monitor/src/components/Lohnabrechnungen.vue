@@ -215,12 +215,11 @@
 <script>
 import * as XLSX from "xlsx";
 import api from "../utils/api";
-import * as pdfjsLib from "pdfjs-dist";import { markRaw } from "vue";
-      // Worker Config für Vite mit lokalem Workaround für neuere Versionen
-// Versuche CDN für Worker. Falls geblockt, muss man worker lokal hosten.
-// Nutze .mjs extension für module support in neueren Versionen
-const workerUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+import * as pdfjsLib from "pdfjs-dist";
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { markRaw } from "vue";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 export default {
   name: "Lohnabrechnungen",
@@ -339,9 +338,9 @@ export default {
             if (!str) return "";
             return String(str)
                 .toLowerCase()
-                .replace(/ä/g, "a")
-                .replace(/ö/g, "o")
-                .replace(/ü/g, "u")
+                .replace(/ä/g, "ae")
+                .replace(/ö/g, "oe")
+                .replace(/ü/g, "ue")
                 .replace(/ß/g, "ss")
                 .normalize("NFD")
                 .replace(/[\u0300-\u036f]/g, "")
@@ -351,10 +350,8 @@ export default {
         const sorted = rows.slice(1).sort((a, b) => {
           const nachnameCompare = normalize(a[1]).localeCompare(normalize(b[1]));
           if (nachnameCompare !== 0) return nachnameCompare;
-          // Sortiere nach Personalnr (Index 0) statt Vorname
-          const personalnrA = String(a[0] || "");
-          const personalnrB = String(b[0] || "");
-          return personalnrA.localeCompare(personalnrB, undefined, { numeric: true });
+          // Tiebreaker: Vorname alphabetisch (wie in der Quell-PDF)
+          return normalize(a[2]).localeCompare(normalize(b[2]));
         });
         
         this.excelData = sorted;

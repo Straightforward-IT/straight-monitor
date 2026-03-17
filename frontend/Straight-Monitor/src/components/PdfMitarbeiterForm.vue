@@ -64,6 +64,37 @@
               <input :id="`f-${bm.id}`" v-model="values[bm.id]" type="checkbox" class="form-checkbox" />
               <span class="checkbox-label">{{ values[bm.id] ? 'Ja' : 'Nein' }}</span>
             </div>
+            <div v-else-if="bm.dataType === 'checkbox-group-single'" class="group-options">
+              <label
+                v-for="opt in (bm.options || [])"
+                :key="opt"
+                class="group-option"
+              >
+                <input
+                  type="radio"
+                  :name="`group-${bm.id}`"
+                  :value="opt"
+                  v-model="values[bm.id]"
+                  class="form-radio"
+                />
+                <span>{{ opt }}</span>
+              </label>
+            </div>
+            <div v-else-if="bm.dataType === 'checkbox-group-multi'" class="group-options">
+              <label
+                v-for="opt in (bm.options || [])"
+                :key="opt"
+                class="group-option"
+              >
+                <input
+                  type="checkbox"
+                  :value="opt"
+                  v-model="values[bm.id]"
+                  class="form-checkbox"
+                />
+                <span>{{ opt }}</span>
+              </label>
+            </div>
             <input
               v-else-if="bm.dataType === 'date'"
               :id="`f-${bm.id}`"
@@ -116,7 +147,11 @@ const data       = ref(null);
 const values     = ref({});
 
 function dataTypeLabel(t) {
-  const map = { text: 'Text', date: 'Datum', checkbox: 'Ja/Nein' };
+  const map = {
+    text: 'Text', date: 'Datum', checkbox: 'Ja/Nein',
+    'checkbox-group-single': 'Auswahl (einfach)',
+    'checkbox-group-multi': 'Auswahl (mehrfach)',
+  };
   return map[t] || t;
 }
 
@@ -130,6 +165,10 @@ async function fetchForm() {
       const existing = res.data.values?.[bm.id];
       if (bm.dataType === 'checkbox') {
         values.value[bm.id] = existing === 'true' || existing === true;
+      } else if (bm.dataType === 'checkbox-group-multi') {
+        values.value[bm.id] = existing ? existing.split(',') : [];
+      } else if (bm.dataType === 'checkbox-group-single') {
+        values.value[bm.id] = existing || '';
       } else {
         values.value[bm.id] = existing ?? (bm.defaultValue || '');
       }
@@ -151,6 +190,10 @@ async function submit() {
       const raw = values.value[bm.id];
       if (bm.dataType === 'checkbox') {
         serialized[bm.id] = raw ? 'true' : 'false';
+      } else if (bm.dataType === 'checkbox-group-multi') {
+        serialized[bm.id] = Array.isArray(raw) ? raw.join(',') : (raw || '');
+      } else if (bm.dataType === 'checkbox-group-single') {
+        serialized[bm.id] = raw || '';
       } else if (bm.dataType === 'date' && raw) {
         const d = new Date(raw);
         serialized[bm.id] = isNaN(d) ? raw : d.toLocaleDateString('de-DE');
@@ -239,6 +282,18 @@ onMounted(fetchForm);
 }
 .form-checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: #f97316; }
 .checkbox-label { font-size: 14px; color: #374151; }
+.group-options {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px; background: #f9fafb;
+  border: 1px solid #d1d5db; border-radius: 8px;
+}
+.group-option {
+  display: flex; align-items: center; gap: 10px; font-size: 14px;
+  cursor: pointer; color: #374151;
+}
+.form-radio {
+  width: 18px; height: 18px; cursor: pointer; accent-color: #f97316;
+}
 .no-fields { font-size: 14px; color: #9ca3af; padding: 16px 0; text-align: center; }
 
 .btn-submit {

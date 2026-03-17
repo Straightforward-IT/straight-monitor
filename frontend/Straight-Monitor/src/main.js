@@ -9,7 +9,10 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly, faPencil, faCheck, faStarHalfStroke, faBoxOpen, faSortDown, faSortUp, faList, faPersonThroughWindow, faPersonCircleExclamation, faTableList, faUserPlus, faPeopleLine, faFileInvoice, faTable, faSun, faMoon, faChevronUp, faChevronDown, faChevronLeft, faChevronRight, faTags, faIdBadge, faUsers, faListCheck, faSpinner, faClipboardCheck, faExternalLinkAlt, faExternalLink, faTicketAlt, faEnvelope, faMobileAlt, faFileAlt, faBars, faChartLine, faHistory, faTools, faSignOutAlt, faCalendarAlt, faCalendarDays, faCopy, faLink, faUnlink, faRotateRight, faHourglassHalf, faPaperPlane, faClock, faCalendar, faHeart, faKeyboard, faCodeBranch, faUser, faUnlock, faLock, faTrophy, faDice, faHome, faArrowLeft, faInbox, faStar, faUserTie, faGraduationCap, faBuilding, faBullseye, faSortAlphaDown, faSortAlphaUp, faSortNumericDown, faSortNumericUp, faPaperclip, faChartBar as faChartBarSolid, faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faObjectGroup, faChartPie, faClipboardList, faBriefcase, faFilePen, faLocationDot, faFileLines, faFileCircleCheck, faMagnifyingGlass, faHashtag, faMapPin, faCircleCheck, faEllipsisVertical, faComment, faCommentDots, faToggleOn, faToggleOff, faArrowUpFromBracket,
   faFilePdf, faCloudArrowUp, faFloppyDisk, faFont, faUpload, faRotateLeft, faDownload, faCircleExclamation, faCheckSquare, faSave, 
   faThLarge,
-  faFileImport} from '@fortawesome/free-solid-svg-icons';
+  faFileImport,
+  faFileCirclePlus,
+  faBookmark,
+  faGripVertical} from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
@@ -20,11 +23,11 @@ library.add(
   faChevronUp, faChevronDown, faChevronLeft, faChevronRight, faTags, faIdBadge, faUsers, faListCheck, faChartBar, faChartBarSolid,
   faSpinner, faClipboardCheck, faExternalLinkAlt, faExternalLink, faTicketAlt, faEnvelope, faMobileAlt, faFileAlt,
   faCopy, faLink, faUnlink, faRotateRight, faHourglassHalf, faClock, faPaperPlane, faCalendar, faCalendarAlt, faCalendarDays,
-  faUnlock, faLock, faTrophy, faDice, faInbox, faStar, faUserTie, faGraduationCap,
+  faUnlock, faLock, faTrophy, faDice, faInbox, faStar, faUserTie, faGraduationCap, faFileCirclePlus,
   // Customer & Sort Icons
   faBuilding, faBullseye, faSortAlphaDown, faSortAlphaUp, faSortNumericDown, faSortNumericUp, faPaperclip,
   // Customer Card Icons
-  faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faThLarge, faFileImport,
+  faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faThLarge, faFileImport, faBookmark, faGripVertical,
   // Merge Icon
   faObjectGroup,
   // Pie Chart Icon

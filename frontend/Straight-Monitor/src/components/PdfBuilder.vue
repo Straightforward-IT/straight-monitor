@@ -96,9 +96,31 @@
                       <option value="text">Text</option>
                       <option value="date">Datum</option>
                       <option value="checkbox">Checkbox</option>
+                      <option value="checkbox-group-single">CB-Gruppe (Single)</option>
+                      <option value="checkbox-group-multi">CB-Gruppe (Multi)</option>
                     </select>
                   </div>
-                  <input v-model="bm.defaultValue" class="bm-input" placeholder="Standardwert (optional)" />
+                  <div v-if="isGroupType(bm.dataType)" class="bm-options-group">
+                    <div class="bm-options-header">
+                      <span>Optionen</span>
+                      <button class="bm-add-option-btn" @click.stop="addOption(bm)">
+                        <font-awesome-icon :icon="['fas', 'plus']" />
+                      </button>
+                    </div>
+                    <div v-for="(opt, oi) in (bm.options || [])" :key="oi" class="bm-option-row">
+                      <input
+                        :value="opt"
+                        @input="updateOption(bm, oi, $event.target.value)"
+                        class="bm-input bm-option-input"
+                        placeholder="z.B. Mann, Frau, Divers…"
+                      />
+                      <button class="bm-del-btn" @click.stop="removeOption(bm, oi)" title="Option entfernen">
+                        <font-awesome-icon :icon="['fas', 'xmark']" />
+                      </button>
+                    </div>
+                    <p v-if="!bm.options || bm.options.length === 0" class="bm-options-empty">Noch keine Optionen.</p>
+                  </div>
+                  <input v-else v-model="bm.defaultValue" class="bm-input" placeholder="Standardwert (optional)" />
                   <button class="bm-done-btn" @click="editingBookmarkId = null">
                     <font-awesome-icon :icon="['fas', 'check']" /> Fertig
                   </button>
@@ -162,7 +184,7 @@
               @mousedown.prevent="startDrag($event, pl)"
               @contextmenu.prevent.stop="onPlacementRightClick($event, pl)"
             >
-              <span class="plt-label">{{ bookmarkLabel(pl.bookmarkId) }}</span>
+              <span class="plt-label">{{ placementDisplayLabel(pl) }}</span>
               <span class="plt-role-chip" :class="`rc-${bookmarkRole(pl.bookmarkId)}`">{{ bookmarkRole(pl.bookmarkId) === 'bediener' ? 'Bed.' : 'MA' }}</span>
               <div class="rh rh-nw" @mousedown.stop.prevent="startResize($event, pl, 'nw')"></div>
               <div class="rh rh-ne" @mousedown.stop.prevent="startResize($event, pl, 'ne')"></div>
@@ -180,17 +202,32 @@
               <template v-else>
                 <div class="ctx-section">Textmarke platzieren</div>
                 <div v-if="bookmarks.length === 0" class="ctx-empty">Keine Textmarken erstellt</div>
-                <button
-                  v-for="bm in bookmarks"
-                  :key="bm.id"
-                  class="ctx-item"
-                  :class="{ active: selectedBookmarkId === bm.id }"
-                  @click="addPlacementAt(bm.id, ctxMenu.pct); closeCtxMenu()"
-                >
-                  <font-awesome-icon :icon="bookmarkIcon(bm.dataType)" />
-                  {{ bm.label }}
-                  <span class="ctx-role-chip" :class="`rc-${bm.fillRole}`">{{ bm.fillRole === 'bediener' ? 'Bed.' : 'MA' }}</span>
-                </button>
+                <template v-for="bm in bookmarks" :key="bm.id">
+                  <button
+                    v-if="!isGroupType(bm.dataType)"
+                    class="ctx-item"
+                    :class="{ active: selectedBookmarkId === bm.id }"
+                    @click="addPlacementAt(bm.id, ctxMenu.pct); closeCtxMenu()"
+                  >
+                    <font-awesome-icon :icon="bookmarkIcon(bm.dataType)" />
+                    {{ bm.label }}
+                    <span class="ctx-role-chip" :class="`rc-${bm.fillRole}`">{{ bm.fillRole === 'bediener' ? 'Bed.' : 'MA' }}</span>
+                  </button>
+                  <template v-else>
+                    <div class="ctx-section ctx-group-header">{{ bm.label }}</div>
+                    <div v-if="getGroupOptions(bm).length === 0" class="ctx-empty">Keine Optionen definiert</div>
+                    <button
+                      v-for="(opt, oi) in getGroupOptions(bm)"
+                      :key="`${bm.id}-${oi}`"
+                      class="ctx-item ctx-item-indent"
+                      @click="addPlacementAt(bm.id, ctxMenu.pct, oi); closeCtxMenu()"
+                    >
+                      <font-awesome-icon :icon="bookmarkIcon(bm.dataType)" />
+                      {{ opt }}
+                      <span class="ctx-role-chip" :class="`rc-${bm.fillRole}`">{{ bm.fillRole === 'bediener' ? 'Bed.' : 'MA' }}</span>
+                    </button>
+                  </template>
+                </template>
               </template>
             </div>
           </div>
@@ -338,8 +375,49 @@ function placementCountOf(bmId) {
   return placements.value.filter(pl => pl.bookmarkId === bmId).length;
 }
 function bookmarkIcon(dataType) {
-  const map = { text: ['fas', 'font'], date: ['fas', 'calendar'], checkbox: ['fas', 'check'] };
+  const map = {
+    text: ['fas', 'font'], date: ['fas', 'calendar'], checkbox: ['fas', 'check'],
+    'checkbox-group-single': ['fas', 'circle-dot'],
+    'checkbox-group-multi': ['fas', 'list-check'],
+  };
   return map[dataType] || ['fas', 'font'];
+}
+function isGroupType(dt) {
+  return dt === 'checkbox-group-single' || dt === 'checkbox-group-multi';
+}
+function isCheckboxLike(dt) {
+  return dt === 'checkbox' || isGroupType(dt);
+}
+function getGroupOptions(bm) {
+  return bm.options || [];
+}
+function placementDisplayLabel(pl) {
+  const bm = bookmarkById(pl.bookmarkId);
+  if (!bm) return '?';
+  if (isGroupType(bm.dataType) && pl.optionIndex != null) {
+    const opt = getGroupOptions(bm)[pl.optionIndex];
+    return opt ? `${bm.label}: ${opt}` : bm.label;
+  }
+  return bm.label;
+}
+function addOption(bm) {
+  if (!bm.options) bm.options = [];
+  bm.options.push('');
+}
+function updateOption(bm, idx, val) {
+  if (!bm.options) bm.options = [];
+  bm.options[idx] = val;
+}
+function removeOption(bm, idx) {
+  if (!bm.options) return;
+  bm.options.splice(idx, 1);
+  // Remove placements that referenced this option index
+  placements.value = placements.value.filter(pl => {
+    if (pl.bookmarkId !== bm.id) return true;
+    if (pl.optionIndex === idx) return false;
+    if (pl.optionIndex > idx) pl.optionIndex--;
+    return true;
+  });
 }
 
 // ── API: templates list ───────────────────────────────────────────────────
@@ -523,7 +601,7 @@ async function movePdf(pdfId, direction) {
 
 // ── Bookmarks ─────────────────────────────────────────────────────────────
 function addBookmark() {
-  const bm = { id: uid(), label: '', fillRole: 'bediener', dataType: 'text', defaultValue: '' };
+  const bm = { id: uid(), label: '', fillRole: 'bediener', dataType: 'text', defaultValue: '', options: [] };
   bookmarks.value.push(bm);
   selectedBookmarkId.value = bm.id;
   editingBookmarkId.value  = bm.id;
@@ -538,26 +616,28 @@ function removeBookmark(id) {
 // ── Placements ────────────────────────────────────────────────────────────
 function placementStyle(pl) {
   const bm = bookmarkById(pl.bookmarkId);
-  const h  = bm?.dataType === 'checkbox'
+  const h  = isCheckboxLike(bm?.dataType)
     ? pl.height
     : (((pl.fontSize || 11) * 1.5) / pageNaturalHeight.value) * 100;
   return { left: `${pl.x}%`, top: `${pl.y}%`, width: `${pl.width}%`, height: `${h}%` };
 }
 
-function addPlacementAt(bookmarkId, pct) {
+function addPlacementAt(bookmarkId, pct, optionIndex = null) {
   const info = currentPageInfo.value;
   if (!info || !pct) return;
   const bm = bookmarkById(bookmarkId);
+  const cbLike = isCheckboxLike(bm?.dataType);
   const pl = {
     id: uid(), bookmarkId,
     pdfIndex:  info.pdfIdx,
     page:      info.localPage,
     x:         pct.x,
     y:         pct.y,
-    width:     bm?.dataType === 'checkbox' ? 4 : 25,
-    height:    bm?.dataType === 'checkbox' ? 4 : 5,
+    width:     cbLike ? 4 : 25,
+    height:    cbLike ? 4 : 5,
     fontSize:  11,
   };
+  if (optionIndex != null) pl.optionIndex = optionIndex;
   placements.value.push(pl);
   selectedPlacementId.value = pl.id;
 }
@@ -653,7 +733,7 @@ function onResizeMove(e) {
   const pl = placements.value.find(p => p.id === resizeState.placementId);
   if (!pl) return;
   const { origX, origY, origW, origH, corner } = resizeState;
-  const isCheckbox = bookmarkDataType(pl.bookmarkId) === 'checkbox';
+  const isCheckbox = isCheckboxLike(bookmarkDataType(pl.bookmarkId));
 
   if (corner === 'se') {
     pl.width  = Math.max(MIN, origW + dx);
@@ -802,6 +882,26 @@ onUnmounted(() => {
   background: var(--primary); color: #fff; border: none; border-radius: 5px;
   cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 5px;
 }
+.bm-options-group {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px; display: flex; flex-direction: column; gap: 4px;
+}
+.bm-options-header {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 10px; font-weight: 600; color: var(--text-muted); padding: 0 2px;
+}
+.bm-add-option-btn {
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-muted); padding: 1px 5px; cursor: pointer; font-size: 9px;
+  &:hover { border-color: var(--primary); color: var(--primary); }
+}
+.bm-option-row {
+  display: flex; align-items: center; gap: 4px;
+}
+.bm-option-input { flex: 1; }
+.bm-options-empty {
+  font-size: 10px; color: var(--text-muted); text-align: center; margin: 2px 0; padding: 0;
+}
 
 /* ── Canvas col ──────────────────────────────────────────────────────── */
 .canvas-col { display: flex; flex-direction: column; gap: 8px; }
@@ -874,6 +974,8 @@ onUnmounted(() => {
   &.rc-mitarbeiter { background: rgba(56,161,105,.2); color: #38a169; }
 }
 .ctx-empty { font-size: 12px; color: var(--text-muted); padding: 8px 10px; }
+.ctx-item-indent { padding-left: 22px; }
+.ctx-group-header { margin-top: 4px; }
 
 /* ── PDF panel ───────────────────────────────────────────────────────── */
 .pdf-panel {
