@@ -56,6 +56,8 @@ const {
 const asyncHandler = require("../middleware/AsyncHandler");
 const JSZip = require("jszip");
 const { PDFDocument } = require("pdf-lib");
+const sharp = require("sharp");
+const r2Service = require("../R2Service");
 const progressMap = new Map();
 
 const upload = multer({
@@ -65,6 +67,19 @@ const upload = multer({
     const ext = path.extname(file.originalname);
     if (!allowedExtensions.includes(ext)) {
       return cb(new Error("Invalid file type"));
+    }
+    cb(null, true);
+  },
+});
+
+// Separate multer instance for profile picture uploads
+const imageUpload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedMimes.includes(file.mimetype)) {
+      return cb(new Error("Nur Bilddateien (JPEG, PNG, WebP, GIF) erlaubt."));
     }
     cb(null, true);
   },
@@ -361,6 +376,72 @@ router.get(
       console.error(`❌ Error fetching profile picture for user ${userId}:`, error);
       res.status(500).json({ message: "Failed to fetch profile picture" });
     }
+  })
+);
+
+// ── Profilbild Upload (R2) ──────────────────────────────────────────────────
+router.post(
+  "/mitarbeiter/:id/profilbild",
+  auth,
+  imageUpload.single("image"),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    if (!req.file) return res.status(400).json({ message: "Kein Bild hochgeladen." });
+
+    const mitarbeiter = await Mitarbeiter.findById(id);
+    if (!mitarbeiter) return res.status(404).json({ message: "Mitarbeiter nicht gefunden." });
+
+    // Convert to WebP via sharp
+    const webpBuffer = await sharp(req.file.buffer)
+      .resize(512, 512, { fit: "cover" })
+      .webp({ quality: 80 })
+      .toBuffer();
+
+    const r2Key = `profilbilder/${id}.webp`;
+
+    // Delete old image if exists
+    if (mitarbeiter.profilbild) {
+      try { await r2Service.deleteFile(mitarbeiter.profilbild); } catch (_) { /* ignore */ }
+    }
+
+    await r2Service.uploadFile(r2Key, webpBuffer, "image/webp");
+
+    mitarbeiter.profilbild = r2Key;
+    await mitarbeiter.save();
+
+    res.json({ success: true, profilbild: r2Key });
+  })
+);
+
+// ── Profilbild abrufen (R2 Signed URL) ──────────────────────────────────────
+router.get(
+  "/mitarbeiter/:id/profilbild",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const mitarbeiter = await Mitarbeiter.findById(id);
+    if (!mitarbeiter?.profilbild) return res.status(204).end();
+
+    const url = await r2Service.getSignedDownloadUrl(mitarbeiter.profilbild, 3600);
+    res.json({ url });
+  })
+);
+
+// ── Profilbild löschen ──────────────────────────────────────────────────────
+router.delete(
+  "/mitarbeiter/:id/profilbild",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const mitarbeiter = await Mitarbeiter.findById(id);
+    if (!mitarbeiter) return res.status(404).json({ message: "Mitarbeiter nicht gefunden." });
+
+    if (mitarbeiter.profilbild) {
+      try { await r2Service.deleteFile(mitarbeiter.profilbild); } catch (_) { /* ignore */ }
+      mitarbeiter.profilbild = null;
+      await mitarbeiter.save();
+    }
+    res.json({ success: true });
   })
 );
 

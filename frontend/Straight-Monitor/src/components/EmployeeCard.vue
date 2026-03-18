@@ -1086,6 +1086,9 @@
                 </div>
                 <div class="qa-group">
                   <div class="qa-group-label">Aktionen</div>
+                  <button class="qa-item" @click="executeQuickAction('upload-photo')">
+                    <font-awesome-icon icon="fa-solid fa-camera" /> Bild hochladen
+                  </button>
                   <button class="qa-item" @click="executeQuickAction('edit')">
                     <font-awesome-icon icon="fa-solid fa-edit" /> Bearbeiten
                   </button>
@@ -1103,10 +1106,13 @@
         </div>
       </div>
 
-      <div class="hero-media">
+      <div class="hero-media" :class="{ 'hero-media--clickable': !photoUrl }" @click="!photoUrl && (showImageCropModal = true)" :title="!photoUrl ? 'Bild hochladen' : undefined">
         <img v-if="photoUrl" :src="photoUrl" :alt="`${ma.vorname} ${ma.nachname}`" class="hero-img" />
         <div v-else class="hero-initials" :style="{ '--hue': avatarHue(ma) }">
           {{ initials(ma) }}
+        </div>
+        <div v-if="!photoUrl" class="hero-upload-hint">
+          <font-awesome-icon icon="fa-solid fa-camera" />
         </div>
       </div>
     </aside>
@@ -1159,6 +1165,16 @@
       />
     </teleport>
 
+    <!-- Profilbild Upload Modal -->
+    <teleport to="body">
+      <ImageCropModal
+        v-if="showImageCropModal"
+        :mitarbeiter-id="ma._id"
+        @close="showImageCropModal = false"
+        @uploaded="onProfilbildUploaded"
+      />
+    </teleport>
+
   </article>
 </template>
 <script>
@@ -1170,6 +1186,7 @@ import DocumentCard from "./DocumentCard.vue";
 import ContextMenu from "./ContextMenu.vue";
 import EditMitarbeiterDialog from "./EditMitarbeiterDialog.vue";
 import DeleteMitarbeiterDialog from "./DeleteMitarbeiterDialog.vue";
+import ImageCropModal from "./ImageCropModal.vue";
 import TlBadge from "./ui-elements/TlBadge.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
@@ -1187,7 +1204,7 @@ import asanaLogo from "@/assets/asana.png";
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DocumentCard, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ContextMenu, TlBadge },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DocumentCard, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge },
   props: {
     ma: { type: Object, required: true },
     initiallyExpanded: { type: Boolean, default: false },
@@ -1267,12 +1284,28 @@ export default {
     const flip = useFlipAll();
     const photoUrl = ref("");
     watchEffect(async () => {
-      if (!flip.enablePhotos) {
-        photoUrl.value = "";
-        return;
+      // 1. Try Flip profile picture
+      if (flip.enablePhotos) {
+        const id = props.ma?.flip?.id;
+        if (id) {
+          const flipUrl = await flip.ensurePhoto(id);
+          if (flipUrl) {
+            photoUrl.value = flipUrl;
+            return;
+          }
+        }
       }
-      const id = props.ma?.flip?.id;
-      photoUrl.value = id ? (await flip.ensurePhoto(id)) || "" : "";
+      // 2. Fallback: R2 profilbild
+      if (props.ma?.profilbild) {
+        try {
+          const res = await api.get(`/api/personal/mitarbeiter/${props.ma._id}/profilbild`);
+          if (res.data?.url) {
+            photoUrl.value = res.data.url;
+            return;
+          }
+        } catch (_) { /* ignore */ }
+      }
+      photoUrl.value = "";
     });
     
     // Check if user is a Teamleiter
@@ -1386,6 +1419,9 @@ export default {
       // Inventar
       inventarLogs: [],
       inventarLoading: false,
+
+      // Profilbild Upload
+      showImageCropModal: false,
     };
   },
 
@@ -2297,7 +2333,22 @@ export default {
         case 'delete':
           this.openDeleteModal();
           break;
+        case 'upload-photo':
+          this.showImageCropModal = true;
+          break;
       }
+    },
+
+    async onProfilbildUploaded(r2Key) {
+      this.showImageCropModal = false;
+      this.ma.profilbild = r2Key;
+      // Immediately fetch the signed URL and show it
+      try {
+        const res = await api.get(`/api/personal/mitarbeiter/${this.ma._id}/profilbild`);
+        if (res.data?.url) {
+          this.photoUrl = res.data.url;
+        }
+      } catch (_) { /* watchEffect will pick it up on next cycle */ }
     },
 
     async toggleActiveStatus() {
@@ -3707,6 +3758,29 @@ export default {
   height: 300px;
   overflow: hidden;
   background: var(--soft);
+  position: relative;
+}
+
+.hero-media--clickable {
+  cursor: pointer;
+}
+
+.hero-upload-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-size: 2.5rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.hero-media--clickable:hover .hero-upload-hint {
+  opacity: 1;
 }
 
 .hero-img {

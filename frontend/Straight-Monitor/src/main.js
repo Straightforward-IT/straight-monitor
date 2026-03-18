@@ -15,7 +15,8 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faGripVertical,
   faUserXmark,
   faCircleXmark as faCircleXmarkSolid,
-  faImagePortrait} from '@fortawesome/free-solid-svg-icons';
+  faImagePortrait,
+  faCamera} from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
@@ -52,7 +53,8 @@ library.add(
   // Regular Icons
   faCircleXmark, faCircle,
   // Solid variants (needed alongside regular)
-  faCircleXmarkSolid, faUserXmark
+  faCircleXmarkSolid, faUserXmark,
+  faCamera
 );
 
 const app = createApp(App);

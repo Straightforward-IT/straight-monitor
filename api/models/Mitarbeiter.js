@@ -18,6 +18,7 @@ const MitarbeiterSchema = new mongoose.Schema({
     email: { type: String, unique: true, lowercase: true, trim: true },
     additionalEmails: [{ type: String, lowercase: true, trim: true }],
     telefon: { type: String, required: false, trim: true },
+    profilbild: { type: String, required: false, trim: true }, // R2 key for uploaded profile picture (fallback when no Flip photo)
     isActive: { type: Boolean, default: true },
     austrittsdatum: { type: Date, required: false },
     persgruppe: {

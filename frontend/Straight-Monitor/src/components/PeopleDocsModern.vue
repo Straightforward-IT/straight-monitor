@@ -644,6 +644,10 @@
               <font-awesome-icon icon="fa-solid fa-user" />
               Profil
             </button>
+            <button class="list-qa-item" @click="executeQuickAction(activeQuickActionMa, 'upload-photo')">
+              <font-awesome-icon icon="fa-solid fa-camera" />
+              Bild hochladen
+            </button>
             <button class="list-qa-item" @click="executeQuickAction(activeQuickActionMa, 'edit')">
               <font-awesome-icon icon="fa-solid fa-edit" />
               Bearbeiten
@@ -651,6 +655,16 @@
           </div>
         </div>
       </div>
+    </teleport>
+
+    <!-- Profilbild Upload Modal -->
+    <teleport to="body">
+      <ImageCropModal
+        v-if="showImageCropModal && imageCropMa"
+        :mitarbeiter-id="imageCropMa._id"
+        @close="showImageCropModal = false; imageCropMa = null"
+        @uploaded="onProfilbildUploaded"
+      />
     </teleport>
   </div>
 </template>
@@ -663,6 +677,7 @@ import EmployeeCard from "@/components/EmployeeCard.vue";
 import FilterPanel from "@/components/FilterPanel.vue";
 import FilterDropdown from "@/components/FilterDropdown.vue";
 import ExportMitarbeiterModal from "@/components/ExportMitarbeiterModal.vue";
+import ImageCropModal from "@/components/ImageCropModal.vue";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
 
@@ -755,7 +770,7 @@ library.add(
 
 export default {
   name: "Personal",
-  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel, FilterDropdown, ExportMitarbeiterModal },
+  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel, FilterDropdown, ExportMitarbeiterModal, ImageCropModal },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -844,6 +859,11 @@ export default {
       activeQuickActionMa: null, // Reference to the active employee
       quickActionMenuStyle: {}, // Position for the teleported menu
       quickActionBtnRefs: {}, // Refs for the quick action buttons
+
+      // Profilbild Upload
+      showImageCropModal: false,
+      imageCropMa: null,
+      profilbildUrlCache: {}, // Cache: mitarbeiterId → signed URL
     };
   },
 
@@ -1382,11 +1402,25 @@ export default {
 
     getPhotoUrl(ma) {
       const flipId = ma.flip?.id;
-      if (!flipId || !this.flip.enablePhotos) return null;
-      // Fire-and-forget: trigger async fetch (no-op if already cached/in-flight)
-      this.flip.ensurePhoto(flipId);
-      // Return current cache value synchronously (reactive via Pinia)
-      return this.flip.pics.get(flipId)?.url || null;
+      if (flipId && this.flip.enablePhotos) {
+        // Fire-and-forget: trigger async fetch (no-op if already cached/in-flight)
+        this.flip.ensurePhoto(flipId);
+        // Return current cache value synchronously (reactive via Pinia)
+        const flipUrl = this.flip.pics.get(flipId)?.url;
+        if (flipUrl) return flipUrl;
+      }
+      // Fallback: R2 profilbild
+      if (ma.profilbild) {
+        const cached = this.profilbildUrlCache[ma._id];
+        if (cached) return cached;
+        // Fire-and-forget signed URL fetch
+        api.get(`/api/personal/mitarbeiter/${ma._id}/profilbild`).then(res => {
+          if (res.data?.url) {
+            this.profilbildUrlCache[ma._id] = res.data.url;
+          }
+        }).catch(() => {});
+      }
+      return null;
     },
 
     // Quick Actions
@@ -1440,6 +1474,10 @@ export default {
         case 'profile':
           this.openProfile(ma);
           break;
+        case 'upload-photo':
+          this.imageCropMa = ma;
+          this.showImageCropModal = true;
+          break;
       }
       
       // Menü schließen
@@ -1451,6 +1489,21 @@ export default {
     handleClickOutside() {
       this.activeQuickActionId = null;
       this.activeQuickActionMa = null;
+    },
+
+    async onProfilbildUploaded(r2Key) {
+      this.showImageCropModal = false;
+      if (this.imageCropMa) {
+        this.imageCropMa.profilbild = r2Key;
+        // Fetch signed URL and cache it for immediate display
+        try {
+          const res = await api.get(`/api/personal/mitarbeiter/${this.imageCropMa._id}/profilbild`);
+          if (res.data?.url) {
+            this.profilbildUrlCache[this.imageCropMa._id] = res.data.url;
+          }
+        } catch (_) { /* ignore */ }
+      }
+      this.imageCropMa = null;
     },
 
 
