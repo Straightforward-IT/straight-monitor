@@ -876,6 +876,38 @@ router.get(
  * Sync endpoint for incremental document updates
  * Returns only documents updated since the provided timestamp
  */
+
+// GET /by-auftrag/:auftragNr — docs for a specific Auftrag
+router.get(
+  "/by-auftrag/:auftragNr",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { auftragNr } = req.params;
+
+    const [laufzettel, eventReports] = await Promise.all([
+      Laufzettel.find({ auftragnummer: Number(auftragNr) }).lean().sort({ datum: -1 }),
+      EventReport.find({ auftragnummer: String(auftragNr) }).lean().sort({ datum: -1 }),
+    ]);
+
+    const formatDoc = (doc, type) => ({
+      _id: doc._id,
+      docType: type,
+      version: doc.version || "v1",
+      bezeichnung: doc.location || type,
+      datum: doc.datum || doc.date,
+      status: doc.version === "v2" && doc.status ? doc.status : doc.assigned ? "Zugewiesen" : "Offen",
+      details: doc,
+    });
+
+    const docs = [
+      ...laufzettel.map(d => formatDoc(d, "Laufzettel")),
+      ...eventReports.map(d => formatDoc(d, "Event-Bericht")),
+    ];
+
+    res.json({ success: true, data: docs });
+  })
+);
+
 router.get(
   "/reports/sync",
   auth,

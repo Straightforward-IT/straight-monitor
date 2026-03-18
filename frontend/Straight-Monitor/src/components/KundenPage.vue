@@ -250,6 +250,10 @@ onMounted(async () => {
   if (route.query.tab && ['overview', 'analytics', 'leads'].includes(route.query.tab)) {
     currentTab.value = route.query.tab;
   }
+  // Initialize search from URL if present
+  if (route.query.search) {
+    searchQuery.value = route.query.search;
+  }
   
   try {
     await dataCache.loadKunden();

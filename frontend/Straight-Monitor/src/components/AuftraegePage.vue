@@ -378,6 +378,15 @@
                           {{ einsatz.mitarbeiterData.vorname }} {{ einsatz.mitarbeiterData.nachname }}
                         </a>
                         <span v-if="isTeamleiter(einsatz.mitarbeiterData)" class="tl-tag">TL</span>
+                        <button
+                          v-for="doc in getDocsForMitarbeiter(einsatz.mitarbeiterData._id)"
+                          :key="doc._id"
+                          class="doc-icon-btn"
+                          :title="doc.docType + (doc.datum ? ' — ' + formatDayDateFull(doc.datum) : '')"
+                          @click.stop="openDocCard(doc)"
+                        >
+                          <img :src="doc.docType === 'Event-Bericht' ? eventreportImg : laufzettelImg" class="doc-icon-img" />
+                        </button>
                         <span v-if="einsatz.isPseudo" class="pseudo-tag" title="Manuell eingeplant (Pseudo-Einsatz)">Pseudo</span>
                       </template>
                       <template v-else>
@@ -619,6 +628,18 @@
         </div>
       </div>
     </div>
+
+    <!-- Document Card Modal -->
+    <div v-if="selectedDoc" class="modal-overlay" @click.self="selectedDoc = null">
+      <div class="modal-content modal-customer">
+        <div class="modal-body modal-document-body">
+          <DocumentCard
+            :doc="selectedDoc"
+            @close="selectedDoc = null"
+          />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -635,6 +656,7 @@ import { mapState } from 'pinia';
 import { useAuth } from '../stores/auth';
 import { useFlipAll } from '../stores/flipAll';
 import { useUi } from '../stores/ui';
+import { useTheme } from '../stores/theme';
 import FilterPanel from '@/components/FilterPanel.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/FilterChip.vue';
@@ -642,11 +664,16 @@ import FilterDivider from '@/components/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import EmployeeCard from '@/components/EmployeeCard.vue';
 import CustomerCard from '@/components/CustomerCard.vue';
+import DocumentCard from '@/components/DocumentCard.vue';
+import laufzettelIcon from '@/assets/laufzettel.png';
+import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
+import eventreportIcon from '@/assets/eventreport.png';
+import eventreportDarkIcon from '@/assets/eventreport-dark.png';
 
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCard, CustomerCard },
+  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCard, CustomerCard, DocumentCard },
   data() {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
@@ -708,11 +735,17 @@ export default {
       pseudoSaving: false,
       // Three-dots dropdown
       showQuickActions: false,
+      // Document icons
+      auftragDocs: [],
+      selectedDoc: null,
     };
   },
   computed: {
     ...mapState(useAuth, ['user']),
     ...mapState(useUi, { isUiOpen: 'isOpen' }),
+    ...mapState(useTheme, ['isDark']),
+    laufzettelImg() { return this.isDark ? laufzettelDarkIcon : laufzettelIcon; },
+    eventreportImg() { return this.isDark ? eventreportDarkIcon : eventreportIcon; },
     currentWeekEnd() {
       if (!this.currentWeekStart) return null;
       const end = new Date(this.currentWeekStart);
@@ -890,6 +923,7 @@ export default {
         if (fullOrder) {
           this.selectedEvent = fullOrder;
           this.preparedSchichten = this.calculateSchichten(fullOrder);
+          this.fetchAuftragDocs(auftragNr);
           
           let targetDate = null;
           if (focusDate) {
@@ -1151,16 +1185,51 @@ export default {
     },
     async selectEvent(event) {
       this.showQuickActions = false;
+      this.auftragDocs = [];
       // Load full details including Einsätze
       try {
         const response = await api.get(`/api/auftraege/${event.auftragNr}/details`);
         this.selectedEvent = response.data;
         this.preparedSchichten = this.calculateSchichten(this.selectedEvent);
+        this.fetchAuftragDocs(event.auftragNr);
       } catch (error) {
         console.error('Error loading event details:', error);
         this.selectedEvent = event; // fallback to basic data
         this.preparedSchichten = this.calculateSchichten(event);
       }
+    },
+    async fetchAuftragDocs(auftragNr) {
+      try {
+        console.log('[AuftraegePage] Fetching docs for auftragNr:', auftragNr);
+        const res = await api.get(`/api/reports/by-auftrag/${auftragNr}`);
+        this.auftragDocs = res.data?.data || [];
+        console.log('[AuftraegePage] Loaded docs:', this.auftragDocs.length, this.auftragDocs);
+      } catch (e) {
+        console.error('[AuftraegePage] Error loading docs for auftrag:', e);
+        this.auftragDocs = [];
+      }
+    },
+    getDocsForMitarbeiter(mitarbeiterId) {
+      if (!mitarbeiterId || !this.auftragDocs.length) return [];
+      return this.auftragDocs.filter(doc => {
+        const d = doc.details;
+        // EventReport: teamleiter is the author
+        if (doc.docType === 'Event-Bericht') {
+          const tlId = typeof d.teamleiter === 'object' ? d.teamleiter?._id : d.teamleiter;
+          return String(tlId) === String(mitarbeiterId);
+        }
+        // Laufzettel: mitarbeiter or teamleiter
+        const maId = typeof d.mitarbeiter === 'object' ? d.mitarbeiter?._id : d.mitarbeiter;
+        const tlId = typeof d.teamleiter === 'object' ? d.teamleiter?._id : d.teamleiter;
+        return String(maId) === String(mitarbeiterId) || String(tlId) === String(mitarbeiterId);
+      });
+    },
+    openDocCard(doc) {
+      this.selectedDoc = doc;
+    },
+    formatDayDateFull(dateStr) {
+      if (!dateStr) return '';
+      return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },
     getEventStatusClass(event) {
       // Color coding based on status
@@ -1393,6 +1462,8 @@ export default {
       // Close modals in order of priority (topmost = last opened)
       if (this.showQuickActions) {
         this.showQuickActions = false;
+      } else if (this.selectedDoc) {
+        this.selectedDoc = null;
       } else if (this.showLabelDialog) {
         this.showLabelDialog = false;
       } else if (this.showPseudoDialog) {
@@ -1842,6 +1913,28 @@ export default {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       padding: 2px 5px;
       border-radius: 4px;
+    }
+
+    .doc-icon-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 1px 2px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      transition: background 140ms ease;
+
+      &:hover {
+        background: color-mix(in srgb, var(--primary) 15%, transparent);
+      }
+
+      .doc-icon-img {
+        width: 18px;
+        height: 18px;
+        object-fit: contain;
+        image-rendering: crisp-edges;
+      }
     }
   }
   
@@ -2598,6 +2691,15 @@ export default {
   padding: 0;
   max-height: 80vh;
   overflow-y: auto;
+}
+
+.modal-document-body {
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .loading-employee {

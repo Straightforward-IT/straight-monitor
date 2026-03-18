@@ -1197,12 +1197,7 @@
       </div>
     </transition>
 
-    <!-- Footer nur im expanded state -->
-    <footer v-if="expanded" class="card-footer">
-      <button class="btn btn-ghost" @click="$emit('edit', ma)">
-        Bearbeiten
-      </button>
-    </footer>
+
 
     <!-- Document Modal -->
     <teleport to="body">

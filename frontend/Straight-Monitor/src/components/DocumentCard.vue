@@ -23,6 +23,22 @@
             <dt>Datum</dt>
             <dd>{{ formatDate(doc.datum) }}</dd>
           </div>
+          <div v-if="doc.details?.auftragnummer">
+            <dt>Auftrag</dt>
+            <dd>
+              <button class="link-btn" @click="goToAuftrag" title="Auftrag in Aufträge-Ansicht öffnen">
+                {{ auftragTitel || '#' + doc.details.auftragnummer }}
+              </button>
+            </dd>
+          </div>
+          <div v-if="doc.details?.kunde">
+            <dt>Kunde</dt>
+            <dd>
+              <button class="link-btn" @click="goToKunde" title="Kunde in Kunden-Ansicht suchen">
+                {{ kundeName || doc.details.kunde }}
+              </button>
+            </dd>
+          </div>
           <div v-if="doc.details?.name_teamleiter">
             <dt>Teamleiter</dt>
             <dd>
@@ -268,10 +284,11 @@
 </template>
 
 <script>
-import { computed } from "vue";
+import { computed, onMounted } from "vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
+import { useDataCache } from "@/stores/dataCache";
 import api from "@/utils/api";
 import asanaLogo from "@/assets/asana.png";
 import laufzettelIcon from "@/assets/laufzettel.png";
@@ -292,10 +309,12 @@ import {
   faSpinner,
   faFloppyDisk,
   faEnvelope,
+  faBriefcase,
+  faBuilding,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope);
+library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope, faBriefcase, faBuilding);
 
 export default {
   name: "DocumentCard",
@@ -306,7 +325,7 @@ export default {
     filteredTeamleiter: { type: String, default: null },
     filteredMitarbeiter: { type: String, default: null },
   },
-  emits: ["close", "assign", "filter-teamleiter", "filter-mitarbeiter", "open-employee"],
+  emits: ["close", "assign", "filter-teamleiter", "filter-mitarbeiter", "open-employee", "open-kunde"],
 
   data() {
     return {
@@ -319,6 +338,7 @@ export default {
   setup(props) {
     const theme = useTheme();
     const auth = useAuth();
+    const dataCache = useDataCache();
 
     const isDark = computed(() => theme.isDark);
     const laufzettelImg = computed(() => isDark.value ? laufzettelDarkIcon : laufzettelIcon);
@@ -328,7 +348,33 @@ export default {
 
     const effectiveTheme = computed(() => theme.isDark ? 'dark' : 'light');
 
-    return { asanaLogo, laufzettelImg, evaluierungImg, eventreportImg, currentUser, effectiveTheme };
+    const auftragTitel = computed(() => {
+      const nr = props.doc?.details?.auftragnummer;
+      if (!nr) return null;
+      const auftrag = dataCache.auftraege.find(a => String(a.auftragNr) === String(nr));
+      return auftrag?.eventTitel || null;
+    });
+
+    const kundeFromCache = computed(() => {
+      const nr = props.doc?.details?.auftragnummer;
+      if (!nr) return null;
+      const auftrag = dataCache.auftraege.find(a => String(a.auftragNr) === String(nr));
+      if (!auftrag?.kundenNr) return null;
+      return dataCache.kunden.find(k => k.kundenNr === auftrag.kundenNr) || null;
+    });
+
+    const kundeName = computed(() => kundeFromCache.value?.kundName || null);
+    const kundeId = computed(() => kundeFromCache.value?._id || null);
+
+    // Eager-load cache so computed props resolve
+    onMounted(() => {
+      if (props.doc?.details?.auftragnummer) {
+        dataCache.loadAuftraege();
+        dataCache.loadKunden();
+      }
+    });
+
+    return { asanaLogo, laufzettelImg, evaluierungImg, eventreportImg, currentUser, effectiveTheme, auftragTitel, kundeName, kundeId };
   },
 
   mounted() {
@@ -369,7 +415,7 @@ export default {
     },
     filteredDetails() {
       if (!this.doc.details) return {};
-      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date', 'mitarbeiter_feedback', 'comments', 'version', 'createdAt', 'updatedAt', 'status', 'kunde', 'puenktlichkeit', 'grooming', 'motivation', 'technische_fertigkeiten', 'lernbereitschaft', 'sonstiges'];
+      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date', 'mitarbeiter_feedback', 'comments', 'version', 'createdAt', 'updatedAt', 'status', 'kunde', 'auftragnummer', 'puenktlichkeit', 'grooming', 'motivation', 'technische_fertigkeiten', 'lernbereitschaft', 'sonstiges'];
       const filtered = {};
       for (const [key, value] of Object.entries(this.doc.details)) {
         if (!excludeKeys.includes(key)) {
@@ -432,6 +478,20 @@ export default {
       if (asanaId) {
         const asanaWebUrl = `https://app.asana.com/0/0/${asanaId}`;
         window.open(asanaWebUrl, '_blank');
+      }
+    },
+
+    goToAuftrag() {
+      const nr = this.doc.details?.auftragnummer;
+      if (!nr) return;
+      const query = { auftragnr: String(nr) };
+      if (this.doc.datum) query.focusDate = new Date(this.doc.datum).toISOString().slice(0, 10);
+      this.$router.push({ path: '/auftraege', query });
+    },
+
+    goToKunde() {
+      if (this.kundeId) {
+        this.$emit('open-kunde', this.kundeId);
       }
     },
 
@@ -628,9 +688,17 @@ export default {
   font-family: inherit;
   font-size: inherit;
   text-align: left;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   
   &:hover {
     background: color-mix(in srgb, var(--primary) 15%, transparent);
+  }
+
+  .link-icon {
+    font-size: 11px;
+    opacity: 0.7;
   }
 }
 

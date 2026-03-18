@@ -6,6 +6,7 @@ const PdfVorgang = require('../models/PdfVorgang');
 const PdfTemplate = require('../models/PdfTemplate');
 const { buildFilledPdf } = require('../utils/pdfRender');
 const R2Service = require('../R2Service');
+const { sendMail } = require('../EmailService');
 
 const router = express.Router();
 
@@ -228,7 +229,7 @@ router.delete('/:id', auth, asyncHandler(async (req, res) => {
 }));
 
 // POST /api/pdf-vorgaenge/:id/send-email
-// Placeholder: logs the intent. Real email sending will be added later.
+// Send the Mitarbeiter-form link via email using the team-specific sender.
 router.post('/:id/send-email', auth, asyncHandler(async (req, res) => {
   const vorgang = await PdfVorgang.findById(req.params.id);
   if (!vorgang) return res.status(404).json({ message: 'Vorgang nicht gefunden' });
@@ -237,11 +238,34 @@ router.post('/:id/send-email', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Keine Mitarbeiter-E-Mail angegeben' });
   }
 
-  const formUrl = `${process.env.FRONTEND_URL || 'https://straightmonitor.com'}/formular/${vorgang.token}`;
-  logger.info(`[PDF-Vorgang] E-Mail senden an ${vorgang.mitarbeiterEmail}: ${formUrl}`);
+  const { senderKey } = req.body;
+  if (!senderKey) {
+    return res.status(400).json({ message: 'senderKey (Standort) fehlt' });
+  }
 
-  // TODO: integrate EmailService to actually send the email
-  res.json({ message: 'E-Mail-Versand vorgemerkt (noch nicht implementiert)', formUrl });
+  const formUrl = `${process.env.FRONTEND_URL || 'https://straightmonitor.com'}/formular/${vorgang.token}`;
+
+  const subject = `Bitte fülle das Formular aus: ${vorgang.name}`;
+  const content = `
+    <div style="font-family: Arial, sans-serif; color: #333;">
+      <h2 style="font-weight: bold; color: #000;">Formular ausfüllen</h2>
+      <p>Hallo${vorgang.mitarbeiterName ? ` ${vorgang.mitarbeiterName}` : ''},</p>
+      <p>bitte fülle das folgende Formular aus:</p>
+      <p style="margin: 20px 0;">
+        <a href="${formUrl}" style="display: inline-block; padding: 12px 24px; background: #eeaf67; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold;">
+          Formular öffnen
+        </a>
+      </p>
+      <p style="font-size: 13px; color: #666;">Oder kopiere diesen Link: <a href="${formUrl}">${formUrl}</a></p>
+      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;" />
+      <p style="font-size: 12px; color: #999;">Diese E-Mail wurde automatisch über den Straightforward Monitor versendet.</p>
+    </div>
+  `;
+
+  await sendMail(vorgang.mitarbeiterEmail, subject, content, senderKey);
+
+  logger.info(`[PDF-Vorgang] E-Mail gesendet an ${vorgang.mitarbeiterEmail} (Absender: ${senderKey}) für Vorgang: ${vorgang.name}`);
+  res.json({ message: `E-Mail wurde an ${vorgang.mitarbeiterEmail} gesendet.`, formUrl });
 }));
 
 // GET /api/pdf-vorgaenge/:id/download

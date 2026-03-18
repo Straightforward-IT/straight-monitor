@@ -278,12 +278,6 @@
     <!-- Detail Modal -->
     <div v-if="selectedDoc" class="modal-overlay" @click.self="closeDoc">
       <div class="modal document-modal">
-        <div class="modal-header">
-          <h3>{{ selectedDoc.docType }} Details</h3>
-          <button class="close-btn" @click="closeDoc">
-            <font-awesome-icon icon="fa-solid fa-xmark" />
-          </button>
-        </div>
         <div class="modal-body modal-document-body">
           <DocumentCard
             :doc="selectedDoc"
@@ -295,6 +289,7 @@
             @filter-teamleiter="filterByTeamleiter"
             @filter-mitarbeiter="filterByMitarbeiter"
             @open-employee="openMitarbeiterCard"
+            @open-kunde="openKundeCard"
           />
         </div>
       </div>
@@ -321,6 +316,29 @@
             @close="closeMitarbeiterCard"
             @open-employee="openMitarbeiterCard"
             />
+        </div>
+      </div>
+    </div>
+
+    <!-- Customer Modal -->
+    <div v-if="selectedKunde" class="modal-overlay" @click.self="closeKundeCard">
+      <div class="modal large">
+        <div class="modal-header">
+          <h3>Kunden Details</h3>
+          <button class="close-btn" @click="closeKundeCard">
+            <font-awesome-icon icon="fa-solid fa-xmark" />
+          </button>
+        </div>
+        <div class="modal-body no-padding">
+          <div v-if="loadingKunde" class="loading-state">
+            <font-awesome-icon icon="fa-solid fa-spinner" spin />
+            Lade Kundendaten...
+          </div>
+          <CustomerCard
+            v-else-if="fullKundeData"
+            :kunde="fullKundeData"
+            @close="closeKundeCard"
+          />
         </div>
       </div>
     </div>
@@ -396,6 +414,7 @@ import CustomTooltip from './CustomTooltip.vue';
 import FilterPanel from '@/components/FilterPanel.vue';
 import DocumentCard from '@/components/DocumentCard.vue';
 import EmployeeCard from '@/components/EmployeeCard.vue';
+import CustomerCard from '@/components/CustomerCard.vue';
 import asanaLogo from '@/assets/asana.png';
 
 import {
@@ -459,7 +478,7 @@ library.add(
 
 export default {
   name: "Dokumente",
-  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, DocumentCard, EmployeeCard },
+  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, DocumentCard, EmployeeCard, CustomerCard },
 
   setup() {
     const dataCache = useDataCache();
@@ -532,6 +551,9 @@ export default {
       selectedMitarbeiter: null,
       fullMitarbeiterData: null,
       loadingMitarbeiter: false,
+      selectedKunde: null,
+      fullKundeData: null,
+      loadingKunde: false,
       
       // person details cache (for Asana links)
       personDetails: {},
@@ -877,6 +899,27 @@ export default {
     closeMitarbeiterCard() {
       this.selectedMitarbeiter = null;
       this.fullMitarbeiterData = null;
+    },
+
+    async openKundeCard(kundeId) {
+      this.selectedKunde = { _id: kundeId };
+      this.loadingKunde = true;
+      this.fullKundeData = null;
+
+      try {
+        const response = await api.get(`/api/kunden/${kundeId}`);
+        this.fullKundeData = response.data;
+      } catch (error) {
+        console.error('Error loading Kunde:', error);
+        this.selectedKunde = null;
+      } finally {
+        this.loadingKunde = false;
+      }
+    },
+
+    closeKundeCard() {
+      this.selectedKunde = null;
+      this.fullKundeData = null;
     },
 
     async openLinkedEvaluierung(evaluierungId) {

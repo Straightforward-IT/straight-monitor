@@ -126,6 +126,31 @@
       </div>
     </div>
 
+    <!-- ══ EMAIL DIALOG ═══════════════════════════════════════════════ -->
+    <div v-if="emailDialog.visible" class="modal-overlay" @click.self="emailDialog.visible = false">
+      <div class="modal-box">
+        <h2><font-awesome-icon :icon="['fas', 'envelope']" /> E-Mail senden</h2>
+        <p class="modal-hint">Formular-Link an <strong>{{ emailDialog.vorgang?.mitarbeiterEmail }}</strong> senden.</p>
+        <div class="modal-fields">
+          <label>Absender (Standort) <span class="required">*</span></label>
+          <div class="sender-options">
+            <label class="sender-option" v-for="opt in [{key:'hamburg',label:'Hamburg'},{key:'berlin',label:'Berlin'},{key:'koeln',label:'Köln'}]" :key="opt.key">
+              <input type="radio" :value="opt.key" v-model="emailDialog.senderKey" class="form-radio" />
+              <span>{{ opt.label }}</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="emailDialog.visible = false">Abbrechen</button>
+          <button class="btn-primary" :disabled="emailDialog.sending" @click="confirmSendEmail">
+            <font-awesome-icon v-if="emailDialog.sending" :icon="['fas', 'spinner']" spin />
+            <font-awesome-icon v-else :icon="['fas', 'paper-plane']" />
+            Senden
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ══ FILL DIALOG (operator values) ════════════════════════════════ -->
     <div v-if="fillDialog.visible" class="modal-overlay" @click.self="fillDialog.visible = false">
       <div class="modal-box modal-box-wide">
@@ -231,6 +256,7 @@ const template  = ref(null);
 const vorgaenge = ref([]);
 const createDialog = ref({ visible: false, name: '', mitarbeiterEmail: '', mitarbeiterName: '' });
 const fillDialog   = ref({ visible: false, vorgang: null, bedienerBookmarks: [], values: {} });
+const emailDialog  = ref({ visible: false, vorgang: null, senderKey: 'hamburg', sending: false });
 
 // ── Computed ──────────────────────────────────────────────────────────────
 const offenCount  = computed(() => vorgaenge.value.filter(v => v.status === 'offen').length);
@@ -381,12 +407,24 @@ async function copyFormLink(v) {
   }
 }
 
-async function sendEmail(v) {
+function sendEmail(v) {
+  emailDialog.value = { visible: true, vorgang: v, senderKey: 'hamburg', sending: false };
+}
+
+async function confirmSendEmail() {
+  if (emailDialog.value.sending) return;
+  emailDialog.value.sending = true;
   try {
-    const res = await api.post(`/api/pdf-vorgaenge/${v._id}/send-email`, {}, { headers });
-    alert(res.data.message + '\n\nLink: ' + res.data.formUrl);
+    const v = emailDialog.value.vorgang;
+    const res = await api.post(`/api/pdf-vorgaenge/${v._id}/send-email`, {
+      senderKey: emailDialog.value.senderKey,
+    }, { headers });
+    alert(res.data.message);
+    emailDialog.value.visible = false;
   } catch (e) {
     alert('Fehler: ' + (e.response?.data?.message || e.message));
+  } finally {
+    emailDialog.value.sending = false;
   }
 }
 
@@ -515,6 +553,13 @@ onMounted(fetchData);
 .no-fields-hint {
   font-size: 13px; color: var(--text-muted); display: flex; gap: 8px;
   align-items: flex-start; padding: 12px; background: var(--bg); border-radius: 6px;
+}
+.sender-options {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+}
+.sender-option {
+  display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer;
 }
 
 /* ── Shared ──────────────────────────────────────────────────────────── */
