@@ -14,7 +14,7 @@
           <input 
             v-model="searchQuery" 
             type="text" 
-            placeholder="Suchen (Auftrag, Kunde, Ort...)"
+            placeholder="Suchen (Auftrag, Kunde, Ort, Mitarbeiter...)"
             @input="debouncedSearch"
           />
         </div>
@@ -779,11 +779,7 @@ export default {
         (a.eventOrt && a.eventOrt.toLowerCase().includes(q)) ||
         (a.kundeData?.kundName && a.kundeData.kundName.toLowerCase().includes(q)) ||
         (a.auftragNr && String(a.auftragNr).includes(q)) ||
-        (a.einsaetze && a.einsaetze.some(e => {
-          if (!e.mitarbeiterData) return false;
-          const fullName = `${e.mitarbeiterData.vorname || ''} ${e.mitarbeiterData.nachname || ''}`.toLowerCase();
-          return fullName.includes(q);
-        }))
+        (a.mitarbeiterNames && a.mitarbeiterNames.some(name => name.toLowerCase().includes(q)))
       );
     },
     availableGlobalLabels() {

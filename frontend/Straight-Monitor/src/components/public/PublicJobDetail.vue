@@ -119,14 +119,12 @@
               class="ma-card"
               :class="{ 'checked-in': ma.checkedIn && !ma.noShow, 'nicht-erschienen': ma.noShow, 'is-teamleiter': ma.isTeamleiter }"
             >
+              <TlBadge v-if="ma.isTeamleiter" class="tl-badge--corner" />
               <div v-if="isTeamleiter" class="ma-check" :class="{ 'ma-check--noshow': ma.noShow }" @click="toggleCheckIn(ma)">
                 <font-awesome-icon :icon="ma.noShow ? 'fa-solid fa-circle-xmark' : ma.checkedIn ? 'fa-solid fa-circle-check' : ['far', 'circle']" />
               </div>
               <div class="ma-info">
-                <span class="ma-name">
-                  {{ ma.vorname }} {{ ma.nachname }}
-                  <TlBadge v-if="ma.isTeamleiter" />
-                </span>
+                <span class="ma-name">{{ ma.vorname }} {{ ma.nachname }}</span>
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
                 <!-- Annotation badges -->
                 <span v-if="isTeamleiter" class="ma-annot-badges">
@@ -145,7 +143,7 @@
               </a>
               <!-- Three-dot menu trigger -->
               <button
-                v-if="isTeamleiter || ma.flipId"
+                v-if="isTeamleiter"
                 class="ma-menu-btn"
                 @click.stop="openActionSheet(ma)"
                 aria-label="Optionen"
@@ -177,10 +175,6 @@
         <div class="calmodal-sheet annot-actionsheet">
           <div class="calmodal-handle"></div>
           <p class="annot-actionsheet-name">{{ actionSheet.ma?.vorname }} {{ actionSheet.ma?.nachname }}</p>
-          <button v-if="actionSheet.ma?.flipId" class="annot-action-item" @click="openFlipProfile(actionSheet.ma)">
-            <span class="annot-action-icon annot-action-icon--profile"><font-awesome-icon icon="fa-solid fa-user" /></span>
-            Profil anzeigen
-          </button>
           <button v-if="isTeamleiter" class="annot-action-item" @click="openVerspaetung(actionSheet.ma)">
             <span class="annot-action-icon annot-action-icon--delay"><font-awesome-icon icon="fa-solid fa-clock" /></span>
             Verspätung eintragen
@@ -261,7 +255,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
-import { showToast, navigate } from '@getflip/bridge';
+import { showToast } from '@getflip/bridge';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 const theme = useTheme();
@@ -330,12 +324,6 @@ function saveVerspaetung() {
   saveAnnotation(ma.personalNr, ann);
   verspaetungModal.value.open = false;
   try { showToast({ text: value > 0 ? `Verspätung: ${value} min gespeichert` : 'Verspätung entfernt', intent: 'success', duration: 2000 }); } catch {}
-}
-
-function openFlipProfile(ma) {
-  if (!ma?.flipId) return;
-  actionSheet.value.open = false;
-  navigate(`/contacts/${ma.flipId}?id=${ma.flipId}&kind=MenuItem`).catch(() => {});
 }
 
 function toggleNichtErschienen(ma) {
@@ -736,6 +724,7 @@ watch(() => props.einsatz?._id, () => {
 }
 
 .ma-card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -744,6 +733,13 @@ watch(() => props.einsatz?._id, () => {
   border: 1px solid var(--border);
   border-radius: 10px;
   transition: all 0.15s;
+}
+
+.tl-badge--corner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 9px 0 6px 0 !important;
 }
 
 .ma-card.checked-in {
@@ -1131,10 +1127,6 @@ watch(() => props.einsatz?._id, () => {
 .annot-action-icon--noshow {
   background: rgba(220, 38, 38, 0.12);
   color: #dc2626;
-}
-.annot-action-icon--profile {
-  background: rgba(59, 130, 246, 0.12);
-  color: #3b82f6;
 }
 .annot-action-badge {
   margin-left: auto;

@@ -137,7 +137,7 @@
       </div>
       <div v-for="doc in submitted" :key="doc._id" class="doc-card">
         <div class="doc-icon submitted-icon">
-          <font-awesome-icon icon="fa-solid fa-file-circle-check" />
+          <img :src="imgLaufzettel" class="doc-icon-img" alt="" />
         </div>
         <div class="doc-info">
           <span class="doc-title">{{ doc.name_teamleiter || doc.title || doc.name || 'Laufzettel' }}</span>
@@ -157,15 +157,21 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { useTheme } from '@/stores/theme';
+import laufzettelLight from '@/assets/laufzettel.png';
+import laufzettelDark from '@/assets/laufzettel-dark.png';
 
 const props = defineProps({
   submitted: { type: Array, default: () => [] },
   einsaetze: { type: Array, default: () => [] },
-  api: { type: Object, required: true },
+  api: { type: [Object, Function], required: true },
   email: { type: String, default: '' }
 });
 
 const emit = defineEmits(['back', 'laufzettel-submitted']);
+
+const theme = useTheme();
+const imgLaufzettel = computed(() => theme.isDark ? laufzettelDark : laufzettelLight);
 
 // ── UI state ──────────────────────────────────
 const showForm = ref(false);
@@ -687,6 +693,12 @@ function formatDate(d) {
 .submitted-icon {
   background: rgba(40, 167, 69, 0.1);
   color: #28a745;
+}
+
+.doc-icon-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 
 .doc-info {

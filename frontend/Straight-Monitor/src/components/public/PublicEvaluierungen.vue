@@ -10,7 +10,7 @@
       <div v-if="openLaufzettel.length === 0" class="empty">Keine offenen Laufzettel.</div>
       <div v-for="lz in openLaufzettel" :key="lz._id" class="doc-card">
         <div class="doc-icon">
-          <font-awesome-icon icon="fa-solid fa-file-lines" />
+          <img :src="imgEvaluierung" class="doc-icon-img" alt="" />
         </div>
         <div class="doc-info">
           <span class="doc-title">{{ getLaufzettelLabel(lz) }}</span>
@@ -32,14 +32,13 @@
       <div v-if="doneLaufzettel.length === 0" class="empty">Noch keine Evaluierungen abgegeben.</div>
       <div v-for="lz in doneLaufzettel" :key="lz._id" class="doc-card">
         <div class="doc-icon submitted-icon">
-          <font-awesome-icon icon="fa-solid fa-file-circle-check" />
+          <img :src="imgEvaluierung" class="doc-icon-img" alt="" />
         </div>
         <div class="doc-info">
           <span class="doc-title">{{ getLaufzettelLabel(lz) }}</span>
           <span class="doc-date" v-if="lz.datum || lz.createdAt">{{ formatDate(lz.datum || lz.createdAt) }}</span>
           <span class="doc-sub" v-if="lz.name_mitarbeiter">Mitarbeiter: {{ lz.name_mitarbeiter }}</span>
         </div>
-        <span class="doc-status done">Bewertet</span>
       </div>
     </div>
   </div>
@@ -49,6 +48,9 @@
 import { computed } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
+import { useTheme } from '@/stores/theme';
+import evaluierungLight from '@/assets/evaluierung.png';
+import evaluierungDark from '@/assets/evaluierung-dark.png';
 import {
   faArrowLeft, faClock, faCheckCircle, faFileLines, faFileCircleCheck, faPen
 } from '@fortawesome/free-solid-svg-icons';
@@ -60,6 +62,9 @@ const props = defineProps({
 });
 
 defineEmits(['back', 'write-evaluierung']);
+
+const theme = useTheme();
+const imgEvaluierung = computed(() => theme.isDark ? evaluierungDark : evaluierungLight);
 
 // ── Split by status ───────────────────────────
 const openLaufzettel = computed(() =>
@@ -156,6 +161,12 @@ function formatDate(d) {
 .submitted-icon {
   background: rgba(40, 167, 69, 0.1);
   color: #28a745;
+}
+
+.doc-icon-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 
 .doc-info {

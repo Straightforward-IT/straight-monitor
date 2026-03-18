@@ -48,6 +48,7 @@ const defaultCount = 2;
 watch(activeTab, () => { showAll.value = false; });
 
 const released = [
+  { icon: ["fas", "image-portrait"],       text: "Profilbilder - Die Bilder aus Flip jetzt auch in den Personalkarten des Monitors" },
   { icon: ["fas", "th-large"],       text: "Dashboard Widgets — anpassbare Übersicht" },
   { icon: ["fas", "dolly"],          text: "Bestand — Service- & Logi-Pakete je Mitarbeiter" },
   { icon: ["fas", "mobile-alt"],     text: 'Public Monitor — integriert in Flip unter "Jobs"' },

@@ -13,7 +13,7 @@ const Mitarbeiter = require("../models/Mitarbeiter");
 const Einsatz = require("../models/Einsatz");
 const Auftrag = require("../models/Auftrag");
 const Qualifikation = require("../models/Qualifikation");
-const { EventReport, EvaluierungMA, Laufzettel } = require("../models/Classes/FlipDocs");
+const { EventReport, EvaluierungMA, Laufzettel, LAUFZETTEL_STATUS } = require("../models/Classes/FlipDocs");
 const FlipUser = require("../models/Classes/FlipUser");
 const { sendMail } = require("../EmailService");
 const logger = require("../utils/logger");
@@ -3215,9 +3215,10 @@ router.get(
       ...reportMatch
     }).lean(); // Select all fields for DocumentCard usage
 
-    // --- CHECK EVALUIERUNGEN ---
-    const evaluierungen = await EvaluierungMA.find({
+    // --- CHECK EVALUIERUNGEN (v2: Laufzettel mit status ABGESCHLOSSEN) ---
+    const evaluierungen = await Laufzettel.find({
       teamleiter: { $in: validTls.map(tl => tl._id) },
+      status: LAUFZETTEL_STATUS.ABGESCHLOSSEN,
       ...reportMatch
     }).lean();
 
@@ -3225,6 +3226,7 @@ router.get(
     const reportLookupDate = new Map();
     const reportLookupAuftrag = new Map();
     const evalLookupDate = new Map();
+    const evalLookupAuftrag = new Map();
     
     const toDateKey = (d) => {
       // Use Europe/Berlin time to ensure consistency between Local (usually DE) and Prod (usually UTC)
@@ -3252,6 +3254,8 @@ router.get(
       const repData = {
           _id: rep._id,
           docType: rep.docType,
+          bezeichnung: [rep.location, rep.kunde].filter(Boolean).join(" - "),
+          version: rep.version || "v2",
           status: rep.assigned ? 'Zugewiesen' : 'Offen',
           datum: rep.datum,
           details: rep.details || rep // Fallback
@@ -3279,15 +3283,15 @@ router.get(
     console.log(`[TeamleiterAuswertung] Found ${eventReports.length} reports.`);
 
     evaluierungen.forEach(ev => {
-      if(!ev.docType) ev.docType = "Evaluierung";
-      if(!ev.details) ev.details = { ...ev };
-
+      // ev is a Laufzettel (v2, ABGESCHLOSSEN) — treat it as Laufzettel in the UI
       const evData = {
           _id: ev._id,
-          docType: ev.docType,
-          status: ev.assigned ? 'Zugewiesen' : 'Offen',
+          docType: "Laufzettel",
+          bezeichnung: [ev.location, ev.name_mitarbeiter].filter(Boolean).join(" - "),
+          version: ev.version || "v2",
+          status: ev.status || "ABGESCHLOSSEN",
           datum: ev.datum,
-          details: ev.details
+          details: { ...ev }
       };
 
       if (ev.teamleiter) {
@@ -3296,9 +3300,13 @@ router.get(
            const key = `${tId}_${toDateKey(ev.datum)}`;
            evalLookupDate.set(key, evData);
         }
+        if (ev.auftragnummer) {
+           const key = `${tId}_${ev.auftragnummer.toString().trim()}`;
+           evalLookupAuftrag.set(key, evData);
+        }
       }
     });
-    console.log(`[TeamleiterAuswertung] Found ${evaluierungen.length} evaluations.`);
+    console.log(`[TeamleiterAuswertung] Found ${evaluierungen.length} evaluations (v2 Laufzettel).`);
     // ---------------------------
 
     // Step B: Get unique AuftragNrs to check if they are "Team" orders
@@ -3387,6 +3395,15 @@ router.get(
             }
         }
         
+        // Priority 1b: Check Evaluierung by AuftragNr
+        if (a.auftragNr) {
+            const auftragKey = `${tIdStr}_${a.auftragNr.toString().trim()}`;
+            if (evalLookupAuftrag.has(auftragKey)) {
+                evalStatus = "present";
+                evaluierung = evalLookupAuftrag.get(auftragKey);
+            }
+        }
+
         // Priority 2: Check by Date (Fallback)
         if (a.datumVon) {
             const dateKey = `${tIdStr}_${toDateKey(a.datumVon)}`;
@@ -3396,8 +3413,8 @@ router.get(
                 eventReport = reportLookupDate.get(dateKey);
             }
 
-            // Check Evaluierung by Date
-            if (evalLookupDate.has(dateKey)) {
+            // Check Evaluierung by Date (fallback if not matched by AuftragNr)
+            if (evalStatus === "missing" && evalLookupDate.has(dateKey)) {
                 evalStatus = "present";
                 evaluierung = evalLookupDate.get(dateKey);
             }

@@ -1,6 +1,126 @@
 <template>
   <div class="eventreport-view">
 
+    <!-- ── LIST VIEW ──────────────────────────────────── -->
+    <template v-if="!showForm && !submitSuccess && !detailReport">
+      <div class="title-row">
+        <h2 class="view-title">Event Reports</h2>
+        <button class="btn-new" @click="openForm">
+          <font-awesome-icon icon="fa-solid fa-plus" /> Neu
+        </button>
+      </div>
+
+      <div class="section">
+        <div v-if="sortedReports.length === 0" class="empty">
+          Noch keine Event Reports geschrieben.
+        </div>
+        <div v-for="report in sortedReports" :key="report._id || report.auftragnummer" class="doc-card doc-card--clickable" @click="openDetail(report)">
+          <div class="doc-icon">
+            <img :src="imgEventreport" class="doc-icon-img" alt="" />
+          </div>
+          <div class="doc-info">
+            <span class="doc-title">{{ report.kunde || report.location || 'Event Report' }}</span>
+            <span class="doc-meta" v-if="report.location">
+              <font-awesome-icon icon="fa-solid fa-location-dot" /> {{ report.location }}
+            </span>
+            <span class="doc-date" v-if="report.datum">
+              {{ formatDate(report.datum) }}
+              <span v-if="report.auftragnummer" class="doc-auftragnr">#{{ report.auftragnummer }}</span>
+            </span>
+          </div>
+          <div class="doc-card-right">
+            <font-awesome-icon icon="fa-solid fa-chevron-right" class="doc-chevron" />
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ── DETAIL VIEW ─────────────────────────────────── -->
+    <template v-else-if="detailReport && !showForm && !submitSuccess">
+      <div class="detail-header">
+        <button class="back-btn" @click="closeDetail">
+          <font-awesome-icon icon="fa-solid fa-chevron-left" /> Zurück
+        </button>
+      </div>
+
+      <h2 class="detail-title">{{ detailReport.kunde || detailReport.location || 'Event Report' }}</h2>
+
+      <div class="detail-section">
+        <div class="detail-row" v-if="detailReport.datum">
+          <span class="detail-label"><font-awesome-icon icon="fa-solid fa-calendar" /> Datum</span>
+          <span class="detail-value">{{ formatDate(detailReport.datum) }}</span>
+        </div>
+        <div class="detail-row" v-if="detailReport.location">
+          <span class="detail-label"><font-awesome-icon icon="fa-solid fa-location-dot" /> Standort</span>
+          <span class="detail-value">{{ detailReport.location }}</span>
+        </div>
+        <div class="detail-row" v-if="detailReport.kunde">
+          <span class="detail-label"><font-awesome-icon icon="fa-solid fa-building" /> Kunde</span>
+          <span class="detail-value">{{ detailReport.kunde }}</span>
+        </div>
+        <div class="detail-row" v-if="detailReport.auftragnummer">
+          <span class="detail-label"><font-awesome-icon icon="fa-solid fa-hashtag" /> Auftragsnr.</span>
+          <span class="detail-value">#{{ detailReport.auftragnummer }}</span>
+        </div>
+        <div class="detail-row" v-if="detailReport.name_teamleiter">
+          <span class="detail-label"><font-awesome-icon icon="fa-solid fa-user" /> Teamleiter</span>
+          <span class="detail-value">{{ detailReport.name_teamleiter }}</span>
+        </div>
+        <div class="detail-row" v-if="detailReport.mitarbeiter_anzahl">
+          <span class="detail-label"><font-awesome-icon icon="fa-solid fa-users" /> Mitarbeiter</span>
+          <span class="detail-value">{{ detailReport.mitarbeiter_anzahl }}</span>
+        </div>
+      </div>
+
+      <div class="detail-fields">
+        <div class="detail-field" v-if="detailReport.puenktlichkeit">
+          <span class="detail-field-label">Pünktlichkeit</span>
+          <p class="detail-field-text">{{ detailReport.puenktlichkeit }}</p>
+        </div>
+        <div class="detail-field" v-if="detailReport.erscheinungsbild">
+          <span class="detail-field-label">Erscheinungsbild</span>
+          <p class="detail-field-text">{{ detailReport.erscheinungsbild }}</p>
+        </div>
+        <div class="detail-field" v-if="detailReport.team">
+          <span class="detail-field-label">Team</span>
+          <p class="detail-field-text">{{ detailReport.team }}</p>
+        </div>
+        <div class="detail-field" v-if="detailReport.mitarbeiter_job">
+          <span class="detail-field-label">Mitarbeiter &amp; Job</span>
+          <p class="detail-field-text">{{ detailReport.mitarbeiter_job }}</p>
+        </div>
+        <!-- Per-Mitarbeiter Feedback -->
+        <div v-if="detailReport.mitarbeiter_feedback?.length" class="detail-field">
+          <span class="detail-field-label">Mitarbeiter &amp; Job</span>
+          <div v-for="mf in detailReport.mitarbeiter_feedback" :key="mf._id || mf.personalNr" class="detail-ma-row">
+            <span class="detail-ma-name">{{ mf.name || (mf.mitarbeiter?.vorname + ' ' + mf.mitarbeiter?.nachname) || '—' }}</span>
+            <p class="detail-ma-text" v-if="mf.text">{{ mf.text }}</p>
+          </div>
+        </div>
+        <div class="detail-field" v-if="detailReport.feedback_auftraggeber">
+          <span class="detail-field-label">Feedback Auftraggeber</span>
+          <p class="detail-field-text">{{ detailReport.feedback_auftraggeber }}</p>
+        </div>
+        <div class="detail-field" v-if="detailReport.sonstiges">
+          <span class="detail-field-label">Sonstiges</span>
+          <p class="detail-field-text">{{ detailReport.sonstiges }}</p>
+        </div>
+      </div>
+
+      <!-- Comments -->
+      <div v-if="detailReport.comments?.length" class="detail-fields">
+        <span class="detail-field-label" style="display:block; margin-bottom:0.5rem;">Kommentare</span>
+        <div v-for="c in detailReport.comments" :key="c._id" class="detail-comment">
+          <span class="detail-comment-author">{{ c.authorName || 'Unbekannt' }}</span>
+          <span class="detail-comment-date">{{ formatDate(c.date) }}</span>
+          <p class="detail-comment-text">{{ c.text }}</p>
+        </div>
+      </div>
+    </template>
+
+    <!-- ── FORM / SUCCESS VIEW ────────────────────────── -->
+    <template v-else>
+
     <!-- Success -->
     <div v-if="submitSuccess" class="success-state">
       <div class="success-icon">
@@ -9,6 +129,7 @@
       <h3>Erfolgreich gesendet!</h3>
       <p>Dein Event Report wurde eingereicht.</p>
       <button class="btn-secondary" @click="resetForm">Weiteren Report schreiben</button>
+      <button class="btn-secondary" @click="backToList">Zur Übersicht</button>
     </div>
 
     <!-- Form -->
@@ -181,6 +302,8 @@
       </button>
     </form>
 
+    </template><!-- end form/success wrapper -->
+
     <!-- Notizen Modal -->
     <Transition name="er-notiz">
       <div v-if="showNotizModal" class="er-modal-overlay" @click.self="showNotizModal = false">
@@ -210,6 +333,9 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { useTheme } from '@/stores/theme';
+import eventreportLight from '@/assets/eventreport.png';
+import eventreportDark from '@/assets/eventreport-dark.png';
 
 // Auto-grow directive for textareas
 const vAutoGrow = {
@@ -237,6 +363,9 @@ const props = defineProps({
 
 defineEmits(['back']);
 
+const theme = useTheme();
+const imgEventreport = computed(() => theme.isDark ? eventreportDark : eventreportLight);
+
 const ratingOptions = ['Sehr gut', 'Gut', 'Befriedigend', 'Mangelhaft'];
 const STANDORT_MAP = { '1': 'Berlin', '2': 'Hamburg', '3': 'Köln' };
 
@@ -260,9 +389,36 @@ const pastEinsaetze = computed(() => {
 
 const selectedEinsatzId = ref(props.prefillEinsatz?._id || '');
 const showEinsatzPicker = ref(false);
+const showForm = ref(!!props.prefillEinsatz);
+const detailReport = ref(null);
 const submitSuccess = ref(false);
 const submitting = ref(false);
 const einsatzMitarbeiter = ref([]);
+
+const sortedReports = computed(() =>
+  [...(props.mitarbeiter?.eventreports || [])]
+    .sort((a, b) => new Date(b.datum || b.createdAt || 0) - new Date(a.datum || a.createdAt || 0))
+);
+
+function openForm() {
+  submitSuccess.value = false;
+  detailReport.value = null;
+  showForm.value = true;
+}
+
+function backToList() {
+  submitSuccess.value = false;
+  showForm.value = false;
+  detailReport.value = null;
+}
+
+function openDetail(report) {
+  detailReport.value = report;
+}
+
+function closeDetail() {
+  detailReport.value = null;
+}
 const mitarbeiterRows = ref([]); // { personalNr, name, text }
 
 const availableMitarbeiter = computed(() =>
@@ -464,6 +620,7 @@ async function loadEinsatzMitarbeiter(auftragNr) {
 function resetForm() {
   clearDraft();
   submitSuccess.value = false;
+  showForm.value = true;
   selectedEinsatzId.value = '';
   mitarbeiterRows.value = [];
   einsatzMitarbeiter.value = [];
@@ -506,6 +663,288 @@ async function submitReport() {
 <style scoped>
 .eventreport-view {
   padding: 0 0 2rem;
+}
+
+/* \u2500\u2500 List view \u2500\u2500 */
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.view-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.btn-new {
+  background: transparent;
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+
+.btn-new:active {
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+}
+
+.section {
+  margin-bottom: 1.5rem;
+}
+
+.empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 1.25rem;
+  background: var(--tile-bg);
+  border-radius: 10px;
+  font-style: italic;
+}
+
+.doc-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+}
+
+.doc-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255, 117, 24, 0.2);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.doc-icon-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.doc-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.doc-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.doc-date {
+  font-size: 0.75rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.doc-card--clickable {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+.doc-card--clickable:active {
+  background: var(--hover);
+}
+.doc-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+.doc-chevron {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.doc-auftragnr {
+  opacity: 0.6;
+}
+
+/* ── Detail view ── */
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.back-btn:active { opacity: 0.7; }
+.detail-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 1rem;
+}
+.detail-section {
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.detail-label {
+  color: var(--muted);
+  font-weight: 600;
+  min-width: 130px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.detail-value {
+  color: var(--text);
+  font-weight: 500;
+}
+.detail-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.detail-field {
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+.detail-field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.detail-field-text {
+  margin: 0.4rem 0 0;
+  font-size: 0.88rem;
+  color: var(--text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.detail-ma-row {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.detail-ma-row:first-of-type {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+}
+.detail-ma-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+.detail-ma-text {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text);
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+.detail-comment {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.4rem;
+}
+.detail-comment-author {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.detail-comment-date {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-left: 0.4rem;
+}
+.detail-comment-text {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text);
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.doc-status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.doc-status.done {
+  background: rgba(40, 167, 69, 0.15);
+  color: #28a745;
+}
+
+.doc-status.submitted {
+  background: rgba(255, 107, 0, 0.12);
+  color: var(--primary);
 }
 
 .ma-chips {

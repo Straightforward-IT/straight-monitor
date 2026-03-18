@@ -49,7 +49,7 @@
           v-else-if="currentView === 'kalender'"
           :einsaetze="einsaetze"
           :is-teamleiter="isTeamleiter"
-          @back="navigateTo('dashboard')"
+          @back="goBack"
           @open-job="openJob"
         />
 
@@ -60,7 +60,7 @@
           :einsaetze="einsaetze"
           :api="api"
           :email="email"
-          @back="navigateTo('dashboard')"
+          @back="goBack"
           @laufzettel-submitted="loadData"
         />
 
@@ -68,7 +68,7 @@
         <PublicEvaluierungen
           v-else-if="currentView === 'evaluierungen'"
           :received="laufzettelReceived"
-          @back="navigateTo('dashboard')"
+          @back="goBack"
           @write-evaluierung="openEvaluierungForm"
         />
 
@@ -86,7 +86,7 @@
         <PublicVergangeneJobs
           v-else-if="currentView === 'vergangene-jobs'"
           :einsaetze="einsaetze"
-          @back="navigateTo('dashboard')"
+          @back="goBack"
           @open-job="openJob"
         />
 
@@ -363,6 +363,13 @@ function toggleDebugTL() {
   debugTLMode.value = !debugTLMode.value;
 }
 
+function goBack() {
+  const target = previousView.value || 'dashboard';
+  previousView.value = 'dashboard';
+  currentView.value = target;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function handleBack() {
   switch (currentView.value) {
     case 'evaluierung':
@@ -375,7 +382,7 @@ function handleBack() {
       goBackFromReport();
       break;
     default:
-      navigateTo('dashboard');
+      goBack();
   }
 }
 

@@ -135,13 +135,33 @@ router.get('/', async (req, res) => {
       countMap[e._id] = e.count;
       earliestTimeMap[e._id] = { uhrzeitVon: e.earliestUhrzeitVon, datumVon: e.earliestDatumVon };
     });
+
+    // Fetch mitarbeiter names per Auftrag for search
+    const allEinsaetze = await Einsatz.find(
+      { auftragNr: { $in: auftragNrs }, personalNr: { $ne: null } },
+      { auftragNr: 1, personalNr: 1 }
+    ).lean();
+    const allPersonalNrs = [...new Set(allEinsaetze.map(e => String(e.personalNr)).filter(Boolean))];
+    const maList = allPersonalNrs.length
+      ? await Mitarbeiter.find({ personalnr: { $in: allPersonalNrs } }, { personalnr: 1, vorname: 1, nachname: 1 }).lean()
+      : [];
+    const maNameMap = new Map(maList.map(m => [String(m.personalnr), `${m.vorname || ''} ${m.nachname || ''}`.trim()]));
+    const mitarbeiterNamesMap = {};
+    allEinsaetze.forEach(e => {
+      const name = maNameMap.get(String(e.personalNr));
+      if (name) {
+        if (!mitarbeiterNamesMap[e.auftragNr]) mitarbeiterNamesMap[e.auftragNr] = [];
+        if (!mitarbeiterNamesMap[e.auftragNr].includes(name)) mitarbeiterNamesMap[e.auftragNr].push(name);
+      }
+    });
     
     // Merge data
     const result = auftraege.map(a => ({
       ...a,
       kundeData: kundenMap[a.kundenNr] || null,
       einsaetzeCount: countMap[a.auftragNr] || 0,
-      earliestEinsatzTime: earliestTimeMap[a.auftragNr] || null
+      earliestEinsatzTime: earliestTimeMap[a.auftragNr] || null,
+      mitarbeiterNames: mitarbeiterNamesMap[a.auftragNr] || []
     }));
     
     res.json(result);

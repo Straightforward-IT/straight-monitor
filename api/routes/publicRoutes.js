@@ -45,7 +45,11 @@ router.get(
 
     const mitarbeiter = await Mitarbeiter.findOne({ $or: orConditions })
       .select("_id vorname nachname email personalnr qualifikationen eventreports laufzettel_submitted laufzettel_received evaluierungen_submitted")
-      .populate({ path: "eventreports", select: "auftragnummer datum" })
+      .populate({
+        path: "eventreports",
+        select: "auftragnummer datum kunde location name_teamleiter mitarbeiter_anzahl puenktlichkeit erscheinungsbild team mitarbeiter_job mitarbeiter_feedback feedback_auftraggeber sonstiges assigned comments version",
+        populate: { path: "mitarbeiter_feedback.mitarbeiter", select: "vorname nachname" }
+      })
       .populate({
         path: "laufzettel_submitted",
         populate: [
