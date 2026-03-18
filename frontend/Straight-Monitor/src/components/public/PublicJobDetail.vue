@@ -117,10 +117,10 @@
               v-for="ma in schicht.mitarbeiter"
               :key="ma.personalNr"
               class="ma-card"
-              :class="{ 'checked-in': ma.checkedIn && !getAnnotation(ma.personalNr).nichtErschienen, 'nicht-erschienen': getAnnotation(ma.personalNr).nichtErschienen, 'is-teamleiter': ma.isTeamleiter }"
+              :class="{ 'checked-in': ma.checkedIn && !ma.noShow, 'nicht-erschienen': ma.noShow, 'is-teamleiter': ma.isTeamleiter }"
             >
-              <div v-if="isTeamleiter" class="ma-check" :class="{ 'ma-check--noshow': getAnnotation(ma.personalNr).nichtErschienen }" @click="toggleCheckIn(ma)">
-                <font-awesome-icon :icon="getAnnotation(ma.personalNr).nichtErschienen ? 'fa-solid fa-circle-xmark' : ma.checkedIn ? 'fa-solid fa-circle-check' : ['far', 'circle']" />
+              <div v-if="isTeamleiter" class="ma-check" :class="{ 'ma-check--noshow': ma.noShow }" @click="toggleCheckIn(ma)">
+                <font-awesome-icon :icon="ma.noShow ? 'fa-solid fa-circle-xmark' : ma.checkedIn ? 'fa-solid fa-circle-check' : ['far', 'circle']" />
               </div>
               <div class="ma-info">
                 <span class="ma-name">
@@ -143,9 +143,9 @@
                 <font-awesome-icon icon="fa-solid fa-phone" />
                 <span class="ma-phone-number">{{ ma.telefon }}</span>
               </a>
-              <!-- Three-dot menu trigger (Teamleiter only) -->
+              <!-- Three-dot menu trigger -->
               <button
-                v-if="isTeamleiter"
+                v-if="isTeamleiter || ma.flipId"
                 class="ma-menu-btn"
                 @click.stop="openActionSheet(ma)"
                 aria-label="Optionen"
@@ -181,17 +181,17 @@
             <span class="annot-action-icon annot-action-icon--profile"><font-awesome-icon icon="fa-solid fa-user" /></span>
             Profil anzeigen
           </button>
-          <button class="annot-action-item" @click="openVerspaetung(actionSheet.ma)">
+          <button v-if="isTeamleiter" class="annot-action-item" @click="openVerspaetung(actionSheet.ma)">
             <span class="annot-action-icon annot-action-icon--delay"><font-awesome-icon icon="fa-solid fa-clock" /></span>
             Verspätung eintragen
             <span v-if="actionSheet.ma && getAnnotation(actionSheet.ma.personalNr).verspaetung" class="annot-action-badge">
               {{ getAnnotation(actionSheet.ma.personalNr).verspaetung }} min
             </span>
           </button>
-          <button class="annot-action-item" @click="toggleNichtErschienen(actionSheet.ma)">
+          <button v-if="isTeamleiter" class="annot-action-item" @click="toggleNichtErschienen(actionSheet.ma)">
             <span class="annot-action-icon annot-action-icon--noshow"><font-awesome-icon icon="fa-solid fa-user-xmark" /></span>
-            {{ actionSheet.ma && getAnnotation(actionSheet.ma.personalNr).nichtErschienen ? 'Nicht Erschienen aufheben' : 'Nicht Erschienen' }}
-            <span v-if="actionSheet.ma && getAnnotation(actionSheet.ma.personalNr).nichtErschienen" class="annot-action-badge annot-action-badge--noshow">
+            {{ actionSheet.ma?.noShow ? 'Nicht Erschienen aufheben' : 'Nicht Erschienen' }}
+            <span v-if="actionSheet.ma?.noShow" class="annot-action-badge annot-action-badge--noshow">
               <font-awesome-icon icon="fa-solid fa-check" />
             </span>
           </button>
@@ -335,18 +335,24 @@ function saveVerspaetung() {
 function openFlipProfile(ma) {
   if (!ma?.flipId) return;
   actionSheet.value.open = false;
-  navigate(`/contacts/${ma.flipId}`).catch(() => {
-    // Fallback if bridge navigation is unavailable
-    window.open(`https://straightforward.flip-app.com/contacts/${ma.flipId}`, '_blank');
+  const profileUrl = `https://straightforward.flip-app.com/contacts/${ma.flipId}`;
+  navigate(profileUrl).catch(() => {
+    window.open(profileUrl, '_blank');
   });
 }
 
 function toggleNichtErschienen(ma) {
-  const ann = getAnnotation(ma.personalNr);
-  ann.nichtErschienen = !ann.nichtErschienen;
-  saveAnnotation(ma.personalNr, ann);
+  ma.noShow = !ma.noShow;
   actionSheet.value.open = false;
-  try { showToast({ text: ann.nichtErschienen ? 'Nicht Erschienen markiert' : 'Nicht Erschienen aufgehoben', intent: 'success', duration: 2000 }); } catch {}
+  props.api.post('/api/public/noshow/toggle', {
+    auftragNr: props.einsatz.auftragNr,
+    personalNr: ma.personalNr,
+  }).catch(() => {
+    ma.noShow = !ma.noShow; // revert on error
+  });
+  // Also remove from checkedIn if marking as no-show
+  if (ma.noShow) ma.checkedIn = false;
+  try { showToast({ text: ma.noShow ? 'Nicht Erschienen markiert' : 'Nicht Erschienen aufgehoben', intent: 'success', duration: 2000 }); } catch {}
 }
 
 function jobNoteKey() {
@@ -447,17 +453,25 @@ async function copyPhone(tel, event) {
 async function loadCheckIns(auftragNr) {
   try {
     const res = await props.api.get('/api/public/checkins', { params: { auftragNr } });
-    const arr = res.data?.checkedIn || [];
-    return Object.fromEntries(arr.map(nr => [nr, true]));
-  } catch { return {}; }
+    const checkedIn = res.data?.checkedIn || [];
+    const noShow = res.data?.noShow || [];
+    return {
+      checkedIn: Object.fromEntries(checkedIn.map(nr => [nr, true])),
+      noShow: Object.fromEntries(noShow.map(nr => [nr, true])),
+    };
+  } catch { return { checkedIn: {}, noShow: {} }; }
 }
 
 async function toggleCheckIn(ma) {
-  const ann = getAnnotation(ma.personalNr);
-  // If "nicht erschienen": click clears that state first, no check-in yet
-  if (ann.nichtErschienen) {
-    ann.nichtErschienen = false;
-    saveAnnotation(ma.personalNr, ann);
+  // If "nicht erschienen": click clears that state first via API
+  if (ma.noShow) {
+    ma.noShow = false;
+    props.api.post('/api/public/noshow/toggle', {
+      auftragNr: props.einsatz.auftragNr,
+      personalNr: ma.personalNr,
+    }).catch(() => {
+      ma.noShow = true; // revert on error
+    });
     return;
   }
   ma.checkedIn = !ma.checkedIn;
@@ -481,7 +495,11 @@ async function loadMitarbeiter() {
     const saved = await loadCheckIns(props.einsatz.auftragNr);
     schichtGruppen.value = (res.data || []).map(schicht => ({
       ...schicht,
-      mitarbeiter: schicht.mitarbeiter.map(ma => ({ ...ma, checkedIn: !!saved[ma.personalNr] }))
+      mitarbeiter: schicht.mitarbeiter.map(ma => ({
+        ...ma,
+        checkedIn: !!saved.checkedIn[ma.personalNr],
+        noShow: !!saved.noShow[ma.personalNr],
+      }))
     }));
   } catch (err) {
     console.error('Error loading Mitarbeiter for job:', err);

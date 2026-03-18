@@ -12,6 +12,10 @@ const CheckInSchema = new mongoose.Schema(
       type: [Number], // Array of personalNr values
       default: [],
     },
+    noShow: {
+      type: [Number], // Array of personalNr values marked as "Nicht Erschienen"
+      default: [],
+    },
   },
   { timestamps: true }
 );

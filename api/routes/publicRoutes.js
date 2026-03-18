@@ -833,7 +833,7 @@ router.get(
       return res.status(400).json({ msg: "auftragNr parameter is required" });
     }
     const doc = await CheckIn.findOne({ auftragNr: parseInt(auftragNr) }).lean();
-    res.json({ checkedIn: doc?.checkedIn || [] });
+    res.json({ checkedIn: doc?.checkedIn || [], noShow: doc?.noShow || [] });
   })
 );
 
@@ -868,6 +868,43 @@ router.post(
     }
     await doc.save();
     res.json({ checkedIn: idx === -1 });
+  })
+);
+
+// ──────────────────────────────────────────────
+// POST /api/public/noshow/toggle
+// Toggles a single personalNr in the no-show list
+// Body: { auftragNr, personalNr }
+// Returns: { noShow: boolean } — the new state
+// ──────────────────────────────────────────────
+router.post(
+  "/noshow/toggle",
+  asyncHandler(async (req, res) => {
+    const { auftragNr, personalNr } = req.body;
+    if (!auftragNr || !personalNr) {
+      return res.status(400).json({ msg: "auftragNr and personalNr are required" });
+    }
+    const nr = parseInt(auftragNr);
+    const pNr = parseInt(personalNr);
+
+    let doc = await CheckIn.findOne({ auftragNr: nr });
+    if (!doc) {
+      doc = new CheckIn({ auftragNr: nr, checkedIn: [], noShow: [pNr] });
+      await doc.save();
+      return res.json({ noShow: true });
+    }
+
+    const idx = (doc.noShow || []).indexOf(pNr);
+    if (idx === -1) {
+      doc.noShow.push(pNr);
+      // Remove from checkedIn if present
+      const ciIdx = doc.checkedIn.indexOf(pNr);
+      if (ciIdx !== -1) doc.checkedIn.splice(ciIdx, 1);
+    } else {
+      doc.noShow.splice(idx, 1);
+    }
+    await doc.save();
+    res.json({ noShow: idx === -1 });
   })
 );
 

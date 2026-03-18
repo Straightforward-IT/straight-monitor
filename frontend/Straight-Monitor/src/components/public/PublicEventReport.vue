@@ -416,26 +416,34 @@ async function loadEinsatzMitarbeiter(auftragNr) {
     // Pre-fill Mitarbeiter count
     if (all.length) form.mitarbeiter_anzahl = String(all.length);
 
-    // Pre-fill MA rows from stored annotations (Verspätung / Nicht Erschienen)
+    // Load server-side noShow state
+    let noShowSet = new Set();
+    try {
+      const checkInRes = await props.api.get('/api/public/checkins', { params: { auftragNr } });
+      (checkInRes.data?.noShow || []).forEach(nr => noShowSet.add(nr));
+    } catch { /* ignore */ }
+
+    // Pre-fill MA rows from stored annotations (Verspätung from localStorage + Nicht Erschienen from server)
     const prefilledRows = [];
     for (const ma of all) {
+      const parts = [];
+      if (noShowSet.has(ma.personalNr)) parts.push('Nicht erschienen');
       try {
         const raw = localStorage.getItem(`maannot_${auftragNr}_${ma.personalNr}`);
-        if (!raw) continue;
-        const ann = JSON.parse(raw);
-        const parts = [];
-        if (ann.nichtErschienen) parts.push('Nicht erschienen');
-        if (ann.verspaetung > 0) parts.push(`Verspätung: ${ann.verspaetung} min`);
-        if (parts.length) {
-          const first = ma.vorname || ma.bezeichnung || '';
-          const last = ma.nachname || '';
-          prefilledRows.push({
-            personalNr: ma.personalNr,
-            name: (first + ' ' + last).trim(),
-            text: parts.join('\n')
-          });
+        if (raw) {
+          const ann = JSON.parse(raw);
+          if (ann.verspaetung > 0) parts.push(`Verspätung: ${ann.verspaetung} min`);
         }
       } catch { /* ignore */ }
+      if (parts.length) {
+        const first = ma.vorname || ma.bezeichnung || '';
+        const last = ma.nachname || '';
+        prefilledRows.push({
+          personalNr: ma.personalNr,
+          name: (first + ' ' + last).trim(),
+          text: parts.join('\n')
+        });
+      }
     }
     if (prefilledRows.length) {
       mitarbeiterRows.value = prefilledRows;
