@@ -145,7 +145,6 @@
           <font-awesome-icon :icon="['fas', 'users']" />
           Personal
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
-          <span v-else class="beta-tag">NEU</span>
         </router-link>
         <router-link
           :to="newPagesEnabled ? '/auftraege' : '#'"
@@ -155,7 +154,6 @@
           <font-awesome-icon :icon="['fas', 'calendar-alt']" />
           Aufträge
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
-          <span v-else class="beta-tag">NEU</span>
         </router-link>
         <router-link
           :to="newPagesEnabled ? '/kunden' : '#'"
@@ -165,7 +163,6 @@
           <font-awesome-icon :icon="['fas', 'building']" />
           Kunden
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
-          <span v-else class="beta-tag">NEU</span>
         </router-link>
 
         

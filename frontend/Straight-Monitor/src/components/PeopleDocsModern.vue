@@ -96,6 +96,17 @@
             </div>
 
             <div class="chip-group compact-group">
+                 <FilterDropdown ref="profilbildDropdown" :has-value="filters.profilbildStatus !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-camera" style="margin-right: 0.5rem" /> {{ filters.profilbildStatus === 'Alle' ? 'Profilbild' : filters.profilbildStatus }}</template>
+                     <div v-for="stat in ['Alle', 'Vorhanden', 'Fehlt']" 
+                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.profilbildStatus === stat }"
+                          @click="setFilter('profilbildStatus', stat); $refs.profilbildDropdown.close()">
+                       {{ stat }}
+                     </div>
+                 </FilterDropdown>
+            </div>
+
+            <div class="chip-group compact-group">
                  <FilterDropdown ref="pgDropdown" :has-value="filters.persgruppe !== 'Alle'">
                     <template #label><font-awesome-icon icon="fa-solid fa-user" style="margin-right: 0.5rem" /> {{ filters.persgruppe === 'Alle' ? 'Persgruppe' : filters.persgruppe === 'Keine' ? 'Keine' : { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' }[filters.persgruppe] }}</template>
                     <div class="dropdown-item clickable" :class="{ selected: filters.persgruppe === 'Alle' }"
@@ -843,6 +854,7 @@ export default {
         flipStatus: "Alle", // Aktiv, Gesperrt, Gelöscht, Nicht_verknüpft, Alle
         asanaStatus: "Alle", // Verknüpft, Nicht_verknüpft, Alle
         personalnrStatus: "Alle", // Vorhanden, Fehlt, Alle
+        profilbildStatus: "Alle", // Vorhanden, Fehlt, Alle
         profile: "Alle", // Vollständig, Unvollständig, Alle
         teamleiter: "Alle", // Alle, Nur Teamleiter, Keine Teamleiter
         berufe: [], // Array of selected Beruf IDs
@@ -956,6 +968,14 @@ export default {
         result = result.filter((ma) => {
           const hasPersonalnr = ma.personalnr && ma.personalnr.trim() !== '';
           return this.filters.personalnrStatus === "Vorhanden" ? hasPersonalnr : !hasPersonalnr;
+        });
+      }
+
+      // Flip Profilbild Filter
+      if (this.filters.profilbildStatus !== "Alle") {
+        result = result.filter((ma) => {
+          const hasProfilbild = !!ma.flip?.profilbild;
+          return this.filters.profilbildStatus === "Vorhanden" ? hasProfilbild : !hasProfilbild;
         });
       }
       
