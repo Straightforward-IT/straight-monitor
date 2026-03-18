@@ -117,10 +117,10 @@
               v-for="ma in schicht.mitarbeiter"
               :key="ma.personalNr"
               class="ma-card"
-              :class="{ 'checked-in': ma.checkedIn, 'is-teamleiter': ma.isTeamleiter }"
+              :class="{ 'checked-in': ma.checkedIn && !getAnnotation(ma.personalNr).nichtErschienen, 'nicht-erschienen': getAnnotation(ma.personalNr).nichtErschienen, 'is-teamleiter': ma.isTeamleiter }"
             >
-              <div v-if="isTeamleiter && !isPast" class="ma-check" @click="toggleCheckIn(ma)">
-                <font-awesome-icon :icon="ma.checkedIn ? 'fa-solid fa-circle-check' : ['far', 'circle']" />
+              <div v-if="isTeamleiter && !isPast" class="ma-check" :class="{ 'ma-check--noshow': getAnnotation(ma.personalNr).nichtErschienen }" @click="toggleCheckIn(ma)">
+                <font-awesome-icon :icon="getAnnotation(ma.personalNr).nichtErschienen ? 'fa-solid fa-circle-xmark' : ma.checkedIn ? 'fa-solid fa-circle-check' : ['far', 'circle']" />
               </div>
               <div class="ma-info">
                 <span class="ma-name">
@@ -130,9 +130,6 @@
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
                 <!-- Annotation badges -->
                 <span v-if="isTeamleiter" class="ma-annot-badges">
-                  <span v-if="getAnnotation(ma.personalNr).nichtErschienen" class="ma-annot-badge ma-annot-badge--noshow">
-                    <font-awesome-icon icon="fa-solid fa-user-xmark" /> Nicht erschienen
-                  </span>
                   <span v-if="getAnnotation(ma.personalNr).verspaetung" class="ma-annot-badge ma-annot-badge--delay">
                     <font-awesome-icon icon="fa-solid fa-clock" /> {{ getAnnotation(ma.personalNr).verspaetung }} min
                   </span>
@@ -338,12 +335,10 @@ function saveVerspaetung() {
 function openFlipProfile(ma) {
   if (!ma?.flipId) return;
   actionSheet.value.open = false;
-  try {
-    navigate({ url: `https://straightforward.flip-app.com/contacts/${ma.flipId}` });
-  } catch {
+  navigate(`/contacts/${ma.flipId}`).catch(() => {
     // Fallback if bridge navigation is unavailable
     window.open(`https://straightforward.flip-app.com/contacts/${ma.flipId}`, '_blank');
-  }
+  });
 }
 
 function toggleNichtErschienen(ma) {
@@ -458,6 +453,13 @@ async function loadCheckIns(auftragNr) {
 }
 
 async function toggleCheckIn(ma) {
+  const ann = getAnnotation(ma.personalNr);
+  // If "nicht erschienen": click clears that state first, no check-in yet
+  if (ann.nichtErschienen) {
+    ann.nichtErschienen = false;
+    saveAnnotation(ma.personalNr, ann);
+    return;
+  }
   ma.checkedIn = !ma.checkedIn;
   try {
     await props.api.post('/api/public/checkins/toggle', {
@@ -734,6 +736,11 @@ watch(() => props.einsatz?._id, () => {
   background: rgba(40, 167, 69, 0.05);
 }
 
+.ma-card.nicht-erschienen {
+  border-color: #dc2626;
+  background: rgba(220, 38, 38, 0.05);
+}
+
 .ma-check {
   font-size: 1.3rem;
   cursor: pointer;
@@ -744,6 +751,10 @@ watch(() => props.einsatz?._id, () => {
 
 .ma-card.checked-in .ma-check {
   color: #28a745;
+}
+
+.ma-check--noshow {
+  color: #dc2626 !important;
 }
 
 .ma-info {
