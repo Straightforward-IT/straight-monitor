@@ -778,7 +778,12 @@ export default {
         (a.eventTitel && a.eventTitel.toLowerCase().includes(q)) ||
         (a.eventOrt && a.eventOrt.toLowerCase().includes(q)) ||
         (a.kundeData?.kundName && a.kundeData.kundName.toLowerCase().includes(q)) ||
-        (a.auftragNr && String(a.auftragNr).includes(q))
+        (a.auftragNr && String(a.auftragNr).includes(q)) ||
+        (a.einsaetze && a.einsaetze.some(e => {
+          if (!e.mitarbeiterData) return false;
+          const fullName = `${e.mitarbeiterData.vorname || ''} ${e.mitarbeiterData.nachname || ''}`.toLowerCase();
+          return fullName.includes(q);
+        }))
       );
     },
     availableGlobalLabels() {

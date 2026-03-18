@@ -599,9 +599,13 @@ async function getFlipProfilePicture(userId) {
       u.avatar_media_id ||
       u.profile_image_media_id ||
       u.profile_picture_id ||
+      u?.avatar?.file_id ||
       u?.avatar?.id ||
+      u?.profile_image?.file_id ||
       u?.profile_image?.id ||
-      u?.profile_picture?.id;
+      u?.profile_picture?.file_id ||
+      u?.profile_picture?.id ||
+      u?.profile?.picture?.file_id;
 
     if (!mediaId) {
       // kein Bild gesetzt

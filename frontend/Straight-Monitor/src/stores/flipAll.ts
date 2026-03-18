@@ -57,7 +57,7 @@ export const useFlipAll = defineStore("flipAll", {
     mitarbeiters: [] as IMitarbeiter[],
 
     // Profile-Picture Cache (ObjectURLs)
-    enablePhotos: false, // ❌ Disable loading to prevent 404s/spam logs
+    enablePhotos: true,
     pics: new Map<string, PicEntry>(),
     picTTL: 60 * 60 * 1000, // 1h
   }),
@@ -284,149 +284,41 @@ export const useFlipAll = defineStore("flipAll", {
       const id = typeof userOrId === "string" ? userOrId : userOrId?.id;
       if (!id) return "";
 
-      // Prüfe ob bereits im Cache
       const now = Date.now();
-      const entry = this.pics.get(id) || {};
-      const fresh = entry.ts && now - entry.ts < this.picTTL;
+      const entry = this.pics.get(id);
 
-      if (fresh && entry.url) return entry.url;
-      if (entry.promise) return entry.promise as Promise<string>;
+      // Bereits im Cache und frisch → direkt zurück
+      if (entry?.ts && now - entry.ts < this.picTTL) {
+        if (entry.url) return entry.url;
+        // Laufendes Promise → darauf warten (kein doppelter Fetch)
+        if (entry.promise) return entry.promise;
+        // Frisch, aber kein Bild → "" (kein erneuter Versuch innerhalb TTL)
+        return "";
+      }
 
-      // Authentifizierte Anfrage mit Headers
       const promise = (async () => {
         try {
-          const token = localStorage.getItem('token');
-          if (!token) return "";
-
-          const response = await fetch(`/api/personal/flip/profilePicture/${id}`, {
-            headers: {
-              'x-auth-token': token
-            }
-          });
-
-          console.log(`Profile picture response for ${id}:`, response.status, response.headers.get('content-type'));
-
-          if (!response.ok) {
-            if (response.status === 204) {
-              // Kein Profilbild verfügbar
-              console.log(`No profile picture available for user ${id}`);
-              this.pics.set(id, { ts: Date.now() });
-              return "";
-            }
-            console.error(`Failed to fetch profile picture for ${id}: HTTP ${response.status}`);
-            
-            // Bei HTML-Response (wahrscheinlich Fehlerseite), Inhalt loggen
-            if (response.headers.get('content-type')?.includes('text/html')) {
-              const errorText = await response.text();
-              console.error(`HTML Error response for ${id}:`, errorText.substring(0, 200));
-            }
-            
+          const blob = await fetchFlipProfilePicture(id);
+          if (!blob || blob.size === 0) {
             this.pics.set(id, { ts: Date.now() });
             return "";
           }
+          // Altes Blob cleanup
+          const old = this.pics.get(id);
+          if (old?.url) URL.revokeObjectURL(old.url);
 
-          // Prüfe Content-Type vor Blob-Erstellung
-          const contentType = response.headers.get('content-type') || '';
-          if (!contentType.startsWith('image/')) {
-            console.error(`Invalid content-type for user ${id}: ${contentType}`);
-            
-            // Bei HTML-Response, Inhalt loggen für Debugging
-            if (contentType.includes('text/html')) {
-              const errorText = await response.text();
-              console.error(`HTML Response for ${id}:`, errorText.substring(0, 200));
-            }
-            
-            this.pics.set(id, { ts: Date.now() });
-            return "";
-          }
-
-          const blob = await response.blob();
-          console.log(`Profile picture blob for ${id}:`, blob.size, 'bytes, type:', blob.type);
-          
-          // Validiere Blob bevor URL erstellt wird
-          if (blob.size === 0) {
-            console.warn(`Empty blob received for user ${id}`);
-            this.pics.set(id, { ts: Date.now() });
-            return "";
-          }
-          
-          // Versuche Blob-URL
-          let url = URL.createObjectURL(blob);
-          console.log(`Created blob URL for ${id}:`, url);
-          
-          // Fallback: Data-URL (funktioniert oft besser)
-          // Uncomment this for debugging:
-          // const reader = new FileReader();
-          // url = await new Promise((resolve) => {
-          //   reader.onload = () => resolve(reader.result as string);
-          //   reader.readAsDataURL(blob);
-          // });
-          // console.log(`Created data URL for ${id} (${url.substring(0, 50)}...)`);
-          
-          // Test ob URL funktioniert
-          const img = new Image();
-          img.onload = () => console.log(`✅ Image loaded successfully for ${id}`);
-          img.onerror = (e) => console.error(`❌ Image failed to load for ${id}:`, e);
-          img.src = url;
-          
-          // Altes Blob cleanup (nur für Blob-URLs)
-          if (entry.url && entry.url.startsWith('blob:')) {
-            URL.revokeObjectURL(entry.url);
-          }
-          
-          this.pics.set(id, { url, ts: Date.now() });
-          return url;
-        } catch (error) {
-          console.error(`Error loading profile picture for ${id}:`, error);
-          this.pics.set(id, { ts: Date.now() });
-          return "";
-        }
-      })();
-
-      this.pics.set(id, { promise, ts: Date.now() });
-      return promise;
-
-      /* Alte Implementierung mit File-ID und Blob-Cache:
-      const id = typeof userOrId === "string" ? userOrId : userOrId?.id;
-      if (!id) return "";
-
-      // wir erwarten fileId == profilbild; Backend-Route nimmt :id == file_id
-      const fileId =
-        typeof userOrId === "string"
-          ? this.byId.get(userOrId)?.profilbild || null
-          : userOrId?.profilbild || null;
-
-      if (!fileId) return "";
-
-      const now = Date.now();
-      const entry = this.pics.get(id) || {};
-      const fresh = entry.ts && now - entry.ts < this.picTTL;
-
-      if (fresh && entry.url) return entry.url;
-      if (entry.promise) return entry.promise as Promise<string>;
-
-      const p = (async () => {
-        try {
-          const blob = await fetchFlipProfilePicture(fileId);
-          if (!blob) {
-            this.pics.set(id, { ts: Date.now() });
-            return "";
-          }
           const url = URL.createObjectURL(blob);
-          if (entry.url) URL.revokeObjectURL(entry.url);
           this.pics.set(id, { url, ts: Date.now() });
           return url;
         } catch {
           this.pics.set(id, { ts: Date.now() });
           return "";
-        } finally {
-          const e2 = this.pics.get(id);
-          if (e2) delete e2.promise;
         }
       })();
 
-      this.pics.set(id, { ...entry, promise: p });
-      return p; */
+      // Promise im Cache speichern, damit parallele Aufrufe darauf warten
+      this.pics.set(id, { promise, ts: now });
+      return promise;
     },
 
     clearPhotos() {

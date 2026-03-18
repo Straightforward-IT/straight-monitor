@@ -1381,7 +1381,12 @@ export default {
     },
 
     getPhotoUrl(ma) {
-      return this.flip.photoUrl(ma.flip) || null;
+      const flipId = ma.flip?.id;
+      if (!flipId || !this.flip.enablePhotos) return null;
+      // Fire-and-forget: trigger async fetch (no-op if already cached/in-flight)
+      this.flip.ensurePhoto(flipId);
+      // Return current cache value synchronously (reactive via Pinia)
+      return this.flip.pics.get(flipId)?.url || null;
     },
 
     // Quick Actions

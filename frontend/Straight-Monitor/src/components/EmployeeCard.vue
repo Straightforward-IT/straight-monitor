@@ -76,208 +76,6 @@
         </div>
       </div>
 
-      <!-- Actions rechts angedockt -->
-      <div class="card-actions" v-show="expanded" @click.stop>
-        <!-- Straight Button -->
-        <template v-if="showTooltips">
-          <custom-tooltip
-            text="Monitor-Profil"
-            :position="tooltipPosition"
-            :delay-in="150"
-          >
-            <button
-              class="icon-btn"
-              :class="{ active: view === 'straight' }"
-              @click="view = 'straight'"
-              :aria-pressed="view === 'straight'"
-            >
-              <img
-                :src="straightLight"
-                class="logo logo--light"
-                alt="Straight Logo light"
-              />
-              <img
-                :src="straightDark"
-                class="logo logo--dark"
-                alt="Straight Logo dark"
-              />
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button
-            class="icon-btn"
-            :class="{ active: view === 'straight' }"
-            @click="view = 'straight'"
-            :aria-pressed="view === 'straight'"
-          >
-            <img
-              :src="straightLight"
-              class="logo logo--light"
-              alt="Straight Logo light"
-            />
-            <img
-              :src="straightDark"
-              class="logo logo--dark"
-              alt="Straight Logo dark"
-            />
-          </button>
-        </template>
-
-        <!-- Flip Button -->
-        <template v-if="showTooltips">
-          <custom-tooltip
-            text="Flip-Profil"
-            :position="tooltipPosition"
-            :delay-in="150"
-          >
-            <button
-              class="icon-btn"
-              :class="{ active: view === 'flip' }"
-              @click="view = 'flip'"
-              :aria-pressed="view === 'flip'"
-            >
-              <img :src="flipLogo" alt="Flip Logo" class="logo" />
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button
-            class="icon-btn"
-            :class="{ active: view === 'flip' }"
-            @click="view = 'flip'"
-            :aria-pressed="view === 'flip'"
-          >
-            <img :src="flipLogo" alt="Flip Logo" class="logo" />
-          </button>
-        </template>
-
-        <!-- Asana Button -->
-        <template v-if="showTooltips">
-          <custom-tooltip
-            text="Asana-Task"
-            :position="tooltipPosition"
-            :delay-in="150"
-          >
-            <button
-              class="icon-btn"
-              :class="{ active: view === 'asana' }"
-              @click="view = 'asana'"
-              :aria-pressed="view === 'asana'"
-            >
-              <img :src="asanaLogo" alt="Asana Logo" class="logo" />
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button
-            class="icon-btn"
-            :class="{ active: view === 'asana' }"
-            @click="view = 'asana'"
-            :aria-pressed="view === 'asana'"
-          >
-            <img :src="asanaLogo" alt="Asana Logo" class="logo" />
-          </button>
-        </template>
-
-        <!-- Inventar Button -->
-        <template v-if="showTooltips">
-          <custom-tooltip
-            text="Inventar"
-            :position="tooltipPosition"
-            :delay-in="150"
-          >
-            <button
-              class="icon-btn"
-              :class="{ active: view === 'inventar' }"
-              @click="view = 'inventar'"
-              :aria-pressed="view === 'inventar'"
-            >
-              <font-awesome-icon icon="fa-solid fa-box-open" />
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button
-            class="icon-btn"
-            :class="{ active: view === 'inventar' }"
-            @click="view = 'inventar'"
-            :aria-pressed="view === 'inventar'"
-          >
-            <font-awesome-icon icon="fa-solid fa-box-open" />
-          </button>
-        </template>
-
-        <!-- Actions Button with Dropdown -->
-        <div class="quick-actions-wrapper" @click.stop>
-          <template v-if="showTooltips">
-            <custom-tooltip
-              text="Aktionen"
-              :position="tooltipPosition"
-              :delay-in="150"
-            >
-              <button class="icon-btn" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
-                <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
-              </button>
-            </custom-tooltip>
-          </template>
-          <template v-else>
-            <button class="icon-btn" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
-              <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
-            </button>
-          </template>
-          
-          <!-- Quick Actions Dropdown Menu -->
-          <teleport to="body">
-            <div v-if="showQuickActionsMenu" class="qa-overlay" @click="showQuickActionsMenu = false">
-              <div 
-                class="qa-menu"
-                :style="quickActionsMenuStyle"
-                @click.stop
-              >
-                <!-- Kontakt Actions -->
-                <div v-if="getPhoneNumber() || ma.email" class="qa-group">
-                  <div class="qa-group-label">Kontakt</div>
-                  <button 
-                    v-if="getPhoneNumber()"
-                    class="qa-item"
-                    @click="executeQuickAction('sipgate')"
-                  >
-                    <font-awesome-icon icon="fa-solid fa-phone" />
-                    {{ getPhoneNumber() }}
-                  </button>
-                  <button 
-                    v-if="ma.email"
-                    class="qa-item"
-                    @click="executeQuickAction('outlook')"
-                  >
-                    <font-awesome-icon icon="fa-solid fa-envelope" />
-                    {{ ma.email }}
-                  </button>
-                </div>
-                <!-- Aktionen -->
-                <div class="qa-group">
-                  <div class="qa-group-label">Aktionen</div>
-                  <button class="qa-item" @click="executeQuickAction('edit')">
-                    <font-awesome-icon icon="fa-solid fa-edit" />
-                    Bearbeiten
-                  </button>
-                  <button class="qa-item" @click="executeQuickAction('toggle-active')">
-                    <font-awesome-icon :icon="ma.isActive ? 'fa-regular fa-circle' : 'fa-solid fa-circle-check'" />
-                    {{ ma.isActive ? 'Deaktivieren' : 'Reaktivieren' }}
-                  </button>
-                  <button class="qa-item qa-item--danger" @click="executeQuickAction('delete')">
-                    <font-awesome-icon icon="fa-solid fa-trash" />
-                    Löschen
-                  </button>
-                </div>
-              </div>
-            </div>
-          </teleport>
-        </div>
-
-       
-      </div>
     </header>
 
     <!-- Expandable body -->
@@ -1194,10 +992,124 @@
             </div>
           </template>
         </section>
+
       </div>
     </transition>
 
+    <!-- Hero Panel (right column, flush top-right corner) -->
+    <aside v-show="expanded" class="hero-panel" @click.stop>
+      <!-- Card Actions (view switcher + quick actions) -->
+      <div class="card-actions">
+        <!-- Straight Button -->
+        <template v-if="showTooltips">
+          <custom-tooltip text="Monitor-Profil" :position="tooltipPosition" :delay-in="150">
+            <button class="icon-btn" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-pressed="view === 'straight'">
+              <img :src="straightLight" class="logo logo--light" alt="Straight Logo light" />
+              <img :src="straightDark" class="logo logo--dark" alt="Straight Logo dark" />
+            </button>
+          </custom-tooltip>
+        </template>
+        <template v-else>
+          <button class="icon-btn" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-pressed="view === 'straight'">
+            <img :src="straightLight" class="logo logo--light" alt="Straight Logo light" />
+            <img :src="straightDark" class="logo logo--dark" alt="Straight Logo dark" />
+          </button>
+        </template>
 
+        <!-- Flip Button -->
+        <template v-if="showTooltips">
+          <custom-tooltip text="Flip-Profil" :position="tooltipPosition" :delay-in="150">
+            <button class="icon-btn" :class="{ active: view === 'flip' }" @click="view = 'flip'" :aria-pressed="view === 'flip'">
+              <img :src="flipLogo" alt="Flip Logo" class="logo" />
+            </button>
+          </custom-tooltip>
+        </template>
+        <template v-else>
+          <button class="icon-btn" :class="{ active: view === 'flip' }" @click="view = 'flip'" :aria-pressed="view === 'flip'">
+            <img :src="flipLogo" alt="Flip Logo" class="logo" />
+          </button>
+        </template>
+
+        <!-- Asana Button -->
+        <template v-if="showTooltips">
+          <custom-tooltip text="Asana-Task" :position="tooltipPosition" :delay-in="150">
+            <button class="icon-btn" :class="{ active: view === 'asana' }" @click="view = 'asana'" :aria-pressed="view === 'asana'">
+              <img :src="asanaLogo" alt="Asana Logo" class="logo" />
+            </button>
+          </custom-tooltip>
+        </template>
+        <template v-else>
+          <button class="icon-btn" :class="{ active: view === 'asana' }" @click="view = 'asana'" :aria-pressed="view === 'asana'">
+            <img :src="asanaLogo" alt="Asana Logo" class="logo" />
+          </button>
+        </template>
+
+        <!-- Inventar Button -->
+        <template v-if="showTooltips">
+          <custom-tooltip text="Inventar" :position="tooltipPosition" :delay-in="150">
+            <button class="icon-btn" :class="{ active: view === 'inventar' }" @click="view = 'inventar'" :aria-pressed="view === 'inventar'">
+              <font-awesome-icon icon="fa-solid fa-box-open" />
+            </button>
+          </custom-tooltip>
+        </template>
+        <template v-else>
+          <button class="icon-btn" :class="{ active: view === 'inventar' }" @click="view = 'inventar'" :aria-pressed="view === 'inventar'">
+            <font-awesome-icon icon="fa-solid fa-box-open" />
+          </button>
+        </template>
+
+        <!-- Actions Button with Dropdown -->
+        <div class="quick-actions-wrapper" @click.stop>
+          <template v-if="showTooltips">
+            <custom-tooltip text="Aktionen" :position="tooltipPosition" :delay-in="150">
+              <button class="icon-btn" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
+                <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
+              </button>
+            </custom-tooltip>
+          </template>
+          <template v-else>
+            <button class="icon-btn" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
+              <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
+            </button>
+          </template>
+          <teleport to="body">
+            <div v-if="showQuickActionsMenu" class="qa-overlay" @click="showQuickActionsMenu = false">
+              <div class="qa-menu" :style="quickActionsMenuStyle" @click.stop>
+                <div v-if="getPhoneNumber() || ma.email" class="qa-group">
+                  <div class="qa-group-label">Kontakt</div>
+                  <button v-if="getPhoneNumber()" class="qa-item" @click="executeQuickAction('sipgate')">
+                    <font-awesome-icon icon="fa-solid fa-phone" /> {{ getPhoneNumber() }}
+                  </button>
+                  <button v-if="ma.email" class="qa-item" @click="executeQuickAction('outlook')">
+                    <font-awesome-icon icon="fa-solid fa-envelope" /> {{ ma.email }}
+                  </button>
+                </div>
+                <div class="qa-group">
+                  <div class="qa-group-label">Aktionen</div>
+                  <button class="qa-item" @click="executeQuickAction('edit')">
+                    <font-awesome-icon icon="fa-solid fa-edit" /> Bearbeiten
+                  </button>
+                  <button class="qa-item" @click="executeQuickAction('toggle-active')">
+                    <font-awesome-icon :icon="ma.isActive ? 'fa-regular fa-circle' : 'fa-solid fa-circle-check'" />
+                    {{ ma.isActive ? 'Deaktivieren' : 'Reaktivieren' }}
+                  </button>
+                  <button class="qa-item qa-item--danger" @click="executeQuickAction('delete')">
+                    <font-awesome-icon icon="fa-solid fa-trash" /> Löschen
+                  </button>
+                </div>
+              </div>
+            </div>
+          </teleport>
+        </div>
+      </div>
+
+      <div class="hero-media">
+        <img v-if="photoUrl" :src="photoUrl" :alt="`${ma.vorname} ${ma.nachname}`" class="hero-img" />
+        <div v-else class="hero-initials" :style="{ '--hue': avatarHue(ma) }">
+          {{ initials(ma) }}
+        </div>
+      </div>
+    </aside>
 
     <!-- Document Modal -->
     <teleport to="body">
@@ -2570,7 +2482,7 @@ export default {
 /* Linke Seite (Avatar + Titel) füllt, damit Actions rechts andocken */
 .left {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 14px;
   flex: 1;
   min-width: 0;
@@ -2636,12 +2548,12 @@ export default {
   font-weight: 600;
 }
 
-/* ---------- Actions rechts ---------- */
+/* ---------- Actions ---------- */
 .card-actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  margin-left: auto;
 }
 .icon-btn {
   width: 38px;
@@ -3755,17 +3667,83 @@ export default {
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.06);
 }
 
-/* Expanded: volle Breite + 2 Spalten für Content */
+/* Expanded: 2-column grid – content left, hero+actions right */
 .card[data-expanded="true"] {
   grid-column: 1 / -1;
   border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
   transform: translateY(-1px);
-}
-.card[data-expanded="true"] .card-body {
   display: grid;
-  gap: 16px;
-  grid-template-columns: 1.2fr 1fr;
+  grid-template-columns: 1fr 340px;
+  grid-template-rows: auto 1fr;
+}
+
+.card[data-expanded="true"] .card-header {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.card[data-expanded="true"] .card-body {
+  grid-column: 1;
+  grid-row: 2;
+  display: block;
+}
+
+/* ---------- Hero Photo Panel ---------- */
+.hero-panel {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.hero-media {
+  flex: none;
+  width: 300px;
+  height: 300px;
+  overflow: hidden;
+  background: var(--soft);
+}
+
+.hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
+}
+.hero-media:hover .hero-img {
+  transform: scale(1.03);
+}
+
+.hero-initials {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-size: 96px;
+  font-weight: 800;
+  color: #fff;
+  background: hsl(0, 0%, calc(15% + (var(--hue, 0) / 360 * 55%)));
+  user-select: none;
+}
+
+/* Card actions as vertical strip on left of image */
+.hero-panel .card-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 10px 6px;
+  margin: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  order: 0;
+  border-top: none;
 }
 /* Mobile Optimierungen */
 @media (max-width: 768px) {
@@ -3779,7 +3757,7 @@ export default {
 
 .left {
   flex-direction: row;
-  align-items: center;
+  align-items: flex-start;
   gap: 14px;
 }
 
@@ -3794,14 +3772,6 @@ export default {
   text-overflow: unset;
   line-height: 1.3;
   word-break: break-word;
-}
-
-.card-actions {
-  justify-content: center;
-  margin-left: 0;
-  order: 2;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
 }
 
 /* Avatar etwas kleiner auf Mobile */
@@ -3861,15 +3831,6 @@ export default {
     gap: 8px;
   }
 
-  .card-actions {
-    flex-direction: column;
-    gap: 4px;
-    order: 0;
-    margin-left: auto;
-    border-top: none;
-    padding-top: 0;
-  }
-
   .icon-btn {
     width: 32px;
     height: 32px;
@@ -3882,8 +3843,49 @@ export default {
 }
 
 @media (max-width: 900px) {
-  .card[data-expanded="true"] .card-body {
+  .card[data-expanded="true"] {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .card[data-expanded="true"] .card-header {
+    grid-row: 1;
+    position: relative;
+  }
+
+  .hero-panel {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    grid-column: unset;
+    grid-row: unset;
+    overflow: visible;
+    background: none;
+    z-index: 2;
+  }
+
+  .hero-media {
+    display: none;
+  }
+
+  .hero-panel .card-actions {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    border-right: none;
+    border-bottom: none;
+    padding: 0;
+    gap: 2px;
+    background: none;
+  }
+
+  .hero-panel .card-actions .icon-btn {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
+
+  .card[data-expanded="true"] .card-body {
+    grid-row: 2;
   }
 }
 
@@ -3899,7 +3901,7 @@ export default {
 }
 .expand-enter-to,
 .expand-leave-from {
-  max-height: 480px;
+  max-height: 2000px;
   opacity: 1;
 }
 
