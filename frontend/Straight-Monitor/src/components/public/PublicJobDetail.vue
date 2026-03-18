@@ -335,7 +335,7 @@ function saveVerspaetung() {
 function openFlipProfile(ma) {
   if (!ma?.flipId) return;
   actionSheet.value.open = false;
-  window.open(`https://straightforward.flip-app.com/contacts/${ma.flipId}`, '_blank');
+  window.open(`https://straightforward.flip-app.com/contacts/${ma.flipId}`, '_top');
 }
 
 function toggleNichtErschienen(ma) {
