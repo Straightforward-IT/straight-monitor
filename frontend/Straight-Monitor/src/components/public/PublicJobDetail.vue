@@ -119,7 +119,7 @@
               class="ma-card"
               :class="{ 'checked-in': ma.checkedIn && !getAnnotation(ma.personalNr).nichtErschienen, 'nicht-erschienen': getAnnotation(ma.personalNr).nichtErschienen, 'is-teamleiter': ma.isTeamleiter }"
             >
-              <div v-if="isTeamleiter && !isPast" class="ma-check" :class="{ 'ma-check--noshow': getAnnotation(ma.personalNr).nichtErschienen }" @click="toggleCheckIn(ma)">
+              <div v-if="isTeamleiter" class="ma-check" :class="{ 'ma-check--noshow': getAnnotation(ma.personalNr).nichtErschienen }" @click="toggleCheckIn(ma)">
                 <font-awesome-icon :icon="getAnnotation(ma.personalNr).nichtErschienen ? 'fa-solid fa-circle-xmark' : ma.checkedIn ? 'fa-solid fa-circle-check' : ['far', 'circle']" />
               </div>
               <div class="ma-info">

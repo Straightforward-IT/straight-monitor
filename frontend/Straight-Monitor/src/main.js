@@ -12,7 +12,9 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faFileImport,
   faFileCirclePlus,
   faBookmark,
-  faGripVertical} from '@fortawesome/free-solid-svg-icons';
+  faGripVertical,
+  faUserXmark,
+  faCircleXmark as faCircleXmarkSolid} from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
@@ -47,7 +49,9 @@ library.add(
   // PDF Builder Icons
   faFilePdf, faCloudArrowUp, faFloppyDisk, faFont, faUpload, faRotateLeft, faDownload, faCircleExclamation,
   // Regular Icons
-  faCircleXmark, faCircle
+  faCircleXmark, faCircle,
+  // Solid variants (needed alongside regular)
+  faCircleXmarkSolid, faUserXmark
 );
 
 const app = createApp(App);
