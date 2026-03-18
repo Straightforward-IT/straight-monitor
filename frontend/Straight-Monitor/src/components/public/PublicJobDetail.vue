@@ -261,7 +261,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
-import { showToast, navigate } from '@getflip/bridge';
+import { showToast } from '@getflip/bridge';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 const theme = useTheme();
@@ -335,10 +335,7 @@ function saveVerspaetung() {
 function openFlipProfile(ma) {
   if (!ma?.flipId) return;
   actionSheet.value.open = false;
-  const profileUrl = `https://straightforward.flip-app.com/contacts/${ma.flipId}`;
-  navigate(profileUrl).catch(() => {
-    window.open(profileUrl, '_blank');
-  });
+  window.open(`https://straightforward.flip-app.com/contacts/${ma.flipId}`, '_blank');
 }
 
 function toggleNichtErschienen(ma) {
