@@ -335,7 +335,7 @@ function saveVerspaetung() {
 function openFlipProfile(ma) {
   if (!ma?.flipId) return;
   actionSheet.value.open = false;
-  navigate(`/contacts/${ma.flipId}`).catch(() => {});
+  navigate(`/contacts/${ma.flipId}?id=${ma.flipId}&kind=MenuItem`).catch(() => {});
 }
 
 function toggleNichtErschienen(ma) {
