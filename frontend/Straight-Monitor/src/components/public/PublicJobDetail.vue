@@ -130,6 +130,9 @@
                 <span class="ma-role" v-if="ma.bezeichnung">{{ ma.bezeichnung }}</span>
                 <!-- Annotation badges -->
                 <span v-if="isTeamleiter" class="ma-annot-badges">
+                  <span v-if="getAnnotation(ma.personalNr).nichtErschienen" class="ma-annot-badge ma-annot-badge--noshow">
+                    <font-awesome-icon icon="fa-solid fa-user-xmark" /> Nicht erschienen
+                  </span>
                   <span v-if="getAnnotation(ma.personalNr).verspaetung" class="ma-annot-badge ma-annot-badge--delay">
                     <font-awesome-icon icon="fa-solid fa-clock" /> {{ getAnnotation(ma.personalNr).verspaetung }} min
                   </span>
@@ -177,11 +180,22 @@
         <div class="calmodal-sheet annot-actionsheet">
           <div class="calmodal-handle"></div>
           <p class="annot-actionsheet-name">{{ actionSheet.ma?.vorname }} {{ actionSheet.ma?.nachname }}</p>
+          <button v-if="actionSheet.ma?.flipId" class="annot-action-item" @click="openFlipProfile(actionSheet.ma)">
+            <span class="annot-action-icon annot-action-icon--profile"><font-awesome-icon icon="fa-solid fa-user" /></span>
+            Profil anzeigen
+          </button>
           <button class="annot-action-item" @click="openVerspaetung(actionSheet.ma)">
             <span class="annot-action-icon annot-action-icon--delay"><font-awesome-icon icon="fa-solid fa-clock" /></span>
             Verspätung eintragen
             <span v-if="actionSheet.ma && getAnnotation(actionSheet.ma.personalNr).verspaetung" class="annot-action-badge">
               {{ getAnnotation(actionSheet.ma.personalNr).verspaetung }} min
+            </span>
+          </button>
+          <button class="annot-action-item" @click="toggleNichtErschienen(actionSheet.ma)">
+            <span class="annot-action-icon annot-action-icon--noshow"><font-awesome-icon icon="fa-solid fa-user-xmark" /></span>
+            {{ actionSheet.ma && getAnnotation(actionSheet.ma.personalNr).nichtErschienen ? 'Nicht Erschienen aufheben' : 'Nicht Erschienen' }}
+            <span v-if="actionSheet.ma && getAnnotation(actionSheet.ma.personalNr).nichtErschienen" class="annot-action-badge annot-action-badge--noshow">
+              <font-awesome-icon icon="fa-solid fa-check" />
             </span>
           </button>
           <button class="calmodal-btn calmodal-btn--cancel annot-cancel-btn" @click="actionSheet.open = false">Abbrechen</button>
@@ -250,7 +264,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
-import { showToast } from '@getflip/bridge';
+import { showToast, navigate } from '@getflip/bridge';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 const theme = useTheme();
@@ -293,8 +307,8 @@ function getAnnotation(personalNr) {
   annotationTick.value; // reactive dependency
   try {
     const raw = localStorage.getItem(annotationKey(personalNr));
-    return raw ? JSON.parse(raw) : { verspaetung: null, note: '' };
-  } catch { return { verspaetung: null, note: '' }; }
+    return raw ? JSON.parse(raw) : { verspaetung: null, nichtErschienen: false, note: '' };
+  } catch { return { verspaetung: null, nichtErschienen: false, note: '' }; }
 }
 
 function saveAnnotation(personalNr, data) {
@@ -319,6 +333,25 @@ function saveVerspaetung() {
   saveAnnotation(ma.personalNr, ann);
   verspaetungModal.value.open = false;
   try { showToast({ text: value > 0 ? `Verspätung: ${value} min gespeichert` : 'Verspätung entfernt', intent: 'success', duration: 2000 }); } catch {}
+}
+
+function openFlipProfile(ma) {
+  if (!ma?.flipId) return;
+  actionSheet.value.open = false;
+  try {
+    navigate({ url: `https://straightforward.flip-app.com/contacts/${ma.flipId}` });
+  } catch {
+    // Fallback if bridge navigation is unavailable
+    window.open(`https://straightforward.flip-app.com/contacts/${ma.flipId}`, '_blank');
+  }
+}
+
+function toggleNichtErschienen(ma) {
+  const ann = getAnnotation(ma.personalNr);
+  ann.nichtErschienen = !ann.nichtErschienen;
+  saveAnnotation(ma.personalNr, ann);
+  actionSheet.value.open = false;
+  try { showToast({ text: ann.nichtErschienen ? 'Nicht Erschienen markiert' : 'Nicht Erschienen aufgehoben', intent: 'success', duration: 2000 }); } catch {}
 }
 
 function jobNoteKey() {
@@ -1015,6 +1048,11 @@ watch(() => props.einsatz?._id, () => {
   color: #ea580c;
   border: 1px solid rgba(234, 88, 12, 0.3);
 }
+.ma-annot-badge--noshow {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
 
 
 /* Action Sheet */
@@ -1064,6 +1102,14 @@ watch(() => props.einsatz?._id, () => {
   background: rgba(234, 88, 12, 0.12);
   color: #ea580c;
 }
+.annot-action-icon--noshow {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+}
+.annot-action-icon--profile {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
 .annot-action-badge {
   margin-left: auto;
   font-size: 0.72rem;
@@ -1072,6 +1118,10 @@ watch(() => props.einsatz?._id, () => {
   border-radius: 8px;
   background: rgba(234, 88, 12, 0.1);
   color: #ea580c;
+}
+.annot-action-badge--noshow {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
 }
 
 .annot-cancel-btn {

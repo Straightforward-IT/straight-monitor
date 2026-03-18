@@ -167,7 +167,7 @@ router.get(
     // Collect all personalNrs to fetch Mitarbeiter in one query
     const personalNrs = [...new Set(einsaetze.map((e) => e.personalNr).filter(Boolean))];
     const mitarbeiterList = await Mitarbeiter.find({ personalnr: { $in: personalNrs } })
-      .select("personalnr vorname nachname telefon qualifikationen")
+      .select("personalnr vorname nachname telefon qualifikationen flip_id")
       .lean();
 
     // Resolve Teamleiter qualification (key 50055) to mark TL MAs
@@ -202,6 +202,7 @@ router.get(
         vorname: ma?.vorname || null,
         nachname: ma?.nachname || null,
         telefon: ma?.telefon || null,
+        flipId: ma?.flip_id || null,
         isTeamleiter: ma?._isTeamleiter || false,
         bezeichnung: e.bezeichnung || null,
         checkedIn: false,

@@ -416,20 +416,23 @@ async function loadEinsatzMitarbeiter(auftragNr) {
     // Pre-fill Mitarbeiter count
     if (all.length) form.mitarbeiter_anzahl = String(all.length);
 
-    // Pre-fill MA rows from stored Verspätung annotations
+    // Pre-fill MA rows from stored annotations (Verspätung / Nicht Erschienen)
     const prefilledRows = [];
     for (const ma of all) {
       try {
         const raw = localStorage.getItem(`maannot_${auftragNr}_${ma.personalNr}`);
         if (!raw) continue;
         const ann = JSON.parse(raw);
-        if (ann.verspaetung > 0) {
+        const parts = [];
+        if (ann.nichtErschienen) parts.push('Nicht erschienen');
+        if (ann.verspaetung > 0) parts.push(`Verspätung: ${ann.verspaetung} min`);
+        if (parts.length) {
           const first = ma.vorname || ma.bezeichnung || '';
           const last = ma.nachname || '';
           prefilledRows.push({
             personalNr: ma.personalNr,
             name: (first + ' ' + last).trim(),
-            text: `Verspätung: ${ann.verspaetung} min`
+            text: parts.join('\n')
           });
         }
       } catch { /* ignore */ }
