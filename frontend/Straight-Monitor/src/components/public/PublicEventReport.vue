@@ -363,6 +363,21 @@ const props = defineProps({
 
 defineEmits(['back']);
 
+// Allow parent to attempt internal back-navigation before leaving the view
+function tryGoBack() {
+  if (showForm.value || submitSuccess.value) {
+    backToList();
+    return true;
+  }
+  if (detailReport.value) {
+    closeDetail();
+    return true;
+  }
+  return false;
+}
+
+defineExpose({ tryGoBack });
+
 const theme = useTheme();
 const imgEventreport = computed(() => theme.isDark ? eventreportDark : eventreportLight);
 

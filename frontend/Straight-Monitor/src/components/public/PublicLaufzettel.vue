@@ -170,6 +170,20 @@ const props = defineProps({
 
 const emit = defineEmits(['back', 'laufzettel-submitted']);
 
+function tryGoBack() {
+  if (showForm.value) {
+    closeForm();
+    return true;
+  }
+  if (submitSuccess.value) {
+    submitSuccess.value = false;
+    return true;
+  }
+  return false;
+}
+
+defineExpose({ tryGoBack });
+
 const theme = useTheme();
 const imgLaufzettel = computed(() => theme.isDark ? laufzettelDark : laufzettelLight);
 

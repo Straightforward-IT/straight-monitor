@@ -55,6 +55,7 @@
 
         <!-- Laufzettel -->
         <PublicLaufzettel
+          ref="laufzettelRef"
           v-else-if="currentView === 'laufzettel'"
           :submitted="laufzettelSubmitted"
           :einsaetze="einsaetze"
@@ -105,6 +106,7 @@
 
         <!-- Event Report (Teamleiter) -->
         <PublicEventReport
+          ref="eventReportRef"
           v-else-if="currentView === 'eventreport'"
           :einsaetze="recentEinsaetze"
           :mitarbeiter="mitarbeiter"
@@ -298,6 +300,8 @@ const previousView = ref('dashboard');
 const selectedJob = ref(null);
 const reportPrefillEinsatz = ref(null);
 const selectedLaufzettel = ref(null);
+const eventReportRef = ref(null);
+const laufzettelRef = ref(null);
 
 // Persist nav state to localStorage
 function navStateKey() {
@@ -379,7 +383,10 @@ function handleBack() {
       goBackFromJob();
       break;
     case 'eventreport':
-      goBackFromReport();
+      if (!eventReportRef.value?.tryGoBack()) goBackFromReport();
+      break;
+    case 'laufzettel':
+      if (!laufzettelRef.value?.tryGoBack()) goBack();
       break;
     default:
       goBack();
