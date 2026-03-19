@@ -655,6 +655,95 @@ async function getFlipUserGroupAssignments(params = {}) {
   }
 }
 
+/**
+ * Fetches ALL user groups with pagination (page_limit default 25).
+ * Returns flat array of group objects with { id, title, status, type, ... }.
+ */
+async function getAllFlipUserGroups(params = {}) {
+  const allGroups = [];
+  let currentPage = 1;
+  let totalPages = 1;
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  try {
+    do {
+      const reqParams = { ...params, page_number: currentPage, page_limit: 100 };
+      try {
+        const response = await flipAxios.get("/api/admin/users/v4/user-groups", { params: reqParams });
+        if (response.data?.groups) {
+          allGroups.push(...response.data.groups);
+        }
+        const pagination = response.data?.pagination;
+        if (pagination) {
+          totalPages = pagination.total_pages ?? 1;
+          currentPage++;
+        } else {
+          break;
+        }
+      } catch (reqError) {
+        if (reqError.response?.status === 429) {
+          console.warn(`⏳ Rate limited (429). Waiting 2s before retrying page ${currentPage}...`);
+          await sleep(2000);
+          continue;
+        }
+        throw reqError;
+      }
+      await sleep(200);
+    } while (currentPage <= totalPages);
+
+    return allGroups;
+  } catch (error) {
+    console.error("❌ Error fetching all Flip user groups:", error.response?.data || error.message);
+    throw new Error("Failed to fetch all Flip user groups");
+  }
+}
+
+/**
+ * Fetches ALL assignments for a given group_id with pagination.
+ * Returns flat array of assignment objects.
+ */
+async function getAllFlipUserGroupAssignments(groupId) {
+  const allAssignments = [];
+  let currentPage = 1;
+  let totalPages = 1;
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  try {
+    do {
+      const params = { page_number: currentPage, page_limit: 100 };
+      try {
+        const response = await flipAxios.get(
+          `/api/admin/users/v4/user-groups/${groupId}/assignments`,
+          { params }
+        );
+        if (response.data?.assignments) {
+          allAssignments.push(...response.data.assignments);
+        }
+        const pagination = response.data?.pagination;
+        if (pagination) {
+          totalPages = pagination.total_pages ?? 1;
+          currentPage++;
+        } else {
+          break;
+        }
+      } catch (reqError) {
+        if (reqError.response?.status === 429) {
+          console.warn(`⏳ Rate limited (429). Waiting 2s before retrying page ${currentPage}...`);
+          await sleep(2000);
+          continue;
+        }
+        throw reqError;
+      }
+      await sleep(200);
+    } while (currentPage <= totalPages);
+
+    return allAssignments;
+  } catch (error) {
+    console.error(`❌ Error fetching all assignments for group ${groupId}:`, error.response?.data || error.message);
+    throw new Error("Failed to fetch all Flip user group assignments");
+  }
+}
+
 async function assignFlipUserGroups(req) {
   try {
     console.log("🚀 Assigning user to user groups. Raw data:", req.body.items);
@@ -1372,6 +1461,8 @@ module.exports = {
   getFlipUsers,
   getFlipUserGroups,
   getFlipUserGroupAssignments,
+  getAllFlipUserGroups,
+  getAllFlipUserGroupAssignments,
   getFlipProfilePicture,
   findFlipUserByName,
   findFlipUserById,

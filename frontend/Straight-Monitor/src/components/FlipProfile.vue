@@ -2,10 +2,6 @@
   <div class="flip-profile">
     <!-- Profile Overview -->
     <section class="profile-section">
-      <h3>
-        <font-awesome-icon icon="fa-solid fa-id-badge" />
-        Profil
-      </h3>
       <div class="data-grid">
         <div>
           <dt>Status</dt>
@@ -30,15 +26,19 @@
       </div>
     </section>
 
-    <!-- Groups -->
+    <!-- Groups (Tree) -->
     <section class="profile-section">
       <h3>
         <font-awesome-icon icon="fa-solid fa-users" />
         Gruppen
       </h3>
-      <div v-if="flipUser.groups?.length" class="groups">
-        <div v-for="group in flipUser.groups" :key="group.id" class="group">
-          <span class="group-name">{{ group.name }}</span>
+      <div v-if="groupRoots.length" class="group-tree-wrap">
+        <div
+          v-for="root in groupRoots"
+          :key="root.id"
+          class="gt-subtree"
+        >
+          <FlipGroupNode :node="root" />
         </div>
       </div>
       <div v-else class="empty">
@@ -66,10 +66,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useFlipAll } from '@/stores/flipAll'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import FlipGroupNode from './FlipGroupNode.vue'
 
 export default {
   name: 'FlipProfile',
-  components: { FontAwesomeIcon },
+  components: { FontAwesomeIcon, FlipGroupNode },
   
   props: {
     flipUser: {
@@ -84,6 +85,33 @@ export default {
     // Computed
     const userStatus = computed(() => props.flipUser.status?.toLowerCase() || 'unknown')
     const hasAttributes = computed(() => props.flipUser.attributes?.length > 0)
+
+    // Build hierarchical group tree nodes
+    const groupRoots = computed(() => {
+      const groups = props.flipUser.groups
+      if (!groups?.length) return []
+
+      const map = new Map()
+      for (const g of groups) {
+        map.set(g.id, { ...g, children: [] })
+      }
+
+      const roots = []
+      for (const node of map.values()) {
+        if (node.parent_id && map.has(node.parent_id)) {
+          map.get(node.parent_id).children.push(node)
+        } else {
+          roots.push(node)
+        }
+      }
+
+      const sortNodes = (nodes) => {
+        nodes.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'de'))
+        for (const n of nodes) sortNodes(n.children)
+      }
+      sortNodes(roots)
+      return roots
+    })
 
     // Methods
     const formatStatus = (status) => {
@@ -107,6 +135,7 @@ export default {
     return {
       userStatus,
       hasAttributes,
+      groupRoots,
       formatStatus,
       formatDate
     }
@@ -177,17 +206,15 @@ export default {
   }
 }
 
-.groups {
+.group-tree-wrap {
+  overflow-x: auto;
+  padding-bottom: 8px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  justify-content: center;
+}
 
-  .group {
-    background: var(--soft);
-    padding: 6px 10px;
-    border-radius: 8px;
-    font-size: 13px;
-  }
+.gt-subtree {
+  min-width: min-content;
 }
 
 .attributes {

@@ -25,6 +25,8 @@ const {
   getFlipUsers,
   getFlipUserGroups,
   getFlipUserGroupAssignments,
+  getAllFlipUserGroups,
+  getAllFlipUserGroupAssignments,
   findFlipUserById,
   findFlipUserByName,
   flipUserRoutine,
@@ -280,59 +282,87 @@ router.get(
     const users = await getFlipUsers(req.query);
     console.log(`📊 Fetched ${users.length} users from Flip API`);
     
-    // Teamleiter group IDs from FlipMappings.json
-    const TEAMLEITER_GROUP_IDS = [
-      'b99df75f-eb8d-42f8-838f-413223ae1572', // berlin_teamleiter
-      '806cb6f0-ee73-4376-98c0-710679c9ef96', // hamburg_teamleiter
-      'a99dfeff-9ee3-4de2-b6d1-15c59081b2a1'  // koeln_teamleiter
-    ];
-    
-    // Build a map of userId -> groups array
+    // 1) Alle Gruppen paginiert laden
+    const allGroups = await getAllFlipUserGroups({ status: "ACTIVE" });
+    // Gruppen-Info-Map: groupId → { name, parent_id, type }
+    const groupInfoMap = new Map();
+    for (const g of allGroups) {
+      const name = Array.isArray(g.title)
+        ? g.title[0]?.text ?? g.title[0]?.language ?? "—"
+        : g.title?.text ?? "—";
+      groupInfoMap.set(g.id, {
+        name,
+        parent_id: g.parent_id ?? null,
+        type: g.type ?? "CUSTOM"
+      });
+    }
+    console.log(`📂 Fetched ${allGroups.length} user groups from Flip API`);
+
+    // 2) Nur CUSTOM-Gruppen für Assignment-Abfrage (ROOT & ALL_USERS überspringen)
+    const customGroups = allGroups.filter(g => g.type === "CUSTOM");
     const userGroupsMap = new Map();
-    
-    // Fetch assignments for each teamleiter group
-    for (const groupId of TEAMLEITER_GROUP_IDS) {
-      try {
-        // console.log(`🔍 Fetching assignments for group: ${groupId}`);
-        const assignmentsData = await getFlipUserGroupAssignments({ group_id: groupId });
-        // console.log(`📋 Raw assignments response for ${groupId}:`, JSON.stringify(assignmentsData, null, 2));
-        
-        const assignmentsList = assignmentsData?.assignments || [];
-        // console.log(`✅ Found ${assignmentsList.length} assignments for group ${groupId}`);
-        
-        // Add this group to each user's groups array
-        for (const assignment of assignmentsList) {
+    const chunkSize = 5;
+    for (let i = 0; i < customGroups.length; i += chunkSize) {
+      const chunk = customGroups.slice(i, i + chunkSize);
+      const results = await Promise.allSettled(
+        chunk.map(g => getAllFlipUserGroupAssignments(g.id))
+      );
+      for (let j = 0; j < chunk.length; j++) {
+        const result = results[j];
+        if (result.status !== "fulfilled") {
+          console.error(`❌ Failed to fetch assignments for group ${chunk[j].id}:`, result.reason?.message);
+          continue;
+        }
+        const groupId = chunk[j].id;
+        const groupInfo = groupInfoMap.get(groupId);
+        for (const assignment of result.value) {
           const userId = assignment.id?.user_id || assignment.user_id;
-          if (!userId) {
-            // console.warn(`⚠️ Assignment missing user_id:`, assignment);
-            continue;
-          }
+          if (!userId) continue;
           if (!userGroupsMap.has(userId)) {
             userGroupsMap.set(userId, []);
           }
-          // Add group info to user's groups
           userGroupsMap.get(userId).push({
             id: groupId,
-            role_id: assignment.id?.role_id || assignment.role_id
+            name: groupInfo?.name ?? "—",
+            parent_id: groupInfo?.parent_id ?? null,
+            role_id: assignment.id?.role_id || assignment.role_id,
+            direct: true
           });
         }
-      } catch (err) {
-        console.error(`❌ Failed to fetch assignments for group ${groupId}:`, err.message);
       }
     }
+
+    // 3) Vorfahren-Gruppen ergänzen für Baum-Darstellung
+    for (const [userId, groups] of userGroupsMap) {
+      const existingIds = new Set(groups.map(g => g.id));
+      const ancestors = [];
+      for (const group of groups) {
+        let parentId = groupInfoMap.get(group.id)?.parent_id;
+        while (parentId && !existingIds.has(parentId)) {
+          const parentInfo = groupInfoMap.get(parentId);
+          if (!parentInfo || parentInfo.type === "ROOT" || parentInfo.type === "ALL_USERS") break;
+          existingIds.add(parentId);
+          ancestors.push({
+            id: parentId,
+            name: parentInfo.name,
+            parent_id: parentInfo.parent_id ?? null,
+            role_id: null,
+            direct: false
+          });
+          parentId = parentInfo.parent_id;
+        }
+      }
+      groups.push(...ancestors);
+    }
     
-    // console.log(`👥 Total users with teamleiter groups: ${userGroupsMap.size}`);
-    // console.log(`👥 User IDs with groups:`, Array.from(userGroupsMap.keys()));
-    
-    // Merge groups into user objects
+    // 4) Merge groups into user objects
     const usersWithGroups = users.map(user => ({
       ...user,
       groups: userGroupsMap.get(user.id) || []
     }));
     
-    // Log sample of users with groups
     const usersWithGroupsCount = usersWithGroups.filter(u => u.groups?.length > 0).length;
-    // console.log(`✅ ${usersWithGroupsCount} users have groups assigned`);
+    console.log(`👥 ${usersWithGroupsCount}/${users.length} users have groups assigned`);
     
     res.status(200).json(usersWithGroups);
   })

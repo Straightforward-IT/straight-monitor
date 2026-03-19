@@ -16,13 +16,14 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faUserXmark,
   faCircleXmark as faCircleXmarkSolid,
   faImagePortrait,
-  faCamera} from '@fortawesome/free-solid-svg-icons';
+  faCamera,
+  faFolderOpen} from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
   faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly, faPencil, 
   faCheck, faSortDown, faSortUp, faList, faPersonThroughWindow, faPersonCircleExclamation, 
-  faUserPlus, faPeopleLine, faFileInvoice, faTable, faSun, faMoon, faTableList, faStarHalfStroke, faBoxOpen, faImagePortrait,
+  faUserPlus, faPeopleLine, faFileInvoice, faTable, faSun, faMoon, faTableList, faStarHalfStroke, faBoxOpen, faImagePortrait, faFolderOpen,
   // Neue Icons
   faChevronUp, faChevronDown, faChevronLeft, faChevronRight, faTags, faIdBadge, faUsers, faListCheck, faChartBar, faChartBarSolid,
   faSpinner, faClipboardCheck, faExternalLinkAlt, faExternalLink, faTicketAlt, faEnvelope, faMobileAlt, faFileAlt,

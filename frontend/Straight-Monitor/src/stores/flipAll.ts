@@ -151,6 +151,8 @@ export const useFlipAll = defineStore("flipAll", {
       // wir überschreiben/vereinheitlichen minimal:
       const u = (data?.data ?? data) as any;
       if (!u?.id) return null;
+      // Bestehende Groups aus Store bewahren (Einzel-Fetch liefert keine Groups)
+      const existing = this.byId.get(u.id);
       const mapped: IFlipUser = {
         id: u.id,
         external_id: u.external_id ?? null,
@@ -175,6 +177,7 @@ export const useFlipAll = defineStore("flipAll", {
               status: u.primary_user_group.status ?? null,
             }
           : undefined,
+        groups: u.groups ?? existing?.groups ?? [],
       };
       this.byId.set(mapped.id!, mapped);
       if (mapped.email) this.byEmail.set(mapped.email.toLowerCase(), mapped);
