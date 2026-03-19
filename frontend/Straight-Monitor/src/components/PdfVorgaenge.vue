@@ -46,20 +46,24 @@
         </thead>
         <tbody>
           <tr v-for="v in vorgaenge" :key="v._id" :class="{ 'row-bereit': v.status === 'bereit' }">
-            <td class="td-name">
-              {{ v.name }}
-              <span
-                v-if="isStale(v)"
-                class="version-badge"
-                :title="`Vorlage wurde nach Erstellung dieses Vorgangs geändert (Vorgang v${v.templateVersion || 1} → Vorlage v${template?.version ?? '?'})`"
-              >
-                <font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> ältere Vorlage
-              </span>
+            <td>
+              <div class="td-name">
+                {{ v.name }}
+                <span
+                  v-if="isStale(v)"
+                  class="version-badge"
+                  :title="`Vorlage wurde nach Erstellung dieses Vorgangs geändert (Vorgang v${v.templateVersion || 1} → Vorlage v${template?.version ?? '?'})`"
+                >
+                  <font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> ältere Vorlage
+                </span>
+              </div>
             </td>
-            <td class="td-ma">
-              <span v-if="v.mitarbeiterName" class="ma-name">{{ v.mitarbeiterName }}</span>
-              <span v-if="v.mitarbeiterEmail" class="ma-email">{{ v.mitarbeiterEmail }}</span>
-              <span v-if="!v.mitarbeiterEmail && !v.mitarbeiterName" class="text-muted">—</span>
+            <td>
+              <div class="td-ma">
+                <span v-if="v.mitarbeiterName" class="ma-name">{{ v.mitarbeiterName }}</span>
+                <span v-if="v.mitarbeiterEmail" class="ma-email">{{ v.mitarbeiterEmail }}</span>
+                <span v-if="!v.mitarbeiterEmail && !v.mitarbeiterName" class="text-muted">—</span>
+              </div>
             </td>
             <td class="td-status">
               <span class="status-badge" :class="`status-${v.status}`">
@@ -69,35 +73,37 @@
             </td>
             <td class="td-date">{{ formatDate(v.createdAt) }}</td>
             <td class="td-actions">
-              <button class="btn-icon-sm" title="Bediener-Felder ausfüllen" @click="openFillDialog(v)">
-                <font-awesome-icon :icon="['fas', 'pen-to-square']" />
-              </button>
-              <button
-                class="btn-icon-sm"
-                title="Mitarbeiter-Link kopieren"
-                :disabled="!v.mitarbeiterEmail"
-                @click="copyFormLink(v)"
-              >
-                <font-awesome-icon :icon="['fas', 'link']" />
-              </button>
-              <button
-                class="btn-icon-sm"
-                title="E-Mail an Mitarbeiter senden"
-                :disabled="!v.mitarbeiterEmail"
-                @click="sendEmail(v)"
-              >
-                <font-awesome-icon :icon="['fas', 'envelope']" />
-              </button>
-              <button
-                class="btn-icon-sm btn-download"
-                title="PDF herunterladen"
-                @click="downloadPdf(v)"
-              >
-                <font-awesome-icon :icon="['fas', 'download']" />
-              </button>
-              <button class="btn-icon-sm btn-danger" title="Löschen" @click="deleteVorgang(v)">
-                <font-awesome-icon :icon="['fas', 'trash']" />
-              </button>
+              <div class="actions-wrap">
+                <button class="btn-icon-sm" title="Bediener-Felder ausfüllen" @click="openFillDialog(v)">
+                  <font-awesome-icon :icon="['fas', 'pen-to-square']" />
+                </button>
+                <button
+                  class="btn-icon-sm"
+                  title="Mitarbeiter-Link kopieren"
+                  :disabled="!v.mitarbeiterEmail"
+                  @click="copyFormLink(v)"
+                >
+                  <font-awesome-icon :icon="['fas', 'link']" />
+                </button>
+                <button
+                  class="btn-icon-sm"
+                  title="E-Mail an Mitarbeiter senden"
+                  :disabled="!v.mitarbeiterEmail"
+                  @click="sendEmail(v)"
+                >
+                  <font-awesome-icon :icon="['fas', 'envelope']" />
+                </button>
+                <button
+                  class="btn-icon-sm btn-download"
+                  title="PDF herunterladen"
+                  @click="downloadPdf(v)"
+                >
+                  <font-awesome-icon :icon="['fas', 'download']" />
+                </button>
+                <button class="btn-icon-sm btn-danger" title="Löschen" @click="deleteVorgang(v)">
+                  <font-awesome-icon :icon="['fas', 'trash']" />
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -485,7 +491,7 @@ onMounted(fetchData);
   }
   .th-actions { text-align: right; }
 }
-.td-name { font-weight: 500; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.td-name { font-weight: 500; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
 .version-badge {
   display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600;
   padding: 2px 7px; border-radius: 4px; background: rgba(234,179,8,.15); color: #92400e;
@@ -504,7 +510,8 @@ onMounted(fetchData);
 .ma-email { font-size: 11px; color: var(--text-muted); }
 .text-muted { color: var(--text-muted); }
 .td-date { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
-.td-actions { text-align: right; display: flex; gap: 4px; justify-content: flex-end; }
+.td-actions { vertical-align: middle; white-space: nowrap; width: 1%; }
+.actions-wrap { display: inline-flex; gap: 4px; align-items: center; }
 .td-status { white-space: nowrap; }
 .status-badge {
   display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600;

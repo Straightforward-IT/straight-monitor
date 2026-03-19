@@ -271,6 +271,13 @@
               <div class="panel-header">
                 <h3><font-awesome-icon :icon="['fas', 'sliders']" /> Auswahl</h3>
               </div>
+              <div class="auswahl-name">
+                <font-awesome-icon :icon="bookmarkIcon(bookmarkDataType(selectedPlacement.bookmarkId))" />
+                {{ placementDisplayLabel(selectedPlacement) }}
+                <span class="auswahl-role" :class="`rc-${bookmarkRole(selectedPlacement.bookmarkId)}`">
+                  {{ bookmarkRole(selectedPlacement.bookmarkId) === 'bediener' ? 'Bediener' : 'Mitarbeiter' }}
+                </span>
+              </div>
               <div class="fe-row">
                 <label class="fe-label">Schriftgröße</label>
                 <input v-model.number="selectedPlacement.fontSize" type="number" min="6" max="72" class="fe-input" />
@@ -800,7 +807,7 @@ onUnmounted(() => {
 .template-name { font-weight: 600; font-size: 14px; }
 .template-meta { font-size: 12px; color: var(--text-muted); display: flex; gap: 5px; }
 .template-desc { font-size: 12px; color: var(--text-muted); margin: 0; }
-.template-actions { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+.template-actions { display: flex; flex-direction: column; gap: 5px; margin-top: auto; }
 .btn-action {
   display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px;
   background: transparent; border: 1px solid var(--border); border-radius: 6px;
@@ -1004,6 +1011,15 @@ onUnmounted(() => {
 .auswahl-section {
   border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 8px;
   .panel-header { margin-bottom: 0; }
+}
+.auswahl-name {
+  display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500;
+  padding: 6px 8px; background: var(--bg); border-radius: 6px;
+}
+.auswahl-role {
+  margin-left: auto; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px;
+  &.rc-bediener    { background: rgba(59,130,246,.12); color: #2563eb; }
+  &.rc-mitarbeiter { background: rgba(34,197,94,.12);  color: #16a34a; }
 }
 .fe-input {
   border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px;
