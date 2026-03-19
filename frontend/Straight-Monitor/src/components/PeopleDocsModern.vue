@@ -182,6 +182,11 @@
             </div>
             
             <span class="divider" />
+
+            <FilterChip class="reset-chip" @click="resetAllFilters" title="Alle Filter zurücksetzen">
+              <font-awesome-icon icon="fa-solid fa-rotate-left" />
+              Zurücksetzen
+            </FilterChip>
             </div>
           </FilterPanel>
 
@@ -687,6 +692,7 @@ import CustomTooltip from './CustomTooltip.vue';
 import EmployeeCard from "@/components/EmployeeCard.vue";
 import FilterPanel from "@/components/FilterPanel.vue";
 import FilterDropdown from "@/components/FilterDropdown.vue";
+import FilterChip from "@/components/FilterChip.vue";
 import ExportMitarbeiterModal from "@/components/ExportMitarbeiterModal.vue";
 import ImageCropModal from "@/components/ImageCropModal.vue";
 import { useFlipAll } from "@/stores/flipAll";
@@ -781,7 +787,7 @@ library.add(
 
 export default {
   name: "Personal",
-  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel, FilterDropdown, ExportMitarbeiterModal, ImageCropModal },
+  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel, FilterDropdown, FilterChip, ExportMitarbeiterModal, ImageCropModal },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -1683,12 +1689,13 @@ export default {
 
     resetAllFilters() {
       this.filters = {
-        status: "Alle",
+        status: "Aktiv",
         location: (this.userLocation && this.locations.includes(this.userLocation)) ? this.userLocation : "Alle",
         department: "Alle",
         flipStatus: "Alle",
         asanaStatus: "Alle",
         personalnrStatus: "Alle",
+        profilbildStatus: "Alle",
         profile: "Alle",
         teamleiter: "Alle",
         berufe: [],
@@ -3388,6 +3395,15 @@ html {
       border-color: #9ca3af;
       color: #374151;
     }
+  }
+}
+
+.reset-chip :deep(.filter-chip) {
+  color: #ff4d4f;
+  border-color: #ff4d4f;
+
+  &:hover {
+    background: rgba(255, 77, 79, 0.1);
   }
 }
 
