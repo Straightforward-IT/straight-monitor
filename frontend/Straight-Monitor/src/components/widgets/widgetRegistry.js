@@ -73,6 +73,14 @@ export const WIDGET_DEFINITIONS = [
     defaultVisible: true,
   },
   {
+    id: 'profilbild',
+    title: 'Profilbild-Quote',
+    icon: ['fas', 'camera'],
+    component: defineAsyncComponent(() => import('./WidgetProfilbild.vue')),
+    description: 'Zeigt wie viele Flip-User ein Profilbild hinterlegt haben',
+    defaultVisible: true,
+  },
+  {
     id: 'sinnlos',
     title: 'Sinnloser Knopf',
     icon: ['fas', 'circle-exclamation'],

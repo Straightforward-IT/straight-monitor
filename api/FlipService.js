@@ -212,6 +212,27 @@ async function flipUserRoutine() {
           `🟡 Mitarbeiter ${mitarbeiter.vorname} ${mitarbeiter.nachname} active status synced (${shouldBeActive})`
         );
       }
+
+      // ── Set Flip location from Personalnr if location attribute is empty ──
+      if (!flipUser.profile?.location && mitarbeiter?.personalnr) {
+        const firstDigit = mitarbeiter.personalnr.charAt(0);
+        const locationMap = { '1': 'Berlin', '2': 'Hamburg', '3': 'Köln' };
+        const derivedLocation = locationMap[firstDigit];
+        if (derivedLocation) {
+          if (!flipUser.profile) flipUser.profile = {};
+          flipUser.profile.location = derivedLocation;
+          try {
+            await flipUser.update();
+            emailLogs.push(
+              `📍 Location gesetzt für ${flipUser.vorname} ${flipUser.nachname}: "${derivedLocation}" (Personalnr: ${mitarbeiter.personalnr})`
+            );
+          } catch (err) {
+            emailLogs.push(
+              `❌ Fehler beim Setzen der Location für ${flipUser.vorname} ${flipUser.nachname}: ${err.message}`
+            );
+          }
+        }
+      }
     }
 
     const allMitarbeiter = await Mitarbeiter.find({
@@ -563,34 +584,27 @@ async function getFlipUserGroups(params = {}) {
 
 // FlipService.js
 async function getFlipProfilePicture(userId) {
-  console.log(`🔍 Attempting to fetch profile picture for Flip user: ${userId}`);
-  
   try {
     // 1) Direkter Avatar-Endpunkt pro User (wenn Flip das anbietet)
-    console.log(`📡 Trying direct avatar endpoint for user: ${userId}`);
     const direct = await flipAxios.get(`/api/admin/users/v4/users/${userId}/avatar`, {
       responseType: 'arraybuffer'
     });
     
-    console.log(`✅ Direct avatar success for ${userId}, size: ${direct.data?.length || 0} bytes`);
     return {
       data: direct.data,
       contentType: direct.headers['content-type'] || 'image/jpeg',
     };
   } catch (err1) {
     const status = err1.response?.status;
-    console.log(`⚠️ Direct avatar failed for ${userId}: HTTP ${status}`);
     
     if (status && status !== 404) {
-      console.error('❌ Avatar (direct) failed with non-404:', status, err1.response?.data?.toString?.()?.substring(0, 200) || err1.message);
-      return null; // Nicht werfen, sondern null zurückgeben
+      return null;
     }
     // 404 → weiter mit Weg 2
   }
 
   try {
     // 2) User lesen → Media-ID ermitteln → Media holen
-    console.log(`📡 Trying media-based avatar for user: ${userId}`);
     const userResp = await flipAxios.get(`/api/admin/users/v4/users/${userId}`);
     const u = userResp.data || {};
 
@@ -608,25 +622,18 @@ async function getFlipProfilePicture(userId) {
       u?.profile?.picture?.file_id;
 
     if (!mediaId) {
-      // kein Bild gesetzt
-      console.log(`ℹ️ No media ID found for user ${userId}`);
       return null;
     }
-
-    console.log(`📡 Fetching media ${mediaId} for user ${userId}`);
     const mediaResp = await flipAxios.get(`/media/avatars/${mediaId}`, {
       responseType: 'arraybuffer'
     });
 
-    console.log(`✅ Media avatar success for ${userId}, size: ${mediaResp.data?.length || 0} bytes`);
     return {
       data: mediaResp.data,
       contentType: mediaResp.headers['content-type'] || 'image/jpeg',
     };
   } catch (err2) {
-    const dbg = err2.response?.data?.toString?.()?.substring(0, 200) || err2.message;
-    console.error(`❌ Error fetching Flip profile picture for ${userId}:`, dbg);
-    return null; // Statt Exception null zurückgeben
+    return null;
   }
 }
 

@@ -344,18 +344,14 @@ router.get(
   auth, // Auth-Middleware
   asyncHandler(async (req, res) => {
     const userId = req.params.id;
-    console.log(`🖼️ Profile picture request for user: ${userId}`);
     
     try {
       const result = await getFlipProfilePicture(userId);
 
       if (!result || !result.data) {
         // kein Avatar hinterlegt
-        console.log(`❌ No profile picture found for user: ${userId}`);
         return res.status(204).end();
       }
-      
-      console.log(`✅ Profile picture found for user ${userId}: ${result.data?.length || 0} bytes, type: ${result.contentType}`);
       
       // Cache-Headers setzen für bessere Performance
       res.set({

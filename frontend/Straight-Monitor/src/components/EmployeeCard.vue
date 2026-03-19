@@ -1086,6 +1086,10 @@
                 </div>
                 <div class="qa-group">
                   <div class="qa-group-label">Aktionen</div>
+                  <button class="qa-item" @click="executeQuickAction('share-link')">
+                    <font-awesome-icon :icon="linkCopied ? 'fa-solid fa-check' : 'fa-solid fa-link'" />
+                    {{ linkCopied ? 'Link kopiert!' : 'Link teilen' }}
+                  </button>
                   <button class="qa-item" @click="executeQuickAction('upload-photo')">
                     <font-awesome-icon icon="fa-solid fa-camera" /> Bild hochladen
                   </button>
@@ -1388,6 +1392,7 @@ export default {
 
       // Quick Actions Menu
       showQuickActionsMenu: false,
+      linkCopied: false,
       quickActionsMenuStyle: {},
 
       // EventReport Feedback (lazy-loaded on expand)
@@ -2333,6 +2338,9 @@ export default {
         case 'delete':
           this.openDeleteModal();
           break;
+        case 'share-link':
+          this.copyShareLink();
+          return; // Don't close menu yet
         case 'upload-photo':
           this.showImageCropModal = true;
           break;
@@ -2349,6 +2357,18 @@ export default {
           this.photoUrl = res.data.url;
         }
       } catch (_) { /* watchEffect will pick it up on next cycle */ }
+    },
+
+    copyShareLink() {
+      const resolved = this.$router.resolve({ name: 'Personal', query: { mitarbeiter_id: this.ma._id } });
+      const url = window.location.origin + resolved.href;
+      navigator.clipboard.writeText(url).then(() => {
+        this.linkCopied = true;
+        setTimeout(() => {
+          this.linkCopied = false;
+          this.showQuickActionsMenu = false;
+        }, 1200);
+      });
     },
 
     async toggleActiveStatus() {
