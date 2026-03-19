@@ -207,14 +207,16 @@ export default {
 }
 
 .group-tree-wrap {
+  display: flex;
+  gap: 24px;
   overflow-x: auto;
   padding-bottom: 8px;
-  display: flex;
-  justify-content: center;
+  max-width: 100%;
 }
 
 .gt-subtree {
   min-width: min-content;
+  flex-shrink: 0;
 }
 
 .attributes {

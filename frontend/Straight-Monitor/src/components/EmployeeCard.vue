@@ -3159,13 +3159,7 @@ export default {
   flex-direction: column;
   gap: 20px;
   padding: 16px;
-}
-
-.flip-content {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 16px;
+  min-width: 0;
 }
 
 /* ── Flip No Connection (Restore / Create / Link) ──────────────── */
@@ -3399,6 +3393,8 @@ export default {
 
 .flip-profile-section,
 .flip-tasks-section {
+  min-width: 0;
+
   .section-title {
     display: flex;
     align-items: center;
@@ -3767,6 +3763,7 @@ export default {
   grid-column: 1;
   grid-row: 2;
   display: block;
+  min-width: 0;
 }
 
 /* ---------- Hero Photo Panel ---------- */
