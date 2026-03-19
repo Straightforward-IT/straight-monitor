@@ -1647,6 +1647,7 @@ export default {
         if (response.data?.success) {
           // Update lokales Mitarbeiter-Objekt
           this.ma.personalnr = this.personalnrInput.trim();
+          this.dataCache.updateOneMitarbeiter(this.ma);
           this.cancelEditingPersonalnr();
           console.log("✅ Personalnr gespeichert:", this.personalnrInput.trim());
         } else {
@@ -1712,6 +1713,7 @@ export default {
         if (response.data?.success) {
           // Update lokales Mitarbeiter-Objekt
           this.ma.asana_id = null;
+          this.dataCache.updateOneMitarbeiter(this.ma);
           console.log("✅ Asana-Verknüpfung entfernt");
         } else {
           throw new Error(response.data?.message || "Unbekannter Fehler");
@@ -1758,6 +1760,7 @@ export default {
         if (response.data?.success) {
           // Update lokales Mitarbeiter-Objekt
           this.ma.asana_id = this.asanaGidInput.trim();
+          this.dataCache.updateOneMitarbeiter(this.ma);
           this.cancelAsanaLinking();
           console.log("✅ Asana-Verknüpfung erstellt");
         } else {
@@ -1881,6 +1884,7 @@ export default {
         if (response.data?.success) {
           // Update lokales Mitarbeiter-Objekt
           this.ma.asana_id = task.gid;
+          this.dataCache.updateOneMitarbeiter(this.ma);
           this.cancelAsanaLinking();
           console.log("✅ Asana-Task verknüpft:", task.name);
         } else {
@@ -2033,6 +2037,7 @@ export default {
         // Re-fetch the flip user data
         const flipRes = await api.get(`/api/personal/flip/by-id/${this.ma.flip_id}`);
         this.ma.flip = flipRes.data;
+        this.dataCache.updateOneMitarbeiter(this.ma);
         this.flipActionSuccess = "Flip-User erfolgreich wiederhergestellt!";
       } catch (err) {
         const msg = err.response?.data?.message || err.response?.data?.error?.title || err.message;
@@ -2124,6 +2129,7 @@ export default {
             this.ma.flip = flipRes.data;
           } catch { /* flip profile will show on next load */ }
         }
+        this.dataCache.updateOneMitarbeiter(this.ma);
         this.flipActionSuccess = "Flip-User erfolgreich erstellt und verknüpft!";
         this.showFlipCreateConfirm = false;
       } catch (err) {
@@ -2173,6 +2179,7 @@ export default {
           const flipRes = await api.get(`/api/personal/flip/by-id/${this.selectedFlipUser.id}`);
           this.ma.flip = flipRes.data;
         } catch { /* will show on next load */ }
+        this.dataCache.updateOneMitarbeiter(this.ma);
         this.flipActionSuccess = `Verknüpft mit ${this.selectedFlipUser.first_name} ${this.selectedFlipUser.last_name}`;
         this.closeFlipLinkModal();
       } catch (err) {
@@ -2380,6 +2387,7 @@ export default {
         
         if (response.data?.success) {
           this.ma.isActive = newStatus;
+          this.dataCache.updateOneMitarbeiter(this.ma);
         }
       } catch (error) {
         console.error("❌ Fehler beim Ändern des Status:", error);
@@ -2490,6 +2498,7 @@ export default {
           }
         });
         
+        this.dataCache.removeCachedMitarbeiter(this.ma._id);
         this.$emit("deleted", this.ma._id); 
         this.closeDeleteModal();
       } catch (error) {

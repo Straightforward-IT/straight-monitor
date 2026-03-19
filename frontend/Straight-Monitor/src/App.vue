@@ -9,6 +9,7 @@ import { watch, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRoute } from "vue-router";
 import { getTheme, initFlipBridge, subscribe, BridgeEventType } from "@getflip/bridge";
 import { useTheme } from "@/stores/theme";
+import { useDataCache } from "@/stores/dataCache";
 
 const route = useRoute();
 const themeStore = useTheme();
@@ -97,6 +98,7 @@ onBeforeUnmount(async () => {
 onMounted(() => {
   updateAppMargin();
   initializeFlipBridge(); // Einmalige Bridge-Initialisierung
+  useDataCache().initVisibilityHandler(); // Cache-Refresh bei Tab-Rückkehr
 });
 
 // Watch for route changes

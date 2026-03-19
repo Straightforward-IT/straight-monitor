@@ -67,6 +67,7 @@ import Banner from "./LoginBanner.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
 import { useAuth } from "@/stores/auth";
+import { useDataCache } from "@/stores/dataCache";
 import Dashboard from "./Dashboard.vue";
 import Bestand from "./Bestand.vue"; // Import Bestand component
 import Shortcuts from "./Shortcuts.vue";
@@ -119,6 +120,7 @@ export default {
       if (this.currentComponent === "Bestand" && this.$refs.bestandComponent) {
         this.$refs.bestandComponent.fetchItems();
       }
+      useDataCache().invalidateCache('items');
     },
     handleModalUpdate(state) {
       this.isModalOpen = state;

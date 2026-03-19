@@ -512,6 +512,7 @@ export default {
 
         const idx = this.items.findIndex((x) => x._id === updatedItem._id);
         if (idx !== -1) this.items.splice(idx, 1, updatedItem);
+        this.dataCache.updateCachedItem(updatedItem);
         item.isEditing = false;
       } catch (error) {
         console.error("Fehler beim Aktualisieren des Items:", error);
@@ -575,6 +576,7 @@ export default {
           anmerkung: this.anmerkung,
         });
         this.items.push(created);
+        this.dataCache.updateCachedItem(created);
         this.resetNewItem();
         this.showAddModal = false;
         this.closeModal();
@@ -613,6 +615,7 @@ export default {
 
         const idx = this.items.findIndex((x) => x._id === updated._id);
         if (idx !== -1) this.items.splice(idx, 1, updated);
+        this.dataCache.updateCachedItem(updated);
 
         this.resetInput();
       } catch (error) {

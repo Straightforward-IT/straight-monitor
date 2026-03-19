@@ -168,7 +168,24 @@ export const useDataCache = defineStore('dataCache', {
       flipusers: false,
       berufe: false,
       qualifikationen: false
-    }
+    },
+    
+    // Tracks whether each entity was synced at least once in this browser session.
+    // After a page refresh, Pinia state resets so these are all false again,
+    // ensuring the first load always triggers a background sync.
+    sessionSynced: {
+      mitarbeiter: false,
+      items: false,
+      auftraege: false,
+      kunden: false,
+      documents: false,
+      flipusers: false,
+      berufe: false,
+      qualifikationen: false
+    },
+    
+    // Visibility handler registered
+    _visibilityHandlerActive: false
   }),
   
   getters: {
@@ -268,11 +285,12 @@ export const useDataCache = defineStore('dataCache', {
         // If no cache or force refresh, do full load
         if (forceRefresh || this.mitarbeiter.length === 0) {
           await this.fullSyncMitarbeiter();
-        } else if (this.isCacheStale('mitarbeiter')) {
-          // Sync in background
+        } else if (!this.sessionSynced.mitarbeiter || this.isCacheStale('mitarbeiter')) {
+          // Always sync at least once per session (covers page refresh)
           this.incrementalSyncMitarbeiter();
         }
         
+        this.sessionSynced.mitarbeiter = true;
         return this.mitarbeiter;
       } finally {
         this.loading.mitarbeiter = false;
@@ -384,10 +402,11 @@ export const useDataCache = defineStore('dataCache', {
         
         if (forceRefresh || this.items.length === 0) {
           await this.fullSyncItems();
-        } else if (this.isCacheStale('items')) {
+        } else if (!this.sessionSynced.items || this.isCacheStale('items')) {
           this.incrementalSyncItems();
         }
         
+        this.sessionSynced.items = true;
         return this.items;
       } finally {
         this.loading.items = false;
@@ -477,10 +496,11 @@ export const useDataCache = defineStore('dataCache', {
         
         if (forceRefresh || this.documents.length === 0) {
           await this.fullSyncDocuments();
-        } else if (this.isCacheStale('documents')) {
+        } else if (!this.sessionSynced.documents || this.isCacheStale('documents')) {
           this.incrementalSyncDocuments();
         }
         
+        this.sessionSynced.documents = true;
         return this.documents;
       } finally {
         this.loading.documents = false;
@@ -570,16 +590,14 @@ export const useDataCache = defineStore('dataCache', {
           this.auftraege = cached;
           console.log(`[Cache] Loaded ${cached.length} Aufträge from IndexedDB`);
           
-          // Check if cache is stale (>5 minutes)
+          // Always sync at least once per session, otherwise when stale
           const lastSync = await getMeta('lastSync_auftraege');
-          if (lastSync) {
-            const cacheAge = Date.now() - new Date(lastSync).getTime();
-            if (cacheAge > 5 * 60 * 1000) {
-              console.log('[Cache] Aufträge cache is stale, syncing in background...');
-              this.incrementalSyncAuftraege();
-            }
+          if (!this.sessionSynced.auftraege || (lastSync && (Date.now() - new Date(lastSync).getTime()) > 5 * 60 * 1000)) {
+            console.log('[Cache] Aufträge: syncing in background...');
+            this.incrementalSyncAuftraege();
           }
           
+          this.sessionSynced.auftraege = true;
           return this.auftraege;
         }
         
@@ -677,16 +695,14 @@ export const useDataCache = defineStore('dataCache', {
           this.kunden = cached;
           console.log(`[Cache] Loaded ${cached.length} Kunden from IndexedDB`);
           
-          // Check if cache is stale (>5 minutes)
+          // Always sync at least once per session, otherwise when stale
           const lastSync = await getMeta('lastSync_kunden');
-          if (lastSync) {
-            const cacheAge = Date.now() - new Date(lastSync).getTime();
-            if (cacheAge > 5 * 60 * 1000) {
-              console.log('[Cache] Kunden cache is stale, syncing in background...');
-              this.incrementalSyncKunden();
-            }
+          if (!this.sessionSynced.kunden || (lastSync && (Date.now() - new Date(lastSync).getTime()) > 5 * 60 * 1000)) {
+            console.log('[Cache] Kunden: syncing in background...');
+            this.incrementalSyncKunden();
           }
           
+          this.sessionSynced.kunden = true;
           return this.kunden;
         }
         
@@ -768,16 +784,14 @@ export const useDataCache = defineStore('dataCache', {
           this.flipusers = cached;
           console.log(`[Cache] Loaded ${cached.length} FlipUsers from IndexedDB`);
           
-          // Check if cache is stale (>5 minutes)
+          // Always sync at least once per session, otherwise when stale
           const lastSync = await getMeta('lastSync_flipusers');
-          if (lastSync) {
-            const cacheAge = Date.now() - new Date(lastSync).getTime();
-            if (cacheAge > 5 * 60 * 1000) {
-              console.log('[Cache] FlipUsers cache is stale, refreshing in background...');
-              this.fullSyncFlipUsers();
-            }
+          if (!this.sessionSynced.flipusers || (lastSync && (Date.now() - new Date(lastSync).getTime()) > 5 * 60 * 1000)) {
+            console.log('[Cache] FlipUsers: refreshing in background...');
+            this.fullSyncFlipUsers();
           }
           
+          this.sessionSynced.flipusers = true;
           return this.flipusers;
         }
         
@@ -833,11 +847,12 @@ export const useDataCache = defineStore('dataCache', {
           }
         }
         
-        // Berufe change rarely, use longer cache time (1 hour)
-        if (forceRefresh || this.berufe.length === 0 || this.isCacheStale('berufe', 60)) {
+        // Berufe change rarely, use longer cache time (1 hour); always sync once per session
+        if (forceRefresh || this.berufe.length === 0 || !this.sessionSynced.berufe || this.isCacheStale('berufe', 60)) {
           await this.fullSyncBerufe();
         }
         
+        this.sessionSynced.berufe = true;
         return this.berufe;
       } finally {
         this.loading.berufe = false;
@@ -884,11 +899,12 @@ export const useDataCache = defineStore('dataCache', {
           }
         }
         
-        // Qualifikationen change rarely, use longer cache time (1 hour)
-        if (forceRefresh || this.qualifikationen.length === 0 || this.isCacheStale('qualifikationen', 60)) {
+        // Qualifikationen change rarely, use longer cache time (1 hour); always sync once per session
+        if (forceRefresh || this.qualifikationen.length === 0 || !this.sessionSynced.qualifikationen || this.isCacheStale('qualifikationen', 60)) {
           await this.fullSyncQualifikationen();
         }
         
+        this.sessionSynced.qualifikationen = true;
         return this.qualifikationen;
       } finally {
         this.loading.qualifikationen = false;
@@ -952,6 +968,47 @@ export const useDataCache = defineStore('dataCache', {
      */
     invalidateCache(key) {
       this.lastSync[key] = null;
+      this.sessionSynced[key] = false;
+    },
+    
+    /**
+     * Refresh all caches that have been loaded in this session.
+     * Called when the tab regains focus after being hidden.
+     */
+    async refreshAllLoaded() {
+      const syncs = [];
+      if (this.mitarbeiter.length > 0) syncs.push(this.incrementalSyncMitarbeiter());
+      if (this.items.length > 0) syncs.push(this.incrementalSyncItems());
+      if (this.documents.length > 0) syncs.push(this.incrementalSyncDocuments());
+      if (this.auftraege.length > 0) syncs.push(this.incrementalSyncAuftraege());
+      if (this.kunden.length > 0) syncs.push(this.incrementalSyncKunden());
+      if (this.flipusers.length > 0) syncs.push(this.fullSyncFlipUsers());
+      await Promise.allSettled(syncs);
+    },
+    
+    /**
+     * Register a handler that syncs all loaded caches when the
+     * browser tab becomes visible again after being hidden for >2 min.
+     */
+    initVisibilityHandler() {
+      if (this._visibilityHandlerActive) return;
+      this._visibilityHandlerActive = true;
+      
+      let hiddenSince = null;
+      
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          hiddenSince = Date.now();
+        } else if (hiddenSince) {
+          const awayMs = Date.now() - hiddenSince;
+          hiddenSince = null;
+          // Only sync if tab was hidden for >2 minutes
+          if (awayMs > 2 * 60 * 1000) {
+            console.log(`[Cache] Tab was hidden for ${Math.round(awayMs / 1000)}s — refreshing loaded caches`);
+            this.refreshAllLoaded();
+          }
+        }
+      });
     },
     
     /**
@@ -965,6 +1022,11 @@ export const useDataCache = defineStore('dataCache', {
         this.mitarbeiter.push(mitarbeiter);
       }
       await saveToStore('mitarbeiter', [mitarbeiter]);
+    },
+    
+    async removeCachedMitarbeiter(id) {
+      this.mitarbeiter = this.mitarbeiter.filter(m => m._id !== id);
+      await deleteFromStore('mitarbeiter', [id]);
     },
     
     async updateCachedItem(item) {

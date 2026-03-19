@@ -392,13 +392,15 @@
 <script>
 import api from "../utils/api";
 import { useAuth } from "../stores/auth";
+import { useDataCache } from "../stores/dataCache";
 import * as XLSX from 'xlsx';
 
 export default {
   name: "DatenImport",
   setup() {
     const authStore = useAuth();
-    return { authStore };
+    const dataCache = useDataCache();
+    return { authStore, dataCache };
   },
   computed: {
     isAdmin() {
@@ -572,6 +574,18 @@ export default {
         if (personalResult?.success) {
           api.get('/api/personal/initialRoutine').catch(() => {});
         }
+        
+        // Invalidate caches so the next navigation shows fresh data
+        const einsatzResult = results.find(r => r.type === 'Einsätze');
+        if (personalResult?.success) this.dataCache.invalidateCache('mitarbeiter');
+        if (einsatzResult?.success) {
+          this.dataCache.invalidateCache('auftraege');
+          this.dataCache.invalidateCache('kunden');
+        }
+        const berufResult = results.find(r => r.type === 'Berufe');
+        const qualiResult = results.find(r => r.type === 'Qualifikationen');
+        if (berufResult?.success) this.dataCache.invalidateCache('berufe');
+        if (qualiResult?.success) this.dataCache.invalidateCache('qualifikationen');
       } catch (err) {
         console.error("Global import error:", err);
         this.resultModalData = {
