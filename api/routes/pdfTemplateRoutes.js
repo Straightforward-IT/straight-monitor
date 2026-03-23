@@ -30,6 +30,44 @@ function stripPdfData(template) {
   };
 }
 
+// Helper: compute a flat fields array (one entry per bookmark) for the fill form
+function buildFieldsForClient(template) {
+  const ordered = sortedPdfs(template);
+  // Build globalPage lookup: "pdfIndex_localPage" → globalPageIndex
+  const globalPageLookup = {};
+  let offset = 0;
+  ordered.forEach((pdf, pdfIdx) => {
+    for (let lp = 0; lp < (pdf.pageCount || 1); lp++) {
+      globalPageLookup[`${pdfIdx}_${lp}`] = offset + lp;
+    }
+    offset += (pdf.pageCount || 1);
+  });
+  const pageCount = offset;
+
+  const fields = template.bookmarks.map(bm => {
+    const pl = template.placements.find(p => p.bookmarkId === bm.id);
+    const globalPage = pl != null
+      ? (globalPageLookup[`${pl.pdfIndex}_${pl.page}`] ?? 0)
+      : 0;
+    return {
+      id:           bm.id,
+      label:        bm.label,
+      type:         bm.dataType,
+      fillRole:     bm.fillRole,
+      optional:     bm.optional ?? false,
+      defaultValue: bm.defaultValue || '',
+      options:      bm.options || [],
+      page:         globalPage,
+      x:            pl?.x ?? 0,
+      y:            pl?.y ?? 0,
+      width:        pl?.width ?? 20,
+      height:       pl?.height ?? 5,
+      fontSize:     pl?.fontSize ?? 11,
+    };
+  });
+  return { fields, pageCount };
+}
+
 // ─── GET /api/pdf-templates ────────────────────────────────────────────────
 router.get('/', auth, asyncHandler(async (req, res) => {
   const templates = await PdfTemplate.find({}).sort({ createdAt: -1 });
@@ -60,7 +98,8 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 router.get('/:id', auth, asyncHandler(async (req, res) => {
   const template = await PdfTemplate.findById(req.params.id);
   if (!template) return res.status(404).json({ message: 'Vorlage nicht gefunden' });
-  res.json(stripPdfData(template));
+  const { fields, pageCount } = buildFieldsForClient(template);
+  res.json({ ...stripPdfData(template), fields, pageCount });
 }));
 
 // ─── PUT /api/pdf-templates/:id ───────────────────────────────────────────
@@ -272,6 +311,36 @@ router.get('/:id/preview', auth, asyncHandler(async (req, res) => {
   const bytes = await buildFilledPdf(template, {});
   const safeName = template.name.replace(/[^a-z0-9_\-]/gi, '_');
   res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${safeName}_vorschau.pdf"` });
+  res.send(bytes);
+}));
+
+// ─── GET /api/pdf-templates/:id/pdf ───────────────────────────────────────
+// Alias for preview: merged empty PDF for the fill-form preview
+router.get('/:id/pdf', auth, asyncHandler(async (req, res) => {
+  const template = await PdfTemplate.findById(req.params.id);
+  if (!template) return res.status(404).json({ message: 'Vorlage nicht gefunden' });
+  if (template.pdfs.length === 0) return res.status(400).json({ message: 'Keine PDFs in der Vorlage' });
+
+  const bytes = await buildFilledPdf(template, {});
+  const safeName = template.name.replace(/[^a-z0-9_\-]/gi, '_');
+  res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${safeName}_vorschau.pdf"` });
+  res.send(bytes);
+}));
+
+// ─── POST /api/pdf-templates/:id/fill ─────────────────────────────────────
+// Accepts { values: { bookmarkId: valueString, ... } } und returns a filled PDF
+router.post('/:id/fill', auth, asyncHandler(async (req, res) => {
+  const template = await PdfTemplate.findById(req.params.id);
+  if (!template) return res.status(404).json({ message: 'Vorlage nicht gefunden' });
+  if (template.pdfs.length === 0) return res.status(400).json({ message: 'Keine PDFs in der Vorlage' });
+
+  const { values = {} } = req.body;
+  const bytes = await buildFilledPdf(template, values);
+  const safeName = template.name.replace(/[^a-z0-9_\-]/gi, '_');
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `attachment; filename="${safeName}_ausgefuellt.pdf"`,
+  });
   res.send(bytes);
 }));
 

@@ -93,7 +93,7 @@
                 <div class="bm-edit">
                   <input v-model="bm.label" class="bm-input" placeholder="Bezeichnung" @keydown.enter="editingBookmarkId = null" />
                   <div class="bm-edit-row">
-                    <select v-model="bm.fillRole" class="bm-select">
+                    <select v-if="bm.dataType !== 'hinweis'" v-model="bm.fillRole" class="bm-select">
                       <option value="bediener">Bediener</option>
                       <option value="mitarbeiter">Mitarbeiter</option>
                     </select>
@@ -103,6 +103,7 @@
                       <option value="checkbox">Checkbox</option>
                       <option value="checkbox-group-single">CB-Gruppe (Single)</option>
                       <option value="checkbox-group-multi">CB-Gruppe (Multi)</option>
+                      <option value="hinweis">Hinweis</option>
                     </select>
                   </div>
                   <div v-if="isGroupType(bm.dataType)" class="bm-options-group">
@@ -125,8 +126,9 @@
                     </div>
                     <p v-if="!bm.options || bm.options.length === 0" class="bm-options-empty">Noch keine Optionen.</p>
                   </div>
+                  <textarea v-else-if="bm.dataType === 'hinweis'" v-model="bm.defaultValue" class="bm-input bm-hint-textarea" placeholder="Hinweistext eingeben…" rows="3"></textarea>
                   <input v-else v-model="bm.defaultValue" class="bm-input" placeholder="Standardwert (optional)" />
-                  <label class="bm-optional-toggle">
+                  <label v-if="bm.dataType !== 'hinweis'" class="bm-optional-toggle">
                     <input type="checkbox" v-model="bm.optional" />
                     <span>Optional (Feld darf leer bleiben)</span>
                   </label>
@@ -140,7 +142,7 @@
                 <font-awesome-icon :icon="bookmarkIcon(bm.dataType)" class="bm-type-icon" />
                 <span class="bm-label">{{ bm.label }}</span>
                 <span v-if="bm.optional" class="bm-optional-badge" title="Optional">opt.</span>
-                <span class="bm-role-badge" :class="`role-${bm.fillRole}`">{{ bm.fillRole === 'bediener' ? 'Bed.' : 'MA' }}</span>
+                <span v-if="bm.dataType !== 'hinweis'" class="bm-role-badge" :class="`role-${bm.fillRole}`">{{ bm.fillRole === 'bediener' ? 'Bed.' : 'MA' }}</span>
                 <span class="bm-count">×{{ placementCountOf(bm.id) }}</span>
                 <button class="bm-edit-btn" @click.stop="editingBookmarkId = bm.id" title="Bearbeiten">
                   <font-awesome-icon :icon="['fas', 'pen']" />
@@ -190,17 +192,26 @@
               v-for="pl in placementsOnCurrentPage"
               :key="pl.id"
               class="placement-overlay"
-              :class="[`plt-${bookmarkDataType(pl.bookmarkId)}`, `plt-role-${bookmarkRole(pl.bookmarkId)}`, { selected: selectedPlacementId === pl.id }]"
+              :class="[
+                `plt-${bookmarkDataType(pl.bookmarkId)}`,
+                `plt-role-${bookmarkRole(pl.bookmarkId)}`,
+                { selected: selectedPlacementId === pl.id, 'plt-dot': isCheckboxLike(bookmarkDataType(pl.bookmarkId)) }
+              ]"
               :style="placementStyle(pl)"
               @mousedown.prevent="startDrag($event, pl)"
               @contextmenu.prevent.stop="onPlacementRightClick($event, pl)"
             >
-              <span class="plt-label">{{ placementDisplayLabel(pl) }}</span>
-              <span class="plt-role-chip" :class="`rc-${bookmarkRole(pl.bookmarkId)}`">{{ bookmarkRole(pl.bookmarkId) === 'bediener' ? 'Bed.' : 'MA' }}</span>
-              <div class="rh rh-nw" @mousedown.stop.prevent="startResize($event, pl, 'nw')"></div>
-              <div class="rh rh-ne" @mousedown.stop.prevent="startResize($event, pl, 'ne')"></div>
-              <div class="rh rh-sw" @mousedown.stop.prevent="startResize($event, pl, 'sw')"></div>
-              <div class="rh rh-se" @mousedown.stop.prevent="startResize($event, pl, 'se')"></div>
+              <template v-if="isCheckboxLike(bookmarkDataType(pl.bookmarkId))">
+                <span class="plt-x-mark">✕</span>
+              </template>
+              <template v-else>
+                <span class="plt-label">{{ placementDisplayLabel(pl) }}</span>
+                <span class="plt-role-chip" :class="`rc-${bookmarkRole(pl.bookmarkId)}`">{{ bookmarkRole(pl.bookmarkId) === 'bediener' ? 'Bed.' : 'MA' }}</span>
+                <div class="rh rh-nw" @mousedown.stop.prevent="startResize($event, pl, 'nw')"></div>
+                <div class="rh rh-ne" @mousedown.stop.prevent="startResize($event, pl, 'ne')"></div>
+                <div class="rh rh-sw" @mousedown.stop.prevent="startResize($event, pl, 'sw')"></div>
+                <div class="rh rh-se" @mousedown.stop.prevent="startResize($event, pl, 'se')"></div>
+              </template>
             </div>
 
             <div v-if="ctxMenu.visible" class="ctx-menu" :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }" @click.stop>
@@ -399,6 +410,7 @@ function bookmarkIcon(dataType) {
     text: ['fas', 'font'], date: ['fas', 'calendar'], checkbox: ['fas', 'check'],
     'checkbox-group-single': ['fas', 'circle-dot'],
     'checkbox-group-multi': ['fas', 'list-check'],
+    hinweis: ['fas', 'circle-info'],
   };
   return map[dataType] || ['fas', 'font'];
 }
@@ -654,9 +666,11 @@ function removeBookmark(id) {
 // ── Placements ────────────────────────────────────────────────────────────
 function placementStyle(pl) {
   const bm = bookmarkById(pl.bookmarkId);
-  const h  = isCheckboxLike(bm?.dataType)
-    ? pl.height
-    : (((pl.fontSize || 11) * 1.5) / pageNaturalHeight.value) * 100;
+  if (isCheckboxLike(bm?.dataType)) {
+    // Fixed-size dot: position only, dimensions handled by CSS
+    return { left: `${pl.x}%`, top: `${pl.y}%` };
+  }
+  const h  = (((pl.fontSize || 11) * 1.5) / pageNaturalHeight.value) * 100;
   return { left: `${pl.x}%`, top: `${pl.y}%`, width: `${pl.width}%`, height: `${h}%` };
 }
 
@@ -671,8 +685,8 @@ function addPlacementAt(bookmarkId, pct, optionIndex = null) {
     page:      info.localPage,
     x:         pct.x,
     y:         pct.y,
-    width:     cbLike ? 4 : 25,
-    height:    cbLike ? 4 : 5,
+    width:     cbLike ? 2 : 25,
+    height:    cbLike ? 2 : 5,
     fontSize:  11,
   };
   if (optionIndex != null) pl.optionIndex = optionIndex;
@@ -931,6 +945,9 @@ onUnmounted(() => {
   font-size: 9px; border-radius: 3px; padding: 1px 4px; font-weight: 600; flex-shrink: 0;
   background: rgba(99,102,241,.15); color: #6366f1;
 }
+.bm-hint-textarea {
+  resize: vertical; min-height: 56px; line-height: 1.5;
+}
 .bm-done-btn {
   align-self: flex-end; font-size: 11px; padding: 4px 10px;
   background: var(--primary); color: #fff; border: none; border-radius: 5px;
@@ -984,6 +1001,19 @@ onUnmounted(() => {
     border-color: #38a169; background: rgba(56,161,105,.12);
     &:hover, &.selected { background: rgba(56,161,105,.25); }
   }
+  &.plt-dot {
+    width: 14px; height: 14px; border-radius: 50%; padding: 0;
+    align-items: center; justify-content: center; overflow: hidden;
+    &:hover, &.selected { background: rgba(255,140,0,0.45); }
+    &.plt-role-mitarbeiter {
+      &:hover, &.selected { background: rgba(56,161,105,.45); }
+    }
+  }
+}
+.plt-x-mark {
+  font-size: 9px; font-weight: 900; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; color: #333; pointer-events: none;
 }
 .plt-label {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
