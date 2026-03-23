@@ -308,7 +308,7 @@
           </div>
 
           <!-- Schichten Section -->
-          <div class="schichten-section" v-if="selectedEvent.einsaetze?.length">
+          <div class="schichten-section" v-if="Object.keys(preparedSchichten).length">
             <div class="section-header">
               <h3>Schichten</h3>
               <span class="section-count">{{ Object.keys(preparedSchichten).length }}</span>
