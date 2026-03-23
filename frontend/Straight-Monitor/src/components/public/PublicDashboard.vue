@@ -145,8 +145,8 @@ const props = defineProps({
 
 defineEmits(['navigate', 'open-job', 'toggle-debug-tl']);
 
-const DEBUG_EMAIL = 'cedricbglx@gmail.com';
-const isDebugUser = computed(() => props.email === DEBUG_EMAIL);
+const DEBUG_EMAILS = ['cedricbglx@gmail.com', 'dh@straightforward.email'];
+const isDebugUser = computed(() => DEBUG_EMAILS.includes(props.email));
 
 function formatTime(val) {
   if (!val) return '';

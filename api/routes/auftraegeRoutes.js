@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Auftrag = require('../models/Auftrag');
 const Einsatz = require('../models/Einsatz');
+const Schicht = require('../models/Schicht');
 const Kunde = require('../models/Kunde');
 const Mitarbeiter = require('../models/Mitarbeiter');
 const Beruf = require('../models/Beruf');
@@ -193,6 +194,11 @@ router.get('/:auftragNr/details', async (req, res) => {
     const einsaetze = await Einsatz.find({ auftragNr: parseInt(auftragNr) })
       .sort({ idAuftragArbeitsschichten: 1, datumVon: 1 })
       .lean();
+
+    // Get all Schichten for this Auftrag (7011 import data)
+    const schichten = await Schicht.find({ auftragNr: parseInt(auftragNr) })
+      .sort({ idAuftragArbeitsschichten: 1, datumVon: 1 })
+      .lean();
     
     // -- Optimization: Batch fetch related data --
     const personalNrs = [...new Set(einsaetze.map(e => e.personalNr).filter(Boolean).map(String))];
@@ -237,7 +243,8 @@ router.get('/:auftragNr/details', async (req, res) => {
     res.json({
       ...auftrag,
       kundeData,
-      einsaetze: einsaetzeWithMitarbeiter
+      einsaetze: einsaetzeWithMitarbeiter,
+      schichten
     });
     
   } catch (error) {
@@ -423,23 +430,33 @@ router.post('/:auftragNr/pseudo-einsatz', asyncHandler(async (req, res) => {
   });
   if (duplicate) return res.status(400).json({ message: 'Mitarbeiter bereits in dieser Schicht eingeplant' });
 
-  // Copy metadata from an existing Einsatz in the same schicht
+  // Copy metadata from an existing Einsatz or Schicht in the same schicht
   const templateQuery = { auftragNr: parseInt(auftragNr) };
   if (schichtId) templateQuery.idAuftragArbeitsschichten = parseInt(schichtId);
   const template = await Einsatz.findOne(templateQuery).lean();
 
+  // Fallback: use Schicht if no Einsatz template found (e.g. empty shift from 7011)
+  let schichtTemplate = null;
+  if (!template && schichtId) {
+    schichtTemplate = await Schicht.findOne({
+      auftragNr: parseInt(auftragNr),
+      idAuftragArbeitsschichten: parseInt(schichtId)
+    }).lean();
+  }
+  const tpl = template || schichtTemplate;
+
   const newEinsatz = new Einsatz({
     auftragNr: parseInt(auftragNr),
     personalNr: personalnrInt,
-    datumVon: template?.datumVon || auftrag.vonDatum,
-    datumBis: template?.datumBis || auftrag.bisDatum,
-    idAuftragArbeitsschichten: schichtId ? parseInt(schichtId) : template?.idAuftragArbeitsschichten,
-    schichtBezeichnung: template?.schichtBezeichnung,
-    uhrzeitVon: template?.uhrzeitVon,
-    uhrzeitBis: template?.uhrzeitBis,
-    treffpunkt: template?.treffpunkt,
-    ansprechpartnerName: template?.ansprechpartnerName,
-    ansprechpartnerTelefon: template?.ansprechpartnerTelefon,
+    datumVon: tpl?.datumVon || auftrag.vonDatum,
+    datumBis: tpl?.datumBis || auftrag.bisDatum,
+    idAuftragArbeitsschichten: schichtId ? parseInt(schichtId) : tpl?.idAuftragArbeitsschichten,
+    schichtBezeichnung: tpl?.schichtBezeichnung || tpl?.bezeichnung,
+    uhrzeitVon: tpl?.uhrzeitVon,
+    uhrzeitBis: tpl?.uhrzeitBis,
+    treffpunkt: tpl?.treffpunkt,
+    ansprechpartnerName: tpl?.ansprechpartnerName,
+    ansprechpartnerTelefon: tpl?.ansprechpartnerTelefon,
     bezeichnung: template?.bezeichnung,
     berufSchl: template?.berufSchl,
     qualSchl: template?.qualSchl,

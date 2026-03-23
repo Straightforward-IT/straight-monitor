@@ -795,29 +795,55 @@ export default {
     },
     // Determine shifts and metadata from event details (Lazy Load)
     calculateSchichten(event) {
-      if (!event?.einsaetze) return {};
+      if (!event?.einsaetze && !event?.schichten) return {};
       const grouped = {};
-      
-      event.einsaetze.forEach(e => {
-        const key = e.idAuftragArbeitsschichten || 'none';
-        if (!grouped[key]) {
-          grouped[key] = {
-            einsaetze: [],
-            meta: {
-              schichtBezeichnung: e.schichtBezeichnung || null,
-              treffpunkt: e.treffpunkt || null,
-              ansprechpartnerName: e.ansprechpartnerName || null,
-              ansprechpartnerTelefon: e.ansprechpartnerTelefon || null,
-              ansprechpartnerEmail: e.ansprechpartnerEmail || null,
-              uhrzeitVon: e.uhrzeitVon || null,
-              uhrzeitBis: e.uhrzeitBis || null,
-              bedarf: e.bedarf || null,
-              bedarfMet: false
-            }
-          };
-        }
-        grouped[key].einsaetze.push(e);
-      });
+
+      // 1. Seed from Schicht records (7011 import — includes empty shifts with bedarf)
+      if (event.schichten) {
+        event.schichten.forEach(s => {
+          const key = s.idAuftragArbeitsschichten || 'none';
+          if (!grouped[key]) {
+            grouped[key] = {
+              einsaetze: [],
+              meta: {
+                schichtBezeichnung: s.bezeichnung || null,
+                treffpunkt: s.treffpunkt || null,
+                ansprechpartnerName: s.ansprechpartnerName || null,
+                ansprechpartnerTelefon: s.ansprechpartnerTelefon || null,
+                ansprechpartnerEmail: s.ansprechpartnerEmail || null,
+                uhrzeitVon: s.uhrzeitVon || null,
+                uhrzeitBis: s.uhrzeitBis || null,
+                bedarf: s.bedarf || null,
+                bedarfMet: false
+              }
+            };
+          }
+        });
+      }
+
+      // 2. Add Einsätze (assigned employees) to their shifts
+      if (event.einsaetze) {
+        event.einsaetze.forEach(e => {
+          const key = e.idAuftragArbeitsschichten || 'none';
+          if (!grouped[key]) {
+            grouped[key] = {
+              einsaetze: [],
+              meta: {
+                schichtBezeichnung: e.schichtBezeichnung || null,
+                treffpunkt: e.treffpunkt || null,
+                ansprechpartnerName: e.ansprechpartnerName || null,
+                ansprechpartnerTelefon: e.ansprechpartnerTelefon || null,
+                ansprechpartnerEmail: e.ansprechpartnerEmail || null,
+                uhrzeitVon: e.uhrzeitVon || null,
+                uhrzeitBis: e.uhrzeitBis || null,
+                bedarf: e.bedarf || null,
+                bedarfMet: false
+              }
+            };
+          }
+          grouped[key].einsaetze.push(e);
+        });
+      }
       
       // Calculate bedarfMet for each schicht and sort employees (Teamleiter first)
       Object.values(grouped).forEach(schicht => {

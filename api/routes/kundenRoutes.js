@@ -3,8 +3,26 @@ const router = express.Router();
 const Kunde = require('../models/Kunde');
 const Auftrag = require('../models/Auftrag');
 const Einsatz = require('../models/Einsatz');
+const Schicht = require('../models/Schicht');
 const asyncHandler = require('../middleware/AsyncHandler');
 const auth = require('../middleware/auth');
+
+// Helper: builds forecast pipeline stages that query BOTH Schicht and Einsatz collections.
+// This handles the transition from 7001 (bedarf only in Einsatz) to 7011 (bedarf in Schicht,
+// including shifts with no assigned employees that have no Einsatz record).
+const forecastUnionPipeline = (matchCondition) => [
+  { $match: { ...matchCondition, bedarf: { $gt: 0 } } },
+  { $project: { auftragNr: 1, idAuftragArbeitsschichten: 1, datumVon: 1, bedarf: 1 } },
+  { $unionWith: { coll: 'einsatzs', pipeline: [
+    { $match: { ...matchCondition, bedarf: { $gt: 0 } } },
+    { $project: { auftragNr: 1, idAuftragArbeitsschichten: 1, datumVon: 1, bedarf: 1 } }
+  ]}},
+  // Deduplicate: one bedarf per unique shift-day (handles overlapping Schicht + Einsatz records)
+  { $group: {
+    _id: { auftragNr: '$auftragNr', idAuftragArbeitsschichten: '$idAuftragArbeitsschichten', datumVon: '$datumVon' },
+    bedarf: { $first: '$bedarf' }
+  }}
+];
 
 // @route   GET /api/kunden
 // @desc    Alle Kunden abrufen
@@ -143,16 +161,7 @@ router.get('/analytics/einsaetze', auth, asyncHandler(async (req, res) => {
   if (bis) forecastMatchStage.datumVon.$lte = new Date(bis);
 
   const forecastPipeline = [
-    { $match: { ...forecastMatchStage, bedarf: { $gt: 0 } } },
-    // Deduplicate: one entry per unique shift-day
-    { $group: {
-      _id: {
-        auftragNr: '$auftragNr',
-        idAuftragArbeitsschichten: '$idAuftragArbeitsschichten',
-        datumVon: '$datumVon'
-      },
-      bedarf: { $first: '$bedarf' }
-    }},
+    ...forecastUnionPipeline(forecastMatchStage),
     // Sum bedarf per month
     { $group: {
       _id: {
@@ -163,7 +172,7 @@ router.get('/analytics/einsaetze', auth, asyncHandler(async (req, res) => {
     }},
     { $sort: { '_id.year': 1, '_id.month': 1 } }
   ];
-  const forecastResult = await Einsatz.aggregate(forecastPipeline);
+  const forecastResult = await Schicht.aggregate(forecastPipeline);
 
   // Merge IST + Forecast into data array
   const dataMap = {};
@@ -223,15 +232,7 @@ router.get('/analytics/einsaetze', auth, asyncHandler(async (req, res) => {
 
     // Forecast breakdown per Kunde
     const forecastBreakdownPipeline = [
-      { $match: { ...forecastMatchStage, bedarf: { $gt: 0 } } },
-      { $group: {
-        _id: {
-          auftragNr: '$auftragNr',
-          idAuftragArbeitsschichten: '$idAuftragArbeitsschichten',
-          datumVon: '$datumVon'
-        },
-        bedarf: { $first: '$bedarf' }
-      }},
+      ...forecastUnionPipeline(forecastMatchStage),
       { $group: {
         _id: {
           auftragNr: '$_id.auftragNr',
@@ -241,7 +242,7 @@ router.get('/analytics/einsaetze', auth, asyncHandler(async (req, res) => {
         forecast: { $sum: '$bedarf' }
       }}
     ];
-    const fBreakdown = await Einsatz.aggregate(forecastBreakdownPipeline);
+    const fBreakdown = await Schicht.aggregate(forecastBreakdownPipeline);
     fBreakdown.forEach(r => {
       const originalKnr = auftragToKundeOriginal[r._id.auftragNr];
       if (!originalKnr) return;
@@ -363,15 +364,7 @@ router.get('/analytics/einsaetze/standort', auth, asyncHandler(async (req, res) 
   if (bis) forecastMatchStage.datumVon.$lte = new Date(bis);
 
   const forecastPipeline = [
-    { $match: { ...forecastMatchStage, bedarf: { $gt: 0 } } },
-    { $group: {
-      _id: {
-        auftragNr: '$auftragNr',
-        idAuftragArbeitsschichten: '$idAuftragArbeitsschichten',
-        datumVon: '$datumVon'
-      },
-      bedarf: { $first: '$bedarf' }
-    }},
+    ...forecastUnionPipeline(forecastMatchStage),
     { $group: {
       _id: {
         year: { $year: '$_id.datumVon' },
@@ -381,7 +374,7 @@ router.get('/analytics/einsaetze/standort', auth, asyncHandler(async (req, res) 
     }},
     { $sort: { '_id.year': 1, '_id.month': 1 } }
   ];
-  const forecastResult = await Einsatz.aggregate(forecastPipeline);
+  const forecastResult = await Schicht.aggregate(forecastPipeline);
 
   // Merge IST + Forecast
   const dataMap = {};
@@ -419,15 +412,7 @@ router.get('/analytics/einsaetze/standort', auth, asyncHandler(async (req, res) 
 
   // Forecast breakdown per Standort
   const forecastBreakdownPipeline = [
-    { $match: { ...forecastMatchStage, bedarf: { $gt: 0 } } },
-    { $group: {
-      _id: {
-        auftragNr: '$auftragNr',
-        idAuftragArbeitsschichten: '$idAuftragArbeitsschichten',
-        datumVon: '$datumVon'
-      },
-      bedarf: { $first: '$bedarf' }
-    }},
+    ...forecastUnionPipeline(forecastMatchStage),
     { $group: {
       _id: {
         auftragNr: '$_id.auftragNr',
@@ -437,7 +422,7 @@ router.get('/analytics/einsaetze/standort', auth, asyncHandler(async (req, res) 
       forecast: { $sum: '$bedarf' }
     }}
   ];
-  const fStandortResult = await Einsatz.aggregate(forecastBreakdownPipeline);
+  const fStandortResult = await Schicht.aggregate(forecastBreakdownPipeline);
   fStandortResult.forEach(r => {
     const knr = auftragToKunde[r._id.auftragNr];
     if (!knr) return;
@@ -532,22 +517,14 @@ router.get('/analytics/einsaetze/daily', auth, asyncHandler(async (req, res) => 
   // Forecast per day (future only, deduplicated by shift)
   const forecastMatchStage = { auftragNr: { $in: auftragNrs }, datumVon: { $gt: today, $lte: bis } };
   const forecastDailyPipeline = [
-    { $match: { ...forecastMatchStage, bedarf: { $gt: 0 } } },
-    { $group: {
-      _id: {
-        auftragNr: '$auftragNr',
-        idAuftragArbeitsschichten: '$idAuftragArbeitsschichten',
-        datumVon: '$datumVon'
-      },
-      bedarf: { $first: '$bedarf' }
-    }},
+    ...forecastUnionPipeline(forecastMatchStage),
     { $group: {
       _id: { day: { $dayOfMonth: '$_id.datumVon' } },
       forecast: { $sum: '$bedarf' }
     }},
     { $sort: { '_id.day': 1 } }
   ];
-  const forecastDailyResult = await Einsatz.aggregate(forecastDailyPipeline);
+  const forecastDailyResult = await Schicht.aggregate(forecastDailyPipeline);
   const forecastData = forecastDailyResult.map(r => ({ day: r._id.day, forecast: r.forecast }));
 
   // Auftrag-level breakdown (IST — always returned for drill-down stacking)
@@ -562,21 +539,13 @@ router.get('/analytics/einsaetze/daily', auth, asyncHandler(async (req, res) => 
 
   // Auftrag-level forecast breakdown
   const auftragForecastPipeline = [
-    { $match: { ...forecastMatchStage, bedarf: { $gt: 0 } } },
-    { $group: {
-      _id: {
-        auftragNr: '$auftragNr',
-        idAuftragArbeitsschichten: '$idAuftragArbeitsschichten',
-        datumVon: '$datumVon'
-      },
-      bedarf: { $first: '$bedarf' }
-    }},
+    ...forecastUnionPipeline(forecastMatchStage),
     { $group: {
       _id: { auftragNr: '$_id.auftragNr', day: { $dayOfMonth: '$_id.datumVon' } },
       forecast: { $sum: '$bedarf' }
     }}
   ];
-  const auftragForecastResult = await Einsatz.aggregate(auftragForecastPipeline);
+  const auftragForecastResult = await Schicht.aggregate(auftragForecastPipeline);
 
   // Build a map of auftragNr -> eventTitel for labeling
   const allAuftragNrsFromResults = [...new Set([

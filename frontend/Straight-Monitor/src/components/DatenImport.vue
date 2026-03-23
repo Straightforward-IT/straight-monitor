@@ -225,10 +225,26 @@
         <div class="modal-body">
           <p class="result-message" v-html="resultModalData.message"></p>
           
-          <!-- Master Import Details (Zvoove Komplett) -->
-          <div v-if="resultModalData.details && (resultModalData.details.auftrag || resultModalData.details.einsatz)" class="master-stats-container">
+          <!-- Master Import Details (Zvoove Komplett / Schichten) -->
+          <div v-if="resultModalData.details && (resultModalData.details.auftrag || resultModalData.details.einsatz || resultModalData.details.schicht)" class="master-stats-container">
             <h3>📊 Detaillierte Auswertung</h3>
             <div class="master-stats-grid">
+              <!-- Schichten Card -->
+              <div v-if="resultModalData.details.schicht" class="stat-card master-card">
+                <div class="stat-icon green"><i class="fas fa-layer-group"></i></div>
+                <div class="stat-content">
+                  <span class="stat-title">Schichten</span>
+                  <div class="stat-row">
+                    <span class="val success">+{{ resultModalData.details.schicht.inserted || 0 }}</span>
+                    <span class="lbl">Neu</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="val danger">-{{ resultModalData.details.schicht.deleted || 0 }}</span>
+                    <span class="lbl">Ersetzt</span>
+                  </div>
+                </div>
+              </div>
+
               <!-- Einsätze Card -->
               <div v-if="resultModalData.details.einsatz" class="stat-card master-card">
                 <div class="stat-icon blue"><i class="fas fa-calendar-check"></i></div>
@@ -542,7 +558,7 @@ export default {
           results.push({ type: 'Einsätze', ...response });
           if (!response.success) hasErrors = true;
         }
-        
+
         if (this.personalFile) {
           const response = await this.uploadFile(this.personalFile, 'personal');
           results.push({ type: 'Personal', ...response });
@@ -616,7 +632,7 @@ export default {
         
         if (result.details) {
           // Check for nested master import structure
-          if (result.details.auftrag || result.details.kunde || result.details.einsatz) {
+          if (result.details.auftrag || result.details.kunde || result.details.einsatz || result.details.schicht) {
              nestedStats = result.details;
           }
 
@@ -1248,6 +1264,7 @@ export default {
     &.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
     &.orange { background: rgba(249, 115, 22, 0.1); color: #f97316; }
     &.purple { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+    &.green { background: rgba(34, 197, 94, 0.1); color: #22c55e; }
   }
 
   .stat-content {
