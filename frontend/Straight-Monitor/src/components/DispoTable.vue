@@ -208,22 +208,15 @@
                   @mousedown="onCellMouseDown(ma, day, $event)"
                   @mouseenter="onCellMouseEnter(ma, day)"
                   @mouseleave="onCellMouseLeave()"
+                  @mousemove.passive="onCellMouseMove(ma, day, $event)"
                 >
-              <CustomTooltip
-                v-if="getCellTooltip(ma._id, day.iso)"
-                :text="getCellTooltip(ma._id, day.iso)"
-                position="mouse"
-              >
-                <div class="cell-inner">
-                  <span v-if="cellKuerzel(ma._id, day.iso)" class="cell-label">{{ cellKuerzel(ma._id, day.iso) }}</span>
-                  <font-awesome-icon v-else-if="cellIcon(ma._id, day.iso)" :icon="cellIcon(ma._id, day.iso)" class="cell-icon" />
+                <div class="cell-fill">
+                  <div class="cell-inner">
+                    <span v-if="cellKuerzel(ma._id, day.iso)" class="cell-label">{{ cellKuerzel(ma._id, day.iso) }}</span>
+                    <font-awesome-icon v-else-if="cellIcon(ma._id, day.iso)" :icon="cellIcon(ma._id, day.iso)" class="cell-icon" />
+                  </div>
+                  <span v-if="getCellNote(ma._id, day.iso)" class="note-dot">i</span>
                 </div>
-              </CustomTooltip>
-              <div v-else-if="cellIcon(ma._id, day.iso)" class="cell-inner">
-                <span v-if="cellKuerzel(ma._id, day.iso)" class="cell-label">{{ cellKuerzel(ma._id, day.iso) }}</span>
-                <font-awesome-icon v-else :icon="cellIcon(ma._id, day.iso)" class="cell-icon" />
-              </div>
-              <div v-else class="cell-inner"></div>
             </td>
           </tr>
           <tr v-if="filteredMitarbeiter.length === 0">
@@ -236,6 +229,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Cell Tooltip -->
+    <teleport to="body">
+      <div
+        v-if="cellTooltipState.visible"
+        class="dispo-cell-tooltip"
+        :style="{ top: cellTooltipState.y + 20 + 'px', left: cellTooltipState.x + 'px' }"
+      >{{ cellTooltipState.text }}</div>
+    </teleport>
 
     <!-- Name Context Menu -->
     <teleport to="body">
@@ -293,6 +295,29 @@
                 <font-awesome-icon icon="fa-solid fa-plus" /> Hinzufügen
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </teleport>
+
+    <!-- Cell Note Modal -->
+    <teleport to="body">
+      <div v-if="cellNoteModal.open" class="modal-overlay" @click="closeCellNote">
+        <div class="cell-note-modal" @click.stop>
+          <div class="cell-note-modal-header">
+            <span>Notiz · {{ cellNoteModal.ma?.vorname }} {{ cellNoteModal.ma?.nachname }} · {{ formatIsoDate(cellNoteModal.day) }}</span>
+            <button class="close-btn" @click="closeCellNote"><font-awesome-icon icon="fa-solid fa-times" /></button>
+          </div>
+          <textarea
+            v-model="cellNoteModal.text"
+            class="cell-note-textarea"
+            placeholder="Notiz eingeben…"
+            rows="5"
+            autofocus
+          ></textarea>
+          <div class="cell-note-modal-actions">
+            <button class="btn-cancel" @click="closeCellNote">Abbrechen</button>
+            <button class="btn-save" @click="saveCellNote" :disabled="!cellNoteModal.text.trim()">Speichern</button>
           </div>
         </div>
       </div>
@@ -378,6 +403,14 @@
           <button class="ctx-item ctx-item--clear" @click="clearStatus">
             <font-awesome-icon icon="fa-solid fa-eraser" class="ctx-item-icon" /> Löschen
           </button>
+
+          <template v-if="!ctxMenu.isMulti">
+            <div class="ctx-divider"></div>
+            <button class="ctx-item" @click="openCellNote(ctxMenu.ma, { iso: ctxMenu.day })">
+              <font-awesome-icon icon="fa-solid fa-note-sticky" class="ctx-item-icon" />
+              {{ ctxMenu.entries.some(e => e.typ === 'notiz') ? 'Notiz bearbeiten' : 'Notiz schreiben' }}
+            </button>
+          </template>
         </div>
       </div>
     </teleport>
@@ -397,7 +430,7 @@ import FilterChip from '@/components/FilterChip.vue';
 import FilterDivider from '@/components/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
-import CustomTooltip from '@/components/CustomTooltip.vue';
+
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 
 const auth = useAuth();
@@ -416,6 +449,7 @@ const isMobile = ref(window.innerWidth <= 768);
 const starredIds = ref(new Set());
 const hoveredMaId = ref(null);
 const hoveredCell = ref(null);
+const cellTooltipState = ref({ visible: false, text: '', x: 0, y: 0 });
 
 // ─── Column widths (resizable) ───
 const colWidths = reactive({ nachname: 130, vorname: 110 });
@@ -488,6 +522,15 @@ const notesModal = reactive({
   ma: null,
   notes: [],
   newText: '',
+});
+
+// ─── Cell Note Modal ───
+const cellNoteModal = reactive({
+  open: false,
+  ma: null,
+  day: null,
+  text: '',
+  existingNote: null,
 });
 
 // ─── Name Context Menu ───
@@ -750,7 +793,8 @@ function cellClass(maId, iso) {
 function cellKuerzel(maId, iso) {
   const entries = getEntriesForCell(maId, iso);
   const planned = entries.find((e) => e.typ === 'planned');
-  return planned?.kuerzel || null;
+  if (!planned) return null;
+  return planned.kuerzel || (planned.bezeichnung ? planned.bezeichnung.substring(0, 6) : null);
 }
 
 function cellIcon(maId, iso) {
@@ -800,6 +844,27 @@ function getNotizen(maId) {
 function getNotizPreview(maId) {
   const notes = getNotizen(maId);
   return notes.map((n) => n.text).join(' | ').substring(0, 100);
+}
+
+function getCellNote(maId, iso) {
+  return getEntriesForCell(maId, iso).find((e) => e.typ === 'notiz') || null;
+}
+
+function getRunNote(maId, iso) {
+  const cls = cellClass(maId, iso);
+  if (!cls) return getCellNote(maId, iso);
+  const dayIsos = days.value.map((d) => d.iso);
+  const idx = dayIsos.indexOf(iso);
+  if (idx === -1) return getCellNote(maId, iso);
+  let start = idx;
+  while (start > 0 && cellClass(maId, dayIsos[start - 1]) === cls) start--;
+  let end = idx;
+  while (end < dayIsos.length - 1 && cellClass(maId, dayIsos[end + 1]) === cls) end++;
+  for (let i = start; i <= end; i++) {
+    const note = getCellNote(maId, dayIsos[i]);
+    if (note) return note;
+  }
+  return null;
 }
 
 function entryIcon(entry) {
@@ -1037,8 +1102,14 @@ function onCellMouseEnter(ma, day) {
   selectedCells.value = next;
 }
 
+function onCellMouseMove(ma, day, event) {
+  const text = getCellTooltip(ma._id, day.iso);
+  cellTooltipState.value = { visible: !!text, text: text || '', x: event.clientX, y: event.clientY };
+}
+
 function onCellMouseLeave() {
   hoveredCell.value = null;
+  cellTooltipState.value = { ...cellTooltipState.value, visible: false };
 }
 
 async function setStatus(status) {
@@ -1240,6 +1311,51 @@ async function deleteNote(id) {
     }
   } catch (err) {
     console.error('Notiz löschen fehlgeschlagen:', err);
+    await fetchDispo();
+  }
+}
+
+// ─── Cell Note Actions ───
+function openCellNote(ma, day) {
+  const existing = getCellNote(ma._id, day.iso);
+  cellNoteModal.ma = ma;
+  cellNoteModal.day = day.iso;
+  cellNoteModal.text = existing?.text || '';
+  cellNoteModal.existingNote = existing || null;
+  cellNoteModal.open = true;
+  closeCtxMenu();
+}
+
+function closeCellNote() {
+  cellNoteModal.open = false;
+  cellNoteModal.ma = null;
+  cellNoteModal.day = null;
+  cellNoteModal.text = '';
+  cellNoteModal.existingNote = null;
+}
+
+async function saveCellNote() {
+  const text = cellNoteModal.text.trim();
+  if (!text) return;
+  const { ma, day, existingNote } = cellNoteModal;
+  closeCellNote();
+  try {
+    if (existingNote) {
+      const { data } = await api.put(`/api/dispo/${existingNote._id}`, { text });
+      localRemoveEntries([existingNote._id]);
+      localAddEntries([data]);
+    } else {
+      const { data } = await api.post('/api/dispo', {
+        mitarbeiter: ma._id,
+        datumVon: day,
+        datumBis: day,
+        typ: 'notiz',
+        text,
+      });
+      localAddEntries([data]);
+    }
+  } catch (err) {
+    console.error('Notiz speichern fehlgeschlagen:', err);
     await fetchDispo();
   }
 }
@@ -1528,6 +1644,7 @@ onMounted(async () => {
     max-width: 48px;
     text-align: center;
     cursor: pointer;
+    position: relative;
     transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
 
     &:hover,
@@ -1671,6 +1788,14 @@ onMounted(async () => {
   }
 }
 
+.cell-fill {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .cell-inner {
   display: flex;
   align-items: center;
@@ -1771,6 +1896,103 @@ onMounted(async () => {
 .sel-chip-leave-to {
   opacity: 0;
   transform: scale(0.9);
+}
+
+.dispo-cell-tooltip {
+  position: fixed;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  white-space: pre-line;
+  pointer-events: none;
+  z-index: 9999;
+  max-width: 280px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.note-dot {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: 13px;
+  font-weight: 900;
+  font-style: italic;
+  color: var(--primary);
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 0 4px rgba(238, 175, 103, 0.5);
+}
+
+.cell-note-modal {
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 16px;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cell-note-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cell-note-textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+  outline: none;
+
+  &:focus {
+    border-color: var(--primary);
+  }
+}
+
+.cell-note-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+
+  .btn-cancel {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--muted);
+    &:hover { color: var(--text); border-color: var(--text); }
+  }
+
+  .btn-save {
+    background: var(--primary);
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    color: white;
+    font-weight: 600;
+    &:hover { opacity: 0.9; }
+    &:disabled { opacity: 0.4; cursor: not-allowed; }
+  }
 }
 
 // ─── Notes Modal ───
