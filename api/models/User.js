@@ -34,6 +34,10 @@ const UserSchema = new mongoose.Schema({
   dashboardPrefs: {
     type: mongoose.Schema.Types.Mixed,
     default: null
+  },
+  dispoPrefs: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
   }
 });
 

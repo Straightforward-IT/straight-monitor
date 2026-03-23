@@ -105,7 +105,7 @@
                 </span>
               </div>
               <div class="card-body">
-                <p><strong>Nr:</strong> {{ kunde.kundenNr }}</p>
+                <p><strong>Nr:</strong> {{ kunde.kundenNr }}<span v-if="kunde.kuerzel" class="kuerzel-inline"> · {{ kunde.kuerzel }}</span></p>
                 <div v-if="kunde.contacts && kunde.contacts.length" class="contact-preview">
                    <font-awesome-icon :icon="['fas', 'user']" />
                    {{ kunde.contacts[0].vorname }} {{ kunde.contacts[0].nachname }}
@@ -598,6 +598,11 @@ function formatDate(dateStr) {
 
 .card-body strong {
   color: var(--text);
+}
+
+.kuerzel-inline {
+  color: var(--primary);
+  font-weight: 500;
 }
 
 /* Empty & Loading States */

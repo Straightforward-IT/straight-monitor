@@ -19,9 +19,10 @@ const BookmarkSchema = new mongoose.Schema({
   //   'bediener'    = the logged-in operator fills it on the website
   //   'mitarbeiter' = the employee fills it via the email-link form
   fillRole:     { type: String, enum: ['bediener', 'mitarbeiter'], default: 'bediener' },
-  dataType:     { type: String, enum: ['text', 'date', 'checkbox', 'checkbox-group-single', 'checkbox-group-multi'], default: 'text' },
+  dataType:     { type: String, enum: ['text', 'date', 'checkbox', 'checkbox-group-single', 'checkbox-group-multi', 'hinweis'], default: 'text' },
   defaultValue: { type: String, default: '' },
   options:      [{ type: String }],              // for checkbox-group: list of option labels
+  optional:     { type: Boolean, default: false },
 }, { _id: false });
 
 // A concrete placement of a bookmark on a specific page of a specific PDF

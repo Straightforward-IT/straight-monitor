@@ -33,42 +33,58 @@
           </div>
 
           <form v-else class="field-form" @submit.prevent="fillAndDownload">
-            <div v-for="field in template.fields" :key="field.id" class="form-row">
-              <label :for="field.id">
-                <font-awesome-icon :icon="fieldIcon(field.type)" class="field-icon" />
-                {{ field.label }}
-                <span class="page-badge">S.{{ field.page + 1 }}</span>
-              </label>
-
-              <!-- Checkbox -->
-              <div v-if="field.type === 'checkbox'" class="checkbox-wrapper">
-                <input
-                  :id="field.id"
-                  v-model="formValues[field.id]"
-                  type="checkbox"
-                  class="form-checkbox"
-                />
-                <span>{{ formValues[field.id] ? 'Ja / Angekreuzt' : 'Nein / Leer' }}</span>
+            <div
+              v-for="field in template.fields"
+              :key="field.id"
+              class="form-row"
+              :class="{ 'field-error': submitAttempted && !field.optional && field.type !== 'hinweis' && isFieldEmpty(field) }"
+            >
+              <!-- Hinweis: static info box, no user input -->
+              <div v-if="field.type === 'hinweis'" class="hinweis-box">
+                <font-awesome-icon :icon="['fas', 'circle-info']" class="hinweis-icon" />
+                <span>{{ field.defaultValue }}</span>
               </div>
 
-              <!-- Date -->
-              <input
-                v-else-if="field.type === 'date'"
-                :id="field.id"
-                v-model="formValues[field.id]"
-                type="date"
-                class="form-input"
-              />
+              <template v-else>
+                <label :for="field.id">
+                  <font-awesome-icon :icon="fieldIcon(field.type)" class="field-icon" />
+                  {{ field.label }}
+                  <span v-if="!field.optional" class="required-marker" title="Pflichtfeld">*</span>
+                  <span class="page-badge">S.{{ field.page + 1 }}</span>
+                </label>
 
-              <!-- Text / Signature -->
-              <input
-                v-else
-                :id="field.id"
-                v-model="formValues[field.id]"
-                type="text"
-                class="form-input"
-                :placeholder="field.defaultValue || field.label"
-              />
+                <!-- Checkbox -->
+                <div v-if="field.type === 'checkbox'" class="checkbox-wrapper">
+                  <input
+                    :id="field.id"
+                    v-model="formValues[field.id]"
+                    type="checkbox"
+                    class="form-checkbox"
+                  />
+                  <span>{{ formValues[field.id] ? 'Ja / Angekreuzt' : 'Nein / Leer' }}</span>
+                </div>
+
+                <!-- Date -->
+                <input
+                  v-else-if="field.type === 'date'"
+                  :id="field.id"
+                  v-model="formValues[field.id]"
+                  type="date"
+                  class="form-input"
+                  :class="{ 'input-error': submitAttempted && !field.optional && isFieldEmpty(field) }"
+                />
+
+                <!-- Text / Signature -->
+                <input
+                  v-else
+                  :id="field.id"
+                  v-model="formValues[field.id]"
+                  type="text"
+                  class="form-input"
+                  :class="{ 'input-error': submitAttempted && !field.optional && isFieldEmpty(field) }"
+                  :placeholder="field.defaultValue || field.label"
+                />
+              </template>
             </div>
 
             <div class="form-actions">
@@ -139,6 +155,7 @@ const headers = { 'x-auth-token': token };
 
 const loading = ref(true);
 const filling = ref(false);
+const submitAttempted = ref(false);
 const template = ref(null);
 const formValues = ref({});
 const previewPage = ref(0);
@@ -157,6 +174,7 @@ async function loadTemplate() {
     // Init form values from field defaults
     const vals = {};
     for (const f of res.data.fields) {
+      if (f.type === 'hinweis') continue; // static text, no user value
       if (f.type === 'checkbox') {
         vals[f.id] = f.defaultValue === 'true' || f.defaultValue === '1';
       } else if (f.type === 'date') {
@@ -231,8 +249,14 @@ function fieldStyle(f) {
 }
 
 function fieldIcon(type) {
-  const map = { text: ['fas', 'font'], date: ['fas', 'calendar'], checkbox: ['fas', 'check'], signature: ['fas', 'pen'] };
+  const map = { text: ['fas', 'font'], date: ['fas', 'calendar'], checkbox: ['fas', 'check'], signature: ['fas', 'pen'], hinweis: ['fas', 'circle-info'] };
   return map[type] || ['fas', 'font'];
+}
+
+function isFieldEmpty(field) {
+  if (field.type === 'checkbox') return false;
+  const v = formValues.value[field.id];
+  return !v || String(v).trim() === '';
 }
 
 function formatDateDisplay(raw) {
@@ -243,7 +267,9 @@ function formatDateDisplay(raw) {
 
 // ── Form actions ──────────────────────────────────────────────────────────
 function resetForm() {
+  submitAttempted.value = false;
   for (const f of template.value.fields) {
+    if (f.type === 'hinweis') continue;
     if (f.type === 'checkbox') {
       formValues.value[f.id] = f.defaultValue === 'true' || f.defaultValue === '1';
     } else {
@@ -253,12 +279,20 @@ function resetForm() {
 }
 
 async function fillAndDownload() {
+  submitAttempted.value = true;
+  // Validate required fields
+  const hasErrors = template.value.fields.some(
+    f => f.type !== 'hinweis' && !f.optional && isFieldEmpty(f)
+  );
+  if (hasErrors) return;
+
   if (filling.value) return;
   filling.value = true;
   try {
     // Serialize: checkboxes become "true"/"false" strings, dates formatted
     const values = {};
     for (const f of template.value.fields) {
+      if (f.type === 'hinweis') continue; // static text, not user-filled
       const raw = formValues.value[f.id];
       if (f.type === 'checkbox') {
         values[f.id] = raw ? 'true' : 'false';
@@ -327,7 +361,17 @@ onMounted(loadTemplate);
 .form-row {
   display: flex; flex-direction: column; gap: 5px;
   label { font-size: 12px; font-weight: 500; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+  &.field-error > label { color: #dc2626; }
 }
+.required-marker { color: #dc2626; font-weight: 700; font-size: 13px; line-height: 1; }
+.input-error { border-color: #dc2626 !important; }
+.hinweis-box {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: color-mix(in srgb, #6366f1 10%, var(--surface));
+  border: 1px solid rgba(99,102,241,.3); border-radius: 6px;
+  padding: 10px 12px; font-size: 12px; color: var(--text); line-height: 1.5;
+}
+.hinweis-icon { color: #6366f1; flex-shrink: 0; margin-top: 2px; }
 .field-icon { width: 14px; text-align: center; }
 .page-badge {
   margin-left: auto; font-size: 10px; background: var(--bg); border: 1px solid var(--border);

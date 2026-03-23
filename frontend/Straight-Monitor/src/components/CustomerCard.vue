@@ -8,7 +8,33 @@
         </div>
         <div class="title">
           <span class="kunden-nr">Kunden-Nr. {{ kunde.kundenNr }}</span>
-          <span class="name">{{ kunde.kundName || 'Unbenannt' }}</span>
+          <div class="name-row">
+            <span class="name">{{ kunde.kundName || 'Unbenannt' }}</span>
+            <!-- Kuerzel -->
+            <template v-if="!editingKuerzel">
+              <span v-if="kunde.kuerzel" class="kuerzel-badge" @click="startEditKuerzel" title="Kürzel bearbeiten">{{ kunde.kuerzel }}</span>
+              <button v-else class="kuerzel-add-btn" @click="startEditKuerzel" title="Kürzel festlegen">
+                <font-awesome-icon :icon="['fas', 'tag']" /> Kürzel
+              </button>
+            </template>
+            <template v-else>
+              <div class="kuerzel-edit-row" @keydown.enter="saveKuerzel" @keydown.esc="cancelEditKuerzel">
+                <input
+                  ref="kuerzelInputRef"
+                  v-model="kuerzelInput"
+                  class="kuerzel-input"
+                  placeholder="z.B. ABB"
+                  maxlength="20"
+                />
+                <button class="kuerzel-save-btn" @click="saveKuerzel" :disabled="kuerzelSaving">
+                  <font-awesome-icon :icon="['fas', kuerzelSaving ? 'spinner' : 'check']" :spin="kuerzelSaving" />
+                </button>
+                <button class="kuerzel-cancel-btn" @click="cancelEditKuerzel">
+                  <font-awesome-icon :icon="['fas', 'times']" />
+                </button>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
       <div class="right">
@@ -125,16 +151,52 @@
 </template>
 
 <script setup>
-import { computed, inject } from 'vue';
+import { computed, ref, nextTick } from 'vue';
 import { useTheme } from '@/stores/theme';
+import { useDataCache } from '@/stores/dataCache';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import KundenAnalyticsEmbed from './KundenAnalyticsEmbed.vue';
+import api from '@/utils/api';
 
 const props = defineProps({
   kunde: { type: Object, required: true }
 });
 
 const emit = defineEmits(['close']);
+
+const dataCache = useDataCache();
+
+// Kuerzel inline edit
+const editingKuerzel = ref(false);
+const kuerzelInput = ref('');
+const kuerzelSaving = ref(false);
+const kuerzelInputRef = ref(null);
+
+function startEditKuerzel() {
+  kuerzelInput.value = props.kunde.kuerzel || '';
+  editingKuerzel.value = true;
+  nextTick(() => kuerzelInputRef.value?.focus());
+}
+
+async function saveKuerzel() {
+  if (kuerzelSaving.value) return;
+  kuerzelSaving.value = true;
+  try {
+    const val = kuerzelInput.value.trim() || null;
+    await api.put(`/api/kunden/${props.kunde._id}`, { kuerzel: val });
+    // Update in-place in the cache so the list also reflects the change
+    const cached = dataCache.kunden.find(k => k._id === props.kunde._id);
+    if (cached) cached.kuerzel = val;
+    props.kunde.kuerzel = val;
+    editingKuerzel.value = false;
+  } finally {
+    kuerzelSaving.value = false;
+  }
+}
+
+function cancelEditKuerzel() {
+  editingKuerzel.value = false;
+}
 
 const theme = useTheme();
 const effectiveTheme = computed(() => theme.current || 'light');
@@ -215,6 +277,98 @@ function formatDate(dateStr) {
 .title {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.kuerzel-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(249, 115, 22, 0.15);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.kuerzel-badge:hover {
+  background: rgba(249, 115, 22, 0.25);
+}
+
+.kuerzel-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.kuerzel-add-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.kuerzel-edit-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kuerzel-input {
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  background: var(--tile-bg);
+  color: var(--text);
+  width: 90px;
+  outline: none;
+}
+
+.kuerzel-save-btn,
+.kuerzel-cancel-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s;
+}
+
+.kuerzel-save-btn {
+  background: var(--primary);
+  color: #fff;
+}
+
+.kuerzel-save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.kuerzel-cancel-btn {
+  background: var(--hover);
+  color: var(--muted);
 }
 
 .kunden-nr {

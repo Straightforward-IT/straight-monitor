@@ -23,6 +23,14 @@
           <FilterChip :active="!showMonthComparison" @click="showMonthComparison = false">Aus</FilterChip>
         </div>
       </div>
+
+      <!-- Prognose Toggle -->
+      <div class="control-group">
+        <label class="control-label">Prognose</label>
+        <div class="chip-row">
+          <FilterChip :active="showForecast" @click="toggleForecast">Anzeigen</FilterChip>
+        </div>
+      </div>
     </div>
 
     <!-- Chart -->
@@ -51,7 +59,7 @@
         <p>Keine Einsätze im gewählten Zeitraum</p>
       </div>
 
-      <Bar v-else-if="drillMonth" :data="drillChartData" :options="drillChartOptions" :key="'drill-' + chartKey" @click="handleDrillChartClick" ref="drillChartRef" />
+      <Bar v-else-if="drillMonth" :data="drillChartData" :options="drillChartOptions" :plugins="drillPlugins" :key="'drill-' + chartKey" @click="handleDrillChartClick" ref="drillChartRef" />
       <Bar v-else :data="chartData" :options="chartOptions" :plugins="monthChartPlugins" :key="chartKey" @click="handleChartClick" ref="monthChartRef" />
     </div>
 
@@ -297,6 +305,7 @@ const chartKey = ref(0);
 const monthChartRef = ref(null);
 const previousSliderRange = ref(null);
 const showMonthComparison = ref(true);
+const showForecast = ref(false);
 
 // Drill-down state
 const drillMonth = ref(null);
@@ -307,8 +316,9 @@ const drillChartRef = ref(null);
 // Time range slider
 const startDate = new Date(2022, 0, 1);
 const now = new Date();
-const totalMonths = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
-const sliderRange = ref([0, totalMonths]);
+const currentMonthIdx = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+const totalMonths = currentMonthIdx + 2;
+const sliderRange = ref([0, currentMonthIdx]);
 const skipNextWatch = ref(false);
 
 watch(sliderRange, () => {
@@ -316,6 +326,21 @@ watch(sliderRange, () => {
   fetchData();
 });
 watch(showMonthComparison, () => { chartKey.value++; });
+
+// Toggle forecast: extend/retract slider
+function toggleForecast() {
+  showForecast.value = !showForecast.value;
+  if (showForecast.value) {
+    if (sliderRange.value[1] < totalMonths) {
+      sliderRange.value = [sliderRange.value[0], totalMonths];
+    }
+  } else {
+    if (sliderRange.value[1] > currentMonthIdx) {
+      sliderRange.value = [sliderRange.value[0], currentMonthIdx];
+    }
+  }
+  chartKey.value++;
+}
 
 // --- Helpers ---
 
@@ -414,18 +439,45 @@ const chartData = computed(() => {
     return match ? (match.auftragCount || 0) : 0;
   });
 
+  const datasets = [{
+    label: 'Einsätze',
+    data: dataArr,
+    auftragCounts: auftragCountArr,
+    backgroundColor: barColor,
+    hoverBackgroundColor: barColor.replace('0.8', '1').replace('0.85', '1'),
+    borderRadius: 0,
+    borderSkipped: false,
+    maxBarThickness: 56,
+    stack: 'ist'
+  }];
+
+  // Forecast dataset
+  if (showForecast.value) {
+    const forecastArr = months.map(m => {
+      const match = rawTotal.value.find(d => d.year === m.year && d.month === m.month);
+      return match ? (match.forecast || 0) : 0;
+    });
+    if (forecastArr.some(v => v > 0)) {
+      const paleColor = isDark ? 'rgba(238, 175, 103, 0.25)' : 'rgba(238, 175, 103, 0.3)';
+      datasets.push({
+        label: 'Prognose (Bedarf)',
+        data: forecastArr,
+        backgroundColor: paleColor,
+        hoverBackgroundColor: isDark ? 'rgba(238, 175, 103, 0.4)' : 'rgba(238, 175, 103, 0.5)',
+        borderRadius: 0,
+        borderSkipped: false,
+        maxBarThickness: 56,
+        borderWidth: 1,
+        borderColor: isDark ? 'rgba(238, 175, 103, 0.4)' : 'rgba(238, 175, 103, 0.5)',
+        stack: 'ist',
+        isForecast: true
+      });
+    }
+  }
+
   return {
     labels: months.map(m => m.label),
-    datasets: [{
-      label: 'Einsätze',
-      data: dataArr,
-      auftragCounts: auftragCountArr,
-      backgroundColor: barColor,
-      hoverBackgroundColor: barColor.replace('0.8', '1').replace('0.85', '1'),
-      borderRadius: 0,
-      borderSkipped: false,
-      maxBarThickness: 56
-    }]
+    datasets
   };
 });
 
@@ -433,6 +485,7 @@ const chartOptions = computed(() => {
   const isDark = theme.current === 'dark';
   const textColor = isDark ? '#fff' : '#333';
   const gridColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
+  const hasForecastData = showForecast.value && chartData.value.datasets.some(ds => ds.isForecast);
 
   return {
     responsive: true,
@@ -442,7 +495,7 @@ const chartOptions = computed(() => {
       event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
     },
     plugins: {
-      legend: { display: false },
+      legend: { display: hasForecastData },
       tooltip: {
         position: 'followMouse',
         yAlign: 'top',
@@ -455,9 +508,13 @@ const chartOptions = computed(() => {
         borderWidth: 1,
         cornerRadius: 8,
         padding: 12,
+        filter: (item) => item.parsed.y > 0,
         callbacks: {
           label: ctx => {
             const count = ctx.parsed.y;
+            if (ctx.dataset.isForecast) {
+              return ` Prognose: ${count} (Bedarf)`;
+            }
             const ac = ctx.dataset.auftragCounts ? ctx.dataset.auftragCounts[ctx.dataIndex] : 0;
             const auftragText = ac === 1 ? 'Auftrag' : 'Aufträgen';
             return ` ${count} Einsätze in ${ac} ${auftragText}`;
@@ -467,8 +524,8 @@ const chartOptions = computed(() => {
       }
     },
     scales: {
-      x: { grid: { display: false }, ticks: { color: textColor, font: { size: 11 } } },
-      y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 }, precision: 0 } }
+      x: { stacked: true, grid: { display: false }, ticks: { color: textColor, font: { size: 11 } } },
+      y: { stacked: true, beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 }, precision: 0 } }
     }
   };
 });
@@ -481,7 +538,7 @@ const drillMonthLabel = computed(() => {
   return `${monthNames[drillMonth.value.month - 1]} ${drillMonth.value.year}`;
 });
 
-const hasDrillData = computed(() => drillTotal.value.length > 0);
+const hasDrillData = computed(() => drillTotal.value.length > 0 || drillAuftraege.value.some(a => a.forecastDays && a.forecastDays.length > 0));
 
 function handleChartClick(event) {
   const chart = monthChartRef.value?.chart;
@@ -563,10 +620,41 @@ const drillChartData = computed(() => {
       borderWidth: 0,
       borderColor: 'transparent',
       maxBarThickness: 28,
+      stack: 'ist',
       auftragNr: a.auftragNr,
       vonDatum: a.vonDatum
     };
   });
+
+  // Forecast datasets
+  if (showForecast.value) {
+    auftraege.forEach((a, idx) => {
+      if (!a.forecastDays || !a.forecastDays.length) return;
+      const baseColor = COLORS[idx % COLORS.length];
+      const paleColor = baseColor.replace('0.85', '0.3');
+      const dataArr = days.map(day => {
+        const match = a.forecastDays.find(d => d.day === day);
+        return match ? match.count : 0;
+      });
+      if (dataArr.some(v => v > 0)) {
+        datasets.push({
+          label: `${a.eventTitel} (Prognose)`,
+          data: dataArr,
+          backgroundColor: paleColor,
+          hoverBackgroundColor: baseColor.replace('0.85', '0.5'),
+          borderRadius: 0,
+          borderSkipped: false,
+          borderWidth: 1,
+          borderColor: baseColor.replace('0.85', '0.5'),
+          maxBarThickness: 28,
+          stack: 'ist',
+          isForecast: true,
+          auftragNr: a.auftragNr,
+          vonDatum: a.vonDatum
+        });
+      }
+    });
+  }
 
   return { labels: days.map(d => `${d}.`), datasets };
 });
@@ -594,17 +682,19 @@ const drillChartOptions = computed(() => {
   const textColor = isDark ? '#fff' : '#333';
   const gridColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
   const hasMultiple = drillAuftraege.value.length > 1;
+  const hasForecastDS = showForecast.value && drillAuftraege.value.some(a => a.forecastDays && a.forecastDays.length > 0);
 
   return {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { intersect: false, mode: 'index' },
+    _drillMonth: drillMonth.value,
     onHover: (event, elements) => {
       event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
     },
     plugins: {
       legend: {
-        display: hasMultiple,
+        display: hasMultiple || hasForecastDS,
         position: 'bottom',
         labels: { color: textColor, padding: 12, usePointStyle: true, pointStyleWidth: 10, font: { size: 11 } }
       },
@@ -627,7 +717,12 @@ const drillChartOptions = computed(() => {
             const day = ctx[0].label;
             return `${day} ${drillMonthLabel.value}`;
           },
-          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} Einsätze`,
+          label: ctx => {
+            if (ctx.dataset.isForecast) {
+              return ` ${ctx.dataset.label}: ${ctx.parsed.y} (Bedarf)`;
+            }
+            return ` ${ctx.dataset.label}: ${ctx.parsed.y} Einsätze`;
+          },
           footer: () => 'Klicken → Auftrag öffnen'
         }
       }
@@ -638,6 +733,40 @@ const drillChartOptions = computed(() => {
     }
   };
 });
+
+// Today line plugin for drill-down
+const todayLinePlugin = {
+  id: 'todayLineEmbed',
+  afterDraw(chart) {
+    const dm = chart.options._drillMonth;
+    if (!dm) return;
+    const now = new Date();
+    if (dm.year !== now.getFullYear() || dm.month !== now.getMonth() + 1) return;
+    const todayDay = now.getDate();
+    const xScale = chart.scales.x;
+    if (!xScale) return;
+    const idx = todayDay - 1;
+    if (idx < 0 || idx >= xScale.ticks.length) return;
+    const x = xScale.getPixelForTick(idx);
+    const { top, bottom } = chart.chartArea;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = chart.options.plugins?.legend?.labels?.color || '#888';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bottom);
+    ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Heute', x, top - 5);
+    ctx.restore();
+  }
+};
+
+const drillPlugins = computed(() => [todayLinePlugin]);
 
 // --- Data Fetching ---
 

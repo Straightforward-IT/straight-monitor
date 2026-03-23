@@ -93,52 +93,27 @@
     </div>
   </div>
 
-  <teleport to="body">
-    <div
-      v-if="selectedMitarbeiterId"
-      class="verlauf-ma-modal-overlay"
-      @click.self="closeMitarbeiterModal"
-    >
-      <div class="verlauf-ma-modal-content modal-employee">
-        <div class="verlauf-ma-modal-header">
-          <h2>Mitarbeiter Details</h2>
-          <button class="verlauf-ma-close-btn" @click="closeMitarbeiterModal">&times;</button>
-        </div>
-        <div class="verlauf-ma-modal-body">
-          <div v-if="employeeModalLoading" class="verlauf-ma-modal-loading">
-            <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" />
-            Mitarbeiter wird geladen...
-          </div>
-          <employee-card
-            v-else-if="fullMitarbeiterData"
-            :ma="fullMitarbeiterData"
-            :initially-expanded="true"
-            :show-checkbox="false"
-            @close="closeMitarbeiterModal"
-          />
-        </div>
-      </div>
-    </div>
-  </teleport>
+  <EmployeeCardModal
+    :mitarbeiterId="selectedMitarbeiterId"
+    @close="closeMitarbeiterModal"
+  />
 </template>
 
 <script>
 import api from "@/utils/api";
 import VerlaufGroup from "./VerlaufGroup.vue";
-import EmployeeCard from "./EmployeeCard.vue";
+import EmployeeCardModal from "./EmployeeCardModal.vue";
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
 export default {
   name: "Verlauf",
-  components: { VerlaufGroup, FontAwesomeIcon, EmployeeCard },
+  components: { VerlaufGroup, FontAwesomeIcon, EmployeeCardModal },
   data() {
     return {
       token: localStorage.getItem("token") || null,
       logs: [],
       // EmployeeCard modal
       selectedMitarbeiterId: null,
-      fullMitarbeiterData: null,
-      employeeModalLoading: false,
       groupBy: { standort: true, monat: true, tag: false, benutzer: false, art: false },
       sortBy: "timestamp_desc",
       searchQuery: "",
@@ -272,36 +247,15 @@ export default {
       });
     },
     switchToDashboard() { this.$router.push("/"); },
-    async openMitarbeiterCard(mitarbeiterId) {
+    openMitarbeiterCard(mitarbeiterId) {
       if (!mitarbeiterId) return;
       // Normalize: handle ObjectId objects vs plain strings
       const id = mitarbeiterId?._id ? String(mitarbeiterId._id) : String(mitarbeiterId);
       if (!id || id === 'null' || id === 'undefined') return;
       this.selectedMitarbeiterId = id;
-      this.fullMitarbeiterData = null;
-      this.employeeModalLoading = true;
-      try {
-        const response = await api.get(`/api/personal/mitarbeiter/${id}`);
-        const mitarbeiterData = response.data.data;
-        // Load Flip profile if flip_id exists (same as Dokumente.vue)
-        if (mitarbeiterData.flip_id) {
-          try {
-            const flipResponse = await api.get(`/api/personal/flip/by-id/${mitarbeiterData.flip_id}`);
-            mitarbeiterData.flip = flipResponse.data;
-          } catch (flipError) {
-            console.error('Error loading Flip profile:', flipError);
-          }
-        }
-        this.fullMitarbeiterData = mitarbeiterData;
-      } catch (e) {
-        console.error("Fehler beim Laden des Mitarbeiters:", e);
-      } finally {
-        this.employeeModalLoading = false;
-      }
     },
     closeMitarbeiterModal() {
       this.selectedMitarbeiterId = null;
-      this.fullMitarbeiterData = null;
     },
     handleKeydown(e) {
       if (e.key === 'Escape' && this.selectedMitarbeiterId) this.closeMitarbeiterModal();

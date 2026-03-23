@@ -62,6 +62,16 @@
             <FilterChip :active="!showMonthComparison" @click="showMonthComparison = false">Aus</FilterChip>
           </div>
         </div>
+
+        <div class="filter-separator"></div>
+
+        <!-- Prognose Toggle -->
+        <div class="control-group">
+          <label class="control-label">Prognose</label>
+          <div class="chip-row">
+            <FilterChip :active="showForecast" @click="toggleForecast">Anzeigen</FilterChip>
+          </div>
+        </div>
       </div>
 
       <!-- Filter Row 2: Multi-Select Kunden (only when compareMode is kunden) -->
@@ -147,7 +157,7 @@
         <p>Keine Einsätze im gewählten Zeitraum</p>
       </div>
 
-      <Bar v-else-if="drillMonth" :data="drillChartData" :options="drillChartOptions" :key="'drill-' + chartKey" @click="handleDrillChartClick" ref="drillChartRef" />
+      <Bar v-else-if="drillMonth" :data="drillChartData" :options="drillChartOptions" :plugins="drillPlugins" :key="'drill-' + chartKey" @click="handleDrillChartClick" ref="drillChartRef" />
       <Bar v-else :data="chartData" :options="chartOptions" :plugins="monthChartPlugins" :key="chartKey" @click="handleChartClick" ref="monthChartRef" />
     </div>
 
@@ -630,6 +640,49 @@ const sameMonthPlugin = {
   }
 };
 
+// --- Today Line Plugin for Drill-Down ---
+const todayLinePlugin = {
+  id: 'todayLine',
+  afterDraw(chart) {
+    const drillInfo = chart.config.options?._drillMonth;
+    if (!drillInfo) return;
+
+    const now = new Date();
+    const { year, month } = drillInfo;
+    // Only draw if drill month is current month
+    if (now.getFullYear() !== year || (now.getMonth() + 1) !== month) return;
+
+    const todayDay = now.getDate();
+    const labelIdx = todayDay - 1; // labels are 0-indexed ("1.", "2.", ...)
+    if (labelIdx < 0 || labelIdx >= chart.data.labels.length) return;
+
+    const meta = chart.getDatasetMeta(0);
+    if (!meta.data.length || !meta.data[labelIdx]) return;
+
+    const x = meta.data[labelIdx].x;
+    const { top, bottom } = chart.chartArea;
+
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = 'rgba(238, 175, 103, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Label "Heute"
+    ctx.font = 'bold 10px -apple-system, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(238, 175, 103, 0.9)';
+    ctx.textAlign = 'center';
+    ctx.fillText('Heute', x, top - 4);
+
+    ctx.restore();
+  }
+};
+
 const router = useRouter();
 const route = useRoute();
 const dataCache = useDataCache();
@@ -650,6 +703,7 @@ const chartKey = ref(0);
 const monthChartRef = ref(null);
 const previousSliderRange = ref(null);
 const showMonthComparison = ref(true);
+const showForecast = ref(false);
 const activeTab = ref('saeulen');
 const compareMode = ref('none'); // 'none' | 'kunden' | 'standort'
 const kundenStatusFilter = ref('aktiv'); // 'aktiv' | 'inaktiv' | 'alle'
@@ -675,10 +729,11 @@ const now = new Date(); // Today
 
 // We'll manage slider as months-since-startDate (index 0 = Jan 2022)
 const startMonthIndex = 0;
-// Calculate total months until now:
-const totalMonths = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+// Calculate total months until now + 2 for forecast
+const currentMonthIdx = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+const totalMonths = currentMonthIdx + 2;
 
-const sliderRange = ref([0, totalMonths]); // [min, max] selected
+const sliderRange = ref([0, currentMonthIdx]); // [min, max] selected
 
 // Watch for slider changes to trigger fetch
 watch(sliderRange, () => {
@@ -689,6 +744,23 @@ watch(sliderRange, () => {
 watch(showMonthComparison, () => {
   chartKey.value++;
 });
+
+// Toggle forecast: extend slider range to include future months
+function toggleForecast() {
+  showForecast.value = !showForecast.value;
+  if (showForecast.value) {
+    // Extend slider end to max (current + 2 months) if not already
+    if (sliderRange.value[1] < totalMonths) {
+      sliderRange.value = [sliderRange.value[0], totalMonths];
+    }
+  } else {
+    // Snap slider back to current month if it's beyond
+    if (sliderRange.value[1] > currentMonthIdx) {
+      sliderRange.value = [sliderRange.value[0], currentMonthIdx];
+    }
+  }
+  chartKey.value++;
+}
 
 // Switch compareMode default when switching tabs
 watch(activeTab, (newTab) => {
@@ -792,6 +864,10 @@ const filteredKundenList = computed(() => {
 
 const hasData = computed(() => rawTotal.value.length > 0);
 
+const hasForecastTotal = computed(() =>
+  rawTotal.value.some(d => (d.forecast || 0) > 0)
+);
+
 const totalEinsaetze = computed(() =>
   rawTotal.value.reduce((s, d) => s + d.count, 0)
 );
@@ -810,6 +886,10 @@ const peakMonth = computed(() => {
 
 const monthChartPlugins = computed(() => {
   return showMonthComparison.value ? [sameMonthPlugin] : [];
+});
+
+const drillPlugins = computed(() => {
+  return showForecast.value ? [todayLinePlugin] : [todayLinePlugin];
 });
 
 // --- Chart Data ---
@@ -838,7 +918,8 @@ const chartData = computed(() => {
       return { labels: months.map(m => m.label), datasets: [] };
     }
 
-    const datasets = standortKeys.map((st, idx) => {
+    const datasets = [];
+    standortKeys.forEach((st, idx) => {
       const color = STANDORT_COLORS[st] || COLORS[idx % COLORS.length];
       const hoverColor = color.replace('0.85', '1');
       const dataArr = months.map(m => {
@@ -854,7 +935,7 @@ const chartData = computed(() => {
         return match ? (match.auftragCount || 0) : 0;
       });
 
-      return {
+      datasets.push({
         label: STANDORT_LABELS[st] || `Standort ${st}`,
         data: dataArr,
         auftragCounts: auftragCountArr,
@@ -862,22 +943,43 @@ const chartData = computed(() => {
         hoverBackgroundColor: hoverColor,
         borderRadius: 0,
         borderSkipped: false,
-        maxBarThickness: 56
-      };
+        maxBarThickness: 56,
+        stack: 'ist'
+      });
+
+      // Forecast dataset per standort
+      if (showForecast.value) {
+        const forecastArr = months.map(m => {
+          const match = rawStandortBreakdown.value.find(b =>
+            b.geschSt === st && b.year === m.year && b.month === m.month
+          );
+          return match ? (match.forecast || 0) : 0;
+        });
+        if (forecastArr.some(v => v > 0)) {
+          const paleColor = color.replace('0.85', '0.3');
+          datasets.push({
+            label: `${STANDORT_LABELS[st] || `Standort ${st}`} (Prognose)`,
+            data: forecastArr,
+            backgroundColor: paleColor,
+            hoverBackgroundColor: paleColor.replace('0.3', '0.5'),
+            borderRadius: 0,
+            borderSkipped: false,
+            maxBarThickness: 56,
+            borderWidth: 1,
+            borderColor: color.replace('0.85', '0.5'),
+            borderDash: [4, 4],
+            stack: 'ist',
+            isForecast: true
+          });
+        }
+      }
     });
 
     return { labels: months.map(m => m.label), datasets };
   }
 
-  // Kunden comparison mode
+  // Kunden comparison mode — no forecast
   if (compareMode.value === 'kunden' && selectedKundenNrs.value.length > 0) {
-    // 1. Calculate totals for sorting (descending)
-    // We want the customer with the HIGHEST total volume to be at the bottom (index 0)
-    // or top depending on preference. "Viel = Unten" means High Volume = Bottom of stack.
-    // Chart.js draws dataset 0 at the bottom.
-    // So we sort by total volume DESC.
-    
-    // Create datasets but don't finalize them yet
     const rawDatasets = selectedKundenNrs.value.map(nr => {
       const dataArr = months.map(m => {
         const match = rawBreakdown.value.find(b =>
@@ -895,10 +997,8 @@ const chartData = computed(() => {
       return { kundenNr: nr, dataArr, auftragCountArr, total };
     });
 
-    // Sort by Total Descending
     rawDatasets.sort((a, b) => b.total - a.total);
 
-    // Map to Chart.js structure
     const datasets = rawDatasets.map((d, idx) => {
       const color = COLORS[idx % COLORS.length];
       const hoverColor = color.replace('0.85', '1');
@@ -907,7 +1007,7 @@ const chartData = computed(() => {
       return {
         label: name,
         data: d.dataArr,
-        auftragCounts: d.auftragCountArr, // Custom data for tooltip
+        auftragCounts: d.auftragCountArr,
         backgroundColor: color,
         hoverBackgroundColor: hoverColor,
         borderRadius: 0,
@@ -919,7 +1019,7 @@ const chartData = computed(() => {
     return { labels: months.map(m => m.label), datasets };
   }
 
-  // Default mode: single total bar
+  // Default mode: single total bar + forecast
   const barColor = isDark ? 'rgba(238, 175, 103, 0.8)' : 'rgba(238, 175, 103, 0.85)';
   const dataArr = months.map(m => {
     const match = rawTotal.value.find(d => d.year === m.year && d.month === m.month);
@@ -930,18 +1030,45 @@ const chartData = computed(() => {
     return match ? (match.auftragCount || 0) : 0;
   });
 
+  const datasets = [{
+    label: 'Einsätze',
+    data: dataArr,
+    auftragCounts: auftragCountArr,
+    backgroundColor: barColor,
+    hoverBackgroundColor: barColor.replace('0.8', '1').replace('0.85', '1'),
+    borderRadius: 6,
+    borderSkipped: false,
+    maxBarThickness: 56,
+    stack: 'ist'
+  }];
+
+  // Forecast dataset
+  if (showForecast.value) {
+    const forecastArr = months.map(m => {
+      const match = rawTotal.value.find(d => d.year === m.year && d.month === m.month);
+      return match ? (match.forecast || 0) : 0;
+    });
+    if (forecastArr.some(v => v > 0)) {
+      const paleColor = isDark ? 'rgba(238, 175, 103, 0.25)' : 'rgba(238, 175, 103, 0.3)';
+      datasets.push({
+        label: 'Prognose (Bedarf)',
+        data: forecastArr,
+        backgroundColor: paleColor,
+        hoverBackgroundColor: isDark ? 'rgba(238, 175, 103, 0.4)' : 'rgba(238, 175, 103, 0.5)',
+        borderRadius: 6,
+        borderSkipped: false,
+        maxBarThickness: 56,
+        borderWidth: 1,
+        borderColor: isDark ? 'rgba(238, 175, 103, 0.4)' : 'rgba(238, 175, 103, 0.5)',
+        stack: 'ist',
+        isForecast: true
+      });
+    }
+  }
+
   return {
     labels: months.map(m => m.label),
-    datasets: [{
-      label: 'Einsätze',
-      data: dataArr,
-      auftragCounts: auftragCountArr, // Custom data for tooltip
-      backgroundColor: barColor,
-      hoverBackgroundColor: barColor.replace('0.8', '1').replace('0.85', '1'),
-      borderRadius: 6,
-      borderSkipped: false,
-      maxBarThickness: 56
-    }]
+    datasets
   };
 });
 
@@ -949,8 +1076,9 @@ const chartOptions = computed(() => {
   const isDark = theme.current === 'dark';
   const textColor = isDark ? '#fff' : '#333';
   const gridColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
-  const isStacked = (compareMode.value === 'kunden' && selectedKundenNrs.value.length > 0) || compareMode.value === 'standort';
+  const isStacked = (compareMode.value === 'kunden' && selectedKundenNrs.value.length > 0) || compareMode.value === 'standort' || showForecast.value;
   const isStandort = compareMode.value === 'standort';
+  const hasForecastData = showForecast.value && chartData.value.datasets.some(ds => ds.isForecast);
 
   return {
     responsive: true,
@@ -968,14 +1096,18 @@ const chartOptions = computed(() => {
           padding: 16,
           usePointStyle: true,
           pointStyleWidth: 12,
-          font: { size: 12 }
+          font: { size: 12 },
+          filter: (item) => {
+            // Optionally style forecast entries differently
+            return true;
+          }
         }
       },
       tooltip: {
         enabled: !isStandort,
-        position: 'followMouse', // Follow mouse cursor
-        yAlign: 'top', // Arrow at top -> Tooltip body below mouse
-        xAlign: 'center', // Center horizontally to mouse
+        position: 'followMouse',
+        yAlign: 'top',
+        xAlign: 'center',
         caretPadding: 15,
         backgroundColor: isDark ? '#2a2a2a' : '#fff',
         titleColor: textColor,
@@ -984,10 +1116,13 @@ const chartOptions = computed(() => {
         borderWidth: 1,
         cornerRadius: 8,
         padding: 12,
-        filter: (item) => item.parsed.y > 0, // Hide 0 entries
+        filter: (item) => item.parsed.y > 0,
         callbacks: {
           label: ctx => {
             const count = ctx.parsed.y;
+            if (ctx.dataset.isForecast) {
+              return ` ${ctx.dataset.label}: ${count} (Bedarf)`;
+            }
             const ac = ctx.dataset.auftragCounts ? ctx.dataset.auftragCounts[ctx.dataIndex] : 0;
             const auftragText = ac === 1 ? 'Auftrag' : 'Aufträgen';
             return ` ${ctx.dataset.label}: ${count} Einsätze in ${ac} ${auftragText}`;
@@ -1195,7 +1330,7 @@ const drillMonthLabel = computed(() => {
   return `${monthNames[drillMonth.value.month - 1]} ${drillMonth.value.year}`;
 });
 
-const hasDrillData = computed(() => drillTotal.value.length > 0);
+const hasDrillData = computed(() => drillTotal.value.length > 0 || (showForecast.value && drillAuftraege.value.some(a => a.forecastDays && a.forecastDays.length > 0)));
 
 function handleChartClick(event) {
   const chart = monthChartRef.value?.chart;
@@ -1268,18 +1403,20 @@ const drillChartData = computed(() => {
   const daysInMonth = new Date(year, month, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-  // Always stack by Auftrag
-  const auftraege = drillAuftraege.value; // Already sorted by total DESC from backend
+  const auftraege = drillAuftraege.value;
   if (!auftraege.length) return { labels: days.map(d => `${d}.`), datasets: [] };
 
-  const datasets = auftraege.map((a, idx) => {
+  const datasets = [];
+
+  // IST datasets (actual counts)
+  auftraege.forEach((a, idx) => {
     const color = COLORS[idx % COLORS.length];
     const dataArr = days.map(day => {
       const match = a.days.find(d => d.day === day);
       return match ? match.count : 0;
     });
 
-    return {
+    datasets.push({
       label: a.eventTitel,
       data: dataArr,
       backgroundColor: color,
@@ -1289,10 +1426,41 @@ const drillChartData = computed(() => {
       borderWidth: 0,
       borderColor: 'transparent',
       maxBarThickness: 28,
-      auftragNr: a.auftragNr, // Custom prop for click handling
-      vonDatum: a.vonDatum
-    };
+      auftragNr: a.auftragNr,
+      vonDatum: a.vonDatum,
+      stack: 'ist'
+    });
   });
+
+  // Forecast datasets (if enabled)
+  if (showForecast.value) {
+    auftraege.forEach((a, idx) => {
+      if (!a.forecastDays || !a.forecastDays.length) return;
+      const color = COLORS[idx % COLORS.length];
+      const paleColor = color.replace('0.85', '0.3');
+      const forecastArr = days.map(day => {
+        const match = a.forecastDays.find(d => d.day === day);
+        return match ? match.forecast : 0;
+      });
+      if (forecastArr.some(v => v > 0)) {
+        datasets.push({
+          label: `${a.eventTitel} (Prognose)`,
+          data: forecastArr,
+          backgroundColor: paleColor,
+          hoverBackgroundColor: paleColor.replace('0.3', '0.5'),
+          borderRadius: 0,
+          borderSkipped: false,
+          borderWidth: 1,
+          borderColor: color.replace('0.85', '0.5'),
+          maxBarThickness: 28,
+          auftragNr: a.auftragNr,
+          vonDatum: a.vonDatum,
+          stack: 'ist',
+          isForecast: true
+        });
+      }
+    });
+  }
 
   return { labels: days.map(d => `${d}.`), datasets };
 });
@@ -1323,11 +1491,12 @@ const drillChartOptions = computed(() => {
   const isDark = theme.current === 'dark';
   const textColor = isDark ? '#fff' : '#333';
   const gridColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
-  const hasMultiple = drillAuftraege.value.length > 1;
+  const hasMultiple = drillAuftraege.value.length > 1 || (showForecast.value && drillChartData.value.datasets.some(ds => ds.isForecast));
 
   return {
     responsive: true,
     maintainAspectRatio: false,
+    _drillMonth: drillMonth.value,
     interaction: { intersect: false, mode: 'index' },
     onHover: (event, elements) => {
       event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
@@ -1350,14 +1519,19 @@ const drillChartOptions = computed(() => {
         yAlign: 'top',
         xAlign: 'center',
         caretPadding: 15,
-        filter: (item) => item.parsed.y > 0, // Hide 0 entries
+        filter: (item) => item.parsed.y > 0,
         callbacks: {
           title: ctx => {
             if (!ctx || !ctx.length) return '';
             const day = ctx[0].label;
             return `${day} ${drillMonthLabel.value}`;
           },
-          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} Einsätze`,
+          label: ctx => {
+            if (ctx.dataset.isForecast) {
+              return ` ${ctx.dataset.label}: ${ctx.parsed.y} (Bedarf)`;
+            }
+            return ` ${ctx.dataset.label}: ${ctx.parsed.y} Einsätze`;
+          },
           footer: () => 'Klicken → Auftrag öffnen'
         }
       }

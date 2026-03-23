@@ -296,29 +296,10 @@
     </div>
 
     <!-- Employee Modal -->
-    <div v-if="selectedMitarbeiter" class="modal-overlay" @click.self="closeMitarbeiterCard">
-      <div class="modal large">
-        <div class="modal-header">
-          <h3>Mitarbeiter Details</h3>
-          <button class="close-btn" @click="closeMitarbeiterCard">
-            <font-awesome-icon icon="fa-solid fa-xmark" />
-          </button>
-        </div>
-        <div class="modal-body no-padding">
-            <div v-if="loadingMitarbeiter" class="loading-state">
-            <font-awesome-icon icon="fa-solid fa-spinner" spin />
-            Lade Mitarbeiterdaten...
-            </div>
-            <EmployeeCard
-            v-else-if="fullMitarbeiterData"
-            :ma="fullMitarbeiterData"
-            :initiallyExpanded="true"
-            @close="closeMitarbeiterCard"
-            @open-employee="openMitarbeiterCard"
-            />
-        </div>
-      </div>
-    </div>
+    <EmployeeCardModal
+      :mitarbeiterId="selectedMitarbeiter"
+      @close="closeMitarbeiterCard"
+    />
 
     <!-- Customer Modal -->
     <div v-if="selectedKunde" class="modal-overlay" @click.self="closeKundeCard">
@@ -413,7 +394,7 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import FilterPanel from '@/components/FilterPanel.vue';
 import DocumentCard from '@/components/DocumentCard.vue';
-import EmployeeCard from '@/components/EmployeeCard.vue';
+import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import CustomerCard from '@/components/CustomerCard.vue';
 import asanaLogo from '@/assets/asana.png';
 
@@ -478,7 +459,7 @@ library.add(
 
 export default {
   name: "Dokumente",
-  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, DocumentCard, EmployeeCard, CustomerCard },
+  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, DocumentCard, EmployeeCardModal, CustomerCard },
 
   setup() {
     const dataCache = useDataCache();
@@ -549,8 +530,6 @@ export default {
       assignRole: null, // 'teamleiter' or 'mitarbeiter'
       assignSearchQuery: '',
       selectedMitarbeiter: null,
-      fullMitarbeiterData: null,
-      loadingMitarbeiter: false,
       selectedKunde: null,
       fullKundeData: null,
       loadingKunde: false,
@@ -866,39 +845,12 @@ export default {
     },
 
     // Mitarbeiter-Card öffnen
-    async openMitarbeiterCard(role, mitarbeiterId) {
-      console.log('Opening employee card:', role, mitarbeiterId);
-      this.loadingMitarbeiter = true;
-      this.selectedMitarbeiter = { _id: mitarbeiterId };
-
-      try {
-        // Load full Mitarbeiter data with all relationships
-        const response = await api.get(`/api/personal/mitarbeiter/${mitarbeiterId}`);
-        const mitarbeiterData = response.data.data;
-
-        // Load Flip profile if flip_id exists
-        if (mitarbeiterData.flip_id) {
-          try {
-            const flipResponse = await api.get(`/api/personal/flip/by-id/${mitarbeiterData.flip_id}`);
-            mitarbeiterData.flip = flipResponse.data;
-          } catch (flipError) {
-            console.error('Error loading Flip profile:', flipError);
-          }
-        }
-
-        this.fullMitarbeiterData = mitarbeiterData;
-      } catch (error) {
-        console.error('Error loading Mitarbeiter:', error);
-        alert('Fehler beim Laden der Mitarbeiterdaten');
-        this.selectedMitarbeiter = null;
-      } finally {
-        this.loadingMitarbeiter = false;
-      }
+    openMitarbeiterCard(role, mitarbeiterId) {
+      this.selectedMitarbeiter = mitarbeiterId;
     },
 
     closeMitarbeiterCard() {
       this.selectedMitarbeiter = null;
-      this.fullMitarbeiterData = null;
     },
 
     async openKundeCard(kundeId) {

@@ -5,6 +5,7 @@ const XLSX = require('xlsx');
 const Auftrag = require('../models/Auftrag');
 const Kunde = require('../models/Kunde');
 const Einsatz = require('../models/Einsatz');
+const Schicht = require('../models/Schicht');
 const Mitarbeiter = require('../models/Mitarbeiter');
 const Beruf = require('../models/Beruf');
 const Qualifikation = require('../models/Qualifikation');
@@ -363,6 +364,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
     const operationsAuftrag = [];
     const operationsKunde = [];
     const newEinsaetze = [];
+    const newSchichten = [];
+    const processedSchichten = new Set(); // Dedup: (auftragNr, idSchicht, datumVon)
     const auftragNrs = new Set();
     
     let minDate = null;
@@ -380,9 +383,14 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
       const auftragNr = row['AUFTRAGNR'];
       auftragNrs.add(auftragNr);
 
-      if (row['DATUMVON'] && row['DATUMVON'] instanceof Date && !isNaN(row['DATUMVON'])) {
-        if (!minDate || row['DATUMVON'] < minDate) minDate = row['DATUMVON'];
-        if (!maxDate || row['DATUMVON'] > maxDate) maxDate = row['DATUMVON'];
+      // IST_PSEUDO=1 means the row represents an unfilled shift (no real employee)
+      // Pseudo rows have no DATUMVON/DATUMBIS (no employee assigned), use DETAIL_DATUMVON as fallback
+      const isPseudoRow = row['IST_PSEUDO'] == 1;
+      const rowDate = row['DATUMVON'] || row['DETAIL_DATUMVON'];
+
+      if (rowDate && rowDate instanceof Date && !isNaN(rowDate)) {
+        if (!minDate || rowDate < minDate) minDate = rowDate;
+        if (!maxDate || rowDate > maxDate) maxDate = rowDate;
       }
 
       // 1. Prepare Auftrag Update/Upsert
@@ -438,42 +446,72 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
         });
       }
 
-      // 3. Prepare Einsatz Insert
-      newEinsaetze.push({
-        auftragNr: auftragNr,
-        personalNr: row['PERSONALNR'],
-        berufSchl: row['BERUFSCHL'],
-        qualSchl: row['QUALSCHL'],
-        bezeichnung: row['BEZEICHN'],
-        datumVon: row['DATUMVON'],
-        datumBis: row['DATUMBIS'],
-        cProtBediener: row['CPROTBEDIENER'],
-        dtProtDatum: row['DTPROTDATUM'],
-        idAuftragArbeitsschichten: row['ID_AUFTRAG_ARBEITSSCHICHTEN'],
-        
-        // New Detail Fields
-        schichtBezeichnung: row['BEZEICHNUNG'],
-        treffpunkt: row['TREFFPUNKTUHRZEIT'],
-        ansprechpartnerName: row['ANSP_NAME'],
-        ansprechpartnerTelefon: row['ANSP_TELEFON'],
-        ansprechpartnerEmail: row['ANSP_EMAIL'],
-        letzteAusschreibung: row['LETZTEAUSSCHREIBUNG'],
+      // 3. Schicht Record (one per unique shift+date, regardless of IST_PSEUDO)
+      // rowDate is already computed above: DATUMVON (real rows) or DETAIL_DATUMVON (pseudo rows)
+      const idSchicht = row['ID_AUFTRAG_ARBEITSSCHICHTEN'];
+      const schichtKey = `${auftragNr}_${idSchicht}_${rowDate instanceof Date ? rowDate.getTime() : rowDate}`;
+      if (idSchicht && !processedSchichten.has(schichtKey)) {
+        processedSchichten.add(schichtKey);
+        const bedarf = typeof row['BEDARF'] === 'number' ? row['BEDARF'] : (parseInt(row['BEDARF']) || 0);
+        newSchichten.push({
+          auftragNr,
+          idAuftragArbeitsschichten: idSchicht,
+          bezeichnung: row['BEZEICHNUNG'],
+          treffpunkt: row['TREFFPUNKTUHRZEIT'],
+          ansprechpartnerName: row['ANSP_NAME'],
+          ansprechpartnerTelefon: row['ANSP_TELEFON'],
+          ansprechpartnerEmail: row['ANSP_EMAIL'],
+          letzteAusschreibung: row['LETZTEAUSSCHREIBUNG'],
+          datumVon: rowDate,
+          datumBis: row['DATUMBIS'] || row['DETAIL_DATUMBIS'],
+          uhrzeitVon: parseExcelTime(row['UHRZEITVON']),
+          uhrzeitBis: parseExcelTime(row['UHRZEITBIS']),
+          typ: row['TYP'],
+          bedarf,
+          garantiestundenLohn: row['GARANTIESTD_LOHN'],
+          endeOffen: row['ENDEOFFEN']
+        });
+      }
 
-        detailDatumVon: row['DETAIL_DATUMVON'],
-        detailDatumBis: row['DETAIL_DATUMBIS'],
-        uhrzeitVon: parseExcelTime(row['UHRZEITVON']),
-        uhrzeitBis: parseExcelTime(row['UHRZEITBIS']),
-        typ: row['TYP'],
-        bedarf: row['BEDARF'],
-        garantiestundenLohn: row['GARANTIESTD_LOHN'],
-        endeOffen: row['ENDEOFFEN']
-      });
+      // 4. Einsatz Record — skip pseudo rows (IST_PSEUDO=1 means unfilled shift)
+      if (!isPseudoRow) {
+        newEinsaetze.push({
+          auftragNr: auftragNr,
+          personalNr: row['PERSONALNR'],
+          berufSchl: row['BERUFSCHL'],
+          qualSchl: row['QUALSCHL'],
+          bezeichnung: row['BEZEICHN'],
+          datumVon: row['DATUMVON'],
+          datumBis: row['DATUMBIS'],
+          cProtBediener: row['CPROTBEDIENER'],
+          dtProtDatum: row['DTPROTDATUM'],
+          idAuftragArbeitsschichten: idSchicht,
+          
+          // Shift Detail Fields
+          schichtBezeichnung: row['BEZEICHNUNG'],
+          treffpunkt: row['TREFFPUNKTUHRZEIT'],
+          ansprechpartnerName: row['ANSP_NAME'],
+          ansprechpartnerTelefon: row['ANSP_TELEFON'],
+          ansprechpartnerEmail: row['ANSP_EMAIL'],
+          letzteAusschreibung: row['LETZTEAUSSCHREIBUNG'],
+
+          detailDatumVon: row['DETAIL_DATUMVON'],
+          detailDatumBis: row['DETAIL_DATUMBIS'],
+          uhrzeitVon: parseExcelTime(row['UHRZEITVON']),
+          uhrzeitBis: parseExcelTime(row['UHRZEITBIS']),
+          typ: row['TYP'],
+          bedarf: row['BEDARF'],
+          garantiestundenLohn: row['GARANTIESTD_LOHN'],
+          endeOffen: row['ENDEOFFEN']
+        });
+      }
     }
 
     // Execute Operations
     let stats = {
       auftrag: { upserted: 0, matched: 0, deactivated: 0 },
       kunde: { upserted: 0, matched: 0 },
+      schicht: { inserted: 0, deleted: 0 },
       einsatz: { inserted: 0, deleted: 0 }
     };
 
@@ -490,15 +528,15 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
     const deactivateResult = await Auftrag.updateMany(deactivateQuery, { $set: { aktiv: 0 } });
     stats.auftrag.deactivated = deactivateResult.modifiedCount;
 
-    // 5. Cleanup Einsätze for orders that are not in the list (orphaned/cancelled)
-    // Only delete within the uploaded time range to preserve other periods
-    // Never delete pseudo-Einsätze (manually created)
-    const cleanupFilter = { auftragNr: { $nin: Array.from(auftragNrs) }, isPseudo: { $ne: true } };
-    if (minDate && maxDate) {
-      cleanupFilter.datumVon = { $gte: minDate, $lte: maxDate };
-    }
-    const cleanupEinsaetzeResult = await Einsatz.deleteMany(cleanupFilter);
-    stats.einsatz.deleted += cleanupEinsaetzeResult.deletedCount;
+    // 5. Cleanup orphaned records (orders not in the list, within date range)
+    const cleanupBase = { auftragNr: { $nin: Array.from(auftragNrs) } };
+    if (minDate && maxDate) cleanupBase.datumVon = { $gte: minDate, $lte: maxDate };
+
+    const cleanupSchichtRes = await Schicht.deleteMany(cleanupBase);
+    stats.schicht.deleted += cleanupSchichtRes.deletedCount;
+
+    const cleanupEinsatzRes = await Einsatz.deleteMany({ ...cleanupBase, isPseudo: { $ne: true } });
+    stats.einsatz.deleted += cleanupEinsatzRes.deletedCount;
 
     if (operationsAuftrag.length > 0) {
       const resA = await Auftrag.bulkWrite(operationsAuftrag);
@@ -512,27 +550,37 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
       stats.kunde.matched = resK.matchedCount;
     }
 
+    // Full-Sync: Delete existing Schichten + Einsätze for imported orders within date range
+    const auftragNrArray = Array.from(auftragNrs);
+    const dateFilter = (minDate && maxDate) ? { $gte: minDate, $lte: maxDate } : undefined;
+
+    const delSchichtFilter = { auftragNr: { $in: auftragNrArray } };
+    if (dateFilter) delSchichtFilter.datumVon = dateFilter;
+    const delSchichtRes = await Schicht.deleteMany(delSchichtFilter);
+    stats.schicht.deleted = delSchichtRes.deletedCount;
+
+    const delEinsatzFilter = { auftragNr: { $in: auftragNrArray }, isPseudo: { $ne: true } };
+    if (dateFilter) delEinsatzFilter.datumVon = dateFilter;
+    const delEinsatzRes = await Einsatz.deleteMany(delEinsatzFilter);
+    stats.einsatz.deleted = delEinsatzRes.deletedCount;
+
+    if (newSchichten.length > 0) {
+      const insSchicht = await Schicht.insertMany(newSchichten);
+      stats.schicht.inserted = insSchicht.length;
+    }
+
     if (newEinsaetze.length > 0) {
-      // Clean up existing entries for these orders (Full Sync for these orders)
-      // Only delete within the uploaded time range
-      // Never delete pseudo-Einsätze (manually created)
-      const delFilter = { auftragNr: { $in: Array.from(auftragNrs) }, isPseudo: { $ne: true } };
-      if (minDate && maxDate) {
-        delFilter.datumVon = { $gte: minDate, $lte: maxDate };
-      }
-      const delRes = await Einsatz.deleteMany(delFilter);
-      stats.einsatz.deleted = delRes.deletedCount;
-      
-      const insRes = await Einsatz.insertMany(newEinsaetze);
-      stats.einsatz.inserted = insRes.length;
+      const insEinsatz = await Einsatz.insertMany(newEinsaetze);
+      stats.einsatz.inserted = insEinsatz.length;
     }
 
     const message = `Verarbeitung abgeschlossen:\n` +
+      `- Schichten: ${stats.schicht.inserted} neu, ${stats.schicht.deleted} gelöscht/ersetzt\n` +
       `- Einsätze: ${stats.einsatz.inserted} neu, ${stats.einsatz.deleted} gelöscht/ersetzt\n` +
       `- Aufträge: ${stats.auftrag.upserted} neu, ${stats.auftrag.matched} aktualisiert, ${stats.auftrag.deactivated} deaktiviert\n` +
       `- Kunden: ${stats.kunde.upserted} neu, ${stats.kunde.matched} aktualisiert`;
 
-    await logImport('einsatz-komplett', req.file.originalname, 'success', newEinsaetze.length, stats, req.user?.id);
+    await logImport('einsatz-komplett', req.file.originalname, 'success', newSchichten.length, stats, req.user?.id);
     
     // Simple response structure for frontend
     res.json({ success: true, message: message, details: stats });
@@ -547,6 +595,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
           <hr/>
           <h3>Statistik:</h3>
           <ul>
+            <li><strong>Schichten:</strong> ${stats.schicht.inserted} (Importiert), ${stats.schicht.deleted} (Ersetzt)</li>
             <li><strong>Einsätze:</strong> ${stats.einsatz.inserted} (Importiert), ${stats.einsatz.deleted} (Ersetzt)</li>
             <li><strong>Aufträge:</strong> ${stats.auftrag.upserted} (Neu), ${stats.auftrag.matched} (Update)</li>
             <li><strong>Kunden:</strong> ${stats.kunde.upserted} (Neu), ${stats.kunde.matched} (Update)</li>

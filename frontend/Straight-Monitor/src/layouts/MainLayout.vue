@@ -70,7 +70,7 @@ const handleOpenShortcuts = () => {
 .layout{ min-height:100vh; display:flex; flex-direction:column; }
 .page{ flex:1; display:grid; grid-template-columns:1fr; }
 .page.hasRight{ grid-template-columns: 1fr auto; }
-.content{ padding:16px; background: var(--bg); color: var(--text); }
+.content{ padding:16px; background: var(--bg); color: var(--text); min-width: 0; overflow: hidden; }
 
 /* Sticky Drawer (Right Panel) */
 .right{
