@@ -107,9 +107,20 @@ router.get('/analytics/einsaetze', auth, asyncHandler(async (req, res) => {
     if (bis) matchStage.datumVon.$lte = new Date(bis);
   }
 
-  // 4a. Gesamt-Aggregation (alle Kunden pro Monat)
+  // Today boundary for IST vs Forecast split
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  // 4a. Gesamt-Aggregation (IST: only records up to today)
+  const istMatchStage = { ...matchStage, datumVon: { ...matchStage.datumVon, $lte: today } };
+  if (von) istMatchStage.datumVon.$gte = new Date(von);
+  if (bis) {
+    const bisDate = new Date(bis);
+    istMatchStage.datumVon.$lte = bisDate < today ? bisDate : today;
+  }
+
   const totalPipeline = [
-    { $match: matchStage },
+    { $match: istMatchStage },
     { $group: {
       _id: {
         auftragNr: '$auftragNr',
@@ -126,19 +137,63 @@ router.get('/analytics/einsaetze', auth, asyncHandler(async (req, res) => {
     { $sort: { '_id.year': 1, '_id.month': 1 } }
   ];
   const totalResult = await Einsatz.aggregate(totalPipeline);
-  const data = totalResult.map(r => ({
-    year: r._id.year, month: r._id.month,
-    label: `${String(r._id.month).padStart(2, '0')}/${r._id.year}`,
-    count: r.count,
-    auftragCount: r.auftragCount
-  }));
+
+  // 4a-forecast. Forecast: future records (datumVon > today), deduplicated by shift
+  const forecastMatchStage = { auftragNr: { $in: auftragNrs }, datumVon: { $gt: today } };
+  if (bis) forecastMatchStage.datumVon.$lte = new Date(bis);
+
+  const forecastPipeline = [
+    { $match: { ...forecastMatchStage, bedarf: { $gt: 0 } } },
+    // Deduplicate: one entry per unique shift-day
+    { $group: {
+      _id: {
+        auftragNr: '$auftragNr',
+        idAuftragArbeitsschichten: '$idAuftragArbeitsschichten',
+        datumVon: '$datumVon'
+      },
+      bedarf: { $first: '$bedarf' }
+    }},
+    // Sum bedarf per month
+    { $group: {
+      _id: {
+        year: { $year: '$_id.datumVon' },
+        month: { $month: '$_id.datumVon' }
+      },
+      forecast: { $sum: '$bedarf' }
+    }},
+    { $sort: { '_id.year': 1, '_id.month': 1 } }
+  ];
+  const forecastResult = await Einsatz.aggregate(forecastPipeline);
+
+  // Merge IST + Forecast into data array
+  const dataMap = {};
+  totalResult.forEach(r => {
+    const key = `${r._id.year}-${r._id.month}`;
+    dataMap[key] = {
+      year: r._id.year, month: r._id.month,
+      label: `${String(r._id.month).padStart(2, '0')}/${r._id.year}`,
+      count: r.count, auftragCount: r.auftragCount, forecast: 0
+    };
+  });
+  forecastResult.forEach(r => {
+    const key = `${r._id.year}-${r._id.month}`;
+    if (!dataMap[key]) {
+      dataMap[key] = {
+        year: r._id.year, month: r._id.month,
+        label: `${String(r._id.month).padStart(2, '0')}/${r._id.year}`,
+        count: 0, auftragCount: 0, forecast: 0
+      };
+    }
+    dataMap[key].forecast = r.forecast;
+  });
+  const data = Object.values(dataMap).sort((a, b) => a.year - b.year || a.month - b.month);
 
   // 4b. Per-Kunde Breakdown
   let breakdown = [];
   // Calculate breakdown always if filtering (users expect stacked bars of what they selected)
   if (kundenNr) {
     const breakdownPipeline = [
-      { $match: matchStage },
+      { $match: istMatchStage },
       { $group: {
         _id: {
           auftragNr: '$auftragNr',
@@ -151,7 +206,7 @@ router.get('/analytics/einsaetze', auth, asyncHandler(async (req, res) => {
     const bResult = await Einsatz.aggregate(breakdownPipeline);
 
     // Gruppiere nach kundenNr + Monat (using MAPPED nr)
-    const map = {}; // key: `kundenNr-year-month` → { count, auftraege: Set }
+    const map = {}; // key: `kundenNr-year-month` → { count, auftraege: Set, forecast }
     bResult.forEach(r => {
       const originalKnr = auftragToKundeOriginal[r._id.auftragNr];
       if (!originalKnr) return;
@@ -160,10 +215,42 @@ router.get('/analytics/einsaetze', auth, asyncHandler(async (req, res) => {
       const key = `${effectiveNr}-${r._id.year}-${r._id.month}`;
       
       if (!map[key]) {
-        map[key] = { count: 0, auftraege: new Set() };
+        map[key] = { count: 0, auftraege: new Set(), forecast: 0 };
       }
       map[key].count += r.count;
       map[key].auftraege.add(r._id.auftragNr);
+    });
+
+    // Forecast breakdown per Kunde
+    const forecastBreakdownPipeline = [
+      { $match: { ...forecastMatchStage, bedarf: { $gt: 0 } } },
+      { $group: {
+        _id: {
+          auftragNr: '$auftragNr',
+          idAuftragArbeitsschichten: '$idAuftragArbeitsschichten',
+          datumVon: '$datumVon'
+        },
+        bedarf: { $first: '$bedarf' }
+      }},
+      { $group: {
+        _id: {
+          auftragNr: '$_id.auftragNr',
+          year: { $year: '$_id.datumVon' },
+          month: { $month: '$_id.datumVon' }
+        },
+        forecast: { $sum: '$bedarf' }
+      }}
+    ];
+    const fBreakdown = await Einsatz.aggregate(forecastBreakdownPipeline);
+    fBreakdown.forEach(r => {
+      const originalKnr = auftragToKundeOriginal[r._id.auftragNr];
+      if (!originalKnr) return;
+      const effectiveNr = nrMap[originalKnr] || originalKnr;
+      const key = `${effectiveNr}-${r._id.year}-${r._id.month}`;
+      if (!map[key]) {
+        map[key] = { count: 0, auftraege: new Set(), forecast: 0 };
+      }
+      map[key].forecast += r.forecast;
     });
 
     // Konvertiere zu Array
@@ -174,7 +261,8 @@ router.get('/analytics/einsaetze', auth, asyncHandler(async (req, res) => {
         year, 
         month, 
         count: val.count, 
-        auftragCount: val.auftraege.size 
+        auftragCount: val.auftraege.size,
+        forecast: val.forecast
       });
     });
 
@@ -238,9 +326,21 @@ router.get('/analytics/einsaetze/standort', auth, asyncHandler(async (req, res) 
     if (bis) matchStage.datumVon.$lte = new Date(bis);
   }
 
-  // 5. Gesamt-Aggregation pro Monat (same as main endpoint)
+  // Today boundary for IST vs Forecast split
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  // IST matchStage: only records up to today
+  const istMatchStage = { ...matchStage, datumVon: { ...matchStage.datumVon, $lte: today } };
+  if (von) istMatchStage.datumVon.$gte = new Date(von);
+  if (bis) {
+    const bisDate = new Date(bis);
+    istMatchStage.datumVon.$lte = bisDate < today ? bisDate : today;
+  }
+
+  // 5. Gesamt-Aggregation pro Monat (IST only)
   const totalPipeline = [
-    { $match: matchStage },
+    { $match: istMatchStage },
     { $group: {
       _id: {
         auftragNr: '$auftragNr',
@@ -257,14 +357,48 @@ router.get('/analytics/einsaetze/standort', auth, asyncHandler(async (req, res) 
     { $sort: { '_id.year': 1, '_id.month': 1 } }
   ];
   const totalResult = await Einsatz.aggregate(totalPipeline);
-  const data = totalResult.map(r => ({
-    year: r._id.year, month: r._id.month,
-    count: r.count, auftragCount: r.auftragCount
-  }));
 
-  // 6. Breakdown nach Standort + Monat
+  // Forecast: future records (datumVon > today)
+  const forecastMatchStage = { auftragNr: { $in: auftragNrs }, datumVon: { $gt: today } };
+  if (bis) forecastMatchStage.datumVon.$lte = new Date(bis);
+
+  const forecastPipeline = [
+    { $match: { ...forecastMatchStage, bedarf: { $gt: 0 } } },
+    { $group: {
+      _id: {
+        auftragNr: '$auftragNr',
+        idAuftragArbeitsschichten: '$idAuftragArbeitsschichten',
+        datumVon: '$datumVon'
+      },
+      bedarf: { $first: '$bedarf' }
+    }},
+    { $group: {
+      _id: {
+        year: { $year: '$_id.datumVon' },
+        month: { $month: '$_id.datumVon' }
+      },
+      forecast: { $sum: '$bedarf' }
+    }},
+    { $sort: { '_id.year': 1, '_id.month': 1 } }
+  ];
+  const forecastResult = await Einsatz.aggregate(forecastPipeline);
+
+  // Merge IST + Forecast
+  const dataMap = {};
+  totalResult.forEach(r => {
+    const key = `${r._id.year}-${r._id.month}`;
+    dataMap[key] = { year: r._id.year, month: r._id.month, count: r.count, auftragCount: r.auftragCount, forecast: 0 };
+  });
+  forecastResult.forEach(r => {
+    const key = `${r._id.year}-${r._id.month}`;
+    if (!dataMap[key]) dataMap[key] = { year: r._id.year, month: r._id.month, count: 0, auftragCount: 0, forecast: 0 };
+    dataMap[key].forecast = r.forecast;
+  });
+  const data = Object.values(dataMap).sort((a, b) => a.year - b.year || a.month - b.month);
+
+  // 6. Breakdown nach Standort + Monat (IST)
   const breakdownPipeline = [
-    { $match: matchStage },
+    { $match: istMatchStage },
     { $group: {
       _id: { auftragNr: '$auftragNr', year: { $year: '$datumVon' }, month: { $month: '$datumVon' } },
       count: { $sum: 1 }
@@ -278,9 +412,39 @@ router.get('/analytics/einsaetze/standort', auth, asyncHandler(async (req, res) 
     if (!knr) return;
     const geschSt = nrToGeschSt[knr] || 'unbekannt';
     const key = `${geschSt}-${r._id.year}-${r._id.month}`;
-    if (!map[key]) map[key] = { count: 0, auftraege: new Set() };
+    if (!map[key]) map[key] = { count: 0, auftraege: new Set(), forecast: 0 };
     map[key].count += r.count;
     map[key].auftraege.add(r._id.auftragNr);
+  });
+
+  // Forecast breakdown per Standort
+  const forecastBreakdownPipeline = [
+    { $match: { ...forecastMatchStage, bedarf: { $gt: 0 } } },
+    { $group: {
+      _id: {
+        auftragNr: '$auftragNr',
+        idAuftragArbeitsschichten: '$idAuftragArbeitsschichten',
+        datumVon: '$datumVon'
+      },
+      bedarf: { $first: '$bedarf' }
+    }},
+    { $group: {
+      _id: {
+        auftragNr: '$_id.auftragNr',
+        year: { $year: '$_id.datumVon' },
+        month: { $month: '$_id.datumVon' }
+      },
+      forecast: { $sum: '$bedarf' }
+    }}
+  ];
+  const fStandortResult = await Einsatz.aggregate(forecastBreakdownPipeline);
+  fStandortResult.forEach(r => {
+    const knr = auftragToKunde[r._id.auftragNr];
+    if (!knr) return;
+    const geschSt = nrToGeschSt[knr] || 'unbekannt';
+    const key = `${geschSt}-${r._id.year}-${r._id.month}`;
+    if (!map[key]) map[key] = { count: 0, auftraege: new Set(), forecast: 0 };
+    map[key].forecast += r.forecast;
   });
 
   const standortBreakdown = Object.entries(map).map(([key, val]) => {
@@ -288,7 +452,7 @@ router.get('/analytics/einsaetze/standort', auth, asyncHandler(async (req, res) 
     const geschSt = parts[0];
     const year = Number(parts[1]);
     const month = Number(parts[2]);
-    return { geschSt, year, month, count: val.count, auftragCount: val.auftraege.size };
+    return { geschSt, year, month, count: val.count, auftragCount: val.auftraege.size, forecast: val.forecast };
   });
   standortBreakdown.sort((a, b) => a.year - b.year || a.month - b.month);
 
@@ -346,9 +510,16 @@ router.get('/analytics/einsaetze/daily', auth, asyncHandler(async (req, res) => 
     datumVon: { $gte: von, $lte: bis }
   };
 
-  // Total per day
+  // Today boundary for IST vs Forecast split
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  // IST: only records up to today
+  const istMatchStage = { ...matchStage, datumVon: { $gte: von, $lte: bis < today ? bis : today } };
+
+  // Total per day (IST)
   const totalPipeline = [
-    { $match: matchStage },
+    { $match: istMatchStage },
     { $group: {
       _id: { day: { $dayOfMonth: '$datumVon' } },
       count: { $sum: 1 }
@@ -358,9 +529,30 @@ router.get('/analytics/einsaetze/daily', auth, asyncHandler(async (req, res) => 
   const totalResult = await Einsatz.aggregate(totalPipeline);
   const data = totalResult.map(r => ({ day: r._id.day, count: r.count }));
 
-  // Auftrag-level breakdown (always returned for drill-down stacking)
+  // Forecast per day (future only, deduplicated by shift)
+  const forecastMatchStage = { auftragNr: { $in: auftragNrs }, datumVon: { $gt: today, $lte: bis } };
+  const forecastDailyPipeline = [
+    { $match: { ...forecastMatchStage, bedarf: { $gt: 0 } } },
+    { $group: {
+      _id: {
+        auftragNr: '$auftragNr',
+        idAuftragArbeitsschichten: '$idAuftragArbeitsschichten',
+        datumVon: '$datumVon'
+      },
+      bedarf: { $first: '$bedarf' }
+    }},
+    { $group: {
+      _id: { day: { $dayOfMonth: '$_id.datumVon' } },
+      forecast: { $sum: '$bedarf' }
+    }},
+    { $sort: { '_id.day': 1 } }
+  ];
+  const forecastDailyResult = await Einsatz.aggregate(forecastDailyPipeline);
+  const forecastData = forecastDailyResult.map(r => ({ day: r._id.day, forecast: r.forecast }));
+
+  // Auftrag-level breakdown (IST — always returned for drill-down stacking)
   const auftragPipeline = [
-    { $match: matchStage },
+    { $match: istMatchStage },
     { $group: {
       _id: { auftragNr: '$auftragNr', day: { $dayOfMonth: '$datumVon' } },
       count: { $sum: 1 }
@@ -368,39 +560,68 @@ router.get('/analytics/einsaetze/daily', auth, asyncHandler(async (req, res) => 
   ];
   const auftragResult = await Einsatz.aggregate(auftragPipeline);
 
+  // Auftrag-level forecast breakdown
+  const auftragForecastPipeline = [
+    { $match: { ...forecastMatchStage, bedarf: { $gt: 0 } } },
+    { $group: {
+      _id: {
+        auftragNr: '$auftragNr',
+        idAuftragArbeitsschichten: '$idAuftragArbeitsschichten',
+        datumVon: '$datumVon'
+      },
+      bedarf: { $first: '$bedarf' }
+    }},
+    { $group: {
+      _id: { auftragNr: '$_id.auftragNr', day: { $dayOfMonth: '$_id.datumVon' } },
+      forecast: { $sum: '$bedarf' }
+    }}
+  ];
+  const auftragForecastResult = await Einsatz.aggregate(auftragForecastPipeline);
+
   // Build a map of auftragNr -> eventTitel for labeling
-  const relevantAuftragNrs = [...new Set(auftragResult.map(r => r._id.auftragNr))];
-  const auftragDocs = await Auftrag.find({ auftragNr: { $in: relevantAuftragNrs } }).select('auftragNr eventTitel kundenNr vonDatum');
+  const allAuftragNrsFromResults = [...new Set([
+    ...auftragResult.map(r => r._id.auftragNr),
+    ...auftragForecastResult.map(r => r._id.auftragNr)
+  ])];
+  const auftragDocs = await Auftrag.find({ auftragNr: { $in: allAuftragNrsFromResults } }).select('auftragNr eventTitel kundenNr vonDatum');
   const auftragInfo = {};
   auftragDocs.forEach(a => {
     auftragInfo[a.auftragNr] = { eventTitel: a.eventTitel || `Auftrag #${a.auftragNr}`, kundenNr: a.kundenNr, vonDatum: a.vonDatum };
   });
 
-  // Group by auftragNr -> array of { day, count }
+  // Group by auftragNr -> array of { day, count } + { day, forecast }
   const auftragMap = {};
   auftragResult.forEach(r => {
     const nr = r._id.auftragNr;
-    if (!auftragMap[nr]) auftragMap[nr] = [];
-    auftragMap[nr].push({ day: r._id.day, count: r.count });
+    if (!auftragMap[nr]) auftragMap[nr] = { days: [], forecastDays: [] };
+    auftragMap[nr].days.push({ day: r._id.day, count: r.count });
+  });
+  auftragForecastResult.forEach(r => {
+    const nr = r._id.auftragNr;
+    if (!auftragMap[nr]) auftragMap[nr] = { days: [], forecastDays: [] };
+    auftragMap[nr].forecastDays.push({ day: r._id.day, forecast: r.forecast });
   });
 
-  const auftragBreakdown = Object.entries(auftragMap).map(([nr, days]) => {
+  const auftragBreakdown = Object.entries(auftragMap).map(([nr, entry]) => {
     const info = auftragInfo[Number(nr)] || {};
-    const total = days.reduce((s, d) => s + d.count, 0);
+    const total = entry.days.reduce((s, d) => s + d.count, 0);
+    const totalForecast = entry.forecastDays.reduce((s, d) => s + d.forecast, 0);
     return {
       auftragNr: Number(nr),
       eventTitel: info.eventTitel || `#${nr}`,
       kundenNr: info.kundenNr || null,
       vonDatum: info.vonDatum || null,
       total,
-      days
+      totalForecast,
+      days: entry.days,
+      forecastDays: entry.forecastDays
     };
   });
 
   // Sort by total descending (biggest at bottom of stack)
-  auftragBreakdown.sort((a, b) => b.total - a.total);
+  auftragBreakdown.sort((a, b) => (b.total + b.totalForecast) - (a.total + a.totalForecast));
 
-  res.json({ data, auftragBreakdown });
+  res.json({ data, forecastData, auftragBreakdown });
 }));
 
 // @route   GET /api/kunden/:id

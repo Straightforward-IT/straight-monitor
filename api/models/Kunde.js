@@ -27,6 +27,11 @@ const KundeSchema = new mongoose.Schema({
     type: String, // KOSTENST
     required: false
   },
+  kuerzel: {
+    type: String,
+    required: false,
+    default: null
+  },
   parentKunde: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Kunde',

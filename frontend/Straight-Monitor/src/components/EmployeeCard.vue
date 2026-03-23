@@ -1,5 +1,12 @@
 <template>
   <article class="card" :data-expanded="expanded" :data-theme="effectiveTheme">
+    <!-- Self-loading skeleton -->
+    <div v-if="selfLoading && !resolvedMa" class="card-self-loading">
+      <font-awesome-icon icon="fa-solid fa-spinner" spin />
+      <span>Lade Mitarbeiter...</span>
+    </div>
+
+    <template v-if="resolvedMa">
     <!-- Selection Checkbox (always visible in grid view) -->
     <div class="selection-overlay" @click.stop>
       <input
@@ -26,30 +33,30 @@
         <div
           class="avatar"
           v-if="!photoUrl"
-          :style="{ '--hue': avatarHue(ma) }"
+          :style="{ '--hue': avatarHue(resolvedMa) }"
         >
-          {{ initials(ma) }}
+          {{ initials(resolvedMa) }}
         </div>
         <img v-else class="avatar-img" :src="photoUrl" alt="" />
 
         <div class="title">
-          <div class="name">{{ ma.vorname }} {{ ma.nachname }}</div>
+          <div class="name">{{ resolvedMa.vorname }} {{ resolvedMa.nachname }}</div>
           <div class="meta">
-            <span class="pill" :class="ma.isActive ? 'ok' : 'muted'">
+            <span class="pill" :class="resolvedMa.isActive ? 'ok' : 'muted'">
               <font-awesome-icon
                 :icon="
-                  ma.isActive
+                  resolvedMa.isActive
                     ? 'fa-solid fa-circle-check'
                     : 'fa-regular fa-circle'
                 "
               />
-              {{ ma.isActive ? "Aktiv" : "Inaktiv" }}
+              {{ resolvedMa.isActive ? "Aktiv" : "Inaktiv" }}
             </span>
 
             <!-- Personalnr mit visueller Warnung wenn fehlend -->
-            <span class="pill" :class="ma.personalnr ? 'ok' : 'warn'">
+            <span class="pill" :class="resolvedMa.personalnr ? 'ok' : 'warn'">
               <font-awesome-icon icon="fa-solid fa-id-badge" />
-              {{ ma.personalnr || "Personalnr fehlt" }}
+              {{ resolvedMa.personalnr || "Personalnr fehlt" }}
             </span>
             
             <!-- Location Badge -->
@@ -98,26 +105,26 @@
             <div class="kv-inline">
               <div>
                 <dt>E-Mail</dt>
-                <dd>{{ ma.email || "—" }}</dd>
+                <dd>{{ resolvedMa.email || "—" }}</dd>
               </div>
-              <div v-if="ma.telefon">
+              <div v-if="resolvedMa.telefon">
                 <dt>Telefon</dt>
                 <dd>
-                  <a :href="generateSipgateLink(ma.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')">
-                    <font-awesome-icon icon="fa-solid fa-phone" /> {{ ma.telefon }}
+                  <a :href="generateSipgateLink(resolvedMa.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')">
+                    <font-awesome-icon icon="fa-solid fa-phone" /> {{ resolvedMa.telefon }}
                   </a>
                 </dd>
               </div>
             </div>
-            <div v-if="ma.erstellt_von">
+            <div v-if="resolvedMa.erstellt_von">
               <dt>Erstellt von</dt>
-              <dd>{{ ma.erstellt_von }}</dd>
+              <dd>{{ resolvedMa.erstellt_von }}</dd>
             </div>
-            <div v-if="ma.additionalEmails && ma.additionalEmails.length > 0">
+            <div v-if="resolvedMa.additionalEmails && resolvedMa.additionalEmails.length > 0">
               <dt>Alternative E-Mails</dt>
               <dd>
                 <div class="email-list">
-                  <span v-for="(email, idx) in ma.additionalEmails" :key="idx" class="email-badge">
+                  <span v-for="(email, idx) in resolvedMa.additionalEmails" :key="idx" class="email-badge">
                     {{ email }}
                   </span>
                 </div>
@@ -126,20 +133,20 @@
           </div>
 
           <!-- Skills Section (Berufe & Qualifikationen) -->
-          <div v-if="ma.berufe?.length || ma.qualifikationen?.length" class="skills-section">
+          <div v-if="resolvedMa.berufe?.length || resolvedMa.qualifikationen?.length" class="skills-section">
             <h4 class="section-title">
               <font-awesome-icon icon="fa-solid fa-star" class="section-icon" />
               Kompetenzen
             </h4>
 
-            <div v-if="ma.berufe?.length" class="skill-group">
+            <div v-if="resolvedMa.berufe?.length" class="skill-group">
               <h5 class="skill-group-title">
                 <font-awesome-icon icon="fa-solid fa-briefcase" class="skill-icon-sm" />
                 Berufe
               </h5>
               <ul class="skill-list">
                 <li 
-                  v-for="beruf in ma.berufe" 
+                  v-for="beruf in resolvedMa.berufe" 
                   :key="beruf.jobKey || beruf._id" 
                   class="skill-item skill-clickable"
                   @click.stop="$emit('filter-beruf', beruf._id)"
@@ -151,14 +158,14 @@
               </ul>
             </div>
 
-            <div v-if="ma.qualifikationen?.length" class="skill-group">
+            <div v-if="resolvedMa.qualifikationen?.length" class="skill-group">
               <h5 class="skill-group-title">
                 <font-awesome-icon icon="fa-solid fa-graduation-cap" class="skill-icon-sm" />
                 Qualifikationen
               </h5>
               <ul class="skill-list">
                 <li 
-                  v-for="quali in ma.qualifikationen" 
+                  v-for="quali in resolvedMa.qualifikationen" 
                   :key="quali.qualificationKey || quali._id" 
                   class="skill-item skill-clickable"
                   @click.stop="$emit('filter-qualifikation', quali._id)"
@@ -179,14 +186,14 @@
             </h4>
 
             <!-- Event Reports (als Teamleiter) — geschrieben, immer zuerst -->
-            <div v-if="ma.eventreports && ma.eventreports.length > 0" class="doc-category">
+            <div v-if="resolvedMa.eventreports && resolvedMa.eventreports.length > 0" class="doc-category">
               <h5 class="category-title">
                 <font-awesome-icon icon="fa-solid fa-clipboard" />
-                Event Reports – geschrieben ({{ ma.eventreports.length }})
+                Event Reports – geschrieben ({{ resolvedMa.eventreports.length }})
               </h5>
               <div class="doc-list">
                 <div 
-                  v-for="doc in ma.eventreports" 
+                  v-for="doc in resolvedMa.eventreports" 
                   :key="doc._id" 
                   class="doc-item"
                   @click="openDocument(doc, 'Event-Bericht')"
@@ -231,14 +238,14 @@
             </div>
 
             <!-- Laufzettel Erhalten (als Mitarbeiter) -->
-            <div v-if="ma.laufzettel_received && ma.laufzettel_received.length > 0" class="doc-category">
+            <div v-if="resolvedMa.laufzettel_received && resolvedMa.laufzettel_received.length > 0" class="doc-category">
               <h5 class="category-title">
                 <font-awesome-icon icon="fa-solid fa-inbox" />
-                Laufzettel erhalten ({{ ma.laufzettel_received.length }})
+                Laufzettel erhalten ({{ resolvedMa.laufzettel_received.length }})
               </h5>
               <div class="doc-list">
                 <div 
-                  v-for="doc in ma.laufzettel_received" 
+                  v-for="doc in resolvedMa.laufzettel_received" 
                   :key="doc._id" 
                   class="doc-item"
                   @click="openDocument(doc, 'Laufzettel')"
@@ -253,14 +260,14 @@
             </div>
 
             <!-- Laufzettel Abgegeben (als Teamleiter) -->
-            <div v-if="ma.laufzettel_submitted && ma.laufzettel_submitted.length > 0" class="doc-category">
+            <div v-if="resolvedMa.laufzettel_submitted && resolvedMa.laufzettel_submitted.length > 0" class="doc-category">
               <h5 class="category-title">
                 <font-awesome-icon icon="fa-solid fa-paper-plane" />
-                Laufzettel abgegeben ({{ ma.laufzettel_submitted.length }})
+                Laufzettel abgegeben ({{ resolvedMa.laufzettel_submitted.length }})
               </h5>
               <div class="doc-list">
                 <div 
-                  v-for="doc in ma.laufzettel_submitted" 
+                  v-for="doc in resolvedMa.laufzettel_submitted" 
                   :key="doc._id" 
                   class="doc-item"
                   @click="openDocument(doc, 'Laufzettel')"
@@ -275,14 +282,14 @@
             </div>
 
             <!-- Evaluierungen Erhalten (als Mitarbeiter) -->
-            <div v-if="ma.evaluierungen_received && ma.evaluierungen_received.length > 0" class="doc-category">
+            <div v-if="resolvedMa.evaluierungen_received && resolvedMa.evaluierungen_received.length > 0" class="doc-category">
               <h5 class="category-title">
                 <font-awesome-icon icon="fa-solid fa-inbox" />
-                Evaluierungen erhalten ({{ ma.evaluierungen_received.length }})
+                Evaluierungen erhalten ({{ resolvedMa.evaluierungen_received.length }})
               </h5>
               <div class="doc-list">
                 <div 
-                  v-for="doc in ma.evaluierungen_received" 
+                  v-for="doc in resolvedMa.evaluierungen_received" 
                   :key="doc._id" 
                   class="doc-item"
                   @click="openDocument(doc, 'Evaluierung')"
@@ -297,14 +304,14 @@
             </div>
 
             <!-- Evaluierungen Abgegeben (als Teamleiter) -->
-            <div v-if="ma.evaluierungen_submitted && ma.evaluierungen_submitted.length > 0" class="doc-category">
+            <div v-if="resolvedMa.evaluierungen_submitted && resolvedMa.evaluierungen_submitted.length > 0" class="doc-category">
               <h5 class="category-title">
                 <font-awesome-icon icon="fa-solid fa-paper-plane" />
-                Evaluierungen abgegeben ({{ ma.evaluierungen_submitted.length }})
+                Evaluierungen abgegeben ({{ resolvedMa.evaluierungen_submitted.length }})
               </h5>
               <div class="doc-list">
                 <div 
-                  v-for="doc in ma.evaluierungen_submitted" 
+                  v-for="doc in resolvedMa.evaluierungen_submitted" 
                   :key="doc._id" 
                   class="doc-item"
                   @click="openDocument(doc, 'Evaluierung')"
@@ -328,14 +335,14 @@
 
         <!-- Flip View -->
         <section v-else-if="view === 'flip'" class="flip-view">
-          <div v-if="ma.flip" class="flip-content">
+          <div v-if="resolvedMa.flip" class="flip-content">
             <!-- Flip Profile -->
             <div class="flip-profile-section">
               <h4 class="section-title">
                 <img :src="flipLogo" alt="Flip" class="section-icon" />
                 Flip-Profil
               </h4>
-              <FlipProfile :flip-user="ma.flip" />
+              <FlipProfile :flip-user="resolvedMa.flip" />
             </div>
             
             <!-- Flip Tasks -->
@@ -390,7 +397,7 @@
                 <div v-if="filteredTasksToMe.length > 0" class="task-category">
                   <h5 class="category-title">
                     <font-awesome-icon icon="fa-solid fa-inbox" />
-                    Zugewiesen an {{ ma.flip.vorname }} ({{ filteredTasksToMe.length }})
+                    Zugewiesen an {{ resolvedMa.flip.vorname }} ({{ filteredTasksToMe.length }})
                   </h5>
                   <div class="category-tasks">
                     <div 
@@ -441,7 +448,7 @@
                 <div v-if="filteredTasksByMe.length > 0" class="task-category">
                   <h5 class="category-title">
                     <font-awesome-icon icon="fa-solid fa-paper-plane" />
-                    Zugewiesen von {{ ma.flip.vorname }} ({{ filteredTasksByMe.length }})
+                    Zugewiesen von {{ resolvedMa.flip.vorname }} ({{ filteredTasksByMe.length }})
                   </h5>
                   <div class="category-tasks">
                     <div 
@@ -492,7 +499,7 @@
                 <div v-if="filteredAvailableTasks.length > 0" class="task-category">
                   <h5 class="category-title">
                     <font-awesome-icon icon="fa-solid fa-clipboard-list" />
-                    Zugewiesen an {{ ma.flip.vorname }} ({{ filteredAvailableTasks.length }})
+                    Zugewiesen an {{ resolvedMa.flip.vorname }} ({{ filteredAvailableTasks.length }})
                   </h5>
                   <div class="category-tasks">
                     <div 
@@ -582,10 +589,10 @@
             </div>
 
             <!-- Case 1: MA has flip_id → try restore -->
-            <div v-if="ma.flip_id" class="flip-action-section">
+            <div v-if="resolvedMa.flip_id" class="flip-action-section">
               <p class="hint-text">
                 <font-awesome-icon icon="fa-solid fa-info-circle" />
-                Dieser Mitarbeiter hat eine gespeicherte Flip-ID (<code>{{ ma.flip_id }}</code>), aber der Account ist nicht aktiv.
+                Dieser Mitarbeiter hat eine gespeicherte Flip-ID (<code>{{ resolvedMa.flip_id }}</code>), aber der Account ist nicht aktiv.
               </p>
               <button
                 class="btn btn-primary btn-sm"
@@ -627,7 +634,7 @@
             <div v-if="showFlipCreateConfirm" class="flip-confirm-box flip-create-form">
               <div class="fc-header">
                 <strong>Flip-User erstellen</strong>
-                <span class="fc-name">{{ ma.vorname }} {{ ma.nachname }} &middot; <span class="fc-email">{{ ma.email }}</span></span>
+                <span class="fc-name">{{ resolvedMa.vorname }} {{ resolvedMa.nachname }} &middot; <span class="fc-email">{{ resolvedMa.email }}</span></span>
               </div>
 
               <div class="fc-row">
@@ -741,17 +748,17 @@
         <!-- Asana View -->
         <section v-else-if="view === 'asana'" class="asana-view">
           <!-- Asana Verknüpfung vorhanden -->
-          <div v-if="ma.asana_id" class="asana-linked">
+          <div v-if="resolvedMa.asana_id" class="asana-linked">
             <div class="asana-info">
               <h4 class="section-title">
                 <img :src="asanaLogo" alt="Asana" class="section-icon" />
                 Asana-Verknüpfung
               </h4>
               <div class="asana-id">
-                <strong>Task-ID:</strong> {{ ma.asana_id }}
+                <strong>Task-ID:</strong> {{ resolvedMa.asana_id }}
                 <button
                   class="copy-btn"
-                  @click="copyToClipboard(ma.asana_id)"
+                  @click="copyToClipboard(resolvedMa.asana_id)"
                   title="ID kopieren"
                 >
                   <font-awesome-icon icon="fa-solid fa-copy" />
@@ -894,7 +901,7 @@
                         class="featured-hint"
                       >
                         <font-awesome-icon icon="fa-solid fa-envelope" />
-                        Enthält {{ ma.email }}
+                        Enthält {{ resolvedMa.email }}
                       </div>
                     </div>
                     <div class="task-status">
@@ -1075,13 +1082,13 @@
           <teleport to="body">
             <div v-if="showQuickActionsMenu" class="qa-overlay" @click="showQuickActionsMenu = false">
               <div class="qa-menu" :style="quickActionsMenuStyle" @click.stop>
-                <div v-if="getPhoneNumber() || ma.email" class="qa-group">
+                <div v-if="getPhoneNumber() || resolvedMa?.email" class="qa-group">
                   <div class="qa-group-label">Kontakt</div>
                   <button v-if="getPhoneNumber()" class="qa-item" @click="executeQuickAction('sipgate')">
                     <font-awesome-icon icon="fa-solid fa-phone" /> {{ getPhoneNumber() }}
                   </button>
-                  <button v-if="ma.email" class="qa-item" @click="executeQuickAction('outlook')">
-                    <font-awesome-icon icon="fa-solid fa-envelope" /> {{ ma.email }}
+                  <button v-if="resolvedMa.email" class="qa-item" @click="executeQuickAction('outlook')">
+                    <font-awesome-icon icon="fa-solid fa-envelope" /> {{ resolvedMa.email }}
                   </button>
                 </div>
                 <div class="qa-group">
@@ -1097,8 +1104,8 @@
                     <font-awesome-icon icon="fa-solid fa-edit" /> Bearbeiten
                   </button>
                   <button class="qa-item" @click="executeQuickAction('toggle-active')">
-                    <font-awesome-icon :icon="ma.isActive ? 'fa-regular fa-circle' : 'fa-solid fa-circle-check'" />
-                    {{ ma.isActive ? 'Deaktivieren' : 'Reaktivieren' }}
+                    <font-awesome-icon :icon="resolvedMa.isActive ? 'fa-regular fa-circle' : 'fa-solid fa-circle-check'" />
+                    {{ resolvedMa.isActive ? 'Deaktivieren' : 'Reaktivieren' }}
                   </button>
                   <button class="qa-item qa-item--danger" @click="executeQuickAction('delete')">
                     <font-awesome-icon icon="fa-solid fa-trash" /> Löschen
@@ -1111,9 +1118,9 @@
       </div>
 
       <div class="hero-media" :class="{ 'hero-media--clickable': !photoUrl }" @click="!photoUrl && (showImageCropModal = true)" :title="!photoUrl ? 'Bild hochladen' : undefined">
-        <img v-if="photoUrl" :src="photoUrl" :alt="`${ma.vorname} ${ma.nachname}`" class="hero-img" />
-        <div v-else class="hero-initials" :style="{ '--hue': avatarHue(ma) }">
-          {{ initials(ma) }}
+        <img v-if="photoUrl" :src="photoUrl" :alt="`${resolvedMa.vorname} ${resolvedMa.nachname}`" class="hero-img" />
+        <div v-else class="hero-initials" :style="{ '--hue': avatarHue(resolvedMa) }">
+          {{ initials(resolvedMa) }}
         </div>
         <div v-if="!photoUrl" class="hero-upload-hint">
           <font-awesome-icon icon="fa-solid fa-camera" />
@@ -1151,7 +1158,7 @@
     <teleport to="body">
       <EditMitarbeiterDialog
         v-if="showEditModal"
-        :mitarbeiter="ma"
+        :mitarbeiter="resolvedMa"
         :saving="savingEdit"
         :conflict-info="editConflictInfo"
         @close="closeEditModal"
@@ -1162,7 +1169,7 @@
       
       <DeleteMitarbeiterDialog
         v-if="showDeleteModal"
-        :name="`${ma.vorname} ${ma.nachname}`"
+        :name="`${resolvedMa.vorname} ${resolvedMa.nachname}`"
         :loading="deletingMitarbeiter"
         @close="closeDeleteModal"
         @confirm="confirmDelete"
@@ -1173,11 +1180,13 @@
     <teleport to="body">
       <ImageCropModal
         v-if="showImageCropModal"
-        :mitarbeiter-id="ma._id"
+        :mitarbeiter-id="resolvedMa._id"
         @close="showImageCropModal = false"
         @uploaded="onProfilbildUploaded"
       />
     </teleport>
+
+  </template>
 
   </article>
 </template>
@@ -1210,7 +1219,8 @@ export default {
   name: "EmployeeCard",
   components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DocumentCard, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge },
   props: {
-    ma: { type: Object, required: true },
+    ma: { type: Object, required: false, default: null },
+    mitarbeiterId: { type: String, default: null },
     initiallyExpanded: { type: Boolean, default: false },
     showCheckbox: { type: Boolean, default: false },
     isSelected: { type: Boolean, default: false },
@@ -1220,6 +1230,12 @@ export default {
   setup(props) {
     const theme = useTheme(); // { current: 'light' | 'dark' | 'system' }
     const router = useRouter();
+
+    // Self-loading state (used when only mitarbeiterId prop is passed)
+    const selfLoadedMa = ref(null);
+    const selfLoading = ref(false);
+    // Resolves to the passed ma prop, or the self-loaded one
+    const resolvedMaSetup = computed(() => props.ma || selfLoadedMa.value);
 
     // System-Theme live auslesen
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -1255,19 +1271,19 @@ export default {
 
     // Flip helpers (attributes als Array von {name,value})
     const getFlipAttr = (name) =>
-      props.ma?.flip?.attributes?.find?.((a) => a?.name === name)?.value;
+      resolvedMaSetup.value?.flip?.attributes?.find?.((a) => a?.name === name)?.value;
 
     const displayLocation = computed(() => {
         // 1. Flip Location
-        const flipLoc = props.ma?.flip?.profile?.location || getFlipAttr("location");
+        const flipLoc = resolvedMaSetup.value?.flip?.profile?.location || getFlipAttr("location");
         if (flipLoc) return flipLoc;
 
         // 2. Database Location
-        if (props.ma?.standort) return props.ma?.standort;
+        if (resolvedMaSetup.value?.standort) return resolvedMaSetup.value?.standort;
 
         // 3. Fallback: Personalnr Logic
         // 1xxxx = Berlin, 2xxxx = Hamburg, 3xxxx = Köln
-        const pnr = props.ma?.personalnr;
+        const pnr = resolvedMaSetup.value?.personalnr;
         if (pnr) {
           const s = String(pnr).trim();
           if (s.startsWith("1")) return "Berlin";
@@ -1279,9 +1295,9 @@ export default {
     });
     const displayDepartment = computed(
       () =>
-        props.ma?.flip?.profile?.department ||
+        resolvedMaSetup.value?.flip?.profile?.department ||
         getFlipAttr("department") ||
-        props.ma?.abteilung ||
+        resolvedMaSetup.value?.abteilung ||
         ""
     );
     // FLip Profile Picture
@@ -1290,7 +1306,7 @@ export default {
     watchEffect(async () => {
       // 1. Try Flip profile picture
       if (flip.enablePhotos) {
-        const id = props.ma?.flip?.id;
+        const id = resolvedMaSetup.value?.flip?.id;
         if (id) {
           const flipUrl = await flip.ensurePhoto(id);
           if (flipUrl) {
@@ -1300,9 +1316,9 @@ export default {
         }
       }
       // 2. Fallback: R2 profilbild
-      if (props.ma?.profilbild) {
+      if (resolvedMaSetup.value?.profilbild) {
         try {
-          const res = await api.get(`/api/personal/mitarbeiter/${props.ma._id}/profilbild`);
+          const res = await api.get(`/api/personal/mitarbeiter/${resolvedMaSetup.value?._id}/profilbild`);
           if (res.data?.url) {
             photoUrl.value = res.data.url;
             return;
@@ -1315,8 +1331,8 @@ export default {
     // Check if user is a Teamleiter
     const isTeamleiter = computed(() => {
       // Logic update: Teamleiter is defined by qualification key '50055' only
-      if (props.ma?.qualifikationen?.length > 0) {
-        return props.ma.qualifikationen.some(q => {
+      if (resolvedMaSetup.value?.qualifikationen?.length > 0) {
+        return resolvedMaSetup.value.qualifikationen.some(q => {
             const key = String(q.qualificationKey).trim();
             // Checking for '50055'
             return parseInt(key, 10) === 50055;
@@ -1343,6 +1359,8 @@ export default {
       isTeamleiter,
       router,
       dataCache,
+      selfLoadedMa,
+      selfLoading,
     };
   },
 
@@ -1431,16 +1449,19 @@ export default {
   },
 
   computed: {
+    resolvedMa() {
+      return this.ma || this.selfLoadedMa;
+    },
     contextMenuOptions() {
       return [
         { label: 'Bearbeiten', action: 'edit' },
-        { label: this.ma.isActive ? 'Deaktivieren' : 'Reaktivieren', action: 'toggle-active' },
+        { label: this.resolvedMa?.isActive ? 'Deaktivieren' : 'Reaktivieren', action: 'toggle-active' },
         { label: 'Löschen', action: 'delete' }
       ];
     },
     persgruppeLabel() {
       const map = { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' };
-      return this.ma?.persgruppe ? map[this.ma.persgruppe] ?? null : null;
+      return this.resolvedMa?.persgruppe ? map[this.resolvedMa.persgruppe] ?? null : null;
     },
     // Filtere Tasks nach Status (offen vs. erledigt)
     filteredTasksToMe() {
@@ -1466,11 +1487,11 @@ export default {
     },
     hasAnyDocuments() {
       return (
-        (this.ma.laufzettel_received && this.ma.laufzettel_received.length > 0) ||
-        (this.ma.laufzettel_submitted && this.ma.laufzettel_submitted.length > 0) ||
-        (this.ma.eventreports && this.ma.eventreports.length > 0) ||
-        (this.ma.evaluierungen_received && this.ma.evaluierungen_received.length > 0) ||
-        (this.ma.evaluierungen_submitted && this.ma.evaluierungen_submitted.length > 0) ||
+        (this.resolvedMa?.laufzettel_received && this.resolvedMa.laufzettel_received.length > 0) ||
+        (this.resolvedMa?.laufzettel_submitted && this.resolvedMa.laufzettel_submitted.length > 0) ||
+        (this.resolvedMa?.eventreports && this.resolvedMa.eventreports.length > 0) ||
+        (this.resolvedMa?.evaluierungen_received && this.resolvedMa.evaluierungen_received.length > 0) ||
+        (this.resolvedMa?.evaluierungen_submitted && this.resolvedMa.evaluierungen_submitted.length > 0) ||
         this.eventreportFeedback.length > 0
       );
     },
@@ -1506,6 +1527,9 @@ export default {
   },
 
   watch: {
+    mitarbeiterId(newId) {
+      if (newId && !this.ma) this.loadSelf();
+    },
     'ma._id'(newId, oldId) {
       if (newId !== oldId) {
         // Reset inventar state when a different mitarbeiter is shown
@@ -1518,7 +1542,7 @@ export default {
     },
     view(newView) {
       // Load tasks when switching to flip view
-      if (newView === 'flip' && this.expanded && this.ma.flip?.id && !this.tasksLoaded) {
+      if (newView === 'flip' && this.expanded && this.resolvedMa?.flip?.id && !this.tasksLoaded) {
         this.loadFlipTasks();
       }
       // Load inventar when switching to inventar view
@@ -1531,13 +1555,19 @@ export default {
   mounted() {
     document.addEventListener('keydown', this.handleEscapeKey);
 
+    // Self-load if only mitarbeiterId was passed
+    if (this.mitarbeiterId && !this.ma) {
+      this.loadSelf();
+      return; // expanded lazy-loads will trigger after data arrives via loadSelf()
+    }
+
     // When opened with initiallyExpanded=true, toggle() is never called,
     // so we must trigger lazy-loading manually.
     if (this.expanded) {
       if (this.eventreportFeedback.length === 0 && !this.loadingFeedback) {
         this.loadEventReportFeedback();
       }
-      if (this.view === 'flip' && this.ma.flip?.id && !this.tasksLoaded) {
+      if (this.view === 'flip' && this.resolvedMa?.flip?.id && !this.tasksLoaded) {
         this.loadFlipTasks();
       }
       if (this.view === 'inventar' && this.inventarLogs.length === 0 && !this.inventarLoading) {
@@ -1551,11 +1581,43 @@ export default {
   },
 
   methods: {
+    async loadSelf() {
+      const id = this.mitarbeiterId;
+      if (!id) return;
+      this.selfLoading = true;
+      try {
+        const response = await api.get(`/api/personal/mitarbeiter/${id}`);
+        const data = response.data?.data || response.data;
+        if (data.flip_id) {
+          try {
+            const flipRes = await api.get(`/api/personal/flip/by-id/${data.flip_id}`);
+            data.flip = flipRes.data;
+          } catch { /* flip profile will show on next load */ }
+        }
+        this.selfLoadedMa = data;
+        // Trigger lazy-loads that depend on expanded state
+        if (this.expanded) {
+          if (this.eventreportFeedback.length === 0 && !this.loadingFeedback) {
+            this.loadEventReportFeedback();
+          }
+          if (this.view === 'flip' && this.resolvedMa?.flip?.id && !this.tasksLoaded) {
+            this.loadFlipTasks();
+          }
+          if (this.view === 'inventar' && this.inventarLogs.length === 0 && !this.inventarLoading) {
+            this.fetchInventar();
+          }
+        }
+      } catch (err) {
+        console.error('[EmployeeCard] loadSelf failed:', err);
+      } finally {
+        this.selfLoading = false;
+      }
+    },
     toggle() {
       this.expanded = !this.expanded;
 
       if (this.expanded) {
-        this.$emit("open", this.ma);
+        this.$emit("open", this.resolvedMa);
 
         // Lazy-load EventReport feedback
         if (this.eventreportFeedback.length === 0 && !this.loadingFeedback) {
@@ -1563,16 +1625,16 @@ export default {
         }
 
         // Auto-load tasks if flip view and not loaded yet
-        if (this.view === 'flip' && this.ma.flip?.id && !this.tasksLoaded) {
+        if (this.view === 'flip' && this.resolvedMa?.flip?.id && !this.tasksLoaded) {
           this.loadFlipTasks();
         }
       }
     },
     async loadEventReportFeedback() {
-      if (!this.ma._id) return;
+      if (!this.resolvedMa?._id) return;
       this.loadingFeedback = true;
       try {
-        const res = await api.get(`/api/personal/mitarbeiter/${this.ma._id}/eventreport-feedback`);
+        const res = await api.get(`/api/personal/mitarbeiter/${this.resolvedMa._id}/eventreport-feedback`);
         this.eventreportFeedback = res.data?.data || [];
       } catch (err) {
         console.error('Error loading EventReport feedback:', err);
@@ -1582,10 +1644,10 @@ export default {
       }
     },
     async fetchInventar() {
-      if (!this.ma._id) return;
+      if (!this.resolvedMa?._id) return;
       this.inventarLoading = true;
       try {
-        const { data } = await api.get(`/api/monitoring/mitarbeiter/${this.ma._id}`);
+        const { data } = await api.get(`/api/monitoring/mitarbeiter/${this.resolvedMa._id}`);
         this.inventarLogs = data || [];
       } catch (e) {
         console.error('Fehler beim Laden des Inventars:', e);
@@ -1623,7 +1685,7 @@ export default {
     // Personalnr Methods
     startEditingPersonalnr() {
       this.editingPersonalnr = true;
-      this.personalnrInput = this.ma.personalnr || "";
+      this.personalnrInput = this.resolvedMa?.personalnr || "";
     },
 
     cancelEditingPersonalnr() {
@@ -1638,7 +1700,7 @@ export default {
 
       try {
         const response = await api.patch(
-          `/api/personal/mitarbeiter/${this.ma._id}/personalnr`,
+          `/api/personal/mitarbeiter/${this.resolvedMa._id}/personalnr`,
           {
             personalnr: this.personalnrInput.trim(),
           }
@@ -1646,8 +1708,8 @@ export default {
 
         if (response.data?.success) {
           // Update lokales Mitarbeiter-Objekt
-          this.ma.personalnr = this.personalnrInput.trim();
-          this.dataCache.updateOneMitarbeiter(this.ma);
+          this.resolvedMa.personalnr = this.personalnrInput.trim();
+          this.dataCache.updateOneMitarbeiter(this.resolvedMa);
           this.cancelEditingPersonalnr();
           console.log("✅ Personalnr gespeichert:", this.personalnrInput.trim());
         } else {
@@ -1688,10 +1750,10 @@ export default {
     },
 
     openAsanaTask() {
-      if (!this.ma.asana_id) return;
+      if (!this.resolvedMa?.asana_id) return;
 
       // Asana Task-URL generieren
-      const url = `https://app.asana.com/0/0/${this.ma.asana_id}`;
+      const url = `https://app.asana.com/0/0/${this.resolvedMa.asana_id}`;
       window.open(url, "_blank");
     },
 
@@ -1704,7 +1766,7 @@ export default {
 
       try {
         const response = await api.patch(
-          `/api/personal/mitarbeiter/${this.ma._id}`,
+          `/api/personal/mitarbeiter/${this.resolvedMa._id}`,
           {
             asana_id: null,
           }
@@ -1712,8 +1774,8 @@ export default {
 
         if (response.data?.success) {
           // Update lokales Mitarbeiter-Objekt
-          this.ma.asana_id = null;
-          this.dataCache.updateOneMitarbeiter(this.ma);
+          this.resolvedMa.asana_id = null;
+          this.dataCache.updateOneMitarbeiter(this.resolvedMa);
           console.log("✅ Asana-Verknüpfung entfernt");
         } else {
           throw new Error(response.data?.message || "Unbekannter Fehler");
@@ -1734,8 +1796,8 @@ export default {
 
       console.log("🔄 Verknüpfe per GID:", {
         gid: this.asanaGidInput.trim(),
-        mitarbeiterId: this.ma._id,
-        mitarbeiterName: `${this.ma.vorname} ${this.ma.nachname}`,
+        mitarbeiterId: this.resolvedMa._id,
+        mitarbeiterName: `${this.resolvedMa.vorname} ${this.resolvedMa.nachname}`,
       });
 
       this.savingAsana = true;
@@ -1749,7 +1811,7 @@ export default {
         }
 
         const response = await api.patch(
-          `/api/personal/mitarbeiter/${this.ma._id}`,
+          `/api/personal/mitarbeiter/${this.resolvedMa._id}`,
           {
             asana_id: this.asanaGidInput.trim(),
           }
@@ -1759,8 +1821,8 @@ export default {
 
         if (response.data?.success) {
           // Update lokales Mitarbeiter-Objekt
-          this.ma.asana_id = this.asanaGidInput.trim();
-          this.dataCache.updateOneMitarbeiter(this.ma);
+          this.resolvedMa.asana_id = this.asanaGidInput.trim();
+          this.dataCache.updateOneMitarbeiter(this.resolvedMa);
           this.cancelAsanaLinking();
           console.log("✅ Asana-Verknüpfung erstellt");
         } else {
@@ -1810,8 +1872,8 @@ export default {
         const response = await api.get("/api/asana/tasks/search", {
           params: {
             query: this.asanaSearchQuery.trim(),
-            employeeEmail: this.ma.email, // Pass employee email for featured suggestions
-            employeeLocation: this.displayLocation || this.ma.standort, // Pass location for prioritization
+            employeeEmail: this.resolvedMa?.email, // Pass employee email for featured suggestions
+            employeeLocation: this.displayLocation || this.resolvedMa?.standort, // Pass location for prioritization
           },
         });
 
@@ -1861,15 +1923,15 @@ export default {
       console.log("🔄 Verknüpfe Asana-Task:", {
         taskGid: task.gid,
         taskName: task.name,
-        mitarbeiterId: this.ma._id,
-        mitarbeiterName: `${this.ma.vorname} ${this.ma.nachname}`,
+        mitarbeiterId: this.resolvedMa._id,
+        mitarbeiterName: `${this.resolvedMa.vorname} ${this.resolvedMa.nachname}`,
       });
 
       this.savingAsana = true;
 
       try {
         const response = await api.patch(
-          `/api/personal/mitarbeiter/${this.ma._id}`,
+          `/api/personal/mitarbeiter/${this.resolvedMa._id}`,
           {
             asana_id: task.gid,
           }
@@ -1883,8 +1945,8 @@ export default {
 
         if (response.data?.success) {
           // Update lokales Mitarbeiter-Objekt
-          this.ma.asana_id = task.gid;
-          this.dataCache.updateOneMitarbeiter(this.ma);
+          this.resolvedMa.asana_id = task.gid;
+          this.dataCache.updateOneMitarbeiter(this.resolvedMa);
           this.cancelAsanaLinking();
           console.log("✅ Asana-Task verknüpft:", task.name);
         } else {
@@ -1930,16 +1992,16 @@ export default {
 
     // Flip Tasks Methoden
     async loadFlipTasks() {
-      if (!this.ma.flip?.id) {
-        console.log("❌ No Flip ID available for", this.ma.vorname, this.ma.nachname);
+      if (!this.resolvedMa?.flip?.id) {
+        console.log("❌ No Flip ID available for", this.resolvedMa?.vorname, this.resolvedMa?.nachname);
         return;
       }
 
-      console.log("🔄 Loading Flip tasks for user:", this.ma.flip.id);
+      console.log("🔄 Loading Flip tasks for user:", this.resolvedMa.flip.id);
       this.loadingTasks = true;
 
       try {
-        const response = await fetchFlipTasks(this.ma.flip.id);
+        const response = await fetchFlipTasks(this.resolvedMa.flip.id);
         this.flipTasks = response || {
           assignedToMe: [],
           assignedByMe: [], 
@@ -1949,7 +2011,7 @@ export default {
         };
         this.tasksLoaded = true;
         
-        console.log(`✅ Loaded ${this.flipTasks.total} Flip tasks for ${this.ma.vorname} ${this.ma.nachname}:`, this.flipTasks.summary);
+        console.log(`✅ Loaded ${this.flipTasks.total} Flip tasks for ${this.resolvedMa?.vorname} ${this.resolvedMa?.nachname}:`, this.flipTasks.summary);
         
         if (this.flipTasks.debug) {
           console.log(`🔍 Debug info:`, this.flipTasks.debug);
@@ -2028,16 +2090,16 @@ export default {
 
     // ── Flip Management Methods ──────────────────────────────────────
     async restoreFlipUser() {
-      if (!this.ma.flip_id) return;
+      if (!this.resolvedMa?.flip_id) return;
       this.flipActionLoading = true;
       this.flipActionError = "";
       this.flipActionSuccess = "";
       try {
-        await api.post(`/api/personal/flip/restore/${this.ma.flip_id}`);
+        await api.post(`/api/personal/flip/restore/${this.resolvedMa.flip_id}`);
         // Re-fetch the flip user data
-        const flipRes = await api.get(`/api/personal/flip/by-id/${this.ma.flip_id}`);
-        this.ma.flip = flipRes.data;
-        this.dataCache.updateOneMitarbeiter(this.ma);
+        const flipRes = await api.get(`/api/personal/flip/by-id/${this.resolvedMa.flip_id}`);
+        this.resolvedMa.flip = flipRes.data;
+        this.dataCache.updateOneMitarbeiter(this.resolvedMa);
         this.flipActionSuccess = "Flip-User erfolgreich wiederhergestellt!";
       } catch (err) {
         const msg = err.response?.data?.message || err.response?.data?.error?.title || err.message;
@@ -2048,11 +2110,11 @@ export default {
     },
 
     openFlipCreateForm() {
-      const rawLoc = this.displayLocation || this.ma.standort || '';
+      const rawLoc = this.displayLocation || this.resolvedMa?.standort || '';
       const canonMap = { 'hamburg': 'Hamburg', 'berlin': 'Berlin', 'köln': 'Köln', 'koeln': 'Köln', 'koln': 'Köln' };
       const canonLoc = canonMap[rawLoc.toLowerCase()] || (['Hamburg','Berlin','Köln'].includes(rawLoc) ? rawLoc : '');
       const isTl = this.isTeamleiter;
-      const isFesti = this.ma.persgruppe === 101;
+      const isFesti = this.resolvedMa?.persgruppe === 101;
       this.flipCreateOptions = {
         location: canonLoc,
         isService: false,
@@ -2115,21 +2177,21 @@ export default {
         const locKey = this.flipCreateOptions.location.toLowerCase()
           .replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ä/g, 'ae');
         const res = await api.post("/api/personal/flip/create-for-mitarbeiter", {
-          mitarbeiterId: this.ma._id,
+          mitarbeiterId: this.resolvedMa._id,
           attributes: this.buildFlipAttributesFromOptions(),
           user_group_ids: this.buildFlipUserGroupIds(),
           primary_user_group_id: FlipMappings.user_group_ids[locKey] || null,
         });
         // Update local data
-        this.ma.flip_id = res.data.flipUser?.id;
+        this.resolvedMa.flip_id = res.data.flipUser?.id;
         // Re-fetch flip data
-        if (this.ma.flip_id) {
+        if (this.resolvedMa.flip_id) {
           try {
-            const flipRes = await api.get(`/api/personal/flip/by-id/${this.ma.flip_id}`);
-            this.ma.flip = flipRes.data;
+            const flipRes = await api.get(`/api/personal/flip/by-id/${this.resolvedMa.flip_id}`);
+            this.resolvedMa.flip = flipRes.data;
           } catch { /* flip profile will show on next load */ }
         }
-        this.dataCache.updateOneMitarbeiter(this.ma);
+        this.dataCache.updateOneMitarbeiter(this.resolvedMa);
         this.flipActionSuccess = "Flip-User erfolgreich erstellt und verknüpft!";
         this.showFlipCreateConfirm = false;
       } catch (err) {
@@ -2170,16 +2232,16 @@ export default {
       this.flipActionError = "";
       this.flipActionSuccess = "";
       try {
-        const res = await api.patch(`/api/personal/mitarbeiter/${this.ma._id}/link-flip`, {
+        const res = await api.patch(`/api/personal/mitarbeiter/${this.resolvedMa._id}/link-flip`, {
           flip_id: this.selectedFlipUser.id,
         });
-        this.ma.flip_id = this.selectedFlipUser.id;
+        this.resolvedMa.flip_id = this.selectedFlipUser.id;
         // Re-fetch full flip data
         try {
           const flipRes = await api.get(`/api/personal/flip/by-id/${this.selectedFlipUser.id}`);
-          this.ma.flip = flipRes.data;
+          this.resolvedMa.flip = flipRes.data;
         } catch { /* will show on next load */ }
-        this.dataCache.updateOneMitarbeiter(this.ma);
+        this.dataCache.updateOneMitarbeiter(this.resolvedMa);
         this.flipActionSuccess = `Verknüpft mit ${this.selectedFlipUser.first_name} ${this.selectedFlipUser.last_name}`;
         this.closeFlipLinkModal();
       } catch (err) {
@@ -2299,10 +2361,10 @@ export default {
 
     getPhoneNumber() {
       // Prefer direct telefon field from Mitarbeiter model (imported from Zvoove)
-      if (this.ma.telefon) return this.ma.telefon;
+      if (this.resolvedMa?.telefon) return this.resolvedMa.telefon;
       // Fallback: extract from Flip attributes
-      if (!this.ma.flip?.attributes) return null;
-      const phoneAttribute = this.ma.flip.attributes.find(attr => {
+      if (!this.resolvedMa?.flip?.attributes) return null;
+      const phoneAttribute = this.resolvedMa?.flip?.attributes?.find(attr => {
         const name = attr.name?.toLowerCase() || '';
         return name.includes('telefon') || name.includes('phone') || 
                name.includes('handy') || name.includes('mobile') || name.includes('tel');
@@ -2332,8 +2394,8 @@ export default {
           break;
         }
         case 'outlook':
-          if (this.ma.email) {
-            window.open(`mailto:${this.ma.email}`, '_self');
+          if (this.resolvedMa?.email) {
+            window.open(`mailto:${this.resolvedMa.email}`, '_self');
           }
           break;
         case 'edit':
@@ -2356,10 +2418,10 @@ export default {
 
     async onProfilbildUploaded(r2Key) {
       this.showImageCropModal = false;
-      this.ma.profilbild = r2Key;
+      this.resolvedMa.profilbild = r2Key;
       // Immediately fetch the signed URL and show it
       try {
-        const res = await api.get(`/api/personal/mitarbeiter/${this.ma._id}/profilbild`);
+        const res = await api.get(`/api/personal/mitarbeiter/${this.resolvedMa._id}/profilbild`);
         if (res.data?.url) {
           this.photoUrl = res.data.url;
         }
@@ -2367,7 +2429,7 @@ export default {
     },
 
     copyShareLink() {
-      const resolved = this.$router.resolve({ name: 'Personal', query: { mitarbeiter_id: this.ma._id } });
+      const resolved = this.$router.resolve({ name: 'Personal', query: { mitarbeiter_id: this.resolvedMa._id } });
       const url = window.location.origin + resolved.href;
       navigator.clipboard.writeText(url).then(() => {
         this.linkCopied = true;
@@ -2380,14 +2442,14 @@ export default {
 
     async toggleActiveStatus() {
       try {
-        const newStatus = !this.ma.isActive;
-        const response = await api.patch(`/api/personal/mitarbeiter/${this.ma._id}`, {
+        const newStatus = !this.resolvedMa?.isActive;
+        const response = await api.patch(`/api/personal/mitarbeiter/${this.resolvedMa._id}`, {
           isActive: newStatus
         });
         
         if (response.data?.success) {
-          this.ma.isActive = newStatus;
-          this.dataCache.updateOneMitarbeiter(this.ma);
+          this.resolvedMa.isActive = newStatus;
+          this.dataCache.updateOneMitarbeiter(this.resolvedMa);
         }
       } catch (error) {
         console.error("❌ Fehler beim Ändern des Status:", error);
@@ -2420,12 +2482,12 @@ export default {
         };
 
         const response = await api.patch(
-          `/api/personal/mitarbeiter/${this.ma._id}`,
+          `/api/personal/mitarbeiter/${this.resolvedMa._id}`,
           updatePayload
         );
 
         if (response.data?.success) {
-           Object.assign(this.ma, response.data.data);
+           Object.assign(this.resolvedMa, response.data.data);
            this.dataCache.updateOneMitarbeiter(response.data.data);
            this.closeEditModal();
         } else {
@@ -2459,12 +2521,12 @@ export default {
         };
 
         const response = await api.patch(
-          `/api/personal/mitarbeiter/${this.ma._id}`,
+          `/api/personal/mitarbeiter/${this.resolvedMa._id}`,
           updatePayload
         );
 
         if (response.data?.success) {
-          Object.assign(this.ma, response.data.data);
+          Object.assign(this.resolvedMa, response.data.data);
           this.dataCache.updateOneMitarbeiter(response.data.data);
           this.closeEditModal();
         } else {
@@ -2492,14 +2554,14 @@ export default {
       try {
         await api.delete("/api/personal/mitarbeiter", {
           data: {
-            ids: [this.ma._id],
+            ids: [this.resolvedMa._id],
             deleteFlip: options.deleteFlip,
             completeAsana: options.completeAsana
           }
         });
         
-        this.dataCache.removeCachedMitarbeiter(this.ma._id);
-        this.$emit("deleted", this.ma._id); 
+        this.dataCache.removeCachedMitarbeiter(this.resolvedMa._id);
+        this.$emit("deleted", this.resolvedMa._id); 
         this.closeDeleteModal();
       } catch (error) {
         console.error("❌ Fehler beim Löschen:", error);
@@ -2541,6 +2603,17 @@ export default {
   transition: box-shadow 0.18s ease, transform 0.12s ease,
     border-color 0.2s ease;
   overflow: hidden;
+}
+
+/* Self-loading skeleton state */
+.card-self-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 16px;
+  color: var(--muted);
+  font-size: 14px;
 }
 .card:hover {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
@@ -2619,7 +2692,7 @@ export default {
   color: #1f8e5d;
 }
 .pill.muted {
-  background: #f1f3f6;
+  background: var(--soft);
   color: var(--muted);
 }
 .pill.warn {

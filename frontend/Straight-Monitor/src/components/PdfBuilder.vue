@@ -81,8 +81,13 @@
               v-for="bm in bookmarks"
               :key="bm.id"
               class="bookmark-item"
-              :class="{ selected: selectedBookmarkId === bm.id }"
+              :class="{ selected: selectedBookmarkId === bm.id, 'drag-over': dragOverBookmarkId === bm.id }"
+              :draggable="editingBookmarkId !== bm.id"
               @click="selectedBookmarkId = bm.id"
+              @dragstart="onBmDragStart(bm.id)"
+              @dragover.prevent="onBmDragOver(bm.id)"
+              @drop.prevent="onBmDrop(bm.id)"
+              @dragend="onBmDragEnd"
             >
               <template v-if="editingBookmarkId === bm.id">
                 <div class="bm-edit">
@@ -121,14 +126,20 @@
                     <p v-if="!bm.options || bm.options.length === 0" class="bm-options-empty">Noch keine Optionen.</p>
                   </div>
                   <input v-else v-model="bm.defaultValue" class="bm-input" placeholder="Standardwert (optional)" />
+                  <label class="bm-optional-toggle">
+                    <input type="checkbox" v-model="bm.optional" />
+                    <span>Optional (Feld darf leer bleiben)</span>
+                  </label>
                   <button class="bm-done-btn" @click="editingBookmarkId = null">
                     <font-awesome-icon :icon="['fas', 'check']" /> Fertig
                   </button>
                 </div>
               </template>
               <template v-else>
+                <font-awesome-icon :icon="['fas', 'grip-vertical']" class="bm-drag-handle" />
                 <font-awesome-icon :icon="bookmarkIcon(bm.dataType)" class="bm-type-icon" />
                 <span class="bm-label">{{ bm.label }}</span>
+                <span v-if="bm.optional" class="bm-optional-badge" title="Optional">opt.</span>
                 <span class="bm-role-badge" :class="`role-${bm.fillRole}`">{{ bm.fillRole === 'bediener' ? 'Bed.' : 'MA' }}</span>
                 <span class="bm-count">×{{ placementCountOf(bm.id) }}</span>
                 <button class="bm-edit-btn" @click.stop="editingBookmarkId = bm.id" title="Bearbeiten">
@@ -341,6 +352,8 @@ const pdfCanvas           = ref(null);
 const canvasContainer     = ref(null);
 const createDialog = ref({ visible: false, name: '', description: '' });
 const ctxMenu      = ref({ visible: false, x: 0, y: 0, pct: null, placementId: null });
+const dragBookmarkId     = ref(null);
+const dragOverBookmarkId = ref(null);
 
 // per-page PDF.js document cache: Map<pdfIndex, pdfDoc>
 const pdfDocCache = new Map();
@@ -606,9 +619,27 @@ async function movePdf(pdfId, direction) {
   if (allPages.value.length > 0) await loadPdfPage(currentGlobalPage.value);
 }
 
+// ── Bookmark drag-and-drop reordering ────────────────────────────────────
+function onBmDragStart(id) { dragBookmarkId.value = id; }
+function onBmDragOver(id)  { if (id !== dragBookmarkId.value) dragOverBookmarkId.value = id; }
+function onBmDrop(targetId) {
+  if (!dragBookmarkId.value || dragBookmarkId.value === targetId) return;
+  const list = bookmarks.value;
+  const fromIdx = list.findIndex(b => b.id === dragBookmarkId.value);
+  const toIdx   = list.findIndex(b => b.id === targetId);
+  if (fromIdx === -1 || toIdx === -1) return;
+  const [moved] = list.splice(fromIdx, 1);
+  list.splice(toIdx, 0, moved);
+  onBmDragEnd();
+}
+function onBmDragEnd() {
+  dragBookmarkId.value     = null;
+  dragOverBookmarkId.value = null;
+}
+
 // ── Bookmarks ─────────────────────────────────────────────────────────────
 function addBookmark() {
-  const bm = { id: uid(), label: '', fillRole: 'bediener', dataType: 'text', defaultValue: '', options: [] };
+  const bm = { id: uid(), label: '', fillRole: 'bediener', dataType: 'text', defaultValue: '', options: [], optional: false };
   bookmarks.value.push(bm);
   selectedBookmarkId.value = bm.id;
   editingBookmarkId.value  = bm.id;
@@ -851,6 +882,7 @@ onUnmounted(() => {
 }
 .bookmark-list {
   display: flex; flex-direction: column; gap: 4px; max-height: 60vh; overflow-y: auto;
+  padding-right: 6px;
 }
 .bookmark-item {
   display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px;
@@ -858,6 +890,12 @@ onUnmounted(() => {
   &:hover { background: var(--bg); }
   &.selected { background: color-mix(in srgb, var(--primary) 10%, var(--surface)); border-color: var(--primary); }
 }
+.bm-drag-handle {
+  width: 10px; flex-shrink: 0; color: var(--text-muted); opacity: 0.4;
+  cursor: grab; transition: opacity 120ms;
+  .bookmark-item:hover & { opacity: 0.8; }
+}
+.bookmark-item.drag-over { border-color: var(--primary) !important; background: color-mix(in srgb, var(--primary) 8%, var(--surface)); }
 .bm-type-icon { width: 12px; flex-shrink: 0; color: var(--text-muted); }
 .bm-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bm-role-badge {
@@ -883,6 +921,15 @@ onUnmounted(() => {
   border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px;
   font-size: 11px; background: var(--bg); color: var(--text); font-family: inherit;
   &:focus { outline: none; border-color: var(--primary); }
+}
+.bm-optional-toggle {
+  display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted);
+  cursor: pointer; user-select: none;
+  input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
+}
+.bm-optional-badge {
+  font-size: 9px; border-radius: 3px; padding: 1px 4px; font-weight: 600; flex-shrink: 0;
+  background: rgba(99,102,241,.15); color: #6366f1;
 }
 .bm-done-btn {
   align-self: flex-end; font-size: 11px; padding: 4px 10px;
@@ -962,6 +1009,7 @@ onUnmounted(() => {
   position: absolute; z-index: 200; background: var(--surface);
   border: 1px solid var(--border); border-radius: 8px;
   box-shadow: 0 6px 24px rgba(0,0,0,.18); min-width: 160px; padding: 4px; user-select: none;
+  max-height: 320px; overflow-y: auto;
 }
 .ctx-section {
   font-size: 10px; text-transform: uppercase; letter-spacing: .06em;

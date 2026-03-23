@@ -6,7 +6,7 @@ import router from './router';
 
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly, faPencil, faCheck, faStarHalfStroke, faBoxOpen, faSortDown, faSortUp, faList, faPersonThroughWindow, faPersonCircleExclamation, faTableList, faUserPlus, faPeopleLine, faFileInvoice, faTable, faSun, faMoon, faChevronUp, faChevronDown, faChevronLeft, faChevronRight, faTags, faIdBadge, faUsers, faListCheck, faSpinner, faClipboardCheck, faExternalLinkAlt, faExternalLink, faTicketAlt, faEnvelope, faMobileAlt, faFileAlt, faBars, faChartLine, faHistory, faTools, faSignOutAlt, faCalendarAlt, faCalendarDays, faCopy, faLink, faUnlink, faRotateRight, faHourglassHalf, faPaperPlane, faClock, faCalendar, faHeart, faKeyboard, faCodeBranch, faUser, faUnlock, faLock, faTrophy, faDice, faHome, faArrowLeft, faInbox, faStar, faUserTie, faGraduationCap, faBuilding, faBullseye, faSortAlphaDown, faSortAlphaUp, faSortNumericDown, faSortNumericUp, faPaperclip, faChartBar as faChartBarSolid, faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faObjectGroup, faChartPie, faClipboardList, faBriefcase, faFilePen, faLocationDot, faFileLines, faFileCircleCheck, faMagnifyingGlass, faHashtag, faMapPin, faCircleCheck, faEllipsisVertical, faComment, faCommentDots, faToggleOn, faToggleOff, faArrowUpFromBracket,
+import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly, faPencil, faCheck, faStarHalfStroke, faBoxOpen, faSort, faSortDown, faSortUp, faList, faPersonThroughWindow, faPersonCircleExclamation, faTableList, faUserPlus, faPeopleLine, faFileInvoice, faTable, faSun, faMoon, faChevronUp, faChevronDown, faChevronLeft, faChevronRight, faTags, faIdBadge, faUsers, faListCheck, faSpinner, faClipboardCheck, faExternalLinkAlt, faExternalLink, faTicketAlt, faEnvelope, faMobileAlt, faFileAlt, faBars, faChartLine, faHistory, faTools, faSignOutAlt, faCalendarAlt, faCalendarDays, faCopy, faLink, faUnlink, faRotateRight, faHourglassHalf, faPaperPlane, faClock, faCalendar, faHeart, faKeyboard, faCodeBranch, faUser, faUnlock, faLock, faTrophy, faDice, faHome, faArrowLeft, faInbox, faStar, faUserTie, faGraduationCap, faBuilding, faBullseye, faSortAlphaDown, faSortAlphaUp, faSortNumericDown, faSortNumericUp, faPaperclip, faChartBar as faChartBarSolid, faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faObjectGroup, faChartPie, faClipboardList, faBriefcase, faFilePen, faLocationDot, faFileLines, faFileCircleCheck, faMagnifyingGlass, faHashtag, faMapPin, faCircleCheck, faEllipsisVertical, faComment, faCommentDots, faToggleOn, faToggleOff, faArrowUpFromBracket,
   faFilePdf, faCloudArrowUp, faFloppyDisk, faFont, faUpload, faRotateLeft, faDownload, faCircleExclamation, faCheckSquare, faSave, 
   faThLarge,
   faFileImport,
@@ -17,12 +17,20 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faCircleXmark as faCircleXmarkSolid,
   faImagePortrait,
   faCamera,
-  faFolderOpen} from '@fortawesome/free-solid-svg-icons';
-import { faChartBar, faCircleXmark, faCircle } from '@fortawesome/free-regular-svg-icons';
+  faFolderOpen,
+  faStickyNote,
+  faCircleHalfStroke,
+  faUmbrellaBeach,
+  faBriefcaseMedical,
+  faCalendarDay,
+  faEraser,
+  faAddressCard,
+  faCircleDot} from '@fortawesome/free-solid-svg-icons';
+import { faChartBar, faCircleXmark, faCircle, faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
   faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDolly, faPencil, 
-  faCheck, faSortDown, faSortUp, faList, faPersonThroughWindow, faPersonCircleExclamation, 
+  faCheck, faSort, faSortDown, faSortUp, faList, faPersonThroughWindow, faPersonCircleExclamation, faStickyNote,
   faUserPlus, faPeopleLine, faFileInvoice, faTable, faSun, faMoon, faTableList, faStarHalfStroke, faBoxOpen, faImagePortrait, faFolderOpen,
   // Neue Icons
   faChevronUp, faChevronDown, faChevronLeft, faChevronRight, faTags, faIdBadge, faUsers, faListCheck, faChartBar, faChartBarSolid,
@@ -34,7 +42,7 @@ library.add(
   // Customer Card Icons
   faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faThLarge, faFileImport, faBookmark, faGripVertical,
   // Merge Icon
-  faObjectGroup,
+  faObjectGroup, faAddressCard,
   // Pie Chart Icon
   faChartPie,
   // Mobile Menu Icons
@@ -44,7 +52,7 @@ library.add(
   // 404 Page Icons
   faHome, faArrowLeft,
   // Public portal icons
-  faClipboardList, faBriefcase, faFilePen, faLocationDot, faFileLines, faFileCircleCheck,
+  faClipboardList, faBriefcase, faFilePen, faLocationDot, faFileLines, faFileCircleCheck, faCircleDot,
   faMagnifyingGlass, faHashtag, faMapPin, faCircleCheck,
   faEllipsisVertical, faComment, faCommentDots,
   faToggleOn, faToggleOff,
@@ -52,10 +60,15 @@ library.add(
   // PDF Builder Icons
   faFilePdf, faCloudArrowUp, faFloppyDisk, faFont, faUpload, faRotateLeft, faDownload, faCircleExclamation,
   // Regular Icons
-  faCircleXmark, faCircle,
+  faCircleXmark, faCircle, faStarRegular,
   // Solid variants (needed alongside regular)
   faCircleXmarkSolid, faUserXmark,
-  faCamera
+  faCamera,
+  faCircleHalfStroke,
+  faUmbrellaBeach,
+  faBriefcaseMedical,
+  faCalendarDay,
+  faEraser
 );
 
 const app = createApp(App);

@@ -46,6 +46,14 @@
           Kunden
       
         </router-link>
+        <router-link
+          v-if="isAdmin"
+          to="/dispo"
+          :class="{ active: $route.name === 'Dispo'}"
+        >
+          Dispo
+          <span class="neu-tag">NEU</span>
+        </router-link>
       </nav>
   
     </div>
@@ -163,6 +171,17 @@
           <font-awesome-icon :icon="['fas', 'building']" />
           Kunden
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
+        </router-link>
+
+        <router-link
+          v-if="isAdmin"
+          to="/dispo"
+          :class="{ active: $route.name === 'Dispo' }"
+          @click="showMobileMenu = false"
+        >
+          <font-awesome-icon :icon="['fas', 'table-columns']" />
+          Dispo
+          <span class="neu-tag">NEU</span>
         </router-link>
 
         
@@ -352,6 +371,8 @@ const supportForm = reactive({
 
 // Neue Pages für alle authentifizierten Nutzer freigeschaltet
 const newPagesEnabled = computed(() => !!auth.user);
+
+const isAdmin = computed(() => auth.user?.role === 'ADMIN');
 
 // Handler für deaktivierte neue Pages
 const handleNewPageClick = (event, path) => {
@@ -771,6 +792,18 @@ a.disabled {
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+}
+
+.neu-tag {
+  background: var(--primary, #ff9500);
+  color: white;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-left: 4px;
 }
 button {
   border: 1px solid var(--border);

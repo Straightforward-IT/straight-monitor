@@ -311,26 +311,10 @@
   </div>
 
   <!-- Wiedereintritt: EmployeeCard Modal -->
-  <div v-if="reentryMitarbeiter" class="modal-overlay reentry-modal" @click.self="reentryMitarbeiter = null">
-    <div class="modal-content modal-employee">
-      <div class="modal-header">
-        <h2>Wiedereintritt — Bestandsdaten</h2>
-        <button class="close-btn" @click="reentryMitarbeiter = null">&times;</button>
-      </div>
-      <div class="modal-body modal-employee-body">
-        <EmployeeCard
-          v-if="reentryFullData"
-          :ma="reentryFullData"
-          :initiallyExpanded="true"
-          :showCheckbox="false"
-        />
-        <div v-else class="loading-employee">
-          <font-awesome-icon icon="fa-solid fa-spinner" spin />
-          <span>Lade Mitarbeiter…</span>
-        </div>
-      </div>
-    </div>
-  </div>
+  <EmployeeCardModal
+    :mitarbeiterId="reentryMitarbeiter?._id"
+    @close="reentryMitarbeiter = null"
+  />
 
 </template>
 
@@ -340,13 +324,13 @@ import api from "@/utils/api";
 import debounce from "lodash.debounce";
 import AsanaMappings from "@/assets/AsanaMappings.json";
 import FlipMappings from "@/assets/FlipMappings.json";
-import EmployeeCard from "@/components/EmployeeCard.vue";
+import EmployeeCardModal from "@/components/EmployeeCardModal.vue";
 export default {
   name: "Erstellen",
   emits: [],
   components: {
     FontAwesomeIcon,
-    EmployeeCard,
+    EmployeeCardModal,
   },
   props: {},
   data() {
@@ -400,7 +384,6 @@ export default {
 
       // Wiedereintritt modal
       reentryMitarbeiter: null,  // basic stub — triggers modal v-if
-      reentryFullData: null,     // full DB + Flip merged object
 
       // Notification
       notification: {
@@ -537,25 +520,8 @@ export default {
         this.fieldStatus[field] = { state: 'error', mitarbeiter: null };
       }
     },
-    async openReentryForMitarbeiter(mitarbeiter) {
-      this.reentryMitarbeiter = mitarbeiter;  // open modal immediately
-      this.reentryFullData = null;
-      try {
-        const response = await api.get(`/api/personal/mitarbeiter/${mitarbeiter._id}`);
-        const mitarbeiterData = response.data.data;
-        if (mitarbeiterData.flip_id) {
-          try {
-            const flipResponse = await api.get(`/api/personal/flip/by-id/${mitarbeiterData.flip_id}`);
-            mitarbeiterData.flip = flipResponse.data;
-          } catch {
-            mitarbeiterData.flip = null;
-          }
-        }
-        this.reentryFullData = mitarbeiterData;
-      } catch {
-        this.showNotification('error', 'Mitarbeiter-Daten konnten nicht geladen werden.');
-        this.reentryMitarbeiter = null;
-      }
+    openReentryForMitarbeiter(mitarbeiter) {
+      this.reentryMitarbeiter = mitarbeiter;
     },
     showNotification(type, message, duration = null) {
       if (this.notification._timer) clearTimeout(this.notification._timer);

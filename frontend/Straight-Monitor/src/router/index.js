@@ -32,6 +32,7 @@ import PdfBuilder from '@/components/PdfBuilder.vue';
 import PdfFormFill from '@/components/PdfFormFill.vue';
 import PdfVorgaenge from '@/components/PdfVorgaenge.vue';
 import PdfMitarbeiterForm from '@/components/PdfMitarbeiterForm.vue';
+import DispoTable from '@/components/DispoTable.vue';
 import NotFound from '@/components/NotFound.vue';
 
 const routes = [
@@ -68,6 +69,7 @@ const routes = [
       { path: 'pdf-vorlagen', name: 'PdfVorlagen', component: PdfBuilder },
       { path: 'pdf-vorgaenge', name: 'PdfVorgaenge', component: PdfVorgaenge },
       { path: 'pdf-ausfuellen/:id', name: 'PdfAusfuellen', component: PdfFormFill },
+      { path: 'dispo', name: 'Dispo', component: DispoTable, meta: { role: 'ADMIN' } },
       { path: '', redirect: '/dashboard' }
     ]
   },
@@ -111,6 +113,11 @@ router.beforeEach(async (to, from, next) => {
     }
   }
   
+  // Role-based access guard
+  if (to.meta.role && auth.user?.role !== to.meta.role) {
+    return next('/dashboard');
+  }
+
   // Restore last visited page on login
   if (to.path === '/' && token && !tokenIsExpired(token)) {
     const lastPath = localStorage.getItem('lastVisitedPath');

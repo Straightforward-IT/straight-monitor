@@ -30,6 +30,18 @@ router.put(
   })
 );
 
+// PUT /api/users/me/dispo-prefs
+router.put(
+  "/me/dispo-prefs",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { prefs } = req.body;
+    if (!prefs || typeof prefs !== 'object') return res.status(400).json({ msg: "prefs must be an object" });
+    await User.findByIdAndUpdate(req.user.id, { dispoPrefs: prefs });
+    res.status(200).json({ msg: "Dispo preferences saved" });
+  })
+);
+
 // GET /api/users/:id
 router.get(
   "/:id",

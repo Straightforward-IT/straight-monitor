@@ -452,26 +452,10 @@
     </div>
 
     <!-- Mitarbeiter Card Modal -->
-    <div v-if="selectedMitarbeiter" class="modal-overlay" @click.self="selectedMitarbeiter = null">
-      <div class="modal-content modal-employee">
-        <div class="modal-header">
-          <h2>Mitarbeiter Details</h2>
-          <button class="close-btn" @click="selectedMitarbeiter = null">×</button>
-        </div>
-        <div class="modal-body modal-employee-body">
-          <EmployeeCard
-            v-if="fullMitarbeiterData"
-            :ma="fullMitarbeiterData"
-            :initiallyExpanded="true"
-            :showCheckbox="false"
-          />
-          <div v-else class="loading-employee">
-            <font-awesome-icon icon="fa-solid fa-spinner" spin />
-            <span>Lade Mitarbeiter...</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <EmployeeCardModal
+      :mitarbeiterId="selectedMitarbeiter?._id || (typeof selectedMitarbeiter === 'string' ? selectedMitarbeiter : null)"
+      @close="selectedMitarbeiter = null"
+    />
 
     <!-- ── Label Dialog ──────────────────────────────────────────────── -->
     <div v-if="showLabelDialog" class="modal-overlay" @click.self="showLabelDialog = false">
@@ -662,7 +646,7 @@ import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/FilterChip.vue';
 import FilterDivider from '@/components/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
-import EmployeeCard from '@/components/EmployeeCard.vue';
+import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import CustomerCard from '@/components/CustomerCard.vue';
 import DocumentCard from '@/components/DocumentCard.vue';
 import laufzettelIcon from '@/assets/laufzettel.png';
@@ -673,7 +657,7 @@ import eventreportDarkIcon from '@/assets/eventreport-dark.png';
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCard, CustomerCard, DocumentCard },
+  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard },
   data() {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
@@ -711,7 +695,6 @@ export default {
       isMobile: false,
       mobileDayIndex: 0,
       selectedMitarbeiter: null,
-      fullMitarbeiterData: null,
       selectedKunde: null,
       fullKundeData: null,
       preparedSchichten: {}, // Lazy loaded schichten data
@@ -1308,30 +1291,6 @@ export default {
     },
     async openMitarbeiterCard(mitarbeiterBasic) {
       this.selectedMitarbeiter = mitarbeiterBasic;
-      this.fullMitarbeiterData = null;
-      
-      try {
-        // Load full mitarbeiter data
-        const response = await api.get(`/api/personal/mitarbeiter/${mitarbeiterBasic._id}`);
-        const mitarbeiterData = response.data.data;
-        
-        // Load Flip profile if flip_id exists
-        if (mitarbeiterData.flip_id) {
-          try {
-            const flipResponse = await api.get(`/api/personal/flip/by-id/${mitarbeiterData.flip_id}`);
-            mitarbeiterData.flip = flipResponse.data;
-          } catch (flipError) {
-            console.warn('Could not load Flip profile:', flipError);
-            mitarbeiterData.flip = null;
-          }
-        }
-        
-        this.fullMitarbeiterData = mitarbeiterData;
-      } catch (error) {
-        console.error('Error loading mitarbeiter details:', error);
-        // Fallback to basic data
-        this.fullMitarbeiterData = mitarbeiterBasic;
-      }
     },
     
     // Check if a mitarbeiter is a Teamleiter based on qualification 50055
