@@ -1,13 +1,90 @@
 <template>
-  <div class="dispo-page">
-    <div class="page-header">
+  <Transition name="dispo-fs">
+  <div class="dispo-page" :class="{ 'fullscreen-mode': isFullscreen }">
+    <!-- Page header — hidden in fullscreen -->
+    <div v-if="!isFullscreen" class="page-header">
       <div class="header-title-group">
       </div>
       <div class="header-controls">
       </div>
     </div>
 
-    <FilterPanel v-model:expanded="filterExpanded">
+    <!-- Fullscreen toolbar — compact filter bar —-->
+    <div v-if="isFullscreen" class="fs-toolbar">
+      <div class="fs-toolbar-filters">
+        <!-- Standort -->
+        <FilterDropdown :has-value="!!filters.standort">
+          <template #label><font-awesome-icon icon="fa-solid fa-location-dot" style="margin-right:4px" />{{ standortLabel }}</template>
+          <div class="dropdown-item" :class="{ selected: !filters.standort }" @click="setStandort(null)">Alle Standorte</div>
+          <div class="dropdown-item" :class="{ selected: filters.standort === '1' }" @click="setStandort('1')">Berlin</div>
+          <div class="dropdown-item" :class="{ selected: filters.standort === '2' }" @click="setStandort('2')">Hamburg</div>
+          <div class="dropdown-item" :class="{ selected: filters.standort === '3' }" @click="setStandort('3')">Köln</div>
+        </FilterDropdown>
+
+        <!-- Zeitraum -->
+        <FilterDropdown :has-value="filters.tage !== 30">
+          <template #label><font-awesome-icon icon="fa-solid fa-calendar" style="margin-right:4px" />{{ filters.tage }} Tage</template>
+          <div v-for="opt in [7, 30, 90, 365]" :key="opt" class="dropdown-item" :class="{ selected: filters.tage === opt }" @click="setTage(opt)">{{ opt }} Tage</div>
+        </FilterDropdown>
+
+        <!-- Planung -->
+        <FilterDropdown :has-value="!!filters.planungFilter">
+          <template #label><font-awesome-icon icon="fa-solid fa-clipboard-list" style="margin-right:4px" />{{ planungLabel }}</template>
+          <div class="dropdown-item" :class="{ selected: !filters.planungFilter }" @click="setPlanung(null)">Alle</div>
+          <div class="dropdown-item" :class="{ selected: filters.planungFilter === 'eingeplant' }" @click="setPlanung('eingeplant')">Eingeplante</div>
+          <div class="dropdown-item" :class="{ selected: filters.planungFilter === 'ungeplant' }" @click="setPlanung('ungeplant')">Ungeplante</div>
+        </FilterDropdown>
+
+        <!-- Bereich -->
+        <FilterDropdown :has-value="bereichFilter !== null">
+          <template #label><font-awesome-icon icon="fa-solid fa-layer-group" style="margin-right:4px" />{{ bereichFilter ?? 'Bereich' }}</template>
+          <div class="dropdown-item" :class="{ selected: bereichFilter === null }" @click="setBereich(null)">Alle</div>
+          <div class="dropdown-item" :class="{ selected: bereichFilter === 'S' }" @click="setBereich('S')">Service</div>
+          <div class="dropdown-item" :class="{ selected: bereichFilter === 'L' }" @click="setBereich('L')">Logistik</div>
+        </FilterDropdown>
+
+        <!-- Search -->
+        <div class="fs-search-box">
+          <font-awesome-icon icon="fa-solid fa-magnifying-glass" class="fs-search-icon" />
+          <input v-model="searchQuery" type="text" placeholder="Suchen…" />
+        </div>
+
+        <!-- Reset -->
+        <button class="fs-reset-btn" @click="resetFilters" title="Zurücksetzen">
+          <font-awesome-icon icon="fa-solid fa-rotate-left" />
+        </button>
+      </div>
+
+      <div class="fs-toolbar-right">
+        <!-- Selection chip -->
+        <span v-if="selectedCells.size > 0" class="selection-chip">
+          <font-awesome-icon icon="fa-solid fa-table-cells" />
+          <strong>{{ selectedCells.size }}</strong> ausgewählt
+          <template v-if="selectionMaCount > 1"> · {{ selectionMaCount }} MA</template>
+          <button class="sel-chip-clear" @click="clearSelection" title="Auswahl aufheben">
+            <font-awesome-icon icon="fa-solid fa-xmark" />
+          </button>
+        </span>
+
+        <!-- Zoom -->
+        <div class="zoom-controls">
+          <button class="zoom-btn" @click="tableZoom = Math.max(60, tableZoom - 10)" title="Verkleinern" :disabled="tableZoom <= 60">
+            <font-awesome-icon icon="fa-solid fa-minus" />
+          </button>
+          <span class="zoom-label" @dblclick="tableZoom = 100" title="Doppelklick := 100%">{{ tableZoom }}%</span>
+          <button class="zoom-btn" @click="tableZoom = Math.min(150, tableZoom + 10)" title="Vergrößern" :disabled="tableZoom >= 150">
+            <font-awesome-icon icon="fa-solid fa-plus" />
+          </button>
+        </div>
+
+        <!-- Exit fullscreen -->
+        <button class="help-btn fs-exit-btn" @click="toggleFullscreen" title="Vollbild beenden (Esc)">
+          <font-awesome-icon icon="fa-solid fa-compress-alt" />
+        </button>
+      </div>
+    </div>
+
+    <FilterPanel v-if="!isFullscreen" v-model:expanded="filterExpanded">
       <!-- Standort Filter -->
       <FilterGroup label="Standort">
         <FilterChip :active="filters.standort === '1'" @click="setStandort('1')">Berlin</FilterChip>
@@ -61,8 +138,8 @@
       </div>
     </FilterPanel>
 
-    <!-- Selection Bar (always reserves space) -->
-    <div class="selection-bar">
+    <!-- Selection Bar (normal mode only) -->
+    <div v-if="!isFullscreen" class="selection-bar">
       <transition name="sel-chip">
         <span v-if="selectedCells.size > 0" class="selection-chip">
           <font-awesome-icon icon="fa-solid fa-table-cells" />
@@ -82,6 +159,9 @@
           <font-awesome-icon icon="fa-solid fa-plus" />
         </button>
       </div>
+      <button class="zoom-btn" @click="toggleFullscreen" title="Vollbild">
+        <font-awesome-icon icon="fa-solid fa-expand-alt" />
+      </button>
       <button class="help-btn" @click="showHelp = true" title="Hilfe">
         <font-awesome-icon icon="fa-solid fa-circle-question" />
       </button>
@@ -93,7 +173,7 @@
     </div>
 
     <!-- Table -->
-    <div v-else class="dispo-table-wrapper" ref="tableWrapper">
+    <div v-else class="dispo-table-wrapper" :class="{ 'fullscreen-wrapper': isFullscreen }" ref="tableWrapper">
       <div class="dispo-split-layout" :style="{ zoom: tableZoom / 100 }">
         
         <!-- Linker Bereich: Fester Name -->
@@ -396,6 +476,14 @@
           <button class="ctx-item" @click="openKarte">
             <font-awesome-icon icon="fa-solid fa-address-card" class="ctx-item-icon" /> Karte Öffnen
           </button>
+          <a
+            v-if="nameMenu.ma?.telefon"
+            class="ctx-item ctx-item--phone"
+            :href="`tel:${nameMenu.ma.telefon}`"
+            @click="closeNameMenu"
+          >
+            <font-awesome-icon icon="fa-solid fa-phone" class="ctx-item-icon" /> {{ nameMenu.ma.telefon }}
+          </a>
         </div>
       </div>
     </teleport>
@@ -547,6 +635,7 @@
       </div>
     </teleport>
   </div>
+  </Transition>
 </template>
 
 <script setup>
@@ -593,6 +682,7 @@ const hoveredCell = ref(null);
 const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 0 });
 const bereichFilter = ref(null); // null | 'S' | 'L'
 const tableZoom = ref(100); // percent: 60–150
+const isFullscreen = ref(false);
 const bereichMenuOpen = ref(false);
 const bereichMenuPos = ref({ x: 0, y: 0 });
 const showHelp = ref(false);
@@ -692,6 +782,19 @@ const chatModal = reactive({
 });
 
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
+
+const standortLabel = computed(() => {
+  if (filters.standort === '1') return 'Berlin';
+  if (filters.standort === '2') return 'Hamburg';
+  if (filters.standort === '3') return 'Köln';
+  return 'Standort';
+});
+
+const planungLabel = computed(() => {
+  if (filters.planungFilter === 'eingeplant') return 'Eingeplante';
+  if (filters.planungFilter === 'ungeplant') return 'Ungeplante';
+  return 'Planung';
+});
 
 // ─── Name Context Menu ───
 const nameMenu = reactive({
@@ -798,7 +901,11 @@ function onDocMouseUp() {
 }
 
 function onKeyDown(e) {
-  if (e.key === 'Escape') clearSelection();
+  if (e.key === 'Escape') { clearSelection(); return; }
+  const tag = document.activeElement?.tagName;
+  if ((e.key === 'f' || e.key === 'F') && tag !== 'INPUT' && tag !== 'TEXTAREA' && !document.activeElement?.isContentEditable) {
+    toggleFullscreen();
+  }
 }
 
 onMounted(() => {
@@ -1705,6 +1812,10 @@ async function deleteKommentar(id) {
   }
 }
 
+function toggleFullscreen() {
+  isFullscreen.value = !isFullscreen.value;
+}
+
 // ─── Scroll to today ───
 function scrollToToday() {
   nextTick(() => {
@@ -1736,6 +1847,112 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+
+  &.fullscreen-mode {
+    position: fixed;
+    inset: 12px;
+    z-index: 1000;
+    padding: 0;
+    gap: 0;
+    background: var(--bg);
+    overflow: visible;
+    border-radius: 14px;
+    box-shadow:
+      0 0 0 1.5px rgba(var(--primary-rgb, 253 126 20) / 0.30),
+      0 0 60px rgba(var(--primary-rgb, 253 126 20) / 0.07),
+      0 32px 100px rgba(0, 0, 0, 0.55);
+  }
+}
+
+// ─── Fullscreen Toolbar ───
+.fs-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--panel);
+  border-bottom: 2px solid rgba(var(--primary-rgb, 253 126 20) / 0.4);
+  border-radius: 14px 14px 0 0;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  min-height: 46px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.18);
+}
+
+.fs-toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow: visible; /* must be visible so dropdown menus are not clipped */
+  min-width: 0;
+}
+
+.fs-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.fs-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  .fs-search-icon {
+    position: absolute;
+    left: 8px;
+    color: var(--muted);
+    font-size: 11px;
+    pointer-events: none;
+  }
+
+  input {
+    padding: 5px 10px 5px 26px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    width: 160px;
+    transition: border-color 0.2s;
+    font-family: inherit;
+
+    &:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+  }
+}
+
+.fs-reset-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+
+  &:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+  }
+}
+
+.fs-exit-btn {
+  color: var(--primary);
+  border-color: var(--primary);
 }
 
 .page-header {
@@ -1904,6 +2121,15 @@ onMounted(async () => {
   border-radius: 8px;
   background: var(--surface);
   position: relative;
+
+  &.fullscreen-wrapper {
+    max-height: none;
+    flex: 1 1 0;
+    border-radius: 0 0 14px 14px;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+  }
 }
 
 /* Neuer Split-Layout Container */
@@ -1916,7 +2142,7 @@ onMounted(async () => {
 .dispo-left-pane {
   position: sticky;
   left: 0;
-  z-index: 10;
+  z-index: 3; /* must stay below HeaderBar (z-index: 10) */
   background: var(--surface);
   flex-shrink: 0;
   /* Fügt eine dezente Trennlinie als Schatten hinzu, wenn rechts gescrollt wird */
@@ -1926,7 +2152,7 @@ onMounted(async () => {
   .dispo-table thead th {
     position: sticky;
     top: 0;
-    z-index: 12;
+    z-index: 5; /* above right-pane cells (z-index: 2) but below HeaderBar */
     background: var(--panel);
   }
 
@@ -2027,6 +2253,10 @@ onMounted(async () => {
       text-overflow: ellipsis;
       display: block;
     }
+  }
+
+  thead th.col-notiz {
+    padding-left: 10px;
   }
 
   .col-notiz {
@@ -2513,6 +2743,22 @@ onMounted(async () => {
 }
 
 // ─── Selection Bar ───
+// ─── Fullscreen enter/leave animation ───
+.dispo-fs-enter-active {
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dispo-fs-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.dispo-fs-enter-from {
+  opacity: 0;
+  transform: scale(0.97);
+}
+.dispo-fs-leave-to {
+  opacity: 0;
+  transform: scale(0.97);
+}
+
 .selection-bar {
   height: 28px; // reserved space — never collapses
   display: flex;
@@ -2941,6 +3187,7 @@ onMounted(async () => {
   &.ctx-item--open      { color: var(--primary); }
   &.active              { color: var(--primary); font-weight: 600; }
   &.ctx-item-remove     { color: var(--muted); border-top: 1px solid var(--border); margin-top: 2px; padding-top: 6px; }
+  &.ctx-item--phone     { color: #10b981; text-decoration: none; }
 }
 
 .ctx-item-icon {
