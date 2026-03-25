@@ -23,7 +23,7 @@
         <FilterDropdown :has-value="filters.tage !== 30">
           <template #label>{{ filters.tage }} Tage</template>
           <div
-            v-for="opt in [30, 90, 120, 150, 240, 365]"
+            v-for="opt in [7, 30, 90, 365]"
             :key="opt"
             class="dropdown-item clickable"
             :class="{ selected: filters.tage === opt }"
@@ -38,9 +38,9 @@
 
       <!-- Planung Filter -->
       <FilterGroup label="Planung">
-        <FilterChip :active="!filters.planungFilter" @click="filters.planungFilter = null">Alle</FilterChip>
-        <FilterChip :active="filters.planungFilter === 'eingeplant'" @click="filters.planungFilter = 'eingeplant'">Eingeplante</FilterChip>
-        <FilterChip :active="filters.planungFilter === 'ungeplant'" @click="filters.planungFilter = 'ungeplant'">Ungeplante</FilterChip>
+        <FilterChip :active="!filters.planungFilter" @click="setPlanung(null)">Alle</FilterChip>
+        <FilterChip :active="filters.planungFilter === 'eingeplant'" @click="setPlanung('eingeplant')">Eingeplante</FilterChip>
+        <FilterChip :active="filters.planungFilter === 'ungeplant'" @click="setPlanung('ungeplant')">Ungeplante</FilterChip>
       </FilterGroup>
 
       <FilterDivider />
@@ -125,6 +125,13 @@
                   <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'vorname')"></div>
                 </th>
                 <th
+                  class="col-notiz"
+                  :style="{ width: colWidths.notiz + 'px', minWidth: colWidths.notiz + 'px', maxWidth: colWidths.notiz + 'px' }"
+                >
+                  <span class="th-content">Notiz</span>
+                  <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'notiz')"></div>
+                </th>
+                <th
                   class="col-bereich"
                   :class="{ 'bereich-filter-active': bereichFilter !== null }"
                   @click.stop="onBereichHeaderClick"
@@ -142,6 +149,7 @@
               <tr 
                 v-for="ma in filteredMitarbeiter" 
                 :key="`l-${ma._id}`"
+                :data-left-row="ma._id"
                 @mouseenter="hoveredMaId = ma._id"
                 @mouseleave="hoveredMaId = null"
                 :class="{ 'row-hovered': hoveredMaId === ma._id }"
@@ -167,13 +175,47 @@
                 <td class="col-vorname" :style="{ width: colWidths.vorname + 'px', minWidth: colWidths.vorname + 'px', maxWidth: colWidths.vorname + 'px' }">
                   <span class="ma-name">{{ ma.vorname }}</span>
                 </td>
+                <!-- Notiz -->
+                <td
+                  class="col-notiz"
+                  :class="{ 'notiz-expanded': expandedNotiz === ma._id }"
+                  :style="expandedNotiz !== ma._id ? { width: colWidths.notiz + 'px', minWidth: colWidths.notiz + 'px', maxWidth: colWidths.notiz + 'px' } : {}"
+                >
+                  <div class="notiz-cell">
+                    <div
+                      class="notiz-editable"
+                      :data-notiz-ma="ma._id"
+                      contenteditable="true"
+                      spellcheck="false"
+                      v-set-text="getNotizValue(ma._id)"
+                      @focus="toggleNotizExpand(ma._id)"
+                      @input="onNotizInput(ma._id, $event)"
+                      @keydown.enter.prevent="$event.target.blur()"
+                      @blur="expandedNotiz === ma._id ? toggleNotizExpand(ma._id) : null"
+                    ></div>
+                    <button
+                      v-if="notizMap[ma._id]"
+                      class="notiz-clear-btn"
+                      @mousedown.prevent="clearNotiz(ma._id)"
+                      title="Notiz löschen"
+                    >
+                      <font-awesome-icon icon="fa-solid fa-eraser" />
+                    </button>
+                    <button
+                      v-if="notizMap[ma._id] && expandedNotiz !== ma._id"
+                      class="notiz-expand-pill"
+                      @mousedown.prevent="toggleNotizExpand(ma._id)"
+                      title="Volltext anzeigen"
+                    >…</button>
+                  </div>
+                </td>
                 <!-- Bereich -->
                 <td class="col-bereich">
                   <span v-if="getMaBereich(ma)" class="bereich-badge">{{ getMaBereich(ma) }}</span>
                 </td>
               </tr>
               <tr v-if="filteredMitarbeiter.length === 0">
-                <td colspan="3" class="empty-row text-center">
+                <td colspan="4" class="empty-row text-center">
                   --
                 </td>
               </tr>
@@ -206,6 +248,7 @@
               <tr 
                 v-for="ma in filteredMitarbeiter" 
                 :key="`r-${ma._id}`"
+                :style="expandedNotiz === ma._id && expandedNotizHeight ? { height: expandedNotizHeight + 'px' } : null"
                 @mouseenter="hoveredMaId = ma._id"
                 @mouseleave="hoveredMaId = null"
                 :class="{ 'row-hovered': hoveredMaId === ma._id }"
@@ -303,9 +346,9 @@
     <teleport to="body">
       <div v-if="bereichMenuOpen" class="ctx-overlay" @click="bereichMenuOpen = false" @contextmenu.prevent="bereichMenuOpen = false">
         <div class="ctx-menu bereich-filter-menu" :style="{ top: bereichMenuPos.y + 'px', left: bereichMenuPos.x + 'px' }" @click.stop>
-          <div class="ctx-item" :class="{ active: bereichFilter === 'S' }" @click="bereichFilter = 'S'; bereichMenuOpen = false">Service (S)</div>
-          <div class="ctx-item" :class="{ active: bereichFilter === 'L' }" @click="bereichFilter = 'L'; bereichMenuOpen = false">Logistik (L)</div>
-          <div v-if="bereichFilter" class="ctx-item ctx-item-remove" @click="bereichFilter = null; bereichMenuOpen = false">Filter entfernen</div>
+          <div class="ctx-item" :class="{ active: bereichFilter === 'S' }" @click="setBereich('S'); bereichMenuOpen = false">Service (S)</div>
+          <div class="ctx-item" :class="{ active: bereichFilter === 'L' }" @click="setBereich('L'); bereichMenuOpen = false">Logistik (L)</div>
+          <div v-if="bereichFilter" class="ctx-item ctx-item-remove" @click="setBereich(null); bereichMenuOpen = false">Filter entfernen</div>
         </div>
       </div>
     </teleport>
@@ -499,6 +542,13 @@
 
 <script setup>
 import { ref, shallowRef, computed, onMounted, onUnmounted, reactive, nextTick } from 'vue';
+
+// Custom directive: sets innerText only once on mount to avoid cursor-reset on contenteditable
+const vSetText = {
+  mounted(el, binding) {
+    el.innerText = binding.value || '';
+  },
+};
 import { useRouter } from 'vue-router';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
@@ -536,9 +586,27 @@ const bereichFilter = ref(null); // null | 'S' | 'L'
 const bereichMenuOpen = ref(false);
 const bereichMenuPos = ref({ x: 0, y: 0 });
 const showHelp = ref(false);
+const notizMap = reactive({});
+const expandedNotiz = ref(null); // maId of currently expanded notiz cell
+const expandedNotizHeight = ref(null); // px height of expanded left-pane row
+let _notizTimers = {};
+let _notizRowObserver = null;
+
+function _observeExpandedRow(maId) {
+  if (_notizRowObserver) { _notizRowObserver.disconnect(); _notizRowObserver = null; }
+  if (!maId) return;
+  nextTick(() => {
+    const leftRow = document.querySelector(`tr[data-left-row="${maId}"]`);
+    if (!leftRow) return;
+    _notizRowObserver = new ResizeObserver(() => {
+      expandedNotizHeight.value = leftRow.offsetHeight;
+    });
+    _notizRowObserver.observe(leftRow);
+  });
+}
 
 // ─── Column widths (resizable) ───
-const colWidths = reactive({ nachname: 130, vorname: 110 });
+const colWidths = reactive({ nachname: 130, vorname: 110, notiz: 160 });
 let resizeCol = null;
 let resizeStartX = 0;
 let resizeStartW = 0;
@@ -1073,24 +1141,38 @@ function toggleSort(field) {
   }
 }
 
-// ─── Starred / Favorites ───
-async function loadStarred() {
+// ─── Prefs (Starred + Filters) ───
+let _savedPrefs = null;
+
+async function loadPrefs() {
   try {
     const { data } = await api.get('/api/users/me');
-    const ids = data.dispoPrefs?.starredMitarbeiter || [];
-    starredIds.value = new Set(ids);
+    _savedPrefs = data.dispoPrefs || {};
+    starredIds.value = new Set(_savedPrefs.starredMitarbeiter || []);
+    // Restore saved filters
+    if (_savedPrefs.standort !== undefined) filters.standort = _savedPrefs.standort;
+    if (_savedPrefs.tage !== undefined) filters.tage = _savedPrefs.tage;
+    if (_savedPrefs.planungFilter !== undefined) filters.planungFilter = _savedPrefs.planungFilter;
+    if (_savedPrefs.bereichFilter !== undefined) bereichFilter.value = _savedPrefs.bereichFilter;
   } catch (err) {
-    console.error('Starred laden fehlgeschlagen:', err);
+    console.error('Prefs laden fehlgeschlagen:', err);
   }
 }
 
-async function saveStarred() {
+async function savePrefs() {
   try {
-    await api.put('/api/users/me/dispo-prefs', {
-      prefs: { starredMitarbeiter: [...starredIds.value] },
-    });
+    const prefs = {
+      ...(_savedPrefs || {}),
+      starredMitarbeiter: [...starredIds.value],
+      standort: filters.standort,
+      tage: filters.tage,
+      planungFilter: filters.planungFilter,
+      bereichFilter: bereichFilter.value,
+    };
+    _savedPrefs = prefs;
+    await api.put('/api/users/me/dispo-prefs', { prefs });
   } catch (err) {
-    console.error('Starred speichern fehlgeschlagen:', err);
+    console.error('Prefs speichern fehlgeschlagen:', err);
   }
 }
 
@@ -1099,7 +1181,7 @@ function toggleStar(maId) {
   if (next.has(maId)) next.delete(maId);
   else next.add(maId);
   starredIds.value = next;
-  saveStarred();
+  savePrefs();
 }
 
 // ─── API ───
@@ -1118,6 +1200,10 @@ async function fetchDispo() {
 
     const { data } = await api.get(`/api/dispo?${params.toString()}`);
     mitarbeiter.value = data.mitarbeiter || [];
+    // Populate notizMap from loaded mitarbeiter
+    for (const ma of data.mitarbeiter || []) {
+      if (ma.dispoNotiz && !(ma._id in notizMap)) notizMap[ma._id] = ma.dispoNotiz;
+    }
     eintraege.value = data.eintraege || [];
   } catch (err) {
     console.error('Dispo laden fehlgeschlagen:', err);
@@ -1145,12 +1231,24 @@ async function fetchKommentare() {
 // ─── Filters ───
 function setStandort(val) {
   filters.standort = val;
+  savePrefs();
   fetchDispo();
 }
 
 function setTage(val) {
   filters.tage = val;
+  savePrefs();
   fetchDispo();
+}
+
+function setPlanung(val) {
+  filters.planungFilter = val;
+  savePrefs();
+}
+
+function setBereich(val) {
+  bereichFilter.value = val;
+  savePrefs();
 }
 
 function setDefaultStandort() {
@@ -1165,9 +1263,62 @@ function resetFilters() {
   filters.standort = null;
   filters.tage = 30;
   filters.planungFilter = null;
+  bereichFilter.value = null;
   searchQuery.value = '';
   setDefaultStandort();
+  savePrefs();
   fetchDispo();
+}
+
+// ─── Notiz helpers ───
+function getNotizValue(maId) {
+  return notizMap[maId] || '';
+}
+
+function onNotizInput(maId, event) {
+  const text = event.target.innerText;
+  notizMap[maId] = text;
+  debounceSaveNotiz(maId, text);
+}
+
+function clearNotiz(maId) {
+  notizMap[maId] = '';
+  const el = document.querySelector(`[data-notiz-ma="${maId}"]`);
+  if (el) el.innerText = '';
+  debounceSaveNotiz(maId, '');
+}
+
+function debounceSaveNotiz(maId, text) {
+  if (_notizTimers[maId]) clearTimeout(_notizTimers[maId]);
+  _notizTimers[maId] = setTimeout(() => saveNotiz(maId, text), 600);
+}
+
+async function saveNotiz(maId, text) {
+  try {
+    await api.patch(`/api/dispo/notiz/${maId}`, { text });
+  } catch (err) {
+    console.error('Notiz speichern fehlgeschlagen:', err);
+  }
+}
+
+function toggleNotizExpand(maId) {
+  if (expandedNotiz.value === maId) {
+    expandedNotiz.value = null;
+    expandedNotizHeight.value = null;
+  } else {
+    expandedNotiz.value = maId;
+    expandedNotizHeight.value = null;
+    nextTick(() => {
+      const leftRow = document.querySelector(`tr[data-left-row="${maId}"]`);
+      if (leftRow) expandedNotizHeight.value = leftRow.offsetHeight;
+    });
+  }
+}
+
+function isNotizOverflowing(maId) {
+  const el = document.querySelector(`[data-notiz-ma="${maId}"]`);
+  if (!el) return false;
+  return el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
 }
 
 // ─── Optimistic local update helpers ───
@@ -1559,7 +1710,8 @@ function scrollToToday() {
 // ─── Lifecycle ───
 onMounted(async () => {
   setDefaultStandort();
-  await Promise.all([fetchDispo(), loadStarred()]);
+  await loadPrefs();
+  await fetchDispo();
   scrollToToday();
 });
 </script>
@@ -1782,6 +1934,12 @@ onMounted(async () => {
       border-top-width: 1.5px;
       border-bottom-width: 1.5px;
     }
+    td.col-notiz {
+      border-top-color: var(--primary);
+      border-bottom-color: var(--primary);
+      border-top-width: 1.5px;
+      border-bottom-width: 1.5px;
+    }
     td.col-bereich {
       border-right-color: var(--primary);
       border-top-color: var(--primary);
@@ -1859,6 +2017,36 @@ onMounted(async () => {
     }
   }
 
+  .col-notiz {
+    width: 160px;
+    min-width: 100px;
+    max-width: 160px;
+    padding: 0;
+    text-align: left;
+    overflow: visible;
+    position: relative;
+
+    &.notiz-expanded {
+      width: auto !important;
+      min-width: 200px !important;
+      max-width: 400px !important;
+      z-index: 5;
+      overflow: visible;
+
+      .notiz-editable {
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow: visible;
+        max-height: none;
+        min-height: 44px;
+      }
+
+      .notiz-expand-pill {
+        display: none;
+      }
+    }
+  }
+
   .col-bereich {
     width: 60px;
     min-width: 60px;
@@ -1930,8 +2118,94 @@ onMounted(async () => {
     line-height: 1.4;
   }
 
+  .notiz-cell {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    height: 100%;
+    min-height: 32px;
+  }
+
+  .notiz-editable {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 28px 6px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--text);
+    outline: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-height: 44px;
+    cursor: text;
+    border-radius: 4px;
+    transition: background 0.15s;
+
+    &:focus {
+      background: var(--tile-bg);
+      box-shadow: inset 0 0 0 1px var(--border);
+    }
+
+    &:empty::before {
+      content: 'Notiz…';
+      color: var(--muted);
+      opacity: 0.5;
+      pointer-events: none;
+    }
+  }
+
+  .notiz-clear-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 10px;
+    padding: 2px 4px;
+    cursor: pointer;
+    border-radius: 3px;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+    z-index: 2;
+
+    &:hover {
+      color: var(--primary);
+    }
+  }
+
+  td.col-notiz:hover .notiz-clear-btn,
+  td.col-notiz:focus-within .notiz-clear-btn {
+    opacity: 1;
+  }
+
+  .notiz-expand-pill {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    padding: 0 5px;
+    line-height: 16px;
+    cursor: pointer;
+    z-index: 2;
+    transition: color 0.15s, border-color 0.15s;
+
+    &:hover {
+      color: var(--primary);
+      border-color: var(--primary);
+    }
+  }
+
   .col-nachname,
-  .col-vorname {
+  .col-vorname,
+  .col-notiz {
     position: relative; /* Wichtig für col-resize-handle */
     cursor: pointer;
   }

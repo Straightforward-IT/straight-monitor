@@ -31,7 +31,7 @@ router.get('/', auth, asyncHandler(async (req, res) => {
   }
 
   let mitarbeiter = await Mitarbeiter.find(maFilter)
-    .select('_id vorname nachname personalnr qualifikationen berufe profilbild')
+    .select('_id vorname nachname personalnr qualifikationen berufe profilbild dispoNotiz')
     .populate('qualifikationen', 'qualificationKey designation')
     .populate('berufe', 'jobKey designation')
     .lean();
@@ -185,6 +185,21 @@ router.delete('/:id', auth, asyncHandler(async (req, res) => {
   }
 
   res.json({ message: 'Eintrag gelöscht.' });
+}));
+
+// ─── PATCH /api/dispo/notiz/:mitarbeiterId ───
+router.patch('/notiz/:mitarbeiterId', auth, asyncHandler(async (req, res) => {
+  const { text } = req.body;
+  if (typeof text !== 'string') {
+    return res.status(400).json({ message: '"text" ist erforderlich.' });
+  }
+  const ma = await Mitarbeiter.findByIdAndUpdate(
+    req.params.mitarbeiterId,
+    { dispoNotiz: text },
+    { new: true, select: '_id dispoNotiz' }
+  );
+  if (!ma) return res.status(404).json({ message: 'Mitarbeiter nicht gefunden.' });
+  res.json({ _id: ma._id, dispoNotiz: ma.dispoNotiz });
 }));
 
 module.exports = router;
