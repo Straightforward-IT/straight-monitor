@@ -153,9 +153,9 @@ router.post(
       return res.status(400).json({ msg: "Ungültige Anmeldedaten" });
     }
 
-    // Ensure user has a role (Lazy Migration)
-    if (!user.role) {
-      user.role = 'USER';
+    // Lazy Migration: ensure roles array is populated
+    if (!user.roles || user.roles.length === 0) {
+      user.roles = [user.role === 'ADMIN' ? 'ADMIN' : 'USER'];
       await user.save();
     }
 
@@ -165,6 +165,111 @@ router.post(
       if (err) throw err;
       res.status(200).json({ token });
     });
+  })
+);
+
+// ─── ADMIN ENDPOINTS ────────────────────────────────────────────────────────
+
+async function requireAdmin(req, res) {
+  const admin = await User.findById(req.user.id).select('role roles');
+  if (!admin || !admin.roles?.includes('ADMIN')) {
+    res.status(403).json({ msg: 'Zugriff verweigert – nur für Admins' });
+    return null;
+  }
+  return admin;
+}
+
+// GET /api/users/admin/all
+router.get(
+  '/admin/all',
+  auth,
+  asyncHandler(async (req, res) => {
+    if (!await requireAdmin(req, res)) return;
+    const users = await User.find().select('-password').populate('mitarbeiter', 'vorname nachname personalnr').sort({ date: -1 });
+    res.status(200).json(users);
+  })
+);
+
+// POST /api/users/admin/create
+router.post(
+  '/admin/create',
+  auth,
+  asyncHandler(async (req, res) => {
+    if (!await requireAdmin(req, res)) return;
+    const { name, email, password, location, roles, isConfirmed } = req.body;
+    if (!email || !password) return res.status(400).json({ msg: 'E-Mail und Passwort sind erforderlich' });
+    if (!email.includes('@straightforward.email')) return res.status(400).json({ msg: 'Bitte benutze eine E-Mail der Firma Straightforward' });
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ msg: 'Benutzer mit dieser E-Mail existiert bereits' });
+    const resolvedRoles = Array.isArray(roles) && roles.length > 0 ? roles : ['USER'];
+    const user = new User({
+      name: name || '',
+      email,
+      password,
+      location: location || '',
+      role: resolvedRoles.includes('ADMIN') ? 'ADMIN' : 'USER', // keep legacy field in sync
+      roles: resolvedRoles,
+      isConfirmed: isConfirmed !== undefined ? isConfirmed : true,
+    });
+    await user.save();
+    const result = user.toObject();
+    delete result.password;
+    res.status(201).json(result);
+  })
+);
+
+// PUT /api/users/admin/:id
+router.put(
+  '/admin/:id',
+  auth,
+  asyncHandler(async (req, res) => {
+    if (!await requireAdmin(req, res)) return;
+    const { name, email, password, location, roles, isConfirmed } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ msg: 'Benutzer nicht gefunden' });
+    if (name !== undefined) user.name = name;
+    if (email !== undefined) user.email = email;
+    if (location !== undefined) user.location = location;
+    if (isConfirmed !== undefined) user.isConfirmed = isConfirmed;
+    if (Array.isArray(roles)) {
+      user.roles = roles;
+      user.role = roles.includes('ADMIN') ? 'ADMIN' : 'USER'; // keep legacy field in sync
+    }
+    if (password) user.password = password; // pre-save hook handles hashing
+    await user.save();
+    const result = user.toObject();
+    delete result.password;
+    res.status(200).json(result);
+  })
+);
+
+// DELETE /api/users/admin/:id
+router.delete(
+  '/admin/:id',
+  auth,
+  asyncHandler(async (req, res) => {
+    if (!await requireAdmin(req, res)) return;
+    if (req.user.id === req.params.id) return res.status(400).json({ msg: 'Du kannst deinen eigenen Account nicht löschen' });
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ msg: 'Benutzer nicht gefunden' });
+    await user.deleteOne();
+    res.status(200).json({ msg: 'Benutzer gelöscht' });
+  })
+);
+
+// PUT /api/users/admin/:id/mitarbeiter — Link or unlink a Mitarbeiter
+router.put(
+  '/admin/:id/mitarbeiter',
+  auth,
+  asyncHandler(async (req, res) => {
+    if (!await requireAdmin(req, res)) return;
+    const { mitarbeiterId } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ msg: 'Benutzer nicht gefunden' });
+    user.mitarbeiter = mitarbeiterId || null;
+    await user.save();
+    const result = await User.findById(user._id).select('-password').populate('mitarbeiter', 'vorname nachname personalnr');
+    res.status(200).json(result);
   })
 );
 

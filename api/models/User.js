@@ -23,6 +23,10 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: 'USER'
   },
+  roles: {
+    type: [String],
+    default: ['USER']
+  },
   isConfirmed: {
     type: Boolean,
     required: true
@@ -37,6 +41,11 @@ const UserSchema = new mongoose.Schema({
   },
   dispoPrefs: {
     type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  mitarbeiter: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Mitarbeiter',
     default: null
   }
 });

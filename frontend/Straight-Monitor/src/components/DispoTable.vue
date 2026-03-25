@@ -28,7 +28,7 @@
 
       <!-- Zeitraum Filter -->
       <FilterGroup label="Zeitraum">
-        <FilterDropdown :has-value="filters.tage !== 30">
+        <FilterDropdown :has-value="filters.tage !== 90">
           <template #label>{{ filters.tage }} Tage</template>
           <div
             v-for="opt in [30, 90, 120, 150, 240, 365]"
@@ -40,6 +40,15 @@
             {{ opt }} Tage
           </div>
         </FilterDropdown>
+      </FilterGroup>
+
+      <FilterDivider />
+
+      <!-- Planung Filter -->
+      <FilterGroup label="Planung">
+        <FilterChip :active="!filters.planungFilter" @click="filters.planungFilter = null">Alle</FilterChip>
+        <FilterChip :active="filters.planungFilter === 'eingeplant'" @click="filters.planungFilter = 'eingeplant'">Eingeplante</FilterChip>
+        <FilterChip :active="filters.planungFilter === 'ungeplant'" @click="filters.planungFilter = 'ungeplant'">Ungeplante</FilterChip>
       </FilterGroup>
 
       <FilterDivider />
@@ -111,8 +120,17 @@
                   </span>
                   <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'vorname')"></div>
                 </th>
-                <th class="col-bereich">
-                  <span class="th-content">Bereich</span>
+                <th
+                  class="col-bereich"
+                  :class="{ 'bereich-filter-active': bereichFilter !== null }"
+                  @click.stop="onBereichHeaderClick"
+                >
+                  <span class="th-content">
+                    Bereich
+                    <font-awesome-icon v-if="!bereichFilter" icon="fa-solid fa-filter" class="bereich-filter-icon" />
+                    <span v-if="bereichFilter" class="bereich-filter-label">{{ bereichFilter }}</span>
+                    <span v-if="bereichFilter" class="bereich-filter-clear" @click.stop="bereichFilter = null">✕</span>
+                  </span>
                 </th>
               </tr>
             </thead>
@@ -123,11 +141,12 @@
                 @mouseenter="hoveredMaId = ma._id"
                 @mouseleave="hoveredMaId = null"
                 :class="{ 'row-hovered': hoveredMaId === ma._id }"
-                @click.stop="openNameMenu($event, ma)"
-                style="cursor: pointer"
+                @contextmenu.prevent.stop="openNameMenu($event, ma)"
+                style="cursor: context-menu"
               >
                 <!-- Nachname -->
                 <td class="col-nachname" :style="{ width: colWidths.nachname + 'px', minWidth: colWidths.nachname + 'px', maxWidth: colWidths.nachname + 'px' }">
+                  <TlBadge v-if="isTeamleiter(ma)" class="tl-corner-badge" />
                   <div class="ma-name-cell">
                     <button
                       class="star-btn"
@@ -138,7 +157,6 @@
                       <font-awesome-icon :icon="starredIds.has(ma._id) ? 'fa-solid fa-star' : 'fa-regular fa-star'" />
                     </button>
                     <span class="ma-name">{{ ma.nachname }}</span>
-                    <TlBadge v-if="isTeamleiter(ma)" />
                   </div>
                 </td>
                 <!-- Vorname -->
@@ -215,7 +233,10 @@
                     <span v-if="cellKuerzel(ma._id, day.iso)" class="cell-label">{{ cellKuerzel(ma._id, day.iso) }}</span>
                     <font-awesome-icon v-else-if="cellIcon(ma._id, day.iso)" :icon="cellIcon(ma._id, day.iso)" class="cell-icon" />
                   </div>
-                  <span v-if="getCellNote(ma._id, day.iso)" class="note-dot">i</span>
+                  <span v-if="getCellComments(ma._id, day.iso).length" class="comment-bubble">
+                    <font-awesome-icon icon="fa-solid fa-comment" class="comment-bubble-icon" />
+                    <span v-if="getCellUnreadCount(ma._id, day.iso) > 0" class="comment-badge">{{ getCellUnreadCount(ma._id, day.iso) }}</span>
+                  </span>
                 </div>
             </td>
           </tr>
@@ -230,13 +251,36 @@
       </div>
     </div>
 
+    <!-- Bereich Filter Menu -->
+    <teleport to="body">
+      <div v-if="bereichMenuOpen" class="ctx-overlay" @click="bereichMenuOpen = false" @contextmenu.prevent="bereichMenuOpen = false">
+        <div class="ctx-menu bereich-filter-menu" :style="{ top: bereichMenuPos.y + 'px', left: bereichMenuPos.x + 'px' }" @click.stop>
+          <div class="ctx-item" :class="{ active: bereichFilter === 'S' }" @click="bereichFilter = 'S'; bereichMenuOpen = false">Service (S)</div>
+          <div class="ctx-item" :class="{ active: bereichFilter === 'L' }" @click="bereichFilter = 'L'; bereichMenuOpen = false">Logistik (L)</div>
+          <div v-if="bereichFilter" class="ctx-item ctx-item-remove" @click="bereichFilter = null; bereichMenuOpen = false">Filter entfernen</div>
+        </div>
+      </div>
+    </teleport>
+
     <!-- Cell Tooltip -->
     <teleport to="body">
       <div
         v-if="cellTooltipState.visible"
         class="dispo-cell-tooltip"
+        :class="{ 'dispo-cell-tooltip--comments': cellTooltipState.comments.length }"
         :style="{ top: cellTooltipState.y + 20 + 'px', left: cellTooltipState.x + 'px' }"
-      >{{ cellTooltipState.text }}</div>
+      >
+        <template v-if="cellTooltipState.comments.length">
+          <div v-for="c in cellTooltipState.comments" :key="c._id" class="tooltip-comment">
+            <div class="tooltip-comment-header">
+              <span class="tooltip-comment-author">{{ c.author }}</span>
+              <span class="tooltip-comment-time">{{ formatDateTime(c.timestamp) }}</span>
+            </div>
+            <p class="tooltip-comment-text">{{ c.text }}</p>
+          </div>
+        </template>
+        <template v-else>{{ cellTooltipState.text }}</template>
+      </div>
     </teleport>
 
     <!-- Name Context Menu -->
@@ -262,62 +306,47 @@
       @close="closeCardModal"
     />
 
-    <!-- Notes Modal -->
+    <!-- Comment Thread Modal -->
     <teleport to="body">
-      <div v-if="notesModal.open" class="modal-overlay" @click="closeNotes">
-        <div class="notes-modal" @click.stop>
-          <div class="notes-modal-header">
-            <h3>Notizen — {{ notesModal.ma?.vorname }} {{ notesModal.ma?.nachname }}</h3>
-            <button class="close-btn" @click="closeNotes">
-              <font-awesome-icon icon="fa-solid fa-times" />
-            </button>
+      <div v-if="chatModal.open" class="modal-overlay" @click="closeChatModal">
+        <div class="chat-modal" @click.stop>
+          <div class="chat-modal-header">
+            <div class="chat-modal-title">
+              <font-awesome-icon icon="fa-solid fa-comments" />
+              <span>{{ chatModal.ma?.vorname }} {{ chatModal.ma?.nachname }} · {{ formatIsoDate(chatModal.day) }}</span>
+            </div>
+            <button class="close-btn" @click="closeChatModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
           </div>
-          <div class="notes-modal-body">
-            <div v-if="notesModal.notes.length" class="notes-list">
-              <div v-for="note in notesModal.notes" :key="note._id" class="note-item">
-                <div class="note-text">{{ note.text }}</div>
-                <div class="note-meta">
-                  {{ formatDate(note.datumVon) }}
-                  <button class="delete-note-btn" @click="deleteNote(note._id)">
-                    <font-awesome-icon icon="fa-solid fa-trash" />
-                  </button>
-                </div>
+          <div class="chat-thread" ref="chatThreadRef">
+            <p v-if="!chatModal.comments.length" class="chat-empty">Noch keine Kommentare.</p>
+            <div
+              v-for="c in chatModal.comments"
+              :key="c._id"
+              class="chat-message"
+              :class="{ 'chat-message--own': isOwnComment(c) }"
+            >
+              <div class="chat-message-meta">
+                <span class="chat-message-author">{{ c.author }}</span>
+                <span class="chat-message-time">{{ formatDateTime(c.timestamp) }}</span>
+                <button v-if="isOwnComment(c) || isAdmin" class="chat-delete-btn" @click="deleteKommentar(c._id)" title="Löschen">
+                  <font-awesome-icon icon="fa-solid fa-trash" />
+                </button>
               </div>
-            </div>
-            <p v-else class="no-notes">Noch keine Notizen vorhanden.</p>
-            <div class="note-add">
-              <textarea
-                v-model="notesModal.newText"
-                placeholder="Neue Notiz…"
-                rows="3"
-              ></textarea>
-              <button class="add-note-btn" @click="addNote" :disabled="!notesModal.newText.trim()">
-                <font-awesome-icon icon="fa-solid fa-plus" /> Hinzufügen
-              </button>
+              <p class="chat-message-text">{{ c.text }}</p>
             </div>
           </div>
-        </div>
-      </div>
-    </teleport>
-
-    <!-- Cell Note Modal -->
-    <teleport to="body">
-      <div v-if="cellNoteModal.open" class="modal-overlay" @click="closeCellNote">
-        <div class="cell-note-modal" @click.stop>
-          <div class="cell-note-modal-header">
-            <span>Notiz · {{ cellNoteModal.ma?.vorname }} {{ cellNoteModal.ma?.nachname }} · {{ formatIsoDate(cellNoteModal.day) }}</span>
-            <button class="close-btn" @click="closeCellNote"><font-awesome-icon icon="fa-solid fa-times" /></button>
-          </div>
-          <textarea
-            v-model="cellNoteModal.text"
-            class="cell-note-textarea"
-            placeholder="Notiz eingeben…"
-            rows="5"
-            autofocus
-          ></textarea>
-          <div class="cell-note-modal-actions">
-            <button class="btn-cancel" @click="closeCellNote">Abbrechen</button>
-            <button class="btn-save" @click="saveCellNote" :disabled="!cellNoteModal.text.trim()">Speichern</button>
+          <div class="chat-input-row">
+            <textarea
+              v-model="chatModal.newText"
+              class="chat-textarea"
+              placeholder="Kommentar schreiben… (Ctrl+Enter senden)"
+              rows="2"
+              @keydown.ctrl.enter.prevent="postComment"
+              @keydown.meta.enter.prevent="postComment"
+            ></textarea>
+            <button class="chat-send-btn" @click="postComment" :disabled="!chatModal.newText.trim() || chatModal.loading">
+              <font-awesome-icon icon="fa-solid fa-paper-plane" />
+            </button>
           </div>
         </div>
       </div>
@@ -398,19 +427,22 @@
             <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
           </button>
 
+          <template v-if="!ctxMenu.isMulti">
+            <div class="ctx-divider"></div>
+            <button class="ctx-item" @click="openChatModal(ctxMenu.ma, { iso: ctxMenu.day })">
+              <font-awesome-icon icon="fa-solid fa-comments" class="ctx-item-icon" />
+              Kommentare
+              <span v-if="getCellUnreadCount(ctxMenu.ma?._id, ctxMenu.day) > 0" class="ctx-unread-badge">
+                {{ getCellUnreadCount(ctxMenu.ma?._id, ctxMenu.day) }}
+              </span>
+            </button>
+          </template>
+
           <div class="ctx-divider"></div>
 
           <button class="ctx-item ctx-item--clear" @click="clearStatus">
             <font-awesome-icon icon="fa-solid fa-eraser" class="ctx-item-icon" /> Löschen
           </button>
-
-          <template v-if="!ctxMenu.isMulti">
-            <div class="ctx-divider"></div>
-            <button class="ctx-item" @click="openCellNote(ctxMenu.ma, { iso: ctxMenu.day })">
-              <font-awesome-icon icon="fa-solid fa-note-sticky" class="ctx-item-icon" />
-              {{ ctxMenu.entries.some(e => e.typ === 'notiz') ? 'Notiz bearbeiten' : 'Notiz schreiben' }}
-            </button>
-          </template>
         </div>
       </div>
     </teleport>
@@ -442,14 +474,19 @@ const router = useRouter();
 const loading = ref(true);
 const mitarbeiter = ref([]);
 const eintraege = ref([]);
+const kommentare = ref([]);
 const searchQuery = ref('');
 const tableWrapper = ref(null);
+const chatThreadRef = ref(null);
 const filterExpanded = ref(true);
 const isMobile = ref(window.innerWidth <= 768);
 const starredIds = ref(new Set());
 const hoveredMaId = ref(null);
 const hoveredCell = ref(null);
-const cellTooltipState = ref({ visible: false, text: '', x: 0, y: 0 });
+const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 0 });
+const bereichFilter = ref(null); // null | 'S' | 'L'
+const bereichMenuOpen = ref(false);
+const bereichMenuPos = ref({ x: 0, y: 0 });
 
 // ─── Column widths (resizable) ───
 const colWidths = reactive({ nachname: 130, vorname: 110 });
@@ -489,7 +526,8 @@ onUnmounted(() => window.removeEventListener('resize', onResize));
 
 const filters = reactive({
   standort: null,
-  tage: 30,
+  tage: 90,
+  planungFilter: null,
 });
 
 const statusOptions = [
@@ -516,22 +554,17 @@ const CELL_ICONS = {
 const sortField = ref('nachname');
 const sortDir = ref('asc');
 
-// ─── Notes Modal ───
-const notesModal = reactive({
-  open: false,
-  ma: null,
-  notes: [],
-  newText: '',
-});
-
-// ─── Cell Note Modal ───
-const cellNoteModal = reactive({
+// ─── Chat Modal (Comment Thread) ───
+const chatModal = reactive({
   open: false,
   ma: null,
   day: null,
-  text: '',
-  existingNote: null,
+  comments: [],
+  newText: '',
+  loading: false,
 });
+
+const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
 
 // ─── Name Context Menu ───
 const nameMenu = reactive({
@@ -683,6 +716,26 @@ const filteredMitarbeiter = computed(() => {
         m.nachname.toLowerCase().includes(q)
     );
   }
+  if (bereichFilter.value) {
+    const f = bereichFilter.value;
+    list = list.filter((m) => {
+      const b = getMaBereich(m);
+      return b === f || b === 'S+L';
+    });
+  }
+  if (filters.planungFilter) {
+    const todayIso = toIso((() => { const d = new Date(); d.setHours(0,0,0,0); return d; })());
+    const eingeplantSet = new Set(
+      eintraege.value
+        .filter((e) => e.typ === 'planned' && (e.datumBis || e.datumVon) >= todayIso)
+        .map((e) => String(typeof e.mitarbeiter === 'object' ? e.mitarbeiter._id || e.mitarbeiter : e.mitarbeiter))
+    );
+    if (filters.planungFilter === 'eingeplant') {
+      list = list.filter((m) => eingeplantSet.has(String(m._id)));
+    } else if (filters.planungFilter === 'ungeplant') {
+      list = list.filter((m) => !eingeplantSet.has(String(m._id)));
+    }
+  }
   return list.sort((a, b) => {
     const aStarred = starredIds.value.has(a._id) ? 0 : 1;
     const bStarred = starredIds.value.has(b._id) ? 0 : 1;
@@ -817,14 +870,8 @@ function getCellTooltip(maId, iso) {
   return entries
     .map((e) => {
       if (e.typ === 'planned') return `Einsatz: ${e.bezeichnung || 'Auftrag ' + e.auftragNr}${e.uhrzeitVon ? ' (' + e.uhrzeitVon + '–' + e.uhrzeitBis + ')' : ''}`;
-      if (e.typ === 'verfuegbarkeit') {
-        const labels = { available: 'Verfügbar', partially: 'Eingeschränkt', blocked: 'Blocked' };
-        return labels[e.verfuegbarkeit] + (e.zeitVon ? ` (${e.zeitVon}–${e.zeitBis})` : '');
-      }
-      if (e.typ === 'abwesenheit') {
-        const labels = { urlaub: 'Urlaub', krank: 'Krank', feiertag: 'Feiertag', ueberstunden: 'Überstunden', sonstiges: 'Sonstiges' };
-        return labels[e.abwesenheitsKategorie] || 'Abwesend';
-      }
+      if (e.typ === 'verfuegbarkeit') return null;
+      if (e.typ === 'abwesenheit') return null;
       if (e.typ === 'notiz' || e.typ === 'hinweis') return e.text;
       return '';
     })
@@ -848,6 +895,37 @@ function getNotizPreview(maId) {
 
 function getCellNote(maId, iso) {
   return getEntriesForCell(maId, iso).find((e) => e.typ === 'notiz') || null;
+}
+
+// ─── Comment helpers ───
+function getCellComments(maId, iso) {
+  return kommentare.value.filter(
+    (k) => String(k.mitarbeiter) === String(maId) && k.datum === iso
+  );
+}
+
+function getCellUnreadCount(maId, iso) {
+  if (!maId || !iso) return 0;
+  const userId = auth.user?._id;
+  if (!userId) return 0;
+  return getCellComments(maId, iso).filter(
+    (k) => String(k.authorId) !== String(userId) && !k.readBy?.map(String).includes(String(userId))
+  ).length;
+}
+
+function isOwnComment(comment) {
+  const userId = auth.user?._id;
+  return !!userId && String(comment.authorId) === String(userId);
+}
+
+function formatDateTime(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  return (
+    dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) +
+    ' ' +
+    dt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+  );
 }
 
 function getRunNote(maId, iso) {
@@ -959,6 +1037,22 @@ async function fetchDispo() {
   } finally {
     loading.value = false;
   }
+  // also refresh comments for visible range
+  fetchKommentare();
+}
+
+async function fetchKommentare() {
+  try {
+    const today = new Date();
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + filters.tage);
+    const von = today.toISOString().slice(0, 10);
+    const bis = endDate.toISOString().slice(0, 10);
+    const { data } = await api.get(`/api/dispo-kommentare?von=${von}&bis=${bis}`);
+    kommentare.value = data || [];
+  } catch (err) {
+    console.error('Kommentare laden fehlgeschlagen:', err);
+  }
 }
 
 // ─── Filters ───
@@ -982,7 +1076,8 @@ function setDefaultStandort() {
 
 function resetFilters() {
   filters.standort = null;
-  filters.tage = 30;
+  filters.tage = 90;
+  filters.planungFilter = null;
   searchQuery.value = '';
   setDefaultStandort();
   fetchDispo();
@@ -1103,13 +1198,25 @@ function onCellMouseEnter(ma, day) {
 }
 
 function onCellMouseMove(ma, day, event) {
-  const text = getCellTooltip(ma._id, day.iso);
-  cellTooltipState.value = { visible: !!text, text: text || '', x: event.clientX, y: event.clientY };
+  const cellComments = getCellComments(ma._id, day.iso);
+  const text = cellComments.length ? null : getCellTooltip(ma._id, day.iso);
+  cellTooltipState.value = {
+    visible: !!(cellComments.length || text),
+    text: text || '',
+    comments: cellComments,
+    x: event.clientX,
+    y: event.clientY,
+  };
 }
 
 function onCellMouseLeave() {
   hoveredCell.value = null;
   cellTooltipState.value = { ...cellTooltipState.value, visible: false };
+}
+
+function onBereichHeaderClick(event) {
+  bereichMenuPos.value = { x: event.clientX, y: event.clientY + 8 };
+  bereichMenuOpen.value = true;
 }
 
 async function setStatus(status) {
@@ -1270,93 +1377,75 @@ async function deleteEntry(id) {
   }
 }
 
-// ─── Notes Actions ───
-function openNotes(ma) {
-  notesModal.ma = ma;
-  notesModal.notes = getNotizen(ma._id);
-  notesModal.newText = '';
-  notesModal.open = true;
-}
-
-function closeNotes() {
-  notesModal.open = false;
-  notesModal.ma = null;
-  notesModal.notes = [];
-  notesModal.newText = '';
-}
-
-async function addNote() {
-  if (!notesModal.newText.trim()) return;
-  try {
-    const { data } = await api.post('/api/dispo', {
-      mitarbeiter: notesModal.ma._id,
-      datumVon: new Date().toISOString(),
-      typ: 'notiz',
-      text: notesModal.newText.trim(),
-    });
-    notesModal.newText = '';
-    localAddEntries([data]);
-    notesModal.notes = getNotizen(notesModal.ma._id);
-  } catch (err) {
-    console.error('Notiz hinzufügen fehlgeschlagen:', err);
-  }
-}
-
-async function deleteNote(id) {
-  try {
-    await api.delete(`/api/dispo/${id}`);
-    localRemoveEntries([id]);
-    if (notesModal.ma) {
-      notesModal.notes = getNotizen(notesModal.ma._id);
-    }
-  } catch (err) {
-    console.error('Notiz löschen fehlgeschlagen:', err);
-    await fetchDispo();
-  }
-}
-
-// ─── Cell Note Actions ───
-function openCellNote(ma, day) {
-  const existing = getCellNote(ma._id, day.iso);
-  cellNoteModal.ma = ma;
-  cellNoteModal.day = day.iso;
-  cellNoteModal.text = existing?.text || '';
-  cellNoteModal.existingNote = existing || null;
-  cellNoteModal.open = true;
+// ─── Chat Modal Actions ───
+async function openChatModal(ma, day) {
   closeCtxMenu();
-}
-
-function closeCellNote() {
-  cellNoteModal.open = false;
-  cellNoteModal.ma = null;
-  cellNoteModal.day = null;
-  cellNoteModal.text = '';
-  cellNoteModal.existingNote = null;
-}
-
-async function saveCellNote() {
-  const text = cellNoteModal.text.trim();
-  if (!text) return;
-  const { ma, day, existingNote } = cellNoteModal;
-  closeCellNote();
-  try {
-    if (existingNote) {
-      const { data } = await api.put(`/api/dispo/${existingNote._id}`, { text });
-      localRemoveEntries([existingNote._id]);
-      localAddEntries([data]);
-    } else {
-      const { data } = await api.post('/api/dispo', {
-        mitarbeiter: ma._id,
-        datumVon: day,
-        datumBis: day,
-        typ: 'notiz',
-        text,
+  chatModal.ma = ma;
+  chatModal.day = day.iso;
+  chatModal.comments = getCellComments(ma._id, day.iso);
+  chatModal.newText = '';
+  chatModal.open = true;
+  // mark all current comments in this cell as read
+  const unread = chatModal.comments
+    .filter((c) => !c.readBy?.map(String).includes(String(auth.user?._id)))
+    .map((c) => c._id);
+  if (unread.length) {
+    try {
+      await api.post('/api/dispo-kommentare/mark-read', { ids: unread });
+      unread.forEach((id) => {
+        const k = kommentare.value.find((c) => String(c._id) === String(id));
+        if (k && auth.user?._id) {
+          if (!k.readBy) k.readBy = [];
+          k.readBy.push(String(auth.user._id));
+        }
       });
-      localAddEntries([data]);
-    }
+      chatModal.comments = getCellComments(ma._id, day.iso);
+    } catch (_) { /* silent */ }
+  }
+  // scroll thread to bottom
+  nextTick(() => {
+    if (chatThreadRef.value) chatThreadRef.value.scrollTop = chatThreadRef.value.scrollHeight;
+  });
+}
+
+function closeChatModal() {
+  chatModal.open = false;
+  chatModal.ma = null;
+  chatModal.day = null;
+  chatModal.comments = [];
+  chatModal.newText = '';
+}
+
+async function postComment() {
+  const text = chatModal.newText.trim();
+  if (!text || chatModal.loading) return;
+  chatModal.loading = true;
+  try {
+    const { data } = await api.post('/api/dispo-kommentare', {
+      mitarbeiterId: chatModal.ma._id,
+      datum: chatModal.day,
+      text,
+    });
+    chatModal.newText = '';
+    kommentare.value = [...kommentare.value, data];
+    chatModal.comments = getCellComments(chatModal.ma._id, chatModal.day);
+    nextTick(() => {
+      if (chatThreadRef.value) chatThreadRef.value.scrollTop = chatThreadRef.value.scrollHeight;
+    });
   } catch (err) {
-    console.error('Notiz speichern fehlgeschlagen:', err);
-    await fetchDispo();
+    console.error('Kommentar senden fehlgeschlagen:', err);
+  } finally {
+    chatModal.loading = false;
+  }
+}
+
+async function deleteKommentar(id) {
+  try {
+    await api.delete(`/api/dispo-kommentare/${id}`);
+    kommentare.value = kommentare.value.filter((c) => String(c._id) !== String(id));
+    chatModal.comments = getCellComments(chatModal.ma._id, chatModal.day);
+  } catch (err) {
+    console.error('Kommentar löschen fehlgeschlagen:', err);
   }
 }
 
@@ -1508,6 +1597,13 @@ onMounted(async () => {
 /* Rechter Bereich nimmt den Rest ein */
 .dispo-right-pane {
   flex-grow: 1;
+
+  .dispo-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--panel);
+  }
 }
 
 .dispo-table {
@@ -1568,9 +1664,59 @@ onMounted(async () => {
     width: 60px;
     min-width: 60px;
     max-width: 60px;
-    padding: 4px 6px;
+    padding: 6px 8px;
     text-align: center;
     overflow: hidden;
+    cursor: pointer;
+
+    .th-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      line-height: 1.2;
+    }
+
+    &.bereich-filter-active {
+      color: var(--primary);
+      box-shadow: inset 0 -2px 0 var(--primary);
+    }
+
+    .bereich-filter-icon {
+      font-size: 9px;
+      opacity: 0.45;
+      margin-left: 2px;
+      vertical-align: middle;
+    }
+
+    &:hover .bereich-filter-icon {
+      opacity: 0.8;
+    }
+
+    .bereich-filter-label {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--primary);
+      background: rgba(238, 175, 103, 0.15);
+      border-radius: 3px;
+      padding: 0 3px;
+      margin-left: 3px;
+    }
+
+    .bereich-filter-clear {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-left: 2px;
+      cursor: pointer;
+      opacity: 0.8;
+      &:hover { opacity: 1; }
+    }
   }
 
   .bereich-badge {
@@ -1740,6 +1886,22 @@ onMounted(async () => {
   width: 100%;
   min-width: 0;
   overflow: hidden;
+
+.tl-inline-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  padding: 1px 4px;
+}
+
+.tl-corner-badge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 8px;
+  padding: 1px 4px;
+  border-radius: 0 0 6px 0;
+  z-index: 1;
+}
 
   .star-btn {
     background: none;
@@ -1913,228 +2075,257 @@ onMounted(async () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
 }
 
-.note-dot {
+.comment-bubble {
   position: absolute;
   top: 2px;
   right: 3px;
-  font-size: 13px;
-  font-weight: 900;
-  font-style: italic;
-  color: var(--primary);
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
   pointer-events: none;
-  text-shadow: 0 0 4px rgba(238, 175, 103, 0.5);
+
+  .comment-bubble-icon {
+    font-size: 10px;
+    color: var(--primary);
+    opacity: 0.85;
+    filter: drop-shadow(0 0 3px rgba(238,175,103,0.4));
+  }
+
+  .comment-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 13px;
+    height: 13px;
+    background: #ef4444;
+    color: white;
+    border-radius: 99px;
+    font-size: 8px;
+    font-weight: 700;
+    padding: 0 3px;
+    line-height: 1;
+  }
 }
 
-.cell-note-modal {
+.dispo-cell-tooltip--comments {
   background: var(--surface);
-  border-radius: 10px;
-  padding: 16px;
-  width: 340px;
-  max-width: calc(100vw - 32px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 220px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 9999;
+}
+
+.tooltip-comment {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &:not(:last-child) {
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tooltip-comment-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .tooltip-comment-author {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .tooltip-comment-time {
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .tooltip-comment-text {
+    font-size: 12px;
+    color: var(--text);
+    margin: 0;
+    white-space: pre-wrap;
+  }
+}
+
+// ─── Chat Modal ───
+.chat-modal {
+  background: var(--modal-bg);
+  border-radius: 12px;
+  width: 460px;
+  max-width: 92vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+
+.chat-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+
+  .chat-modal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+
+    svg { color: var(--primary); }
+  }
+}
+
+.chat-thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 120px;
+  max-height: 360px;
 }
 
-.cell-note-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.cell-note-textarea {
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-size: 13px;
-  color: var(--text);
-  background: var(--bg);
-  resize: vertical;
-  font-family: inherit;
-  box-sizing: border-box;
-  outline: none;
-
-  &:focus {
-    border-color: var(--primary);
-  }
-}
-
-.cell-note-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-
-  .btn-cancel {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 6px 14px;
-    font-size: 12px;
-    cursor: pointer;
-    color: var(--muted);
-    &:hover { color: var(--text); border-color: var(--text); }
-  }
-
-  .btn-save {
-    background: var(--primary);
-    border: none;
-    border-radius: 6px;
-    padding: 6px 14px;
-    font-size: 12px;
-    cursor: pointer;
-    color: white;
-    font-weight: 600;
-    &:hover { opacity: 0.9; }
-    &:disabled { opacity: 0.4; cursor: not-allowed; }
-  }
-}
-
-// ─── Notes Modal ───
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.notes-modal {
-  background: var(--modal-bg);
-  border-radius: 12px;
-  width: 440px;
-  max-width: 90vw;
-  max-height: 80vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-}
-
-.notes-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-
-  h3 {
-    margin: 0;
-    font-size: 15px;
-    color: var(--text);
-  }
-}
-
-.close-btn {
-  background: none;
-  border: none;
+.chat-empty {
   color: var(--muted);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 4px;
-
-  &:hover { color: var(--text); }
+  font-size: 13px;
+  text-align: center;
+  margin: 0;
+  padding: 16px 0;
 }
 
-.notes-modal-body {
-  padding: 16px 20px;
-}
-
-.notes-list {
+.chat-message {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-}
+  gap: 3px;
+  max-width: 88%;
+  align-self: flex-start;
 
-.note-item {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 8px 12px;
-  border-radius: 6px;
+  &--own {
+    align-self: flex-end;
 
-  .note-text {
-    color: var(--text);
-    font-size: 13px;
-    white-space: pre-wrap;
+    .chat-message-meta {
+      flex-direction: row-reverse;
+    }
+
+    .chat-message-text {
+      background: rgba(238,175,103,0.18);
+      border-color: var(--primary);
+    }
   }
 
-  .note-meta {
+  .chat-message-meta {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-top: 6px;
-    font-size: 11px;
+    gap: 6px;
+    font-size: 10px;
     color: var(--muted);
+  }
+
+  .chat-message-author {
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .chat-message-time {
+    color: var(--muted);
+  }
+
+  .chat-delete-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 10px;
+    padding: 0 2px;
+    opacity: 0.6;
+    &:hover { color: #ef4444; opacity: 1; }
+  }
+
+  .chat-message-text {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 13px;
+    color: var(--text);
+    white-space: pre-wrap;
+    margin: 0;
+    line-height: 1.4;
   }
 }
 
-.delete-note-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 2px 4px;
-
-  &:hover { color: #ef4444; }
-}
-
-.no-notes {
-  color: var(--muted);
-  font-size: 13px;
-  margin-bottom: 12px;
-}
-
-.note-add {
+.chat-input-row {
   display: flex;
-  flex-direction: column;
+  align-items: flex-end;
   gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
 
-  textarea {
-    width: 100%;
-    padding: 8px 10px;
+  .chat-textarea {
+    flex: 1;
     border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--surface);
-    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
     font-size: 13px;
-    resize: vertical;
+    color: var(--text);
+    background: var(--bg);
+    resize: none;
     font-family: inherit;
     outline: none;
     box-sizing: border-box;
+    line-height: 1.4;
 
     &:focus { border-color: var(--primary); }
   }
+
+  .chat-send-btn {
+    flex-shrink: 0;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: opacity 0.15s;
+
+    &:disabled { opacity: 0.4; cursor: not-allowed; }
+    &:hover:not(:disabled) { opacity: 0.85; }
+  }
 }
 
-.add-note-btn {
-  align-self: flex-end;
-  background: var(--primary);
-  color: white;
-  border: none;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
+.ctx-unread-badge {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  &:hover:not(:disabled) {
-    filter: brightness(0.9);
-  }
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  background: #ef4444;
+  color: white;
+  border-radius: 99px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 4px;
+  margin-left: auto;
 }
 
 // ─── Cell Context Menu ───
@@ -2205,6 +2396,8 @@ onMounted(async () => {
   &.ctx-item--blocked   { color: #ef4444; }
   &.ctx-item--clear     { color: var(--muted); }
   &.ctx-item--open      { color: var(--primary); }
+  &.active              { color: var(--primary); font-weight: 600; }
+  &.ctx-item-remove     { color: var(--muted); border-top: 1px solid var(--border); margin-top: 2px; padding-top: 6px; }
 }
 
 .ctx-item-icon {
@@ -2254,6 +2447,28 @@ onMounted(async () => {
 
   &:hover { background: var(--hover); }
   &.selected { color: var(--primary); font-weight: 600; }
+}
+
+// ─── Shared Modal ───
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+
+  &:hover { color: var(--text); }
 }
 
 // ─── Employee Card Modal ───

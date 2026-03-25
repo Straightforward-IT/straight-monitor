@@ -10,6 +10,7 @@ const xlsx = require("xlsx");
 const multer = require("multer");
 const path = require("path");
 const Mitarbeiter = require("../models/Mitarbeiter");
+const User = require("../models/User");
 const Einsatz = require("../models/Einsatz");
 const Auftrag = require("../models/Auftrag");
 const Qualifikation = require("../models/Qualifikation");
@@ -1481,9 +1482,17 @@ router.get(
         },
       ]);
 
+    const linkedUsers = await User.find({ mitarbeiter: { $ne: null } }).select('mitarbeiter').lean();
+    const linkedSet = new Set(linkedUsers.map(u => u.mitarbeiter.toString()));
+    const enriched = mitarbeiter.map(ma => {
+      const obj = ma.toObject();
+      obj.hasUser = linkedSet.has(ma._id.toString());
+      return obj;
+    });
+
     res.status(200).json({
       success: true,
-      data: mitarbeiter,
+      data: enriched,
     });
   })
 );

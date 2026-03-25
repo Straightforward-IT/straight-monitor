@@ -39,7 +39,8 @@
         
         </router-link>
         <router-link
-          :to="newPagesEnabled ? '/kunden' : '#'"
+          v-if="canSeeKunden"
+          to="/kunden"
           :class="{ active: $route.name === 'Kunden'}"
           @click="handleNewPageClick($event, '/kunden')"
         >
@@ -164,13 +165,13 @@
           <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
         </router-link>
         <router-link
-          :to="newPagesEnabled ? '/kunden' : '#'"
-          :class="{ active: $route.name === 'Kunden', disabled: !newPagesEnabled }"
+          v-if="canSeeKunden"
+          to="/kunden"
+          :class="{ active: $route.name === 'Kunden' }"
           @click="handleNewPageClick($event, '/kunden'); showMobileMenu = false"
         >
           <font-awesome-icon :icon="['fas', 'building']" />
           Kunden
-          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
         </router-link>
 
         <router-link
@@ -372,7 +373,8 @@ const supportForm = reactive({
 // Neue Pages für alle authentifizierten Nutzer freigeschaltet
 const newPagesEnabled = computed(() => !!auth.user);
 
-const isAdmin = computed(() => auth.user?.role === 'ADMIN');
+const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
+const canSeeKunden = computed(() => isAdmin.value || auth.user?.roles?.includes('VERTRIEB'));
 
 // Handler für deaktivierte neue Pages
 const handleNewPageClick = (event, path) => {

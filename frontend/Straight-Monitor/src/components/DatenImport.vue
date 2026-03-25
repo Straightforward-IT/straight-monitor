@@ -420,7 +420,7 @@ export default {
   },
   computed: {
     isAdmin() {
-      return this.authStore?.user?.role === 'ADMIN';
+      return this.authStore?.user?.roles?.includes('ADMIN');
     }
   },
   data() {

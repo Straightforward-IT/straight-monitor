@@ -38,13 +38,13 @@
         @keydown.up.prevent="moveUp"
         @keydown.enter.prevent="selectHighlighted"
         @keydown.escape="close"
-        @focus="showDropdown = results.length > 0"
+        @focus="if (results.length > 0) { updateDropdownPosition(); showDropdown = true; }"
       />
       <span v-if="loading" class="ma-search__spinner" />
     </div>
 
     <!-- Dropdown -->
-    <ul v-if="showDropdown && results.length" :class="['ma-search__dropdown', { 'ma-search__dropdown--dropup': dropup }]">
+    <ul v-if="showDropdown && results.length" :class="['ma-search__dropdown', { 'ma-search__dropdown--dropup': dropup }]" :style="dropdownStyle">
       <li
         v-for="(ma, i) in results"
         :key="ma._id"
@@ -97,8 +97,30 @@ const selectedList= ref([]);     // multi mode  — array of full objects
 const loading     = ref(false);
 const showDropdown= ref(false);
 const highlighted = ref(0);
-const container   = ref(null);
-let debounceTimer = null;
+const container      = ref(null);
+const dropdownStyle  = ref({});
+let debounceTimer    = null;
+
+function updateDropdownPosition() {
+  if (!container.value) return;
+  const rect = container.value.getBoundingClientRect();
+  if (props.dropup) {
+    dropdownStyle.value = {
+      position: 'fixed',
+      bottom: `${window.innerHeight - rect.top + 3}px`,
+      top: 'auto',
+      left:  `${rect.left}px`,
+      width: `${rect.width}px`,
+    };
+  } else {
+    dropdownStyle.value = {
+      position: 'fixed',
+      top:   `${rect.bottom + 3}px`,
+      left:  `${rect.left}px`,
+      width: `${rect.width}px`,
+    };
+  }
+}
 
 // ── Search ─────────────────────────────────────────────────────────────────
 function onInput() {
@@ -110,7 +132,12 @@ function onInput() {
       const { data } = await api.get('/api/personal/search', { params: { q: query.value } });
       results.value = data;
       highlighted.value = 0;
-      showDropdown.value = data.length > 0;
+      if (data.length > 0) {
+        updateDropdownPosition();
+        showDropdown.value = true;
+      } else {
+        showDropdown.value = false;
+      }
     } catch { results.value = []; }
     finally { loading.value = false; }
   }, 280);
@@ -164,8 +191,16 @@ function selectHighlighted() { if (results.value[highlighted.value]) select(resu
 function onClickOutside(e) {
   if (container.value && !container.value.contains(e.target)) close();
 }
-onMounted(()        => document.addEventListener('mousedown', onClickOutside));
-onBeforeUnmount(()  => document.removeEventListener('mousedown', onClickOutside));
+onMounted(() => {
+  document.addEventListener('mousedown', onClickOutside);
+  window.addEventListener('scroll', updateDropdownPosition, true);
+  window.addEventListener('resize', updateDropdownPosition);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', onClickOutside);
+  window.removeEventListener('scroll', updateDropdownPosition, true);
+  window.removeEventListener('resize', updateDropdownPosition);
+});
 
 // ── External reset ──────────────────────────────────────────────────────────
 watch(() => props.modelValue, (val) => {
@@ -265,9 +300,7 @@ watch(() => props.modelValue, (val) => {
 
 // ── Dropdown ─────────────────────────────────────
 .ma-search__dropdown {
-  position: absolute;
-  top: calc(100% + 3px);
-  left: 0; right: 0;
+  position: fixed;
   background: var(--tile-bg);
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -279,8 +312,6 @@ watch(() => props.modelValue, (val) => {
   overflow-y: auto;
 
   &--dropup {
-    top: auto;
-    bottom: calc(100% + 3px);
     box-shadow: 0 -6px 20px rgba(0,0,0,0.12);
   }
 }

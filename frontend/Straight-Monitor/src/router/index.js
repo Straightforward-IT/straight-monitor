@@ -33,6 +33,7 @@ import PdfFormFill from '@/components/PdfFormFill.vue';
 import PdfVorgaenge from '@/components/PdfVorgaenge.vue';
 import PdfMitarbeiterForm from '@/components/PdfMitarbeiterForm.vue';
 import DispoTable from '@/components/DispoTable.vue';
+import UserManagement from '@/components/UserManagement.vue';
 import NotFound from '@/components/NotFound.vue';
 
 const routes = [
@@ -54,7 +55,7 @@ const routes = [
       { path: 'verlauf',   name: 'Verlauf',   component: Verlauf },
       { path: 'auswertung', name: 'Auswertung', component: Auswertung },
       { path: 'excelFormatierung', name: 'ExcelFormatierung', component: ExcelFormatierung },
-      { path: 'lohnabrechnungen', name: 'Lohnabrechnungen', component: Lohnabrechnungen },
+      { path: 'lohnabrechnungen', name: 'Lohnabrechnungen', component: Lohnabrechnungen, meta: { roles: ['VERTRIEB'] } },
       { path: 'personal', name: 'Personal', component: Personal },
       { path: 'dokumente', name: 'Dokumente', component: Dokumente },
       { path: 'flip/benutzer-erstellen/:id?', name: 'BenutzerErstellen', component: FlipCreate },
@@ -63,13 +64,14 @@ const routes = [
       { path: 'verlosung', name: 'VerlosungTool', component: VerlosungTool },
       { path: 'daten-import', name: 'DatenImport', component: DatenImport },
       { path: 'auftraege', name: 'Auftraege', component: AuftraegePage },
-      { path: 'kunden', name: 'Kunden', component: KundenPage },
+      { path: 'kunden', name: 'Kunden', component: KundenPage, meta: { roles: ['VERTRIEB'] } },
       { path: 'teamleiter-auswertung', name: 'TeamleiterAuswertung', component: TeamleiterAuswertung },
       { path: 'dokumente-nachpflegen', name: 'DokumenteNachpflegen', component: DokumenteNachpflegen },
       { path: 'pdf-vorlagen', name: 'PdfVorlagen', component: PdfBuilder },
       { path: 'pdf-vorgaenge', name: 'PdfVorgaenge', component: PdfVorgaenge },
       { path: 'pdf-ausfuellen/:id', name: 'PdfAusfuellen', component: PdfFormFill },
-      { path: 'dispo', name: 'Dispo', component: DispoTable, meta: { role: 'ADMIN' } },
+      { path: 'dispo', name: 'Dispo', component: DispoTable },
+      { path: 'benutzer-verwaltung', name: 'BenutzerVerwaltung', component: UserManagement, meta: { roles: ['ADMIN'] } },
       { path: '', redirect: '/dashboard' }
     ]
   },
@@ -113,9 +115,12 @@ router.beforeEach(async (to, from, next) => {
     }
   }
   
-  // Role-based access guard
-  if (to.meta.role && auth.user?.role !== to.meta.role) {
-    return next('/dashboard');
+  // Role-based access guard (ADMIN is superuser)
+  if (to.meta.roles?.length) {
+    const userRoles = auth.user?.roles || [];
+    const isAdmin = userRoles.includes('ADMIN');
+    const hasRole = isAdmin || to.meta.roles.some(r => userRoles.includes(r));
+    if (!hasRole) return next('/dashboard');
   }
 
   // Restore last visited page on login

@@ -1,5 +1,5 @@
 <template>
-  <article class="card" :data-expanded="expanded" :data-theme="effectiveTheme">
+  <article class="card" :class="{ 'card--has-user': resolvedMa?.hasUser }" :data-expanded="expanded" :data-theme="effectiveTheme">
     <!-- Self-loading skeleton -->
     <div v-if="selfLoading && !resolvedMa" class="card-self-loading">
       <font-awesome-icon icon="fa-solid fa-spinner" spin />
@@ -59,6 +59,15 @@
               {{ resolvedMa.personalnr || "Personalnr fehlt" }}
             </span>
             
+            <!-- Teamleiter Badge -->
+            <TlBadge v-if="isTeamleiter" />
+
+            <!-- Monitor Badge (User linked) -->
+            <span v-if="resolvedMa?.hasUser" class="pill pill--monitor">
+              <img :src="straightDark" class="pill-monitor-icon" alt="" />
+              Monitor
+            </span>
+
             <!-- Location Badge -->
             <span class="pill muted" v-if="displayLocation">
               <font-awesome-icon icon="fa-solid fa-location-dot" />
@@ -76,9 +85,6 @@
               <font-awesome-icon icon="fa-solid fa-user" />
               {{ persgruppeLabel }}
             </span>
-            
-            <!-- Teamleiter Badge -->
-            <TlBadge v-if="isTeamleiter" />
           </div>
         </div>
       </div>
@@ -2605,6 +2611,41 @@ export default {
   overflow: hidden;
 }
 
+/* ── User-verknüpfte Karte: 2 diagonale Streifen ── */
+.card--has-user::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    -45deg,
+    transparent 5%,
+    rgba(238, 175, 103, 0.18) 5%,
+    rgba(238, 175, 103, 0.18) 20%,
+    transparent 20%,
+    transparent 30%,
+    rgba(0, 0, 0, 0.07) 30%,
+    rgba(0, 0, 0, 0.07) 45%,
+    transparent 45%
+  );
+  border-radius: 14px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.card--has-user[data-theme="dark"]::after {
+  background: linear-gradient(
+    -45deg,
+    transparent 5%,
+    rgba(238, 175, 103, 0.22) 5%,
+    rgba(238, 175, 103, 0.22) 20%,
+    transparent 20%,
+    transparent 30%,
+    rgba(255, 255, 255, 0.1) 30%,
+    rgba(255, 255, 255, 0.1) 45%,
+    transparent 45%
+  );
+}
+
 /* Self-loading skeleton state */
 .card-self-loading {
   display: flex;
@@ -2651,6 +2692,8 @@ export default {
   color: #fff;
   background: hsl(0, 0%, calc(15% + (var(--hue, 0) / 360 * 55%)));
   flex: 0 0 auto;
+  position: relative;
+  z-index: 11;
 }
 .avatar-img {
   width: 44px;
@@ -2658,6 +2701,8 @@ export default {
   border-radius: 12px;
   object-fit: cover;
   flex: 0 0 auto;
+  position: relative;
+  z-index: 11;
 }
 
 .title {
@@ -2699,6 +2744,17 @@ export default {
   background: #fff3cd;
   color: #856404;
   font-weight: 600;
+}
+.pill--monitor {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  color: var(--primary);
+  font-weight: 500;
+}
+.pill-monitor-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0) saturate(100%) invert(72%) sepia(46%) saturate(500%) hue-rotate(340deg) brightness(101%) contrast(92%);
 }
 
 /* ---------- Actions ---------- */
@@ -3858,6 +3914,7 @@ export default {
   overflow: hidden;
   background: var(--soft);
   position: relative;
+  z-index: 11;
 }
 
 .hero-media--clickable {
@@ -4090,7 +4147,7 @@ export default {
   position: absolute;
   top: 8px;
   left: 8px;
-  z-index: 10;
+  z-index: 12;
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.2s ease;
   transform: translateY(-4px);

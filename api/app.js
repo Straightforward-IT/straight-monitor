@@ -23,6 +23,7 @@ const flipUserFixRoutes = require('./routes/flipUserFixRoutes');
 const pdfTemplateRoutes = require('./routes/pdfTemplateRoutes');
 const pdfVorgangRoutes = require('./routes/pdfVorgangRoutes');
 const dispoRoutes = require('./routes/dispoRoutes');
+const dispoKommentarRoutes = require('./routes/dispoKommentarRoutes');
 const ErrorHandler = require('./middleware/ErrorHandler');
 const logger = require('./utils/logger');
 require('dotenv').config();
@@ -91,6 +92,7 @@ app.use('/api/flip-user-fix', flipUserFixRoutes);
 app.use('/api/pdf-templates', pdfTemplateRoutes);
 app.use('/api/pdf-vorgaenge', pdfVorgangRoutes);
 app.use('/api/dispo', dispoRoutes);
+app.use('/api/dispo-kommentare', dispoKommentarRoutes);
 
 // Debug endpoint (moved to specific path instead of catch-all)
 app.get('/api/debug/headers', (req, res) => {
@@ -126,6 +128,19 @@ async function logCurrentIP() {
 mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
     logger.dbConnect();
+    // ─── Roles Migration (idempotent) ────────────────────────────────────────
+    // Migrate users that still have an empty `roles` array by deriving it from the legacy `role` field.
+    const User = require('./models/User');
+    const unmigrated = await User.find({ $or: [{ roles: { $exists: false } }, { roles: { $size: 0 } }] });
+    if (unmigrated.length > 0) {
+      logger.info(`Roles migration: migrating ${unmigrated.length} user(s)...`);
+      for (const u of unmigrated) {
+        u.roles = [u.role === 'ADMIN' ? 'ADMIN' : 'USER'];
+        await u.save();
+      }
+      logger.info('Roles migration complete.');
+    }
+    // ─────────────────────────────────────────────────────────────────────────
     // Verify R2 connection on startup
     const R2Service = require('./R2Service');
     await R2Service.testConnection();

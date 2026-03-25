@@ -19,6 +19,11 @@
         <span>Lohnabrechnungen</span>
       </button>
 
+      <button class="s-btn" v-if="newPagesEnabled" @click="go('/benutzer-verwaltung')">
+        <img :src="logoSrc" alt="" />
+        <span>Benutzer Verwaltung</span>
+      </button>
+
       <button class="s-btn" @click="go('/daten-import')">
         <img :src="logoSrc" alt="" />
         <span>Daten Import</span>
@@ -70,7 +75,7 @@ const theme = useTheme();
 const ui = useUi();
 const auth = useAuth();
 
-const newPagesEnabled = computed(() => auth.user && auth.user.role === 'ADMIN');
+const newPagesEnabled = computed(() => auth.user?.roles?.includes('ADMIN'));
 
 const logoSrc = computed(() =>
   theme.isDark
