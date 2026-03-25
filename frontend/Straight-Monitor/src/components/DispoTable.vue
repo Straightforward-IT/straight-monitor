@@ -35,19 +35,13 @@
           <div class="dropdown-item" :class="{ selected: filters.planungFilter === 'ungeplant' }" @click="setPlanung('ungeplant')">Ungeplante</div>
         </FilterDropdown>
 
-        <!-- Bereich -->
-        <FilterDropdown :has-value="bereichFilter !== null">
-          <template #label><font-awesome-icon icon="fa-solid fa-layer-group" style="margin-right:4px" />{{ bereichFilter ?? 'Bereich' }}</template>
-          <div class="dropdown-item" :class="{ selected: bereichFilter === null }" @click="setBereich(null)">Alle</div>
-          <div class="dropdown-item" :class="{ selected: bereichFilter === 'S' }" @click="setBereich('S')">Service</div>
-          <div class="dropdown-item" :class="{ selected: bereichFilter === 'L' }" @click="setBereich('L')">Logistik</div>
-        </FilterDropdown>
-
         <!-- Search -->
-        <div class="fs-search-box">
-          <font-awesome-icon icon="fa-solid fa-magnifying-glass" class="fs-search-icon" />
-          <input v-model="searchQuery" type="text" placeholder="Suchen…" />
-        </div>
+        <CustomTooltip text="Suchen [S]" position="bottom">
+          <div class="fs-search-box">
+            <font-awesome-icon icon="fa-solid fa-magnifying-glass" class="fs-search-icon" />
+            <input ref="searchInputFs" v-model="searchQuery" type="text" placeholder="Suchen…" />
+          </div>
+        </CustomTooltip>
 
         <!-- Reset -->
         <button class="fs-reset-btn" @click="resetFilters" title="Zurücksetzen">
@@ -68,23 +62,34 @@
 
         <!-- Zoom -->
         <div class="zoom-controls">
-          <button class="zoom-btn" @click="tableZoom = Math.max(60, tableZoom - 10)" title="Verkleinern" :disabled="tableZoom <= 60">
-            <font-awesome-icon icon="fa-solid fa-minus" />
-          </button>
+          <CustomTooltip text="Verkleinern (-)" position="bottom">
+            <button class="zoom-btn" @click="tableZoom = Math.max(60, tableZoom - 10)" :disabled="tableZoom <= 60">
+              <font-awesome-icon icon="fa-solid fa-minus" />
+            </button>
+          </CustomTooltip>
           <span class="zoom-label" @dblclick="tableZoom = 100" title="Doppelklick := 100%">{{ tableZoom }}%</span>
-          <button class="zoom-btn" @click="tableZoom = Math.min(150, tableZoom + 10)" title="Vergrößern" :disabled="tableZoom >= 150">
-            <font-awesome-icon icon="fa-solid fa-plus" />
-          </button>
+          <CustomTooltip text="Vergrößern (+)" position="bottom">
+            <button class="zoom-btn" @click="tableZoom = Math.min(150, tableZoom + 10)" :disabled="tableZoom >= 150">
+              <font-awesome-icon icon="fa-solid fa-plus" />
+            </button>
+          </CustomTooltip>
         </div>
 
         <!-- Exit fullscreen -->
-        <button class="help-btn fs-exit-btn" @click="toggleFullscreen" title="Vollbild beenden (Esc)">
-          <font-awesome-icon icon="fa-solid fa-compress-alt" />
-        </button>
+        <CustomTooltip text="Vollbild beenden (Esc)" position="bottom">
+          <button class="help-btn fs-exit-btn" @click="toggleFullscreen">
+            <font-awesome-icon icon="fa-solid fa-compress-alt" />
+          </button>
+        </CustomTooltip>
       </div>
     </div>
 
     <FilterPanel v-if="!isFullscreen" v-model:expanded="filterExpanded">
+      <template #header-actions>
+        <span class="shortcut-hint" @click.stop="showHelp = true">
+          Tipp: <kbd>H</kbd> für Hilfe &amp; Shortcuts
+        </span>
+      </template>
       <!-- Standort Filter -->
       <FilterGroup label="Standort">
         <FilterChip :active="filters.standort === '1'" @click="setStandort('1')">Berlin</FilterChip>
@@ -129,42 +134,77 @@
       </FilterChip>
 
       <!-- Search Box -->
-      <div class="search-box">
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Mitarbeiter suchen…"
-        />
-      </div>
+      <CustomTooltip text="Suchen [S]" position="bottom" style="display:block">
+        <div class="search-box">
+          <input
+            ref="searchInputNormal"
+            v-model="searchQuery"
+            type="text"
+            placeholder="Mitarbeiter suchen…"
+          />
+        </div>
+      </CustomTooltip>
     </FilterPanel>
 
     <!-- Selection Bar (normal mode only) -->
     <div v-if="!isFullscreen" class="selection-bar">
-      <transition name="sel-chip">
-        <span v-if="selectedCells.size > 0" class="selection-chip">
-          <font-awesome-icon icon="fa-solid fa-table-cells" />
-          <strong>{{ selectedCells.size }}</strong> ausgewählt
-          <template v-if="selectionMaCount > 1"> · {{ selectionMaCount }} MA</template>
-          <button class="sel-chip-clear" @click="clearSelection" title="Auswahl aufheben">
-            <font-awesome-icon icon="fa-solid fa-xmark" />
-          </button>
-        </span>
-      </transition>
-      <div class="zoom-controls" style="margin-left: auto">
-        <button class="zoom-btn" @click="tableZoom = Math.max(60, tableZoom - 10)" title="Verkleinern" :disabled="tableZoom <= 60">
-          <font-awesome-icon icon="fa-solid fa-minus" />
-        </button>
-        <span class="zoom-label" @dblclick="tableZoom = 100" title="Doppelklick zum Zurücksetzen">{{ tableZoom }}%</span>
-        <button class="zoom-btn" @click="tableZoom = Math.min(150, tableZoom + 10)" title="Vergrößern" :disabled="tableZoom >= 150">
-          <font-awesome-icon icon="fa-solid fa-plus" />
-        </button>
+      <!-- Left: cell selection chip -->
+      <div class="sel-bar-left">
+        <transition name="sel-chip">
+          <span v-if="selectedCells.size > 0" class="selection-chip">
+            <font-awesome-icon icon="fa-solid fa-table-cells" />
+            <strong>{{ selectedCells.size }}</strong> ausgewählt
+            <template v-if="selectionMaCount > 1"> · {{ selectionMaCount }} MA</template>
+            <button class="sel-chip-clear" @click="clearSelection" title="Auswahl aufheben">
+              <font-awesome-icon icon="fa-solid fa-xmark" />
+            </button>
+          </span>
+        </transition>
       </div>
-      <button class="zoom-btn" @click="toggleFullscreen" title="Vollbild">
-        <font-awesome-icon icon="fa-solid fa-expand-alt" />
-      </button>
-      <button class="help-btn" @click="showHelp = true" title="Hilfe">
-        <font-awesome-icon icon="fa-solid fa-circle-question" />
-      </button>
+
+      <!-- Center: KW chips -->
+      <div class="kw-chips">
+        <span class="kw-label">KW</span>
+        <CustomTooltip
+          v-for="chip in kwChips"
+          :key="`${chip.year}-${chip.kw}`"
+          :text="chip.shortcut ? `Shortcut 2[${chip.shortcut}]` : `KW ${chip.kw} ${chip.year}`"
+          position="top"
+        >
+          <button
+            class="kw-chip"
+            :class="{ 'kw-chip--active': selectedKw?.kw === chip.kw && selectedKw?.year === chip.year, 'kw-chip--current': chip.isCurrent }"
+            @click="toggleKw(chip)"
+          >{{ chip.kw }}</button>
+        </CustomTooltip>
+      </div>
+
+      <!-- Right: zoom + fullscreen + help -->
+      <div class="sel-bar-right">
+        <div class="zoom-controls">
+          <CustomTooltip text="Verkleinern (-)" position="top">
+            <button class="zoom-btn" @click="tableZoom = Math.max(60, tableZoom - 10)" :disabled="tableZoom <= 60">
+              <font-awesome-icon icon="fa-solid fa-minus" />
+            </button>
+          </CustomTooltip>
+          <span class="zoom-label" @dblclick="tableZoom = 100" title="Doppelklick zum Zurücksetzen">{{ tableZoom }}%</span>
+          <CustomTooltip text="Vergrößern (+)" position="top">
+            <button class="zoom-btn" @click="tableZoom = Math.min(150, tableZoom + 10)" :disabled="tableZoom >= 150">
+              <font-awesome-icon icon="fa-solid fa-plus" />
+            </button>
+          </CustomTooltip>
+        </div>
+        <CustomTooltip text="Vollbild (F)" position="top">
+          <button class="zoom-btn" @click="toggleFullscreen">
+            <font-awesome-icon icon="fa-solid fa-expand-alt" />
+          </button>
+        </CustomTooltip>
+        <CustomTooltip text="Hilfe [H]" position="top">
+          <button class="help-btn" @click="showHelp = true">
+            <font-awesome-icon icon="fa-solid fa-circle-question" />
+          </button>
+        </CustomTooltip>
+      </div>
     </div>
 
     <!-- Loading -->
@@ -318,7 +358,7 @@
             <thead>
               <tr>
                 <th
-                  v-for="day in days"
+                  v-for="day in visibleDays"
                   :key="day.iso"
                   class="col-day"
                   :class="{
@@ -344,7 +384,7 @@
               >
                 <!-- Day cells -->
                 <td
-                  v-for="day in days"
+                  v-for="day in visibleDays"
                   :key="day.iso"
                   class="col-day"
                   :class="[
@@ -392,10 +432,24 @@
       <div v-if="showHelp" class="modal-overlay" @click="showHelp = false">
         <div class="help-modal" @click.stop>
           <div class="help-modal-header">
-            <h3><font-awesome-icon icon="fa-solid fa-circle-question" /> Dispo-Tabelle — Hilfe</h3>
+            <h3> Dispo-Tabelle — Hilfe</h3>
             <button class="close-btn" @click="showHelp = false"><font-awesome-icon icon="fa-solid fa-times" /></button>
           </div>
           <div class="help-modal-body">
+            <div class="help-section">
+              <h4>Tastatur-Shortcuts</h4>
+              <table class="help-shortcuts">
+                <tbody>
+                  <tr><td><kbd>F</kbd></td><td>Vollbild ein/aus</td></tr>
+                  <tr><td><kbd>H</kbd></td><td>Hilfe ein/aus</td></tr>
+                  <tr><td><kbd>S</kbd></td><td>Suche fokussieren</td></tr>
+                  <tr><td><kbd>1</kbd> – <kbd>9</kbd></td><td>Kalenderwoche wählen (1 = aktuelle KW)</td></tr>
+                  <tr><td><kbd>+</kbd></td><td>Zoom vergrößern</td></tr>
+                  <tr><td><kbd>–</kbd></td><td>Zoom verkleinern</td></tr>
+                  <tr><td><kbd>Esc</kbd></td><td>Auswahl aufheben</td></tr>
+                </tbody>
+              </table>
+            </div>
             <div class="help-section">
               <h4>Zellen-Status setzen</h4>
               <p><strong>Rechtsklick</strong> auf eine Zelle öffnet das Kontextmenü — dort kannst du Verfügbarkeit, Abwesenheit setzen oder löschen.</p>
@@ -403,19 +457,14 @@
             <div class="help-section">
               <h4>Mehrfachauswahl</h4>
               <p>Halte <kbd>⌘ Cmd</kbd> (Mac) gedrückt und klicke oder ziehe über mehrere Zellen. Danach <strong>Rechtsklick</strong> auf die Auswahl, um den Status für alle gleichzeitig zu setzen.</p>
-              <p><kbd>Esc</kbd> hebt die Auswahl auf.</p>
             </div>
             <div class="help-section">
               <h4>Kommentare</h4>
               <p>Über das Kontextmenü (Rechtsklick) → <em>Kommentare</em> kannst du Notizen zu einer Zelle hinterlassen. Ungelesene Kommentare werden mit einem roten Badge angezeigt.</p>
             </div>
             <div class="help-section">
-              <h4>Favoriten</h4>
-              <p>Klicke auf den <font-awesome-icon icon="fa-regular fa-star" /> Stern neben einem Namen, um den Mitarbeiter als Favorit zu markieren. Favoriten werden oben in der Liste angezeigt.</p>
-            </div>
-            <div class="help-section">
-              <h4>Mitarbeiter-Karte</h4>
-              <p><strong>Rechtsklick</strong> auf den Namen eines Mitarbeiters öffnet ein Menü mit der Option <em>Karte Öffnen</em>.</p>
+              <h4>Favoriten &amp; Mitarbeiter-Karte</h4>
+              <p>Klicke auf den <font-awesome-icon icon="fa-regular fa-star" /> Stern neben einem Namen für Favoriten (werden oben gelistet). <strong>Rechtsklick</strong> auf den Namen öffnet ein Menü mit <em>Karte Öffnen</em>.</p>
             </div>
             <div class="help-section">
               <h4>Legende</h4>
@@ -660,6 +709,7 @@ import FilterDropdown from '@/components/FilterDropdown.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
+import CustomTooltip from '@/components/CustomTooltip.vue';
 
 const auth = useAuth();
 const dataCache = useDataCache();
@@ -672,6 +722,8 @@ const mitarbeiter = shallowRef([]);
 const eintraege = shallowRef([]);
 const kommentare = shallowRef([]);
 const searchQuery = ref('');
+const searchInputNormal = ref(null);
+const searchInputFs = ref(null);
 const tableWrapper = ref(null);
 const chatThreadRef = ref(null);
 const filterExpanded = ref(true);
@@ -903,8 +955,22 @@ function onDocMouseUp() {
 function onKeyDown(e) {
   if (e.key === 'Escape') { clearSelection(); return; }
   const tag = document.activeElement?.tagName;
-  if ((e.key === 'f' || e.key === 'F') && tag !== 'INPUT' && tag !== 'TEXTAREA' && !document.activeElement?.isContentEditable) {
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+  if (e.key === 'f' || e.key === 'F') {
     toggleFullscreen();
+  } else if (e.key === 'h' || e.key === 'H') {
+    showHelp.value = !showHelp.value;
+  } else if (e.key === 's' || e.key === 'S') {
+    e.preventDefault();
+    const input = isFullscreen.value ? searchInputFs.value : searchInputNormal.value;
+    if (input) { input.focus(); input.select(); }
+  } else if (e.key === '-') {
+    tableZoom.value = Math.max(60, tableZoom.value - 10);
+  } else if (e.key === '+') {
+    tableZoom.value = Math.min(150, tableZoom.value + 10);
+  } else if (e.key >= '1' && e.key <= '9') {
+    const chip = kwChips.value.find(c => c.shortcut === e.key);
+    if (chip) toggleKw(chip);
   }
 }
 
@@ -916,6 +982,28 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', onDocMouseUp);
   document.removeEventListener('keydown', onKeyDown);
 });
+
+// ─── KW helpers ───
+function getISOWeek(d) {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 4 - (date.getDay() || 7));
+  const yearStart = new Date(date.getFullYear(), 0, 1);
+  return {
+    kw: Math.ceil(((date - yearStart) / 86400000 + 1) / 7),
+    year: date.getFullYear(),
+  };
+}
+
+const selectedKw = ref(null); // { kw, year } | null
+
+function toggleKw(chip) {
+  if (selectedKw.value?.kw === chip.kw && selectedKw.value?.year === chip.year) {
+    selectedKw.value = null;
+  } else {
+    selectedKw.value = { kw: chip.kw, year: chip.year };
+  }
+}
 
 // ─── Computed ───
 const days = computed(() => {
@@ -938,6 +1026,38 @@ const days = computed(() => {
     });
   }
   return result;
+});
+
+const kwChips = computed(() => {
+  const seen = new Set();
+  const chips = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const { kw: currentKw, year: currentYear } = getISOWeek(today);
+  for (const day of days.value) {
+    const { kw, year } = getISOWeek(day.date);
+    const key = `${year}-${kw}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      chips.push({ kw, year, isCurrent: kw === currentKw && year === currentYear });
+    }
+  }
+  // Assign shortcut numbers: current week = 1, subsequent weeks = 2, 3, …
+  const currentIdx = chips.findIndex(c => c.isCurrent);
+  const base = currentIdx >= 0 ? currentIdx : 0;
+  chips.forEach((c, i) => {
+    const n = i - base + 1;
+    c.shortcut = n >= 1 && n <= 9 ? String(n) : null;
+  });
+  return chips;
+});
+
+const visibleDays = computed(() => {
+  if (!selectedKw.value) return days.value;
+  return days.value.filter(d => {
+    const { kw, year } = getISOWeek(d.date);
+    return kw === selectedKw.value.kw && year === selectedKw.value.year;
+  });
 });
 
 const filteredMitarbeiter = computed(() => {
@@ -1036,7 +1156,7 @@ function getEntriesForCell(maId, iso) {
 }
 
 // Cached iso list for fast index lookup
-const dayIsos = computed(() => days.value.map((d) => d.iso));
+const dayIsos = computed(() => visibleDays.value.map((d) => d.iso));
 const dayIsoIndex = computed(() => {
   const map = {};
   dayIsos.value.forEach((iso, i) => { map[iso] = i; });
@@ -1395,8 +1515,12 @@ function getNotizValue(maId) {
 }
 
 function onNotizInput(maId, event) {
-  const text = event.target.innerText;
+  const text = event.target.innerText.trim();
   notizMap[maId] = text;
+  if (!text && event.target.innerText !== '') {
+    // DOM still has residual "\n" — clear it so :empty::before placeholder shows
+    event.target.innerText = '';
+  }
   debounceSaveNotiz(maId, text);
 }
 
@@ -2059,6 +2183,24 @@ onMounted(async () => {
     border-radius: 4px;
     color: var(--text);
   }
+
+  .help-shortcuts {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.88rem;
+
+    td {
+      padding: 4px 8px 4px 0;
+      color: var(--muted);
+      vertical-align: middle;
+
+      &:first-child {
+        width: 1%;
+        white-space: nowrap;
+        padding-right: 16px;
+      }
+    }
+  }
 }
 
 .help-legend {
@@ -2142,7 +2284,7 @@ onMounted(async () => {
 .dispo-left-pane {
   position: sticky;
   left: 0;
-  z-index: 3; /* must stay below HeaderBar (z-index: 10) */
+  z-index: 10;
   background: var(--surface);
   flex-shrink: 0;
   /* Fügt eine dezente Trennlinie als Schatten hinzu, wenn rechts gescrollt wird */
@@ -2152,7 +2294,7 @@ onMounted(async () => {
   .dispo-table thead th {
     position: sticky;
     top: 0;
-    z-index: 5; /* above right-pane cells (z-index: 2) but below HeaderBar */
+    z-index: 12;
     background: var(--panel);
   }
 
@@ -2760,11 +2902,99 @@ onMounted(async () => {
 }
 
 .selection-bar {
-  height: 28px; // reserved space — never collapses
+  height: 28px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.sel-bar-left {
+  display: flex;
+  align-items: center;
+}
+
+.sel-bar-right {
   display: flex;
   align-items: center;
   gap: 8px;
-  justify-content: space-between;
+  justify-content: flex-end;
+}
+
+.shortcut-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  opacity: 0.6;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+
+  kbd {
+    display: inline-block;
+    padding: 0px 5px;
+    font-size: 0.75rem;
+    font-family: inherit;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+  }
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+// ─── KW Chips ───
+.kw-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kw-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  margin-right: 2px;
+  user-select: none;
+}
+
+.kw-chip {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  cursor: pointer;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  user-select: none;
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--text);
+    border-color: var(--text);
+  }
+
+  &.kw-chip--current {
+    color: var(--primary);
+    border-color: var(--primary);
+    font-weight: 600;
+  }
+
+  &.kw-chip--active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+    font-weight: 600;
+  }
 }
 
 .zoom-controls {
