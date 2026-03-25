@@ -2,16 +2,8 @@
   <div class="dispo-page">
     <div class="page-header">
       <div class="header-title-group">
-        <h1>Dispo</h1>
       </div>
       <div class="header-controls">
-        <div class="search-box">
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Mitarbeiter suchen…"
-          />
-        </div>
       </div>
     </div>
 
@@ -58,6 +50,15 @@
         <font-awesome-icon icon="fa-solid fa-rotate-left" />
         Zurücksetzen
       </FilterChip>
+
+      <!-- Search Box -->
+      <div class="search-box">
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Mitarbeiter suchen…"
+        />
+      </div>
     </FilterPanel>
 
     <!-- Selection Bar (always reserves space) -->
@@ -1475,17 +1476,17 @@ onMounted(async () => {
 @import "@/assets/styles/global.scss";
 
 .dispo-page {
-  padding: 1rem 1.5rem;
+  padding: 0.5rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.5rem;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 0;
   flex-wrap: wrap;
   gap: 15px;
 
