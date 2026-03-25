@@ -48,7 +48,6 @@
       
         </router-link>
         <router-link
-          v-if="isAdmin"
           to="/dispo"
           :class="{ active: $route.name === 'Dispo'}"
         >
@@ -175,7 +174,6 @@
         </router-link>
 
         <router-link
-          v-if="isAdmin"
           to="/dispo"
           :class="{ active: $route.name === 'Dispo' }"
           @click="showMobileMenu = false"
