@@ -20,7 +20,7 @@
 
       <!-- Zeitraum Filter -->
       <FilterGroup label="Zeitraum">
-        <FilterDropdown :has-value="filters.tage !== 90">
+        <FilterDropdown :has-value="filters.tage !== 30">
           <template #label>{{ filters.tage }} Tage</template>
           <div
             v-for="opt in [30, 90, 120, 150, 240, 365]"
@@ -451,7 +451,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, reactive, nextTick } from 'vue';
+import { ref, shallowRef, computed, onMounted, onUnmounted, reactive, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
@@ -473,9 +473,9 @@ const router = useRouter();
 
 // ─── State ───
 const loading = ref(true);
-const mitarbeiter = ref([]);
-const eintraege = ref([]);
-const kommentare = ref([]);
+const mitarbeiter = shallowRef([]);
+const eintraege = shallowRef([]);
+const kommentare = shallowRef([]);
 const searchQuery = ref('');
 const tableWrapper = ref(null);
 const chatThreadRef = ref(null);
@@ -527,7 +527,7 @@ onUnmounted(() => window.removeEventListener('resize', onResize));
 
 const filters = reactive({
   standort: null,
-  tage: 90,
+  tage: 30,
   planungFilter: null,
 });
 
@@ -802,67 +802,96 @@ function getEntriesForCell(maId, iso) {
   return eintragMap.value[`${maId}_${iso}`] || [];
 }
 
+// Cached iso list for fast index lookup
+const dayIsos = computed(() => days.value.map((d) => d.iso));
+const dayIsoIndex = computed(() => {
+  const map = {};
+  dayIsos.value.forEach((iso, i) => { map[iso] = i; });
+  return map;
+});
+
+// Pre-compute cellClass results into a map for O(1) template lookups
+const cellDataMap = computed(() => {
+  const map = {};
+  const isos = dayIsos.value;
+  const maList = filteredMitarbeiter.value;
+  for (const ma of maList) {
+    for (const iso of isos) {
+      const entries = getEntriesForCell(ma._id, iso);
+      if (!entries.length) continue;
+      const key = `${ma._id}_${iso}`;
+      let cls = '';
+      let icon = null;
+      let kuerzel = null;
+      if (entries.some((e) => e.typ === 'planned')) {
+        cls = 'cell-planned';
+        icon = CELL_ICONS.planned;
+        const planned = entries.find((e) => e.typ === 'planned');
+        kuerzel = planned.kuerzel || (planned.bezeichnung ? planned.bezeichnung.substring(0, 6) : null);
+      } else if (entries.some((e) => e.verfuegbarkeit === 'blocked')) {
+        cls = 'cell-blocked';
+        icon = CELL_ICONS.blocked;
+      } else if (entries.some((e) => e.typ === 'abwesenheit')) {
+        cls = 'cell-blocked';
+        const a = entries.find((e) => e.typ === 'abwesenheit');
+        icon = CELL_ICONS[a.abwesenheitsKategorie] || CELL_ICONS.sonstiges;
+      } else if (entries.some((e) => e.verfuegbarkeit === 'partially')) {
+        cls = 'cell-partially';
+        icon = CELL_ICONS.partially;
+      } else if (entries.some((e) => e.verfuegbarkeit === 'available')) {
+        cls = 'cell-available';
+        icon = CELL_ICONS.available;
+      }
+      if (cls) map[key] = { cls, icon, kuerzel };
+    }
+  }
+  return map;
+});
+
 const hoveredRunKeys = computed(() => {
   if (!hoveredCell.value) return new Set();
   const { maId, iso } = hoveredCell.value;
-  const cls = cellClass(maId, iso);
-  if (!cls) return new Set();
-  const dayIsos = days.value.map((d) => d.iso);
-  const idx = dayIsos.indexOf(iso);
-  if (idx === -1) return new Set([`${maId}_${iso}`]);
+  const data = cellDataMap.value[`${maId}_${iso}`];
+  if (!data) return new Set();
+  const cls = data.cls;
+  const isos = dayIsos.value;
+  const idx = dayIsoIndex.value[iso];
+  if (idx === undefined) return new Set([`${maId}_${iso}`]);
   let start = idx;
-  while (start > 0 && cellClass(maId, dayIsos[start - 1]) === cls) start--;
+  while (start > 0 && cellDataMap.value[`${maId}_${isos[start - 1]}`]?.cls === cls) start--;
   let end = idx;
-  while (end < dayIsos.length - 1 && cellClass(maId, dayIsos[end + 1]) === cls) end++;
+  while (end < isos.length - 1 && cellDataMap.value[`${maId}_${isos[end + 1]}`]?.cls === cls) end++;
   const keys = new Set();
-  for (let i = start; i <= end; i++) keys.add(`${maId}_${dayIsos[i]}`);
+  for (let i = start; i <= end; i++) keys.add(`${maId}_${isos[i]}`);
   return keys;
 });
 
 function getRunClass(maId, iso) {
+  // Only compute for the hovered row
+  if (!hoveredCell.value || hoveredCell.value.maId !== maId) return null;
   const key = `${maId}_${iso}`;
   if (!hoveredRunKeys.value.has(key)) return null;
-  const dayIsos = days.value.map((d) => d.iso);
-  const idx = dayIsos.indexOf(iso);
-  const hasLeft = idx > 0 && hoveredRunKeys.value.has(`${maId}_${dayIsos[idx - 1]}`);
-  const hasRight = idx < dayIsos.length - 1 && hoveredRunKeys.value.has(`${maId}_${dayIsos[idx + 1]}`);
+  const isos = dayIsos.value;
+  const idx = dayIsoIndex.value[iso];
+  const hasLeft = idx > 0 && hoveredRunKeys.value.has(`${maId}_${isos[idx - 1]}`);
+  const hasRight = idx < isos.length - 1 && hoveredRunKeys.value.has(`${maId}_${isos[idx + 1]}`);
   if (!hasLeft && !hasRight) return 'run-only';
   if (!hasLeft) return 'run-start';
   if (!hasRight) return 'run-end';
   return 'run-middle';
 }
 
+// Fast O(1) lookups using pre-computed cellDataMap
 function cellClass(maId, iso) {
-  const entries = getEntriesForCell(maId, iso);
-  if (!entries.length) return '';
-  // Priority: planned > blocked > partially > available > abwesenheit
-  if (entries.some((e) => e.typ === 'planned')) return 'cell-planned';
-  if (entries.some((e) => e.verfuegbarkeit === 'blocked')) return 'cell-blocked';
-  if (entries.some((e) => e.typ === 'abwesenheit')) return 'cell-blocked';
-  if (entries.some((e) => e.verfuegbarkeit === 'partially')) return 'cell-partially';
-  if (entries.some((e) => e.verfuegbarkeit === 'available')) return 'cell-available';
-  return '';
+  return cellDataMap.value[`${maId}_${iso}`]?.cls || '';
 }
 
 function cellKuerzel(maId, iso) {
-  const entries = getEntriesForCell(maId, iso);
-  const planned = entries.find((e) => e.typ === 'planned');
-  if (!planned) return null;
-  return planned.kuerzel || (planned.bezeichnung ? planned.bezeichnung.substring(0, 6) : null);
+  return cellDataMap.value[`${maId}_${iso}`]?.kuerzel || null;
 }
 
 function cellIcon(maId, iso) {
-  const entries = getEntriesForCell(maId, iso);
-  if (!entries.length) return null;
-  if (entries.some((e) => e.typ === 'planned')) return CELL_ICONS.planned;
-  if (entries.some((e) => e.verfuegbarkeit === 'blocked')) return CELL_ICONS.blocked;
-  if (entries.some((e) => e.typ === 'abwesenheit')) {
-    const a = entries.find((e) => e.typ === 'abwesenheit');
-    return CELL_ICONS[a.abwesenheitsKategorie] || CELL_ICONS.sonstiges;
-  }
-  if (entries.some((e) => e.verfuegbarkeit === 'partially')) return CELL_ICONS.partially;
-  if (entries.some((e) => e.verfuegbarkeit === 'available')) return CELL_ICONS.available;
-  return null;
+  return cellDataMap.value[`${maId}_${iso}`]?.icon || null;
 }
 
 function getCellTooltip(maId, iso) {
@@ -898,19 +927,28 @@ function getCellNote(maId, iso) {
   return getEntriesForCell(maId, iso).find((e) => e.typ === 'notiz') || null;
 }
 
-// ─── Comment helpers ───
+// ─── Comment index: mitarbeiterId_iso → comments (O(1) lookup) ───
+const kommentarMap = computed(() => {
+  const map = {};
+  for (const k of kommentare.value) {
+    const key = `${k.mitarbeiter}_${k.datum}`;
+    if (!map[key]) map[key] = [];
+    map[key].push(k);
+  }
+  return map;
+});
+
 function getCellComments(maId, iso) {
-  return kommentare.value.filter(
-    (k) => String(k.mitarbeiter) === String(maId) && k.datum === iso
-  );
+  return kommentarMap.value[`${maId}_${iso}`] || [];
 }
 
 function getCellUnreadCount(maId, iso) {
   if (!maId || !iso) return 0;
   const userId = auth.user?._id;
   if (!userId) return 0;
+  const userIdStr = String(userId);
   return getCellComments(maId, iso).filter(
-    (k) => String(k.authorId) !== String(userId) && !k.readBy?.map(String).includes(String(userId))
+    (k) => String(k.authorId) !== userIdStr && !k.readBy?.map(String).includes(userIdStr)
   ).length;
 }
 
@@ -932,15 +970,15 @@ function formatDateTime(d) {
 function getRunNote(maId, iso) {
   const cls = cellClass(maId, iso);
   if (!cls) return getCellNote(maId, iso);
-  const dayIsos = days.value.map((d) => d.iso);
-  const idx = dayIsos.indexOf(iso);
-  if (idx === -1) return getCellNote(maId, iso);
+  const isos = dayIsos.value;
+  const idx = dayIsoIndex.value[iso];
+  if (idx === undefined) return getCellNote(maId, iso);
   let start = idx;
-  while (start > 0 && cellClass(maId, dayIsos[start - 1]) === cls) start--;
+  while (start > 0 && cellClass(maId, isos[start - 1]) === cls) start--;
   let end = idx;
-  while (end < dayIsos.length - 1 && cellClass(maId, dayIsos[end + 1]) === cls) end++;
+  while (end < isos.length - 1 && cellClass(maId, isos[end + 1]) === cls) end++;
   for (let i = start; i <= end; i++) {
-    const note = getCellNote(maId, dayIsos[i]);
+    const note = getCellNote(maId, isos[i]);
     if (note) return note;
   }
   return null;
@@ -1077,7 +1115,7 @@ function setDefaultStandort() {
 
 function resetFilters() {
   filters.standort = null;
-  filters.tage = 90;
+  filters.tage = 30;
   filters.planungFilter = null;
   searchQuery.value = '';
   setDefaultStandort();
@@ -1198,16 +1236,23 @@ function onCellMouseEnter(ma, day) {
   selectedCells.value = next;
 }
 
+let _tooltipRafId = null;
 function onCellMouseMove(ma, day, event) {
-  const cellComments = getCellComments(ma._id, day.iso);
-  const text = cellComments.length ? null : getCellTooltip(ma._id, day.iso);
-  cellTooltipState.value = {
-    visible: !!(cellComments.length || text),
-    text: text || '',
-    comments: cellComments,
-    x: event.clientX,
-    y: event.clientY,
-  };
+  const x = event.clientX;
+  const y = event.clientY;
+  if (_tooltipRafId) return; // skip until next frame
+  _tooltipRafId = requestAnimationFrame(() => {
+    _tooltipRafId = null;
+    const cellComments = getCellComments(ma._id, day.iso);
+    const text = cellComments.length ? null : getCellTooltip(ma._id, day.iso);
+    cellTooltipState.value = {
+      visible: !!(cellComments.length || text),
+      text: text || '',
+      comments: cellComments,
+      x,
+      y,
+    };
+  });
 }
 
 function onCellMouseLeave() {
@@ -1393,12 +1438,11 @@ async function openChatModal(ma, day) {
   if (unread.length) {
     try {
       await api.post('/api/dispo-kommentare/mark-read', { ids: unread });
-      unread.forEach((id) => {
-        const k = kommentare.value.find((c) => String(c._id) === String(id));
-        if (k && auth.user?._id) {
-          if (!k.readBy) k.readBy = [];
-          k.readBy.push(String(auth.user._id));
-        }
+      const unreadSet = new Set(unread.map(String));
+      const uid = String(auth.user?._id);
+      kommentare.value = kommentare.value.map((c) => {
+        if (!unreadSet.has(String(c._id))) return c;
+        return { ...c, readBy: [...(c.readBy || []), uid] };
       });
       chatModal.comments = getCellComments(ma._id, day.iso);
     } catch (_) { /* silent */ }
