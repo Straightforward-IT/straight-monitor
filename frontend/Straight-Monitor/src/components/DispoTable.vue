@@ -146,8 +146,8 @@
               >
                 <!-- Nachname -->
                 <td class="col-nachname" :style="{ width: colWidths.nachname + 'px', minWidth: colWidths.nachname + 'px', maxWidth: colWidths.nachname + 'px' }">
-                  <TlBadge v-if="isTeamleiter(ma)" class="tl-corner-badge" />
                   <div class="ma-name-cell">
+                    <div v-if="isTeamleiter(ma)" class="tl-corner-wrapper"><TlBadge /></div>
                     <button
                       class="star-btn"
                       :class="{ active: starredIds.has(ma._id) }"
@@ -1734,6 +1734,7 @@ onMounted(async () => {
   .col-nachname,
   .col-vorname {
     position: relative; /* Wichtig für col-resize-handle */
+    cursor: pointer;
   }
 
   .col-resize-handle {
@@ -1901,6 +1902,20 @@ onMounted(async () => {
   padding: 1px 4px;
   border-radius: 0 0 6px 0;
   z-index: 1;
+}
+
+.tl-corner-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  line-height: 0;
+
+  :deep(.tl-badge) {
+    font-size: 8px;
+    padding: 1px 4px;
+    border-radius: 0 0 6px 0;
+  }
 }
 
   .star-btn {
