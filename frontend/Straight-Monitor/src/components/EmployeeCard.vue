@@ -1106,6 +1106,9 @@
                   <button class="qa-item" @click="executeQuickAction('upload-photo')">
                     <font-awesome-icon icon="fa-solid fa-camera" /> Bild hochladen
                   </button>
+                  <button class="qa-item" @click="executeQuickAction('open-dispo')">
+                    <font-awesome-icon icon="fa-solid fa-table-columns" /> In Dispo öffnen
+                  </button>
                   <button class="qa-item" @click="executeQuickAction('edit')">
                     <font-awesome-icon icon="fa-solid fa-edit" /> Bearbeiten
                   </button>
@@ -2413,6 +2416,16 @@ export default {
         case 'delete':
           this.openDeleteModal();
           break;
+        case 'open-dispo': {
+          const pnr = String(this.resolvedMa?.personalnr ?? '').trim();
+          const query = { maId: String(this.resolvedMa._id), showHidden: '1' };
+          if (pnr.startsWith('1')) query.standort = '1';
+          else if (pnr.startsWith('2')) query.standort = '2';
+          else if (pnr.startsWith('3')) query.standort = '3';
+          this.$router.push({ path: '/dispo', query });
+          this.$emit('close');
+          break;
+        }
         case 'share-link':
           this.copyShareLink();
           return; // Don't close menu yet

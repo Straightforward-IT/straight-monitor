@@ -81,6 +81,14 @@ export const WIDGET_DEFINITIONS = [
     defaultVisible: true,
   },
   {
+    id: 'dispo-kommentare',
+    title: 'Dispo Kommentare',
+    icon: ['fas', 'comment-dots'],
+    component: defineAsyncComponent(() => import('./WidgetDispoKommentare.vue')),
+    description: 'Zeigt ungelesene Dispo-Kommentare für deinen Standort',
+    defaultVisible: true,
+  },
+  {
     id: 'sinnlos',
     title: 'Sinnloser Knopf',
     icon: ['fas', 'circle-exclamation'],

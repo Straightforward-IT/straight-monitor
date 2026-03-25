@@ -130,6 +130,18 @@ export const useDashboardPrefs = defineStore("dashboardPrefs", () => {
     _save();
   }
 
+  /**
+   * Move a widget from one index to another (drag-and-drop).
+   */
+  function reorderWidget(fromIdx, toIdx) {
+    if (fromIdx === toIdx) return;
+    const arr = [...widgetOrder.value];
+    const [item] = arr.splice(fromIdx, 1);
+    arr.splice(toIdx, 0, item);
+    widgetOrder.value = arr;
+    _save();
+  }
+
   /** Reset to factory defaults */
   function resetToDefaults() {
     widgetOrder.value = _defaults();
@@ -156,6 +168,7 @@ export const useDashboardPrefs = defineStore("dashboardPrefs", () => {
     load,
     setVisible,
     moveWidget,
+    reorderWidget,
     resetToDefaults,
   };
 });

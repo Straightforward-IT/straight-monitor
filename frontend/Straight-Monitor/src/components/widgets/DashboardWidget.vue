@@ -82,7 +82,7 @@ defineProps({
 
   &__icon {
     font-size: 14px;
-    color: var(--primary);
+    color: var(--muted);
   }
 
   &__body {

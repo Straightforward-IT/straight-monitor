@@ -31,7 +31,10 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faExpand,
   faExpandAlt,
   faExpandArrowsAlt,
-  faCompressAlt} from '@fortawesome/free-solid-svg-icons';
+  faCompressAlt,
+  faSliders,
+  faBullhorn,
+  faTableColumns} from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle, faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
@@ -58,9 +61,9 @@ library.add(
   // 404 Page Icons
   faHome, faArrowLeft,
   // Public portal icons
-  faClipboardList, faBriefcase, faFilePen, faLocationDot, faFileLines, faFileCircleCheck, faCircleDot,
+  faClipboardList, faBriefcase, faFilePen, faLocationDot, faFileLines, faFileCircleCheck, faCircleDot, faTableColumns,
   faMagnifyingGlass, faHashtag, faMapPin, faCircleCheck,
-  faEllipsisVertical, faComment, faCommentDots,
+  faEllipsisVertical, faComment, faCommentDots, faSliders, faBullhorn,
   faToggleOn, faToggleOff,
   faArrowUpFromBracket,
   // PDF Builder Icons

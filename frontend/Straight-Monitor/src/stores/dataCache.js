@@ -638,8 +638,13 @@ export const useDataCache = defineStore('dataCache', {
       
       try {
         this.syncing.auftraege = true;
-        const since = this.lastSync.auftraege;
+        const since = this.lastSync.auftraege || await getMeta('lastSync_auftraege');
         
+        if (!since) {
+          // No baseline timestamp — fall back to full sync
+          return await this.fullSyncAuftraege();
+        }
+
         const response = await api.get('/api/auftraege/sync', {
           params: { since }
         });

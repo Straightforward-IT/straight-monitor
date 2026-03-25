@@ -312,7 +312,7 @@
                 :data-left-row="ma._id"
                 @mouseenter="hoveredMaId = ma._id"
                 @mouseleave="hoveredMaId = null"
-                :class="{ 'row-hovered': hoveredMaId === ma._id }"
+                :class="{ 'row-hovered': hoveredMaId === ma._id, 'row-highlighted': highlightedMaId === String(ma._id) }"
                 @contextmenu.prevent.stop="openNameMenu($event, ma)"
                 style="cursor: context-menu"
               >
@@ -411,7 +411,7 @@
                 :style="expandedNotiz === ma._id && expandedNotizHeight ? { height: expandedNotizHeight + 'px' } : null"
                 @mouseenter="hoveredMaId = ma._id"
                 @mouseleave="hoveredMaId = null"
-                :class="{ 'row-hovered': hoveredMaId === ma._id }"
+                :class="{ 'row-hovered': hoveredMaId === ma._id, 'row-highlighted': highlightedMaId === String(ma._id) }"
               >
                 <!-- Day cells -->
                 <td
@@ -734,7 +734,7 @@ const vSetText = {
     el.innerText = binding.value || '';
   },
 };
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
 import { useDataCache } from '@/stores/dataCache';
@@ -753,6 +753,7 @@ const auth = useAuth();
 const dataCache = useDataCache();
 const flip = useFlipAll();
 const router = useRouter();
+const route = useRoute();
 
 // ─── State ───
 const loading = ref(true);
@@ -770,6 +771,7 @@ const starredIds = ref(new Set());
 const hiddenIds = ref(new Set());
 const showHidden = ref(false);
 const hoveredMaId = ref(null);
+const highlightedMaId = ref(null);
 const hoveredCell = ref(null);
 const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 0 });
 const bereichFilter = ref(null); // null | 'S' | 'L'
@@ -1727,6 +1729,10 @@ function onCellMouseDown(ma, day, event) {
 
 function onCellMouseEnter(ma, day) {
   hoveredCell.value = { maId: ma._id, iso: day.iso };
+  if (_markReadTimer) { clearTimeout(_markReadTimer); _markReadTimer = null; }
+  if (getCellUnreadCount(ma._id, day.iso) > 0) {
+    _markReadTimer = setTimeout(() => { markCellCommentsRead(ma._id, day.iso); }, 1000);
+  }
   if (!dragMode) return;
   const key = `${ma._id}_${day.iso}`;
   if (dragCovered && dragCovered.has(key)) return;
@@ -1758,9 +1764,30 @@ function onCellMouseMove(ma, day, event) {
   });
 }
 
+let _markReadTimer = null;
+
+async function markCellCommentsRead(maId, iso) {
+  const userId = auth.user?._id;
+  if (!userId) return;
+  const userIdStr = String(userId);
+  const unread = getCellComments(maId, iso)
+    .filter((c) => String(c.authorId) !== userIdStr && !c.readBy?.map(String).includes(userIdStr))
+    .map((c) => c._id);
+  if (!unread.length) return;
+  try {
+    await api.post('/api/dispo-kommentare/mark-read', { ids: unread });
+    const unreadSet = new Set(unread.map(String));
+    kommentare.value = kommentare.value.map((c) => {
+      if (!unreadSet.has(String(c._id))) return c;
+      return { ...c, readBy: [...(c.readBy || []), userIdStr] };
+    });
+  } catch (_) { /* silent */ }
+}
+
 function onCellMouseLeave() {
   hoveredCell.value = null;
   cellTooltipState.value = { ...cellTooltipState.value, visible: false };
+  if (_markReadTimer) { clearTimeout(_markReadTimer); _markReadTimer = null; }
 }
 
 function onBereichHeaderClick(event) {
@@ -2015,12 +2042,52 @@ function scrollToToday() {
   });
 }
 
+function scrollToMa(maId) {
+  if (!maId) return;
+  const id = String(maId);
+  nextTick(() => {
+    const wrapper = tableWrapper.value;
+    if (!wrapper) return;
+    const row = wrapper.querySelector(`tr[data-left-row="${id}"]`);
+    if (!row) return;
+    // Use getBoundingClientRect for accurate position relative to the scroll container
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    const headerEl = wrapper.querySelector('thead');
+    const headerHeight = headerEl ? headerEl.getBoundingClientRect().height : 0;
+    // How far the row's top is from the wrapper's top, accounting for current scroll
+    const rowOffsetInWrapper = rowRect.top - wrapperRect.top + wrapper.scrollTop;
+    // Scroll so the row sits just below the sticky header
+    const target = rowOffsetInWrapper - headerHeight;
+    wrapper.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+    highlightedMaId.value = id;
+    setTimeout(() => { if (highlightedMaId.value === id) highlightedMaId.value = null; }, 2500);
+  });
+}
+
 // ─── Lifecycle ───
 onMounted(async () => {
   setDefaultStandort();
   await loadPrefs();
+
+  // ── Apply deep-link query params from widget navigation ──
+  const q = route.query;
+  if (q.standort) filters.standort = q.standort;
+  if (q.resetPlanung) filters.planungFilter = null;
+  if (q.showHidden) showHidden.value = true;
+  if (q.datum) {
+    const today = new Date();
+    const target = new Date(q.datum);
+    const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+    if (diffDays > filters.tage) {
+      const options = [7, 30, 90, 365];
+      filters.tage = options.find((o) => o > diffDays) ?? 365;
+    }
+  }
+
   await fetchDispo();
   scrollToToday();
+  if (q.maId) scrollToMa(q.maId);
 });
 </script>
 
@@ -2680,6 +2747,16 @@ onMounted(async () => {
 
   tr.row-hovered td {
     background: var(--soft);
+  }
+
+  @keyframes rowHighlightPulse {
+    0%   { background: rgba(var(--primary-rgb, 238 175 103) / 0.25); }
+    60%  { background: rgba(var(--primary-rgb, 238 175 103) / 0.15); }
+    100% { background: transparent; }
+  }
+
+  tr.row-highlighted td {
+    animation: rowHighlightPulse 2.4s ease-out forwards;
   }
 
   .sortable-th {

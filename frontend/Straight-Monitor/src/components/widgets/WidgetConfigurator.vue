@@ -19,8 +19,8 @@
             </header>
 
             <p class="cfg__hint">
-              Wähle aus, welche Widgets angezeigt werden sollen, und ordne sie
-              per Pfeiltasten an.
+              Wähle aus, welche Widgets angezeigt werden sollen, und ziehe sie
+              per Drag &amp; Drop in die gewünschte Reihenfolge.
             </p>
 
             <ul class="cfg__list">
@@ -28,8 +28,19 @@
                 v-for="(w, idx) in prefs.widgetOrder"
                 :key="w.id"
                 class="cfg__item"
-                :class="{ 'cfg__item--off': !w.visible }"
+                :class="{ 'cfg__item--off': !w.visible, 'cfg__item--drag-over': dragOverIdx === idx }"
+                draggable="true"
+                @dragstart="onDragStart(idx, $event)"
+                @dragover.prevent="onDragOver(idx)"
+                @dragleave="onDragLeave"
+                @drop.prevent="onDrop(idx)"
+                @dragend="onDragEnd"
               >
+                <font-awesome-icon
+                  :icon="['fas', 'grip-vertical']"
+                  class="cfg__grip"
+                />
+
                 <div class="cfg__item-info">
                   <font-awesome-icon
                     :icon="getDef(w.id)?.icon || ['fas', 'cube']"
@@ -42,23 +53,6 @@
                 </div>
 
                 <div class="cfg__item-actions">
-                  <button
-                    class="cfg__arrow"
-                    :disabled="idx === 0"
-                    @click="prefs.moveWidget(w.id, -1)"
-                    title="Nach oben"
-                  >
-                    <font-awesome-icon :icon="['fas', 'chevron-up']" />
-                  </button>
-                  <button
-                    class="cfg__arrow"
-                    :disabled="idx === prefs.widgetOrder.length - 1"
-                    @click="prefs.moveWidget(w.id, 1)"
-                    title="Nach unten"
-                  >
-                    <font-awesome-icon :icon="['fas', 'chevron-down']" />
-                  </button>
-
                   <label class="cfg__toggle">
                     <input
                       type="checkbox"
@@ -86,6 +80,7 @@
 </template>
 
 <script setup>
+import { ref } from "vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useDashboardPrefs } from "@/stores/dashboardPrefs";
 import { WIDGET_DEFINITIONS } from "./widgetRegistry";
@@ -95,6 +90,37 @@ defineEmits(["close"]);
 
 const prefs = useDashboardPrefs();
 const getDef = (id) => WIDGET_DEFINITIONS.find((d) => d.id === id);
+
+// ── Drag & Drop ──────────────────────────────────────────────────────────
+const dragSrcIdx = ref(null);
+const dragOverIdx = ref(null);
+
+function onDragStart(idx, event) {
+  dragSrcIdx.value = idx;
+  event.dataTransfer.effectAllowed = 'move';
+}
+
+function onDragOver(idx) {
+  if (dragSrcIdx.value === null || dragSrcIdx.value === idx) return;
+  dragOverIdx.value = idx;
+}
+
+function onDragLeave() {
+  dragOverIdx.value = null;
+}
+
+function onDrop(toIdx) {
+  if (dragSrcIdx.value !== null && dragSrcIdx.value !== toIdx) {
+    prefs.reorderWidget(dragSrcIdx.value, toIdx);
+  }
+  dragSrcIdx.value = null;
+  dragOverIdx.value = null;
+}
+
+function onDragEnd() {
+  dragSrcIdx.value = null;
+  dragOverIdx.value = null;
+}
 </script>
 
 <style scoped lang="scss">
@@ -185,13 +211,21 @@ const getDef = (id) => WIDGET_DEFINITIONS.find((d) => d.id === id);
   padding: 12px 14px;
   border-radius: 10px;
   background: var(--hover);
-  transition: opacity 0.2s ease, background 0.15s ease;
+  transition: opacity 0.2s ease, background 0.15s ease, box-shadow 0.15s ease;
+  cursor: grab;
+
+  &:active { cursor: grabbing; }
 
   &--off {
     opacity: 0.45;
   }
 
-  &:hover {
+  &--drag-over {
+    background: color-mix(in srgb, var(--hover) 40%, var(--primary));
+    box-shadow: 0 0 0 2px var(--primary);
+  }
+
+  &:hover:not(.cfg__item--drag-over) {
     background: color-mix(in srgb, var(--hover) 80%, var(--primary));
   }
 }
@@ -201,6 +235,7 @@ const getDef = (id) => WIDGET_DEFINITIONS.find((d) => d.id === id);
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 1;
 
   strong {
     display: block;
@@ -224,7 +259,20 @@ const getDef = (id) => WIDGET_DEFINITIONS.find((d) => d.id === id);
   text-align: center;
 }
 
-/* ── Actions (arrows + toggle) ───────────────────── */
+/* ── Grip handle ─────────────────────────────────── */
+.cfg__grip {
+  color: var(--muted);
+  font-size: 13px;
+  opacity: 0.4;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+
+  .cfg__item:hover & {
+    opacity: 0.8;
+  }
+}
+
+/* ── Actions (toggle) ────────────────────────────── */
 .cfg__item-actions {
   display: flex;
   align-items: center;
