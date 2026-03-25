@@ -2170,10 +2170,15 @@ onMounted(async () => {
 .help-btn {
   background: none;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--muted);
-  font-size: 1.1rem;
-  padding: 6px 10px;
+  font-size: 0.75rem;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 
