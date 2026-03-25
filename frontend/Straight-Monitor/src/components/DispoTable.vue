@@ -127,6 +127,20 @@
 
       <FilterDivider />
 
+      <!-- Ausgeblendete -->
+      <button
+        v-if="hiddenIds.size > 0"
+        class="show-hidden-btn"
+        :class="{ active: showHidden }"
+        @click="showHidden = !showHidden"
+        :title="showHidden ? 'Ausgeblendete verstecken' : 'Ausgeblendete anzeigen'"
+      >
+        <font-awesome-icon :icon="showHidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" />
+        {{ showHidden ? 'Ausgeblendete ausblenden' : `${hiddenIds.size} Ausgeblendet` }}
+      </button>
+
+      <FilterDivider v-if="hiddenIds.size > 0" />
+
       <!-- Reset Button -->
       <FilterChip class="reset-chip" @click="resetFilters" title="Alle Filter zurücksetzen">
         <font-awesome-icon icon="fa-solid fa-rotate-left" />
@@ -168,7 +182,7 @@
         <CustomTooltip
           v-for="chip in kwChips"
           :key="`${chip.year}-${chip.kw}`"
-          :text="chip.shortcut ? `Shortcut 2[${chip.shortcut}]` : `KW ${chip.kw} ${chip.year}`"
+          :text="chip.shortcut ? `Shortcut [${chip.shortcut}]` : `KW ${chip.kw} ${chip.year}`"
           position="top"
         >
           <button
@@ -533,6 +547,13 @@
           >
             <font-awesome-icon icon="fa-solid fa-phone" class="ctx-item-icon" /> {{ nameMenu.ma.telefon }}
           </a>
+          <div class="ctx-divider"></div>
+          <button v-if="!hiddenIds.has(String(nameMenu.ma?._id))" class="ctx-item ctx-item--hide" @click="hideMA(nameMenu.ma._id)">
+            <font-awesome-icon icon="fa-solid fa-eye-slash" class="ctx-item-icon" /> Ausblenden
+          </button>
+          <button v-else class="ctx-item" @click="unhideMA(nameMenu.ma._id)">
+            <font-awesome-icon icon="fa-solid fa-eye" class="ctx-item-icon" /> Einblenden
+          </button>
         </div>
       </div>
     </teleport>
@@ -729,6 +750,8 @@ const chatThreadRef = ref(null);
 const filterExpanded = ref(true);
 const isMobile = ref(window.innerWidth <= 768);
 const starredIds = ref(new Set());
+const hiddenIds = ref(new Set());
+const showHidden = ref(false);
 const hoveredMaId = ref(null);
 const hoveredCell = ref(null);
 const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 0 });
@@ -1062,6 +1085,9 @@ const visibleDays = computed(() => {
 
 const filteredMitarbeiter = computed(() => {
   let list = mitarbeiter.value;
+  if (!showHidden.value) {
+    list = list.filter((m) => !hiddenIds.value.has(String(m._id)));
+  }
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase().trim();
     list = list.filter(
@@ -1386,6 +1412,7 @@ async function loadPrefs() {
     const { data } = await api.get('/api/users/me');
     _savedPrefs = data.dispoPrefs || {};
     starredIds.value = new Set(_savedPrefs.starredMitarbeiter || []);
+    hiddenIds.value = new Set(_savedPrefs.hiddenMitarbeiter || []);
     // Restore saved filters
     if (_savedPrefs.standort !== undefined) filters.standort = _savedPrefs.standort;
     if (_savedPrefs.tage !== undefined) filters.tage = _savedPrefs.tage;
@@ -1402,6 +1429,7 @@ async function savePrefs() {
     const prefs = {
       ...(_savedPrefs || {}),
       starredMitarbeiter: [...starredIds.value],
+      hiddenMitarbeiter: [...hiddenIds.value],
       standort: filters.standort,
       tage: filters.tage,
       planungFilter: filters.planungFilter,
@@ -1420,6 +1448,22 @@ function toggleStar(maId) {
   if (next.has(maId)) next.delete(maId);
   else next.add(maId);
   starredIds.value = next;
+  savePrefs();
+}
+
+function hideMA(maId) {
+  const next = new Set(hiddenIds.value);
+  next.add(String(maId));
+  hiddenIds.value = next;
+  closeNameMenu();
+  savePrefs();
+}
+
+function unhideMA(maId) {
+  const next = new Set(hiddenIds.value);
+  next.delete(String(maId));
+  hiddenIds.value = next;
+  closeNameMenu();
   savePrefs();
 }
 
@@ -2946,6 +2990,34 @@ onMounted(async () => {
   }
 }
 
+.show-hidden-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  font-family: inherit;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: all 0.15s;
+
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  &.active {
+    background: rgba(238, 175, 103, 0.12);
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+}
+
 // ─── KW Chips ───
 .kw-chips {
   display: flex;
@@ -3415,6 +3487,7 @@ onMounted(async () => {
   &.ctx-item--blocked   { color: #ef4444; }
   &.ctx-item--clear     { color: var(--muted); }
   &.ctx-item--open      { color: var(--primary); }
+  &.ctx-item--hide      { color: var(--muted); }
   &.active              { color: var(--primary); font-weight: 600; }
   &.ctx-item-remove     { color: var(--muted); border-top: 1px solid var(--border); margin-top: 2px; padding-top: 6px; }
   &.ctx-item--phone     { color: #10b981; text-decoration: none; }
