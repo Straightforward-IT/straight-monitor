@@ -35,6 +35,23 @@
           <div class="dropdown-item" :class="{ selected: filters.planungFilter === 'ungeplant' }" @click="setPlanung('ungeplant')">Ungeplante</div>
         </FilterDropdown>
 
+        <!-- KW Chips -->
+        <div class="kw-chips">
+          <span class="kw-label">KW</span>
+          <CustomTooltip
+            v-for="chip in kwChips"
+            :key="`${chip.year}-${chip.kw}`"
+            :text="chip.shortcut ? `Shortcut [${chip.shortcut}]` : `KW ${chip.kw} ${chip.year}`"
+            position="bottom"
+          >
+            <button
+              class="kw-chip"
+              :class="{ 'kw-chip--active': selectedKw?.kw === chip.kw && selectedKw?.year === chip.year, 'kw-chip--current': chip.isCurrent }"
+              @click="toggleKw(chip)"
+            >{{ chip.kw }}</button>
+          </CustomTooltip>
+        </div>
+
         <!-- Search -->
         <CustomTooltip text="Suchen [S]" position="bottom">
           <div class="fs-search-box">
@@ -2040,7 +2057,7 @@ onMounted(async () => {
   gap: 8px;
   padding: 6px 12px;
   background: var(--panel);
-  border-bottom: 2px solid rgba(var(--primary-rgb, 253 126 20) / 0.4);
+  border-bottom: 1px solid var(--border);
   border-radius: 14px 14px 0 0;
   flex-shrink: 0;
   flex-wrap: nowrap;
@@ -2048,7 +2065,7 @@ onMounted(async () => {
   position: sticky;
   top: 0;
   z-index: 50;
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 .fs-toolbar-filters {
@@ -2328,7 +2345,7 @@ onMounted(async () => {
 .dispo-left-pane {
   position: sticky;
   left: 0;
-  z-index: 10;
+  z-index: 8;
   background: var(--surface);
   flex-shrink: 0;
   /* Fügt eine dezente Trennlinie als Schatten hinzu, wenn rechts gescrollt wird */
@@ -2338,7 +2355,7 @@ onMounted(async () => {
   .dispo-table thead th {
     position: sticky;
     top: 0;
-    z-index: 12;
+    z-index: 9;
     background: var(--panel);
   }
 
@@ -2378,11 +2395,12 @@ onMounted(async () => {
 /* Rechter Bereich nimmt den Rest ein */
 .dispo-right-pane {
   flex-grow: 1;
+  z-index: 6;
 
   .dispo-table thead th {
     position: sticky;
     top: 0;
-    z-index: 3;
+    z-index: 7;
     background: var(--panel);
   }
 }
