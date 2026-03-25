@@ -73,6 +73,9 @@
           </button>
         </span>
       </transition>
+      <button class="help-btn" style="margin-left: auto" @click="showHelp = true" title="Hilfe">
+        <font-awesome-icon icon="fa-solid fa-circle-question" />
+      </button>
     </div>
 
     <!-- Loading -->
@@ -251,6 +254,50 @@
         </div>
       </div>
     </div>
+
+    <!-- Help Modal -->
+    <teleport to="body">
+      <div v-if="showHelp" class="modal-overlay" @click="showHelp = false">
+        <div class="help-modal" @click.stop>
+          <div class="help-modal-header">
+            <h3><font-awesome-icon icon="fa-solid fa-circle-question" /> Dispo-Tabelle — Hilfe</h3>
+            <button class="close-btn" @click="showHelp = false"><font-awesome-icon icon="fa-solid fa-times" /></button>
+          </div>
+          <div class="help-modal-body">
+            <div class="help-section">
+              <h4>Zellen-Status setzen</h4>
+              <p><strong>Rechtsklick</strong> auf eine Zelle öffnet das Kontextmenü — dort kannst du Verfügbarkeit, Abwesenheit setzen oder löschen.</p>
+            </div>
+            <div class="help-section">
+              <h4>Mehrfachauswahl</h4>
+              <p>Halte <kbd>⌘ Cmd</kbd> (Mac) gedrückt und klicke oder ziehe über mehrere Zellen. Danach <strong>Rechtsklick</strong> auf die Auswahl, um den Status für alle gleichzeitig zu setzen.</p>
+              <p><kbd>Esc</kbd> hebt die Auswahl auf.</p>
+            </div>
+            <div class="help-section">
+              <h4>Kommentare</h4>
+              <p>Über das Kontextmenü (Rechtsklick) → <em>Kommentare</em> kannst du Notizen zu einer Zelle hinterlassen. Ungelesene Kommentare werden mit einem roten Badge angezeigt.</p>
+            </div>
+            <div class="help-section">
+              <h4>Favoriten</h4>
+              <p>Klicke auf den <font-awesome-icon icon="fa-regular fa-star" /> Stern neben einem Namen, um den Mitarbeiter als Favorit zu markieren. Favoriten werden oben in der Liste angezeigt.</p>
+            </div>
+            <div class="help-section">
+              <h4>Mitarbeiter-Karte</h4>
+              <p><strong>Rechtsklick</strong> auf den Namen eines Mitarbeiters öffnet ein Menü mit der Option <em>Karte Öffnen</em>.</p>
+            </div>
+            <div class="help-section">
+              <h4>Legende</h4>
+              <div class="help-legend">
+                <div class="help-legend-item"><span class="legend-dot legend-available"></span> Verfügbar</div>
+                <div class="help-legend-item"><span class="legend-dot legend-partially"></span> Eingeschränkt</div>
+                <div class="help-legend-item"><span class="legend-dot legend-blocked"></span> Blocked / Abwesend</div>
+                <div class="help-legend-item"><span class="legend-dot legend-planned"></span> Eingeplant (Einsatz)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </teleport>
 
     <!-- Bereich Filter Menu -->
     <teleport to="body">
@@ -488,6 +535,7 @@ const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 
 const bereichFilter = ref(null); // null | 'S' | 'L'
 const bereichMenuOpen = ref(false);
 const bereichMenuPos = ref({ x: 0, y: 0 });
+const showHelp = ref(false);
 
 // ─── Column widths (resizable) ───
 const colWidths = reactive({ nachname: 130, vorname: 110 });
@@ -1553,6 +1601,112 @@ onMounted(async () => {
   gap: 10px;
 }
 
+.help-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 1.1rem;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+
+  &:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+  }
+}
+
+.help-modal {
+  background: var(--modal-bg);
+  border-radius: 12px;
+  width: 520px;
+  max-width: 92vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.help-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+
+  h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+.help-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.help-section {
+  h4 {
+    margin: 0 0 6px;
+    font-size: 0.95rem;
+    color: var(--text);
+  }
+
+  p {
+    margin: 0 0 4px;
+    font-size: 0.88rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 0.8rem;
+    font-family: inherit;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+  }
+}
+
+.help-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.help-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.legend-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.legend-available { background: #10b98140; border: 1px solid #10b981; }
+.legend-partially { background: #f59e0b40; border: 1px solid #f59e0b; }
+.legend-blocked   { background: #ef444440; border: 1px solid #ef4444; }
+.legend-planned   { background: #6366f140; border: 1px solid #6366f1; }
+
 .search-box input {
   padding: 10px 16px;
   border: 1px solid var(--border);
@@ -2077,6 +2231,7 @@ onMounted(async () => {
   height: 28px; // reserved space — never collapses
   display: flex;
   align-items: center;
+  justify-content: space-between;
 }
 
 .selection-chip {
