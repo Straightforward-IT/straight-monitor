@@ -73,7 +73,16 @@
           </button>
         </span>
       </transition>
-      <button class="help-btn" style="margin-left: auto" @click="showHelp = true" title="Hilfe">
+      <div class="zoom-controls" style="margin-left: auto">
+        <button class="zoom-btn" @click="tableZoom = Math.max(60, tableZoom - 10)" title="Verkleinern" :disabled="tableZoom <= 60">
+          <font-awesome-icon icon="fa-solid fa-minus" />
+        </button>
+        <span class="zoom-label" @dblclick="tableZoom = 100" title="Doppelklick zum Zurücksetzen">{{ tableZoom }}%</span>
+        <button class="zoom-btn" @click="tableZoom = Math.min(150, tableZoom + 10)" title="Vergrößern" :disabled="tableZoom >= 150">
+          <font-awesome-icon icon="fa-solid fa-plus" />
+        </button>
+      </div>
+      <button class="help-btn" @click="showHelp = true" title="Hilfe">
         <font-awesome-icon icon="fa-solid fa-circle-question" />
       </button>
     </div>
@@ -85,7 +94,7 @@
 
     <!-- Table -->
     <div v-else class="dispo-table-wrapper" ref="tableWrapper">
-      <div class="dispo-split-layout">
+      <div class="dispo-split-layout" :style="{ zoom: tableZoom / 100 }">
         
         <!-- Linker Bereich: Fester Name -->
         <div class="dispo-left-pane">
@@ -583,6 +592,7 @@ const hoveredMaId = ref(null);
 const hoveredCell = ref(null);
 const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 0 });
 const bereichFilter = ref(null); // null | 'S' | 'L'
+const tableZoom = ref(100); // percent: 60–150
 const bereichMenuOpen = ref(false);
 const bereichMenuPos = ref({ x: 0, y: 0 });
 const showHelp = ref(false);
@@ -1154,6 +1164,7 @@ async function loadPrefs() {
     if (_savedPrefs.tage !== undefined) filters.tage = _savedPrefs.tage;
     if (_savedPrefs.planungFilter !== undefined) filters.planungFilter = _savedPrefs.planungFilter;
     if (_savedPrefs.bereichFilter !== undefined) bereichFilter.value = _savedPrefs.bereichFilter;
+    if (_savedPrefs.tableZoom !== undefined) tableZoom.value = _savedPrefs.tableZoom;
   } catch (err) {
     console.error('Prefs laden fehlgeschlagen:', err);
   }
@@ -1168,6 +1179,7 @@ async function savePrefs() {
       tage: filters.tage,
       planungFilter: filters.planungFilter,
       bereichFilter: bereichFilter.value,
+      tableZoom: tableZoom.value,
     };
     _savedPrefs = prefs;
     await api.put('/api/users/me/dispo-prefs', { prefs });
@@ -2505,7 +2517,49 @@ onMounted(async () => {
   height: 28px; // reserved space — never collapses
   display: flex;
   align-items: center;
+  gap: 8px;
   justify-content: space-between;
+}
+
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.zoom-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+
+  &:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--text);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+}
+
+.zoom-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  min-width: 34px;
+  text-align: center;
+  cursor: default;
+  user-select: none;
 }
 
 .selection-chip {

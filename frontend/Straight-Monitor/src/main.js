@@ -26,7 +26,8 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faEraser,
   faAddressCard,
   faCircleDot,
-  faCircleQuestion} from '@fortawesome/free-solid-svg-icons';
+  faCircleQuestion,
+  faMinus} from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle, faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
@@ -34,7 +35,7 @@ library.add(
   faCheck, faSort, faSortDown, faSortUp, faList, faPersonThroughWindow, faPersonCircleExclamation, faStickyNote,
   faUserPlus, faPeopleLine, faFileInvoice, faTable, faSun, faMoon, faTableList, faStarHalfStroke, faBoxOpen, faImagePortrait, faFolderOpen,
   // Neue Icons
-  faChevronUp, faChevronDown, faChevronLeft, faChevronRight, faTags, faIdBadge, faUsers, faListCheck, faChartBar, faChartBarSolid,
+  faChevronUp, faChevronDown, faChevronLeft, faChevronRight, faTags, faIdBadge, faUsers, faListCheck, faChartBar, faChartBarSolid, faMinus,
   faSpinner, faClipboardCheck, faExternalLinkAlt, faExternalLink, faTicketAlt, faEnvelope, faMobileAlt, faFileAlt,
   faCopy, faLink, faUnlink, faRotateRight, faHourglassHalf, faClock, faPaperPlane, faCalendar, faCalendarAlt, faCalendarDays,
   faUnlock, faLock, faTrophy, faDice, faInbox, faStar, faUserTie, faGraduationCap, faFileCirclePlus, faCircleQuestion,
