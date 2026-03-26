@@ -1371,7 +1371,11 @@ async function openDrill(year, month) {
   try {
     const params = { year, month };
     if (selectedGeschSt.value) params.geschSt = selectedGeschSt.value;
-    if (selectedKundenNrs.value.length > 0) params.kundenNr = selectedKundenNrs.value.join(',');
+    if (selectedKundenNrs.value.length > 0) {
+      params.kundenNr = selectedKundenNrs.value.join(',');
+    } else if (excludeStraightforward.value && nonSFKundenNrs.value.length > 0) {
+      params.kundenNr = nonSFKundenNrs.value.join(',');
+    }
 
     const { data } = await api.get('/api/kunden/analytics/einsaetze/daily', { params });
     drillTotal.value = data.data || [];
