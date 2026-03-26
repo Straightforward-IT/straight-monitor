@@ -1122,12 +1122,26 @@ const chartData = computed(() => {
     return match ? (match.auftragCount || 0) : 0;
   });
 
+  const yoyColors = months.map(({ year, month }) => {
+    const cur  = rawTotal.value.find(d => d.year === year     && d.month === month);
+    const prev = rawTotal.value.find(d => d.year === year - 1 && d.month === month);
+    if (showMonthComparison.value && cur && prev && prev.count > 0) {
+      return cur.count >= prev.count
+        ? 'rgba(100, 185, 100, 0.85)'
+        : 'rgba(220, 80, 80, 0.85)';
+    }
+    return barColor;
+  });
+  const yoyHoverColors = yoyColors.map(c =>
+    c === barColor ? barColor.replace('0.8', '1').replace('0.85', '1') : c.replace('0.85', '1')
+  );
+
   const datasets = [{
     label: 'Einsätze',
     data: dataArr,
     auftragCounts: auftragCountArr,
-    backgroundColor: barColor,
-    hoverBackgroundColor: barColor.replace('0.8', '1').replace('0.85', '1'),
+    backgroundColor: yoyColors,
+    hoverBackgroundColor: yoyHoverColors,
     borderRadius: 6,
     borderSkipped: false,
     maxBarThickness: 56,
