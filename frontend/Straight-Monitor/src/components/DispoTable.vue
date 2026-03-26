@@ -2,11 +2,10 @@
   <Transition name="dispo-fs">
   <div class="dispo-page" :class="{ 'fullscreen-mode': isFullscreen }">
     <!-- Page header — hidden in fullscreen -->
-    <div v-if="!isFullscreen" class="page-header">
-      <div class="header-title-group">
-      </div>
-      <div class="header-controls">
-      </div>
+    <div v-if="!isFullscreen" class="page-header" :class="{ 'page-header--knechti': isKnechti }">
+      <h1 v-if="isKnechti" class="knechti-title">KNECHTI-LISTE</h1>
+      <div v-if="!isKnechti" class="header-title-group"></div>
+      <div v-if="!isKnechti" class="header-controls"></div>
     </div>
 
     <!-- Fullscreen toolbar — compact filter bar —-->
@@ -421,9 +420,10 @@
                   v-for="day in visibleDays"
                   :key="day.iso"
                   class="col-day"
+                  :data-ma-id="String(ma._id)"
+                  :data-iso="day.iso"
                   :class="[
                     cellClass(ma._id, day.iso),
-                    getRunClass(ma._id, day.iso),
                     {
                       'is-today': day.isToday,
                       'is-weekend': day.isWeekend,
@@ -804,7 +804,6 @@ const hiddenIds = ref(new Set());
 const showHidden = ref(false);
 const hoveredMaId = ref(null);
 const highlightedMaId = ref(null);
-const hoveredCell = ref(null);
 const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 0, flipped: false });
 const bereichFilter = ref(null); // null | 'S' | 'L'
 const tableZoom = ref(100); // percent: 60–150
@@ -908,6 +907,7 @@ const chatModal = reactive({
 });
 
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
+const isKnechti = computed(() => ['ed@straightforward.email', 'it@straightforward.email'].includes(auth.user?.email));
 const showFsPanel = computed(() => isFullscreen.value && ui.panelType === 'kommentare' && !ui.hidden);
 const fsFeedCollapsed = ref(false);
 
@@ -1121,6 +1121,29 @@ function toggleKw(chip) {
   }
 }
 
+// ─── Effective day range: extend beyond filters.tage when a far-out KW is selected ───
+const effectiveTage = computed(() => {
+  if (!selectedKw.value) return filters.tage;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  // Walk backwards from day 60 to find the last day belonging to the selected KW
+  for (let i = 60; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    const { kw, year } = getISOWeek(d);
+    if (kw === selectedKw.value.kw && year === selectedKw.value.year) {
+      return Math.max(filters.tage, i + 1);
+    }
+  }
+  return filters.tage;
+});
+
+let _prevEffective = null;
+watch(effectiveTage, (val, old) => {
+  // Refetch when selected KW requires more data than we have
+  if (val > (old ?? filters.tage)) fetchDispo();
+});
+
 // ─── Computed ───
 const days = computed(() => {
   const result = [];
@@ -1128,7 +1151,7 @@ const days = computed(() => {
   today.setHours(0, 0, 0, 0);
   const todayIso = toIso(today);
 
-  for (let i = 0; i < filters.tage; i++) {
+  for (let i = 0; i < effectiveTage.value; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() + i);
     const dow = d.getDay();
@@ -1150,8 +1173,11 @@ const kwChips = computed(() => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const { kw: currentKw, year: currentYear } = getISOWeek(today);
-  for (const day of days.value) {
-    const { kw, year } = getISOWeek(day.date);
+  const kwDays = Math.max(filters.tage, 30);
+  for (let i = 0; i < kwDays; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    const { kw, year } = getISOWeek(d);
     const key = `${year}-${kw}`;
     if (!seen.has(key)) {
       seen.add(key);
@@ -1319,39 +1345,6 @@ const cellDataMap = computed(() => {
   }
   return map;
 });
-
-const hoveredRunKeys = computed(() => {
-  if (!hoveredCell.value) return new Set();
-  const { maId, iso } = hoveredCell.value;
-  const data = cellDataMap.value[`${maId}_${iso}`];
-  if (!data) return new Set();
-  const cls = data.cls;
-  const isos = dayIsos.value;
-  const idx = dayIsoIndex.value[iso];
-  if (idx === undefined) return new Set([`${maId}_${iso}`]);
-  let start = idx;
-  while (start > 0 && cellDataMap.value[`${maId}_${isos[start - 1]}`]?.cls === cls) start--;
-  let end = idx;
-  while (end < isos.length - 1 && cellDataMap.value[`${maId}_${isos[end + 1]}`]?.cls === cls) end++;
-  const keys = new Set();
-  for (let i = start; i <= end; i++) keys.add(`${maId}_${isos[i]}`);
-  return keys;
-});
-
-function getRunClass(maId, iso) {
-  // Only compute for the hovered row
-  if (!hoveredCell.value || hoveredCell.value.maId !== maId) return null;
-  const key = `${maId}_${iso}`;
-  if (!hoveredRunKeys.value.has(key)) return null;
-  const isos = dayIsos.value;
-  const idx = dayIsoIndex.value[iso];
-  const hasLeft = idx > 0 && hoveredRunKeys.value.has(`${maId}_${isos[idx - 1]}`);
-  const hasRight = idx < isos.length - 1 && hoveredRunKeys.value.has(`${maId}_${isos[idx + 1]}`);
-  if (!hasLeft && !hasRight) return 'run-only';
-  if (!hasLeft) return 'run-start';
-  if (!hasRight) return 'run-end';
-  return 'run-middle';
-}
 
 // Fast O(1) lookups using pre-computed cellDataMap
 function cellClass(maId, iso) {
@@ -1556,7 +1549,7 @@ async function fetchDispo() {
   try {
     const today = new Date();
     const endDate = new Date(today);
-    endDate.setDate(endDate.getDate() + filters.tage);
+    endDate.setDate(endDate.getDate() + effectiveTage.value);
 
     const params = new URLSearchParams({
       von: today.toISOString(),
@@ -1583,7 +1576,7 @@ async function fetchDispo() {
 async function fetchKommentare() {
   const today = new Date();
   const endDate = new Date(today);
-  endDate.setDate(endDate.getDate() + filters.tage);
+  endDate.setDate(endDate.getDate() + effectiveTage.value);
   const von = today.toISOString().slice(0, 10);
   const bis = endDate.toISOString().slice(0, 10);
   await dispoKommentare.fetch(von, bis);
@@ -1790,8 +1783,53 @@ function onCellMouseDown(ma, day, event) {
   selectedCells.value = next;
 }
 
+// ─── Imperative Run Highlight ───
+// Tracks highlighted elements so clearRunHighlight is O(k) not O(6000)
+let _highlightedEls = [];
+
+function applyRunHighlight(maId, iso) {
+  // Clear previous highlights without scanning all 6000 cells
+  for (const el of _highlightedEls) {
+    el.classList.remove('run-start', 'run-middle', 'run-end', 'run-only');
+  }
+  _highlightedEls = [];
+
+  const data = cellDataMap.value[`${maId}_${iso}`];
+  if (!data?.cls) return;
+  const cls = data.cls;
+  const isos = dayIsos.value;
+  const idx = dayIsoIndex.value[iso];
+  if (idx === undefined) return;
+  let start = idx;
+  while (start > 0 && cellDataMap.value[`${maId}_${isos[start - 1]}`]?.cls === cls) start--;
+  let end = idx;
+  while (end < isos.length - 1 && cellDataMap.value[`${maId}_${isos[end + 1]}`]?.cls === cls) end++;
+
+  // One querySelectorAll for the whole MA row; index matches visibleDays order
+  const cells = tableWrapper.value?.querySelectorAll(`td[data-ma-id="${maId}"]`);
+  if (!cells?.length) return;
+  for (let i = start; i <= end; i++) {
+    const el = cells[i];
+    if (!el) continue;
+    let runCls;
+    if (start === end) runCls = 'run-only';
+    else if (i === start) runCls = 'run-start';
+    else if (i === end) runCls = 'run-end';
+    else runCls = 'run-middle';
+    el.classList.add(runCls);
+    _highlightedEls.push(el);
+  }
+}
+
+function clearRunHighlight() {
+  for (const el of _highlightedEls) {
+    el.classList.remove('run-start', 'run-middle', 'run-end', 'run-only');
+  }
+  _highlightedEls = [];
+}
+
 function onCellMouseEnter(ma, day) {
-  hoveredCell.value = { maId: ma._id, iso: day.iso };
+  applyRunHighlight(ma._id, day.iso);
   if (_markReadTimer) { clearTimeout(_markReadTimer); _markReadTimer = null; }
   if (getCellUnreadCount(ma._id, day.iso) > 0) {
     _markReadTimer = setTimeout(() => { markCellCommentsRead(ma._id, day.iso); }, 1000);
@@ -1844,7 +1882,7 @@ async function markCellCommentsRead(maId, iso) {
 }
 
 function onCellMouseLeave() {
-  hoveredCell.value = null;
+  clearRunHighlight();
   cellTooltipState.value = { ...cellTooltipState.value, visible: false, flipped: false };
   if (_markReadTimer) { clearTimeout(_markReadTimer); _markReadTimer = null; }
 }
@@ -2284,6 +2322,79 @@ onMounted(async () => {
 .fs-exit-btn {
   color: var(--primary);
   border-color: var(--primary);
+}
+
+.knechti-title {
+  width: 100%;
+  text-align: center;
+  font-size: 4rem;
+  font-weight: 900;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  margin: 0.5rem 0 1rem;
+  background: linear-gradient(
+    90deg,
+    var(--primary) 0%,
+    #ffe066 25%,
+    var(--primary) 50%,
+    #ffe066 75%,
+    var(--primary) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: knechti-shimmer 3s linear infinite, knechti-entrance 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  text-shadow: none;
+  filter: drop-shadow(0 0 20px color-mix(in srgb, var(--primary) 50%, transparent))
+          drop-shadow(0 0 60px color-mix(in srgb, var(--primary) 25%, transparent));
+  position: relative;
+
+  &::before {
+    content: 'KNECHTI-LISTE';
+    position: absolute;
+    inset: 0;
+    text-align: center;
+    -webkit-text-fill-color: transparent;
+    background: inherit;
+    background-size: inherit;
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: blur(12px) brightness(1.5);
+    opacity: 0.5;
+    animation: knechti-pulse 2s ease-in-out infinite alternate;
+    z-index: -1;
+  }
+}
+
+@keyframes knechti-shimmer {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+@keyframes knechti-entrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(-30px);
+    filter: blur(10px);
+  }
+  60% {
+    transform: scale(1.08) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes knechti-pulse {
+  0% { opacity: 0.3; filter: blur(12px) brightness(1.2); }
+  100% { opacity: 0.7; filter: blur(18px) brightness(2); }
+}
+
+.page-header--knechti {
+  justify-content: center;
 }
 
 .page-header {
