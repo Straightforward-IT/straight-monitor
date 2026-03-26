@@ -238,6 +238,9 @@
       </div>
     </div>
 
+    <!-- Table area (+ inline feed panel when fullscreen) -->
+    <div class="fs-body" :class="{ 'fs-body--split': isFullscreen && ui.panelType === 'kommentare' && !ui.hidden && !fsFeedCollapsed }">
+
     <!-- Loading -->
     <div v-if="loading" class="loading-state">
       <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade Dispo-Daten…
@@ -458,6 +461,26 @@
       </div>
     </div>
 
+      <!-- Feed toggle handle + collapsible feed (fullscreen only) -->
+      <div v-if="isFullscreen && ui.panelType === 'kommentare' && !ui.hidden" class="fs-feed-wrapper">
+        <!-- Left-edge toggle handle — always visible -->
+        <button
+          class="fs-feed-toggle"
+          :title="fsFeedCollapsed ? 'Feed ausklappen [C]' : 'Feed einklappen [C]'"
+          @click="fsFeedCollapsed = !fsFeedCollapsed"
+        >
+          <font-awesome-icon :icon="fsFeedCollapsed ? 'fa-solid fa-chevron-left' : 'fa-solid fa-chevron-right'" />
+        </button>
+        <!-- Feed content (collapses horizontally) -->
+        <div class="fs-inline-feed" :class="{ 'fs-inline-feed--collapsed': fsFeedCollapsed }">
+          <div class="fs-inline-feed-content">
+            <KommentarFeed />
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.fs-body -->
+
     <!-- Help Modal -->
     <teleport to="body">
       <div v-if="showHelp" class="modal-overlay" @click="showHelp = false">
@@ -472,6 +495,7 @@
               <table class="help-shortcuts">
                 <tbody>
                   <tr><td><kbd>F</kbd></td><td>Vollbild ein/aus</td></tr>
+                  <tr><td><kbd>C</kbd></td><td>Kommentar-Feed ein/aus</td></tr>
                   <tr><td><kbd>H</kbd></td><td>Hilfe ein/aus</td></tr>
                   <tr><td><kbd>S</kbd></td><td>Suche fokussieren</td></tr>
                   <tr><td><kbd>1</kbd> – <kbd>9</kbd></td><td>Kalenderwoche wählen (1 = aktuelle KW)</td></tr>
@@ -528,7 +552,11 @@
         v-if="cellTooltipState.visible"
         class="dispo-cell-tooltip"
         :class="{ 'dispo-cell-tooltip--comments': cellTooltipState.comments.length }"
-        :style="{ top: cellTooltipState.y + 20 + 'px', left: cellTooltipState.x + 'px' }"
+        :style="{
+          top: cellTooltipState.flipped ? (cellTooltipState.y - 8) + 'px' : (cellTooltipState.y + 20) + 'px',
+          left: cellTooltipState.x + 'px',
+          transform: cellTooltipState.flipped ? 'translateY(-100%)' : 'none'
+        }"
       >
         <template v-if="cellTooltipState.comments.length">
           <div v-for="c in cellTooltipState.comments" :key="c._id" class="tooltip-comment">
@@ -603,7 +631,7 @@
               <div class="chat-message-meta">
                 <span class="chat-message-author">{{ c.author }}</span>
                 <span class="chat-message-time">{{ formatDateTime(c.timestamp) }}</span>
-                <button v-if="isOwnComment(c) || isAdmin" class="chat-delete-btn" @click="deleteKommentar(c._id)" title="Löschen">
+                <button v-if="isOwnComment(c)" class="chat-delete-btn" @click="deleteKommentar(c._id)" title="Löschen">
                   <font-awesome-icon icon="fa-solid fa-trash" />
                 </button>
               </div>
@@ -726,7 +754,7 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, computed, onMounted, onUnmounted, reactive, nextTick } from 'vue';
+import { ref, shallowRef, computed, onMounted, onUnmounted, reactive, nextTick, watch } from 'vue';
 
 // Custom directive: sets innerText only once on mount to avoid cursor-reset on contenteditable
 const vSetText = {
@@ -739,6 +767,8 @@ import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
 import { useDataCache } from '@/stores/dataCache';
 import { useFlipAll } from '@/stores/flipAll';
+import { useDispoKommentare } from '@/stores/dispoKommentare';
+import { useUi } from '@/stores/ui';
 import FilterPanel from '@/components/FilterPanel.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/FilterChip.vue';
@@ -748,10 +778,13 @@ import TlBadge from '@/components/ui-elements/TlBadge.vue';
 
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
+import KommentarFeed from '@/components/KommentarFeed.vue';
 
 const auth = useAuth();
 const dataCache = useDataCache();
 const flip = useFlipAll();
+const dispoKommentare = useDispoKommentare();
+const ui = useUi();
 const router = useRouter();
 const route = useRoute();
 
@@ -759,7 +792,6 @@ const route = useRoute();
 const loading = ref(true);
 const mitarbeiter = shallowRef([]);
 const eintraege = shallowRef([]);
-const kommentare = shallowRef([]);
 const searchQuery = ref('');
 const searchInputNormal = ref(null);
 const searchInputFs = ref(null);
@@ -773,7 +805,7 @@ const showHidden = ref(false);
 const hoveredMaId = ref(null);
 const highlightedMaId = ref(null);
 const hoveredCell = ref(null);
-const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 0 });
+const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 0, flipped: false });
 const bereichFilter = ref(null); // null | 'S' | 'L'
 const tableZoom = ref(100); // percent: 60–150
 const isFullscreen = ref(false);
@@ -876,6 +908,8 @@ const chatModal = reactive({
 });
 
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
+const showFsPanel = computed(() => isFullscreen.value && ui.panelType === 'kommentare' && !ui.hidden);
+const fsFeedCollapsed = ref(false);
 
 const standortLabel = computed(() => {
   if (filters.standort === '1') return 'Berlin';
@@ -1000,6 +1034,18 @@ function onKeyDown(e) {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
   if (e.key === 'f' || e.key === 'F') {
     toggleFullscreen();
+  } else if (e.key === 'c' || e.key === 'C') {
+    if (isFullscreen.value) {
+      // In fullscreen: C collapses/expands the inline feed panel
+      if (showFsPanel.value) {
+        fsFeedCollapsed.value = !fsFeedCollapsed.value;
+      } else {
+        ui.open('kommentare');
+        fsFeedCollapsed.value = false;
+      }
+    } else {
+      ui.toggle('kommentare');
+    }
   } else if (e.key === 'h' || e.key === 'H') {
     showHelp.value = !showHelp.value;
   } else if (e.key === 's' || e.key === 'S') {
@@ -1024,6 +1070,34 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', onDocMouseUp);
   document.removeEventListener('keydown', onKeyDown);
 });
+
+// ─── Watch route query for in-page deep-link navigation (e.g. from KommentarFeed) ───
+watch(
+  () => route.query,
+  async (q) => {
+    if (!q.datum && !q.maId) return;
+    let needsFetch = false;
+    if (q.standort && q.standort !== filters.standort) {
+      filters.standort = q.standort;
+      needsFetch = true;
+    }
+    if (q.resetPlanung) filters.planungFilter = null;
+    if (q.showHidden) showHidden.value = true;
+    if (q.datum) {
+      const today = new Date();
+      const target = new Date(q.datum);
+      const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+      if (diffDays > filters.tage) {
+        const options = [7, 30, 90, 365];
+        filters.tage = options.find((o) => o > diffDays) ?? 365;
+        needsFetch = true;
+      }
+      selectedKw.value = getISOWeek(target);
+    }
+    if (needsFetch) await fetchDispo();
+    if (q.maId) scrollToMa(q.maId);
+  }
+);
 
 // ─── KW helpers ───
 function getISOWeek(d) {
@@ -1326,18 +1400,8 @@ function getCellNote(maId, iso) {
 }
 
 // ─── Comment index: mitarbeiterId_iso → comments (O(1) lookup) ───
-const kommentarMap = computed(() => {
-  const map = {};
-  for (const k of kommentare.value) {
-    const key = `${k.mitarbeiter}_${k.datum}`;
-    if (!map[key]) map[key] = [];
-    map[key].push(k);
-  }
-  return map;
-});
-
 function getCellComments(maId, iso) {
-  return kommentarMap.value[`${maId}_${iso}`] || [];
+  return dispoKommentare.getForCell(maId, iso);
 }
 
 function getCellUnreadCount(maId, iso) {
@@ -1517,17 +1581,12 @@ async function fetchDispo() {
 }
 
 async function fetchKommentare() {
-  try {
-    const today = new Date();
-    const endDate = new Date(today);
-    endDate.setDate(endDate.getDate() + filters.tage);
-    const von = today.toISOString().slice(0, 10);
-    const bis = endDate.toISOString().slice(0, 10);
-    const { data } = await api.get(`/api/dispo-kommentare?von=${von}&bis=${bis}`);
-    kommentare.value = data || [];
-  } catch (err) {
-    console.error('Kommentare laden fehlgeschlagen:', err);
-  }
+  const today = new Date();
+  const endDate = new Date(today);
+  endDate.setDate(endDate.getDate() + filters.tage);
+  const von = today.toISOString().slice(0, 10);
+  const bis = endDate.toISOString().slice(0, 10);
+  await dispoKommentare.fetch(von, bis);
 }
 
 // ─── Filters ───
@@ -1653,6 +1712,10 @@ function onCellClick(ma, day) {
 }
 
 function onCellRightClick(event, ma, day) {
+  // Flip tooltip above cursor so it doesn't overlap the context menu below
+  if (cellTooltipState.value.visible) {
+    cellTooltipState.value = { ...cellTooltipState.value, flipped: true };
+  }
   // If clicked cell is in selection → open multi-selection context menu
   if (selectedCells.value.size > 0 && selectedCells.value.has(`${ma._id}_${day.iso}`)) {
     const menuW = 220;
@@ -1747,11 +1810,13 @@ function onCellMouseEnter(ma, day) {
 
 let _tooltipRafId = null;
 function onCellMouseMove(ma, day, event) {
+  if (ctxMenu.open) return;
   const x = event.clientX;
   const y = event.clientY;
   if (_tooltipRafId) return; // skip until next frame
   _tooltipRafId = requestAnimationFrame(() => {
     _tooltipRafId = null;
+    if (ctxMenu.open) return;
     const cellComments = getCellComments(ma._id, day.iso);
     const text = cellComments.length ? null : getCellTooltip(ma._id, day.iso);
     cellTooltipState.value = {
@@ -1760,6 +1825,7 @@ function onCellMouseMove(ma, day, event) {
       comments: cellComments,
       x,
       y,
+      flipped: false,
     };
   });
 }
@@ -1774,19 +1840,12 @@ async function markCellCommentsRead(maId, iso) {
     .filter((c) => String(c.authorId) !== userIdStr && !c.readBy?.map(String).includes(userIdStr))
     .map((c) => c._id);
   if (!unread.length) return;
-  try {
-    await api.post('/api/dispo-kommentare/mark-read', { ids: unread });
-    const unreadSet = new Set(unread.map(String));
-    kommentare.value = kommentare.value.map((c) => {
-      if (!unreadSet.has(String(c._id))) return c;
-      return { ...c, readBy: [...(c.readBy || []), userIdStr] };
-    });
-  } catch (_) { /* silent */ }
+  await dispoKommentare.markRead(unread);
 }
 
 function onCellMouseLeave() {
   hoveredCell.value = null;
-  cellTooltipState.value = { ...cellTooltipState.value, visible: false };
+  cellTooltipState.value = { ...cellTooltipState.value, visible: false, flipped: false };
   if (_markReadTimer) { clearTimeout(_markReadTimer); _markReadTimer = null; }
 }
 
@@ -1966,16 +2025,8 @@ async function openChatModal(ma, day) {
     .filter((c) => !c.readBy?.map(String).includes(String(auth.user?._id)))
     .map((c) => c._id);
   if (unread.length) {
-    try {
-      await api.post('/api/dispo-kommentare/mark-read', { ids: unread });
-      const unreadSet = new Set(unread.map(String));
-      const uid = String(auth.user?._id);
-      kommentare.value = kommentare.value.map((c) => {
-        if (!unreadSet.has(String(c._id))) return c;
-        return { ...c, readBy: [...(c.readBy || []), uid] };
-      });
-      chatModal.comments = getCellComments(ma._id, day.iso);
-    } catch (_) { /* silent */ }
+    await dispoKommentare.markRead(unread);
+    chatModal.comments = getCellComments(ma._id, day.iso);
   }
   // scroll thread to bottom
   nextTick(() => {
@@ -1996,13 +2047,8 @@ async function postComment() {
   if (!text || chatModal.loading) return;
   chatModal.loading = true;
   try {
-    const { data } = await api.post('/api/dispo-kommentare', {
-      mitarbeiterId: chatModal.ma._id,
-      datum: chatModal.day,
-      text,
-    });
+    await dispoKommentare.postComment(chatModal.ma._id, chatModal.day, text);
     chatModal.newText = '';
-    kommentare.value = [...kommentare.value, data];
     chatModal.comments = getCellComments(chatModal.ma._id, chatModal.day);
     nextTick(() => {
       if (chatThreadRef.value) chatThreadRef.value.scrollTop = chatThreadRef.value.scrollHeight;
@@ -2016,8 +2062,7 @@ async function postComment() {
 
 async function deleteKommentar(id) {
   try {
-    await api.delete(`/api/dispo-kommentare/${id}`);
-    kommentare.value = kommentare.value.filter((c) => String(c._id) !== String(id));
+    await dispoKommentare.deleteComment(id);
     chatModal.comments = getCellComments(chatModal.ma._id, chatModal.day);
   } catch (err) {
     console.error('Kommentar löschen fehlgeschlagen:', err);
@@ -2026,6 +2071,12 @@ async function deleteKommentar(id) {
 
 function toggleFullscreen() {
   isFullscreen.value = !isFullscreen.value;
+  fsFeedCollapsed.value = false;
+  if (isFullscreen.value) {
+    ui.open('kommentare');
+  } else if (ui.panelType === 'kommentare') {
+    ui.close();
+  }
 }
 
 // ─── Scroll to today ───
@@ -2083,6 +2134,8 @@ onMounted(async () => {
       const options = [7, 30, 90, 365];
       filters.tage = options.find((o) => o > diffDays) ?? 365;
     }
+    // Activate the KW filter for the target date
+    selectedKw.value = getISOWeek(target);
   }
 
   await fetchDispo();
@@ -2107,7 +2160,7 @@ onMounted(async () => {
     padding: 0;
     gap: 0;
     background: var(--bg);
-    overflow: visible;
+    overflow: hidden;
     border-radius: 14px;
     box-shadow:
       0 0 0 1.5px rgba(var(--primary-rgb, 253 126 20) / 0.30),
@@ -2129,10 +2182,36 @@ onMounted(async () => {
   flex-shrink: 0;
   flex-wrap: nowrap;
   min-height: 46px;
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 50;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+// Feed collapse toggle tab — sits centered on the bottom border of the toolbar
+// over the feed column (right-aligned)
+.fs-feed-toggle {
+  position: absolute;
+  bottom: -12px;
+  right: calc(310px / 2 - 14px);
+  width: 28px;
+  height: 12px;
+  background: var(--panel);
+  border: none;
+  border-radius: 0 0 8px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 9px;
+  z-index: 51;
+  transition: color 0.15s, background 0.15s;
+  box-shadow: 2px 3px 6px rgba(0, 0, 0, 0.12), -1px 0 0 var(--border), 1px 0 0 var(--border), 0 1px 0 var(--border);
+
+  &:hover {
+    color: var(--primary);
+    background: var(--hover);
+  }
 }
 
 .fs-toolbar-filters {
@@ -2404,6 +2483,86 @@ onMounted(async () => {
     border-left: none;
     border-right: none;
     border-bottom: none;
+  }
+}
+
+// ─── Fullscreen body (table + optional inline feed) ───
+.fs-body {
+  // Non-fullscreen: transparent block wrapper
+}
+
+.fullscreen-mode .fs-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+// When feed panel is visible: table gets left-only bottom radius
+.fs-body--split .dispo-table-wrapper.fullscreen-wrapper {
+  border-radius: 0 0 0 14px;
+}
+
+// Feed wrapper: handle strip + collapsible feed content
+.fs-feed-wrapper {
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0;
+  align-items: stretch;
+}
+
+// Thin vertical toggle handle — always visible at the left edge of the feed
+.fs-feed-toggle {
+  width: 20px;
+  align-self: stretch;
+  flex-shrink: 0;
+  background: var(--surface);
+  border: none;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 10;
+  transition: color 0.15s, background 0.15s;
+
+  &:hover {
+    color: var(--primary);
+    background: var(--hover);
+  }
+}
+
+.fs-inline-feed {
+  width: 310px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 0 0 14px 0;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.25s ease;
+
+  &.fs-inline-feed--collapsed {
+    width: 0;
+  }
+}
+
+.fs-inline-feed-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 310px; // fixed width so content doesn't squish during animation
+
+  > * {
+    flex: 1;
+    min-height: 0;
   }
 }
 

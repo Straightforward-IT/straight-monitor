@@ -4,6 +4,8 @@ const Kunde = require('../models/Kunde');
 const Auftrag = require('../models/Auftrag');
 const Einsatz = require('../models/Einsatz');
 const Schicht = require('../models/Schicht');
+const Rechnung = require('../models/Rechnung');
+const { decryptField } = require('../utils/encryption');
 const asyncHandler = require('../middleware/AsyncHandler');
 const auth = require('../middleware/auth');
 
@@ -713,5 +715,227 @@ router.post('/group', auth, asyncHandler(async (req, res) => {
 
   res.json({ success: true, parentId: parentKundeId });
 }));
+
+// ─── Rechnungen Analytics ─────────────────────────────────────────────────────
+//
+// NOTE: eurNetto is AES-256-GCM encrypted in the DB, so MongoDB cannot aggregate
+// it numerically. We fetch raw docs, decrypt server-side, then aggregate in JS.
+//
+// Grouping uses RECHNDATUM (event date) – format M/D/YY after decryption.
+// BUCHDATUM (always last day of month) is only used for DB range filtering.
+//
+function parseRechnDatum(str) {
+  if (!str) return null;
+  const parts = str.split('/');
+  if (parts.length !== 3) return null;
+  let [m, d, y] = parts.map(Number);
+  if (y < 100) y += 2000;
+  const dt = new Date(y, m - 1, d);
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+// Helper: resolve kundenNrs array (incl. children) from query params.
+async function resolveKundenNrs(kundenNr, geschSt) {
+  let kundenNrs = [];
+  if (kundenNr) {
+    const explicit = kundenNr.split(',').map(Number).filter(n => !isNaN(n));
+    kundenNrs = [...explicit];
+    const parents = await Kunde.find({ kundenNr: { $in: explicit } }).select('_id');
+    const children = await Kunde.find({ parentKunde: { $in: parents.map(p => p._id) } }).distinct('kundenNr');
+    kundenNrs = [...new Set([...kundenNrs, ...children])];
+    if (geschSt) {
+      const valid = await Kunde.find({ kundenNr: { $in: kundenNrs }, geschSt }).distinct('kundenNr');
+      kundenNrs = valid;
+    }
+  } else {
+    const filter = geschSt ? { geschSt } : {};
+    kundenNrs = await Kunde.find(filter).distinct('kundenNr');
+  }
+  return kundenNrs;
+}
+
+// @route   GET /api/kunden/analytics/rechnungen
+// @desc    Monatlicher Umsatz (eurNetto) aus Rechnungen, optional nach Kunden gefiltert
+// @access  Private
+// Query: von, bis (ISO), geschSt, kundenNr (comma-sep)
+router.get('/analytics/rechnungen', auth, asyncHandler(async (req, res) => {
+  const { von, bis, geschSt, kundenNr } = req.query;
+
+  const kundenNrs = await resolveKundenNrs(kundenNr, geschSt);
+  if (kundenNrs.length === 0) return res.json({ data: [], breakdown: [] });
+
+  const match = { kundenNr: { $in: kundenNrs } };
+  if (von || bis) {
+    match.buchDatum = {};
+    if (von) match.buchDatum.$gte = new Date(von);
+    if (bis) match.buchDatum.$lte = new Date(bis);
+  }
+
+  const docs = await Rechnung.find(match).select('kundenNr buchDatum rechnDatum eurNetto').lean();
+
+  // Build parent-mapping for breakdown (child knr → parent knr)
+  const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } })
+    .select('kundenNr parentKunde').populate('parentKunde', 'kundenNr').lean();
+  const nrMap = {};
+  kundenDocs.forEach(k => {
+    nrMap[k.kundenNr] = k.parentKunde ? k.parentKunde.kundenNr : k.kundenNr;
+  });
+
+  const totalMap = {};  // 'year-month' → { year, month, sum, count }
+  const bdownMap = {};  // 'knr-year-month' → { kundenNr, year, month, sum, count }
+
+  for (const doc of docs) {
+    const val = parseFloat((decryptField(doc.eurNetto) || '').replace(/,/g, '')) || 0;
+    const dt = parseRechnDatum(decryptField(doc.rechnDatum));
+    if (!dt) continue;
+    const year  = dt.getFullYear();
+    const month = dt.getMonth() + 1;
+
+    const tKey = `${year}-${month}`;
+    if (!totalMap[tKey]) totalMap[tKey] = { year, month, sum: 0, count: 0 };
+    totalMap[tKey].sum   += val;
+    totalMap[tKey].count += 1;
+
+    if (kundenNr) {
+      const effNr = nrMap[doc.kundenNr] ?? doc.kundenNr;
+      const bKey = `${effNr}-${year}-${month}`;
+      if (!bdownMap[bKey]) bdownMap[bKey] = { kundenNr: effNr, year, month, sum: 0, count: 0 };
+      bdownMap[bKey].sum   += val;
+      bdownMap[bKey].count += 1;
+    }
+  }
+
+  const data = Object.values(totalMap).sort((a, b) => a.year - b.year || a.month - b.month);
+  const breakdown = Object.values(bdownMap).sort((a, b) => a.year - b.year || a.month - b.month);
+
+  res.json({ data, breakdown });
+}));
+
+// @route   GET /api/kunden/analytics/rechnungen/standort
+// @desc    Monatlicher Umsatz aufgeschlüsselt nach Standort
+// @access  Private
+router.get('/analytics/rechnungen/standort', auth, asyncHandler(async (req, res) => {
+  const { von, bis, kundenNr } = req.query;
+
+  const kundenNrs = await resolveKundenNrs(kundenNr, null);
+  if (kundenNrs.length === 0) return res.json({ data: [], standortBreakdown: [] });
+
+  const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } })
+    .select('kundenNr geschSt parentKunde').populate('parentKunde', 'geschSt').lean();
+  const nrToGeschSt = {};
+  kundenDocs.forEach(k => {
+    nrToGeschSt[k.kundenNr] = (k.parentKunde && k.parentKunde.geschSt)
+      ? k.parentKunde.geschSt
+      : (k.geschSt || 'unbekannt');
+  });
+
+  const match = { kundenNr: { $in: kundenNrs } };
+  if (von || bis) {
+    match.buchDatum = {};
+    if (von) match.buchDatum.$gte = new Date(von);
+    if (bis) match.buchDatum.$lte = new Date(bis);
+  }
+
+  const docs = await Rechnung.find(match).select('kundenNr buchDatum rechnDatum eurNetto').lean();
+
+  const totalMap = {};   // 'year-month'
+  const stMap    = {};   // 'geschSt-year-month'
+
+  for (const doc of docs) {
+    const val = parseFloat((decryptField(doc.eurNetto) || '').replace(/,/g, '')) || 0;
+    const dt = parseRechnDatum(decryptField(doc.rechnDatum));
+    if (!dt) continue;
+    const year    = dt.getFullYear();
+    const month   = dt.getMonth() + 1;
+    const geschSt = nrToGeschSt[doc.kundenNr] || 'unbekannt';
+
+    const tKey = `${year}-${month}`;
+    if (!totalMap[tKey]) totalMap[tKey] = { year, month, sum: 0, count: 0 };
+    totalMap[tKey].sum   += val;
+    totalMap[tKey].count += 1;
+
+    const sKey = `${geschSt}-${year}-${month}`;
+    if (!stMap[sKey]) stMap[sKey] = { geschSt, year, month, sum: 0, count: 0 };
+    stMap[sKey].sum   += val;
+    stMap[sKey].count += 1;
+  }
+
+  const data = Object.values(totalMap).sort((a, b) => a.year - b.year || a.month - b.month);
+  const standortBreakdown = Object.values(stMap).sort((a, b) => a.year - b.year || a.month - b.month);
+
+  res.json({ data, standortBreakdown });
+}));
+
+// @route   GET /api/kunden/analytics/rechnungen/daily
+// @desc    Täglicher Umsatz für einen bestimmten Monat (Drill-Down)
+// @access  Private
+// Query: year, month (required), geschSt, kundenNr
+router.get('/analytics/rechnungen/daily', auth, asyncHandler(async (req, res) => {
+  const { year, month, geschSt, kundenNr } = req.query;
+  if (!year || !month) {
+    return res.status(400).json({ message: 'year and month are required' });
+  }
+
+  const y = Number(year);
+  const m = Number(month);
+  const von = new Date(y, m - 1, 1);
+  const bis = new Date(y, m, 0, 23, 59, 59);
+
+  const kundenNrs = await resolveKundenNrs(kundenNr, geschSt);
+  if (kundenNrs.length === 0) return res.json({ data: [], kundenBreakdown: [] });
+
+  const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } })
+    .select('kundenNr kundName parentKunde').populate('parentKunde', 'kundenNr kundName').lean();
+  const nrMap   = {};  // child → parent nr
+  const nameMap = {};  // nr → display name
+  kundenDocs.forEach(k => {
+    const effNr = k.parentKunde ? k.parentKunde.kundenNr : k.kundenNr;
+    nrMap[k.kundenNr]  = effNr;
+    nameMap[effNr] = nameMap[effNr] || (k.parentKunde ? k.parentKunde.kundName : k.kundName) || `#${effNr}`;
+  });
+
+  // Fetch with a 1-month buffer on buchDatum, then filter precisely by rechnDatum in JS
+  const vonBuf = new Date(y, m - 2, 1);  // 1 month before
+  const bisBuf = new Date(y, m + 1, 0);  // 1 month after
+  const docs = await Rechnung.find({
+    kundenNr: { $in: kundenNrs },
+    buchDatum: { $gte: vonBuf, $lte: bisBuf }
+  }).select('kundenNr buchDatum rechnDatum eurNetto').lean();
+
+  const totalMap = {};   // day → { sum, count }
+  const bdownMap = {};   // 'effNr-day' → { kundenNr, kundName, day, sum, count }
+
+  for (const doc of docs) {
+    const val = parseFloat((decryptField(doc.eurNetto) || '').replace(/,/g, '')) || 0;
+    const dt = parseRechnDatum(decryptField(doc.rechnDatum));
+    if (!dt) continue;
+    // Only include records whose rechnDatum is in the requested year/month
+    if (dt.getFullYear() !== y || dt.getMonth() + 1 !== m) continue;
+    const day   = dt.getDate();
+    const effNr = nrMap[doc.kundenNr] ?? doc.kundenNr;
+
+    if (!totalMap[day]) totalMap[day] = { day, sum: 0, count: 0 };
+    totalMap[day].sum   += val;
+    totalMap[day].count += 1;
+
+    const bKey = `${effNr}-${day}`;
+    if (!bdownMap[bKey]) bdownMap[bKey] = { kundenNr: effNr, kundName: nameMap[effNr] || `#${effNr}`, day, sum: 0, count: 0 };
+    bdownMap[bKey].sum   += val;
+    bdownMap[bKey].count += 1;
+  }
+
+  const data = Object.values(totalMap).sort((a, b) => a.day - b.day);
+
+  const byKunde = {};
+  Object.values(bdownMap).forEach(e => {
+    if (!byKunde[e.kundenNr]) byKunde[e.kundenNr] = { kundenNr: e.kundenNr, kundName: e.kundName, days: [], total: 0 };
+    byKunde[e.kundenNr].days.push({ day: e.day, sum: e.sum, count: e.count });
+    byKunde[e.kundenNr].total += e.sum;
+  });
+  const kundenBreakdown = Object.values(byKunde).sort((a, b) => b.total - a.total);
+
+  res.json({ data, kundenBreakdown });
+}));
+// ─────────────────────────────────────────────────────────────────────────────
 
 module.exports = router;

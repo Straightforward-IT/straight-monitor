@@ -4,7 +4,7 @@
     <div class="page" :class="{ hasRight }">
       <main class="content"><router-view /></main>
 
-      <aside v-if="hasRight" class="right" :class="{ open: ui.isOpen }">
+      <aside v-if="hasRight" class="right" :class="{ open: ui.isOpen }" :style="panelStyle">
         <component :is="panelComponent" />
       </aside>
     </div>
@@ -21,6 +21,7 @@ import HeaderBar from '@/components/HeaderBar.vue';
 import AppFooter from '@/components/AppFooter.vue';
 import Shortcuts from '@/components/Shortcuts.vue';
 import Tools from '@/components/Tools.vue';
+import KommentarFeed from '@/components/KommentarFeed.vue';
 
 const route = useRoute();
 const ui = useUi();
@@ -39,8 +40,9 @@ const panelComponent = computed(() => {
   if (ui.hidden) return null;                // vom User geschlossen
 
   if (ui.panelType) {                        // expliziter Override
-    if (ui.panelType === 'shortcuts') return Shortcuts;
-    if (ui.panelType === 'tools')     return Tools;
+    if (ui.panelType === 'shortcuts')    return Shortcuts;
+    if (ui.panelType === 'tools')        return Tools;
+    if (ui.panelType === 'kommentare')   return KommentarFeed;
   }
 
   // Route-Default
@@ -51,6 +53,10 @@ const panelComponent = computed(() => {
 });
 
 const hasRight = computed(() => !!panelComponent.value);
+
+const panelStyle = computed(() => ({
+  '--panel-width': ui.panelType === 'kommentare' ? '310px' : '260px',
+}));
 
 // Beim Routenwechsel nur den Override zurücksetzen – "hidden" respektieren
 watch(() => route.fullPath, () => { ui.panelType = null; });
@@ -77,7 +83,7 @@ const handleOpenShortcuts = () => {
   position: sticky;
   top: var(--header-h, 56px);
   align-self: start;
-  width: 260px;
+  width: var(--panel-width, 260px);
   height: calc(100vh - var(--header-h, 56px));
   overflow:auto;
   background: var(--panel);

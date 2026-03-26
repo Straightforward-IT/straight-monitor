@@ -63,18 +63,12 @@
         <button v-if="$route.name === 'Bestand'" @click="ui.toggle('shortcuts')">
           Shortcuts
         </button>
-        <button @click="ui.toggle('tools')">Tools</button>
-
-        <!-- Support Button -->
-        <custom-tooltip text="Support" position="bottom" :delay-in="150">
-          <button 
-            class="icon-btn"
-            @click="showSupportModal = true"
-          >
-            <font-awesome-icon :icon="['fas', 'ticket-alt']" />
+        <custom-tooltip v-if="$route.name === 'Dispo'" text="Kommentar-Feed [C]" position="bottom" :delay-in="150">
+          <button class="icon-btn kf-btn" @click="ui.toggle('kommentare')">
+            <font-awesome-icon :icon="['fas', 'comments']" />
+            <span v-if="dispoKommentare.unreadCount > 0" class="kf-badge">{{ dispoKommentare.unreadCount > 99 ? '99+' : dispoKommentare.unreadCount }}</span>
           </button>
         </custom-tooltip>
-
         <!-- Theme Toggle -->
         <custom-tooltip :text="theme.isDark ? 'Helles Theme' : 'Dunkles Theme'" position="bottom" :delay-in="150">
           <button
@@ -86,6 +80,18 @@
             />
           </button>
         </custom-tooltip>
+
+        <!-- Support Button -->
+        <custom-tooltip text="Support" position="bottom" :delay-in="150">
+          <button 
+            class="icon-btn"
+            @click="showSupportModal = true"
+          >
+            <font-awesome-icon :icon="['fas', 'ticket-alt']" />
+          </button>
+        </custom-tooltip>
+
+        <button @click="ui.toggle('tools')">Tools</button>
 
         <custom-tooltip text="Die Segel streichen" position="bottom" :delay-in="150">
           <button @click="logout">Logout</button>
@@ -319,6 +325,7 @@ import { computed, ref, reactive, onMounted, onBeforeUnmount } from "vue";
 import { useUi } from "@/stores/ui";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
+import { useDispoKommentare } from "@/stores/dispoKommentare";
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import CustomTooltip from './CustomTooltip.vue';
 import api from '@/utils/api';
@@ -331,6 +338,7 @@ import lightLogo from "@/assets/SF_002.png";
 const ui = useUi();
 const theme = useTheme();
 const auth = useAuth();
+const dispoKommentare = useDispoKommentare();
 
 const logoSrc = computed(() => (theme.isDark ? darkLogo : lightLogo));
 
@@ -826,7 +834,28 @@ button:hover {
   height: 16px;
 }
 
-
+/* Kommentar-Feed button badge */
+.kf-btn {
+  position: relative;
+}
+.kf-badge {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  line-height: 1;
+}
 
 /* Support Modal */
 .modal-overlay {

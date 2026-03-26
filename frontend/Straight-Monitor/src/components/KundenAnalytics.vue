@@ -9,6 +9,13 @@
       <FilterChip :active="activeTab === 'kuchen'" @click="activeTab = 'kuchen'">
         <font-awesome-icon :icon="['fas', 'chart-pie']" class="tab-icon" /> Kuchen
       </FilterChip>
+      <div class="tab-separator"></div>
+      <FilterChip :active="analyticsMode === 'positionen'" @click="analyticsMode = 'positionen'; drillMonth = null; umsatzDrillMonth = null; fetchData()">
+        <font-awesome-icon :icon="['fas', 'hashtag']" class="tab-icon" /> Positionen
+      </FilterChip>
+      <FilterChip :active="analyticsMode === 'umsatz'" @click="analyticsMode = 'umsatz'; drillMonth = null; umsatzDrillMonth = null; fetchData()">
+        <font-awesome-icon :icon="['fas', 'euro-sign']" class="tab-icon" /> Umsatz
+      </FilterChip>
     </div>
 
     <!-- Säulen Tab -->
@@ -18,7 +25,12 @@
       <div class="filter-row top-row">
         <!-- Date Slider -->
         <div class="control-group slider-group">
-          <label class="control-label">Zeitraum: {{ formatSliderLabel(sliderRange[0]) }} – {{ formatSliderLabel(sliderRange[1]) }}</label>
+          <div class="slider-label-row">
+            <label class="control-label">Zeitraum: {{ formatSliderLabel(sliderRange[0]) }} – {{ formatSliderLabel(sliderRange[1]) }}</label>
+            <button v-if="sliderRange[0] !== 0 || sliderRange[1] !== currentMonthIdx" class="slider-reset-btn" @click="sliderRange = [0, currentMonthIdx]" title="Zeitraum zurücksetzen">
+              <font-awesome-icon :icon="['fas', 'rotate-left']" />
+            </button>
+          </div>
           <DoubleRangeSlider
             :min="0"
             :max="totalMonths"
@@ -65,8 +77,8 @@
 
         <div class="filter-separator"></div>
 
-        <!-- Prognose Toggle -->
-        <div class="control-group">
+        <!-- Prognose Toggle (nur Positionen) -->
+        <div v-if="analyticsMode === 'positionen'" class="control-group">
           <label class="control-label">Prognose</label>
           <div class="chip-row">
             <FilterChip :active="showForecast" @click="toggleForecast">Anzeigen</FilterChip>
@@ -131,8 +143,8 @@
       </div>
     </div>
 
-    <!-- Chart Area -->
-    <div class="chart-wrapper">
+    <!-- Chart Area: Positionen -->
+    <div v-if="analyticsMode === 'positionen'" class="chart-wrapper">
       <!-- Drill-down Header -->
       <div v-if="drillMonth" class="drill-header">
         <button class="back-btn" @click="closeDrill">
@@ -161,8 +173,37 @@
       <Bar v-else :data="chartData" :options="chartOptions" :plugins="monthChartPlugins" :key="chartKey" @click="handleChartClick" ref="monthChartRef" />
     </div>
 
-    <!-- Summary -->
-    <div v-if="!drillMonth && hasData" class="summary-row">
+    <!-- Chart Area: Umsatz -->
+    <div v-if="analyticsMode === 'umsatz'" class="chart-wrapper">
+      <div v-if="umsatzDrillMonth" class="drill-header">
+        <button class="back-btn" @click="closeDrill">
+          <font-awesome-icon :icon="['fas', 'arrow-left']" />
+          Zurück zur Monatsübersicht
+        </button>
+        <span class="drill-title">{{ umsatzDrillMonth ? `${['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'][umsatzDrillMonth.month - 1]} ${umsatzDrillMonth.year}` : '' }}</span>
+      </div>
+
+      <div v-if="loading" class="empty-state">
+        <font-awesome-icon :icon="['fas', 'spinner']" spin class="empty-icon" />
+        <p>Daten werden geladen…</p>
+      </div>
+
+      <div v-else-if="umsatzDrillMonth && !umsatzHasDrillData" class="empty-state">
+        <font-awesome-icon :icon="['fas', 'chart-bar']" class="empty-icon" />
+        <p>Keine Rechnungen in diesem Monat</p>
+      </div>
+
+      <div v-else-if="!umsatzDrillMonth && !umsatzHasData" class="empty-state">
+        <font-awesome-icon :icon="['fas', 'chart-bar']" class="empty-icon" />
+        <p>Keine Rechnungsdaten im gewählten Zeitraum</p>
+      </div>
+
+      <Bar v-else-if="umsatzDrillMonth" :data="umsatzDrillChartData" :options="umsatzDrillOptions" :key="'udrill-' + chartKey" />
+      <Bar v-else :data="umsatzChartData" :options="umsatzChartOptions" :key="'ubar-' + chartKey" />
+    </div>
+
+    <!-- Summary: Positionen -->
+    <div v-if="analyticsMode === 'positionen' && !drillMonth && hasData" class="summary-row">
       <div class="summary-card">
         <span class="summary-value">{{ totalEinsaetze }}</span>
         <span class="summary-label">Einsätze gesamt</span>
@@ -176,6 +217,22 @@
         <span class="summary-label">Stärkster Monat</span>
       </div>
     </div>
+
+    <!-- Summary: Umsatz -->
+    <div v-if="analyticsMode === 'umsatz' && !umsatzDrillMonth && umsatzHasData" class="summary-row">
+      <div class="summary-card">
+        <span class="summary-value">{{ formatEuro(umsatzTotalSum) }}</span>
+        <span class="summary-label">Umsatz gesamt</span>
+      </div>
+      <div class="summary-card">
+        <span class="summary-value">{{ formatEuro(umsatzAvgPerMonth) }}</span>
+        <span class="summary-label">Ø pro Monat</span>
+      </div>
+      <div class="summary-card">
+        <span class="summary-value">{{ umsatzPeakMonth }}</span>
+        <span class="summary-label">Stärkster Monat</span>
+      </div>
+    </div>
     </div>
     <!-- End Säulen Tab -->
 
@@ -186,7 +243,12 @@
         <div class="filter-row top-row">
           <!-- Date Slider -->
           <div class="control-group slider-group">
-            <label class="control-label">Zeitraum: {{ formatSliderLabel(sliderRange[0]) }} – {{ formatSliderLabel(sliderRange[1]) }}</label>
+            <div class="slider-label-row">
+              <label class="control-label">Zeitraum: {{ formatSliderLabel(sliderRange[0]) }} – {{ formatSliderLabel(sliderRange[1]) }}</label>
+              <button v-if="sliderRange[0] !== 0 || sliderRange[1] !== currentMonthIdx" class="slider-reset-btn" @click="sliderRange = [0, currentMonthIdx]" title="Zeitraum zurücksetzen">
+                <font-awesome-icon :icon="['fas', 'rotate-left']" />
+              </button>
+            </div>
             <DoubleRangeSlider
               :min="0"
               :max="totalMonths"
@@ -281,16 +343,25 @@
           <p>Daten werden geladen…</p>
         </div>
 
-        <div v-else-if="!hasPieData" class="empty-state">
-          <font-awesome-icon :icon="['fas', 'chart-pie']" class="empty-icon" />
-          <p>Keine Einsätze im gewählten Zeitraum</p>
-        </div>
+        <template v-if="analyticsMode === 'positionen'">
+          <div v-if="!loading && !hasPieData" class="empty-state">
+            <font-awesome-icon :icon="['fas', 'chart-pie']" class="empty-icon" />
+            <p>Keine Einsätze im gewählten Zeitraum</p>
+          </div>
+          <Pie v-else-if="!loading" :data="pieChartData" :options="pieChartOptions" :key="'pie-' + chartKey" />
+        </template>
 
-        <Pie v-else :data="pieChartData" :options="pieChartOptions" :key="'pie-' + chartKey" />
+        <template v-if="analyticsMode === 'umsatz'">
+          <div v-if="!loading && !rawUmsatzTotal.length && !rawUmsatzStandortBreakdown.length" class="empty-state">
+            <font-awesome-icon :icon="['fas', 'chart-pie']" class="empty-icon" />
+            <p>Keine Rechnungsdaten im gewählten Zeitraum</p>
+          </div>
+          <Pie v-else-if="!loading" :data="umsatzPieChartData" :options="pieChartOptions" :key="'upie-' + chartKey" />
+        </template>
       </div>
 
-      <!-- Pie Summary -->
-      <div v-if="hasPieData" class="summary-row">
+      <!-- Pie Summary: Positionen -->
+      <div v-if="analyticsMode === 'positionen' && hasPieData" class="summary-row">
         <div class="summary-card">
           <span class="summary-value">{{ pieTotalEinsaetze }}</span>
           <span class="summary-label">Einsätze gesamt</span>
@@ -301,6 +372,22 @@
         </div>
         <div class="summary-card">
           <span class="summary-value">{{ pieLargestSegment }}</span>
+          <span class="summary-label">Größter Anteil</span>
+        </div>
+      </div>
+
+      <!-- Pie Summary: Umsatz -->
+      <div v-if="analyticsMode === 'umsatz' && umsatzHasData" class="summary-row">
+        <div class="summary-card">
+          <span class="summary-value">{{ formatEuro(umsatzTotalSum) }}</span>
+          <span class="summary-label">Umsatz gesamt</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-value">{{ umsatzTotalCount }}</span>
+          <span class="summary-label">Rechnungen</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-value">{{ umsatzPieLargestSegment }}</span>
           <span class="summary-label">Größter Anteil</span>
         </div>
       </div>
@@ -705,9 +792,18 @@ const previousSliderRange = ref(null);
 const showMonthComparison = ref(true);
 const showForecast = ref(false);
 const activeTab = ref('saeulen');
+const analyticsMode = ref('positionen'); // 'positionen' | 'umsatz'
 const compareMode = ref('none'); // 'none' | 'kunden' | 'standort'
 const kundenStatusFilter = ref('aktiv'); // 'aktiv' | 'inaktiv' | 'alle'
 const excludeStraightforward = ref(true);
+
+// --- Umsatz state ---
+const rawUmsatzTotal = ref([]);
+const rawUmsatzBreakdown = ref([]);
+const rawUmsatzStandortBreakdown = ref([]);
+const umsatzDrillMonth = ref(null);       // { year, month } | null
+const umsatzDrillTotal = ref([]);         // [{ day, sum, count }]
+const umsatzDrillKunden = ref([]);        // [{ kundenNr, kundName, days, total }]
 
 // All top-level non-Straightforward customer NRs (used to always exclude SF in Gesamt/Standort mode)
 const nonSFKundenNrs = computed(() =>
@@ -768,6 +864,14 @@ watch(activeTab, (newTab) => {
     compareMode.value = 'standort';
     fetchData();
   }
+});
+
+// Reset analytics mode drills when switching mode
+watch(analyticsMode, () => {
+  drillMonth.value = null;
+  umsatzDrillMonth.value = null;
+  previousSliderRange.value = null;
+  fetchData();
 });
 
 // Helper to convert index to "YYYY-MM"
@@ -1269,30 +1373,58 @@ async function fetchData() {
       params.bis = new Date(Number(y), Number(m), 0, 23, 59, 59).toISOString();
     }
 
-    if (compareMode.value === 'standort') {
-      // Use standort breakdown endpoint
-      const stParams = { ...params };
-      if (selectedKundenNrs.value.length > 0) {
-        stParams.kundenNr = selectedKundenNrs.value.join(',');
-      } else if (excludeStraightforward.value && nonSFKundenNrs.value.length > 0) {
-        stParams.kundenNr = nonSFKundenNrs.value.join(',');
+    if (analyticsMode.value === 'umsatz') {
+      // ── Umsatz mode: query Rechnung endpoints ──────────────────────────────
+      rawUmsatzTotal.value = [];
+      rawUmsatzBreakdown.value = [];
+      rawUmsatzStandortBreakdown.value = [];
+
+      if (compareMode.value === 'standort') {
+        const stParams = { ...params };
+        if (selectedKundenNrs.value.length > 0) {
+          stParams.kundenNr = selectedKundenNrs.value.join(',');
+        } else if (excludeStraightforward.value && nonSFKundenNrs.value.length > 0) {
+          stParams.kundenNr = nonSFKundenNrs.value.join(',');
+        }
+        const { data } = await api.get('/api/kunden/analytics/rechnungen/standort', { params: stParams });
+        rawUmsatzTotal.value = data.data || [];
+        rawUmsatzStandortBreakdown.value = data.standortBreakdown || [];
+      } else {
+        if (selectedGeschSt.value) params.geschSt = selectedGeschSt.value;
+        if (selectedKundenNrs.value.length > 0) {
+          params.kundenNr = selectedKundenNrs.value.join(',');
+        } else if (compareMode.value === 'none' && excludeStraightforward.value && nonSFKundenNrs.value.length > 0) {
+          params.kundenNr = nonSFKundenNrs.value.join(',');
+        }
+        const { data } = await api.get('/api/kunden/analytics/rechnungen', { params });
+        rawUmsatzTotal.value = data.data || [];
+        rawUmsatzBreakdown.value = data.breakdown || [];
       }
-      const { data } = await api.get('/api/kunden/analytics/einsaetze/standort', { params: stParams });
-      rawTotal.value = data.data || [];
-      rawStandortBreakdown.value = data.standortBreakdown || [];
     } else {
-      // Normal / Kunden mode
-      if (selectedGeschSt.value) {
-        params.geschSt = selectedGeschSt.value;
+      // ── Positionen mode: query Einsatz endpoints (existing) ───────────────
+      if (compareMode.value === 'standort') {
+        const stParams = { ...params };
+        if (selectedKundenNrs.value.length > 0) {
+          stParams.kundenNr = selectedKundenNrs.value.join(',');
+        } else if (excludeStraightforward.value && nonSFKundenNrs.value.length > 0) {
+          stParams.kundenNr = nonSFKundenNrs.value.join(',');
+        }
+        const { data } = await api.get('/api/kunden/analytics/einsaetze/standort', { params: stParams });
+        rawTotal.value = data.data || [];
+        rawStandortBreakdown.value = data.standortBreakdown || [];
+      } else {
+        if (selectedGeschSt.value) {
+          params.geschSt = selectedGeschSt.value;
+        }
+        if (selectedKundenNrs.value.length > 0) {
+          params.kundenNr = selectedKundenNrs.value.join(',');
+        } else if (compareMode.value === 'none' && excludeStraightforward.value && nonSFKundenNrs.value.length > 0) {
+          params.kundenNr = nonSFKundenNrs.value.join(',');
+        }
+        const { data } = await api.get('/api/kunden/analytics/einsaetze', { params });
+        rawTotal.value = data.data || [];
+        rawBreakdown.value = data.breakdown || [];
       }
-      if (selectedKundenNrs.value.length > 0) {
-        params.kundenNr = selectedKundenNrs.value.join(',');
-      } else if (compareMode.value === 'none' && excludeStraightforward.value && nonSFKundenNrs.value.length > 0) {
-        params.kundenNr = nonSFKundenNrs.value.join(',');
-      }
-      const { data } = await api.get('/api/kunden/analytics/einsaetze', { params });
-      rawTotal.value = data.data || [];
-      rawBreakdown.value = data.breakdown || [];
     }
 
     chartKey.value++;
@@ -1396,6 +1528,44 @@ function closeDrill() {
   drillMonth.value = null;
   drillTotal.value = [];
   drillAuftraege.value = [];
+  umsatzDrillMonth.value = null;
+  umsatzDrillTotal.value = [];
+  umsatzDrillKunden.value = [];
+}
+
+// --- Umsatz Drill-down ---
+
+async function openUmsatzDrill(year, month) {
+  if (!previousSliderRange.value) {
+    previousSliderRange.value = [...sliderRange.value];
+    const monthIndex = (year - startDate.getFullYear()) * 12 + (month - 1);
+    const targetIdx = Math.min(Math.max(0, monthIndex), totalMonths);
+    sliderRange.value = [targetIdx, targetIdx];
+  }
+
+  umsatzDrillMonth.value = { year, month };
+  loading.value = true;
+  umsatzDrillTotal.value = [];
+  umsatzDrillKunden.value = [];
+
+  try {
+    const params = { year, month };
+    if (selectedGeschSt.value) params.geschSt = selectedGeschSt.value;
+    if (selectedKundenNrs.value.length > 0) {
+      params.kundenNr = selectedKundenNrs.value.join(',');
+    } else if (excludeStraightforward.value && nonSFKundenNrs.value.length > 0) {
+      params.kundenNr = nonSFKundenNrs.value.join(',');
+    }
+
+    const { data } = await api.get('/api/kunden/analytics/rechnungen/daily', { params });
+    umsatzDrillTotal.value = data.data || [];
+    umsatzDrillKunden.value = data.kundenBreakdown || [];
+    chartKey.value++;
+  } catch (err) {
+    console.error('Umsatz daily drill-down fetch error:', err);
+  } finally {
+    loading.value = false;
+  }
 }
 
 // --- Drill-down Chart Data ---
@@ -1711,6 +1881,259 @@ const pieLargestSegment = computed(() => {
   return '—';
 });
 
+// --- Umsatz Computeds ---
+
+function formatEuro(val) {
+  return new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  }).format(val || 0);
+}
+
+const umsatzHasData = computed(() => rawUmsatzTotal.value.length > 0);
+const umsatzHasDrillData = computed(() => umsatzDrillTotal.value.length > 0);
+
+const umsatzTotalSum = computed(() =>
+  rawUmsatzTotal.value.reduce((s, d) => s + (d.sum || 0), 0)
+);
+const umsatzTotalCount = computed(() =>
+  rawUmsatzTotal.value.reduce((s, d) => s + (d.count || 0), 0)
+);
+const umsatzAvgPerMonth = computed(() => {
+  if (!rawUmsatzTotal.value.length) return 0;
+  return Math.round(umsatzTotalSum.value / rawUmsatzTotal.value.length);
+});
+const umsatzPeakMonth = computed(() => {
+  if (!rawUmsatzTotal.value.length) return '—';
+  const peak = rawUmsatzTotal.value.reduce(
+    (max, d) => (d.sum > max.sum ? d : max),
+    rawUmsatzTotal.value[0]
+  );
+  const names = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+  return `${names[peak.month - 1]} ${peak.year}`;
+});
+
+const umsatzChartData = computed(() => {
+  const fromStr = indexToMonthStr(sliderRange.value[0]);
+  const toStr = indexToMonthStr(sliderRange.value[1]);
+  const months = buildMonthLabels(fromStr, toStr);
+  if (!months.length) return { labels: [], datasets: [] };
+
+  if (compareMode.value === 'standort') {
+    const standorte = [...new Set(rawUmsatzStandortBreakdown.value.map(b => b.geschSt))].sort();
+    const datasets = standorte.map((geschSt, idx) => {
+      const color = COLORS[idx % COLORS.length];
+      return {
+        label: STANDORT_LABELS[geschSt] || `Standort ${geschSt}`,
+        data: months.map(({ year, month }) => {
+          const entry = rawUmsatzStandortBreakdown.value.find(
+            b => b.geschSt === geschSt && b.year === year && b.month === month
+          );
+          return entry ? entry.sum : 0;
+        }),
+        backgroundColor: color,
+        borderRadius: 4,
+        stack: 'stack',
+      };
+    });
+    return { labels: months.map(m => m.label), datasets };
+  }
+
+  if (compareMode.value === 'kunden' && selectedKundenNrs.value.length > 0) {
+    const kNrs = [...new Set(rawUmsatzBreakdown.value.map(b => b.kundenNr))];
+    const datasets = kNrs.map((nr, idx) => {
+      const color = COLORS[idx % COLORS.length];
+      return {
+        label: getKundeName(nr),
+        data: months.map(({ year, month }) => {
+          const entry = rawUmsatzBreakdown.value.find(
+            b => b.kundenNr === nr && b.year === year && b.month === month
+          );
+          return entry ? entry.sum : 0;
+        }),
+        backgroundColor: color,
+        borderRadius: 4,
+        stack: 'stack',
+      };
+    });
+    return { labels: months.map(m => m.label), datasets };
+  }
+
+  // Single total bar
+  return {
+    labels: months.map(m => m.label),
+    datasets: [{
+      label: 'Umsatz (€)',
+      data: months.map(({ year, month }) => {
+        const entry = rawUmsatzTotal.value.find(d => d.year === year && d.month === month);
+        return entry ? entry.sum : 0;
+      }),
+      backgroundColor: 'var(--primary)',
+      borderRadius: 4,
+    }],
+  };
+});
+
+const umsatzChartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  onClick: (_evt, elements) => {
+    if (!elements.length) return;
+    const idx = elements[0].index;
+    const fromStr = indexToMonthStr(sliderRange.value[0]);
+    const toStr = indexToMonthStr(sliderRange.value[1]);
+    const months = buildMonthLabels(fromStr, toStr);
+    const entry = months[idx];
+    if (entry) openUmsatzDrill(entry.year, entry.month);
+  },
+  plugins: {
+    legend: { display: compareMode.value !== 'none' },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => {
+          const entry = rawUmsatzTotal.value[ctx.dataIndex];
+          const count = entry ? entry.count : '';
+          return `${ctx.dataset.label}: ${formatEuro(ctx.raw)} (${count} Rechnungen)`;
+        },
+      },
+    },
+  },
+  scales: {
+    x: { stacked: true, grid: { display: false } },
+    y: {
+      stacked: true,
+      ticks: {
+        callback: (v) => formatEuro(v),
+      },
+    },
+  },
+}));
+
+const umsatzPieChartData = computed(() => {
+  const MONTH_NAMES = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+
+  if (compareMode.value === 'standort') {
+    const totals = {};
+    rawUmsatzStandortBreakdown.value.forEach(b => {
+      if (!totals[b.geschSt]) totals[b.geschSt] = 0;
+      totals[b.geschSt] += b.sum || 0;
+    });
+    const entries = Object.entries(totals).sort(([, a], [, b]) => b - a);
+    return {
+      labels: entries.map(([g]) => STANDORT_LABELS[g] || `Standort ${g}`),
+      datasets: [{
+        data: entries.map(([, s]) => s),
+        backgroundColor: entries.map((_, i) => COLORS[i % COLORS.length]),
+      }],
+    };
+  }
+
+  if (compareMode.value === 'kunden' && selectedKundenNrs.value.length > 0) {
+    const totals = {};
+    rawUmsatzBreakdown.value.forEach(b => {
+      if (!totals[b.kundenNr]) totals[b.kundenNr] = 0;
+      totals[b.kundenNr] += b.sum || 0;
+    });
+    const entries = Object.entries(totals).sort(([, a], [, b]) => b - a);
+    return {
+      labels: entries.map(([nr]) => getKundeName(Number(nr))),
+      datasets: [{
+        data: entries.map(([, s]) => s),
+        backgroundColor: entries.map((_, i) => COLORS[i % COLORS.length]),
+      }],
+    };
+  }
+
+  // Monthly distribution
+  const entries = [...rawUmsatzTotal.value].sort((a, b) => b.sum - a.sum);
+  return {
+    labels: entries.map(e => `${MONTH_NAMES[e.month - 1]} ${e.year}`),
+    datasets: [{
+      data: entries.map(e => e.sum || 0),
+      backgroundColor: entries.map((_, i) => COLORS[i % COLORS.length]),
+    }],
+  };
+});
+
+const umsatzPieLargestSegment = computed(() => {
+  if (compareMode.value === 'standort') {
+    const totals = {};
+    rawUmsatzStandortBreakdown.value.forEach(b => {
+      if (!totals[b.geschSt]) totals[b.geschSt] = 0;
+      totals[b.geschSt] += b.sum || 0;
+    });
+    const entries = Object.entries(totals);
+    if (!entries.length) return '—';
+    const max = entries.reduce((a, b) => b[1] > a[1] ? b : a, entries[0]);
+    return STANDORT_LABELS[max[0]] || `Standort ${max[0]}`;
+  }
+  if (compareMode.value === 'kunden' && selectedKundenNrs.value.length > 0) {
+    const totals = {};
+    rawUmsatzBreakdown.value.forEach(b => {
+      if (!totals[b.kundenNr]) totals[b.kundenNr] = 0;
+      totals[b.kundenNr] += b.sum || 0;
+    });
+    const entries = Object.entries(totals).map(([nr, s]) => ({ nr: Number(nr), sum: s }));
+    if (!entries.length) return '—';
+    const max = entries.reduce((a, b) => b.sum > a.sum ? b : a, entries[0]);
+    return getKundeName(max.nr);
+  }
+  return '—';
+});
+
+const umsatzDrillChartData = computed(() => {
+  if (!umsatzDrillMonth.value) return { labels: [], datasets: [] };
+  const { year, month } = umsatzDrillMonth.value;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  if (!umsatzDrillKunden.value.length) {
+    return {
+      labels: days.map(d => `${d}.`),
+      datasets: [{
+        label: 'Umsatz (€)',
+        data: days.map(day => {
+          const m = umsatzDrillTotal.value.find(d => d.day === day);
+          return m ? m.sum : 0;
+        }),
+        backgroundColor: 'var(--primary)',
+        borderRadius: 4,
+      }],
+    };
+  }
+
+  const datasets = umsatzDrillKunden.value.map((k, idx) => ({
+    label: k.kundName || `Kunde ${k.kundenNr}`,
+    data: days.map(day => {
+      const m = (k.days || []).find(d => d.day === day);
+      return m ? m.sum : 0;
+    }),
+    backgroundColor: COLORS[idx % COLORS.length],
+    borderRadius: 4,
+    stack: 'stack',
+  }));
+
+  return { labels: days.map(d => `${d}.`), datasets };
+});
+
+const umsatzDrillOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: umsatzDrillKunden.value.length > 0 },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => `${ctx.dataset.label}: ${formatEuro(ctx.raw)}`,
+      },
+    },
+  },
+  scales: {
+    x: { stacked: true, grid: { display: false } },
+    y: { stacked: true, ticks: { callback: (v) => formatEuro(v) } },
+  },
+}));
+
 // Close dropdown on outside click
 function handleClickOutside(e) {
   if (dropdownRef.value && !dropdownRef.value.contains(e.target)) {
@@ -1773,8 +2196,16 @@ onBeforeUnmount(() => {
 .tab-navigation {
   display: flex;
   gap: 8px;
+  align-items: center;
   padding-bottom: 16px;
   border-bottom: 2px solid var(--border);
+}
+
+.tab-separator {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 4px;
 }
 
 .tab-content {
@@ -1814,6 +2245,29 @@ onBeforeUnmount(() => {
 .slider-group {
   flex: 1;
   min-width: 300px; /* Ensure enough space for the slider */
+}
+
+.slider-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.slider-reset-btn {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: color 0.15s;
+
+  &:hover {
+    color: var(--primary);
+  }
 }
 
 .control-group-wide {

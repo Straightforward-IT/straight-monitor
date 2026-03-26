@@ -57,7 +57,7 @@ router.delete('/:id', auth, asyncHandler(async (req, res) => {
   const kommentar = await DispoKommentar.findById(req.params.id);
   if (!kommentar) return res.status(404).json({ message: 'Kommentar nicht gefunden.' });
 
-  if (String(kommentar.authorId) !== String(req.user.id) && req.user.role !== 'ADMIN') {
+  if (String(kommentar.authorId) !== String(req.user.id)) {
     return res.status(403).json({ message: 'Keine Berechtigung.' });
   }
 

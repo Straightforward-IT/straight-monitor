@@ -42,7 +42,7 @@ import { useRouter } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useAuth } from '@/stores/auth';
 import { useDataCache } from '@/stores/dataCache';
-import api from '@/utils/api';
+import { useDispoKommentare } from '@/stores/dispoKommentare';
 import DashboardWidget from './DashboardWidget.vue';
 
 const LOCATIONS = [
@@ -56,13 +56,11 @@ const STANDORT_PREFIX = { Berlin: '1', Hamburg: '2', Köln: '3' };
 
 const auth = useAuth();
 const cache = useDataCache();
+const store = useDispoKommentare();
 const router = useRouter();
 
-const kommentare = ref([]);
-const fetchLoading = ref(true);
-
 const loading = computed(
-  () => fetchLoading.value || (cache.loading?.mitarbeiter && cache.mitarbeiter.length === 0)
+  () => store.loading || (cache.loading?.mitarbeiter && cache.mitarbeiter.length === 0)
 );
 
 // ── Standort filter — defaults to user's location ─────────────────────────
@@ -110,7 +108,7 @@ function getMaName(maId) {
 const unreadKommentare = computed(() => {
   const userId = String(auth.user?._id ?? '');
   if (!userId) return [];
-  return kommentare.value.filter((k) => {
+  return store.kommentare.filter((k) => {
     const isOwn = String(k.authorId) === userId;
     const isRead = (k.readBy ?? []).map(String).includes(userId);
     return !isOwn && !isRead;
@@ -167,21 +165,16 @@ function goToDispo(item) {
 
 // ── API ───────────────────────────────────────────────────────────────────
 async function fetchKommentare() {
-  fetchLoading.value = true;
-  try {
-    const today = new Date();
-    const von = new Date(today);
-    von.setDate(von.getDate() - 14);
-    const bis = new Date(today);
-    bis.setDate(bis.getDate() + 30);
-    const vonStr = von.toISOString().slice(0, 10);
-    const bisStr = bis.toISOString().slice(0, 10);
-    const { data } = await api.get(`/api/dispo-kommentare?von=${vonStr}&bis=${bisStr}`);
-    kommentare.value = data ?? [];
-  } catch {
-    kommentare.value = [];
-  } finally {
-    fetchLoading.value = false;
+  const today = new Date();
+  const von = new Date(today);
+  von.setDate(von.getDate() - 14);
+  const bis = new Date(today);
+  bis.setDate(bis.getDate() + 30);
+  const vonStr = von.toISOString().slice(0, 10);
+  const bisStr = bis.toISOString().slice(0, 10);
+  // Only fetch if the store doesn't have data yet or range is wider than current
+  if (!store.kommentare.length) {
+    await store.fetch(vonStr, bisStr);
   }
 }
 

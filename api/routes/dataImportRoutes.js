@@ -10,9 +10,12 @@ const Mitarbeiter = require('../models/Mitarbeiter');
 const Beruf = require('../models/Beruf');
 const Qualifikation = require('../models/Qualifikation');
 const ImportLog = require('../models/ImportLog');
+const Rechnung = require('../models/Rechnung');
+const User = require('../models/User');
 const logger = require('../utils/logger');
 const { sendMail } = require('../EmailService');
 const auth = require('../middleware/auth');
+const { encryptField } = require('../utils/encryption');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -660,8 +663,9 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       }
     }
 
-    let matched = 0, updated = 0, unchanged = 0, skipped = 0;
+    let matched = 0, updated = 0, unchanged = 0, skipped = 0, pnrUpdated = 0;
     const notFoundPnrs = [];
+    const pnrUpdatedList = [];
 
     const operations = [];
 
@@ -719,14 +723,30 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       return res.json({ success: true, message: 'Keine gültigen Zeilen gefunden.' });
     }
 
-    // Execute bulk updates (find by Personalnr)
+    // Execute bulk updates (find by Personalnr, Fallback per E-Mail)
     for (const op of operations) {
-      const ma = await Mitarbeiter.findOne({ personalnr: op.personalnr }).select('_id personalnr persgruppe_set_explicitly email additionalEmails').lean();
+      let ma = await Mitarbeiter.findOne({ personalnr: op.personalnr }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails').lean();
+      let pnrChanged = false;
+
       if (!ma) {
-        skipped++;
-        if (notFoundPnrs.length < 30) notFoundPnrs.push(op.personalnr);
-        continue;
+        // Fallback: suche per E-Mail aus der Excel-Zeile
+        const fallbackEmail = op.setFields.email;
+        if (fallbackEmail) {
+          ma = await Mitarbeiter.findOne({
+            $or: [{ email: fallbackEmail }, { additionalEmails: fallbackEmail }]
+          }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails').lean();
+          if (ma) {
+            pnrChanged = true;
+          }
+        }
+
+        if (!ma) {
+          skipped++;
+          if (notFoundPnrs.length < 30) notFoundPnrs.push(op.personalnr);
+          continue;
+        }
       }
+
       matched++;
       // Respektiere manuell gesetztes persgruppe
       if (ma.persgruppe_set_explicitly && op.setFields.persgruppe != null) {
@@ -746,16 +766,36 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         delete op.setFields.email; // nicht als Primary überschreiben
       }
 
+      // Personalnr-Korrektur: neue PNr setzen, alte in Historie schieben
+      if (pnrChanged) {
+        op.setFields.personalnr = op.personalnr;
+        pnrUpdated++;
+        if (pnrUpdatedList.length < 30) {
+          pnrUpdatedList.push({ alt: ma.personalnr || '(leer)', neu: op.personalnr, email: ma.email });
+        }
+      }
+
       const updateOps = { $set: op.setFields };
       if (addToAdditional.length > 0) {
         updateOps.$addToSet = { additionalEmails: { $each: addToAdditional } };
+      }
+      // Alte Personalnr in Historie schreiben (falls vorhanden und geändert)
+      if (pnrChanged && ma.personalnr) {
+        updateOps.$push = {
+          personalnrHistory: {
+            value: ma.personalnr,
+            updatedAt: new Date(),
+            updatedBy: req.user?.email || req.user?.id || 'import',
+            source: 'import'
+          }
+        };
       }
 
       const result = await Mitarbeiter.updateOne({ _id: ma._id }, updateOps);
       if (result.modifiedCount > 0) updated++; else unchanged++;
     }
 
-    const message = `${matched} Mitarbeiter aktualisiert, ${updated} geändert, ${unchanged} unverändert, ${skipped} Personalnr nicht gefunden.`;
+    const message = `${matched} Mitarbeiter aktualisiert, ${updated} geändert, ${unchanged} unverändert, ${skipped} nicht gefunden${pnrUpdated > 0 ? `, ${pnrUpdated} Personalnr korrigiert` : ''}.`;
     const responseData = {
       success: true,
       message,
@@ -766,6 +806,8 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         unchanged,
         notFound: skipped,
         notFoundPnrs: notFoundPnrs.length > 0 ? notFoundPnrs : undefined,
+        pnrUpdated,
+        pnrUpdatedList: pnrUpdatedList.length > 0 ? pnrUpdatedList : undefined,
       }
     };
 
@@ -789,8 +831,10 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             <li>Davon geändert: <strong>${updated}</strong></li>
             <li>Unverändert: <strong>${unchanged}</strong></li>
             <li>Nicht gefunden: <strong>${skipped}</strong></li>
+            ${pnrUpdated > 0 ? `<li>Personalnr per E-Mail korrigiert: <strong>${pnrUpdated}</strong></li>` : ''}
           </ul>
           ${notFoundHtml}
+          ${pnrUpdatedList.length > 0 ? `<h3>🔄 Personalnr korrigiert (${pnrUpdated}):</h3><ul>${pnrUpdatedList.map(p => `<li>${p.email}: <code>${p.alt}</code> → <code>${p.neu}</code></li>`).join('')}${pnrUpdated > pnrUpdatedList.length ? `<li>…und ${pnrUpdated - pnrUpdatedList.length} weitere</li>` : ''}</ul>` : ''}
         </div>`;
       await sendMail('it@straightforward.email', `Personal Import – ${timestamp}`, emailContent, 'it');
     } catch (emailError) {
@@ -1078,6 +1122,141 @@ router.get('/qualifikationen', async (req, res) => {
   } catch (error) {
     logger.error('GET Qualifikationen Error:', error);
     res.status(500).json({ success: false, message: 'Fehler beim Abrufen der Qualifikationen.', error: error.message });
+  }
+});
+
+// --- Rechnung Import (Liste 6001) — Admin only ---
+router.post('/rechnung', auth, extendTimeout, upload.single('file'), async (req, res) => {
+  try {
+    // Admin guard — JWT only carries user ID, so we must hit the DB
+    const caller = await User.findById(req.user.id).select('roles');
+    if (!caller || !caller.roles?.includes('ADMIN')) {
+      return res.status(403).json({ success: false, message: 'Nur Admins dürfen Rechnungen importieren.' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+
+    // Column index mapping (0-based), matching the SQL SELECT order:
+    // 0=Prüffeld(6001), 1=KOSTENST, 2=RECHART, 3=RECHSTATUS,
+    // 4=KUNDENNR, 5=AUFTRAGNR,
+    // 6=RECHNDATUM, 7=BUCHDATUM,
+    // 8=NATCODE,
+    // 9=DNETTO, 10=DMWST, 11=DBRUTTO,
+    // 12=EURNETTO, 13=EURMWST, 14=EURBRUTTO,
+    // 15=NETTO, 16=MWST, 17=BRUTTO,
+    // 18=DEBITORKTO, 19=RECHALTNR, 20=RECHTEXT,
+    // 21=LFDLEISTNR, 22=RECHNUNGNR
+
+    const docs = [];
+    let minDate = null;
+    let maxDate = null;
+    const seenRechnungNr = new Set();
+
+    for (const row of rawData) {
+      if (!row || row.length < 8) continue;
+
+      // Validate Prüffeld
+      const prueffeld = parseInt(row[0], 10);
+      if (prueffeld !== 6001) continue;
+
+      // Parse BUCHDATUM — xlsx cellDates:true returns Date objects when raw:false is NOT set
+      // With dateNF + raw:false it returns formatted strings; parse robustly:
+      const buchDatumRaw = row[7];
+      let buchDatum = null;
+      if (buchDatumRaw instanceof Date) {
+        buchDatum = buchDatumRaw;
+      } else if (buchDatumRaw) {
+        // Handle 'DD.MM.YYYY' or 'YYYY-MM-DD' coming from dateNF formatting
+        const str = String(buchDatumRaw).trim();
+        const deDe = str.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+        if (deDe) {
+          buchDatum = new Date(`${deDe[3]}-${deDe[2]}-${deDe[1]}T00:00:00Z`);
+        } else {
+          buchDatum = new Date(str);
+        }
+      }
+      if (!buchDatum || isNaN(buchDatum.getTime())) continue;
+
+      // Track date range for selective delete
+      if (!minDate || buchDatum < minDate) minDate = new Date(buchDatum);
+      if (!maxDate || buchDatum > maxDate) maxDate = new Date(buchDatum);
+
+      const rechnungNr = row[22] !== undefined && row[22] !== null && row[22] !== ''
+        ? String(row[22]).trim() : null;
+
+      // Skip duplicates within the same file (keep first occurrence)
+      if (rechnungNr && seenRechnungNr.has(rechnungNr)) continue;
+      if (rechnungNr) seenRechnungNr.add(rechnungNr);
+
+      docs.push({
+        // Plaintext
+        buchDatum,
+        kundenNr:   row[4] !== undefined ? Number(row[4]) : null,
+        auftragNr:  row[5] !== undefined ? Number(row[5]) : null,
+        rechnungNr,
+
+        // Encrypted
+        kostenSt:   encryptField(row[1]),
+        rechArt:    encryptField(row[2]),
+        rechStatus: encryptField(row[3]),
+        rechnDatum: encryptField(row[6]),
+        natCode:    encryptField(row[8]),
+        dNetto:     encryptField(row[9]),
+        dMwst:      encryptField(row[10]),
+        dBrutto:    encryptField(row[11]),
+        eurNetto:   encryptField(row[12]),
+        eurMwst:    encryptField(row[13]),
+        eurBrutto:  encryptField(row[14]),
+        netto:      encryptField(row[15]),
+        mwst:       encryptField(row[16]),
+        brutto:     encryptField(row[17]),
+        debitorKto: encryptField(row[18]),
+        rechAltNr:  encryptField(row[19]),
+        rechText:   encryptField(row[20]),
+        lfdLeistNr: encryptField(row[21]),
+      });
+    }
+
+    if (docs.length === 0) {
+      return res.json({
+        success: false,
+        message: 'Keine gültigen Rechnungsdaten gefunden. Prüffeld (Spalte A) muss 6001 enthalten und BUCHDATUM (Spalte H) muss gesetzt sein.'
+      });
+    }
+
+    // Delete all existing records within the uploaded date range, then insert fresh
+    const deleteResult = await Rechnung.deleteMany({
+      buchDatum: { $gte: minDate, $lte: maxDate }
+    });
+
+    const insertResult = await Rechnung.insertMany(docs, { ordered: false });
+
+    const stats = {
+      deleted: deleteResult.deletedCount,
+      inserted: insertResult.length,
+      dateRange: {
+        from: minDate.toISOString().split('T')[0],
+        to:   maxDate.toISOString().split('T')[0]
+      }
+    };
+
+    const message = `Rechnungen importiert: ${stats.inserted} Einträge (${stats.dateRange.from} – ${stats.dateRange.to}), ${stats.deleted} vorherige ersetzt.`;
+
+    await logImport('rechnung', req.file.originalname, 'success', stats.inserted, stats, req.user?.id);
+    logger.info(`[Import Rechnung] ${message} by user ${req.user?.id}`);
+
+    res.json({ success: true, message, details: stats });
+
+  } catch (error) {
+    logger.error('[Import Rechnung] Error:', error);
+    await logImport('rechnung', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Rechnungen.', error: error.message });
   }
 });
 

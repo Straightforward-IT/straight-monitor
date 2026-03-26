@@ -10,7 +10,7 @@
     <div class="last-import-section">
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'beruf', 'qualifikation'] : ['einsatz-komplett', 'personal'])" :key="type" class="history-card">
+        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'beruf', 'qualifikation', 'rechnung'] : ['einsatz-komplett', 'personal'])" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -206,6 +206,63 @@
       </div>
     </div><!-- End System -->
 
+    <!-- Finanzen Bereich (nur für Admins) -->
+    <div v-if="isAdmin" class="import-section">
+      <div class="import-section-header">
+        <i class="fas fa-file-invoice-dollar"></i>
+        <h2>Finanzen</h2>
+      </div>
+      <div class="imports-layout">
+
+        <!-- Rechnungen Import -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Rechnungen (Liste 6001)</h2>
+              <p class="subtitle">Rechnungsdaten aus L1 — vertraulich, verschlüsselt gespeichert</p>
+            </div>
+            <span v-if="rechnungFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area"
+              :class="{ 'has-file': rechnungFile }"
+              @dragover.prevent
+              @drop="(e) => handleDragAndDrop(e, 'rechnung')"
+              @click="triggerFileInput('rechnung-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="rechnungFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!rechnungFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ rechnungFile.name }}</span>
+                </div>
+              </div>
+              <input id="rechnung-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'rechnung')" accept=".xlsx, .xls" />
+            </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Erwartete SQL-Export Struktur</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody>
+                    <tr><td>A – Prüffeld (6001)</td><td colspan="2">Muss in jeder Zeile 6001 enthalten</td></tr>
+                    <tr><td>B – KOSTENST</td><td>C – RECHART</td><td>D – RECHSTATUS</td></tr>
+                    <tr><td>E – KUNDENNR</td><td>F – AUFTRAGNR</td><td></td></tr>
+                    <tr><td>G – RECHNDATUM</td><td>H – BUCHDATUM</td><td>I – NATCODE</td></tr>
+                    <tr><td>J – DNETTO</td><td>K – DMWST</td><td>L – DBRUTTO</td></tr>
+                    <tr><td>M – EURNETTO</td><td>N – EURMWST</td><td>O – EURBRUTTO</td></tr>
+                    <tr><td>P – NETTO</td><td>Q – MWST</td><td>R – BRUTTO</td></tr>
+                    <tr><td>S – DEBITORKTO</td><td>T – RECHALTNR</td><td>U – RECHTEXT</td></tr>
+                    <tr><td>V – LFDLEISTNR</td><td>W – RECHNUNGNR</td><td></td></tr>
+                  </tbody></table>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- End Finanzen -->
+
     <div class="actions-bar">
       <button class="primary-btn large" @click="processFiles" :disabled="!hasAnyFile() || loading">
         <span v-if="loading"><i class="fas fa-spinner fa-spin"></i> Import läuft...</span>
@@ -325,6 +382,10 @@
               <span class="stat-value">{{ resultModalData.details.notFound }}</span>
               <span class="stat-label">Nicht gefunden</span>
             </div>
+            <div class="stat-item warning" v-if="resultModalData.details.pnrUpdated > 0">
+              <span class="stat-value">{{ resultModalData.details.pnrUpdated }}</span>
+              <span class="stat-label">PNr korrigiert</span>
+            </div>
           </div>
 
           <!-- Conflicts Section -->
@@ -335,6 +396,18 @@
                 <strong>Personalnr {{ conflict.personalnr }}</strong>
                 <p>{{ conflict.name }} ({{ conflict.email }})</p>
                 <p class="conflict-with">↳ Bereits vergeben an: {{ conflict.conflictWith.name }} ({{ conflict.conflictWith.email }})</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- PNr Updated Section -->
+          <div v-if="resultModalData.details?.pnrUpdatedList?.length > 0" class="section pnr-updated-section">
+            <h3>🔄 Personalnr korrigiert (per E-Mail-Fallback)</h3>
+            <p class="section-hint">Diese Mitarbeiter wurden per E-Mail gefunden. Ihre Personalnr wurde aktualisiert, die alte in die Historie übernommen.</p>
+            <div class="notfound-list">
+              <div v-for="(entry, idx) in resultModalData.details.pnrUpdatedList" :key="idx" class="pnr-updated-item">
+                <span class="pnr-email">{{ entry.email }}</span>
+                <span class="pnr-change"><code>{{ entry.alt }}</code> → <code>{{ entry.neu }}</code></span>
               </div>
             </div>
           </div>
@@ -430,6 +503,7 @@ export default {
       personalFile: null,
       berufFile: null,
       qualifikationFile: null,
+      rechnungFile: null,
       loading: false,
       // Modal state
       showResultModal: false,
@@ -466,6 +540,7 @@ export default {
         personal: 'Personal',
         beruf: 'Berufe',
         qualifikation: 'Qualifikationen',
+        rechnung: 'Rechnungen',
       };
       return labels[type] || type;
     },
@@ -495,7 +570,7 @@ export default {
     },
     async setFile(file, type) {
       // Validate Prüffeld for einsatz/personal imports
-      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : null;
+      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : type === 'rechnung' ? 6001 : null;
       if (expectedCode) {
         const valid = await this.validatePrueffeld(file, expectedCode);
         if (!valid) return;
@@ -504,6 +579,7 @@ export default {
       if (type === 'personal') this.personalFile = file;
       if (type === 'beruf') this.berufFile = file;
       if (type === 'qualifikation') this.qualifikationFile = file;
+      if (type === 'rechnung') this.rechnungFile = file;
     },
     validatePrueffeld(file, expectedCode) {
       return new Promise((resolve) => {
@@ -543,7 +619,7 @@ export default {
         return;
       }
 
-      const adminFiles = this.isAdmin ? [this.berufFile, this.qualifikationFile] : [];
+      const adminFiles = this.isAdmin ? [this.berufFile, this.qualifikationFile, this.rechnungFile] : [];
       const fileCount = [this.einsatzFile, this.personalFile, ...adminFiles].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
@@ -574,6 +650,12 @@ export default {
         if (this.qualifikationFile && this.isAdmin) {
           const response = await this.uploadFile(this.qualifikationFile, 'qualifikation');
           results.push({ type: 'Qualifikationen', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.rechnungFile && this.isAdmin) {
+          const response = await this.uploadFile(this.rechnungFile, 'rechnung');
+          results.push({ type: 'Rechnungen', ...response });
           if (!response.success) hasErrors = true;
         }
 
@@ -623,7 +705,8 @@ export default {
 
       let combinedArrays = {
         notFoundEntries: [],
-        conflictDetails: []
+        conflictDetails: [],
+        pnrUpdatedList: []
       };
       
       results.forEach(result => {
@@ -650,6 +733,9 @@ export default {
           if (result.details.conflictDetails && Array.isArray(result.details.conflictDetails)) {
             combinedArrays.conflictDetails.push(...result.details.conflictDetails);
           }
+          if (result.details.pnrUpdatedList && Array.isArray(result.details.pnrUpdatedList)) {
+            combinedArrays.pnrUpdatedList.push(...result.details.pnrUpdatedList);
+          }
         }
       });
       
@@ -660,7 +746,8 @@ export default {
           ...totalStats,
           ...nestedStats, // Include specific sub-objects (auftrag, kunde, einsatz)
           notFoundEntries: combinedArrays.notFoundEntries,
-          conflictDetails: combinedArrays.conflictDetails
+          conflictDetails: combinedArrays.conflictDetails,
+          pnrUpdatedList: combinedArrays.pnrUpdatedList
         }
       };
     },
@@ -768,10 +855,11 @@ export default {
       this.personalFile = null;
       this.berufFile = null;
       this.qualifikationFile = null;
+      this.rechnungFile = null;
       this.fetchLastUploads();
     },
     hasAnyFile() {
-      const adminFiles = this.isAdmin ? (this.berufFile || this.qualifikationFile) : false;
+      const adminFiles = this.isAdmin ? (this.berufFile || this.qualifikationFile || this.rechnungFile) : false;
       return this.einsatzFile || this.personalFile || adminFiles;
     },
 
@@ -1343,6 +1431,37 @@ export default {
 
 .notfound-section {
   border-color: #3b82f6;
+}
+
+.pnr-updated-section {
+  border-color: #f59e0b;
+}
+
+.pnr-updated-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--tile-bg);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+
+  .pnr-email {
+    flex: 1;
+    font-family: monospace;
+    color: var(--text);
+  }
+
+  .pnr-change {
+    color: var(--text-muted);
+    code {
+      background: var(--panel);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+  }
 }
 
 .notfound-item {
