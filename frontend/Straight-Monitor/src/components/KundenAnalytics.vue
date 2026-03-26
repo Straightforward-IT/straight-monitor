@@ -185,7 +185,7 @@
         <p>Keine Rechnungsdaten im gewählten Zeitraum</p>
       </div>
 
-      <Bar v-else :data="umsatzChartData" :options="umsatzChartOptions" :key="'ubar-' + chartKey" />
+      <Bar v-else :data="umsatzChartData" :options="umsatzChartOptions" :plugins="umsatzMonthChartPlugins" :key="'ubar-' + chartKey" />
     </div>
 
     <!-- Summary: Positionen -->
@@ -973,6 +973,10 @@ const peakMonth = computed(() => {
 });
 
 const monthChartPlugins = computed(() => {
+  return showMonthComparison.value ? [sameMonthPlugin] : [];
+});
+
+const umsatzMonthChartPlugins = computed(() => {
   return showMonthComparison.value ? [sameMonthPlugin] : [];
 });
 
