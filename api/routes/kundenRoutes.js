@@ -771,7 +771,7 @@ router.get('/analytics/rechnungen', auth, asyncHandler(async (req, res) => {
     if (bis) match.buchDatum.$lte = new Date(bis);
   }
 
-  const docs = await Rechnung.find(match).select('kundenNr buchDatum rechnDatum eurNetto').lean();
+  const docs = await Rechnung.find(match).select('kundenNr buchDatum eurNetto').lean();
 
   // Build parent-mapping for breakdown (child knr → parent knr)
   const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } })
@@ -786,10 +786,9 @@ router.get('/analytics/rechnungen', auth, asyncHandler(async (req, res) => {
 
   for (const doc of docs) {
     const val = parseFloat((decryptField(doc.eurNetto) || '').replace(/,/g, '')) || 0;
-    const dt = parseRechnDatum(decryptField(doc.rechnDatum));
-    if (!dt) continue;
-    const year  = dt.getFullYear();
-    const month = dt.getMonth() + 1;
+    if (!doc.buchDatum) continue;
+    const year  = doc.buchDatum.getFullYear();
+    const month = doc.buchDatum.getMonth() + 1;
 
     const tKey = `${year}-${month}`;
     if (!totalMap[tKey]) totalMap[tKey] = { year, month, sum: 0, count: 0 };
@@ -836,17 +835,16 @@ router.get('/analytics/rechnungen/standort', auth, asyncHandler(async (req, res)
     if (bis) match.buchDatum.$lte = new Date(bis);
   }
 
-  const docs = await Rechnung.find(match).select('kundenNr buchDatum rechnDatum eurNetto').lean();
+  const docs = await Rechnung.find(match).select('kundenNr buchDatum eurNetto').lean();
 
   const totalMap = {};   // 'year-month'
   const stMap    = {};   // 'geschSt-year-month'
 
   for (const doc of docs) {
     const val = parseFloat((decryptField(doc.eurNetto) || '').replace(/,/g, '')) || 0;
-    const dt = parseRechnDatum(decryptField(doc.rechnDatum));
-    if (!dt) continue;
-    const year    = dt.getFullYear();
-    const month   = dt.getMonth() + 1;
+    if (!doc.buchDatum) continue;
+    const year    = doc.buchDatum.getFullYear();
+    const month   = doc.buchDatum.getMonth() + 1;
     const geschSt = nrToGeschSt[doc.kundenNr] || 'unbekannt';
 
     const tKey = `${year}-${month}`;
@@ -894,24 +892,18 @@ router.get('/analytics/rechnungen/daily', auth, asyncHandler(async (req, res) =>
     nameMap[effNr] = nameMap[effNr] || (k.parentKunde ? k.parentKunde.kundName : k.kundName) || `#${effNr}`;
   });
 
-  // Fetch with a 1-month buffer on buchDatum, then filter precisely by rechnDatum in JS
-  const vonBuf = new Date(y, m - 2, 1);  // 1 month before
-  const bisBuf = new Date(y, m + 1, 0);  // 1 month after
   const docs = await Rechnung.find({
     kundenNr: { $in: kundenNrs },
-    buchDatum: { $gte: vonBuf, $lte: bisBuf }
-  }).select('kundenNr buchDatum rechnDatum eurNetto').lean();
+    buchDatum: { $gte: von, $lte: bis }
+  }).select('kundenNr buchDatum eurNetto').lean();
 
   const totalMap = {};   // day → { sum, count }
   const bdownMap = {};   // 'effNr-day' → { kundenNr, kundName, day, sum, count }
 
   for (const doc of docs) {
     const val = parseFloat((decryptField(doc.eurNetto) || '').replace(/,/g, '')) || 0;
-    const dt = parseRechnDatum(decryptField(doc.rechnDatum));
-    if (!dt) continue;
-    // Only include records whose rechnDatum is in the requested year/month
-    if (dt.getFullYear() !== y || dt.getMonth() + 1 !== m) continue;
-    const day   = dt.getDate();
+    if (!doc.buchDatum) continue;
+    const day   = doc.buchDatum.getDate();
     const effNr = nrMap[doc.kundenNr] ?? doc.kundenNr;
 
     if (!totalMap[day]) totalMap[day] = { day, sum: 0, count: 0 };

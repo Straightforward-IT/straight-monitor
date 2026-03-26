@@ -10,10 +10,10 @@
         <font-awesome-icon :icon="['fas', 'chart-pie']" class="tab-icon" /> Kuchen
       </FilterChip>
       <div class="tab-separator"></div>
-      <FilterChip :active="analyticsMode === 'positionen'" @click="analyticsMode = 'positionen'; drillMonth = null; umsatzDrillMonth = null; fetchData()">
+      <FilterChip :active="analyticsMode === 'positionen'" @click="analyticsMode = 'positionen'; drillMonth = null; fetchData()">
         <font-awesome-icon :icon="['fas', 'hashtag']" class="tab-icon" /> Positionen
       </FilterChip>
-      <FilterChip :active="analyticsMode === 'umsatz'" @click="analyticsMode = 'umsatz'; drillMonth = null; umsatzDrillMonth = null; fetchData()">
+      <FilterChip :active="analyticsMode === 'umsatz'" @click="analyticsMode = 'umsatz'; drillMonth = null; fetchData()">
         <font-awesome-icon :icon="['fas', 'euro-sign']" class="tab-icon" /> Umsatz
       </FilterChip>
     </div>
@@ -175,30 +175,16 @@
 
     <!-- Chart Area: Umsatz -->
     <div v-if="analyticsMode === 'umsatz'" class="chart-wrapper">
-      <div v-if="umsatzDrillMonth" class="drill-header">
-        <button class="back-btn" @click="closeDrill">
-          <font-awesome-icon :icon="['fas', 'arrow-left']" />
-          Zurück zur Monatsübersicht
-        </button>
-        <span class="drill-title">{{ umsatzDrillMonth ? `${['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'][umsatzDrillMonth.month - 1]} ${umsatzDrillMonth.year}` : '' }}</span>
-      </div>
-
       <div v-if="loading" class="empty-state">
         <font-awesome-icon :icon="['fas', 'spinner']" spin class="empty-icon" />
         <p>Daten werden geladen…</p>
       </div>
 
-      <div v-else-if="umsatzDrillMonth && !umsatzHasDrillData" class="empty-state">
-        <font-awesome-icon :icon="['fas', 'chart-bar']" class="empty-icon" />
-        <p>Keine Rechnungen in diesem Monat</p>
-      </div>
-
-      <div v-else-if="!umsatzDrillMonth && !umsatzHasData" class="empty-state">
+      <div v-else-if="!umsatzHasData" class="empty-state">
         <font-awesome-icon :icon="['fas', 'chart-bar']" class="empty-icon" />
         <p>Keine Rechnungsdaten im gewählten Zeitraum</p>
       </div>
 
-      <Bar v-else-if="umsatzDrillMonth" :data="umsatzDrillChartData" :options="umsatzDrillOptions" :key="'udrill-' + chartKey" />
       <Bar v-else :data="umsatzChartData" :options="umsatzChartOptions" :key="'ubar-' + chartKey" />
     </div>
 
@@ -219,7 +205,7 @@
     </div>
 
     <!-- Summary: Umsatz -->
-    <div v-if="analyticsMode === 'umsatz' && !umsatzDrillMonth && umsatzHasData" class="summary-row">
+    <div v-if="analyticsMode === 'umsatz' && umsatzHasData" class="summary-row">
       <div class="summary-card">
         <span class="summary-value">{{ formatEuro(umsatzTotalSum) }}</span>
         <span class="summary-label">Umsatz gesamt</span>
@@ -801,7 +787,6 @@ const excludeStraightforward = ref(true);
 const rawUmsatzTotal = ref([]);
 const rawUmsatzBreakdown = ref([]);
 const rawUmsatzStandortBreakdown = ref([]);
-const umsatzDrillMonth = ref(null);       // { year, month } | null
 const umsatzDrillTotal = ref([]);         // [{ day, sum, count }]
 const umsatzDrillKunden = ref([]);        // [{ kundenNr, kundName, days, total }]
 
@@ -869,7 +854,6 @@ watch(activeTab, (newTab) => {
 // Reset analytics mode drills when switching mode
 watch(analyticsMode, () => {
   drillMonth.value = null;
-  umsatzDrillMonth.value = null;
   previousSliderRange.value = null;
   fetchData();
 });
@@ -1528,44 +1512,6 @@ function closeDrill() {
   drillMonth.value = null;
   drillTotal.value = [];
   drillAuftraege.value = [];
-  umsatzDrillMonth.value = null;
-  umsatzDrillTotal.value = [];
-  umsatzDrillKunden.value = [];
-}
-
-// --- Umsatz Drill-down ---
-
-async function openUmsatzDrill(year, month) {
-  if (!previousSliderRange.value) {
-    previousSliderRange.value = [...sliderRange.value];
-    const monthIndex = (year - startDate.getFullYear()) * 12 + (month - 1);
-    const targetIdx = Math.min(Math.max(0, monthIndex), totalMonths);
-    sliderRange.value = [targetIdx, targetIdx];
-  }
-
-  umsatzDrillMonth.value = { year, month };
-  loading.value = true;
-  umsatzDrillTotal.value = [];
-  umsatzDrillKunden.value = [];
-
-  try {
-    const params = { year, month };
-    if (selectedGeschSt.value) params.geschSt = selectedGeschSt.value;
-    if (selectedKundenNrs.value.length > 0) {
-      params.kundenNr = selectedKundenNrs.value.join(',');
-    } else if (excludeStraightforward.value && nonSFKundenNrs.value.length > 0) {
-      params.kundenNr = nonSFKundenNrs.value.join(',');
-    }
-
-    const { data } = await api.get('/api/kunden/analytics/rechnungen/daily', { params });
-    umsatzDrillTotal.value = data.data || [];
-    umsatzDrillKunden.value = data.kundenBreakdown || [];
-    chartKey.value++;
-  } catch (err) {
-    console.error('Umsatz daily drill-down fetch error:', err);
-  } finally {
-    loading.value = false;
-  }
 }
 
 // --- Drill-down Chart Data ---
@@ -1892,7 +1838,6 @@ function formatEuro(val) {
 }
 
 const umsatzHasData = computed(() => rawUmsatzTotal.value.length > 0);
-const umsatzHasDrillData = computed(() => umsatzDrillTotal.value.length > 0);
 
 const umsatzTotalSum = computed(() =>
   rawUmsatzTotal.value.reduce((s, d) => s + (d.sum || 0), 0)
@@ -1960,7 +1905,18 @@ const umsatzChartData = computed(() => {
     return { labels: months.map(m => m.label), datasets };
   }
 
-  // Single total bar
+  // Single total bar — color by YoY when Monatsvergleich is active
+  const yoyColors = months.map(({ year, month }) => {
+    const cur  = rawUmsatzTotal.value.find(d => d.year === year     && d.month === month);
+    const prev = rawUmsatzTotal.value.find(d => d.year === year - 1 && d.month === month);
+    if (showMonthComparison.value && cur && prev && prev.sum > 0) {
+      return cur.sum >= prev.sum
+        ? 'rgba(100, 185, 100, 0.85)'   // green — better than last year
+        : 'rgba(220, 80, 80, 0.85)';    // red   — worse than last year
+    }
+    return 'var(--primary)';
+  });
+
   return {
     labels: months.map(m => m.label),
     datasets: [{
@@ -1969,7 +1925,7 @@ const umsatzChartData = computed(() => {
         const entry = rawUmsatzTotal.value.find(d => d.year === year && d.month === month);
         return entry ? entry.sum : 0;
       }),
-      backgroundColor: 'var(--primary)',
+      backgroundColor: yoyColors,
       borderRadius: 4,
     }],
   };
@@ -1978,23 +1934,29 @@ const umsatzChartData = computed(() => {
 const umsatzChartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
-  onClick: (_evt, elements) => {
-    if (!elements.length) return;
-    const idx = elements[0].index;
-    const fromStr = indexToMonthStr(sliderRange.value[0]);
-    const toStr = indexToMonthStr(sliderRange.value[1]);
-    const months = buildMonthLabels(fromStr, toStr);
-    const entry = months[idx];
-    if (entry) openUmsatzDrill(entry.year, entry.month);
-  },
   plugins: {
     legend: { display: compareMode.value !== 'none' },
     tooltip: {
       callbacks: {
         label: (ctx) => {
-          const entry = rawUmsatzTotal.value[ctx.dataIndex];
-          const count = entry ? entry.count : '';
-          return `${ctx.dataset.label}: ${formatEuro(ctx.raw)} (${count} Rechnungen)`;
+          const fromStr = indexToMonthStr(sliderRange.value[0]);
+          const toStr   = indexToMonthStr(sliderRange.value[1]);
+          const months  = buildMonthLabels(fromStr, toStr);
+          const m       = months[ctx.dataIndex];
+          const entry   = m ? rawUmsatzTotal.value.find(d => d.year === m.year && d.month === m.month) : null;
+          const count   = entry ? entry.count : '';
+          let label = `${ctx.dataset.label}: ${formatEuro(ctx.raw)} (${count} Rechnungen)`;
+
+          if (showMonthComparison.value && m) {
+            const prev = rawUmsatzTotal.value.find(d => d.year === m.year - 1 && d.month === m.month);
+            if (prev && prev.sum > 0) {
+              const diff  = ctx.raw - prev.sum;
+              const pct   = ((diff / prev.sum) * 100).toFixed(1);
+              const sign  = diff >= 0 ? '+' : '';
+              label += `  |  VJ: ${formatEuro(prev.sum)} (${sign}${pct}%)`;
+            }
+          }
+          return label;
         },
       },
     },
@@ -2081,58 +2043,6 @@ const umsatzPieLargestSegment = computed(() => {
   }
   return '—';
 });
-
-const umsatzDrillChartData = computed(() => {
-  if (!umsatzDrillMonth.value) return { labels: [], datasets: [] };
-  const { year, month } = umsatzDrillMonth.value;
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-
-  if (!umsatzDrillKunden.value.length) {
-    return {
-      labels: days.map(d => `${d}.`),
-      datasets: [{
-        label: 'Umsatz (€)',
-        data: days.map(day => {
-          const m = umsatzDrillTotal.value.find(d => d.day === day);
-          return m ? m.sum : 0;
-        }),
-        backgroundColor: 'var(--primary)',
-        borderRadius: 4,
-      }],
-    };
-  }
-
-  const datasets = umsatzDrillKunden.value.map((k, idx) => ({
-    label: k.kundName || `Kunde ${k.kundenNr}`,
-    data: days.map(day => {
-      const m = (k.days || []).find(d => d.day === day);
-      return m ? m.sum : 0;
-    }),
-    backgroundColor: COLORS[idx % COLORS.length],
-    borderRadius: 4,
-    stack: 'stack',
-  }));
-
-  return { labels: days.map(d => `${d}.`), datasets };
-});
-
-const umsatzDrillOptions = computed(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: { display: umsatzDrillKunden.value.length > 0 },
-    tooltip: {
-      callbacks: {
-        label: (ctx) => `${ctx.dataset.label}: ${formatEuro(ctx.raw)}`,
-      },
-    },
-  },
-  scales: {
-    x: { stacked: true, grid: { display: false } },
-    y: { stacked: true, ticks: { callback: (v) => formatEuro(v) } },
-  },
-}));
 
 // Close dropdown on outside click
 function handleClickOutside(e) {
