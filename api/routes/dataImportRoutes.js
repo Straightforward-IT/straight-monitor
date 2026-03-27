@@ -728,8 +728,28 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       return res.json({ success: true, message: 'Keine gültigen Zeilen gefunden.' });
     }
 
-    // Execute bulk updates (find by Personalnr, Fallback per E-Mail)
+    // Deduplizierung: Wenn dieselbe E-Mail mehrfach vorkommt und eine Zeile
+    // hat Persstatus 6, die andere nicht → Persstatus-6-Zeile ignorieren.
+    const emailOccurrences = new Map(); // email → [op, ...]
     for (const op of operations) {
+      const email = op.setFields.email;
+      if (!email) continue;
+      if (!emailOccurrences.has(email)) emailOccurrences.set(email, []);
+      emailOccurrences.get(email).push(op);
+    }
+    const filteredOperations = operations.filter(op => {
+      const email = op.setFields.email;
+      if (!email) return true;
+      const group = emailOccurrences.get(email);
+      if (group.length <= 1) return true;
+      // Wenn es in der Gruppe mindestens eine Zeile ohne Persstatus 6 gibt,
+      // dann Persstatus-6-Zeilen aus der Gruppe herausfiltern
+      const hasNonExited = group.some(o => o.persstatus !== 6);
+      return !(hasNonExited && op.persstatus === 6);
+    });
+
+    // Execute bulk updates (find by Personalnr, Fallback per E-Mail)
+    for (const op of filteredOperations) {
       let ma = await Mitarbeiter.findOne({ personalnr: op.personalnr }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
       let pnrChanged = false;
 
