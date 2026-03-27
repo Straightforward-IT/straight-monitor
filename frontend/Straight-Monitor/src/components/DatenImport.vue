@@ -110,7 +110,7 @@
                 <summary>Benötigte Spalten anzeigen</summary>
                 <div class="table-scroll">
                   <table class="req-table"><tbody>
-                    <tr><td>A – Prüffeld (7002)</td><td>B – Personalnr</td><td>C – ignoriert</td></tr>
+                    <tr><td>A – Prüffeld (7002)</td><td>B – Personalnr</td><td>C – Persstatus (6=Ausgetreten)</td></tr>
                     <tr><td>D – Austrittsdatum</td><td>E – Berufsschlüssel (kommasep.)</td><td>F – Qualischlüssel (kommasep.)</td></tr>
                     <tr><td>G – Personengruppe</td><td>H – E-Mail</td><td>I – Telefon</td></tr>
                   </tbody></table>
@@ -385,6 +385,10 @@
             <div class="stat-item warning" v-if="resultModalData.details.pnrUpdated > 0">
               <span class="stat-value">{{ resultModalData.details.pnrUpdated }}</span>
               <span class="stat-label">PNr korrigiert</span>
+            </div>
+            <div class="stat-item warning" v-if="resultModalData.details.deactivated > 0">
+              <span class="stat-value">{{ resultModalData.details.deactivated }}</span>
+              <span class="stat-label">Deaktiviert</span>
             </div>
           </div>
 

@@ -16,6 +16,8 @@ const logger = require('../utils/logger');
 const { sendMail } = require('../EmailService');
 const auth = require('../middleware/auth');
 const { encryptField } = require('../utils/encryption');
+const { deleteManyFlipUsers } = require('../FlipService');
+const { completeTaskById } = require('../AsanaService');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -624,8 +626,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
   }
 });
 
-// --- Personal Import (kombiniert: Personalnr, Austrittsdatum, Beruf/Quali, Persgruppe, Email, Telefon) ---
-// Spalten (mit Prüffeld): A=Prüffeld(7002), B=Personalnr, C=ignoriert, D=Austrittsdatum, E=Berufsschlüssel(komma), F=Qualischlüssel(komma), G=Persgruppe, H=Email, I=Telefon
+// --- Personal Import (kombiniert: Personalnr, Persstatus, Austrittsdatum, Beruf/Quali, Persgruppe, Email, Telefon) ---
+// Spalten (mit Prüffeld): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Austrittsdatum, E=Berufsschlüssel(komma), F=Qualischlüssel(komma), G=Persgruppe, H=Email, I=Telefon
 // Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 router.post('/personal', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
@@ -663,7 +665,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       }
     }
 
-    let matched = 0, updated = 0, unchanged = 0, skipped = 0, pnrUpdated = 0;
+    let matched = 0, updated = 0, unchanged = 0, skipped = 0, pnrUpdated = 0, deactivated = 0;
     const notFoundPnrs = [];
     const pnrUpdatedList = [];
 
@@ -676,7 +678,10 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       const personalnr = row[0 + colOffset] != null ? String(row[0 + colOffset]).trim() : null;
       if (!personalnr) continue;
 
-      // Col C (index 2): Austrittsdatum
+      // Col C (index 1): Persstatus — 6 = Ausgetreten (nur bei 7002-Format mit colOffset=1 relevant)
+      const persstatus = colOffset === 1 && row[1 + colOffset] != null ? parseInt(row[1 + colOffset], 10) : null;
+
+      // Col D (index 2): Austrittsdatum
       let austrittsdatum = null;
       if (row[2 + colOffset]) {
         const d = row[2 + colOffset] instanceof Date ? row[2 + colOffset] : new Date(row[2 + colOffset]);
@@ -716,7 +721,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       if (email) setFields.email = email;
       if (telefon) setFields.telefon = telefon;
 
-      operations.push({ personalnr, setFields });
+      operations.push({ personalnr, persstatus, setFields });
     }
 
     if (operations.length === 0) {
@@ -725,7 +730,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
 
     // Execute bulk updates (find by Personalnr, Fallback per E-Mail)
     for (const op of operations) {
-      let ma = await Mitarbeiter.findOne({ personalnr: op.personalnr }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails').lean();
+      let ma = await Mitarbeiter.findOne({ personalnr: op.personalnr }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
       let pnrChanged = false;
 
       if (!ma) {
@@ -734,7 +739,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         if (fallbackEmail) {
           ma = await Mitarbeiter.findOne({
             $or: [{ email: fallbackEmail }, { additionalEmails: fallbackEmail }]
-          }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails').lean();
+          }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
           if (ma) {
             pnrChanged = true;
           }
@@ -748,6 +753,28 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       }
 
       matched++;
+
+      // Persstatus 6 = Ausgetreten: Flip löschen, Monitor deaktivieren, Asana abschließen
+      if (op.persstatus === 6 && ma.isActive) {
+        op.setFields.isActive = false;
+        if (ma.flip_id) {
+          op.setFields.flip_id = null;
+          try {
+            await deleteManyFlipUsers([ma.flip_id]);
+          } catch (err) {
+            logger.error(`[PersonalImport] Flip-Löschung fehlgeschlagen für ${ma._id}: ${err.message}`);
+          }
+        }
+        if (ma.asana_id) {
+          try {
+            await completeTaskById(ma.asana_id);
+          } catch (err) {
+            logger.error(`[PersonalImport] Asana-Abschluss fehlgeschlagen für ${ma._id}: ${err.message}`);
+          }
+        }
+        deactivated++;
+      }
+
       // Respektiere manuell gesetztes persgruppe
       if (ma.persgruppe_set_explicitly && op.setFields.persgruppe != null) {
         delete op.setFields.persgruppe;
@@ -795,7 +822,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       if (result.modifiedCount > 0) updated++; else unchanged++;
     }
 
-    const message = `${matched} Mitarbeiter aktualisiert, ${updated} geändert, ${unchanged} unverändert, ${skipped} nicht gefunden${pnrUpdated > 0 ? `, ${pnrUpdated} Personalnr korrigiert` : ''}.`;
+    const message = `${matched} Mitarbeiter aktualisiert, ${updated} geändert, ${unchanged} unverändert, ${skipped} nicht gefunden${pnrUpdated > 0 ? `, ${pnrUpdated} Personalnr korrigiert` : ''}${deactivated > 0 ? `, ${deactivated} deaktiviert (Persstatus 6)` : ''}.`;
     const responseData = {
       success: true,
       message,
@@ -808,6 +835,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         notFoundPnrs: notFoundPnrs.length > 0 ? notFoundPnrs : undefined,
         pnrUpdated,
         pnrUpdatedList: pnrUpdatedList.length > 0 ? pnrUpdatedList : undefined,
+        deactivated,
       }
     };
 
