@@ -44,12 +44,7 @@ router.get(
     }
 
     const mitarbeiter = await Mitarbeiter.findOne({ $or: orConditions })
-      .select("_id vorname nachname email personalnr qualifikationen eventreports laufzettel_submitted laufzettel_received evaluierungen_submitted")
-      .populate({
-        path: "eventreports",
-        select: "auftragnummer datum kunde location name_teamleiter mitarbeiter_anzahl puenktlichkeit erscheinungsbild team mitarbeiter_job mitarbeiter_feedback feedback_auftraggeber sonstiges assigned comments version",
-        populate: { path: "mitarbeiter_feedback.mitarbeiter", select: "vorname nachname" }
-      })
+      .select("_id vorname nachname email personalnr qualifikationen laufzettel_submitted laufzettel_received evaluierungen_submitted")
       .populate({
         path: "laufzettel_submitted",
         populate: [
@@ -69,9 +64,28 @@ router.get(
       return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
     }
 
+    // Query EventReports directly by teamleiter reference (no array dependency)
+    const allReports = await EventReport.find({ teamleiter: mitarbeiter._id })
+      .select("auftragnummer datum kunde location name_teamleiter mitarbeiter_anzahl puenktlichkeit erscheinungsbild team mitarbeiter_job mitarbeiter_feedback feedback_auftraggeber sonstiges assigned comments version")
+      .populate({ path: "mitarbeiter_feedback.mitarbeiter", select: "vorname nachname" })
+      .sort({ datum: -1 })
+      .lean();
+
+    // Join Auftrag details (eventLocation, address) into each report
+    const auftragnummern = allReports.map(r => r.auftragnummer).filter(Boolean).map(Number).filter(n => !isNaN(n));
+    if (auftragnummern.length) {
+      const auftraege = await Auftrag.find({ auftragNr: { $in: auftragnummern } })
+        .select('auftragNr eventTitel eventLocation eventStrasse eventPlz eventOrt vonDatum bisDatum')
+        .lean();
+      const auftragMap = {};
+      auftraege.forEach(a => { auftragMap[String(a.auftragNr)] = a; });
+      allReports.forEach(r => { r.auftrag = auftragMap[String(r.auftragnummer)] || null; });
+    }
+
     // Enrich laufzettel_submitted with status
     // v2 docs have status directly; v1 docs fall back to checking for linked EvaluierungMA
     const mitarbeiterObj = mitarbeiter.toObject();
+    mitarbeiterObj.eventreports = allReports;
     const v1Ids = mitarbeiterObj.laufzettel_submitted
       .filter(l => !l.version || l.version !== 'v2')
       .map(l => l._id);
@@ -290,13 +304,6 @@ router.post(
 
     await eventReport.save();
     logger.info(`✅ Public EventReport created: ${eventReport._id} by ${name_teamleiter}`);
-
-    // v2: no array push – query-based referencing
-    // Legacy: still push to eventreports array for v1 compat
-    if (teamleiter && eventReport.version !== "v2") {
-      teamleiter.eventreports.push(eventReport._id);
-      await teamleiter.save();
-    }
 
     res.status(201).json({ msg: "EventReport erfolgreich gespeichert", id: eventReport._id });
 

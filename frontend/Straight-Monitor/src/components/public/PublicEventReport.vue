@@ -19,13 +19,12 @@
             <img :src="imgEventreport" class="doc-icon-img" alt="" />
           </div>
           <div class="doc-info">
-            <span class="doc-title">{{ report.kunde || report.location || 'Event Report' }}</span>
+            <span class="doc-title">{{ report.auftrag?.eventTitel || report.kunde || report.location || 'Event Report' }}</span>
             <span class="doc-meta" v-if="report.location">
               <font-awesome-icon icon="fa-solid fa-location-dot" /> {{ report.location }}
             </span>
             <span class="doc-date" v-if="report.datum">
               {{ formatDate(report.datum) }}
-              <span v-if="report.auftragnummer" class="doc-auftragnr">#{{ report.auftragnummer }}</span>
             </span>
           </div>
           <div class="doc-card-right">
@@ -50,21 +49,21 @@
           <span class="detail-label"><font-awesome-icon icon="fa-solid fa-calendar" /> Datum</span>
           <span class="detail-value">{{ formatDate(detailReport.datum) }}</span>
         </div>
-        <div class="detail-row" v-if="detailReport.location">
-          <span class="detail-label"><font-awesome-icon icon="fa-solid fa-location-dot" /> Standort</span>
-          <span class="detail-value">{{ detailReport.location }}</span>
-        </div>
         <div class="detail-row" v-if="detailReport.kunde">
           <span class="detail-label"><font-awesome-icon icon="fa-solid fa-building" /> Kunde</span>
           <span class="detail-value">{{ detailReport.kunde }}</span>
         </div>
-        <div class="detail-row" v-if="detailReport.auftragnummer">
-          <span class="detail-label"><font-awesome-icon icon="fa-solid fa-hashtag" /> Auftragsnr.</span>
-          <span class="detail-value">#{{ detailReport.auftragnummer }}</span>
+        <div class="detail-row" v-if="detailReport.auftrag?.eventTitel">
+          <span class="detail-label"><font-awesome-icon icon="fa-solid fa-star" /> Event</span>
+          <span class="detail-value">{{ detailReport.auftrag.eventTitel }}</span>
         </div>
-        <div class="detail-row" v-if="detailReport.name_teamleiter">
-          <span class="detail-label"><font-awesome-icon icon="fa-solid fa-user" /> Teamleiter</span>
-          <span class="detail-value">{{ detailReport.name_teamleiter }}</span>
+        <div class="detail-row" v-if="detailReport.auftrag?.eventLocation">
+          <span class="detail-label"><font-awesome-icon icon="fa-solid fa-map-pin" /> Venue</span>
+          <span class="detail-value">{{ detailReport.auftrag.eventLocation }}</span>
+        </div>
+        <div class="detail-row" v-if="detailReport.auftrag?.eventStrasse">
+          <span class="detail-label"><font-awesome-icon icon="fa-solid fa-location-dot" /> Adresse</span>
+          <span class="detail-value">{{ detailReport.auftrag.eventStrasse }}<span v-if="detailReport.auftrag.eventPlz || detailReport.auftrag.eventOrt">, {{ detailReport.auftrag.eventPlz }} {{ detailReport.auftrag.eventOrt }}</span></span>
         </div>
         <div class="detail-row" v-if="detailReport.mitarbeiter_anzahl">
           <span class="detail-label"><font-awesome-icon icon="fa-solid fa-users" /> Mitarbeiter</span>
