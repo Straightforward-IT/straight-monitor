@@ -439,7 +439,13 @@
                   @mousemove.passive="onCellMouseMove(ma, day, $event)"
                 >
                 <div class="cell-fill">
-                  <div class="cell-inner">
+                  <template v-if="cellTime(ma._id, day.iso)">
+                    <font-awesome-icon :icon="cellIcon(ma._id, day.iso)" class="cell-icon cell-icon--corner" />
+                    <div class="cell-inner">
+                      <span class="cell-time-text" :class="{ 'cell-time-text--sm': cellTime(ma._id, day.iso).length > 7 }">{{ cellTime(ma._id, day.iso) }}</span>
+                    </div>
+                  </template>
+                  <div v-else class="cell-inner">
                     <span v-if="cellKuerzel(ma._id, day.iso)" class="cell-label">{{ cellKuerzel(ma._id, day.iso) }}</span>
                     <font-awesome-icon v-else-if="cellIcon(ma._id, day.iso)" :icon="cellIcon(ma._id, day.iso)" class="cell-icon" />
                   </div>
@@ -709,14 +715,40 @@
           </template>
 
           <!-- Status options -->
-          <button
-            v-for="opt in statusOptions"
-            :key="opt.value"
-            :class="['ctx-item', `ctx-item--${opt.value}`]"
-            @click="setStatus(opt.value)"
-          >
-            <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
-          </button>
+          <template v-for="opt in statusOptions" :key="opt.value">
+            <!-- Eingeschränkt: expandable time picker -->
+            <template v-if="opt.value === 'partially'">
+              <button
+                :class="['ctx-item', 'ctx-item--partially', { active: partiallyTime.open }]"
+                @click="togglePartiallyTime"
+              >
+                <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
+                <font-awesome-icon icon="fa-solid fa-clock" class="ctx-item-clock" />
+              </button>
+              <div v-if="partiallyTime.open" class="ctx-time-picker">
+                <div class="ctx-time-row">
+                  <label>Von</label>
+                  <input type="time" v-model="partiallyTime.zeitVon" />
+                  <label>Bis</label>
+                  <input type="time" v-model="partiallyTime.zeitBis" />
+                </div>
+                <div class="ctx-time-actions">
+                  <button class="ctx-time-confirm" @click="setStatus('partially', partiallyTime.zeitVon || null, partiallyTime.zeitBis || null)">
+                    <font-awesome-icon icon="fa-solid fa-check" /> Speichern
+                  </button>
+                  <button class="ctx-time-skip" @click="setStatus('partially')">Ohne Zeit</button>
+                </div>
+              </div>
+            </template>
+            <!-- All other status options -->
+            <button
+              v-else
+              :class="['ctx-item', `ctx-item--${opt.value}`]"
+              @click="setStatus(opt.value)"
+            >
+              <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
+            </button>
+          </template>
 
           <div class="ctx-divider"></div>
 
@@ -816,6 +848,17 @@ const expandedNotiz = ref(null); // maId of currently expanded notiz cell
 const expandedNotizHeight = ref(null); // px height of expanded left-pane row
 let _notizTimers = {};
 let _notizRowObserver = null;
+
+// ─── Partially Time Picker ───
+const partiallyTime = reactive({ open: false, zeitVon: '', zeitBis: '' });
+
+function togglePartiallyTime() {
+  partiallyTime.open = !partiallyTime.open;
+  if (!partiallyTime.open) {
+    partiallyTime.zeitVon = '';
+    partiallyTime.zeitBis = '';
+  }
+}
 
 function _observeExpandedRow(maId) {
   if (_notizRowObserver) { _notizRowObserver.disconnect(); _notizRowObserver = null; }
@@ -1336,11 +1379,14 @@ const cellDataMap = computed(() => {
       } else if (entries.some((e) => e.verfuegbarkeit === 'partially')) {
         cls = 'cell-partially';
         icon = CELL_ICONS.partially;
+        const pe = entries.find((e) => e.verfuegbarkeit === 'partially');
+        const pt = (pe?.zeitVon || pe?.zeitBis) ? formatTimeShort(pe.zeitVon, pe.zeitBis) : null;
+        if (cls) map[key] = { cls, icon, kuerzel, time: pt };
       } else if (entries.some((e) => e.verfuegbarkeit === 'available')) {
         cls = 'cell-available';
         icon = CELL_ICONS.available;
       }
-      if (cls) map[key] = { cls, icon, kuerzel };
+      if (cls && !map[key]) map[key] = { cls, icon, kuerzel };
     }
   }
   return map;
@@ -1357,6 +1403,24 @@ function cellKuerzel(maId, iso) {
 
 function cellIcon(maId, iso) {
   return cellDataMap.value[`${maId}_${iso}`]?.icon || null;
+}
+
+function cellTime(maId, iso) {
+  return cellDataMap.value[`${maId}_${iso}`]?.time || null;
+}
+
+function formatTimeShort(zeitVon, zeitBis) {
+  function fmt(hhmm) {
+    if (!hhmm) return null;
+    const [h, m] = hhmm.split(':');
+    return m === '00' ? h : `${h}:${m}`;
+  }
+  const a = fmt(zeitVon);
+  const b = fmt(zeitBis);
+  if (a && b) return `${a}–${b}`;
+  if (a) return `ab ${a}`;
+  if (b) return `bis ${b}`;
+  return null;
 }
 
 function getCellTooltip(maId, iso) {
@@ -1450,7 +1514,15 @@ function entryLabel(entry) {
   if (entry.typ === 'planned' || entry._source === 'einsatz') return `Einsatz: ${entry.bezeichnung || entry.auftragNr}`;
   if (entry.typ === 'verfuegbarkeit') {
     const l = { available: 'Verfügbar', partially: 'Eingeschränkt', blocked: 'Blocked' };
-    return l[entry.verfuegbarkeit];
+    let label = l[entry.verfuegbarkeit];
+    if (entry.verfuegbarkeit === 'partially' && (entry.zeitVon || entry.zeitBis)) {
+      const von = entry.zeitVon || '';
+      const bis = entry.zeitBis || '';
+      if (von && bis) label += ` (${von}–${bis} Uhr)`;
+      else if (von) label += ` (ab ${von} Uhr)`;
+      else if (bis) label += ` (bis ${bis} Uhr)`;
+    }
+    return label;
   }
   if (entry.typ === 'abwesenheit') {
     const l = { urlaub: 'Urlaub', krank: 'Krank', feiertag: 'Feiertag', ueberstunden: 'Überstunden', sonstiges: 'Sonstiges' };
@@ -1749,6 +1821,9 @@ function closeCtxMenu() {
   ctxMenu.day = null;
   ctxMenu.entries = [];
   ctxMenu.isMulti = false;
+  partiallyTime.open = false;
+  partiallyTime.zeitVon = '';
+  partiallyTime.zeitBis = '';
 }
 
 function openEinsatz(entry) {
@@ -1892,7 +1967,7 @@ function onBereichHeaderClick(event) {
   bereichMenuOpen.value = true;
 }
 
-async function setStatus(status) {
+async function setStatus(status, zeitVon = null, zeitBis = null) {
   const isMulti = ctxMenu.isMulti;
   const singleMaId = ctxMenu.ma?._id;
   const singleDay = ctxMenu.day;
@@ -1931,6 +2006,8 @@ async function setStatus(status) {
           const { data } = await api.post('/api/dispo', {
             mitarbeiter: maId, datumVon: from, datumBis: to,
             typ: 'verfuegbarkeit', verfuegbarkeit: status,
+            ...(zeitVon ? { zeitVon } : {}),
+            ...(zeitBis ? { zeitBis } : {}),
           });
           created.push(data);
         }
@@ -1939,6 +2016,8 @@ async function setStatus(status) {
       const { data } = await api.post('/api/dispo', {
         mitarbeiter: singleMaId, datumVon: singleDay, datumBis: singleDay,
         typ: 'verfuegbarkeit', verfuegbarkeit: status,
+        ...(zeitVon ? { zeitVon } : {}),
+        ...(zeitBis ? { zeitBis } : {}),
       });
       created.push(data);
     }
@@ -3256,6 +3335,28 @@ onMounted(async () => {
   }
 }
 
+.cell-icon--corner {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  font-size: 10px;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.cell-time-text {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  color: #f59e0b;
+  letter-spacing: -0.3px;
+
+  &--sm {
+    font-size: 8px;
+    letter-spacing: -0.5px;
+  }
+}
+
 // ─── Cell Status Colors ───
 .cell-available {
   background: #10b98120;
@@ -3867,6 +3968,82 @@ onMounted(async () => {
   width: 14px;
   text-align: center;
   flex-shrink: 0;
+}
+
+.ctx-item-clock {
+  margin-left: auto;
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+// ─── Partially Time Picker ───
+.ctx-time-picker {
+  padding: 6px 14px 10px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.ctx-time-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+
+  label {
+    font-size: 11px;
+    color: var(--muted);
+    min-width: 22px;
+  }
+
+  input[type="time"] {
+    flex: 1;
+    background: var(--input-bg, var(--surface));
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 6px;
+    font-size: 12px;
+    color: var(--text);
+    min-width: 0;
+
+    &:focus {
+      outline: none;
+      border-color: #f59e0b;
+    }
+  }
+}
+
+.ctx-time-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.ctx-time-confirm {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: #f59e0b20;
+  border: 1px solid #f59e0b80;
+  color: #f59e0b;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover { background: #f59e0b35; }
+}
+
+.ctx-time-skip {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover { background: var(--hover); }
 }
 
 .ctx-entry {
