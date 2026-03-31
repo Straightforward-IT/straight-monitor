@@ -62,7 +62,7 @@ router.get('/search', auth, asyncHandler(async (req, res) => {
   }
 
   const kunden = await Kunde.find(filter)
-    .select('_id kundenNr kundName kuerzel')
+    .select('_id kundenNr kundName kuerzel kundStatus geschSt')
     .sort({ kundName: 1 })
     .limit(20)
     .lean();

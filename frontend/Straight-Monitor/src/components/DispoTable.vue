@@ -831,6 +831,30 @@
                 </div>
               </div>
             </template>
+            <!-- Blocked: expandable time picker -->
+            <template v-else-if="opt.value === 'blocked'">
+              <button
+                :class="['ctx-item', 'ctx-item--blocked', { active: blockedTime.open }]"
+                @click="toggleBlockedTime"
+              >
+                <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
+                <font-awesome-icon icon="fa-solid fa-clock" class="ctx-item-clock" />
+              </button>
+              <div v-if="blockedTime.open" class="ctx-time-picker">
+                <div class="ctx-time-row">
+                  <label>Von</label>
+                  <input type="time" v-model="blockedTime.zeitVon" />
+                  <label>Bis</label>
+                  <input type="time" v-model="blockedTime.zeitBis" />
+                </div>
+                <div class="ctx-time-actions">
+                  <button class="ctx-time-confirm" @click="setStatus('blocked', blockedTime.zeitVon || null, blockedTime.zeitBis || null)">
+                    <font-awesome-icon icon="fa-solid fa-check" /> Speichern
+                  </button>
+                  <button class="ctx-time-skip" @click="setStatus('blocked')">Ohne Zeit</button>
+                </div>
+              </div>
+            </template>
             <!-- All other status options -->
             <button
               v-else
@@ -969,6 +993,19 @@ function togglePartiallyTime() {
     partiallyTime.zeitVon = '';
     partiallyTime.zeitBis = '';
   }
+  if (partiallyTime.open) { blockedTime.open = false; blockedTime.zeitVon = ''; blockedTime.zeitBis = ''; }
+}
+
+// ─── Blocked Time Picker ───
+const blockedTime = reactive({ open: false, zeitVon: '', zeitBis: '' });
+
+function toggleBlockedTime() {
+  blockedTime.open = !blockedTime.open;
+  if (!blockedTime.open) {
+    blockedTime.zeitVon = '';
+    blockedTime.zeitBis = '';
+  }
+  if (blockedTime.open) { partiallyTime.open = false; partiallyTime.zeitVon = ''; partiallyTime.zeitBis = ''; }
 }
 
 function _observeExpandedRow(maId) {
@@ -1556,6 +1593,9 @@ const cellDataMap = computed(() => {
       } else if (entries.some((e) => e.verfuegbarkeit === 'blocked')) {
         cls = 'cell-blocked';
         icon = CELL_ICONS.blocked;
+        const be = entries.find((e) => e.verfuegbarkeit === 'blocked');
+        const bt = (be?.zeitVon || be?.zeitBis) ? formatTimeShort(be.zeitVon, be.zeitBis) : null;
+        if (cls) map[key] = { cls, icon, kuerzel, time: bt };
       } else if (entries.some((e) => e.typ === 'abwesenheit')) {
         cls = 'cell-blocked';
         const a = entries.find((e) => e.typ === 'abwesenheit');
@@ -2009,6 +2049,9 @@ function closeCtxMenu() {
   partiallyTime.open = false;
   partiallyTime.zeitVon = '';
   partiallyTime.zeitBis = '';
+  blockedTime.open = false;
+  blockedTime.zeitVon = '';
+  blockedTime.zeitBis = '';
 }
 
 function openEinsatz(entry) {
@@ -2988,13 +3031,13 @@ onMounted(async () => {
       border-top-width: 1.5px;
       border-bottom-width: 1.5px;
     }
-    td.col-notiz {
+    td.col-bereich {
       border-top-color: var(--primary);
       border-bottom-color: var(--primary);
       border-top-width: 1.5px;
       border-bottom-width: 1.5px;
     }
-    td.col-bereich {
+    td.col-notiz {
       border-right-color: var(--primary);
       border-top-color: var(--primary);
       border-bottom-color: var(--primary);

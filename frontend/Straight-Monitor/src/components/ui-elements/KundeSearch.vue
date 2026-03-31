@@ -75,6 +75,7 @@
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import api from '@/utils/api';
+import { useAuth } from '@/stores/auth';
 
 const props = defineProps({
   modelValue:  { default: null },
@@ -84,6 +85,8 @@ const props = defineProps({
   standort:    { type: String,  default: null },
 });
 const emit = defineEmits(['update:modelValue', 'select']);
+
+const auth = useAuth();
 
 const query       = ref('');
 const results     = ref([]);
@@ -127,6 +130,15 @@ function onInput() {
       const params = { q: query.value };
       if (props.standort) params.standort = props.standort;
       const { data } = await api.get('/api/kunden/search', { params });
+      const userLoc = auth.user?.location || null;
+      data.sort((a, b) => {
+        const score = k => (
+          (k.kundStatus === 2 ? 4 : 0) +
+          (k.kuerzel        ? 2 : 0) +
+          (userLoc && k.geschSt === userLoc ? 1 : 0)
+        );
+        return score(b) - score(a);
+      });
       results.value = data;
       highlighted.value = 0;
       if (data.length > 0) {
