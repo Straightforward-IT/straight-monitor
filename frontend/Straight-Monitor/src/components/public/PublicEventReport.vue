@@ -220,16 +220,6 @@
         <h3 class="rating-title">Bewertung</h3>
 
         <div class="form-group">
-          <label>Pünktlichkeit</label>
-          <textarea v-model="form.puenktlichkeit" v-auto-grow rows="4" placeholder="Wie pünktlich waren die Mitarbeiter?" />
-        </div>
-
-        <div class="form-group">
-          <label>Erscheinungsbild</label>
-          <textarea v-model="form.erscheinungsbild" v-auto-grow rows="4" placeholder="Wie war das Erscheinungsbild?" />
-        </div>
-
-        <div class="form-group">
           <label>Team</label>
           <textarea v-model="form.team" v-auto-grow rows="4" placeholder="Wie hat das Team zusammengearbeitet?" />
         </div>
@@ -263,7 +253,7 @@
                 v-auto-grow
                 class="ma-row-input"
                 rows="2"
-                :placeholder="'Feedback zu ' + row.name + '…'"
+                :placeholder="'Pünktlichkeit, Erscheinungsbild, Arbeitsweise…'"
               ></textarea>
               <button type="button" class="ma-row-remove" @click="removeMitarbeiterRow(row)">
                 <font-awesome-icon icon="fa-solid fa-times" />

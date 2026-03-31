@@ -1278,23 +1278,35 @@ router.post('/rechnung', auth, extendTimeout, upload.single('file'), async (req,
       });
     }
 
-    // Delete all existing records within the uploaded date range, then insert fresh
-    const deleteResult = await Rechnung.deleteMany({
-      buchDatum: { $gte: minDate, $lte: maxDate }
+    // Upsert strategy: for each record with a rechnungNr, replace the existing
+    // document if it already exists; insert if it doesn't. Records NOT in the
+    // upload are never touched.
+    // Records without a rechnungNr (sparse unique field, rare) are always inserted.
+    const bulkOps = docs.map(doc => {
+      if (doc.rechnungNr) {
+        return {
+          updateOne: {
+            filter: { rechnungNr: doc.rechnungNr },
+            update: { $set: doc },
+            upsert: true
+          }
+        };
+      }
+      return { insertOne: { document: doc } };
     });
 
-    const insertResult = await Rechnung.insertMany(docs, { ordered: false });
+    const bulkResult = await Rechnung.bulkWrite(bulkOps, { ordered: false });
 
     const stats = {
-      deleted: deleteResult.deletedCount,
-      inserted: insertResult.length,
+      inserted: bulkResult.upsertedCount + bulkResult.insertedCount,
+      updated: bulkResult.modifiedCount,
       dateRange: {
         from: minDate.toISOString().split('T')[0],
         to:   maxDate.toISOString().split('T')[0]
       }
     };
 
-    const message = `Rechnungen importiert: ${stats.inserted} Einträge (${stats.dateRange.from} – ${stats.dateRange.to}), ${stats.deleted} vorherige ersetzt.`;
+    const message = `Rechnungen importiert: ${stats.inserted} neu, ${stats.updated} aktualisiert (${stats.dateRange.from} – ${stats.dateRange.to}).`;
 
     await logImport('rechnung', req.file.originalname, 'success', stats.inserted, stats, req.user?.id);
     logger.info(`[Import Rechnung] ${message} by user ${req.user?.id}`);
