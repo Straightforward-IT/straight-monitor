@@ -57,6 +57,7 @@ const {
   completeTaskById,
 } = require("../AsanaService");
 const asyncHandler = require("../middleware/AsyncHandler");
+const Kunde = require("../models/Kunde");
 const JSZip = require("jszip");
 const { PDFDocument } = require("pdf-lib");
 const sharp = require("sharp");
@@ -3594,6 +3595,67 @@ router.get(
     // Let's stick to returning all for now, frontend handles display.
 
     res.json(result);
+  })
+);
+
+// ─── Kundenwünsche ───
+
+// GET  kundenwuensche for a Mitarbeiter
+router.get(
+  "/:id/kundenwuensche",
+  auth,
+  asyncHandler(async (req, res) => {
+    const ma = await Mitarbeiter.findById(req.params.id)
+      .select("kundenwuensche")
+      .populate("kundenwuensche.kunde", "kundenNr kundName kuerzel")
+      .populate("kundenwuensche.angelegtVon", "vorname nachname");
+    if (!ma) return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
+    res.json(ma.kundenwuensche);
+  })
+);
+
+// POST  add kundenwunsch
+router.post(
+  "/:id/kundenwuensche",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { kunde, typ, kommentar } = req.body;
+    if (!kunde || !typ) return res.status(400).json({ msg: "kunde und typ sind erforderlich" });
+    if (!["positiv", "negativ"].includes(typ)) return res.status(400).json({ msg: "typ muss 'positiv' oder 'negativ' sein" });
+
+    const ma = await Mitarbeiter.findById(req.params.id);
+    if (!ma) return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
+
+    // Check duplicate
+    const exists = ma.kundenwuensche.find(w => w.kunde.toString() === kunde && w.typ === typ);
+    if (exists) return res.status(409).json({ msg: "Kundenwunsch existiert bereits" });
+
+    ma.kundenwuensche.push({ kunde, typ, kommentar: kommentar || "", angelegtVon: req.user.id });
+    await ma.save();
+
+    const updated = await Mitarbeiter.findById(ma._id)
+      .select("kundenwuensche")
+      .populate("kundenwuensche.kunde", "kundenNr kundName kuerzel")
+      .populate("kundenwuensche.angelegtVon", "vorname nachname");
+    res.json(updated.kundenwuensche);
+  })
+);
+
+// DELETE  remove kundenwunsch
+router.delete(
+  "/:id/kundenwuensche/:wunschId",
+  auth,
+  asyncHandler(async (req, res) => {
+    const ma = await Mitarbeiter.findById(req.params.id);
+    if (!ma) return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
+
+    ma.kundenwuensche.id(req.params.wunschId)?.deleteOne();
+    await ma.save();
+    const updated = await Mitarbeiter.findById(ma._id)
+      .select("kundenwuensche")
+      .populate("kundenwuensche.kunde", "kundenNr kundName kuerzel")
+      .populate("kundenwuensche.angelegtVon", "vorname nachname");
+    res.json(updated.kundenwuensche);
   })
 );
 

@@ -35,7 +35,7 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faSliders,
   faBullhorn,
   faTableColumns,
-  faEuroSign} from '@fortawesome/free-solid-svg-icons';
+  faEuroSign, faHandshake, faBan} from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle, faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
@@ -78,7 +78,8 @@ library.add(
   faUmbrellaBeach,
   faBriefcaseMedical,
   faCalendarDay,
-  faEraser
+  faEraser,
+  faHandshake, faBan
 );
 
 const app = createApp(App);

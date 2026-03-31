@@ -31,9 +31,11 @@ router.get('/', auth, asyncHandler(async (req, res) => {
   }
 
   let mitarbeiter = await Mitarbeiter.find(maFilter)
-    .select('_id vorname nachname personalnr telefon qualifikationen berufe profilbild dispoNotiz')
+    .select('_id vorname nachname personalnr telefon qualifikationen berufe profilbild dispoNotiz kundenwuensche')
     .populate('qualifikationen', 'qualificationKey designation')
     .populate('berufe', 'jobKey designation')
+    .populate('kundenwuensche.kunde', 'kundenNr kundName kuerzel')
+    .populate('kundenwuensche.angelegtVon', 'vorname nachname')
     .lean();
 
   // Standort-Filter (personalnr-prefix: 1=Berlin, 2=Hamburg, 3=Köln)

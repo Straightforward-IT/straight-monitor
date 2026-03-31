@@ -23,7 +23,7 @@
         <!-- Zeitraum -->
         <FilterDropdown :has-value="filters.tage !== 30">
           <template #label><font-awesome-icon icon="fa-solid fa-calendar" style="margin-right:4px" />{{ filters.tage }} Tage</template>
-          <div v-for="opt in [7, 30, 90, 365]" :key="opt" class="dropdown-item" :class="{ selected: filters.tage === opt }" @click="setTage(opt)">{{ opt }} Tage</div>
+          <div v-for="opt in [7, 14, 30, 90, 365]" :key="opt" class="dropdown-item" :class="{ selected: filters.tage === opt }" @click="setTage(opt)">{{ opt }} Tage</div>
         </FilterDropdown>
 
         <!-- Planung -->
@@ -33,6 +33,20 @@
           <div class="dropdown-item" :class="{ selected: filters.planungFilter === 'eingeplant' }" @click="setPlanung('eingeplant')">Eingeplante</div>
           <div class="dropdown-item" :class="{ selected: filters.planungFilter === 'ungeplant' }" @click="setPlanung('ungeplant')">Ungeplante</div>
         </FilterDropdown>
+
+        <!-- Kunden Filter (fs-toolbar) -->
+        <div class="fs-kunde-filter" :class="{ 'fs-kunde-filter--active': !!filters.kundeFilter }">
+          <span class="fs-kunde-filter-label">🤝</span>
+          <KundeSearch
+            ref="kundeFilterFsRef"
+            :standort="filters.standort"
+            placeholder="Kunde…"
+            @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
+          />
+          <button v-if="filters.kundeFilter" class="fs-kunde-filter-clear" @click="clearKundeFilter">
+            <font-awesome-icon icon="fa-solid fa-xmark" />
+          </button>
+        </div>
 
         <!-- KW Chips -->
         <div class="kw-chips">
@@ -121,7 +135,7 @@
         <FilterDropdown :has-value="filters.tage !== 30">
           <template #label>{{ filters.tage }} Tage</template>
           <div
-            v-for="opt in [7, 30, 90, 365]"
+            v-for="opt in [7, 14, 30, 90, 365]"
             :key="opt"
             class="dropdown-item clickable"
             :class="{ selected: filters.tage === opt }"
@@ -139,6 +153,23 @@
         <FilterChip :active="!filters.planungFilter" @click="setPlanung(null)">Alle</FilterChip>
         <FilterChip :active="filters.planungFilter === 'eingeplant'" @click="setPlanung('eingeplant')">Eingeplante</FilterChip>
         <FilterChip :active="filters.planungFilter === 'ungeplant'" @click="setPlanung('ungeplant')">Ungeplante</FilterChip>
+      </FilterGroup>
+
+      <FilterDivider />
+
+      <!-- Kunden Filter -->
+      <FilterGroup label="🤝 Kunde">
+        <div class="kunde-filter-search">
+          <KundeSearch
+            ref="kundeFilterRef"
+            :standort="filters.standort"
+            placeholder="Kunde suchen…"
+            @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
+          />
+          <button v-if="filters.kundeFilter" class="kunde-filter-clear" @click="clearKundeFilter" title="Filter entfernen">
+            <font-awesome-icon icon="fa-solid fa-xmark" />
+          </button>
+        </div>
       </FilterGroup>
 
       <FilterDivider />
@@ -287,13 +318,6 @@
                   <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'vorname')"></div>
                 </th>
                 <th
-                  class="col-notiz"
-                  :style="{ width: colWidths.notiz + 'px', minWidth: colWidths.notiz + 'px', maxWidth: colWidths.notiz + 'px' }"
-                >
-                  <span class="th-content">Notiz</span>
-                  <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'notiz')"></div>
-                </th>
-                <th
                   class="col-bereich"
                   :class="{ 'bereich-filter-active': bereichFilter !== null }"
                   @click.stop="onBereichHeaderClick"
@@ -304,6 +328,20 @@
                     <span v-if="bereichFilter" class="bereich-filter-label">{{ bereichFilter }}</span>
                     <span v-if="bereichFilter" class="bereich-filter-clear" @click.stop="bereichFilter = null">✕</span>
                   </span>
+                </th>
+                <th
+                  class="col-kunden"
+                  :style="{ width: colWidths.kunden + 'px', minWidth: colWidths.kunden + 'px', maxWidth: colWidths.kunden + 'px' }"
+                >
+                  <span class="th-content">Kunden</span>
+                  <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'kunden')"></div>
+                </th>
+                <th
+                  class="col-notiz"
+                  :style="{ width: colWidths.notiz + 'px', minWidth: colWidths.notiz + 'px', maxWidth: colWidths.notiz + 'px' }"
+                >
+                  <span class="th-content">Notiz</span>
+                  <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'notiz')"></div>
                 </th>
               </tr>
             </thead>
@@ -316,7 +354,7 @@
                 @mouseleave="hoveredMaId = null"
                 :class="{ 'row-hovered': hoveredMaId === ma._id, 'row-highlighted': highlightedMaId === String(ma._id) }"
                 @contextmenu.prevent.stop="openNameMenu($event, ma)"
-                style="cursor: context-menu"
+                style="cursor: default"
               >
                 <!-- Nachname -->
                 <td class="col-nachname" :style="{ width: colWidths.nachname + 'px', minWidth: colWidths.nachname + 'px', maxWidth: colWidths.nachname + 'px' }">
@@ -337,6 +375,32 @@
                 <td class="col-vorname" :style="{ width: colWidths.vorname + 'px', minWidth: colWidths.vorname + 'px', maxWidth: colWidths.vorname + 'px' }">
                   <span class="ma-name">{{ ma.vorname }}</span>
                 </td>
+                <!-- Bereich -->
+                <td class="col-bereich">
+                  <span v-if="getMaBereich(ma)" class="bereich-badge">{{ getMaBereich(ma) }}</span>
+                </td>
+                <!-- Kunden -->
+                <td class="col-kunden" :style="{ width: colWidths.kunden + 'px', minWidth: colWidths.kunden + 'px', maxWidth: colWidths.kunden + 'px' }">
+                  <div class="kunden-pills">
+                    <CustomTooltip
+                      v-for="w in (ma.kundenwuensche || [])"
+                      :key="w._id"
+                      :text="`${w.kunde?.kundName || ''} ${w.typ === 'positiv' ? '🤝' : '🚫'}${w.kommentar ? ' – ' + w.kommentar : ''}`"
+                      position="top"
+                    >
+                      <span
+                        class="kw-pill"
+                        :class="w.typ === 'positiv' ? 'kw-pill--pos' : 'kw-pill--neg'"
+                      >
+                        {{ w.kunde?.kuerzel || w.kunde?.kundenNr || '?' }}
+                        <button class="kw-pill-remove" @click.stop="removeKundenwunsch(ma._id, w._id)" title="Entfernen">✕</button>
+                      </span>
+                    </CustomTooltip>
+                    <CustomTooltip text="Kundenwunsch hinzufügen" position="top">
+                      <button class="kw-add-btn" @click.stop="openKwModal(ma._id)">+</button>
+                    </CustomTooltip>
+                  </div>
+                </td>
                 <!-- Notiz -->
                 <td
                   class="col-notiz"
@@ -356,7 +420,7 @@
                       @blur="expandedNotiz === ma._id ? toggleNotizExpand(ma._id) : null"
                     ></div>
                     <button
-                      v-if="notizMap[ma._id]"
+                      v-if="notizMap[ma._id] && expandedNotiz === ma._id"
                       class="notiz-clear-btn"
                       @mousedown.prevent="clearNotiz(ma._id)"
                       title="Notiz löschen"
@@ -371,13 +435,9 @@
                     >…</button>
                   </div>
                 </td>
-                <!-- Bereich -->
-                <td class="col-bereich">
-                  <span v-if="getMaBereich(ma)" class="bereich-badge">{{ getMaBereich(ma) }}</span>
-                </td>
               </tr>
               <tr v-if="filteredMitarbeiter.length === 0">
-                <td colspan="4" class="empty-row text-center">
+                <td colspan="5" class="empty-row text-center">
                   --
                 </td>
               </tr>
@@ -410,7 +470,7 @@
               <tr 
                 v-for="ma in filteredMitarbeiter" 
                 :key="`r-${ma._id}`"
-                :style="expandedNotiz === ma._id && expandedNotizHeight ? { height: expandedNotizHeight + 'px' } : null"
+                :style="rowHeights[String(ma._id)] ? { height: rowHeights[String(ma._id)] + 'px' } : null"
                 @mouseenter="hoveredMaId = ma._id"
                 @mouseleave="hoveredMaId = null"
                 :class="{ 'row-hovered': hoveredMaId === ma._id, 'row-highlighted': highlightedMaId === String(ma._id) }"
@@ -615,6 +675,37 @@
       @close="closeCardModal"
     />
 
+    <!-- Kundenwunsch Modal -->
+    <teleport to="body">
+      <div v-if="kwModal.open" class="modal-overlay" @click="closeKwModal">
+        <div class="kw-modal" @click.stop>
+          <div class="kw-modal-header">
+            <span class="kw-modal-title">Kundenwunsch hinzufügen</span>
+            <button class="close-btn" @click="closeKwModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
+          </div>
+          <div class="kw-modal-body">
+            <div class="kw-modal-typ">
+              <button
+                class="kw-typ-btn"
+                :class="{ active: kwModal.typ === 'positiv' }"
+                @click="kwModal.typ = 'positiv'"
+              >
+                🤝
+              </button>
+              <button
+                class="kw-typ-btn kw-typ-btn--neg"
+                :class="{ active: kwModal.typ === 'negativ' }"
+                @click="kwModal.typ = 'negativ'"
+              >
+                🚫
+              </button>
+            </div>
+            <KundeSearch ref="kwSearchRef" :standort="filters.standort" @select="addKundenwunsch" />
+          </div>
+        </div>
+      </div>
+    </teleport>
+
     <!-- Comment Thread Modal -->
     <teleport to="body">
       <div v-if="chatModal.open" class="modal-overlay" @click="closeChatModal">
@@ -811,6 +902,7 @@ import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import KommentarFeed from '@/components/KommentarFeed.vue';
+import KundeSearch from '@/components/ui-elements/KundeSearch.vue';
 
 const auth = useAuth();
 const dataCache = useDataCache();
@@ -849,6 +941,25 @@ const expandedNotizHeight = ref(null); // px height of expanded left-pane row
 let _notizTimers = {};
 let _notizRowObserver = null;
 
+// ─── Row height sync: left pane → right pane ───
+const rowHeights = reactive({});
+let _leftRowObserver = null;
+
+function _rebuildRowObserver() {
+  if (_leftRowObserver) { _leftRowObserver.disconnect(); _leftRowObserver = null; }
+  nextTick(() => {
+    const rows = document.querySelectorAll('tr[data-left-row]');
+    if (!rows.length) return;
+    _leftRowObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const maId = entry.target.dataset.leftRow;
+        rowHeights[maId] = entry.target.offsetHeight;
+      }
+    });
+    rows.forEach(row => _leftRowObserver.observe(row));
+  });
+}
+
 // ─── Partially Time Picker ───
 const partiallyTime = reactive({ open: false, zeitVon: '', zeitBis: '' });
 
@@ -874,7 +985,7 @@ function _observeExpandedRow(maId) {
 }
 
 // ─── Column widths (resizable) ───
-const colWidths = reactive({ nachname: 130, vorname: 110, notiz: 160 });
+const colWidths = reactive({ nachname: 130, vorname: 110, kunden: 75, notiz: 160 });
 let resizeCol = null;
 let resizeStartX = 0;
 let resizeStartW = 0;
@@ -913,7 +1024,18 @@ const filters = reactive({
   standort: null,
   tage: 30,
   planungFilter: null,
+  kundeFilter: null, // ObjectId string
 });
+const filterKunde = ref(null); // full kunde object for display
+const kundeFilterRef = ref(null);
+const kundeFilterFsRef = ref(null);
+
+function clearKundeFilter() {
+  filterKunde.value = null;
+  filters.kundeFilter = null;
+  kundeFilterRef.value?.clearSingle?.();
+  kundeFilterFsRef.value?.clearSingle?.();
+}
 
 const statusOptions = [
   { value: 'available', label: 'Verfügbar', icon: 'fa-solid fa-check' },
@@ -993,6 +1115,56 @@ function closeNameMenu() {
 
 // ─── Employee Card Modal ───
 const cardModal = reactive({ open: false, mitarbeiterId: null });
+
+// ─── Kundenwunsch Modal ───
+const kwModal = reactive({ open: false, maId: null, typ: 'positiv' });
+const kwSearchRef = ref(null);
+
+function openKwModal(maId) {
+  kwModal.maId = maId;
+  kwModal.typ = 'positiv';
+  kwModal.open = true;
+  nextTick(() => kwSearchRef.value?.focus());
+}
+
+function closeKwModal() {
+  kwModal.open = false;
+  kwModal.maId = null;
+}
+
+async function addKundenwunsch(kunde) {
+  if (!kunde || !kwModal.maId) return;
+  try {
+    const { data } = await api.post(`/api/personal/${kwModal.maId}/kundenwuensche`, {
+      kunde: kunde._id,
+      typ: kwModal.typ,
+    });
+    // Update local mitarbeiter data
+    const list = mitarbeiter.value;
+    const ma = list.find(m => m._id === kwModal.maId);
+    if (ma) {
+      ma.kundenwuensche = data;
+      mitarbeiter.value = [...list];
+    }
+    closeKwModal();
+  } catch (err) {
+    console.error('Kundenwunsch hinzufügen fehlgeschlagen:', err);
+  }
+}
+
+async function removeKundenwunsch(maId, wunschId) {
+  try {
+    const { data } = await api.delete(`/api/personal/${maId}/kundenwuensche/${wunschId}`);
+    const list = mitarbeiter.value;
+    const ma = list.find(m => m._id === maId);
+    if (ma) {
+      ma.kundenwuensche = data;
+      mitarbeiter.value = [...list];
+    }
+  } catch (err) {
+    console.error('Kundenwunsch entfernen fehlgeschlagen:', err);
+  }
+}
 
 function openKarte() {
   const id = nameMenu.ma._id;
@@ -1112,6 +1284,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('mouseup', onDocMouseUp);
   document.removeEventListener('keydown', onKeyDown);
+  if (_leftRowObserver) { _leftRowObserver.disconnect(); _leftRowObserver = null; }
 });
 
 // ─── Watch route query for in-page deep-link navigation (e.g. from KommentarFeed) ───
@@ -1131,7 +1304,7 @@ watch(
       const target = new Date(q.datum);
       const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
       if (diffDays > filters.tage) {
-        const options = [7, 30, 90, 365];
+        const options = [7, 14, 30, 90, 365];
         filters.tage = options.find((o) => o > diffDays) ?? 365;
         needsFetch = true;
       }
@@ -1278,6 +1451,13 @@ const filteredMitarbeiter = computed(() => {
       list = list.filter((m) => !eingeplantSet.has(String(m._id)));
     }
   }
+  if (filters.kundeFilter) {
+    list = list.filter((m) =>
+      (m.kundenwuensche || []).some(
+        (w) => w.typ === 'positiv' && (w.kunde?._id || w.kunde) === filters.kundeFilter
+      )
+    );
+  }
   return list.sort((a, b) => {
     const aStarred = starredIds.value.has(a._id) ? 0 : 1;
     const bStarred = starredIds.value.has(b._id) ? 0 : 1;
@@ -1287,6 +1467,10 @@ const filteredMitarbeiter = computed(() => {
     return dir * (a[field] || '').localeCompare(b[field] || '');
   });
 });
+
+watch(filteredMitarbeiter, () => {
+  _rebuildRowObserver();
+}, { flush: 'post' });
 
 // ─── Index for fast lookup: mitarbeiterId+iso → entries ───
 const eintragMap = computed(() => {
@@ -1689,6 +1873,7 @@ function resetFilters() {
   filters.standort = null;
   filters.tage = 30;
   filters.planungFilter = null;
+  clearKundeFilter();
   bereichFilter.value = null;
   searchQuery.value = '';
   setDefaultStandort();
@@ -2248,7 +2433,7 @@ onMounted(async () => {
     const target = new Date(q.datum);
     const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
     if (diffDays > filters.tage) {
-      const options = [7, 30, 90, 365];
+      const options = [7, 14, 30, 90, 365];
       filters.tage = options.find((o) => o > diffDays) ?? 365;
     }
     // Activate the KW filter for the target date
@@ -2256,6 +2441,7 @@ onMounted(async () => {
   }
 
   await fetchDispo();
+  _rebuildRowObserver();
   scrollToToday();
   if (q.maId) scrollToMa(q.maId);
 });
@@ -2796,6 +2982,12 @@ onMounted(async () => {
       border-top-width: 1.5px;
       border-bottom-width: 1.5px;
     }
+    td.col-kunden {
+      border-top-color: var(--primary);
+      border-bottom-color: var(--primary);
+      border-top-width: 1.5px;
+      border-bottom-width: 1.5px;
+    }
     td.col-notiz {
       border-top-color: var(--primary);
       border-bottom-color: var(--primary);
@@ -2880,6 +3072,15 @@ onMounted(async () => {
     }
   }
 
+  .col-kunden {
+    width: 75px;
+    min-width: 60px;
+    max-width: 160px;
+    padding: 6px 8px;
+    text-align: left;
+    overflow: hidden;
+  }
+
   thead th.col-notiz {
     padding-left: 10px;
   }
@@ -2915,20 +3116,21 @@ onMounted(async () => {
   }
 
   .col-bereich {
-    width: 60px;
-    min-width: 60px;
-    max-width: 60px;
-    padding: 6px 8px;
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
+    padding: 6px 10px;
     text-align: center;
     overflow: hidden;
     cursor: pointer;
 
     .th-content {
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 3px;
+      white-space: nowrap;
       line-height: 1.2;
     }
 
@@ -3714,6 +3916,223 @@ onMounted(async () => {
     color: var(--text);
     margin: 0;
     white-space: pre-wrap;
+  }
+}
+
+// ─── Kunden Pills ───
+.kunden-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+}
+
+.kw-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: default;
+  line-height: 1.4;
+  position: relative;
+
+  .kw-pill-remove {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    background: var(--surface);
+    color: inherit;
+    font-size: 7px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    z-index: 1;
+
+    &:hover { background: #ef4444; border-color: #ef4444; color: #fff; }
+  }
+
+  &:hover .kw-pill-remove { display: inline-flex; }
+
+  &--pos {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+  }
+  &--neg {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+  }
+}
+
+.kw-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  padding: 0;
+  line-height: 1;
+
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(238, 175, 103, 0.08);
+  }
+}
+
+// ─── Kunden Filter (FilterPanel) ───
+.kunde-filter-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.kunde-filter-clear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+
+  &:hover {
+    color: #ef4444;
+    border-color: #ef4444;
+  }
+}
+
+// ─── Kunden Filter (fs-toolbar) ───
+.fs-kunde-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: transparent;
+  transition: border-color 0.15s;
+  min-width: 120px;
+  max-width: 200px;
+
+  &--active {
+    border-color: var(--primary);
+    background: rgba(238, 175, 103, 0.08);
+  }
+}
+
+.fs-kunde-filter-label {
+  font-size: 13px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.fs-kunde-filter-clear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s;
+
+  &:hover { color: #ef4444; }
+}
+
+// ─── Kundenwunsch Modal ───
+.kw-modal {
+  background: var(--modal-bg);
+  border-radius: 12px;
+  width: 380px;
+  max-width: 92vw;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.kw-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kw-modal-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.kw-modal-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kw-modal-typ {
+  display: flex;
+  gap: 8px;
+}
+
+.kw-typ-btn {
+  flex: 1;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s;
+
+  &.active {
+    border-color: #10b981;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.08);
+  }
+
+  &--neg.active {
+    border-color: #ef4444;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
   }
 }
 

@@ -65,6 +65,13 @@ const MitarbeiterSchema = new mongoose.Schema({
             ref: "EvaluierungMA",
         },
     ],
+    kundenwuensche: [{
+        kunde: { type: mongoose.Schema.Types.ObjectId, ref: 'Kunde', required: true },
+        typ: { type: String, enum: ['positiv', 'negativ'], required: true },
+        kommentar: { type: String, default: '' },
+        angelegtVon: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        angelegtAm: { type: Date, default: Date.now },
+    }],
     dateCreated: { type: Date, default: Date.now },
     dispoNotiz: { type: String, default: '' },
 }, { timestamps: true });

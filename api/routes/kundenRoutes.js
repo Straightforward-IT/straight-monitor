@@ -39,6 +39,37 @@ router.get('/', auth, asyncHandler(async (req, res) => {
   res.json(kunden);
 }));
 
+// @route   GET /api/kunden/search?q=
+// @desc    Kunden suchen (Name, Nr, Kürzel)
+// @access  Private
+router.get('/search', auth, asyncHandler(async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json([]);
+
+  const standort = (req.query.standort || '').trim();
+
+  const isNum = /^\d+$/.test(q);
+  const filter = isNum
+    ? { kundenNr: Number(q) }
+    : { $or: [
+        { kundName: { $regex: q, $options: 'i' } },
+        { kuerzel:  { $regex: q, $options: 'i' } },
+      ]};
+
+  // Standort-Filter: kundenNr beginnt mit Standort-Prefix
+  if (standort) {
+    filter.kundenNr = { ...(filter.kundenNr || {}), $gte: Number(standort) * 1000000, $lt: (Number(standort) + 1) * 1000000 };
+  }
+
+  const kunden = await Kunde.find(filter)
+    .select('_id kundenNr kundName kuerzel')
+    .sort({ kundName: 1 })
+    .limit(20)
+    .lean();
+
+  res.json(kunden);
+}));
+
 // @route   GET /api/kunden/active-list
 // @desc    Liefert eine Liste aller Kunden-Nummern, die mindestens einen Auftrag haben
 // @access  Private
