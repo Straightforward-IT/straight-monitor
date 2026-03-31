@@ -355,6 +355,9 @@ defineEmits(['back']);
 // Allow parent to attempt internal back-navigation before leaving the view
 function tryGoBack() {
   if (showForm.value || submitSuccess.value) {
+    // If we arrived directly from an external context (prefillEinsatz), let the parent
+    // navigate back (e.g. to Job Detail) instead of falling through to the list.
+    if (props.prefillEinsatz) return false;
     backToList();
     return true;
   }
