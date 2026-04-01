@@ -610,25 +610,28 @@ onMounted(() => {
 
 .stats-cards {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   margin-bottom: 24px;
+  padding: 16px;
 
   .card {
-    background: var(--tile-bg);
-    border: 1px solid var(--border);
-    padding: 16px;
-    border-radius: 12px;
+    background: var(--bg-body, var(--bg));
+    padding: 14px 18px;
+    border-radius: 10px;
     display: flex;
     flex-direction: column;
-    min-width: 150px;
+    min-width: 140px;
+    flex: 1;
 
     .label {
-      font-size: 13px;
+      font-size: 12px;
       color: var(--muted);
       margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
     }
     .value {
-      font-size: 24px;
+      font-size: 22px;
       font-weight: 700;
       color: var(--primary);
     }
