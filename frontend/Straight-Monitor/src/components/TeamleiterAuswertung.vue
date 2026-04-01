@@ -79,6 +79,10 @@
             <span class="label">Gesamt Einsätze</span>
             <span class="value">{{ totalEinsaetze }}</span>
           </div>
+          <div class="card">
+            <span class="label">Gesamt Quote</span>
+            <span class="value">{{ gesamtQuote }}%</span>
+          </div>
         </div>
 
         <table class="tl-table">
@@ -317,6 +321,15 @@ const filteredTeamleiter = computed(() => {
 
 const totalEinsaetze = computed(() => {
   return filteredTeamleiter.value.reduce((acc, curr) => acc + curr.einsatzCount, 0);
+});
+
+const totalReportCount = computed(() => {
+  return filteredTeamleiter.value.reduce((acc, curr) => acc + curr.reportCount, 0);
+});
+
+const gesamtQuote = computed(() => {
+  if (!totalEinsaetze.value) return 0;
+  return Math.round((totalReportCount.value / totalEinsaetze.value) * 100);
 });
 
 const sortedTeamleiter = computed(() => {
