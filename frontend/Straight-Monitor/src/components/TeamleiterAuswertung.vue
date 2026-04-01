@@ -153,17 +153,19 @@
                                 </div>
                             </CustomTooltip>
                           </td>
-                          <td style="text-align: center;" @click="openOrder(einsatz.auftragNr, einsatz.geschSt, einsatz.datumVon)">
-                            <CustomTooltip text="Job anzeigen" position="mouse">
+                          <td style="text-align: center;" @click.stop="toggleStatus(tl, einsatz)">
+                            <CustomTooltip :text="einsatz.statusOverride ? 'Status zurücksetzen' : 'Status umschalten'" position="mouse">
                               <font-awesome-icon 
-                                v-if="einsatz.reportStatus === 'present' || einsatz.evalStatus === 'present'" 
+                                v-if="getEffectiveStatus(einsatz)" 
                                 icon="check-circle" 
                                 class="status-icon success"
+                                :class="{ 'overridden': einsatz.statusOverride }"
                               />
                               <font-awesome-icon 
                                 v-else 
                                 icon="times-circle" 
                                 class="status-icon missing"
+                                :class="{ 'overridden': einsatz.statusOverride }"
                               />
                             </CustomTooltip>
                           </td>
@@ -354,6 +356,31 @@ const openReport = (doc) => {
   if (doc) selectedDoc.value = doc;
 };
 
+const getEffectiveStatus = (einsatz) => {
+  const originalPresent = einsatz.reportStatus === 'present' || einsatz.evalStatus === 'present';
+  return einsatz.statusOverride ? !originalPresent : originalPresent;
+};
+
+const recalcCounts = (tl) => {
+  const active = tl.einsaetze.filter(e => !e.excluded);
+  tl.einsatzCount = active.length;
+  tl.reportCount = active.filter(e => getEffectiveStatus(e)).length;
+  tl.quote = tl.einsatzCount ? Math.round((tl.reportCount / tl.einsatzCount) * 100) : 0;
+};
+
+const toggleStatus = async (tl, einsatz) => {
+  try {
+    const { data } = await api.post('/api/personal/teamleiter-stats/toggle-status', {
+      teamleiterId: tl._id,
+      auftragNr: einsatz.auftragNr
+    });
+    einsatz.statusOverride = data.overridden;
+    recalcCounts(tl);
+  } catch (err) {
+    console.error('Status toggle failed:', err);
+  }
+};
+
 const toggleExclude = async (tl, einsatz) => {
   try {
     const { data } = await api.post('/api/personal/teamleiter-stats/exclude', {
@@ -361,11 +388,7 @@ const toggleExclude = async (tl, einsatz) => {
       auftragNr: einsatz.auftragNr
     });
     einsatz.excluded = data.excluded;
-    // Recalculate counts locally
-    const active = tl.einsaetze.filter(e => !e.excluded);
-    tl.einsatzCount = active.length;
-    tl.reportCount = active.filter(e => e.reportStatus === 'present' || e.evalStatus === 'present').length;
-    tl.quote = tl.einsatzCount ? Math.round((tl.reportCount / tl.einsatzCount) * 100) : 0;
+    recalcCounts(tl);
   } catch (err) {
     console.error('Exclude toggle failed:', err);
   }
@@ -764,6 +787,21 @@ onMounted(() => {
 .status-icon.missing {
   color: #ef4444; /* Red */
   opacity: 0.5;
+}
+
+.status-icon.overridden {
+  outline: 2px dashed var(--primary);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+.status-icon {
+  cursor: pointer;
+  transition: transform 0.15s;
+
+  &:hover {
+    transform: scale(1.2);
+  }
 }
 
 .small-sub {

@@ -3256,6 +3256,32 @@ router.post(
   })
 );
 
+router.post(
+  "/teamleiter-stats/toggle-status",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { teamleiterId, auftragNr } = req.body;
+    if (!teamleiterId || !auftragNr) {
+      return res.status(400).json({ message: "teamleiterId und auftragNr erforderlich" });
+    }
+    const auftrag = await Auftrag.findOne({ auftragNr: Number(auftragNr) });
+    if (!auftrag) {
+      return res.status(404).json({ message: "Auftrag nicht gefunden" });
+    }
+    const idx = (auftrag.statusOverrideTeamleiter || []).findIndex(
+      id => id.toString() === teamleiterId
+    );
+    if (idx >= 0) {
+      auftrag.statusOverrideTeamleiter.splice(idx, 1);
+      await auftrag.save();
+      return res.json({ overridden: false });
+    }
+    auftrag.statusOverrideTeamleiter.push(teamleiterId);
+    await auftrag.save();
+    res.json({ overridden: true });
+  })
+);
+
 // Route for getting Team Leader stats (Qual 50055) and their mapping to Einsätze
 router.get(
   "/teamleiter-stats",
@@ -3432,7 +3458,7 @@ router.get(
     // -- FETCH AUFTRAG TITLES --
     const auftragDetails = await Auftrag.find({ 
       auftragNr: { $in: relevantAuftragNrs } 
-    }).select("auftragNr eventTitel geschSt kundenNr excludedTeamleiter").lean();
+    }).select("auftragNr eventTitel geschSt kundenNr excludedTeamleiter statusOverrideTeamleiter").lean();
     
     const auftragInfoMap = {};
     auftragDetails.forEach(ad => {
@@ -3440,7 +3466,8 @@ router.get(
             titel: ad.eventTitel, 
             geschSt: ad.geschSt,
             kundenNr: ad.kundenNr,
-            excludedTl: (ad.excludedTeamleiter || []).map(id => id.toString())
+            excludedTl: (ad.excludedTeamleiter || []).map(id => id.toString()),
+            statusOverrideTl: (ad.statusOverrideTeamleiter || []).map(id => id.toString())
         };
     });
     // -------------------------
@@ -3545,11 +3572,17 @@ router.get(
 
       // Check if this TL is excluded from this Auftrag
       const excluded = tlId && info.excludedTl ? info.excludedTl.includes(tlId.toString()) : false;
+      // Check if status is manually overridden
+      const statusOverride = tlId && info.statusOverrideTl ? info.statusOverrideTl.includes(tlId.toString()) : false;
+
+      // If overridden, flip the effective status
+      const effectivePresent = statusOverride
+        ? !(status === "present" || evalStatus === "present")
+        : (status === "present" || evalStatus === "present");
 
       if (!excluded) {
         dataMap[pNr].count++;
-        // Count if EITHER report OR evaluation is present (not counting double)
-        if (status === "present" || evalStatus === "present") {
+        if (effectivePresent) {
             dataMap[pNr].reportCount++;
         }
       }
@@ -3564,7 +3597,8 @@ router.get(
         eventReport: eventReport,
         evalStatus: evalStatus,
         evaluierung: evaluierung,
-        excluded: excluded
+        excluded: excluded,
+        statusOverride: statusOverride
       });
     });
 
