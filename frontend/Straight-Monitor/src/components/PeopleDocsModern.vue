@@ -343,6 +343,7 @@
             @toggle-selection="toggleSelection(ma._id)"
             @filter-beruf="activateBerufFilter"
             @filter-qualifikation="activateQualifikationFilter"
+            @reactivated="filters.status = 'Alle'"
           />
         </div>
 

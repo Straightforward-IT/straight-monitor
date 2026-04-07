@@ -250,9 +250,84 @@ async function getItems(locationKey) {
   }
 }
 
+// 📱 Flip Welcome Mail (nach erfolgreicher Flip-User-Erstellung)
+async function sendFlipWelcomeEmail(email, vorname, senderKey = "it") {
+  const subject = "Willkommen bei Straightforward – deine Flip App Zugangsdaten";
+  const content = `
+    <div style="font-family: Arial, sans-serif; color: #333; max-width: 560px; margin: 0 auto;">
+
+      <h2 style="margin: 0 0 12px; color: #111;">Willkommen bei Straightforward, ${vorname}!</h2>
+
+      <p style="margin: 0 0 20px; line-height: 1.6;">
+        Für die interne Kommunikation nutzen wir die <strong>Flip Mitarbeiter App</strong>.
+        Lade sie dir jetzt herunter und melde dich mit deinen Zugangsdaten an.
+      </p>
+
+      <!-- Download Button -->
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 0 28px;">
+        <tr>
+          <td style="border-radius: 8px; background: #e8730a;">
+            <a href="https://straightforward.flip-app.com"
+               target="_blank"
+               style="display: inline-block; padding: 13px 28px; font-size: 15px; font-weight: 700;
+                      color: #ffffff; text-decoration: none; border-radius: 8px; letter-spacing: 0.2px;">
+              Flip App öffnen / downloaden
+            </a>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Credentials -->
+      <p style="margin: 0 0 12px; font-weight: 700; font-size: 15px; color: #111;">
+        Deine Zugangsdaten für die Flip App:
+      </p>
+
+      <table style="border-collapse: collapse; width: 100%; max-width: 420px; margin: 0 0 20px;">
+        <tr>
+          <td style="padding: 11px 14px; background: #f4f4f4; font-weight: 600;
+                     border: 1px solid #ddd; width: 130px; color: #555; font-size: 13px;">
+            Benutzername
+          </td>
+          <td style="padding: 11px 14px; border: 1px solid #ddd; font-size: 14px; color: #111;">
+            ${email}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 11px 14px; background: #f4f4f4; font-weight: 600;
+                     border: 1px solid #ddd; color: #555; font-size: 13px;">
+            Passwort
+          </td>
+          <td style="padding: 11px 14px; border: 1px solid #ddd; font-family: monospace;
+                     font-size: 14px; color: #111; letter-spacing: 1px;">
+            password
+          </td>
+        </tr>
+      </table>
+
+      <!-- Warning -->
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+             style="width: 100%; max-width: 420px; margin: 0 0 24px;
+                    background: #fff8e1; border-left: 4px solid #f0ad4e; border-radius: 0 6px 6px 0;">
+        <tr>
+          <td style="padding: 12px 16px; font-size: 14px; color: #7a5200; line-height: 1.5;">
+            ⚠️ <strong>Bitte ändere dein Passwort nach der ersten Anmeldung.</strong>
+          </td>
+        </tr>
+      </table>
+
+      <hr style="border: none; border-top: 1px solid #eee; margin: 0 0 16px;" />
+      <p style="font-size: 12px; color: #999; margin: 0;">
+        Bei Fragen wende dich an dein Team-Office.
+      </p>
+    </div>
+  `;
+  await sendMail(email, subject, content, senderKey);
+}
+
 module.exports = {
   sendMail,
   sendConfirmationEmail,
   sollRoutine,
   sendInventoryUpdateEmail,
+  sendFlipWelcomeEmail,
 };

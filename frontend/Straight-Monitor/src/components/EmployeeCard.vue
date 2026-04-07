@@ -1086,7 +1086,7 @@
             </button>
           </template>
           <teleport to="body">
-            <div v-if="showQuickActionsMenu" class="qa-overlay" @click="showQuickActionsMenu = false">
+            <div v-if="showQuickActionsMenu" class="qa-overlay" @click="_closeQuickActions()">
               <div class="qa-menu" :style="quickActionsMenuStyle" @click.stop>
                 <div v-if="getPhoneNumber() || resolvedMa?.email" class="qa-group">
                   <div class="qa-group-label">Kontakt</div>
@@ -1106,7 +1106,7 @@
                   <button class="qa-item" @click="executeQuickAction('upload-photo')">
                     <font-awesome-icon icon="fa-solid fa-camera" /> Bild hochladen
                   </button>
-                  <button class="qa-item" @click="executeQuickAction('open-dispo')">
+                  <button v-if="resolvedMa?.isActive !== false" class="qa-item" @click="executeQuickAction('open-dispo')">
                     <font-awesome-icon icon="fa-solid fa-table-columns" /> In Dispo öffnen
                   </button>
                   <button class="qa-item" @click="executeQuickAction('edit')">
@@ -1195,6 +1195,63 @@
       />
     </teleport>
 
+    <!-- Reaktivierungs-Modal -->
+    <teleport to="body">
+      <div v-if="showReaktivierungModal" class="reaktiv-overlay" @click.self="showReaktivierungModal = false">
+        <div class="reaktiv-modal">
+          <div class="reaktiv-header">
+            <font-awesome-icon icon="fa-solid fa-circle-check" class="reaktiv-icon" />
+            <h3>{{ resolvedMa.vorname }} {{ resolvedMa.nachname }} reaktivieren</h3>
+          </div>
+
+          <div class="reaktiv-body">
+            <!-- Flip Status -->
+            <div class="reaktiv-section">
+              <div class="reaktiv-section-title">
+                <font-awesome-icon icon="fa-solid fa-mobile-screen" />
+                Flip-Account
+              </div>
+              <div v-if="resolvedMa.flip?.id" class="reaktiv-status reaktiv-status--ok">
+                <font-awesome-icon icon="fa-solid fa-circle-check" />
+                Verbunden mit {{ resolvedMa.flip.firstName }} {{ resolvedMa.flip.lastName }}
+                <span class="reaktiv-hint">Stelle sicher, dass der Flip-Account wieder aktiv ist.</span>
+              </div>
+              <div v-else class="reaktiv-status reaktiv-status--warn">
+                <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
+                Kein Flip-Account verknüpft
+                <span class="reaktiv-hint">Nach dem Reaktivieren bitte in der Flip-Ansicht einen Account erstellen oder verknüpfen.</span>
+              </div>
+            </div>
+
+            <!-- Asana Status -->
+            <div class="reaktiv-section">
+              <div class="reaktiv-section-title">
+                <font-awesome-icon icon="fa-solid fa-diagram-project" />
+                Asana
+              </div>
+              <div v-if="resolvedMa.asana_id" class="reaktiv-status reaktiv-status--warn">
+                <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
+                Asana-Task Status prüfen
+                <span class="reaktiv-hint">Falls der Asana-Task noch auf "Erledigt" steht, bitte manuell in Asana wieder öffnen.</span>
+              </div>
+              <div v-else class="reaktiv-status reaktiv-status--muted">
+                <font-awesome-icon icon="fa-solid fa-circle-minus" />
+                Kein Asana-Task verknüpft
+              </div>
+            </div>
+          </div>
+
+          <div class="reaktiv-actions">
+            <button class="btn btn-ghost" @click="showReaktivierungModal = false">Abbrechen</button>
+            <button class="btn" :disabled="reaktivierungLoading" @click="confirmReaktivierung">
+              <font-awesome-icon v-if="reaktivierungLoading" icon="fa-solid fa-spinner" spin />
+              Jetzt reaktivieren
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
+
   </template>
 
   </article>
@@ -1234,7 +1291,7 @@ export default {
     showCheckbox: { type: Boolean, default: false },
     isSelected: { type: Boolean, default: false },
   },
-  emits: ["open", "edit", "toggle-selection", "quick-actions", "close", "open-employee", "filter-beruf", "filter-qualifikation"],
+  emits: ["open", "edit", "toggle-selection", "quick-actions", "close", "open-employee", "filter-beruf", "filter-qualifikation", "reactivated"],
 
   setup(props) {
     const theme = useTheme(); // { current: 'light' | 'dark' | 'system' }
@@ -1421,6 +1478,8 @@ export default {
       showQuickActionsMenu: false,
       linkCopied: false,
       quickActionsMenuStyle: {},
+      _qaBtn: null,
+      _qaScrollHandler: null,
 
       // EventReport Feedback (lazy-loaded on expand)
       eventreportFeedback: [],
@@ -1454,6 +1513,10 @@ export default {
 
       // Profilbild Upload
       showImageCropModal: false,
+
+      // Reaktivierungs-Modal
+      showReaktivierungModal: false,
+      reaktivierungLoading: false,
     };
   },
 
@@ -1587,6 +1650,9 @@ export default {
 
   beforeUnmount() {
     document.removeEventListener('keydown', this.handleEscapeKey);
+    if (this._qaScrollHandler) {
+      window.removeEventListener('scroll', this._qaScrollHandler, true);
+    }
   },
 
   methods: {
@@ -2353,19 +2419,36 @@ export default {
     // --- Quick Actions Menu (Header 3-dot) ---
     toggleQuickActions(event) {
       if (this.showQuickActionsMenu) {
-        this.showQuickActionsMenu = false;
+        this._closeQuickActions();
         return;
       }
       const btn = event.target.closest('button');
       if (btn) {
-        const rect = btn.getBoundingClientRect();
-        this.quickActionsMenuStyle = {
-          position: 'fixed',
-          top: rect.bottom + 4 + 'px',
-          left: Math.min(rect.left, window.innerWidth - 220) + 'px',
-        };
+        this._qaBtn = btn;
+        this._updateQaMenuStyle();
+        this._qaScrollHandler = () => this._updateQaMenuStyle();
+        window.addEventListener('scroll', this._qaScrollHandler, true);
       }
       this.showQuickActionsMenu = true;
+    },
+
+    _updateQaMenuStyle() {
+      if (!this._qaBtn) return;
+      const rect = this._qaBtn.getBoundingClientRect();
+      this.quickActionsMenuStyle = {
+        position: 'fixed',
+        top: rect.bottom + 4 + 'px',
+        left: Math.min(rect.left, window.innerWidth - 220) + 'px',
+      };
+    },
+
+    _closeQuickActions() {
+      this.showQuickActionsMenu = false;
+      if (this._qaScrollHandler) {
+        window.removeEventListener('scroll', this._qaScrollHandler, true);
+        this._qaScrollHandler = null;
+      }
+      this._qaBtn = null;
     },
 
     getPhoneNumber() {
@@ -2392,7 +2475,7 @@ export default {
     },
 
     executeQuickAction(action) {
-      this.showQuickActionsMenu = false;
+      this._closeQuickActions();
       switch (action) {
         case 'sipgate': {
           const phone = this.getPhoneNumber();
@@ -2411,7 +2494,11 @@ export default {
           this.openEditModal();
           break;
         case 'toggle-active':
-          this.toggleActiveStatus();
+          if (this.resolvedMa?.isActive === false) {
+            this.showReaktivierungModal = true;
+          } else {
+            this.toggleActiveStatus();
+          }
           break;
         case 'delete':
           this.openDeleteModal();
@@ -2454,9 +2541,23 @@ export default {
         this.linkCopied = true;
         setTimeout(() => {
           this.linkCopied = false;
-          this.showQuickActionsMenu = false;
+          this._closeQuickActions();
         }, 1200);
       });
+    },
+
+    async confirmReaktivierung() {
+      const hasFlip = !!this.resolvedMa?.flip?.id;
+      this.reaktivierungLoading = true;
+      await this.toggleActiveStatus();
+      this.reaktivierungLoading = false;
+      this.showReaktivierungModal = false;
+      this.$emit('reactivated');
+      if (!hasFlip) {
+        // Karte expandieren und zur Flip-Ansicht wechseln
+        if (!this.expanded) this.toggle();
+        this.$nextTick(() => { this.view = 'flip'; });
+      }
     },
 
     async toggleActiveStatus() {
@@ -2611,6 +2712,7 @@ export default {
 /* ---------- Card ---------- */
 .card {
   position: relative; /* Positioning context for absolute elements */
+  isolation: isolate; /* Contain internal z-indexes so they don't escape past the page header */
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -4820,5 +4922,117 @@ export default {
   font-size: 0.82rem;
   color: var(--muted);
   font-style: italic;
+}
+
+// ─── Reaktivierungs-Modal ─────────────────────────────────────────────────────
+.reaktiv-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  z-index: 200000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.reaktiv-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+  width: 100%;
+  max-width: 440px;
+  overflow: hidden;
+}
+
+.reaktiv-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+  }
+
+  .reaktiv-icon {
+    color: #1f8e5d;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+}
+
+.reaktiv-body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.reaktiv-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reaktiv-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reaktiv-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+
+  svg { flex-shrink: 0; }
+
+  &--ok {
+    background: #e8fbf3;
+    color: #1f8e5d;
+    border: 1px solid #a8e6c8;
+  }
+
+  &--warn {
+    background: #fff8e6;
+    color: #856404;
+    border: 1px solid #ffd96a;
+  }
+
+  &--muted {
+    background: var(--soft, rgba(0,0,0,0.04));
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+}
+
+.reaktiv-hint {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+.reaktiv-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--border);
 }
 </style>

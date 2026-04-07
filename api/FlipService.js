@@ -744,7 +744,30 @@ async function getAllFlipUserGroupAssignments(groupId) {
   }
 }
 
-async function assignFlipUserGroups(req) {
+/** Builds an HTML snippet with context info for error emails */
+function _buildContextHtml(context = {}) {
+  const { requestingUser, flipUser } = context;
+  if (!requestingUser && !flipUser) return "";
+  let html = `<table style="border-collapse:collapse;margin:12px 0;font-size:13px;">`;
+  if (requestingUser) {
+    html += `<tr><th colspan="2" style="text-align:left;padding:6px 10px;background:#f4f4f4;border:1px solid #ddd;">Ausführender User (Monitor)</th></tr>`;
+    if (requestingUser.id)       html += `<tr><td style="padding:5px 10px;border:1px solid #ddd;font-weight:600;">ID</td><td style="padding:5px 10px;border:1px solid #ddd;">${requestingUser.id}</td></tr>`;
+    if (requestingUser.name)     html += `<tr><td style="padding:5px 10px;border:1px solid #ddd;font-weight:600;">Name</td><td style="padding:5px 10px;border:1px solid #ddd;">${requestingUser.name}</td></tr>`;
+    if (requestingUser.email)    html += `<tr><td style="padding:5px 10px;border:1px solid #ddd;font-weight:600;">E-Mail</td><td style="padding:5px 10px;border:1px solid #ddd;">${requestingUser.email}</td></tr>`;
+    if (requestingUser.location) html += `<tr><td style="padding:5px 10px;border:1px solid #ddd;font-weight:600;">Standort</td><td style="padding:5px 10px;border:1px solid #ddd;">${requestingUser.location}</td></tr>`;
+  }
+  if (flipUser) {
+    html += `<tr><th colspan="2" style="text-align:left;padding:6px 10px;background:#f4f4f4;border:1px solid #ddd;">Betroffener Flip-User</th></tr>`;
+    if (flipUser.id)    html += `<tr><td style="padding:5px 10px;border:1px solid #ddd;font-weight:600;">Flip ID</td><td style="padding:5px 10px;border:1px solid #ddd;">${flipUser.id}</td></tr>`;
+    if (flipUser.name)  html += `<tr><td style="padding:5px 10px;border:1px solid #ddd;font-weight:600;">Name</td><td style="padding:5px 10px;border:1px solid #ddd;">${flipUser.name}</td></tr>`;
+    if (flipUser.email) html += `<tr><td style="padding:5px 10px;border:1px solid #ddd;font-weight:600;">E-Mail</td><td style="padding:5px 10px;border:1px solid #ddd;">${flipUser.email}</td></tr>`;
+  }
+  html += `</table>`;
+  return html;
+}
+
+async function assignFlipUserGroups(req, context = {}) {
+  // context: { requestingUser: { id, name, email, location }, flipUser: { id, email, name } }
   try {
     console.log("🚀 Assigning user to user groups. Raw data:", req.body.items);
 
@@ -784,14 +807,14 @@ async function assignFlipUserGroups(req) {
         response.data
       );
 
-      // Prepare the error message for email
+      const contextInfo = _buildContextHtml(context);
       const errorMessage = `
         <h2>❌ Error Assigning Users to User Groups</h2>
         <p>Some user group assignments failed with status 400.</p>
+        ${contextInfo}
         <pre>${JSON.stringify(response.data, null, 2)}</pre>
       `;
 
-      // Send an email notification
       await sendMail(
         "it@straightforward.email",
         "User Group Assignment Failed",
@@ -810,14 +833,14 @@ async function assignFlipUserGroups(req) {
       ? JSON.stringify(error.response.data, null, 2)
       : error.message;
 
-    // Prepare email content
+    const contextInfo = _buildContextHtml(context);
     const errorMessage = `
       <h2>❌ Critical Error Assigning Users to User Groups</h2>
       <p>An unexpected error occurred while assigning user groups.</p>
+      ${contextInfo}
       <pre>${errorDetails}</pre>
     `;
 
-    // Send an email notification about the critical failure
     await sendMail(
       "it@straightforward.email",
       "Critical Error: User Group Assignment",
