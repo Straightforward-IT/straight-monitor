@@ -498,12 +498,6 @@
                   @mouseleave="onCellMouseLeave()"
                   @mousemove.passive="onCellMouseMove(ma, day, $event)"
                 >
-                <CustomTooltip
-                  :text="cellCreatedAt(ma._id, day.iso) ? 'Status gesetzt am ' + formatEntryTs(cellCreatedAt(ma._id, day.iso)) : ''"
-                  :disabled="!cellCreatedAt(ma._id, day.iso)"
-                  position="mouse"
-                  style="position: absolute; inset: 0; display: block;"
-                >
                 <div class="cell-fill">
                   <template v-if="cellAnfragart(ma._id, day.iso)">
                     <font-awesome-icon icon="fa-solid fa-question" class="cell-icon cell-icon--corner cell-icon--angefragt-q" />
@@ -527,7 +521,6 @@
                     <span v-if="getCellUnreadCount(ma._id, day.iso) > 0" class="comment-badge">{{ getCellUnreadCount(ma._id, day.iso) }}</span>
                   </span>
                 </div>
-                </CustomTooltip>
             </td>
           </tr>
           <tr v-if="filteredMitarbeiter.length === 0">
@@ -877,7 +870,6 @@
               @click="setStatus(opt.value)"
             >
               <span class="ctx-icon-composite">
-                <font-awesome-icon icon="fa-solid fa-question" class="ctx-icon-badge" />
                 <font-awesome-icon v-if="opt.anfragart === 'tel'" :icon="opt.icon" class="ctx-icon-main" />
                 <img v-else :src="flipIconUrl" class="ctx-icon-flip" />
               </span>
@@ -1682,19 +1674,6 @@ function cellTime(maId, iso) {
 
 function cellAnfragart(maId, iso) {
   return cellDataMap.value[`${maId}_${iso}`]?.anfragart || null;
-}
-
-function cellCreatedAt(maId, iso) {
-  const entries = getEntriesForCell(maId, iso);
-  if (!entries.length) return null;
-  let e = entries.find(e => e.typ === 'planned');
-  if (!e) e = entries.find(e => e.verfuegbarkeit === 'blocked');
-  if (!e) e = entries.find(e => e.typ === 'abwesenheit');
-  if (!e) e = entries.find(e => e.verfuegbarkeit === 'partially');
-  if (!e) e = entries.find(e => e.verfuegbarkeit === 'angefragt_tel');
-  if (!e) e = entries.find(e => e.verfuegbarkeit === 'angefragt_flip');
-  if (!e) e = entries.find(e => e.verfuegbarkeit === 'available');
-  return e?.createdAt || null;
 }
 
 function formatEntryTs(ts) {
