@@ -35,7 +35,8 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faSliders,
   faBullhorn,
   faTableColumns,
-  faEuroSign, faHandshake, faBan} from '@fortawesome/free-solid-svg-icons';
+  faEuroSign, faHandshake, faBan,
+  faQuestion} from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle, faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
@@ -58,7 +59,7 @@ library.add(
   // Mobile Menu Icons
   faBars, faChartLine, faHistory, faTools, faSignOutAlt, faExpand, faExpandAlt, faExpandArrowsAlt, faCompressAlt,
   // Footer Icons
-  faHeart, faKeyboard, faCodeBranch, faUser, faEuroSign,
+  faHeart, faKeyboard, faCodeBranch, faUser, faEuroSign, faQuestion,
   // 404 Page Icons
   faHome, faArrowLeft,
   // Public portal icons

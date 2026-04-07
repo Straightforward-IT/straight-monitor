@@ -498,8 +498,21 @@
                   @mouseleave="onCellMouseLeave()"
                   @mousemove.passive="onCellMouseMove(ma, day, $event)"
                 >
+                <CustomTooltip
+                  :text="cellCreatedAt(ma._id, day.iso) ? 'Status gesetzt am ' + formatEntryTs(cellCreatedAt(ma._id, day.iso)) : ''"
+                  :disabled="!cellCreatedAt(ma._id, day.iso)"
+                  position="mouse"
+                  style="position: absolute; inset: 0; display: block;"
+                >
                 <div class="cell-fill">
-                  <template v-if="cellTime(ma._id, day.iso)">
+                  <template v-if="cellAnfragart(ma._id, day.iso)">
+                    <font-awesome-icon icon="fa-solid fa-question" class="cell-icon cell-icon--corner cell-icon--angefragt-q" />
+                    <div class="cell-inner">
+                      <font-awesome-icon v-if="cellAnfragart(ma._id, day.iso) === 'tel'" icon="fa-solid fa-phone" class="cell-icon" />
+                      <img v-else :src="flipIconUrl" class="cell-icon-img" />
+                    </div>
+                  </template>
+                  <template v-else-if="cellTime(ma._id, day.iso)">
                     <font-awesome-icon :icon="cellIcon(ma._id, day.iso)" class="cell-icon cell-icon--corner" />
                     <div class="cell-inner">
                       <span class="cell-time-text" :class="{ 'cell-time-text--sm': cellTime(ma._id, day.iso).length > 7 }">{{ cellTime(ma._id, day.iso) }}</span>
@@ -514,6 +527,7 @@
                     <span v-if="getCellUnreadCount(ma._id, day.iso) > 0" class="comment-badge">{{ getCellUnreadCount(ma._id, day.iso) }}</span>
                   </span>
                 </div>
+                </CustomTooltip>
             </td>
           </tr>
           <tr v-if="filteredMitarbeiter.length === 0">
@@ -785,6 +799,7 @@
               <span>
                 <font-awesome-icon v-if="entryIcon(entry)" :icon="entryIcon(entry)" class="ctx-entry-icon" />
                 {{ entryLabel(entry) }}
+                <span v-if="entry.createdAt" class="ctx-entry-ts">· {{ formatEntryTs(entry.createdAt) }}</span>
               </span>
               <button v-if="entry._source !== 'einsatz'" class="ctx-delete-btn" @click="deleteEntry(entry._id); closeCtxMenu()">
                 <font-awesome-icon icon="fa-solid fa-trash" />
@@ -855,6 +870,19 @@
                 </div>
               </div>
             </template>
+            <!-- Angefragt: composite icon (? badge + phone/flip) -->
+            <button
+              v-else-if="opt.anfragart"
+              class="ctx-item ctx-item--angefragt"
+              @click="setStatus(opt.value)"
+            >
+              <span class="ctx-icon-composite">
+                <font-awesome-icon icon="fa-solid fa-question" class="ctx-icon-badge" />
+                <font-awesome-icon v-if="opt.anfragart === 'tel'" :icon="opt.icon" class="ctx-icon-main" />
+                <img v-else :src="flipIconUrl" class="ctx-icon-flip" />
+              </span>
+              {{ opt.label }}
+            </button>
             <!-- All other status options -->
             <button
               v-else
@@ -918,6 +946,7 @@ import { useDispoKommentare } from '@/stores/dispoKommentare';
 import { useUi } from '@/stores/ui';
 import FilterPanel from '@/components/FilterPanel.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
+import flipIconUrl from '@/assets/flip.png';
 import FilterChip from '@/components/FilterChip.vue';
 import FilterDivider from '@/components/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
@@ -1078,6 +1107,8 @@ const statusOptions = [
   { value: 'available', label: 'Verfügbar', icon: 'fa-solid fa-check' },
   { value: 'partially', label: 'Eingeschränkt', icon: 'fa-solid fa-circle-half-stroke' },
   { value: 'blocked', label: 'Blocked', icon: 'fa-solid fa-xmark' },
+  { value: 'angefragt_tel', label: 'Angefragt (Tel)', icon: 'fa-solid fa-phone', anfragart: 'tel' },
+  { value: 'angefragt_flip', label: 'Angefragt (Flip)', icon: null, anfragart: 'flip' },
 ];
 
 const absenceOptions = [
@@ -1092,6 +1123,7 @@ const CELL_ICONS = {
   blocked: 'fa-solid fa-xmark',
   urlaub: 'fa-solid fa-umbrella-beach',
   krank: 'fa-solid fa-briefcase-medical',
+  angefragt_tel: 'fa-solid fa-phone',
 };
 
 // ─── Sort ───
@@ -1239,6 +1271,13 @@ function clearSelection() {
   selectedCells.value = new Set();
   dragMode = null;
   dragCovered = null;
+}
+
+// Adds n days to an ISO date string (YYYY-MM-DD) — pure UTC to avoid timezone drift
+function isoAddDays(iso, n) {
+  const [y, m, day] = iso.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1, day + n));
+  return d.toISOString().slice(0, 10);
 }
 
 // Returns array of { maId, ranges: [{ from, to }] } grouped by MA
@@ -1606,6 +1645,14 @@ const cellDataMap = computed(() => {
         const pe = entries.find((e) => e.verfuegbarkeit === 'partially');
         const pt = (pe?.zeitVon || pe?.zeitBis) ? formatTimeShort(pe.zeitVon, pe.zeitBis) : null;
         if (cls) map[key] = { cls, icon, kuerzel, time: pt };
+      } else if (entries.some((e) => e.verfuegbarkeit === 'angefragt_tel')) {
+        cls = 'cell-angefragt';
+        icon = CELL_ICONS.angefragt_tel;
+        map[key] = { cls, icon, kuerzel, anfragart: 'tel' };
+      } else if (entries.some((e) => e.verfuegbarkeit === 'angefragt_flip')) {
+        cls = 'cell-angefragt';
+        icon = null;
+        map[key] = { cls, icon, kuerzel, anfragart: 'flip' };
       } else if (entries.some((e) => e.verfuegbarkeit === 'available')) {
         cls = 'cell-available';
         icon = CELL_ICONS.available;
@@ -1631,6 +1678,30 @@ function cellIcon(maId, iso) {
 
 function cellTime(maId, iso) {
   return cellDataMap.value[`${maId}_${iso}`]?.time || null;
+}
+
+function cellAnfragart(maId, iso) {
+  return cellDataMap.value[`${maId}_${iso}`]?.anfragart || null;
+}
+
+function cellCreatedAt(maId, iso) {
+  const entries = getEntriesForCell(maId, iso);
+  if (!entries.length) return null;
+  let e = entries.find(e => e.typ === 'planned');
+  if (!e) e = entries.find(e => e.verfuegbarkeit === 'blocked');
+  if (!e) e = entries.find(e => e.typ === 'abwesenheit');
+  if (!e) e = entries.find(e => e.verfuegbarkeit === 'partially');
+  if (!e) e = entries.find(e => e.verfuegbarkeit === 'angefragt_tel');
+  if (!e) e = entries.find(e => e.verfuegbarkeit === 'angefragt_flip');
+  if (!e) e = entries.find(e => e.verfuegbarkeit === 'available');
+  return e?.createdAt || null;
+}
+
+function formatEntryTs(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    + ' um ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
 function formatTimeShort(zeitVon, zeitBis) {
@@ -2202,6 +2273,7 @@ async function setStatus(status, zeitVon = null, zeitBis = null) {
   const grouped = isMulti ? getGroupedSelection() : null;
   // Collect existing non-einsatz entries to replace before creating new one
   const toDeleteIds = [];
+  const splitFragments = [];
   if (isMulti) {
     const seen = new Set();
     for (const key of selectedCells.value) {
@@ -2216,8 +2288,14 @@ async function setStatus(status, zeitVon = null, zeitBis = null) {
       }
     }
   } else {
-    for (const e of ctxMenu.entries.filter((e) => e._source !== 'einsatz')) {
+    const entriesToDelete = ctxMenu.entries.filter((e) => e._source !== 'einsatz');
+    for (const e of entriesToDelete) {
       toDeleteIds.push(e._id);
+      const von = String(e.datumVon).slice(0, 10);
+      const bis = String(e.datumBis || e.datumVon).slice(0, 10);
+      const maId = typeof e.mitarbeiter === 'object' ? String(e.mitarbeiter._id || e.mitarbeiter) : String(e.mitarbeiter);
+      if (von < singleDay) splitFragments.push({ from: von, to: isoAddDays(singleDay, -1), entry: e, maId });
+      if (bis > singleDay) splitFragments.push({ from: isoAddDays(singleDay, 1), to: bis, entry: e, maId });
     }
   }
   clearSelection();
@@ -2241,6 +2319,16 @@ async function setStatus(status, zeitVon = null, zeitBis = null) {
         }
       }
     } else {
+      for (const { from, to, entry, maId } of splitFragments) {
+        const { data } = await api.post('/api/dispo', {
+          mitarbeiter: maId, datumVon: from, datumBis: to, typ: entry.typ,
+          ...(entry.verfuegbarkeit ? { verfuegbarkeit: entry.verfuegbarkeit } : {}),
+          ...(entry.abwesenheitsKategorie ? { abwesenheitsKategorie: entry.abwesenheitsKategorie } : {}),
+          ...(entry.zeitVon ? { zeitVon: entry.zeitVon } : {}),
+          ...(entry.zeitBis ? { zeitBis: entry.zeitBis } : {}),
+        });
+        created.push(data);
+      }
       const { data } = await api.post('/api/dispo', {
         mitarbeiter: singleMaId, datumVon: singleDay, datumBis: singleDay,
         typ: 'verfuegbarkeit', verfuegbarkeit: status,
@@ -2263,6 +2351,7 @@ async function setAbsence(kategorie) {
   const grouped = isMulti ? getGroupedSelection() : null;
   // Collect existing non-einsatz entries to replace before creating new one
   const toDeleteIds = [];
+  const splitFragments = [];
   if (isMulti) {
     const seen = new Set();
     for (const key of selectedCells.value) {
@@ -2277,8 +2366,14 @@ async function setAbsence(kategorie) {
       }
     }
   } else {
-    for (const e of ctxMenu.entries.filter((e) => e._source !== 'einsatz')) {
+    const entriesToDelete = ctxMenu.entries.filter((e) => e._source !== 'einsatz');
+    for (const e of entriesToDelete) {
       toDeleteIds.push(e._id);
+      const von = String(e.datumVon).slice(0, 10);
+      const bis = String(e.datumBis || e.datumVon).slice(0, 10);
+      const maId = typeof e.mitarbeiter === 'object' ? String(e.mitarbeiter._id || e.mitarbeiter) : String(e.mitarbeiter);
+      if (von < singleDay) splitFragments.push({ from: von, to: isoAddDays(singleDay, -1), entry: e, maId });
+      if (bis > singleDay) splitFragments.push({ from: isoAddDays(singleDay, 1), to: bis, entry: e, maId });
     }
   }
   clearSelection();
@@ -2300,6 +2395,16 @@ async function setAbsence(kategorie) {
         }
       }
     } else {
+      for (const { from, to, entry, maId } of splitFragments) {
+        const { data } = await api.post('/api/dispo', {
+          mitarbeiter: maId, datumVon: from, datumBis: to, typ: entry.typ,
+          ...(entry.verfuegbarkeit ? { verfuegbarkeit: entry.verfuegbarkeit } : {}),
+          ...(entry.abwesenheitsKategorie ? { abwesenheitsKategorie: entry.abwesenheitsKategorie } : {}),
+          ...(entry.zeitVon ? { zeitVon: entry.zeitVon } : {}),
+          ...(entry.zeitBis ? { zeitBis: entry.zeitBis } : {}),
+        });
+        created.push(data);
+      }
       const { data } = await api.post('/api/dispo', {
         mitarbeiter: singleMaId, datumVon: singleDay, datumBis: singleDay,
         typ: 'abwesenheit', abwesenheitsKategorie: kategorie,
@@ -2315,8 +2420,10 @@ async function setAbsence(kategorie) {
 
 async function clearStatus() {
   const isMulti = ctxMenu.isMulti;
+  const singleDay = ctxMenu.day;
   // Collect IDs to delete before closing
   const toDeleteIds = [];
+  const splitFragments = [];
   if (isMulti) {
     const seen = new Set();
     for (const key of selectedCells.value) {
@@ -2331,8 +2438,14 @@ async function clearStatus() {
       }
     }
   } else {
-    for (const e of ctxMenu.entries.filter((e) => e._source !== 'einsatz')) {
+    const entriesToDelete = ctxMenu.entries.filter((e) => e._source !== 'einsatz');
+    for (const e of entriesToDelete) {
       toDeleteIds.push(e._id);
+      const von = String(e.datumVon).slice(0, 10);
+      const bis = String(e.datumBis || e.datumVon).slice(0, 10);
+      const maId = typeof e.mitarbeiter === 'object' ? String(e.mitarbeiter._id || e.mitarbeiter) : String(e.mitarbeiter);
+      if (von < singleDay) splitFragments.push({ from: von, to: isoAddDays(singleDay, -1), entry: e, maId });
+      if (bis > singleDay) splitFragments.push({ from: isoAddDays(singleDay, 1), to: bis, entry: e, maId });
     }
   }
   clearSelection();
@@ -2340,6 +2453,20 @@ async function clearStatus() {
   try {
     await Promise.all(toDeleteIds.map((id) => api.delete(`/api/dispo/${id}`)));
     localRemoveEntries(toDeleteIds);
+    if (splitFragments.length) {
+      const created = [];
+      for (const { from, to, entry, maId } of splitFragments) {
+        const { data } = await api.post('/api/dispo', {
+          mitarbeiter: maId, datumVon: from, datumBis: to, typ: entry.typ,
+          ...(entry.verfuegbarkeit ? { verfuegbarkeit: entry.verfuegbarkeit } : {}),
+          ...(entry.abwesenheitsKategorie ? { abwesenheitsKategorie: entry.abwesenheitsKategorie } : {}),
+          ...(entry.zeitVon ? { zeitVon: entry.zeitVon } : {}),
+          ...(entry.zeitBis ? { zeitBis: entry.zeitBis } : {}),
+        });
+        created.push(data);
+      }
+      localAddEntries(created);
+    }
   } catch (err) {
     console.error('Löschen fehlgeschlagen:', err);
     await fetchDispo();
@@ -3416,12 +3543,18 @@ onMounted(async () => {
       box-shadow: inset 0 0 0 2px #6366f1;
     }
 
+    &.cell-angefragt:hover,
+    &.cell-angefragt.is-active {
+      box-shadow: inset 0 0 0 2px #a855f7;
+    }
+
     // ─── Run highlight (shared border for same-status ranges) ───
     --run-color: var(--primary);
-    &.cell-available { --run-color: #10b981; }
-    &.cell-partially { --run-color: #f59e0b; }
-    &.cell-blocked   { --run-color: #ef4444; }
-    &.cell-planned   { --run-color: #6366f1; }
+    &.cell-available  { --run-color: #10b981; }
+    &.cell-partially  { --run-color: #f59e0b; }
+    &.cell-blocked    { --run-color: #ef4444; }
+    &.cell-planned    { --run-color: #6366f1; }
+    &.cell-angefragt  { --run-color: #a855f7; }
 
     &.run-only {
       box-shadow: inset 0 0 0 2px var(--run-color) !important;
@@ -3451,7 +3584,7 @@ onMounted(async () => {
       }
     }
 
-    &.is-weekend:not(.cell-planned):not(.cell-blocked):not(.cell-partially):not(.cell-available) {
+    &.is-weekend:not(.cell-planned):not(.cell-blocked):not(.cell-partially):not(.cell-available):not(.cell-angefragt) {
       background: var(--hover);
     }
   }
@@ -3603,6 +3736,23 @@ onMounted(async () => {
 }
 
 // ─── Cell Status Colors ───
+.cell-angefragt {
+  background: #a855f720;
+  .cell-icon { color: #a855f7; }
+}
+
+.cell-icon--angefragt-q {
+  color: #a855f7 !important;
+  opacity: 0.85;
+}
+
+.cell-icon-img {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+  opacity: 0.85;
+}
+
 .cell-available {
   background: #10b98120;
   .cell-icon { color: #10b981; }
@@ -4415,10 +4565,11 @@ onMounted(async () => {
     background: var(--hover);
   }
 
-  &.ctx-item--available { color: #10b981; }
-  &.ctx-item--partially { color: #f59e0b; }
-  &.ctx-item--blocked   { color: #ef4444; }
-  &.ctx-item--clear     { color: var(--muted); }
+  &.ctx-item--available  { color: #10b981; }
+  &.ctx-item--partially  { color: #f59e0b; }
+  &.ctx-item--blocked    { color: #ef4444; }
+  &.ctx-item--angefragt  { color: #a855f7; }
+  &.ctx-item--clear      { color: var(--muted); }
   &.ctx-item--open      { color: var(--primary); }
   &.ctx-item--hide      { color: var(--muted); }
   &.active              { color: var(--primary); font-weight: 600; }
@@ -4430,6 +4581,45 @@ onMounted(async () => {
   width: 14px;
   text-align: center;
   flex-shrink: 0;
+}
+
+.ctx-icon-composite {
+  position: relative;
+  width: 18px;
+  height: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  .ctx-icon-badge {
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    font-size: 7px;
+    color: #a855f7;
+    line-height: 1;
+  }
+
+  .ctx-icon-main {
+    font-size: 11px;
+    color: #a855f7;
+  }
+
+  .ctx-icon-flip {
+    width: 11px;
+    height: 11px;
+    object-fit: contain;
+    filter: sepia(1) saturate(8) hue-rotate(230deg) brightness(0.85);
+  }
+}
+
+.ctx-entry-ts {
+  font-size: 10px;
+  color: var(--muted);
+  margin-left: 4px;
+  font-style: italic;
+  opacity: 0.8;
 }
 
 .ctx-item-clock {

@@ -65,6 +65,7 @@ const props = defineProps({
   delayOut: { type: Number, default: 50 },
   teleportToBody: { type: Boolean, default: true },
   interactive: { type: Boolean, default: false },
+  disabled: { type: Boolean, default: false },
 })
 
 const isVisible = ref(false)
@@ -85,6 +86,7 @@ const updateMousePosition = (e) => {
 }
 
 const scheduleShow = (e) => {
+  if (props.disabled) return;
   if (e) updateMousePosition(e);
   
   clearTimeout(outTimer)

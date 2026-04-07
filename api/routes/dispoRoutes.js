@@ -124,8 +124,8 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: `Ungültiger Typ. Erlaubt: ${VALID_TYPEN.join(', ')}` });
   }
 
-  if (typ === 'verfuegbarkeit' && !['available', 'partially', 'blocked'].includes(verfuegbarkeit)) {
-    return res.status(400).json({ message: 'Bei typ=verfuegbarkeit muss verfuegbarkeit gesetzt sein (available/partially/blocked).' });
+  if (typ === 'verfuegbarkeit' && !['available', 'partially', 'blocked', 'angefragt_tel', 'angefragt_flip'].includes(verfuegbarkeit)) {
+    return res.status(400).json({ message: 'Bei typ=verfuegbarkeit muss verfuegbarkeit gesetzt sein (available/partially/blocked/angefragt_tel/angefragt_flip).' });
   }
 
   if (typ === 'abwesenheit' && !['urlaub', 'krank', 'feiertag', 'ueberstunden', 'sonstiges'].includes(abwesenheitsKategorie)) {
