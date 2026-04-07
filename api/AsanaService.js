@@ -325,6 +325,11 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
     console.warn("⚠️ Duplicate check (by name) failed:", e.message);
   }
 
+  // Bestehenden Task ergänzen statt neuen erstellen
+  if (duplicateTask) {
+    return await _mergeIntoExistingTask(duplicateTask, email, files, hint);
+  }
+
   // 1) Task minimal anlegen (Name/Notes/Due)
   //    Name bleibt wie bisher (Parser-Titel), damit S/L im Titel sichtbar bleibt
   const name = email.subject || "(kein Betreff)";
@@ -344,13 +349,6 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
     const ph = (email.bodyPreview.match(/(\+?\d[\d\s\/\-\(\)]{5,}\d)/) || [])[0];
     if (ph) contacts.push(`Telefon: ${ph}`);
     if (em) contacts.push(`E-Mail: ${em}`);
-  }
-
-  // Link auf bestehenden Task (wenn gefunden)
-  // – in die Plain-Notes rein, ohne sonstige Meta-Anteile
-  if (duplicateTask?.permalink_url) {
-    contacts.push("");
-    contacts.push(`🔗 Bestehender Task: ${duplicateTask.permalink_url}`);
   }
 
   const plainNotes = contacts.join("\n");
@@ -389,16 +387,6 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
       provider: hint.provider,
       teamKey: hint.teamKey,
     });
-
-    // Duplikat-Hinweis auch im HTML schön sichtbar
-    if (duplicateTask?.permalink_url) {
-      const dupBlock = `
-        <div style="margin-top:12px;padding:8px;background:#fff3cd;border:1px solid #ffeeba;border-radius:4px;">
-          🔗 Bestehender Task:
-          <a href="${duplicateTask.permalink_url}" target="_blank" rel="noopener">${duplicateTask.name}</a>
-        </div>`;
-      html = html.replace("</body>", `${dupBlock}</body>`);
-    }
 
     queueTaskUpdate(createdTask.gid, html);
   } catch (e) {
@@ -513,6 +501,101 @@ async function getSubtaskByTask(task_gid) {
         console.error(`❌ Error fetching Subtasks from task ${task_gid}:`, error.response?.body || error.message);
         throw new Error("Failed to fetch subtasks from Asana");
     }
+}
+
+// --- Merge helpers for re-applications (Doppelbewerbung) ---
+
+function _extractSuffix(taskName = "") {
+  // Extracts "S", "L", "S+L", "?" etc. from "Vorname Nachname - S"
+  const m = String(taskName).match(/\s*-\s*([SL?][+SL?]*)\s*$/i);
+  return m ? m[1].toUpperCase() : null;
+}
+
+function _mergeTaskTitle(oldName = "", newTaskName = "") {
+  const baseName = oldName.replace(/\s*-\s*[SL?][+SL?]*\s*$/i, "").trim();
+  const oldSuffix = _extractSuffix(oldName);
+  const newSuffix = _extractSuffix(newTaskName);
+
+  if (!newSuffix) return oldName;
+  if (!oldSuffix) return `${baseName} - ${newSuffix}`;
+
+  const merged = [...new Set([...oldSuffix.split("+"), ...newSuffix.split("+")])].join("+");
+  return merged === oldSuffix ? oldName : `${baseName} - ${merged}`;
+}
+
+async function _getExistingAttachmentNames(task_gid) {
+  try {
+    const client = Asana.ApiClient.instance;
+    const token = client.authentications["token"];
+    token.accessToken = process.env.ASANA_PAT;
+    const attsApi = new Asana.AttachmentsApi();
+    const resp = await attsApi.getAttachmentsForObject(task_gid, { opt_fields: "name" });
+    return new Set((resp?.data || []).map((a) => a.name));
+  } catch (e) {
+    console.warn("⚠️ _getExistingAttachmentNames failed:", e.message);
+    return new Set();
+  }
+}
+
+async function _mergeIntoExistingTask(existingTask, email, files = [], hint = {}) {
+  const gid = existingTask.gid;
+  const api = initTasksApi();
+
+  // 1) Titel aktualisieren: S/L-Suffix mergen (z.B. "- S" + "- L" → "- S+L")
+  const mergedTitle = _mergeTaskTitle(existingTask.name, email.subject || "");
+  if (mergedTitle !== existingTask.name) {
+    try {
+      await api.updateTask({ data: { name: mergedTitle } }, gid, {});
+      console.log(`✏️ Task-Titel aktualisiert: "${existingTask.name}" → "${mergedTitle}"`);
+    } catch (e) {
+      console.warn("⚠️ Titel-Update fehlgeschlagen:", e.message);
+    }
+  }
+
+  // 2) Neue Bewerbung als Story (Kommentar) an bestehenden Task anhängen
+  try {
+    const fromInfo = `${(email.fromName || email.fromAddr || "unbekannt").replace(/</g, "&lt;").replace(/>/g, "&gt;")} &lt;${email.fromAddr || ""}&gt;`;
+    const dateInfo = email.receivedDateTime
+      ? new Date(email.receivedDateTime).toLocaleString("de-DE")
+      : "-";
+    const providerInfo = (hint.provider || "-").replace(/</g, "&lt;");
+
+    const contactLines = [];
+    if (email.meta?.telefon) contactLines.push(`Telefon: ${email.meta.telefon}`);
+    if (email.meta?.email) contactLines.push(`E-Mail: ${email.meta.email}`);
+    const contactHtml = contactLines.length
+      ? `<br>${contactLines.map((l) => l.replace(/</g, "&lt;")).join("<br>")}`
+      : "";
+
+    const commentText = email.meta?.asana_comment || email.bodyText || "";
+    const commentHtml = commentText.trim()
+      ? `<br><pre>${commentText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`
+      : "";
+
+    const storyHtml = `<body><strong>🔄 Erneute Bewerbung eingegangen</strong><br>📥 <b>Eingang:</b> ${dateInfo}<br>👤 <b>Von:</b> ${fromInfo}<br>🔍 <b>Quelle:</b> ${providerInfo}${contactHtml}${commentHtml}</body>`;
+    await createStoryOnTask(gid, { html_text: storyHtml });
+    console.log(`💬 Story zur erneuten Bewerbung an Task ${gid} angefügt`);
+  } catch (e) {
+    console.warn("⚠️ Story on existing task failed:", e.message);
+  }
+
+  // 3) Nur neue Anhänge hochladen (Namen-Vergleich)
+  if (files && files.length > 0) {
+    try {
+      const existingNames = await _getExistingAttachmentNames(gid);
+      const newFiles = files.filter((f) => !existingNames.has(f.name));
+      if (newFiles.length > 0) {
+        await uploadAttachmentsToTask(gid, newFiles);
+        console.log(`📎 ${newFiles.length} neuer Anhang/Anhänge zu bestehendem Task hinzugefügt`);
+      } else {
+        console.log(`📎 Keine neuen Anhänge — alle bereits vorhanden`);
+      }
+    } catch (e) {
+      console.error("❌ Attachment-Merge fehlgeschlagen:", e.message);
+    }
+  }
+
+  return existingTask;
 }
 
 // --- Duplicate finder (by exact normalized name) ---
