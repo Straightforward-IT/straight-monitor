@@ -4,10 +4,17 @@ import { useDataCache } from '@/stores/dataCache';
 
 export const useAuth = defineStore('auth', {
   state: () => ({ token: localStorage.getItem('token'), user: null }),
-  getters: { isLoggedIn: s => !!s.token },
+  getters: {
+    isLoggedIn: s => !!s.token,
+    kundenWatchlist: s => s.user?.kundenWatchlist ?? [],
+  },
   actions: {
     setToken(t){ this.token = t; t ? localStorage.setItem('token', t) : localStorage.removeItem('token'); },
     async fetchMe(){ const { data } = await api.get('/api/users/me'); this.user = data; return data; },
+    async toggleKundeWatchlist(kundeId) {
+      const { data } = await api.put('/api/users/me/kunden-watchlist/toggle', { kundeId });
+      if (this.user) this.user.kundenWatchlist = data.kundenWatchlist;
+    },
     async logout() {
       // Clear IndexedDB cache so stale data is not shown after re-login
       try { await useDataCache().clearAllCaches(); } catch (e) { console.warn('[Auth] Cache clear failed:', e); }

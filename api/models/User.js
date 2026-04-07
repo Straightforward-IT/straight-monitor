@@ -47,6 +47,10 @@ const UserSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Mitarbeiter',
     default: null
+  },
+  kundenWatchlist: {
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Kunde' }],
+    default: []
   }
 });
 

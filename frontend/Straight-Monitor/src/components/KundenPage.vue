@@ -100,9 +100,14 @@
             >
               <div class="card-header">
                 <h3>{{ kunde.kundName || 'Unbenannt' }}</h3>
-                <span class="status-badge" :class="getStatusClass(kunde.kundStatus)">
-                  {{ getStatusText(kunde.kundStatus) }}
-                </span>
+                <div class="card-header-right">
+                  <button class="watchlist-btn" :class="{ active: isOnWatchlist(kunde) }" @click="toggleWatchlist(kunde, $event)" :title="isOnWatchlist(kunde) ? 'Von Watchlist entfernen' : 'Zur Watchlist hinzufügen'">
+                    <font-awesome-icon :icon="['fas', 'binoculars']" />
+                  </button>
+                  <span class="status-badge" :class="getStatusClass(kunde.kundStatus)">
+                    {{ getStatusText(kunde.kundStatus) }}
+                  </span>
+                </div>
               </div>
               <div class="card-body">
                 <p><strong>Nr:</strong> {{ kunde.kundenNr }}<span v-if="kunde.kuerzel" class="kuerzel-inline"> · {{ kunde.kuerzel }}</span></p>
@@ -119,6 +124,54 @@
       <!-- Analytics Tab -->
       <div v-if="currentTab === 'analytics'" class="tab-content">
          <KundenAnalytics />
+      </div>
+
+      <!-- Watchlist Tab -->
+      <div v-if="currentTab === 'watchlist'" class="tab-content">
+        <div class="toolbar">
+          <div class="search-group">
+            <span class="count-tag">{{ watchlistedKunden.length }} auf der Watchlist</span>
+          </div>
+          <button v-if="watchlistedKunden.length > 0" class="btn-group" @click="showReportModal = true">
+            <font-awesome-icon :icon="['fas', 'chart-bar']" />
+            Bericht senden
+          </button>
+        </div>
+
+        <div v-if="watchlistedKunden.length === 0" class="empty-list">
+          <font-awesome-icon :icon="['fas', 'binoculars']" style="font-size: 32px; margin-bottom: 12px; opacity: 0.3;" />
+          <p>Noch keine Kunden auf der Watchlist.</p>
+          <p style="font-size: 13px;">Klicke auf das Stern-Symbol bei einem Kunden, um ihn hier hinzuzufügen.</p>
+        </div>
+
+        <div v-else class="kunden-grid">
+          <div
+            v-for="kunde in watchlistedKunden"
+            :key="kunde._id"
+            class="kunde-card"
+            @click="openCustomer(kunde)"
+          >
+            <div class="card-header">
+              <h3>{{ kunde.kundName || 'Unbenannt' }}</h3>
+              <div class="card-header-right">
+                <button class="watchlist-btn active" @click="toggleWatchlist(kunde, $event)" title="Von Watchlist entfernen">
+                  <font-awesome-icon :icon="['fas', 'binoculars']" />
+                </button>
+                <span class="status-badge" :class="getStatusClass(kunde.kundStatus)">
+                  {{ getStatusText(kunde.kundStatus) }}
+                </span>
+              </div>
+            </div>
+            <div class="card-body">
+              <p><strong>Nr:</strong> {{ kunde.kundenNr }}<span v-if="kunde.kuerzel" class="kuerzel-inline"> · {{ kunde.kuerzel }}</span></p>
+              <div v-if="kunde.contacts && kunde.contacts.length" class="contact-preview">
+                <font-awesome-icon :icon="['fas', 'user']" />
+                {{ kunde.contacts[0].vorname }} {{ kunde.contacts[0].nachname }}
+                <span v-if="kunde.contacts.length > 1" class="more-contacts">+{{ kunde.contacts.length - 1 }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
        <!-- Leads Tab (Status 1) -->
@@ -155,6 +208,11 @@
       @saved="dataCache.loadKunden(true)" 
     />
 
+    <KundenWatchlistReportModal
+      v-if="showReportModal"
+      @close="showReportModal = false"
+    />
+
     <!-- Customer Detail Modal -->
     <teleport to="body">
       <div v-if="selectedKunde" class="modal-overlay" @click="selectedKunde = null">
@@ -185,6 +243,7 @@ import CustomerCard from './CustomerCard.vue';
 import CustomTooltip from './CustomTooltip.vue';
 import KundenAnalytics from './KundenAnalytics.vue';
 import KundenMergeModal from './KundenMergeModal.vue';
+import KundenWatchlistReportModal from './KundenWatchlistReportModal.vue';
 
 const dataCache = useDataCache();
 const auth = useAuth(); // Init Auth Store
@@ -194,11 +253,13 @@ const router = useRouter();
 const tabs = [
   { id: 'overview', label: 'Übersicht', icon: ['fas', 'list'] },
   { id: 'analytics', label: 'Analytics', icon: ['fas', 'chart-bar'] },
-  { id: 'leads', label: 'Leads', icon: ['fas', 'bullseye'] }
+  { id: 'leads', label: 'Leads', icon: ['fas', 'bullseye'] },
+  { id: 'watchlist', label: 'Watchlist', icon: ['fas', 'binoculars'] }
 ];
 
 const currentTab = ref('overview');
 const showMergeModal = ref(false);
+const showReportModal = ref(false);
 const searchQuery = ref('');
 const isLoading = ref(false);
 const filtersExpanded = ref(false);
@@ -234,7 +295,7 @@ watch(currentTab, (newTab) => {
 });
 
 watch(() => route.query.tab, (newTab) => {
-  if (newTab && ['overview', 'analytics', 'leads'].includes(newTab)) {
+  if (newTab && ['overview', 'analytics', 'leads', 'watchlist'].includes(newTab)) {
     currentTab.value = newTab;
   }
 }, { immediate: true });
@@ -247,7 +308,7 @@ watch(filters, (newVal) => {
 onMounted(async () => {
   isLoading.value = true;
   // Initialize Tab from URL if present
-  if (route.query.tab && ['overview', 'analytics', 'leads'].includes(route.query.tab)) {
+  if (route.query.tab && ['overview', 'analytics', 'leads', 'watchlist'].includes(route.query.tab)) {
     currentTab.value = route.query.tab;
   }
   // Initialize search from URL if present
@@ -281,6 +342,28 @@ function openCustomer(kunde) {
 
 const allKunden = computed(() => dataCache.kunden || []);
 
+const watchlistedKunden = computed(() => {
+  const ids = new Set((auth.kundenWatchlist || []).map(id => id.toString()));
+  return allKunden.value.filter(k => ids.has(k._id.toString()));
+});
+
+const watchlistSaving = ref(false);
+
+async function toggleWatchlist(kunde, event) {
+  event.stopPropagation();
+  if (watchlistSaving.value) return;
+  watchlistSaving.value = true;
+  try {
+    await auth.toggleKundeWatchlist(kunde._id);
+  } finally {
+    watchlistSaving.value = false;
+  }
+}
+
+function isOnWatchlist(kunde) {
+  return (auth.kundenWatchlist || []).some(id => id.toString() === kunde._id.toString());
+}
+
 // Helper for filtering & sorting
 function processData(list) {
   let result = list;
@@ -290,7 +373,8 @@ function processData(list) {
     const q = searchQuery.value.toLowerCase();
     result = result.filter(k => 
       (k.kundName && k.kundName.toLowerCase().includes(q)) || 
-      (k.kundenNr && k.kundenNr.toString().includes(q))
+      (k.kundenNr && k.kundenNr.toString().includes(q)) ||
+      (k.kuerzel && k.kuerzel.toLowerCase().includes(q))
     );
   }
 
@@ -353,7 +437,8 @@ const leads = computed(() => {
     const q = searchQuery.value.toLowerCase();
     result = result.filter(k => 
       (k.kundName && k.kundName.toLowerCase().includes(q)) || 
-      (k.kundenNr && k.kundenNr.toString().includes(q))
+      (k.kundenNr && k.kundenNr.toString().includes(q)) ||
+      (k.kuerzel && k.kuerzel.toLowerCase().includes(q))
     );
   }
 
@@ -569,6 +654,32 @@ function formatDate(dateStr) {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 12px;
+}
+
+.card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.watchlist-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--muted);
+  transition: color 0.2s, transform 0.15s;
+  line-height: 1;
+}
+
+.watchlist-btn:hover {
+  color: #f59e0b;
+  transform: scale(1.2);
+}
+
+.watchlist-btn.active {
+  color: #f59e0b;
 }
 
 .card-header h3 {

@@ -688,6 +688,19 @@ export default {
         const qualiResult = results.find(r => r.type === 'Qualifikationen');
         if (berufResult?.success) this.dataCache.invalidateCache('berufe');
         if (qualiResult?.success) this.dataCache.invalidateCache('qualifikationen');
+
+        // After successful rechnung import, dispatch watchlist reports to all users with watchlist entries
+        const rechnungResult = results.find(r => r.type === 'Rechnungen');
+        if (rechnungResult?.success) {
+          try {
+            const reportResp = await api.post('/api/users/watchlist-reports/send-all');
+            if (reportResp.data?.sent > 0) {
+              this.resultModalData.message += `<div class="mb-2"><strong>Watchlist-Berichte:</strong> ${reportResp.data.msg}</div>`;
+            }
+          } catch (e) {
+            console.warn('[DatenImport] Watchlist report dispatch failed:', e);
+          }
+        }
       } catch (err) {
         console.error("Global import error:", err);
         this.resultModalData = {

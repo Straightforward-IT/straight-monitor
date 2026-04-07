@@ -36,7 +36,8 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faBullhorn,
   faTableColumns,
   faEuroSign, faHandshake, faBan,
-  faQuestion} from '@fortawesome/free-solid-svg-icons';
+  faQuestion,
+  faBinoculars} from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle, faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
@@ -53,7 +54,7 @@ library.add(
   // Customer Card Icons
   faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faThLarge, faFileImport, faBookmark, faGripVertical,
   // Merge Icon
-  faObjectGroup, faAddressCard,
+  faObjectGroup, faAddressCard, faBinoculars,
   // Pie Chart Icon
   faChartPie,
   // Mobile Menu Icons
@@ -80,7 +81,8 @@ library.add(
   faBriefcaseMedical,
   faCalendarDay,
   faEraser,
-  faHandshake, faBan
+  faHandshake, faBan,
+  faBinoculars
 );
 
 const app = createApp(App);
