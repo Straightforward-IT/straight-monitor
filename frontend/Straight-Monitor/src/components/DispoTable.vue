@@ -1787,7 +1787,7 @@ function entryIcon(entry) {
 function entryLabel(entry) {
   if (entry.typ === 'planned' || entry._source === 'einsatz') return `Einsatz: ${entry.bezeichnung || entry.auftragNr}`;
   if (entry.typ === 'verfuegbarkeit') {
-    const l = { available: 'Verfügbar', partially: 'Eingeschränkt', blocked: 'Blocked' };
+    const l = { available: 'Verfügbar', partially: 'Eingeschränkt', blocked: 'Blocked', angefragt_tel: 'Angefragt (Tel)', angefragt_flip: 'Angefragt (Flip)' };
     let label = l[entry.verfuegbarkeit];
     if (entry.verfuegbarkeit === 'partially' && (entry.zeitVon || entry.zeitBis)) {
       const von = entry.zeitVon || '';
