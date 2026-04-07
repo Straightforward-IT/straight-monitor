@@ -60,7 +60,6 @@
                 <tr>
                   <th class="col-kunde">Kunde</th>
                   <th class="col-metric">Aufträge</th>
-                  <th class="col-metric">Positionen</th>
                   <th class="col-metric">Einsätze</th>
                   <th class="col-umsatz">Umsatz</th>
                 </tr>
@@ -73,9 +72,6 @@
                   </td>
                   <td class="col-metric">
                     <MetricCell :current="k.current.auftraegeCount" :prev="k.prevYear?.auftraegeCount ?? null" />
-                  </td>
-                  <td class="col-metric">
-                    <MetricCell :current="k.current.positionen" :prev="k.prevYear?.positionen ?? null" />
                   </td>
                   <td class="col-metric">
                     <MetricCell :current="k.current.einsaetzeCount" :prev="k.prevYear?.einsaetzeCount ?? null" />
@@ -114,7 +110,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, h } from 'vue';
 import api from '@/utils/api';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
@@ -183,29 +179,28 @@ async function sendReport() {
   }
 }
 
-// ── MetricCell as inline component ──────────────────────────────────────────
+// ── MetricCell as inline component (render fn — no runtime compiler needed) ──
 const MetricCell = {
   props: { current: Number, prev: { type: Number, default: null }, currency: Boolean },
   setup(props) {
     const fmt = (n) => props.currency
-      ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n || 0)
-      : (n || 0).toLocaleString('de-DE');
+      ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n ?? 0)
+      : (n ?? 0).toLocaleString('de-DE');
 
-    return { fmt };
-  },
-  template: `
-    <div class="metric-cell">
-      <span class="metric-curr">{{ fmt(current) }}</span>
-      <template v-if="prev !== null">
-        <span :class="['metric-delta', current >= prev ? 'up' : 'down']">
-          {{ current >= prev ? '▲' : '▼' }}
-          {{ prev !== 0 ? Math.abs(((current - prev) / prev) * 100).toFixed(1) + '%' : '' }}
-        </span>
-        <span class="metric-prev">VJ: {{ fmt(prev) }}</span>
-      </template>
-      <span v-else class="metric-prev no-prev">–</span>
-    </div>
-  `
+    return () => {
+      const curr = h('span', { class: 'metric-curr' }, fmt(props.current));
+      const rest = props.prev !== null
+        ? [
+            h('span', { class: ['metric-delta', props.current >= props.prev ? 'up' : 'down'] },
+              (props.current >= props.prev ? '▲ ' : '▼ ') +
+              (props.prev !== 0 ? Math.abs(((props.current - props.prev) / props.prev) * 100).toFixed(1) + '%' : '')
+            ),
+            h('span', { class: 'metric-prev' }, 'VJ: ' + fmt(props.prev))
+          ]
+        : [h('span', { class: 'metric-prev no-prev' }, '–')];
+      return h('div', { class: 'metric-cell' }, [curr, ...rest]);
+    };
+  }
 };
 </script>
 

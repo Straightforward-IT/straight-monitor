@@ -26,10 +26,8 @@ async function buildKundeMetrics(kundenNr, range) {
   const auftragNrs = auftraege.map(a => a.auftragNr);
 
   const einsaetzeQuery = auftragNrs.length > 0
-    ? await Einsatz.find({ auftragNr: { $in: auftragNrs }, isPseudo: { $ne: true } }).select('bedarf').lean()
+    ? await Einsatz.find({ auftragNr: { $in: auftragNrs }, isPseudo: { $ne: true } }).select('_id').lean()
     : [];
-
-  const positionen = einsaetzeQuery.reduce((s, e) => s + (e.bedarf || 0), 0);
 
   const rechnungen = await Rechnung.find({ kundenNr, buchDatum: { $gte: range.start, $lt: range.end } }).lean();
   const umsatz = rechnungen.reduce((s, r) => {
@@ -37,7 +35,7 @@ async function buildKundeMetrics(kundenNr, range) {
     return s + (dec.netto || 0);
   }, 0);
 
-  return { auftraegeCount: auftraege.length, einsaetzeCount: einsaetzeQuery.length, positionen, umsatz };
+  return { auftraegeCount: auftraege.length, einsaetzeCount: einsaetzeQuery.length, umsatz };
 }
 
 function buildReportHtml(kunden_report, m, y) {
@@ -56,7 +54,6 @@ function buildReportHtml(kunden_report, m, y) {
       <tr>
         <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:500">${k.kundName}${k.kuerzel ? ` <span style="color:#9ca3af;font-size:11px">(${k.kuerzel})</span>` : ''}</td>
         <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:center">${k.current.auftraegeCount}${p ? delta(k.current.auftraegeCount, p.auftraegeCount) + `<br><span style="color:#9ca3af;font-size:11px">VJ: ${p.auftraegeCount}</span>` : ''}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:center">${k.current.positionen}${p ? delta(k.current.positionen, p.positionen) + `<br><span style="color:#9ca3af;font-size:11px">VJ: ${p.positionen}</span>` : ''}</td>
         <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:center">${k.current.einsaetzeCount}${p ? delta(k.current.einsaetzeCount, p.einsaetzeCount) + `<br><span style="color:#9ca3af;font-size:11px">VJ: ${p.einsaetzeCount}</span>` : ''}</td>
         <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right">${fmt(k.current.umsatz)}${p ? delta(k.current.umsatz, p.umsatz) + `<br><span style="color:#9ca3af;font-size:11px">VJ: ${fmt(p.umsatz)}</span>` : ''}</td>
       </tr>`;
@@ -70,7 +67,6 @@ function buildReportHtml(kunden_report, m, y) {
           <tr style="background:#f4f5f6">
             <th style="padding:10px 14px;text-align:left;font-size:13px;color:#444">Kunde</th>
             <th style="padding:10px 14px;text-align:center;font-size:13px;color:#444">Aufträge</th>
-            <th style="padding:10px 14px;text-align:center;font-size:13px;color:#444">Positionen</th>
             <th style="padding:10px 14px;text-align:center;font-size:13px;color:#444">Einsätze</th>
             <th style="padding:10px 14px;text-align:right;font-size:13px;color:#444">Umsatz</th>
           </tr>
