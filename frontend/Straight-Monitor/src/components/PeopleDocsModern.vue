@@ -163,8 +163,13 @@
             <div class="chip-group compact-group qual-chip-group">
               <div class="qual-filter-box">
                 <div class="qual-pills-input" @click="$refs.qualInput?.focus()">
-                  <span v-for="q in qualFilterObjects" :key="q._id" class="qual-pill">
-                    {{ q.designation }}
+                  <span
+                    v-for="(q, idx) in qualFilterObjects"
+                    :key="q._id"
+                    class="qual-pill"
+                    :class="{ 'is-focused': qualFocusedPillIdx === idx }"
+                  >
+                    <span class="qual-pill-text">{{ q.designation }}</span>
                     <button class="qual-pill-remove" @click.stop="removeQual(q)" title="Entfernen">✕</button>
                   </span>
                   <input
@@ -176,6 +181,7 @@
                     @focus="qualDropdownOpen = true"
                     @input="qualDropdownOpen = true"
                     @blur="onQualBlur"
+                    @keydown="onQualKeydown"
                   />
                 </div>
                 <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown">
@@ -882,6 +888,7 @@ export default {
       mitarbeitersSearchQuery: "",
       qualSearchQuery: "",
       qualDropdownOpen: false,
+      qualFocusedPillIdx: -1,
       mitarbeitersSortBy: "nachname",
       mitarbeitersIsAscending: true,
 
@@ -1727,7 +1734,46 @@ export default {
     },
 
     onQualBlur() {
-      setTimeout(() => { this.qualDropdownOpen = false; }, 150);
+      setTimeout(() => {
+        this.qualDropdownOpen = false;
+        this.qualFocusedPillIdx = -1;
+      }, 150);
+    },
+
+    onQualKeydown(e) {
+      const pills = this.qualFilterObjects;
+      const focused = this.qualFocusedPillIdx;
+
+      if (focused >= 0) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          this.qualFocusedPillIdx = Math.max(0, focused - 1);
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          if (focused < pills.length - 1) {
+            this.qualFocusedPillIdx = focused + 1;
+          } else {
+            this.qualFocusedPillIdx = -1;
+          }
+        } else if (e.key === 'Backspace' || e.key === 'Delete') {
+          e.preventDefault();
+          this.removeQual(pills[focused]);
+          this.qualFocusedPillIdx = Math.min(focused, pills.length - 2);
+        } else if (e.key === 'Escape') {
+          this.qualFocusedPillIdx = -1;
+        } else if (e.key.length === 1) {
+          this.qualFocusedPillIdx = -1;
+        }
+        return;
+      }
+
+      const atStart = e.target.selectionStart === 0 && e.target.selectionEnd === 0;
+      if (e.key === 'ArrowLeft' && atStart && pills.length > 0) {
+        e.preventDefault();
+        this.qualFocusedPillIdx = pills.length - 1;
+      } else if ((e.key === 'Backspace' || e.key === 'Delete') && this.qualSearchQuery === '' && pills.length > 0) {
+        this.removeQual(pills[pills.length - 1]);
+      }
     },
     
     // Aktiviere Filter von extern (z.B. von EmployeeCard)
@@ -3946,8 +3992,19 @@ html {
   font-weight: 500;
   white-space: nowrap;
   max-width: 160px;
+  overflow: visible;
+
+  &.is-focused {
+    background: rgba(var(--primary-rgb, 253 126 20) / 0.22);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 253 126 20) / 0.3);
+  }
+}
+
+.qual-pill-text {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .qual-pill-remove {
