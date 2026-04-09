@@ -2,13 +2,13 @@
 const express = require("express");
 const axios = require("axios");
 const he = require("he");
-const libre = require("libreoffice-convert");
+const mammoth = require("mammoth");
+const pdfMake = require("pdfmake/build/pdfmake");
+const pdfFonts = require("pdfmake/build/vfs_fonts");
+pdfMake.vfs = pdfFonts.vfs;
+const htmlToPdfmake = require("html-to-pdfmake");
+const { JSDOM } = require("jsdom");
 const router = express.Router();
-
-// Heroku: apt buildpack installs to /app/.apt/usr/bin — set path explicitly if not overridden
-if (process.env.DYNO && !process.env.LIBREOFFICE_PATH) {
-  process.env.LIBREOFFICE_PATH = "/app/.apt/usr/bin/soffice";
-}
 
 const {
   ensureGraphMailSubscription,
@@ -90,13 +90,23 @@ function extractUserGuidFromResource(resource = "") {
   return match ? match[1] : null;
 }
 /**
- * Konvertiert eine DOCX-Datei (base64) zu PDF via LibreOffice.
+ * Konvertiert eine DOCX-Datei (base64) zu PDF via mammoth + pdfmake (rein Node.js).
  * Gibt ein neues file-Objekt zurück oder das Original bei Fehler.
  */
 async function convertDocxToPdf(file) {
   try {
     const inputBuf = Buffer.from(file.contentBytes, "base64");
-    const pdfBuf = await libre.convertAsync(inputBuf, ".pdf", undefined);
+    const { value: html } = await mammoth.convertToHtml({ buffer: inputBuf });
+
+    const { window } = new JSDOM("");
+    const content = htmlToPdfmake(html, { window });
+
+    const docDef = { content: content || [{ text: "(kein Inhalt)" }] };
+    const pdfBuf = await new Promise((resolve, reject) => {
+      const doc = pdfMake.createPdf(docDef);
+      doc.getBuffer((buf) => resolve(Buffer.from(buf)));
+    });
+
     const pdfName = file.name.replace(/\.docx?$/i, ".pdf");
     console.log(`📄 Converted ${file.name} → ${pdfName} (${pdfBuf.length} bytes)`);
     return {
