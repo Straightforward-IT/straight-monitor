@@ -2510,17 +2510,7 @@ router.post(
       mitarbeiter.flip_id = createdFlipUser.id;
       await mitarbeiter.save();
 
-      // Usergruppen zuweisen falls vorhanden
-      if (user_group_ids?.length) {
-        await assignFlipUserGroups({
-          body: {
-            items: user_group_ids.map((groupId) => ({
-              user_id: createdFlipUser.id,
-              user_group_id: groupId,
-            })),
-          },
-        });
-      }
+      // Usergruppen werden automatisch von Flip anhand der attributes zugewiesen
 
       // Aufgabe erstellen mit Frist in drei Tagen um 18 Uhr
       const dueDate = new Date();
@@ -2690,21 +2680,7 @@ router.post(
     mitarbeiter.flip_id = createdFlipUser.id;
     await mitarbeiter.save();
 
-    // Assign user groups
-    if (user_group_ids?.length) {
-      try {
-        await assignFlipUserGroups({
-          body: {
-            items: user_group_ids.map((groupId) => ({
-              user_id: createdFlipUser.id,
-              user_group_id: groupId,
-            })),
-          },
-        });
-      } catch (groupErr) {
-        console.error("⚠️ Fehler beim Zuweisen der Usergruppen:", groupErr.message);
-      }
-    }
+    // Usergruppen werden automatisch von Flip anhand der attributes zugewiesen
 
     // Create welcome task
     try {
