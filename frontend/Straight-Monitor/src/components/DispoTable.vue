@@ -48,6 +48,36 @@
           </button>
         </div>
 
+        <!-- Qualifikation Filter (fs-toolbar) -->
+        <div class="fs-qual-filter" :class="{ 'fs-qual-filter--active': qualFilter.length > 0 }">
+          <div class="qual-pills-input qual-pills-input--fs" @click="qualInputFsRef?.focus()">
+            <span v-for="q in qualFilter" :key="q._id" class="qual-pill qual-pill--sm">
+              {{ q.designation }}
+              <button class="qual-pill-remove" @click.stop="removeQual(q)">✕</button>
+            </span>
+            <input
+              ref="qualInputFsRef"
+              v-model="qualSearchQuery"
+              type="text"
+              :placeholder="qualFilter.length ? '' : 'Qual…'"
+              @focus="qualDropdownOpen = true"
+              @input="qualDropdownOpen = true"
+              @blur="onQualBlur"
+            />
+          </div>
+          <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown qual-dropdown--fs">
+            <div
+              v-for="q in qualSuggestions"
+              :key="q._id"
+              class="qual-dropdown-item"
+              @mousedown.prevent="addQual(q)"
+            >
+              <span class="qual-key">{{ q.qualificationKey }}</span>
+              {{ q.designation }}
+            </div>
+          </div>
+        </div>
+
         <!-- KW Chips -->
         <div class="kw-chips">
           <span class="kw-label">KW</span>
@@ -122,10 +152,13 @@
       </template>
       <!-- Standort Filter -->
       <FilterGroup label="Standort">
-        <FilterChip :active="filters.standort === '1'" @click="setStandort('1')">Berlin</FilterChip>
-        <FilterChip :active="filters.standort === '2'" @click="setStandort('2')">Hamburg</FilterChip>
-        <FilterChip :active="filters.standort === '3'" @click="setStandort('3')">Köln</FilterChip>
-        <FilterChip :active="!filters.standort" @click="setStandort(null)">Alle</FilterChip>
+        <FilterDropdown :has-value="!!filters.standort">
+          <template #label>{{ standortLabel }}</template>
+          <div class="dropdown-item" :class="{ selected: !filters.standort }" @click="setStandort(null)">Alle</div>
+          <div class="dropdown-item" :class="{ selected: filters.standort === '1' }" @click="setStandort('1')">Berlin</div>
+          <div class="dropdown-item" :class="{ selected: filters.standort === '2' }" @click="setStandort('2')">Hamburg</div>
+          <div class="dropdown-item" :class="{ selected: filters.standort === '3' }" @click="setStandort('3')">Köln</div>
+        </FilterDropdown>
       </FilterGroup>
 
       <FilterDivider />
@@ -157,6 +190,41 @@
 
       <FilterDivider />
 
+      <!-- Qualifikation Filter -->
+      <FilterGroup label="Qualifikation">
+        <div class="qual-filter-box">
+          <div class="qual-pills-input" @click="qualInputRef?.focus()">
+            <span v-for="q in qualFilter" :key="q._id" class="qual-pill">
+              {{ q.designation }}
+              <button class="qual-pill-remove" @click.stop="removeQual(q)" title="Entfernen">✕</button>
+            </span>
+            <input
+              ref="qualInputRef"
+              v-model="qualSearchQuery"
+              class="qual-search-input"
+              type="text"
+              :placeholder="qualFilter.length ? '' : 'Qualifikation suchen…'"
+              @focus="qualDropdownOpen = true"
+              @input="qualDropdownOpen = true"
+              @blur="onQualBlur"
+            />
+          </div>
+          <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown">
+            <div
+              v-for="q in qualSuggestions"
+              :key="q._id"
+              class="qual-dropdown-item"
+              @mousedown.prevent="addQual(q)"
+            >
+              <span class="qual-key">{{ q.qualificationKey }}</span>
+              {{ q.designation }}
+            </div>
+          </div>
+        </div>
+      </FilterGroup>
+
+      <FilterDivider />
+
       <!-- Kunden Filter -->
       <FilterGroup label="🤝 Kunde">
         <div class="kunde-filter-search">
@@ -171,6 +239,20 @@
           </button>
         </div>
       </FilterGroup>
+
+      <FilterDivider />
+
+      <!-- Search Box -->
+      <CustomTooltip text="Suchen [S]" position="bottom" style="display:block">
+        <div class="search-box">
+          <input
+            ref="searchInputNormal"
+            v-model="searchQuery"
+            type="text"
+            placeholder="Mitarbeiter suchen…"
+          />
+        </div>
+      </CustomTooltip>
 
       <FilterDivider />
 
@@ -193,18 +275,6 @@
         <font-awesome-icon icon="fa-solid fa-rotate-left" />
         Zurücksetzen
       </FilterChip>
-
-      <!-- Search Box -->
-      <CustomTooltip text="Suchen [S]" position="bottom" style="display:block">
-        <div class="search-box">
-          <input
-            ref="searchInputNormal"
-            v-model="searchQuery"
-            type="text"
-            placeholder="Mitarbeiter suchen…"
-          />
-        </div>
-      </CustomTooltip>
     </FilterPanel>
 
     <!-- Selection Bar (normal mode only) -->
@@ -454,11 +524,11 @@
                   v-for="day in visibleDays"
                   :key="day.iso"
                   class="col-day"
+                  :style="{ width: dayColWidth + 'px', minWidth: dayColWidth + 'px', maxWidth: dayColWidth + 'px' }"
                   :class="{
                     'is-today': day.isToday,
                     'is-weekend': day.isWeekend,
                   }"
-                  :style="{ width: dayColWidth + 'px', minWidth: dayColWidth + 'px', maxWidth: dayColWidth + 'px' }"
                 >
                   <div class="day-header">
                     <span class="day-name">{{ day.weekday }}</span>
@@ -482,9 +552,9 @@
                   v-for="day in visibleDays"
                   :key="day.iso"
                   class="col-day"
+                  :style="{ width: dayColWidth + 'px', minWidth: dayColWidth + 'px', maxWidth: dayColWidth + 'px' }"
                   :data-ma-id="String(ma._id)"
                   :data-iso="day.iso"
-                  :style="{ width: dayColWidth + 'px', minWidth: dayColWidth + 'px', maxWidth: dayColWidth + 'px' }"
                   :class="[
                     cellClass(ma._id, day.iso),
                     {
@@ -873,6 +943,7 @@
               @click="setStatus(opt.value)"
             >
               <span class="ctx-icon-composite">
+                <font-awesome-icon icon="fa-solid fa-question" class="ctx-icon-badge" />
                 <font-awesome-icon v-if="opt.anfragart === 'tel'" :icon="opt.icon" class="ctx-icon-main" />
                 <img v-else :src="flipIconUrl" class="ctx-icon-flip" />
               </span>
@@ -887,6 +958,25 @@
               <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
             </button>
           </template>
+
+          <div class="ctx-divider"></div>
+
+          <!-- Eingeplant (manuell) -->
+          <button
+            :class="['ctx-item', 'ctx-item--eingeplant', { active: eingeplantPicker.open }]"
+            @click="toggleEingeplantPicker"
+          >
+            <font-awesome-icon icon="fa-solid fa-clipboard-list" class="ctx-item-icon" /> Eingeplant
+          </button>
+          <div v-if="eingeplantPicker.open" class="ctx-eingeplant-picker" @click.stop>
+            <KundeSearch
+              ref="ctxKundeSearchRef"
+              :standort="filters.standort"
+              placeholder="Kunde wählen…"
+              @select="onEingeplantKundeSelect"
+            />
+            <button class="ctx-time-skip" @click="onEingeplantKundeSelect(null)">Ohne Kunde</button>
+          </div>
 
           <div class="ctx-divider"></div>
 
@@ -1017,7 +1107,7 @@ function togglePartiallyTime() {
     partiallyTime.zeitVon = '';
     partiallyTime.zeitBis = '';
   }
-  if (partiallyTime.open) { blockedTime.open = false; blockedTime.zeitVon = ''; blockedTime.zeitBis = ''; }
+  if (partiallyTime.open) { blockedTime.open = false; blockedTime.zeitVon = ''; blockedTime.zeitBis = ''; eingeplantPicker.open = false; }
 }
 
 // ─── Blocked Time Picker ───
@@ -1029,7 +1119,94 @@ function toggleBlockedTime() {
     blockedTime.zeitVon = '';
     blockedTime.zeitBis = '';
   }
-  if (blockedTime.open) { partiallyTime.open = false; partiallyTime.zeitVon = ''; partiallyTime.zeitBis = ''; }
+  if (blockedTime.open) { partiallyTime.open = false; partiallyTime.zeitVon = ''; partiallyTime.zeitBis = ''; eingeplantPicker.open = false; }
+}
+
+// ─── Eingeplant (manuell) Picker ───
+const eingeplantPicker = reactive({ open: false });
+const ctxKundeSearchRef = ref(null);
+
+function toggleEingeplantPicker() {
+  eingeplantPicker.open = !eingeplantPicker.open;
+  if (eingeplantPicker.open) {
+    partiallyTime.open = false; partiallyTime.zeitVon = ''; partiallyTime.zeitBis = '';
+    blockedTime.open = false; blockedTime.zeitVon = ''; blockedTime.zeitBis = '';
+  }
+}
+
+async function onEingeplantKundeSelect(kunde) {
+  const isMulti = ctxMenu.isMulti;
+  const singleMaId = ctxMenu.ma?._id;
+  const singleDay = ctxMenu.day;
+  const grouped = isMulti ? getGroupedSelection() : null;
+  const toDeleteIds = [];
+  const splitFragments = [];
+  if (isMulti) {
+    const seen = new Set();
+    for (const key of selectedCells.value) {
+      const idx = key.indexOf('_');
+      const maId = key.slice(0, idx);
+      const iso = key.slice(idx + 1);
+      for (const e of getEntriesForCell(maId, iso)) {
+        if (e._source !== 'einsatz' && !seen.has(String(e._id))) {
+          seen.add(String(e._id));
+          toDeleteIds.push(e._id);
+        }
+      }
+    }
+  } else {
+    const entriesToDelete = ctxMenu.entries.filter((e) => e._source !== 'einsatz');
+    for (const e of entriesToDelete) {
+      toDeleteIds.push(e._id);
+      const von = String(e.datumVon).slice(0, 10);
+      const bis = String(e.datumBis || e.datumVon).slice(0, 10);
+      const maId = typeof e.mitarbeiter === 'object' ? String(e.mitarbeiter._id || e.mitarbeiter) : String(e.mitarbeiter);
+      if (von < singleDay) splitFragments.push({ from: von, to: isoAddDays(singleDay, -1), entry: e, maId });
+      if (bis > singleDay) splitFragments.push({ from: isoAddDays(singleDay, 1), to: bis, entry: e, maId });
+    }
+  }
+  clearSelection();
+  closeCtxMenu();
+  try {
+    if (toDeleteIds.length) {
+      await Promise.all(toDeleteIds.map((id) => api.delete(`/api/dispo/${id}`)));
+      localRemoveEntries(toDeleteIds);
+    }
+    const created = [];
+    if (isMulti) {
+      for (const { maId, ranges } of grouped) {
+        for (const { from, to } of ranges) {
+          const { data } = await api.post('/api/dispo', {
+            mitarbeiter: maId, datumVon: from, datumBis: to,
+            typ: 'verfuegbarkeit', verfuegbarkeit: 'eingeplant',
+            ...(kunde ? { kundeRef: kunde._id, kundeKuerzel: kunde.kuerzel || kunde.kundName?.substring(0, 6) } : {}),
+          });
+          created.push(data);
+        }
+      }
+    } else {
+      for (const { from, to, entry, maId } of splitFragments) {
+        const { data } = await api.post('/api/dispo', {
+          mitarbeiter: maId, datumVon: from, datumBis: to, typ: entry.typ,
+          ...(entry.verfuegbarkeit ? { verfuegbarkeit: entry.verfuegbarkeit } : {}),
+          ...(entry.abwesenheitsKategorie ? { abwesenheitsKategorie: entry.abwesenheitsKategorie } : {}),
+          ...(entry.zeitVon ? { zeitVon: entry.zeitVon } : {}),
+          ...(entry.zeitBis ? { zeitBis: entry.zeitBis } : {}),
+        });
+        created.push(data);
+      }
+      const { data } = await api.post('/api/dispo', {
+        mitarbeiter: singleMaId, datumVon: singleDay, datumBis: singleDay,
+        typ: 'verfuegbarkeit', verfuegbarkeit: 'eingeplant',
+        ...(kunde ? { kundeRef: kunde._id, kundeKuerzel: kunde.kuerzel || kunde.kundName?.substring(0, 6) } : {}),
+      });
+      created.push(data);
+    }
+    localAddEntries(created);
+  } catch (err) {
+    console.error('Eingeplant setzen fehlgeschlagen:', err);
+    await fetchDispo();
+  }
 }
 
 function _observeExpandedRow(maId) {
@@ -1077,7 +1254,7 @@ function onResizeEnd() {
   document.removeEventListener('mouseup', onResizeEnd);
 }
 
-// ─── Day column width (all date columns resize together) ───
+// ─── Day column width (resizable, all day cols simultaneously) ───
 const dayColWidth = ref(48);
 let dayResizeStartX = 0;
 let dayResizeStartW = 0;
@@ -1097,8 +1274,8 @@ function onResizeDayMove(e) {
 }
 function onResizeDayEnd() {
   if (dayResizeMoved) {
-    document.addEventListener('click', (e) => e.stopPropagation(), { capture: true, once: true });
     savePrefs();
+    document.addEventListener('click', (e) => e.stopPropagation(), { capture: true, once: true });
   }
   dayResizeMoved = false;
   document.removeEventListener('mousemove', onResizeDayMove);
@@ -1126,6 +1303,58 @@ function clearKundeFilter() {
   kundeFilterFsRef.value?.clearSingle?.();
 }
 
+// ─── Qualifikation Filter ───
+const qualFilter = ref([]);          // [{_id, qualificationKey, designation}]
+const allQualifikationen = ref([]);  // full list from API
+const qualSearchQuery = ref('');
+const qualDropdownOpen = ref(false);
+const qualInputRef = ref(null);
+const qualInputFsRef = ref(null);
+
+async function fetchQualifikationen() {
+  try {
+    const { data } = await api.get('/api/import/qualifikationen');
+    allQualifikationen.value = (data.data || []).sort((a, b) =>
+      a.qualificationKey - b.qualificationKey
+    );
+  } catch (err) {
+    console.error('Qualifikationen laden fehlgeschlagen:', err);
+  }
+}
+
+const qualSuggestions = computed(() => {
+  const selectedIds = new Set(qualFilter.value.map(q => String(q._id)));
+  const q = qualSearchQuery.value.toLowerCase().trim();
+  return allQualifikationen.value.filter(
+    qual =>
+      !selectedIds.has(String(qual._id)) &&
+      (!q ||
+        qual.designation.toLowerCase().includes(q) ||
+        String(qual.qualificationKey).includes(q))
+  );
+});
+
+function addQual(q) {
+  qualFilter.value = [...qualFilter.value, q];
+  qualSearchQuery.value = '';
+  qualDropdownOpen.value = false;
+  savePrefs();
+}
+
+function removeQual(q) {
+  qualFilter.value = qualFilter.value.filter(x => String(x._id) !== String(q._id));
+  savePrefs();
+}
+
+function clearQualFilter() {
+  qualFilter.value = [];
+  savePrefs();
+}
+
+function onQualBlur() {
+  setTimeout(() => { qualDropdownOpen.value = false; }, 150);
+}
+
 const statusOptions = [
   { value: 'available', label: 'Verfügbar', icon: 'fa-solid fa-check' },
   { value: 'partially', label: 'Eingeschränkt', icon: 'fa-solid fa-circle-half-stroke' },
@@ -1141,6 +1370,7 @@ const absenceOptions = [
 
 const CELL_ICONS = {
   planned: 'fa-solid fa-clipboard-list',
+  eingeplant: 'fa-solid fa-clipboard-list',
   available: 'fa-solid fa-check',
   partially: 'fa-solid fa-circle-half-stroke',
   blocked: 'fa-solid fa-xmark',
@@ -1541,7 +1771,7 @@ const filteredMitarbeiter = computed(() => {
     const todayIso = toIso((() => { const d = new Date(); d.setHours(0,0,0,0); return d; })());
     const eingeplantSet = new Set(
       eintraege.value
-        .filter((e) => e.typ === 'planned' && (e.datumBis || e.datumVon) >= todayIso)
+        .filter((e) => (e.typ === 'planned' || e.verfuegbarkeit === 'eingeplant') && (e.datumBis || e.datumVon) >= todayIso)
         .map((e) => String(typeof e.mitarbeiter === 'object' ? e.mitarbeiter._id || e.mitarbeiter : e.mitarbeiter))
     );
     if (filters.planungFilter === 'eingeplant') {
@@ -1555,6 +1785,12 @@ const filteredMitarbeiter = computed(() => {
       (m.kundenwuensche || []).some(
         (w) => w.typ === 'positiv' && (w.kunde?._id || w.kunde) === filters.kundeFilter
       )
+    );
+  }
+  if (qualFilter.value.length > 0) {
+    const selectedQualIds = new Set(qualFilter.value.map(q => String(q._id)));
+    list = list.filter((m) =>
+      (m.qualifikationen || []).some(q => selectedQualIds.has(String(q._id || q)))
     );
   }
   return list.sort((a, b) => {
@@ -1652,6 +1888,11 @@ const cellDataMap = computed(() => {
         icon = CELL_ICONS.planned;
         const planned = entries.find((e) => e.typ === 'planned');
         kuerzel = planned.kuerzel || (planned.bezeichnung ? planned.bezeichnung.substring(0, 6) : null);
+      } else if (entries.some((e) => e.verfuegbarkeit === 'eingeplant')) {
+        cls = 'cell-planned cell-eingeplant-manuell';
+        icon = CELL_ICONS.eingeplant;
+        const ep = entries.find((e) => e.verfuegbarkeit === 'eingeplant');
+        kuerzel = ep.kundeKuerzel || null;
       } else if (entries.some((e) => e.verfuegbarkeit === 'blocked')) {
         cls = 'cell-blocked';
         icon = CELL_ICONS.blocked;
@@ -1818,7 +2059,8 @@ function entryIcon(entry) {
 function entryLabel(entry) {
   if (entry.typ === 'planned' || entry._source === 'einsatz') return `Einsatz: ${entry.bezeichnung || entry.auftragNr}`;
   if (entry.typ === 'verfuegbarkeit') {
-    const l = { available: 'Verfügbar', partially: 'Eingeschränkt', blocked: 'Blocked', angefragt_tel: 'Angefragt (Tel)', angefragt_flip: 'Angefragt (Flip)' };
+    if (entry.verfuegbarkeit === 'eingeplant') return `Eingeplant ${entry.kundeKuerzel ? ': ' + entry.kundeKuerzel : ''}`;
+    const l = { available: 'Verfügbar', partially: 'Eingeschränkt', blocked: 'Blocked' };
     let label = l[entry.verfuegbarkeit];
     if (entry.verfuegbarkeit === 'partially' && (entry.zeitVon || entry.zeitBis)) {
       const von = entry.zeitVon || '';
@@ -1873,6 +2115,7 @@ async function loadPrefs() {
     if (_savedPrefs.bereichFilter !== undefined) bereichFilter.value = _savedPrefs.bereichFilter;
     if (_savedPrefs.tableZoom !== undefined) tableZoom.value = _savedPrefs.tableZoom;
     if (_savedPrefs.dayColWidth !== undefined) dayColWidth.value = _savedPrefs.dayColWidth;
+    // qualFilter is restored after fetchQualifikationen() — see onMounted
   } catch (err) {
     console.error('Prefs laden fehlgeschlagen:', err);
   }
@@ -1890,6 +2133,7 @@ async function savePrefs() {
       bereichFilter: bereichFilter.value,
       tableZoom: tableZoom.value,
       dayColWidth: dayColWidth.value,
+      qualFilterIds: qualFilter.value.map(q => String(q._id)),
     };
     _savedPrefs = prefs;
     await api.put('/api/users/me/dispo-prefs', { prefs });
@@ -1998,6 +2242,7 @@ function resetFilters() {
   filters.planungFilter = null;
   clearKundeFilter();
   bereichFilter.value = null;
+  qualFilter.value = [];
   searchQuery.value = '';
   setDefaultStandort();
   savePrefs();
@@ -2135,6 +2380,7 @@ function closeCtxMenu() {
   blockedTime.open = false;
   blockedTime.zeitVon = '';
   blockedTime.zeitBis = '';
+  eingeplantPicker.open = false;
 }
 
 function openEinsatz(entry) {
@@ -2603,7 +2849,13 @@ function scrollToMa(maId) {
 // ─── Lifecycle ───
 onMounted(async () => {
   setDefaultStandort();
-  await loadPrefs();
+  await Promise.all([loadPrefs(), fetchQualifikationen()]);
+  // Restore qual filter now that qualifications are loaded
+  if (_savedPrefs?.qualFilterIds?.length) {
+    qualFilter.value = allQualifikationen.value.filter(
+      q => _savedPrefs.qualFilterIds.includes(String(q._id))
+    );
+  }
 
   // ── Apply deep-link query params from widget navigation ──
   const q = route.query;
@@ -3478,10 +3730,6 @@ onMounted(async () => {
     }
   }
 
-  thead th.col-day {
-    position: relative; /* Needed so the absolute resize handle is positioned correctly */
-  }
-
   tr.row-hovered td {
     background: var(--soft);
   }
@@ -3797,6 +4045,14 @@ onMounted(async () => {
     max-width: 44px;
     line-height: 1;
   }
+}
+
+.cell-eingeplant-manuell {
+  background: #6366f115;
+  border: 1.5px dashed #6366f180;
+
+  .cell-icon { opacity: 0.7; }
+  .cell-label { opacity: 0.8; }
 }
 
 // ─── Multi-cell Selection ───
@@ -4584,6 +4840,7 @@ onMounted(async () => {
   &.ctx-item--partially  { color: #f59e0b; }
   &.ctx-item--blocked    { color: #ef4444; }
   &.ctx-item--angefragt  { color: #a855f7; }
+  &.ctx-item--eingeplant { color: #6366f1; }
   &.ctx-item--clear      { color: var(--muted); }
   &.ctx-item--open      { color: var(--primary); }
   &.ctx-item--hide      { color: var(--muted); }
@@ -4713,6 +4970,16 @@ onMounted(async () => {
   &:hover { background: var(--hover); }
 }
 
+// ─── Eingeplant (manuell) Picker ───
+.ctx-eingeplant-picker {
+  padding: 6px 14px 10px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .ctx-entry {
   display: flex;
   justify-content: space-between;
@@ -4815,5 +5082,194 @@ onMounted(async () => {
   color: var(--muted);
 
   &:hover { color: var(--text); }
+}
+
+// ─── Qualifikation Filter ───
+.qual-filter-box {
+  position: relative;
+  width: 100%;
+}
+
+.qual-pills-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  cursor: text;
+  transition: border-color 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+
+  &:focus-within {
+    border-color: var(--primary);
+  }
+
+  &--fs {
+    min-height: 28px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    width: auto;
+    min-width: 160px;
+    max-width: 400px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+}
+
+.qual-search-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+  flex: 1;
+  min-width: 80px;
+  padding: 0;
+
+  &::placeholder {
+    color: var(--muted);
+    opacity: 0.6;
+  }
+}
+
+.qual-pills-input input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+  flex: 1;
+  min-width: 60px;
+  padding: 0;
+
+  &::placeholder {
+    color: var(--muted);
+    opacity: 0.6;
+  }
+}
+
+.qual-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 8px;
+  background: rgba(var(--primary-rgb, 253 126 20) / 0.12);
+  border: 1px solid rgba(var(--primary-rgb, 253 126 20) / 0.35);
+  border-radius: 20px;
+  font-size: 11px;
+  color: var(--primary);
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &--sm {
+    font-size: 10px;
+    padding: 1px 5px 1px 7px;
+    max-width: 120px;
+  }
+}
+
+.qual-pill-remove {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 10px;
+  padding: 0;
+  cursor: pointer;
+  line-height: 1;
+  opacity: 0.6;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.qual-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 320px;
+  width: max-content;
+  max-width: min(500px, calc(100vw - 40px));
+  background: var(--modal-bg, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 200;
+  max-height: 220px;
+  overflow-y: auto;
+
+  &--fs {
+    min-width: 380px;
+  }
+}
+
+.qual-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s;
+
+  &:hover {
+    background: var(--hover);
+  }
+
+  &:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.qual-key {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+}
+
+.qual-clear-all-btn {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+
+  &:hover {
+    color: var(--primary);
+  }
+}
+
+// ─── Qualifikation Filter (fs-toolbar) ───
+.fs-qual-filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  &--active .qual-pills-input--fs {
+    border-color: var(--primary);
+  }
 }
 </style>

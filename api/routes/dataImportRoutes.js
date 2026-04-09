@@ -11,6 +11,7 @@ const Beruf = require('../models/Beruf');
 const Qualifikation = require('../models/Qualifikation');
 const ImportLog = require('../models/ImportLog');
 const Rechnung = require('../models/Rechnung');
+const DispoEintrag = require('../models/DispoEintrag');
 const User = require('../models/User');
 const logger = require('../utils/logger');
 const { sendMail } = require('../EmailService');
@@ -577,6 +578,27 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
     if (newEinsaetze.length > 0) {
       const insEinsatz = await Einsatz.insertMany(newEinsaetze);
       stats.einsatz.inserted = insEinsatz.length;
+
+      // Cleanup: Manuelle "eingeplant"-Platzhalter löschen, wenn echte Einsätze importiert wurden
+      const importedPnrs = [...new Set(newEinsaetze.map(e => e.personalNr))];
+      const maWithEinsatz = await Mitarbeiter.find(
+        { personalnr: { $in: importedPnrs.map(String) } },
+        '_id'
+      ).lean();
+      const maIdsWithEinsatz = maWithEinsatz.map(m => m._id);
+      if (maIdsWithEinsatz.length > 0) {
+        const eingeplantCleanup = {
+          mitarbeiter: { $in: maIdsWithEinsatz },
+          verfuegbarkeit: 'eingeplant',
+        };
+        if (minDate && maxDate) {
+          eingeplantCleanup.datumVon = { $gte: minDate, $lte: maxDate };
+        }
+        const delResult = await DispoEintrag.deleteMany(eingeplantCleanup);
+        if (delResult.deletedCount > 0) {
+          logger.info(`[Import] ${delResult.deletedCount} manuelle Eingeplant-Platzhalter gelöscht`);
+        }
+      }
     }
 
     const message = `Verarbeitung abgeschlossen:\n` +

@@ -23,7 +23,16 @@ const DispoEintragSchema = new mongoose.Schema({
   // Nur relevant bei typ = 'verfuegbarkeit'
   verfuegbarkeit: {
     type: String,
-    enum: ['available', 'partially', 'blocked', 'angefragt_tel', 'angefragt_flip'],
+    enum: ['available', 'partially', 'blocked', 'angefragt_tel', 'angefragt_flip', 'eingeplant'],
+  },
+  // Nur relevant bei verfuegbarkeit = 'eingeplant' (manueller Platzhalter)
+  kundeRef: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Kunde',
+  },
+  kundeKuerzel: {
+    type: String,
+    trim: true,
   },
   // Nur relevant bei typ = 'abwesenheit'
   abwesenheitsKategorie: {

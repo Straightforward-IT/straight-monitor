@@ -160,25 +160,36 @@
                   </FilterDropdown>
             </div>
             
-            <div class="chip-group compact-group">
-                  <FilterDropdown :has-value="filters.qualifikationen.length > 0">
-                    <template #label>
-                       <font-awesome-icon icon="fa-solid fa-graduation-cap" style="margin-right: 0.5rem" />
-                       <span v-if="filters.qualifikationen.length === 0"> Qualifikationen</span>
-                       <span v-else> {{ filters.qualifikationen.length }} gewählt</span>
-                    </template>
-                    
-                    <div v-if="availableQualifikationen.length === 0" class="no-options">Keine Qualifikationen gefunden</div>
-                    <label v-for="quali in availableQualifikationen" :key="quali._id" class="dropdown-item">
-                      <input 
-                        type="checkbox" 
-                        :checked="filters.qualifikationen.includes(quali._id)"
-                        @change="toggleQualifikationFilter(quali._id)"
-                      >
-                      <span class="label-text">{{ quali.designation }}</span>
-                      <span class="badge-small">{{ quali.qualificationKey }}</span>
-                    </label>
-                  </FilterDropdown>
+            <div class="chip-group compact-group qual-chip-group">
+              <div class="qual-filter-box">
+                <div class="qual-pills-input" @click="$refs.qualInput?.focus()">
+                  <span v-for="q in qualFilterObjects" :key="q._id" class="qual-pill">
+                    {{ q.designation }}
+                    <button class="qual-pill-remove" @click.stop="removeQual(q)" title="Entfernen">✕</button>
+                  </span>
+                  <input
+                    ref="qualInput"
+                    v-model="qualSearchQuery"
+                    class="qual-search-input"
+                    type="text"
+                    :placeholder="filters.qualifikationen.length ? '' : 'Qualifikation suchen…'"
+                    @focus="qualDropdownOpen = true"
+                    @input="qualDropdownOpen = true"
+                    @blur="onQualBlur"
+                  />
+                </div>
+                <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown">
+                  <div
+                    v-for="q in qualSuggestions"
+                    :key="q._id"
+                    class="qual-dropdown-item"
+                    @mousedown.prevent="addQual(q)"
+                  >
+                    <span class="qual-key">{{ q.qualificationKey }}</span>
+                    {{ q.designation }}
+                  </div>
+                </div>
+              </div>
             </div>
             
             <span class="divider" />
@@ -869,6 +880,8 @@ export default {
         persgruppe: 'Alle' // 'Alle', 101, 110, 109, 106
       },
       mitarbeitersSearchQuery: "",
+      qualSearchQuery: "",
+      qualDropdownOpen: false,
       mitarbeitersSortBy: "nachname",
       mitarbeitersIsAscending: true,
 
@@ -895,6 +908,24 @@ export default {
     // Verfügbare Qualifikationen aus dem Cache
     availableQualifikationen() {
       return this.dataCache.qualifikationen || [];
+    },
+
+    // Qualifikations-Objekte für ausgewählte IDs (für Pill-Anzeige)
+    qualFilterObjects() {
+      return this.availableQualifikationen.filter(q =>
+        this.filters.qualifikationen.includes(q._id)
+      );
+    },
+
+    // Vorschläge für das Qualifikations-Suchfeld
+    qualSuggestions() {
+      const q = this.qualSearchQuery.toLowerCase().trim();
+      return this.availableQualifikationen
+        .filter(qual =>
+          !this.filters.qualifikationen.includes(qual._id) &&
+          (!q || qual.designation.toLowerCase().includes(q) || String(qual.qualificationKey).includes(q))
+        )
+        .sort((a, b) => a.qualificationKey - b.qualificationKey);
     },
     
     // Mitarbeiter mit Flip-Daten und Skills anreichern
@@ -1670,6 +1701,34 @@ export default {
       this.currentPage = 1;
       this.saveFiltersToCookie();
     },
+
+    addQual(q) {
+      if (!this.filters.qualifikationen.includes(q._id)) {
+        this.filters.qualifikationen.push(q._id);
+      }
+      this.qualSearchQuery = '';
+      this.qualDropdownOpen = false;
+      this.currentPage = 1;
+      this.saveFiltersToCookie();
+    },
+
+    removeQual(q) {
+      const idx = this.filters.qualifikationen.indexOf(q._id);
+      if (idx >= 0) this.filters.qualifikationen.splice(idx, 1);
+      this.currentPage = 1;
+      this.saveFiltersToCookie();
+    },
+
+    clearQualFilter() {
+      this.filters.qualifikationen = [];
+      this.qualSearchQuery = '';
+      this.currentPage = 1;
+      this.saveFiltersToCookie();
+    },
+
+    onQualBlur() {
+      setTimeout(() => { this.qualDropdownOpen = false; }, 150);
+    },
     
     // Aktiviere Filter von extern (z.B. von EmployeeCard)
     activateBerufFilter(berufId) {
@@ -1704,6 +1763,8 @@ export default {
         persgruppe: 'Alle'
       };
       this.mitarbeitersSearchQuery = "";
+      this.qualSearchQuery = "";
+      this.qualDropdownOpen = false;
       this.currentPage = 1;
     },
 
@@ -3821,6 +3882,152 @@ html {
 
 .dropdown-item.selected:hover {
     background-color: color-mix(in srgb, var(--brand) 20%, transparent);
+}
+
+// ─── Qualifikation Filter (Pill-Suchfeld) ───────────────
+.qual-chip-group {
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 200px;
+}
+
+.qual-filter-box {
+  position: relative;
+  width: 100%;
+}
+
+.qual-pills-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  cursor: text;
+  transition: border-color 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+
+  &:focus-within {
+    border-color: var(--primary);
+  }
+}
+
+.qual-search-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+  flex: 1;
+  min-width: 80px;
+  padding: 0;
+
+  &::placeholder {
+    color: var(--muted);
+    opacity: 0.6;
+  }
+}
+
+.qual-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 8px;
+  background: rgba(var(--primary-rgb, 253 126 20) / 0.12);
+  border: 1px solid rgba(var(--primary-rgb, 253 126 20) / 0.35);
+  border-radius: 20px;
+  font-size: 11px;
+  color: var(--primary);
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qual-pill-remove {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 10px;
+  padding: 0;
+  cursor: pointer;
+  line-height: 1;
+  opacity: 0.6;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.qual-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 320px;
+  width: max-content;
+  max-width: min(500px, calc(100vw - 40px));
+  background: var(--modal-bg, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 200;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.qual-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s;
+
+  &:hover {
+    background: var(--hover);
+  }
+
+  &:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.qual-key {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+}
+
+.qual-clear-all-btn {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+
+  &:hover {
+    color: var(--primary);
+  }
 }
 </style>
 

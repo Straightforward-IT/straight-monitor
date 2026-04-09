@@ -113,7 +113,7 @@ router.get('/', auth, asyncHandler(async (req, res) => {
 
 // ─── POST /api/dispo ───
 router.post('/', auth, asyncHandler(async (req, res) => {
-  const { mitarbeiter, datumVon, datumBis, typ, verfuegbarkeit, abwesenheitsKategorie, text, zeitVon, zeitBis, farbe } = req.body;
+  const { mitarbeiter, datumVon, datumBis, typ, verfuegbarkeit, abwesenheitsKategorie, text, zeitVon, zeitBis, farbe, kundeRef, kundeKuerzel } = req.body;
 
   if (!mitarbeiter || !datumVon || !typ) {
     return res.status(400).json({ message: 'mitarbeiter, datumVon und typ sind erforderlich.' });
@@ -124,8 +124,8 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: `Ungültiger Typ. Erlaubt: ${VALID_TYPEN.join(', ')}` });
   }
 
-  if (typ === 'verfuegbarkeit' && !['available', 'partially', 'blocked', 'angefragt_tel', 'angefragt_flip'].includes(verfuegbarkeit)) {
-    return res.status(400).json({ message: 'Bei typ=verfuegbarkeit muss verfuegbarkeit gesetzt sein (available/partially/blocked/angefragt_tel/angefragt_flip).' });
+  if (typ === 'verfuegbarkeit' && !['available', 'partially', 'blocked', 'angefragt_tel', 'angefragt_flip', 'eingeplant'].includes(verfuegbarkeit)) {
+    return res.status(400).json({ message: 'Bei typ=verfuegbarkeit muss verfuegbarkeit gesetzt sein (available/partially/blocked/angefragt_tel/angefragt_flip/eingeplant).' });
   }
 
   if (typ === 'abwesenheit' && !['urlaub', 'krank', 'feiertag', 'ueberstunden', 'sonstiges'].includes(abwesenheitsKategorie)) {
@@ -139,6 +139,8 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     typ,
     verfuegbarkeit: typ === 'verfuegbarkeit' ? verfuegbarkeit : undefined,
     abwesenheitsKategorie: typ === 'abwesenheit' ? abwesenheitsKategorie : undefined,
+    kundeRef: verfuegbarkeit === 'eingeplant' && kundeRef ? kundeRef : undefined,
+    kundeKuerzel: verfuegbarkeit === 'eingeplant' && kundeKuerzel ? kundeKuerzel : undefined,
     text,
     zeitVon,
     zeitBis,

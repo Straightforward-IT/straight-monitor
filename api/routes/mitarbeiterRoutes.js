@@ -16,7 +16,7 @@ const Auftrag = require("../models/Auftrag");
 const Qualifikation = require("../models/Qualifikation");
 const { EventReport, EvaluierungMA, Laufzettel, LAUFZETTEL_STATUS } = require("../models/Classes/FlipDocs");
 const FlipUser = require("../models/Classes/FlipUser");
-const { sendMail, sendFlipWelcomeEmail } = require("../EmailService");
+const { sendMail } = require("../EmailService");
 const logger = require("../utils/logger");
 const storage = multer.memoryStorage();
 const { flipAxios } = require("../flipAxios");
@@ -2483,15 +2483,6 @@ router.post(
         createdFlipUser = await flipUser.create();
         await createdFlipUser.setDefaultPassword();
 
-        // Welcome-Mail (optional – Fehler darf Erstellung nicht blockieren)
-        // Absender: Stadt des erstellenden Users aus JWT
-        User.findById(req.user.id).then((creatingUser) => {
-          const senderKey = creatingUser?.location || "it";
-          return sendFlipWelcomeEmail(normalizedEmail, first_name, senderKey);
-        }).catch((mailErr) =>
-          console.error("⚠️ Welcome-Mail konnte nicht gesendet werden:", mailErr.message)
-        );
-
         if (asana_id) {
           await createStoryOnTask(asana_id, {
             html_text: `<body>Mitarbeiter wurde automatisch erstellt.</body>`,
@@ -2519,7 +2510,17 @@ router.post(
       mitarbeiter.flip_id = createdFlipUser.id;
       await mitarbeiter.save();
 
-      // Usergruppen werden automatisch durch die attributes (isService, isLogistik etc.) zugewiesen
+      // Usergruppen zuweisen falls vorhanden
+      if (user_group_ids?.length) {
+        await assignFlipUserGroups({
+          body: {
+            items: user_group_ids.map((groupId) => ({
+              user_id: createdFlipUser.id,
+              user_group_id: groupId,
+            })),
+          },
+        });
+      }
 
       // Aufgabe erstellen mit Frist in drei Tagen um 18 Uhr
       const dueDate = new Date();
@@ -2580,15 +2581,7 @@ router.post(
   "/user-groups-assign",
   auth,
   asyncHandler(async (req, res) => {
-    const creatingUser = await User.findById(req.user.id).lean();
-    const flipUserId = req.body.items?.[0]?.user_id;
-    const context = {
-      requestingUser: creatingUser
-        ? { id: creatingUser._id, name: creatingUser.name, email: creatingUser.email, location: creatingUser.location }
-        : { id: req.user.id },
-      flipUser: flipUserId ? { id: flipUserId } : undefined,
-    };
-    const data = await assignFlipUserGroups(req, context);
+    const data = await assignFlipUserGroups(req);
     res.status(200).json(data);
   })
 );
@@ -2684,15 +2677,6 @@ router.post(
     try {
       createdFlipUser = await flipUser.create();
       await createdFlipUser.setDefaultPassword();
-
-      // Welcome-Mail (optional – Fehler darf Erstellung nicht blockieren)
-      // Absender: Stadt des erstellenden Users aus JWT
-      User.findById(req.user.id).then((creatingUser) => {
-        const senderKey = creatingUser?.location || "it";
-        return sendFlipWelcomeEmail(mitarbeiter.email, mitarbeiter.vorname, senderKey);
-      }).catch((mailErr) =>
-        console.error("⚠️ Welcome-Mail konnte nicht gesendet werden:", mailErr.message)
-      );
     } catch (flipError) {
       const errorDetail = flipError.message || JSON.stringify(flipError.response?.data);
       // Likely a pending-deletion conflict
@@ -2706,7 +2690,21 @@ router.post(
     mitarbeiter.flip_id = createdFlipUser.id;
     await mitarbeiter.save();
 
-    // Usergruppen werden automatisch durch die attributes (isService, isLogistik etc.) zugewiesen
+    // Assign user groups
+    if (user_group_ids?.length) {
+      try {
+        await assignFlipUserGroups({
+          body: {
+            items: user_group_ids.map((groupId) => ({
+              user_id: createdFlipUser.id,
+              user_group_id: groupId,
+            })),
+          },
+        });
+      } catch (groupErr) {
+        console.error("⚠️ Fehler beim Zuweisen der Usergruppen:", groupErr.message);
+      }
+    }
 
     // Create welcome task
     try {
