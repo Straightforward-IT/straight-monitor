@@ -3,9 +3,12 @@ const express = require("express");
 const axios = require("axios");
 const he = require("he");
 const libre = require("libreoffice-convert");
-const { promisify } = require("util");
-const libreConvert = promisify(libre.convert);
 const router = express.Router();
+
+// Heroku: apt buildpack installs to /app/.apt/usr/bin — set path explicitly if not overridden
+if (process.env.DYNO && !process.env.LIBREOFFICE_PATH) {
+  process.env.LIBREOFFICE_PATH = "/app/.apt/usr/bin/soffice";
+}
 
 const {
   ensureGraphMailSubscription,
@@ -93,7 +96,7 @@ function extractUserGuidFromResource(resource = "") {
 async function convertDocxToPdf(file) {
   try {
     const inputBuf = Buffer.from(file.contentBytes, "base64");
-    const pdfBuf = await libreConvert(inputBuf, ".pdf", undefined);
+    const pdfBuf = await libre.convertAsync(inputBuf, ".pdf", undefined);
     const pdfName = file.name.replace(/\.docx?$/i, ".pdf");
     console.log(`📄 Converted ${file.name} → ${pdfName} (${pdfBuf.length} bytes)`);
     return {
