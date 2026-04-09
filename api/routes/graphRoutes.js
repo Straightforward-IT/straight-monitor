@@ -378,9 +378,15 @@ router.post("/webhook", (req, res) => {
               }
 
               // DOCX → PDF konvertieren (Asana kann kein DOCX preview)
-              for (let i = 0; i < files.length; i++) {
-                if (/\.docx?$/i.test(files[i].name)) {
-                  files[i] = await convertDocxToPdf(files[i], appToken, upn);
+              // Bei Erfolg: nur PDF hochladen, Original-DOCX verwerfen
+              // Bei Fehler: Original-DOCX als Fallback
+              const uploadFiles = [];
+              for (const file of files) {
+                if (/\.docx?$/i.test(file.name)) {
+                  const pdf = await convertDocxToPdf(file, appToken, upn);
+                  uploadFiles.push(pdf); // pdf = konvertiert ODER original (Fallback)
+                } else {
+                  uploadFiles.push(file);
                 }
               }
 
@@ -418,12 +424,12 @@ router.post("/webhook", (req, res) => {
                     bodyHtml,
                     meta: { ...parsed, full_name: parsed.full_name },
                   },
-                  files,
+                  uploadFiles,
                   { upn, teamKey, provider: parsed.quelle }
                 );
 
                 console.log(
-                  `🧩 Asana task created for "${msg.subject}" with ${files.length} files`
+                  `🧩 Asana task created for "${msg.subject}" with ${uploadFiles.length} files`
                 );
               } catch (e) {
                 console.error(

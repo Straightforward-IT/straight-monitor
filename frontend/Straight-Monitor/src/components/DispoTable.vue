@@ -458,11 +458,13 @@
                     'is-today': day.isToday,
                     'is-weekend': day.isWeekend,
                   }"
+                  :style="{ width: dayColWidth + 'px', minWidth: dayColWidth + 'px', maxWidth: dayColWidth + 'px' }"
                 >
                   <div class="day-header">
                     <span class="day-name">{{ day.weekday }}</span>
                     <span class="day-date">{{ day.label }}</span>
                   </div>
+                  <div class="col-resize-handle col-resize-handle--day" @mousedown.prevent.stop="startResizeDay($event)"></div>
                 </th>
               </tr>
             </thead>
@@ -482,6 +484,7 @@
                   class="col-day"
                   :data-ma-id="String(ma._id)"
                   :data-iso="day.iso"
+                  :style="{ width: dayColWidth + 'px', minWidth: dayColWidth + 'px', maxWidth: dayColWidth + 'px' }"
                   :class="[
                     cellClass(ma._id, day.iso),
                     {
@@ -1072,6 +1075,34 @@ function onResizeEnd() {
   resizeMoved = false;
   document.removeEventListener('mousemove', onResizeMove);
   document.removeEventListener('mouseup', onResizeEnd);
+}
+
+// ─── Day column width (all date columns resize together) ───
+const dayColWidth = ref(48);
+let dayResizeStartX = 0;
+let dayResizeStartW = 0;
+let dayResizeMoved = false;
+
+function startResizeDay(e) {
+  dayResizeStartX = e.clientX;
+  dayResizeStartW = dayColWidth.value;
+  dayResizeMoved = false;
+  document.addEventListener('mousemove', onResizeDayMove);
+  document.addEventListener('mouseup', onResizeDayEnd);
+}
+function onResizeDayMove(e) {
+  dayResizeMoved = true;
+  const diff = e.clientX - dayResizeStartX;
+  dayColWidth.value = Math.max(36, dayResizeStartW + diff);
+}
+function onResizeDayEnd() {
+  if (dayResizeMoved) {
+    document.addEventListener('click', (e) => e.stopPropagation(), { capture: true, once: true });
+    savePrefs();
+  }
+  dayResizeMoved = false;
+  document.removeEventListener('mousemove', onResizeDayMove);
+  document.removeEventListener('mouseup', onResizeDayEnd);
 }
 
 function onResize() { isMobile.value = window.innerWidth <= 768; }
@@ -1841,6 +1872,7 @@ async function loadPrefs() {
     if (_savedPrefs.planungFilter !== undefined) filters.planungFilter = _savedPrefs.planungFilter;
     if (_savedPrefs.bereichFilter !== undefined) bereichFilter.value = _savedPrefs.bereichFilter;
     if (_savedPrefs.tableZoom !== undefined) tableZoom.value = _savedPrefs.tableZoom;
+    if (_savedPrefs.dayColWidth !== undefined) dayColWidth.value = _savedPrefs.dayColWidth;
   } catch (err) {
     console.error('Prefs laden fehlgeschlagen:', err);
   }
@@ -1857,6 +1889,7 @@ async function savePrefs() {
       planungFilter: filters.planungFilter,
       bereichFilter: bereichFilter.value,
       tableZoom: tableZoom.value,
+      dayColWidth: dayColWidth.value,
     };
     _savedPrefs = prefs;
     await api.put('/api/users/me/dispo-prefs', { prefs });
@@ -3445,6 +3478,10 @@ onMounted(async () => {
     }
   }
 
+  thead th.col-day {
+    position: relative; /* Needed so the absolute resize handle is positioned correctly */
+  }
+
   tr.row-hovered td {
     background: var(--soft);
   }
@@ -3488,8 +3525,7 @@ onMounted(async () => {
   }
 
   .col-day {
-    min-width: 48px;
-    max-width: 48px;
+    min-width: 36px;
     text-align: center;
     cursor: pointer;
     position: relative;
