@@ -51,8 +51,13 @@
         <!-- Qualifikation Filter (fs-toolbar) -->
         <div class="fs-qual-filter" :class="{ 'fs-qual-filter--active': qualFilter.length > 0 }">
           <div class="qual-pills-input qual-pills-input--fs" @click="qualInputFsRef?.focus()">
-            <span v-for="q in qualFilter" :key="q._id" class="qual-pill qual-pill--sm">
-              {{ q.designation }}
+            <span
+              v-for="(q, idx) in qualFilter"
+              :key="q._id"
+              class="qual-pill qual-pill--sm"
+              :class="{ 'is-focused': qualFocusedPillIdx === idx }"
+            >
+              <span class="qual-pill-text">{{ q.designation }}</span>
               <button class="qual-pill-remove" @click.stop="removeQual(q)">✕</button>
             </span>
             <input
@@ -63,6 +68,7 @@
               @focus="qualDropdownOpen = true"
               @input="qualDropdownOpen = true"
               @blur="onQualBlur"
+              @keydown="onQualKeydown"
             />
           </div>
           <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown qual-dropdown--fs">
@@ -194,8 +200,13 @@
       <FilterGroup label="Qualifikation">
         <div class="qual-filter-box">
           <div class="qual-pills-input" @click="qualInputRef?.focus()">
-            <span v-for="q in qualFilter" :key="q._id" class="qual-pill">
-              {{ q.designation }}
+            <span
+              v-for="(q, idx) in qualFilter"
+              :key="q._id"
+              class="qual-pill"
+              :class="{ 'is-focused': qualFocusedPillIdx === idx }"
+            >
+              <span class="qual-pill-text">{{ q.designation }}</span>
               <button class="qual-pill-remove" @click.stop="removeQual(q)" title="Entfernen">✕</button>
             </span>
             <input
@@ -207,6 +218,7 @@
               @focus="qualDropdownOpen = true"
               @input="qualDropdownOpen = true"
               @blur="onQualBlur"
+              @keydown="onQualKeydown"
             />
           </div>
           <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown">
@@ -1310,6 +1322,7 @@ const qualSearchQuery = ref('');
 const qualDropdownOpen = ref(false);
 const qualInputRef = ref(null);
 const qualInputFsRef = ref(null);
+const qualFocusedPillIdx = ref(-1); // -1 = kein Pill fokussiert, Cursor im Input
 
 async function fetchQualifikationen() {
   try {
@@ -1352,7 +1365,51 @@ function clearQualFilter() {
 }
 
 function onQualBlur() {
-  setTimeout(() => { qualDropdownOpen.value = false; }, 150);
+  setTimeout(() => {
+    qualDropdownOpen.value = false;
+    qualFocusedPillIdx.value = -1;
+  }, 150);
+}
+
+function onQualKeydown(e) {
+  const pills = qualFilter.value;
+  const focused = qualFocusedPillIdx.value;
+
+  // Pill ist fokussiert
+  if (focused >= 0) {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      qualFocusedPillIdx.value = Math.max(0, focused - 1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      if (focused < pills.length - 1) {
+        qualFocusedPillIdx.value = focused + 1;
+      } else {
+        // Zurück zum Input
+        qualFocusedPillIdx.value = -1;
+      }
+    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault();
+      removeQual(pills[focused]);
+      // Fokus auf vorherige Pill oder -1
+      qualFocusedPillIdx.value = Math.min(focused, pills.length - 2);
+    } else if (e.key === 'Escape') {
+      qualFocusedPillIdx.value = -1;
+    } else if (e.key.length === 1) {
+      // Normales Tippen → zurück zum Input
+      qualFocusedPillIdx.value = -1;
+    }
+    return;
+  }
+
+  // Kein Pill fokussiert, Cursor im Input
+  const atStart = e.target.selectionStart === 0 && e.target.selectionEnd === 0;
+  if (e.key === 'ArrowLeft' && atStart && pills.length > 0) {
+    e.preventDefault();
+    qualFocusedPillIdx.value = pills.length - 1;
+  } else if ((e.key === 'Backspace' || e.key === 'Delete') && qualSearchQuery.value === '' && pills.length > 0) {
+    removeQual(pills[pills.length - 1]);
+  }
 }
 
 const statusOptions = [
@@ -5168,14 +5225,25 @@ onMounted(async () => {
   font-weight: 500;
   white-space: nowrap;
   max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
 
   &--sm {
     font-size: 10px;
     padding: 1px 5px 1px 7px;
-    max-width: 120px;
+    max-width: 140px;
   }
+}
+
+.qual-pill-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qual-pill.is-focused {
+  background: rgba(var(--primary-rgb, 253 126 20) / 0.22);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 253 126 20) / 0.3);
 }
 
 .qual-pill-remove {
