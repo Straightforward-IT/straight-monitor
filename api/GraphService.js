@@ -399,6 +399,50 @@ async function deleteAllSubscriptions({ token, userFilter } = {}) {
   return { total: all.length, deleted: ok, failed: fail, errors, filteredBy: userFilter || null };
 }
 
+/* ----------------------- DOCX → PDF via OneDrive ----------------------- */
+/**
+ * Lädt eine DOCX-Datei temporär in den OneDrive des Postfach-Users hoch,
+ * lässt Graph sie server-seitig in PDF konvertieren, gibt den PDF-Buffer zurück
+ * und löscht die Temp-Datei. Erfordert Files.ReadWrite.All (Application).
+ */
+async function convertAttachmentToPdf(token, upn, fileBuffer, fileName) {
+  const tempName = `_straight_tmp_${Date.now()}_${path.basename(fileName)}`;
+
+  // 1. DOCX als Temp-Datei in OneDrive hochladen
+  const uploadUrl =
+    `${GRAPH}/users/${encodeURIComponent(upn)}/drive/root:/_straight_tmp/${tempName}:/content`;
+  const uploadRes = await axios.put(uploadUrl, fileBuffer, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    },
+    maxBodyLength: Infinity,
+  });
+  const itemId = uploadRes.data.id;
+
+  try {
+    // 2. PDF-Inhalt downloaden – Graph konvertiert DOCX→PDF server-seitig
+    const pdfRes = await axios.get(
+      `${GRAPH}/users/${encodeURIComponent(upn)}/drive/items/${itemId}/content?$format=pdf`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: "arraybuffer",
+        maxRedirects: 5,
+      }
+    );
+    return Buffer.from(pdfRes.data);
+  } finally {
+    // 3. Temp-Datei löschen (fire & forget)
+    axios
+      .delete(`${GRAPH}/users/${encodeURIComponent(upn)}/drive/items/${itemId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .catch((e) =>
+        console.warn(`⚠️ OneDrive temp file cleanup failed (${itemId}):`, e.message)
+      );
+  }
+}
+
 module.exports = {
   // ensure (single + multi)
   ensureGraphMailSubscription,
@@ -417,4 +461,6 @@ module.exports = {
   getStoredSubscriptionById,
   // utils
   logGraphError,
+  // conversion
+  convertAttachmentToPdf,
 };

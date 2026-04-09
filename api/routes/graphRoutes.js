@@ -2,12 +2,6 @@
 const express = require("express");
 const axios = require("axios");
 const he = require("he");
-const mammoth = require("mammoth");
-const pdfMake = require("pdfmake/build/pdfmake");
-const pdfFonts = require("pdfmake/build/vfs_fonts");
-pdfMake.vfs = pdfFonts.vfs;
-const htmlToPdfmake = require("html-to-pdfmake");
-const { JSDOM } = require("jsdom");
 const router = express.Router();
 
 const {
@@ -23,6 +17,7 @@ const {
   clearLocalSubscriptionStore,
   getStoredSubscriptionById,
   logGraphError,
+  convertAttachmentToPdf,
 } = require("../GraphService");
 const { parseApplicantEmail } = require("../applicantParser");
 
@@ -90,23 +85,14 @@ function extractUserGuidFromResource(resource = "") {
   return match ? match[1] : null;
 }
 /**
- * Konvertiert eine DOCX-Datei (base64) zu PDF via mammoth + pdfmake (rein Node.js).
+ * Konvertiert eine DOCX-Datei (base64) zu PDF via Microsoft Graph (OneDrive + ?$format=pdf).
+ * Erfordert Files.ReadWrite.All (Application) in der Azure App Registration.
  * Gibt ein neues file-Objekt zurück oder das Original bei Fehler.
  */
-async function convertDocxToPdf(file) {
+async function convertDocxToPdf(file, token, upn) {
   try {
     const inputBuf = Buffer.from(file.contentBytes, "base64");
-    const { value: html } = await mammoth.convertToHtml({ buffer: inputBuf });
-
-    const { window } = new JSDOM("");
-    const content = htmlToPdfmake(html, { window });
-
-    const docDef = { content: content || [{ text: "(kein Inhalt)" }] };
-    const pdfBuf = await new Promise((resolve, reject) => {
-      const doc = pdfMake.createPdf(docDef);
-      doc.getBuffer((buf) => resolve(Buffer.from(buf)));
-    });
-
+    const pdfBuf = await convertAttachmentToPdf(token, upn, inputBuf, file.name);
     const pdfName = file.name.replace(/\.docx?$/i, ".pdf");
     console.log(`📄 Converted ${file.name} → ${pdfName} (${pdfBuf.length} bytes)`);
     return {
@@ -394,7 +380,7 @@ router.post("/webhook", (req, res) => {
               // DOCX → PDF konvertieren (Asana kann kein DOCX preview)
               for (let i = 0; i < files.length; i++) {
                 if (/\.docx?$/i.test(files[i].name)) {
-                  files[i] = await convertDocxToPdf(files[i]);
+                  files[i] = await convertDocxToPdf(files[i], appToken, upn);
                 }
               }
 
