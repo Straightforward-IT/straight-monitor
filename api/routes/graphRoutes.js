@@ -18,6 +18,9 @@ const {
   getStoredSubscriptionById,
   logGraphError,
   convertAttachmentToPdf,
+  getContacts,
+  updateContact,
+  deleteContact,
 } = require("../GraphService");
 const { parseApplicantEmail } = require("../applicantParser");
 
@@ -549,6 +552,90 @@ router.delete("/subscriptions", async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (e) {
     logGraphError("Delete subscriptions failed", e);
+    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+  }
+});
+
+/* ----------------------------- Contacts ---------------------------------- */
+
+const auth = require("../middleware/auth");
+
+// GET /api/graph/contacts?team=hamburg|berlin|koeln (or all)
+router.get("/contacts", auth, async (req, res) => {
+  try {
+    const token = await getAppToken();
+    const teamFilter = req.query.team;
+
+    let teams;
+    if (teamFilter) {
+      try {
+        teams = [registry.getTeam(teamFilter)];
+      } catch {
+        return res.status(400).json({ ok: false, error: `Unknown team '${teamFilter}'` });
+      }
+    } else {
+      teams = registry.listTeams().filter(t => !t.developmentOnly && t.graph?.upn);
+    }
+
+    const allContacts = [];
+    for (const t of teams) {
+      const upn = t.graph?.upn;
+      if (!upn) continue;
+      try {
+        const contacts = await getContacts(token, upn);
+        allContacts.push(
+          ...contacts.map(c => ({ ...c, _team: t.key, _upn: upn }))
+        );
+      } catch (e) {
+        logGraphError(`Contacts fetch failed for ${upn}`, e);
+      }
+    }
+
+    res.json({ ok: true, count: allContacts.length, contacts: allContacts });
+  } catch (e) {
+    logGraphError("GET /contacts failed", e);
+    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+  }
+});
+
+// PATCH /api/graph/contacts/:contactId  — Update contact fields
+router.patch("/contacts/:contactId", auth, async (req, res) => {
+  try {
+    const { contactId } = req.params;
+    const { upn, ...fields } = req.body;
+
+    if (!upn) return res.status(400).json({ ok: false, error: "upn required" });
+
+    // Whitelist erlaubter Felder
+    const allowed = ['givenName', 'surname', 'companyName', 'jobTitle', 'mobilePhone', 'businessPhones', 'emailAddresses'];
+    const patch = {};
+    for (const key of allowed) {
+      if (fields[key] !== undefined) patch[key] = fields[key];
+    }
+    if (!Object.keys(patch).length) return res.status(400).json({ ok: false, error: "No valid fields provided" });
+
+    const token = await getAppToken();
+    const updated = await updateContact(token, upn, contactId, patch);
+    res.json({ ok: true, contact: updated });
+  } catch (e) {
+    logGraphError(`PATCH /contacts/${req.params.contactId} failed`, e);
+    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+  }
+});
+
+// DELETE /api/graph/contacts/:contactId
+router.delete("/contacts/:contactId", auth, async (req, res) => {
+  try {
+    const { contactId } = req.params;
+    const { upn } = req.body;
+
+    if (!upn) return res.status(400).json({ ok: false, error: "upn required" });
+
+    const token = await getAppToken();
+    await deleteContact(token, upn, contactId);
+    res.json({ ok: true });
+  } catch (e) {
+    logGraphError(`DELETE /contacts/${req.params.contactId} failed`, e);
     res.status(500).json({ ok: false, error: e?.response?.data || e.message });
   }
 });

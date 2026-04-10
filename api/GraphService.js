@@ -443,6 +443,57 @@ async function convertAttachmentToPdf(token, upn, fileBuffer, fileName) {
   }
 }
 
+/* ----------------------------- Contacts ---------------------------------- */
+
+/**
+ * Alle Kontakte eines Postfachs abrufen (paginiert).
+ * Filtert Kontakte heraus, deren companyName "Straightforward" enthält.
+ */
+async function getContacts(token, upn) {
+  const results = [];
+  let url =
+    `${GRAPH}/users/${encodeURIComponent(upn)}/contacts` +
+    `?$select=id,givenName,surname,displayName,emailAddresses,businessPhones,mobilePhone,companyName,jobTitle` +
+    `&$top=250&$orderby=displayName`;
+
+  while (url) {
+    const { data } = await axios.get(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const items = data.value || [];
+    results.push(...items);
+    url = data["@odata.nextLink"] || null;
+  }
+
+  // Filter: kein "Straightforward" im companyName
+  return results.filter(
+    (c) => !(c.companyName || "").toLowerCase().includes("straightforward")
+  );
+}
+
+/**
+ * Kontakt-Felder aktualisieren.
+ */
+async function updateContact(token, upn, contactId, fields) {
+  const url = `${GRAPH}/users/${encodeURIComponent(upn)}/contacts/${contactId}`;
+  const { data } = await axios.patch(
+    url,
+    fields,
+    { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
+  );
+  return data;
+}
+
+/**
+ * Kontakt löschen.
+ */
+async function deleteContact(token, upn, contactId) {
+  const url = `${GRAPH}/users/${encodeURIComponent(upn)}/contacts/${contactId}`;
+  await axios.delete(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 module.exports = {
   // ensure (single + multi)
   ensureGraphMailSubscription,
@@ -463,4 +514,8 @@ module.exports = {
   logGraphError,
   // conversion
   convertAttachmentToPdf,
+  // contacts
+  getContacts,
+  updateContact,
+  deleteContact,
 };

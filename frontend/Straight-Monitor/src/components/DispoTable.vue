@@ -585,7 +585,6 @@
                 >
                 <div class="cell-fill">
                   <template v-if="cellAnfragart(ma._id, day.iso)">
-                    <font-awesome-icon icon="fa-solid fa-question" class="cell-icon cell-icon--corner cell-icon--angefragt-q" />
                     <div class="cell-inner">
                       <font-awesome-icon v-if="cellAnfragart(ma._id, day.iso) === 'tel'" icon="fa-solid fa-phone" class="cell-icon" />
                       <img v-else :src="flipIconUrl" class="cell-icon-img" />
@@ -606,7 +605,7 @@
                     <span v-if="getCellUnreadCount(ma._id, day.iso) > 0" class="comment-badge">{{ getCellUnreadCount(ma._id, day.iso) }}</span>
                   </span>
                 </div>
-            </td>
+                </td>
           </tr>
           <tr v-if="filteredMitarbeiter.length === 0">
             <td :colspan="days.length" class="empty-row">
@@ -955,7 +954,6 @@
               @click="setStatus(opt.value)"
             >
               <span class="ctx-icon-composite">
-                <font-awesome-icon icon="fa-solid fa-question" class="ctx-icon-badge" />
                 <font-awesome-icon v-if="opt.anfragart === 'tel'" :icon="opt.icon" class="ctx-icon-main" />
                 <img v-else :src="flipIconUrl" class="ctx-icon-flip" />
               </span>
@@ -2031,11 +2029,20 @@ function getCellTooltip(maId, iso) {
   if (!entries.length) return null;
   return entries
     .map((e) => {
-      if (e.typ === 'planned') return `Einsatz: ${e.bezeichnung || 'Auftrag ' + e.auftragNr}${e.uhrzeitVon ? ' (' + e.uhrzeitVon + '–' + e.uhrzeitBis + ')' : ''}`;
-      if (e.typ === 'verfuegbarkeit') return null;
-      if (e.typ === 'abwesenheit') return null;
-      if (e.typ === 'notiz' || e.typ === 'hinweis') return e.text;
-      return '';
+      let line = '';
+      if (e.typ === 'planned') {
+        line = `Einsatz: ${e.bezeichnung || 'Auftrag ' + e.auftragNr}${e.uhrzeitVon ? ' (' + e.uhrzeitVon + '–' + e.uhrzeitBis + ')' : ''}`;
+      } else if (e.typ === 'verfuegbarkeit') {
+        line = entryLabel(e);
+      } else if (e.typ === 'abwesenheit') {
+        line = entryLabel(e);
+      } else if (e.typ === 'notiz' || e.typ === 'hinweis') {
+        line = e.text;
+      }
+      if (line && e.createdAt) {
+        line += ` · ${formatEntryTs(e.createdAt)}`;
+      }
+      return line;
     })
     .filter(Boolean)
     .join('\n');
@@ -2117,6 +2124,8 @@ function entryLabel(entry) {
   if (entry.typ === 'planned' || entry._source === 'einsatz') return `Einsatz: ${entry.bezeichnung || entry.auftragNr}`;
   if (entry.typ === 'verfuegbarkeit') {
     if (entry.verfuegbarkeit === 'eingeplant') return `Eingeplant ${entry.kundeKuerzel ? ': ' + entry.kundeKuerzel : ''}`;
+    if (entry.verfuegbarkeit === 'angefragt_tel') return 'Angefragt (Tel)';
+    if (entry.verfuegbarkeit === 'angefragt_flip') return 'Angefragt (Flip)';
     const l = { available: 'Verfügbar', partially: 'Eingeschränkt', blocked: 'Blocked' };
     let label = l[entry.verfuegbarkeit];
     if (entry.verfuegbarkeit === 'partially' && (entry.zeitVon || entry.zeitBis)) {
@@ -3158,6 +3167,12 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0;
+  margin-left: -1.5rem;
+  margin-right: -1.5rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
   gap: 15px;
 
@@ -3841,6 +3856,16 @@ onMounted(async () => {
       box-shadow: inset 0 0 0 2px var(--primary);
       transform: scale(1.05);
       z-index: 2;
+    }
+
+    // Header cells: keep border highlight but remove size change
+    thead & {
+      cursor: default;
+
+      &:hover,
+      &.is-active {
+        transform: none;
+      }
     }
 
     &.cell-available:hover,

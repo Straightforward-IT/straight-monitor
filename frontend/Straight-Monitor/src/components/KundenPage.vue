@@ -17,9 +17,9 @@
 
     <div class="content-section">
       
-      <!-- Shared Filter Panel (Not for Analytics) -->
+      <!-- Shared Filter Panel (Not for Analytics/Kontakte) -->
       <FilterPanel 
-        v-if="currentTab !== 'analytics'"
+        v-if="currentTab !== 'analytics' && currentTab !== 'kontakte'"
         v-model:expanded="filtersExpanded" 
         title="Filter & Sortierung"
         class="mb-4"
@@ -101,12 +101,12 @@
               <div class="card-header">
                 <h3>{{ kunde.kundName || 'Unbenannt' }}</h3>
                 <div class="card-header-right">
-                  <button class="watchlist-btn" :class="{ active: isOnWatchlist(kunde) }" @click="toggleWatchlist(kunde, $event)" :title="isOnWatchlist(kunde) ? 'Von Watchlist entfernen' : 'Zur Watchlist hinzufügen'">
-                    <font-awesome-icon :icon="['fas', 'binoculars']" />
-                  </button>
                   <span class="status-badge" :class="getStatusClass(kunde.kundStatus)">
                     {{ getStatusText(kunde.kundStatus) }}
                   </span>
+                  <button class="ctx-menu-btn" @click.stop="openContextMenu(kunde, $event)" title="Aktionen">
+                    <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
+                  </button>
                 </div>
               </div>
               <div class="card-body">
@@ -154,12 +154,12 @@
             <div class="card-header">
               <h3>{{ kunde.kundName || 'Unbenannt' }}</h3>
               <div class="card-header-right">
-                <button class="watchlist-btn active" @click="toggleWatchlist(kunde, $event)" title="Von Watchlist entfernen">
-                  <font-awesome-icon :icon="['fas', 'binoculars']" />
-                </button>
                 <span class="status-badge" :class="getStatusClass(kunde.kundStatus)">
                   {{ getStatusText(kunde.kundStatus) }}
                 </span>
+                <button class="ctx-menu-btn" @click.stop="openContextMenu(kunde, $event)" title="Aktionen">
+                  <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
+                </button>
               </div>
             </div>
             <div class="card-body">
@@ -200,6 +200,89 @@
            </div>
       </div>
 
+      <!-- Kontakte Tab (Microsoft Graph Contacts) -->
+      <div v-if="currentTab === 'kontakte'" class="tab-content">
+        <div class="contact-filters mb-4">
+          <FilterGroup label="Standort">
+            <FilterChip :active="contactFilters.team === 'berlin'" @click="toggleContactTeam('berlin')">Berlin</FilterChip>
+            <FilterChip :active="contactFilters.team === 'hamburg'" @click="toggleContactTeam('hamburg')">Hamburg</FilterChip>
+            <FilterChip :active="contactFilters.team === 'koeln'" @click="toggleContactTeam('koeln')">Köln</FilterChip>
+            <FilterChip :active="!contactFilters.team" @click="toggleContactTeam(null)">Alle</FilterChip>
+          </FilterGroup>
+          <FilterGroup label="Verknüpfung">
+            <FilterChip :active="contactFilters.linked === true" @click="toggleContactLinked(true)">Kunde</FilterChip>
+            <FilterChip :active="contactFilters.linked === false" @click="toggleContactLinked(false)">Kein Kunde</FilterChip>
+            <FilterChip :active="contactFilters.linked === null" @click="toggleContactLinked(null)">Alle</FilterChip>
+          </FilterGroup>
+        </div>
+
+        <div class="toolbar">
+          <div class="search-group">
+            <input v-model="contactSearch" type="text" placeholder="Kontakt suchen..." class="search-input" />
+            <span class="count-tag">{{ filteredContacts.length }} Kontakte</span>
+          </div>
+          <button class="btn-group" @click="loadContacts" :disabled="contactsLoading">
+            <font-awesome-icon :icon="['fas', 'rotate']" :spin="contactsLoading" />
+            Aktualisieren
+          </button>
+        </div>
+
+        <div v-if="contactsLoading && msContacts.length === 0" class="loading-state">
+          <font-awesome-icon :icon="['fas', 'spinner']" spin /> Lädt Kontakte...
+        </div>
+
+        <div v-else-if="filteredContacts.length === 0" class="empty-list">
+          <font-awesome-icon :icon="['fas', 'address-book']" style="font-size: 32px; margin-bottom: 12px; opacity: 0.3;" />
+          <p>Keine externen Kontakte gefunden.</p>
+        </div>
+
+        <div v-else class="contacts-table-wrap">
+          <table class="contacts-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>E-Mail</th>
+                <th>Telefon</th>
+                <th>Firma (companyName)</th>
+                <th>Verknüpfter Kunde</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="c in filteredContacts" :key="c.id">
+                <td class="contact-name">
+                  <strong>{{ c.displayName }}</strong>
+                  <span v-if="c.jobTitle" class="job-title">{{ c.jobTitle }}</span>
+                </td>
+                <td>{{ primaryEmail(c) || '–' }}</td>
+                <td>{{ c.mobilePhone || (c.businessPhones && c.businessPhones[0]) || '–' }}</td>
+                <td>
+                  <span>{{ c.companyName || '–' }}</span>
+                </td>
+                <td>
+                  <span v-if="getLinkedKunde(c)" class="linked-kunde" @click="openCustomer(getLinkedKunde(c))">
+                    <font-awesome-icon :icon="['fas', 'link']" />
+                    {{ getLinkedKunde(c).kundName }}
+                  </span>
+                  <span v-else class="no-link">–</span>
+                </td>
+                <td class="contact-team-badge">
+                  <span class="team-badge">{{ c._team }}</span>
+                </td>
+                <td class="contact-actions">
+                  <button class="btn-icon" @click.stop="openEditContact(c)" title="Bearbeiten">
+                    <font-awesome-icon :icon="['fas', 'pen']" />
+                  </button>
+                  <button class="btn-icon btn-delete" @click.stop="deleteContactConfirm(c)" title="Kontakt löschen">
+                    <font-awesome-icon :icon="['fas', 'trash']" />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
 
     <KundenMergeModal 
@@ -212,6 +295,70 @@
       v-if="showReportModal"
       @close="showReportModal = false"
     />
+
+    <!-- Card Context Menu -->
+    <ContextMenu
+      v-if="contextMenu.visible"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :options="contextMenuOptions"
+      @select="handleContextMenuAction"
+      @close="contextMenu.visible = false"
+    />
+
+    <!-- Contact Edit Modal -->
+    <teleport to="body">
+      <div v-if="editContact" class="modal-overlay" @click="editContact = null">
+        <div class="contact-edit-modal" @click.stop>
+          <div class="modal-header">
+            <h3>Kontakt bearbeiten</h3>
+            <button class="btn-icon" @click="editContact = null">
+              <font-awesome-icon :icon="['fas', 'xmark']" />
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-row">
+              <label>Vorname</label>
+              <input v-model="editForm.givenName" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label>Nachname</label>
+              <input v-model="editForm.surname" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label>E-Mail</label>
+              <input v-model="editForm.email" type="email" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label>Telefon (Mobil)</label>
+              <input v-model="editForm.mobilePhone" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label>Telefon (Geschäftlich)</label>
+              <input v-model="editForm.businessPhone" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label>Position</label>
+              <input v-model="editForm.jobTitle" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label>Firma (companyName)</label>
+              <input v-model="editForm.companyName" class="form-input" />
+              <span v-if="editFormLinkedKunde" class="edit-linked-hint">
+                <font-awesome-icon :icon="['fas', 'link']" /> {{ editFormLinkedKunde.kundName }}
+              </span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" @click="editContact = null">Abbrechen</button>
+            <button class="btn-primary" @click="saveEditContact" :disabled="editSaving">
+              <font-awesome-icon v-if="editSaving" :icon="['fas', 'spinner']" spin />
+              Speichern
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
 
     <!-- Customer Detail Modal -->
     <teleport to="body">
@@ -244,18 +391,24 @@ import CustomTooltip from './CustomTooltip.vue';
 import KundenAnalytics from './KundenAnalytics.vue';
 import KundenMergeModal from './KundenMergeModal.vue';
 import KundenWatchlistReportModal from './KundenWatchlistReportModal.vue';
+import ContextMenu from './ContextMenu.vue';
+import api from '@/utils/api';
 
 const dataCache = useDataCache();
 const auth = useAuth(); // Init Auth Store
 const route = useRoute();
 const router = useRouter();
 
-const tabs = [
+const baseTabs = [
   { id: 'overview', label: 'Übersicht', icon: ['fas', 'list'] },
   { id: 'analytics', label: 'Analytics', icon: ['fas', 'chart-bar'] },
   { id: 'leads', label: 'Leads', icon: ['fas', 'bullseye'] },
-  { id: 'watchlist', label: 'Watchlist', icon: ['fas', 'binoculars'] }
+  { id: 'watchlist', label: 'Watchlist', icon: ['fas', 'binoculars'] },
+  { id: 'kontakte', label: 'Kontakte', icon: ['fas', 'address-book'], admin: true }
 ];
+
+const isAdmin = computed(() => (auth.user?.roles || []).includes('ADMIN'));
+const tabs = computed(() => baseTabs.filter(t => !t.admin || isAdmin.value));
 
 const currentTab = ref('overview');
 const showMergeModal = ref(false);
@@ -264,6 +417,33 @@ const searchQuery = ref('');
 const isLoading = ref(false);
 const filtersExpanded = ref(false);
 const selectedKunde = ref(null);
+
+// Context Menu
+const contextMenu = ref({ visible: false, x: 0, y: 0 });
+const contextMenuKunde = ref(null);
+
+const contextMenuOptions = computed(() => {
+  if (!contextMenuKunde.value) return [];
+  const onWatchlist = isOnWatchlist(contextMenuKunde.value);
+  return [
+    { label: onWatchlist ? 'Von Watchlist entfernen' : 'Zur Watchlist hinzufügen', action: 'toggleWatchlist' }
+  ];
+});
+
+function openContextMenu(kunde, event) {
+  event.stopPropagation();
+  const rect = event.currentTarget.getBoundingClientRect();
+  contextMenuKunde.value = kunde;
+  contextMenu.value = { visible: true, x: rect.right, y: rect.bottom + 4 };
+}
+
+function handleContextMenuAction(action) {
+  if (action === 'toggleWatchlist' && contextMenuKunde.value) {
+    toggleWatchlist(contextMenuKunde.value, new Event('click'));
+  }
+  contextMenu.value.visible = false;
+  contextMenuKunde.value = null;
+}
 
 // Helper to map user location to GeschSt ID
 function getUserGeschSt() {
@@ -295,7 +475,7 @@ watch(currentTab, (newTab) => {
 });
 
 watch(() => route.query.tab, (newTab) => {
-  if (newTab && ['overview', 'analytics', 'leads', 'watchlist'].includes(newTab)) {
+  if (newTab && ['overview', 'analytics', 'leads', 'watchlist', 'kontakte'].includes(newTab)) {
     currentTab.value = newTab;
   }
 }, { immediate: true });
@@ -308,7 +488,7 @@ watch(filters, (newVal) => {
 onMounted(async () => {
   isLoading.value = true;
   // Initialize Tab from URL if present
-  if (route.query.tab && ['overview', 'analytics', 'leads', 'watchlist'].includes(route.query.tab)) {
+  if (route.query.tab && ['overview', 'analytics', 'leads', 'watchlist', 'kontakte'].includes(route.query.tab)) {
     currentTab.value = route.query.tab;
   }
   // Initialize search from URL if present
@@ -511,6 +691,159 @@ function formatDate(dateStr) {
   if (!dateStr) return '-';
   return new Date(dateStr).toLocaleDateString('de-DE');
 }
+
+// ======================== Kontakte (MS Graph) ========================
+
+const msContacts = ref([]);
+const contactsLoading = ref(false);
+const contactSearch = ref('');
+const editingContactId = ref(null);
+const editCompanyValue = ref('');
+const contactFilters = ref({ team: null, linked: null });
+const editContact = ref(null);
+const editForm = ref({});
+const editSaving = ref(false);
+
+function toggleContactTeam(val) {
+  contactFilters.value.team = contactFilters.value.team === val ? null : val;
+}
+
+function toggleContactLinked(val) {
+  contactFilters.value.linked = contactFilters.value.linked === val ? null : val;
+}
+
+async function loadContacts() {
+  contactsLoading.value = true;
+  try {
+    const { data } = await api.get('/api/graph/contacts');
+    msContacts.value = data.contacts || [];
+  } catch (e) {
+    console.error('Failed to load contacts:', e);
+  } finally {
+    contactsLoading.value = false;
+  }
+}
+
+const filteredContacts = computed(() => {
+  let list = msContacts.value;
+
+  // Team filter
+  if (contactFilters.value.team) {
+    list = list.filter(c => c._team === contactFilters.value.team);
+  }
+
+  // Linked filter
+  if (contactFilters.value.linked === true) {
+    list = list.filter(c => !!getLinkedKunde(c));
+  } else if (contactFilters.value.linked === false) {
+    list = list.filter(c => !getLinkedKunde(c));
+  }
+
+  // Search
+  if (contactSearch.value) {
+    const q = contactSearch.value.toLowerCase();
+    list = list.filter(c =>
+      (c.displayName || '').toLowerCase().includes(q) ||
+      (c.companyName || '').toLowerCase().includes(q) ||
+      (primaryEmail(c) || '').toLowerCase().includes(q)
+    );
+  }
+  return list;
+});
+
+function primaryEmail(contact) {
+  return contact.emailAddresses?.[0]?.address || '';
+}
+
+function getLinkedKunde(contact) {
+  const company = (contact.companyName || '').trim();
+  if (!company) return null;
+  return allKunden.value.find(k => k.kuerzel && k.kuerzel.toLowerCase() === company.toLowerCase());
+}
+
+const editFormLinkedKunde = computed(() => {
+  const company = (editForm.value.companyName || '').trim();
+  if (!company) return null;
+  return allKunden.value.find(k => k.kuerzel && k.kuerzel.toLowerCase() === company.toLowerCase());
+});
+
+function openEditContact(contact) {
+  editContact.value = contact;
+  editForm.value = {
+    givenName: contact.givenName || '',
+    surname: contact.surname || '',
+    email: primaryEmail(contact),
+    mobilePhone: contact.mobilePhone || '',
+    businessPhone: (contact.businessPhones && contact.businessPhones[0]) || '',
+    jobTitle: contact.jobTitle || '',
+    companyName: contact.companyName || '',
+  };
+}
+
+async function saveEditContact() {
+  if (!editContact.value || editSaving.value) return;
+  editSaving.value = true;
+  try {
+    const f = editForm.value;
+    const patch = {
+      upn: editContact.value._upn,
+      givenName: f.givenName,
+      surname: f.surname,
+      jobTitle: f.jobTitle,
+      companyName: f.companyName,
+      mobilePhone: f.mobilePhone || null,
+      businessPhones: f.businessPhone ? [f.businessPhone] : [],
+      emailAddresses: f.email ? [{ address: f.email, name: `${f.givenName} ${f.surname}`.trim() }] : [],
+    };
+    const { data } = await api.patch(`/api/graph/contacts/${editContact.value.id}`, patch);
+    // Update local data
+    const c = editContact.value;
+    Object.assign(c, data.contact || {});
+    editContact.value = null;
+  } catch (e) {
+    console.error('Failed to update contact:', e);
+  } finally {
+    editSaving.value = false;
+  }
+}
+
+function startEditCompany(contact) {
+  editingContactId.value = contact.id;
+  editCompanyValue.value = contact.companyName || '';
+}
+
+async function saveCompany(contact) {
+  const newVal = editCompanyValue.value.trim();
+  try {
+    await api.patch(`/api/graph/contacts/${contact.id}`, {
+      companyName: newVal,
+      upn: contact._upn
+    });
+    contact.companyName = newVal;
+  } catch (e) {
+    console.error('Failed to update company:', e);
+  }
+  editingContactId.value = null;
+}
+
+async function deleteContactConfirm(contact) {
+  if (!confirm(`Kontakt "${contact.displayName}" wirklich löschen?`)) return;
+  try {
+    await api.delete(`/api/graph/contacts/${contact.id}`, {
+      data: { upn: contact._upn }
+    });
+    msContacts.value = msContacts.value.filter(c => c.id !== contact.id);
+  } catch (e) {
+    console.error('Failed to delete contact:', e);
+  }
+}
+
+// Load contacts when switching to kontakte tab
+watch(currentTab, (tab) => {
+  if (tab === 'kontakte' && msContacts.value.length === 0) {
+    loadContacts();
+  }
+});
 </script>
 
 <style scoped>
@@ -663,23 +996,21 @@ function formatDate(dateStr) {
   flex-shrink: 0;
 }
 
-.watchlist-btn {
+.ctx-menu-btn {
   background: transparent;
   border: none;
-  padding: 2px 4px;
+  padding: 6px 8px;
   cursor: pointer;
   color: var(--muted);
-  transition: color 0.2s, transform 0.15s;
+  transition: color 0.2s;
   line-height: 1;
+  border-radius: 4px;
+  font-size: 18px;
 }
 
-.watchlist-btn:hover {
-  color: #f59e0b;
-  transform: scale(1.2);
-}
-
-.watchlist-btn.active {
-  color: #f59e0b;
+.ctx-menu-btn:hover {
+  color: var(--text);
+  background: var(--hover);
 }
 
 .card-header h3 {
@@ -826,5 +1157,239 @@ function formatDate(dateStr) {
   display: flex;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
   border-radius: 12px;
+}
+
+/* Contacts Table */
+.contact-filters {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.contacts-table-wrap {
+  overflow-x: auto;
+}
+
+.contacts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.contacts-table th {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 2px solid var(--border);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.contacts-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.contacts-table tbody tr:hover {
+  background: var(--hover);
+}
+
+.contact-name strong {
+  display: block;
+}
+
+.job-title {
+  font-size: 11px;
+  color: var(--muted);
+  display: block;
+}
+
+.company-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inline-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.edit-input {
+  padding: 4px 8px;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  font-size: 13px;
+  background: var(--tile-bg);
+  color: var(--text);
+  min-width: 120px;
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  cursor: pointer;
+  color: var(--muted);
+  transition: color 0.2s;
+  font-size: 13px;
+}
+
+.btn-icon:hover {
+  color: var(--text);
+}
+
+.linked-kunde {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.linked-kunde:hover {
+  text-decoration: underline;
+}
+
+.no-link {
+  color: var(--muted);
+}
+
+.team-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--hover);
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.contact-team-badge {
+  text-align: right;
+}
+
+.contact-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.btn-delete:hover {
+  color: #ef4444;
+}
+
+/* Contact Edit Modal */
+.contact-edit-modal {
+  background: var(--modal-bg);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.contact-edit-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.contact-edit-modal .modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.contact-edit-modal .modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-row label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.form-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.edit-linked-hint {
+  font-size: 12px;
+  color: var(--primary);
+  margin-top: 2px;
+}
+
+.contact-edit-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.btn-secondary {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.btn-secondary:hover {
+  background: var(--hover);
+}
+
+.btn-primary {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
