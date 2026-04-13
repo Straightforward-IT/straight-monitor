@@ -25,6 +25,20 @@
         Ungelesen
         <span v-if="unreadCount > 0" class="kf-chip-badge">{{ unreadCount }}</span>
       </button>
+      <template v-if="availableScopes.length > 1">
+        <div class="kf-filter-divider"></div>
+        <button class="kf-chip" :class="{ active: scopeFilter === null }" @click="scopeFilter = null">Alle Bereiche</button>
+        <button
+          v-for="s in availableScopes"
+          :key="s"
+          class="kf-chip"
+          :class="{ active: scopeFilter === s }"
+          @click="scopeFilter = s"
+        >
+          {{ scopeLabel(s) }}
+          <span v-if="store.unreadCountByScope?.[s]" class="kf-chip-badge">{{ store.unreadCountByScope[s] }}</span>
+        </button>
+      </template>
       <select class="kf-standort-select" v-model="standortFilterModel">
         <option value="Hamburg">HH</option>
         <option value="Berlin">B</option>
@@ -63,8 +77,9 @@
           <button class="kf-ma-btn" @click="jumpTo(item)">
             <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" class="kf-jump-icon" />
             <span class="kf-ma-name">{{ item.maName }}</span>
-            <span class="kf-datum-chip">{{ formatDate(item.datum) }}</span>
+            <span v-if="item.datum" class="kf-datum-chip">{{ formatDate(item.datum) }}</span>
           </button>
+          <span class="kf-scope-chip">{{ item.scopeLabel }}</span>
         </div>
 
         <!-- Author row -->
@@ -101,20 +116,24 @@ import { useRouter, useRoute } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useUi } from '@/stores/ui';
 import { useAuth } from '@/stores/auth';
-import { useDispoKommentare } from '@/stores/dispoKommentare';
+import { useComments } from '@/stores/comments';
 import { useDataCache } from '@/stores/dataCache';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 
 const ui = useUi();
 const auth = useAuth();
-const store = useDispoKommentare();
+const store = useComments();
 const cache = useDataCache();
 const router = useRouter();
 const route = useRoute();
 
 const filter = ref('all');
+const scopeFilter = ref(null); // null = Alle scopes
 const listRef = ref(null);
 const itemRefs = ref({});
+
+const SCOPE_LABELS = { dispo_day: 'Dispo', chronik: 'Chronik', event_report: 'Event' };
+function scopeLabel(scope) { return SCOPE_LABELS[scope] ?? scope; }
 
 // ── Standort filter (synced with store) ────────────────────────────────────────
 const activeStandort = computed(() => {
@@ -162,24 +181,29 @@ const userId = computed(() => String(auth.user?._id ?? ''));
 
 const unreadCount = computed(() => store.unreadCount);
 
+const availableScopes = computed(() => [...new Set(store.items.map(c => c.scope))]);
+
 const enrichedItems = computed(() => {
-  return [...store.kommentare]
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .map((k) => ({
-      ...k,
-      maName: getMaName(k.mitarbeiter),
-      maStandort: getMaStandort(k.mitarbeiter),
-      isUnread: String(k.authorId) !== userId.value && !(k.readBy ?? []).map(String).includes(userId.value),
-      canDelete: String(k.authorId) === userId.value,
+  return [...store.items]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map((c) => ({
+      ...c,
+      mitarbeiter: c.context?.mitarbeiter,
+      datum: c.context?.datum,
+      timestamp: c.createdAt,
+      maName: getMaName(c.context?.mitarbeiter),
+      maStandort: getMaStandort(c.context?.mitarbeiter),
+      isUnread: String(c.authorId) !== userId.value && !(c.readBy ?? []).map(String).includes(userId.value),
+      canDelete: String(c.authorId) === userId.value,
+      scopeLabel: scopeLabel(c.scope),
     }));
 });
 
 const visibleItems = computed(() => {
   let items = enrichedItems.value;
-  // Apply standort filter
+  if (scopeFilter.value) items = items.filter(c => c.scope === scopeFilter.value);
   const loc = activeStandort.value;
   if (loc) items = items.filter((k) => !k.maStandort || k.maStandort === loc);
-  // Apply read filter
   if (filter.value === 'unread') items = items.filter((k) => k.isUnread);
   return items;
 });
@@ -187,14 +211,13 @@ const visibleItems = computed(() => {
 // ── Load data on mount if not already loaded ───────────────────────────────
 onMounted(async () => {
   await cache.loadMitarbeiter();
-  // If the store has no data yet (e.g. panel opened before DispoTable loaded), fetch now
-  if (!store.kommentare.length && !store.loading) {
+  if (!store.items.length && !store.loading) {
     const today = new Date();
     const end = new Date(today);
     end.setDate(end.getDate() + 30);
     const von = today.toISOString().slice(0, 10);
     const bis = end.toISOString().slice(0, 10);
-    await store.fetch(von, bis);
+    await store.fetch({ scope: 'dispo_day', von, bis });
   }
 });
 
@@ -237,16 +260,15 @@ function jumpTo(item) {
 // ── Delete ──────────────────────────────────────────────────────────────────
 async function deleteComment(id) {
   try {
-    await store.deleteComment(id);
+    await store.delete(id);
   } catch (err) {
     console.error('Kommentar löschen fehlgeschlagen:', err);
   }
 }
 
-// ── Mark all read ───────────────────────────────────────────────────────────
+// ── Mark all read ───────────────────────────────────────────────────────────────────────────
 async function markAllRead() {
-  const ids = enrichedItems.value.filter((k) => k.isUnread).map((k) => k._id);
-  await store.markRead(ids);
+  await store.markAllRead();
 }
 
 // ── Formatters ──────────────────────────────────────────────────────────────
@@ -496,6 +518,9 @@ function formatAbsolute(ts) {
 
 /* Top row with MA name + jump-to */
 .kf-item-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-bottom: 5px;
 }
 
@@ -543,6 +568,32 @@ function formatAbsolute(ts) {
   background: var(--hover);
   border: 1px solid var(--border);
   color: var(--muted);
+  flex-shrink: 0;
+}
+
+.kf-scope-chip {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: color.adjust(#f59e0b, $lightness: 35%);
+  border: 1px solid color.adjust(#f59e0b, $lightness: 10%);
+  color: color.adjust(#f59e0b, $lightness: -20%);
+  flex-shrink: 0;
+  margin-left: auto;
+
+  .dark-mode & {
+    background: color.adjust(#f59e0b, $lightness: -35%);
+    border-color: color.adjust(#f59e0b, $lightness: -20%);
+    color: color.adjust(#f59e0b, $lightness: 15%);
+  }
+}
+
+.kf-filter-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 2px;
   flex-shrink: 0;
 }
 

@@ -400,6 +400,13 @@
                   <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'vorname')"></div>
                 </th>
                 <th
+                  class="col-notiz"
+                  :style="{ width: colWidths.notiz + 'px', minWidth: colWidths.notiz + 'px', maxWidth: colWidths.notiz + 'px' }"
+                >
+                  <span class="th-content">Notiz</span>
+                  <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'notiz')"></div>
+                </th>
+                <th
                   class="col-bereich"
                   :class="{ 'bereich-filter-active': bereichFilter !== null }"
                   @click.stop="onBereichHeaderClick"
@@ -419,11 +426,11 @@
                   <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'kunden')"></div>
                 </th>
                 <th
-                  class="col-notiz"
-                  :style="{ width: colWidths.notiz + 'px', minWidth: colWidths.notiz + 'px', maxWidth: colWidths.notiz + 'px' }"
+                  class="col-aktivitaet"
+                  :style="{ width: colWidths.aktivitaet + 'px', minWidth: colWidths.aktivitaet + 'px', maxWidth: colWidths.aktivitaet + 'px' }"
                 >
-                  <span class="th-content">Notiz</span>
-                  <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'notiz')"></div>
+                  <span class="th-content">Chronik</span>
+                  <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'aktivitaet')"></div>
                 </th>
               </tr>
             </thead>
@@ -456,32 +463,6 @@
                 <!-- Vorname -->
                 <td class="col-vorname" :style="{ width: colWidths.vorname + 'px', minWidth: colWidths.vorname + 'px', maxWidth: colWidths.vorname + 'px' }">
                   <span class="ma-name">{{ ma.vorname }}</span>
-                </td>
-                <!-- Bereich -->
-                <td class="col-bereich">
-                  <span v-if="getMaBereich(ma)" class="bereich-badge">{{ getMaBereich(ma) }}</span>
-                </td>
-                <!-- Kunden -->
-                <td class="col-kunden" :style="{ width: colWidths.kunden + 'px', minWidth: colWidths.kunden + 'px', maxWidth: colWidths.kunden + 'px' }">
-                  <div class="kunden-pills">
-                    <CustomTooltip
-                      v-for="w in (ma.kundenwuensche || [])"
-                      :key="w._id"
-                      :text="`${w.kunde?.kundName || ''} ${w.typ === 'positiv' ? '🤝' : '🚫'}${w.kommentar ? ' – ' + w.kommentar : ''}`"
-                      position="top"
-                    >
-                      <span
-                        class="kw-pill"
-                        :class="w.typ === 'positiv' ? 'kw-pill--pos' : 'kw-pill--neg'"
-                      >
-                        {{ w.kunde?.kuerzel || w.kunde?.kundenNr || '?' }}
-                        <button class="kw-pill-remove" @click.stop="removeKundenwunsch(ma._id, w._id)" title="Entfernen">✕</button>
-                      </span>
-                    </CustomTooltip>
-                    <CustomTooltip text="Kundenwunsch hinzufügen" position="top">
-                      <button class="kw-add-btn" @click.stop="openKwModal(ma._id)">+</button>
-                    </CustomTooltip>
-                  </div>
                 </td>
                 <!-- Notiz -->
                 <td
@@ -517,9 +498,109 @@
                     >…</button>
                   </div>
                 </td>
+                <!-- Bereich -->
+                <td class="col-bereich">
+                  <span v-if="getMaBereich(ma)" class="bereich-badge">{{ getMaBereich(ma) }}</span>
+                </td>
+                <!-- Kunden -->
+                <td class="col-kunden" :style="{ width: colWidths.kunden + 'px', minWidth: colWidths.kunden + 'px', maxWidth: colWidths.kunden + 'px' }">
+                  <div class="kunden-pills">
+                    <CustomTooltip
+                      v-for="w in (ma.kundenwuensche || [])"
+                      :key="w._id"
+                      :text="`${w.kunde?.kundName || ''} ${w.typ === 'positiv' ? '🤝' : '🚫'}${w.kommentar ? ' – ' + w.kommentar : ''}`"
+                      position="top"
+                    >
+                      <span
+                        class="kw-pill"
+                        :class="w.typ === 'positiv' ? 'kw-pill--pos' : 'kw-pill--neg'"
+                      >
+                        {{ w.kunde?.kuerzel || w.kunde?.kundenNr || '?' }}
+                        <button class="kw-pill-remove" @click.stop="removeKundenwunsch(ma._id, w._id)" title="Entfernen">✕</button>
+                      </span>
+                    </CustomTooltip>
+                    <CustomTooltip text="Kundenwunsch hinzufügen" position="top">
+                      <button class="kw-add-btn" @click.stop="openKwModal(ma._id)">+</button>
+                    </CustomTooltip>
+                  </div>
+                </td>
+                <!-- Aktivität -->
+                <td
+                  class="col-aktivitaet"
+                  :class="{ 'aktivitaet-expanded': expandedAktivitaet === ma._id }"
+                  :style="expandedAktivitaet !== ma._id ? { width: colWidths.aktivitaet + 'px', minWidth: colWidths.aktivitaet + 'px', maxWidth: colWidths.aktivitaet + 'px' } : {}"
+                >
+                  <div class="aktivitaet-cell">
+                    <!-- Zugeklappt: letzte 3 Einträge -->
+                    <template v-if="expandedAktivitaet !== ma._id">
+                      <div
+                        class="aktivitaet-preview-list"
+                        @click="toggleAktivitaetsLogExpand(ma._id)"
+                        title="Klicken zum Bearbeiten"
+                      >
+                        <template v-for="group in getAktivitaetsLogPreviewGrouped(ma._id)" :key="group.dayKey">
+                          <div class="aktivitaet-day-header">{{ group.dayLabel }}</div>
+                          <div
+                            v-for="entry in group.entries"
+                            :key="entry._id || entry.text"
+                            class="aktivitaet-preview-entry"
+                          >
+                            <span class="aktivitaet-log-time">{{ new Date(entry.createdAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                            <span class="aktivitaet-preview-text">{{ entry.text }}</span>
+                          </div>
+                        </template>
+                        <span v-if="!getAktivitaetsLog(ma._id).length" class="aktivitaet-empty">—</span>
+                      </div>
+                    </template>
+                    <!-- Aufgeklappt: Verlauf + Eingabefeld -->
+                    <template v-else>
+                      <div class="aktivitaet-log-list" @click.stop>
+                        <template v-for="group in getAktivitaetsLogGrouped(ma._id)" :key="group.dayKey">
+                          <div class="aktivitaet-day-header">{{ group.dayLabel }}</div>
+                          <div
+                            v-for="entry in group.entries"
+                            :key="entry._id || [ma._id, entry.createdAt, entry.text].join('-')"
+                            class="aktivitaet-log-item"
+                          >
+                            <div class="aktivitaet-log-main">
+                              <span class="aktivitaet-log-time">{{ new Date(entry.createdAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                              <span class="aktivitaet-log-text">{{ entry.text }}</span>
+                            </div>
+                            <button
+                              class="aktivitaet-delete-btn"
+                              @mousedown.prevent="deleteAktivitaetsLog(ma._id, entry._id)"
+                              title="Eintrag löschen"
+                            >
+                              <font-awesome-icon icon="fa-solid fa-trash" />
+                            </button>
+                          </div>
+                        </template>
+                        <div v-if="!getAktivitaetsLog(ma._id).length" class="aktivitaet-empty">Noch kein Verlauf.</div>
+                      </div>
+                      <div class="aktivitaet-input-row" @click.stop>
+                        <input
+                          v-model="aktivitaetsDraftMap[ma._id]"
+                          type="text"
+                          class="aktivitaet-input"
+                          placeholder="Schreiben…"
+                          @keydown.enter.prevent="addAktivitaetsLog(ma._id)"
+                          @keydown.esc.prevent="toggleAktivitaetsLogExpand(ma._id)"
+                        />
+                        <button
+                          class="aktivitaet-send-btn"
+                          :disabled="!((aktivitaetsDraftMap[ma._id] || '').trim())"
+                          @mousedown.prevent="addAktivitaetsLog(ma._id)"
+                          title="Absenden"
+                        >
+                          <font-awesome-icon icon="fa-solid fa-paper-plane" />
+                        </button>
+                      </div>
+                    </template>
+                  </div>
+                </td>
               </tr>
               <tr v-if="filteredMitarbeiter.length === 0">
-                <td colspan="5" class="empty-row text-center">
+                <td colspan="6" class="empty-row text-center">
                   --
                 </td>
               </tr>
@@ -1037,7 +1118,7 @@ import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
 import { useDataCache } from '@/stores/dataCache';
 import { useFlipAll } from '@/stores/flipAll';
-import { useDispoKommentare } from '@/stores/dispoKommentare';
+import { useComments } from '@/stores/comments';
 import { useUi } from '@/stores/ui';
 import FilterPanel from '@/components/FilterPanel.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
@@ -1055,7 +1136,7 @@ import KundeSearch from '@/components/ui-elements/KundeSearch.vue';
 const auth = useAuth();
 const dataCache = useDataCache();
 const flip = useFlipAll();
-const dispoKommentare = useDispoKommentare();
+const comments = useComments();
 const ui = useUi();
 const router = useRouter();
 const route = useRoute();
@@ -1084,7 +1165,9 @@ const bereichMenuOpen = ref(false);
 const bereichMenuPos = ref({ x: 0, y: 0 });
 const showHelp = ref(false);
 const notizMap = reactive({});
+const aktivitaetsDraftMap = reactive({});
 const expandedNotiz = ref(null); // maId of currently expanded notiz cell
+const expandedAktivitaet = ref(null); // maId of currently expanded activity cell
 const expandedNotizHeight = ref(null); // px height of expanded left-pane row
 let _notizTimers = {};
 let _notizRowObserver = null;
@@ -1233,7 +1316,7 @@ function _observeExpandedRow(maId) {
 }
 
 // ─── Column widths (resizable) ───
-const colWidths = reactive({ nachname: 130, vorname: 110, kunden: 75, notiz: 160 });
+const colWidths = reactive({ nachname: 130, vorname: 110, notiz: 160, aktivitaet: 220, kunden: 75 });
 let resizeCol = null;
 let resizeStartX = 0;
 let resizeStartW = 0;
@@ -1414,7 +1497,6 @@ const statusOptions = [
   { value: 'available', label: 'Verfügbar', icon: 'fa-solid fa-check' },
   { value: 'partially', label: 'Eingeschränkt', icon: 'fa-solid fa-circle-half-stroke' },
   { value: 'blocked', label: 'Blocked', icon: 'fa-solid fa-xmark' },
-  { value: 'angefragt_tel', label: 'Angefragt (Tel)', icon: 'fa-solid fa-phone', anfragart: 'tel' },
   { value: 'angefragt_flip', label: 'Angefragt (Flip)', icon: null, anfragart: 'flip' },
 ];
 
@@ -2068,17 +2150,12 @@ function getCellNote(maId, iso) {
 
 // ─── Comment index: mitarbeiterId_iso → comments (O(1) lookup) ───
 function getCellComments(maId, iso) {
-  return dispoKommentare.getForCell(maId, iso);
+  return comments.getCellComments(maId, iso);
 }
 
 function getCellUnreadCount(maId, iso) {
   if (!maId || !iso) return 0;
-  const userId = auth.user?._id;
-  if (!userId) return 0;
-  const userIdStr = String(userId);
-  return getCellComments(maId, iso).filter(
-    (k) => String(k.authorId) !== userIdStr && !k.readBy?.map(String).includes(userIdStr)
-  ).length;
+  return comments.cellUnreadCount(maId, iso);
 }
 
 function isOwnComment(comment) {
@@ -2248,9 +2325,10 @@ async function fetchDispo() {
 
     const { data } = await api.get(`/api/dispo?${params.toString()}`);
     mitarbeiter.value = data.mitarbeiter || [];
-    // Populate notizMap from loaded mitarbeiter
+    // Populate persisted left-pane metadata from loaded mitarbeiter
     for (const ma of data.mitarbeiter || []) {
-      if (ma.dispoNotiz && !(ma._id in notizMap)) notizMap[ma._id] = ma.dispoNotiz;
+      notizMap[ma._id] = ma.dispoNotiz || '';
+      if (!(ma._id in aktivitaetsDraftMap)) aktivitaetsDraftMap[ma._id] = '';
     }
     eintraege.value = data.eintraege || [];
   } catch (err) {
@@ -2258,7 +2336,7 @@ async function fetchDispo() {
   } finally {
     loading.value = false;
   }
-  // also refresh comments for visible range
+  // also refresh comments (dispo_day + chronik) for visible range
   fetchKommentare();
 }
 
@@ -2268,7 +2346,11 @@ async function fetchKommentare() {
   endDate.setDate(endDate.getDate() + effectiveTage.value);
   const von = today.toISOString().slice(0, 10);
   const bis = endDate.toISOString().slice(0, 10);
-  await dispoKommentare.fetch(von, bis);
+  // fetch dispo day comments
+  await comments.fetch({ scope: 'dispo_day', von, bis });
+  // fetch chronik for all loaded MA in parallel
+  const maIds = mitarbeiter.value.map(ma => ma._id);
+  await Promise.all(maIds.map(maId => comments.fetch({ scope: 'chronik', mitarbeiterId: maId })));
 }
 
 // ─── Filters ───
@@ -2368,6 +2450,89 @@ function isNotizOverflowing(maId) {
   const el = document.querySelector(`[data-notiz-ma="${maId}"]`);
   if (!el) return false;
   return el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
+}
+
+// ─── Aktivitätslog (Chronik) helpers — backed by unified comments store ───
+function getAktivitaetsLog(maId) {
+  return comments.chronikForMa(maId);
+}
+
+function getAktivitaetsLogDesc(maId) {
+  const logs = getAktivitaetsLog(maId);
+  return logs.length > 1 ? [...logs].reverse() : logs;
+}
+
+function getAktivitaetsLogGrouped(maId) {
+  const logs = getAktivitaetsLog(maId);
+  const groups = [];
+  let currentDate = null;
+  for (const entry of logs) {
+    const d = new Date(entry.createdAt);
+    const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const dayLabel = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' });
+    if (dayKey !== currentDate) {
+      groups.push({ dayKey, dayLabel, entries: [] });
+      currentDate = dayKey;
+    }
+    groups[groups.length - 1].entries.push(entry);
+  }
+  return groups;
+}
+
+function getAktivitaetsLogPreviewGrouped(maId) {
+  const last3 = getAktivitaetsLog(maId).slice(-3);
+  const groups = [];
+  let currentDate = null;
+  for (const entry of last3) {
+    const d = new Date(entry.createdAt);
+    const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const dayLabel = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' });
+    if (dayKey !== currentDate) {
+      groups.push({ dayKey, dayLabel, entries: [] });
+      currentDate = dayKey;
+    }
+    groups[groups.length - 1].entries.push(entry);
+  }
+  return groups;
+}
+
+function getLatestAktivitaetsLog(maId) {
+  const logs = getAktivitaetsLog(maId);
+  return logs.length ? logs[logs.length - 1] : null;
+}
+
+function toggleAktivitaetsLogExpand(maId) {
+  if (expandedAktivitaet.value !== maId) {
+    // mark all chronik entries for this MA as read on expand
+    comments.markReadForMa(maId);
+  }
+  expandedAktivitaet.value = expandedAktivitaet.value === maId ? null : maId;
+}
+
+async function addAktivitaetsLog(maId) {
+  const text = (aktivitaetsDraftMap[maId] || '').trim();
+  if (!text) return;
+
+  try {
+    await comments.post({
+      scope: 'chronik',
+      text,
+      context: { mitarbeiter: maId },
+    });
+    aktivitaetsDraftMap[maId] = '';
+    expandedAktivitaet.value = maId;
+  } catch (err) {
+    console.error('Chronik speichern fehlgeschlagen:', err);
+  }
+}
+
+async function deleteAktivitaetsLog(maId, logId) {
+  if (!logId) return;
+  try {
+    await comments.delete(logId);
+  } catch (err) {
+    console.error('Chronik löschen fehlgeschlagen:', err);
+  }
 }
 
 // ─── Optimistic local update helpers ───
@@ -2576,7 +2741,7 @@ async function markCellCommentsRead(maId, iso) {
     .filter((c) => String(c.authorId) !== userIdStr && !c.readBy?.map(String).includes(userIdStr))
     .map((c) => c._id);
   if (!unread.length) return;
-  await dispoKommentare.markRead(unread);
+  await comments.markRead(unread);
 }
 
 function onCellMouseLeave() {
@@ -2821,7 +2986,7 @@ async function openChatModal(ma, day) {
     .filter((c) => !c.readBy?.map(String).includes(String(auth.user?._id)))
     .map((c) => c._id);
   if (unread.length) {
-    await dispoKommentare.markRead(unread);
+    await comments.markRead(unread);
     chatModal.comments = getCellComments(ma._id, day.iso);
   }
   // scroll thread to bottom
@@ -2843,7 +3008,11 @@ async function postComment() {
   if (!text || chatModal.loading) return;
   chatModal.loading = true;
   try {
-    await dispoKommentare.postComment(chatModal.ma._id, chatModal.day, text);
+    await comments.post({
+      scope: 'dispo_day',
+      text,
+      context: { mitarbeiter: chatModal.ma._id, datum: chatModal.day },
+    });
     chatModal.newText = '';
     chatModal.comments = getCellComments(chatModal.ma._id, chatModal.day);
     nextTick(() => {
@@ -2858,7 +3027,7 @@ async function postComment() {
 
 async function deleteKommentar(id) {
   try {
-    await dispoKommentare.deleteComment(id);
+    await comments.delete(id);
     chatModal.comments = getCellComments(chatModal.ma._id, chatModal.day);
   } catch (err) {
     console.error('Kommentar löschen fehlgeschlagen:', err);
@@ -3472,7 +3641,7 @@ onMounted(async () => {
     background: var(--panel);
   }
 
-  /* Kombinierter Hover-Rahmen um Nachname + Vorname */
+  /* Kombinierter Hover-Rahmen um die linke Tabelle */
   .dispo-table tr.row-hovered {
     td.col-nachname {
       border-left-color: var(--primary);
@@ -3488,7 +3657,7 @@ onMounted(async () => {
       border-top-width: 1.5px;
       border-bottom-width: 1.5px;
     }
-    td.col-kunden {
+    td.col-notiz {
       border-top-color: var(--primary);
       border-bottom-color: var(--primary);
       border-top-width: 1.5px;
@@ -3500,7 +3669,13 @@ onMounted(async () => {
       border-top-width: 1.5px;
       border-bottom-width: 1.5px;
     }
-    td.col-notiz {
+    td.col-kunden {
+      border-top-color: var(--primary);
+      border-bottom-color: var(--primary);
+      border-top-width: 1.5px;
+      border-bottom-width: 1.5px;
+    }
+    td.col-aktivitaet {
       border-right-color: var(--primary);
       border-top-color: var(--primary);
       border-bottom-color: var(--primary);
@@ -3591,6 +3766,10 @@ onMounted(async () => {
     padding-left: 10px;
   }
 
+  thead th.col-aktivitaet {
+    padding-left: 10px;
+  }
+
   .col-notiz {
     width: 160px;
     min-width: 100px;
@@ -3618,6 +3797,24 @@ onMounted(async () => {
       .notiz-expand-pill {
         display: none;
       }
+    }
+  }
+
+  .col-aktivitaet {
+    width: 220px;
+    min-width: 160px;
+    max-width: 220px;
+    padding: 0;
+    text-align: left;
+    overflow: hidden;
+    position: relative;
+
+    &.aktivitaet-expanded {
+      width: auto !important;
+      min-width: 280px !important;
+      max-width: 460px !important;
+      z-index: 5;
+      overflow: visible;
     }
   }
 
@@ -3778,9 +3975,191 @@ onMounted(async () => {
     }
   }
 
+  .aktivitaet-cell {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    padding: 5px 8px;
+    gap: 3px;
+  }
+
+  .aktivitaet-preview-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    cursor: pointer;
+  }
+
+  .aktivitaet-preview-entry {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    overflow: hidden;
+    line-height: 1.3;
+  }
+
+  .aktivitaet-preview-text {
+    font-size: 11px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .aktivitaet-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    overflow: hidden;
+    transition: border-color 0.15s;
+
+    &:focus-within {
+      border-color: var(--primary);
+    }
+  }
+
+  .aktivitaet-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 11px;
+    padding: 4px 8px;
+    outline: none;
+    height: 24px;
+  }
+
+  .aktivitaet-send-btn {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 11px;
+    transition: color 0.15s;
+
+    &:hover:not(:disabled) {
+      color: var(--primary);
+    }
+
+    &:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+  }
+
+  .aktivitaet-log-time {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--primary);
+    line-height: 1.2;
+  }
+
+  .aktivitaet-log-text {
+    font-size: 11px;
+    line-height: 1.3;
+    color: var(--text);
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .aktivitaet-empty {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 2px 0;
+  }
+
+  .aktivitaet-day-header {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding: 4px 0 2px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+
+    &:first-child {
+      padding-top: 0;
+    }
+  }
+
+  .aktivitaet-log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 100%;
+    max-height: 180px;
+    overflow: auto;
+    padding-right: 2px;
+  }
+
+  .aktivitaet-log-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    padding: 3px 0;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  .aktivitaet-log-main {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .aktivitaet-delete-btn {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 9px;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+
+    &:hover {
+      color: #d44;
+    }
+  }
+
+  .aktivitaet-log-item:hover .aktivitaet-delete-btn {
+    opacity: 1;
+  }
+
   .col-nachname,
   .col-vorname,
-  .col-notiz {
+  .col-notiz,
+  .col-aktivitaet {
     position: relative; /* Wichtig für col-resize-handle */
     cursor: pointer;
   }

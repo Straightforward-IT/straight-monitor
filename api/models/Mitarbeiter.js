@@ -74,6 +74,7 @@ const MitarbeiterSchema = new mongoose.Schema({
     }],
     dateCreated: { type: Date, default: Date.now },
     dispoNotiz: { type: String, default: '' },
+    // dispoAktivitaetsLog migrated to Comment collection (scope: 'chronik')
 }, { timestamps: true });
 
 

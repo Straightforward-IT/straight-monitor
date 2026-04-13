@@ -21,7 +21,7 @@
           to="/dokumente"
           :class="{ active: $route.name === 'Dokumente'}"
         >
-          Dokumente
+            Reports
         </router-link>
         <router-link
           :to="newPagesEnabled ? '/personal' : '#'"
@@ -66,7 +66,7 @@
         <custom-tooltip v-if="$route.name === 'Dispo'" text="Kommentar-Feed [C]" position="bottom" :delay-in="150">
           <button class="icon-btn kf-btn" @click="ui.toggle('kommentare')">
             <font-awesome-icon :icon="['fas', 'comments']" />
-            <span v-if="dispoKommentare.unreadCount > 0" class="kf-badge">{{ dispoKommentare.unreadCount > 99 ? '99+' : dispoKommentare.unreadCount }}</span>
+            <span v-if="comments.unreadCount > 0" class="kf-badge">{{ comments.unreadCount > 99 ? '99+' : comments.unreadCount }}</span>
           </button>
         </custom-tooltip>
         <!-- Theme Toggle -->
@@ -148,7 +148,7 @@
           @click="showMobileMenu = false"
         >
           <font-awesome-icon :icon="['fas', 'file-alt']" />
-          Dokumente
+          Reports
         </router-link>
         
         <router-link
@@ -325,7 +325,7 @@ import { computed, ref, reactive, onMounted, onBeforeUnmount } from "vue";
 import { useUi } from "@/stores/ui";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
-import { useDispoKommentare } from "@/stores/dispoKommentare";
+import { useComments } from "@/stores/comments";
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import CustomTooltip from './CustomTooltip.vue';
 import api from '@/utils/api';
@@ -338,7 +338,7 @@ import lightLogo from "@/assets/SF_002.png";
 const ui = useUi();
 const theme = useTheme();
 const auth = useAuth();
-const dispoKommentare = useDispoKommentare();
+const comments = useComments();
 
 const logoSrc = computed(() => (theme.isDark ? darkLogo : lightLogo));
 

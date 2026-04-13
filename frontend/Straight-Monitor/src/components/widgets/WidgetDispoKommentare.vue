@@ -42,7 +42,7 @@ import { useRouter } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useAuth } from '@/stores/auth';
 import { useDataCache } from '@/stores/dataCache';
-import { useDispoKommentare } from '@/stores/dispoKommentare';
+import { useComments } from '@/stores/comments';
 import DashboardWidget from './DashboardWidget.vue';
 
 const LOCATIONS = [
@@ -56,7 +56,7 @@ const STANDORT_PREFIX = { Berlin: '1', Hamburg: '2', Köln: '3' };
 
 const auth = useAuth();
 const cache = useDataCache();
-const store = useDispoKommentare();
+const store = useComments();
 const router = useRouter();
 
 const loading = computed(
@@ -108,9 +108,9 @@ function getMaName(maId) {
 const unreadKommentare = computed(() => {
   const userId = String(auth.user?._id ?? '');
   if (!userId) return [];
-  return store.kommentare.filter((k) => {
-    const isOwn = String(k.authorId) === userId;
-    const isRead = (k.readBy ?? []).map(String).includes(userId);
+  return store.items.filter((c) => c.scope === 'dispo_day').filter((c) => {
+    const isOwn = String(c.authorId) === userId;
+    const isRead = (c.readBy ?? []).map(String).includes(userId);
     return !isOwn && !isRead;
   });
 });
@@ -119,11 +119,11 @@ const unreadKommentare = computed(() => {
 const filteredKommentare = computed(() => {
   if (standort.value === 'Alle') return unreadKommentare.value;
   const prefix = STANDORT_PREFIX[standort.value];
-  return unreadKommentare.value.filter((k) => {
-    const s = getMaStandort(k.mitarbeiter);
+  return unreadKommentare.value.filter((c) => {
+    const maId = c.context?.mitarbeiter;
+    const s = getMaStandort(maId);
     if (s) return s === standort.value;
-    // Fallback: try personalnr prefix directly
-    const ma = maMap.value[String(k.mitarbeiter)];
+    const ma = maMap.value[String(maId)];
     const pnr = String(ma?.personalnr ?? '').trim();
     return prefix ? pnr.startsWith(prefix) : true;
   });
@@ -134,9 +134,9 @@ const totalUnread = computed(() => filteredKommentare.value.length);
 // ── Visible items — enriched with MA name, sorted newest first ────────────
 const visibleItems = computed(() =>
   [...filteredKommentare.value]
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 8)
-    .map((k) => ({ ...k, maName: getMaName(k.mitarbeiter) }))
+    .map((c) => ({ ...c, mitarbeiter: c.context?.mitarbeiter, datum: c.context?.datum, timestamp: c.createdAt, maName: getMaName(c.context?.mitarbeiter) }))
 );
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -173,8 +173,8 @@ async function fetchKommentare() {
   const vonStr = von.toISOString().slice(0, 10);
   const bisStr = bis.toISOString().slice(0, 10);
   // Only fetch if the store doesn't have data yet or range is wider than current
-  if (!store.kommentare.length) {
-    await store.fetch(vonStr, bisStr);
+  if (!store.items.filter(c => c.scope === 'dispo_day').length) {
+    await store.fetch({ scope: 'dispo_day', von: vonStr, bis: bisStr });
   }
 }
 
