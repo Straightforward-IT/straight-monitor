@@ -1,6 +1,6 @@
 <template>
   <DashboardWidget
-    title="Dispo Kommentare"
+    title="Kommentare"
     :icon="['fas', 'comment-dots']"
     :loading="loading"
   >
@@ -19,7 +19,8 @@
           <div class="wdk-body">
             <div class="wdk-top">
               <span class="wdk-name">{{ item.maName }}</span>
-              <span class="wdk-date">{{ formatDate(item.datum) }}</span>
+              <span class="wdk-scope">{{ scopeLabel(item.scope) }}</span>
+              <span v-if="item.datum" class="wdk-date">{{ formatDate(item.datum) }}</span>
             </div>
             <p class="wdk-text">{{ truncate(item.text, 70) }}</p>
             <span class="wdk-author">von {{ item.author }}</span>
@@ -108,7 +109,7 @@ function getMaName(maId) {
 const unreadKommentare = computed(() => {
   const userId = String(auth.user?._id ?? '');
   if (!userId) return [];
-  return store.items.filter((c) => c.scope === 'dispo_day').filter((c) => {
+  return store.items.filter((c) => {
     const isOwn = String(c.authorId) === userId;
     const isRead = (c.readBy ?? []).map(String).includes(userId);
     return !isOwn && !isRead;
@@ -140,6 +141,9 @@ const visibleItems = computed(() =>
 );
 
 // ── Helpers ───────────────────────────────────────────────────────────────
+const SCOPE_LABELS = { dispo_day: 'Dispo', chronik: 'Chronik', event_report: 'Event' };
+function scopeLabel(scope) { return SCOPE_LABELS[scope] ?? scope; }
+
 function formatDate(iso) {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
@@ -165,16 +169,18 @@ function goToDispo(item) {
 
 // ── API ───────────────────────────────────────────────────────────────────
 async function fetchKommentare() {
-  const today = new Date();
-  const von = new Date(today);
-  von.setDate(von.getDate() - 14);
-  const bis = new Date(today);
-  bis.setDate(bis.getDate() + 30);
-  const vonStr = von.toISOString().slice(0, 10);
-  const bisStr = bis.toISOString().slice(0, 10);
-  // Only fetch if the store doesn't have data yet or range is wider than current
-  if (!store.items.filter(c => c.scope === 'dispo_day').length) {
-    await store.fetch({ scope: 'dispo_day', von: vonStr, bis: bisStr });
+  if (!store.items.length) {
+    const today = new Date();
+    const von = new Date(today);
+    von.setDate(von.getDate() - 14);
+    const bis = new Date(today);
+    bis.setDate(bis.getDate() + 30);
+    const vonStr = von.toISOString().slice(0, 10);
+    const bisStr = bis.toISOString().slice(0, 10);
+    await Promise.all([
+      store.fetch({ scope: 'dispo_day', von: vonStr, bis: bisStr }),
+      store.fetch({ scope: 'chronik' }),
+    ]);
   }
 }
 
@@ -252,6 +258,18 @@ onMounted(() => {
   font-size: 11px;
   color: var(--muted);
   flex-shrink: 0;
+}
+
+.wdk-scope {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--hover);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  flex-shrink: 0;
+  margin-left: 4px;
 }
 
 .wdk-text {

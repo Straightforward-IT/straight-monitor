@@ -82,7 +82,7 @@ export const WIDGET_DEFINITIONS = [
   },
   {
     id: 'dispo-kommentare',
-    title: 'Dispo Kommentare',
+    title: 'Kommentare',
     icon: ['fas', 'comment-dots'],
     component: defineAsyncComponent(() => import('./WidgetDispoKommentare.vue')),
     description: 'Zeigt ungelesene Dispo-Kommentare für deinen Standort',
