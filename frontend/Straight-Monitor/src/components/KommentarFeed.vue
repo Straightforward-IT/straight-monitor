@@ -396,7 +396,8 @@ function formatAbsolute(ts) {
 /* ── Filter chips ────────────────────────────────────────────────── */
 .kf-filters {
   display: flex;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px;
   padding: 0 10px 8px;
   flex-shrink: 0;
 }
@@ -404,14 +405,15 @@ function formatAbsolute(ts) {
 .kf-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
+  gap: 4px;
+  padding: 2px 8px;
   border-radius: 20px;
   border: 1px solid var(--border);
   background: none;
   color: var(--muted);
-  font-size: 11.5px;
+  font-size: 10.5px;
   cursor: pointer;
+  white-space: nowrap;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 
   &:hover {
@@ -427,29 +429,29 @@ function formatAbsolute(ts) {
 }
 
 .kf-chip-badge {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
-  min-width: 16px;
-  height: 16px;
+  min-width: 14px;
+  height: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
-  border-radius: 8px;
+  padding: 0 3px;
+  border-radius: 7px;
   background: var(--primary);
   color: #fff;
 }
 
 .kf-standort-select {
   margin-left: auto;
-  font-size: 11.5px;
-  padding: 2px 6px;
+  font-size: 10.5px;
+  padding: 1px 5px;
   border-radius: 20px;
   border: 1px solid var(--border);
   background: var(--tile-bg);
   color: var(--text);
   cursor: pointer;
-  height: 24px;
+  height: 22px;
   transition: border-color 0.15s;
 
   &:focus {
@@ -591,10 +593,11 @@ function formatAbsolute(ts) {
 
 .kf-filter-divider {
   width: 1px;
-  height: 16px;
+  height: 14px;
   background: var(--border);
-  margin: 0 2px;
+  margin: 2px 2px 0;
   flex-shrink: 0;
+  align-self: center;
 }
 
 /* Author row */
