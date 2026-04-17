@@ -563,7 +563,10 @@
                             class="aktivitaet-log-item"
                           >
                             <div class="aktivitaet-log-main">
-                              <span class="aktivitaet-log-time">{{ new Date(entry.createdAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                              <div class="aktivitaet-log-meta">
+                                <span class="aktivitaet-log-time">{{ new Date(entry.createdAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                                <span v-if="entry.author" class="aktivitaet-log-author">{{ entry.author }}</span>
+                              </div>
                               <span class="aktivitaet-log-text">{{ entry.text }}</span>
                             </div>
                             <button
@@ -4108,11 +4111,27 @@ onMounted(async () => {
     }
   }
 
+  .aktivitaet-log-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+  }
+
   .aktivitaet-log-time {
     font-size: 10px;
     font-weight: 600;
     color: var(--primary);
     line-height: 1.2;
+  }
+
+  .aktivitaet-log-author {
+    font-size: 9px;
+    color: var(--muted);
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
   }
 
   .aktivitaet-log-text {

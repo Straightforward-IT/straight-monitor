@@ -63,14 +63,30 @@ export const useComments = defineStore('comments', {
       }).length;
     },
 
-    // Unread count by scope — for scope-specific badges
+    // Unread count by scope — for scope-specific badges (respects standort filter)
     unreadCountByScope(state) {
       const auth = useAuth();
+      const cache = useDataCache();
       const userId = String(auth.user?._id ?? '');
+
+      const activeFilter = state.standortFilter === 'auto'
+        ? (auth.user?.location ?? null)
+        : state.standortFilter;
+
+      const maMap = {};
+      for (const ma of cache.mitarbeiter) maMap[String(ma._id)] = ma;
+
       const counts = {};
       for (const c of state.items) {
         if (String(c.authorId) === userId) continue;
         if ((c.readBy ?? []).map(String).includes(userId)) continue;
+        if (activeFilter && c.context?.mitarbeiter) {
+          const ma = maMap[String(c.context.mitarbeiter)];
+          if (ma) {
+            const maStandort = getMaStandortFromPnr(ma.personalnr);
+            if (maStandort && maStandort !== activeFilter) continue;
+          }
+        }
         counts[c.scope] = (counts[c.scope] ?? 0) + 1;
       }
       return counts;
