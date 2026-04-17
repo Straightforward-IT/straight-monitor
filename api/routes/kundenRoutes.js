@@ -802,7 +802,7 @@ router.get('/analytics/rechnungen', auth, asyncHandler(async (req, res) => {
     if (bis) match.buchDatum.$lte = new Date(bis);
   }
 
-  const docs = await Rechnung.find(match).select('kundenNr buchDatum eurNetto').lean();
+  const docs = await Rechnung.find(match).select('kundenNr buchDatum dNetto').lean();
 
   // Build parent-mapping for breakdown (child knr → parent knr)
   const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } })
@@ -816,7 +816,7 @@ router.get('/analytics/rechnungen', auth, asyncHandler(async (req, res) => {
   const bdownMap = {};  // 'knr-year-month' → { kundenNr, year, month, sum, count }
 
   for (const doc of docs) {
-    const val = parseFloat((decryptField(doc.eurNetto) || '').replace(/,/g, '')) || 0;
+    const val = parseFloat((decryptField(doc.dNetto) || '').replace(/,/g, '')) || 0;
     if (!doc.buchDatum) continue;
     const year  = doc.buchDatum.getFullYear();
     const month = doc.buchDatum.getMonth() + 1;
@@ -866,13 +866,13 @@ router.get('/analytics/rechnungen/standort', auth, asyncHandler(async (req, res)
     if (bis) match.buchDatum.$lte = new Date(bis);
   }
 
-  const docs = await Rechnung.find(match).select('kundenNr buchDatum eurNetto').lean();
+  const docs = await Rechnung.find(match).select('kundenNr buchDatum dNetto').lean();
 
   const totalMap = {};   // 'year-month'
   const stMap    = {};   // 'geschSt-year-month'
 
   for (const doc of docs) {
-    const val = parseFloat((decryptField(doc.eurNetto) || '').replace(/,/g, '')) || 0;
+    const val = parseFloat((decryptField(doc.dNetto) || '').replace(/,/g, '')) || 0;
     if (!doc.buchDatum) continue;
     const year    = doc.buchDatum.getFullYear();
     const month   = doc.buchDatum.getMonth() + 1;
@@ -926,13 +926,13 @@ router.get('/analytics/rechnungen/daily', auth, asyncHandler(async (req, res) =>
   const docs = await Rechnung.find({
     kundenNr: { $in: kundenNrs },
     buchDatum: { $gte: von, $lte: bis }
-  }).select('kundenNr buchDatum eurNetto').lean();
+  }).select('kundenNr buchDatum dNetto').lean();
 
   const totalMap = {};   // day → { sum, count }
   const bdownMap = {};   // 'effNr-day' → { kundenNr, kundName, day, sum, count }
 
   for (const doc of docs) {
-    const val = parseFloat((decryptField(doc.eurNetto) || '').replace(/,/g, '')) || 0;
+    const val = parseFloat((decryptField(doc.dNetto) || '').replace(/,/g, '')) || 0;
     if (!doc.buchDatum) continue;
     const day   = doc.buchDatum.getDate();
     const effNr = nrMap[doc.kundenNr] ?? doc.kundenNr;

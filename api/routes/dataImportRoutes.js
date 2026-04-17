@@ -12,6 +12,7 @@ const Qualifikation = require('../models/Qualifikation');
 const ImportLog = require('../models/ImportLog');
 const Rechnung = require('../models/Rechnung');
 const DispoEintrag = require('../models/DispoEintrag');
+const ZvooveVerfuegbarkeit = require('../models/ZvooveVerfuegbarkeit');
 const User = require('../models/User');
 const logger = require('../utils/logger');
 const { sendMail } = require('../EmailService');
@@ -1339,6 +1340,109 @@ router.post('/rechnung', auth, extendTimeout, upload.single('file'), async (req,
     logger.error('[Import Rechnung] Error:', error);
     await logImport('rechnung', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
     res.status(500).json({ success: false, message: 'Fehler beim Importieren der Rechnungen.', error: error.message });
+  }
+});
+
+
+// --- Verfügbarkeiten Import (Zvoove Liste 7003) ---
+// Spalten: A=Prüffeld(7003), B=ID, C=PERSONALNR, D=DATUM, E=VON, F=BIS, G=INFO, H=VERFUEGBAR, I=ANLAGEBEDIENER, J=ZULETZTBEARBEITET, K=GANZTAEGIG
+router.post('/verfuegbarkeit', auth, extendTimeout, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+    }
+
+    // Parse datetime strings like "24.04.2026 13:15:00" (DD.MM.YYYY HH:mm:ss) or a JS Date
+    const parseDEDatetime = (val) => {
+      if (!val) return null;
+      if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+      if (typeof val === 'string') {
+        const m = val.match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+        if (m) {
+          // Construct as local time; store as UTC in MongoDB
+          return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:${m[6] || '00'}`);
+        }
+      }
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+    // Prüffeld-Validierung: Spalte A muss 7003 enthalten
+    const rawCheck = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    const checkStart = (rawCheck.length > 0 && isNaN(rawCheck[0][0])) ? 1 : 0;
+    if (rawCheck.length > checkStart) {
+      const prueffeld = parseInt(rawCheck[checkStart][0], 10);
+      if (prueffeld !== 7003) {
+        return res.status(400).json({
+          success: false,
+          message: `Falsches Prüffeld: Spalte A enthält "${rawCheck[checkStart][0]}" – erwartet wird 7003 (Verfügbarkeiten).`
+        });
+      }
+    }
+
+    // Parse columns by position (header row optional, skip if first col is not a number)
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    const dataStart = (rows.length > 0 && isNaN(rows[0][0])) ? 1 : 0;
+    const dataRows = rows.slice(dataStart);
+
+    const operations = [];
+    const now = new Date();
+
+    for (const cols of dataRows) {
+      // Col A (0) = CODE/Prüffeld, B (1) = ID, C (2) = PERSONALNR, D (3) = DATUM,
+      // E (4) = VON, F (5) = BIS, G (6) = INFO, H (7) = VERFUEGBAR,
+      // I (8) = ANLAGEBEDIENER, J (9) = ZULETZTBEARBEITET, K (10) = GANZTAEGIG
+      const zvooveId = parseInt(cols[1], 10);
+      const personalnr = parseInt(cols[2], 10);
+      if (!zvooveId || !personalnr) continue;
+
+      const doc = {
+        zvooveId,
+        personalnr,
+        datum: parseDEDatetime(cols[3]),
+        von: parseDEDatetime(cols[4]),
+        bis: parseDEDatetime(cols[5]),
+        info: cols[6] ? String(cols[6]).trim() : null,
+        verfuegbar: parseInt(cols[7], 10) === 1,
+        anlagebediener: cols[8] ? String(cols[8]).trim() : null,
+        zuletztBearbeitet: parseDEDatetime(cols[9]),
+        ganztaegig: parseInt(cols[10], 10) === 1,
+        importiertAm: now,
+      };
+
+      operations.push({
+        updateOne: {
+          filter: { zvooveId: doc.zvooveId },
+          update: { $set: doc },
+          upsert: true,
+        }
+      });
+    }
+
+    if (operations.length === 0) {
+      await logImport('verfuegbarkeit', req.file.originalname, 'warning', 0, { message: 'Keine Einträge gefunden' }, req.user?.id);
+      return res.json({ success: true, message: 'Keine Verfügbarkeiten zum Verarbeiten gefunden.' });
+    }
+
+    const result = await ZvooveVerfuegbarkeit.bulkWrite(operations, { ordered: false });
+    const inserted = result.upsertedCount || 0;
+    const updated = result.modifiedCount || 0;
+
+    const stats = { total: operations.length, inserted, updated };
+    const message = `${operations.length} Verfügbarkeiten verarbeitet: ${inserted} neu, ${updated} aktualisiert.`;
+
+    await logImport('verfuegbarkeit', req.file.originalname, 'success', operations.length, stats, req.user?.id);
+    logger.info(`[Import Verfuegbarkeit] ${message} by user ${req.user?.id}`);
+
+    res.json({ success: true, message, details: stats });
+
+  } catch (error) {
+    logger.error('[Import Verfuegbarkeit] Error:', error);
+    await logImport('verfuegbarkeit', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Verfügbarkeiten.', error: error.message });
   }
 });
 

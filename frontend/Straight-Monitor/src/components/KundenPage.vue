@@ -99,7 +99,10 @@
               @click="openCustomer(kunde)"
             >
               <div class="card-header">
-                <h3>{{ kunde.kundName || 'Unbenannt' }}</h3>
+                <div class="card-title-block">
+                  <h3>{{ kunde.kundName || 'Unbenannt' }}</h3>
+                  <span v-if="isSuperKunde(kunde)" class="super-kunde-tag">Super-Kunde</span>
+                </div>
                 <div class="card-header-right">
                   <span class="status-badge" :class="getStatusClass(kunde.kundStatus)">
                     {{ getStatusText(kunde.kundStatus) }}
@@ -522,6 +525,46 @@ function openCustomer(kunde) {
 
 const allKunden = computed(() => dataCache.kunden || []);
 
+function getParentKundeId(kunde) {
+  if (!kunde?.parentKunde) return null;
+  return typeof kunde.parentKunde === 'object' ? kunde.parentKunde._id : kunde.parentKunde;
+}
+
+const superKundeIds = computed(() => {
+  const ids = new Set();
+  for (const kunde of allKunden.value) {
+    const parentId = getParentKundeId(kunde);
+    if (parentId) ids.add(parentId.toString());
+  }
+  return ids;
+});
+
+const childGeschStByParentId = computed(() => {
+  const map = new Map();
+  for (const kunde of allKunden.value) {
+    const parentId = getParentKundeId(kunde);
+    if (!parentId || !kunde.geschSt) continue;
+
+    const key = parentId.toString();
+    if (!map.has(key)) map.set(key, new Set());
+    map.get(key).add(String(kunde.geschSt));
+  }
+  return map;
+});
+
+function isSuperKunde(kunde) {
+  return !!kunde?._id && superKundeIds.value.has(kunde._id.toString());
+}
+
+function matchesGeschStFilter(kunde, geschSt) {
+  if (!geschSt) return true;
+  if (String(kunde.geschSt) === String(geschSt)) return true;
+  if (!isSuperKunde(kunde)) return false;
+
+  const childGeschSt = childGeschStByParentId.value.get(kunde._id.toString());
+  return !!childGeschSt && childGeschSt.has(String(geschSt));
+}
+
 const watchlistedKunden = computed(() => {
   const ids = new Set((auth.kundenWatchlist || []).map(id => id.toString()));
   return allKunden.value.filter(k => ids.has(k._id.toString()));
@@ -560,7 +603,7 @@ function processData(list) {
 
   // Filter: GeschSt
   if (filters.value.geschSt) {
-    result = result.filter(k => k.geschSt == filters.value.geschSt);
+    result = result.filter(k => matchesGeschStFilter(k, filters.value.geschSt));
   }
 
   // Filter: Status (only applied if set)
@@ -989,6 +1032,13 @@ watch(currentTab, (tab) => {
   margin-bottom: 12px;
 }
 
+.card-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
 .card-header-right {
   display: flex;
   align-items: center;
@@ -1018,6 +1068,21 @@ watch(currentTab, (tab) => {
   font-size: 16px;
   font-weight: 600;
   color: var(--text);
+}
+
+.super-kunde-tag {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .status-badge {

@@ -438,10 +438,10 @@
               <tr 
                 v-for="ma in filteredMitarbeiter" 
                 :key="`l-${ma._id}`"
-                :data-left-row="ma._id"
-                @mouseenter="hoveredMaId = ma._id"
-                @mouseleave="hoveredMaId = null"
-                :class="{ 'row-hovered': hoveredMaId === ma._id, 'row-highlighted': highlightedMaId === String(ma._id) }"
+                :data-left-row="String(ma._id)"
+                @mouseenter="onRowMouseEnter(String(ma._id))"
+                @mouseleave="onRowMouseLeave()"
+                :class="{ 'row-highlighted': highlightedMaId === String(ma._id) }"
                 @contextmenu.prevent.stop="openNameMenu($event, ma)"
                 style="cursor: default"
               >
@@ -635,10 +635,11 @@
               <tr 
                 v-for="ma in filteredMitarbeiter" 
                 :key="`r-${ma._id}`"
+                :data-right-row="String(ma._id)"
                 :style="rowHeights[String(ma._id)] ? { height: rowHeights[String(ma._id)] + 'px' } : null"
-                @mouseenter="hoveredMaId = ma._id"
-                @mouseleave="hoveredMaId = null"
-                :class="{ 'row-hovered': hoveredMaId === ma._id, 'row-highlighted': highlightedMaId === String(ma._id) }"
+                @mouseenter="onRowMouseEnter(String(ma._id))"
+                @mouseleave="onRowMouseLeave()"
+                :class="{ 'row-highlighted': highlightedMaId === String(ma._id) }"
               >
                 <!-- Day cells -->
                 <td
@@ -1155,7 +1156,6 @@ const isMobile = ref(window.innerWidth <= 768);
 const starredIds = ref(new Set());
 const hiddenIds = ref(new Set());
 const showHidden = ref(false);
-const hoveredMaId = ref(null);
 const highlightedMaId = ref(null);
 const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 0, flipped: false });
 const bereichFilter = ref(null); // null | 'S' | 'L'
@@ -2331,6 +2331,11 @@ async function fetchDispo() {
       if (!(ma._id in aktivitaetsDraftMap)) aktivitaetsDraftMap[ma._id] = '';
     }
     eintraege.value = data.eintraege || [];
+    // Clear DOM caches — cell/row elements may have been replaced by Vue re-render
+    _clearDispoCache();
+    // Inject virtual Zvoove comments (from EINSATZZEIT_TAEGLICH.INFO field) into the store.
+    // These are display-only and survive subsequent comment re-fetches via zvooveItems.
+    comments.zvooveItems = data.zvooveKommentare || [];
   } catch (err) {
     console.error('Dispo laden fehlgeschlagen:', err);
   } finally {
@@ -2646,6 +2651,44 @@ function onCellMouseDown(ma, day, event) {
   selectedCells.value = next;
 }
 
+// ─── Imperative Row Hover (avoids Vue reactivity overhead on every mouseenter) ───
+let _hoveredRowEls = [];
+
+function onRowMouseEnter(maId) {
+  if (_hoveredRowEls.length) {
+    for (const el of _hoveredRowEls) el.classList.remove('row-hovered');
+    _hoveredRowEls = [];
+  }
+  const wrapper = tableWrapper.value;
+  if (!wrapper) return;
+  const left = wrapper.querySelector(`[data-left-row="${maId}"]`);
+  const right = wrapper.querySelector(`[data-right-row="${maId}"]`);
+  if (left)  { left.classList.add('row-hovered');  _hoveredRowEls.push(left); }
+  if (right) { right.classList.add('row-hovered'); _hoveredRowEls.push(right); }
+}
+
+function onRowMouseLeave() {
+  for (const el of _hoveredRowEls) el.classList.remove('row-hovered');
+  _hoveredRowEls = [];
+}
+
+// ─── Cell DOM cache — avoids querySelectorAll on every cell mouseenter ───
+// Keyed by maId (string) → Array<HTMLElement>. Cleared on data refresh.
+let _cellCache = new Map();
+
+function _getCachedCells(maId) {
+  const key = String(maId);
+  if (_cellCache.has(key)) return _cellCache.get(key);
+  const cells = Array.from(tableWrapper.value?.querySelectorAll(`td[data-ma-id="${key}"]`) ?? []);
+  _cellCache.set(key, cells);
+  return cells;
+}
+
+function _clearDispoCache() {
+  _cellCache = new Map();
+  _hoveredRowEls = [];
+}
+
 // ─── Imperative Run Highlight ───
 // Tracks highlighted elements so clearRunHighlight is O(k) not O(6000)
 let _highlightedEls = [];
@@ -2669,7 +2712,7 @@ function applyRunHighlight(maId, iso) {
   while (end < isos.length - 1 && cellDataMap.value[`${maId}_${isos[end + 1]}`]?.cls === cls) end++;
 
   // One querySelectorAll for the whole MA row; index matches visibleDays order
-  const cells = tableWrapper.value?.querySelectorAll(`td[data-ma-id="${maId}"]`);
+  const cells = _getCachedCells(maId);
   if (!cells?.length) return;
   for (let i = start; i <= end; i++) {
     const el = cells[i];
@@ -4183,6 +4226,7 @@ onMounted(async () => {
 
   tr.row-hovered td {
     background: var(--soft);
+    transition: background 0.08s ease-out;
   }
 
   @keyframes rowHighlightPulse {
@@ -4228,7 +4272,7 @@ onMounted(async () => {
     text-align: center;
     cursor: pointer;
     position: relative;
-    transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    transition: background 0.15s, box-shadow 0.08s ease-out, transform 0.1s;
 
     &:hover,
     &.is-active {

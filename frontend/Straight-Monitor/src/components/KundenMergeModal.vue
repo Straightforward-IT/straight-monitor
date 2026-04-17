@@ -16,9 +16,14 @@
              <label v-for="k in filteredCustomers" :key="k._id" class="checkbox-row" :class="{ disabled: k.parentKunde }">
                <input type="checkbox" :value="k._id" v-model="selectedChildIds">
                <span class="cust-name">
-                 {{ k.kundName }} 
-                 <small>(#{{ k.kundenNr }})</small>
-                 <span v-if="k.parentKunde" class="tag-parent">hat Parent</span>
+                 <span class="cust-name-main">
+                   {{ k.kundName }} 
+                   <small>(#{{ k.kundenNr }})</small>
+                 </span>
+                 <span class="cust-tags">
+                   <span v-if="isSuperKunde(k)" class="tag-super">Super-Kunde</span>
+                   <span v-if="k.parentKunde" class="tag-parent">hat Parent</span>
+                 </span>
                </span>
              </label>
           </div>
@@ -50,7 +55,7 @@
            <select v-model="selectedParentId" class="select-box">
              <option :value="null">Bitte wählen...</option>
              <option v-for="k in potentialParents" :key="k._id" :value="k._id">
-               {{ k.kundName }} (#{{ k.kundenNr }})
+               {{ k.kundName }} (#{{ k.kundenNr }}){{ isSuperKunde(k) ? ' · Super-Kunde' : '' }}
              </option>
            </select>
         </div>
@@ -80,6 +85,24 @@ const emit = defineEmits(['close', 'saved']);
 
 const dataCache = useDataCache();
 const customers = computed(() => dataCache.kunden || []);
+
+function getParentKundeId(kunde) {
+  if (!kunde?.parentKunde) return null;
+  return typeof kunde.parentKunde === 'object' ? kunde.parentKunde._id : kunde.parentKunde;
+}
+
+const superKundeIds = computed(() => {
+  const ids = new Set();
+  for (const kunde of customers.value) {
+    const parentId = getParentKundeId(kunde);
+    if (parentId) ids.add(parentId.toString());
+  }
+  return ids;
+});
+
+function isSuperKunde(kunde) {
+  return !!kunde?._id && superKundeIds.value.has(kunde._id.toString());
+}
 
 const search = ref('');
 const selectedChildIds = ref([]);
@@ -197,8 +220,47 @@ async function save() {
 .checkbox-row:hover { background: var(--hover-bg); }
 .checkbox-row.disabled { opacity: 0.6; }
 
-.cust-name { font-size: 0.9rem; display: flex; align-items: center; gap: 6px; flex: 1; justify-content: space-between; }
-.tag-parent { font-size: 0.7rem; background: var(--bg-item); padding: 1px 4px; border-radius: 3px; }
+.cust-name {
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  justify-content: space-between;
+}
+
+.cust-name-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cust-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.tag-parent,
+.tag-super {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.tag-parent {
+  background: var(--bg-item);
+}
+
+.tag-super {
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  background: transparent;
+}
 
 .mini-search {
   width: 100%;

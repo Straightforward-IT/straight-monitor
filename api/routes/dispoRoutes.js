@@ -7,6 +7,7 @@ const Mitarbeiter = require('../models/Mitarbeiter');
 const Einsatz = require('../models/Einsatz');
 const Auftrag = require('../models/Auftrag');
 const Kunde = require('../models/Kunde');
+const ZvooveVerfuegbarkeit = require('../models/ZvooveVerfuegbarkeit');
 
 // ─── GET /api/dispo?von=&bis=&standort=&mitarbeiterId= ───
 // Liefert DispoEinträge + Einsätze (gemerged) für den Zeitraum
@@ -105,9 +106,47 @@ router.get('/', auth, asyncHandler(async (req, res) => {
     kuerzel: auftragNrToKuerzel[e.auftragNr] || null,
   })).filter(e => e.mitarbeiter != null);
 
+  // ── 4. ZvooveVerfuegbarkeit im Zeitraum laden ──
+  const zvooveEintraege = [];
+  const zvooveKommentare = [];
+
+  if (personalNrs.length > 0) {
+    // Build a Set of "maId_YYYY-MM-DD" keys covered by real (user-created) DispoEinträge
+    // so we can suppress Zvoove entries that overlap with them.
+    const userCoveredDays = new Set();
+    for (const e of eintraege) {
+      const maIdStr = String(e.mitarbeiter);
+      // Walk every calendar day between datumVon and datumBis (inclusive)
+      const start = new Date(e.datumVon);
+      const end   = new Date(e.datumBis || e.datumVon);
+      start.setUTCHours(0, 0, 0, 0);
+      end.setUTCHours(0, 0, 0, 0);
+      for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        userCoveredDays.add(`${maIdStr}_${d.toISOString().slice(0, 10)}`);
+      }
+    }
+
+    const zvooveVerfuegbarkeiten = await ZvooveVerfuegbarkeit.find({
+      personalnr: { $in: personalNrs },
+      datum: { $gte: dateVon, $lte: dateBis },
+    }).lean();
+
+    for (const v of zvooveVerfuegbarkeiten) {
+      const maId = pnrToMaId[v.personalnr];
+      if (!maId) continue;
+      // Skip if a user-created entry already covers this day
+      const dayKey = `${String(maId)}_${new Date(v.datum).toISOString().slice(0, 10)}`;
+      if (userCoveredDays.has(dayKey)) continue;
+      const { eintrag, comment } = ZvooveVerfuegbarkeit.toDispoDisplay(v, maId);
+      zvooveEintraege.push(eintrag);
+      if (comment) zvooveKommentare.push(comment);
+    }
+  }
+
   res.json({
     mitarbeiter,
-    eintraege: [...eintraege, ...einsatzEintraege],
+    eintraege: [...eintraege, ...einsatzEintraege, ...zvooveEintraege],
+    zvooveKommentare,
   });
 }));
 

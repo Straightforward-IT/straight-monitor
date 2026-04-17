@@ -24,6 +24,7 @@ function getMaStandortFromPnr(personalnr) {
 export const useComments = defineStore('comments', {
   state: () => ({
     items: [],        // Comment[]
+    zvooveItems: [],  // Virtual comments from ZvooveVerfuegbarkeit.info (display-only, never persisted)
     loading: false,
 
     // For the KommentarFeed panel — standort + read filter
@@ -76,9 +77,10 @@ export const useComments = defineStore('comments', {
     },
 
     // Lookup map for 'dispo_day' scope: "maId_YYYY-MM-DD" → Comment[]
+    // Merges real DB comments with virtual Zvoove comments (zvooveItems).
     dispoDayMap(state) {
       const map = {};
-      for (const c of state.items) {
+      for (const c of [...state.items, ...state.zvooveItems]) {
         if (c.scope !== 'dispo_day') continue;
         const key = `${String(c.context?.mitarbeiter)}_${c.context?.datum}`;
         if (!map[key]) map[key] = [];

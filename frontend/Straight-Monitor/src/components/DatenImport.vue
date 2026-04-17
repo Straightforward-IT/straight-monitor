@@ -10,7 +10,7 @@
     <div class="last-import-section">
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'beruf', 'qualifikation', 'rechnung'] : ['einsatz-komplett', 'personal'])" :key="type" class="history-card">
+        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'beruf', 'qualifikation', 'rechnung'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -113,6 +113,48 @@
                     <tr><td>A – Prüffeld (7002)</td><td>B – Personalnr</td><td>C – Persstatus (6=Ausgetreten)</td></tr>
                     <tr><td>D – Austrittsdatum</td><td>E – Berufsschlüssel (kommasep.)</td><td>F – Qualischlüssel (kommasep.)</td></tr>
                     <tr><td>G – Personengruppe</td><td>H – E-Mail</td><td>I – Telefon</td></tr>
+                  </tbody></table>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+
+        <!-- Verfügbarkeiten Import -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Verfügbarkeiten (Liste 7003)</h2>
+              <p class="subtitle">Tägliche Verfügbarkeiten aus EINSATZZEIT_TAEGLICH</p>
+            </div>
+            <span v-if="verfuegbarkeitFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area"
+              :class="{ 'has-file': verfuegbarkeitFile }"
+              @dragover.prevent
+              @drop="(e) => handleDragAndDrop(e, 'verfuegbarkeit')"
+              @click="triggerFileInput('verfuegbarkeit-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="verfuegbarkeitFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!verfuegbarkeitFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ verfuegbarkeitFile.name }}</span>
+                </div>
+              </div>
+              <input id="verfuegbarkeit-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'verfuegbarkeit')" accept=".xlsx, .xls" />
+            </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Erwartete SQL-Export Struktur</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody>
+                    <tr><td>A – Prüffeld (7003)</td><td colspan="2">Muss in jeder Zeile 7003 enthalten</td></tr>
+                    <tr><td>B – ID</td><td>C – PERSONALNR</td><td>D – DATUM</td></tr>
+                    <tr><td>E – VON</td><td>F – BIS</td><td>G – INFO</td></tr>
+                    <tr><td>H – VERFUEGBAR (0/1)</td><td>I – ANLAGEBEDIENER</td><td>J – ZULETZTBEARBEITET</td></tr>
+                    <tr><td>K – GANZTAEGIG (0/1)</td><td colspan="2"></td></tr>
                   </tbody></table>
                 </div>
               </details>
@@ -505,6 +547,7 @@ export default {
 
       einsatzFile: null,
       personalFile: null,
+      verfuegbarkeitFile: null,
       berufFile: null,
       qualifikationFile: null,
       rechnungFile: null,
@@ -542,6 +585,7 @@ export default {
         einsatz: 'Einsätze (Legacy)',
         'einsatz-komplett': 'Zvoove Komplett Import',
         personal: 'Personal',
+        verfuegbarkeit: 'Verfügbarkeiten',
         beruf: 'Berufe',
         qualifikation: 'Qualifikationen',
         rechnung: 'Rechnungen',
@@ -574,13 +618,14 @@ export default {
     },
     async setFile(file, type) {
       // Validate Prüffeld for einsatz/personal imports
-      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : type === 'rechnung' ? 6001 : null;
+      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : type === 'verfuegbarkeit' ? 7003 : type === 'rechnung' ? 6001 : null;
       if (expectedCode) {
         const valid = await this.validatePrueffeld(file, expectedCode);
         if (!valid) return;
       }
       if (type === 'einsatz') this.einsatzFile = file;
       if (type === 'personal') this.personalFile = file;
+      if (type === 'verfuegbarkeit') this.verfuegbarkeitFile = file;
       if (type === 'beruf') this.berufFile = file;
       if (type === 'qualifikation') this.qualifikationFile = file;
       if (type === 'rechnung') this.rechnungFile = file;
@@ -624,7 +669,7 @@ export default {
       }
 
       const adminFiles = this.isAdmin ? [this.berufFile, this.qualifikationFile, this.rechnungFile] : [];
-      const fileCount = [this.einsatzFile, this.personalFile, ...adminFiles].filter(Boolean).length;
+      const fileCount = [this.einsatzFile, this.personalFile, this.verfuegbarkeitFile, ...adminFiles].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
       this.loading = true;
@@ -642,6 +687,12 @@ export default {
         if (this.personalFile) {
           const response = await this.uploadFile(this.personalFile, 'personal');
           results.push({ type: 'Personal', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.verfuegbarkeitFile) {
+          const response = await this.uploadFile(this.verfuegbarkeitFile, 'verfuegbarkeit');
+          results.push({ type: 'Verfügbarkeiten', ...response });
           if (!response.success) hasErrors = true;
         }
 
@@ -870,6 +921,7 @@ export default {
     resetAll() {
       this.einsatzFile = null;
       this.personalFile = null;
+      this.verfuegbarkeitFile = null;
       this.berufFile = null;
       this.qualifikationFile = null;
       this.rechnungFile = null;
@@ -877,7 +929,7 @@ export default {
     },
     hasAnyFile() {
       const adminFiles = this.isAdmin ? (this.berufFile || this.qualifikationFile || this.rechnungFile) : false;
-      return this.einsatzFile || this.personalFile || adminFiles;
+      return this.einsatzFile || this.personalFile || this.verfuegbarkeitFile || adminFiles;
     },
 
     handleEscapeKey(event) {
