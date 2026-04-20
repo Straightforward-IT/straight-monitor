@@ -184,16 +184,29 @@ router.get(
 
     // Collect all personalNrs to fetch Mitarbeiter in one query
     const personalNrs = [...new Set(einsaetze.map((e) => e.personalNr).filter(Boolean))];
-    const [mitarbeiterList, einsatzCounts] = await Promise.all([
-      Mitarbeiter.find({ personalnr: { $in: personalNrs } })
-        .select("personalnr vorname nachname telefon qualifikationen flip_id")
-        .lean(),
-      Einsatz.aggregate([
-        { $match: { personalNr: { $in: personalNrs } } },
-        { $group: { _id: "$personalNr", count: { $sum: 1 } } }
-      ])
+    const mitarbeiterList = await Mitarbeiter.find({ personalnr: { $in: personalNrs } })
+      .select("personalnr vorname nachname telefon qualifikationen flip_id personalnrHistory")
+      .lean();
+
+    // Build alias map: each MA's current personalnr + all values from personalnrHistory
+    const pnrAliasMap = {};
+    mitarbeiterList.forEach((ma) => {
+      const histPnrs = (ma.personalnrHistory || []).map((h) => h.value).filter(Boolean);
+      pnrAliasMap[ma.personalnr] = [...new Set([ma.personalnr, ...histPnrs])];
+    });
+    const allPnrs = [...new Set(Object.values(pnrAliasMap).flat())];
+
+    // Count einsätze across current and all historical personalNrs
+    const einsatzCounts = await Einsatz.aggregate([
+      { $match: { personalNr: { $in: allPnrs } } },
+      { $group: { _id: "$personalNr", count: { $sum: 1 } } }
     ]);
-    const einsatzCountMap = Object.fromEntries(einsatzCounts.map((c) => [c._id, c.count]));
+    const rawCountMap = Object.fromEntries(einsatzCounts.map((c) => [c._id, c.count]));
+    // Sum counts across all aliases so the badge reflects the true total
+    const einsatzCountMap = {};
+    Object.entries(pnrAliasMap).forEach(([currentPnr, aliasPnrs]) => {
+      einsatzCountMap[currentPnr] = aliasPnrs.reduce((sum, pnr) => sum + (rawCountMap[pnr] || 0), 0);
+    });
 
     // Resolve Teamleiter qualification (key 50055) to mark TL MAs
     const teamleiterQual = await Qualifikation.findOne({ qualificationKey: 50055 }).lean();
