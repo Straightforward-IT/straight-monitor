@@ -8,6 +8,7 @@ import HomeLogin from '@/components/HomeLogin.vue';
 import PublicMitarbeiter from '@/components/public/PublicMitarbeiter.vue';
 import PublicEinsaetze from '@/components/public/PublicEinsaetze.vue';
 import TaskBestaetigen from '@/components/public/TaskBestaetigen.vue';
+import FlipMonitorLogin from '@/components/FlipMonitorLogin.vue';
 
 // Layout + Seiten (bestehend)
 import MainLayout from '@/layouts/MainLayout.vue';
@@ -42,6 +43,7 @@ const routes = [
   { path: '/integration/mitarbeiter/einsaetze', name: 'PublicEinsaetze', component: PublicEinsaetze, meta: { requiresAuth: false } },
   { path: '/integration/mitarbeiter/einsaetze/localhost', name: 'PublicEinsaetzesLocalhost', beforeEnter: () => { window.location.href = 'http://localhost:5173/integration/mitarbeiter/einsaetze'; return false; }, component: PublicEinsaetze, meta: { requiresAuth: false } },
   { path: '/integration/task-bestaetigen', name: 'TaskBestaetigen', component: TaskBestaetigen, meta: { requiresAuth: false } },
+  { path: '/integration/monitor-login', name: 'FlipMonitorLogin', component: FlipMonitorLogin, meta: { requiresAuth: false } },
   { path: '/formular/:token', name: 'PdfMitarbeiterForm', component: PdfMitarbeiterForm, meta: { requiresAuth: false } },
 
   // Authentifizierter Bereich unter Layout:
