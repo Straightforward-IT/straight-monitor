@@ -10,7 +10,9 @@ const {
   VerlosungEintrag,
 } = require("./models/Classes/FlipDocs");
 const Mitarbeiter = require("./models/Mitarbeiter");
+const Einsatz = require("./models/Einsatz");
 const Qualifikation = require("./models/Qualifikation");
+const { getRankTier, RANK_GROUP_IDS } = require("./config/flipRanks");
 const { sendMail } = require("./EmailService");
 const logger = require("./utils/logger");
 const {
@@ -337,9 +339,18 @@ async function flipUserRoutine() {
       });
     }
 
+    // 🏅 Rank Group Sync
+    try {
+      emailLogs.push("<br><br>🏅 Synchronisiere Rang-Gruppen...");
+      const rankResult = await syncRankGroups(allMitarbeiter);
+      emailLogs.push(...rankResult.logs.map(l => `&nbsp;&nbsp;${l}`));
+    } catch (rankErr) {
+      emailLogs.push(`⚠️ Rang-Sync fehlgeschlagen: ${rankErr.message}`);
+    }
+
     // Add email mismatch report
     if (emailMismatches.length > 0) {
-      emailLogs.push("<br><br><strong>⚠️ E-Mail-Mismatches gefunden:</strong>");
+
       emailMismatches.forEach(({ name, flipId, type, from, to }) => {
         const label = type === 'username≠email'
           ? '🔁 Flip Username ≠ E-Mail'
@@ -1477,8 +1488,86 @@ async function updateAllTeamleiterBadges() {
   return badges.length;
 }
 
+/**
+ * Synchronisiert Rang-Gruppen für alle Mitarbeiter mit Flip-Account.
+ * Berechnet vergangene Einsätze (inkl. Personalnr-History), ermittelt Rang,
+ * fügt User zur Rang-Gruppe hinzu und setzt sie als Primary Group.
+ * Idempotent: überspringt User ohne Rang-Änderung.
+ *
+ * @param {Array} mitarbeiterList - Array von Mongoose Mitarbeiter-Dokumenten
+ * @returns {Promise<{ promoted: number, unchanged: number, errors: number, logs: string[] }>}
+ */
+async function syncRankGroups(mitarbeiterList) {
+  const now = new Date();
+  const logs = [];
+  let promoted = 0;
+  let unchanged = 0;
+  let errors = 0;
+
+  const eligible = mitarbeiterList.filter(
+    ma => ma.flip_id && (ma.personalnr || (ma.personalnrHistory && ma.personalnrHistory.length > 0))
+  );
+
+  logs.push(`🏅 Rank sync: ${eligible.length} Mitarbeiter mit Flip-Account und Personalnr`);
+
+  // Process in chunks to avoid hitting Flip rate limit (600 req/min)
+  const CHUNK_SIZE = 20;
+  for (let i = 0; i < eligible.length; i += CHUNK_SIZE) {
+    const chunk = eligible.slice(i, i + CHUNK_SIZE);
+    await Promise.all(chunk.map(async (ma) => {
+      try {
+        // Collect all personalnr values (current + history)
+        const allNrs = new Set();
+        if (ma.personalnr) allNrs.add(Number(ma.personalnr));
+        if (Array.isArray(ma.personalnrHistory)) {
+          ma.personalnrHistory.forEach(h => {
+            if (h.value) allNrs.add(Number(h.value));
+          });
+        }
+        const nrArray = [...allNrs].filter(n => !isNaN(n) && n > 0);
+        if (nrArray.length === 0) return;
+
+        const count = await Einsatz.countDocuments({
+          personalNr: { $in: nrArray },
+          datumBis: { $lt: now },
+        });
+
+        const tier = getRankTier(count);
+        if (!tier) return; // Keine Einsätze → kein Rang
+
+        // Idempotenz-Check
+        if (ma.rank === tier.key) {
+          unchanged++;
+          return;
+        }
+
+        // Flip: zur Rang-Gruppe hinzufügen + als Primary setzen
+        const flipUser = new (require("./models/Classes/FlipUser"))({ id: ma.flip_id });
+        await flipUser.addToGroup(tier.groupId, { setPrimary: true });
+
+        // DB: Rang cachen
+        const prevRank = ma.rank;
+        ma.rank = tier.key;
+        ma.einsatzCount = count;
+        await Mitarbeiter.updateOne({ _id: ma._id }, { rank: tier.key, einsatzCount: count });
+
+        promoted++;
+        const arrow = prevRank ? `${prevRank} → ${tier.key}` : `neu: ${tier.key}`;
+        logs.push(`🏅 ${ma.vorname} ${ma.nachname}: ${arrow} (${count} Einsätze)`);
+      } catch (err) {
+        errors++;
+        logs.push(`❌ Rang-Sync Fehler ${ma.vorname} ${ma.nachname}: ${err.message}`);
+      }
+    }));
+  }
+
+  logs.push(`✅ Rang-Sync abgeschlossen: ${promoted} aktualisiert, ${unchanged} unverändert, ${errors} Fehler`);
+  return { promoted, unchanged, errors, logs };
+}
+
 module.exports = {
   flipUserRoutine,
+  syncRankGroups,
   syncFlipAttributes,
   asanaTransferRoutine,
   getFlipUsers,

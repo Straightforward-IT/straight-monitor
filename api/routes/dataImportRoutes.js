@@ -1447,4 +1447,100 @@ router.post('/verfuegbarkeit', auth, extendTimeout, upload.single('file'), async
 });
 
 
+// POST /personalnr-history – Import Personalnr-Historien (Prüffeld 3201)
+// Spaltenstruktur: A=Prüffeld(3201), B=Sozversnr (ignoriert), C=Personalnr-Blob (kommagetrennt)
+// Logik: Finde Mitarbeiter dessen aktuelle personalnr in der Blob-Liste vorkommt,
+//        dann alle anderen Werte aus der Blob-Liste in personalnrHistory eintragen (keine Duplikate).
+router.post('/personalnr-history', auth, extendTimeout, upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+
+  try {
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+    // Header row detection: skip first row if col[0] is not numeric
+    const startRow = rows.length > 0 && isNaN(rows[0][0]) ? 1 : 0;
+
+    // Validate Prüffeld
+    if (!rows[startRow] || parseInt(rows[startRow][0], 10) !== 3201) {
+      return res.status(400).json({
+        success: false,
+        message: `Prüffeld-Fehler: Spalte A enthält "${rows[startRow]?.[0] ?? '(leer)'}" – erwartet wird 3201 (Personalnr-Historien Liste).`
+      });
+    }
+
+    const stats = { total: 0, matched: 0, added: 0, skippedDuplicates: 0, unmatched: 0 };
+
+    for (let i = startRow; i < rows.length; i++) {
+      const row = rows[i];
+      // Col C (index 2): comma-separated personalnr blob
+      const blobRaw = String(row[2] ?? '').trim();
+      if (!blobRaw) continue;
+
+      const pnrArray = blobRaw.split(',').map(s => s.trim()).filter(Boolean);
+      if (pnrArray.length === 0) continue;
+
+      stats.total++;
+
+      // Find the Mitarbeiter whose current personalnr matches any value in the blob
+      const mitarbeiter = await Mitarbeiter.findOne(
+        { personalnr: { $in: pnrArray } },
+        { _id: 1, personalnr: 1, personalnrHistory: 1 }
+      ).lean();
+
+      if (!mitarbeiter) {
+        stats.unmatched++;
+        continue;
+      }
+
+      stats.matched++;
+
+      // Collect existing history values to prevent duplicates
+      const existingValues = new Set(
+        (mitarbeiter.personalnrHistory || []).map(h => h.value)
+      );
+      // Also exclude the current active personalnr
+      existingValues.add(mitarbeiter.personalnr);
+
+      const newEntries = pnrArray
+        .filter(pnr => pnr !== mitarbeiter.personalnr && !existingValues.has(pnr))
+        .map(pnr => ({
+          value: pnr,
+          updatedAt: new Date(),
+          updatedBy: req.user?.email || 'system',
+          source: 'import'
+        }));
+
+      const duplicatesInThisRow = pnrArray.filter(
+        pnr => pnr !== mitarbeiter.personalnr && existingValues.has(pnr)
+      ).length;
+
+      stats.skippedDuplicates += duplicatesInThisRow;
+
+      if (newEntries.length > 0) {
+        await Mitarbeiter.updateOne(
+          { _id: mitarbeiter._id },
+          { $push: { personalnrHistory: { $each: newEntries } } }
+        );
+        stats.added += newEntries.length;
+      }
+    }
+
+    const status = stats.matched > 0 ? 'success' : 'warning';
+    const message = `Verarbeitung abgeschlossen: ${stats.matched} Mitarbeiter gefunden, ${stats.added} neue Historien-Einträge hinzugefügt, ${stats.skippedDuplicates} Duplikate übersprungen.`;
+
+    await logImport('personalnr-history', req.file.originalname, status, stats.matched, stats, req.user?.id);
+    logger.info(`[Import Personalnr-History] ${message}`);
+
+    res.json({ success: true, message, details: stats });
+
+  } catch (error) {
+    logger.error('[Import Personalnr-History] Error:', error);
+    await logImport('personalnr-history', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Personalnr-Historien.', error: error.message });
+  }
+});
+
+
 module.exports = router;

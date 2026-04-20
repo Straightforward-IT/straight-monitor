@@ -1299,11 +1299,12 @@ watch(() => props.einsatz?._id, () => {
 
 /* Onyx / Purple Obsidian (101–200) */
 @keyframes onyx-bloom {
-  0%   { background-position: 0% 0%, 100% 100%, 50% 0%, 0% 0%; }
-  25%  { background-position: 80% 20%, 10% 80%, 90% 50%, 0% 0%; }
-  50%  { background-position: 60% 100%, 40% 10%, 20% 80%, 0% 0%; }
-  75%  { background-position: 10% 60%, 90% 40%, 70% 20%, 0% 0%; }
-  100% { background-position: 0% 0%, 100% 100%, 50% 0%, 0% 0%; }
+  0%   { background-position: 0% 0%,   100% 100%, 50% 0%,   0% 0%; }
+  20%  { background-position: 80% 20%, 10%  80%,  60% 40%,  0% 0%; }
+  40%  { background-position: 60% 100%,40%  10%,  40% 100%, 0% 0%; }
+  60%  { background-position: 20% 80%, 80%  60%,  60% 100%, 0% 0%; }
+  80%  { background-position: 10% 60%, 90%  40%,  30% 60%,  0% 0%; }
+  100% { background-position: 0% 0%,   100% 100%, 50% 0%,   0% 0%; }
 }
 .job-tier-onyx {
   background-image:
@@ -1312,7 +1313,7 @@ watch(() => props.einsatz?._id, () => {
     radial-gradient(ellipse 35% 30% at 55% 20%, rgba(255,255,255,0.28) 0%, transparent 55%),
     linear-gradient(135deg, #0d0520 0%, #2e0f6e 40%, #4a1aaa 65%, #180e40 100%);
   background-size: 220% 220%, 220% 220%, 220% 220%, 100% 100%;
-  animation: onyx-bloom 5s ease-in-out infinite alternate;
+  animation: onyx-bloom 6s ease-in-out infinite;
   color: #ede9fe;
 }
 

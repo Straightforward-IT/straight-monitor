@@ -1,4 +1,5 @@
 const { flipAxios } = require("../../flipAxios");
+const USER_ROLE_ID = "53267279-ffb8-4cb9-aced-e5d92ed9be05";
 
 class FlipUser {
   constructor(data) {
@@ -129,6 +130,38 @@ class FlipUser {
   }
   
   
+
+  /**
+   * Adds this user to a Flip user group.
+   * @param {string} groupId - The ID of the group to add the user to.
+   * @param {object} [options]
+   * @param {boolean} [options.setPrimary=false] - If true, also sets this group as the primary user group.
+   */
+  async addToGroup(groupId, { setPrimary = false } = {}) {
+    if (!this.id) throw new Error("FlipUser must have a valid id.");
+    if (!groupId) throw new Error("groupId is required.");
+
+    await flipAxios.post(
+      "/api/admin/users/v4/user-groups/assignments/batch",
+      {
+        items: [
+          {
+            group_id: groupId,
+            body: { user_id: this.id, role_id: USER_ROLE_ID },
+          },
+        ],
+      }
+    );
+
+    if (setPrimary) {
+      await flipAxios.patch(
+        `/api/admin/users/v4/users/${this.id}`,
+        { primary_user_group_id: groupId },
+        { headers: { "content-type": "application/merge-patch+json" } }
+      );
+      this.primary_user_group = { ...this.primary_user_group, id: groupId };
+    }
+  }
 
   /**
    * Converts FlipUser object to a Mitarbeiter-compatible format.

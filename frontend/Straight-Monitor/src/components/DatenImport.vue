@@ -10,7 +10,7 @@
     <div class="last-import-section">
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'beruf', 'qualifikation', 'rechnung'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
+        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'beruf', 'qualifikation', 'rechnung', 'personalnr-history'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -239,6 +239,42 @@
                 <summary>Benötigte Spalten anzeigen</summary>
                 <div class="table-scroll">
                   <table class="req-table"><tbody><tr><td>Quali-Nr (Col A)</td><td>Bezeichnung (Col B)</td></tr></tbody></table>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+
+        <!-- Personalnr. Historien -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Personalnr. Historien</h2>
+              <p class="subtitle">Prüffeld 3201 · Spalte C: kommagetrennte Personalnr-Liste</p>
+            </div>
+            <span v-if="personalnrHistoryFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area"
+              :class="{ 'has-file': personalnrHistoryFile }"
+              @dragover.prevent
+              @drop="(e) => handleDragAndDrop(e, 'personalnr-history')"
+              @click="triggerFileInput('personalnr-history-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="personalnrHistoryFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!personalnrHistoryFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ personalnrHistoryFile.name }}</span>
+                </div>
+              </div>
+              <input id="personalnr-history-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'personalnr-history')" accept=".xlsx, .xls" />
+            </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Benötigte Spalten anzeigen</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody><tr><td>Prüffeld 3201 (Col A)</td><td>Sozversnr (Col B, ignoriert)</td><td>Personalnr-Blob (Col C, kommagetrennt)</td></tr></tbody></table>
                 </div>
               </details>
             </div>
@@ -551,6 +587,7 @@ export default {
       berufFile: null,
       qualifikationFile: null,
       rechnungFile: null,
+      personalnrHistoryFile: null,
       loading: false,
       // Modal state
       showResultModal: false,
@@ -589,6 +626,7 @@ export default {
         beruf: 'Berufe',
         qualifikation: 'Qualifikationen',
         rechnung: 'Rechnungen',
+        'personalnr-history': 'Personalnr. Historien',
       };
       return labels[type] || type;
     },
@@ -618,7 +656,7 @@ export default {
     },
     async setFile(file, type) {
       // Validate Prüffeld for einsatz/personal imports
-      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : type === 'verfuegbarkeit' ? 7003 : type === 'rechnung' ? 6001 : null;
+      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : type === 'verfuegbarkeit' ? 7003 : type === 'rechnung' ? 6001 : type === 'personalnr-history' ? 3201 : null;
       if (expectedCode) {
         const valid = await this.validatePrueffeld(file, expectedCode);
         if (!valid) return;
@@ -629,6 +667,7 @@ export default {
       if (type === 'beruf') this.berufFile = file;
       if (type === 'qualifikation') this.qualifikationFile = file;
       if (type === 'rechnung') this.rechnungFile = file;
+      if (type === 'personalnr-history') this.personalnrHistoryFile = file;
     },
     validatePrueffeld(file, expectedCode) {
       return new Promise((resolve) => {
@@ -647,7 +686,7 @@ export default {
             }
             const prueffeld = parseInt(rows[startRow][0], 10);
             if (prueffeld !== expectedCode) {
-              const labels = { 7001: 'Einsatz-Komplett (Liste 7001)', 7002: 'Personal (Liste 7002)' };
+              const labels = { 7001: 'Einsatz-Komplett (Liste 7001)', 7002: 'Personal (Liste 7002)', 7003: 'Verfügbarkeiten (Liste 7003)', 6001: 'Rechnungen (Liste 6001)', 3201: 'Personalnr-Historien (Liste 3201)' };
               alert(`⚠️ Prüffeld-Fehler: Spalte A enthält "${rows[startRow][0] ?? '(leer)'}" – erwartet wird ${expectedCode} (${labels[expectedCode]}).`);
               resolve(false);
               return;
@@ -668,7 +707,7 @@ export default {
         return;
       }
 
-      const adminFiles = this.isAdmin ? [this.berufFile, this.qualifikationFile, this.rechnungFile] : [];
+      const adminFiles = this.isAdmin ? [this.berufFile, this.qualifikationFile, this.rechnungFile, this.personalnrHistoryFile] : [];
       const fileCount = [this.einsatzFile, this.personalFile, this.verfuegbarkeitFile, ...adminFiles].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
@@ -711,6 +750,12 @@ export default {
         if (this.rechnungFile && this.isAdmin) {
           const response = await this.uploadFile(this.rechnungFile, 'rechnung');
           results.push({ type: 'Rechnungen', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.personalnrHistoryFile && this.isAdmin) {
+          const response = await this.uploadFile(this.personalnrHistoryFile, 'personalnr-history');
+          results.push({ type: 'Personalnr. Historien', ...response });
           if (!response.success) hasErrors = true;
         }
 
@@ -925,10 +970,11 @@ export default {
       this.berufFile = null;
       this.qualifikationFile = null;
       this.rechnungFile = null;
+      this.personalnrHistoryFile = null;
       this.fetchLastUploads();
     },
     hasAnyFile() {
-      const adminFiles = this.isAdmin ? (this.berufFile || this.qualifikationFile || this.rechnungFile) : false;
+      const adminFiles = this.isAdmin ? (this.berufFile || this.qualifikationFile || this.rechnungFile || this.personalnrHistoryFile) : false;
       return this.einsatzFile || this.personalFile || this.verfuegbarkeitFile || adminFiles;
     },
 
