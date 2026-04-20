@@ -184,9 +184,16 @@ router.get(
 
     // Collect all personalNrs to fetch Mitarbeiter in one query
     const personalNrs = [...new Set(einsaetze.map((e) => e.personalNr).filter(Boolean))];
-    const mitarbeiterList = await Mitarbeiter.find({ personalnr: { $in: personalNrs } })
-      .select("personalnr vorname nachname telefon qualifikationen flip_id")
-      .lean();
+    const [mitarbeiterList, einsatzCounts] = await Promise.all([
+      Mitarbeiter.find({ personalnr: { $in: personalNrs } })
+        .select("personalnr vorname nachname telefon qualifikationen flip_id")
+        .lean(),
+      Einsatz.aggregate([
+        { $match: { personalNr: { $in: personalNrs } } },
+        { $group: { _id: "$personalNr", count: { $sum: 1 } } }
+      ])
+    ]);
+    const einsatzCountMap = Object.fromEntries(einsatzCounts.map((c) => [c._id, c.count]));
 
     // Resolve Teamleiter qualification (key 50055) to mark TL MAs
     const teamleiterQual = await Qualifikation.findOne({ qualificationKey: 50055 }).lean();
@@ -224,7 +231,8 @@ router.get(
         isTeamleiter: ma?._isTeamleiter || false,
         bezeichnung: e.bezeichnung || null,
         checkedIn: false,
-        isPseudo: e.isPseudo || false
+        isPseudo: e.isPseudo || false,
+        einsatzNr: einsatzCountMap[e.personalNr] || 0,
       });
     });
 

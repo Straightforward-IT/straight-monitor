@@ -2255,7 +2255,10 @@ async function loadPrefs() {
     starredIds.value = new Set(_savedPrefs.starredMitarbeiter || []);
     hiddenIds.value = new Set(_savedPrefs.hiddenMitarbeiter || []);
     // Restore saved filters
-    if (_savedPrefs.standort !== undefined) filters.standort = _savedPrefs.standort;
+    if (_savedPrefs.standort !== undefined) {
+      filters.standort = _savedPrefs.standort;
+      comments.setStandortFilter(_savedPrefs.standort ? (DISPO_TO_STANDORT[_savedPrefs.standort] ?? null) : null);
+    }
     if (_savedPrefs.tage !== undefined) filters.tage = _savedPrefs.tage;
     if (_savedPrefs.planungFilter !== undefined) filters.planungFilter = _savedPrefs.planungFilter;
     if (_savedPrefs.bereichFilter !== undefined) bereichFilter.value = _savedPrefs.bereichFilter;
@@ -2362,8 +2365,10 @@ async function fetchKommentare() {
 }
 
 // ─── Filters ───
+const DISPO_TO_STANDORT = { '1': 'Berlin', '2': 'Hamburg', '3': 'Köln' };
 function setStandort(val) {
   filters.standort = val;
+  comments.setStandortFilter(val ? (DISPO_TO_STANDORT[val] ?? null) : null);
   savePrefs();
   fetchDispo();
 }

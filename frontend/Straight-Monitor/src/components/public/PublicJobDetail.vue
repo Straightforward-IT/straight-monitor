@@ -120,6 +120,9 @@
               :class="{ 'checked-in': ma.checkedIn && !ma.noShow, 'nicht-erschienen': ma.noShow, 'is-teamleiter': ma.isTeamleiter }"
             >
               <TlBadge v-if="ma.isTeamleiter" class="tl-badge--corner" />
+              <div v-if="ma.einsatzNr" class="job-nr-badge" :class="jobTierClass(ma.einsatzNr)" :title="`Einsatz ${ma.einsatzNr}`">
+                <span class="job-nr-text">{{ ma.einsatzNr }}. Job</span>
+              </div>
               <div v-if="isTeamleiter" class="ma-check" :class="{ 'ma-check--noshow': ma.noShow }" @click="toggleCheckIn(ma)">
                 <font-awesome-icon :icon="ma.noShow ? 'fa-solid fa-circle-xmark' : ma.checkedIn ? 'fa-solid fa-circle-check' : ['far', 'circle']" />
               </div>
@@ -414,6 +417,17 @@ function formatTreffpunkt(val) {
 function cleanPhone(tel) {
   // Keeps +, digits, and strips everything else so tel: links work reliably
   return tel.replace(/[^\d+]/g, '');
+}
+
+function jobTierClass(n) {
+  if (n >= 1000) return 'job-tier-immortal';
+  if (n >= 500) return 'job-tier-legend';
+  if (n >= 201) return 'job-tier-rainbow';
+  if (n >= 101) return 'job-tier-onyx';
+  if (n >= 51)  return 'job-tier-diamond';
+  if (n >= 21)  return 'job-tier-gold';
+  if (n >= 6)   return 'job-tier-silver';
+  return 'job-tier-bronze';
 }
 
 async function copyPhone(tel, event) {
@@ -1239,4 +1253,232 @@ watch(() => props.einsatz?._id, () => {
   border-color: var(--primary);
 }
 
+/* ── Job Number Badge ───────────────────────────────────────── */
+.job-nr-badge {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  border-radius: 6px 0 9px 0;
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 0.2rem 0.45rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 1.2;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+}
+
+/* Bronze (1–5) */
+.job-tier-bronze {
+  background: linear-gradient(135deg, #cd7f32 0%, #a0522d 50%, #c68642 100%);
+  color: #fff8ef;
+}
+
+/* Silber (6–20) */
+.job-tier-silver {
+  background: linear-gradient(135deg, #d0d0d0 0%, #a8a8a8 50%, #c8c8c8 100%);
+  color: #2a2a2a;
+  text-shadow: none;
+}
+
+/* Gold (21–50) */
+.job-tier-gold {
+  background: linear-gradient(135deg, #ffd700 0%, #daa520 50%, #f5c518 100%);
+  color: #4a3000;
+  text-shadow: none;
+}
+
+/* Diamond (51–100) */
+.job-tier-diamond {
+  background: linear-gradient(135deg, #a8edff 0%, #7dd3fc 40%, #c7f2ff 70%, #b2e8ff 100%);
+  color: #0c4a6e;
+  text-shadow: none;
+  box-shadow: 0 0 6px rgba(125, 211, 252, 0.6), inset 0 1px 1px rgba(255,255,255,0.5);
+}
+
+/* Onyx / Purple Obsidian (101–200) */
+@keyframes onyx-bloom {
+  0%   { background-position: 0% 0%, 100% 100%, 50% 0%, 0% 0%; }
+  25%  { background-position: 80% 20%, 10% 80%, 90% 50%, 0% 0%; }
+  50%  { background-position: 60% 100%, 40% 10%, 20% 80%, 0% 0%; }
+  75%  { background-position: 10% 60%, 90% 40%, 70% 20%, 0% 0%; }
+  100% { background-position: 0% 0%, 100% 100%, 50% 0%, 0% 0%; }
+}
+.job-tier-onyx {
+  background-image:
+    radial-gradient(ellipse 60% 50% at 20% 30%, rgba(216,180,254,0.55) 0%, transparent 65%),
+    radial-gradient(ellipse 45% 65% at 75% 70%, rgba(167,139,250,0.45) 0%, transparent 60%),
+    radial-gradient(ellipse 35% 30% at 55% 20%, rgba(255,255,255,0.28) 0%, transparent 55%),
+    linear-gradient(135deg, #0d0520 0%, #2e0f6e 40%, #4a1aaa 65%, #180e40 100%);
+  background-size: 220% 220%, 220% 220%, 220% 220%, 100% 100%;
+  animation: onyx-bloom 5s ease-in-out infinite alternate;
+  color: #ede9fe;
+}
+
+/* Rainbow Glass (201–500) */
+.job-tier-rainbow {
+  background: linear-gradient(
+    270deg,
+    #ff0040, #ff6a00, #ffd000,
+    #00e676, #00b0ff, #c040fb,
+    #ff0040
+  );
+  background-size: 600% 600%;
+  animation: immortal-shift 5s ease infinite;
+  color: #fff;
+  text-shadow: 0 0 4px rgba(0,0,0,0.8), 0 0 8px rgba(255,255,255,0.4);
+}
+
+/* Straight-Legend (500–999) — Fireworks burst */
+@keyframes firework-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes firework-glow {
+  0%   { box-shadow: none; }
+}
+.job-nr-text {
+  position: relative;
+  z-index: 2;
+}
+
+.job-tier-legend {
+  overflow: hidden;
+  background: #0d0d0d;
+  color: #ffd700;
+  border: 1px solid rgba(255,215,0,0.5);
+  text-shadow: 0 0 5px rgba(255,215,0,0.9);
+  animation: firework-glow 2s ease infinite;
+  letter-spacing: 0.04em;
+  z-index: 0;
+  box-shadow: none;
+}
+.job-tier-legend::before {
+  content: '';
+  position: absolute;
+  inset: -150%;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,   rgba(255,215,0,0.95) 2deg,   transparent 5deg,
+    transparent 27deg,  rgba(255,150,0,0.85) 29deg,  transparent 32deg,
+    transparent 57deg,  rgba(255,255,200,0.95) 59deg, transparent 62deg,
+    transparent 87deg,  rgba(255,80,0,0.85) 89deg,   transparent 92deg,
+    transparent 117deg, rgba(255,215,0,0.95) 119deg,  transparent 122deg,
+    transparent 147deg, rgba(255,200,100,0.85) 149deg,transparent 152deg,
+    transparent 177deg, rgba(255,255,255,0.95) 179deg,transparent 182deg,
+    transparent 207deg, rgba(255,100,0,0.85) 209deg,  transparent 212deg,
+    transparent 237deg, rgba(255,215,0,0.95) 239deg,  transparent 242deg,
+    transparent 267deg, rgba(255,150,50,0.85) 269deg, transparent 272deg,
+    transparent 297deg, rgba(255,255,200,0.95) 299deg,transparent 302deg,
+    transparent 327deg, rgba(255,80,0,0.85) 329deg,   transparent 332deg
+  );
+  animation: firework-spin 1.8s linear infinite;
+  z-index: 1;
+}
+.job-tier-legend::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.65) 0%, transparent 80%);
+  z-index: 1;
+}
+
+/* Immortal (1000+) */
+@keyframes immortal-shift {
+  0%   { background-position: 0% 50%; filter: hue-rotate(0deg) brightness(1.1); }
+  33%  { background-position: 60% 20%; filter: hue-rotate(90deg) brightness(1.3); }
+  66%  { background-position: 100% 80%; filter: hue-rotate(210deg) brightness(1.15); }
+  100% { background-position: 0% 50%; filter: hue-rotate(360deg) brightness(1.1); }
+}
+/* Immortal (1000+) — Divine Pulsar */
+@keyframes immortal-rays {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes immortal-plasma {
+  0%   { background-position: 0% 0%,   100% 100%, 50% 50%; }
+  33%  { background-position: 100% 50%, 0% 0%,   0% 100%; }
+  66%  { background-position: 50% 100%, 50% 0%,  100% 0%; }
+  100% { background-position: 0% 0%,   100% 100%, 50% 50%; }
+}
+@keyframes immortal-heartbeat {
+  0%, 100% {
+    text-shadow:
+      0 0 2px #fff,
+      0 0 6px rgba(255,215,0,0.95),
+      0 0 12px rgba(255,215,0,0.6);
+  }
+  50% {
+    text-shadow:
+      0 0 3px #fff,
+      0 0 10px rgba(255,215,0,1),
+      0 0 22px rgba(255,215,0,0.85),
+      0 0 36px rgba(255,255,255,0.35);
+  }
+}
+.job-tier-immortal {
+  background: #0d0420;
+  color: #ffffff;
+  border: 1px solid rgba(255, 215, 0, 0.8);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  isolation: isolate;
+}
+.job-tier-immortal .job-nr-text {
+  position: relative;
+  z-index: 3;
+  animation: immortal-heartbeat 2s ease-in-out infinite;
+}
+/* 24 ultra-thin spinning divine rays */
+.job-tier-immortal::before {
+  content: '';
+  position: absolute;
+  inset: -180%;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,   rgba(255,255,255,0.92) 0.8deg,  transparent 2deg,
+    transparent 13deg,  rgba(255,215,0,0.92)   13.8deg,  transparent 15deg,
+    transparent 28deg,  rgba(255,255,255,0.88) 28.8deg,  transparent 30deg,
+    transparent 43deg,  rgba(255,215,0,0.92)   43.8deg,  transparent 45deg,
+    transparent 58deg,  rgba(255,255,255,0.92) 58.8deg,  transparent 60deg,
+    transparent 73deg,  rgba(255,215,0,0.88)   73.8deg,  transparent 75deg,
+    transparent 88deg,  rgba(255,255,255,0.92) 88.8deg,  transparent 90deg,
+    transparent 103deg, rgba(255,215,0,0.92)  103.8deg,  transparent 105deg,
+    transparent 118deg, rgba(255,255,255,0.88)118.8deg,  transparent 120deg,
+    transparent 133deg, rgba(255,215,0,0.92)  133.8deg,  transparent 135deg,
+    transparent 148deg, rgba(255,255,255,0.92)148.8deg,  transparent 150deg,
+    transparent 163deg, rgba(255,215,0,0.88)  163.8deg,  transparent 165deg,
+    transparent 178deg, rgba(255,255,255,0.92)178.8deg,  transparent 180deg,
+    transparent 193deg, rgba(255,215,0,0.92)  193.8deg,  transparent 195deg,
+    transparent 208deg, rgba(255,255,255,0.88)208.8deg,  transparent 210deg,
+    transparent 223deg, rgba(255,215,0,0.92)  223.8deg,  transparent 225deg,
+    transparent 238deg, rgba(255,255,255,0.92)238.8deg,  transparent 240deg,
+    transparent 253deg, rgba(255,215,0,0.88)  253.8deg,  transparent 255deg,
+    transparent 268deg, rgba(255,255,255,0.92)268.8deg,  transparent 270deg,
+    transparent 283deg, rgba(255,215,0,0.92)  283.8deg,  transparent 285deg,
+    transparent 298deg, rgba(255,255,255,0.88)298.8deg,  transparent 300deg,
+    transparent 313deg, rgba(255,215,0,0.92)  313.8deg,  transparent 315deg,
+    transparent 328deg, rgba(255,255,255,0.92)328.8deg,  transparent 330deg,
+    transparent 343deg, rgba(255,215,0,0.88)  343.8deg,  transparent 345deg
+  );
+  animation: immortal-rays 1s linear infinite;
+  z-index: 1;
+}
+/* Drifting nebula plasma that floats above the rays */
+.job-tier-immortal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 20% 40%, rgba(167,139,250,0.75) 0%, transparent 65%),
+    radial-gradient(ellipse 55% 65% at 80% 60%, rgba(56,189,248,0.65) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 45% at 55% 25%, rgba(255,215,0,0.40) 0%, transparent 55%);
+  background-size: 280% 280%, 280% 280%, 280% 280%;
+  animation: immortal-plasma 5s ease-in-out infinite;
+  z-index: 2;
+}
 </style>

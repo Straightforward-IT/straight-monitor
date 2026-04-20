@@ -26,32 +26,144 @@ import { useRouter } from 'vue-router';
 import LoginForm from '@/components/LoginForm.vue';
 import RegisterForm from '@/components/RegisterForm.vue';
 import { jwtDecode } from 'jwt-decode';
+import api from '@/utils/api';
 
 const currentForm = ref('login');
 const router = useRouter();
 
+// ── PKCE helpers (Web Crypto API) ─────────────────────────────────────────
+async function generatePKCE() {
+  const array = new Uint8Array(64);
+  crypto.getRandomValues(array);
+  const verifier = btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  const challenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  return { verifier, challenge };
+}
+
+function generateState() {
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// sessionStorage keys — prefixed to avoid collision with public monitor flow
+const SS_VERIFIER = 'monitor_oidc_pkce_verifier';
+const SS_STATE    = 'monitor_oidc_state';
+const SS_REDIRECT = 'monitor_oidc_redirect_uri';
+
+// ── Silent OIDC attempt ────────────────────────────────────────────────────
+async function trySilentOIDC() {
+  let authEndpoint, clientId;
+  try {
+    const res = await api.get('/api/oidc/config');
+    authEndpoint = res.data.authorization_endpoint;
+    clientId = res.data.client_id;
+    if (!clientId) return; // OIDC not configured — show normal login
+  } catch {
+    return; // Cannot reach config endpoint — show normal login
+  }
+
+  const { verifier, challenge } = await generatePKCE();
+  const state = generateState();
+  const redirectUri = window.location.origin + '/';
+
+  sessionStorage.setItem(SS_VERIFIER, verifier);
+  sessionStorage.setItem(SS_STATE, state);
+  sessionStorage.setItem(SS_REDIRECT, redirectUri);
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    scope: 'openid email profile',
+    state,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    prompt: 'none', // Silent — no UI shown; fails immediately if not logged in
+  });
+
+  window.location.href = `${authEndpoint}?${params}`;
+}
+
+// ── OIDC callback handler ──────────────────────────────────────────────────
+async function handleOIDCCallback(code, returnedState) {
+  const expectedState = sessionStorage.getItem(SS_STATE);
+  const verifier      = sessionStorage.getItem(SS_VERIFIER);
+  const redirectUri   = sessionStorage.getItem(SS_REDIRECT);
+
+  sessionStorage.removeItem(SS_STATE);
+  sessionStorage.removeItem(SS_VERIFIER);
+  sessionStorage.removeItem(SS_REDIRECT);
+
+  // Clean ?code= and ?state= from the URL without reloading
+  window.history.replaceState({}, '', '/');
+
+  if (returnedState !== expectedState) return; // State mismatch — show login form
+  if (!verifier || !redirectUri) return;
+
+  try {
+    const res = await api.post('/api/oidc/monitor-login', {
+      code,
+      code_verifier: verifier,
+      redirect_uri: redirectUri,
+    });
+    const token = res.data.token;
+    if (!token) return;
+    localStorage.setItem('token', token);
+    const lastPath = localStorage.getItem('lastVisitedPath');
+    if (lastPath && lastPath !== '/' && lastPath !== '/dashboard') {
+      router.push(lastPath);
+    } else {
+      router.push('/dashboard');
+    }
+  } catch {
+    // User has no Monitor account or account not confirmed — fall through to login form
+  }
+}
+
 // Check if user is already logged in and redirect
-onMounted(() => {
+onMounted(async () => {
   const token = localStorage.getItem('token');
   if (token) {
     try {
       const decoded = jwtDecode(token);
-      const isExpired = decoded.exp < (Date.now() / 1000);
-      
-      if (!isExpired) {
-        // User is already logged in, redirect to last visited page
+      if (decoded.exp > Date.now() / 1000) {
         const lastPath = localStorage.getItem('lastVisitedPath');
         if (lastPath && lastPath !== '/' && lastPath !== '/dashboard') {
           router.push(lastPath);
         } else {
           router.push('/dashboard');
         }
+        return;
       }
-    } catch (err) {
-      // Invalid token, stay on login page
+    } catch {
       localStorage.removeItem('token');
     }
   }
+
+  const params = new URLSearchParams(window.location.search);
+  const code  = params.get('code');
+  const state = params.get('state');
+  const error = params.get('error');
+
+  if (error) {
+    // login_required = user not logged in to Flip → show login form silently
+    // other errors → same, just show the form
+    window.history.replaceState({}, '', '/');
+    return;
+  }
+
+  if (code && state) {
+    await handleOIDCCallback(code, state);
+    return;
+  }
+
+  // No code yet and no active Monitor session — attempt silent Flip SSO
+  await trySilentOIDC();
 });
 </script>
 

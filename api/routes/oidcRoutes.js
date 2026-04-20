@@ -24,6 +24,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
+const User = require('../models/User');
 
 const ISSUER = 'https://straightforward.flip-app.com/auth/realms/hpstraightforward';
 const TOKEN_ENDPOINT = `${ISSUER}/protocol/openid-connect/token`;
@@ -138,6 +139,90 @@ router.post(
 
     logger.info(`OIDC login successful: ${email} (flip_id: ${claims.sub})`);
     return res.json({ session_token: sessionToken, email, flip_id: claims.sub });
+  })
+);
+
+// ── POST /api/public/oidc/monitor-login ────────────────────────────────────
+// Exchanges a Flip OIDC authorization code for a full Monitor session JWT.
+// The email from the ID token is matched against User.email in the DB.
+// If a confirmed User is found, the standard Monitor JWT is returned so the
+// frontend can store it in localStorage and skip the login screen entirely.
+// Body: { code, code_verifier, redirect_uri }
+router.post(
+  '/monitor-login',
+  asyncHandler(async (req, res) => {
+    const { code, code_verifier, redirect_uri } = req.body;
+
+    if (!code || !code_verifier || !redirect_uri) {
+      return res.status(400).json({ msg: 'Missing required parameters: code, code_verifier, redirect_uri' });
+    }
+
+    const clientId = process.env.FLIP_OIDC_CLIENT_ID;
+    if (!clientId) {
+      return res.status(503).json({ msg: 'OIDC ist noch nicht konfiguriert.' });
+    }
+
+    // Exchange authorization code for token set
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      code,
+      code_verifier,
+      redirect_uri,
+    });
+
+    let tokenSet;
+    try {
+      const tokenRes = await fetch(TOKEN_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      });
+      if (!tokenRes.ok) {
+        const detail = await tokenRes.text();
+        logger.error('OIDC monitor-login token exchange failed:', detail);
+        return res.status(400).json({ msg: 'Token-Austausch fehlgeschlagen', detail });
+      }
+      tokenSet = await tokenRes.json();
+    } catch (err) {
+      logger.error('OIDC monitor-login token exchange error:', err.message);
+      return res.status(502).json({ msg: 'Verbindung zu Keycloak fehlgeschlagen' });
+    }
+
+    const idToken = tokenSet.id_token;
+    if (!idToken) {
+      return res.status(400).json({ msg: 'Kein ID-Token in der Antwort' });
+    }
+
+    // Verify the ID token signature and claims via JWKS
+    let claims;
+    try {
+      claims = await verifyIdToken(idToken);
+    } catch (err) {
+      logger.error('OIDC monitor-login ID token verification failed:', err.message);
+      return res.status(401).json({ msg: 'ID-Token ungültig', detail: err.message });
+    }
+
+    const email = claims.email || (claims.preferred_username?.includes('@') ? claims.preferred_username : null);
+    if (!email) {
+      return res.status(400).json({ msg: 'Kein E-Mail-Anspruch im Token gefunden' });
+    }
+
+    // Look up a confirmed Monitor user with this email
+    const user = await User.findOne({ email: email.toLowerCase() }).select('_id isConfirmed roles role');
+    if (!user) {
+      return res.status(404).json({ msg: 'Kein Monitor-Konto für diese Flip-E-Mail gefunden.' });
+    }
+    if (!user.isConfirmed) {
+      return res.status(403).json({ msg: 'Monitor-Konto noch nicht bestätigt.' });
+    }
+
+    // Issue the standard Monitor JWT (same format as password login)
+    const payload = { user: { id: user.id } };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: 360000 });
+
+    logger.info(`OIDC monitor auto-login: ${email} (user: ${user.id})`);
+    return res.json({ token });
   })
 );
 
