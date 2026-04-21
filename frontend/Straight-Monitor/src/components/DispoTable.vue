@@ -2781,7 +2781,7 @@ async function markCellCommentsRead(maId, iso) {
   if (!userId) return;
   const userIdStr = String(userId);
   const unread = getCellComments(maId, iso)
-    .filter((c) => String(c.authorId) !== userIdStr && !c.readBy?.map(String).includes(userIdStr))
+    .filter((c) => !c._isZvoove && String(c.authorId) !== userIdStr && !c.readBy?.map(String).includes(userIdStr))
     .map((c) => c._id);
   if (!unread.length) return;
   await comments.markRead(unread);
