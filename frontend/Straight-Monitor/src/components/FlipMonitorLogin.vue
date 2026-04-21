@@ -46,7 +46,7 @@ const REDIRECT_URI = window.location.origin + '/integration/monitor-login';
 async function startOIDC() {
   let authEndpoint, clientId;
   try {
-    const res = await api.get('/api/oidc/config');
+    const res = await api.get('/api/oidc/monitor-config');
     authEndpoint = res.data.authorization_endpoint;
     clientId = res.data.client_id;
     if (!clientId) throw new Error('OIDC nicht konfiguriert');

@@ -157,7 +157,7 @@ router.post(
       return res.status(400).json({ msg: 'Missing required parameters: code, code_verifier, redirect_uri' });
     }
 
-    const clientId = process.env.FLIP_OIDC_CLIENT_ID;
+    const clientId = process.env.FLIP_OIDC_MONITOR_CLIENT_ID;
     if (!clientId) {
       return res.status(503).json({ msg: 'OIDC ist noch nicht konfiguriert.' });
     }
@@ -226,13 +226,26 @@ router.post(
   })
 );
 
-// ── GET /api/public/oidc/config ────────────────────────────────────────────
-// Returns the Keycloak authorization endpoint and client_id so the frontend
-// can build the auth URL without hardcoding backend config.
+// ── GET /api/oidc/config ──────────────────────────────────────────────────
+// Returns config for the public Flip Jobs OIDC client.
 router.get(
   '/config',
   asyncHandler(async (req, res) => {
     const clientId = process.env.FLIP_OIDC_CLIENT_ID;
+    return res.json({
+      authorization_endpoint: `${ISSUER}/protocol/openid-connect/auth`,
+      client_id: clientId || null,
+      configured: !!clientId,
+    });
+  })
+);
+
+// ── GET /api/oidc/monitor-config ───────────────────────────────────────────
+// Returns config for the Monitor auto-login OIDC client (separate Keycloak client).
+router.get(
+  '/monitor-config',
+  asyncHandler(async (req, res) => {
+    const clientId = process.env.FLIP_OIDC_MONITOR_CLIENT_ID;
     return res.json({
       authorization_endpoint: `${ISSUER}/protocol/openid-connect/auth`,
       client_id: clientId || null,
