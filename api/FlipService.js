@@ -265,6 +265,11 @@ async function flipUserRoutine() {
           }
 
           await mitarbeiter.save();
+        } else {
+          // Bereits inaktiv, aber flip_id wurde nie gecleart (z.B. manueller Austritt) → nachholen
+          mitarbeiter.flip_id = null;
+          await mitarbeiter.save();
+          emailLogs.push(`🧹 flip_id bereinigt (bereits inaktiv): ${mitarbeiter.vorname} ${mitarbeiter.nachname}`);
         }
       } else if (!mitarbeiter.email) {
         const flipUser = allFlipUsers.find((u) => u.id === mitarbeiter.flip_id);
@@ -1505,7 +1510,7 @@ async function syncRankGroups(mitarbeiterList) {
   let errors = 0;
 
   const eligible = mitarbeiterList.filter(
-    ma => ma.flip_id && (ma.personalnr || (ma.personalnrHistory && ma.personalnrHistory.length > 0))
+    ma => ma.flip_id && ma.isActive !== false && (ma.personalnr || (ma.personalnrHistory && ma.personalnrHistory.length > 0))
   );
 
   logs.push(`🏅 Rank sync: ${eligible.length} Mitarbeiter mit Flip-Account und Personalnr`);

@@ -188,17 +188,22 @@ router.get(
       .select("personalnr vorname nachname telefon qualifikationen flip_id personalnrHistory")
       .lean();
 
-    // Build alias map: each MA's current personalnr + all values from personalnrHistory
+    // Build alias map: current personalnr (as Number, matching Einsatz.personalNr type) → all alias Numbers
     const pnrAliasMap = {};
     mitarbeiterList.forEach((ma) => {
-      const histPnrs = (ma.personalnrHistory || []).map((h) => h.value).filter(Boolean);
-      pnrAliasMap[ma.personalnr] = [...new Set([ma.personalnr, ...histPnrs])];
+      const currentNum = parseInt(ma.personalnr, 10);
+      if (isNaN(currentNum)) return;
+      const histNums = (ma.personalnrHistory || [])
+        .map((h) => parseInt(h.value, 10))
+        .filter((n) => !isNaN(n));
+      pnrAliasMap[currentNum] = [...new Set([currentNum, ...histNums])];
     });
-    const allPnrs = [...new Set(Object.values(pnrAliasMap).flat())];
+    const allPnrsNum = [...new Set(Object.values(pnrAliasMap).flat())];
 
     // Count einsätze across current and all historical personalNrs
+    // allPnrsNum must be Numbers because Einsatz.personalNr is type Number (no auto-cast in aggregation)
     const einsatzCounts = await Einsatz.aggregate([
-      { $match: { personalNr: { $in: allPnrs } } },
+      { $match: { personalNr: { $in: allPnrsNum } } },
       { $group: { _id: "$personalNr", count: { $sum: 1 } } }
     ]);
     const rawCountMap = Object.fromEntries(einsatzCounts.map((c) => [c._id, c.count]));

@@ -1258,6 +1258,7 @@ watch(() => props.einsatz?._id, () => {
   position: absolute;
   bottom: 0;
   right: 0;
+  z-index: 2;
   border-radius: 6px 0 9px 0;
   font-size: 0.6rem;
   font-weight: 800;

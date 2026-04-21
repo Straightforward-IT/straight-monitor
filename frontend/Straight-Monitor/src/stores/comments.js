@@ -63,30 +63,14 @@ export const useComments = defineStore('comments', {
       }).length;
     },
 
-    // Unread count by scope — for scope-specific badges (respects standort filter)
+    // Unread count by scope — for scope-specific badges
     unreadCountByScope(state) {
       const auth = useAuth();
-      const cache = useDataCache();
       const userId = String(auth.user?._id ?? '');
-
-      const activeFilter = state.standortFilter === 'auto'
-        ? (auth.user?.location ?? null)
-        : state.standortFilter;
-
-      const maMap = {};
-      for (const ma of cache.mitarbeiter) maMap[String(ma._id)] = ma;
-
       const counts = {};
       for (const c of state.items) {
         if (String(c.authorId) === userId) continue;
         if ((c.readBy ?? []).map(String).includes(userId)) continue;
-        if (activeFilter && c.context?.mitarbeiter) {
-          const ma = maMap[String(c.context.mitarbeiter)];
-          if (ma) {
-            const maStandort = getMaStandortFromPnr(ma.personalnr);
-            if (maStandort && maStandort !== activeFilter) continue;
-          }
-        }
         counts[c.scope] = (counts[c.scope] ?? 0) + 1;
       }
       return counts;
@@ -165,40 +149,6 @@ export const useComments = defineStore('comments', {
         if (mitarbeiterId) params.set('mitarbeiterId', mitarbeiterId);
 
         const { data } = await api.get(`/api/comments?${params}`);
-
-        // Detect new chronik items from other users → browser notification
-        if (scope === 'chronik' && Notification.permission === 'granted') {
-          const auth = useAuth();
-          const cache = useDataCache();
-          const userId = String(auth.user?._id ?? '');
-          const userLocation = auth.user?.location ?? null;
-          const existingIds = new Set(this.items.map(c => String(c._id)));
-
-          const maMap = {};
-          for (const ma of cache.mitarbeiter) maMap[String(ma._id)] = ma;
-
-          for (const c of data) {
-            if (existingIds.has(String(c._id))) continue;          // already known
-            if (String(c.authorId) === userId) continue;           // own entry
-            if (c.scope !== 'chronik') continue;
-
-            const ma = maMap[String(c.context?.mitarbeiter)];
-            if (!ma) continue;
-
-            // Only notify for MAs at the user's own location
-            if (userLocation) {
-              const maStandort = getMaStandortFromPnr(ma.personalnr);
-              if (maStandort && maStandort !== userLocation) continue;
-            }
-
-            const maName = [ma.vorname, ma.nachname].filter(Boolean).join(' ') || 'Unbekannt';
-            new Notification('Neuer Chronik-Eintrag', {
-              body: `${c.author || 'Jemand'} hat einen Eintrag bei ${maName} hinterlassen.`,
-              icon: '/favicon.ico',
-              tag: `chronik-${String(c._id)}`,   // deduplicates identical notifications
-            });
-          }
-        }
 
         // Merge: remove existing items with this scope (+ optional MA filter), then add new ones
         this.items = [
