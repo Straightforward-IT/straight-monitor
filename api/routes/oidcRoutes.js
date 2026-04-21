@@ -203,15 +203,22 @@ router.post(
       return res.status(401).json({ msg: 'ID-Token ungültig', detail: err.message });
     }
 
-    const email = claims.email || (claims.preferred_username?.includes('@') ? claims.preferred_username : null);
-    if (!email) {
-      return res.status(400).json({ msg: 'Kein E-Mail-Anspruch im Token gefunden' });
+    // claims.sub from Flip's Keycloak realm IS the Flip user UUID (= flip_id in Mitarbeiter)
+    const flipId = claims.sub;
+    if (!flipId) {
+      return res.status(400).json({ msg: 'Kein sub-Anspruch im Token gefunden' });
     }
 
-    // Look up a confirmed Monitor user with this email
-    const user = await User.findOne({ email: email.toLowerCase() }).select('_id isConfirmed roles role');
+    // Chain: flip_id → Mitarbeiter → User
+    const Mitarbeiter = require('../models/Mitarbeiter');
+    const mitarbeiter = await Mitarbeiter.findOne({ flip_id: flipId }).select('_id').lean();
+    if (!mitarbeiter) {
+      return res.status(404).json({ msg: 'Kein Mitarbeiter für diesen Flip-Account gefunden.' });
+    }
+
+    const user = await User.findOne({ mitarbeiter: mitarbeiter._id }).select('_id isConfirmed');
     if (!user) {
-      return res.status(404).json({ msg: 'Kein Monitor-Konto für diese Flip-E-Mail gefunden.' });
+      return res.status(404).json({ msg: 'Kein Monitor-Konto für diesen Mitarbeiter gefunden.' });
     }
     if (!user.isConfirmed) {
       return res.status(403).json({ msg: 'Monitor-Konto noch nicht bestätigt.' });
@@ -221,7 +228,7 @@ router.post(
     const payload = { user: { id: user.id } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: 360000 });
 
-    logger.info(`OIDC monitor auto-login: ${email} (user: ${user.id})`);
+    logger.info(`OIDC monitor auto-login: flip_id=${flipId} → mitarbeiter=${mitarbeiter._id} → user=${user.id}`);
     return res.json({ token });
   })
 );
