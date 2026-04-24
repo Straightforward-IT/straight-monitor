@@ -83,6 +83,11 @@ function getStoredSubscriptionByKey(upn, folderId) {
   const id = store.subscriptions.byKey[makeKey(upn, folderId)];
   return id ? { id, ...(store.subscriptions.byId[id] || {}) } : null;
 }
+function rememberSubscription({ id, upn, folderId, resource, expirationDateTime }) {
+  if (!id || !upn || !folderId) return false;
+  upsertStoreSubscription({ id, upn, folderId, resource, expirationDateTime });
+  return true;
+}
 
 /* -------------------------- Subscription Utilities ----------------------- */
 function buildMailResourceCandidates({ upn, folderId }) {
@@ -835,6 +840,7 @@ module.exports = {
   deleteSubscription,
   deleteAllSubscriptions,
   clearLocalSubscriptionStore,
+  getSubscription,
   // mail
   getMessageById,
   listAttachments,
@@ -845,6 +851,7 @@ module.exports = {
   getMailFolderInsights,
   // store access for webhook
   getStoredSubscriptionById,
+  rememberSubscription,
   // utils
   logGraphError,
   // conversion

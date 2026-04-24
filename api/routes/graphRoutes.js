@@ -16,7 +16,9 @@ const {
   deleteSubscription,
   deleteAllSubscriptions,
   clearLocalSubscriptionStore,
+  getSubscription,
   getStoredSubscriptionById,
+  rememberSubscription,
   logGraphError,
   convertAttachmentToPdf,
   getContacts,
@@ -90,6 +92,13 @@ function extractUserGuidFromResource(resource = "") {
   const guidPattern = /Users\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\//i;
   const match = resource.match(guidPattern);
   return match ? match[1] : null;
+}
+
+function parseFolderIdFromResource(resource = "") {
+  let m = resource.match(/\/mailFolders\('([^']+)'\)\//i);
+  if (m) return m[1];
+  m = resource.match(/\/mailFolders\/([^\/\?\s]+)\//i);
+  return m ? m[1] : null;
 }
 /**
  * Konvertiert eine DOCX-Datei (base64) zu PDF via Microsoft Graph (OneDrive + ?$format=pdf).
@@ -238,6 +247,38 @@ router.post("/webhook", (req, res) => {
             if (subInfo?.upn) {
               upn = subInfo.upn;
               console.log(`[upn-source] subscription-store (subId=${n.subscriptionId})`);
+            } else {
+              try {
+                const liveSubscription = await getSubscription({ token: appToken, id: n.subscriptionId });
+                const liveResource = liveSubscription?.resource || "";
+                const liveUpn = extractUserFromResource(liveResource);
+                const liveFolderId = parseFolderIdFromResource(liveResource);
+
+                if (liveUpn) {
+                  upn = liveUpn;
+                  console.log(`[upn-source] subscription-live (subId=${n.subscriptionId})`);
+                } else if (liveFolderId) {
+                  const matchedAccount = registry
+                    .getSubscriptionAccounts()
+                    .find((account) => account.folderId === liveFolderId);
+                  if (matchedAccount?.upn) {
+                    upn = matchedAccount.upn;
+                    console.log(`[upn-source] subscription-folder-match (subId=${n.subscriptionId})`);
+                  }
+                }
+
+                if (upn && liveFolderId) {
+                  rememberSubscription({
+                    id: n.subscriptionId,
+                    upn,
+                    folderId: liveFolderId,
+                    resource: liveResource,
+                    expirationDateTime: liveSubscription?.expirationDateTime,
+                  });
+                }
+              } catch (lookupError) {
+                logGraphError(`[upn-source] subscription lookup failed (${n.subscriptionId})`, lookupError);
+              }
             }
           }
 
@@ -260,15 +301,11 @@ router.post("/webhook", (req, res) => {
             }
           }
 
-          // Strategy 4: Last fallback - first team from registry
           if (!upn) {
-            const acc = registry.getSubscriptionAccounts()[0];
-            upn = acc?.upn;
-            console.warn(`[upn-source] FALLBACK to first team (${upn}) - subscription store might be outdated!`);
-          }
-
-          if (!upn) {
-            console.error("❌ No mailbox UPN resolvable for notification:", n);
+            console.error("❌ No mailbox UPN resolvable for notification; skipped:", {
+              subscriptionId: n.subscriptionId,
+              resource,
+            });
             continue;
           }
 
