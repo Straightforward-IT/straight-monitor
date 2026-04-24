@@ -24,6 +24,11 @@
         <span>Benutzer Verwaltung</span>
       </button>
 
+      <button class="s-btn" v-if="newPagesEnabled" @click="go('/mailbox-explorer')">
+        <img :src="logoSrc" alt="" />
+        <span>Mailbox Explorer</span>
+      </button>
+
       <button class="s-btn" @click="go('/daten-import')">
         <img :src="logoSrc" alt="" />
         <span>Daten Import</span>
@@ -75,7 +80,14 @@ const theme = useTheme();
 const ui = useUi();
 const auth = useAuth();
 
-const newPagesEnabled = computed(() => auth.user?.roles?.includes('ADMIN'));
+const newPagesEnabled = computed(() => {
+  const role = String(auth.user?.role || '').toUpperCase();
+  const roles = Array.isArray(auth.user?.roles)
+    ? auth.user.roles.map((entry) => String(entry).toUpperCase())
+    : [];
+
+  return role === 'ADMIN' || roles.includes('ADMIN');
+});
 
 const logoSrc = computed(() =>
   theme.isDark

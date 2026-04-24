@@ -61,9 +61,7 @@ function pickProjectId({ teamKey, upn }) {
   }
   // 2) match by UPN from registry
   if (upn) {
-    const team = registry
-      .listTeams()
-      .find((t) => (t.graph?.upn || "").toLowerCase() === String(upn).toLowerCase());
+    const team = registry.getTeamByUpn(upn);
     if (team?.asana?.projectId) return team.asana.projectId;
   }
   // 3) single-project fallback (if exactly one is configured)

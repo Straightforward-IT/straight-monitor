@@ -27,6 +27,93 @@ function requireEnv(name) {
   return v;
 }
 
+function pickDefaultGraphMailboxKey(graph = {}) {
+  if (graph?.primaryMailboxKey && graph?.mailboxes?.[graph.primaryMailboxKey]) {
+    return graph.primaryMailboxKey;
+  }
+  if (graph?.mailboxes?.primary) return "primary";
+
+  const keys = Object.keys(graph?.mailboxes || {});
+  return keys[0] || null;
+}
+
+function getGraphMailboxFromConfig(graph = {}, mailboxKey = null) {
+  const resolvedKey = mailboxKey || pickDefaultGraphMailboxKey(graph);
+  if (!resolvedKey) return null;
+
+  const mailbox = graph?.mailboxes?.[resolvedKey];
+  if (!mailbox?.userPrincipalName) return null;
+
+  return { key: resolvedKey, ...mailbox };
+}
+
+function getGraphFolderFromConfig(graph = {}, folderKey = null) {
+  const resolvedKey = folderKey || graph?.subscriptionFolderKey || "subscriptionInbox";
+  const folder = graph?.folders?.[resolvedKey];
+  if (!folder) return null;
+
+  return { key: resolvedKey, ...folder };
+}
+
+function getGraphSubscriptionFromConfig(graph = {}) {
+  const folder = getGraphFolderFromConfig(graph, graph?.subscriptionFolderKey || "subscriptionInbox");
+  if (!folder?.id) return null;
+
+  const mailbox = getGraphMailboxFromConfig(graph, folder.mailboxKey);
+  if (!mailbox?.userPrincipalName) return null;
+
+  return {
+    folderKey: folder.key,
+    mailboxKey: mailbox.key,
+    folderId: folder.id,
+    userPrincipalName: mailbox.userPrincipalName,
+  };
+}
+
+function normalizeGraphConfig(graph = {}) {
+  const mailboxes = { ...(graph?.mailboxes || {}) };
+  const folders = { ...(graph?.folders || {}) };
+
+  if (!mailboxes.primary && (graph?.sharedMailbox || graph?.upn)) {
+    mailboxes.primary = {
+      userPrincipalName: graph.sharedMailbox || graph.upn,
+    };
+  }
+
+  if (!mailboxes.subscriptionSource && graph?.sharedMailbox && graph?.upn && graph.upn !== graph.sharedMailbox) {
+    mailboxes.subscriptionSource = {
+      userPrincipalName: graph.upn,
+    };
+  }
+
+  if (!folders.subscriptionInbox && graph?.folderId) {
+    folders.subscriptionInbox = {
+      mailboxKey: mailboxes.subscriptionSource ? "subscriptionSource" : pickDefaultGraphMailboxKey({ ...graph, mailboxes }),
+      id: graph.folderId,
+    };
+  }
+
+  const normalized = {
+    ...graph,
+    primaryMailboxKey: graph?.primaryMailboxKey || (mailboxes.primary ? "primary" : pickDefaultGraphMailboxKey({ ...graph, mailboxes })),
+    subscriptionFolderKey: graph?.subscriptionFolderKey || (folders.subscriptionInbox ? "subscriptionInbox" : null),
+    mailboxes,
+    folders,
+  };
+
+  const primaryMailbox = getGraphMailboxFromConfig(normalized);
+  const subscription = getGraphSubscriptionFromConfig(normalized);
+
+  normalized.upn = subscription?.userPrincipalName || null;
+  normalized.folderId = subscription?.folderId || null;
+  normalized.sharedMailbox =
+    primaryMailbox?.userPrincipalName && primaryMailbox.userPrincipalName !== normalized.upn
+      ? primaryMailbox.userPrincipalName
+      : null;
+
+  return normalized;
+}
+
 class Registry {
   constructor(file = FILE) {
     this.file = file;
@@ -45,7 +132,10 @@ class Registry {
   _load() {
     const data = readJson(this.file);
     this.shared = data.shared || {};
-    this.teams = data.teams || [];
+    this.teams = (data.teams || []).map((team) => ({
+      ...team,
+      graph: normalizeGraphConfig(team.graph || {}),
+    }));
     if (!Array.isArray(this.teams) || this.teams.length === 0) {
       throw new Error("config/teams.json: 'teams' must be a non-empty array");
     }
@@ -103,21 +193,59 @@ class Registry {
 
   // Graph subscription accounts array
   getSubscriptionAccounts() {
-    const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev';
     return this.listTeams()
-      .filter(t => {
-        // Filtere development-only Teams in Production aus
-        if (t.developmentOnly && !isDevelopment) return false;
-        return t.graph?.upn && t.graph?.folderId;
+      .map(t => {
+        const subscription = this.getGraphSubscription(t);
+        if (!subscription) return null;
+
+        return {
+          upn: subscription.userPrincipalName,
+          folderId: subscription.folderId,
+          key: t.key,
+        };
       })
-      .map(t => ({ upn: t.graph.upn, folderId: t.graph.folderId, key: t.key }));
+      .filter(Boolean);
   }
-getTeamByUpn(upn) {
+
+  getGraphMailbox(input, mailboxKey = null) {
+    const team = typeof input === "string" ? this.getTeam(input) : input;
+    if (!team?.graph) return null;
+    return getGraphMailboxFromConfig(team.graph, mailboxKey);
+  }
+
+  getGraphMailboxUpn(input, mailboxKey = null) {
+    return this.getGraphMailbox(input, mailboxKey)?.userPrincipalName || null;
+  }
+
+  getGraphFolder(input, folderKey = null) {
+    const team = typeof input === "string" ? this.getTeam(input) : input;
+    if (!team?.graph) return null;
+
+    const folder = getGraphFolderFromConfig(team.graph, folderKey);
+    if (!folder) return null;
+
+    const mailbox = getGraphMailboxFromConfig(team.graph, folder.mailboxKey);
+    return {
+      ...folder,
+      userPrincipalName: mailbox?.userPrincipalName || null,
+    };
+  }
+
+  getGraphSubscription(input) {
+    const team = typeof input === "string" ? this.getTeam(input) : input;
+    if (!team?.graph) return null;
+    return getGraphSubscriptionFromConfig(team.graph);
+  }
+
+  getTeamByUpn(upn) {
     if (!upn) return null;
     const needle = String(upn).toLowerCase();
     for (const t of this.listTeams()) {
-      const tupn = t?.graph?.upn;
-      if (tupn && String(tupn).toLowerCase() === needle) return t;
+      const mailboxKeys = Object.keys(t?.graph?.mailboxes || {});
+      for (const mailboxKey of mailboxKeys) {
+        const tupn = this.getGraphMailboxUpn(t, mailboxKey);
+        if (tupn && String(tupn).toLowerCase() === needle) return t;
+      }
     }
     return null;
   }

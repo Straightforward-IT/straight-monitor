@@ -144,7 +144,7 @@ async function main() {
     console.log('2. Copy the ID (the long encoded string)');
     console.log('3. Update api/config/teams.json:');
     console.log('   Find the "parser" team configuration');
-    console.log('   Replace folderId: "REPLACE_WITH_ACTUAL_FOLDER_ID" with your ID');
+    console.log('   Replace graph.folders.subscriptionInbox.id with your ID');
     console.log('4. Then run: curl http://localhost:5050/api/graph/ensure-subscription?team=parser\n');
 
     if (sharedFolders.length > 0) {

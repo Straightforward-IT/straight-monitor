@@ -11,6 +11,7 @@ const {
   getMessageById,
   listAttachments,
   downloadAttachment,
+  moveMessage,
   listAllSubscriptions,
   deleteSubscription,
   deleteAllSubscriptions,
@@ -21,11 +22,14 @@ const {
   getContacts,
   updateContact,
   deleteContact,
+  getMailboxFolderTree,
+  getMailFolderInsights,
 } = require("../GraphService");
 const { parseApplicantEmail } = require("../applicantParser");
 
 const registry = require("../config/registry");
 const { createTaskFromEmail } = require("../AsanaService");
+const User = require("../models/User");
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
 
@@ -304,15 +308,9 @@ router.post("/webhook", (req, res) => {
           run(async () => {
             try {
               const teamForUpn =
-                registry
-                  .listTeams()
-                  .find(
-                    (t) =>
-                      (t.graph?.upn || "").toLowerCase() ===
-                      (upn || "").toLowerCase()
-                  ) || null;
+                registry.getTeamByUpn(upn) || null;
               const teamKey = teamForUpn?.key;
-              const folderId = teamForUpn?.graph?.folderId || null;
+              const folderId = registry.getGraphSubscription(teamForUpn)?.folderId || null;
               
               const msg = await withRetry(
                 () => getMessageById(appToken, upn, messageId, folderId),
@@ -431,6 +429,31 @@ router.post("/webhook", (req, res) => {
                   { upn, teamKey, provider: parsed.quelle }
                 );
 
+                const destinationFolder = registry.getGraphFolder(teamForUpn, "asanaTask");
+                if (!destinationFolder?.id) {
+                  console.warn(`⚠️ No asanaTask folder configured for team ${teamKey || "unknown"}; mail not moved.`);
+                } else if (
+                  destinationFolder.userPrincipalName &&
+                  String(destinationFolder.userPrincipalName).toLowerCase() !== String(upn).toLowerCase()
+                ) {
+                  console.warn(
+                    `⚠️ asanaTask folder mailbox mismatch for team ${teamKey || "unknown"}: ` +
+                    `source=${upn}, target=${destinationFolder.userPrincipalName}`
+                  );
+                } else if (destinationFolder.id === folderId) {
+                  console.log(`↪️ Mail already in asanaTask folder for team ${teamKey || "unknown"}; skipping move.`);
+                } else {
+                  try {
+                    await moveMessage(appToken, upn, messageId, destinationFolder.id, folderId);
+                    console.log(
+                      `📦 Mail moved to asanaTask for team ${teamKey || "unknown"}: ` +
+                      `${msg.subject}`
+                    );
+                  } catch (moveError) {
+                    logGraphError("Mail move to asanaTask failed", moveError);
+                  }
+                }
+
                 console.log(
                   `🧩 Asana task created for "${msg.subject}" with ${uploadFiles.length} files`
                 );
@@ -460,8 +483,9 @@ router.post("/webhook", (req, res) => {
 router.get("/ensure-subscription", async (req, res) => {
   try {
     const team = req.query.team ? registry.getTeam(req.query.team) : null;
-    const upn = req.query.upn || team?.graph?.upn;
-    const folderId = req.query.folderId || team?.graph?.folderId;
+    const subscription = team ? registry.getGraphSubscription(team) : null;
+    const upn = req.query.upn || subscription?.userPrincipalName;
+    const folderId = req.query.folderId || subscription?.folderId;
 
     await ensureGraphMailSubscription({
       userPrincipalName: upn,
@@ -560,6 +584,114 @@ router.delete("/subscriptions", async (req, res) => {
 
 const auth = require("../middleware/auth");
 
+async function requireAdmin(req, res) {
+  const admin = await User.findById(req.user.id).select("role roles");
+  if (!admin || !admin.roles?.includes("ADMIN")) {
+    res.status(403).json({ ok: false, error: "Zugriff verweigert – nur für Admins" });
+    return null;
+  }
+  return admin;
+}
+
+function getMailboxUpnForTeam(team) {
+  return registry.getGraphMailboxUpn(team) || null;
+}
+
+/* ------------------------- Mailbox Dashboard ------------------------------ */
+
+router.get("/mailboxes/accounts", auth, async (req, res) => {
+  try {
+    if (!await requireAdmin(req, res)) return;
+
+    const accounts = registry.listTeams()
+      .filter((team) => getMailboxUpnForTeam(team))
+      .map((team) => {
+        const mailboxUpn = getMailboxUpnForTeam(team);
+        const subscriptionUpn = registry.getGraphSubscription(team)?.userPrincipalName || null;
+
+        return {
+          key: team.key,
+          displayName: team.displayName || team.key,
+          upn: mailboxUpn,
+          sharedMailbox: subscriptionUpn && subscriptionUpn !== mailboxUpn ? mailboxUpn : null,
+          aliases: team.aliases || [],
+        };
+      });
+
+    res.json({ ok: true, accounts });
+  } catch (e) {
+    logGraphError("GET /mailboxes/accounts failed", e);
+    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+  }
+});
+
+router.get("/mailboxes/tree", auth, async (req, res) => {
+  try {
+    if (!await requireAdmin(req, res)) return;
+
+    const team = registry.getTeam(req.query.team || "");
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) {
+      return res.status(400).json({ ok: false, error: `Team '${team.key}' has no mailbox configured` });
+    }
+
+    const includeHiddenFolders = String(req.query.includeHidden || "true").toLowerCase() !== "false";
+    const result = await getMailboxFolderTree({ userPrincipalName, includeHiddenFolders });
+
+    res.json({
+      ok: true,
+      team: team.key,
+      displayName: team.displayName || team.key,
+      mailbox: userPrincipalName,
+      ...result,
+    });
+  } catch (e) {
+    logGraphError("GET /mailboxes/tree failed", e);
+    const status = /Unknown team/i.test(e.message) ? 400 : 500;
+    res.status(status).json({ ok: false, error: e?.response?.data || e.message });
+  }
+});
+
+router.get("/mailboxes/folder-insights", auth, async (req, res) => {
+  try {
+    if (!await requireAdmin(req, res)) return;
+
+    const team = registry.getTeam(req.query.team || "");
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) {
+      return res.status(400).json({ ok: false, error: `Team '${team.key}' has no mailbox configured` });
+    }
+
+    const folderId = req.query.folderId || null;
+    const folderPath = req.query.folderPath || null;
+    if (!folderId && !folderPath) {
+      return res.status(400).json({ ok: false, error: "folderId or folderPath required" });
+    }
+
+    const includeHiddenFolders = String(req.query.includeHidden || "true").toLowerCase() !== "false";
+    const result = await getMailFolderInsights({
+      userPrincipalName,
+      folderId,
+      folderPath,
+      includeHiddenFolders,
+    });
+
+    res.json({
+      ok: true,
+      team: team.key,
+      displayName: team.displayName || team.key,
+      mailbox: userPrincipalName,
+      ...result,
+    });
+  } catch (e) {
+    logGraphError("GET /mailboxes/folder-insights failed", e);
+    const status = /Unknown team|folderId or folderPath required|Mail folder not found/i.test(e.message)
+      ? 400
+      : 500;
+    res.status(status).json({ ok: false, error: e?.response?.data || e.message });
+  }
+});
+
 // GET /api/graph/contacts?team=hamburg|berlin|koeln (or all)
 router.get("/contacts", auth, async (req, res) => {
   try {
@@ -574,12 +706,12 @@ router.get("/contacts", auth, async (req, res) => {
         return res.status(400).json({ ok: false, error: `Unknown team '${teamFilter}'` });
       }
     } else {
-      teams = registry.listTeams().filter(t => !t.developmentOnly && t.graph?.upn);
+      teams = registry.listTeams().filter(t => !t.developmentOnly && registry.getGraphMailboxUpn(t));
     }
 
     const allContacts = [];
     for (const t of teams) {
-      const upn = t.graph?.upn;
+      const upn = registry.getGraphMailboxUpn(t);
       if (!upn) continue;
       try {
         const contacts = await getContacts(token, upn);
