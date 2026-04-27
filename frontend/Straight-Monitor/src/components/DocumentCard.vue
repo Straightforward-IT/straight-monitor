@@ -251,20 +251,6 @@
     <!-- Footer -->
     <footer class="card-footer">
       <div class="actions-left">
-        <button 
-          v-if="getPersonAsanaId('teamleiter')" 
-          class="btn btn-sm"
-          @click="openAsanaTask('teamleiter')"
-        >
-          <img :src="asanaLogo" alt="Asana" class="asana-icon" /> Teamleiter Task
-        </button>
-        <button 
-          v-if="doc.docType !== 'Event-Bericht' && getPersonAsanaId('mitarbeiter')" 
-          class="btn btn-sm"
-          @click="openAsanaTask('mitarbeiter')"
-        >
-          <img :src="asanaLogo" alt="Asana" class="asana-icon" /> Mitarbeiter Task
-        </button>
       </div>
       <div class="footer-right">
         <template v-if="doc.docType === 'Event-Bericht'">

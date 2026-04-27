@@ -920,6 +920,14 @@ watch(currentTab, (tab) => {
   gap: 8px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 2px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-btn {
@@ -934,6 +942,8 @@ watch(currentTab, (tab) => {
   align-items: center;
   gap: 8px;
   transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab-btn:hover {
@@ -1456,5 +1466,57 @@ watch(currentTab, (tab) => {
 .btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* ---- Mobile Responsive ---- */
+@media (max-width: 768px) {
+  .kunden-page {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .content-section {
+    padding: 12px;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .search-group {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .search-input {
+    min-width: unset;
+    flex: 1;
+    width: 100%;
+  }
+
+  .btn-group {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .kunden-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .contacts-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .contacts-table {
+    min-width: 640px;
+  }
+
+  .contact-filters {
+    flex-direction: column;
+    gap: 10px;
+  }
 }
 </style>

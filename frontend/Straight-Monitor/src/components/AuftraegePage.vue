@@ -125,6 +125,7 @@
           type="date" 
           class="hidden-date-input" 
           @change="handleDatePick"
+          @input="handleDatePick"
         >
       </label>
     </div>
@@ -145,6 +146,7 @@
             class="hidden-date-input"
             :value="mobileDatePickerValue"
             @change="jumpToDate"
+            @input="jumpToDate"
           />
         </label>
         
@@ -1191,7 +1193,7 @@ export default {
       const val = event.target.value;
       if (!val) return;
       
-      const date = new Date(val);
+      const date = new Date(val + 'T00:00:00');
       // Calculate start of that week (Monday)
       const Day = date.getDay() || 7; // Sunday is 0 -> make it 7
       date.setDate(date.getDate() - Day + 1); // Set to Monday
@@ -2689,7 +2691,6 @@ export default {
 .hidden-date-input {
   position: absolute;
   opacity: 0;
-  pointer-events: none;
   width: 1px;
   height: 1px;
   top: 0;
@@ -2859,7 +2860,6 @@ export default {
 .hidden-date-input {
   position: absolute;
   opacity: 0;
-  pointer-events: none;
   width: 0;
   height: 0;
   overflow: hidden;

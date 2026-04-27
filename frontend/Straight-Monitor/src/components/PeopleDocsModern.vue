@@ -3,11 +3,26 @@
     <main class="main">
       <!-- ============== EMPLOYEE VIEW ============== -->
       <section class="panel">
-        <!-- Controls -->
-        <div class="controls">
-          <!-- Minimierbare Filter-Sektion -->
+        <!-- Minimierbare Filter-Sektion -->
           <FilterPanel v-model:expanded="filtersExpanded">
-            
+            <template #header-actions>
+              <div class="filter-search-box" :class="{ 'search-expanded': searchExpanded }">
+                <button class="filter-search-toggle" @click.stop="toggleSearchExpanded" type="button" title="Suche">
+                  <font-awesome-icon icon="fa-solid fa-magnifying-glass" />
+                </button>
+                <input
+                  ref="searchInput"
+                  v-model="mitarbeitersSearchQuery"
+                  type="text"
+                  placeholder="Suchen..."
+                  aria-label="Mitarbeiter suchen"
+                  @keydown.escape="searchExpanded = false"
+                  @blur="handleSearchBlur"
+                  @click.stop
+                />
+              </div>
+            </template>
+
             <!-- Enhanced Filter Chips (nur sichtbar wenn expanded) -->
             <div class="filter-chips">
             <!-- Compact Filters (Dropdowns) -->
@@ -207,20 +222,30 @@
             </div>
           </FilterPanel>
 
-          <div class="search-sort">
-            <div class="search">
-              <font-awesome-icon
-                icon="fa-solid fa-magnifying-glass"
-                class="search-ic"
-              />
-              <input
-                v-model="mitarbeitersSearchQuery"
-                type="text"
-                placeholder="Mitarbeiter suchen (Name, E-Mail)…"
-                aria-label="Mitarbeiter suchen"
-              />
+        <!-- View Controls (moved here, below search bar) -->
+        <div class="view-controls-section">
+          <div class="view-controls-left">
+            <!-- View Mode Toggle (versteckt auf Mobile) -->
+            <div class="view-toggle mobile-hidden">
+              <button 
+                class="view-btn"
+                :class="{ active: mitarbeiterViewMode === 'grid' }"
+                @click="mitarbeiterViewMode = 'grid'"
+              >
+                <font-awesome-icon icon="fa-solid fa-grip" />
+                Kacheln
+              </button>
+              <button 
+                class="view-btn"
+                :class="{ active: mitarbeiterViewMode === 'list' }"
+                @click="mitarbeiterViewMode = 'list'"
+              >
+                <font-awesome-icon icon="fa-solid fa-list" />
+                Liste
+              </button>
             </div>
 
+            <!-- Sort -->
             <div class="sort">
               <button class="btn-ghost" @click="toggleMitarbeiterSort">
                 <font-awesome-icon icon="fa-solid fa-arrow-up-wide-short" />
@@ -249,31 +274,6 @@
                   {{ mitarbeitersIsAscending ? "Aufsteigend" : "Absteigend" }}
                 </button>
               </div>
-            </div>
-          </div>
-        </div> <!-- Ende controls -->
-
-        <!-- View Controls (moved here, below search bar) -->
-        <div class="view-controls-section">
-          <div class="view-controls-left">
-            <!-- View Mode Toggle (versteckt auf Mobile) -->
-            <div class="view-toggle mobile-hidden">
-              <button 
-                class="view-btn"
-                :class="{ active: mitarbeiterViewMode === 'grid' }"
-                @click="mitarbeiterViewMode = 'grid'"
-              >
-                <font-awesome-icon icon="fa-solid fa-grip" />
-                Kacheln
-              </button>
-              <button 
-                class="view-btn"
-                :class="{ active: mitarbeiterViewMode === 'list' }"
-                @click="mitarbeiterViewMode = 'list'"
-              >
-                <font-awesome-icon icon="fa-solid fa-list" />
-                Liste
-              </button>
             </div>
 
             <!-- Selection Info -->
@@ -836,6 +836,7 @@ export default {
       
       // filter UI state
       filtersExpanded: true, // Filter standardmäßig ausgeklappt
+      searchExpanded: false, // Expandable search in filter header
 
       // view options
       mitarbeiterViewMode: "grid", // "grid" or "list"
@@ -1228,6 +1229,19 @@ export default {
     },
     toggleFilters() {
       this.filtersExpanded = !this.filtersExpanded;
+    },
+    toggleSearchExpanded() {
+      this.searchExpanded = !this.searchExpanded;
+      if (this.searchExpanded) {
+        this.$nextTick(() => {
+          if (this.$refs.searchInput) this.$refs.searchInput.focus();
+        });
+      }
+    },
+    handleSearchBlur() {
+      if (window.innerWidth <= 768 && !this.mitarbeitersSearchQuery) {
+        this.searchExpanded = false;
+      }
     },
     initials(ma) {
       const a = (ma?.vorname || "").trim()[0] || "";
@@ -2036,7 +2050,7 @@ export default {
 .controls {
   display: grid;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 4px;
 }
 
 /* View Controls */
@@ -2234,93 +2248,79 @@ export default {
   margin: 0 4px;
 }
 
-.search-sort {
-  display: grid;
-  grid-template-columns: minmax(280px, 1fr) auto;
-  gap: 16px;
+.filter-search-box {
+  display: flex;
   align-items: center;
-  isolation: isolate; /* Verhindert z-index Konflikte */
+  position: relative;
 }
-@container (max-width: 520px) {
-  /* falls du container-queries nutzt */
-  .search-sort {
-    grid-template-columns: 1fr;
+
+.filter-search-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--muted);
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+  line-height: 1;
+
+  &:hover {
+    color: var(--text);
+    background: var(--hover);
   }
 }
+
+.filter-search-box input {
+  display: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.85rem;
+  width: 0;
+  background: var(--tile-bg, var(--surface));
+  color: var(--text);
+  transition: width 0.25s ease, opacity 0.2s ease;
+  opacity: 0;
+}
+
+.filter-search-box.search-expanded input {
+  display: block;
+  width: 220px;
+  opacity: 1;
+}
+
 @media (max-width: 640px) {
-  .search-sort {
-    grid-template-columns: 1fr;
+  .filter-search-box.search-expanded input {
+    width: 150px;
   }
-  
+
   .filter-chips {
     gap: 8px;
     padding: 12px;
   }
-  
+
   .chip-group {
     padding: 6px 8px;
     min-width: 0;
   }
-  
+
   .divider {
     display: none;
   }
-  
+
   .chip-label {
     font-size: 10px;
   }
-  
+
   .chip {
     padding: 4px 8px;
     font-size: 12px;
   }
 }
 
-.search {
-  position: relative;
-  z-index: 1;
-  input {
-    width: 100%;
-    padding: 12px 38px 12px 40px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--surface);
-    color: var(--text);
-    outline: none;
-    transition: 140ms ease;
-  }
-  input:focus {
-    border-color: var(--brand);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 15%, transparent);
-  }
-  .search-ic {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--muted);
-  }
-  .clear {
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    padding: 6px;
-    border-radius: 8px;
-  }
-  .clear:hover {
-    background: var(--soft);
-    color: var(--text);
-  }
-}
-
 .sort {
   position: relative;
-  justify-self: end;
   z-index: 1;
 }
 .btn-ghost {

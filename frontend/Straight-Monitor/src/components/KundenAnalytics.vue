@@ -1,6 +1,12 @@
 <template>
   <div class="kunden-analytics">
 
+    <!-- Landscape Hint (only shown on mobile in portrait mode) -->
+    <div class="landscape-hint">
+      <font-awesome-icon :icon="['fas', 'rotate']" class="landscape-hint-icon" />
+      <span>Drehe dein Gerät ins Querformat für eine bessere Ansicht der Diagramme</span>
+    </div>
+
     <!-- Tab Navigation -->
     <div class="tab-navigation">
       <FilterChip :active="activeTab === 'saeulen'" @click="activeTab = 'saeulen'">
@@ -2492,5 +2498,95 @@ onBeforeUnmount(() => {
 .pie-wrapper canvas {
   max-height: 400px !important;
   max-width: 100% !important;
+}
+
+/* ---- Landscape Hint ---- */
+.landscape-hint {
+  display: none;
+}
+
+/* ---- Mobile Responsive ---- */
+@media (max-width: 768px) and (orientation: portrait) {
+  .landscape-hint {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    border: 1px solid var(--primary);
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: var(--primary);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .landscape-hint-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    animation: rotate-hint 2s ease-in-out infinite;
+  }
+
+  @keyframes rotate-hint {
+    0%, 100% { transform: rotate(0deg); }
+    30% { transform: rotate(90deg); }
+    70% { transform: rotate(90deg); }
+  }
+}
+
+@media (max-width: 900px) {
+  .filter-row {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .filter-separator {
+    display: none;
+  }
+
+  .slider-group {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .control-group-wide {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .tab-navigation {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .tab-separator {
+    display: none;
+  }
+
+  .chart-wrapper {
+    height: 320px;
+    padding: 12px;
+  }
+
+  .pie-wrapper {
+    height: 360px;
+  }
+
+  .pie-wrapper canvas {
+    max-height: 300px !important;
+  }
+
+  .summary-row {
+    gap: 10px;
+  }
+
+  .summary-card {
+    min-width: 100px;
+    padding: 12px 14px;
+  }
+
+  .summary-value {
+    font-size: 18px;
+  }
 }
 </style>

@@ -4,6 +4,28 @@
     <div class="panel">
       <div class="controls">
         <FilterPanel v-model:expanded="filtersExpanded" :locked="!!(filteredTeamleiter || filteredMitarbeiter)">
+          <template #header-actions>
+            <div class="filter-search-box" :class="{ 'search-expanded': searchExpanded }">
+              <button
+                class="filter-search-toggle"
+                @click.stop="toggleSearchExpanded"
+                type="button"
+                title="Suche"
+              >
+                <font-awesome-icon icon="fa-solid fa-magnifying-glass" />
+              </button>
+              <input
+                ref="searchInput"
+                v-model="documentsSearchQuery"
+                type="text"
+                placeholder="Dokumente durchsuchen..."
+                aria-label="Dokumente suchen"
+                @keydown.escape.stop="handleSearchEscape"
+                @blur="handleSearchBlur"
+                @click.stop
+              />
+            </div>
+          </template>
         <div class="filter-chips">
           <div class="chip-group">
             <span class="chip-label">Standort</span>
@@ -24,7 +46,7 @@
                 @click="setDocFilter('location', loc)"
               >
                 <font-awesome-icon icon="fa-solid fa-location-dot" />
-                {{ loc }}
+                {{ locationShort(loc) }}
               </button>
             </div>
           </div>
@@ -40,7 +62,7 @@
                 @click="toggleDocTypeFilter('Laufzettel (v2)')"
               >
                 <font-awesome-icon icon="fa-solid fa-file-lines" />
-                Laufzettel (v2)
+                Laufzettel
               </button>
               <button
                 class="chip"
@@ -49,6 +71,22 @@
               >
                 <font-awesome-icon icon="fa-solid fa-clipboard" />
                 Event Report
+              </button>
+            </div>
+          </div>
+
+          <span class="divider" />
+
+          <div class="chip-group">
+            <span class="chip-label">Status</span>
+            <div class="chips">
+              <button
+                class="chip"
+                :class="{ active: showOnlyOffen }"
+                @click="showOnlyOffen = !showOnlyOffen; currentPage = 1"
+              >
+                <font-awesome-icon :icon="['far', 'circle']" />
+                Offen
               </button>
             </div>
           </div>
@@ -84,22 +122,8 @@
         </div>
         </FilterPanel>
 
-        <div class="search-sort">
-          <div class="search">
-            <font-awesome-icon
-              icon="fa-solid fa-magnifying-glass"
-              class="search-ic"
-            />
-            <input
-              v-model="documentsSearchQuery"
-              type="text"
-              placeholder="Dokumente durchsuchen…"
-              aria-label="Dokumente suchen"
-            />
-          </div>
-
-          <!-- Pagination Controls -->
-          <div v-if="!loading.documents && filteredDocumentsSorted.length > 0" class="pagination-compact">
+        <div v-if="!loading.documents && filteredDocumentsSorted.length > 0" class="search-sort">
+          <div class="pagination-compact">
             <div class="pagination-info-compact">
               <span class="pagination-text">{{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}</span>
               
@@ -151,7 +175,7 @@
             <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
           </div>
           <div @click="handleSort('bezeichnung')" class="sortable">
-            Bezeichnung / Ort
+            Ort
             <font-awesome-icon v-if="sortKey === 'bezeichnung'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
             <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
           </div>
@@ -170,12 +194,11 @@
             <font-awesome-icon v-if="sortKey === 'mitarbeiter'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
             <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
           </div>
-          <div @click="handleSort('status')" class="sortable">
-            Status
+          <div @click="handleSort('status')" class="sortable" title="Status">
             <font-awesome-icon v-if="sortKey === 'status'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
             <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
           </div>
-          <div>Aktionen</div>
+          <div></div>
         </div>
         <div
           v-for="doc in paginatedDocuments"
@@ -184,14 +207,11 @@
           @click="openDoc(doc)"
         >
           <div>
-            <span
-              :class="['tag', doc.docType ? doc.docType.toLowerCase().replace(' ', '-') : '']"
-            >
-              {{ doc.docType || "—" }}
+            <span :class="['tag', docTypeClass(doc.docType)]" :title="doc.docType">
+              {{ docTypeShort(doc.docType) }}
             </span>
-            <span v-if="doc.version === 'v2'" class="version-badge">v2</span>
           </div>
-          <div class="truncate">{{ doc.bezeichnung || "—" }}</div>
+          <div class="truncate" :title="auftragTitelFor(doc) || doc.bezeichnung">{{ auftragTitelFor(doc) || doc.bezeichnung || "—" }}</div>
           <div>{{ formatDate(doc.datum) }}</div>
           <div class="truncate person-cell">
             <template v-if="doc.details?.name_teamleiter">
@@ -239,10 +259,8 @@
             </template>
             <span v-else>—</span>
           </div>
-          <div>
-            <span :class="['status', (doc.status || '').toLowerCase()]">
-              {{ doc.status || "—" }}
-            </span>
+          <div class="status-cell" :title="doc.status || '—'">
+            <font-awesome-icon :icon="statusIcon(doc.status)" :class="['status-icon', (doc.status || '').toLowerCase()]" />
           </div>
           <div class="actions-col" @click.stop>
             <button class="btn-icon" @click="toggleQuickActions(doc.id || doc._id)">
@@ -472,6 +490,7 @@ export default {
     let filterDefaults = {
       activeDocTypeFilters: ["Laufzettel (v2)", "Event-Bericht"],
       activeDocLocationFilter: "Alle",
+      showOnlyOffen: false,
       filteredTeamleiter: null,
       filteredMitarbeiter: null,
       documentsSearchQuery: "",
@@ -510,9 +529,11 @@ export default {
       // filters and search (restored from session or defaults)
       activeDocTypeFilters: filterDefaults.activeDocTypeFilters,
       activeDocLocationFilter: filterDefaults.activeDocLocationFilter,
+      showOnlyOffen: filterDefaults.showOnlyOffen || false,
       filteredTeamleiter: filterDefaults.filteredTeamleiter,
       filteredMitarbeiter: filterDefaults.filteredMitarbeiter,
       documentsSearchQuery: filterDefaults.documentsSearchQuery,
+      searchExpanded: Boolean(filterDefaults.documentsSearchQuery),
       
       // sorting (restored from session or defaults)
       sortKey: filterDefaults.sortKey,
@@ -560,6 +581,13 @@ export default {
         result = result.filter((d) => {
           const loc = d.details?.location || d.bezeichnung || "";
           return loc === this.activeDocLocationFilter;
+        });
+      }
+
+      if (this.showOnlyOffen) {
+        result = result.filter((d) => {
+          const s = (d.status || '').toLowerCase();
+          return s === 'offen' || s === 'open';
         });
       }
 
@@ -722,12 +750,70 @@ export default {
       return value;
     },
 
+    docTypeShort(docType) {
+      if (!docType) return '—';
+      if (docType.startsWith('Laufzettel')) return 'LZ';
+      if (docType === 'Event-Bericht') return 'ER';
+      if (docType === 'Evaluierung') return 'EV';
+      return docType.substring(0, 2).toUpperCase();
+    },
+
+    docTypeClass(docType) {
+      if (!docType) return '';
+      if (docType.startsWith('Laufzettel')) return 'laufzettel';
+      if (docType === 'Event-Bericht') return 'event-bericht';
+      if (docType === 'Evaluierung') return 'evaluierung';
+      return '';
+    },
+
+    statusIcon(status) {
+      const s = (status || '').toLowerCase();
+      if (s === 'zugewiesen') return 'fa-solid fa-user-check';
+      if (s === 'abgeschlossen') return 'fa-solid fa-list-check';
+      return ['far', 'circle']; // Offen
+    },
+
+    locationShort(loc) {
+      const map = { Hamburg: 'HH', Berlin: 'B', Köln: 'K' };
+      return map[loc] || loc;
+    },
+
+    auftragTitelFor(doc) {
+      const nr = doc?.details?.auftragnummer;
+      if (!nr) return null;
+      const auftrag = this.dataCache.auftraege.find(a => String(a.auftragNr) === String(nr));
+      return auftrag?.eventTitel || null;
+    },
+
     handleSort(key) {
       if (this.sortKey === key) {
         this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
       } else {
         this.sortKey = key;
         this.sortOrder = 'desc'; // Default to newest/descending
+      }
+    },
+
+    toggleSearchExpanded() {
+      this.searchExpanded = !this.searchExpanded;
+      if (this.searchExpanded) {
+        this.$nextTick(() => {
+          if (this.$refs.searchInput) {
+            this.$refs.searchInput.focus();
+          }
+        });
+      }
+    },
+
+    handleSearchBlur() {
+      if (!this.documentsSearchQuery) {
+        this.searchExpanded = false;
+      }
+    },
+
+    handleSearchEscape() {
+      if (!this.documentsSearchQuery) {
+        this.searchExpanded = false;
       }
     },
     
@@ -1081,10 +1167,19 @@ export default {
       if (this.activeQuickActionId && !event.target.closest('.actions-col')) {
         this.activeQuickActionId = null;
       }
+
+      if (this.searchExpanded && !event.target.closest('.filter-search-box') && !this.documentsSearchQuery) {
+        this.searchExpanded = false;
+      }
     },
 
     handleEscapeKey(event) {
       if (event.key !== 'Escape') return;
+
+      if (this.searchExpanded) {
+        this.handleSearchEscape();
+        return;
+      }
 
       // Close modals in order of priority (topmost = last opened)
       // Priority: Assign Modal > Employee Modal > Document Modal
@@ -1161,10 +1256,11 @@ export default {
     // 1) Token setzen
     this.setAxiosAuthToken();
 
-    // 2) User Daten & Dokumente laden
+    // 2) User Daten, Dokumente & Aufträge laden
     await Promise.all([
       this.fetchUserData(),
-      this.fetchDocuments()
+      this.fetchDocuments(),
+      this.dataCache.loadAuftraege(),
     ]);
 
     // 3) Query-Parameter verarbeiten (Filter aus Navigation)
@@ -1243,29 +1339,29 @@ export default {
 /* Controls */
 .controls {
   display: grid;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 /* Filter Chips */
 .filter-chips {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
   flex-wrap: wrap;
-  padding: 16px;
+  padding: 8px;
   background: var(--soft);
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid var(--border);
 }
 
 .chip-group {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 4px 8px;
   background: var(--surface);
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   transition: all 200ms ease;
   position: relative;
@@ -1297,15 +1393,15 @@ export default {
 .chips {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   flex-wrap: wrap;
 }
 
 .chip-label {
   color: var(--brand);
   font-weight: 700;
-  margin-right: 6px;
-  font-size: 11px;
+  margin-right: 3px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 2px 0;
@@ -1315,14 +1411,14 @@ export default {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  border-radius: 6px;
-  padding: 6px 12px;
+  border-radius: 5px;
+  padding: 3px 9px;
   display: inline-flex;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
   cursor: pointer;
   transition: all 200ms ease;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
 }
 
@@ -1340,23 +1436,23 @@ export default {
 }
 
 .divider {
-  width: 2px;
-  height: 32px;
+  width: 1px;
+  height: 20px;
   background: linear-gradient(to bottom, 
     transparent 0%,
     var(--border) 20%,
     var(--border) 80%,
     transparent 100%);
   border-radius: 1px;
-  margin: 0 4px;
+  margin: 0 2px;
 }
 
 .search-sort {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
 }
 
 @media (max-width: 640px) {
@@ -1366,32 +1462,57 @@ export default {
   }
 }
 
-.search {
+.filter-search-box {
+  display: flex;
+  align-items: center;
   position: relative;
-  flex: 1 1 280px;
-  
-  input {
-    width: 100%;
-    padding: 12px 38px 12px 40px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--surface);
-    color: var(--text);
-    outline: none;
-    transition: 140ms ease;
-  }
-  
-  input:focus {
-    border-color: var(--brand);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 15%, transparent);
-  }
-  
-  .search-ic {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--muted);
+}
+
+.filter-search-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--muted);
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+  line-height: 1;
+}
+
+.filter-search-toggle:hover {
+  color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+}
+
+.filter-search-box input {
+  display: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.85rem;
+  width: 0;
+  background: var(--surface);
+  color: var(--text);
+  transition: width 0.25s ease, opacity 0.2s ease;
+  opacity: 0;
+}
+
+.filter-search-box input:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent);
+}
+
+.filter-search-box.search-expanded input {
+  display: block;
+  width: 220px;
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .filter-search-box.search-expanded input {
+    width: 150px;
   }
 }
 
@@ -1461,8 +1582,8 @@ export default {
 .table .thead,
 .table .row {
   display: grid;
-  grid-template-columns: 1.2fr 2fr 1.2fr 1.4fr 1.4fr 1.2fr auto;
-  gap: 12px;
+  grid-template-columns: 40px minmax(0, 1.5fr) 82px minmax(0, 1.2fr) minmax(0, 1.2fr) 32px 32px;
+  gap: 10px;
   align-items: center;
   background: var(--surface);
   border-top: 1px solid var(--border);
@@ -1512,67 +1633,47 @@ export default {
 .tag {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
-  border-radius: 999px;
+  justify-content: center;
+  padding: 3px 7px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 5px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
   background: color-mix(in srgb, var(--brand) 12%, var(--surface));
   color: var(--brand-ink);
 }
 
 .tag.laufzettel {
-  background: #e9f8ff;
-  color: #1976d2;
+  background: #dbeeff;
+  color: #1565c0;
 }
 
 .tag.event-bericht {
-  background: #fff0ea;
-  color: #d55a1f;
+  background: #fde8d8;
+  color: #c0541a;
 }
 
 .tag.evaluierung {
-  background: #eaf8f0;
-  color: #1e8e57;
+  background: #d4f5e8;
+  color: #1a7a4a;
 }
 
-.version-badge {
-  display: inline-flex;
+/* Status icon (replaces pill) */
+.status-cell {
+  display: flex;
   align-items: center;
-  padding: 2px 6px;
-  font-size: 10px;
-  font-weight: 700;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--brand) 12%, transparent);
-  color: var(--brand-ink);
-  margin-left: 6px;
-  vertical-align: middle;
+  justify-content: center;
 }
 
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
-  border-radius: 999px;
-  background: var(--soft);
+.status-icon {
+  font-size: 0.9rem;
   color: var(--muted);
 }
 
-.status.zugewiesen {
-  background: #e9f8ff;
-  color: #1976d2;
-}
-
-.status.offen {
-  background: #fff7e6;
-  color: #b46c00;
-}
-
-.status.abgeschlossen {
-  background: #eaf8f0;
-  color: #1e8e57;
-}
+.status-icon.zugewiesen { color: #1976d2; }
+.status-icon.abgeschlossen { color: #1e8e57; }
+.status-icon.offen { color: #b46c00; }
 
 /* Skeleton */
 .table.skeleton {
@@ -2194,5 +2295,77 @@ export default {
 
 .modal-body.no-padding {
   padding: 0;
+}
+
+/* ── Responsive table ─────────────────────────────────────────────── */
+
+/* Tablet (≤ 1024px): hide Mitarbeiter column */
+@media (max-width: 1024px) {
+  .table .thead,
+  .table .row {
+    grid-template-columns: 40px minmax(0, 1.8fr) 82px minmax(0, 1.6fr) 32px 32px;
+  }
+
+  /* Mitarbeiter = 5th child (1=type 2=ort 3=datum 4=TL 5=MA 6=status 7=actions) */
+  .table .thead > :nth-child(5),
+  .table .row > :nth-child(5) {
+    display: none;
+  }
+}
+
+/* Mobile (≤ 640px): card layout */
+@media (max-width: 640px) {
+  .panel {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .table {
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    margin: 0 -12px;
+  }
+
+  /* Hide table header row */
+  .table .thead { display: none; }
+
+  /*
+   * Each row becomes a compact 2-row card:
+   *   Row 1: [badge] | [ort]     | [date]    | [status-icon]
+   *   Row 2:         | [TL name] | [MA name] | [actions-btn]
+   *
+   * Grid columns: badge(auto) | main(1fr) | side(0.7fr) | right(auto)
+   */
+  .table .row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 0.7fr) auto;
+    grid-template-rows: auto auto;
+    padding: 8px 12px;
+    column-gap: 8px;
+    row-gap: 2px;
+    align-items: center;
+  }
+
+  /* 1: badge — row1, col1 */
+  .table .row > :nth-child(1) { grid-row: 1; grid-column: 1; align-self: start; padding-top: 2px; }
+  /* 2: location — row1, col2 */
+  .table .row > :nth-child(2) { grid-row: 1; grid-column: 2; font-size: 0.85rem; font-weight: 500; }
+  /* 3: date — row1, col3 */
+  .table .row > :nth-child(3) { grid-row: 1; grid-column: 3; font-size: 0.75rem; color: var(--muted); white-space: nowrap; text-align: right; }
+  /* 4: TL — row2, col2 */
+  .table .row > :nth-child(4) { grid-row: 2; grid-column: 2; font-size: 0.76rem; color: var(--muted); min-width: 0; }
+  /* 5: MA — row2, col3 */
+  .table .row > :nth-child(5) { grid-row: 2; grid-column: 3; font-size: 0.76rem; color: var(--muted); min-width: 0; }
+  /* 6: status icon — row1, col4 */
+  .table .row > :nth-child(6) { grid-row: 1; grid-column: 4; display: flex; align-items: center; justify-content: center; }
+  /* 7: actions — row2, col4 */
+  .table .row > :nth-child(7) { grid-row: 2; grid-column: 4; justify-self: end; }
+
+  /* Hide filter-icon buttons inside person cells to save space on mobile */
+  .table .row .btn-icon-tiny { display: none; }
+
+  /* Compact link buttons in person cells */
+  .table .row .link-btn { font-size: 0.76rem; }
 }
 </style>

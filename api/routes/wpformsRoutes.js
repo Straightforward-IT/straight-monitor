@@ -21,6 +21,7 @@ const {
 const { sendMail } = require("../EmailService"); // Ensure sendMail is properly imported
 
 const Mitarbeiter = require("../models/Mitarbeiter");
+const Auftrag = require("../models/Auftrag");
 
 const {
   findMitarbeiterByName,
@@ -823,6 +824,16 @@ router.get(
       EvaluierungMA.find().lean().sort({ datum: -1 }),
     ]);
 
+    // Collect all unique auftragnummer values and fetch matching Auftrag titles in one query
+    const allDocs_raw = [...laufzettel, ...eventReports, ...evaluierungen];
+    const auftragnummern = [...new Set(
+      allDocs_raw.map(d => d.auftragnummer).filter(Boolean).map(Number).filter(n => !isNaN(n))
+    )];
+    const auftraegeForTitel = auftragnummern.length
+      ? await Auftrag.find({ auftragNr: { $in: auftragnummern } }, { auftragNr: 1, eventTitel: 1 }).lean()
+      : [];
+    const auftragTitelMap = new Map(auftraegeForTitel.map(a => [a.auftragNr, a.eventTitel]));
+
     const formatDoc = (doc, type) => {
       let personen = [];
       if (doc.name_mitarbeiter) personen.push(doc.name_mitarbeiter);
@@ -839,11 +850,17 @@ router.get(
         status = doc.assigned ? "Zugewiesen" : "Offen";
       }
 
+      const auftragNrNum = doc.auftragnummer ? Number(doc.auftragnummer) : null;
+      const auftragTitel = auftragNrNum && auftragTitelMap.has(auftragNrNum)
+        ? auftragTitelMap.get(auftragNrNum)
+        : null;
+
       return {
         _id: doc._id,
         docType: type,
         version: doc.version || "v1",
         bezeichnung: doc.location || type,
+        auftragTitel,
         datum: doc.datum || doc.date,
         personen: personenStr,
         status,
@@ -939,6 +956,16 @@ router.get(
       EvaluierungMA.find({ updatedAt: { $gt: sinceDate } }).lean(),
     ]);
 
+    // Collect all unique auftragnummer values and fetch matching Auftrag titles in one query
+    const allDocs_raw = [...laufzettel, ...eventReports, ...evaluierungen];
+    const auftragnummern = [...new Set(
+      allDocs_raw.map(d => d.auftragnummer).filter(Boolean).map(Number).filter(n => !isNaN(n))
+    )];
+    const auftraegeForTitel = auftragnummern.length
+      ? await Auftrag.find({ auftragNr: { $in: auftragnummern } }, { auftragNr: 1, eventTitel: 1 }).lean()
+      : [];
+    const auftragTitelMap = new Map(auftraegeForTitel.map(a => [a.auftragNr, a.eventTitel]));
+
     const formatDoc = (doc, type) => {
       let personen = [];
       if (doc.name_mitarbeiter) personen.push(doc.name_mitarbeiter);
@@ -952,11 +979,17 @@ router.get(
         status = doc.assigned ? "Zugewiesen" : "Offen";
       }
 
+      const auftragNrNum = doc.auftragnummer ? Number(doc.auftragnummer) : null;
+      const auftragTitel = auftragNrNum && auftragTitelMap.has(auftragNrNum)
+        ? auftragTitelMap.get(auftragNrNum)
+        : null;
+
       return {
         _id: doc._id,
         docType: type,
         version: doc.version || "v1",
         bezeichnung: doc.location || type,
+        auftragTitel,
         datum: doc.datum || doc.date,
         personen: personenStr,
         status,
