@@ -174,14 +174,14 @@
             <font-awesome-icon v-if="sortKey === 'docType'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
             <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
           </div>
-          <div @click="handleSort('bezeichnung')" class="sortable">
-            Ort
-            <font-awesome-icon v-if="sortKey === 'bezeichnung'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
-            <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
-          </div>
           <div @click="handleSort('datum')" class="sortable">
             Datum
             <font-awesome-icon v-if="sortKey === 'datum'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
+            <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
+          </div>
+          <div @click="handleSort('bezeichnung')" class="sortable">
+            Event
+            <font-awesome-icon v-if="sortKey === 'bezeichnung'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
             <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
           </div>
           <div @click="handleSort('teamleiter')" class="sortable">
@@ -211,8 +211,8 @@
               {{ docTypeShort(doc.docType) }}
             </span>
           </div>
-          <div class="truncate" :title="auftragTitelMap.get(String(doc.details?.auftragnummer)) || doc.bezeichnung">{{ auftragTitelMap.get(String(doc.details?.auftragnummer)) || doc.bezeichnung || "—" }}</div>
           <div>{{ formatDate(doc.datum) }}</div>
+          <div class="truncate" :title="auftragTitelMap.get(String(doc.details?.auftragnummer)) || doc.bezeichnung">{{ auftragTitelMap.get(String(doc.details?.auftragnummer)) || doc.bezeichnung || "—" }}</div>
           <div class="truncate person-cell">
             <template v-if="doc.details?.name_teamleiter">
               <template v-if="doc.details?.teamleiter">
@@ -1583,7 +1583,7 @@ export default {
 .table .thead,
 .table .row {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1.5fr) 82px minmax(0, 1.2fr) minmax(0, 1.2fr) 32px 32px;
+  grid-template-columns: 40px 90px minmax(0, 1.8fr) minmax(0, 1.4fr) minmax(0, 1.2fr) 32px 32px;
   gap: 10px;
   align-items: center;
   background: var(--surface);
@@ -2304,7 +2304,7 @@ export default {
 @media (max-width: 1024px) {
   .table .thead,
   .table .row {
-    grid-template-columns: 40px minmax(0, 1.8fr) 82px minmax(0, 1.6fr) 32px 32px;
+    grid-template-columns: 40px 90px minmax(0, 2fr) minmax(0, 1.6fr) 32px 32px;
   }
 
   /* Mitarbeiter = 5th child (1=type 2=ort 3=datum 4=TL 5=MA 6=status 7=actions) */
@@ -2350,10 +2350,10 @@ export default {
 
   /* 1: badge — row1, col1 */
   .table .row > :nth-child(1) { grid-row: 1; grid-column: 1; align-self: start; padding-top: 2px; }
-  /* 2: location — row1, col2 */
-  .table .row > :nth-child(2) { grid-row: 1; grid-column: 2; font-size: 0.85rem; font-weight: 500; }
-  /* 3: date — row1, col3 */
-  .table .row > :nth-child(3) { grid-row: 1; grid-column: 3; font-size: 0.75rem; color: var(--muted); white-space: nowrap; text-align: right; }
+  /* 2: date (DOM pos 2 after reorder) — row1, col3 */
+  .table .row > :nth-child(2) { grid-row: 1; grid-column: 3; font-size: 0.75rem; color: var(--muted); white-space: nowrap; text-align: right; }
+  /* 3: location (DOM pos 3 after reorder) — row1, col2 */
+  .table .row > :nth-child(3) { grid-row: 1; grid-column: 2; font-size: 0.85rem; font-weight: 500; }
   /* 4: TL — row2, col2 */
   .table .row > :nth-child(4) { grid-row: 2; grid-column: 2; font-size: 0.76rem; color: var(--muted); min-width: 0; }
   /* 5: MA — row2, col3 */

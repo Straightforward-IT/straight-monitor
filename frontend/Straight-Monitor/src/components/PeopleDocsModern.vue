@@ -245,6 +245,28 @@
               </button>
             </div>
 
+            <!-- Selection Info -->
+            <div v-if="selectedMitarbeiterIds.size > 0" class="selection-info">
+              <span class="selection-count">{{ selectedMitarbeiterIds.size }} ausgewählt</span>
+              <button
+                v-if="selectedMitarbeiterIds.size < filteredMitarbeitersSorted.length"
+                class="btn-select-all-filtered"
+                @click="selectAllFiltered"
+              >
+                Alle {{ filteredMitarbeitersSorted.length }} auswählen
+              </button>
+              <button class="btn-export-action" @click="showExportModal = true">
+                <font-awesome-icon icon="fa-solid fa-table" />
+                Exportieren
+              </button>
+              <button class="btn-clear" @click="clearSelection">
+                <font-awesome-icon icon="fa-solid fa-times" />
+                Auswahl löschen
+              </button>
+            </div>
+          </div>
+
+          <div class="view-controls-right">
             <!-- Sort -->
             <div class="sort">
               <button class="btn-ghost" @click="toggleMitarbeiterSort">
@@ -276,65 +298,45 @@
               </div>
             </div>
 
-            <!-- Selection Info -->
-            <div v-if="selectedMitarbeiterIds.size > 0" class="selection-info">
-              <span class="selection-count">{{ selectedMitarbeiterIds.size }} ausgewählt</span>
-              <button
-                v-if="selectedMitarbeiterIds.size < filteredMitarbeitersSorted.length"
-                class="btn-select-all-filtered"
-                @click="selectAllFiltered"
-              >
-                Alle {{ filteredMitarbeitersSorted.length }} auswählen
-              </button>
-              <button class="btn-export-action" @click="showExportModal = true">
-                <font-awesome-icon icon="fa-solid fa-table" />
-                Exportieren
-              </button>
-              <button class="btn-clear" @click="clearSelection">
-                <font-awesome-icon icon="fa-solid fa-times" />
-                Auswahl löschen
-              </button>
-            </div>
-          </div>
-
-          <!-- Pagination Info (compact version) -->
-          <div v-if="!loading.mitarbeiter && filteredMitarbeitersSorted.length > 0" class="pagination-compact">
-            <div class="pagination-info-compact">
-              <span class="pagination-text">{{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}</span>
-              
-              <select 
-                v-model="itemsPerPage" 
-                @change="setItemsPerPage(Number($event.target.value))"
-                class="pagination-select-compact"
-              >
-                <option v-for="size in pageOptions" :key="size" :value="size">
-                  {{ size }}
-                </option>
-              </select>
-            </div>
-            
-            <div class="pagination-controls-compact" v-if="totalPages > 1">
-              <custom-tooltip text="Vorherige Seite" position="top" :delay-in="150">
-                <button 
-                  class="pagination-btn-compact" 
-                  :disabled="currentPage === 1" 
-                  @click="prevPage"
+            <!-- Pagination Info (compact version) -->
+            <div v-if="!loading.mitarbeiter && filteredMitarbeitersSorted.length > 0" class="pagination-compact">
+              <div class="pagination-info-compact">
+                <span class="pagination-text">{{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}</span>
+                
+                <select 
+                  v-model="itemsPerPage" 
+                  @change="setItemsPerPage(Number($event.target.value))"
+                  class="pagination-select-compact"
                 >
-                  <font-awesome-icon icon="fa-solid fa-chevron-left" />
-                </button>
-              </custom-tooltip>
+                  <option v-for="size in pageOptions" :key="size" :value="size">
+                    {{ size }}
+                  </option>
+                </select>
+              </div>
               
-              <span class="page-indicator">{{ currentPage }} / {{ totalPages }}</span>
-              
-              <custom-tooltip text="Nächste Seite" position="top" :delay-in="150">
-                <button 
-                  class="pagination-btn-compact" 
-                  :disabled="currentPage === totalPages" 
-                  @click="nextPage"
-                >
-                  <font-awesome-icon icon="fa-solid fa-chevron-right" />
-                </button>
-              </custom-tooltip>
+              <div class="pagination-controls-compact" v-if="totalPages > 1">
+                <custom-tooltip text="Vorherige Seite" position="top" :delay-in="150">
+                  <button 
+                    class="pagination-btn-compact" 
+                    :disabled="currentPage === 1" 
+                    @click="prevPage"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-chevron-left" />
+                  </button>
+                </custom-tooltip>
+                
+                <span class="page-indicator">{{ currentPage }} / {{ totalPages }}</span>
+                
+                <custom-tooltip text="Nächste Seite" position="top" :delay-in="150">
+                  <button 
+                    class="pagination-btn-compact" 
+                    :disabled="currentPage === totalPages" 
+                    @click="nextPage"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-chevron-right" />
+                  </button>
+                </custom-tooltip>
+              </div>
             </div>
           </div>
         </div>
@@ -3409,6 +3411,15 @@ html {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.view-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /* View Controls */
@@ -3819,19 +3830,67 @@ html {
   }
   
   .view-controls-section {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: nowrap;
   }
   
   .view-controls-left {
-    justify-content: center;
-    flex-wrap: wrap;
+    display: none;
+  }
+
+  .view-controls-right {
+    width: 100%;
+    justify-content: space-between;
     gap: 8px;
+    flex-wrap: nowrap;
+    min-width: 0;
   }
   
   .pagination-compact {
-    justify-content: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .pagination-info-compact,
+  .pagination-controls-compact,
+  .btn-ghost {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+
+  .pagination-info-compact,
+  .pagination-controls-compact {
+    min-width: 0;
+  }
+
+  .btn-ghost {
+    padding: 8px 10px;
+    gap: 6px;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+
+  .pagination-text,
+  .page-indicator,
+  .pagination-select-compact,
+  .pagination-btn-compact {
+    font-size: 0.9rem;
+  }
+
+  .pagination-select-compact {
+    min-width: 42px;
+    padding: 0.125rem 0.2rem;
+  }
+
+  .pagination-btn-compact {
+    width: 26px;
+    height: 26px;
   }
   
   /* Search & Filter mobile */
@@ -3878,9 +3937,14 @@ html {
   .people-docs-modern {
     padding: 8px 4px;
   }
-  
-  .view-controls-left {
-    gap: 6px;
+
+  .view-controls-right {
+    gap: 4px;
+  }
+
+  .view-controls-section {
+    padding: 0.6rem 0.75rem;
+    gap: 4px;
   }
   
   .view-toggle-btn {
@@ -3894,8 +3958,30 @@ html {
   }
   
   .pagination-btn-compact {
-    width: 32px;
-    height: 32px;
+    width: 24px;
+    height: 24px;
+  }
+
+  .btn-ghost {
+    padding: 7px 8px;
+    font-size: 0.85rem;
+    gap: 4px;
+  }
+
+  .pagination-compact {
+    gap: 4px;
+  }
+
+  .pagination-info-compact,
+  .pagination-controls-compact {
+    gap: 0.35rem;
+  }
+
+  .pagination-text,
+  .page-indicator,
+  .pagination-select-compact,
+  .pagination-btn-compact {
+    font-size: 0.82rem;
   }
   
   .filter-chips {
