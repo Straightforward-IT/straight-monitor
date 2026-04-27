@@ -211,7 +211,7 @@
               {{ docTypeShort(doc.docType) }}
             </span>
           </div>
-          <div class="truncate" :title="auftragTitelFor(doc) || doc.bezeichnung">{{ auftragTitelFor(doc) || doc.bezeichnung || "—" }}</div>
+          <div class="truncate" :title="auftragTitelMap.get(String(doc.details?.auftragnummer)) || doc.bezeichnung">{{ auftragTitelMap.get(String(doc.details?.auftragnummer)) || doc.bezeichnung || "—" }}</div>
           <div>{{ formatDate(doc.datum) }}</div>
           <div class="truncate person-cell">
             <template v-if="doc.details?.name_teamleiter">
@@ -562,6 +562,14 @@ export default {
   },
 
   computed: {
+    auftragTitelMap() {
+      const map = new Map();
+      for (const a of this.dataCache.auftraege) {
+        if (a.auftragNr != null && a.eventTitel) map.set(String(a.auftragNr), a.eventTitel);
+      }
+      return map;
+    },
+
     filteredDocuments() {
       let result = this.documents || [];
 
@@ -776,13 +784,6 @@ export default {
     locationShort(loc) {
       const map = { Hamburg: 'HH', Berlin: 'B', Köln: 'K' };
       return map[loc] || loc;
-    },
-
-    auftragTitelFor(doc) {
-      const nr = doc?.details?.auftragnummer;
-      if (!nr) return null;
-      const auftrag = this.dataCache.auftraege.find(a => String(a.auftragNr) === String(nr));
-      return auftrag?.eventTitel || null;
     },
 
     handleSort(key) {
@@ -1256,12 +1257,12 @@ export default {
     // 1) Token setzen
     this.setAxiosAuthToken();
 
-    // 2) User Daten, Dokumente & Aufträge laden
+    // 2) User Daten & Dokumente laden (Aufträge non-blocking im Hintergrund)
     await Promise.all([
       this.fetchUserData(),
       this.fetchDocuments(),
-      this.dataCache.loadAuftraege(),
     ]);
+    this.dataCache.loadAuftraege(); // fire-and-forget: nur für auftragTitelFor() benötigt
 
     // 3) Query-Parameter verarbeiten (Filter aus Navigation)
     const hasFilterParam = this.$route.query.filterTeamleiter || this.$route.query.filterMitarbeiter;
