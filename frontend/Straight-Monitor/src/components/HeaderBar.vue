@@ -3,6 +3,7 @@
     <div class="left">
       <img :src="logoSrc" :class="['logo', { 'logo--intro': playLogoIntro }]" alt="logo" />
       <h1>Monitor</h1>
+      <span v-if="currentViewTitle" class="header-view-title" :title="currentViewTitle">{{ currentViewTitle }}</span>
       
       <!-- Desktop Navigation -->
       <nav class="desktop-nav">
@@ -195,6 +196,15 @@
         <div class="mobile-menu-divider"></div>
         
         <!-- Mobile Tools & Support -->
+        <button
+          v-if="$route.name === 'Bestand'"
+          class="mobile-menu-btn"
+          @click="ui.toggle('shortcuts'); showMobileMenu = false"
+        >
+          <font-awesome-icon :icon="['fas', 'bolt']" />
+          Shortcuts
+        </button>
+
         <button class="mobile-menu-btn" @click="ui.toggle('tools'); showMobileMenu = false">
           <font-awesome-icon :icon="['fas', 'tools']" />
           Tools
@@ -334,6 +344,13 @@ import { setTheme } from '@getflip/bridge';
 // Logos vorher importieren
 import darkLogo from "@/assets/SF_000.svg";
 import lightLogo from "@/assets/SF_002.png";
+
+defineProps({
+  currentViewTitle: {
+    type: String,
+    default: '',
+  },
+});
 
 const ui = useUi();
 const theme = useTheme();
@@ -569,6 +586,17 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
+.header-view-title {
+  display: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text);
+}
+
 /* Burger Button - versteckt auf Desktop */
 .burger-btn {
   display: none;
@@ -612,7 +640,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -708,8 +736,8 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
-/* Mobile Header Optimierungen */
-@media (max-width: 768px) {
+/* Compact Header Optimierungen */
+@media (max-width: 1100px) {
   .header {
     padding: 6px 12px;
     min-height: 48px;
@@ -721,11 +749,13 @@ onBeforeUnmount(() => {
     flex: 1;
     min-width: 0;
     overflow: hidden; /* Verhindere Overflow */
+    flex-wrap: nowrap;
   }
   
   .right {
     gap: 4px;
     flex-shrink: 0; /* Verhindere Schrumpfung */
+    flex-wrap: nowrap;
   }
   
   /* Button-Gruppen umschalten */
@@ -740,6 +770,10 @@ onBeforeUnmount(() => {
   /* Verstecke Desktop Navigation */
   .desktop-nav {
     display: none;
+  }
+
+  .header-view-title {
+    display: block;
   }
   
   /* Zeige Burger Button */

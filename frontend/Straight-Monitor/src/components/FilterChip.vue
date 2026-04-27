@@ -51,4 +51,12 @@ export default {
   box-shadow: inset 0 0 0 1px var(--brand);
   font-weight: 600;
 }
+
+@media (max-width: 768px) {
+  .filter-chip {
+    padding: 4px 9px;
+    font-size: 12px;
+    border-radius: 5px;
+  }
+}
 </style>

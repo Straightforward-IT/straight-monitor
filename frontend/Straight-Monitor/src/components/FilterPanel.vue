@@ -2,6 +2,7 @@
 <template>
   <div class="filter-panel" :class="{ 'is-expanded': expanded, 'is-locked': locked }">
     <div class="filter-header" @click="toggle" :title="locked ? 'Filter kann nicht zugeklappt werden (aktiver Personenfilter)' : (expanded ? 'Filter einklappen' : 'Filter ausklappen')">
+      <span v-if="!expanded && activeCount > 0" class="filter-count-badge">{{ activeCount }}</span>
       <h3>
         <slot name="title">Filter</slot>
       </h3>
@@ -39,9 +40,18 @@ export default {
     locked: {
       type: Boolean,
       default: false
+    },
+    activeCount: {
+      type: Number,
+      default: 0
     }
   },
   emits: ['update:expanded'],
+  mounted() {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768 && this.expanded && !this.locked) {
+      this.$emit('update:expanded', false);
+    }
+  },
   methods: {
     toggle() {
       // Nur verhindern, dass zugeklappt wird wenn gelockt, aber Öffnen erlauben
@@ -189,29 +199,59 @@ export default {
   }
 }
 
+.filter-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--brand);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
 /* Mobile Optimierung */
 @media (max-width: 768px) {
   .filter-panel {
     border-radius: 6px;
-    margin-bottom: 16px;
+    margin-bottom: 10px;
   }
 
   .filter-header {
-    padding: 10px 16px;
-    
+    padding: 7px 12px;
+    min-height: 40px;
+
     h3 {
-      font-size: 0.95rem;
+      font-size: 0.82rem;
+      gap: 6px;
+
+      &::before {
+        width: 13px;
+        height: 13px;
+      }
     }
   }
-  
-  .filter-content {
-    padding: 12px;
+
+  .collapse-btn {
+    width: 26px;
+    height: 26px;
+    font-size: 0.75rem;
   }
 
-  /* Responsive layout adjustment */
+  .filter-content {
+    padding: 8px;
+  }
+
   .filter-layout {
-      padding: 12px;
-      gap: 8px;
+    padding: 8px;
+    gap: 6px;
+    border-radius: 8px;
   }
 }
 </style>

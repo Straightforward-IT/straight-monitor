@@ -1,9 +1,9 @@
 <template>
   <span></span>
-  <h4>
+  <h2 data-page-title="Bestand">
     Straight
     <span><font-awesome-icon :icon="['fas', 'warehouse']" /> Bestand</span>
-  </h4>
+  </h2>
 
   <div class="search-outer">
     <div class="search-container">

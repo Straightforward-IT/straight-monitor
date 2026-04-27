@@ -1,27 +1,25 @@
 <template>
   <div class="auftraege-page" :class="{ 'sidebar-open': selectedEvent }">
     <div class="main-content">
-    <div class="page-header">
-      <div class="header-title-group">
-        <h1>Aufträge</h1>
-        <div v-if="dataStatus" class="data-status-badge" title="Stand der Daten (Zvoove Import)">
-          <font-awesome-icon icon="fa-solid fa-clock" />
-          <span>Stand der Auftragsdaten von: {{ formatDataStatus(dataStatus) }}</span>
-        </div>
-      </div>
-      <div class="header-controls">
-        <div class="search-box">
+    <FilterPanel v-model:expanded="filtersExpanded" title="Filter Optionen">
+      <!-- Mobile search toggle in filter header -->
+      <template #header-actions>
+        <div class="filter-search-box" :class="{ 'search-expanded': searchExpanded }">
+          <button class="filter-search-toggle" @click.stop="toggleSearchExpanded" type="button" title="Suche">
+            <font-awesome-icon icon="fa-solid fa-magnifying-glass" />
+          </button>
           <input 
+            ref="searchInput"
             v-model="searchQuery" 
             type="text" 
-            placeholder="Suchen (Auftrag, Kunde, Ort, Mitarbeiter...)"
+            placeholder="Suchen..."
             @input="debouncedSearch"
+            @keydown.escape="searchExpanded = false"
+            @blur="handleSearchBlur"
+            @click.stop
           />
         </div>
-      </div>
-    </div>
-
-    <FilterPanel v-model:expanded="filtersExpanded" title="Filter Optionen">
+      </template>
           <!-- GeschSt Filter -->
           <FilterGroup label="Geschäftsstelle">
             <FilterChip
@@ -101,6 +99,12 @@
             <font-awesome-icon icon="fa-solid fa-rotate-left" />
             Zurücksetzen
           </FilterChip>
+
+          <!-- Stand der Auftragsdaten -->
+          <div v-if="dataStatus" class="data-status-badge" title="Stand der Daten (Zvoove Import)">
+            <font-awesome-icon icon="fa-solid fa-clock" />
+            <span>Stand: {{ formatDataStatus(dataStatus) }}</span>
+          </div>
       </FilterPanel>
 
     <div class="calendar-navigation">
@@ -132,9 +136,17 @@
           <font-awesome-icon icon="fa-solid fa-chevron-left" />
         </button>
         
-        <div class="mobile-date-display" v-if="weekDays[mobileDayIndex]">
+        <div class="mobile-date-display" v-if="weekDays[mobileDayIndex]" @click="openMobileDatePicker" title="Datum wählen">
           <span class="day-name">{{ weekDays[mobileDayIndex].name }}</span>
           <span class="day-date">{{ formatDayDate(weekDays[mobileDayIndex].date) }}</span>
+          <input
+            ref="mobileDatePicker"
+            type="date"
+            class="hidden-date-input"
+            :value="mobileDatePickerValue"
+            @change="jumpToDate"
+            @click.stop
+          />
         </div>
         
         <button class="nav-btn-mobile" @click="nextDay">
@@ -156,23 +168,34 @@
           v-for="event in getEventsForDay(weekDays[mobileDayIndex].date)" 
           :key="event._id"
           class="event-card-mobile"
-          :class="getEventStatusClass(event)"
+          :class="[getEventStatusClass(event), getBedarfClass(event)]"
           @click="selectEvent(event)"
         >
             <div class="event-header">
               <span v-if="event.auftStatus !== 2" class="event-status">{{ getStatusText(event.auftStatus) }}</span>
             </div>
             
-            <div class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
-            
-            <div class="event-details">
-              <div class="detail-row">
-                  <font-awesome-icon icon="fa-solid fa-user" class="icon" />
-                  <span>{{ event.kundeData?.kundName || '-' }}</span>
+            <div class="event-title-row">
+              <div class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
+              <div v-if="event.labels && event.labels.length" class="event-labels">
+                <span
+                  v-for="label in event.labels"
+                  :key="label._id"
+                  class="event-label-chip"
+                  :style="{ background: label.color + '33', borderColor: label.color, color: label.color }"
+                >{{ label.name }}</span>
               </div>
-              <div class="detail-row">
-                  <font-awesome-icon icon="fa-solid fa-location-dot" class="icon" />
-                  <span>{{ event.eventOrt || '-' }}</span>
+            </div>
+
+            <div class="event-shifts" v-if="getSchichtenForDay(event, weekDays[mobileDayIndex].date).length">
+              <div
+                v-for="s in getSchichtenForDay(event, weekDays[mobileDayIndex].date)"
+                :key="s.id"
+                class="shift-row"
+              >
+                <span class="shift-time">{{ s.uhrzeitVon || '?' }}{{ s.uhrzeitBis ? '–' + s.uhrzeitBis : '' }}</span>
+                <span class="shift-name" v-if="s.bezeichnung">{{ s.bezeichnung }}</span>
+                <span class="shift-pos">{{ s.besetzt }}/{{ s.bedarf }}</span>
               </div>
             </div>
         </div>
@@ -212,7 +235,7 @@
             v-for="event in getEventsForDay(day.date)" 
             :key="event._id"
             class="event-card"
-            :class="getEventStatusClass(event)"
+            :class="[getEventStatusClass(event), getBedarfClass(event)]"
             @click="selectEvent(event)"
           >
             <div v-if="event.labels && event.labels.length" class="event-labels">
@@ -224,8 +247,7 @@
               >{{ label.name }}</span>
             </div>
             <div class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
-            <div class="event-kunde">{{ event.kundeData?.kundName || '-' }}</div>
-            <div class="event-location">{{ event.eventOrt || '-' }}</div>
+            <div class="event-kunde">{{ event.kundeData?.kuerzel || event.kundeData?.kundName || '-' }}</div>
             <div class="event-einsaetze" v-if="event.einsaetzeCount">
               {{ event.einsaetzeCount }} Einsätze
             </div>
@@ -680,6 +702,7 @@ export default {
       auftraege: [],
       loading: false,
       searchQuery: "",
+      searchExpanded: false,
       currentWeekStart: null,
       selectedEvent: null,
       loadedMonths: new Set(), // Track which months we've loaded
@@ -738,6 +761,11 @@ export default {
     currentKW() {
       if (!this.currentWeekStart) return '';
       return this.getWeekNumber(this.currentWeekStart);
+    },
+    mobileDatePickerValue() {
+      const d = this.weekDays[this.mobileDayIndex]?.date;
+      if (!d) return '';
+      return d.toISOString().slice(0, 10);
     },
     weekDays() {
       if (!this.currentWeekStart) return [];
@@ -896,6 +924,21 @@ export default {
     },
     checkMobile() {
       this.isMobile = window.innerWidth <= 768;
+    },
+    openMobileDatePicker() {
+      this.$refs.mobileDatePicker?.showPicker?.() ?? this.$refs.mobileDatePicker?.click();
+    },
+    async jumpToDate(event) {
+      const selected = new Date(event.target.value + 'T00:00:00');
+      if (isNaN(selected)) return;
+      const day = selected.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const monday = new Date(selected);
+      monday.setDate(selected.getDate() + diff);
+      monday.setHours(0, 0, 0, 0);
+      this.currentWeekStart = monday;
+      await this.ensureMonthLoaded(monday);
+      this.mobileDayIndex = day === 0 ? 6 : day - 1;
     },
     async prevDay() {
       if (this.mobileDayIndex > 0) {
@@ -1241,6 +1284,23 @@ export default {
       if (!dateStr) return '';
       return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },
+    getBedarfClass(event) {
+      const s = event.schichtStatus;
+      if (!s || s === 'none') return 'bedarf-none';
+      return `bedarf-${s}`;
+    },
+    getSchichtenForDay(event, date) {
+      if (!event.schichten?.length || !date) return [];
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      const next = new Date(d);
+      next.setDate(d.getDate() + 1);
+      return event.schichten.filter(s => {
+        if (!s.datumVon) return false;
+        const sd = new Date(s.datumVon);
+        return sd >= d && sd < next;
+      });
+    },
     getEventStatusClass(event) {
       // Color coding based on status
       const status = event.auftStatus;
@@ -1295,6 +1355,22 @@ export default {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin'
       });
+    },
+    toggleSearchExpanded() {
+      this.searchExpanded = !this.searchExpanded;
+      if (this.searchExpanded) {
+        this.$nextTick(() => {
+          if (this.$refs.searchInput) {
+            this.$refs.searchInput.focus();
+          }
+        });
+      }
+    },
+    handleSearchBlur() {
+      // Only collapse on mobile when blur occurs outside of focused state
+      if (window.innerWidth <= 768 && !this.searchQuery) {
+        this.searchExpanded = false;
+      }
     },
     debouncedSearch() {
       clearTimeout(this.debounceTimer);
@@ -1517,24 +1593,28 @@ export default {
   --brand: var(--primary);
   
   display: flex;
-  height: calc(100vh - 88px);
-  overflow: hidden;
+  align-items: flex-start;
 }
 
 .main-content {
   flex: 1;
+  min-width: 0;
   padding: 20px;
-  overflow-y: auto;
   /* Removed transition on margin-right as layout is now flex-driven */
+
+  @media (max-width: 768px) {
+    padding: 8px;
+  }
 }
 
 /* Sidebar Styles */
 .detail-sidebar {
-  /* Removed fixed positioning to act as a flow element */
-  position: relative;
+  position: sticky;
+  top: 88px;
   width: 420px;
   min-width: 420px; /* Ensure it keeps size during flex resize of siblings */
-  height: 100%;
+  height: calc(100vh - 88px);
+  overflow-y: auto;
   background: var(--tile-bg);
   border-left: 1px solid var(--border);
   display: flex;
@@ -1984,6 +2064,12 @@ export default {
   }
 }
 
+@media (max-width: 768px) {
+  .data-status-badge {
+    display: none;
+  }
+}
+
 .header-controls {
   display: flex;
   gap: 10px;
@@ -2002,6 +2088,66 @@ export default {
   &:focus {
     outline: none;
     border-color: var(--primary);
+  }
+}
+
+// Mobile search inside filter header
+.filter-search-box {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.filter-search-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--muted);
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+  line-height: 1;
+
+  &:hover {
+    color: var(--primary);
+    background: var(--hover);
+  }
+}
+
+.filter-search-box input {
+  display: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.85rem;
+  width: 0;
+  background: var(--tile-bg);
+  color: var(--text);
+  transition: width 0.25s ease, opacity 0.2s ease;
+  opacity: 0;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+}
+
+.filter-search-box.search-expanded input {
+  display: block;
+  width: 220px;
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .filter-search-box.search-expanded input {
+    width: 150px;
+  }
+}
+
+@media (max-width: 768px) {
+  .desktop-search {
+    display: none;
   }
 }
 
@@ -2153,8 +2299,8 @@ export default {
 .event-card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px;
+  border-radius: 4px;
+  padding: 3px 6px;
   cursor: pointer;
   transition: all 0.15s;
   font-size: 0.75rem;
@@ -2164,23 +2310,21 @@ export default {
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   }
 
-  &.status-draft {
-    border-left: 3px solid #f59e0b;
-  }
-
   &.status-confirmed {
-    border-left: 3px solid #22c55e;
     background: color-mix(in oklab, #22c55e 8%, var(--panel));
   }
 
   &.status-completed {
-    border-left: 3px solid #3b82f6;
     opacity: 0.7;
   }
 
-  &.status-default {
-    border-left: 3px solid var(--muted);
-  }
+  // Bedarf-based left border
+  &.bedarf-none        { border-left: 3px solid var(--muted); }
+  &.bedarf-all-empty   { border-left: 3px solid #ef4444; }
+  &.bedarf-some-empty  { border-left: 3px solid #f97316; }
+  &.bedarf-underbooked { border-left: 3px solid #eab308; }
+  &.bedarf-full        { border-left: 3px solid #22c55e; }
+  &.bedarf-overbooked  { border-left: 3px solid #15803d; }
 }
 
 .event-title {
@@ -2496,12 +2640,7 @@ export default {
 
 @media (max-width: 768px) {
   .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .search-box input {
-    width: 100%;
+    display: none;
   }
 
   .calendar-navigation {
@@ -2513,7 +2652,7 @@ export default {
 .mobile-calendar-view {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
 
 .mobile-nav {
@@ -2522,8 +2661,8 @@ export default {
   justify-content: space-between;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: 8px;
+  padding: 6px 10px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
@@ -2531,10 +2670,34 @@ export default {
   text-align: center;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+  padding: 2px 10px;
+  border-radius: 6px;
+  transition: background 0.15s;
+
+  &:hover {
+    background: var(--hover);
+  }
+
+  &:active {
+    background: var(--border);
+  }
+}
+
+.hidden-date-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+  top: 0;
+  left: 50%;
 }
 
 .mobile-date-display .day-name {
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
@@ -2542,14 +2705,14 @@ export default {
 }
 
 .mobile-date-display .day-date {
-  font-size: 1.2rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--text);
 }
 
 .nav-btn-mobile {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: var(--bg);
@@ -2558,7 +2721,7 @@ export default {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.8rem;
   transition: all 0.2s;
 }
 
@@ -2585,17 +2748,21 @@ export default {
 .event-card-mobile {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 8px;
+  padding: 6px 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-}
+  gap: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 
-.event-card-mobile.status-draft { border-left: 4px solid #f59e0b; }
-.event-card-mobile.status-confirmed { border-left: 4px solid #22c55e; }
-.event-card-mobile.status-completed { border-left: 4px solid #3b82f6; }
+  // Bedarf-based left border
+  &.bedarf-none        { border-left: 4px solid var(--muted); }
+  &.bedarf-all-empty   { border-left: 4px solid #ef4444; }
+  &.bedarf-some-empty  { border-left: 4px solid #f97316; }
+  &.bedarf-underbooked { border-left: 4px solid #eab308; }
+  &.bedarf-full        { border-left: 4px solid #22c55e; }
+  &.bedarf-overbooked  { border-left: 4px solid #15803d; }
+}
 
 .event-header {
   display: flex;
@@ -2620,11 +2787,53 @@ export default {
   font-weight: 600;
 }
 
+.event-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .event-title {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--text);
+  color: var(--primary);
   line-height: 1.4;
+}
+
+.event-shifts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.shift-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+}
+
+.shift-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.shift-name {
+  color: var(--muted);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shift-pos {
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
 }
 
 .event-details {

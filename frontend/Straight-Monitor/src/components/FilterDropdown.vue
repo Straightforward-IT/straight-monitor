@@ -162,4 +162,21 @@ export default {
     text-align: center;
     font-style: italic;
 }
+
+@media (max-width: 768px) {
+  .dropdown-trigger {
+    padding: 4px 10px;
+    font-size: 12px;
+    min-width: 110px;
+  }
+
+  .trigger-label {
+    max-width: 130px;
+  }
+
+  .dropdown-menu {
+    min-width: 180px;
+    max-height: 240px;
+  }
+}
 </style>

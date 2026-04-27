@@ -1,7 +1,7 @@
 <template>
   <section class="dash">
     <header class="dash__head">
-      <h4>Straight <span>Dashboard</span></h4>
+      <h2 data-page-title="Dashboard">Straight <span>Dashboard</span></h2>
       <p class="dash__user">Benutzer: {{ userName }}</p>
     </header>
 
@@ -123,12 +123,12 @@ onMounted(async () => {
   gap: 16px;
 }
 
-h4 {
+.dash__head h2 {
   font-size: 24px;
   font-weight: 600;
   opacity: 0.9;
 }
-h4 span {
+.dash__head h2 span {
   font-weight: 700;
 }
 .dash__user {

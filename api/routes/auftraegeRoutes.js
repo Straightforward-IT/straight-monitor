@@ -156,13 +156,74 @@ router.get('/', async (req, res) => {
       }
     });
     
+    // Aggregate schichten bedarf/besetzt status per auftrag
+    // besetzt is not stored reliably — compute from actual Einsatz records
+    const schichten = await Schicht.find(
+      { auftragNr: { $in: auftragNrs }, bedarf: { $gt: 0 } },
+      { auftragNr: 1, idAuftragArbeitsschichten: 1, bedarf: 1, bezeichnung: 1, uhrzeitVon: 1, uhrzeitBis: 1, datumVon: 1 }
+    ).lean();
+
+    // Count actual Einsätze per (auftragNr, idAuftragArbeitsschichten)
+    const einsatzBySchicht = await Einsatz.aggregate([
+      { $match: { auftragNr: { $in: auftragNrs }, idAuftragArbeitsschichten: { $ne: null } } },
+      { $group: { _id: { auftragNr: '$auftragNr', schichtId: '$idAuftragArbeitsschichten' }, besetzt: { $sum: 1 } } }
+    ]);
+    const einsatzSchichtMap = {};
+    einsatzBySchicht.forEach(({ _id, besetzt }) => {
+      einsatzSchichtMap[`${_id.auftragNr}_${_id.schichtId}`] = besetzt;
+    });
+
+    // Compute status per auftrag
+    const schichtStatusMap = {};
+    const schichtGroups = {};
+    schichten.forEach(s => {
+      if (!schichtGroups[s.auftragNr]) schichtGroups[s.auftragNr] = [];
+      schichtGroups[s.auftragNr].push(s);
+    });
+    for (const [auftragNr, group] of Object.entries(schichtGroups)) {
+      let empty = 0, underbooked = 0, overbooked = 0, full = 0;
+      group.forEach(s => {
+        const besetzt = einsatzSchichtMap[`${s.auftragNr}_${s.idAuftragArbeitsschichten}`] || 0;
+        if (besetzt === 0)             empty++;
+        else if (besetzt < s.bedarf)   underbooked++;
+        else if (besetzt > s.bedarf)   overbooked++;
+        else                           full++;
+      });
+      const total = group.length;
+      let schichtStatus;
+      if (empty === total)       schichtStatus = 'all-empty';
+      else if (empty > 0)        schichtStatus = 'some-empty';
+      else if (underbooked > 0)  schichtStatus = 'underbooked';
+      else if (overbooked > 0)   schichtStatus = 'overbooked';
+      else                       schichtStatus = 'full';
+      schichtStatusMap[Number(auftragNr)] = schichtStatus;
+    }
+
+    // Build schichten display map (times + occupancy per shift, grouped by auftragNr)
+    const schichtenDisplayMap = {};
+    schichten.forEach(s => {
+      const besetzt = einsatzSchichtMap[`${s.auftragNr}_${s.idAuftragArbeitsschichten}`] || 0;
+      if (!schichtenDisplayMap[s.auftragNr]) schichtenDisplayMap[s.auftragNr] = [];
+      schichtenDisplayMap[s.auftragNr].push({
+        id: s.idAuftragArbeitsschichten,
+        bezeichnung: s.bezeichnung || null,
+        uhrzeitVon: s.uhrzeitVon || null,
+        uhrzeitBis: s.uhrzeitBis || null,
+        datumVon: s.datumVon || null,
+        bedarf: s.bedarf,
+        besetzt
+      });
+    });
+
     // Merge data
     const result = auftraege.map(a => ({
       ...a,
       kundeData: kundenMap[a.kundenNr] || null,
       einsaetzeCount: countMap[a.auftragNr] || 0,
       earliestEinsatzTime: earliestTimeMap[a.auftragNr] || null,
-      mitarbeiterNames: mitarbeiterNamesMap[a.auftragNr] || []
+      mitarbeiterNames: mitarbeiterNamesMap[a.auftragNr] || [],
+      schichtStatus: schichtStatusMap[a.auftragNr] || 'none',
+      schichten: schichtenDisplayMap[a.auftragNr] || []
     }));
     
     res.json(result);

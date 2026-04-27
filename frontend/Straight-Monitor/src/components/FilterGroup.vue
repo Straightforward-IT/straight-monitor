@@ -30,6 +30,7 @@ export default {
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   transition: all 200ms ease;
   position: relative;
+  flex-wrap: wrap;
 }
 
 .filter-group:hover {
@@ -64,5 +65,19 @@ export default {
   letter-spacing: 0.5px;
   padding: 2px 0;
   white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .filter-group {
+    padding: 5px 8px;
+    gap: 5px;
+    border-radius: 6px;
+  }
+
+  .filter-group-label {
+    font-size: 9px;
+    letter-spacing: 0.3px;
+    margin-right: 4px;
+  }
 }
 </style>

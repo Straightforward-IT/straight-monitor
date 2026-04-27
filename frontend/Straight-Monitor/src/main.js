@@ -38,7 +38,9 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faEuroSign, faHandshake, faBan,
   faQuestion,
   faBinoculars,
-  faTableCells} from '@fortawesome/free-solid-svg-icons';
+  faTableCells,
+  faBolt,
+} from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle, faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 library.add(
   // Bestehende Icons
@@ -83,7 +85,8 @@ library.add(
   faCalendarDay,
   faEraser,
   faHandshake, faBan,
-  faBinoculars
+  faBinoculars,
+  faBolt
 );
 
 const app = createApp(App);
