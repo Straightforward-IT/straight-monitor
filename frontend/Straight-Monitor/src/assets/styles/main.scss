@@ -3,6 +3,8 @@
 html, body {
   background: var(--bg);
   color: var(--text);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 * {
@@ -10,6 +12,17 @@ html, body {
     Arial, sans-serif;
   font-weight: 300;
   margin: 0;
+}
+
+a,
+button,
+[role="button"],
+summary,
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 

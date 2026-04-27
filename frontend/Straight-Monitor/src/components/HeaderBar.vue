@@ -321,7 +321,7 @@
 </template>
 
 <script setup>
-import { computed, ref, reactive, onMounted, onBeforeUnmount } from "vue";
+import { computed, ref, reactive, watch, onMounted, onBeforeUnmount } from "vue";
 import { useUi } from "@/stores/ui";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
@@ -368,6 +368,7 @@ const showMobileMenu = ref(false);
 // Support Modal State
 const showSupportModal = ref(false);
 const isSubmitting = ref(false);
+let lockedScrollY = 0;
 
 const supportForm = reactive({
   type: '',
@@ -375,6 +376,44 @@ const supportForm = reactive({
   description: '',
   files: []
 });
+
+const syncBodyScrollLock = (locked) => {
+  const body = document.body;
+
+  if (!body) return;
+
+  if (locked) {
+    if (body.dataset.scrollLock === 'true') return;
+
+    lockedScrollY = window.scrollY || window.pageYOffset || 0;
+    body.dataset.scrollLock = 'true';
+    body.style.position = 'fixed';
+    body.style.top = `-${lockedScrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+    return;
+  }
+
+  if (body.dataset.scrollLock !== 'true') return;
+
+  body.dataset.scrollLock = 'false';
+  body.style.position = '';
+  body.style.top = '';
+  body.style.left = '';
+  body.style.right = '';
+  body.style.width = '';
+  body.style.overflow = '';
+  window.scrollTo(0, lockedScrollY);
+};
+
+watch(
+  () => showMobileMenu.value || showSupportModal.value,
+  (isLocked) => {
+    syncBodyScrollLock(isLocked);
+  }
+);
 
 // Neue Pages für alle authentifizierten Nutzer freigeschaltet
 const newPagesEnabled = computed(() => !!auth.user);
@@ -497,6 +536,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  syncBodyScrollLock(false);
   document.removeEventListener('keydown', handleEscapeKey);
 });
 
@@ -540,9 +580,6 @@ onBeforeUnmount(() => {
   cursor: pointer;
   font-size: 28px;
 }
-.burger-btn:hover {
-  background: var(--hover);
-}
 
 /* Mobile Menu Overlay */
 .mobile-menu-overlay {
@@ -554,6 +591,7 @@ onBeforeUnmount(() => {
   background: rgba(0, 0, 0, 0.5);
   z-index: 100;
   display: none;
+  overscroll-behavior: contain;
 }
 
 .mobile-menu {
@@ -566,6 +604,8 @@ onBeforeUnmount(() => {
   box-shadow: -8px 0 20px rgba(0, 0, 0, 0.2);
   overflow-y: auto;
   z-index: 101;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .mobile-menu-header {
@@ -597,10 +637,6 @@ onBeforeUnmount(() => {
   height: 28px;
 }
 
-.close-mobile-menu:hover {
-  background: var(--hover);
-}
-
 .mobile-menu-items {
   padding: 8px 0;
 }
@@ -620,11 +656,6 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: background 0.2s;
   font-size: 15px;
-}
-
-.mobile-menu-items a:hover,
-.mobile-menu-btn:hover {
-  background: var(--hover);
 }
 
 .mobile-menu-items a.active {
@@ -647,6 +678,21 @@ onBeforeUnmount(() => {
   color: #dc3545;
   font-weight: 600;
   margin-top: 8px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .burger-btn:hover,
+  .close-mobile-menu:hover,
+  .mobile-menu-items a:hover,
+  .mobile-menu-btn:hover,
+  button:hover {
+    background: var(--hover);
+  }
+
+  .close-btn:hover {
+    color: var(--text);
+    background: var(--hover);
+  }
 }
 
 /* Desktop vs Mobile Button Groups */
@@ -821,9 +867,6 @@ button {
   border-radius: 6px;
   cursor: pointer;
 }
-button:hover {
-  background: var(--hover);
-}
 .icon-btn {
   display: flex;
   align-items: center;
@@ -909,11 +952,6 @@ button:hover {
   padding: 6px;
   border-radius: 4px;
   font-size: 16px;
-}
-
-.close-btn:hover {
-  color: var(--text);
-  background: var(--hover);
 }
 
 .support-form {
