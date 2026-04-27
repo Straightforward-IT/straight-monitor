@@ -5,6 +5,7 @@ const Auftrag = require('../models/Auftrag');
 const Einsatz = require('../models/Einsatz');
 const Schicht = require('../models/Schicht');
 const Rechnung = require('../models/Rechnung');
+const Qualifikation = require('../models/Qualifikation');
 const { decryptField } = require('../utils/encryption');
 const asyncHandler = require('../middleware/AsyncHandler');
 const auth = require('../middleware/auth');
@@ -624,6 +625,188 @@ router.get('/analytics/einsaetze/daily', auth, asyncHandler(async (req, res) => 
   auftragBreakdown.sort((a, b) => (b.total + b.totalForecast) - (a.total + a.totalForecast));
 
   res.json({ data, forecastData, auftragBreakdown });
+}));
+
+// @route   GET /api/kunden/analytics/kennzahlen
+// @desc    Umfassende Kennzahlen für einen einzelnen Kunden
+//          (Einsätze/Positionen pro Jahr, Umsatz pro Jahr, Anteile, Qualifikationen)
+// @access  Private
+// Query:   kundenNr (required), geschSt (optional)
+router.get('/analytics/kennzahlen', auth, asyncHandler(async (req, res) => {
+  const { kundenNr, geschSt } = req.query;
+  if (!kundenNr) return res.status(400).json({ message: 'kundenNr required' });
+
+  const kNr = Number(kundenNr);
+
+  // Resolve kundenNr to also include sub-kunden (parentKunde)
+  const mainKunde = await Kunde.findOne({ kundenNr: kNr }).select('_id').lean();
+  let kundenNrs = [kNr];
+  if (mainKunde) {
+    const children = await Kunde.find({ parentKunde: mainKunde._id }).distinct('kundenNr');
+    kundenNrs.push(...children);
+  }
+  kundenNrs = [...new Set(kundenNrs)];
+
+  // All Auftrag numbers for this customer
+  const auftraege = await Auftrag.find({ kundenNr: { $in: kundenNrs } }).select('auftragNr').lean();
+  const auftragNrs = auftraege.map(a => a.auftragNr);
+
+  // ── 1. EINSÄTZE per year (IST only, no forecast) ──────────────────────────
+  const einsatzPerYear = await Einsatz.aggregate([
+    { $match: { auftragNr: { $in: auftragNrs } } },
+    { $group: {
+      _id: {
+        year: { $year: '$datumVon' },
+        month: { $month: '$datumVon' },
+        auftragNr: '$auftragNr'
+      },
+      einsaetze: { $sum: 1 }
+    }},
+    { $group: {
+      _id: { year: '$_id.year', month: '$_id.month' },
+      einsaetze: { $sum: '$einsaetze' },
+      auftraege: { $addToSet: '$_id.auftragNr' }
+    }},
+    { $group: {
+      _id: '$_id.year',
+      einsaetze: { $sum: '$einsaetze' },
+      auftraegeAll: { $push: '$auftraege' },
+      activeMonths: { $sum: 1 }
+    }},
+    { $sort: { '_id': 1 } }
+  ]);
+
+  // Flatten nested auftrag arrays per year and count distinct
+  const einsatzStats = einsatzPerYear.map(r => {
+    const allNrs = new Set(r.auftraegeAll.flat());
+    const auftraegeCount = allNrs.size;
+    return {
+      year: r._id,
+      einsaetze: r.einsaetze,
+      auftraege: auftraegeCount,
+      activeMonths: r.activeMonths,
+      avgPositionenPerAuftrag: auftraegeCount > 0 ? Math.round((r.einsaetze / auftraegeCount) * 10) / 10 : 0
+    };
+  });
+
+  // Totals across all years
+  const totalEinsaetze = einsatzStats.reduce((s, r) => s + r.einsaetze, 0);
+  const totalAuftraege = einsatzStats.reduce((s, r) => s + r.auftraege, 0);
+  const avgPositionenTotal = totalAuftraege > 0 ? Math.round((totalEinsaetze / totalAuftraege) * 10) / 10 : 0;
+
+  // ── 2. UMSATZ from Rechnung (encrypted netto field) ───────────────────────
+  const rechnungenRaw = await Rechnung.find({ kundenNr: { $in: kundenNrs } })
+    .select('kundenNr buchDatum netto')
+    .lean();
+
+  // Decrypt netto for each Rechnung
+  const umsatzPerYear = {};
+  let totalNetto = 0;
+
+  for (const r of rechnungenRaw) {
+    const netto = parseFloat(decryptField(r.netto)) || 0;
+    if (!r.buchDatum || netto === 0) continue;
+    totalNetto += netto;
+    const year = new Date(r.buchDatum).getFullYear();
+    const month = new Date(r.buchDatum).getMonth();
+    if (!umsatzPerYear[year]) umsatzPerYear[year] = { months: new Set(), netto: 0 };
+    umsatzPerYear[year].netto += netto;
+    umsatzPerYear[year].months.add(month);
+  }
+
+  const umsatzStats = Object.entries(umsatzPerYear)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([year, data]) => {
+      const activeMonths = data.months.size;
+      const annualizedNetto = activeMonths > 0 && activeMonths < 12
+        ? Math.round((data.netto / activeMonths) * 12)
+        : Math.round(data.netto);
+      return {
+        year: Number(year),
+        netto: Math.round(data.netto),
+        activeMonths,
+        annualizedNetto
+      };
+    });
+
+  // ── 3. UMSATZ SHARES (global + Standort) ──────────────────────────────────
+  // Total netto across ALL customers
+  const allRechnungen = await Rechnung.find({}).select('kundenNr buchDatum netto').lean();
+  let globalNetto = 0;
+  const standortNettoMap = {}; // geschSt -> netto
+
+  // We need to know the geschSt for each kundenNr
+  const kundeGeschStMap = {};
+  if (geschSt) {
+    // If geschSt is passed, use it for this customer
+    kundenNrs.forEach(n => { kundeGeschStMap[n] = String(geschSt); });
+  } else {
+    const allKunden = await Kunde.find({}).select('kundenNr geschSt').lean();
+    allKunden.forEach(k => { kundeGeschStMap[k.kundenNr] = String(k.geschSt || ''); });
+  }
+
+  // We need full geschSt map even if not filtered
+  if (!geschSt) {
+    // already populated above
+  } else {
+    const allKunden = await Kunde.find({}).select('kundenNr geschSt').lean();
+    allKunden.forEach(k => { kundeGeschStMap[k.kundenNr] = String(k.geschSt || ''); });
+  }
+
+  const thisGeschSt = kundeGeschStMap[kNr] || null;
+  let standortNetto = 0;
+
+  for (const r of allRechnungen) {
+    const netto = parseFloat(decryptField(r.netto)) || 0;
+    if (netto === 0 || !r.buchDatum) continue;
+    globalNetto += netto;
+    const gs = kundeGeschStMap[r.kundenNr] || '';
+    if (gs && !standortNettoMap[gs]) standortNettoMap[gs] = 0;
+    if (gs) standortNettoMap[gs] += netto;
+  }
+
+  standortNetto = thisGeschSt ? (standortNettoMap[thisGeschSt] || 0) : 0;
+
+  const shareGlobal = globalNetto > 0 ? Math.round((totalNetto / globalNetto) * 10000) / 100 : 0;
+  const shareStandort = standortNetto > 0 ? Math.round((totalNetto / standortNetto) * 10000) / 100 : 0;
+
+  // ── 4. QUALIFIKATION breakdown ────────────────────────────────────────────
+  const qualAgg = await Einsatz.aggregate([
+    { $match: { auftragNr: { $in: auftragNrs }, qualSchl: { $exists: true, $ne: null, $ne: '' } } },
+    { $group: { _id: '$qualSchl', count: { $sum: 1 } } },
+    { $sort: { count: -1 } }
+  ]);
+
+  // Resolve qualification names
+  const qualKeys = qualAgg.map(q => q._id).filter(k => !isNaN(Number(k))).map(Number);
+  const qualDocs = await Qualifikation.find({ qualificationKey: { $in: qualKeys } }).lean();
+  const qualNameMap = {};
+  qualDocs.forEach(q => { qualNameMap[q.qualificationKey] = q.designation; });
+
+  const totalQualEinsaetze = qualAgg.reduce((s, q) => s + q.count, 0);
+  const qualifikationen = qualAgg.map(q => ({
+    qualSchl: q._id,
+    name: qualNameMap[Number(q._id)] || q._id,
+    count: q.count,
+    share: totalQualEinsaetze > 0 ? Math.round((q.count / totalQualEinsaetze) * 1000) / 10 : 0
+  }));
+
+  res.json({
+    einsatz: {
+      total: totalEinsaetze,
+      auftraegeTotal: totalAuftraege,
+      avgPositionenPerAuftrag: avgPositionenTotal,
+      perYear: einsatzStats
+    },
+    umsatz: {
+      total: Math.round(totalNetto),
+      shareGlobal,
+      shareStandort,
+      geschSt: thisGeschSt,
+      perYear: umsatzStats
+    },
+    qualifikationen
+  });
 }));
 
 // @route   GET /api/kunden/:id

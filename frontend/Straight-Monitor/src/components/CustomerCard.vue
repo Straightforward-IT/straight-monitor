@@ -68,7 +68,6 @@
         </div>
       </section>
 
-      <!-- Remarks -->
       <section class="section remarks-section" v-if="kunde.bemerkung && kunde.bemerkung.length > 0">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'clipboard']" /> Bemerkungen
@@ -84,49 +83,88 @@
       <section class="section contacts-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'address-book']" /> Kontakte
-          <span class="badge">{{ kunde.kontakte ? kunde.kontakte.length : 0 }}</span>
+          <span class="badge">{{ linkedContacts.length }}</span>
         </h4>
-        
-        <div v-if="!kunde.kontakte || kunde.kontakte.length === 0" class="empty-contacts">
-          Keine Kontakte hinterlegt.
+
+        <div v-if="!kunde.kuerzel" class="empty-contacts">
+          <font-awesome-icon :icon="['fas', 'tag']" class="empty-icon" />
+          Kein Kürzel gesetzt — Kürzel im Header festlegen, um verknüpfte Kontakte anzuzeigen.
+        </div>
+
+        <div v-else-if="contactsLoading" class="empty-contacts">
+          <font-awesome-icon :icon="['fas', 'spinner']" spin /> Kontakte werden geladen…
+        </div>
+
+        <div v-else-if="linkedContacts.length === 0" class="empty-contacts">
+          Keine Microsoft-Kontakte mit Kürzel „{{ kunde.kuerzel }}" gefunden.
         </div>
 
         <div v-else class="contacts-list">
-          <div v-for="(kontakt, idx) in kunde.kontakte" :key="idx" class="contact-card">
-            <div class="contact-header">
-              <div class="contact-name">
-                <font-awesome-icon :icon="['fas', 'user']" />
-                {{ kontakt.vorname }} {{ kontakt.nachname }}
-              </div>
-              <div class="contact-meta">
-                <span v-if="kontakt.angelegtVon?.name" class="creator" title="Angelegt von">
-                  <font-awesome-icon :icon="['fas', 'pen']" class="small-icon" /> {{ kontakt.angelegtVon.name }}
-                </span>
-              </div>
-            </div>
-            
-            <div class="contact-details">
-              <div v-if="kontakt.email" class="detail-row">
-                <font-awesome-icon :icon="['fas', 'envelope']" />
-                <a :href="`mailto:${kontakt.email}`">{{ kontakt.email }}</a>
-              </div>
-              <div v-if="kontakt.telefon" class="detail-row">
-                <font-awesome-icon :icon="['fas', 'phone']" />
-                <a :href="`tel:${kontakt.telefon}`">{{ kontakt.telefon }}</a>
-              </div>
-            </div>
+          <div v-for="contact in linkedContacts" :key="contact.id" class="contact-card">
 
-            <!-- Contact Comments -->
-            <div v-if="kontakt.kommentare && kontakt.kommentare.length > 0" class="contact-comments">
-               <div class="comments-label">Kommentare ({{ kontakt.kommentare.length }})</div>
-               <div v-for="(comment, cIdx) in kontakt.kommentare" :key="cIdx" class="comment-item">
-                 <div class="comment-text">{{ comment.text }}</div>
-                 <div class="comment-footer">
-                   <span class="date">{{ formatDate(comment.datum) }}</span>
-                   <span v-if="comment.verfasser?.name" class="author"> · {{ comment.verfasser.name }}</span>
-                 </div>
-               </div>
-            </div>
+            <!-- Edit mode -->
+            <template v-if="editingContactId === contact.id">
+              <div class="edit-form">
+                <div class="edit-row">
+                  <input v-model="editForm.givenName" placeholder="Vorname" class="edit-input" />
+                  <input v-model="editForm.surname" placeholder="Nachname" class="edit-input" />
+                </div>
+                <input v-model="editForm.jobTitle" placeholder="Position / Titel" class="edit-input edit-input-full" />
+                <input v-model="editForm.email" placeholder="E-Mail" class="edit-input edit-input-full" />
+                <div class="edit-row">
+                  <input v-model="editForm.businessPhone" placeholder="Festnetz" class="edit-input" />
+                  <input v-model="editForm.mobilePhone" placeholder="Mobil" class="edit-input" />
+                </div>
+              </div>
+              <div class="contact-actions">
+                <button class="action-btn action-save" @click="saveEditContact(contact)" :disabled="contactSaving">
+                  <font-awesome-icon :icon="['fas', contactSaving ? 'spinner' : 'check']" :spin="contactSaving" />
+                  Speichern
+                </button>
+                <button class="action-btn action-cancel" @click="cancelEditContact">
+                  <font-awesome-icon :icon="['fas', 'times']" /> Abbrechen
+                </button>
+              </div>
+            </template>
+
+            <!-- Read mode -->
+            <template v-else>
+              <div class="contact-header">
+                <div class="contact-name">
+                  <font-awesome-icon :icon="['fas', 'user']" />
+                  {{ contact.displayName }}
+                </div>
+                <div class="contact-meta">
+                  <span v-if="contact.jobTitle" class="creator">{{ contact.jobTitle }}</span>
+                </div>
+              </div>
+
+              <div class="contact-details">
+                <div v-if="contact.emailAddresses && contact.emailAddresses.length" class="detail-row">
+                  <font-awesome-icon :icon="['fas', 'envelope']" />
+                  <a :href="`mailto:${contact.emailAddresses[0].address}`">{{ contact.emailAddresses[0].address }}</a>
+                </div>
+                <div v-if="contact.businessPhones && contact.businessPhones.length" class="detail-row">
+                  <font-awesome-icon :icon="['fas', 'phone']" />
+                  <a :href="`tel:${contact.businessPhones[0]}`">{{ contact.businessPhones[0] }}</a>
+                </div>
+                <div v-else-if="contact.mobilePhone" class="detail-row">
+                  <font-awesome-icon :icon="['fas', 'mobile-screen']" />
+                  <a :href="`tel:${contact.mobilePhone}`">{{ contact.mobilePhone }}</a>
+                </div>
+              </div>
+
+              <div class="contact-actions">
+                <button class="action-btn action-edit" @click="startEditContact(contact)">
+                  <font-awesome-icon :icon="['fas', 'pen']" /> Bearbeiten
+                </button>
+                <button class="action-btn action-delete" @click="deleteContact(contact)" :disabled="deletingContactId === contact.id">
+                  <font-awesome-icon :icon="['fas', deletingContactId === contact.id ? 'spinner' : 'trash']" :spin="deletingContactId === contact.id" />
+                  Löschen
+                </button>
+              </div>
+            </template>
+
           </div>
         </div>
       </section>
@@ -137,6 +175,96 @@
           <font-awesome-icon :icon="['fas', 'chart-bar']" /> Einsatz-Analytics
         </h4>
         <KundenAnalyticsEmbed :kundenNr="kunde.kundenNr" :geschSt="kunde.geschSt" @navigate="$emit('close')" />
+      </section>
+
+      <!-- Kennzahlen -->
+      <section class="section kpi-section" v-if="kunde.kundenNr">
+        <h4 class="section-title">
+          <font-awesome-icon :icon="['fas', 'chart-line']" /> Kennzahlen
+        </h4>
+
+        <div v-if="kpiLoading" class="empty-contacts">
+          <font-awesome-icon :icon="['fas', 'spinner']" spin /> Kennzahlen werden geladen…
+        </div>
+
+        <div v-else-if="kpi" class="kpi-body">
+
+          <!-- Top row: summary cards -->
+          <div class="kpi-summary-row">
+            <div class="kpi-card">
+              <span class="kpi-value">{{ kpi.einsatz.avgPositionenPerAuftrag }}</span>
+              <span class="kpi-label">Ø Positionen / Auftrag</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-value">{{ formatEuro(kpi.umsatz.total) }}</span>
+              <span class="kpi-label">Gesamt-Umsatz (Netto)</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-value">{{ kpi.umsatz.shareGlobal }}%</span>
+              <span class="kpi-label">Anteil Gesamtumsatz</span>
+            </div>
+            <div class="kpi-card" v-if="kpi.umsatz.shareStandort > 0">
+              <span class="kpi-value">{{ kpi.umsatz.shareStandort }}%</span>
+              <span class="kpi-label">Anteil Standortumsatz ({{ getGeschStText(kpi.umsatz.geschSt) }})</span>
+            </div>
+          </div>
+
+          <!-- Yearly breakdown -->
+          <div class="kpi-tables-row">
+
+            <!-- Umsatz per year -->
+            <div class="kpi-table-block" v-if="kpi.umsatz.perYear.length">
+              <div class="kpi-table-title">Umsatz pro Jahr</div>
+              <table class="kpi-table">
+                <thead>
+                  <tr><th>Jahr</th><th>Netto</th><th>Aktive Mo.</th><th>Hochgerechnet</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="y in kpi.umsatz.perYear" :key="y.year">
+                    <td>{{ y.year }}</td>
+                    <td>{{ formatEuro(y.netto) }}</td>
+                    <td class="muted-cell">{{ y.activeMonths }}</td>
+                    <td class="muted-cell">{{ y.activeMonths < 12 ? formatEuro(y.annualizedNetto) : '—' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Einsätze per year -->
+            <div class="kpi-table-block">
+              <div class="kpi-table-title">Einsätze & Positionen pro Jahr</div>
+              <table class="kpi-table">
+                <thead>
+                  <tr><th>Jahr</th><th>Einsätze</th><th>Aufträge</th><th>Ø Pos./Auftrag</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="y in kpi.einsatz.perYear" :key="y.year">
+                    <td>{{ y.year }}</td>
+                    <td>{{ y.einsaetze }}</td>
+                    <td class="muted-cell">{{ y.auftraege }}</td>
+                    <td>{{ y.avgPositionenPerAuftrag }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Qualifikationen -->
+          <div class="kpi-table-block" v-if="kpi.qualifikationen.length">
+            <div class="kpi-table-title">Gebuchte Qualifikationen</div>
+            <div class="qual-bars">
+              <div v-for="q in kpi.qualifikationen.slice(0, 10)" :key="q.qualSchl" class="qual-bar-row">
+                <span class="qual-name">{{ q.name }}</span>
+                <div class="qual-bar-track">
+                  <div class="qual-bar-fill" :style="{ width: q.share + '%' }"></div>
+                </div>
+                <span class="qual-pct">{{ q.share }}%</span>
+                <span class="qual-count muted-cell">({{ q.count }})</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
       </section>
 
     </div>
@@ -151,7 +279,7 @@
 </template>
 
 <script setup>
-import { computed, ref, nextTick } from 'vue';
+import { computed, ref, nextTick, watch, onMounted } from 'vue';
 import { useTheme } from '@/stores/theme';
 import { useDataCache } from '@/stores/dataCache';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
@@ -165,6 +293,120 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const dataCache = useDataCache();
+
+// MS Graph contacts linked via kuerzel
+const msContacts = ref([]);
+const contactsLoading = ref(false);
+
+async function loadContacts() {
+  if (!props.kunde.kuerzel) return;
+  contactsLoading.value = true;
+  try {
+    const { data } = await api.get('/api/graph/contacts');
+    msContacts.value = data.contacts || [];
+  } catch (e) {
+    msContacts.value = [];
+  } finally {
+    contactsLoading.value = false;
+  }
+}
+
+const linkedContacts = computed(() => {
+  const kuerzel = (props.kunde.kuerzel || '').trim().toLowerCase();
+  if (!kuerzel) return [];
+  return msContacts.value.filter(
+    c => (c.companyName || '').trim().toLowerCase() === kuerzel
+  );
+});
+
+onMounted(loadContacts);
+watch(() => props.kunde.kuerzel, loadContacts);
+
+// Kennzahlen (KPIs)
+const kpi = ref(null);
+const kpiLoading = ref(false);
+
+async function loadKpi() {
+  if (!props.kunde.kundenNr) return;
+  kpiLoading.value = true;
+  try {
+    const params = { kundenNr: props.kunde.kundenNr };
+    if (props.kunde.geschSt) params.geschSt = props.kunde.geschSt;
+    const { data } = await api.get('/api/kunden/analytics/kennzahlen', { params });
+    kpi.value = data;
+  } catch (e) {
+    kpi.value = null;
+  } finally {
+    kpiLoading.value = false;
+  }
+}
+
+onMounted(loadKpi);
+
+// Contact edit / delete
+const editingContactId = ref(null);
+const editForm = ref({});
+const contactSaving = ref(false);
+const deletingContactId = ref(null);
+
+function startEditContact(contact) {
+  editingContactId.value = contact.id;
+  editForm.value = {
+    givenName: contact.givenName || '',
+    surname: contact.surname || '',
+    jobTitle: contact.jobTitle || '',
+    email: contact.emailAddresses?.[0]?.address || '',
+    businessPhone: contact.businessPhones?.[0] || '',
+    mobilePhone: contact.mobilePhone || '',
+  };
+}
+
+function cancelEditContact() {
+  editingContactId.value = null;
+  editForm.value = {};
+}
+
+async function saveEditContact(contact) {
+  if (contactSaving.value) return;
+  contactSaving.value = true;
+  try {
+    const patch = {
+      upn: contact._upn,
+      givenName: editForm.value.givenName,
+      surname: editForm.value.surname,
+      jobTitle: editForm.value.jobTitle,
+      mobilePhone: editForm.value.mobilePhone || null,
+    };
+    if (editForm.value.businessPhone) {
+      patch.businessPhones = [editForm.value.businessPhone];
+    } else {
+      patch.businessPhones = [];
+    }
+    if (editForm.value.email) {
+      patch.emailAddresses = [{ address: editForm.value.email, name: `${editForm.value.givenName} ${editForm.value.surname}`.trim() }];
+    }
+    const { data } = await api.patch(`/api/graph/contacts/${contact.id}`, patch);
+    // Update in-place
+    const idx = msContacts.value.findIndex(c => c.id === contact.id);
+    if (idx !== -1 && data.contact) {
+      msContacts.value[idx] = { ...msContacts.value[idx], ...data.contact };
+    }
+    editingContactId.value = null;
+  } finally {
+    contactSaving.value = false;
+  }
+}
+
+async function deleteContact(contact) {
+  if (!window.confirm(`Kontakt „${contact.displayName}" wirklich aus Microsoft-Kontakten löschen?`)) return;
+  deletingContactId.value = contact.id;
+  try {
+    await api.delete(`/api/graph/contacts/${contact.id}`, { data: { upn: contact._upn } });
+    msContacts.value = msContacts.value.filter(c => c.id !== contact.id);
+  } finally {
+    deletingContactId.value = null;
+  }
+}
 
 // Kuerzel inline edit
 const editingKuerzel = ref(false);
@@ -233,6 +475,11 @@ function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('de-DE', {
     day: '2-digit', month: '2-digit', year: 'numeric'
   });
+}
+
+function formatEuro(value) {
+  if (value == null || value === 0) return '—';
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
 }
 </script>
 
@@ -548,6 +795,102 @@ function formatDate(dateStr) {
   border-radius: 6px;
 }
 
+/* Contact actions */
+.contact-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  background: transparent;
+}
+
+.action-edit {
+  border-color: var(--border);
+  color: var(--muted);
+}
+.action-edit:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.action-delete {
+  border-color: var(--border);
+  color: var(--muted);
+}
+.action-delete:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.action-delete:disabled,
+.action-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.action-save {
+  border-color: var(--primary);
+  color: var(--primary);
+  margin-left: auto;
+}
+.action-save:hover:not(:disabled) {
+  background: var(--primary);
+  color: #fff;
+}
+
+.action-cancel {
+  border-color: var(--border);
+  color: var(--muted);
+}
+.action-cancel:hover {
+  background: var(--hover);
+}
+
+/* Edit form */
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edit-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.edit-input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 13px;
+  background: var(--tile-bg);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.edit-input:focus {
+  border-color: var(--primary);
+}
+
+.edit-input-full {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .comments-label {
   font-size: 11px;
   font-weight: 600;
@@ -613,5 +956,136 @@ function formatDate(dateStr) {
 }
 .btn-primary:hover {
   filter: brightness(1.1);
+}
+
+/* ── KPI Section ─────────────────────────────────────────────────────────── */
+.kpi-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.kpi-summary-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kpi-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.kpi-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpi-tables-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.kpi-table-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kpi-table-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpi-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.kpi-table th {
+  text-align: left;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.kpi-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.kpi-table tr:last-child td {
+  border-bottom: none;
+}
+
+.muted-cell {
+  color: var(--muted);
+}
+
+/* Qualification bars */
+.qual-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qual-bar-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 40px 44px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.qual-name {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qual-bar-track {
+  height: 6px;
+  background: var(--hover);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.qual-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.qual-pct {
+  font-weight: 600;
+  color: var(--text);
+  text-align: right;
+}
+
+.qual-count {
+  font-size: 11px;
 }
 </style>
