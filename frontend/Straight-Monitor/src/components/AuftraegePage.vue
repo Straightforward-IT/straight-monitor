@@ -118,6 +118,9 @@
         <span>Nächste Woche →</span>
       </button>
       <button class="nav-btn today-btn" @click="goToToday">Heute</button>
+      <button class="nav-btn new-pseudo-btn" @click="openNewAuftragDialog" title="Neuen Pseudo-Auftrag anlegen">
+        <font-awesome-icon icon="fa-solid fa-plus" /> Pseudo-Auftrag
+      </button>
       <label class="nav-btn calendar-btn" title="Zu Woche springen (Datum wählen)">
         <font-awesome-icon icon="fa-solid fa-calendar" />
         <input 
@@ -174,6 +177,7 @@
         >
             <div class="event-header">
               <span v-if="event.auftStatus !== 2" class="event-status">{{ getStatusText(event.auftStatus) }}</span>
+              <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
             </div>
             
             <div class="event-title-row">
@@ -239,8 +243,9 @@
             :class="[getEventStatusClass(event), getBedarfClass(event)]"
             @click="selectEvent(event)"
           >
-            <div class="event-header" v-if="event.auftStatus !== 2">
+            <div class="event-header" v-if="event.auftStatus !== 2 || event.isPseudo">
               <span class="event-status">{{ getStatusText(event.auftStatus) }}</span>
+              <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
             </div>
             <div class="event-title-row">
               <div class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
@@ -292,6 +297,10 @@
                   <button class="qa-dropdown-item" @click="openPseudoDialog">
                     <font-awesome-icon icon="fa-solid fa-user-plus" />
                     Pseudo-MA einplanen
+                  </button>
+                  <button v-if="selectedEvent && selectedEvent.isPseudo" class="qa-dropdown-item qa-dropdown-item--danger" @click="deletePseudoAuftrag">
+                    <font-awesome-icon icon="fa-solid fa-trash" />
+                    Pseudo-Auftrag löschen
                   </button>
                 </div>
               </transition>
@@ -571,6 +580,74 @@
       </div>
     </div>
 
+    <!-- ── Neuer Pseudo-Auftrag Dialog ──────────────────────────────────── -->
+    <div v-if="showNewAuftragDialog" class="modal-overlay" @click.self="showNewAuftragDialog = false">
+      <div class="modal-content modal-qa">
+        <div class="modal-header">
+          <h2><font-awesome-icon icon="fa-solid fa-plus" /> Neuer Pseudo-Auftrag</h2>
+          <button class="close-btn" @click="showNewAuftragDialog = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="qa-section">
+            <div class="qa-form-row">
+              <div style="flex:1">
+                <div class="qa-form-field-label">Titel *</div>
+                <input v-model="newAuftrag.eventTitel" class="qa-input" placeholder="z.B. Konferenz Berlin 2026" />
+              </div>
+            </div>
+          </div>
+          <div class="qa-section">
+            <div class="qa-form-row pseudo-time-row">
+              <div style="flex:1">
+                <div class="qa-form-field-label">Von *</div>
+                <input v-model="newAuftrag.vonDatum" type="date" class="qa-input" />
+              </div>
+              <div style="flex:1">
+                <div class="qa-form-field-label">Bis *</div>
+                <input v-model="newAuftrag.bisDatum" type="date" class="qa-input" />
+              </div>
+            </div>
+          </div>
+          <div class="qa-section">
+            <div class="qa-form-row pseudo-time-row">
+              <div style="flex:1">
+                <div class="qa-form-field-label">Geschäftsstelle</div>
+                <select v-model="newAuftrag.geschSt" class="qa-select">
+                  <option value="">— Keine —</option>
+                  <option value="1">Berlin</option>
+                  <option value="2">Hamburg</option>
+                  <option value="3">Köln</option>
+                </select>
+              </div>
+              <div style="flex:1">
+                <div class="qa-form-field-label">Ort</div>
+                <input v-model="newAuftrag.eventOrt" class="qa-input" placeholder="z.B. Berlin" />
+              </div>
+            </div>
+          </div>
+          <div class="qa-section">
+            <div class="qa-form-row">
+              <div style="flex:1">
+                <div class="qa-form-field-label">Location</div>
+                <input v-model="newAuftrag.eventLocation" class="qa-input" placeholder="z.B. Messe Berlin" />
+              </div>
+            </div>
+          </div>
+          <div class="qa-section">
+            <button
+              class="qa-submit-btn"
+              :disabled="!newAuftrag.eventTitel.trim() || !newAuftrag.vonDatum || !newAuftrag.bisDatum || newAuftragSaving"
+              @click="saveNewPseudoAuftrag"
+            >
+              <font-awesome-icon v-if="newAuftragSaving" icon="fa-solid fa-spinner" spin />
+              <font-awesome-icon v-else icon="fa-solid fa-check" />
+              Auftrag anlegen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Pseudo-MA Dialog ──────────────────────────────────────────── -->
     <div v-if="showPseudoDialog" class="modal-overlay" @click.self="showPseudoDialog = false">
       <div class="modal-content modal-qa">
@@ -579,20 +656,60 @@
           <button class="close-btn" @click="showPseudoDialog = false">×</button>
         </div>
         <div class="modal-body">
-          <!-- Schicht selector -->
+          <!-- Schicht mode toggle -->
           <div class="qa-section">
-            <div class="qa-section-label">Schicht (optional)</div>
+            <div class="qa-section-label">Schicht</div>
+            <div class="pseudo-mode-toggle">
+              <button
+                class="pseudo-mode-btn"
+                :class="{ active: pseudoSchichtMode === 'existing' }"
+                @click="pseudoSchichtMode = 'existing'"
+              >Bestehende Schicht</button>
+              <button
+                class="pseudo-mode-btn"
+                :class="{ active: pseudoSchichtMode === 'new' }"
+                @click="pseudoSchichtMode = 'new'"
+              >Neue Pseudo-Schicht</button>
+            </div>
+          </div>
+
+          <!-- Existing shift selector -->
+          <div v-if="pseudoSchichtMode === 'existing'" class="qa-section">
             <select v-model="pseudoSelectedSchicht" class="qa-select">
               <option :value="null">— Automatisch (erste Schicht) —</option>
               <option
                 v-for="(schicht, key) in preparedSchichten"
                 :key="key"
-                :value="key === 'none' ? null : key"
+                :value="key"
               >
                 {{ schicht.meta.schichtBezeichnung || ('Schicht ' + key) }}
                 <template v-if="schicht.meta.uhrzeitVon"> · {{ schicht.meta.uhrzeitVon.substring(0,5) }}</template>
               </option>
             </select>
+          </div>
+
+          <!-- New pseudo shift fields -->
+          <div v-if="pseudoSchichtMode === 'new'" class="qa-section">
+            <div class="qa-form-row">
+              <div style="flex:1">
+                <div class="qa-form-field-label">Bezeichnung *</div>
+                <input
+                  v-model="pseudoNewSchicht.bezeichnung"
+                  class="qa-input"
+                  placeholder="z.B. Trainer, Service, Logistik..."
+                />
+              </div>
+            </div>
+            <div class="qa-form-row pseudo-time-row">
+              <div style="flex:1">
+                <div class="qa-form-field-label">Von</div>
+                <input v-model="pseudoNewSchicht.uhrzeitVon" type="time" class="qa-input" />
+              </div>
+              <div style="flex:1">
+                <div class="qa-form-field-label">Bis</div>
+                <input v-model="pseudoNewSchicht.uhrzeitBis" type="time" class="qa-input" />
+              </div>
+            </div>
           </div>
 
           <!-- Mitarbeiter search -->
@@ -637,7 +754,7 @@
           </div>
 
           <div class="qa-section">
-            <button class="qa-submit-btn" :disabled="!pseudoSelectedMas.length || pseudoSaving" @click="savePseudoEinsatz">
+            <button class="qa-submit-btn" :disabled="!pseudoSelectedMas.length || pseudoSaving || (pseudoSchichtMode === 'new' && !pseudoNewSchicht.bezeichnung.trim())" @click="savePseudoEinsatz">
               <font-awesome-icon v-if="pseudoSaving" icon="fa-solid fa-spinner" spin />
               <font-awesome-icon v-else icon="fa-solid fa-check" />
               {{ pseudoSelectedMas.length > 1 ? `${pseudoSelectedMas.length} Mitarbeiter einplanen` : 'Einplanen' }}
@@ -664,10 +781,10 @@
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical);
+library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
@@ -742,8 +859,14 @@ export default {
       newLabelColor: '#4f46e5',
       labelPresetColors: ['#4f46e5','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#64748b'],
       labelSaving: false,
+      // New pseudo Auftrag dialog
+      showNewAuftragDialog: false,
+      newAuftrag: { eventTitel: '', vonDatum: '', bisDatum: '', geschSt: '', eventLocation: '', eventOrt: '' },
+      newAuftragSaving: false,
       // Pseudo-MA dialog
       showPseudoDialog: false,
+      pseudoSchichtMode: 'existing', // 'existing' | 'new'
+      pseudoNewSchicht: { bezeichnung: '', uhrzeitVon: '', uhrzeitBis: '' },
       pseudoSearch: '',
       pseudoSearchResults: [],
       pseudoSearching: false,
@@ -1461,12 +1584,64 @@ export default {
         alert(err.response?.data?.message || 'Fehler beim Entfernen');
       }
     },
+    openNewAuftragDialog() {
+      const today = new Date().toISOString().slice(0, 10);
+      this.newAuftrag = {
+        eventTitel: '',
+        vonDatum: today,
+        bisDatum: today,
+        geschSt: this.filters.geschSt || '',
+        eventLocation: '',
+        eventOrt: '',
+      };
+      this.newAuftragSaving = false;
+      this.showNewAuftragDialog = true;
+    },
+    async saveNewPseudoAuftrag() {
+      if (!this.newAuftrag.eventTitel.trim() || !this.newAuftrag.vonDatum || !this.newAuftrag.bisDatum) return;
+      this.newAuftragSaving = true;
+      try {
+        const payload = {
+          eventTitel: this.newAuftrag.eventTitel.trim(),
+          vonDatum: this.newAuftrag.vonDatum,
+          bisDatum: this.newAuftrag.bisDatum,
+        };
+        if (this.newAuftrag.geschSt) payload.geschSt = this.newAuftrag.geschSt;
+        if (this.newAuftrag.eventLocation.trim()) payload.eventLocation = this.newAuftrag.eventLocation.trim();
+        if (this.newAuftrag.eventOrt.trim()) payload.eventOrt = this.newAuftrag.eventOrt.trim();
+        const res = await api.post('/api/auftraege', payload);
+        const newAuftragData = res.data;
+        // Add to local list so it appears in the calendar
+        this.auftraege.push({ ...newAuftragData, einsaetzeCount: 0, schichten: [], schichtStatus: 'none', mitarbeiterNames: [] });
+        this.showNewAuftragDialog = false;
+        // Open the new event in the sidebar
+        await this.selectEvent(newAuftragData);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Fehler beim Anlegen des Auftrags');
+      } finally {
+        this.newAuftragSaving = false;
+      }
+    },
+    async deletePseudoAuftrag() {
+      if (!this.selectedEvent?.isPseudo) return;
+      if (!confirm(`Pseudo-Auftrag "${this.selectedEvent.eventTitel}" und alle zugehörigen Pseudo-Einsätze löschen?`)) return;
+      try {
+        await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}`);
+        this.auftraege = this.auftraege.filter(a => a.auftragNr !== this.selectedEvent.auftragNr);
+        this.selectedEvent = null;
+        this.showQuickActions = false;
+      } catch (err) {
+        alert(err.response?.data?.message || 'Fehler beim Löschen');
+      }
+    },
     openPseudoDialog() {
       this.showQuickActions = false;
       this.pseudoSearch = '';
       this.pseudoSearchResults = [];
       this.pseudoSelectedMas = [];
       this.pseudoSelectedSchicht = null;
+      this.pseudoSchichtMode = 'existing';
+      this.pseudoNewSchicht = { bezeichnung: '', uhrzeitVon: '', uhrzeitBis: '' };
       this.showPseudoDialog = true;
     },
     togglePseudoMa(ma) {
@@ -1494,13 +1669,22 @@ export default {
     },
     async savePseudoEinsatz() {
       if (!this.pseudoSelectedMas.length) return;
+      if (this.pseudoSchichtMode === 'new' && !this.pseudoNewSchicht.bezeichnung.trim()) return;
       this.pseudoSaving = true;
       const errors = [];
       try {
         await Promise.all(this.pseudoSelectedMas.map(async (ma) => {
           try {
             const payload = { mitarbeiterId: ma._id };
-            if (this.pseudoSelectedSchicht) payload.schichtId = this.pseudoSelectedSchicht;
+            if (this.pseudoSchichtMode === 'new') {
+              payload.isNewPseudoSchicht = true;
+              payload.newSchichtBezeichnung = this.pseudoNewSchicht.bezeichnung.trim();
+              if (this.pseudoNewSchicht.uhrzeitVon) payload.newUhrzeitVon = this.pseudoNewSchicht.uhrzeitVon;
+              if (this.pseudoNewSchicht.uhrzeitBis) payload.newUhrzeitBis = this.pseudoNewSchicht.uhrzeitBis;
+            } else {
+              // null = auto (first shift), 'none' = explicitly the no-id group, anything else = real schichtId
+              if (this.pseudoSelectedSchicht !== null) payload.schichtId = this.pseudoSelectedSchicht;
+            }
             await api.post(`/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz`, payload);
           } catch (err) {
             errors.push(`${ma.vorname} ${ma.nachname}: ${err.response?.data?.message || 'Fehler'}`);
@@ -1540,6 +1724,8 @@ export default {
         this.selectedDoc = null;
       } else if (this.showLabelDialog) {
         this.showLabelDialog = false;
+      } else if (this.showNewAuftragDialog) {
+        this.showNewAuftragDialog = false;
       } else if (this.showPseudoDialog) {
         this.showPseudoDialog = false;
       } else if (this.selectedKunde) {
@@ -2203,6 +2389,20 @@ export default {
   background: color-mix(in oklab, var(--primary) 10%, transparent);
   color: var(--primary);
   border-color: var(--primary);
+}
+
+.nav-btn.new-pseudo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: color-mix(in oklab, #8b5cf6 10%, transparent);
+  border-color: color-mix(in oklab, #8b5cf6 40%, transparent);
+  color: #8b5cf6;
+
+  &:hover {
+    background: color-mix(in oklab, #8b5cf6 18%, transparent);
+    border-color: #8b5cf6;
+  }
 }
 
 .current-range {
@@ -2990,6 +3190,14 @@ export default {
     color: var(--primary);
     svg { color: var(--primary); }
   }
+
+  &.qa-dropdown-item--danger {
+    &:hover {
+      background: rgba(239, 68, 68, 0.08);
+      color: #ef4444;
+      svg { color: #ef4444; }
+    }
+  }
 }
 
 .qa-dropdown-fade-enter-active,
@@ -3074,6 +3282,11 @@ export default {
   color: #8b5cf6;
   margin-left: 4px;
   vertical-align: middle;
+
+  &.pseudo-tag--event {
+    margin-left: 0;
+    font-size: 0.6rem;
+  }
 }
 
 .ma-badges--right {
@@ -3316,5 +3529,41 @@ export default {
 
   &:hover { opacity: 0.88; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+/* ── Pseudo shift mode toggle ──────────────────────────────────────── */
+.pseudo-mode-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pseudo-mode-btn {
+  flex: 1;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &:last-child { border-right: none; }
+  &:hover { background: var(--hover); color: var(--text); }
+
+  &.active {
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    color: var(--primary);
+    font-weight: 600;
+  }
+}
+
+.pseudo-time-row {
+  gap: 10px;
+  margin-top: 10px;
 }
 </style>

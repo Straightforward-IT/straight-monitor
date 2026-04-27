@@ -22,6 +22,8 @@ const {
   logGraphError,
   convertAttachmentToPdf,
   getContacts,
+  searchContacts,
+  createContact,
   updateContact,
   deleteContact,
   getMailboxFolderTree,
@@ -33,6 +35,7 @@ const { runApplicantMailRetentionCleanup } = require("../ApplicantMailRetentionS
 const registry = require("../config/registry");
 const { createTaskFromEmail } = require("../AsanaService");
 const User = require("../models/User");
+const asyncHandler = require("../middleware/AsyncHandler");
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
 
@@ -796,11 +799,14 @@ router.get("/mailboxes/folder-insights", auth, async (req, res) => {
   }
 });
 
-// GET /api/graph/contacts?team=hamburg|berlin|koeln (or all)
+// GET /api/graph/contacts?team=hamburg|berlin|koeln&q=searchterm
+// When q is provided → fast server-side search (max 25 per mailbox)
+// Without q          → full paginated list (all contacts)
 router.get("/contacts", auth, async (req, res) => {
   try {
     const token = await getAppToken();
     const teamFilter = req.query.team;
+    const q = (req.query.q || '').trim();
 
     let teams;
     if (teamFilter) {
@@ -818,7 +824,9 @@ router.get("/contacts", auth, async (req, res) => {
       const upn = registry.getGraphMailboxUpn(t);
       if (!upn) continue;
       try {
-        const contacts = await getContacts(token, upn);
+        const contacts = q
+          ? await searchContacts(token, upn, q)
+          : await getContacts(token, upn);
         allContacts.push(
           ...contacts.map(c => ({ ...c, _team: t.key, _upn: upn }))
         );
@@ -833,6 +841,42 @@ router.get("/contacts", auth, async (req, res) => {
     res.status(500).json({ ok: false, error: e?.response?.data || e.message });
   }
 });
+
+// POST /api/graph/contacts — Neuen Microsoft-Kontakt anlegen
+// Body: { upn?, team?, givenName, surname, companyName?, jobTitle?, email?, mobilePhone?, businessPhone? }
+// Accepts either upn directly or team key (resolved via registry)
+router.post("/contacts", auth, asyncHandler(async (req, res) => {
+  const { upn: rawUpn, team, givenName, surname, companyName, jobTitle, email, mobilePhone, businessPhone } = req.body;
+
+  let upn = rawUpn;
+  if (!upn && team) {
+    try {
+      const t = registry.getTeam(team);
+      upn = registry.getGraphMailboxUpn(t);
+    } catch {
+      return res.status(400).json({ ok: false, error: `Unbekanntes Team '${team}'` });
+    }
+  }
+
+  if (!upn) return res.status(400).json({ ok: false, error: '"upn" oder "team" ist erforderlich.' });
+  if (!givenName && !surname) return res.status(400).json({ ok: false, error: 'Vor- oder Nachname erforderlich.' });
+
+  const fields = {
+    givenName:  givenName  || '',
+    surname:    surname    || '',
+    displayName: [givenName, surname].filter(Boolean).join(' '),
+  };
+  if (companyName)   fields.companyName   = companyName;
+  if (jobTitle)      fields.jobTitle      = jobTitle;
+  if (mobilePhone)   fields.mobilePhone   = mobilePhone;
+  if (businessPhone) fields.businessPhones = [businessPhone];
+  if (email)         fields.emailAddresses = [{ address: email, name: fields.displayName }];
+
+  const token = await getAppToken();
+  const contact = await createContact(token, upn, fields);
+
+  res.status(201).json({ ok: true, contact: { ...contact, _upn: upn } });
+}));
 
 // PATCH /api/graph/contacts/:contactId  — Update contact fields
 router.patch("/contacts/:contactId", auth, async (req, res) => {

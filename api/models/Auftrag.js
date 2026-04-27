@@ -67,7 +67,11 @@ const AuftragSchema = new mongoose.Schema({
   labels: [{
     name: { type: String, required: true, maxlength: 20, trim: true },
     color: { type: String, default: '#4f46e5', trim: true }
-  }]
+  }],
+  isPseudo: {
+    type: Boolean,
+    default: false
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Auftrag', AuftragSchema);

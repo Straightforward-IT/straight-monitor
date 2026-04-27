@@ -217,14 +217,13 @@
               <div class="kpi-table-title">Umsatz pro Jahr</div>
               <table class="kpi-table">
                 <thead>
-                  <tr><th>Jahr</th><th>Netto</th><th>Aktive Mo.</th><th>Hochgerechnet</th></tr>
+                  <tr><th>Jahr</th><th>Netto</th><th>Aktive Mo.</th></tr>
                 </thead>
                 <tbody>
                   <tr v-for="y in kpi.umsatz.perYear" :key="y.year">
                     <td>{{ y.year }}</td>
                     <td>{{ formatEuro(y.netto) }}</td>
                     <td class="muted-cell">{{ y.activeMonths }}</td>
-                    <td class="muted-cell">{{ y.activeMonths < 12 ? formatEuro(y.annualizedNetto) : '—' }}</td>
                   </tr>
                 </tbody>
               </table>

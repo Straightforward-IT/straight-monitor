@@ -339,6 +339,7 @@ router.post(
         const BASE_URL = 'https://straightmonitor.com';
         const recipients = registry.getEventReportRecipients(location);
         const fmtField = (v) => v && String(v).trim() ? String(v).trim() : '<span style="color:#999;">—</span>';
+        const fmtText = (v) => v && String(v).trim() ? String(v).trim().replace(/\n/g, '<br>') : '<span style="color:#999;">—</span>';
         const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
         const link = (href, label) =>
           `<a href="${href}" style="color:#ff7518;text-decoration:none;font-weight:600;">${label}</a>`;
@@ -365,11 +366,11 @@ router.post(
               const nameHtml = ma?._id
                 ? link(`${BASE_URL}/personal?mitarbeiter_id=${ma._id}`, f.name || f.personalNr)
                 : (f.name || f.personalNr);
-              return `<div style="margin:4px 0 10px;"><strong style="font-size:0.8rem;color:#555;">${nameHtml}</strong><br/><span style="font-size:0.9rem;">${f.text.trim()}</span></div>`;
+              return `<div style="margin:4px 0 10px;"><strong style="font-size:0.8rem;color:#555;">${nameHtml}</strong><br/><span style="font-size:0.9rem;">${f.text.trim().replace(/\n/g, '<br>')}</span></div>`;
             })
             .join('');
         }
-        if (!maFeedbackHtml && mitarbeiter_job) maFeedbackHtml = fmtField(mitarbeiter_job);
+        if (!maFeedbackHtml && mitarbeiter_job) maFeedbackHtml = fmtText(mitarbeiter_job);
         if (!maFeedbackHtml) maFeedbackHtml = '<span style="color:#999;">—</span>';
 
         const html = `
@@ -402,10 +403,10 @@ router.post(
               ${maFeedbackHtml}
               <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
               <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Feedback Auftraggeber</h3>
-              <p style="margin:0;font-size:0.9rem;">${fmtField(feedback_auftraggeber)}</p>
+              <p style="margin:0;font-size:0.9rem;">${fmtText(feedback_auftraggeber)}</p>
               <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
               <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Sonstiges</h3>
-              <p style="margin:0;font-size:0.9rem;">${fmtField(sonstiges)}</p>
+              <p style="margin:0;font-size:0.9rem;">${fmtText(sonstiges)}</p>
             </div>
           </div>`;
 
@@ -781,6 +782,7 @@ router.post(
         const BASE_URL = 'https://straightmonitor.com';
         const recipients = registry.getEventReportRecipients(laufzettel.location);
         const fmtField = (v) => v && String(v).trim() ? String(v).trim() : '<span style="color:#999;">—</span>';
+        const fmtText = (v) => v && String(v).trim() ? String(v).trim().replace(/\n/g, '<br>') : '<span style="color:#999;">—</span>';
         const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
         const link = (href, label) =>
           `<a href="${href}" style="color:#ff7518;text-decoration:none;font-weight:600;">${label}</a>`;
@@ -828,15 +830,15 @@ router.post(
               <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
               <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Bewertung</h3>
               <table style="border-collapse:collapse;width:100%;">
-                ${row('Pünktlichkeit', fmtField(puenktlichkeit))}
-                ${row('Erscheinungsbild', fmtField(grooming))}
-                ${row('Motivation', fmtField(motivation))}
-                ${row('Techn. Fertigkeiten', fmtField(technische_fertigkeiten))}
-                ${row('Lernbereitschaft', fmtField(lernbereitschaft))}
+                ${row('Pünktlichkeit', fmtText(puenktlichkeit))}
+                ${row('Erscheinungsbild', fmtText(grooming))}
+                ${row('Motivation', fmtText(motivation))}
+                ${row('Techn. Fertigkeiten', fmtText(technische_fertigkeiten))}
+                ${row('Lernbereitschaft', fmtText(lernbereitschaft))}
               </table>
               <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
               <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Sonstiges</h3>
-              <p style="margin:0;font-size:0.9rem;">${fmtField(sonstiges)}</p>
+              <p style="margin:0;font-size:0.9rem;">${fmtText(sonstiges)}</p>
               <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
               <p style="margin:0;">${laufzettelLink}</p>
             </div>

@@ -1,5 +1,5 @@
 <template>
-  <div class="kunden-page">
+  <div class="kunden-page" :class="{ 'kunden-page--wide': currentTab === 'leads' }">
     
     <!-- Tabs Navigation -->
     <div class="tabs">
@@ -17,9 +17,9 @@
 
     <div class="content-section">
       
-      <!-- Shared Filter Panel (Not for Analytics/Kontakte) -->
+      <!-- Shared Filter Panel (Not for Analytics/Kontakte/Leads) -->
       <FilterPanel 
-        v-if="currentTab !== 'analytics' && currentTab !== 'kontakte'"
+        v-if="currentTab !== 'analytics' && currentTab !== 'kontakte' && currentTab !== 'leads'"
         v-model:expanded="filtersExpanded" 
         title="Filter & Sortierung"
         class="mb-4"
@@ -177,30 +177,9 @@
         </div>
       </div>
 
-       <!-- Leads Tab (Status 1) -->
-      <div v-if="currentTab === 'leads'" class="tab-content">
-          <div class="toolbar">
-            <h2>Potentielle Kunden (Leads)</h2>
-             <span class="count-tag">{{ leads.length }} Leads</span>
-          </div>
-
-          <div v-if="isLoading" class="loading-state">
-           <font-awesome-icon :icon="['fas', 'spinner']" spin /> Lädt...
-          </div>
-          
-           <div v-else-if="leads.length === 0" class="empty-list">
-             Keine Leads vorhanden.
-          </div>
-
-           <div v-else class="kunden-list">
-              <div v-for="lead in leads" :key="lead._id" class="lead-item" @click="openCustomer(lead)">
-                 <div class="lead-info">
-                    <h4>{{ lead.kundName }}</h4>
-                    <span class="text-sm text-muted">Erstellt am: {{ formatDate(lead.createdAt) }}</span>
-                 </div>
-                 <button class="btn-small">Details</button>
-              </div>
-           </div>
+       <!-- Leads Tab (Pipedrive-style sales leads) -->
+      <div v-if="currentTab === 'leads'" class="tab-content tab-content--full">
+          <LeadsTab />
       </div>
 
       <!-- Kontakte Tab (Microsoft Graph Contacts) -->
@@ -392,6 +371,7 @@ import FilterDropdown from './FilterDropdown.vue';
 import CustomerCard from './CustomerCard.vue';
 import CustomTooltip from './CustomTooltip.vue';
 import KundenAnalytics from './KundenAnalytics.vue';
+import LeadsTab from './LeadsTab.vue';
 import KundenMergeModal from './KundenMergeModal.vue';
 import KundenWatchlistReportModal from './KundenWatchlistReportModal.vue';
 import ContextMenu from './ContextMenu.vue';
@@ -896,9 +876,14 @@ watch(currentTab, (tab) => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
   width: 100%;
+}
+
+.kunden-page--wide {
+  max-width: 100%;
+  padding: 16px 24px;
 }
 
 .header-section h1 {

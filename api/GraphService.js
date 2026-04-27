@@ -874,6 +874,39 @@ async function convertAttachmentToPdf(token, upn, fileBuffer, fileName) {
 /* ----------------------------- Contacts ---------------------------------- */
 
 /**
+ * Kontakte eines Postfachs nach displayName / E-Mail suchen (max. 25).
+ * Verwendet $filter mit startsWith damit keine volle Liste geladen werden muss.
+ */
+async function searchContacts(token, upn, q) {
+  const esc = encodeURIComponent(q.replace(/'/g, "''"));
+  const select = 'id,givenName,surname,displayName,emailAddresses,businessPhones,mobilePhone,companyName,jobTitle';
+  // Graph supports startsWith filter on displayName and emailAddresses/address
+  const filter = `startsWith(displayName,'${esc}') or emailAddresses/any(e:startsWith(e/address,'${esc}'))`;
+  const url =
+    `${GRAPH}/users/${encodeURIComponent(upn)}/contacts` +
+    `?$select=${select}&$filter=${encodeURIComponent(filter)}&$top=25&$orderby=displayName`;
+  const { data } = await axios.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return (data.value || []).filter(
+    (c) => !(c.companyName || '').toLowerCase().includes('straightforward')
+  );
+}
+
+/**
+ * Neuen Kontakt in einem Postfach anlegen.
+ * fields: { givenName, surname, displayName?, companyName?, jobTitle?,
+ *           emailAddresses?: [{address,name}], mobilePhone?, businessPhones? }
+ */
+async function createContact(token, upn, fields) {
+  const url = `${GRAPH}/users/${encodeURIComponent(upn)}/contacts`;
+  const { data } = await axios.post(url, fields, {
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  });
+  return data;
+}
+
+/**
  * Alle Kontakte eines Postfachs abrufen (paginiert).
  * Filtert Kontakte heraus, deren companyName "Straightforward" enthält.
  */
@@ -950,6 +983,8 @@ module.exports = {
   convertAttachmentToPdf,
   // contacts
   getContacts,
+  searchContacts,
+  createContact,
   updateContact,
   deleteContact,
 };

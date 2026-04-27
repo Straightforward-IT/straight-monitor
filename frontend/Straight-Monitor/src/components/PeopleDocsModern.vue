@@ -288,6 +288,9 @@
                 <button @click="setMitarbeiterSort('abteilung')">
                   Bereich
                 </button>
+                <button @click="setMitarbeiterSort('createdAt')">
+                  Zuletzt erstellt
+                </button>
                 <button class="sep" disabled />
                 <button
                   @click="mitarbeitersIsAscending = !mitarbeitersIsAscending"
@@ -1202,8 +1205,14 @@ export default {
         // Grid view sorting (existing logic)
         const key = this.mitarbeitersSortBy;
         arr.sort((a, b) => {
-          const av = (a?.[key] ?? "").toString().toLowerCase();
-          const bv = (b?.[key] ?? "").toString().toLowerCase();
+          let av, bv;
+          if (key === 'createdAt') {
+            av = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+            bv = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+          } else {
+            av = (a?.[key] ?? "").toString().toLowerCase();
+            bv = (b?.[key] ?? "").toString().toLowerCase();
+          }
           if (av < bv) return this.mitarbeitersIsAscending ? -1 : 1;
           if (av > bv) return this.mitarbeitersIsAscending ? 1 : -1;
           return 0;

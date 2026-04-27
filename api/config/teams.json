@@ -214,6 +214,23 @@
       "routine": {
         "enabled": false
       }
+    },
+    {
+      "key": "rs",
+      "aliases": ["rs"],
+      "displayName": "RS",
+      "email": { "address": "rs@straightforward.email" },
+      "graph": {
+        "mailboxes": {
+          "primary": {
+            "userPrincipalName": "rs@straightforward.email"
+          }
+        }
+      },
+      "asana": null,
+      "routine": {
+        "enabled": false
+      }
     }
   ]
 }

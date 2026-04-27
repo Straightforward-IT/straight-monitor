@@ -795,6 +795,7 @@ export default {
   .value {
     color: var(--text);
     word-break: break-word;
+    white-space: pre-wrap;
   }
 }
 

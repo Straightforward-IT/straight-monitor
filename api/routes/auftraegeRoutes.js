@@ -465,14 +465,57 @@ router.delete('/:auftragNr/labels/:labelId', asyncHandler(async (req, res) => {
 }));
 
 // ─────────────────────────────────────────────────────────────
+// PSEUDO-AUFTRÄGE
+// ─────────────────────────────────────────────────────────────
+
+// POST /api/auftraege – Create a new pseudo Auftrag
+router.post('/', asyncHandler(async (req, res) => {
+  const { eventTitel, vonDatum, bisDatum, geschSt, eventLocation, eventOrt, kundenNr } = req.body;
+  if (!eventTitel || !vonDatum || !bisDatum) {
+    return res.status(400).json({ message: 'Titel, vonDatum und bisDatum sind erforderlich' });
+  }
+
+  // Generate an auftragNr in the pseudo range (>= 9000001)
+  const lastPseudo = await Auftrag.findOne({ isPseudo: true }).sort({ auftragNr: -1 }).lean();
+  const nextNr = lastPseudo ? lastPseudo.auftragNr + 1 : 9000001;
+
+  const auftrag = new Auftrag({
+    auftragNr: nextNr,
+    eventTitel: eventTitel.trim(),
+    vonDatum: new Date(vonDatum),
+    bisDatum: new Date(bisDatum),
+    geschSt: geschSt || null,
+    eventLocation: eventLocation?.trim() || null,
+    eventOrt: eventOrt?.trim() || null,
+    kundenNr: kundenNr ? parseInt(kundenNr) : null,
+    aktiv: 1,
+    auftStatus: 2,
+    isPseudo: true,
+  });
+  await auftrag.save();
+  res.status(201).json(auftrag.toObject());
+}));
+
+// DELETE /api/auftraege/:auftragNr – Delete a pseudo Auftrag (and its pseudo Einsätze)
+router.delete('/:auftragNr', asyncHandler(async (req, res) => {
+  const { auftragNr } = req.params;
+  const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr), isPseudo: true });
+  if (!auftrag) return res.status(404).json({ message: 'Pseudo-Auftrag nicht gefunden' });
+  await Einsatz.deleteMany({ auftragNr: parseInt(auftragNr) });
+  await auftrag.deleteOne();
+  res.json({ ok: true });
+}));
+
+// ─────────────────────────────────────────────────────────────
 // PSEUDO-EINSÄTZE
 // ─────────────────────────────────────────────────────────────
 
 // POST /api/auftraege/:auftragNr/pseudo-einsatz – Schedule a pseudo-employee
 router.post('/:auftragNr/pseudo-einsatz', asyncHandler(async (req, res) => {
   const { auftragNr } = req.params;
-  const { mitarbeiterId, schichtId } = req.body;
+  const { mitarbeiterId, schichtId, isNewPseudoSchicht, newSchichtBezeichnung, newUhrzeitVon, newUhrzeitBis } = req.body;
   if (!mitarbeiterId) return res.status(400).json({ message: 'mitarbeiterId erforderlich' });
+  if (isNewPseudoSchicht && !newSchichtBezeichnung) return res.status(400).json({ message: 'Bezeichnung für neue Pseudo-Schicht erforderlich' });
 
   const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) });
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
@@ -482,45 +525,59 @@ router.post('/:auftragNr/pseudo-einsatz', asyncHandler(async (req, res) => {
 
   const personalnrInt = mitarbeiter.personalnr ? parseInt(mitarbeiter.personalnr) : null;
 
-  // Check for duplicate pseudo-einsatz
-  const duplicate = await Einsatz.findOne({
-    auftragNr: parseInt(auftragNr),
-    personalNr: personalnrInt,
-    isPseudo: true,
-    ...(schichtId ? { idAuftragArbeitsschichten: parseInt(schichtId) } : {})
-  });
-  if (duplicate) return res.status(400).json({ message: 'Mitarbeiter bereits in dieser Schicht eingeplant' });
+  // 'none' means the shift group with no idAuftragArbeitsschichten (null); null means auto (first shift)
+  const isNoneGroup = schichtId === 'none';
+  const hasRealSchichtId = schichtId && !isNoneGroup;
 
-  // Copy metadata from an existing Einsatz or Schicht in the same schicht
-  const templateQuery = { auftragNr: parseInt(auftragNr) };
-  if (schichtId) templateQuery.idAuftragArbeitsschichten = parseInt(schichtId);
-  const template = await Einsatz.findOne(templateQuery).lean();
-
-  // Fallback: use Schicht if no Einsatz template found (e.g. empty shift from 7011)
-  let schichtTemplate = null;
-  if (!template && schichtId) {
-    schichtTemplate = await Schicht.findOne({
+  // Check for duplicate pseudo-einsatz (skip strict check for new pseudo schichten)
+  if (!isNewPseudoSchicht) {
+    const duplicate = await Einsatz.findOne({
       auftragNr: parseInt(auftragNr),
-      idAuftragArbeitsschichten: parseInt(schichtId)
-    }).lean();
+      personalNr: personalnrInt,
+      isPseudo: true,
+      ...(hasRealSchichtId
+        ? { idAuftragArbeitsschichten: parseInt(schichtId) }
+        : isNoneGroup
+          ? { idAuftragArbeitsschichten: null }
+          : {})
+    });
+    if (duplicate) return res.status(400).json({ message: 'Mitarbeiter bereits in dieser Schicht eingeplant' });
   }
-  const tpl = template || schichtTemplate;
+
+  let tpl = null;
+  if (!isNewPseudoSchicht) {
+    // Copy metadata from an existing Einsatz or Schicht in the same schicht
+    const templateQuery = { auftragNr: parseInt(auftragNr) };
+    if (hasRealSchichtId) templateQuery.idAuftragArbeitsschichten = parseInt(schichtId);
+    else if (isNoneGroup) templateQuery.idAuftragArbeitsschichten = null;
+    const template = await Einsatz.findOne(templateQuery).lean();
+
+    // Fallback: use Schicht if no Einsatz template found (e.g. empty shift from 7011)
+    let schichtTemplate = null;
+    if (!template && hasRealSchichtId) {
+      schichtTemplate = await Schicht.findOne({
+        auftragNr: parseInt(auftragNr),
+        idAuftragArbeitsschichten: parseInt(schichtId)
+      }).lean();
+    }
+    tpl = template || schichtTemplate;
+  }
 
   const newEinsatz = new Einsatz({
     auftragNr: parseInt(auftragNr),
     personalNr: personalnrInt,
     datumVon: tpl?.datumVon || auftrag.vonDatum,
     datumBis: tpl?.datumBis || auftrag.bisDatum,
-    idAuftragArbeitsschichten: schichtId ? parseInt(schichtId) : tpl?.idAuftragArbeitsschichten,
-    schichtBezeichnung: tpl?.schichtBezeichnung || tpl?.bezeichnung,
-    uhrzeitVon: tpl?.uhrzeitVon,
-    uhrzeitBis: tpl?.uhrzeitBis,
+    idAuftragArbeitsschichten: hasRealSchichtId ? parseInt(schichtId) : isNoneGroup ? null : tpl?.idAuftragArbeitsschichten,
+    schichtBezeichnung: isNewPseudoSchicht ? newSchichtBezeichnung : (tpl?.schichtBezeichnung || tpl?.bezeichnung),
+    uhrzeitVon: isNewPseudoSchicht ? (newUhrzeitVon || undefined) : tpl?.uhrzeitVon,
+    uhrzeitBis: isNewPseudoSchicht ? (newUhrzeitBis || undefined) : tpl?.uhrzeitBis,
     treffpunkt: tpl?.treffpunkt,
     ansprechpartnerName: tpl?.ansprechpartnerName,
     ansprechpartnerTelefon: tpl?.ansprechpartnerTelefon,
-    bezeichnung: template?.bezeichnung,
-    berufSchl: template?.berufSchl,
-    qualSchl: template?.qualSchl,
+    bezeichnung: tpl?.bezeichnung,
+    berufSchl: tpl?.berufSchl,
+    qualSchl: tpl?.qualSchl,
     isPseudo: true,
   });
   await newEinsatz.save();
