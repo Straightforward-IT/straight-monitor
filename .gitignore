@@ -56,7 +56,6 @@ temp/
 MAlonzo/**
 
 # Documentation (local-only, may contain sensitive information)
-MAILPARSER_*.md
 WPFORMS_*.md
 LAUFZETTEL_*.md
 *_DEBUGGING.md

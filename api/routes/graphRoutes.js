@@ -28,6 +28,7 @@ const {
   getMailFolderInsights,
 } = require("../GraphService");
 const { parseApplicantEmail } = require("../applicantParser");
+const { runApplicantMailRetentionCleanup } = require("../ApplicantMailRetentionService");
 
 const registry = require("../config/registry");
 const { createTaskFromEmail } = require("../AsanaService");
@@ -92,6 +93,21 @@ function extractUserGuidFromResource(resource = "") {
   const guidPattern = /Users\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\//i;
   const match = resource.match(guidPattern);
   return match ? match[1] : null;
+}
+
+function normalizeStringList(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry || "").trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  return null;
 }
 
 function parseFolderIdFromResource(resource = "") {
@@ -640,8 +656,12 @@ router.get("/mailboxes/accounts", auth, async (req, res) => {
   try {
     if (!await requireAdmin(req, res)) return;
 
-    const accounts = registry.listTeams()
+    const accounts = registry.listTeams({ includeDevelopmentOnly: true })
       .filter((team) => getMailboxUpnForTeam(team))
+      .sort((left, right) => {
+        if (left.developmentOnly === right.developmentOnly) return 0;
+        return left.developmentOnly ? 1 : -1;
+      })
       .map((team) => {
         const mailboxUpn = getMailboxUpnForTeam(team);
         const subscriptionUpn = registry.getGraphSubscription(team)?.userPrincipalName || null;
@@ -684,6 +704,53 @@ router.get("/mailboxes/tree", auth, async (req, res) => {
     });
   } catch (e) {
     logGraphError("GET /mailboxes/tree failed", e);
+    const status = /Unknown team/i.test(e.message) ? 400 : 500;
+    res.status(status).json({ ok: false, error: e?.response?.data || e.message });
+  }
+});
+
+router.post("/mail-retention/run", auth, async (req, res) => {
+  try {
+    if (!await requireAdmin(req, res)) return;
+
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const teamKeys = normalizeStringList(body.teamKeys);
+    const folderKeys = normalizeStringList(body.folderKeys);
+    const dryRun = typeof body.dryRun === "boolean"
+      ? body.dryRun
+      : typeof body.dryRun === "string"
+        ? body.dryRun.toLowerCase() === "true"
+        : undefined;
+    const triggerId = `mail-retention-${Date.now()}`;
+
+    res.status(202).json({
+      ok: true,
+      started: true,
+      triggerId,
+      dryRun: typeof dryRun === "boolean" ? dryRun : null,
+      teamKeys: teamKeys || [],
+      folderKeys: folderKeys || [],
+      message: "Mail retention cleanup started.",
+    });
+
+    (async () => {
+      try {
+        console.log(
+          `🚀 [${triggerId}] Starting mail retention cleanup ` +
+          `(dryRun=${typeof dryRun === "boolean" ? dryRun : "env"}, ` +
+          `teamKeys=${teamKeys?.join(",") || "all"}, folderKeys=${folderKeys?.join(",") || "all"})`
+        );
+        const result = await runApplicantMailRetentionCleanup({ dryRun, teamKeys, folderKeys });
+        console.log(`✅ [${triggerId}] Mail retention cleanup finished:`);
+        console.log(JSON.stringify(result, null, 2));
+      } catch (error) {
+        console.error(`❌ [${triggerId}] Mail retention cleanup failed:`, error.message);
+        if (error.summary || error.errors) {
+          console.error(JSON.stringify({ summary: error.summary || [], errors: error.errors || [] }, null, 2));
+        }
+      }
+    })();
+  } catch (e) {
     const status = /Unknown team/i.test(e.message) ? 400 : 500;
     res.status(status).json({ ok: false, error: e?.response?.data || e.message });
   }

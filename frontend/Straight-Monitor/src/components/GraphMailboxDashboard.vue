@@ -5,7 +5,7 @@
         <p class="mailbox-dashboard__eyebrow">Microsoft Graph</p>
         <h1>Mailbox Explorer</h1>
         <p class="mailbox-dashboard__subtitle">
-          Ordnerstruktur, Folder-IDs und Speicherverbrauch pro Team-Postfach.
+          Ordnerstruktur und Folder-IDs pro Team-Postfach.
         </p>
       </div>
 

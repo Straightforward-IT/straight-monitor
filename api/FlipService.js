@@ -238,7 +238,7 @@ async function flipUserRoutine() {
     }
 
     const allMitarbeiter = await Mitarbeiter.find({
-      flip_id: { $exists: true },
+      flip_id: { $exists: true, $ne: null },
     });
 
     for (const mitarbeiter of allMitarbeiter) {

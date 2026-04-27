@@ -156,11 +156,12 @@ class Registry {
   }
 
   // --- Lookups ---
-  listTeams() { 
+  listTeams(options = {}) { 
+    const { includeDevelopmentOnly = false } = options;
     const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev';
     return [...this.byKey.values()].filter(t => {
-      // Filtere development-only Teams in Production aus
-      if (t.developmentOnly && !isDevelopment) return false;
+      // Filtere development-only Teams in Production aus, ausser der Aufrufer fordert sie explizit an.
+      if (t.developmentOnly && !isDevelopment && !includeDevelopmentOnly) return false;
       return true;
     });
   }

@@ -408,6 +408,82 @@ async function deleteMessage(token, upn, messageId, folderId = null) {
   });
 }
 
+function chunkArray(items = [], size = 20) {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function buildMessageDeleteUrl(upn, messageId, folderId = null) {
+  if (folderId) {
+    return `/users/${encodeURIComponent(upn)}/mailFolders/${encodeURIComponent(folderId)}/messages/${encodeURIComponent(messageId)}`;
+  }
+
+  return `/users/${encodeURIComponent(upn)}/messages/${encodeURIComponent(messageId)}`;
+}
+
+async function deleteMessagesBatch(token, upn, messages = [], folderId = null, { batchSize = 20 } = {}) {
+  let deleted = 0;
+  const failures = [];
+  const batches = chunkArray(messages, batchSize);
+
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+    const batch = batches[batchIndex];
+    const requests = batch.map((message, index) => ({
+      id: String(index + 1),
+      method: "DELETE",
+      url: buildMessageDeleteUrl(upn, message.id, folderId),
+    }));
+
+    const { data } = await axios.post(
+      `${GRAPH}/$batch`,
+      { requests },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const responseById = new Map(
+      (data.responses || []).map((response) => [String(response.id), response])
+    );
+
+    for (let index = 0; index < batch.length; index += 1) {
+      const message = batch[index];
+      const response = responseById.get(String(index + 1));
+      const status = Number(response?.status);
+
+      if ([200, 202, 204].includes(status)) {
+        deleted += 1;
+        continue;
+      }
+
+      failures.push({
+        messageId: message.id,
+        status: response?.status || "missing",
+        error: response?.body?.error?.message || response?.body || null,
+      });
+    }
+
+    if (batches.length > 1) {
+      console.log(
+        `🗑️ Graph batch delete ${batchIndex + 1}/${batches.length} for ${upn}: ` +
+        `processed=${Math.min((batchIndex + 1) * batchSize, messages.length)}/${messages.length}`
+      );
+    }
+
+    if (failures.length) {
+      break;
+    }
+  }
+
+  return { deleted, failures };
+}
+
 async function moveMessage(token, upn, messageId, destinationFolderId, sourceFolderId = null) {
   const url = sourceFolderId
     ? `${GRAPH}/users/${encodeURIComponent(upn)}/mailFolders/${encodeURIComponent(sourceFolderId)}/messages/${messageId}/move`
@@ -458,11 +534,27 @@ async function deleteMessagesInFolder({
     : matchedMessages;
 
   let deleted = 0;
-  for (const message of limitedMessages) {
-    if (!dryRun) {
-      await deleteMessage(token, userPrincipalName, message.id, resolvedFolderId);
+  if (!dryRun) {
+    if (limitedMessages.length <= 1) {
+      for (const message of limitedMessages) {
+        await deleteMessage(token, userPrincipalName, message.id, resolvedFolderId);
+        deleted += 1;
+      }
+    } else {
+      const batchResult = await deleteMessagesBatch(token, userPrincipalName, limitedMessages, resolvedFolderId);
+      deleted = batchResult.deleted;
+
+      if (batchResult.failures.length) {
+        const sample = batchResult.failures
+          .slice(0, 3)
+          .map((failure) => `${failure.messageId}:${failure.status}`)
+          .join(", ");
+        throw new Error(
+          `Batch delete failed for ${batchResult.failures.length} message(s) in ${userPrincipalName}/${resolvedFolderId}. ` +
+          `Deleted before failure: ${deleted}. Sample: ${sample}`
+        );
+      }
     }
-    deleted += 1;
   }
 
   return {
