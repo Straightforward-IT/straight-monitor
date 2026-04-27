@@ -118,15 +118,15 @@
         <span>Nächste Woche →</span>
       </button>
       <button class="nav-btn today-btn" @click="goToToday">Heute</button>
-      <button class="nav-btn calendar-btn" @click="openDatePicker" title="Zu Woche springen (Datum wählen)">
+      <label class="nav-btn calendar-btn" title="Zu Woche springen (Datum wählen)">
         <font-awesome-icon icon="fa-solid fa-calendar" />
-      </button>
-      <input 
-        ref="datePicker" 
-        type="date" 
-        class="hidden-date-input" 
-        @change="handleDatePick"
-      >
+        <input 
+          ref="datePicker" 
+          type="date" 
+          class="hidden-date-input" 
+          @change="handleDatePick"
+        >
+      </label>
     </div>
 
     <!-- Mobile View -->
@@ -136,7 +136,7 @@
           <font-awesome-icon icon="fa-solid fa-chevron-left" />
         </button>
         
-        <div class="mobile-date-display" v-if="weekDays[mobileDayIndex]" @click="openMobileDatePicker" title="Datum wählen">
+        <label class="mobile-date-display" v-if="weekDays[mobileDayIndex]" title="Datum wählen">
           <span class="day-name">{{ weekDays[mobileDayIndex].name }}</span>
           <span class="day-date">{{ formatDayDate(weekDays[mobileDayIndex].date) }}</span>
           <input
@@ -145,9 +145,8 @@
             class="hidden-date-input"
             :value="mobileDatePickerValue"
             @change="jumpToDate"
-            @click.stop
           />
-        </div>
+        </label>
         
         <button class="nav-btn-mobile" @click="nextDay">
             <font-awesome-icon icon="fa-solid fa-chevron-right" />
@@ -2169,6 +2168,7 @@ export default {
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s;
+  position: relative;
 
   &:hover {
     background: var(--hover);
@@ -2858,11 +2858,11 @@ export default {
 
 .hidden-date-input {
   position: absolute;
-  visibility: hidden;
   opacity: 0;
   pointer-events: none;
   width: 0;
   height: 0;
+  overflow: hidden;
 }
 
 /* Employee Modal */
