@@ -654,7 +654,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
@@ -801,6 +801,7 @@ onMounted(loadAll);
 // ─── Sidebar / Detail ────────────────────────────────────────────────
 function openLead(lead) {
   selectedLead.value = lead;
+  if (window.innerWidth <= 1100) document.body.style.overflow = 'hidden';
   detailForm.title = lead.title || '';
   detailForm.wert = lead.wert ?? null;
   detailForm.waehrung = lead.waehrung || 'EUR';
@@ -821,7 +822,12 @@ function openLead(lead) {
 
 function closeSidebar() {
   selectedLead.value = null;
+  document.body.style.overflow = '';
 }
+
+onUnmounted(() => {
+  document.body.style.overflow = '';
+});
 
 async function saveDetail() {
   if (!selectedLead.value) return;
@@ -1540,10 +1546,11 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   @media (max-width: 1100px) {
     position: fixed;
     right: 0;
-    top: 0;
-    height: 100vh;
+    left: 0;
+    top: 88px;
+    height: calc(100vh - 88px);
     z-index: 1000;
-    width: 90vw;
+    width: 100vw;
     min-width: 320px;
     box-shadow: -4px 0 16px rgba(0, 0, 0, 0.2);
   }
@@ -1553,7 +1560,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 .sidebar-slide-leave-active {
   transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1),
               min-width 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-              opacity 0.2s ease;
+              opacity 0.2s ease,
+              transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
   overflow: hidden;
 }
 
@@ -1562,6 +1570,12 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   width: 0 !important;
   min-width: 0 !important;
   opacity: 0;
+  transform: translateX(100%);
+}
+
+.sidebar-slide-enter-to,
+.sidebar-slide-leave-from {
+  transform: translateX(0);
 }
 
 .sidebar-header {
