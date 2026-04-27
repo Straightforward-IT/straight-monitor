@@ -239,18 +239,29 @@
             :class="[getEventStatusClass(event), getBedarfClass(event)]"
             @click="selectEvent(event)"
           >
-            <div v-if="event.labels && event.labels.length" class="event-labels">
-              <span
-                v-for="label in event.labels"
-                :key="label._id"
-                class="event-label-chip"
-                :style="{ background: label.color + '33', borderColor: label.color, color: label.color }"
-              >{{ label.name }}</span>
+            <div class="event-header" v-if="event.auftStatus !== 2">
+              <span class="event-status">{{ getStatusText(event.auftStatus) }}</span>
             </div>
-            <div class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
-            <div class="event-kunde">{{ event.kundeData?.kuerzel || event.kundeData?.kundName || '-' }}</div>
-            <div class="event-einsaetze" v-if="event.einsaetzeCount">
-              {{ event.einsaetzeCount }} Einsätze
+            <div class="event-title-row">
+              <div class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
+              <div v-if="event.labels && event.labels.length" class="event-labels">
+                <span
+                  v-for="label in event.labels"
+                  :key="label._id"
+                  class="event-label-chip"
+                  :style="{ background: label.color + '33', borderColor: label.color, color: label.color }"
+                >{{ label.name }}</span>
+              </div>
+            </div>
+            <div class="event-shifts" v-if="getSchichtenForDay(event, day.date).length">
+              <div
+                v-for="s in getSchichtenForDay(event, day.date)"
+                :key="s.id"
+                class="shift-row"
+              >
+                <span class="shift-name">{{ s.bezeichnung || 'Schicht' }}</span>
+                <span class="shift-pos">{{ s.besetzt }}/{{ s.bedarf }}</span>
+              </div>
             </div>
           </div>
         </div>
