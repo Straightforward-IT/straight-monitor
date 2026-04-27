@@ -6,6 +6,7 @@ const Einsatz = require('../models/Einsatz');
 const Schicht = require('../models/Schicht');
 const Rechnung = require('../models/Rechnung');
 const Qualifikation = require('../models/Qualifikation');
+const Mitarbeiter = require('../models/Mitarbeiter');
 const { decryptField } = require('../utils/encryption');
 const asyncHandler = require('../middleware/AsyncHandler');
 const auth = require('../middleware/auth');
@@ -1143,5 +1144,65 @@ router.get('/analytics/rechnungen/daily', auth, asyncHandler(async (req, res) =>
   res.json({ data, kundenBreakdown });
 }));
 // ─────────────────────────────────────────────────────────────────────────────
+
+// @route   GET /api/kunden/:kundenNr/top-mitarbeiter
+// @desc    Top-Mitarbeiter eines Kunden (nach Einsatz-Anzahl), nur aktive MA
+// @access  Private
+router.get('/:kundenNr/top-mitarbeiter', auth, asyncHandler(async (req, res) => {
+  const kundenNr = parseInt(req.params.kundenNr);
+  if (isNaN(kundenNr)) return res.status(400).json({ message: 'Ungültige Kunden-Nr.' });
+
+  // 1. Alle Aufträge dieses Kunden
+  const auftragNrs = await Auftrag.distinct('auftragNr', { kundenNr });
+  if (auftragNrs.length === 0) return res.json([]);
+
+  // 2. Einsatz-Zählungen je personalNr
+  const raw = await Einsatz.aggregate([
+    { $match: { auftragNr: { $in: auftragNrs }, personalNr: { $ne: null } } },
+    { $group: { _id: '$personalNr', count: { $sum: 1 } } }
+  ]);
+
+  if (raw.length === 0) return res.json([]);
+
+  // countByNr: string(personalNr) → count
+  const countByNr = {};
+  for (const { _id, count } of raw) {
+    countByNr[String(_id)] = (countByNr[String(_id)] || 0) + count;
+  }
+  const allNrs = Object.keys(countByNr);
+
+  // 3. Aktive Mitarbeiter die eine dieser Nummern aktuell oder historisch hatten
+  const mitarbeiterDocs = await Mitarbeiter.find({
+    isActive: true,
+    $or: [
+      { personalnr: { $in: allNrs } },
+      { 'personalnrHistory.value': { $in: allNrs } }
+    ]
+  }).select('_id vorname nachname personalnr personalnrHistory').lean();
+
+  // 4. Für jeden MA alle zugehörigen personalNrs summieren
+  const results = [];
+  for (const ma of mitarbeiterDocs) {
+    const nrs = new Set();
+    if (ma.personalnr) nrs.add(String(ma.personalnr));
+    for (const h of (ma.personalnrHistory || [])) {
+      if (h.value) nrs.add(String(h.value));
+    }
+    let total = 0;
+    for (const nr of nrs) total += countByNr[nr] || 0;
+    if (total > 0) {
+      results.push({
+        _id: ma._id,
+        vorname: ma.vorname,
+        nachname: ma.nachname,
+        personalnr: ma.personalnr,
+        count: total
+      });
+    }
+  }
+
+  results.sort((a, b) => b.count - a.count);
+  res.json(results);
+}));
 
 module.exports = router;

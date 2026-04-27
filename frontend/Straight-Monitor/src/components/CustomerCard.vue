@@ -79,6 +79,45 @@
         </ul>
       </section>
 
+      <!-- Top Mitarbeiter -->
+      <section class="section top-ma-section" v-if="kunde.kundenNr">
+        <h4 class="section-title">
+          <font-awesome-icon :icon="['fas', 'users']" /> Häufigste Mitarbeiter
+          <span class="badge">{{ topMaAll.length }}</span>
+        </h4>
+
+        <div v-if="topMaLoading" class="empty-contacts">
+          <font-awesome-icon :icon="['fas', 'spinner']" spin /> Wird geladen…
+        </div>
+
+        <div v-else-if="topMaAll.length === 0" class="empty-contacts">
+          Noch keine Einsatz-Daten vorhanden.
+        </div>
+
+        <div v-else>
+          <div class="top-ma-list">
+            <div
+              v-for="(ma, idx) in topMaVisible"
+              :key="ma._id"
+              class="top-ma-row"
+            >
+              <span class="top-ma-rank">#{{ idx + 1 }}</span>
+              <span class="top-ma-name">{{ ma.vorname }} {{ ma.nachname }}</span>
+              <span class="top-ma-nr" v-if="ma.personalnr">Nr. {{ ma.personalnr }}</span>
+              <span class="top-ma-count">{{ ma.count }} Einsatz{{ ma.count !== 1 ? 'e' : '' }}</span>
+            </div>
+          </div>
+          <button
+            v-if="topMaAll.length > 3"
+            class="top-ma-toggle"
+            @click="topMaExpanded = !topMaExpanded"
+          >
+            <font-awesome-icon :icon="['fas', topMaExpanded ? 'chevron-up' : 'chevron-down']" />
+            {{ topMaExpanded ? 'Weniger anzeigen' : `Alle ${topMaAll.length} anzeigen` }}
+          </button>
+        </div>
+      </section>
+
       <!-- Contacts -->
       <section class="section contacts-section">
         <h4 class="section-title">
@@ -342,7 +381,29 @@ async function loadKpi() {
 
 onMounted(loadKpi);
 
-// Contact edit / delete
+// Top-Mitarbeiter
+const topMaAll = ref([]);
+const topMaLoading = ref(false);
+const topMaExpanded = ref(false);
+
+const topMaVisible = computed(() =>
+  topMaExpanded.value ? topMaAll.value : topMaAll.value.slice(0, 3)
+);
+
+async function loadTopMa() {
+  if (!props.kunde.kundenNr) return;
+  topMaLoading.value = true;
+  try {
+    const { data } = await api.get(`/api/kunden/${props.kunde.kundenNr}/top-mitarbeiter`);
+    topMaAll.value = data || [];
+  } catch {
+    topMaAll.value = [];
+  } finally {
+    topMaLoading.value = false;
+  }
+}
+
+onMounted(loadTopMa);
 const editingContactId = ref(null);
 const editForm = ref({});
 const contactSaving = ref(false);
@@ -1083,8 +1144,68 @@ function formatEuro(value) {
   color: var(--text);
   text-align: right;
 }
-
-.qual-count {
-  font-size: 11px;
+/* Top Mitarbeiter */
+.top-ma-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
 }
+
+.top-ma-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 13px;
+}
+
+.top-ma-rank {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  min-width: 24px;
+}
+
+.top-ma-name {
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+.top-ma-nr {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.top-ma-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--soft);
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.top-ma-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+  transition: opacity 0.15s;
+}
+
+.top-ma-toggle:hover {
+  opacity: 0.75;
+}
+
 </style>
