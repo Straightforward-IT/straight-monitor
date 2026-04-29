@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const stringSimilarity = require("string-similarity");
 const mongoose = require("mongoose");
 const { flipAxios, getFlipAuthToken } = require("./flipAxios");
@@ -11,6 +12,7 @@ const {
 } = require("./models/Classes/FlipDocs");
 const Mitarbeiter = require("./models/Mitarbeiter");
 const Einsatz = require("./models/Einsatz");
+const Auftrag = require("./models/Auftrag");
 const Qualifikation = require("./models/Qualifikation");
 const { getRankTier, RANK_GROUP_IDS } = require("./config/flipRanks");
 const { sendMail } = require("./EmailService");
@@ -351,6 +353,121 @@ async function flipUserRoutine() {
       emailLogs.push(...rankResult.logs.map(l => `&nbsp;&nbsp;${l}`));
     } catch (rankErr) {
       emailLogs.push(`⚠️ Rang-Sync fehlgeschlagen: ${rankErr.message}`);
+    }
+
+    // 📅 Kalender-Sync — Einsätze für alle isOffice-Mitarbeiter
+    try {
+      emailLogs.push("<br><br>📅 Synchronisiere Flip-Kalender für Office-Mitarbeiter...");
+      const now = new Date();
+      let calCreated = 0, calUpdated = 0, calUnchanged = 0, calCancelled = 0, calSkipped = 0, calErrors = 0;
+
+      const officeFlipUsers = allFlipUsers.filter((u) => {
+        const attrs = Array.isArray(u.attributes) ? u.attributes : [];
+        return attrs.find((a) => a.name === "isOffice")?.value === "true";
+      });
+
+      // Set of event IDs that SHOULD exist after this sync run.
+      // Used afterwards to identify orphan events that need to be cancelled.
+      const expectedEventIds = new Set();
+
+      for (const flipUserData of officeFlipUsers) {
+        const ma = await Mitarbeiter.findOne({ flip_id: flipUserData.id });
+        if (!ma?.personalnr || !ma.flip_id) continue;
+
+        const einsaetze = await Einsatz.find({
+          personalNr: Number(ma.personalnr),
+          isPseudo: { $ne: true },
+          $or: [
+            { detailDatumVon: { $gte: now } },
+            { datumVon: { $gte: now } },
+          ],
+        });
+
+        for (const einsatz of einsaetze) {
+          try {
+            const auftrag = await Auftrag.findOne({ auftragNr: einsatz.auftragNr });
+            const payload = buildEinsatzCalendarPayload(einsatz, auftrag, ma.flip_id);
+            if (!payload) { calSkipped++; continue; }
+
+            expectedEventIds.add(payload.id);
+
+            // POST is idempotent — returns existing event if id is already present.
+            const existing = await createFlipCalendarEvent(payload);
+
+            // If the event existed and someone declined previously,
+            // re-invite (resets RSVP to NEEDS_ACTION + sends notification).
+            const declined = existing?.participant_counts?.declined || 0;
+            if (declined > 0) {
+              try {
+                await updateFlipCalendarEvent(existing.id, {
+                  title: payload.title, // no-op patch — Flip requires at least one field
+                  participants_notification: "RESET_NOTIFICATION",
+                });
+              } catch (reErr) {
+                logger.warn(
+                  `flipUserRoutine: Re-invite-Fehler Event ${existing.id}:`,
+                  reErr.response?.data || reErr.message
+                );
+              }
+            }
+
+            // Detect creation vs. existing: compare created_at to time_slot updates.
+            // Simpler heuristic: if existing matches desired payload, skip PATCH.
+            if (flipEventMatchesPayload(existing, payload)) {
+              // Distinguish "just created" from "unchanged existing" via created_at age.
+              const createdAt = existing.created_at ? new Date(existing.created_at) : null;
+              const isFresh = createdAt && (Date.now() - createdAt.getTime()) < 60_000;
+              if (isFresh) calCreated++;
+              else calUnchanged++;
+              continue;
+            }
+
+            // Existing event differs → PATCH (omit id + participants — not updatable)
+            const { id: _id, participants: _p, ...patch } = payload;
+            patch.participants_notification = "NO_NOTIFICATION";
+            await updateFlipCalendarEvent(payload.id, patch);
+            calUpdated++;
+          } catch (calErr) {
+            calErrors++;
+            logger.error(
+              `flipUserRoutine: Kalender-Fehler Einsatz ${einsatz._id}:`,
+              calErr.response?.data || calErr.message
+            );
+          }
+        }
+      }
+
+      // ── Orphan-Cleanup: zukünftige Events löschen, deren Einsatz nicht mehr existiert ──
+      try {
+        const allFutureEvents = await listAllFlipCalendarEvents({
+          start_after: now.toISOString(),
+        });
+        for (const ev of allFutureEvents) {
+          if (expectedEventIds.has(ev.id)) continue;
+          if (ev.status === "CANCELLED") continue;
+          try {
+            await updateFlipCalendarEvent(ev.id, {
+              status: "CANCELLED",
+              participants_notification: "NO_NOTIFICATION",
+            });
+            calCancelled++;
+          } catch (cancelErr) {
+            calErrors++;
+            logger.error(
+              `flipUserRoutine: Cancel-Fehler Event ${ev.id}:`,
+              cancelErr.response?.data || cancelErr.message
+            );
+          }
+        }
+      } catch (orphanErr) {
+        emailLogs.push(`⚠️ Orphan-Cleanup fehlgeschlagen: ${orphanErr.message}`);
+      }
+
+      emailLogs.push(
+        `✅ Kalender-Sync: ${calCreated} neu, ${calUpdated} aktualisiert, ${calUnchanged} unverändert, ${calCancelled} abgesagt, ${calSkipped} übersprungen, ${calErrors} Fehler (${officeFlipUsers.length} Office-User)`
+      );
+    } catch (calSyncErr) {
+      emailLogs.push(`⚠️ Kalender-Sync fehlgeschlagen: ${calSyncErr.message}`);
     }
 
     // Add email mismatch report
@@ -1570,6 +1687,278 @@ async function syncRankGroups(mitarbeiterList) {
   return { promoted, unchanged, errors, logs };
 }
 
+// ─── Flip Calendar API ───────────────────────────────────────────────────────
+
+/**
+ * Get calendar events for the authenticated Flip user.
+ * @param {{ start_after?, start_before?, end_after?, end_before?, rsvp_status?, order_by?, page_cursor?, page_limit? }} params
+ */
+async function getFlipCalendarEvents(params = {}) {
+  const response = await flipAxios.get("/api/calendar/v4/calendar/me/events", { params });
+  return response.data;
+}
+
+/**
+ * Creates a deterministic UUID (v4-formatted) from a MongoDB ObjectId string.
+ * Used as the Flip API idempotency key so that re-running the sync never
+ * creates duplicate calendar events for the same Einsatz.
+ */
+function einsatzToFlipEventId(einsatzId) {
+  const hash = crypto.createHash("sha256").update(`einsatz:${einsatzId}`).digest("hex");
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    "4" + hash.slice(13, 16),
+    ((parseInt(hash.slice(16, 17), 16) & 0x3) | 0x8).toString(16) + hash.slice(17, 20),
+    hash.slice(20, 32),
+  ].join("-");
+}
+
+/**
+ * Returns the offset of Europe/Berlin at the given date as "+HH:MM".
+ * Handles CET/CEST automatically via the Intl API.
+ */
+function berlinOffset(date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Berlin",
+    timeZoneName: "shortOffset",
+  }).formatToParts(date);
+  const tzName = parts.find(p => p.type === "timeZoneName")?.value || "GMT+1";
+  // tzName looks like "GMT+2" or "GMT+1"
+  const m = tzName.match(/GMT([+-]\d+)/);
+  const hours = m ? parseInt(m[1], 10) : 1;
+  const sign = hours >= 0 ? "+" : "-";
+  const abs  = Math.abs(hours);
+  return `${sign}${String(abs).padStart(2, "0")}:00`;
+}
+
+/**
+ * Combine a date and a "HH:MM" string into an ISO 8601 string with explicit
+ * Europe/Berlin offset (e.g. "2026-05-12T10:00:00+02:00"). DST-aware.
+ * Flip's API requires an offset on time_slot.start/end.
+ */
+function buildCalendarDateTime(date, timeStr) {
+  if (!date) return null;
+  const d = new Date(date);
+  const yyyy = d.getUTCFullYear();
+  const mm   = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd   = String(d.getUTCDate()).padStart(2, "0");
+  let hh = "00", min = "00";
+  if (timeStr) {
+    const parts = String(timeStr).split(":");
+    hh  = String(parseInt(parts[0], 10)).padStart(2, "0");
+    min = String(parseInt(parts[1] || "0", 10)).padStart(2, "0");
+  }
+  // Build a proper Date in Berlin time to compute the offset for that instant
+  const naive = `${yyyy}-${mm}-${dd}T${hh}:${min}:00`;
+  const probe = new Date(`${naive}Z`);
+  const offset = berlinOffset(probe);
+  return `${naive}${offset}`;
+}
+
+/**
+ * Add hours to a Berlin-offset ISO string and return another such string.
+ */
+function addHoursToBerlinIso(berlinIso, hours) {
+  const d = new Date(berlinIso);
+  d.setUTCHours(d.getUTCHours() + hours);
+  // Re-format keeping Berlin offset for the new instant
+  const yyyy = d.getUTCFullYear();
+  const mm   = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd   = String(d.getUTCDate()).padStart(2, "0");
+  // Convert UTC back to Berlin local using offset
+  const offset = berlinOffset(d);
+  const offsetHours = parseInt(offset.slice(0, 3), 10);
+  const localD = new Date(d.getTime() + offsetHours * 3600 * 1000);
+  const lh = String(localD.getUTCHours()).padStart(2, "0");
+  const lm = String(localD.getUTCMinutes()).padStart(2, "0");
+  return `${localD.getUTCFullYear()}-${String(localD.getUTCMonth() + 1).padStart(2, "0")}-${String(localD.getUTCDate()).padStart(2, "0")}T${lh}:${lm}:00${offset}`;
+}
+
+/**
+ * Builds the Flip calendar event payload from an Einsatz + Auftrag for a given Flip user.
+ * Returns null if the Einsatz lacks a usable start date.
+ */
+function buildEinsatzCalendarPayload(einsatz, auftrag, flipUserId) {
+  const startDate = einsatz.detailDatumVon || einsatz.datumVon;
+  if (!startDate) return null;
+
+  const start = buildCalendarDateTime(startDate, einsatz.uhrzeitVon);
+  let end = buildCalendarDateTime(
+    einsatz.detailDatumBis || einsatz.datumBis || startDate,
+    einsatz.uhrzeitBis
+  );
+  if (!end || end === start) end = addHoursToBerlinIso(start, 1);
+
+  const rawTitle =
+    auftrag?.eventTitel ||
+    einsatz.schichtBezeichnung ||
+    einsatz.bezeichnung ||
+    `Einsatz ${einsatz.auftragNr}`;
+
+  const locationParts = [
+    auftrag?.eventLocation || auftrag?.eventStrasse,
+    [auftrag?.eventPlz, auftrag?.eventOrt].filter(Boolean).join(" "),
+  ].filter(Boolean);
+  const location = locationParts
+    .join(", ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
+
+  const data = {
+    id: einsatzToFlipEventId(einsatz._id),
+    title: String(rawTitle).substring(0, 200),
+    time_slot: { start, end, time_zone: "Europe/Berlin" },
+    participants: [{ type: "USER", id: flipUserId }],
+  };
+  if (location.length) data.location = location.substring(0, 1000);
+  return data;
+}
+
+/**
+ * Returns true if the existing Flip event matches the desired payload
+ * (title, time_slot.start/end/time_zone, location).
+ */
+function flipEventMatchesPayload(existing, desired) {
+  if (!existing) return false;
+  if (existing.title !== desired.title) return false;
+  const ts = existing.time_slot || {};
+  const ds = desired.time_slot || {};
+  if (ts.start !== ds.start) return false;
+  if (ts.end !== ds.end) return false;
+  if (ts.time_zone !== ds.time_zone) return false;
+  if ((existing.location || "") !== (desired.location || "")) return false;
+  return true;
+}
+
+/**
+ * Paginates through /me/events with the given filters and returns ALL items.
+ */
+async function listAllFlipCalendarEvents(filters = {}) {
+  const all = [];
+  let cursor;
+  do {
+    const params = { ...filters, page_limit: 100 };
+    if (cursor) params.page_cursor = cursor;
+    const data = await getFlipCalendarEvents(params);
+    if (Array.isArray(data?.items)) all.push(...data.items);
+    cursor = data?.pagination?.next_cursor || null;
+  } while (cursor);
+  return all;
+}
+
+/**
+ * Create a calendar event.
+ * @param {{ title, time_slot, location?, body?, participants?, attachments?, show_participant_list?, id? }} eventData
+ */
+async function createFlipCalendarEvent(eventData) {
+  const response = await flipAxios.post("/api/calendar/v4/calendar/me/events", eventData);
+  return response.data;
+}
+
+/**
+ * Get a counts overview of upcoming events (today, tomorrow, this_week, pending_invites).
+ * @param {string} timeZone - IANA time zone identifier, e.g. "Europe/Berlin"
+ */
+async function getFlipCalendarOverview(timeZone) {
+  const response = await flipAxios.get("/api/calendar/v4/calendar/me/events/overview", {
+    params: { time_zone: timeZone },
+  });
+  return response.data;
+}
+
+/**
+ * Get full details for a single calendar event.
+ * @param {string} eventId
+ * @param {string[]} [bodyFormat] - e.g. ["PLAIN", "HTML"]
+ */
+async function getFlipCalendarEvent(eventId, bodyFormat) {
+  const params = {};
+  if (bodyFormat && bodyFormat.length) params.body_format = bodyFormat;
+  const response = await flipAxios.get(`/api/calendar/v4/calendar/me/events/${eventId}`, { params });
+  return response.data;
+}
+
+/**
+ * Partially update a calendar event (JSON Merge Patch / RFC 7396).
+ * Only the organizer can update.
+ * @param {string} eventId
+ * @param {object} patch - Fields to update (title, time_slot, location, status, body, attachments, show_participant_list, participants_notification)
+ */
+async function updateFlipCalendarEvent(eventId, patch) {
+  const response = await flipAxios.patch(
+    `/api/calendar/v4/calendar/me/events/${eventId}`,
+    patch,
+    { headers: { "Content-Type": "application/merge-patch+json" } }
+  );
+  return response.data;
+}
+
+// ─── Flip Files API ──────────────────────────────────────────────────────────
+
+/**
+ * Step 1: Register a new file with the Flip API.
+ * Returns { file_id, signed_url, url_expiry_date, status }.
+ */
+async function createFlipFile({ fileName, mediaTypeHint, mediaConversion, source = "WEB" }) {
+  const body = { file_name: fileName, source };
+  if (mediaTypeHint) body.media_type_hint = mediaTypeHint;
+  if (mediaConversion) body.media_conversion = mediaConversion;
+
+  const response = await flipAxios.post("/api/files/v4/files", body);
+  return response.data;
+}
+
+/**
+ * Step 2: Upload raw file bytes to the Flip-provided signed URL.
+ * @param {string} signedUrl - The pre-signed PUT URL from createFlipFile.
+ * @param {Buffer} fileBuffer - Raw file bytes.
+ * @param {string} mimeType - MIME type of the file (e.g. "application/pdf").
+ */
+async function uploadToFlipSignedUrl(signedUrl, fileBuffer, mimeType) {
+  const axios = require("axios");
+  await axios.put(signedUrl, fileBuffer, {
+    headers: { "Content-Type": mimeType },
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+  });
+}
+
+/**
+ * Step 3: Poll file status until FINISHED or FAILURE (or timeout).
+ * @param {string} fileId
+ * @param {{ intervalMs?: number, maxAttempts?: number }} options
+ * @returns {Promise<{ file_id: string, status: string, failure_reason?: string }>}
+ */
+async function pollFlipFileStatus(fileId, { intervalMs = 2000, maxAttempts = 30 } = {}) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const response = await flipAxios.get(`/api/files/v4/files/${fileId}`);
+    const { status, failure_reason } = response.data;
+
+    if (status === "FINISHED") return response.data;
+    if (status === "FAILURE") {
+      throw new Error(`Flip file processing failed: ${failure_reason || "unknown reason"}`);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error(`Flip file ${fileId} did not finish processing within timeout`);
+}
+
+/**
+ * Full upload helper: create → upload → poll.
+ * @param {{ fileName: string, fileBuffer: Buffer, mimeType: string, mediaTypeHint?: string }} params
+ * @returns {Promise<string>} The finished file_id ready to be used in Flip.
+ */
+async function uploadFileToFlip({ fileName, fileBuffer, mimeType, mediaTypeHint }) {
+  const { file_id, signed_url } = await createFlipFile({ fileName, mediaTypeHint });
+  await uploadToFlipSignedUrl(signed_url, fileBuffer, mimeType);
+  await pollFlipFileStatus(file_id);
+  return file_id;
+}
+
 module.exports = {
   flipUserRoutine,
   syncRankGroups,
@@ -1596,4 +1985,13 @@ module.exports = {
   getFlipAssignments,
   updateLaufzettelBadge,
   updateAllTeamleiterBadges,
+  createFlipFile,
+  uploadToFlipSignedUrl,
+  pollFlipFileStatus,
+  uploadFileToFlip,
+  getFlipCalendarEvents,
+  createFlipCalendarEvent,
+  getFlipCalendarOverview,
+  getFlipCalendarEvent,
+  updateFlipCalendarEvent,
 };

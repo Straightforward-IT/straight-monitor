@@ -5158,6 +5158,7 @@ onMounted(async () => {
 }
 
 .chat-message {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -5175,6 +5176,11 @@ onMounted(async () => {
       background: rgba(238,175,103,0.18);
       border-color: var(--primary);
     }
+  }
+
+  &:hover .chat-delete-btn {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .chat-message-meta {
@@ -5195,14 +5201,27 @@ onMounted(async () => {
   }
 
   .chat-delete-btn {
-    background: none;
-    border: none;
+    position: absolute;
+    bottom: -6px;
+    right: -6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: var(--muted);
     cursor: pointer;
     font-size: 10px;
-    padding: 0 2px;
-    opacity: 0.6;
-    &:hover { color: #ef4444; opacity: 1; }
+    padding: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease, color 0.15s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    z-index: 2;
+    &:hover { color: #ef4444; }
   }
 
   .chat-message-text {
