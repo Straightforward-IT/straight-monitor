@@ -361,10 +361,33 @@ async function flipUserRoutine() {
       const now = new Date();
       let calCreated = 0, calUpdated = 0, calUnchanged = 0, calCancelled = 0, calSkipped = 0, calErrors = 0;
 
-      const officeFlipUsers = allFlipUsers.filter((u) => {
-        const attrs = Array.isArray(u.attributes) ? u.attributes : [];
-        return attrs.find((a) => a.name === "isOffice")?.value === "true";
-      });
+      // ── TEMP TEST: nur Testuser ──────────────────────────────────────────
+      // TODO: Zurück auf isOffice-Filter wenn Kalender-Sync korrekt getestet:
+      // const officeFlipUsers = allFlipUsers.filter((u) => {
+      //   const attrs = Array.isArray(u.attributes) ? u.attributes : [];
+      //   return attrs.find((a) => a.name === "isOffice")?.value === "true";
+      // });
+      const officeFlipUsers = allFlipUsers.filter(
+        (u) => u.email?.toLowerCase() === "cedricbglx@gmail.com"
+      );
+      // ────────────────────────────────────────────────────────────────────
+
+      // Pre-fetch ALL future Flip events before the sync loop.
+      // FIX: Previously createFlipCalendarEvent() was called on every run, which
+      // caused a re-invitation notification on each POST even for existing events.
+      // Now we only POST (= create + invite) for genuinely new events.
+      const existingEventsMap = new Map();
+      try {
+        const allFutureEvents = await listAllFlipCalendarEvents({
+          start_after: now.toISOString(),
+        });
+        for (const ev of allFutureEvents) {
+          existingEventsMap.set(ev.id, ev);
+        }
+        emailLogs.push(`ℹ️ ${allFutureEvents.length} bestehende Flip-Events geladen`);
+      } catch (fetchErr) {
+        emailLogs.push(`⚠️ Pre-fetch fehlgeschlagen, fahre fort: ${fetchErr.message}`);
+      }
 
       // Set of event IDs that SHOULD exist after this sync run.
       // Used afterwards to identify orphan events that need to be cancelled.
@@ -391,42 +414,23 @@ async function flipUserRoutine() {
 
             expectedEventIds.add(payload.id);
 
-            // POST is idempotent — returns existing event if id is already present.
-            const existing = await createFlipCalendarEvent(payload);
+            const existingEvent = existingEventsMap.get(payload.id);
 
-            // If the event existed and someone declined previously,
-            // re-invite (resets RSVP to NEEDS_ACTION + sends notification).
-            const declined = existing?.participant_counts?.declined || 0;
-            if (declined > 0) {
-              try {
-                await updateFlipCalendarEvent(existing.id, {
-                  title: payload.title, // no-op patch — Flip requires at least one field
-                  participants_notification: "RESET_NOTIFICATION",
-                });
-              } catch (reErr) {
-                logger.warn(
-                  `flipUserRoutine: Re-invite-Fehler Event ${existing.id}:`,
-                  reErr.response?.data || reErr.message
-                );
+            if (existingEvent) {
+              // Event already exists — only PATCH if something changed, never re-invite
+              if (flipEventMatchesPayload(existingEvent, payload)) {
+                calUnchanged++;
+              } else {
+                const { id: _id, participants: _p, ...patch } = payload;
+                patch.participants_notification = "NO_NOTIFICATION";
+                await updateFlipCalendarEvent(payload.id, patch);
+                calUpdated++;
               }
+            } else {
+              // New event — POST creates it and sends the invitation exactly once
+              await createFlipCalendarEvent(payload);
+              calCreated++;
             }
-
-            // Detect creation vs. existing: compare created_at to time_slot updates.
-            // Simpler heuristic: if existing matches desired payload, skip PATCH.
-            if (flipEventMatchesPayload(existing, payload)) {
-              // Distinguish "just created" from "unchanged existing" via created_at age.
-              const createdAt = existing.created_at ? new Date(existing.created_at) : null;
-              const isFresh = createdAt && (Date.now() - createdAt.getTime()) < 60_000;
-              if (isFresh) calCreated++;
-              else calUnchanged++;
-              continue;
-            }
-
-            // Existing event differs → PATCH (omit id + participants — not updatable)
-            const { id: _id, participants: _p, ...patch } = payload;
-            patch.participants_notification = "NO_NOTIFICATION";
-            await updateFlipCalendarEvent(payload.id, patch);
-            calUpdated++;
           } catch (calErr) {
             calErrors++;
             logger.error(
@@ -438,30 +442,23 @@ async function flipUserRoutine() {
       }
 
       // ── Orphan-Cleanup: zukünftige Events löschen, deren Einsatz nicht mehr existiert ──
-      try {
-        const allFutureEvents = await listAllFlipCalendarEvents({
-          start_after: now.toISOString(),
-        });
-        for (const ev of allFutureEvents) {
-          if (expectedEventIds.has(ev.id)) continue;
-          if (ev.status === "CANCELLED") continue;
-          try {
-            await updateFlipCalendarEvent(ev.id, {
-              status: "CANCELLED",
-              participants_notification: "NO_NOTIFICATION",
-            });
-            calCancelled++;
-          } catch (cancelErr) {
-            calErrors++;
-            logger.error(
-              `flipUserRoutine: Cancel-Fehler Event ${ev.id}:`,
-              cancelErr.response?.data || cancelErr.message
-            );
-          }
-        }
-      } catch (orphanErr) {
-        emailLogs.push(`⚠️ Orphan-Cleanup fehlgeschlagen: ${orphanErr.message}`);
-      }
+      // NOTE: Disabled while in single-user test mode — iterating existingEventsMap would
+      // cancel events belonging to other users (since expectedEventIds is incomplete).
+      // TODO: Re-enable once the isOffice-Filter above is restored for all users.
+      //
+      // try {
+      //   for (const [evId, ev] of existingEventsMap) {
+      //     if (expectedEventIds.has(evId)) continue;
+      //     if (ev.status === "CANCELLED") continue;
+      //     await updateFlipCalendarEvent(evId, {
+      //       status: "CANCELLED",
+      //       participants_notification: "NO_NOTIFICATION",
+      //     });
+      //     calCancelled++;
+      //   }
+      // } catch (orphanErr) {
+      //   emailLogs.push(`⚠️ Orphan-Cleanup fehlgeschlagen: ${orphanErr.message}`);
+      // }
 
       emailLogs.push(
         `✅ Kalender-Sync: ${calCreated} neu, ${calUpdated} aktualisiert, ${calUnchanged} unverändert, ${calCancelled} abgesagt, ${calSkipped} übersprungen, ${calErrors} Fehler (${officeFlipUsers.length} Office-User)`
