@@ -426,10 +426,19 @@
                   <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'kunden')"></div>
                 </th>
                 <th
-                  class="col-aktivitaet"
+                  class="col-aktivitaet sortable-th"
+                    @click="toggleSort('aktivitaet')"
                   :style="{ width: colWidths.aktivitaet + 'px', minWidth: colWidths.aktivitaet + 'px', maxWidth: colWidths.aktivitaet + 'px' }"
                 >
-                  <span class="th-content">Chronik</span>
+                    <span class="th-content">
+                      Chronik
+                      <font-awesome-icon
+                        v-if="sortField === 'aktivitaet'"
+                      :icon="sortDir === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'"
+                        class="sort-icon"
+                      />
+                    <font-awesome-icon v-else icon="fa-solid fa-sort" class="sort-icon muted" />
+                    </span>
                   <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'aktivitaet')"></div>
                 </th>
               </tr>
@@ -873,7 +882,7 @@
                 🚫
               </button>
             </div>
-            <KundeSearch ref="kwSearchRef" :standort="filters.standort" @select="addKundenwunsch" />
+            <KundeSearch ref="kwSearchRef" :standort="filters.standort" :mitarbeiter-id="kwModal.maId" @select="addKundenwunsch" />
           </div>
         </div>
       </div>
@@ -1935,6 +1944,14 @@ const filteredMitarbeiter = computed(() => {
     const bStarred = starredIds.value.has(b._id) ? 0 : 1;
     if (aStarred !== bStarred) return aStarred - bStarred;
     const field = sortField.value;
+    if (field === 'aktivitaet') {
+      const aLatestTs = getLatestAktivitaetsLog(a._id)?.createdAt ? new Date(getLatestAktivitaetsLog(a._id).createdAt).getTime() : 0;
+      const bLatestTs = getLatestAktivitaetsLog(b._id)?.createdAt ? new Date(getLatestAktivitaetsLog(b._id).createdAt).getTime() : 0;
+      if (aLatestTs !== bLatestTs) {
+        return sortDir.value === 'asc' ? aLatestTs - bLatestTs : bLatestTs - aLatestTs;
+      }
+      return (a.nachname || '').localeCompare(b.nachname || '') || (a.vorname || '').localeCompare(b.vorname || '');
+    }
     const dir = sortDir.value === 'asc' ? 1 : -1;
     return dir * (a[field] || '').localeCompare(b[field] || '');
   });
@@ -2238,7 +2255,7 @@ function toggleSort(field) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
   } else {
     sortField.value = field;
-    sortDir.value = 'asc';
+    sortDir.value = field === 'aktivitaet' ? 'desc' : 'asc';
   }
 }
 
@@ -4251,15 +4268,16 @@ onMounted(async () => {
     .th-content {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-start;
+      gap: 4px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     .sort-icon {
-      margin-left: 4px;
       font-size: 10px;
+      flex: 0 0 auto;
 
       &.muted {
         opacity: 0.3;

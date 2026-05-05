@@ -38,7 +38,7 @@
         @keydown.up.prevent="moveUp"
         @keydown.enter.prevent="selectHighlighted"
         @keydown.escape="close"
-        @focus="if (results.length > 0) { updateDropdownPosition(); showDropdown = true; }"
+        @focus="handleFocus"
       />
       <span v-if="loading" class="kunde-search__spinner" />
     </div>
@@ -60,6 +60,9 @@
           <span v-if="k.kuerzel" class="kunde-search__kuerzel">{{ k.kuerzel }}</span>
           <span v-if="k.kundenNr" class="kunde-search__nr">{{ k.kundenNr }}</span>
           {{ k.kundName }}
+        </span>
+        <span class="kunde-search__metric">
+          {{ k.einsatzCount ?? 0 }} Einsatz{{ (k.einsatzCount ?? 0) !== 1 ? 'e' : '' }}
         </span>
       </li>
     </ul>
@@ -83,6 +86,7 @@ const props = defineProps({
   placeholder: { type: String,  default: 'Kunde suchen (Name, Nr., Kürzel)…' },
   dropup:      { type: Boolean, default: false },
   standort:    { type: String,  default: null },
+  mitarbeiterId: { type: String, default: null },
 });
 const emit = defineEmits(['update:modelValue', 'select']);
 
@@ -99,6 +103,64 @@ const container   = ref(null);
 const inputEl     = ref(null);
 const dropdownStyle = ref({});
 let debounceTimer   = null;
+
+function sortResults(list) {
+  const userLoc = auth.user?.location || null;
+  const score = (kunde) => (
+    (kunde.kundStatus === 2 ? 4 : 0) +
+    (kunde.kuerzel ? 2 : 0) +
+    (userLoc && kunde.geschSt === userLoc ? 1 : 0)
+  );
+
+  return [...list].sort((a, b) => {
+    const countDiff = (b.einsatzCount || 0) - (a.einsatzCount || 0);
+    if (countDiff !== 0) return countDiff;
+
+    const scoreDiff = score(b) - score(a);
+    if (scoreDiff !== 0) return scoreDiff;
+
+    return String(a.kundName || '').localeCompare(String(b.kundName || ''), 'de');
+  });
+}
+
+async function fetchResults(searchText = query.value) {
+  const trimmed = String(searchText || '').trim();
+  if (trimmed.length < 2 && !props.mitarbeiterId) {
+    results.value = [];
+    showDropdown.value = false;
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const params = {};
+    if (trimmed) params.q = trimmed;
+    if (props.standort) params.standort = props.standort;
+    if (props.mitarbeiterId) params.mitarbeiterId = props.mitarbeiterId;
+
+    const { data } = await api.get('/api/kunden/search', { params });
+    results.value = sortResults(data || []);
+    highlighted.value = 0;
+
+    if (results.value.length > 0) {
+      updateDropdownPosition();
+      showDropdown.value = true;
+    } else {
+      showDropdown.value = false;
+    }
+  } catch {
+    results.value = [];
+    showDropdown.value = false;
+  } finally {
+    loading.value = false;
+  }
+}
+
+function maybeLoadSuggestions(force = false) {
+  if (!props.mitarbeiterId || query.value.trim().length >= 2) return;
+  if (!force && results.value.length > 0) return;
+  fetchResults('');
+}
 
 function updateDropdownPosition() {
   if (!container.value) return;
@@ -123,33 +185,25 @@ function updateDropdownPosition() {
 
 function onInput() {
   clearTimeout(debounceTimer);
-  if (query.value.length < 2) { results.value = []; showDropdown.value = false; return; }
-  loading.value = true;
-  debounceTimer = setTimeout(async () => {
-    try {
-      const params = { q: query.value };
-      if (props.standort) params.standort = props.standort;
-      const { data } = await api.get('/api/kunden/search', { params });
-      const userLoc = auth.user?.location || null;
-      data.sort((a, b) => {
-        const score = k => (
-          (k.kundStatus === 2 ? 4 : 0) +
-          (k.kuerzel        ? 2 : 0) +
-          (userLoc && k.geschSt === userLoc ? 1 : 0)
-        );
-        return score(b) - score(a);
-      });
-      results.value = data;
-      highlighted.value = 0;
-      if (data.length > 0) {
-        updateDropdownPosition();
-        showDropdown.value = true;
-      } else {
-        showDropdown.value = false;
-      }
-    } catch { results.value = []; }
-    finally { loading.value = false; }
+  if (query.value.trim().length < 2 && !props.mitarbeiterId) {
+    results.value = [];
+    showDropdown.value = false;
+    return;
+  }
+
+  debounceTimer = setTimeout(() => {
+    fetchResults(query.value);
   }, 280);
+}
+
+function handleFocus() {
+  if (results.value.length > 0) {
+    updateDropdownPosition();
+    showDropdown.value = true;
+    return;
+  }
+
+  maybeLoadSuggestions(true);
 }
 
 function isSelected(k) {
@@ -193,7 +247,10 @@ function moveDown() { if (highlighted.value < results.value.length - 1) highligh
 function moveUp()   { if (highlighted.value > 0) highlighted.value--; }
 function selectHighlighted() { if (results.value[highlighted.value]) select(results.value[highlighted.value]); }
 
-function focus() { inputEl.value?.focus(); }
+function focus() {
+  inputEl.value?.focus();
+  maybeLoadSuggestions(true);
+}
 
 function onClickOutside(e) {
   if (container.value && !container.value.contains(e.target)) close();
@@ -215,6 +272,13 @@ watch(() => props.modelValue, (val) => {
     selectedList.value = [];
     query.value = '';
   }
+});
+
+watch(() => props.mitarbeiterId, () => {
+  query.value = '';
+  results.value = [];
+  showDropdown.value = false;
+  highlighted.value = 0;
 });
 
 defineExpose({ focus, clearSingle });
@@ -322,7 +386,7 @@ defineExpose({ focus, clearSingle });
 
 .kunde-search__item {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   padding: 6px 10px;
   cursor: pointer;
@@ -339,7 +403,7 @@ defineExpose({ focus, clearSingle });
   flex-shrink: 0;
 }
 
-.kunde-search__item-name { flex: 1; }
+.kunde-search__item-name { flex: 1; min-width: 0; }
 
 .kunde-search__kuerzel {
   font-size: 10px;
@@ -353,6 +417,13 @@ defineExpose({ focus, clearSingle });
   opacity: 0.5;
   font-family: monospace;
   margin-right: 3px;
+}
+
+.kunde-search__metric {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .kunde-search__empty {

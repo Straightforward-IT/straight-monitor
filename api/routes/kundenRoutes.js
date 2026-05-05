@@ -28,6 +28,57 @@ const forecastUnionPipeline = (matchCondition) => [
   }}
 ];
 
+function getMitarbeiterPersonalnummern(maDoc) {
+  const numbers = new Set();
+
+  if (maDoc?.personalnr) numbers.add(String(maDoc.personalnr).trim());
+  for (const entry of maDoc?.personalnrHistory || []) {
+    if (entry?.value) numbers.add(String(entry.value).trim());
+  }
+
+  return [...numbers]
+    .map((value) => Number.parseInt(value, 10))
+    .filter((value) => Number.isInteger(value));
+}
+
+async function getKundenCountMapForMitarbeiter(mitarbeiterId) {
+  if (!mitarbeiterId) return new Map();
+
+  const maDoc = await Mitarbeiter.findById(mitarbeiterId)
+    .select('personalnr personalnrHistory')
+    .lean();
+
+  const personalnummern = getMitarbeiterPersonalnummern(maDoc);
+  if (!personalnummern.length) return new Map();
+
+  const einsaetzeByAuftrag = await Einsatz.aggregate([
+    { $match: { personalNr: { $in: personalnummern }, auftragNr: { $ne: null } } },
+    { $group: { _id: '$auftragNr', count: { $sum: 1 } } }
+  ]);
+
+  if (!einsaetzeByAuftrag.length) return new Map();
+
+  const auftragNrToKunde = new Map(
+    (await Auftrag.find({
+      auftragNr: { $in: einsaetzeByAuftrag.map((entry) => entry._id) }
+    })
+      .select('auftragNr kundenNr')
+      .lean())
+      .filter((auftrag) => Number.isInteger(auftrag.kundenNr))
+      .map((auftrag) => [auftrag.auftragNr, auftrag.kundenNr])
+  );
+
+  const countByKunde = new Map();
+  for (const entry of einsaetzeByAuftrag) {
+    const kundenNr = auftragNrToKunde.get(entry._id);
+    if (!Number.isInteger(kundenNr)) continue;
+
+    countByKunde.set(kundenNr, (countByKunde.get(kundenNr) || 0) + entry.count);
+  }
+
+  return countByKunde;
+}
+
 // @route   GET /api/kunden
 // @desc    Alle Kunden abrufen
 // @access  Private
@@ -46,30 +97,74 @@ router.get('/', auth, asyncHandler(async (req, res) => {
 // @access  Private
 router.get('/search', auth, asyncHandler(async (req, res) => {
   const q = (req.query.q || '').trim();
-  if (q.length < 2) return res.json([]);
-
   const standort = (req.query.standort || '').trim();
+  const mitarbeiterId = (req.query.mitarbeiterId || '').trim();
 
-  const isNum = /^\d+$/.test(q);
-  const filter = isNum
-    ? { kundenNr: Number(q) }
-    : { $or: [
-        { kundName: { $regex: q, $options: 'i' } },
-        { kuerzel:  { $regex: q, $options: 'i' } },
-      ]};
+  if (q.length < 2 && !mitarbeiterId) return res.json([]);
 
-  // Standort-Filter: kundenNr beginnt mit Standort-Prefix
-  if (standort) {
-    filter.kundenNr = { ...(filter.kundenNr || {}), $gte: Number(standort) * 1000000, $lt: (Number(standort) + 1) * 1000000 };
+  const countByKunde = mitarbeiterId
+    ? await getKundenCountMapForMitarbeiter(mitarbeiterId)
+    : new Map();
+
+  const standortMin = standort ? Number(standort) * 1000000 : null;
+  const standortMax = standort ? (Number(standort) + 1) * 1000000 : null;
+
+  let kunden = [];
+
+  if (q.length >= 2) {
+    const isNum = /^\d+$/.test(q);
+    let filter;
+
+    if (isNum) {
+      const kundenNr = Number(q);
+      if (standort && (kundenNr < standortMin || kundenNr >= standortMax)) {
+        return res.json([]);
+      }
+      filter = { kundenNr };
+    } else {
+      filter = {
+        $or: [
+          { kundName: { $regex: q, $options: 'i' } },
+          { kuerzel: { $regex: q, $options: 'i' } },
+        ]
+      };
+
+      if (standort) {
+        filter.kundenNr = { $gte: standortMin, $lt: standortMax };
+      }
+    }
+
+    kunden = await Kunde.find(filter)
+      .select('_id kundenNr kundName kuerzel kundStatus geschSt')
+      .sort({ kundName: 1 })
+      .limit(20)
+      .lean();
+  } else {
+    let kundenNrs = [...countByKunde.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([kundenNr]) => kundenNr);
+
+    if (standort) {
+      kundenNrs = kundenNrs.filter((kundenNr) => kundenNr >= standortMin && kundenNr < standortMax);
+    }
+
+    if (!kundenNrs.length) return res.json([]);
+
+    const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } })
+      .select('_id kundenNr kundName kuerzel kundStatus geschSt')
+      .lean();
+
+    const kundeByNr = new Map(kundenDocs.map((kunde) => [kunde.kundenNr, kunde]));
+    kunden = kundenNrs
+      .map((kundenNr) => kundeByNr.get(kundenNr))
+      .filter(Boolean)
+      .slice(0, 20);
   }
 
-  const kunden = await Kunde.find(filter)
-    .select('_id kundenNr kundName kuerzel kundStatus geschSt')
-    .sort({ kundName: 1 })
-    .limit(20)
-    .lean();
-
-  res.json(kunden);
+  res.json(kunden.map((kunde) => ({
+    ...kunde,
+    einsatzCount: countByKunde.get(kunde.kundenNr) || 0,
+  })));
 }));
 
 // @route   GET /api/kunden/active-list
