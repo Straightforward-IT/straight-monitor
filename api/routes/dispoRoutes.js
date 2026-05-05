@@ -25,6 +25,11 @@ router.get('/', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Ungültige Datumswerte.' });
   }
 
+  // The dispo view works on calendar days, not the caller's current clock time.
+  // Normalize the requested range so entries on the current day are not excluded.
+  dateVon.setHours(0, 0, 0, 0);
+  dateBis.setHours(23, 59, 59, 999);
+
   // ── 1. Mitarbeiter laden (gefiltert nach Standort) ──
   const maFilter = { isActive: true };
   if (mitarbeiterId) {

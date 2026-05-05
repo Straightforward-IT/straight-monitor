@@ -217,7 +217,7 @@
       </section>
 
       <!-- Kennzahlen -->
-      <section class="section kpi-section" v-if="kunde.kundenNr">
+      <section class="section kpi-section" v-if="kunde.kundenNr && canSeeSensitiveKpi">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'chart-line']" /> Kennzahlen
         </h4>
@@ -318,6 +318,7 @@
 
 <script setup>
 import { computed, ref, nextTick, watch, onMounted } from 'vue';
+import { useAuth } from '@/stores/auth';
 import { useTheme } from '@/stores/theme';
 import { useDataCache } from '@/stores/dataCache';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
@@ -330,7 +331,20 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
+const auth = useAuth();
 const dataCache = useDataCache();
+
+const canSeeSensitiveKpi = computed(() => {
+  const primaryRole = String(auth.user?.role || '').toUpperCase();
+  const roles = Array.isArray(auth.user?.roles)
+    ? auth.user.roles.map((role) => String(role).toUpperCase())
+    : [];
+
+  return primaryRole === 'ADMIN'
+    || primaryRole === 'VERTRIEB'
+    || roles.includes('ADMIN')
+    || roles.includes('VERTRIEB');
+});
 
 // MS Graph contacts linked via kuerzel
 const msContacts = ref([]);
@@ -365,7 +379,7 @@ const kpi = ref(null);
 const kpiLoading = ref(false);
 
 async function loadKpi() {
-  if (!props.kunde.kundenNr) return;
+  if (!props.kunde.kundenNr || !canSeeSensitiveKpi.value) return;
   kpiLoading.value = true;
   try {
     const params = { kundenNr: props.kunde.kundenNr };
@@ -380,6 +394,15 @@ async function loadKpi() {
 }
 
 onMounted(loadKpi);
+watch(canSeeSensitiveKpi, (canSee) => {
+  if (canSee) {
+    loadKpi();
+    return;
+  }
+
+  kpi.value = null;
+  kpiLoading.value = false;
+});
 
 // Top-Mitarbeiter
 const topMaAll = ref([]);
