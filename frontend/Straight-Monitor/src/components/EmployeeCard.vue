@@ -226,8 +226,9 @@
               <div v-else-if="eventreportFeedback.length > 0" class="feedback-inline-list">
                 <div 
                   v-for="fb in eventreportFeedback" 
-                  :key="fb._id" 
-                  class="feedback-inline-item"
+                  :key="fb.feedbackId || fb._id" 
+                  class="feedback-inline-item feedback-inline-item--hoverable"
+                  :class="{ 'feedback-inline-item--editing': editingFeedbackId === fb.feedbackId }"
                 >
                   <div class="feedback-inline-header">
                     <span class="feedback-inline-event">{{ fb.kunde || fb.location || 'Unbekannt' }}</span>
@@ -236,8 +237,49 @@
                       <font-awesome-icon icon="fa-solid fa-file-lines" />
                       Report
                     </button>
+                    <div v-if="fb.feedbackId" class="feedback-inline-actions">
+                      <button
+                        v-if="editingFeedbackId !== fb.feedbackId"
+                        class="feedback-inline-action-btn"
+                        title="Feedback bearbeiten"
+                        @click.stop="startEditFeedback(fb)"
+                      >
+                        <font-awesome-icon icon="fa-solid fa-pen" />
+                      </button>
+                      <button
+                        class="feedback-inline-action-btn feedback-inline-action-btn--delete"
+                        :disabled="deletingFeedbackId === fb.feedbackId"
+                        title="Feedback löschen"
+                        @click.stop="deleteFeedback(fb)"
+                      >
+                        <font-awesome-icon v-if="deletingFeedbackId === fb.feedbackId" icon="fa-solid fa-spinner" class="fa-spin" />
+                        <font-awesome-icon v-else icon="fa-solid fa-trash" />
+                      </button>
+                    </div>
                   </div>
-                  <p class="feedback-inline-text">{{ fb.feedback_text || '—' }}</p>
+                  <template v-if="editingFeedbackId === fb.feedbackId">
+                    <textarea
+                      v-model="editingFeedbackText"
+                      class="feedback-inline-textarea"
+                      rows="3"
+                    />
+                    <div class="feedback-inline-edit-actions">
+                      <button
+                        class="btn-report-small"
+                        :disabled="savingFeedbackId === fb.feedbackId"
+                        @click.stop="saveFeedback(fb)"
+                      >
+                        <font-awesome-icon v-if="savingFeedbackId === fb.feedbackId" icon="fa-solid fa-spinner" class="fa-spin" />
+                        <span v-else>Speichern</span>
+                      </button>
+                      <button
+                        class="btn-report-small btn-report-small--ghost"
+                        :disabled="savingFeedbackId === fb.feedbackId"
+                        @click.stop="cancelEditFeedback"
+                      >Abbrechen</button>
+                    </div>
+                  </template>
+                  <p v-else class="feedback-inline-text">{{ fb.feedback_text || '—' }}</p>
                 </div>
               </div>
               <div v-else class="doc-empty-inline">Kein Feedback vorhanden</div>
@@ -1484,6 +1526,10 @@ export default {
       // EventReport Feedback (lazy-loaded on expand)
       eventreportFeedback: [],
       loadingFeedback: false,
+      deletingFeedbackId: null,
+      editingFeedbackId: null,
+      editingFeedbackText: '',
+      savingFeedbackId: null,
 
       // Flip Management (restore/create/link)
       flipActionLoading: false,
@@ -1716,6 +1762,41 @@ export default {
         this.eventreportFeedback = [];
       } finally {
         this.loadingFeedback = false;
+      }
+    },
+
+    startEditFeedback(fb) {
+      this.editingFeedbackId = fb.feedbackId;
+      this.editingFeedbackText = fb.feedback_text || '';
+    },
+    cancelEditFeedback() {
+      this.editingFeedbackId = null;
+      this.editingFeedbackText = '';
+    },
+    async saveFeedback(fb) {
+      if (!this.editingFeedbackText.trim()) return;
+      this.savingFeedbackId = fb.feedbackId;
+      try {
+        await api.patch(`/api/personal/eventreport/${fb._id}/feedback/${fb.feedbackId}`, { text: this.editingFeedbackText.trim() });
+        fb.feedback_text = this.editingFeedbackText.trim();
+        this.editingFeedbackId = null;
+        this.editingFeedbackText = '';
+      } catch (err) {
+        console.error('Error saving feedback:', err);
+      } finally {
+        this.savingFeedbackId = null;
+      }
+    },
+    async deleteFeedback(fb) {
+      if (!confirm('Feedback wirklich löschen?')) return;
+      this.deletingFeedbackId = fb.feedbackId;
+      try {
+        await api.delete(`/api/personal/eventreport/${fb._id}/feedback/${fb.feedbackId}`);
+        this.eventreportFeedback = this.eventreportFeedback.filter(f => f.feedbackId !== fb.feedbackId);
+      } catch (err) {
+        console.error('Error deleting feedback:', err);
+      } finally {
+        this.deletingFeedbackId = null;
       }
     },
     async fetchInventar() {
@@ -3203,6 +3284,94 @@ export default {
   border: 1px solid var(--border-color, rgba(0,0,0,0.08));
   border-radius: 6px;
   padding: 8px 10px;
+  position: relative;
+}
+
+.feedback-inline-item--hoverable {
+  .feedback-inline-actions {
+    display: none;
+  }
+  &:hover .feedback-inline-actions {
+    display: flex;
+  }
+}
+
+.feedback-inline-item--editing {
+  .feedback-inline-actions {
+    display: flex;
+  }
+}
+
+.feedback-inline-actions {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.feedback-inline-action-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 2px 5px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 10px;
+  transition: color 0.14s, background 0.14s, border-color 0.14s;
+
+  &:hover {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  }
+
+  &--delete:hover {
+    color: #dc3545;
+    background: rgba(220, 53, 69, 0.08);
+    border-color: rgba(220, 53, 69, 0.25);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.feedback-inline-textarea {
+  width: 100%;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 6px 8px;
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+  margin-top: 4px;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
+  }
+}
+
+.feedback-inline-edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.btn-report-small--ghost {
+  border-color: var(--border);
+  color: var(--muted);
+  background: transparent;
+
+  &:hover {
+    background: var(--soft);
+    color: var(--text);
+  }
 }
 
 .feedback-inline-header {

@@ -1789,12 +1789,14 @@ router.get(
       });
       return {
         _id: report._id,
+        feedbackId: feedback?._id?.toString() || null,
         kunde: report.kunde,
         location: report.location,
         datum: report.datum,
         name_teamleiter: report.name_teamleiter,
         teamleiter: report.teamleiter,
         feedback_text: feedback?.text || null,
+        asana_story_gid: feedback?.asana_story_gid || null,
       };
     });
 
