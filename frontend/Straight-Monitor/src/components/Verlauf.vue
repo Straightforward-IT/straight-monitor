@@ -3,18 +3,6 @@
     <FilterPanel v-model:expanded="filtersExpanded">
       <template #title>Filter &amp; Gruppierung</template>
 
-      <FilterGroup class="verlauf-filter-group search-group" label="Suchen">
-        <input
-          id="search-input"
-          type="text"
-          v-model="searchQuery"
-          @input="groupLogs"
-          class="panel-search-input"
-          placeholder="in Anmerkungen, Items, Mitarbeiter..."
-          aria-label="Verlauf durchsuchen"
-        />
-      </FilterGroup>
-
       <FilterGroup class="verlauf-filter-group grouping-group" label="Gruppieren">
         <div class="verlauf-chip-row">
           <FilterChip :active="groupBy.standort" @click="toggleGroupBy('standort')">
@@ -71,6 +59,13 @@
       </FilterGroup>
     </FilterPanel>
 
+    <SearchBar
+      class="verlauf-search-bar"
+      v-model="searchQuery"
+      placeholder="in Anmerkungen, Items, Mitarbeiter..."
+      aria-label="Verlauf durchsuchen"
+    />
+
     <div v-if="Object.keys(groupedLogs).length > 0">
       <verlauf-group
         :grouped-data="groupedLogs"
@@ -108,6 +103,7 @@ import EmployeeCardModal from "./EmployeeCardModal.vue";
 import FilterChip from "./FilterChip.vue";
 import FilterGroup from "./FilterGroup.vue";
 import FilterPanel from "./FilterPanel.vue";
+import SearchBar from "./SearchBar.vue";
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
 export default {
@@ -119,6 +115,7 @@ export default {
     FilterChip,
     FilterGroup,
     FilterPanel,
+    SearchBar,
   },
   data() {
     return {
@@ -345,7 +342,30 @@ export default {
   gap: 8px;
 }
 
-.panel-search-input,
+:deep(.filter-panel) {
+  --surface: var(--panel);
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  .filter-content {
+    border-top-color: transparent;
+  }
+
+  .filter-group {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+}
+
+.verlauf-search-bar {
+  width: 100%;
+  border-radius: 8px;
+
+  :deep(.search-bar-root) {
+    border-color: transparent;
+  }
+}
+
 .panel-select{
   flex-grow:1;
   padding:.8rem 1rem;
@@ -360,10 +380,7 @@ export default {
   appearance: none;
   box-sizing: border-box;
   min-width: 220px;
-}
-
-.panel-search-input {
-  width: min(360px, 100%);
+  width: min(260px, 100%);
 }
 
 .panel-select {
@@ -376,13 +393,11 @@ export default {
   cursor: pointer;
 }
 
-.panel-search-input:hover,
 .panel-select:hover,
 .date-input:hover {
   border-color: color-mix(in oklab, var(--c-primary) 35%, var(--c-border));
 }
 
-.panel-search-input:focus,
 .panel-select:focus,
 .date-input:focus {
   outline:none;
@@ -475,7 +490,10 @@ export default {
     align-items: flex-start;
   }
 
-  .panel-search-input,
+  .verlauf-search-bar {
+    width: 100%;
+  }
+
   .panel-select {
     padding: 8px 10px;
     font-size: 14px;

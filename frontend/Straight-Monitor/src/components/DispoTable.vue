@@ -1,11 +1,9 @@
 <template>
   <Transition name="dispo-fs">
   <div class="dispo-page" :class="{ 'fullscreen-mode': isFullscreen }">
-    <!-- Page header — hidden in fullscreen -->
-    <div v-if="!isFullscreen" class="page-header" :class="{ 'page-header--knechti': isKnechti }">
-      <h1 v-if="isKnechti" class="knechti-title">KNECHTI-LISTE</h1>
-      <div v-if="!isKnechti" class="header-title-group"></div>
-      <div v-if="!isKnechti" class="header-controls"></div>
+    <!-- Page header (knechti only) -->
+    <div v-if="!isFullscreen && isKnechti" class="page-header page-header--knechti">
+      <h1 class="knechti-title">KNECHTI-LISTE</h1>
     </div>
 
     <!-- Fullscreen toolbar — compact filter bar —-->
@@ -152,19 +150,16 @@
 
     <FilterPanel v-if="!isFullscreen" v-model:expanded="filterExpanded">
       <template #header-actions>
-        <span class="shortcut-hint" @click.stop="showHelp = true">
-          Tipp: <kbd>H</kbd> für Hilfe &amp; Shortcuts
-        </span>
+        <button class="filter-help-btn" @click.stop="showHelp = true" title="Shortcuts &amp; Hilfe [H]">
+          <font-awesome-icon icon="fa-solid fa-circle-question" />
+        </button>
       </template>
       <!-- Standort Filter -->
       <FilterGroup label="Standort">
-        <FilterDropdown :has-value="!!filters.standort">
-          <template #label>{{ standortLabel }}</template>
-          <div class="dropdown-item" :class="{ selected: !filters.standort }" @click="setStandort(null)">Alle</div>
-          <div class="dropdown-item" :class="{ selected: filters.standort === '1' }" @click="setStandort('1')">Berlin</div>
-          <div class="dropdown-item" :class="{ selected: filters.standort === '2' }" @click="setStandort('2')">Hamburg</div>
-          <div class="dropdown-item" :class="{ selected: filters.standort === '3' }" @click="setStandort('3')">Köln</div>
-        </FilterDropdown>
+        <FilterChip :active="filters.standort === '1'" @click="setStandort('1')">Berlin</FilterChip>
+        <FilterChip :active="filters.standort === '2'" @click="setStandort('2')">Hamburg</FilterChip>
+        <FilterChip :active="filters.standort === '3'" @click="setStandort('3')">Köln</FilterChip>
+        <FilterChip :active="!filters.standort" @click="setStandort(null)">Alle</FilterChip>
       </FilterGroup>
 
       <FilterDivider />
@@ -254,20 +249,6 @@
 
       <FilterDivider />
 
-      <!-- Search Box -->
-      <CustomTooltip text="Suchen [S]" position="bottom" style="display:block">
-        <div class="search-box">
-          <input
-            ref="searchInputNormal"
-            v-model="searchQuery"
-            type="text"
-            placeholder="Mitarbeiter suchen…"
-          />
-        </div>
-      </CustomTooltip>
-
-      <FilterDivider />
-
       <!-- Ausgeblendete -->
       <button
         v-if="hiddenIds.size > 0"
@@ -291,8 +272,14 @@
 
     <!-- Selection Bar (normal mode only) -->
     <div v-if="!isFullscreen" class="selection-bar">
-      <!-- Left: cell selection chip -->
+      <!-- Left: SearchBar + cell selection chip -->
       <div class="sel-bar-left">
+        <SearchBar
+          class="dispo-search-bar"
+          v-model="searchQuery"
+          placeholder="Mitarbeiter suchen…"
+          aria-label="Mitarbeiter suchen"
+        />
         <transition name="sel-chip">
           <span v-if="selectedCells.size > 0" class="selection-chip">
             <font-awesome-icon icon="fa-solid fa-table-cells" />
@@ -1142,6 +1129,7 @@ import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import KommentarFeed from '@/components/KommentarFeed.vue';
 import KundeSearch from '@/components/ui-elements/KundeSearch.vue';
+import SearchBar from '@/components/SearchBar.vue';
 
 const auth = useAuth();
 const dataCache = useDataCache();
@@ -1744,10 +1732,9 @@ function onKeyDown(e) {
     }
   } else if (e.key === 'h' || e.key === 'H') {
     showHelp.value = !showHelp.value;
-  } else if (e.key === 's' || e.key === 'S') {
+  } else if ((e.key === 's' || e.key === 'S') && isFullscreen.value) {
     e.preventDefault();
-    const input = isFullscreen.value ? searchInputFs.value : searchInputNormal.value;
-    if (input) { input.focus(); input.select(); }
+    if (searchInputFs.value) { searchInputFs.value.focus(); searchInputFs.value.select(); }
   } else if (e.key === '-') {
     tableZoom.value = Math.max(60, tableZoom.value - 10);
   } else if (e.key === '+') {
@@ -4611,16 +4598,81 @@ onMounted(async () => {
 }
 
 .selection-bar {
-  height: 28px;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 8px;
+  min-height: 36px;
 }
 
 .sel-bar-left {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+:deep(.filter-panel) {
+  --surface: var(--panel);
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  .filter-content {
+    border-top-color: transparent;
+  }
+
+  .filter-group {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+}
+
+:deep(.qual-pills-input) {
+  border-color: transparent;
+  background: var(--hover);
+
+  &:focus-within {
+    border-color: var(--primary);
+  }
+}
+
+:deep(.kunde-search__input-wrap),
+:deep(.kunde-search .selected-chip) {
+  border-color: transparent;
+  background: var(--hover);
+
+  &:focus-within {
+    border-color: var(--primary);
+  }
+}
+
+.dispo-search-bar {
+  padding: 5px 10px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  width: 200px;
+
+  :deep(.search-bar-root) {
+    border-color: transparent;
+  }
+
+  :deep(input) {
+    font-size: 0.85rem;
+  }
+}
+
+.filter-help-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+
+  &:hover {
+    color: var(--text);
+  }
 }
 
 .sel-bar-right {

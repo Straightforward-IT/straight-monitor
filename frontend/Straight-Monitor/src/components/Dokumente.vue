@@ -3,7 +3,7 @@
     <!-- Document Management Section -->
     <div class="panel">
       <div class="controls">
-        <FilterPanel v-model:expanded="filtersExpanded" :locked="!!(filteredTeamleiter || filteredMitarbeiter)">
+        <FilterPanel v-model:expanded="filtersExpanded">
           <template #header-actions>
             <div class="filter-search-box" :class="{ 'search-expanded': searchExpanded }">
               <button
@@ -121,6 +121,14 @@
           </template>
         </div>
         </FilterPanel>
+
+        <!-- Desktop Search Bar (hidden on mobile) -->
+        <SearchBar
+          class="desktop-search-bar"
+          v-model="documentsSearchQuery"
+          placeholder="Dokumente durchsuchen..."
+          aria-label="Dokumente suchen"
+        />
 
         <div v-if="!loading.documents && filteredDocumentsSorted.length > 0" class="search-sort">
           <div class="pagination-compact">
@@ -417,6 +425,7 @@ import FilterPanel from '@/components/FilterPanel.vue';
 import DocumentCard from '@/components/DocumentCard.vue';
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import CustomerCard from '@/components/CustomerCard.vue';
+import SearchBar from '@/components/SearchBar.vue';
 import asanaLogo from '@/assets/asana.png';
 
 import {
@@ -480,7 +489,7 @@ library.add(
 
 export default {
   name: "Dokumente",
-  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, DocumentCard, EmployeeCardModal, CustomerCard },
+  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, DocumentCard, EmployeeCardModal, CustomerCard, SearchBar },
 
   setup() {
     const dataCache = useDataCache();
@@ -1492,10 +1501,27 @@ export default {
   }
 }
 
+// Desktop Search Bar
+.desktop-search-bar {
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  margin-top: 8px;
+  margin-bottom: 0;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
 .filter-search-box {
   display: flex;
   align-items: center;
   position: relative;
+
+  @media (min-width: 769px) {
+    display: none;
+  }
 }
 
 .filter-search-toggle {

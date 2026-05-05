@@ -72,7 +72,7 @@
       <div v-if="currentTab === 'overview'" class="tab-content">
         <div class="toolbar">
            <div class="search-group">
-            <input v-model="searchQuery" type="text" placeholder="Suchen..." class="search-input" />
+            <SearchBar v-model="searchQuery" class="kunden-search-bar" placeholder="Kunden suchen…" aria-label="Kunden suchen" />
             <span class="count-tag">{{ filteredKunden.length }} Kunden</span>
            </div>
            
@@ -200,7 +200,7 @@
 
         <div class="toolbar">
           <div class="search-group">
-            <input v-model="contactSearch" type="text" placeholder="Kontakt suchen..." class="search-input" />
+            <SearchBar v-model="contactSearch" class="kunden-search-bar" placeholder="Kontakt suchen…" aria-label="Kontakte suchen" />
             <span class="count-tag">{{ filteredContacts.length }} Kontakte</span>
           </div>
           <button class="btn-group" @click="loadContacts" :disabled="contactsLoading">
@@ -375,6 +375,7 @@ import LeadsTab from './LeadsTab.vue';
 import KundenMergeModal from './KundenMergeModal.vue';
 import KundenWatchlistReportModal from './KundenWatchlistReportModal.vue';
 import ContextMenu from './ContextMenu.vue';
+import SearchBar from './SearchBar.vue';
 import api from '@/utils/api';
 
 const dataCache = useDataCache();
@@ -983,13 +984,13 @@ watch(currentTab, (tab) => {
     background: var(--hover-bg, #f5f5f5);
 }
 
-.search-input {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--tile-bg);
-  color: var(--text);
+.kunden-search-bar {
+  border-radius: 8px;
   min-width: 250px;
+
+  :deep(.search-bar-root) {
+    border-color: transparent;
+  }
 }
 
 .count-tag {
@@ -1475,7 +1476,7 @@ watch(currentTab, (tab) => {
     flex-wrap: wrap;
   }
 
-  .search-input {
+  .kunden-search-bar {
     min-width: unset;
     flex: 1;
     width: 100%;

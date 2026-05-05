@@ -128,6 +128,14 @@
           @input="handleDatePick"
         >
       </label>
+      <!-- Desktop Search -->
+      <SearchBar
+        v-if="!isMobile"
+        class="nav-search"
+        v-model="searchQuery"
+        placeholder="Mitarbeiter, Events, Kunden..."
+        aria-label="Aufträge suchen"
+      />
     </div>
 
     <!-- Mobile View -->
@@ -797,6 +805,7 @@ import FilterDropdown from '@/components/FilterDropdown.vue';
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import CustomerCard from '@/components/CustomerCard.vue';
 import DocumentCard from '@/components/DocumentCard.vue';
+import SearchBar from '@/components/SearchBar.vue';
 import laufzettelIcon from '@/assets/laufzettel.png';
 import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
 import eventreportIcon from '@/assets/eventreport.png';
@@ -805,7 +814,7 @@ import eventreportDarkIcon from '@/assets/eventreport-dark.png';
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard },
+  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar },
   data() {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
@@ -2304,11 +2313,25 @@ export default {
   }
 }
 
+.nav-search {
+  padding: 6px 12px;
+  border-radius: 8px;
+
+  :deep(input) {
+    width: 220px;
+    font-size: 0.875rem;
+  }
+}
+
 // Mobile search inside filter header
 .filter-search-box {
   display: flex;
   align-items: center;
   position: relative;
+
+  @media (min-width: 769px) {
+    display: none;
+  }
 }
 
 .filter-search-toggle {

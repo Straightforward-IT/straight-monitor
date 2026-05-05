@@ -3,7 +3,7 @@
     <main class="main">
       <!-- ============== EMPLOYEE VIEW ============== -->
       <section class="panel">
-        <!-- Minimierbare Filter-Sektion -->
+          <!-- Minimierbare Filter-Sektion -->
           <FilterPanel v-model:expanded="filtersExpanded">
             <template #header-actions>
               <div class="filter-search-box" :class="{ 'search-expanded': searchExpanded }">
@@ -222,29 +222,16 @@
             </div>
           </FilterPanel>
 
-        <!-- View Controls (moved here, below search bar) -->
+        <!-- View Controls (search + sort + pagination + toggle in one row) -->
         <div class="view-controls-section">
           <div class="view-controls-left">
-            <!-- View Mode Toggle (versteckt auf Mobile) -->
-            <div class="view-toggle mobile-hidden">
-              <button 
-                class="view-btn"
-                :class="{ active: mitarbeiterViewMode === 'grid' }"
-                @click="mitarbeiterViewMode = 'grid'"
-              >
-                <font-awesome-icon icon="fa-solid fa-grip" />
-                Kacheln
-              </button>
-              <button 
-                class="view-btn"
-                :class="{ active: mitarbeiterViewMode === 'list' }"
-                @click="mitarbeiterViewMode = 'list'"
-              >
-                <font-awesome-icon icon="fa-solid fa-list" />
-                Liste
-              </button>
-            </div>
-
+            <!-- Desktop Search Bar (hidden on mobile) -->
+            <SearchBar
+              class="desktop-search-bar"
+              v-model="mitarbeitersSearchQuery"
+              placeholder="Mitarbeiter suchen..."
+              aria-label="Mitarbeiter suchen"
+            />
             <!-- Selection Info -->
             <div v-if="selectedMitarbeiterIds.size > 0" class="selection-info">
               <span class="selection-count">{{ selectedMitarbeiterIds.size }} ausgewählt</span>
@@ -350,8 +337,8 @@
            <span class="loading-text">Lade Mitarbeiter...</span>
         </div>
 
-        <!-- Grid View (Standard auf Mobile) -->
-        <div v-else-if="mitarbeiterViewMode === 'grid'" class="grid">
+        <!-- Grid View -->
+        <div v-else class="grid">
           <EmployeeCard
             v-for="ma in paginatedMitarbeiters"
             :key="ma._id"
@@ -369,8 +356,8 @@
           />
         </div>
 
-        <!-- List View (versteckt auf Mobile) -->
-        <div v-else class="list mobile-hidden">
+        <!-- List View (removed) -->
+        <div v-if="false" class="list mobile-hidden">
           <div class="list-header">
             <div class="list-col list-col--checkbox">
               <input 
@@ -718,6 +705,7 @@ import FilterDropdown from "@/components/FilterDropdown.vue";
 import FilterChip from "@/components/FilterChip.vue";
 import ExportMitarbeiterModal from "@/components/ExportMitarbeiterModal.vue";
 import ImageCropModal from "@/components/ImageCropModal.vue";
+import SearchBar from "@/components/SearchBar.vue";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
 
@@ -810,7 +798,7 @@ library.add(
 
 export default {
   name: "Personal",
-  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel, FilterDropdown, FilterChip, ExportMitarbeiterModal, ImageCropModal },
+  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel, FilterDropdown, FilterChip, ExportMitarbeiterModal, ImageCropModal, SearchBar },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -843,8 +831,6 @@ export default {
       filtersExpanded: true, // Filter standardmäßig ausgeklappt
       searchExpanded: false, // Expandable search in filter header
 
-      // view options
-      mitarbeiterViewMode: "grid", // "grid" or "list"
       locations: ["Hamburg", "Berlin", "Köln"],
       departments: ["Service", "Logistik", "Office"],
 
@@ -853,16 +839,9 @@ export default {
       selectAllMode: false,
       showExportModal: false,
       
-      // list expansion state
-      listExpandedIds: new Set(),
-
       // Personalnr editing state
       editingPersonalnrId: null,
       editingPersonalnrValue: "",
-      
-      // list sorting
-      listSortBy: "name",
-      listIsAscending: true,
       
       // pagination
       currentPage: 1,
@@ -900,10 +879,6 @@ export default {
 
       // ui
       showMitarbeiterSort: false,
-      activeQuickActionId: null, // Tracking für offene Quick-Action-Menüs
-      activeQuickActionMa: null, // Reference to the active employee
-      quickActionMenuStyle: {}, // Position for the teleported menu
-      quickActionBtnRefs: {}, // Refs for the quick action buttons
 
       // Profilbild Upload
       showImageCropModal: false,
@@ -1164,60 +1139,21 @@ export default {
       const expandedEmployee = this.expandedEmployeeId ? 
         arr.find(ma => this.isEmployeeExpanded(ma)) : null;
       
-      // Sortierung basierend auf aktuellem View Mode
-      if (this.mitarbeiterViewMode === 'list') {
-        // List view sorting
-        arr.sort((a, b) => {
-          let av, bv;
-          
-          switch (this.listSortBy) {
-            case 'name':
-              av = `${a.vorname || ''} ${a.nachname || ''}`.toLowerCase();
-              bv = `${b.vorname || ''} ${b.nachname || ''}`.toLowerCase();
-              break;
-            case 'personalnr':
-              // Sortiere fehlende Personalnr nach hinten
-              av = a.personalnr || 'zzz';
-              bv = b.personalnr || 'zzz';
-              break;
-            case 'status':
-              av = a.isActive ? 'aktiv' : 'inaktiv';
-              bv = b.isActive ? 'aktiv' : 'inaktiv';
-              break;
-            case 'location':
-              av = (this.getDisplayLocation(a) || '').toLowerCase();
-              bv = (this.getDisplayLocation(b) || '').toLowerCase();
-              break;
-            case 'department':
-              av = (this.getDisplayDepartment(a) || '').toLowerCase();
-              bv = (this.getDisplayDepartment(b) || '').toLowerCase();
-              break;
-            default:
-              av = (a?.[this.listSortBy] ?? "").toString().toLowerCase();
-              bv = (b?.[this.listSortBy] ?? "").toString().toLowerCase();
-          }
-          
-          if (av < bv) return this.listIsAscending ? -1 : 1;
-          if (av > bv) return this.listIsAscending ? 1 : -1;
-          return 0;
-        });
-      } else {
-        // Grid view sorting (existing logic)
-        const key = this.mitarbeitersSortBy;
-        arr.sort((a, b) => {
-          let av, bv;
-          if (key === 'createdAt') {
-            av = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
-            bv = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
-          } else {
-            av = (a?.[key] ?? "").toString().toLowerCase();
-            bv = (b?.[key] ?? "").toString().toLowerCase();
-          }
-          if (av < bv) return this.mitarbeitersIsAscending ? -1 : 1;
-          if (av > bv) return this.mitarbeitersIsAscending ? 1 : -1;
-          return 0;
-        });
-      }
+      // Grid view sorting
+      const key = this.mitarbeitersSortBy;
+      arr.sort((a, b) => {
+        let av, bv;
+        if (key === 'createdAt') {
+          av = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+          bv = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+        } else {
+          av = (a?.[key] ?? "").toString().toLowerCase();
+          bv = (b?.[key] ?? "").toString().toLowerCase();
+        }
+        if (av < bv) return this.mitarbeitersIsAscending ? -1 : 1;
+        if (av > bv) return this.mitarbeitersIsAscending ? 1 : -1;
+        return 0;
+      });
 
       // Wenn expandierter Mitarbeiter gefunden wurde, an den Anfang verschieben
       if (expandedEmployee) {
@@ -1513,74 +1449,6 @@ export default {
       return null;
     },
 
-    // Quick Actions
-    showQuickActions(ma, event) {
-      event.stopPropagation();
-      
-      // Toggle: close if same menu
-      if (this.activeQuickActionId === ma._id) {
-        this.activeQuickActionId = null;
-        this.activeQuickActionMa = null;
-        return;
-      }
-      
-      // Position berechnen basierend auf Button
-      const btn = event.target.closest('button');
-      if (btn) {
-        const rect = btn.getBoundingClientRect();
-        this.quickActionMenuStyle = {
-          position: 'fixed',
-          top: rect.bottom + 4 + 'px',
-          left: Math.min(rect.left, window.innerWidth - 220) + 'px',
-        };
-      }
-      
-      this.activeQuickActionMa = ma;
-      this.activeQuickActionId = ma._id;
-    },
-
-    // Quick Action ausführen
-    executeQuickAction(ma, action) {
-      switch (action) {
-        case 'sipgate':
-          if (this.getPhoneNumber(ma)) {
-            const sipgateUrl = this.generateSipgateLink(this.getPhoneNumber(ma));
-            window.open(sipgateUrl, '_self');
-          }
-          break;
-        case 'outlook':
-          if (ma.email) {
-            const mailtoUrl = `mailto:${ma.email}`;
-            try {
-              window.open(mailtoUrl, '_self');
-            } catch (error) {
-              console.error('❌ mailto failed:', error);
-            }
-          }
-          break;
-        case 'edit':
-          this.editMitarbeiter(ma);
-          break;
-        case 'profile':
-          this.openProfile(ma);
-          break;
-        case 'upload-photo':
-          this.imageCropMa = ma;
-          this.showImageCropModal = true;
-          break;
-      }
-      
-      // Menü schließen
-      this.activeQuickActionId = null;
-      this.activeQuickActionMa = null;
-    },
-
-    // Click outside handler
-    handleClickOutside() {
-      this.activeQuickActionId = null;
-      this.activeQuickActionMa = null;
-    },
-
     async onProfilbildUploaded(r2Key) {
       this.showImageCropModal = false;
       if (this.imageCropMa) {
@@ -1597,16 +1465,6 @@ export default {
     },
 
 
-
-    // List expansion
-    toggleListExpansion(mitarbeiterId) {
-      if (this.listExpandedIds.has(mitarbeiterId)) {
-        this.listExpandedIds.delete(mitarbeiterId);
-      } else {
-        this.listExpandedIds.add(mitarbeiterId);
-      }
-      this.listExpandedIds = new Set(this.listExpandedIds);
-    },
 
     // Personalnr editing
     startEditPersonalnr(ma) {
@@ -1661,20 +1519,6 @@ export default {
     clearSelection() {
       this.selectedMitarbeiterIds.clear();
       this.selectedMitarbeiterIds = new Set();
-    },
-
-    // List sorting
-    setSortBy(field) {
-      if (this.listSortBy === field) {
-        // Toggle sort direction if same field
-        this.listIsAscending = !this.listIsAscending;
-      } else {
-        // Set new field and default to ascending
-        this.listSortBy = field;
-        this.listIsAscending = true;
-      }
-      // Reset to first page when sorting changes
-      this.currentPage = 1;
     },
 
     // Pagination methods
@@ -1943,13 +1787,6 @@ export default {
       }
     },
 
-    checkMobileAndSetGrid() {
-      // Prüfe ob Mobile (768px Breakpoint) und setze automatisch Grid-View
-      if (window.innerWidth <= 768 && this.mitarbeiterViewMode === 'list') {
-        this.mitarbeiterViewMode = 'grid';
-      }
-    },
-
     scrollToExpandedEmployee() {
       if (this.expandedEmployeeId) {
         // Warte kurz, bis das DOM aktualisiert wurde
@@ -2010,18 +1847,10 @@ export default {
       console.error("Flip-Users konnten nicht geladen werden:", e);
     }
 
-    // Click outside handler für Quick Actions
-    document.addEventListener('click', this.handleClickOutside);
-    
-    // Mobile Detection - erzwinge Grid-View auf Mobile
-    this.checkMobileAndSetGrid();
-    window.addEventListener('resize', this.checkMobileAndSetGrid);
+
   },
 
   beforeUnmount() {
-    // Click outside handler cleanup
-    document.removeEventListener('click', this.handleClickOutside);
-    window.removeEventListener('resize', this.checkMobileAndSetGrid);
   },
 };
 </script>
@@ -2259,10 +2088,27 @@ export default {
   margin: 0 4px;
 }
 
+// Desktop Search Bar
+.desktop-search-bar {
+  flex: 1;
+  min-width: 180px;
+  gap: 10px;
+  padding: 7px 12px;
+  border-radius: 8px;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
 .filter-search-box {
   display: flex;
   align-items: center;
   position: relative;
+
+  @media (min-width: 769px) {
+    display: none;
+  }
 }
 
 .filter-search-toggle {
