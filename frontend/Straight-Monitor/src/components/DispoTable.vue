@@ -1193,7 +1193,13 @@ function _rebuildRowObserver() {
     _leftRowObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const maId = entry.target.dataset.leftRow;
-        rowHeights[maId] = entry.target.offsetHeight;
+        // Use sub-pixel precision (contentRect / getBoundingClientRect) instead of
+        // offsetHeight. offsetHeight rounds to the nearest integer; on rows with
+        // fractional pixel heights this loses ~0.5px per row and accumulates into
+        // a visible vertical offset between the left and right pane after many rows.
+        const r = entry.borderBoxSize?.[0];
+        const h = r ? r.blockSize : entry.target.getBoundingClientRect().height;
+        rowHeights[maId] = h;
       }
     });
     rows.forEach(row => _leftRowObserver.observe(row));
@@ -2502,20 +2508,13 @@ function getAktivitaetsLogGrouped(maId) {
 }
 
 function getAktivitaetsLogPreviewGrouped(maId) {
-  const last3 = getAktivitaetsLog(maId).slice(-3);
-  const groups = [];
-  let currentDate = null;
-  for (const entry of last3) {
-    const d = new Date(entry.createdAt);
-    const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    const dayLabel = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' });
-    if (dayKey !== currentDate) {
-      groups.push({ dayKey, dayLabel, entries: [] });
-      currentDate = dayKey;
-    }
-    groups[groups.length - 1].entries.push(entry);
-  }
-  return groups;
+  const logs = getAktivitaetsLog(maId);
+  if (!logs.length) return [];
+  const entry = logs[logs.length - 1];
+  const d = new Date(entry.createdAt);
+  const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const dayLabel = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' });
+  return [{ dayKey, dayLabel, entries: [entry] }];
 }
 
 function getLatestAktivitaetsLog(maId) {
@@ -4044,6 +4043,12 @@ onMounted(async () => {
     height: 100%;
     padding: 5px 8px;
     gap: 3px;
+  }
+
+  // Collapsed Chronik: feste Standardhöhe wie Notiz, nur per Klick expanded
+  .col-aktivitaet:not(.aktivitaet-expanded) .aktivitaet-cell {
+    max-height: 44px;
+    overflow: hidden;
   }
 
   .aktivitaet-preview-list {
