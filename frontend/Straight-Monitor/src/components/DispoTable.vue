@@ -1193,7 +1193,8 @@ function _rebuildRowObserver() {
     _leftRowObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const maId = entry.target.dataset.leftRow;
-        rowHeights[maId] = entry.target.offsetHeight;
+        // Preserve subpixel row heights so zoomed layouts do not accumulate rounding drift.
+        rowHeights[maId] = entry.target.getBoundingClientRect().height;
       }
     });
     rows.forEach(row => _leftRowObserver.observe(row));
