@@ -42,7 +42,7 @@ import DashboardWidget from "./DashboardWidget.vue";
 
 const activeTab = ref("released");
 const showAll = ref(false);
-const defaultCount = 1;
+const defaultCount = 2;
 
 // Reset show-all when switching tabs
 watch(activeTab, () => { showAll.value = false; });
