@@ -28,14 +28,6 @@
           </router-link>
           <div class="nav-submenu" aria-label="Auftraege Untermenue">
             <router-link
-              to="/auftraege"
-              class="nav-submenu__link"
-              :class="{ active: $route.name === 'Auftraege' && !$route.query.openPseudo }"
-              @click="handleNewPageClick($event, '/auftraege')"
-            >
-              Übersicht
-            </router-link>
-            <router-link
               :to="{ path: '/auftraege', query: { openPseudo: '1' } }"
               class="nav-submenu__link"
               :class="{ active: $route.name === 'Auftraege' && $route.query.openPseudo }"
@@ -54,14 +46,6 @@
               Personal
             </router-link>
             <div class="nav-submenu" aria-label="Personal Untermenue">
-              <router-link
-                to="/personal"
-                class="nav-submenu__link"
-                :class="{ active: $route.name === 'Personal' }"
-                @click="handleNewPageClick($event, '/personal')"
-              >
-                Übersicht
-              </router-link>
               <router-link
                 to="/flip/benutzer-erstellen"
                 class="nav-submenu__link"
@@ -100,13 +84,6 @@
             >Bestand</router-link
           >
           <div class="nav-submenu" aria-label="Bestand Untermenue">
-            <router-link
-              to="/bestand"
-              class="nav-submenu__link"
-              :class="{ active: $route.name === 'Bestand' }"
-            >
-              Übersicht
-            </router-link>
             <router-link
               to="/verlauf"
               class="nav-submenu__link"
