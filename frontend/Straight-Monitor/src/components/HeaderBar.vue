@@ -12,33 +12,87 @@
           :class="{ active: $route.name === 'Dashboard' }"
           >Dashboard</router-link
         >
-        <router-link to="/bestand" :class="{ active: $route.name === 'Bestand' }"
-          >Bestand</router-link
+        <router-link
+          to="/dispo"
+          :class="{ active: $route.name === 'Dispo'}"
         >
-        <router-link to="/verlauf" :class="{ active: $route.name === 'Verlauf' }"
-          >Verlauf</router-link
-        >
+          Dispo
+        </router-link>
+        <div class="nav-group nav-group--auftraege">
           <router-link
-          to="/dokumente"
-          :class="{ active: $route.name === 'Dokumente'}"
-        >
+            :to="newPagesEnabled ? '/auftraege' : '#'"
+            :class="{ active: isAuftraegeSectionActive, disabled: !newPagesEnabled }"
+            @click="handleNewPageClick($event, '/auftraege')"
+          >
+            Aufträge
+          </router-link>
+          <div class="nav-submenu" aria-label="Auftraege Untermenue">
+            <router-link
+              :to="{ path: '/auftraege', query: { openPseudo: '1' } }"
+              class="nav-submenu__link"
+              :class="{ active: $route.name === 'Auftraege' && $route.query.openPseudo }"
+              @click="handleNewPageClick($event, '/auftraege')"
+            >
+              Pseudo-Auftrag
+            </router-link>
+          </div>
+        </div>
+          <div class="nav-group nav-group--personal">
+            <router-link
+              :to="newPagesEnabled ? '/personal' : '#'"
+              :class="{ active: isPersonalSectionActive, disabled: !newPagesEnabled }"
+              @click="handleNewPageClick($event, '/personal')"
+            >
+              Personal
+            </router-link>
+            <div class="nav-submenu" aria-label="Personal Untermenue">
+              <router-link
+                to="/flip/benutzer-erstellen"
+                class="nav-submenu__link"
+                :class="{ active: $route.name === 'BenutzerErstellen' }"
+              >
+                Mitarbeiter erstellen
+              </router-link>
+              <router-link
+                to="/teamleiter-auswertung"
+                class="nav-submenu__link"
+                :class="{ active: $route.name === 'TeamleiterAuswertung' }"
+              >
+                Teamleiter Auswertung
+              </router-link>
+            </div>
+          </div>
+        <div class="nav-group nav-group--reports">
+          <router-link
+            to="/dokumente"
+            :class="{ active: isReportsSectionActive }"
+          >
             Reports
-        </router-link>
-        <router-link
-          :to="newPagesEnabled ? '/personal' : '#'"
-          :class="{ active: $route.name === 'Personal'}"
-          @click="handleNewPageClick($event, '/personal')"
-        >
-          Personal
-        </router-link>
-        <router-link
-          :to="newPagesEnabled ? '/auftraege' : '#'"
-          :class="{ active: $route.name === 'Auftraege'}"
-          @click="handleNewPageClick($event, '/auftraege')"
-        >
-          Aufträge
-        
-        </router-link>
+          </router-link>
+          <div class="nav-submenu" aria-label="Reports Untermenue">
+            <router-link
+              to="/dokumente-nachpflegen"
+              class="nav-submenu__link"
+              :class="{ active: $route.name === 'DokumenteNachpflegen' }"
+            >
+              Nachpflege
+            </router-link>
+          </div>
+        </div>
+        <div class="nav-group nav-group--bestand">
+          <router-link to="/bestand" :class="{ active: isBestandSectionActive }"
+            >Bestand</router-link
+          >
+          <div class="nav-submenu" aria-label="Bestand Untermenue">
+            <router-link
+              to="/verlauf"
+              class="nav-submenu__link"
+              :class="{ active: $route.name === 'Verlauf' }"
+            >
+              Verlauf
+            </router-link>
+          </div>
+        </div>
         <router-link
           v-if="canSeeKunden"
           to="/kunden"
@@ -47,13 +101,6 @@
         >
           Kunden
       
-        </router-link>
-        <router-link
-          to="/dispo"
-          :class="{ active: $route.name === 'Dispo'}"
-        >
-          Dispo
-          <span class="neu-tag">NEU</span>
         </router-link>
       </nav>
   
@@ -125,51 +172,153 @@
           <font-awesome-icon :icon="['fas', 'chart-line']" />
           Dashboard
         </router-link>
-        
-        <router-link 
-          to="/bestand" 
-          :class="{ active: $route.name === 'Bestand' }"
+        <router-link
+          to="/dispo"
+          :class="{ active: $route.name === 'Dispo' }"
           @click="showMobileMenu = false"
         >
-          <font-awesome-icon :icon="['fas', 'list']" />
-          Bestand
+          <font-awesome-icon :icon="['fas', 'table-columns']" />
+          Dispo
         </router-link>
+        <div class="mobile-menu-group">
+          <button
+            class="mobile-menu-btn mobile-menu-toggle"
+            :class="{ active: isAuftraegeSectionActive }"
+            @click="toggleMobileAuftraegeMenu"
+          >
+            <span class="mobile-menu-toggle__label">
+              <font-awesome-icon :icon="['fas', 'calendar-alt']" />
+              Aufträge
+            </span>
+            <span class="mobile-menu-toggle__meta">
+              <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
+              <font-awesome-icon :icon="['fas', mobileAuftraegeMenuOpen ? 'chevron-up' : 'chevron-down']" />
+            </span>
+          </button>
+
+          <div v-if="mobileAuftraegeMenuOpen" class="mobile-submenu">
+            <router-link
+              to="/auftraege"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Auftraege' && !$route.query.openPseudo }"
+              @click="handleMobileNavClick($event, '/auftraege')"
+            >
+              <font-awesome-icon :icon="['fas', 'calendar-days']" />
+              Uebersicht
+            </router-link>
+            <router-link
+              :to="{ path: '/auftraege', query: { openPseudo: '1' } }"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Auftraege' && $route.query.openPseudo }"
+              @click="handleMobileNavClick($event, '/auftraege')"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" />
+              Pseudo-Auftrag
+            </router-link>
+          </div>
+        </div>
         
-        <router-link 
-          to="/verlauf" 
-          :class="{ active: $route.name === 'Verlauf' }"
-          @click="showMobileMenu = false"
-        >
-          <font-awesome-icon :icon="['fas', 'history']" />
-          Verlauf
-        </router-link>
-        <router-link
-          to="/dokumente"
-          :class="{ active: $route.name === 'Dokumente' }"
-          @click="showMobileMenu = false"
-        >
-          <font-awesome-icon :icon="['fas', 'file-alt']" />
-          Reports
-        </router-link>
+        <div class="mobile-menu-group">
+          <button
+            class="mobile-menu-btn mobile-menu-toggle"
+            :class="{ active: isPersonalSectionActive }"
+            @click="toggleMobilePersonalMenu"
+          >
+            <span class="mobile-menu-toggle__label">
+              <font-awesome-icon :icon="['fas', 'users']" />
+              Personal
+            </span>
+            <span class="mobile-menu-toggle__meta">
+              <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
+              <font-awesome-icon :icon="['fas', mobilePersonalMenuOpen ? 'chevron-up' : 'chevron-down']" />
+            </span>
+          </button>
+
+          <div v-if="mobilePersonalMenuOpen" class="mobile-submenu">
+            <router-link
+              to="/flip/benutzer-erstellen"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'BenutzerErstellen' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'user-plus']" />
+              Mitarbeiter erstellen
+            </router-link>
+            <router-link
+              to="/teamleiter-auswertung"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'TeamleiterAuswertung' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'user-tie']" />
+              Teamleiter Auswertung
+            </router-link>
+          </div>
+        </div>
+        <div class="mobile-menu-group">
+          <button
+            class="mobile-menu-btn mobile-menu-toggle"
+            :class="{ active: isReportsSectionActive }"
+            @click="toggleMobileReportsMenu"
+          >
+            <span class="mobile-menu-toggle__label">
+              <font-awesome-icon :icon="['fas', 'file-alt']" />
+              Reports
+            </span>
+            <span class="mobile-menu-toggle__meta">
+              <font-awesome-icon :icon="['fas', mobileReportsMenuOpen ? 'chevron-up' : 'chevron-down']" />
+            </span>
+          </button>
+
+          <div v-if="mobileReportsMenuOpen" class="mobile-submenu">
+            <router-link
+              to="/dokumente"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Dokumente' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'file-lines']" />
+              Uebersicht
+            </router-link>
+            <router-link
+              to="/dokumente-nachpflegen"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'DokumenteNachpflegen' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'pen-to-square']" />
+              Nachpflege
+            </router-link>
+          </div>
+        </div>
         
-        <router-link
-          :to="newPagesEnabled ? '/personal' : '#'"
-          :class="{ active: $route.name === 'Personal', disabled: !newPagesEnabled }"
-          @click="handleNewPageClick($event, '/personal'); showMobileMenu = false"
-        >
-          <font-awesome-icon :icon="['fas', 'users']" />
-          Personal
-          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
-        </router-link>
-        <router-link
-          :to="newPagesEnabled ? '/auftraege' : '#'"
-          :class="{ active: $route.name === 'Auftraege', disabled: !newPagesEnabled }"
-          @click="handleNewPageClick($event, '/auftraege'); showMobileMenu = false"
-        >
-          <font-awesome-icon :icon="['fas', 'calendar-alt']" />
-          Aufträge
-          <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
-        </router-link>
+        <div class="mobile-menu-group">
+          <button
+            class="mobile-menu-btn mobile-menu-toggle"
+            :class="{ active: isBestandSectionActive }"
+            @click="toggleMobileBestandMenu"
+          >
+            <span class="mobile-menu-toggle__label">
+              <font-awesome-icon :icon="['fas', 'list']" />
+              Bestand
+            </span>
+            <span class="mobile-menu-toggle__meta">
+              <font-awesome-icon :icon="['fas', mobileBestandMenuOpen ? 'chevron-up' : 'chevron-down']" />
+            </span>
+          </button>
+
+          <div v-if="mobileBestandMenuOpen" class="mobile-submenu">
+            <router-link
+              to="/verlauf"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Verlauf' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'history']" />
+              Verlauf
+            </router-link>
+          </div>
+        </div>
         <router-link
           v-if="canSeeKunden"
           to="/kunden"
@@ -178,16 +327,6 @@
         >
           <font-awesome-icon :icon="['fas', 'building']" />
           Kunden
-        </router-link>
-
-        <router-link
-          to="/dispo"
-          :class="{ active: $route.name === 'Dispo' }"
-          @click="showMobileMenu = false"
-        >
-          <font-awesome-icon :icon="['fas', 'table-columns']" />
-          Dispo
-          <span class="neu-tag">NEU</span>
         </router-link>
 
         
@@ -332,6 +471,7 @@
 
 <script setup>
 import { computed, ref, reactive, watch, onMounted, onBeforeUnmount } from "vue";
+import { useRoute } from "vue-router";
 import { useUi } from "@/stores/ui";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
@@ -356,6 +496,7 @@ const ui = useUi();
 const theme = useTheme();
 const auth = useAuth();
 const comments = useComments();
+const route = useRoute();
 
 const logoSrc = computed(() => (theme.isDark ? darkLogo : lightLogo));
 
@@ -381,6 +522,10 @@ onMounted(async () => {
 
 // Mobile Menu State
 const showMobileMenu = ref(false);
+const mobileAuftraegeMenuOpen = ref(false);
+const mobileBestandMenuOpen = ref(false);
+const mobileReportsMenuOpen = ref(false);
+const mobilePersonalMenuOpen = ref(false);
 
 // Support Modal State
 const showSupportModal = ref(false);
@@ -437,6 +582,10 @@ const newPagesEnabled = computed(() => !!auth.user);
 
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
 const canSeeKunden = computed(() => isAdmin.value || auth.user?.roles?.includes('VERTRIEB'));
+const isAuftraegeSectionActive = computed(() => route.name === 'Auftraege');
+const isBestandSectionActive = computed(() => ['Bestand', 'Verlauf'].includes(route.name));
+const isReportsSectionActive = computed(() => ['Dokumente', 'DokumenteNachpflegen'].includes(route.name));
+const isPersonalSectionActive = computed(() => ['Personal', 'BenutzerErstellen', 'TeamleiterAuswertung'].includes(route.name));
 
 // Handler für deaktivierte neue Pages
 const handleNewPageClick = (event, path) => {
@@ -446,6 +595,47 @@ const handleNewPageClick = (event, path) => {
     return false;
   }
 };
+
+const closeMobileMenu = () => {
+  showMobileMenu.value = false;
+  mobileAuftraegeMenuOpen.value = false;
+  mobileBestandMenuOpen.value = false;
+  mobileReportsMenuOpen.value = false;
+  mobilePersonalMenuOpen.value = false;
+};
+
+const toggleMobileAuftraegeMenu = () => {
+  mobileAuftraegeMenuOpen.value = !mobileAuftraegeMenuOpen.value;
+};
+
+const toggleMobileBestandMenu = () => {
+  mobileBestandMenuOpen.value = !mobileBestandMenuOpen.value;
+};
+
+const toggleMobileReportsMenu = () => {
+  mobileReportsMenuOpen.value = !mobileReportsMenuOpen.value;
+};
+
+const toggleMobilePersonalMenu = () => {
+  mobilePersonalMenuOpen.value = !mobilePersonalMenuOpen.value;
+};
+
+const handleMobileNavClick = (event, path) => {
+  const allowed = handleNewPageClick(event, path);
+  if (allowed === false) return;
+  closeMobileMenu();
+};
+
+watch(
+  () => route.name,
+  (name) => {
+    mobileAuftraegeMenuOpen.value = ['Auftraege'].includes(name);
+    mobileBestandMenuOpen.value = ['Bestand', 'Verlauf'].includes(name);
+    mobileReportsMenuOpen.value = ['Dokumente', 'DokumenteNachpflegen'].includes(name);
+    mobilePersonalMenuOpen.value = ['Personal', 'BenutzerErstellen', 'TeamleiterAuswertung'].includes(name);
+  },
+  { immediate: true }
+);
 
 // Support Modal Functions
 const closeSupportModal = () => {
@@ -586,6 +776,58 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
+.nav-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nav-submenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  padding-top: 2px;
+  min-width: max-content;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
+  z-index: 20;
+}
+
+.nav-group:hover .nav-submenu,
+.nav-group:focus-within .nav-submenu {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.nav-submenu__link {
+  justify-content: flex-start;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: color-mix(in oklab, var(--text) 72%, var(--muted) 28%);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: normal;
+  font-weight: 300;
+  white-space: nowrap;
+}
+
+.nav-submenu__link.active,
+.nav-submenu__link:hover,
+.nav-submenu__link:focus-visible {
+  color: var(--primary);
+  background: transparent;
+}
+
 .header-view-title {
   display: none;
   min-width: 0;
@@ -684,6 +926,44 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: background 0.2s;
   font-size: 15px;
+}
+
+.mobile-menu-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-menu-toggle {
+  justify-content: space-between;
+}
+
+.mobile-menu-toggle__label,
+.mobile-menu-toggle__meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mobile-submenu {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 8px;
+}
+
+.mobile-submenu__link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 8px 56px;
+  color: color-mix(in oklab, var(--text) 72%, var(--muted) 28%);
+  text-decoration: none;
+  transition: background 0.2s;
+  font-size: 13px;
+}
+
+.mobile-submenu__link :deep(svg) {
+  width: 14px;
+  height: 14px;
 }
 
 .mobile-menu-items a.active {
@@ -866,6 +1146,17 @@ a {
 a.active {
   font-weight: 600;
 }
+
+@media (hover: hover) and (pointer: fine) {
+  .desktop-nav > a:hover,
+  .desktop-nav > .nav-group > a:hover,
+  .nav-submenu__link:hover,
+  .nav-submenu__link:focus-visible {
+    color: var(--primary);
+    background: transparent;
+  }
+}
+
 a.disabled {
   opacity: 0.7;
   cursor: not-allowed;

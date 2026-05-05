@@ -48,6 +48,7 @@ const defaultCount = 1;
 watch(activeTab, () => { showAll.value = false; });
 
 const released = [
+  { icon: ["fas", "list"],           text: "Neue Navigation — Unterpunkte & Reihenfolge" },
   { icon: ["fas", "table"],          text: "Dispo-Tabelle" },
   { icon: ["fas", "image-portrait"],       text: "Profilbilder - Die Bilder aus Flip jetzt auch in den Personalkarten des Monitors" },
   { icon: ["fas", "th-large"],       text: "Dashboard Widgets — anpassbare Übersicht" },

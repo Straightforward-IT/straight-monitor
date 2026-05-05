@@ -118,9 +118,6 @@
         <span>Nächste Woche →</span>
       </button>
       <button class="nav-btn today-btn" @click="goToToday">Heute</button>
-      <button class="nav-btn new-pseudo-btn" @click="openNewAuftragDialog" title="Neuen Pseudo-Auftrag anlegen">
-        <font-awesome-icon icon="fa-solid fa-plus" /> Pseudo-Auftrag
-      </button>
       <label class="nav-btn calendar-btn" title="Zu Woche springen (Datum wählen)">
         <font-awesome-icon icon="fa-solid fa-calendar" />
         <input 
@@ -934,6 +931,12 @@ export default {
       return this.globalLabels.filter(gl => !existing.has(gl.name.toLowerCase()));
     },
   },
+  watch: {
+    '$route.query.openPseudo'(value) {
+      if (!value) return;
+      this.handlePseudoRouteQuery();
+    }
+  },
   methods: {
     async fetchDataStatus() {
       try {
@@ -1597,6 +1600,16 @@ export default {
       this.newAuftragSaving = false;
       this.showNewAuftragDialog = true;
     },
+    handlePseudoRouteQuery() {
+      if (!this.$route.query.openPseudo) return;
+
+      this.openNewAuftragDialog();
+
+      const nextQuery = { ...this.$route.query };
+      delete nextQuery.openPseudo;
+
+      this.$router.replace({ query: nextQuery });
+    },
     async saveNewPseudoAuftrag() {
       if (!this.newAuftrag.eventTitel.trim() || !this.newAuftrag.vonDatum || !this.newAuftrag.bisDatum) return;
       this.newAuftragSaving = true;
@@ -1768,6 +1781,8 @@ export default {
     if (auftragnr) {
         await this.loadOrderDirectly(auftragnr, focusDate);
     }
+
+    this.handlePseudoRouteQuery();
   },
   beforeUnmount() {
     window.removeEventListener('resize', this.checkMobile);
@@ -2389,20 +2404,6 @@ export default {
   background: color-mix(in oklab, var(--primary) 10%, transparent);
   color: var(--primary);
   border-color: var(--primary);
-}
-
-.nav-btn.new-pseudo-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: color-mix(in oklab, #8b5cf6 10%, transparent);
-  border-color: color-mix(in oklab, #8b5cf6 40%, transparent);
-  color: #8b5cf6;
-
-  &:hover {
-    background: color-mix(in oklab, #8b5cf6 18%, transparent);
-    border-color: #8b5cf6;
-  }
 }
 
 .current-range {

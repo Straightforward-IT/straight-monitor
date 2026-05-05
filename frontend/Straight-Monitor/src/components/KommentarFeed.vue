@@ -7,11 +7,6 @@
         <span v-if="unreadCount > 0" class="kf-unread-badge">{{ unreadCount }}</span>
       </div>
       <div class="kf-header-right">
-        <custom-tooltip v-if="unreadCount > 0" text="Alle als gelesen markieren" position="bottom" :delay-in="200">
-          <button class="kf-icon-btn" @click="markAllRead">
-            <font-awesome-icon :icon="['fas', 'check-double']" />
-          </button>
-        </custom-tooltip>
         <button class="kf-icon-btn close-btn" @click="ui.close()">
           <font-awesome-icon :icon="['fas', 'xmark']" />
         </button>
@@ -25,6 +20,12 @@
         Ungelesen
         <span v-if="unreadCount > 0" class="kf-chip-badge">{{ unreadCount }}</span>
       </button>
+      <custom-tooltip v-if="unreadCount > 0" text="Alle als gelesen markieren" position="bottom" :delay-in="200">
+        <button class="kf-chip kf-chip-action" @click="markAllRead">
+          <font-awesome-icon :icon="['fas', 'check-double']" />
+          Gelesen
+        </button>
+      </custom-tooltip>
       <template v-if="availableScopes.length > 1">
         <div class="kf-filter-divider"></div>
         <button class="kf-chip" :class="{ active: scopeFilter === null }" @click="scopeFilter = null">Alle Bereiche</button>
@@ -425,6 +426,14 @@ function formatAbsolute(ts) {
     border-color: var(--primary);
     color: var(--primary);
     background: transparent;
+  }
+}
+
+.kf-chip-action {
+  color: var(--text);
+
+  &:hover {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
   }
 }
 
