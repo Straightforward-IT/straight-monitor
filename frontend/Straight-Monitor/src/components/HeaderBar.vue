@@ -802,11 +802,13 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 100%;
   left: 0;
-  padding-top: 2px;
+  padding: 6px 0 4px;
   min-width: max-content;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  background: var(--panel);
+  border-radius: 0;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;

@@ -208,6 +208,14 @@
           "primary": {
             "userPrincipalName": "hr@straightforward.email"
           }
+        },
+        "folders": {
+          "deletedItems": {
+            "mailboxKey": "primary",
+            "description": "Papierkorb beziehungsweise Gelöschte Elemente fuer automatische Loeschung von Bewerbermails nach 6 Monaten.",
+            "retentionMonths": 6,
+            "id": "AAMkADNiMWQxOTdlLTk2ZWQtNDNmMC04MjYzLWMwY2EzZWViMmM0NwAuAAAAAAARThoyQg65Soh9jU2dnbZJAQDWh7EvlrZIRbMUqSU963m7AAAAAAEKAAA="
+          }
         }
       },
       "asana": null,
