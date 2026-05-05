@@ -28,6 +28,14 @@
           </router-link>
           <div class="nav-submenu" aria-label="Auftraege Untermenue">
             <router-link
+              to="/auftraege"
+              class="nav-submenu__link"
+              :class="{ active: $route.name === 'Auftraege' && !$route.query.openPseudo }"
+              @click="handleNewPageClick($event, '/auftraege')"
+            >
+              Übersicht
+            </router-link>
+            <router-link
               :to="{ path: '/auftraege', query: { openPseudo: '1' } }"
               class="nav-submenu__link"
               :class="{ active: $route.name === 'Auftraege' && $route.query.openPseudo }"
@@ -46,6 +54,14 @@
               Personal
             </router-link>
             <div class="nav-submenu" aria-label="Personal Untermenue">
+              <router-link
+                to="/personal"
+                class="nav-submenu__link"
+                :class="{ active: $route.name === 'Personal' }"
+                @click="handleNewPageClick($event, '/personal')"
+              >
+                Übersicht
+              </router-link>
               <router-link
                 to="/flip/benutzer-erstellen"
                 class="nav-submenu__link"
@@ -84,6 +100,13 @@
             >Bestand</router-link
           >
           <div class="nav-submenu" aria-label="Bestand Untermenue">
+            <router-link
+              to="/bestand"
+              class="nav-submenu__link"
+              :class="{ active: $route.name === 'Bestand' }"
+            >
+              Übersicht
+            </router-link>
             <router-link
               to="/verlauf"
               class="nav-submenu__link"
@@ -183,7 +206,7 @@
         <div class="mobile-menu-group">
           <button
             class="mobile-menu-btn mobile-menu-toggle"
-            :class="{ active: isAuftraegeSectionActive }"
+            :class="{ active: isAuftraegeSectionActive, 'mobile-menu-toggle--open': mobileAuftraegeMenuOpen }"
             @click="toggleMobileAuftraegeMenu"
           >
             <span class="mobile-menu-toggle__label">
@@ -204,7 +227,7 @@
               @click="handleMobileNavClick($event, '/auftraege')"
             >
               <font-awesome-icon :icon="['fas', 'calendar-days']" />
-              Uebersicht
+              Übersicht
             </router-link>
             <router-link
               :to="{ path: '/auftraege', query: { openPseudo: '1' } }"
@@ -221,7 +244,7 @@
         <div class="mobile-menu-group">
           <button
             class="mobile-menu-btn mobile-menu-toggle"
-            :class="{ active: isPersonalSectionActive }"
+            :class="{ active: isPersonalSectionActive, 'mobile-menu-toggle--open': mobilePersonalMenuOpen }"
             @click="toggleMobilePersonalMenu"
           >
             <span class="mobile-menu-toggle__label">
@@ -235,6 +258,15 @@
           </button>
 
           <div v-if="mobilePersonalMenuOpen" class="mobile-submenu">
+            <router-link
+              to="/personal"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Personal' }"
+              @click="handleMobileNavClick($event, '/personal')"
+            >
+              <font-awesome-icon :icon="['fas', 'users']" />
+              Übersicht
+            </router-link>
             <router-link
               to="/flip/benutzer-erstellen"
               class="mobile-submenu__link"
@@ -258,7 +290,7 @@
         <div class="mobile-menu-group">
           <button
             class="mobile-menu-btn mobile-menu-toggle"
-            :class="{ active: isReportsSectionActive }"
+            :class="{ active: isReportsSectionActive, 'mobile-menu-toggle--open': mobileReportsMenuOpen }"
             @click="toggleMobileReportsMenu"
           >
             <span class="mobile-menu-toggle__label">
@@ -278,7 +310,7 @@
               @click="closeMobileMenu"
             >
               <font-awesome-icon :icon="['fas', 'file-lines']" />
-              Uebersicht
+              Übersicht
             </router-link>
             <router-link
               to="/dokumente-nachpflegen"
@@ -295,7 +327,7 @@
         <div class="mobile-menu-group">
           <button
             class="mobile-menu-btn mobile-menu-toggle"
-            :class="{ active: isBestandSectionActive }"
+            :class="{ active: isBestandSectionActive, 'mobile-menu-toggle--open': mobileBestandMenuOpen }"
             @click="toggleMobileBestandMenu"
           >
             <span class="mobile-menu-toggle__label">
@@ -308,6 +340,15 @@
           </button>
 
           <div v-if="mobileBestandMenuOpen" class="mobile-submenu">
+            <router-link
+              to="/bestand"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Bestand' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'list']" />
+              Übersicht
+            </router-link>
             <router-link
               to="/verlauf"
               class="mobile-submenu__link"
@@ -329,8 +370,6 @@
           Kunden
         </router-link>
 
-        
-        <div class="mobile-menu-divider"></div>
         
         <div class="mobile-menu-divider"></div>
         
@@ -907,11 +946,7 @@ onBeforeUnmount(() => {
   height: 28px;
 }
 
-.mobile-menu-items {
-  padding: 8px 0;
-}
-
-.mobile-menu-items a,
+.mobile-menu-items > a,
 .mobile-menu-btn {
   display: flex;
   align-items: center;
@@ -926,6 +961,8 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: background 0.2s;
   font-size: 15px;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .mobile-menu-group {
@@ -935,6 +972,10 @@ onBeforeUnmount(() => {
 
 .mobile-menu-toggle {
   justify-content: space-between;
+}
+
+.mobile-menu-toggle--open .mobile-menu-toggle__label :deep(svg) {
+  display: none;
 }
 
 .mobile-menu-toggle__label,
@@ -955,19 +996,28 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   padding: 8px 16px 8px 56px;
-  color: color-mix(in oklab, var(--text) 72%, var(--muted) 28%);
+  color: var(--muted);
   text-decoration: none;
   transition: background 0.2s;
   font-size: 13px;
+  font-weight: 400;
 }
 
 .mobile-submenu__link :deep(svg) {
   width: 14px;
   height: 14px;
+  color: inherit;
+  opacity: 0.9;
 }
 
-.mobile-menu-items a.active {
-  color: var(--accent);
+.mobile-submenu .mobile-submenu__link.active {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.mobile-menu-items > a.active,
+.mobile-menu-toggle.active {
+  color: var(--primary);
   font-weight: 600;
 }
 
@@ -1145,6 +1195,19 @@ a {
 }
 a.active {
   font-weight: 600;
+}
+
+.mobile-submenu .mobile-submenu__link,
+.mobile-submenu .mobile-submenu__link.active {
+  padding: 8px 16px 8px 56px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+  gap: 10px;
+}
+
+.mobile-submenu .mobile-submenu__link.active {
+  color: var(--primary);
 }
 
 @media (hover: hover) and (pointer: fine) {
