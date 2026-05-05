@@ -487,6 +487,16 @@ async function createStoryOnTask(task_gid, data) {
     }
   }
 
+async function deleteStory(story_gid) {
+  const storiesApiInstance = initStoriesApi();
+  try {
+    await storiesApiInstance.deleteStory(story_gid);
+  } catch (error) {
+    console.error(`❌ Error deleting story ${story_gid}:`, error.response?.body || error.message);
+    throw new Error("Failed to delete story in Asana");
+  }
+}
+
 async function getSubtaskByTask(task_gid) {
     const api = initTasksApi();
     let opts = {
@@ -862,4 +872,5 @@ module.exports = {  // find/update
   getSubtaskByTask,
   createSubtasksOnTask,
   createStoryOnTask,
+  deleteStory,
   completeTaskById,};

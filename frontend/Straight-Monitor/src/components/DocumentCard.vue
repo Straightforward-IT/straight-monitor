@@ -11,7 +11,9 @@
           <span class="bezeichnung">{{ doc.bezeichnung || 'Kein Titel' }}</span>
         </div>
       </div>
-      <!-- Removed status badge -->
+      <button class="copy-link-btn" :class="{ 'copy-link-btn--copied': linkCopied }" :title="linkCopied ? 'Link kopiert!' : 'Link kopieren'" @click="copyLink">
+        <font-awesome-icon :icon="linkCopied ? 'fa-solid fa-check' : 'fa-solid fa-link'" />
+      </button>
     </header>
 
     <!-- Body -->
@@ -136,14 +138,48 @@
           Mitarbeiter Feedback ({{ feedbackEntries.length }})
         </h4>
         <div class="feedback-list">
-          <div v-for="(fb, idx) in feedbackEntries" :key="idx" class="feedback-item">
+          <div v-for="(fb, idx) in feedbackEntries" :key="fb._id || idx" class="feedback-item feedback-item--hoverable" :class="{ 'feedback-item--editing': editingFeedbackId === fb._id }">
             <div class="feedback-header">
               <button v-if="fb.mitarbeiter?._id" class="link-btn" @click="$emit('open-employee', 'mitarbeiter', fb.mitarbeiter._id)">
                 {{ fb.mitarbeiter.vorname }} {{ fb.mitarbeiter.nachname }}
               </button>
               <span v-else class="unassigned-name">Unbekannter MA</span>
+              <div class="feedback-actions">
+                <button
+                  v-if="editingFeedbackId !== fb._id"
+                  class="feedback-action-btn"
+                  title="Feedback bearbeiten"
+                  @click.stop="startEditFeedback(fb)"
+                >
+                  <font-awesome-icon icon="fa-solid fa-pen" />
+                </button>
+                <button
+                  class="feedback-action-btn feedback-action-btn--delete"
+                  :disabled="deletingFeedbackId === fb._id"
+                  title="Feedback löschen"
+                  @click.stop="deleteFeedback(fb)"
+                >
+                  <font-awesome-icon v-if="deletingFeedbackId === fb._id" icon="fa-solid fa-spinner" spin />
+                  <font-awesome-icon v-else icon="fa-solid fa-trash" />
+                </button>
+              </div>
             </div>
-            <p class="feedback-text">{{ fb.text || '—' }}</p>
+            <template v-if="editingFeedbackId === fb._id">
+              <textarea
+                v-model="editingFeedbackText"
+                class="feedback-edit-textarea"
+                rows="3"
+                autofocus
+              />
+              <div class="feedback-edit-actions">
+                <button class="btn btn-sm btn-primary" :disabled="savingFeedbackId === fb._id" @click.stop="saveFeedback(fb)">
+                  <font-awesome-icon v-if="savingFeedbackId === fb._id" icon="fa-solid fa-spinner" spin />
+                  <span v-else>Speichern</span>
+                </button>
+                <button class="btn btn-sm" :disabled="savingFeedbackId === fb._id" @click.stop="cancelEditFeedback">Abbrechen</button>
+              </div>
+            </template>
+            <p v-else class="feedback-text">{{ fb.text || '—' }}</p>
           </div>
         </div>
       </section>
@@ -297,10 +333,13 @@ import {
   faEnvelope,
   faBriefcase,
   faBuilding,
+  faCheck,
+  faPen,
+  faTrash,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope, faBriefcase, faBuilding);
+library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope, faBriefcase, faBuilding, faCheck, faPen, faTrash);
 
 export default {
   name: "DocumentCard",
@@ -318,6 +357,11 @@ export default {
       newCommentText: '',
       commentLoading: false,
       localComments: null,
+      deletingFeedbackId: null,
+      editingFeedbackId: null,
+      editingFeedbackText: '',
+      savingFeedbackId: null,
+      linkCopied: false,
     };
   },
 
@@ -522,6 +566,67 @@ export default {
       }
     },
 
+    copyLink() {
+      const url = `${window.location.origin}/dokumente?docId=${this.doc._id}`;
+      navigator.clipboard.writeText(url).catch(() => {
+        const el = document.createElement('textarea');
+        el.value = url;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      });
+      this.linkCopied = true;
+      setTimeout(() => { this.linkCopied = false; }, 2000);
+    },
+
+    startEditFeedback(fb) {
+      this.editingFeedbackId = fb._id;
+      this.editingFeedbackText = fb.text || '';
+    },
+
+    cancelEditFeedback() {
+      this.editingFeedbackId = null;
+      this.editingFeedbackText = '';
+    },
+
+    async saveFeedback(fb) {
+      if (this.savingFeedbackId) return;
+      const text = this.editingFeedbackText.trim();
+      if (!text) return;
+      this.savingFeedbackId = fb._id;
+      try {
+        await api.patch(`/api/personal/eventreport/${this.doc._id}/feedback/${fb._id}`, { text });
+        const entry = this.doc.details?.mitarbeiter_feedback?.find(f => String(f._id) === String(fb._id));
+        if (entry) entry.text = text;
+        this.cancelEditFeedback();
+      } catch (err) {
+        console.error('Feedback-Bearbeitungsfehler:', err);
+        alert('Fehler beim Speichern: ' + (err.response?.data?.msg || err.message));
+      } finally {
+        this.savingFeedbackId = null;
+      }
+    },
+
+    async deleteFeedback(fb) {
+      if (!fb._id || this.deletingFeedbackId) return;
+      if (!confirm(`Feedback von ${fb.mitarbeiter?.vorname ?? 'Unbekannt'} wirklich löschen?`)) return;
+      this.deletingFeedbackId = fb._id;
+      try {
+        await api.delete(`/api/personal/eventreport/${this.doc._id}/feedback/${fb._id}`);
+        if (Array.isArray(this.doc.details?.mitarbeiter_feedback)) {
+          this.doc.details.mitarbeiter_feedback = this.doc.details.mitarbeiter_feedback.filter(
+            f => String(f._id) !== String(fb._id)
+          );
+        }
+      } catch (err) {
+        console.error('Feedback-Löschfehler:', err);
+        alert('Fehler beim Löschen: ' + (err.response?.data?.msg || err.message));
+      } finally {
+        this.deletingFeedbackId = null;
+      }
+    },
+
   }
 };
 </script>
@@ -549,6 +654,30 @@ export default {
   background: var(--surface, var(--panel));
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.copy-link-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  }
+
+  &--copied {
+    color: var(--ok, #21a26a) !important;
+    background: color-mix(in srgb, var(--ok, #21a26a) 10%, transparent) !important;
+    border-color: color-mix(in srgb, var(--ok, #21a26a) 30%, transparent) !important;
+  }
 }
 
 .left {
@@ -1027,6 +1156,76 @@ export default {
 .feedback-header {
   margin-bottom: 6px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.feedback-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.feedback-action-btn {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  border-radius: 4px;
+
+  &:hover {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  &--delete {
+    &:hover {
+      color: var(--bad, #e25555);
+      background: color-mix(in srgb, var(--bad, #e25555) 10%, transparent);
+    }
+  }
+
+  &:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed;
+  }
+}
+
+.feedback-item--hoverable:hover .feedback-action-btn,
+.feedback-item--editing .feedback-action-btn {
+  opacity: 1;
+}
+
+.feedback-edit-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: var(--surface, var(--panel));
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  font-family: inherit;
+  outline: none;
+  margin-top: 4px;
+
+  &:focus {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 25%, transparent);
+  }
+}
+
+.feedback-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .feedback-text {

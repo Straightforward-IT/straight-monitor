@@ -37,6 +37,7 @@ const EventReportSchema = new mongoose.Schema(
           required: false,
         },
         text: { type: String, required: false },
+        asana_story_gid: { type: String, required: false, default: null },
       },
     ],
     teamleiter: {

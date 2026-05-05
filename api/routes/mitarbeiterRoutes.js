@@ -52,6 +52,7 @@ const {
   getStoryById,
   getStoriesByTask,
   createStoryOnTask,
+  deleteStory,
   getSubtaskByTask,
   createSubtasksOnTask,
   completeTaskById,
@@ -1352,6 +1353,66 @@ router.post(
     await teamleiter.save();
 
     res.status(201).json({ msg: 'Event Report erfolgreich erstellt', id: eventReport._id });
+  })
+);
+
+// --- PATCH single feedback entry from EventReport ---
+// PATCH /api/personal/eventreport/:reportId/feedback/:feedbackId
+router.patch(
+  "/eventreport/:reportId/feedback/:feedbackId",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { reportId, feedbackId } = req.params;
+    const { text } = req.body;
+
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({ msg: 'Text darf nicht leer sein' });
+    }
+
+    const report = await EventReport.findById(reportId);
+    if (!report) return res.status(404).json({ msg: 'Event Report nicht gefunden' });
+
+    const entry = report.mitarbeiter_feedback.id(feedbackId);
+    if (!entry) return res.status(404).json({ msg: 'Feedback-Eintrag nicht gefunden' });
+
+    entry.text = String(text).trim();
+    await report.save();
+
+    logger.info(`✅ Feedback entry ${feedbackId} updated in EventReport ${reportId}`);
+    res.json({ msg: 'Feedback aktualisiert', entry: { _id: entry._id, text: entry.text } });
+  })
+);
+
+// --- DELETE single feedback entry from EventReport ---
+// DELETE /api/personal/eventreport/:reportId/feedback/:feedbackId
+router.delete(
+  "/eventreport/:reportId/feedback/:feedbackId",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { reportId, feedbackId } = req.params;
+
+    const report = await EventReport.findById(reportId);
+    if (!report) return res.status(404).json({ msg: 'Event Report nicht gefunden' });
+
+    const entry = report.mitarbeiter_feedback.id(feedbackId);
+    if (!entry) return res.status(404).json({ msg: 'Feedback-Eintrag nicht gefunden' });
+
+    // Delete the Asana story if GID is stored
+    if (entry.asana_story_gid) {
+      try {
+        await deleteStory(entry.asana_story_gid);
+        logger.info(`✅ Asana story ${entry.asana_story_gid} deleted`);
+      } catch (asanaErr) {
+        logger.warn(`⚠️ Asana story deletion failed (${entry.asana_story_gid}): ${asanaErr.message}`);
+        // Continue even if Asana deletion fails
+      }
+    }
+
+    report.mitarbeiter_feedback.pull({ _id: feedbackId });
+    await report.save();
+
+    logger.info(`✅ Feedback entry ${feedbackId} removed from EventReport ${reportId}`);
+    res.json({ msg: 'Feedback gelöscht', mitarbeiter_feedback: report.mitarbeiter_feedback });
   })
 );
 

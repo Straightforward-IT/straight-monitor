@@ -486,9 +486,23 @@ router.post(
                 `<a href="${berichtLink}">Bericht \u00f6ffnen</a>`,
               ].filter(v => v != null).join('\n');
 
-              await AsanaService.createStoryOnTask(feedbackTask.gid, {
+              const storyResponse = await AsanaService.createStoryOnTask(feedbackTask.gid, {
                 html_text: `<body>${htmlComment}</body>`,
               });
+
+              // Persist the Asana story GID so it can be deleted later
+              const storyGid = storyResponse?.data?.gid;
+              if (storyGid) {
+                const subdoc = eventReport.mitarbeiter_feedback.find(
+                  f => String(f.mitarbeiter) === String(ma._id)
+                );
+                if (subdoc?._id) {
+                  await EventReport.updateOne(
+                    { _id: eventReport._id, 'mitarbeiter_feedback._id': subdoc._id },
+                    { $set: { 'mitarbeiter_feedback.$.asana_story_gid': storyGid } }
+                  );
+                }
+              }
 
               logger.info(`✅ Asana Feedback-Kommentar für MA ${ma.vorname} ${ma.nachname} (${ma.asana_id}) geschrieben`);
             } catch (asanaErr) {

@@ -270,6 +270,9 @@
               <button @click="openDoc(doc)">
                 <font-awesome-icon icon="fa-solid fa-magnifying-glass" /> Details
               </button>
+              <button @click="copyDocLink(doc)">
+                <font-awesome-icon icon="fa-solid fa-link" /> Link kopieren
+              </button>
               <button 
                 v-if="doc.details?.name_teamleiter && personDetails[doc.details.name_teamleiter]?.asana_id" 
                 @click="openAsanaTask(doc.details.name_teamleiter, $event)"
@@ -1141,6 +1144,12 @@ export default {
     async openDoc(doc) {
       this.selectedDoc = doc;
       this.activeQuickActionId = null;
+
+      // Reflect the open document in the URL so it can be linked/shared
+      const docId = doc._id || doc.id;
+      if (docId && this.$route.query.docId !== String(docId)) {
+        this.$router.replace({ query: { ...this.$route.query, docId: String(docId) } });
+      }
       
       // Fetch person details when opening document
       if (doc.details?.name_teamleiter) {
@@ -1153,6 +1162,11 @@ export default {
 
     closeDoc() {
       this.selectedDoc = null;
+      // Remove docId from URL when closing
+      if (this.$route.query.docId) {
+        const { docId, ...rest } = this.$route.query;
+        this.$router.replace({ query: rest });
+      }
     },
     
     toggleQuickActions(id) {
@@ -1161,6 +1175,21 @@ export default {
       } else {
         this.activeQuickActionId = id;
       }
+    },
+
+    copyDocLink(doc) {
+      const docId = doc._id || doc.id;
+      const url = `${window.location.origin}/dokumente?docId=${docId}`;
+      navigator.clipboard.writeText(url).catch(() => {
+        // Fallback for older browsers
+        const el = document.createElement('textarea');
+        el.value = url;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      });
+      this.activeQuickActionId = null;
     },
 
     handleClickOutside(event) {
