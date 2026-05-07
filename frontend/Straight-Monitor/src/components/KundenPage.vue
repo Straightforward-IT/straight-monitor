@@ -197,10 +197,16 @@
             <SearchBar v-model="contactSearch" class="kunden-search-bar" placeholder="Kontakt suchen…" aria-label="Kontakte suchen" />
             <span class="count-tag">{{ filteredContacts.length }} Kontakte</span>
           </div>
-          <button class="btn-group" @click="loadContacts" :disabled="contactsLoading">
-            <font-awesome-icon :icon="['fas', 'rotate']" :spin="contactsLoading" />
-            Aktualisieren
-          </button>
+          <div style="display:flex;gap:8px">
+            <button class="btn-group" @click="showKontaktAnlegenModal = true">
+              <font-awesome-icon :icon="['fas', 'plus']" />
+              Kontakt anlegen
+            </button>
+            <button class="btn-group" @click="loadContacts" :disabled="contactsLoading">
+              <font-awesome-icon :icon="['fas', 'rotate']" :spin="contactsLoading" />
+              Aktualisieren
+            </button>
+          </div>
         </div>
 
         <div v-if="contactsLoading && msContacts.length === 0" class="loading-state">
@@ -264,6 +270,12 @@
     <KundenWatchlistReportModal
       v-if="showReportModal"
       @close="showReportModal = false"
+    />
+
+    <KontaktAnlegenModal
+      v-if="showKontaktAnlegenModal"
+      @close="showKontaktAnlegenModal = false"
+      @created="onKontaktAngelegt"
     />
 
     <!-- Card Context Menu -->
@@ -363,6 +375,7 @@ import LeadsTab from './LeadsTab.vue';
 import KundenWatchlistReportModal from './KundenWatchlistReportModal.vue';
 import ContextMenu from './ContextMenu.vue';
 import SearchBar from './SearchBar.vue';
+import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
 import api from '@/utils/api';
 
 const dataCache = useDataCache();
@@ -677,6 +690,12 @@ const contactFilters = ref({ team: null, linked: null });
 const editContact = ref(null);
 const editForm = ref({});
 const editSaving = ref(false);
+const showKontaktAnlegenModal = ref(false);
+
+function onKontaktAngelegt(contact) {
+  showKontaktAnlegenModal.value = false;
+  msContacts.value.unshift(contact);
+}
 
 function toggleContactTeam(val) {
   contactFilters.value.team = contactFilters.value.team === val ? null : val;

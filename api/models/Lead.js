@@ -59,10 +59,16 @@ const LeadSchema = new mongoose.Schema(
       index: true,
     },
 
+    isFavorite: {
+      type: Boolean,
+      default: false,
+    },
+
     // Lead source
     quelle: {
       type: String,
-      enum: ['web', 'messe', 'empfehlung', 'kaltakquise', 'social_media', 'sonstiges'],
+      trim: true,
+      maxlength: 80,
       default: null,
     },
 

@@ -45,9 +45,9 @@
         <table class="leads-table">
           <thead>
             <tr>
-              <th class="col-check"></th>
+              <th class="col-fav"></th>
               <th class="col-title sortable" @click="toggleSort('title')">
-                Titel
+                Organisation
                 <font-awesome-icon
                   v-if="sortBy === 'title'"
                   :icon="['fas', sortDir === 'asc' ? 'arrow-up' : 'arrow-down']"
@@ -55,14 +55,6 @@
                 />
               </th>
               <th class="col-stufe">Stufe</th>
-              <th class="col-value sortable" @click="toggleSort('wert')">
-                Wert
-                <font-awesome-icon
-                  v-if="sortBy === 'wert'"
-                  :icon="['fas', sortDir === 'asc' ? 'arrow-up' : 'arrow-down']"
-                  class="sort-icon"
-                />
-              </th>
               <th class="col-source">Quelle</th>
               <th class="col-owner">Besitzer</th>
               <th class="col-created sortable" @click="toggleSort('createdAt')">
@@ -88,8 +80,10 @@
               :class="{ active: selectedLead && selectedLead._id === lead._id }"
               @click="openLead(lead)"
             >
-              <td class="col-check" @click.stop>
-                <input type="checkbox" />
+              <td class="col-fav" @click.stop>
+                <button class="btn-fav" :class="{ active: lead.isFavorite }" @click="toggleFavorite(lead)" :title="lead.isFavorite ? 'Favorit entfernen' : 'Als Favorit markieren'">
+                  <font-awesome-icon :icon="lead.isFavorite ? 'fa-solid fa-star' : 'fa-regular fa-star'" />
+                </button>
               </td>
               <td class="col-title">
                 <strong>{{ lead.title }}</strong>
@@ -98,10 +92,6 @@
                 <span class="stufe-chip" :class="`stufe-${lead.stufe}`">
                   {{ stufeLabel(lead.stufe) }}
                 </span>
-              </td>
-              <td class="col-value">
-                <span v-if="lead.wert != null">{{ formatCurrency(lead.wert, lead.waehrung) }}</span>
-                <span v-else class="muted">—</span>
               </td>
               <td class="col-source">
                 <span v-if="lead.quelle">{{ quelleLabel(lead.quelle) }}</span>
@@ -185,20 +175,25 @@
                     </div>
 
                     <div class="chronik-inline-compose">
-                      <textarea
-                        v-model="newChronikText"
-                        placeholder="Kommentar hinzufügen…"
-                        class="note-textarea"
-                        rows="2"
-                        @keydown.ctrl.enter.prevent="addChronikEntry"
-                      ></textarea>
-                      <button
-                        class="btn btn-primary"
-                        :disabled="!newChronikText.trim() || addingChronik"
-                        @click="addChronikEntry"
-                      >
-                        <font-awesome-icon :icon="['fas', addingChronik ? 'spinner' : 'paper-plane']" :spin="addingChronik" />
-                      </button>
+                      <div class="compose-dot">
+                        <span class="dot-avatar">{{ initials(auth.user?.name) }}</span>
+                      </div>
+                      <div class="compose-input-wrap">
+                        <textarea
+                          v-model="newChronikText"
+                          placeholder="Kommentar hinzufügen…"
+                          class="note-textarea"
+                          rows="2"
+                          @keydown.ctrl.enter.prevent="addChronikEntry"
+                        ></textarea>
+                        <button
+                          class="btn btn-primary compose-send-btn"
+                          :disabled="!newChronikText.trim() || addingChronik"
+                          @click="addChronikEntry"
+                        >
+                          <font-awesome-icon :icon="['fas', addingChronik ? 'spinner' : 'paper-plane']" :spin="addingChronik" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -261,30 +256,15 @@
             </h4>
             <div class="kv-grid">
               <div class="kv-item">
-                <label>Titel</label>
+                <label>Organisation</label>
                 <input v-model="detailForm.title" class="form-input" @blur="saveDetail" />
               </div>
-              <div class="kv-item">
-                <label>Wert ({{ detailForm.waehrung || 'EUR' }})</label>
-                <input
-                  v-model.number="detailForm.wert"
-                  type="number"
-                  min="0"
-                  step="100"
-                  class="form-input"
-                  @blur="saveDetail"
-                />
-              </div>
+
               <div class="kv-item">
                 <label>Quelle</label>
                 <select v-model="detailForm.quelle" class="form-input" @change="saveDetail">
                   <option :value="null">—</option>
-                  <option value="web">Web</option>
-                  <option value="messe">Messe</option>
-                  <option value="empfehlung">Empfehlung</option>
-                  <option value="kaltakquise">Kaltakquise</option>
-                  <option value="social_media">Social Media</option>
-                  <option value="sonstiges">Sonstiges</option>
+                  <option v-for="opt in leadConfig.quelleOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                 </select>
               </div>
               <div class="kv-item">
@@ -296,6 +276,70 @@
                   @blur="saveDetail"
                 />
               </div>
+
+              <!-- Custom Fields inline -->
+              <template v-for="lbl in visibleLabels" :key="lbl._id">
+                <div class="kv-item">
+                  <label>{{ lbl.name }} <span v-if="lbl.required" class="req">*</span></label>
+
+                  <input
+                    v-if="lbl.fieldType === 'text' || lbl.fieldType === 'phone' || lbl.fieldType === 'email' || lbl.fieldType === 'url'"
+                    v-model="detailForm.customFields[lbl.key]"
+                    :type="lbl.fieldType === 'text' ? 'text' : lbl.fieldType"
+                    class="form-input"
+                    @blur="saveDetail"
+                  />
+
+                  <input
+                    v-else-if="lbl.fieldType === 'number' || lbl.fieldType === 'currency'"
+                    v-model.number="detailForm.customFields[lbl.key]"
+                    type="number"
+                    step="any"
+                    class="form-input"
+                    @blur="saveDetail"
+                  />
+
+                  <input
+                    v-else-if="lbl.fieldType === 'date'"
+                    v-model="detailForm.customFields[lbl.key]"
+                    type="date"
+                    class="form-input"
+                    @blur="saveDetail"
+                  />
+
+                  <label v-else-if="lbl.fieldType === 'checkbox'" class="checkbox-row">
+                    <input
+                      type="checkbox"
+                      :checked="!!detailForm.customFields[lbl.key]"
+                      @change="setCustomCheckbox(lbl.key, $event.target.checked)"
+                    />
+                    Aktiv
+                  </label>
+
+                  <select
+                    v-else-if="lbl.fieldType === 'dropdown'"
+                    v-model="detailForm.customFields[lbl.key]"
+                    class="form-input"
+                    @change="saveDetail"
+                  >
+                    <option :value="undefined">—</option>
+                    <option v-for="opt in lbl.options" :key="opt.value" :value="opt.value">
+                      {{ opt.label }}
+                    </option>
+                  </select>
+
+                  <div v-else-if="lbl.fieldType === 'multiselect'" class="multiselect-row">
+                    <label v-for="opt in lbl.options" :key="opt.value" class="checkbox-row">
+                      <input
+                        type="checkbox"
+                        :checked="isMultiSelected(lbl.key, opt.value)"
+                        @change="toggleMulti(lbl.key, opt.value)"
+                      />
+                      {{ opt.label }}
+                    </label>
+                  </div>
+                </div>
+              </template>
             </div>
             <!-- Stufe stepper (full-width, below the grid) -->
             <div class="stufe-stepper">
@@ -347,7 +391,13 @@
             <!-- Add contact button / inline search -->
             <div v-if="!addingContact" class="add-contact-row">
               <button class="btn-add-contact" @click="startAddContact">
-                <font-awesome-icon :icon="['fas', 'plus']" /> Kontakt verknüpfen
+                <font-awesome-icon :icon="['fas', 'link']" /> Verknüpfen
+              </button>
+              <button
+                class="btn-add-contact btn-add-contact--new"
+                @click="openKontaktAnlegenModal('sidebar')"
+              >
+                <font-awesome-icon :icon="['fas', 'plus']" /> Neu anlegen
               </button>
             </div>
             <div v-else class="inline-contact-search">
@@ -407,75 +457,7 @@
             </div>
           </section>
 
-          <!-- Custom Fields -->
-          <section v-if="visibleLabels.length > 0" class="info-section">
-            <h4 class="section-title">
-              <font-awesome-icon :icon="['fas', 'sliders']" /> Eigene Felder
-              <button class="btn-link" @click="showFieldManager = true">verwalten</button>
-            </h4>
-            <div class="kv-grid">
-              <div v-for="lbl in visibleLabels" :key="lbl._id" class="kv-item">
-                <label>{{ lbl.name }} <span v-if="lbl.required" class="req">*</span></label>
 
-                <input
-                  v-if="lbl.fieldType === 'text' || lbl.fieldType === 'phone' || lbl.fieldType === 'email' || lbl.fieldType === 'url'"
-                  v-model="detailForm.customFields[lbl.key]"
-                  :type="lbl.fieldType === 'text' ? 'text' : lbl.fieldType"
-                  class="form-input"
-                  @blur="saveDetail"
-                />
-
-                <input
-                  v-else-if="lbl.fieldType === 'number' || lbl.fieldType === 'currency'"
-                  v-model.number="detailForm.customFields[lbl.key]"
-                  type="number"
-                  step="any"
-                  class="form-input"
-                  @blur="saveDetail"
-                />
-
-                <input
-                  v-else-if="lbl.fieldType === 'date'"
-                  v-model="detailForm.customFields[lbl.key]"
-                  type="date"
-                  class="form-input"
-                  @blur="saveDetail"
-                />
-
-                <label v-else-if="lbl.fieldType === 'checkbox'" class="checkbox-row">
-                  <input
-                    type="checkbox"
-                    :checked="!!detailForm.customFields[lbl.key]"
-                    @change="setCustomCheckbox(lbl.key, $event.target.checked)"
-                  />
-                  Aktiv
-                </label>
-
-                <select
-                  v-else-if="lbl.fieldType === 'dropdown'"
-                  v-model="detailForm.customFields[lbl.key]"
-                  class="form-input"
-                  @change="saveDetail"
-                >
-                  <option :value="undefined">—</option>
-                  <option v-for="opt in lbl.options" :key="opt.value" :value="opt.value">
-                    {{ opt.label }}
-                  </option>
-                </select>
-
-                <div v-else-if="lbl.fieldType === 'multiselect'" class="multiselect-row">
-                  <label v-for="opt in lbl.options" :key="opt.value" class="checkbox-row">
-                    <input
-                      type="checkbox"
-                      :checked="isMultiSelected(lbl.key, opt.value)"
-                      @change="toggleMulti(lbl.key, opt.value)"
-                    />
-                    {{ opt.label }}
-                  </label>
-                </div>
-              </div>
-            </div>
-          </section>
 
         </div>
       </aside>
@@ -496,23 +478,15 @@
             <!-- Lead basics -->
             <div class="kv-grid" style="margin-bottom: 16px;">
               <div class="kv-item">
-                <label>Titel <span class="req">*</span></label>
-                <input v-model="createForm.title" class="form-input" placeholder="z.B. EventRent – Q3 2026" />
+                <label>Organisation <span class="req">*</span></label>
+                <input v-model="createForm.title" class="form-input" placeholder="z.B. EventRent" />
               </div>
-              <div class="kv-item">
-                <label>Wert (EUR)</label>
-                <input v-model.number="createForm.wert" type="number" min="0" class="form-input" />
-              </div>
+
               <div class="kv-item">
                 <label>Quelle</label>
                 <select v-model="createForm.quelle" class="form-input">
                   <option :value="null">—</option>
-                  <option value="web">Web</option>
-                  <option value="messe">Messe</option>
-                  <option value="empfehlung">Empfehlung</option>
-                  <option value="kaltakquise">Kaltakquise</option>
-                  <option value="social_media">Social Media</option>
-                  <option value="sonstiges">Sonstiges</option>
+                  <option v-for="opt in leadConfig.quelleOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                 </select>
               </div>
             </div>
@@ -587,41 +561,34 @@
 
               <!-- Mode: Neu anlegen -->
               <div v-if="contactPickerMode === 'new'" class="new-contact-area">
-                <div class="kv-grid">
-                  <div class="kv-item">
-                    <label>Mailbox (Team) <span class="req">*</span></label>
-                    <select v-model="newContactTeam" class="form-input">
-                      <option value="berlin">Berlin</option>
-                      <option value="hamburg">Hamburg</option>
-                      <option value="koeln">Köln</option>
-                      <option value="rs">RS</option>
-                    </select>
+                <div v-if="linkedContact" class="linked-contact-chip">
+                  <font-awesome-icon :icon="['fas', 'circle-check']" class="chip-icon" />
+                  <div class="chip-info">
+                    <strong>{{ linkedContact.displayName }}</strong>
+                    <span>{{ primaryEmailOf(linkedContact) || linkedContact.companyName || '' }}</span>
                   </div>
-                  <div class="kv-item">
-                    <label>Vorname</label>
-                    <input v-model="createForm.kontakt.vorname" class="form-input" />
-                  </div>
-                  <div class="kv-item">
-                    <label>Nachname</label>
-                    <input v-model="createForm.kontakt.nachname" class="form-input" />
-                  </div>
-                  <div class="kv-item">
-                    <label>Firma</label>
-                    <input v-model="createForm.kontakt.firma" class="form-input" />
-                  </div>
-                  <div class="kv-item">
-                    <label>E-Mail</label>
-                    <input v-model="createForm.kontakt.email" type="email" class="form-input" />
-                  </div>
-                  <div class="kv-item">
-                    <label>Telefon</label>
-                    <input v-model="createForm.kontakt.telefon" class="form-input" />
-                  </div>
+                  <button class="chip-remove" @click="linkedContact = null">
+                    <font-awesome-icon :icon="['fas', 'xmark']" />
+                  </button>
                 </div>
-                <p class="picker-hint">
-                  <font-awesome-icon :icon="['fas', 'circle-info']" />
-                  Der Kontakt wird in der Microsoft-Mailbox des gewählten Teams angelegt.
-                </p>
+                <template v-else>
+                  <button
+                    class="btn-open-kontakt-modal"
+                    @click="openKontaktAnlegenModal('create')"
+                  >
+                    <div class="ms-logo-grid" aria-hidden="true">
+                      <span style="background:#f25022"></span>
+                      <span style="background:#7fba00"></span>
+                      <span style="background:#00a4ef"></span>
+                      <span style="background:#ffb900"></span>
+                    </div>
+                    Kontakt in Microsoft anlegen
+                  </button>
+                  <p class="picker-hint">
+                    <font-awesome-icon :icon="['fas', 'circle-info']" />
+                    Öffnet ein Formular zum Anlegen eines neuen Microsoft-Kontakts.
+                  </p>
+                </template>
               </div>
 
               <!-- Mode: Überspringen -->
@@ -651,6 +618,15 @@
         </div>
       </div>
     </teleport>
+
+    <!-- Kontakt Anlegen Modal -->
+    <KontaktAnlegenModal
+      v-if="showKontaktAnlegenModal"
+      :prefilled-company-name="kontaktAnlegenPrefill.companyName"
+      :prefilled-team="kontaktAnlegenPrefill.team"
+      @close="showKontaktAnlegenModal = false"
+      @created="onKontaktAngelegt"
+    />
 
     <!-- Contact Card Modal -->
     <teleport to="body">
@@ -682,41 +658,70 @@
               werden und beim Lead-Detail editierbar sind.
             </p>
 
-            <table class="fields-manager-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Typ</th>
-                  <th>Optionen</th>
-                  <th>Pflicht</th>
-                  <th>Aktiv</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="lbl in labels" :key="lbl._id">
-                  <td>{{ lbl.name }}</td>
-                  <td>{{ fieldTypeLabel(lbl.fieldType) }}</td>
-                  <td class="opts-cell">
-                    <span v-if="['dropdown','multiselect'].includes(lbl.fieldType)">
+            <div class="label-card-list">
+              <div v-if="labels.length === 0" class="muted-text" style="padding: 12px 0;">Noch keine Felder definiert.</div>
+
+              <div v-for="lbl in labels" :key="lbl._id" class="label-card">
+                <!-- View mode -->
+                <template v-if="editingLabelId !== lbl._id">
+                  <div class="label-card-info">
+                    <span class="label-card-name">{{ lbl.name }}</span>
+                    <span class="label-card-type">{{ fieldTypeLabel(lbl.fieldType) }}</span>
+                    <span v-if="['dropdown','multiselect'].includes(lbl.fieldType)" class="label-card-opts">
                       {{ (lbl.options || []).map(o => o.label).join(', ') || '—' }}
                     </span>
-                    <span v-else class="muted">—</span>
-                  </td>
-                  <td>
-                    <input type="checkbox" :checked="lbl.required" @change="toggleLabelField(lbl, 'required', $event.target.checked)" />
-                  </td>
-                  <td>
-                    <input type="checkbox" :checked="lbl.isActive" @change="toggleLabelField(lbl, 'isActive', $event.target.checked)" />
-                  </td>
-                  <td>
-                    <button class="btn-icon" @click="deleteLabel(lbl)" title="Deaktivieren">
+                  </div>
+                  <div class="label-card-actions">
+                    <label class="chip-toggle" :class="{ active: lbl.required }" title="Pflichtfeld">
+                      <input type="checkbox" :checked="lbl.required" @change="toggleLabelField(lbl, 'required', $event.target.checked)" />
+                      Pflicht
+                    </label>
+                    <label class="chip-toggle" :class="{ active: lbl.isActive }" title="Aktiv">
+                      <input type="checkbox" :checked="lbl.isActive" @change="toggleLabelField(lbl, 'isActive', $event.target.checked)" />
+                      Aktiv
+                    </label>
+                    <button class="btn-icon" @click="startEditLabel(lbl)" title="Bearbeiten">
+                      <font-awesome-icon :icon="['fas', 'sliders']" />
+                    </button>
+                    <button class="btn-icon danger" @click="deleteLabel(lbl)" title="Deaktivieren">
                       <font-awesome-icon :icon="['fas', 'trash']" />
                     </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  </div>
+                </template>
+
+                <!-- Edit mode -->
+                <template v-else>
+                  <div class="label-edit-form">
+                    <div class="new-field-row">
+                      <input v-model="editLabelForm.name" class="form-input" placeholder="Feldname" />
+                      <select v-model="editLabelForm.fieldType" class="form-input">
+                        <option value="text">Text</option>
+                        <option value="number">Zahl</option>
+                        <option value="currency">Währung</option>
+                        <option value="date">Datum</option>
+                        <option value="checkbox">Checkbox</option>
+                        <option value="dropdown">Dropdown</option>
+                        <option value="multiselect">Mehrfachauswahl</option>
+                        <option value="phone">Telefon</option>
+                        <option value="email">E-Mail</option>
+                        <option value="url">URL</option>
+                      </select>
+                    </div>
+                    <div v-if="['dropdown','multiselect'].includes(editLabelForm.fieldType)" class="new-options-block">
+                      <label class="muted-text">Optionen (eine pro Zeile)</label>
+                      <textarea v-model="editLabelForm.optionsText" class="form-input" rows="3" placeholder="Option A&#10;Option B"></textarea>
+                    </div>
+                    <div class="label-edit-actions">
+                      <button class="btn btn-primary btn-sm" :disabled="savingLabelEdit" @click="saveEditLabel(lbl)">
+                        <font-awesome-icon :icon="['fas', savingLabelEdit ? 'spinner' : 'paper-plane']" :spin="savingLabelEdit" />
+                        Speichern
+                      </button>
+                      <button class="btn btn-sm" @click="editingLabelId = null">Abbrechen</button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
 
             <hr class="divider" />
 
@@ -745,6 +750,55 @@
               <label class="muted-text">Optionen (eine pro Zeile, Format: <code>Anzeigename</code>)</label>
               <textarea v-model="newField.optionsText" class="form-input" rows="4" placeholder="HOT&#10;WARM&#10;COLD"></textarea>
             </div>
+
+            <hr class="divider" />
+
+            <!-- ─── Standard-Felder Konfiguration ─────────────────── -->
+            <h4>Standard-Felder</h4>
+            <p class="muted-text" style="margin-bottom: 12px;">Konfiguriere die Optionen für die eingebauten Lead-Felder.</p>
+
+            <!-- Quelle -->
+            <div class="config-section">
+              <h5 class="config-section-title">Quelle-Optionen</h5>
+              <div class="config-option-list">
+                <div v-for="(opt, idx) in leadConfig.quelleOptions" :key="opt.value" class="config-option-row">
+                  <template v-if="editingQuelleIdx === idx">
+                    <input
+                      v-model="editingQuelleLabel"
+                      class="form-input form-input--sm"
+                      @keydown.enter="saveEditQuelle(idx)"
+                      @keydown.esc="editingQuelleIdx = null"
+                    />
+                    <span class="config-value-hint">{{ opt.value }}</span>
+                    <button class="btn btn-primary btn-sm" @click="saveEditQuelle(idx)">✓</button>
+                    <button class="btn-icon" @click="editingQuelleIdx = null"><font-awesome-icon :icon="['fas', 'xmark']" /></button>
+                  </template>
+                  <template v-else>
+                    <span class="config-opt-label">{{ opt.label }}</span>
+                    <span class="config-value-hint">{{ opt.value }}</span>
+                    <button class="btn-icon" @click="startEditQuelle(idx)" title="Bearbeiten">
+                      <font-awesome-icon :icon="['fas', 'sliders']" />
+                    </button>
+                    <button class="btn-icon danger" @click="removeQuelleOption(idx)" title="Löschen">
+                      <font-awesome-icon :icon="['fas', 'trash']" />
+                    </button>
+                  </template>
+                </div>
+              </div>
+              <div class="new-field-row" style="margin-top: 8px;">
+                <input
+                  v-model="newQuelleLabel"
+                  class="form-input"
+                  placeholder="Neue Option (z.B. Partnervertrieb)"
+                  @keydown.enter="addQuelleOption"
+                />
+                <button class="btn btn-primary" :disabled="!newQuelleLabel.trim()" @click="addQuelleOption">
+                  <font-awesome-icon :icon="['fas', 'plus']" /> Hinzufügen
+                </button>
+              </div>
+            </div>
+
+
           </div>
         </div>
       </div>
@@ -766,6 +820,7 @@ import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
 import ContactCard from './ContactCard.vue';
 import SearchBar from './SearchBar.vue';
+import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
 
 library.add(
   faPlus, faXmark, faSpinner, faSliders, faUser, faInfoCircle,
@@ -821,6 +876,49 @@ const sidebarContactQuery = ref('');
 const sidebarContactResults = ref([]);
 const sidebarSearchInput = ref(null);
 
+// KontaktAnlegenModal state
+const showKontaktAnlegenModal = ref(false);
+// context: 'create' (within create-lead modal) | 'sidebar' (sidebar link)
+const kontaktAnlegenContext = ref('sidebar');
+const kontaktAnlegenPrefill = reactive({ companyName: '', team: 'hamburg' });
+
+function openKontaktAnlegenModal(context) {
+  kontaktAnlegenContext.value = context;
+  // Determine prefill: use existing linked contact's company + team, else lead title
+  let companyName = '';
+  let team = 'hamburg';
+  // Helper: resolve full contact from allMsContacts by id (stored entries may lack companyName)
+  function resolveCompany(storedContact) {
+    const full = allMsContacts.value.find((c) => c.id === storedContact.id);
+    return (full?.companyName || storedContact.companyName || '');
+  }
+  function resolveTeam(storedContact) {
+    const full = allMsContacts.value.find((c) => c.id === storedContact.id);
+    return (full?._team || storedContact._team || 'hamburg');
+  }
+
+  if (context === 'sidebar') {
+    const existingContacts = leadContacts.value;
+    if (existingContacts.length > 0) {
+      companyName = resolveCompany(existingContacts[0]);
+      team = resolveTeam(existingContacts[0]);
+    } else {
+      companyName = selectedLead.value?.title || '';
+    }
+  } else {
+    // create modal context
+    if (linkedContact.value) {
+      companyName = linkedContact.value.companyName || '';
+      team = linkedContact.value._team || 'hamburg';
+    } else {
+      companyName = createForm.title || '';
+    }
+  }
+  kontaktAnlegenPrefill.companyName = companyName;
+  kontaktAnlegenPrefill.team = team;
+  showKontaktAnlegenModal.value = true;
+}
+
 const createForm = reactive({
   title: '',
   wert: null,
@@ -834,8 +932,58 @@ const newField = reactive({
   optionsText: '',
 });
 
+// ─── Label inline edit state ──────────────────────────────────────
+const editingLabelId = ref(null);
+const savingLabelEdit = ref(false);
+const editLabelForm = reactive({ name: '', fieldType: 'text', optionsText: '' });
+
+function startEditLabel(lbl) {
+  editingLabelId.value = lbl._id;
+  editLabelForm.name = lbl.name;
+  editLabelForm.fieldType = lbl.fieldType;
+  editLabelForm.optionsText = (lbl.options || []).map(o => o.label).join('\n');
+}
+
+async function saveEditLabel(lbl) {
+  const name = editLabelForm.name.trim();
+  if (!name) return;
+  savingLabelEdit.value = true;
+  try {
+    const options = ['dropdown', 'multiselect'].includes(editLabelForm.fieldType)
+      ? editLabelForm.optionsText
+          .split('\n')
+          .map(l => l.trim())
+          .filter(Boolean)
+          .map(label => ({
+            label,
+            value: label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''),
+          }))
+      : [];
+    const { data } = await api.patch(`/api/leads/labels/${lbl._id}`, {
+      name,
+      fieldType: editLabelForm.fieldType,
+      options,
+    });
+    const idx = labels.value.findIndex(l => l._id === lbl._id);
+    if (idx >= 0) labels.value.splice(idx, 1, data);
+    editingLabelId.value = null;
+  } catch (e) {
+    console.error('Failed to save label', e);
+  } finally {
+    savingLabelEdit.value = false;
+  }
+}
+
 const newNote = ref('');
 const addingNote = ref(false);
+
+// ─── Lead Config (configurable default fields) ────────────────────
+const leadConfig = ref({ quelleOptions: [] });
+const savingConfig = ref(false);
+// editing state inside Field Manager
+const newQuelleLabel = ref('');
+const editingQuelleIdx = ref(null); // index being edited inline
+const editingQuelleLabel = ref('');
 
 // ─── Chronik ─────────────────────────────────────────────────────────
 const chronikEntries = ref([]);
@@ -982,6 +1130,9 @@ const filteredLeads = computed(() => {
     return 0;
   });
 
+  // Favorites always pinned on top
+  list.sort((a, b) => (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0));
+
   return list;
 });
 
@@ -991,12 +1142,14 @@ async function loadAll() {
   // Contacts prefetch runs in parallel, non-blocking
   prefetchContacts();
   try {
-    const [leadsRes, labelsRes] = await Promise.all([
+    const [leadsRes, labelsRes, configRes] = await Promise.all([
       api.get('/api/leads'),
       api.get('/api/leads/labels'),
+      api.get('/api/leads/config'),
     ]);
     leads.value = leadsRes.data;
     labels.value = labelsRes.data;
+    leadConfig.value = configRes.data;
   } catch (e) {
     console.error('Failed to load leads', e);
   } finally {
@@ -1018,8 +1171,27 @@ async function prefetchContacts() {
 
 onMounted(loadAll);
 
+// ─── Favorite ────────────────────────────────────────────────────────
+async function toggleFavorite(lead) {
+  const newVal = !lead.isFavorite;
+  lead.isFavorite = newVal; // optimistic
+  try {
+    const { data } = await api.patch(`/api/leads/${lead._id}`, { isFavorite: newVal });
+    Object.assign(lead, data);
+  } catch {
+    lead.isFavorite = !newVal; // revert
+  }
+}
+
 // ─── Sidebar / Detail ────────────────────────────────────────────────
 function openLead(lead) {
+  if (selectedLead.value && selectedLead.value._id === lead._id) {
+    selectedLead.value = null;
+    chronikExpandedLeadId.value = null;
+    chronikLead.value = null;
+    document.body.style.overflow = '';
+    return;
+  }
   selectedLead.value = lead;
   if (window.innerWidth <= 1100) document.body.style.overflow = 'hidden';
   detailForm.title = lead.title || '';
@@ -1430,6 +1602,7 @@ async function linkMsContact(c) {
     upn: c._upn || c.upn || '',
     displayName: c.displayName || '',
     email: primaryEmailOf(c) || '',
+    companyName: c.companyName || '',
   };
   const updated = [...leadContacts.value, newEntry];
   savingDetail.value = true;
@@ -1440,6 +1613,29 @@ async function linkMsContact(c) {
   } finally {
     savingDetail.value = false;
     cancelAddContact();
+  }
+}
+
+// ─── KontaktAnlegenModal handler ─────────────────────────────────────
+function onKontaktAngelegt(contact) {
+  showKontaktAnlegenModal.value = false;
+
+  if (kontaktAnlegenContext.value === 'create') {
+    // Inside the "Lead anlegen" modal: set as linked contact
+    linkedContact.value = contact;
+    const email = primaryEmailOf(contact);
+    const nameParts = (contact.displayName || '').split(' ');
+    createForm.kontakt.vorname  = contact.givenName || (nameParts.length > 1 ? nameParts[0] : '');
+    createForm.kontakt.nachname = contact.surname   || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : contact.displayName || '');
+    createForm.kontakt.email    = email;
+    createForm.kontakt.firma    = contact.companyName || '';
+    createForm.kontakt.telefon  = contact.mobilePhone || (contact.businessPhones?.[0] ?? '');
+    // Also add to prefetched contacts list
+    allMsContacts.value.unshift(contact);
+  } else {
+    // From sidebar: link to current lead
+    allMsContacts.value.unshift(contact);
+    linkMsContact(contact);
   }
 }
 
@@ -1497,6 +1693,56 @@ async function deleteLabel(lbl) {
   }
 }
 
+// ─── Lead Config (Quelle-Optionen) ──────────────────────────────────
+async function saveLeadConfig() {
+  savingConfig.value = true;
+  try {
+    const { data } = await api.put('/api/leads/config', {
+      quelleOptions: leadConfig.value.quelleOptions,
+      currencies: [],
+    });
+    leadConfig.value = data;
+  } catch (e) {
+    console.error('Failed to save lead config', e);
+  } finally {
+    savingConfig.value = false;
+  }
+}
+
+function addQuelleOption() {
+  const label = newQuelleLabel.value.trim();
+  if (!label) return;
+  const value = label
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  if (!value) return;
+  if (leadConfig.value.quelleOptions.some(o => o.value === value)) return;
+  leadConfig.value.quelleOptions.push({ label, value });
+  newQuelleLabel.value = '';
+  saveLeadConfig();
+}
+
+function removeQuelleOption(idx) {
+  leadConfig.value.quelleOptions.splice(idx, 1);
+  saveLeadConfig();
+}
+
+function startEditQuelle(idx) {
+  editingQuelleIdx.value = idx;
+  editingQuelleLabel.value = leadConfig.value.quelleOptions[idx].label;
+}
+
+function saveEditQuelle(idx) {
+  const label = editingQuelleLabel.value.trim();
+  if (label) leadConfig.value.quelleOptions[idx].label = label;
+  editingQuelleIdx.value = null;
+  saveLeadConfig();
+}
+
+
+
 // ─── Sorting ─────────────────────────────────────────────────────────
 function toggleSort(field) {
   if (sortBy.value === field) {
@@ -1544,14 +1790,8 @@ function statusLabel(s) {
 }
 
 function quelleLabel(q) {
-  return ({
-    web: 'Web',
-    messe: 'Messe',
-    empfehlung: 'Empfehlung',
-    kaltakquise: 'Kaltakquise',
-    social_media: 'Social Media',
-    sonstiges: 'Sonstiges',
-  })[q] || q;
+  if (!q) return '—';
+  return leadConfig.value.quelleOptions.find(o => o.value === q)?.label || q;
 }
 
 function fieldTypeLabel(t) {
@@ -1593,7 +1833,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 .main-content {
   flex: 1;
   min-width: 0;
-  padding: 24px 0 24px 24px;
+  padding: 24px 24px 24px 24px;
 }
 
 /* ── Toolbar ─────────────────────────────────────────────────────── */
@@ -1789,9 +2029,29 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
     }
   }
 
-  .col-check {
+  .col-fav {
     width: 36px;
     text-align: center;
+  }
+
+  .btn-fav {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 2px;
+    flex-shrink: 0;
+    transition: color 0.15s, transform 0.15s;
+
+    &.active {
+      color: var(--primary);
+    }
+
+    &:hover {
+      color: var(--primary);
+      transform: scale(1.2);
+    }
   }
 
   .col-actions {
@@ -2142,7 +2402,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 .chronik-inline-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
 }
 
 .chronik-inline-feed {
@@ -2158,12 +2418,63 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 
 .chronik-inline-compose {
   display: flex;
-  gap: 8px;
-  align-items: flex-end;
+  gap: 10px;
+  align-items: flex-start;
+  position: relative;
+  padding-top: 6px;
 
-  .note-textarea {
+  /* extend the timeline line into compose */
+  &::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 50%;
+    width: 1px;
+    background: var(--border);
+  }
+
+  .compose-dot {
+    width: 22px;
+    min-width: 22px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 3px;
+    position: relative;
+    z-index: 1;
+
+    .dot-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.6rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+  }
+
+  .compose-input-wrap {
     flex: 1;
-    resize: vertical;
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+
+    .note-textarea {
+      flex: 1;
+      resize: vertical;
+    }
+  }
+
+  .compose-send-btn {
+    flex-shrink: 0;
+    align-self: stretch;
+    height: auto;
   }
 }
 
@@ -2211,7 +2522,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
     position: absolute;
     left: 10px;
     top: 4px;
-    bottom: 4px;
+    bottom: 0;
     width: 1px;
     background: var(--border);
   }
@@ -2404,30 +2715,104 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   gap: 8px;
 }
 
-/* Field manager */
-.fields-manager-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
+/* Field manager — label cards */
+.label-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-top: 8px;
+}
 
-  th, td {
-    text-align: left;
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--border);
-  }
+.label-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--tile-bg);
+  padding: 10px 14px;
+}
 
-  th {
-    color: var(--muted);
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-  }
+.label-card-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
 
-  .opts-cell {
-    color: var(--muted);
-    font-size: 0.78rem;
+.label-card-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.label-card-type {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.label-card-opts {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.label-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.label-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.chip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  user-select: none;
+
+  input[type="checkbox"] { display: none; }
+
+  &.active {
+    border-color: var(--primary);
+    color: var(--primary);
   }
+}
+
+.label-edit-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-sm {
+  padding: 4px 12px;
+  font-size: 0.82rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  &:hover { background: var(--hover); }
 }
 
 .muted-text {
@@ -2459,6 +2844,101 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 .new-options-block {
   margin-top: 10px;
 }
+
+/* ── Lead Config editor ─────────────────────────────────────────── */
+.config-section {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+
+  & + .config-section { margin-top: 10px; }
+}
+
+.config-section-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.config-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.config-option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  min-height: 34px;
+
+  .config-opt-label {
+    flex: 1;
+    font-size: 0.85rem;
+  }
+
+  .config-value-hint {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: monospace;
+    margin-right: 4px;
+  }
+
+  .form-input--sm {
+    flex: 1;
+    font-size: 0.85rem;
+    padding: 3px 8px;
+    height: 28px;
+  }
+
+  .btn-sm {
+    padding: 3px 10px;
+    font-size: 0.8rem;
+    height: 28px;
+  }
+}
+
+.config-option-list--inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.config-currency-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px 3px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+
+  .chip-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 0;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+
+    &:hover { color: #ef4444; }
+  }
+}
+
+
 
 /* States */
 .loading-state,
@@ -2523,6 +3003,46 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 .contact-search-area,
 .new-contact-area {
   padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-open-kontakt-modal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+  width: 100%;
+  justify-content: center;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 6%, transparent);
+  }
+}
+
+.ms-logo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.ms-logo-grid span {
+  display: block;
+  border-radius: 1px;
 }
 
 .search-input-wrap {
@@ -2690,6 +3210,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 /* Add-contact row below badges */
 .add-contact-row {
   margin-top: 4px;
+  display: flex;
+  gap: 6px;
 }
 
 .btn-add-contact {
@@ -2703,7 +3225,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   font-size: 0.82rem;
   color: var(--muted);
   cursor: pointer;
-  width: 100%;
+  flex: 1;
   justify-content: center;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 
@@ -2712,6 +3234,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
     color: var(--primary);
     background: color-mix(in srgb, var(--primary) 6%, transparent);
   }
+}
+
+.btn-add-contact--new {
+  flex: 0 0 auto;
 }
 
 /* Inline contact search inside sidebar */

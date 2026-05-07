@@ -5,6 +5,7 @@ const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
 const Lead = require('../models/Lead');
 const LeadLabel = require('../models/LeadLabel');
+const LeadConfig = require('../models/LeadConfig');
 const User = require('../models/User');
 const Comment = require('../models/Comment');
 
@@ -56,6 +57,59 @@ function nameToKey(name) {
     .replace(/^_+|_+$/g, '')
     .substring(0, 60);
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// LeadConfig routes  →  /api/leads/config
+// ──────────────────────────────────────────────────────────────────────────────
+
+const DEFAULT_CONFIG = {
+  quelleOptions: [
+    { label: 'Web', value: 'web' },
+    { label: 'Messe', value: 'messe' },
+    { label: 'Empfehlung', value: 'empfehlung' },
+    { label: 'Kaltakquise', value: 'kaltakquise' },
+    { label: 'Social Media', value: 'social_media' },
+    { label: 'Sonstiges', value: 'sonstiges' },
+  ],
+  currencies: ['EUR', 'USD', 'GBP', 'CHF'],
+};
+
+// @route   GET /api/leads/config
+// @desc    Lead module config (quelle options, currencies) abrufen
+// @access  Private
+router.get('/config', auth, asyncHandler(async (req, res) => {
+  let config = await LeadConfig.findOne();
+  if (!config) {
+    config = await LeadConfig.create(DEFAULT_CONFIG);
+  }
+  res.json(config);
+}));
+
+// @route   PUT /api/leads/config
+// @desc    Lead module config aktualisieren
+// @access  Private
+router.put('/config', auth, asyncHandler(async (req, res) => {
+  const { quelleOptions, currencies } = req.body;
+
+  // Basic validation
+  if (!Array.isArray(quelleOptions) || !Array.isArray(currencies)) {
+    return res.status(400).json({ msg: 'quelleOptions und currencies müssen Arrays sein.' });
+  }
+  for (const opt of quelleOptions) {
+    if (!opt.label || !opt.value) return res.status(400).json({ msg: 'Jede quelleOption braucht label und value.' });
+    if (!/^[a-z0-9_]+$/.test(opt.value)) return res.status(400).json({ msg: `Ungültiger value: "${opt.value}". Nur Kleinbuchstaben, Zahlen und _ erlaubt.` });
+  }
+  for (const c of currencies) {
+    if (!/^[A-Z]{3}$/.test(c.toUpperCase())) return res.status(400).json({ msg: `Ungültige Währung: "${c}".` });
+  }
+
+  const config = await LeadConfig.findOneAndUpdate(
+    {},
+    { quelleOptions, currencies: currencies.map(c => c.toUpperCase()) },
+    { new: true, upsert: true, runValidators: false }
+  );
+  res.json(config);
+}));
 
 // ──────────────────────────────────────────────────────────────────────────────
 // LeadLabel routes  →  /api/leads/labels/...

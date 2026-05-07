@@ -123,6 +123,14 @@
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'address-book']" /> Kontakte
           <span class="badge">{{ linkedContacts.length }}</span>
+          <button
+            v-if="kunde.kuerzel"
+            class="btn-add-contact"
+            @click="showKontaktAnlegenModal = true"
+            title="Neuen Microsoft-Kontakt anlegen"
+          >
+            <font-awesome-icon :icon="['fas', 'plus']" /> Anlegen
+          </button>
         </h4>
 
         <div v-if="!kunde.kuerzel" class="empty-contacts">
@@ -310,9 +318,15 @@
     <!-- Footer -->
     <footer class="card-footer">
       <button class="btn btn-secondary" @click="$emit('close')">Schließen</button>
-      <!-- Placeholder for Edit Action -->
-      <!-- <button class="btn btn-primary">Bearbeiten</button> -->
     </footer>
+
+    <!-- Kontakt Anlegen Modal -->
+    <KontaktAnlegenModal
+      v-if="showKontaktAnlegenModal"
+      :prefilledCompanyName="kunde.kuerzel || ''"
+      @close="showKontaktAnlegenModal = false"
+      @created="onKontaktAngelegt"
+    />
   </article>
 </template>
 
@@ -323,6 +337,7 @@ import { useTheme } from '@/stores/theme';
 import { useDataCache } from '@/stores/dataCache';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import KundenAnalyticsEmbed from './KundenAnalyticsEmbed.vue';
+import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
 import api from '@/utils/api';
 
 const props = defineProps({
@@ -431,6 +446,12 @@ const editingContactId = ref(null);
 const editForm = ref({});
 const contactSaving = ref(false);
 const deletingContactId = ref(null);
+const showKontaktAnlegenModal = ref(false);
+
+function onKontaktAngelegt(contact) {
+  showKontaktAnlegenModal.value = false;
+  msContacts.value.unshift(contact);
+}
 
 function startEditContact(contact) {
   editingContactId.value = contact.id;
@@ -744,6 +765,27 @@ function formatEuro(value) {
   gap: 8px;
   
   svg { color: var(--muted); }
+}
+
+.btn-add-contact {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 6%, transparent);
+  }
 }
 
 .badge {
