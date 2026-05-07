@@ -22,6 +22,7 @@ const {
   logGraphError,
   convertAttachmentToPdf,
   getContacts,
+  getContactById,
   searchContacts,
   createContact,
   updateContact,
@@ -876,6 +877,16 @@ router.post("/contacts", auth, asyncHandler(async (req, res) => {
   const contact = await createContact(token, upn, fields);
 
   res.status(201).json({ ok: true, contact: { ...contact, _upn: upn } });
+}));
+
+// GET /api/graph/contacts/:contactId?upn=...
+router.get("/contacts/:contactId", auth, asyncHandler(async (req, res) => {
+  const { contactId } = req.params;
+  const { upn } = req.query;
+  if (!upn) return res.status(400).json({ ok: false, error: 'upn required' });
+  const token = await getAppToken();
+  const contact = await getContactById(token, upn, contactId);
+  res.json({ ok: true, contact: { ...contact, _upn: upn } });
 }));
 
 // PATCH /api/graph/contacts/:contactId  — Update contact fields

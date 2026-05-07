@@ -388,11 +388,15 @@ const baseTabs = [
   { id: 'analytics', label: 'Analytics', icon: ['fas', 'chart-bar'] },
   { id: 'leads', label: 'Leads', icon: ['fas', 'bullseye'] },
   { id: 'watchlist', label: 'Watchlist', icon: ['fas', 'binoculars'] },
-  { id: 'kontakte', label: 'Kontakte', icon: ['fas', 'address-book'], admin: true }
+  { id: 'kontakte', label: 'Kontakte', icon: ['fas', 'address-book'], roles: ['ADMIN', 'VERTRIEB'] }
 ];
 
 const isAdmin = computed(() => (auth.user?.roles || []).includes('ADMIN'));
-const tabs = computed(() => baseTabs.filter(t => !t.admin || isAdmin.value));
+const userRoles = computed(() => auth.user?.roles || []);
+const tabs = computed(() => baseTabs.filter(t => {
+  if (!t.roles) return true;
+  return isAdmin.value || t.roles.some(r => userRoles.value.includes(r));
+}));
 
 const currentTab = ref('overview');
 const showMergeModal = ref(false);

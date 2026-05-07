@@ -5,18 +5,18 @@
       <!-- Toolbar -->
       <div class="leads-toolbar">
         <div class="toolbar-left">
-          <button class="btn btn-primary" @click="openCreateModal">
-            <font-awesome-icon :icon="['fas', 'plus']" /> Lead
-          </button>
-        </div>
-
-        <div class="toolbar-center">
           <input
             v-model="searchQuery"
             type="text"
             placeholder="Leads durchsuchen…"
             class="search-input"
           />
+        </div>
+
+        <div class="toolbar-center">
+          <button class="btn btn-primary" @click="openCreateModal">
+            <font-awesome-icon :icon="['fas', 'plus']" /> Lead
+          </button>
         </div>
 
         <div class="toolbar-right">
@@ -102,7 +102,18 @@
               </td>
               <td class="col-title">
                 <strong>{{ lead.title }}</strong>
-                <div v-if="lead.kontakt && (lead.kontakt.firma || lead.kontakt.nachname)" class="row-sub">
+                <div
+                  v-if="lead.kontakt && (lead.kontakt.firma || lead.kontakt.nachname)"
+                  class="row-sub"
+                  :class="{ 'row-sub--clickable': !!lead.msContact?.id }"
+                  @click.stop="lead.msContact?.id ? openContactCard(lead.msContact) : null"
+                  :title="lead.msContact?.id ? 'Microsoft Kontakt öffnen' : undefined"
+                >
+                  <font-awesome-icon
+                    v-if="lead.msContact?.id"
+                    :icon="['fas', 'address-card']"
+                    class="row-sub-icon"
+                  />
                   {{ lead.kontakt.firma || `${lead.kontakt.vorname || ''} ${lead.kontakt.nachname || ''}`.trim() }}
                 </div>
               </td>
@@ -249,15 +260,25 @@
               <font-awesome-icon :icon="['fas', 'address-book']" /> Kontakt
             </h4>
             <!-- Microsoft Contact link badge -->
-            <div v-if="selectedLead?.msContact?.id" class="ms-contact-badge">
-              <font-awesome-icon :icon="['fab', 'microsoft']" class="ms-icon" />
+            <div v-if="selectedLead?.msContact?.id" class="ms-contact-badge ms-contact-badge--clickable" @click="openContactCard(selectedLead.msContact)">
+              <div class="ms-logo-grid" aria-hidden="true">
+                <span style="background:#f25022"></span>
+                <span style="background:#7fba00"></span>
+                <span style="background:#00a4ef"></span>
+                <span style="background:#ffb900"></span>
+              </div>
               <div class="badge-info">
                 <span class="badge-name">{{ selectedLead.msContact.displayName }}</span>
                 <span class="badge-email">{{ selectedLead.msContact.email }}</span>
               </div>
-              <button class="btn-link danger" @click="unlinkMsContact">
-                <font-awesome-icon :icon="['fas', 'link-slash']" /> Verknüpfung lösen
-              </button>
+              <div class="badge-actions" @click.stop>
+                <button class="btn-link" @click="openContactCard(selectedLead.msContact)" title="Kontakt öffnen">
+                  <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
+                </button>
+                <button class="btn-link danger" @click="unlinkMsContact" title="Verknüpfung lösen">
+                  <font-awesome-icon :icon="['fas', 'link-slash']" />
+                </button>
+              </div>
             </div>
             <div class="kv-grid">
               <div class="kv-item">
@@ -565,6 +586,18 @@
       </div>
     </teleport>
 
+    <!-- Contact Card Modal -->
+    <teleport to="body">
+      <div v-if="selectedMsContact" class="modal-overlay" @click.self="selectedMsContact = null">
+        <ContactCard
+          :contact="selectedMsContact"
+          @close="selectedMsContact = null"
+          @deleted="onContactDeleted"
+          @updated="onContactUpdated"
+        />
+      </div>
+    </teleport>
+
     <!-- Field Manager Modal (Custom Fields / LeadLabels) -->
     <teleport to="body">
       <div v-if="showFieldManager" class="modal-overlay" @click="showFieldManager = false">
@@ -661,14 +694,17 @@ import {
   faPlus, faXmark, faSpinner, faSliders, faUser, faInfoCircle,
   faAddressBook, faNoteSticky, faPaperPlane, faTrash, faTrophy,
   faBoxArchive, faBullseye, faEllipsisVertical, faArrowUp, faArrowDown,
+  faAddressCard, faArrowUpRightFromSquare, faLinkSlash,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
+import ContactCard from './ContactCard.vue';
 
 library.add(
   faPlus, faXmark, faSpinner, faSliders, faUser, faInfoCircle,
   faAddressBook, faNoteSticky, faPaperPlane, faTrash, faTrophy,
-  faBoxArchive, faBullseye, faEllipsisVertical, faArrowUp, faArrowDown
+  faBoxArchive, faBullseye, faEllipsisVertical, faArrowUp, faArrowDown,
+  faAddressCard, faArrowUpRightFromSquare, faLinkSlash
 );
 
 const auth = useAuth();
@@ -1093,6 +1129,42 @@ function selectContact(c) {
   contactSearchResults.value  = [];
 }
 
+// ─── ContactCard ─────────────────────────────────────────────────────
+const selectedMsContact = ref(null);
+
+function openContactCard(msContact) {
+  if (!msContact?.id) return;
+  selectedMsContact.value = { ...msContact };
+}
+
+function onContactDeleted(contactId) {
+  leads.value.forEach((lead) => {
+    if (lead.msContact?.id === contactId) {
+      lead.msContact = { id: null, upn: null, displayName: null, email: null };
+    }
+  });
+  if (selectedLead.value?.msContact?.id === contactId) {
+    selectedLead.value.msContact = { id: null, upn: null, displayName: null, email: null };
+  }
+  selectedMsContact.value = null;
+}
+
+function onContactUpdated(updatedContact) {
+  const newDisplay = updatedContact.displayName || '';
+  const newEmail = updatedContact.emailAddresses?.[0]?.address || updatedContact.email || '';
+  leads.value.forEach((lead) => {
+    if (lead.msContact?.id === updatedContact.id) {
+      lead.msContact.displayName = newDisplay;
+      lead.msContact.email = newEmail;
+    }
+  });
+  if (selectedLead.value?.msContact?.id === updatedContact.id) {
+    selectedLead.value.msContact.displayName = newDisplay;
+    selectedLead.value.msContact.email = newEmail;
+  }
+  selectedMsContact.value = updatedContact;
+}
+
 async function unlinkMsContact() {
   if (!selectedLead.value) return;
   if (!confirm('Microsoft Kontakt-Verknüpfung aufheben?')) return;
@@ -1434,9 +1506,23 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
       vertical-align: middle;
 
       .row-sub {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
         font-size: 0.75rem;
         color: var(--muted);
         margin-top: 2px;
+
+        &--clickable {
+          cursor: pointer;
+          color: var(--primary);
+          &:hover { text-decoration: underline; }
+        }
+
+        .row-sub-icon {
+          font-size: 0.7rem;
+          opacity: 0.75;
+        }
       }
     }
   }
@@ -2087,33 +2173,64 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 10px 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   margin-bottom: 12px;
+  transition: border-color 0.15s, background 0.15s;
 
-  .ms-icon { color: #0078d4; font-size: 1.1rem; flex-shrink: 0; }
+  &--clickable {
+    cursor: pointer;
+    &:hover {
+      background: var(--soft);
+      border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+    }
+  }
+
+  .ms-logo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+
+    span {
+      border-radius: 2px;
+      display: block;
+    }
+  }
 
   .badge-info {
     display: flex;
     flex-direction: column;
     flex: 1;
+    min-width: 0;
 
-    .badge-name { font-size: 0.875rem; font-weight: 500; color: var(--text); }
-    .badge-email { font-size: 0.78rem; color: var(--text-muted); }
+    .badge-name { font-size: 0.875rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .badge-email { font-size: 0.78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   }
 
-  .btn-link.danger {
-    font-size: 0.78rem;
-    color: #ef4444;
+  .badge-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .btn-link {
     background: none;
     border: none;
     cursor: pointer;
-    white-space: nowrap;
-    padding: 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+    padding: 4px 6px;
+    border-radius: 5px;
+    transition: background 0.12s, color 0.12s;
 
-    &:hover { text-decoration: underline; }
+    &:hover { background: var(--soft); color: var(--text); }
+    &.danger { &:hover { color: #ef4444; } }
   }
 }
 </style>

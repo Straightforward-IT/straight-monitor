@@ -946,6 +946,19 @@ async function updateContact(token, upn, contactId, fields) {
 }
 
 /**
+ * Einzelnen Kontakt per ID abrufen.
+ */
+async function getContactById(token, upn, contactId) {
+  const url =
+    `${GRAPH}/users/${encodeURIComponent(upn)}/contacts/${contactId}` +
+    `?$select=id,givenName,surname,displayName,emailAddresses,businessPhones,mobilePhone,companyName,jobTitle`;
+  const { data } = await axios.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return data;
+}
+
+/**
  * Kontakt löschen.
  */
 async function deleteContact(token, upn, contactId) {
@@ -983,6 +996,7 @@ module.exports = {
   convertAttachmentToPdf,
   // contacts
   getContacts,
+  getContactById,
   searchContacts,
   createContact,
   updateContact,

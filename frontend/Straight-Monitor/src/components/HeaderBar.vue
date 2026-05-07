@@ -93,15 +93,49 @@
             </router-link>
           </div>
         </div>
-        <router-link
-          v-if="canSeeKunden"
-          to="/kunden"
-          :class="{ active: $route.name === 'Kunden'}"
-          @click="handleNewPageClick($event, '/kunden')"
-        >
-          Kunden
-      
-        </router-link>
+        <div v-if="canSeeKunden" class="nav-group nav-group--kunden">
+          <router-link to="/kunden" :class="{ active: isKundenSectionActive }"
+            @click="handleNewPageClick($event, '/kunden')"
+            > Kunden </router-link
+          >
+          <div class="nav-submenu" aria-label="Kunden Untermenue">
+            <router-link
+              to="/kunden"
+              class="nav-submenu__link"
+              :class="{ active: $route.name === 'Kunden' && !$route.query.tab }"
+            >
+              Übersicht
+            </router-link>
+            <router-link
+              :to="{ path: '/kunden', query: { tab: 'analytics' } }"
+              class="nav-submenu__link"
+              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'analytics' }"
+            >
+              Analytics
+            </router-link>
+            <router-link
+              :to="{ path: '/kunden', query: { tab: 'leads' } }"
+              class="nav-submenu__link"
+              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'leads' }"
+            >
+              Leads
+            </router-link>
+            <router-link
+              :to="{ path: '/kunden', query: { tab: 'watchlist' } }"
+              class="nav-submenu__link"
+              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'watchlist' }"
+            >
+              Watchlist
+            </router-link>
+            <router-link
+              :to="{ path: '/kunden', query: { tab: 'kontakte' } }"
+              class="nav-submenu__link"
+              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'kontakte' }"
+            >
+              Kontakte
+            </router-link>
+          </div>
+        </div>
       </nav>
   
     </div>
@@ -203,7 +237,7 @@
               :class="{ active: $route.name === 'Auftraege' && !$route.query.openPseudo }"
               @click="handleMobileNavClick($event, '/auftraege')"
             >
-              <font-awesome-icon :icon="['fas', 'calendar-days']" />
+              <font-awesome-icon :icon="['fas', 'layer-group']" />
               Übersicht
             </router-link>
             <router-link
@@ -241,7 +275,7 @@
               :class="{ active: $route.name === 'Personal' }"
               @click="handleMobileNavClick($event, '/personal')"
             >
-              <font-awesome-icon :icon="['fas', 'users']" />
+              <font-awesome-icon :icon="['fas', 'layer-group']" />
               Übersicht
             </router-link>
             <router-link
@@ -286,7 +320,7 @@
               :class="{ active: $route.name === 'Dokumente' }"
               @click="closeMobileMenu"
             >
-              <font-awesome-icon :icon="['fas', 'file-lines']" />
+              <font-awesome-icon :icon="['fas', 'layer-group']" />
               Übersicht
             </router-link>
             <router-link
@@ -323,7 +357,7 @@
               :class="{ active: $route.name === 'Bestand' }"
               @click="closeMobileMenu"
             >
-              <font-awesome-icon :icon="['fas', 'list']" />
+              <font-awesome-icon :icon="['fas', 'layer-group']" />
               Übersicht
             </router-link>
             <router-link
@@ -337,15 +371,69 @@
             </router-link>
           </div>
         </div>
-        <router-link
-          v-if="canSeeKunden"
-          to="/kunden"
-          :class="{ active: $route.name === 'Kunden' }"
-          @click="handleNewPageClick($event, '/kunden'); showMobileMenu = false"
-        >
-          <font-awesome-icon :icon="['fas', 'building']" />
-          Kunden
-        </router-link>
+        <div v-if="canSeeKunden" class="mobile-menu-group">
+          <button
+            class="mobile-menu-btn mobile-menu-toggle"
+            :class="{ active: isKundenSectionActive, 'mobile-menu-toggle--open': mobileKundenMenuOpen }"
+            @click="toggleMobileKundenMenu"
+          >
+            <span class="mobile-menu-toggle__label">
+              <font-awesome-icon :icon="['fas', 'building']" />
+              Kunden
+            </span>
+            <span class="mobile-menu-toggle__meta">
+              <font-awesome-icon :icon="['fas', mobileKundenMenuOpen ? 'chevron-up' : 'chevron-down']" />
+            </span>
+          </button>
+
+          <div v-if="mobileKundenMenuOpen" class="mobile-submenu">
+            <router-link
+              to="/kunden"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Kunden' && !$route.query.tab }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'layer-group']" />
+              Übersicht
+            </router-link>
+            <router-link
+              :to="{ path: '/kunden', query: { tab: 'analytics' } }"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'analytics' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'chart-line']" />
+              Analytics
+            </router-link>
+            <router-link
+              :to="{ path: '/kunden', query: { tab: 'leads' } }"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'leads' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'bullseye']" />
+              Leads
+            </router-link>
+            <router-link
+              :to="{ path: '/kunden', query: { tab: 'watchlist' } }"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'watchlist' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'star']" />
+              Watchlist
+            </router-link>
+            <router-link
+              :to="{ path: '/kunden', query: { tab: 'kontakte' } }"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'kontakte' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'address-book']" />
+              Kontakte
+            </router-link>
+          </div>
+        </div>
 
         
         <div class="mobile-menu-divider"></div>
@@ -542,6 +630,7 @@ const mobileAuftraegeMenuOpen = ref(false);
 const mobileBestandMenuOpen = ref(false);
 const mobileReportsMenuOpen = ref(false);
 const mobilePersonalMenuOpen = ref(false);
+const mobileKundenMenuOpen = ref(false);
 
 // Support Modal State
 const showSupportModal = ref(false);
@@ -598,6 +687,7 @@ const newPagesEnabled = computed(() => !!auth.user);
 
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
 const canSeeKunden = computed(() => isAdmin.value || auth.user?.roles?.includes('VERTRIEB'));
+const isKundenSectionActive = computed(() => route.name === 'Kunden');
 const isAuftraegeSectionActive = computed(() => route.name === 'Auftraege');
 const isBestandSectionActive = computed(() => ['Bestand', 'Verlauf'].includes(route.name));
 const isReportsSectionActive = computed(() => ['Dokumente', 'DokumenteNachpflegen'].includes(route.name));
@@ -618,6 +708,7 @@ const closeMobileMenu = () => {
   mobileBestandMenuOpen.value = false;
   mobileReportsMenuOpen.value = false;
   mobilePersonalMenuOpen.value = false;
+  mobileKundenMenuOpen.value = false;
 };
 
 const toggleMobileAuftraegeMenu = () => {
@@ -636,6 +727,10 @@ const toggleMobilePersonalMenu = () => {
   mobilePersonalMenuOpen.value = !mobilePersonalMenuOpen.value;
 };
 
+const toggleMobileKundenMenu = () => {
+  mobileKundenMenuOpen.value = !mobileKundenMenuOpen.value;
+};
+
 const handleMobileNavClick = (event, path) => {
   const allowed = handleNewPageClick(event, path);
   if (allowed === false) return;
@@ -649,6 +744,7 @@ watch(
     mobileBestandMenuOpen.value = ['Bestand', 'Verlauf'].includes(name);
     mobileReportsMenuOpen.value = ['Dokumente', 'DokumenteNachpflegen'].includes(name);
     mobilePersonalMenuOpen.value = ['Personal', 'BenutzerErstellen', 'TeamleiterAuswertung'].includes(name);
+    mobileKundenMenuOpen.value = name === 'Kunden';
   },
   { immediate: true }
 );
@@ -951,10 +1047,6 @@ onBeforeUnmount(() => {
 
 .mobile-menu-toggle {
   justify-content: space-between;
-}
-
-.mobile-menu-toggle--open .mobile-menu-toggle__label :deep(svg) {
-  display: none;
 }
 
 .mobile-menu-toggle__label,
