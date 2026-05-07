@@ -15,15 +15,21 @@
           <span class="count-tag">{{ filteredLeads.length }} Leads</span>
 
           <select v-model="statusFilter" class="filter-select">
-            <option value="">Alle Status</option>
+            <option value="">Alle</option>
             <option value="open">Offen</option>
-            <option value="won">Gewonnen</option>
-            <option value="lost">Verloren</option>
             <option value="archived">Archiviert</option>
           </select>
 
           <button class="btn-icon-toolbar" @click="showFieldManager = true" title="Spalten / Eigene Felder verwalten">
             <font-awesome-icon :icon="['fas', 'sliders']" />
+          </button>
+          <button
+            class="btn-icon-toolbar"
+            :class="{ active: showColPanel || visibleLabels.length > 0 }"
+            @click="openColPanel($event)"
+            title="Spalten anpassen"
+          >
+            <font-awesome-icon :icon="['fas', 'table-columns']" />
           </button>
         </div>
       </div>
@@ -111,7 +117,7 @@
               </td>
 
               <td class="col-actions" @click.stop>
-                <button class="btn-icon-row" @click="openLead(lead)" title="Details">
+                <button class="btn-icon-row" @click="openRowMenu($event, lead)" title="Aktionen">
                   <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
                 </button>
               </td>
@@ -162,7 +168,7 @@
                               <p class="chronik-text">{{ entry.text }}</p>
                               <button
                                 v-if="!entry.isSystem && canDeleteChronik(entry)"
-                                class="btn-link danger chronik-delete"
+                                class="ctx-delete-btn"
                                 @click="deleteChronikEntry(entry._id)"
                                 title="Löschen"
                               >
@@ -215,40 +221,17 @@
               <span class="stufe-chip" :class="`stufe-${selectedLead.stufe}`">
                 {{ stufeLabel(selectedLead.stufe) }}
               </span>
-              <span class="status-pill" :class="`status-${selectedLead.status}`">
-                {{ statusLabel(selectedLead.status) }}
-              </span>
             </div>
           </div>
+          <button class="btn-archive" @click="archiveLead" :disabled="savingDetail" title="Archivieren">
+            <font-awesome-icon :icon="['fas', 'box-archive']" />
+          </button>
           <button class="close-btn" @click="closeSidebar">
             <font-awesome-icon :icon="['fas', 'xmark']" />
           </button>
         </header>
 
         <div class="sidebar-body">
-          <!-- Quick Actions -->
-          <div class="quick-actions">
-            <button
-              class="btn-action"
-              :class="{ won: selectedLead.status === 'won' }"
-              @click="updateStatus('won')"
-              :disabled="savingDetail"
-            >
-              <font-awesome-icon :icon="['fas', 'trophy']" /> Gewonnen
-            </button>
-            <button
-              class="btn-action"
-              :class="{ lost: selectedLead.status === 'lost' }"
-              @click="updateStatus('lost')"
-              :disabled="savingDetail"
-            >
-              <font-awesome-icon :icon="['fas', 'xmark']" /> Verloren
-            </button>
-            <button class="btn-action danger" @click="archiveLead" :disabled="savingDetail">
-              <font-awesome-icon :icon="['fas', 'box-archive']" />
-            </button>
-          </div>
-
           <!-- Standard Fields -->
           <section class="info-section">
             <h4 class="section-title">
@@ -277,10 +260,32 @@
                 />
               </div>
 
-              <!-- Custom Fields inline -->
-              <template v-for="lbl in visibleLabels" :key="lbl._id">
+              <!-- Custom Fields inline (always all labels, regardless of table column visibility) -->
+              <template v-for="lbl in labels" :key="lbl._id">
                 <div class="kv-item">
-                  <label>{{ lbl.name }} <span v-if="lbl.required" class="req">*</span></label>
+                  <label>
+                    {{ lbl.name }} <span v-if="lbl.required" class="req">*</span>
+                    <a
+                      v-if="lbl.fieldType === 'url' && detailForm.customFields[lbl.key]"
+                      :href="detailForm.customFields[lbl.key]"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="url-open-btn"
+                      title="Link öffnen"
+                    >
+                      <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
+                    </a>
+                    <a
+                      v-if="lbl.fieldType === 'address' && addressMapsUrl(detailForm.customFields[lbl.key])"
+                      :href="addressMapsUrl(detailForm.customFields[lbl.key])"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="url-open-btn"
+                      title="In Google Maps öffnen"
+                    >
+                      <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
+                    </a>
+                  </label>
 
                   <input
                     v-if="lbl.fieldType === 'text' || lbl.fieldType === 'phone' || lbl.fieldType === 'email' || lbl.fieldType === 'url'"
@@ -337,6 +342,14 @@
                       />
                       {{ opt.label }}
                     </label>
+                  </div>
+
+                  <div v-else-if="lbl.fieldType === 'address'" class="address-preview" @click="openAddressModal(lbl.key)">
+                    <span v-if="detailForm.customFields[lbl.key]?.street || detailForm.customFields[lbl.key]?.city" class="address-preview-text">
+                      {{ [detailForm.customFields[lbl.key]?.street, [detailForm.customFields[lbl.key]?.zip, detailForm.customFields[lbl.key]?.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') }}
+                    </span>
+                    <span v-else class="address-placeholder">Adresse eingeben…</span>
+                    <font-awesome-icon :icon="['fas', 'sliders']" class="address-edit-icon" />
                   </div>
                 </div>
               </template>
@@ -585,26 +598,16 @@
                     Kontakt in Microsoft anlegen
                   </button>
                   <p class="picker-hint">
-                    <font-awesome-icon :icon="['fas', 'circle-info']" />
+                    <font-awesome-icon :icon="['fas', 'info-circle']" />
                     Öffnet ein Formular zum Anlegen eines neuen Microsoft-Kontakts.
                   </p>
                 </template>
               </div>
 
               <!-- Mode: Überspringen -->
-              <div v-if="contactPickerMode === 'skip'" class="kv-grid">
-                <div class="kv-item">
-                  <label>Firma</label>
-                  <input v-model="createForm.kontakt.firma" class="form-input" />
-                </div>
-                <div class="kv-item">
-                  <label>Kontakt-Name</label>
-                  <input v-model="createForm.kontakt.nachname" class="form-input" />
-                </div>
-                <div class="kv-item">
-                  <label>E-Mail</label>
-                  <input v-model="createForm.kontakt.email" type="email" class="form-input" />
-                </div>
+              <div v-if="contactPickerMode === 'skip'" class="skip-hint">
+                <font-awesome-icon :icon="['fas', 'info-circle']" />
+                Kein Microsoft-Kontakt wird verknüpft.
               </div>
             </div>
           </div>
@@ -683,7 +686,7 @@
                     <button class="btn-icon" @click="startEditLabel(lbl)" title="Bearbeiten">
                       <font-awesome-icon :icon="['fas', 'sliders']" />
                     </button>
-                    <button class="btn-icon danger" @click="deleteLabel(lbl)" title="Deaktivieren">
+                    <button class="ctx-delete-btn" @click="deleteLabel(lbl)" title="Deaktivieren">
                       <font-awesome-icon :icon="['fas', 'trash']" />
                     </button>
                   </div>
@@ -705,6 +708,7 @@
                         <option value="phone">Telefon</option>
                         <option value="email">E-Mail</option>
                         <option value="url">URL</option>
+                        <option value="address">Adresse</option>
                       </select>
                     </div>
                     <div v-if="['dropdown','multiselect'].includes(editLabelForm.fieldType)" class="new-options-block">
@@ -739,6 +743,7 @@
                 <option value="phone">Telefon</option>
                 <option value="email">E-Mail</option>
                 <option value="url">URL</option>
+                <option value="address">Adresse</option>
               </select>
               <button class="btn btn-primary" :disabled="!newField.name.trim() || creatingField" @click="createField">
                 <font-awesome-icon :icon="['fas', creatingField ? 'spinner' : 'plus']" :spin="creatingField" />
@@ -779,7 +784,7 @@
                     <button class="btn-icon" @click="startEditQuelle(idx)" title="Bearbeiten">
                       <font-awesome-icon :icon="['fas', 'sliders']" />
                     </button>
-                    <button class="btn-icon danger" @click="removeQuelleOption(idx)" title="Löschen">
+                    <button class="ctx-delete-btn" @click="removeQuelleOption(idx)" title="Löschen">
                       <font-awesome-icon :icon="['fas', 'trash']" />
                     </button>
                   </template>
@@ -799,6 +804,93 @@
             </div>
 
 
+          </div>
+        </div>
+      </div>
+    </teleport>
+
+    <!-- Row context menu -->
+    <teleport to="body">
+      <div v-if="rowMenu.leadId" class="row-menu-overlay" @click="closeRowMenu">
+        <div
+          class="row-menu"
+          :style="{ top: rowMenu.y + 'px', left: rowMenu.x + 'px' }"
+          @click.stop
+        >
+          <button class="row-menu-item" @click="archiveLeadById(leads.find(l => l._id === rowMenu.leadId))">
+            <font-awesome-icon :icon="['fas', 'box-archive']" /> Archivieren
+          </button>
+          <button class="row-menu-item row-menu-item--danger" @click="deleteLeadPermanent(leads.find(l => l._id === rowMenu.leadId))">
+            <font-awesome-icon :icon="['fas', 'trash']" /> Löschen
+          </button>
+        </div>
+      </div>
+    </teleport>
+
+    <!-- Address modal -->
+    <teleport to="body">
+      <div v-if="showAddressModal" class="modal-overlay" @click.self="closeAddressModal">
+        <div class="modal-content address-modal">
+          <header class="modal-header">
+            <h3>
+              <span class="addr-modal-icon"><font-awesome-icon :icon="['fas', 'address-card']" /></span>
+              Adresse eingeben
+            </h3>
+            <button class="btn-icon" @click="closeAddressModal" title="Schließen">
+              <font-awesome-icon :icon="['fas', 'xmark']" />
+            </button>
+          </header>
+          <div class="addr-form">
+            <div class="addr-field addr-field--full">
+              <label class="addr-label">Straße &amp; Hausnummer</label>
+              <input v-model="addressDraft.street" class="addr-input" placeholder="Musterstraße 42" @keydown.enter="saveAddress" />
+            </div>
+            <div class="addr-row">
+              <div class="addr-field">
+                <label class="addr-label">PLZ</label>
+                <input v-model="addressDraft.zip" class="addr-input" placeholder="12345" @keydown.enter="saveAddress" />
+              </div>
+              <div class="addr-field" style="flex:2">
+                <label class="addr-label">Stadt</label>
+                <input v-model="addressDraft.city" class="addr-input" placeholder="Berlin" @keydown.enter="saveAddress" />
+              </div>
+            </div>
+            <div class="addr-field addr-field--full">
+              <label class="addr-label">Land</label>
+              <input v-model="addressDraft.country" class="addr-input" placeholder="Deutschland" @keydown.enter="saveAddress" />
+            </div>
+          </div>
+          <footer class="modal-footer">
+            <button class="btn" @click="closeAddressModal">Abbrechen</button>
+            <button class="btn btn-primary" @click="saveAddress">Speichern</button>
+          </footer>
+        </div>
+      </div>
+    </teleport>
+
+    <!-- Column customizer panel -->
+    <teleport to="body">
+      <div v-if="showColPanel" class="col-panel-overlay" @click="closeColPanel">
+        <div
+          class="col-panel"
+          :style="{ top: colPanelAnchor.y + 'px', left: colPanelAnchor.x + 'px', transform: 'translateX(-100%)' }"
+          @click.stop
+        >
+          <div class="col-panel-header">Spalten anpassen</div>
+          <div v-if="colConfig.length === 0" class="col-panel-empty">Keine eigenen Felder definiert.</div>
+          <div v-for="(col, idx) in colConfig" :key="col._id" class="col-panel-row">
+            <label class="col-panel-label">
+              <input type="checkbox" :checked="col.visible" @change="toggleColVisible(col)" />
+              {{ col.name }}
+            </label>
+            <div class="col-panel-order">
+              <button :disabled="idx === 0" class="col-order-btn" @click="moveCol(idx, -1)" title="Nach oben">
+                <font-awesome-icon :icon="['fas', 'arrow-up']" />
+              </button>
+              <button :disabled="idx === colConfig.length - 1" class="col-order-btn" @click="moveCol(idx, 1)" title="Nach unten">
+                <font-awesome-icon :icon="['fas', 'arrow-down']" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -853,8 +945,42 @@ const statusFilter = ref('open');
 const sortBy = ref('createdAt');
 const sortDir = ref('desc');
 
+const rowMenu = reactive({ leadId: null, x: 0, y: 0 });
+
+function openRowMenu(event, lead) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  rowMenu.leadId = lead._id;
+  rowMenu.x = rect.right;
+  rowMenu.y = rect.bottom + window.scrollY;
+}
+function closeRowMenu() {
+  rowMenu.leadId = null;
+}
+
+async function archiveLeadById(lead) {
+  closeRowMenu();
+  if (!confirm(`Lead "${lead.title}" archivieren?`)) return;
+  await api.delete(`/api/leads/${lead._id}`);
+  leads.value = leads.value.filter((l) => l._id !== lead._id);
+  if (selectedLead.value?._id === lead._id) closeSidebar();
+}
+
+async function deleteLeadPermanent(lead) {
+  closeRowMenu();
+  if (!confirm(`Lead "${lead.title}" unwiderruflich löschen?`)) return;
+  await api.delete(`/api/leads/${lead._id}/permanent`);
+  leads.value = leads.value.filter((l) => l._id !== lead._id);
+  if (selectedLead.value?._id === lead._id) closeSidebar();
+}
+
 const showCreateModal = ref(false);
 const showFieldManager = ref(false);
+const showColPanel = ref(false);
+const colPanelAnchor = ref({ x: 0, y: 0 });
+const colConfig = ref([]);
+const showAddressModal = ref(false);
+const addressModalKey = ref('');
+const addressDraft = reactive({ street: '', city: '', zip: '', country: '' });
 const creating = ref(false);
 const creatingField = ref(false);
 
@@ -1080,8 +1206,53 @@ function isStufeBeforeActive(val) {
   return vi < ai;
 }
 
+// ─── Column config (localStorage-persisted visibility & order) ──────────────
+watch(labels, (newLabels) => {
+  const stored = (() => { try { return JSON.parse(localStorage.getItem('leads_col_config') || '[]'); } catch { return []; } })();
+  const active = newLabels.filter((l) => l.isActive);
+  const storedIds = stored.map((s) => s._id);
+  colConfig.value = [
+    ...stored
+      .filter((s) => active.some((l) => l._id === s._id))
+      .map((s) => {
+        const lbl = active.find((l) => l._id === s._id);
+        return { _id: lbl._id, key: lbl.key, name: lbl.name, visible: s.visible !== false };
+      }),
+    ...active
+      .filter((l) => !storedIds.includes(l._id))
+      .map((lbl) => ({ _id: lbl._id, key: lbl.key, name: lbl.name, visible: true })),
+  ];
+}, { immediate: true });
+
+function saveColConfig() {
+  localStorage.setItem('leads_col_config', JSON.stringify(colConfig.value.map((c) => ({ _id: c._id, visible: c.visible }))));
+}
+
+function openColPanel(event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  colPanelAnchor.value = { x: rect.right, y: rect.bottom + 4 };
+  showColPanel.value = !showColPanel.value;
+}
+
+function closeColPanel() {
+  showColPanel.value = false;
+}
+
+function toggleColVisible(col) {
+  col.visible = !col.visible;
+  saveColConfig();
+}
+
+function moveCol(idx, dir) {
+  const arr = colConfig.value;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= arr.length) return;
+  [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+  saveColConfig();
+}
+
 // ─── Computed ────────────────────────────────────────────────────────
-const visibleLabels = computed(() => labels.value.filter((l) => l.isActive));
+const visibleLabels = computed(() => colConfig.value.filter((c) => c.visible));
 
 // All MS contacts for the currently selected lead (array, handles legacy single-contact field)
 const leadContacts = computed(() => {
@@ -1102,8 +1273,10 @@ function getLeadContacts(lead) {
 const filteredLeads = computed(() => {
   let list = leads.value.slice();
 
-  if (statusFilter.value) {
-    list = list.filter((l) => l.status === statusFilter.value);
+  if (statusFilter.value === 'archived') {
+    list = list.filter((l) => l.status === 'archived');
+  } else if (statusFilter.value === 'open') {
+    list = list.filter((l) => l.status !== 'archived');
   }
 
   const q = searchQuery.value.trim().toLowerCase();
@@ -1360,6 +1533,11 @@ function renderCustomValue(lead, lbl) {
           : `<span class="cell-pill">${escapeHtml(label)}</span>`;
       })
       .join(' ');
+  }
+
+  if (lbl.fieldType === 'address' && typeof v === 'object') {
+    const parts = [v.street, [v.zip, v.city].filter(Boolean).join(' '), v.country].filter(Boolean);
+    return escapeHtml(parts.join(', ') || '—');
   }
 
   return escapeHtml(String(v));
@@ -1806,12 +1984,42 @@ function fieldTypeLabel(t) {
     phone: 'Telefon',
     email: 'E-Mail',
     url: 'URL',
+    address: 'Adresse',
   })[t] || t;
+}
+
+// ─── Address modal ───────────────────────────────────────────────────
+function addressMapsUrl(addr) {
+  if (!addr) return null;
+  const parts = [addr.street, addr.zip, addr.city, addr.country].filter(Boolean);
+  if (parts.length === 0) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(parts.join(', '))}`;
+}
+
+function openAddressModal(key) {
+  addressModalKey.value = key;
+  const existing = detailForm.customFields[key] || {};
+  addressDraft.street  = existing.street  || '';
+  addressDraft.city    = existing.city    || '';
+  addressDraft.zip     = existing.zip     || '';
+  addressDraft.country = existing.country || '';
+  showAddressModal.value = true;
+}
+
+function closeAddressModal() {
+  showAddressModal.value = false;
+}
+
+function saveAddress() {
+  detailForm.customFields[addressModalKey.value] = { ...addressDraft };
+  saveDetail();
+  closeAddressModal();
 }
 
 // Close sidebar with ESC
 function handleEsc(e) {
   if (e.key === 'Escape') {
+    if (showAddressModal.value) { closeAddressModal(); return; }
     if (showCreateModal.value) showCreateModal.value = false;
     else if (showFieldManager.value) showFieldManager.value = false;
     else if (selectedLead.value) closeSidebar();
@@ -1935,6 +2143,12 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   &:hover {
     color: var(--primary);
     border-color: var(--primary);
+  }
+
+  &.active {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: color-mix(in oklab, var(--primary) 10%, transparent);
   }
 }
 
@@ -2087,6 +2301,47 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   }
 }
 
+.row-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+}
+
+.row-menu {
+  position: absolute;
+  background: var(--modal-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  min-width: 160px;
+  padding: 4px 0;
+  z-index: 9001;
+  transform: translateX(-100%);
+}
+
+.row-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    background: var(--hover);
+  }
+
+  &--danger {
+    color: #ef4444;
+    &:hover { background: #fef2f2; }
+  }
+}
+
 .muted {
   color: var(--muted);
 }
@@ -2222,6 +2477,18 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
       color: var(--text);
     }
   }
+
+  .btn-archive {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 4px 8px;
+
+    &:hover { color: #ef4444; }
+    &:disabled { opacity: 0.4; cursor: default; }
+  }
 }
 
 .sidebar-body {
@@ -2324,6 +2591,19 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
       color: var(--muted);
       font-weight: 500;
     }
+  }
+}
+
+.url-open-btn {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  font-size: 0.75rem;
+  color: var(--primary);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
   }
 }
 
@@ -2605,24 +2885,19 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   position: relative;
   display: block;
 
-  .chronik-delete {
+  .ctx-delete-btn {
     position: absolute;
     right: 6px;
     top: 50%;
     transform: translateY(-50%);
     opacity: 0;
     transition: opacity 0.15s;
-    font-size: 0.72rem;
-    padding: 2px 4px;
-    color: var(--muted);
     background: var(--panel);
     border-radius: 4px;
   }
 
-  &:hover .chronik-delete {
+  &:hover .ctx-delete-btn {
     opacity: 1;
-
-    &:hover { color: #ef4444; }
   }
 }
 
@@ -2683,10 +2958,11 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 
   h3 {
     margin: 0;
-    font-size: 1.05rem;
+    font-size: 1rem;
+    font-weight: 500;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
   }
 }
 
@@ -2700,6 +2976,17 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   &:hover {
     color: var(--text);
   }
+}
+
+.ctx-delete-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+
+  &:hover { color: #ef4444; }
 }
 
 .modal-body {
@@ -3141,6 +3428,15 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   gap: 6px;
 }
 
+.skip-hint {
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* MS contact badge in sidebar */
 .ms-contact-badge {
   display: flex;
@@ -3399,5 +3695,209 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   // verloren — red/gray
   &--verloren.active .step-dot   { background: #f87171; border-color: #dc2626; transform: scale(1.2); }
   &--verloren.active .step-label { color: #dc2626; font-weight: 600; }
+}
+
+/* ── Address field preview & modal ─────────────────────────────── */
+.address-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tile-bg);
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text);
+  min-height: 36px;
+
+  &:hover {
+    border-color: var(--primary);
+  }
+
+  .address-edit-icon {
+    color: var(--muted);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+  }
+}
+
+.address-placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.address-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.address-maps-btn {
+  display: inline-flex;
+  align-items: center;
+  color: var(--primary);
+  font-size: 0.75rem;
+  text-decoration: none;
+  padding: 2px 4px;
+  border-radius: 4px;
+
+  &:hover {
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+  }
+}
+
+.address-modal {
+  max-width: 400px;
+}
+
+.addr-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--primary) 15%, transparent);
+  color: var(--primary);
+  font-size: 0.8rem;
+}
+
+.addr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 20px 8px;
+}
+
+.addr-row {
+  display: flex;
+  gap: 12px;
+}
+
+.addr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+
+  &--full { flex: none; width: 100%; }
+}
+
+.addr-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.addr-input {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+
+  &::placeholder { color: var(--muted); opacity: 0.6; }
+  &:focus { border-color: var(--primary); background: var(--tile-bg); }
+}
+
+/* ── Column customizer panel ───────────────────────────────────── */
+.col-panel-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+}
+
+.col-panel {
+  position: fixed;
+  background: var(--modal-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.14);
+  min-width: 220px;
+  padding: 4px 0;
+  z-index: 9001;
+}
+
+.col-panel-header {
+  padding: 8px 14px 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.col-panel-empty {
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.col-panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px 6px 14px;
+  gap: 10px;
+
+  &:hover { background: var(--hover); }
+}
+
+.col-panel-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  flex: 1;
+
+  input[type="checkbox"] {
+    accent-color: var(--primary);
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+  }
+}
+
+.col-panel-order {
+  display: flex;
+  gap: 2px;
+}
+
+.col-order-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover:not(:disabled) {
+    background: var(--hover);
+    color: var(--text);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
 }
 </style>

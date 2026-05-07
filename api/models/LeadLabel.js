@@ -33,7 +33,7 @@ const LeadLabelSchema = new mongoose.Schema(
     fieldType: {
       type: String,
       required: true,
-      enum: ['text', 'number', 'currency', 'date', 'checkbox', 'dropdown', 'multiselect', 'phone', 'email', 'url'],
+      enum: ['text', 'number', 'currency', 'date', 'checkbox', 'dropdown', 'multiselect', 'phone', 'email', 'url', 'address'],
       default: 'text',
     },
 

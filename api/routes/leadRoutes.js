@@ -137,7 +137,7 @@ router.post('/labels', auth, asyncHandler(async (req, res) => {
   if (!name?.trim()) {
     return res.status(400).json({ message: '"name" ist erforderlich.' });
   }
-  if (!['text', 'number', 'currency', 'date', 'checkbox', 'dropdown', 'multiselect', 'phone', 'email', 'url'].includes(fieldType)) {
+  if (!['text', 'number', 'currency', 'date', 'checkbox', 'dropdown', 'multiselect', 'phone', 'email', 'url', 'address'].includes(fieldType)) {
     return res.status(400).json({ message: 'Ungültiger fieldType.' });
   }
 
@@ -176,7 +176,7 @@ router.patch('/labels/:id', auth, asyncHandler(async (req, res) => {
     if (req.body[field] !== undefined) update[field] = req.body[field];
   }
 
-  if (update.fieldType && !['text', 'number', 'currency', 'date', 'checkbox', 'dropdown', 'multiselect', 'phone', 'email', 'url'].includes(update.fieldType)) {
+  if (update.fieldType && !['text', 'number', 'currency', 'date', 'checkbox', 'dropdown', 'multiselect', 'phone', 'email', 'url', 'address'].includes(update.fieldType)) {
     return res.status(400).json({ message: 'Ungültiger fieldType.' });
   }
 
@@ -482,6 +482,16 @@ router.delete('/:id', auth, asyncHandler(async (req, res) => {
 
   if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
   res.json({ message: 'Lead archiviert.' });
+}));
+
+// Hard delete
+router.delete('/:id/permanent', auth, asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'Ungültige ID.' });
+  }
+  const lead = await Lead.findByIdAndDelete(req.params.id).lean();
+  if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
+  res.json({ message: 'Lead gelöscht.' });
 }));
 
 module.exports = router;
