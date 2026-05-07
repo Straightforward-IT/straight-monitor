@@ -35,22 +35,19 @@ router.get('/', auth, asyncHandler(async (req, res) => {
   if (mitarbeiterId) {
     maFilter._id = mitarbeiterId;
   }
+  // Push standort prefix into the DB query to avoid loading all employees
+  // Validate to a single digit to prevent ReDoS
+  if (standort && /^\d$/.test(standort)) {
+    maFilter.personalnr = { $regex: `^${standort}` };
+  }
 
-  let mitarbeiter = await Mitarbeiter.find(maFilter)
+  const mitarbeiter = await Mitarbeiter.find(maFilter)
     .select('_id vorname nachname personalnr telefon qualifikationen berufe profilbild dispoNotiz kundenwuensche')
     .populate('qualifikationen', 'qualificationKey designation')
     .populate('berufe', 'jobKey designation')
     .populate('kundenwuensche.kunde', 'kundenNr kundName kuerzel')
     .populate('kundenwuensche.angelegtVon', 'vorname nachname')
     .lean();
-
-  // Standort-Filter (personalnr-prefix: 1=Berlin, 2=Hamburg, 3=Köln)
-  if (standort) {
-    mitarbeiter = mitarbeiter.filter(ma => {
-      const pnr = String(ma.personalnr || '').trim();
-      return pnr.startsWith(standort);
-    });
-  }
 
   const maIds = mitarbeiter.map(m => m._id);
   const personalNrs = mitarbeiter

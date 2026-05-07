@@ -1093,13 +1093,10 @@ router.get('/analytics/rechnungen/daily', auth, asyncHandler(async (req, res) =>
   if (kundenNrs.length === 0) return res.json({ data: [], kundenBreakdown: [] });
 
   const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } })
-    .select('kundenNr kundName parentKunde').populate('parentKunde', 'kundenNr kundName').lean();
-  const nrMap   = {};  // child → parent nr
+    .select('kundenNr kundName').lean();
   const nameMap = {};  // nr → display name
   kundenDocs.forEach(k => {
-    const effNr = k.parentKunde ? k.parentKunde.kundenNr : k.kundenNr;
-    nrMap[k.kundenNr]  = effNr;
-    nameMap[effNr] = nameMap[effNr] || (k.parentKunde ? k.parentKunde.kundName : k.kundName) || `#${effNr}`;
+    nameMap[k.kundenNr] = k.kundName || `#${k.kundenNr}`;
   });
 
   const docs = await Rechnung.find({
@@ -1108,20 +1105,19 @@ router.get('/analytics/rechnungen/daily', auth, asyncHandler(async (req, res) =>
   }).select('kundenNr buchDatum dNetto').lean();
 
   const totalMap = {};   // day → { sum, count }
-  const bdownMap = {};   // 'effNr-day' → { kundenNr, kundName, day, sum, count }
+  const bdownMap = {};   // 'knr-day' → { kundenNr, kundName, day, sum, count }
 
   for (const doc of docs) {
     const val = parseFloat((decryptField(doc.dNetto) || '').replace(/,/g, '')) || 0;
     if (!doc.buchDatum) continue;
-    const day   = doc.buchDatum.getDate();
-    const effNr = nrMap[doc.kundenNr] ?? doc.kundenNr;
+    const day = doc.buchDatum.getDate();
 
     if (!totalMap[day]) totalMap[day] = { day, sum: 0, count: 0 };
     totalMap[day].sum   += val;
     totalMap[day].count += 1;
 
-    const bKey = `${effNr}-${day}`;
-    if (!bdownMap[bKey]) bdownMap[bKey] = { kundenNr: effNr, kundName: nameMap[effNr] || `#${effNr}`, day, sum: 0, count: 0 };
+    const bKey = `${doc.kundenNr}-${day}`;
+    if (!bdownMap[bKey]) bdownMap[bKey] = { kundenNr: doc.kundenNr, kundName: nameMap[doc.kundenNr] || `#${doc.kundenNr}`, day, sum: 0, count: 0 };
     bdownMap[bKey].sum   += val;
     bdownMap[bKey].count += 1;
   }

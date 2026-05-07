@@ -2361,11 +2361,11 @@ async function fetchKommentare() {
   endDate.setDate(endDate.getDate() + effectiveTage.value);
   const von = today.toISOString().slice(0, 10);
   const bis = endDate.toISOString().slice(0, 10);
-  // fetch dispo day comments
+  // fetch dispo day comments (date-bounded: today → bis)
   await comments.fetch({ scope: 'dispo_day', von, bis });
-  // fetch chronik for all loaded MA in parallel
-  const maIds = mitarbeiter.value.map(ma => ma._id);
-  await Promise.all(maIds.map(maId => comments.fetch({ scope: 'chronik', mitarbeiterId: maId })));
+  // fetch chronik for all loaded MAs in a single batched request, from today onwards
+  const maIds = mitarbeiter.value.map(ma => String(ma._id));
+  await comments.fetchChronikBatch(maIds, von);
 }
 
 // ─── Filters ───

@@ -166,6 +166,37 @@ export const useComments = defineStore('comments', {
       }
     },
 
+    /**
+     * Fetch chronik entries for multiple MAs in a single request.
+     * @param {string[]} maIds  — array of Mitarbeiter IDs
+     * @param {string}   vonDate — YYYY-MM-DD lower bound on createdAt (e.g. today)
+     */
+    async fetchChronikBatch(maIds, vonDate) {
+      if (!maIds?.length) return;
+      this.loading = true;
+      try {
+        const params = new URLSearchParams({ scope: 'chronik' });
+        params.set('mitarbeiterIds', maIds.join(','));
+        if (vonDate) params.set('vonDate', vonDate);
+
+        const { data } = await api.get(`/api/comments?${params}`);
+
+        // Replace existing chronik items for these MAs with the fresh batch
+        const maSet = new Set(maIds.map(String));
+        this.items = [
+          ...this.items.filter(c => {
+            if (c.scope !== 'chronik') return true;
+            return !maSet.has(String(c.context?.mitarbeiter));
+          }),
+          ...data,
+        ];
+      } catch (err) {
+        console.error('chronik batch fetch fehlgeschlagen:', err);
+      } finally {
+        this.loading = false;
+      }
+    },
+
     async post({ scope, text, context = {} }) {
       const { data } = await api.post('/api/comments', { scope, text, context });
       this.items = [...this.items, data];

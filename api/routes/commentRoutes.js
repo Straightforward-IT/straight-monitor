@@ -19,7 +19,7 @@ const User = require('../models/User');
 
 // ─── GET /api/comments ───
 router.get('/', auth, asyncHandler(async (req, res) => {
-  const { scope, von, bis, mitarbeiterId, resourceId } = req.query;
+  const { scope, von, bis, mitarbeiterId, mitarbeiterIds, vonDate, resourceId } = req.query;
 
   if (!scope) {
     return res.status(400).json({ message: '"scope" ist erforderlich.' });
@@ -27,7 +27,13 @@ router.get('/', auth, asyncHandler(async (req, res) => {
 
   const filter = { scope };
 
-  if (mitarbeiterId) filter['context.mitarbeiter'] = mitarbeiterId;
+  // Single MA filter or batch MA filter (comma-separated list)
+  if (mitarbeiterIds) {
+    const ids = mitarbeiterIds.split(',').filter(Boolean).slice(0, 200); // safety cap
+    filter['context.mitarbeiter'] = { $in: ids };
+  } else if (mitarbeiterId) {
+    filter['context.mitarbeiter'] = mitarbeiterId;
+  }
   if (resourceId)    filter['context.resourceId']  = resourceId;
 
   if (von && bis) {
@@ -35,6 +41,14 @@ router.get('/', auth, asyncHandler(async (req, res) => {
       return res.status(400).json({ message: 'Datumsformat muss YYYY-MM-DD sein.' });
     }
     filter['context.datum'] = { $gte: von, $lte: bis };
+  }
+
+  // Optional: limit chronik / other scopes by creation date (from today onwards)
+  if (vonDate) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(vonDate)) {
+      return res.status(400).json({ message: 'vonDate muss im Format YYYY-MM-DD sein.' });
+    }
+    filter.createdAt = { $gte: new Date(vonDate) };
   }
 
   const comments = await Comment.find(filter).sort({ createdAt: 1 }).lean();

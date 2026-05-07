@@ -5,12 +5,7 @@
       <!-- Toolbar -->
       <div class="leads-toolbar">
         <div class="toolbar-left">
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Leads durchsuchen…"
-            class="search-input"
-          />
+          <SearchBar v-model="searchQuery" class="leads-search-bar" placeholder="Leads durchsuchen…" aria-label="Leads suchen" />
           <button class="btn btn-primary" @click="openCreateModal">
             <font-awesome-icon :icon="['fas', 'plus']" /> Lead
           </button>
@@ -102,9 +97,6 @@
                 <div
                   v-if="lead.kontakt && (lead.kontakt.firma || lead.kontakt.nachname)"
                   class="row-sub"
-                  :class="{ 'row-sub--clickable': getLeadContacts(lead).length > 0 }"
-                  @click.stop="getLeadContacts(lead).length > 0 ? openContactCard(getLeadContacts(lead)[0]) : null"
-                  :title="getLeadContacts(lead).length > 0 ? 'Microsoft Kontakt öffnen' : undefined"
                 >
                   <font-awesome-icon
                     v-if="getLeadContacts(lead).length > 0"
@@ -744,6 +736,7 @@ import {
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
 import ContactCard from './ContactCard.vue';
+import SearchBar from './SearchBar.vue';
 
 library.add(
   faPlus, faXmark, faSpinner, faSliders, faUser, faInfoCircle,
