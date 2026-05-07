@@ -187,7 +187,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   const {
     title, wert, waehrung, stufe, quelle,
     eigentuemer, kunde, kontakt, labels,
-    erwartetesAbschlussDatum, customFields, msContact,
+    erwartetesAbschlussDatum, customFields, msContact, msContacts,
   } = req.body;
 
   if (!title?.trim()) {
@@ -212,6 +212,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     erwartetesAbschlussDatum: erwartetesAbschlussDatum || null,
     customFields: customFields || {},
     msContact: msContact || null,
+    msContacts: Array.isArray(msContacts) ? msContacts : [],
   });
 
   await lead.save();
@@ -235,7 +236,7 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
 
   const allowed = [
     'title', 'wert', 'waehrung', 'status', 'stufe', 'quelle',
-    'eigentuemer', 'kunde', 'kontakt', 'labels', 'msContact',
+    'eigentuemer', 'kunde', 'kontakt', 'labels', 'msContact', 'msContacts',
     'erwartetesAbschlussDatum', 'verlorenGrund', 'customFields',
   ];
 

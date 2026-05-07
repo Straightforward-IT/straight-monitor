@@ -87,12 +87,23 @@ const LeadSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Microsoft Graph contact link
+    // Microsoft Graph contact link (legacy — single contact, kept for backwards compat)
     msContact: {
-      id:          { type: String, default: null }, // Graph contact id
-      upn:         { type: String, default: null }, // mailbox UPN (owner of the contact)
+      id:          { type: String, default: null },
+      upn:         { type: String, default: null },
       displayName: { type: String, default: null },
       email:       { type: String, default: null },
+    },
+
+    // Microsoft Graph contacts — multiple contacts per lead
+    msContacts: {
+      type: [{
+        id:          { type: String },
+        upn:         { type: String },
+        displayName: { type: String },
+        email:       { type: String },
+      }],
+      default: [],
     },
 
     // Embedded contact — used when no Kunde record exists yet

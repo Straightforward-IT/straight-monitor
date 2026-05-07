@@ -11,9 +11,6 @@
             placeholder="Leads durchsuchen…"
             class="search-input"
           />
-        </div>
-
-        <div class="toolbar-center">
           <button class="btn btn-primary" @click="openCreateModal">
             <font-awesome-icon :icon="['fas', 'plus']" /> Lead
           </button>
@@ -105,16 +102,17 @@
                 <div
                   v-if="lead.kontakt && (lead.kontakt.firma || lead.kontakt.nachname)"
                   class="row-sub"
-                  :class="{ 'row-sub--clickable': !!lead.msContact?.id }"
-                  @click.stop="lead.msContact?.id ? openContactCard(lead.msContact) : null"
-                  :title="lead.msContact?.id ? 'Microsoft Kontakt öffnen' : undefined"
+                  :class="{ 'row-sub--clickable': getLeadContacts(lead).length > 0 }"
+                  @click.stop="getLeadContacts(lead).length > 0 ? openContactCard(getLeadContacts(lead)[0]) : null"
+                  :title="getLeadContacts(lead).length > 0 ? 'Microsoft Kontakt öffnen' : undefined"
                 >
                   <font-awesome-icon
-                    v-if="lead.msContact?.id"
+                    v-if="getLeadContacts(lead).length > 0"
                     :icon="['fas', 'address-card']"
                     class="row-sub-icon"
                   />
                   {{ lead.kontakt.firma || `${lead.kontakt.vorname || ''} ${lead.kontakt.nachname || ''}`.trim() }}
+                  <span v-if="getLeadContacts(lead).length > 1" class="contact-count-badge">+{{ getLeadContacts(lead).length - 1 }}</span>
                 </div>
               </td>
               <td class="col-stufe">
@@ -220,17 +218,6 @@
                 />
               </div>
               <div class="kv-item">
-                <label>Stufe</label>
-                <select v-model="detailForm.stufe" class="form-input" @change="saveDetail">
-                  <option value="neu">Neu</option>
-                  <option value="qualifiziert">Qualifiziert</option>
-                  <option value="angebot">Angebot</option>
-                  <option value="verhandlung">Verhandlung</option>
-                  <option value="gewonnen">Gewonnen</option>
-                  <option value="verloren">Verloren</option>
-                </select>
-              </div>
-              <div class="kv-item">
                 <label>Quelle</label>
                 <select v-model="detailForm.quelle" class="form-input" @change="saveDetail">
                   <option :value="null">—</option>
@@ -252,6 +239,20 @@
                 />
               </div>
             </div>
+            <!-- Stufe stepper (full-width, below the grid) -->
+            <div class="stufe-stepper">
+              <button
+                v-for="s in stufeSteps"
+                :key="s.value"
+                class="stufe-step"
+                :class="[`stufe-step--${s.value}`, { active: detailForm.stufe === s.value, done: isStufeBeforeActive(s.value) }]"
+                @click="detailForm.stufe = s.value; saveDetail()"
+                :title="s.label"
+              >
+                <span class="step-dot"></span>
+                <span class="step-label">{{ s.label }}</span>
+              </button>
+            </div>
           </section>
 
           <!-- Contact Info -->
@@ -259,8 +260,13 @@
             <h4 class="section-title">
               <font-awesome-icon :icon="['fas', 'address-book']" /> Kontakt
             </h4>
-            <!-- Microsoft Contact link badge -->
-            <div v-if="selectedLead?.msContact?.id" class="ms-contact-badge ms-contact-badge--clickable" @click="openContactCard(selectedLead.msContact)">
+            <!-- Microsoft Contact badges (one per linked contact) -->
+            <div
+              v-for="c in leadContacts"
+              :key="c.id"
+              class="ms-contact-badge ms-contact-badge--clickable"
+              @click="openContactCard(c)"
+            >
               <div class="ms-logo-grid" aria-hidden="true">
                 <span style="background:#f25022"></span>
                 <span style="background:#7fba00"></span>
@@ -268,19 +274,58 @@
                 <span style="background:#ffb900"></span>
               </div>
               <div class="badge-info">
-                <span class="badge-name">{{ selectedLead.msContact.displayName }}</span>
-                <span class="badge-email">{{ selectedLead.msContact.email }}</span>
+                <span class="badge-name">{{ c.displayName }}</span>
+                <span class="badge-email">{{ c.email }}</span>
               </div>
               <div class="badge-actions" @click.stop>
-                <button class="btn-link" @click="openContactCard(selectedLead.msContact)" title="Kontakt öffnen">
+                <button class="btn-link" @click="openContactCard(c)" title="Kontakt öffnen">
                   <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
                 </button>
-                <button class="btn-link danger" @click="unlinkMsContact" title="Verknüpfung lösen">
+                <button class="btn-link danger" @click="unlinkMsContact(c.id)" title="Verknüpfung lösen">
                   <font-awesome-icon :icon="['fas', 'link-slash']" />
                 </button>
               </div>
             </div>
-            <div class="kv-grid">
+            <!-- Add contact button / inline search -->
+            <div v-if="!addingContact" class="add-contact-row">
+              <button class="btn-add-contact" @click="startAddContact">
+                <font-awesome-icon :icon="['fas', 'plus']" /> Kontakt verknüpfen
+              </button>
+            </div>
+            <div v-else class="inline-contact-search">
+              <div class="search-input-wrap">
+                <input
+                  ref="sidebarSearchInput"
+                  v-model="sidebarContactQuery"
+                  class="form-input"
+                  placeholder="Name oder E-Mail suchen…"
+                  @input="debouncedSidebarSearch"
+                  @keydown.esc="cancelAddContact"
+                />
+                <button class="search-cancel" @click="cancelAddContact" title="Abbrechen">
+                  <font-awesome-icon :icon="['fas', 'xmark']" />
+                </button>
+              </div>
+              <div v-if="sidebarContactResults.length > 0" class="contact-results-list">
+                <button
+                  v-for="c in sidebarContactResults"
+                  :key="c.id"
+                  class="contact-result-item"
+                  @click="linkMsContact(c)"
+                >
+                  <div class="result-name">{{ c.displayName }}</div>
+                  <div class="result-sub">{{ primaryEmailOf(c) || c.companyName || c._team }}</div>
+                </button>
+              </div>
+              <div v-else-if="sidebarContactQuery.trim().length > 0 && !msContactsLoading" class="no-results">
+                Kein Kontakt gefunden.
+              </div>
+              <div v-else-if="msContactsLoading" class="no-results">
+                Kontakte werden geladen…
+              </div>
+            </div>
+            <!-- Manual fields (only when no contacts linked) -->
+            <div v-if="leadContacts.length === 0" class="kv-grid">
               <div class="kv-item">
                 <label>Firma</label>
                 <input v-model="detailForm.kontakt.firma" class="form-input" @blur="saveDetail" />
@@ -687,7 +732,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, reactive, nextTick } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
@@ -748,6 +793,12 @@ const newContactTeam = ref('berlin');
 const allMsContacts = ref([]);
 const msContactsLoading = ref(false);
 
+// Sidebar inline contact search
+const addingContact = ref(false);
+const sidebarContactQuery = ref('');
+const sidebarContactResults = ref([]);
+const sidebarSearchInput = ref(null);
+
 const createForm = reactive({
   title: '',
   wert: null,
@@ -764,8 +815,44 @@ const newField = reactive({
 const newNote = ref('');
 const addingNote = ref(false);
 
+// ─── Stufe stepper ───────────────────────────────────────────────────
+const stufeSteps = [
+  { value: 'neu',          label: 'Neu' },
+  { value: 'qualifiziert', label: 'Qualif.' },
+  { value: 'angebot',      label: 'Angebot' },
+  { value: 'verhandlung',  label: 'Verhdl.' },
+  { value: 'gewonnen',     label: 'Gewon.' },
+  { value: 'verloren',     label: 'Verloren' },
+];
+
+const stufeOrder = stufeSteps.map((s) => s.value);
+
+function isStufeBeforeActive(val) {
+  const active = detailForm.stufe;
+  if (active === 'verloren') return false; // don't color anything "done" for lost
+  const ai = stufeOrder.indexOf(active);
+  const vi = stufeOrder.indexOf(val);
+  return vi < ai;
+}
+
 // ─── Computed ────────────────────────────────────────────────────────
 const visibleLabels = computed(() => labels.value.filter((l) => l.isActive));
+
+// All MS contacts for the currently selected lead (array, handles legacy single-contact field)
+const leadContacts = computed(() => {
+  const lead = selectedLead.value;
+  if (!lead) return [];
+  if (Array.isArray(lead.msContacts) && lead.msContacts.length > 0) return lead.msContacts;
+  if (lead.msContact?.id) return [lead.msContact]; // legacy
+  return [];
+});
+
+// Helper for table rows (same logic without reactive dependency)
+function getLeadContacts(lead) {
+  if (Array.isArray(lead.msContacts) && lead.msContacts.length > 0) return lead.msContacts;
+  if (lead.msContact?.id) return [lead.msContact];
+  return [];
+}
 
 const filteredLeads = computed(() => {
   let list = leads.value.slice();
@@ -1139,12 +1226,20 @@ function openContactCard(msContact) {
 
 function onContactDeleted(contactId) {
   leads.value.forEach((lead) => {
+    if (Array.isArray(lead.msContacts)) {
+      lead.msContacts = lead.msContacts.filter((c) => c.id !== contactId);
+    }
     if (lead.msContact?.id === contactId) {
       lead.msContact = { id: null, upn: null, displayName: null, email: null };
     }
   });
-  if (selectedLead.value?.msContact?.id === contactId) {
-    selectedLead.value.msContact = { id: null, upn: null, displayName: null, email: null };
+  if (selectedLead.value) {
+    if (Array.isArray(selectedLead.value.msContacts)) {
+      selectedLead.value.msContacts = selectedLead.value.msContacts.filter((c) => c.id !== contactId);
+    }
+    if (selectedLead.value.msContact?.id === contactId) {
+      selectedLead.value.msContact = { id: null, upn: null, displayName: null, email: null };
+    }
   }
   selectedMsContact.value = null;
 }
@@ -1153,30 +1248,94 @@ function onContactUpdated(updatedContact) {
   const newDisplay = updatedContact.displayName || '';
   const newEmail = updatedContact.emailAddresses?.[0]?.address || updatedContact.email || '';
   leads.value.forEach((lead) => {
+    const arr = Array.isArray(lead.msContacts) ? lead.msContacts : [];
+    arr.forEach((c) => {
+      if (c.id === updatedContact.id) { c.displayName = newDisplay; c.email = newEmail; }
+    });
     if (lead.msContact?.id === updatedContact.id) {
       lead.msContact.displayName = newDisplay;
       lead.msContact.email = newEmail;
     }
   });
-  if (selectedLead.value?.msContact?.id === updatedContact.id) {
-    selectedLead.value.msContact.displayName = newDisplay;
-    selectedLead.value.msContact.email = newEmail;
+  if (selectedLead.value) {
+    const arr = Array.isArray(selectedLead.value.msContacts) ? selectedLead.value.msContacts : [];
+    arr.forEach((c) => {
+      if (c.id === updatedContact.id) { c.displayName = newDisplay; c.email = newEmail; }
+    });
+    if (selectedLead.value.msContact?.id === updatedContact.id) {
+      selectedLead.value.msContact.displayName = newDisplay;
+      selectedLead.value.msContact.email = newEmail;
+    }
   }
   selectedMsContact.value = updatedContact;
 }
 
-async function unlinkMsContact() {
+async function unlinkMsContact(contactId) {
   if (!selectedLead.value) return;
   if (!confirm('Microsoft Kontakt-Verknüpfung aufheben?')) return;
+  const currentContacts = leadContacts.value;
+  const updated = currentContacts.filter((c) => c.id !== contactId);
   savingDetail.value = true;
   try {
-    const { data } = await api.patch(`/api/leads/${selectedLead.value._id}`, {
-      msContact: { id: null, upn: null, displayName: null, email: null },
-    });
+    const patch = { msContacts: updated };
+    // If migrating from legacy single-contact field, clear it too
+    if (selectedLead.value.msContact?.id === contactId) {
+      patch.msContact = { id: null, upn: null, displayName: null, email: null };
+    }
+    const { data } = await api.patch(`/api/leads/${selectedLead.value._id}`, patch);
     upsertLead(data);
     selectedLead.value = data;
   } finally {
     savingDetail.value = false;
+  }
+}
+
+// ─── Sidebar contact search ──────────────────────────────────────────
+function startAddContact() {
+  addingContact.value = true;
+  sidebarContactQuery.value = '';
+  sidebarContactResults.value = [];
+  nextTick(() => sidebarSearchInput.value?.focus());
+}
+
+function cancelAddContact() {
+  addingContact.value = false;
+  sidebarContactQuery.value = '';
+  sidebarContactResults.value = [];
+}
+
+function debouncedSidebarSearch() {
+  const q = sidebarContactQuery.value.trim().toLowerCase();
+  if (q.length < 1) { sidebarContactResults.value = []; return; }
+  const existingIds = new Set(leadContacts.value.map((c) => c.id));
+  sidebarContactResults.value = allMsContacts.value
+    .filter((c) => !existingIds.has(c.id))
+    .filter((c) =>
+      (c.displayName  || '').toLowerCase().includes(q) ||
+      (c.givenName    || '').toLowerCase().includes(q) ||
+      (c.surname      || '').toLowerCase().includes(q) ||
+      (c.companyName  || '').toLowerCase().includes(q) ||
+      primaryEmailOf(c).toLowerCase().includes(q)
+    ).slice(0, 25);
+}
+
+async function linkMsContact(c) {
+  if (!selectedLead.value) return;
+  const newEntry = {
+    id: c.id,
+    upn: c._upn || c.upn || '',
+    displayName: c.displayName || '',
+    email: primaryEmailOf(c) || '',
+  };
+  const updated = [...leadContacts.value, newEntry];
+  savingDetail.value = true;
+  try {
+    const { data } = await api.patch(`/api/leads/${selectedLead.value._id}`, { msContacts: updated });
+    upsertLead(data);
+    selectedLead.value = data;
+  } finally {
+    savingDetail.value = false;
+    cancelAddContact();
   }
 }
 
@@ -1347,11 +1506,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
     gap: 8px;
   }
 
-  .toolbar-center {
-    flex: 1;
-    min-width: 200px;
-    display: flex;
-    justify-content: center;
+  .toolbar-right {
+    margin-left: auto;
   }
 }
 
@@ -2232,5 +2388,193 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
     &:hover { background: var(--soft); color: var(--text); }
     &.danger { &:hover { color: #ef4444; } }
   }
+}
+
+/* Add-contact row below badges */
+.add-contact-row {
+  margin-top: 4px;
+}
+
+.btn-add-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 7px;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  cursor: pointer;
+  width: 100%;
+  justify-content: center;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 6%, transparent);
+  }
+}
+
+/* Inline contact search inside sidebar */
+.inline-contact-search {
+  margin-top: 4px;
+
+  .search-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    input { flex: 1; }
+  }
+
+  .search-cancel {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+    transition: color 0.12s;
+    &:hover { color: var(--text); }
+  }
+
+  .contact-results-list {
+    margin-top: 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .contact-result-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background 0.1s;
+
+    &:last-child { border-bottom: none; }
+    &:hover { background: var(--hover); }
+
+    .result-name { font-size: 0.875rem; color: var(--text); }
+    .result-sub  { font-size: 0.78rem; color: var(--muted); }
+  }
+
+  .no-results { font-size: 0.82rem; color: var(--muted); padding: 8px 0; }
+}
+
+/* Count badge in table row */
+.contact-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--primary);
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  margin-left: 4px;
+}
+
+/* Stufe stepper */
+.stufe-stepper {
+  display: flex;
+  align-items: flex-start;
+  margin-top: 12px;
+  position: relative;
+
+  // connecting line behind dots
+  &::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    height: 2px;
+    background: var(--border);
+    z-index: 0;
+  }
+}
+
+.stufe-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 2px;
+  position: relative;
+  z-index: 1;
+
+  .step-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    transition: background 0.18s, border-color 0.18s, transform 0.15s;
+    display: block;
+    flex-shrink: 0;
+  }
+
+  .step-label {
+    font-size: 0.68rem;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.2;
+    transition: color 0.15s, font-weight 0.15s;
+    white-space: nowrap;
+  }
+
+  &:hover .step-dot {
+    transform: scale(1.15);
+    border-color: #93c5fd;
+  }
+
+  // Done (before active) — blue
+  &.done {
+    .step-dot {
+      background: #60a5fa;
+      border-color: #60a5fa;
+    }
+    .step-label { color: #3b82f6; }
+  }
+
+  // neu active — light blue
+  &--neu.active .step-dot   { background: #93c5fd; border-color: #3b82f6; transform: scale(1.2); }
+  &--neu.active .step-label { color: #2563eb; font-weight: 600; }
+
+  // qualifiziert — medium blue
+  &--qualifiziert.active .step-dot   { background: #60a5fa; border-color: #2563eb; transform: scale(1.2); }
+  &--qualifiziert.active .step-label { color: #1d4ed8; font-weight: 600; }
+
+  // angebot — blue-yellow transition
+  &--angebot.active .step-dot   { background: #fcd34d; border-color: #f59e0b; transform: scale(1.2); }
+  &--angebot.active .step-label { color: #d97706; font-weight: 600; }
+
+  // verhandlung — yellow/amber
+  &--verhandlung.active .step-dot   { background: #fbbf24; border-color: #d97706; transform: scale(1.2); }
+  &--verhandlung.active .step-label { color: #b45309; font-weight: 600; }
+
+  // gewonnen — green
+  &--gewonnen.active .step-dot   { background: #4ade80; border-color: #16a34a; transform: scale(1.2); }
+  &--gewonnen.active .step-label { color: #15803d; font-weight: 600; }
+
+  // verloren — red/gray
+  &--verloren.active .step-dot   { background: #f87171; border-color: #dc2626; transform: scale(1.2); }
+  &--verloren.active .step-label { color: #dc2626; font-weight: 600; }
 }
 </style>

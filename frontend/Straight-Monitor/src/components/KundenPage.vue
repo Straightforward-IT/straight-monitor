@@ -75,11 +75,6 @@
             <SearchBar v-model="searchQuery" class="kunden-search-bar" placeholder="Kunden suchen…" aria-label="Kunden suchen" />
             <span class="count-tag">{{ filteredKunden.length }} Kunden</span>
            </div>
-           
-           <button class="btn-group" @click="showMergeModal = true">
-             <font-awesome-icon :icon="['fas', 'object-group']" />
-             Gruppieren
-           </button>
         </div>
         
         <div v-if="isLoading" class="loading-state">
@@ -101,7 +96,6 @@
               <div class="card-header">
                 <div class="card-title-block">
                   <h3>{{ kunde.kundName || 'Unbenannt' }}</h3>
-                  <span v-if="isSuperKunde(kunde)" class="super-kunde-tag">Super-Kunde</span>
                 </div>
                 <div class="card-header-right">
                   <span class="status-badge" :class="getStatusClass(kunde.kundStatus)">
@@ -267,12 +261,6 @@
 
     </div>
 
-    <KundenMergeModal 
-      :is-open="showMergeModal" 
-      @close="showMergeModal = false" 
-      @saved="dataCache.loadKunden(true)" 
-    />
-
     <KundenWatchlistReportModal
       v-if="showReportModal"
       @close="showReportModal = false"
@@ -372,7 +360,6 @@ import CustomerCard from './CustomerCard.vue';
 import CustomTooltip from './CustomTooltip.vue';
 import KundenAnalytics from './KundenAnalytics.vue';
 import LeadsTab from './LeadsTab.vue';
-import KundenMergeModal from './KundenMergeModal.vue';
 import KundenWatchlistReportModal from './KundenWatchlistReportModal.vue';
 import ContextMenu from './ContextMenu.vue';
 import SearchBar from './SearchBar.vue';
@@ -399,7 +386,6 @@ const tabs = computed(() => baseTabs.filter(t => {
 }));
 
 const currentTab = ref('overview');
-const showMergeModal = ref(false);
 const showReportModal = ref(false);
 const searchQuery = ref('');
 const isLoading = ref(false);
@@ -510,46 +496,6 @@ function openCustomer(kunde) {
 
 const allKunden = computed(() => dataCache.kunden || []);
 
-function getParentKundeId(kunde) {
-  if (!kunde?.parentKunde) return null;
-  return typeof kunde.parentKunde === 'object' ? kunde.parentKunde._id : kunde.parentKunde;
-}
-
-const superKundeIds = computed(() => {
-  const ids = new Set();
-  for (const kunde of allKunden.value) {
-    const parentId = getParentKundeId(kunde);
-    if (parentId) ids.add(parentId.toString());
-  }
-  return ids;
-});
-
-const childGeschStByParentId = computed(() => {
-  const map = new Map();
-  for (const kunde of allKunden.value) {
-    const parentId = getParentKundeId(kunde);
-    if (!parentId || !kunde.geschSt) continue;
-
-    const key = parentId.toString();
-    if (!map.has(key)) map.set(key, new Set());
-    map.get(key).add(String(kunde.geschSt));
-  }
-  return map;
-});
-
-function isSuperKunde(kunde) {
-  return !!kunde?._id && superKundeIds.value.has(kunde._id.toString());
-}
-
-function matchesGeschStFilter(kunde, geschSt) {
-  if (!geschSt) return true;
-  if (String(kunde.geschSt) === String(geschSt)) return true;
-  if (!isSuperKunde(kunde)) return false;
-
-  const childGeschSt = childGeschStByParentId.value.get(kunde._id.toString());
-  return !!childGeschSt && childGeschSt.has(String(geschSt));
-}
-
 const watchlistedKunden = computed(() => {
   const ids = new Set((auth.kundenWatchlist || []).map(id => id.toString()));
   return allKunden.value.filter(k => ids.has(k._id.toString()));
@@ -588,7 +534,7 @@ function processData(list) {
 
   // Filter: GeschSt
   if (filters.value.geschSt) {
-    result = result.filter(k => matchesGeschStFilter(k, filters.value.geschSt));
+    result = result.filter(k => String(k.geschSt) === String(filters.value.geschSt));
   }
 
   // Filter: Status (only applied if set)
@@ -1068,21 +1014,6 @@ watch(currentTab, (tab) => {
   font-size: 16px;
   font-weight: 600;
   color: var(--text);
-}
-
-.super-kunde-tag {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--primary);
-  color: var(--primary);
-  background: transparent;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .status-badge {

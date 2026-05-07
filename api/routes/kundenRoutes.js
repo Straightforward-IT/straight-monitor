@@ -84,7 +84,6 @@ async function getKundenCountMapForMitarbeiter(mitarbeiterId) {
 // @access  Private
 router.get('/', auth, asyncHandler(async (req, res) => {
   const kunden = await Kunde.find()
-    .populate('parentKunde', 'kundName kundenNr') // Populate Parent info
     .populate('kontakte.angelegtVon', 'name email')
     .populate('kontakte.kommentare.verfasser', 'name email')
     .sort({ kundName: 1 });
@@ -191,17 +190,8 @@ router.get('/analytics/einsaetze', auth, asyncHandler(async (req, res) => {
     const explicitNrs = kundenNr.split(',').map(Number).filter(n => !isNaN(n));
     kundenNrs = [...explicitNrs];
 
-    // Check optional: Should we include children if a Parent is selected?
-    // Yes, find IDs of the selected customers
-    const parents = await Kunde.find({ kundenNr: { $in: explicitNrs } }).select('_id kundenNr');
-    const parentIds = parents.map(p => p._id);
-    
-    // Find children
-    const children = await Kunde.find({ parentKunde: { $in: parentIds } }).distinct('kundenNr');
-    kundenNrs.push(...children);
-    
     // De-duplicate
-    kundenNrs = [...new Set(kundenNrs)];
+    kundenNrs = [...new Set(explicitNrs)];
 
     // Filter by Standort if provided
     if (geschSt) {
@@ -220,21 +210,9 @@ router.get('/analytics/einsaetze', auth, asyncHandler(async (req, res) => {
     return res.json({ data: [], breakdown: [] });
   }
 
-  // 2. Finde alle Aufträge dieser Kunden (mit kundenNr-Zuordnung)
-  // Fetch Kunde docs to map children to parents
-  const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } }).select('kundenNr parentKunde').populate('parentKunde');
-  
-  // Create Map: kundenNr -> effectiveNr (Parent's Nr if exists and parent is in the selection or if we just want to aggregate up)
-  // Actually, we should always map to Parent if it exists? 
-  // The user wants "displayed as one customer". So if we have Child -> Parent, we map Child Data to Parent.
+  // Simple identity map (no parent aggregation)
   const nrMap = {};
-  kundenDocs.forEach(k => {
-    if (k.parentKunde) {
-      nrMap[k.kundenNr] = k.parentKunde.kundenNr;
-    } else {
-      nrMap[k.kundenNr] = k.kundenNr;
-    }
-  });
+  kundenNrs.forEach(nr => { nrMap[nr] = nr; });
 
   const auftraege = await Auftrag.find({ kundenNr: { $in: kundenNrs } }).select('auftragNr kundenNr');
 
@@ -414,12 +392,7 @@ router.get('/analytics/einsaetze/standort', auth, asyncHandler(async (req, res) 
   let kundenNrs = [];
   if (kundenNr) {
     const explicitNrs = kundenNr.split(',').map(Number).filter(n => !isNaN(n));
-    kundenNrs = [...explicitNrs];
-    const parents = await Kunde.find({ kundenNr: { $in: explicitNrs } }).select('_id kundenNr');
-    const parentIds = parents.map(p => p._id);
-    const children = await Kunde.find({ parentKunde: { $in: parentIds } }).distinct('kundenNr');
-    kundenNrs.push(...children);
-    kundenNrs = [...new Set(kundenNrs)];
+    kundenNrs = [...new Set(explicitNrs)];
   } else {
     const kunden = await Kunde.find().select('kundenNr');
     kundenNrs = kunden.map(k => k.kundenNr);
@@ -430,15 +403,10 @@ router.get('/analytics/einsaetze/standort', auth, asyncHandler(async (req, res) 
   }
 
   // 2. Map kundenNr -> geschSt
-  const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } }).select('kundenNr geschSt parentKunde').populate('parentKunde', 'geschSt');
+  const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } }).select('kundenNr geschSt');
   const nrToGeschSt = {};
   kundenDocs.forEach(k => {
-    // Use parent's geschSt if child, otherwise own
-    if (k.parentKunde && k.parentKunde.geschSt) {
-      nrToGeschSt[k.kundenNr] = k.parentKunde.geschSt;
-    } else {
-      nrToGeschSt[k.kundenNr] = k.geschSt || 'unbekannt';
-    }
+    nrToGeschSt[k.kundenNr] = k.geschSt || 'unbekannt';
   });
 
   // 3. Aufträge
@@ -594,12 +562,7 @@ router.get('/analytics/einsaetze/daily', auth, asyncHandler(async (req, res) => 
   let kundenNrs = [];
   if (kundenNr) {
     const explicitNrs = kundenNr.split(',').map(Number).filter(n => !isNaN(n));
-    kundenNrs = [...explicitNrs];
-    const parents = await Kunde.find({ kundenNr: { $in: explicitNrs } }).select('_id kundenNr');
-    const parentIds = parents.map(p => p._id);
-    const children = await Kunde.find({ parentKunde: { $in: parentIds } }).distinct('kundenNr');
-    kundenNrs.push(...children);
-    kundenNrs = [...new Set(kundenNrs)];
+    kundenNrs = [...new Set(explicitNrs)];
 
     // Filter by Standort if provided
     if (geschSt) {
@@ -734,14 +697,7 @@ router.get('/analytics/kennzahlen', auth, asyncHandler(async (req, res) => {
 
   const kNr = Number(kundenNr);
 
-  // Resolve kundenNr to also include sub-kunden (parentKunde)
-  const mainKunde = await Kunde.findOne({ kundenNr: kNr }).select('_id').lean();
-  let kundenNrs = [kNr];
-  if (mainKunde) {
-    const children = await Kunde.find({ parentKunde: mainKunde._id }).distinct('kundenNr');
-    kundenNrs.push(...children);
-  }
-  kundenNrs = [...new Set(kundenNrs)];
+  const kundenNrs = [kNr];
 
   // All Auftrag numbers for this customer
   const auftraege = await Auftrag.find({ kundenNr: { $in: kundenNrs } }).select('auftragNr').lean();
@@ -984,48 +940,6 @@ router.post('/:id/kontakte', auth, asyncHandler(async (req, res) => {
 }));
 
 
-// @route   POST /api/kunden/group
-// @desc    Kunden gruppieren (Parent zuweisen oder erstellen)
-// @body    { childIds: [], parentId?: string, newParentName?: string }
-router.post('/group', auth, asyncHandler(async (req, res) => {
-  const { childIds, parentId, newParentName } = req.body;
-
-  if (!childIds || !Array.isArray(childIds) || childIds.length === 0) {
-    return res.status(400).json({ message: 'No child customers selected' });
-  }
-
-  let parentKundeId;
-
-  if (parentId) {
-    // Existing parent
-    const p = await Kunde.findById(parentId);
-    if (!p) return res.status(404).json({ message: 'Parent customer not found' });
-    parentKundeId = p._id;
-  } else if (newParentName) {
-    // Create new SuperKunde
-    const last = await Kunde.findOne().sort({ kundenNr: -1 });
-    let newNr = (last && last.kundenNr) ? last.kundenNr + 1 : 100000;
-    if (newNr < 100000) newNr = 100000;
-
-    const newParent = await Kunde.create({
-      kundenNr: newNr,
-      kundName: newParentName,
-      kundStatus: 2
-    });
-    parentKundeId = newParent._id;
-  } else {
-    return res.status(400).json({ message: 'Provide parentId or newParentName' });
-  }
-
-  // Update children
-  await Kunde.updateMany(
-    { _id: { $in: childIds } },
-    { $set: { parentKunde: parentKundeId } }
-  );
-
-  res.json({ success: true, parentId: parentKundeId });
-}));
-
 // ─── Rechnungen Analytics ─────────────────────────────────────────────────────
 //
 // NOTE: eurNetto is AES-256-GCM encrypted in the DB, so MongoDB cannot aggregate
@@ -1049,10 +963,7 @@ async function resolveKundenNrs(kundenNr, geschSt) {
   let kundenNrs = [];
   if (kundenNr) {
     const explicit = kundenNr.split(',').map(Number).filter(n => !isNaN(n));
-    kundenNrs = [...explicit];
-    const parents = await Kunde.find({ kundenNr: { $in: explicit } }).select('_id');
-    const children = await Kunde.find({ parentKunde: { $in: parents.map(p => p._id) } }).distinct('kundenNr');
-    kundenNrs = [...new Set([...kundenNrs, ...children])];
+    kundenNrs = [...new Set(explicit)];
     if (geschSt) {
       const valid = await Kunde.find({ kundenNr: { $in: kundenNrs }, geschSt }).distinct('kundenNr');
       kundenNrs = valid;
@@ -1083,14 +994,6 @@ router.get('/analytics/rechnungen', auth, asyncHandler(async (req, res) => {
 
   const docs = await Rechnung.find(match).select('kundenNr buchDatum dNetto').lean();
 
-  // Build parent-mapping for breakdown (child knr → parent knr)
-  const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } })
-    .select('kundenNr parentKunde').populate('parentKunde', 'kundenNr').lean();
-  const nrMap = {};
-  kundenDocs.forEach(k => {
-    nrMap[k.kundenNr] = k.parentKunde ? k.parentKunde.kundenNr : k.kundenNr;
-  });
-
   const totalMap = {};  // 'year-month' → { year, month, sum, count }
   const bdownMap = {};  // 'knr-year-month' → { kundenNr, year, month, sum, count }
 
@@ -1106,9 +1009,8 @@ router.get('/analytics/rechnungen', auth, asyncHandler(async (req, res) => {
     totalMap[tKey].count += 1;
 
     if (kundenNr) {
-      const effNr = nrMap[doc.kundenNr] ?? doc.kundenNr;
-      const bKey = `${effNr}-${year}-${month}`;
-      if (!bdownMap[bKey]) bdownMap[bKey] = { kundenNr: effNr, year, month, sum: 0, count: 0 };
+      const bKey = `${doc.kundenNr}-${year}-${month}`;
+      if (!bdownMap[bKey]) bdownMap[bKey] = { kundenNr: doc.kundenNr, year, month, sum: 0, count: 0 };
       bdownMap[bKey].sum   += val;
       bdownMap[bKey].count += 1;
     }
@@ -1130,12 +1032,10 @@ router.get('/analytics/rechnungen/standort', auth, asyncHandler(async (req, res)
   if (kundenNrs.length === 0) return res.json({ data: [], standortBreakdown: [] });
 
   const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } })
-    .select('kundenNr geschSt parentKunde').populate('parentKunde', 'geschSt').lean();
+    .select('kundenNr geschSt').lean();
   const nrToGeschSt = {};
   kundenDocs.forEach(k => {
-    nrToGeschSt[k.kundenNr] = (k.parentKunde && k.parentKunde.geschSt)
-      ? k.parentKunde.geschSt
-      : (k.geschSt || 'unbekannt');
+    nrToGeschSt[k.kundenNr] = k.geschSt || 'unbekannt';
   });
 
   const match = { kundenNr: { $in: kundenNrs } };

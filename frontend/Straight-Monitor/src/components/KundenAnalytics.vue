@@ -799,7 +799,7 @@ const umsatzDrillKunden = ref([]);        // [{ kundenNr, kundName, days, total 
 // All top-level non-Straightforward customer NRs (used to always exclude SF in Gesamt/Standort mode)
 const nonSFKundenNrs = computed(() =>
   (dataCache.kunden || [])
-    .filter(k => k.kundenNr && !k.parentKunde)
+    .filter(k => k.kundenNr)
     .filter(k => !(k.kundName || '').toLowerCase().includes('straightforward'))
     .map(k => k.kundenNr)
 );
@@ -898,30 +898,9 @@ const COLORS = [
 const kundenByStandort = computed(() => {
   let list = [...(dataCache.kunden || [])].filter(k => k.kundenNr);
 
-  // Determine Parents who have active children
-  const parentNrsWithActiveChildren = new Set();
-  list.forEach(k => {
-    // If this customer has orders AND has a parent, the parent is relevant
-    if (activeKundenIds.value.has(k.kundenNr) && k.parentKunde) {
-       const pNr = typeof k.parentKunde === 'object' ? k.parentKunde.kundenNr : null;
-       // Note: assumes parentKunde is populated. If it's just ID, we can't get Nr easily unless we look it up.
-       // Our API populates it.
-       if (pNr) parentNrsWithActiveChildren.add(pNr);
-    }
-  });
-  
-  // Filter logic
+  // Filter: only show customers with orders (or all if none tracked yet)
   list = list.filter(k => {
-     // A) If filtered by orders, check if 'k' is active OR is a parent of active child
-     // AND B) Hide children (customers who have a parent)
-     
-     if (k.parentKunde) return false; // Hide children
-
-     const isActiveSelf = activeKundenIds.value.has(k.kundenNr);
-     const isActiveParent = parentNrsWithActiveChildren.has(k.kundenNr);
-     
-     // Only show if relevant
-     return (activeKundenIds.value.size === 0) || isActiveSelf || isActiveParent;
+    return (activeKundenIds.value.size === 0) || activeKundenIds.value.has(k.kundenNr);
   });
 
   // Filter 2: Standort
