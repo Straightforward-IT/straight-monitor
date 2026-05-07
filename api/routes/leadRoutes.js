@@ -6,6 +6,37 @@ const asyncHandler = require('../middleware/AsyncHandler');
 const Lead = require('../models/Lead');
 const LeadLabel = require('../models/LeadLabel');
 const User = require('../models/User');
+const Comment = require('../models/Comment');
+
+// ─── Label maps for human-readable system events ────────────────────
+const STUFE_LABELS = {
+  neu: 'Neu', qualifiziert: 'Qualifiziert', angebot: 'Angebot',
+  verhandlung: 'Verhandlung', gewonnen: 'Gewonnen', verloren: 'Verloren',
+};
+const STATUS_LABELS = {
+  open: 'Offen', won: 'Gewonnen', lost: 'Verloren', archived: 'Archiviert',
+};
+const QUELLE_LABELS = {
+  web: 'Web', messe: 'Messe', empfehlung: 'Empfehlung',
+  kaltakquise: 'Kaltakquise', social_media: 'Social Media', sonstiges: 'Sonstiges',
+};
+
+// ─── Create a system event in the lead chronik ──────────────────────
+async function createChronikEvent(leadId, authorId, authorName, text) {
+  try {
+    await Comment.create({
+      scope: 'lead_chronik',
+      text,
+      author: authorName,
+      authorId,
+      readBy: [authorId],
+      isSystem: true,
+      context: { resourceId: leadId, resourceType: 'Lead' },
+    });
+  } catch (_) {
+    // Non-critical — don't block main flow
+  }
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Helper
@@ -217,11 +248,17 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 
   await lead.save();
 
-  const populated = await Lead.findById(lead._id)
-    .populate('eigentuemer', 'name email')
-    .populate('angelegtVon', 'name email')
-    .populate('kunde', 'kundName kundenNr')
-    .lean();
+  const [populated, creatorUser] = await Promise.all([
+    Lead.findById(lead._id)
+      .populate('eigentuemer', 'name email')
+      .populate('angelegtVon', 'name email')
+      .populate('kunde', 'kundName kundenNr')
+      .lean(),
+    User.findById(req.user.id).select('name email').lean(),
+  ]);
+
+  const uName = creatorUser?.name || creatorUser?.email || 'Unbekannt';
+  createChronikEvent(lead._id, req.user.id, uName, `${uName} – Lead erstellt.`);
 
   res.status(201).json(populated);
 }));
@@ -249,6 +286,17 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   if (update.status === 'won')  update.stufe = 'gewonnen';
   if (update.status === 'lost') update.stufe = 'verloren';
 
+  // Fetch old state for chronik diff (before update)
+  const [oldLead, patchUser] = await Promise.all([
+    Lead.findById(req.params.id)
+      .populate('eigentuemer', 'name email')
+      .populate('kunde', 'kundName')
+      .lean(),
+    User.findById(req.user.id).select('name email').lean(),
+  ]);
+
+  if (!oldLead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
+
   const lead = await Lead.findByIdAndUpdate(
     req.params.id,
     { $set: update },
@@ -260,6 +308,69 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
     .lean();
 
   if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
+
+  // ─── Generate chronik system events ─────────────────────────────
+  const uName = patchUser?.name || patchUser?.email || 'Unbekannt';
+  const events = [];
+
+  if (update.status !== undefined && String(update.status) !== String(oldLead.status)) {
+    events.push(`${uName} – Status geändert: ${STATUS_LABELS[oldLead.status] || oldLead.status} → ${STATUS_LABELS[update.status] || update.status}`);
+  }
+  if (update.stufe !== undefined && String(update.stufe) !== String(oldLead.stufe)) {
+    events.push(`${uName} – Stufe geändert: ${STUFE_LABELS[oldLead.stufe] || oldLead.stufe} → ${STUFE_LABELS[update.stufe] || update.stufe}`);
+  }
+  if (update.title !== undefined && update.title.trim() !== (oldLead.title || '').trim()) {
+    events.push(`${uName} – Titel geändert: „${oldLead.title}" → „${update.title}"`);
+  }
+  if (update.wert !== undefined && Number(update.wert) !== Number(oldLead.wert)) {
+    const from = oldLead.wert != null ? `${oldLead.wert} ${oldLead.waehrung || 'EUR'}` : '—';
+    const to   = update.wert != null  ? `${update.wert} ${update.waehrung || oldLead.waehrung || 'EUR'}` : '—';
+    events.push(`${uName} – Wert geändert: ${from} → ${to}`);
+  }
+  if (update.quelle !== undefined && String(update.quelle || '') !== String(oldLead.quelle || '')) {
+    const from = QUELLE_LABELS[oldLead.quelle] || oldLead.quelle || '—';
+    const to   = QUELLE_LABELS[update.quelle]  || update.quelle  || '—';
+    events.push(`${uName} – Quelle geändert: ${from} → ${to}`);
+  }
+  if (update.erwartetesAbschlussDatum !== undefined) {
+    const oldDate = oldLead.erwartetesAbschlussDatum
+      ? new Date(oldLead.erwartetesAbschlussDatum).toLocaleDateString('de-DE') : '—';
+    const newDate = update.erwartetesAbschlussDatum
+      ? new Date(update.erwartetesAbschlussDatum).toLocaleDateString('de-DE') : '—';
+    if (oldDate !== newDate) events.push(`${uName} – Erw. Abschluss geändert: ${oldDate} → ${newDate}`);
+  }
+  if (update.verlorenGrund !== undefined && update.verlorenGrund && update.verlorenGrund !== oldLead.verlorenGrund) {
+    events.push(`${uName} – Verloren-Grund: ${update.verlorenGrund}`);
+  }
+  if (update.kunde !== undefined) {
+    const oldKundeId = String(oldLead.kunde?._id || oldLead.kunde || '');
+    const newKundeId = String(lead.kunde?._id || lead.kunde || '');
+    if (oldKundeId !== newKundeId) {
+      if (lead.kunde) events.push(`${uName} – Kunde verknüpft: ${lead.kunde.kundName || newKundeId}`);
+      else            events.push(`${uName} – Kunde entfernt: ${oldLead.kunde?.kundName || '—'}`);
+    }
+  }
+  if (update.msContacts !== undefined) {
+    const oldIds = new Set((oldLead.msContacts || []).map(c => c.id).filter(Boolean));
+    const newIds = new Set((update.msContacts   || []).map(c => c.id).filter(Boolean));
+    for (const c of (update.msContacts || []).filter(c => !oldIds.has(c.id)))
+      events.push(`${uName} – Kontakt verknüpft: ${c.displayName || c.email || c.id}`);
+    for (const c of (oldLead.msContacts || []).filter(c => !newIds.has(c.id)))
+      events.push(`${uName} – Kontakt entfernt: ${c.displayName || c.email || c.id}`);
+  }
+
+  if (events.length > 0) {
+    Comment.insertMany(events.map(text => ({
+      scope: 'lead_chronik',
+      text,
+      author: uName,
+      authorId: req.user.id,
+      readBy: [req.user.id],
+      isSystem: true,
+      context: { resourceId: lead._id, resourceType: 'Lead' },
+    }))).catch(() => {});
+  }
+
   res.json(lead);
 }));
 

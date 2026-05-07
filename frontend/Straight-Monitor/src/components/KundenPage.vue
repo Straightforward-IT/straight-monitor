@@ -15,7 +15,7 @@
       </button>
     </div>
 
-    <div class="content-section">
+    <div class="content-section" :class="{ 'content-section--flush': currentTab === 'leads' }">
       
       <!-- Shared Filter Panel (Not for Analytics/Kontakte/Leads) -->
       <FilterPanel 
@@ -902,6 +902,11 @@ watch(currentTab, (tab) => {
   border: 1px solid var(--border);
   padding: 24px;
   overflow-y: auto;
+}
+
+.content-section--flush {
+  padding: 0;
+  overflow: clip;
 }
 
 .toolbar {

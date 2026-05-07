@@ -29,6 +29,8 @@ const CommentSchema = new mongoose.Schema(
 
     readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 
+    isSystem: { type: Boolean, default: false },
+
     context: {
       mitarbeiter: { type: mongoose.Schema.Types.ObjectId, ref: 'Mitarbeiter', index: true },
       datum:        { type: String },                // 'YYYY-MM-DD'

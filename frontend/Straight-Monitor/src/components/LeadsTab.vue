@@ -83,9 +83,8 @@
             </tr>
           </thead>
           <tbody>
+            <template v-for="lead in filteredLeads" :key="lead._id">
             <tr
-              v-for="lead in filteredLeads"
-              :key="lead._id"
               :class="{ active: selectedLead && selectedLead._id === lead._id }"
               @click="openLead(lead)"
             >
@@ -94,18 +93,6 @@
               </td>
               <td class="col-title">
                 <strong>{{ lead.title }}</strong>
-                <div
-                  v-if="lead.kontakt && (lead.kontakt.firma || lead.kontakt.nachname)"
-                  class="row-sub"
-                >
-                  <font-awesome-icon
-                    v-if="getLeadContacts(lead).length > 0"
-                    :icon="['fas', 'address-card']"
-                    class="row-sub-icon"
-                  />
-                  {{ lead.kontakt.firma || `${lead.kontakt.vorname || ''} ${lead.kontakt.nachname || ''}`.trim() }}
-                  <span v-if="getLeadContacts(lead).length > 1" class="contact-count-badge">+{{ getLeadContacts(lead).length - 1 }}</span>
-                </div>
               </td>
               <td class="col-stufe">
                 <span class="stufe-chip" :class="`stufe-${lead.stufe}`">
@@ -139,6 +126,85 @@
                 </button>
               </td>
             </tr>
+            <!-- Inline Chronik row -->
+            <tr
+              v-if="chronikExpandedLeadId === lead._id"
+              class="chronik-inline-row"
+              @click.stop
+            >
+              <td :colspan="8 + visibleLabels.length" class="chronik-inline-cell">
+                <div class="chronik-inline-panel">
+                  <div class="chronik-inline-header">
+                    <font-awesome-icon :icon="['fas', 'clock-rotate-left']" />
+                    <strong>Chronik</strong>
+                    <span class="count-pill">{{ chronikEntries.length }}</span>
+                  </div>
+
+                  <div class="chronik-inline-body">
+                    <div ref="chronikFeedEl" class="chronik-inline-feed">
+                      <div v-if="loadingChronik" class="chronik-empty">
+                        <font-awesome-icon :icon="['fas', 'spinner']" spin />
+                      </div>
+                      <div v-else-if="chronikEntries.length === 0" class="chronik-empty">
+                        Noch keine Einträge.
+                      </div>
+                      <div v-else class="chronik-timeline">
+                        <div
+                          v-for="entry in chronikEntries"
+                          :key="entry._id"
+                          class="chronik-entry"
+                          :class="{ 'chronik-entry--system': entry.isSystem }"
+                        >
+                          <div class="chronik-dot">
+                            <font-awesome-icon
+                              v-if="entry.isSystem"
+                              :icon="['fas', 'circle-dot']"
+                              class="dot-icon dot-icon--system"
+                            />
+                            <span v-else class="dot-avatar">{{ initials(entry.author) }}</span>
+                          </div>
+                          <div class="chronik-content">
+                            <div class="chronik-meta">
+                              <span v-if="!entry.isSystem" class="chronik-author">{{ entry.author }}</span>
+                              <span class="chronik-time">{{ formatDateTime(entry.createdAt) }}</span>
+                            </div>
+                            <div class="chronik-text-wrap">
+                              <p class="chronik-text">{{ entry.text }}</p>
+                              <button
+                                v-if="!entry.isSystem && canDeleteChronik(entry)"
+                                class="btn-link danger chronik-delete"
+                                @click="deleteChronikEntry(entry._id)"
+                                title="Löschen"
+                              >
+                                <font-awesome-icon :icon="['fas', 'trash']" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="chronik-inline-compose">
+                      <textarea
+                        v-model="newChronikText"
+                        placeholder="Kommentar hinzufügen…"
+                        class="note-textarea"
+                        rows="2"
+                        @keydown.ctrl.enter.prevent="addChronikEntry"
+                      ></textarea>
+                      <button
+                        class="btn btn-primary"
+                        :disabled="!newChronikText.trim() || addingChronik"
+                        @click="addChronikEntry"
+                      >
+                        <font-awesome-icon :icon="['fas', addingChronik ? 'spinner' : 'paper-plane']" :spin="addingChronik" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -411,43 +477,6 @@
             </div>
           </section>
 
-          <!-- Notizen -->
-          <section class="info-section">
-            <h4 class="section-title">
-              <font-awesome-icon :icon="['fas', 'note-sticky']" /> Notizen
-              <span class="count-pill">{{ selectedLead.notizen?.length || 0 }}</span>
-            </h4>
-
-            <div class="note-input-row">
-              <textarea
-                v-model="newNote"
-                placeholder="Notiz hinzufügen…"
-                class="note-textarea"
-                rows="2"
-              ></textarea>
-              <button
-                class="btn btn-primary"
-                :disabled="!newNote.trim() || addingNote"
-                @click="addNote"
-              >
-                <font-awesome-icon :icon="['fas', addingNote ? 'spinner' : 'paper-plane']" :spin="addingNote" />
-              </button>
-            </div>
-
-            <div class="notes-list">
-              <div
-                v-for="(note, idx) in (selectedLead.notizen || []).slice().reverse()"
-                :key="idx"
-                class="note-item"
-              >
-                <div class="note-meta">
-                  <strong>{{ note.verfasserName || note.verfasser?.name || 'Unbekannt' }}</strong>
-                  <span>{{ formatDateTime(note.createdAt) }}</span>
-                </div>
-                <div class="note-text">{{ note.text }}</div>
-              </div>
-            </div>
-          </section>
         </div>
       </aside>
     </transition>
@@ -808,6 +837,81 @@ const newField = reactive({
 const newNote = ref('');
 const addingNote = ref(false);
 
+// ─── Chronik ─────────────────────────────────────────────────────────
+const chronikEntries = ref([]);
+const loadingChronik = ref(false);
+const newChronikText = ref('');
+const addingChronik = ref(false);
+const chronikExpandedLeadId = ref(null);
+const chronikLead = ref(null);
+const chronikFeedEl = ref(null);
+
+watch(chronikEntries, () => {
+  requestAnimationFrame(() => {
+    const el = Array.isArray(chronikFeedEl.value) ? chronikFeedEl.value[0] : chronikFeedEl.value;
+    if (el) el.scrollTop = el.scrollHeight;
+  });
+}, { flush: 'post' });
+
+async function loadChronik(leadId) {
+  loadingChronik.value = true;
+  try {
+    const { data } = await api.get('/api/comments', {
+      params: { scope: 'lead_chronik', resourceId: leadId },
+    });
+    chronikEntries.value = data;
+  } catch (e) {
+    console.error('Chronik laden fehlgeschlagen', e);
+  } finally {
+    loadingChronik.value = false;
+  }
+}
+
+async function addChronikEntry() {
+  if (!chronikLead.value || !newChronikText.value.trim()) return;
+  addingChronik.value = true;
+  try {
+    const { data } = await api.post('/api/comments', {
+      scope: 'lead_chronik',
+      text: newChronikText.value.trim(),
+      context: {
+        resourceId: chronikLead.value._id,
+        resourceType: 'Lead',
+      },
+    });
+    chronikEntries.value.push(data);
+    newChronikText.value = '';
+  } catch (e) {
+    console.error('Chronik-Eintrag fehlgeschlagen', e);
+  } finally {
+    addingChronik.value = false;
+  }
+}
+
+async function deleteChronikEntry(id) {
+  try {
+    await api.delete(`/api/comments/${id}`);
+    chronikEntries.value = chronikEntries.value.filter((e) => e._id !== id);
+  } catch (e) {
+    console.error('Chronik-Eintrag löschen fehlgeschlagen', e);
+  }
+}
+
+function canDeleteChronik(entry) {
+  const uid = auth.user?._id || auth.user?.id;
+  return uid && String(entry.authorId) === String(uid);
+}
+
+function initials(name) {
+  if (!name) return '?';
+  return name
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
 // ─── Stufe stepper ───────────────────────────────────────────────────
 const stufeSteps = [
   { value: 'neu',          label: 'Neu' },
@@ -934,10 +1038,17 @@ function openLead(lead) {
     firma:    lead.kontakt?.firma    || '',
   };
   detailForm.customFields = { ...(lead.customFields || {}) };
+  chronikExpandedLeadId.value = lead._id;
+  chronikLead.value = lead;
+  chronikEntries.value = [];
+  loadChronik(lead._id);
 }
 
 function closeSidebar() {
   selectedLead.value = null;
+  chronikExpandedLeadId.value = null;
+  chronikLead.value = null;
+  chronikEntries.value = [];
   document.body.style.overflow = '';
 }
 
@@ -1482,6 +1593,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 .main-content {
   flex: 1;
   min-width: 0;
+  padding: 24px 0 24px 24px;
 }
 
 /* ── Toolbar ─────────────────────────────────────────────────────── */
@@ -1601,6 +1713,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   border-radius: 8px;
   overflow: auto;
   max-width: 100%;
+  container-type: inline-size;
 }
 
 .leads-table {
@@ -1707,6 +1820,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   &:hover {
     background: var(--hover);
     color: var(--text);
+  }
+
+  &.chronik-toggle-active {
+    color: var(--primary);
   }
 }
 
@@ -1983,11 +2100,78 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   gap: 4px;
 }
 
-/* ── Notes ──────────────────────────────────────────────────────── */
-.note-input-row {
+/* ── Inline Chronik row ─────────────────────────────────────────── */
+.chronik-inline-row {
+  background: var(--surface);
+
+  &:hover {
+    background: var(--surface) !important;
+  }
+}
+
+.chronik-inline-cell {
+  padding: 0 !important;
+  border-top: 2px solid var(--primary);
+}
+
+.chronik-inline-panel {
+  padding: 16px 20px;
+  overflow-x: hidden;
+  max-width: 100cqi;
+  box-sizing: border-box;
+}
+
+.chronik-inline-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  strong {
+    color: var(--text);
+    font-size: 0.85rem;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+}
+
+.chronik-inline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chronik-inline-feed {
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  direction: rtl;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar { display: none; }
+}
+
+.chronik-inline-compose {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+
+  .note-textarea {
+    flex: 1;
+    resize: vertical;
+  }
+}
+
+/* ── Chronik ────────────────────────────────────────────────────── */
+.chronik-input-row {
   display: flex;
   gap: 6px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .note-textarea {
@@ -2007,30 +2191,150 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   }
 }
 
-.notes-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.chronik-empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 16px 0;
+  direction: ltr;
 }
 
-.note-item {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 10px;
+.chronik-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  direction: ltr;
 
-  .note-meta {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.72rem;
+  &::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 4px;
+    bottom: 4px;
+    width: 1px;
+    background: var(--border);
+  }
+}
+
+.chronik-entry {
+  display: flex;
+  gap: 10px;
+  padding: 5px 0;
+  position: relative;
+}
+
+.chronik-dot {
+  width: 22px;
+  min-width: 22px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 3px;
+  position: relative;
+  z-index: 1;
+
+  .dot-icon--system {
+    font-size: 0.7rem;
     color: var(--muted);
-    margin-bottom: 4px;
+    background: var(--tile-bg);
+    padding: 2px 0;
   }
 
-  .note-text {
-    font-size: 0.85rem;
+  .dot-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 0.6rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+}
+
+.chronik-content {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 2px;
+
+  .chronik-entry--system & {
+    padding: 2px 0;
+  }
+}
+
+.chronik-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+  flex-wrap: wrap;
+
+  .chronik-entry--system & {
+    margin-bottom: 0;
+  }
+}
+
+.chronik-author {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.chronik-time {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.chronik-text-wrap {
+  position: relative;
+  display: block;
+
+  .chronik-delete {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.15s;
+    font-size: 0.72rem;
+    padding: 2px 4px;
+    color: var(--muted);
+    background: var(--panel);
+    border-radius: 4px;
+  }
+
+  &:hover .chronik-delete {
+    opacity: 1;
+
+    &:hover { color: #ef4444; }
+  }
+}
+
+.chronik-text {
+  font-size: 0.83rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+
+  .chronik-entry--system & {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 0.8rem;
+  }
+
+  .chronik-entry:not(.chronik-entry--system) & {
     color: var(--text);
-    white-space: pre-wrap;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    padding-right: 28px;
   }
 }
 

@@ -21,7 +21,7 @@
         <!-- Zeitraum -->
         <FilterDropdown :has-value="filters.tage !== 30">
           <template #label><font-awesome-icon icon="fa-solid fa-calendar" style="margin-right:4px" />{{ filters.tage }} Tage</template>
-          <div v-for="opt in [7, 14, 30, 90, 365]" :key="opt" class="dropdown-item" :class="{ selected: filters.tage === opt }" @click="setTage(opt)">{{ opt }} Tage</div>
+          <div v-for="opt in [7, 14, 30]" :key="opt" class="dropdown-item" :class="{ selected: filters.tage === opt }" @click="setTage(opt)">{{ opt }} Tage</div>
         </FilterDropdown>
 
         <!-- Planung -->
@@ -169,7 +169,7 @@
         <FilterDropdown :has-value="filters.tage !== 30">
           <template #label>{{ filters.tage }} Tage</template>
           <div
-            v-for="opt in [7, 14, 30, 90, 365]"
+            v-for="opt in [7, 14, 30]"
             :key="opt"
             class="dropdown-item clickable"
             :class="{ selected: filters.tage === opt }"
@@ -1772,8 +1772,8 @@ watch(
       const target = new Date(q.datum);
       const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
       if (diffDays > filters.tage) {
-        const options = [7, 14, 30, 90, 365];
-        filters.tage = options.find((o) => o > diffDays) ?? 365;
+        const options = [7, 14, 30];
+        filters.tage = options.find((o) => o > diffDays) ?? 30;
         needsFetch = true;
       }
       selectedKw.value = getISOWeek(target);
@@ -3148,8 +3148,8 @@ onMounted(async () => {
     const target = new Date(q.datum);
     const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
     if (diffDays > filters.tage) {
-      const options = [7, 14, 30, 90, 365];
-      filters.tage = options.find((o) => o > diffDays) ?? 365;
+const options = [7, 14, 30];
+        filters.tage = options.find((o) => o > diffDays) ?? 30;
     }
     // Activate the KW filter for the target date
     selectedKw.value = getISOWeek(target);
