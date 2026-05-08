@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const crypto = require('crypto');
+const multer = require('multer');
 const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
 const Lead = require('../models/Lead');
@@ -8,6 +10,13 @@ const LeadLabel = require('../models/LeadLabel');
 const LeadConfig = require('../models/LeadConfig');
 const User = require('../models/User');
 const Comment = require('../models/Comment');
+const R2Service = require('../R2Service');
+
+// Multer — memory storage, max 25 MB per file, up to 20 files per request
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+});
 
 // ─── Label maps for human-readable system events ────────────────────
 const STUFE_LABELS = {
@@ -567,6 +576,97 @@ router.delete('/:id/aktivitaeten/:aktId', auth, asyncHandler(async (req, res) =>
 
   if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
   res.json({ message: 'Aktivität gelöscht.' });
+}));
+
+// ─── Attachments ─────────────────────────────────────────────────────────────
+
+// @route   POST /api/leads/:id/attachments
+// @desc    Dateien hochladen (batch: bis zu 20 Dateien auf einmal)
+// @access  Private
+router.post('/:id/attachments', auth, upload.array('files', 20), asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'Ungültige ID.' });
+  }
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ message: 'Keine Dateien hochgeladen.' });
+  }
+
+  const lead = await Lead.findById(req.params.id).lean();
+  if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
+
+  const newAttachments = [];
+  for (const file of req.files) {
+    const id = crypto.randomUUID();
+    // Sanitize original filename — strip path separators
+    const safeName = file.originalname.replace(/[/\\]/g, '_').replace(/[^\w.\-\u00C0-\u024F]/g, '_');
+    const key = `leads/${req.params.id}/${id}_${safeName}`;
+
+    await R2Service.uploadFile(key, file.buffer, file.mimetype);
+
+    newAttachments.push({
+      id,
+      filename: file.originalname,
+      key,
+      contentType: file.mimetype,
+      size: file.size,
+      uploadedBy: req.user.id,
+      uploadedAt: new Date(),
+    });
+  }
+
+  const updated = await Lead.findByIdAndUpdate(
+    req.params.id,
+    { $push: { attachments: { $each: newAttachments } } },
+    { new: true }
+  ).lean();
+
+  res.status(201).json(updated.attachments);
+}));
+
+// @route   GET /api/leads/:id/attachments/:attachmentId/url
+// @desc    Pre-signed Download-URL (1 Stunde gültig) generieren
+// @access  Private
+router.get('/:id/attachments/:attachmentId/url', auth, asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'Ungültige ID.' });
+  }
+
+  const lead = await Lead.findById(req.params.id).lean();
+  if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
+
+  const attachment = (lead.attachments || []).find(a => a.id === req.params.attachmentId);
+  if (!attachment) return res.status(404).json({ message: 'Anhang nicht gefunden.' });
+
+  const inline = req.query.inline === 'true';
+  const url = await R2Service.getSignedDownloadUrl(attachment.key, 3600, {
+    inline,
+    filename: attachment.filename,
+  });
+  res.json({ url });
+}));
+
+// @route   DELETE /api/leads/:id/attachments/:attachmentId
+// @desc    Anhang löschen (R2 + DB)
+// @access  Private
+router.delete('/:id/attachments/:attachmentId', auth, asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'Ungültige ID.' });
+  }
+
+  const lead = await Lead.findById(req.params.id).lean();
+  if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
+
+  const attachment = (lead.attachments || []).find(a => a.id === req.params.attachmentId);
+  if (!attachment) return res.status(404).json({ message: 'Anhang nicht gefunden.' });
+
+  await R2Service.deleteFile(attachment.key);
+
+  await Lead.findByIdAndUpdate(
+    req.params.id,
+    { $pull: { attachments: { id: req.params.attachmentId } } }
+  );
+
+  res.json({ message: 'Anhang gelöscht.' });
 }));
 
 module.exports = router;

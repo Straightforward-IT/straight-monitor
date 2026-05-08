@@ -45,14 +45,23 @@ class R2Service {
    * Generate a pre-signed URL to download or view a file.
    * @param {string} key - The path/filename in R2.
    * @param {number} expiresInSeconds - How long the URL is valid. Default 3600 (1h).
+   * @param {object} options - Optional: { inline: boolean, filename: string }
    * @returns {Promise<string>} The pre-signed URL.
    */
-  async getSignedDownloadUrl(key, expiresInSeconds = 3600) {
+  async getSignedDownloadUrl(key, expiresInSeconds = 3600, options = {}) {
     try {
-      const command = new GetObjectCommand({
+      const commandParams = {
         Bucket: this.bucketName,
         Key: key,
-      });
+      };
+      if (options.inline) {
+        commandParams.ResponseContentDisposition = options.filename
+          ? `inline; filename="${options.filename}"`
+          : 'inline';
+      } else if (options.filename) {
+        commandParams.ResponseContentDisposition = `attachment; filename="${options.filename}"`;
+      }
+      const command = new GetObjectCommand(commandParams);
       // Generate the presigned URL
       const url = await getSignedUrl(this.client, command, { expiresIn: expiresInSeconds });
       return url;

@@ -693,6 +693,58 @@
             </div>
           </section>
 
+          <!-- ─── Dateien ─────────────────────────────────── -->
+          <section class="info-section">
+            <h4 class="section-title">
+              <font-awesome-icon :icon="['fas', 'paperclip']" /> Dateien
+              <span v-if="selectedLead.attachments?.length" class="section-count">{{ selectedLead.attachments.length }}</span>
+            </h4>
+
+            <!-- Upload area -->
+            <div
+              class="attach-upload-area"
+              :class="{ 'attach-drag-over': attachDragOver }"
+              @dragover.prevent="attachDragOver = true"
+              @dragleave.prevent="attachDragOver = false"
+              @drop.prevent="onAttachDrop"
+            >
+              <input ref="attachInput" type="file" multiple class="attach-file-input" @change="onAttachFileChange" />
+              <button class="btn-add-contact" @click="attachInput.click()" :disabled="attachUploading">
+                <font-awesome-icon v-if="attachUploading" :icon="['fas', 'spinner']" spin />
+                <font-awesome-icon v-else :icon="['fas', 'plus']" />
+                {{ attachUploading ? 'Lädt hoch…' : 'Dateien wählen oder hier ablegen' }}
+              </button>
+            </div>
+
+            <!-- Upload progress -->
+            <div v-if="attachProgress > 0" class="attach-progress">
+              <div class="attach-progress-bar" :style="{ width: attachProgress + '%' }"></div>
+            </div>
+
+            <!-- File list -->
+            <div v-if="!selectedLead.attachments?.length && !attachUploading" class="akt-empty">
+              Noch keine Dateien angehängt.
+            </div>
+            <ul v-else class="attach-list">
+              <li v-for="att in selectedLead.attachments" :key="att.id" class="attach-item">
+                <span class="attach-icon">
+                  <font-awesome-icon :icon="attachIcon(att.contentType)" />
+                </span>
+                <span class="attach-name" :title="att.filename">{{ att.filename }}</span>
+                <span class="attach-size">{{ formatBytes(att.size) }}</span>
+                <button v-if="isPreviewable(att)" class="attach-btn" @click="openAttachment(att)" title="Im Browser öffnen">
+                  <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
+                </button>
+                <button class="attach-btn" @click="downloadAttachment(att)" title="Herunterladen">
+                  <font-awesome-icon :icon="['fas', 'download']" />
+                </button>
+                <button class="attach-btn attach-btn--delete" @click="deleteAttachment(att)" title="Löschen">
+                  <font-awesome-icon :icon="['fas', 'trash']" />
+                </button>
+              </li>
+            </ul>
+          </section>
+
         </div>
       </aside>
     </transition>
@@ -1128,7 +1180,8 @@ import {
   faBoxArchive, faBullseye, faEllipsisVertical, faArrowUp, faArrowDown,
   faAddressCard, faArrowUpRightFromSquare, faLinkSlash,
   faPhone, faUsers, faCalendarDays, faEnvelope, faTv, faCircleCheck, faCircle, faCalendarCheck,
-  faFlag, faUtensils, faPen,
+  faFlag, faUtensils, faPen, faFile, faFilePdf, faFileImage, faFileWord, faFileExcel,
+  faFileZipper, faDownload, faPaperclip,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
@@ -1142,7 +1195,8 @@ library.add(
   faBoxArchive, faBullseye, faEllipsisVertical, faArrowUp, faArrowDown,
   faAddressCard, faArrowUpRightFromSquare, faLinkSlash,
   faPhone, faUsers, faCalendarDays, faEnvelope, faTv, faCircleCheck, faCircle, faCalendarCheck,
-  faFlag, faUtensils, faPen
+  faFlag, faUtensils, faPen, faFile, faFilePdf, faFileImage, faFileWord, faFileExcel,
+  faFileZipper, faDownload, faPaperclip
 );
 
 const auth = useAuth();
@@ -2447,6 +2501,89 @@ function formatAktDate(dt) {
     day: '2-digit', month: '2-digit', year: 'numeric',
     ...(hasTime ? { hour: '2-digit', minute: '2-digit' } : {}),
   });
+}
+
+// ─── Dateien / Attachments ──────────────────────────────────────────────────
+const attachInput = ref(null);
+const attachUploading = ref(false);
+const attachProgress = ref(0);
+const attachDragOver = ref(false);
+
+async function uploadAttachments(files) {
+  if (!files || files.length === 0) return;
+  if (!selectedLead.value) return;
+  attachUploading.value = true;
+  attachProgress.value = 0;
+  try {
+    const formData = new FormData();
+    for (const file of files) formData.append('files', file);
+    const { data } = await api.post(
+      `/api/leads/${selectedLead.value._id}/attachments`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (e) => {
+          if (e.total) attachProgress.value = Math.round((e.loaded / e.total) * 100);
+        },
+      }
+    );
+    if (!selectedLead.value.attachments) selectedLead.value.attachments = [];
+    selectedLead.value.attachments = data;
+    const idx = leads.value.findIndex(l => l._id === selectedLead.value._id);
+    if (idx >= 0) leads.value[idx].attachments = data;
+  } finally {
+    attachUploading.value = false;
+    attachProgress.value = 0;
+    if (attachInput.value) attachInput.value.value = '';
+  }
+}
+
+function onAttachFileChange(e) {
+  uploadAttachments(Array.from(e.target.files || []));
+}
+
+function onAttachDrop(e) {
+  attachDragOver.value = false;
+  uploadAttachments(Array.from(e.dataTransfer.files || []));
+}
+
+async function downloadAttachment(att) {
+  const { data } = await api.get(`/api/leads/${selectedLead.value._id}/attachments/${att.id}/url`);
+  window.open(data.url, '_blank', 'noopener,noreferrer');
+}
+
+function isPreviewable(att) {
+  return att.contentType === 'application/pdf' || att.contentType?.startsWith('image/');
+}
+
+async function openAttachment(att) {
+  const { data } = await api.get(`/api/leads/${selectedLead.value._id}/attachments/${att.id}/url?inline=true`);
+  window.open(data.url, '_blank', 'noopener,noreferrer');
+}
+
+async function deleteAttachment(att) {
+  if (!confirm(`Datei „${att.filename}" löschen?`)) return;
+  await api.delete(`/api/leads/${selectedLead.value._id}/attachments/${att.id}`);
+  selectedLead.value.attachments = (selectedLead.value.attachments || []).filter(a => a.id !== att.id);
+  const idx = leads.value.findIndex(l => l._id === selectedLead.value._id);
+  if (idx >= 0) leads.value[idx].attachments = selectedLead.value.attachments;
+}
+
+function attachIcon(contentType) {
+  if (!contentType) return ['fas', 'file'];
+  if (contentType === 'application/pdf') return ['fas', 'file-pdf'];
+  if (contentType.startsWith('image/')) return ['fas', 'file-image'];
+  if (contentType.includes('word') || contentType.includes('document')) return ['fas', 'file-word'];
+  if (contentType.includes('excel') || contentType.includes('spreadsheet')) return ['fas', 'file-excel'];
+  if (contentType.includes('zip') || contentType.includes('archive')) return ['fas', 'file-zipper'];
+  return ['fas', 'file'];
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // Close sidebar with ESC
@@ -4703,4 +4840,104 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 
 .akt-edit:hover { color: var(--primary); }
 .akt-delete:hover { color: #ef4444; }
+
+/* ── Dateien / Attachments ──────────────────────────────────────── */
+.section-count {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+
+.attach-upload-area {
+  margin-bottom: 8px;
+  border: 2px dashed transparent;
+  border-radius: 8px;
+  transition: border-color 0.15s, background 0.15s;
+
+  &.attach-drag-over {
+    border-color: var(--primary);
+    background: rgba(251, 150, 51, 0.06);
+  }
+}
+
+.attach-file-input {
+  display: none;
+}
+
+.attach-progress {
+  position: relative;
+  height: 4px;
+  background: var(--card-border, #e2e8f0);
+  border-radius: 2px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.attach-progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--primary);
+  transition: width 0.15s;
+}
+
+.attach-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.attach-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--card-border, #e2e8f0);
+  font-size: 13px;
+
+  &:hover { background: var(--hover); }
+}
+
+.attach-icon {
+  width: 18px;
+  text-align: center;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.attach-name {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.attach-size {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  flex-shrink: 0;
+}
+
+.attach-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted, #94a3b8);
+  padding: 3px 5px;
+  border-radius: 4px;
+  transition: color 0.15s;
+
+  &:hover { color: var(--primary); }
+  &.attach-btn--delete:hover { color: #ef4444; }
+}
 </style>

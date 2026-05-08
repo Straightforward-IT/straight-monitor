@@ -14,6 +14,19 @@ const mongoose = require('mongoose');
  *   neu → qualifiziert → angebot → verhandlung → (won | lost)
  */
 
+const AttachmentSchema = new mongoose.Schema(
+  {
+    id:          { type: String, required: true },   // crypto.randomUUID()
+    filename:    { type: String, required: true },   // original display name
+    key:         { type: String, required: true },   // R2 object key
+    contentType: { type: String, default: 'application/octet-stream' },
+    size:        { type: Number, default: 0 },       // bytes
+    uploadedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    uploadedAt:  { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const NotizenSchema = new mongoose.Schema(
   {
     text: { type: String, required: true, trim: true, maxlength: 5000 },
@@ -179,6 +192,9 @@ const LeadSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+
+    // File attachments stored in Cloudflare R2
+    attachments: [AttachmentSchema],
   },
   { timestamps: true }
 );
