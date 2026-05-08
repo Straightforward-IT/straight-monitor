@@ -494,4 +494,79 @@ router.delete('/:id/permanent', auth, asyncHandler(async (req, res) => {
   res.json({ message: 'Lead gelöscht.' });
 }));
 
+// ─── Aktivitäten ──────────────────────────────────────────────────────────────
+
+// @route   POST /api/leads/:id/aktivitaeten
+// @desc    Neue Aktivität hinzufügen
+router.post('/:id/aktivitaeten', auth, asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'Ungültige ID.' });
+  }
+  const { type, titel, datum, kontakt } = req.body;
+  if (!datum) return res.status(400).json({ message: 'Datum ist erforderlich.' });
+
+  const entry = {
+    type: type || 'aufgabe',
+    titel: (titel || '').trim().slice(0, 200),
+    datum: new Date(datum),
+    erledigt: false,
+    kontakt: kontakt || {},
+    angelegtVon: req.user._id || req.user.id,
+    angelegtVonName: req.user.name || req.user.email || '',
+  };
+
+  const lead = await Lead.findByIdAndUpdate(
+    req.params.id,
+    { $push: { aktivitaeten: entry } },
+    { new: true }
+  ).lean();
+
+  if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
+  const created = lead.aktivitaeten[lead.aktivitaeten.length - 1];
+  res.status(201).json(created);
+}));
+
+// @route   PATCH /api/leads/:id/aktivitaeten/:aktId
+// @desc    Aktivität aktualisieren (erledigt, titel, datum, ...)
+router.patch('/:id/aktivitaeten/:aktId', auth, asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id) || !mongoose.Types.ObjectId.isValid(req.params.aktId)) {
+    return res.status(400).json({ message: 'Ungültige ID.' });
+  }
+
+  const allowed = ['type', 'titel', 'datum', 'erledigt', 'kontakt'];
+  const updates = {};
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) {
+      updates[`aktivitaeten.$.${key}`] = key === 'datum' ? new Date(req.body[key]) : req.body[key];
+    }
+  }
+
+  const lead = await Lead.findOneAndUpdate(
+    { _id: req.params.id, 'aktivitaeten._id': req.params.aktId },
+    { $set: updates },
+    { new: true }
+  ).lean();
+
+  if (!lead) return res.status(404).json({ message: 'Nicht gefunden.' });
+  const updated = lead.aktivitaeten.find((a) => String(a._id) === req.params.aktId);
+  res.json(updated);
+}));
+
+// @route   DELETE /api/leads/:id/aktivitaeten/:aktId
+// @desc    Aktivität löschen
+router.delete('/:id/aktivitaeten/:aktId', auth, asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id) || !mongoose.Types.ObjectId.isValid(req.params.aktId)) {
+    return res.status(400).json({ message: 'Ungültige ID.' });
+  }
+
+  const lead = await Lead.findByIdAndUpdate(
+    req.params.id,
+    { $pull: { aktivitaeten: { _id: req.params.aktId } } },
+    { new: true }
+  ).lean();
+
+  if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
+  res.json({ message: 'Aktivität gelöscht.' });
+}));
+
 module.exports = router;

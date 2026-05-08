@@ -25,7 +25,7 @@
           </button>
           <button
             class="btn-icon-toolbar"
-            :class="{ active: showColPanel || visibleLabels.length > 0 }"
+            :class="{ active: showColPanel || colConfig.some(c => !c.visible) }"
             @click="openColPanel($event)"
             title="Spalten anpassen"
           >
@@ -60,22 +60,21 @@
                   class="sort-icon"
                 />
               </th>
-              <th class="col-stufe">Stufe</th>
-              <th class="col-source">Quelle</th>
-              <th class="col-owner">Besitzer</th>
-              <th class="col-created sortable" @click="toggleSort('createdAt')">
-                Lead erstellt
-                <font-awesome-icon
-                  v-if="sortBy === 'createdAt'"
-                  :icon="['fas', sortDir === 'asc' ? 'arrow-up' : 'arrow-down']"
-                  class="sort-icon"
-                />
-              </th>
-
-              <!-- Dynamic custom-field columns -->
-              <th v-for="lbl in visibleLabels" :key="lbl._id" class="col-custom">
-                {{ lbl.name }}
-              </th>
+              <!-- All configurable columns (standard + custom), ordered by colConfig -->
+              <template v-for="col in visibleColConfig" :key="col._id">
+                <th v-if="col.stdKey === 'stufe'" class="col-stufe">Stufe</th>
+                <th v-else-if="col.stdKey === 'quelle'" class="col-source">Quelle</th>
+                <th v-else-if="col.stdKey === 'owner'" class="col-owner">Besitzer</th>
+                <th v-else-if="col.stdKey === 'createdAt'" class="col-created sortable" @click="toggleSort('createdAt')">
+                  Lead erstellt
+                  <font-awesome-icon
+                    v-if="sortBy === 'createdAt'"
+                    :icon="['fas', sortDir === 'asc' ? 'arrow-up' : 'arrow-down']"
+                    class="sort-icon"
+                  />
+                </th>
+                <th v-else class="col-custom">{{ col.name }}</th>
+              </template>
 
               <th class="col-actions"></th>
             </tr>
@@ -94,27 +93,24 @@
               <td class="col-title">
                 <strong>{{ lead.title }}</strong>
               </td>
-              <td class="col-stufe">
-                <span class="stufe-chip" :class="`stufe-${lead.stufe}`">
-                  {{ stufeLabel(lead.stufe) }}
-                </span>
-              </td>
-              <td class="col-source">
-                <span v-if="lead.quelle">{{ quelleLabel(lead.quelle) }}</span>
-                <span v-else class="muted">—</span>
-              </td>
-              <td class="col-owner">
-                <font-awesome-icon :icon="['fas', 'user']" class="owner-icon" />
-                {{ lead.eigentuemer?.name || lead.eigentuemer?.email || '—' }}
-              </td>
-              <td class="col-created">
-                {{ formatDateTime(lead.createdAt) }}
-              </td>
-
-              <!-- Dynamic custom-field cells -->
-              <td v-for="lbl in visibleLabels" :key="lbl._id" class="col-custom">
-                <span v-html="renderCustomValue(lead, lbl)" />
-              </td>
+              <!-- All configurable columns (standard + custom), ordered by colConfig -->
+              <template v-for="col in visibleColConfig" :key="col._id">
+                <td v-if="col.stdKey === 'stufe'" class="col-stufe">
+                  <span class="stufe-chip" :class="`stufe-${lead.stufe}`">{{ stufeLabel(lead.stufe) }}</span>
+                </td>
+                <td v-else-if="col.stdKey === 'quelle'" class="col-source">
+                  <span v-if="lead.quelle">{{ quelleLabel(lead.quelle) }}</span>
+                  <span v-else class="muted">—</span>
+                </td>
+                <td v-else-if="col.stdKey === 'owner'" class="col-owner">
+                  <font-awesome-icon :icon="['fas', 'user']" class="owner-icon" />
+                  {{ lead.eigentuemer?.name || lead.eigentuemer?.email || '—' }}
+                </td>
+                <td v-else-if="col.stdKey === 'createdAt'" class="col-created">{{ formatDateTime(lead.createdAt) }}</td>
+                <td v-else class="col-custom">
+                  <span v-html="renderCustomValue(lead, col)" />
+                </td>
+              </template>
 
               <td class="col-actions" @click.stop>
                 <button class="btn-icon-row" @click="openRowMenu($event, lead)" title="Aktionen">
@@ -128,12 +124,12 @@
               class="chronik-inline-row"
               @click.stop
             >
-              <td :colspan="8 + visibleLabels.length" class="chronik-inline-cell">
+              <td :colspan="3 + visibleColConfig.length" class="chronik-inline-cell">
                 <div class="chronik-inline-panel">
                   <div class="chronik-inline-header">
                     <font-awesome-icon :icon="['fas', 'clock-rotate-left']" />
                     <strong>Chronik</strong>
-                    <span class="count-pill">{{ chronikEntries.length }}</span>
+                    <span class="count-pill">{{ chronikEntries.length + (chronikLead?.aktivitaeten?.length || 0) }}</span>
                   </div>
 
                   <div class="chronik-inline-body">
@@ -141,42 +137,77 @@
                       <div v-if="loadingChronik" class="chronik-empty">
                         <font-awesome-icon :icon="['fas', 'spinner']" spin />
                       </div>
-                      <div v-else-if="chronikEntries.length === 0" class="chronik-empty">
+                      <div v-else-if="mergedTimeline.length === 0" class="chronik-empty">
                         Noch keine Einträge.
                       </div>
                       <div v-else class="chronik-timeline">
-                        <div
-                          v-for="entry in chronikEntries"
-                          :key="entry._id"
-                          class="chronik-entry"
-                          :class="{ 'chronik-entry--system': entry.isSystem }"
-                        >
-                          <div class="chronik-dot">
-                            <font-awesome-icon
-                              v-if="entry.isSystem"
-                              :icon="['fas', 'circle-dot']"
-                              class="dot-icon dot-icon--system"
-                            />
-                            <span v-else class="dot-avatar">{{ initials(entry.author) }}</span>
+                        <template v-for="item in mergedTimeline" :key="item.kind === 'divider' ? '__divider__' : (item.kind === 'chronik' ? item.entry._id : item.akt._id)">
+
+                          <!-- Divider: separates past from future -->
+                          <div v-if="item.kind === 'divider'" class="chronik-divider-now">
+                            <span class="chronik-divider-label">Jetzt</span>
                           </div>
-                          <div class="chronik-content">
-                            <div class="chronik-meta">
-                              <span v-if="!entry.isSystem" class="chronik-author">{{ entry.author }}</span>
-                              <span class="chronik-time">{{ formatDateTime(entry.createdAt) }}</span>
+
+                          <!-- Regular chronik entry -->
+                          <div
+                            v-else-if="item.kind === 'chronik'"
+                            class="chronik-entry"
+                            :class="{ 'chronik-entry--system': item.entry.isSystem }"
+                          >
+                            <div class="chronik-dot">
+                              <font-awesome-icon
+                                v-if="item.entry.isSystem"
+                                :icon="['fas', 'circle-dot']"
+                                class="dot-icon dot-icon--system"
+                              />
+                              <span v-else class="dot-avatar">{{ initials(item.entry.author) }}</span>
                             </div>
-                            <div class="chronik-text-wrap">
-                              <p class="chronik-text">{{ entry.text }}</p>
-                              <button
-                                v-if="!entry.isSystem && canDeleteChronik(entry)"
-                                class="ctx-delete-btn"
-                                @click="deleteChronikEntry(entry._id)"
-                                title="Löschen"
-                              >
-                                <font-awesome-icon :icon="['fas', 'trash']" />
+                            <div class="chronik-content">
+                              <div class="chronik-meta">
+                                <span v-if="!item.entry.isSystem" class="chronik-author">{{ item.entry.author }}</span>
+                                <span class="chronik-time">{{ formatDateTime(item.entry.createdAt) }}</span>
+                              </div>
+                              <div class="chronik-text-wrap">
+                                <p class="chronik-text">{{ item.entry.text }}</p>
+                                <button
+                                  v-if="!item.entry.isSystem && canDeleteChronik(item.entry)"
+                                  class="ctx-delete-btn"
+                                  @click="deleteChronikEntry(item.entry._id)"
+                                  title="Löschen"
+                                >
+                                  <font-awesome-icon :icon="['fas', 'trash']" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Activity entry -->
+                          <div
+                            v-else-if="item.kind === 'aktivitaet'"
+                            class="chronik-entry chronik-entry--akt"
+                            :class="{ 'chronik-entry--akt-done': item.akt.erledigt, 'chronik-entry--akt-overdue': isOverdue(item.akt) }"
+                          >
+                            <div class="chronik-dot">
+                              <button class="chronik-akt-check" @click="toggleAktErledigt(item.akt)" :title="item.akt.erledigt ? 'Als offen markieren' : 'Als erledigt markieren'">
+                                <font-awesome-icon :icon="['fas', item.akt.erledigt ? 'circle-check' : 'circle']" />
                               </button>
                             </div>
+                            <div class="chronik-content">
+                              <div class="chronik-meta">
+                                <font-awesome-icon :icon="['fas', aktTypeIcon(item.akt.type)]" class="chronik-akt-type-icon" />
+                                <span class="chronik-akt-type-label">{{ aktTypeLabel(item.akt.type) }}</span>
+                                <span class="chronik-time">{{ formatAktDate(item.akt.datum) }}</span>
+                              </div>
+                              <p class="chronik-text" :class="{ 'chronik-text--done': item.akt.erledigt }">
+                                {{ item.akt.titel || '(kein Titel)' }}
+                              </p>
+                              <span v-if="item.akt.kontakt?.displayName" class="chronik-akt-kontakt">
+                                <font-awesome-icon :icon="['fas', 'user']" /> {{ item.akt.kontakt.displayName }}
+                              </span>
+                            </div>
                           </div>
-                        </div>
+
+                        </template>
                       </div>
                     </div>
 
@@ -373,7 +404,7 @@
           <!-- Contact Info -->
           <section class="info-section">
             <h4 class="section-title">
-              <font-awesome-icon :icon="['fas', 'address-book']" /> Kontakt
+              <font-awesome-icon :icon="['fas', 'address-book']" /> Kontakte
             </h4>
             <!-- Microsoft Contact badges (one per linked contact) -->
             <div
@@ -470,7 +501,197 @@
             </div>
           </section>
 
+          <!-- ─── Aktivitäten ─────────────────────────────── -->
+          <section class="info-section">
+            <h4 class="section-title">
+              <font-awesome-icon :icon="['fas', 'calendar-check']" /> Aktivitäten
+            </h4>
 
+            <!-- Add activity button (shown when form is closed) -->
+            <div v-if="!showAktForm" class="add-contact-row">
+              <button class="btn-add-contact" @click="openAktForm">
+                <font-awesome-icon :icon="['fas', 'plus']" /> Aktivität planen
+              </button>
+            </div>
+
+            <!-- Inline create form -->
+            <div v-if="showAktForm" class="akt-form">
+              <div class="akt-type-row">
+                <button
+                  v-for="t in AKT_TYPES" :key="t.value"
+                  class="akt-type-btn"
+                  :class="{ active: aktForm.type === t.value }"
+                  @click="aktForm.type = t.value"
+                  :title="t.label"
+                >
+                  <font-awesome-icon :icon="t.icon" />
+                  <span>{{ t.label }}</span>
+                </button>
+              </div>
+              <input
+                v-model="aktForm.titel"
+                class="form-input"
+                placeholder="Titel / Betreff (optional)"
+              />
+              <div class="akt-datetime-row">
+                <label class="akt-date-label" @click.prevent="$refs.aktDateInput.showPicker()">
+                  <font-awesome-icon :icon="['fas', 'calendar']" class="akt-date-icon" />
+                  <span class="akt-date-text">{{ aktForm.date ? new Date(aktForm.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Datum wählen' }}</span>
+                  <input ref="aktDateInput" v-model="aktForm.date" type="date" class="akt-date-hidden" />
+                </label>
+                <div class="akt-time-picker">
+                  <input
+                    v-model="aktForm.timeHour"
+                    type="number" min="0" max="23"
+                    class="form-input akt-time-hour"
+                    placeholder="Std"
+                  />
+                  <div class="akt-min-btns">
+                    <button v-for="m in ['00','15','30','45']" :key="m" type="button"
+                      class="akt-min-btn" :class="{ active: aktForm.timeMin === m }"
+                      @click="aktForm.timeMin = m"
+                    >{{ m }}</button>
+                  </div>
+                  <template v-if="aktForm.timeHour !== ''">
+                    <input
+                      v-if="aktTimeManual"
+                      type="time"
+                      class="form-input akt-time-override"
+                      :value="`${String(aktForm.timeHour).padStart(2,'0')}:${aktForm.timeMin}`"
+                      @change="e => { applyManualTime(aktForm, e.target.value); aktTimeManual = false }"
+                      @blur="aktTimeManual = false"
+                    />
+                    <span v-else class="akt-time-result" @click="aktTimeManual = true">
+                      {{ String(aktForm.timeHour).padStart(2,'0') }}:{{ aktForm.timeMin }}
+                    </span>
+                  </template>
+                </div>
+              </div>
+              <select
+                v-if="leadContacts.length > 0"
+                v-model="aktForm.kontaktId"
+                class="form-input"
+              >
+                <option value="">Kein Kontakt</option>
+                <option v-for="c in leadContacts" :key="c.id" :value="c.id">{{ c.displayName }}</option>
+              </select>
+              <div class="akt-form-actions">
+                <button class="btn btn-secondary" @click="showAktForm = false">Abbrechen</button>
+                <button class="btn btn-primary" :disabled="!aktForm.date || savingAkt" @click="saveAkt">
+                  <font-awesome-icon v-if="savingAkt" :icon="['fas', 'spinner']" spin />
+                  Speichern
+                </button>
+              </div>
+            </div>
+
+            <!-- Activity list -->
+            <div v-if="leadAktivitaeten.length === 0 && !showAktForm" class="akt-empty">
+              Keine geplanten Aktivitäten.
+            </div>
+            <div v-else class="akt-list">
+              <template v-for="akt in leadAktivitaeten" :key="akt._id">
+                <!-- Inline edit form -->
+                <div v-if="editingAktId === akt._id" class="akt-form">
+                  <div class="akt-type-row">
+                    <button
+                      v-for="t in AKT_TYPES" :key="t.value"
+                      class="akt-type-btn"
+                      :class="{ active: editAktForm.type === t.value }"
+                      @click="editAktForm.type = t.value"
+                      :title="t.label"
+                    >
+                      <font-awesome-icon :icon="t.icon" />
+                      <span>{{ t.label }}</span>
+                    </button>
+                  </div>
+                  <input v-model="editAktForm.titel" class="form-input" placeholder="Titel / Betreff (optional)" />
+                  <div class="akt-datetime-row">
+                    <label class="akt-date-label" @click.prevent="$refs.editAktDateInput.showPicker()">
+                      <font-awesome-icon :icon="['fas', 'calendar']" class="akt-date-icon" />
+                      <span class="akt-date-text">{{ editAktForm.date ? new Date(editAktForm.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Datum wählen' }}</span>
+                      <input ref="editAktDateInput" v-model="editAktForm.date" type="date" class="akt-date-hidden" />
+                    </label>
+                    <div class="akt-time-picker">
+                      <input
+                        v-model="editAktForm.timeHour"
+                        type="number" min="0" max="23"
+                        class="form-input akt-time-hour"
+                        placeholder="Std"
+                      />
+                      <div class="akt-min-btns">
+                        <button v-for="m in ['00','15','30','45']" :key="m" type="button"
+                          class="akt-min-btn" :class="{ active: editAktForm.timeMin === m }"
+                          @click="editAktForm.timeMin = m"
+                        >{{ m }}</button>
+                      </div>
+                      <template v-if="editAktForm.timeHour !== ''">
+                        <input
+                          v-if="editAktTimeManual"
+                          type="time"
+                          class="form-input akt-time-override"
+                          :value="`${String(editAktForm.timeHour).padStart(2,'0')}:${editAktForm.timeMin}`"
+                          @change="e => { applyManualTime(editAktForm, e.target.value); editAktTimeManual = false }"
+                          @blur="editAktTimeManual = false"
+                        />
+                        <span v-else class="akt-time-result" @click="editAktTimeManual = true">
+                          {{ String(editAktForm.timeHour).padStart(2,'0') }}:{{ editAktForm.timeMin }}
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                  <select v-if="leadContacts.length > 0" v-model="editAktForm.kontaktId" class="form-input">
+                    <option value="">Kein Kontakt</option>
+                    <option v-for="c in leadContacts" :key="c.id" :value="c.id">{{ c.displayName }}</option>
+                  </select>
+                  <div class="akt-form-actions">
+                    <button class="btn btn-secondary" @click="editingAktId = null">Abbrechen</button>
+                    <button class="btn btn-primary" :disabled="!editAktForm.date || savingAkt" @click="saveEditAkt(akt)">
+                      <font-awesome-icon v-if="savingAkt" :icon="['fas', 'spinner']" spin />
+                      Speichern
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Normal view -->
+                <div
+                  v-else
+                  class="akt-item"
+                  :class="{ 'akt-item--done': akt.erledigt, 'akt-item--overdue': isOverdue(akt) }"
+                >
+                  <button
+                    class="akt-check"
+                    :class="{ done: akt.erledigt }"
+                    @click="toggleAktErledigt(akt)"
+                    :title="akt.erledigt ? 'Erledigt (Klick zum Rückgängig)' : 'Als erledigt markieren'"
+                  >
+                    <font-awesome-icon :icon="['fas', akt.erledigt ? 'circle-check' : 'circle']" />
+                  </button>
+                  <div class="akt-info">
+                    <div class="akt-top-row">
+                      <span class="akt-type-icon" :title="aktTypeLabel(akt.type)">
+                        <font-awesome-icon :icon="aktTypeIcon(akt.type)" />
+                      </span>
+                      <span class="akt-titel">{{ akt.titel || aktTypeLabel(akt.type) }}</span>
+                    </div>
+                    <div class="akt-meta">
+                      <span class="akt-date">{{ formatAktDate(akt.datum) }}</span>
+                      <span v-if="akt.kontakt && akt.kontakt.displayName" class="akt-contact">
+                        <font-awesome-icon :icon="['fas', 'user']" /> {{ akt.kontakt.displayName }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="akt-actions">
+                    <button class="akt-edit" @click="openEditAkt(akt)" title="Bearbeiten">
+                      <font-awesome-icon :icon="['fas', 'pen']" />
+                    </button>
+                    <button class="akt-delete" @click="deleteAkt(akt)" title="Löschen">
+                      <font-awesome-icon :icon="['fas', 'trash']" />
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </section>
 
         </div>
       </aside>
@@ -877,8 +1098,7 @@
           @click.stop
         >
           <div class="col-panel-header">Spalten anpassen</div>
-          <div v-if="colConfig.length === 0" class="col-panel-empty">Keine eigenen Felder definiert.</div>
-          <div v-for="(col, idx) in colConfig" :key="col._id" class="col-panel-row">
+          <div v-for="(col, idx) in colConfig" :key="col._id" class="col-panel-row" :class="{ 'col-panel-row--standard': col.type === 'standard' }">
             <label class="col-panel-label">
               <input type="checkbox" :checked="col.visible" @change="toggleColVisible(col)" />
               {{ col.name }}
@@ -907,6 +1127,8 @@ import {
   faAddressBook, faNoteSticky, faPaperPlane, faTrash, faTrophy,
   faBoxArchive, faBullseye, faEllipsisVertical, faArrowUp, faArrowDown,
   faAddressCard, faArrowUpRightFromSquare, faLinkSlash,
+  faPhone, faUsers, faCalendarDays, faEnvelope, faTv, faCircleCheck, faCircle, faCalendarCheck,
+  faFlag, faUtensils, faPen,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
@@ -918,7 +1140,9 @@ library.add(
   faPlus, faXmark, faSpinner, faSliders, faUser, faInfoCircle,
   faAddressBook, faNoteSticky, faPaperPlane, faTrash, faTrophy,
   faBoxArchive, faBullseye, faEllipsisVertical, faArrowUp, faArrowDown,
-  faAddressCard, faArrowUpRightFromSquare, faLinkSlash
+  faAddressCard, faArrowUpRightFromSquare, faLinkSlash,
+  faPhone, faUsers, faCalendarDays, faEnvelope, faTv, faCircleCheck, faCircle, faCalendarCheck,
+  faFlag, faUtensils, faPen
 );
 
 const auth = useAuth();
@@ -1120,7 +1344,25 @@ const chronikExpandedLeadId = ref(null);
 const chronikLead = ref(null);
 const chronikFeedEl = ref(null);
 
-watch(chronikEntries, () => {
+// Merged timeline: past chronik entries + future/present activities, sorted by date
+const mergedTimeline = computed(() => {
+  const now = new Date();
+  const items = [
+    ...chronikEntries.value.map(e => ({ kind: 'chronik', date: new Date(e.createdAt), entry: e })),
+    ...(chronikLead.value?.aktivitaeten || []).map(a => ({ kind: 'aktivitaet', date: new Date(a.datum), akt: a })),
+  ].sort((a, b) => a.date - b.date);
+
+  // Insert a divider between the last past item and first future item
+  const firstFutureIdx = items.findIndex(i => i.date >= now);
+  if (firstFutureIdx > 0 && firstFutureIdx < items.length) {
+    items.splice(firstFutureIdx, 0, { kind: 'divider', date: now });
+  } else if (firstFutureIdx === 0 && items.length > 0) {
+    items.unshift({ kind: 'divider', date: now });
+  }
+  return items;
+});
+
+watch(mergedTimeline, () => {
   requestAnimationFrame(() => {
     const el = Array.isArray(chronikFeedEl.value) ? chronikFeedEl.value[0] : chronikFeedEl.value;
     if (el) el.scrollTop = el.scrollHeight;
@@ -1171,6 +1413,20 @@ async function deleteChronikEntry(id) {
   }
 }
 
+async function addSystemChronikEntry(leadId, text) {
+  try {
+    const { data } = await api.post('/api/comments', {
+      scope: 'lead_chronik',
+      isSystem: true,
+      text,
+      context: { resourceId: leadId, resourceType: 'Lead' },
+    });
+    chronikEntries.value.push(data);
+  } catch (e) {
+    console.error('System-Chronik fehlgeschlagen', e);
+  }
+}
+
 function canDeleteChronik(entry) {
   const uid = auth.user?._id || auth.user?.id;
   return uid && String(entry.authorId) === String(uid);
@@ -1206,21 +1462,41 @@ function isStufeBeforeActive(val) {
   return vi < ai;
 }
 
+// ─── Standard columns (always configurable via col panel) ───────────────────
+const STANDARD_COLS = [
+  { _id: 'std_stufe',   name: 'Stufe',        type: 'standard', stdKey: 'stufe' },
+  { _id: 'std_quelle',  name: 'Quelle',       type: 'standard', stdKey: 'quelle' },
+  { _id: 'std_owner',   name: 'Besitzer',     type: 'standard', stdKey: 'owner' },
+  { _id: 'std_created', name: 'Lead erstellt', type: 'standard', stdKey: 'createdAt' },
+];
+
 // ─── Column config (localStorage-persisted visibility & order) ──────────────
 watch(labels, (newLabels) => {
   const stored = (() => { try { return JSON.parse(localStorage.getItem('leads_col_config') || '[]'); } catch { return []; } })();
   const active = newLabels.filter((l) => l.isActive);
+
+  // All configurable columns: standard first, then custom fields
+  const allConfigurable = [
+    ...STANDARD_COLS,
+    ...active.map((lbl) => ({
+      _id: lbl._id, name: lbl.name, type: 'custom',
+      key: lbl.key, fieldType: lbl.fieldType, options: lbl.options,
+    })),
+  ];
+
   const storedIds = stored.map((s) => s._id);
   colConfig.value = [
+    // Stored entries that still exist → preserves user-defined order + visibility
     ...stored
-      .filter((s) => active.some((l) => l._id === s._id))
+      .filter((s) => allConfigurable.some((c) => c._id === s._id))
       .map((s) => {
-        const lbl = active.find((l) => l._id === s._id);
-        return { _id: lbl._id, key: lbl.key, name: lbl.name, visible: s.visible !== false };
+        const col = allConfigurable.find((c) => c._id === s._id);
+        return { ...col, visible: s.visible !== false };
       }),
-    ...active
-      .filter((l) => !storedIds.includes(l._id))
-      .map((lbl) => ({ _id: lbl._id, key: lbl.key, name: lbl.name, visible: true })),
+    // New entries not yet in storage (new custom fields or first load of standard cols)
+    ...allConfigurable
+      .filter((c) => !storedIds.includes(c._id))
+      .map((c) => ({ ...c, visible: true })),
   ];
 }, { immediate: true });
 
@@ -1252,7 +1528,7 @@ function moveCol(idx, dir) {
 }
 
 // ─── Computed ────────────────────────────────────────────────────────
-const visibleLabels = computed(() => colConfig.value.filter((c) => c.visible));
+const visibleColConfig = computed(() => colConfig.value.filter((c) => c.visible));
 
 // All MS contacts for the currently selected lead (array, handles legacy single-contact field)
 const leadContacts = computed(() => {
@@ -1737,8 +2013,10 @@ async function unlinkMsContact(contactId) {
       patch.msContact = { id: null, upn: null, displayName: null, email: null };
     }
     const { data } = await api.patch(`/api/leads/${selectedLead.value._id}`, patch);
+    const removedName = currentContacts.find(c => c.id === contactId)?.displayName || contactId;
     upsertLead(data);
     selectedLead.value = data;
+    await addSystemChronikEntry(data._id, `Kontakt entfernt: ${removedName}`);
   } finally {
     savingDetail.value = false;
   }
@@ -1788,6 +2066,7 @@ async function linkMsContact(c) {
     const { data } = await api.patch(`/api/leads/${selectedLead.value._id}`, { msContacts: updated });
     upsertLead(data);
     selectedLead.value = data;
+    await addSystemChronikEntry(data._id, `Kontakt verknüpft: ${newEntry.displayName}`);
   } finally {
     savingDetail.value = false;
     cancelAddContact();
@@ -1813,7 +2092,7 @@ function onKontaktAngelegt(contact) {
   } else {
     // From sidebar: link to current lead
     allMsContacts.value.unshift(contact);
-    linkMsContact(contact);
+    linkMsContact(contact); // linkMsContact already adds system entry
   }
 }
 
@@ -2014,6 +2293,160 @@ function saveAddress() {
   detailForm.customFields[addressModalKey.value] = { ...addressDraft };
   saveDetail();
   closeAddressModal();
+}
+
+// ─── Aktivitäten ─────────────────────────────────────────────────────────────────────────────────
+
+const AKT_TYPES = [
+  { value: 'anruf',       label: 'Anruf',       icon: ['fas', 'phone'] },
+  { value: 'meeting',     label: 'Meeting',     icon: ['fas', 'users'] },
+  { value: 'aufgabe',     label: 'Aufgabe',     icon: ['fas', 'circle-check'] },
+  { value: 'frist',       label: 'Frist',       icon: ['fas', 'flag'] },
+  { value: 'email',       label: 'E-Mail',      icon: ['fas', 'envelope'] },
+  { value: 'mittagessen', label: 'Mittagessen', icon: ['fas', 'utensils'] },
+  { value: 'event',       label: 'Event',       icon: ['fas', 'calendar-days'] },
+];
+
+const showAktForm = ref(false);
+const savingAkt = ref(false);
+const aktForm = reactive({ type: 'anruf', titel: '', date: '', timeHour: '', timeMin: '00', kontaktId: '' });
+const aktTimeManual = ref(false);
+
+const leadAktivitaeten = computed(() => {
+  const list = (selectedLead.value?.aktivitaeten || []).slice();
+  const pending = list.filter(a => !a.erledigt).sort((a, b) => new Date(a.datum) - new Date(b.datum));
+  const done    = list.filter(a =>  a.erledigt).sort((a, b) => new Date(b.datum) - new Date(a.datum));
+  return [...pending, ...done];
+});
+
+function openAktForm() {
+  const now = new Date();
+  aktForm.type = 'anruf';
+  aktForm.titel = '';
+  aktForm.date = now.toISOString().slice(0, 10);
+  aktForm.timeHour = String(now.getHours());
+  aktForm.timeMin = String(Math.round(now.getMinutes() / 15) * 15 % 60).padStart(2, '0');
+  aktForm.kontaktId = '';
+  aktTimeManual.value = false;
+  showAktForm.value = true;
+}
+
+async function saveAkt() {
+  if (!selectedLead.value || !aktForm.date) return;
+  savingAkt.value = true;
+  try {
+    const timeStr = aktForm.timeHour !== '' ? `${String(aktForm.timeHour).padStart(2,'0')}:${aktForm.timeMin || '00'}` : '';
+    const datumStr = timeStr ? `${aktForm.date}T${timeStr}` : aktForm.date;
+    const linked = aktForm.kontaktId ? leadContacts.value.find(c => c.id === aktForm.kontaktId) : null;
+    const payload = {
+      type: aktForm.type,
+      titel: aktForm.titel.trim(),
+      datum: new Date(datumStr).toISOString(),
+      kontakt: linked ? { id: linked.id, displayName: linked.displayName, email: linked.email } : {},
+    };
+    const { data } = await api.post(`/api/leads/${selectedLead.value._id}/aktivitaeten`, payload);
+    if (!selectedLead.value.aktivitaeten) selectedLead.value.aktivitaeten = [];
+    selectedLead.value.aktivitaeten.push(data);
+    showAktForm.value = false;
+  } catch (e) {
+    console.error('Aktivität speichern fehlgeschlagen', e);
+  } finally {
+    savingAkt.value = false;
+  }
+}
+
+async function toggleAktErledigt(akt) {
+  const newVal = !akt.erledigt;
+  akt.erledigt = newVal;
+  try {
+    const { data } = await api.patch(
+      `/api/leads/${selectedLead.value._id}/aktivitaeten/${akt._id}`,
+      { erledigt: newVal }
+    );
+    Object.assign(akt, data);
+  } catch (e) {
+    akt.erledigt = !newVal;
+    console.error('Aktivität aktualisieren fehlgeschlagen', e);
+  }
+}
+
+async function deleteAkt(akt) {
+  if (!confirm('Aktivität löschen?')) return;
+  try {
+    await api.delete(`/api/leads/${selectedLead.value._id}/aktivitaeten/${akt._id}`);
+    const idx = selectedLead.value.aktivitaeten.findIndex(a => a._id === akt._id);
+    if (idx >= 0) selectedLead.value.aktivitaeten.splice(idx, 1);
+  } catch (e) {
+    console.error('Aktivität löschen fehlgeschlagen', e);
+  }
+}
+
+const editingAktId = ref(null);
+const editAktForm = reactive({ type: 'aufgabe', titel: '', date: '', timeHour: '', timeMin: '00', kontaktId: '' });
+const editAktTimeManual = ref(false);
+
+function openEditAkt(akt) {
+  editingAktId.value = akt._id;
+  const d = new Date(akt.datum);
+  editAktForm.type = akt.type || 'aufgabe';
+  editAktForm.titel = akt.titel || '';
+  editAktForm.date = d.toISOString().slice(0, 10);
+  editAktForm.timeHour = String(d.getHours());
+  editAktForm.timeMin = String(d.getMinutes()).padStart(2, '0');
+  editAktForm.kontaktId = akt.kontakt?.id || '';
+  editAktTimeManual.value = false;
+}
+
+async function saveEditAkt(akt) {
+  if (!editAktForm.date) return;
+  savingAkt.value = true;
+  try {
+    const timeStr = editAktForm.timeHour !== '' ? `${String(editAktForm.timeHour).padStart(2,'0')}:${editAktForm.timeMin || '00'}` : '';
+    const datumStr = timeStr ? `${editAktForm.date}T${timeStr}` : editAktForm.date;
+    const linked = editAktForm.kontaktId ? leadContacts.value.find(c => c.id === editAktForm.kontaktId) : null;
+    const payload = {
+      type: editAktForm.type,
+      titel: editAktForm.titel.trim(),
+      datum: new Date(datumStr).toISOString(),
+      kontakt: linked ? { id: linked.id, displayName: linked.displayName, email: linked.email } : {},
+    };
+    const { data } = await api.patch(`/api/leads/${selectedLead.value._id}/aktivitaeten/${akt._id}`, payload);
+    Object.assign(akt, data);
+    editingAktId.value = null;
+  } catch (e) {
+    console.error('Aktivität bearbeiten fehlgeschlagen', e);
+  } finally {
+    savingAkt.value = false;
+  }
+}
+
+function isOverdue(akt) {
+  return !akt.erledigt && new Date(akt.datum) < new Date();
+}
+
+function applyManualTime(form, val) {
+  if (!val) return;
+  const [h, m] = val.split(':');
+  form.timeHour = String(parseInt(h, 10));
+  form.timeMin = m || '00';
+}
+
+function aktTypeLabel(type) {
+  return AKT_TYPES.find(t => t.value === type)?.label || type;
+}
+
+function aktTypeIcon(type) {
+  return AKT_TYPES.find(t => t.value === type)?.icon || ['fas', 'circle-check'];
+}
+
+function formatAktDate(dt) {
+  if (!dt) return '—';
+  const d = new Date(dt);
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+  return d.toLocaleString('de-DE', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    ...(hasTime ? { hour: '2-digit', minute: '2-digit' } : {}),
+  });
 }
 
 // Close sidebar with ESC
@@ -2806,6 +3239,104 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
     width: 1px;
     background: var(--border);
   }
+}
+
+/* Jetzt-Divider */
+.chronik-divider-now {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  position: relative;
+  z-index: 1;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--primary);
+    opacity: 0.5;
+  }
+}
+
+.chronik-divider-label {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary);
+  background: var(--tile-bg);
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--primary);
+  opacity: 0.85;
+}
+
+/* Activity entries in chronik */
+.chronik-entry--akt {
+  opacity: 1;
+
+  .chronik-dot {
+    padding-top: 2px;
+  }
+}
+
+.chronik-entry--akt-done {
+  opacity: 0.55;
+
+  .chronik-text { text-decoration: line-through; }
+}
+
+.chronik-entry--akt-overdue {
+  .chronik-meta { color: #ef4444; }
+}
+
+.chronik-akt-check {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  transition: color 0.15s;
+
+  &:hover { color: var(--primary); }
+
+  .chronik-entry--akt-done & { color: var(--primary); }
+}
+
+.chronik-akt-type-icon {
+  font-size: 0.7rem;
+  color: var(--primary);
+  opacity: 0.8;
+}
+
+.chronik-akt-type-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--primary);
+  opacity: 0.85;
+}
+
+.chronik-akt-kontakt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.chronik-text--done {
+  text-decoration: line-through;
+  opacity: 0.7;
 }
 
 .chronik-entry {
@@ -3900,4 +4431,276 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
     cursor: default;
   }
 }
+
+/* ── Aktivitäten ─────────────────────────────────────────────────── */
+
+.akt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--hover);
+}
+
+.akt-type-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.akt-type-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--tile-bg);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: all 0.15s;
+
+  &.active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: transparent;
+  }
+  &:hover:not(.active) { background: var(--hover); color: var(--text); }
+}
+
+.akt-date-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--tile-bg);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s;
+
+  &:hover { border-color: var(--primary); }
+}
+
+.akt-date-icon {
+  color: var(--primary);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.akt-date-text {
+  font-size: 0.85rem;
+  color: var(--text);
+  flex: 1;
+}
+
+.akt-date-hidden {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+
+
+.akt-datetime-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.akt-time-picker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.akt-time-hour {
+  width: 52px;
+  text-align: center;
+  padding-left: 6px;
+  padding-right: 4px;
+  flex-shrink: 0;
+
+  // hide browser spinner arrows
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.akt-min-btns {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.akt-min-btn {
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 5px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+
+  &:hover { background: var(--hover); }
+  &.active { background: transparent; border-color: var(--primary); color: var(--primary); }
+}
+
+.akt-time-result {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px dashed var(--border);
+  white-space: nowrap;
+  transition: border-color 0.12s, color 0.12s;
+
+  &:hover { border-color: var(--primary); color: var(--primary); }
+}
+
+.akt-time-override {
+  width: 88px;
+  flex-shrink: 0;
+}
+
+.akt-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.akt-empty {
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 12px 0;
+}
+
+.akt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.akt-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--tile-bg);
+  transition: opacity 0.2s;
+
+  &--done {
+    opacity: 0.5;
+    .akt-titel { text-decoration: line-through; }
+  }
+
+  &--overdue:not(.akt-item--done) {
+    border-color: rgba(239, 68, 68, 0.4);
+    .akt-date { color: #ef4444; }
+  }
+}
+
+.akt-check {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 2px;
+  font-size: 1.05rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+  transition: color 0.15s;
+
+  &.done { color: #10b981; }
+  &:hover { color: var(--primary); }
+}
+
+.akt-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.akt-top-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.akt-type-icon {
+  color: var(--muted);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.akt-titel {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.akt-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  align-items: center;
+}
+
+.akt-contact {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.akt-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+
+  .akt-item:hover & { opacity: 1; }
+}
+
+.akt-edit,
+.akt-delete {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  transition: color 0.15s, background 0.15s;
+
+  &:hover { background: var(--hover); }
+}
+
+.akt-edit:hover { color: var(--primary); }
+.akt-delete:hover { color: #ef4444; }
 </style>

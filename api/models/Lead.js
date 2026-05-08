@@ -23,6 +23,28 @@ const NotizenSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const AktivitaetSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['anruf', 'meeting', 'aufgabe', 'frist', 'email', 'mittagessen', 'event'],
+      default: 'aufgabe',
+    },
+    titel: { type: String, trim: true, maxlength: 200, default: '' },
+    datum: { type: Date, required: true },
+    erledigt: { type: Boolean, default: false },
+    // Optional snapshot of a linked MS contact
+    kontakt: {
+      id:          { type: String, default: null },
+      displayName: { type: String, default: null },
+      email:       { type: String, default: null },
+    },
+    angelegtVon:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    angelegtVonName: { type: String, default: '' },
+  },
+  { timestamps: true }
+);
+
 const LeadSchema = new mongoose.Schema(
   {
     title: {
@@ -142,6 +164,9 @@ const LeadSchema = new mongoose.Schema(
 
     // Activity / note log
     notizen: [NotizenSchema],
+
+    // Planned activities (calls, meetings, events, …)
+    aktivitaeten: [AktivitaetSchema],
 
     /**
      * Custom field values — keyed by LeadLabel.key

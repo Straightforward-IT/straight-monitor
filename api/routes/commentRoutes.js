@@ -56,9 +56,9 @@ router.get('/', auth, asyncHandler(async (req, res) => {
 }));
 
 // ─── POST /api/comments ───
-// Body: { scope, text, context: { mitarbeiter?, datum?, resourceId?, resourceType? } }
+// Body: { scope, text, isSystem?, context: { mitarbeiter?, datum?, resourceId?, resourceType? } }
 router.post('/', auth, asyncHandler(async (req, res) => {
-  const { scope, text, context = {} } = req.body;
+  const { scope, text, isSystem = false, context = {} } = req.body;
 
   if (!scope || !text?.trim()) {
     return res.status(400).json({ message: '"scope" und "text" sind erforderlich.' });
@@ -74,6 +74,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   const comment = new Comment({
     scope,
     text: text.trim(),
+    isSystem: isSystem === true,
     author: user.name || user.email,
     authorId: req.user.id,
     readBy: [req.user.id], // author already read their own
