@@ -29,6 +29,11 @@
         <span>Mailbox Explorer</span>
       </button>
 
+      <button class="s-btn" v-if="newPagesEnabled" @click="go('/onedrive-explorer')">
+        <img :src="logoSrc" alt="" />
+        <span>OneDrive Explorer</span>
+      </button>
+
       <button class="s-btn" @click="go('/daten-import')">
         <img :src="logoSrc" alt="" />
         <span>Daten Import</span>

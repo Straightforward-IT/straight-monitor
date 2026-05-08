@@ -29,6 +29,13 @@ const {
   deleteContact,
   getMailboxFolderTree,
   getMailFolderInsights,
+  getDriveItemChildren,
+  getDriveItemById,
+  getDriveItemChildrenDirect,
+  getDriveItemPreviewUrl,
+  uploadDriveItem,
+  getOneDriveFolderTree,
+  mapToFolderNodes,
 } = require("../GraphService");
 const { parseApplicantEmail } = require("../applicantParser");
 const { runApplicantMailRetentionCleanup } = require("../ApplicantMailRetentionService");
@@ -927,6 +934,156 @@ router.delete("/contacts/:contactId", auth, async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     logGraphError(`DELETE /contacts/${req.params.contactId} failed`, e);
+    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+  }
+});
+
+/* ----------------------------- OneDrive ---------------------------------- */
+
+const multer = require("multer");
+const driveUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
+});
+
+// GET /api/graph/drive/tree?team=<key>
+// Liefert den vollständigen OneDrive-Ordner/Datei-Baum für das Team-Postfach.
+router.get("/drive/tree", auth, async (req, res) => {
+  try {
+    if (!await requireAdmin(req, res)) return;
+
+    const team = registry.getTeam(req.query.team || "");
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) {
+      return res.status(400).json({ ok: false, error: `Team '${team.key}' has no mailbox configured` });
+    }
+
+    const result = await getOneDriveFolderTree({ userPrincipalName });
+    res.json({
+      ok: true,
+      team: team.key,
+      displayName: team.displayName || team.key,
+      upn: userPrincipalName,
+      items: result.items,
+    });
+  } catch (e) {
+    logGraphError("GET /drive/tree failed", e);
+    const status = /Unknown team/i.test(e.message) ? 400 : 500;
+    res.status(status).json({ ok: false, error: e?.response?.data || e.message });
+  }
+});
+
+// GET /api/graph/drive/children?team=<key>&itemId=<id>[&foldersOnly=true]
+// foldersOnly=true: nur Unterordner (für Baum-Expansion).
+// foldersOnly=false/omitted: Dateien + Ordner (für Dateiliste rechts).
+router.get("/drive/children", auth, async (req, res) => {
+  try {
+    if (!await requireAdmin(req, res)) return;
+
+    const team = registry.getTeam(req.query.team || "");
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) {
+      return res.status(400).json({ ok: false, error: `Team '${team.key}' has no mailbox configured` });
+    }
+
+    const itemId = req.query.itemId || "root";
+    const foldersOnly = String(req.query.foldersOnly || "false").toLowerCase() === "true";
+    if (foldersOnly) {
+      const token = await getAppToken();
+      const raw = await getDriveItemChildren(token, userPrincipalName, itemId);
+      return res.json({ ok: true, items: mapToFolderNodes(raw) });
+    }
+
+    const token = await getAppToken();
+
+    const items = await getDriveItemChildrenDirect(token, userPrincipalName, itemId);
+    res.json({ ok: true, items });
+  } catch (e) {
+    logGraphError("GET /drive/children failed", e);
+    const status = /Unknown team/i.test(e.message) ? 400 : 500;
+    res.status(status).json({ ok: false, error: e?.response?.data || e.message });
+  }
+});
+
+// GET /api/graph/drive/item?team=<key>&itemId=<id>
+// Gibt Metadaten + Download-URL für ein einzelnes DriveItem zurück.
+router.get("/drive/item", auth, async (req, res) => {
+  try {
+    if (!await requireAdmin(req, res)) return;
+
+    const team = registry.getTeam(req.query.team || "");
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) {
+      return res.status(400).json({ ok: false, error: `Team '${team.key}' has no mailbox configured` });
+    }
+
+    const { itemId } = req.query;
+    if (!itemId) return res.status(400).json({ ok: false, error: "itemId required" });
+
+    const token = await getAppToken();
+    const item = await getDriveItemById(token, userPrincipalName, itemId);
+    res.json({ ok: true, item });
+  } catch (e) {
+    logGraphError("GET /drive/item failed", e);
+    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+  }
+});
+
+// GET /api/graph/drive/preview?team=<key>&itemId=<id>
+// Gibt eine temporäre Microsoft-Embed-Vorschau-URL zurück.
+router.get("/drive/preview", auth, async (req, res) => {
+  try {
+    if (!await requireAdmin(req, res)) return;
+
+    const team = registry.getTeam(req.query.team || "");
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) {
+      return res.status(400).json({ ok: false, error: `Team '${team.key}' has no mailbox configured` });
+    }
+
+    const { itemId } = req.query;
+    if (!itemId) return res.status(400).json({ ok: false, error: "itemId required" });
+
+    const token = await getAppToken();
+    const previewUrl = await getDriveItemPreviewUrl(token, userPrincipalName, itemId);
+    if (!previewUrl) {
+      return res.status(404).json({ ok: false, error: "No preview URL available for this item" });
+    }
+    res.json({ ok: true, previewUrl });
+  } catch (e) {
+    logGraphError("GET /drive/preview failed", e);
+    res.status(500).json({ ok: false, error: e?.response?.data || e.message });
+  }
+});
+
+// POST /api/graph/drive/upload?team=<key>&itemId=<parentFolderId>
+// Lädt eine Datei in den angegebenen Ordner hoch (max. 50 MB, einfacher Upload).
+router.post("/drive/upload", auth, driveUpload.single("file"), async (req, res) => {
+  try {
+    if (!await requireAdmin(req, res)) return;
+
+    const team = registry.getTeam(req.query.team || "");
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) {
+      return res.status(400).json({ ok: false, error: `Team '${team.key}' has no mailbox configured` });
+    }
+
+    const parentItemId = req.query.itemId || "root";
+    if (!req.file) return res.status(400).json({ ok: false, error: "file required" });
+
+    const token = await getAppToken();
+    const created = await uploadDriveItem(
+      token,
+      userPrincipalName,
+      parentItemId,
+      req.file.originalname,
+      req.file.buffer,
+      req.file.mimetype,
+    );
+
+    res.status(201).json({ ok: true, item: created });
+  } catch (e) {
+    logGraphError("POST /drive/upload failed", e);
     res.status(500).json({ ok: false, error: e?.response?.data || e.message });
   }
 });

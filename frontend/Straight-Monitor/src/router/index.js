@@ -75,6 +75,7 @@ const routes = [
       { path: 'dispo', name: 'Dispo', component: DispoTable },
       { path: 'benutzer-verwaltung', name: 'BenutzerVerwaltung', component: UserManagement, meta: { roles: ['ADMIN'] } },
       { path: 'mailbox-explorer', name: 'MailboxExplorer', component: () => import('@/components/GraphMailboxDashboard.vue'), meta: { roles: ['ADMIN'] } },
+      { path: 'onedrive-explorer', name: 'OneDriveExplorer', component: () => import('@/components/OneDriveDashboard.vue'), meta: { roles: ['ADMIN'] } },
       { path: '', redirect: '/dashboard' }
     ]
   },

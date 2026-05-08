@@ -968,6 +968,166 @@ async function deleteContact(token, upn, contactId) {
   });
 }
 
+/* ----------------------------- OneDrive ---------------------------------- */
+
+const DRIVE_SELECT =
+  "id,name,size,lastModifiedDateTime,createdDateTime,parentReference,folder,file,webUrl,@microsoft.graph.downloadUrl";
+
+/**
+ * Listet die direkten Kinder eines DriveItem-Ordners auf (paginiert).
+ * itemId = 'root' → Wurzelverzeichnis des Postfach-Users.
+ */
+async function getDriveItemChildren(token, upn, itemId = "root", { maxRetries = 3 } = {}) {
+  const results = [];
+  const baseUrl =
+    itemId === "root"
+      ? `${GRAPH}/users/${encodeURIComponent(upn)}/drive/root/children`
+      : `${GRAPH}/users/${encodeURIComponent(upn)}/drive/items/${encodeURIComponent(itemId)}/children`;
+
+  const params = new URLSearchParams({ $select: DRIVE_SELECT, $top: "250" });
+  let url = `${baseUrl}?${params.toString()}`;
+
+  while (url) {
+    let attempt = 0;
+    let data;
+    while (true) {
+      try {
+        ({ data } = await axios.get(url, {
+          headers: { Authorization: `Bearer ${token}` },
+        }));
+        break; // success
+      } catch (err) {
+        const status = err?.response?.status;
+        if (status === 429 && attempt < maxRetries) {
+          const retryAfter = Number(
+            err?.response?.data?.error?.retryAfterSeconds ||
+            err?.response?.headers?.["retry-after"] ||
+            10
+          );
+          attempt += 1;
+          await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+        } else {
+          throw err;
+        }
+      }
+    }
+    results.push(...(data.value || []));
+    url = data["@odata.nextLink"] || null;
+  }
+
+  return results;
+}
+
+/**
+ * Gibt nur die Ordner einer Ebene zurück (kein Rekurse).
+ * Wird vom /drive/tree-Endpunkt für die initiale Root-Ansicht und
+ * vom /drive/children-Endpunkt beim Aufklappen eines Ordners genutzt.
+ */
+function mapToFolderNodes(items) {
+  return items
+    .filter((item) => Boolean(item.folder))
+    .sort((a, b) => (a.name || "").localeCompare(b.name || "", "de"))
+    .map((item) => ({
+      id: item.id,
+      name: item.name || "",
+      parentId: item.parentReference?.id || null,
+      isFolder: true,
+      childCount: item.folder?.childCount ?? null,
+      webUrl: item.webUrl || null,
+    }));
+}
+
+/**
+ * Gibt die direkten Kinder eines Ordners zurück (Dateien + Unterordner),
+ * für die Anzeige im Datei-Panel nach Ordnerauswahl.
+ * Wird lazy aufgerufen – nicht beim initialen Tree-Aufbau.
+ */
+async function getDriveItemChildrenDirect(token, upn, itemId = "root") {
+  const items = await getDriveItemChildren(token, upn, itemId);
+
+  // Ordner zuerst, dann Dateien, jeweils alphabetisch
+  items.sort((a, b) => {
+    const aIsFolder = Boolean(a.folder);
+    const bIsFolder = Boolean(b.folder);
+    if (aIsFolder !== bIsFolder) return aIsFolder ? -1 : 1;
+    return (a.name || "").localeCompare(b.name || "", "de");
+  });
+
+  return items.map((item) => ({
+    id: item.id,
+    name: item.name || "",
+    size: item.size || 0,
+    lastModifiedDateTime: item.lastModifiedDateTime || null,
+    createdDateTime: item.createdDateTime || null,
+    parentId: item.parentReference?.id || null,
+    isFolder: Boolean(item.folder),
+    childCount: item.folder?.childCount ?? null,
+    mimeType: item.file?.mimeType || null,
+    webUrl: item.webUrl || null,
+    downloadUrl: item["@microsoft.graph.downloadUrl"] || null,
+  }));
+}
+
+/**
+ * Gibt Metadaten + Download-URL für ein einzelnes DriveItem zurück.
+ */
+async function getDriveItemById(token, upn, itemId) {
+  const url =
+    `${GRAPH}/users/${encodeURIComponent(upn)}/drive/items/${encodeURIComponent(itemId)}` +
+    `?$select=${DRIVE_SELECT}`;
+  const { data } = await axios.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return data;
+}
+
+/**
+ * Gibt eine temporäre Embed-Vorschau-URL zurück (Office, Bilder, PDF usw.).
+ * POST /drive/items/{id}/preview → { getUrl }
+ */
+async function getDriveItemPreviewUrl(token, upn, itemId) {
+  const url = `${GRAPH}/users/${encodeURIComponent(upn)}/drive/items/${encodeURIComponent(itemId)}/preview`;
+  const { data } = await axios.post(url, {}, {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+  });
+  return data.getUrl || null;
+}
+
+/**
+ * Einfacher Upload (≤ 4 MB) in einen bestimmten Ordner.
+ * parentItemId = 'root' lädt in das Stammverzeichnis.
+ */
+async function uploadDriveItem(token, upn, parentItemId, fileName, buffer, contentType) {
+  const safeName = path.basename(fileName).replace(/[/?*:|"<>\\]/g, "_");
+  const uploadUrl =
+    parentItemId === "root"
+      ? `${GRAPH}/users/${encodeURIComponent(upn)}/drive/root:/${encodeURIComponent(safeName)}:/content`
+      : `${GRAPH}/users/${encodeURIComponent(upn)}/drive/items/${encodeURIComponent(parentItemId)}:/${encodeURIComponent(safeName)}:/content`;
+
+  const { data } = await axios.put(uploadUrl, buffer, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": contentType || "application/octet-stream",
+    },
+    maxBodyLength: Infinity,
+  });
+  return data;
+}
+
+/**
+ * Öffentlicher Wrapper: lädt nur die Root-Ordner (eine Ebene, kein Rekurse).
+ */
+async function getOneDriveFolderTree({ userPrincipalName } = {}) {
+  if (!TENANT || !CLIENT_ID || !CLIENT_SECRET) {
+    throw new Error("Graph credentials not configured");
+  }
+  if (!userPrincipalName) throw new Error("userPrincipalName required");
+
+  const token = await getAppToken();
+  const raw = await getDriveItemChildren(token, userPrincipalName, "root");
+  return { upn: userPrincipalName, items: mapToFolderNodes(raw) };
+}
+
 module.exports = {
   // ensure (single + multi)
   ensureGraphMailSubscription,
@@ -1001,4 +1161,12 @@ module.exports = {
   createContact,
   updateContact,
   deleteContact,
+  // drive / onedrive
+  getDriveItemChildren,
+  getDriveItemChildrenDirect,
+  getDriveItemById,
+  getDriveItemPreviewUrl,
+  uploadDriveItem,
+  getOneDriveFolderTree,
+  mapToFolderNodes,
 };
