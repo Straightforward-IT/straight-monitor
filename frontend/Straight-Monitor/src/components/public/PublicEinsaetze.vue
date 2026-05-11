@@ -100,6 +100,7 @@
           :api="api"
           :email="email"
           :mitarbeiter="mitarbeiter"
+          :token="activeToken"
           @back="goBackFromJob"
           @write-report="writeReportForJob"
         />

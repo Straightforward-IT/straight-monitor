@@ -254,7 +254,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
@@ -271,6 +271,7 @@ const props = defineProps({
   api: { type: [Object, Function], required: true },
   mitarbeiter: { type: Object, default: null },
   email: { type: String, default: '' },
+  token: { type: String, default: '' },
 });
 
 const hasReport = computed(() => {
@@ -461,26 +462,78 @@ async function loadCheckIns(auftragNr) {
   } catch { return { checkedIn: {}, noShow: {} }; }
 }
 
-async function toggleCheckIn(ma) {
-  // If "nicht erschienen": click clears that state first via API
-  if (ma.noShow) {
-    ma.noShow = false;
-    props.api.post('/api/public/noshow/toggle', {
-      auftragNr: props.einsatz.auftragNr,
-      personalNr: ma.personalNr,
-    }).catch(() => {
-      ma.noShow = true; // revert on error
-    });
-    return;
+const checkInInProgress = new Set();
+
+// ── SSE: live check-in updates from other Teamleiter ─────────────────
+const checkInEventSource = ref(null);
+
+function connectCheckInSSE(auftragNr) {
+  if (checkInEventSource.value) {
+    checkInEventSource.value.close();
+    checkInEventSource.value = null;
   }
-  ma.checkedIn = !ma.checkedIn;
+  if (!auftragNr || !props.token) return;
+
+  const base = import.meta.env.VITE_API_BASE_URL || '';
+  const url = `${base}/api/public/checkins/events?auftragNr=${auftragNr}&token=${encodeURIComponent(props.token)}`;
+  const es = new EventSource(url);
+
+  es.onmessage = (event) => {
+    try {
+      const { personalNr, checkedIn, noShow } = JSON.parse(event.data);
+      for (const schicht of schichtGruppen.value) {
+        const ma = schicht.mitarbeiter.find(m => m.personalNr === personalNr);
+        if (ma) {
+          ma.checkedIn = checkedIn;
+          ma.noShow = noShow;
+        }
+      }
+    } catch {}
+  };
+
+  es.onerror = () => {
+    // EventSource auto-reconnects on error — no manual handling needed
+  };
+
+  checkInEventSource.value = es;
+}
+
+function disconnectCheckInSSE() {
+  if (checkInEventSource.value) {
+    checkInEventSource.value.close();
+    checkInEventSource.value = null;
+  }
+}
+
+onUnmounted(disconnectCheckInSSE);
+
+async function toggleCheckIn(ma) {
+  if (checkInInProgress.has(ma.personalNr)) return;
+  checkInInProgress.add(ma.personalNr);
   try {
-    await props.api.post('/api/public/checkins/toggle', {
-      auftragNr: props.einsatz.auftragNr,
-      personalNr: ma.personalNr,
-    });
-  } catch {
-    ma.checkedIn = !ma.checkedIn; // revert on error
+    // If "nicht erschienen": click clears that state first via API
+    if (ma.noShow) {
+      ma.noShow = false;
+      props.api.post('/api/public/noshow/toggle', {
+        auftragNr: props.einsatz.auftragNr,
+        personalNr: ma.personalNr,
+      }).catch(() => {
+        ma.noShow = true; // revert on error
+      });
+      return;
+    }
+    ma.checkedIn = !ma.checkedIn; // optimistic
+    try {
+      const res = await props.api.post('/api/public/checkins/toggle', {
+        auftragNr: props.einsatz.auftragNr,
+        personalNr: ma.personalNr,
+      });
+      ma.checkedIn = res.data.checkedIn; // reconcile with server truth
+    } catch {
+      ma.checkedIn = !ma.checkedIn; // revert on error
+    }
+  } finally {
+    checkInInProgress.delete(ma.personalNr);
   }
 }
 
@@ -508,10 +561,14 @@ async function loadMitarbeiter() {
   }
 }
 
-onMounted(() => loadMitarbeiter());
+onMounted(() => {
+  loadMitarbeiter();
+  connectCheckInSSE(props.einsatz?.auftragNr);
+});
 
 watch(() => props.einsatz?._id, () => {
   loadMitarbeiter();
+  connectCheckInSSE(props.einsatz?.auftragNr);
 });
 
 

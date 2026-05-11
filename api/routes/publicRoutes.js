@@ -19,6 +19,21 @@ const { flipAxios } = require("../flipAxios");
 router.use(publicAuth);
 
 // ──────────────────────────────────────────────
+// SSE: real-time check-in broadcast
+// Map: auftragNr (Number) → Set of SSE response objects
+// ──────────────────────────────────────────────
+const checkInClients = new Map();
+
+function broadcastCheckInUpdate(auftragNr, data) {
+  const clients = checkInClients.get(auftragNr);
+  if (!clients || clients.size === 0) return;
+  const msg = `data: ${JSON.stringify(data)}\n\n`;
+  for (const client of clients) {
+    try { client.write(msg); } catch {}
+  }
+}
+
+// ──────────────────────────────────────────────
 // GET /api/public/mitarbeiter?email=...
 // Finds Mitarbeiter by email, returns basic info
 // ──────────────────────────────────────────────
@@ -875,6 +890,41 @@ router.post(
 );
 
 // ──────────────────────────────────────────────
+// GET /api/public/checkins/events?auftragNr=...
+// SSE stream — pushes check-in updates to all connected Teamleiter
+// ──────────────────────────────────────────────
+router.get("/checkins/events", (req, res) => {
+  const nr = parseInt(req.query.auftragNr);
+  if (!nr) return res.status(400).json({ msg: "auftragNr required" });
+
+  res.set({
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no", // disable Nginx/Heroku buffering
+  });
+  res.flushHeaders();
+
+  // Register client
+  if (!checkInClients.has(nr)) checkInClients.set(nr, new Set());
+  checkInClients.get(nr).add(res);
+
+  // Keep-alive ping every 30s
+  const keepAlive = setInterval(() => {
+    try { res.write(": ping\n\n"); } catch {}
+  }, 30000);
+
+  req.on("close", () => {
+    clearInterval(keepAlive);
+    const clients = checkInClients.get(nr);
+    if (clients) {
+      clients.delete(res);
+      if (clients.size === 0) checkInClients.delete(nr);
+    }
+  });
+});
+
+// ──────────────────────────────────────────────
 // GET /api/public/checkins?auftragNr=...
 // Returns the array of checked-in personalNr values
 // ──────────────────────────────────────────────
@@ -910,6 +960,7 @@ router.post(
     if (!doc) {
       doc = new CheckIn({ auftragNr: nr, checkedIn: [pNr] });
       await doc.save();
+      broadcastCheckInUpdate(nr, { personalNr: pNr, checkedIn: true, noShow: false });
       return res.json({ checkedIn: true });
     }
 
@@ -920,7 +971,9 @@ router.post(
       doc.checkedIn.splice(idx, 1);
     }
     await doc.save();
-    res.json({ checkedIn: idx === -1 });
+    const newCheckedIn = idx === -1;
+    broadcastCheckInUpdate(nr, { personalNr: pNr, checkedIn: newCheckedIn, noShow: false });
+    res.json({ checkedIn: newCheckedIn });
   })
 );
 
@@ -944,6 +997,7 @@ router.post(
     if (!doc) {
       doc = new CheckIn({ auftragNr: nr, checkedIn: [], noShow: [pNr] });
       await doc.save();
+      broadcastCheckInUpdate(nr, { personalNr: pNr, checkedIn: false, noShow: true });
       return res.json({ noShow: true });
     }
 
@@ -957,7 +1011,9 @@ router.post(
       doc.noShow.splice(idx, 1);
     }
     await doc.save();
-    res.json({ noShow: idx === -1 });
+    const newNoShow = idx === -1;
+    broadcastCheckInUpdate(nr, { personalNr: pNr, checkedIn: !!doc.checkedIn.includes(pNr), noShow: newNoShow });
+    res.json({ noShow: newNoShow });
   })
 );
 
