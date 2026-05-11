@@ -29,7 +29,11 @@ function broadcastCheckInUpdate(auftragNr, data) {
   if (!clients || clients.size === 0) return;
   const msg = `data: ${JSON.stringify(data)}\n\n`;
   for (const client of clients) {
-    try { client.write(msg); } catch {}
+    try {
+      client.write(msg);
+      // Flush the TCP buffer — critical for Heroku's routing layer
+      if (typeof client.flush === 'function') client.flush();
+    } catch {}
   }
 }
 
@@ -899,20 +903,26 @@ router.get("/checkins/events", (req, res) => {
 
   res.set({
     "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
+    "Cache-Control": "no-cache, no-transform",
     "Connection": "keep-alive",
-    "X-Accel-Buffering": "no", // disable Nginx/Heroku buffering
+    "X-Accel-Buffering": "no",
   });
   res.flushHeaders();
+
+  // Disable Nagle's algorithm so small SSE frames are sent immediately
+  if (req.socket) req.socket.setNoDelay(true);
+
+  // Send initial confirmation event so the client knows the connection is live
+  res.write(`data: ${JSON.stringify({ type: 'connected', auftragNr: nr })}\n\n`);
 
   // Register client
   if (!checkInClients.has(nr)) checkInClients.set(nr, new Set());
   checkInClients.get(nr).add(res);
 
-  // Keep-alive ping every 30s
+  // Keep-alive ping every 25s (Heroku idle timeout is 55s)
   const keepAlive = setInterval(() => {
     try { res.write(": ping\n\n"); } catch {}
-  }, 30000);
+  }, 25000);
 
   req.on("close", () => {
     clearInterval(keepAlive);

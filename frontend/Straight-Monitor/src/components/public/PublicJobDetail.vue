@@ -480,7 +480,10 @@ function connectCheckInSSE(auftragNr) {
 
   es.onmessage = (event) => {
     try {
-      const { personalNr, checkedIn, noShow } = JSON.parse(event.data);
+      const payload = JSON.parse(event.data);
+      // Ignore the initial connection-confirmation event
+      if (payload.type === 'connected') return;
+      const { personalNr, checkedIn, noShow } = payload;
       // Use Number() coercion on both sides — API may return strings, SSE sends integers
       const pNr = Number(personalNr);
       for (const schicht of schichtGruppen.value) {
