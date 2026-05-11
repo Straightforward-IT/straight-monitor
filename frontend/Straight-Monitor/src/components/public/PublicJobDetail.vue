@@ -481,8 +481,10 @@ function connectCheckInSSE(auftragNr) {
   es.onmessage = (event) => {
     try {
       const { personalNr, checkedIn, noShow } = JSON.parse(event.data);
+      // Use Number() coercion on both sides — API may return strings, SSE sends integers
+      const pNr = Number(personalNr);
       for (const schicht of schichtGruppen.value) {
-        const ma = schicht.mitarbeiter.find(m => m.personalNr === personalNr);
+        const ma = schicht.mitarbeiter.find(m => Number(m.personalNr) === pNr);
         if (ma) {
           ma.checkedIn = checkedIn;
           ma.noShow = noShow;
