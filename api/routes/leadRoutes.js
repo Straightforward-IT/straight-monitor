@@ -12,7 +12,7 @@ const User = require('../models/User');
 const Comment = require('../models/Comment');
 const R2Service = require('../R2Service');
 const registry = require('../config/registry');
-const { createSalesTask } = require('../AsanaService');
+const { createSalesTask, updateTask } = require('../AsanaService');
 
 // Multer — memory storage, max 25 MB per file, up to 20 files per request
 const upload = multer({
@@ -561,6 +561,12 @@ router.patch('/:id/aktivitaeten/:aktId', auth, asyncHandler(async (req, res) => 
   if (!lead) return res.status(404).json({ message: 'Nicht gefunden.' });
   const updated = lead.aktivitaeten.find((a) => String(a._id) === req.params.aktId);
   res.json(updated);
+
+  // Fire-and-forget: complete linked Asana task when activity is marked erledigt
+  if (req.body.erledigt === true && updated?.asanaTaskGid) {
+    updateTask(updated.asanaTaskGid, { completed: true })
+      .catch(e => console.warn(`⚠️ aktivitaeten PATCH: could not complete Asana task ${updated.asanaTaskGid}:`, e.message));
+  }
 }));
 
 // @route   DELETE /api/leads/:id/aktivitaeten/:aktId

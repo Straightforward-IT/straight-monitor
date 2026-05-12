@@ -2632,11 +2632,14 @@ async function saveAkt() {
     if (!selectedLead.value.aktivitaeten) selectedLead.value.aktivitaeten = [];
     selectedLead.value.aktivitaeten.push(data);
     if (asanaView.enabled) {
-      const newAkt = data;
-      submitAsanaTask('create', newAkt._id).then(result => {
+      const aktId = data._id;
+      submitAsanaTask('create', aktId).then(result => {
         if (result?.gid) {
-          newAkt.asanaTaskGid = result.gid;
-          newAkt.asanaTaskUrl = result.url || null;
+          const akt = selectedLead.value.aktivitaeten.find(a => a._id === aktId);
+          if (akt) {
+            akt.asanaTaskGid = result.gid;
+            akt.asanaTaskUrl = result.url || null;
+          }
         }
       }).catch(e => console.error('Asana Task Fehler', e));
     }
