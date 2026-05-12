@@ -85,6 +85,9 @@
         <!-- KW Chips -->
         <div class="kw-chips">
           <span class="kw-label">KW</span>
+          <button v-if="kwChipOffset > 0" class="kw-nav-btn" @click="kwChipOffset--" title="Vorherige Wochen">
+            <font-awesome-icon icon="fa-solid fa-chevron-left" />
+          </button>
           <CustomTooltip
             v-for="chip in kwChips"
             :key="`${chip.year}-${chip.kw}`"
@@ -97,6 +100,9 @@
               @click="toggleKw(chip)"
             >{{ chip.kw }}</button>
           </CustomTooltip>
+          <button class="kw-nav-btn" @click="kwChipOffset++" title="Nächste Wochen">
+            <font-awesome-icon icon="fa-solid fa-chevron-right" />
+          </button>
         </div>
 
         <!-- Search -->
@@ -295,6 +301,9 @@
       <!-- Center: KW chips -->
       <div class="kw-chips">
         <span class="kw-label">KW</span>
+        <button v-if="kwChipOffset > 0" class="kw-nav-btn" @click="kwChipOffset--" title="Vorherige Wochen">
+          <font-awesome-icon icon="fa-solid fa-chevron-left" />
+        </button>
         <CustomTooltip
           v-for="chip in kwChips"
           :key="`${chip.year}-${chip.kw}`"
@@ -307,6 +316,9 @@
             @click="toggleKw(chip)"
           >{{ chip.kw }}</button>
         </CustomTooltip>
+        <button class="kw-nav-btn" @click="kwChipOffset++" title="Nächste Wochen">
+          <font-awesome-icon icon="fa-solid fa-chevron-right" />
+        </button>
       </div>
 
       <!-- Right: zoom + fullscreen + help -->
@@ -1534,7 +1546,7 @@ const chatModal = reactive({
 });
 
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
-const isKnechti = computed(() => ['ed@straightforward.email', 'it@straightforward.email'].includes(auth.user?.email));
+const isKnechti = computed(() => ['ed@straightforward.email', 'it@straightforward.email'].includes(auth.user?.email?.toLowerCase()));
 const showFsPanel = computed(() => isFullscreen.value && ui.panelType === 'kommentare' && !ui.hidden);
 const fsFeedCollapsed = ref(false);
 
@@ -1796,6 +1808,7 @@ function getISOWeek(d) {
 }
 
 const selectedKw = ref(null); // { kw, year } | null
+const kwChipOffset = ref(0); // weeks to shift the KW chip window forward
 
 function toggleKw(chip) {
   if (selectedKw.value?.kw === chip.kw && selectedKw.value?.year === chip.year) {
@@ -1805,21 +1818,26 @@ function toggleKw(chip) {
   }
 }
 
-// ─── Effective day range: extend beyond filters.tage when a far-out KW is selected ───
+// ─── Effective day range: extend beyond filters.tage when a far-out KW is selected or offset is used ───
 const effectiveTage = computed(() => {
-  if (!selectedKw.value) return filters.tage;
+  // Ensure we always cover the visible KW window incl. offset
+  const windowEnd = kwChipOffset.value > 0
+    ? kwChipOffset.value * 7 + Math.max(filters.tage, 30) + 7
+    : filters.tage;
+  const base = Math.max(filters.tage, windowEnd);
+  if (!selectedKw.value) return base;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  // Walk backwards from day 60 to find the last day belonging to the selected KW
-  for (let i = 60; i >= 0; i--) {
+  const searchLimit = Math.max(windowEnd + 14, 60);
+  for (let i = searchLimit; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() + i);
     const { kw, year } = getISOWeek(d);
     if (kw === selectedKw.value.kw && year === selectedKw.value.year) {
-      return Math.max(filters.tage, i + 1);
+      return Math.max(base, i + 1);
     }
   }
-  return filters.tage;
+  return base;
 });
 
 let _prevEffective = null;
@@ -1858,7 +1876,8 @@ const kwChips = computed(() => {
   today.setHours(0, 0, 0, 0);
   const { kw: currentKw, year: currentYear } = getISOWeek(today);
   const kwDays = Math.max(filters.tage, 30);
-  for (let i = 0; i < kwDays; i++) {
+  const startDay = kwChipOffset.value * 7;
+  for (let i = startDay; i < startDay + kwDays; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() + i);
     const { kw, year } = getISOWeek(d);
@@ -4749,6 +4768,25 @@ const options = [7, 14, 30];
   letter-spacing: 0.5px;
   margin-right: 2px;
   user-select: none;
+}
+
+.kw-nav-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  padding: 2px 5px;
+  cursor: pointer;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, border-color 0.15s;
+
+  &:hover {
+    color: var(--text);
+    border-color: var(--text);
+  }
 }
 
 .kw-chip {

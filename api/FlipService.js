@@ -356,6 +356,10 @@ async function flipUserRoutine() {
     }
 
     // 📅 Kalender-Sync — Einsätze für alle isOffice-Mitarbeiter
+    // ⚠️ EINGEFROREN — Event-Einladungen an cedricbglx@gmail.com deaktiviert.
+    // Zum Reaktivieren diesen Block entfernen.
+    emailLogs.push("<br><br>⏸️ Kalender-Sync ist eingefroren und wird übersprungen.");
+    if (false) // eslint-disable-line no-constant-condition
     try {
       emailLogs.push("<br><br>📅 Synchronisiere Flip-Kalender für Office-Mitarbeiter...");
       const now = new Date();

@@ -62,9 +62,30 @@
               </th>
               <!-- All configurable columns (standard + custom), ordered by colConfig -->
               <template v-for="col in visibleColConfig" :key="col._id">
-                <th v-if="col.stdKey === 'stufe'" class="col-stufe">Stufe</th>
-                <th v-else-if="col.stdKey === 'quelle'" class="col-source">Quelle</th>
-                <th v-else-if="col.stdKey === 'owner'" class="col-owner">Besitzer</th>
+                <th v-if="col.stdKey === 'stufe'" class="col-stufe sortable" @click="toggleSort('stufe')">
+                  Stufe
+                  <font-awesome-icon
+                    v-if="sortBy === 'stufe'"
+                    :icon="['fas', sortDir === 'asc' ? 'arrow-up' : 'arrow-down']"
+                    class="sort-icon"
+                  />
+                </th>
+                <th v-else-if="col.stdKey === 'quelle'" class="col-source sortable" @click="toggleSort('quelle')">
+                  Quelle
+                  <font-awesome-icon
+                    v-if="sortBy === 'quelle'"
+                    :icon="['fas', sortDir === 'asc' ? 'arrow-up' : 'arrow-down']"
+                    class="sort-icon"
+                  />
+                </th>
+                <th v-else-if="col.stdKey === 'owner'" class="col-owner sortable" @click="toggleSort('owner')">
+                  Besitzer
+                  <font-awesome-icon
+                    v-if="sortBy === 'owner'"
+                    :icon="['fas', sortDir === 'asc' ? 'arrow-up' : 'arrow-down']"
+                    class="sort-icon"
+                  />
+                </th>
                 <th v-else-if="col.stdKey === 'createdAt'" class="col-created sortable" @click="toggleSort('createdAt')">
                   Lead erstellt
                   <font-awesome-icon
@@ -1623,8 +1644,22 @@ const filteredLeads = computed(() => {
 
   const dir = sortDir.value === 'asc' ? 1 : -1;
   list.sort((a, b) => {
-    const av = a[sortBy.value];
-    const bv = b[sortBy.value];
+    let av, bv;
+    if (sortBy.value === 'stufe') {
+      av = stufeOrder.indexOf(a.stufe ?? '');
+      bv = stufeOrder.indexOf(b.stufe ?? '');
+      if (av === -1) av = stufeOrder.length;
+      if (bv === -1) bv = stufeOrder.length;
+    } else if (sortBy.value === 'quelle') {
+      av = quelleLabel(a.quelle) || '';
+      bv = quelleLabel(b.quelle) || '';
+    } else if (sortBy.value === 'owner') {
+      av = (a.eigentuemer?.name || a.eigentuemer?.email || '').toLowerCase();
+      bv = (b.eigentuemer?.name || b.eigentuemer?.email || '').toLowerCase();
+    } else {
+      av = a[sortBy.value];
+      bv = b[sortBy.value];
+    }
     if (av == null && bv == null) return 0;
     if (av == null) return 1;
     if (bv == null) return -1;

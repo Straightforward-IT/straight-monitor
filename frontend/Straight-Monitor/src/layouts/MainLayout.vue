@@ -58,11 +58,11 @@ const pageTitleSelector = [
   '[data-page-title]',
   '.page-title',
   '.view-title',
-  '.page-header h1',
+  '.page-header h1:not(.knechti-title)',
   '.page-header h2',
   '.header-title-group h1',
   '.header-title-group h2',
-  'h1',
+  'h1:not(.knechti-title)',
 ].join(', ');
 
 let managedTitleEl = null;
