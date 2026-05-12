@@ -12,14 +12,6 @@
         </div>
 
         <div class="toolbar-right">
-          <span class="count-tag">{{ filteredLeads.length }} Leads</span>
-
-          <select v-model="statusFilter" class="filter-select">
-            <option value="">Alle</option>
-            <option value="open">Offen</option>
-            <option value="archived">Archiviert</option>
-          </select>
-
           <button class="btn-icon-toolbar" @click="showFieldManager = true" title="Spalten / Eigene Felder verwalten">
             <font-awesome-icon :icon="['fas', 'sliders']" />
           </button>
@@ -47,220 +39,17 @@
         </button>
       </div>
 
-      <div v-else class="leads-table-wrap">
-        <table class="leads-table">
-          <thead>
-            <tr>
-              <th class="col-fav"></th>
-              <th class="col-title sortable" @click="toggleSort('title')">
-                Organisation
-                <font-awesome-icon
-                  v-if="sortBy === 'title'"
-                  :icon="['fas', sortDir === 'asc' ? 'arrow-up' : 'arrow-down']"
-                  class="sort-icon"
-                />
-              </th>
-              <!-- All configurable columns (standard + custom), ordered by colConfig -->
-              <template v-for="col in visibleColConfig" :key="col._id">
-                <th v-if="col.stdKey === 'stufe'" class="col-stufe sortable" @click="toggleSort('stufe')">
-                  Stufe
-                  <font-awesome-icon
-                    v-if="sortBy === 'stufe'"
-                    :icon="['fas', sortDir === 'asc' ? 'arrow-up' : 'arrow-down']"
-                    class="sort-icon"
-                  />
-                </th>
-                <th v-else-if="col.stdKey === 'quelle'" class="col-source sortable" @click="toggleSort('quelle')">
-                  Quelle
-                  <font-awesome-icon
-                    v-if="sortBy === 'quelle'"
-                    :icon="['fas', sortDir === 'asc' ? 'arrow-up' : 'arrow-down']"
-                    class="sort-icon"
-                  />
-                </th>
-                <th v-else-if="col.stdKey === 'owner'" class="col-owner sortable" @click="toggleSort('owner')">
-                  Besitzer
-                  <font-awesome-icon
-                    v-if="sortBy === 'owner'"
-                    :icon="['fas', sortDir === 'asc' ? 'arrow-up' : 'arrow-down']"
-                    class="sort-icon"
-                  />
-                </th>
-                <th v-else-if="col.stdKey === 'createdAt'" class="col-created sortable" @click="toggleSort('createdAt')">
-                  Lead erstellt
-                  <font-awesome-icon
-                    v-if="sortBy === 'createdAt'"
-                    :icon="['fas', sortDir === 'asc' ? 'arrow-up' : 'arrow-down']"
-                    class="sort-icon"
-                  />
-                </th>
-                <th v-else class="col-custom">{{ col.name }}</th>
-              </template>
-
-              <th class="col-actions"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-for="lead in filteredLeads" :key="lead._id">
-            <tr
-              :class="{ active: selectedLead && selectedLead._id === lead._id }"
-              @click="openLead(lead)"
-            >
-              <td class="col-fav" @click.stop>
-                <button class="btn-fav" :class="{ active: lead.isFavorite }" @click="toggleFavorite(lead)" :title="lead.isFavorite ? 'Favorit entfernen' : 'Als Favorit markieren'">
-                  <font-awesome-icon :icon="lead.isFavorite ? 'fa-solid fa-star' : 'fa-regular fa-star'" />
-                </button>
-              </td>
-              <td class="col-title">
-                <strong>{{ lead.title }}</strong>
-              </td>
-              <!-- All configurable columns (standard + custom), ordered by colConfig -->
-              <template v-for="col in visibleColConfig" :key="col._id">
-                <td v-if="col.stdKey === 'stufe'" class="col-stufe">
-                  <span class="stufe-chip" :class="`stufe-${lead.stufe}`">{{ stufeLabel(lead.stufe) }}</span>
-                </td>
-                <td v-else-if="col.stdKey === 'quelle'" class="col-source">
-                  <span v-if="lead.quelle">{{ quelleLabel(lead.quelle) }}</span>
-                  <span v-else class="muted">—</span>
-                </td>
-                <td v-else-if="col.stdKey === 'owner'" class="col-owner">
-                  <font-awesome-icon :icon="['fas', 'user']" class="owner-icon" />
-                  {{ lead.eigentuemer?.name || lead.eigentuemer?.email || '—' }}
-                </td>
-                <td v-else-if="col.stdKey === 'createdAt'" class="col-created">{{ formatDateTime(lead.createdAt) }}</td>
-                <td v-else class="col-custom">
-                  <span v-html="renderCustomValue(lead, col)" />
-                </td>
-              </template>
-
-              <td class="col-actions" @click.stop>
-                <button class="btn-icon-row" @click="openRowMenu($event, lead)" title="Aktionen">
-                  <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-                </button>
-              </td>
-            </tr>
-            <!-- Inline Chronik row -->
-            <tr
-              v-if="chronikExpandedLeadId === lead._id"
-              class="chronik-inline-row"
-              @click.stop
-            >
-              <td :colspan="3 + visibleColConfig.length" class="chronik-inline-cell">
-                <div class="chronik-inline-panel">
-                  <div class="chronik-inline-header">
-                    <font-awesome-icon :icon="['fas', 'clock-rotate-left']" />
-                    <strong>Chronik</strong>
-                    <span class="count-pill">{{ chronikEntries.length + (chronikLead?.aktivitaeten?.length || 0) }}</span>
-                  </div>
-
-                  <div class="chronik-inline-body">
-                    <div ref="chronikFeedEl" class="chronik-inline-feed">
-                      <div v-if="loadingChronik" class="chronik-empty">
-                        <font-awesome-icon :icon="['fas', 'spinner']" spin />
-                      </div>
-                      <div v-else-if="mergedTimeline.length === 0" class="chronik-empty">
-                        Noch keine Einträge.
-                      </div>
-                      <div v-else class="chronik-timeline">
-                        <template v-for="item in mergedTimeline" :key="item.kind === 'divider' ? '__divider__' : (item.kind === 'chronik' ? item.entry._id : item.akt._id)">
-
-                          <!-- Divider: separates past from future -->
-                          <div v-if="item.kind === 'divider'" class="chronik-divider-now">
-                            <span class="chronik-divider-label">Jetzt</span>
-                          </div>
-
-                          <!-- Regular chronik entry -->
-                          <div
-                            v-else-if="item.kind === 'chronik'"
-                            class="chronik-entry"
-                            :class="{ 'chronik-entry--system': item.entry.isSystem }"
-                          >
-                            <div class="chronik-dot">
-                              <font-awesome-icon
-                                v-if="item.entry.isSystem"
-                                :icon="['fas', 'circle-dot']"
-                                class="dot-icon dot-icon--system"
-                              />
-                              <span v-else class="dot-avatar">{{ initials(item.entry.author) }}</span>
-                            </div>
-                            <div class="chronik-content">
-                              <div class="chronik-meta">
-                                <span v-if="!item.entry.isSystem" class="chronik-author">{{ item.entry.author }}</span>
-                                <span class="chronik-time">{{ formatDateTime(item.entry.createdAt) }}</span>
-                              </div>
-                              <div class="chronik-text-wrap">
-                                <p class="chronik-text">{{ item.entry.text }}</p>
-                                <button
-                                  v-if="!item.entry.isSystem && canDeleteChronik(item.entry)"
-                                  class="ctx-delete-btn"
-                                  @click="deleteChronikEntry(item.entry._id)"
-                                  title="Löschen"
-                                >
-                                  <font-awesome-icon :icon="['fas', 'trash']" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-
-                          <!-- Activity entry -->
-                          <div
-                            v-else-if="item.kind === 'aktivitaet'"
-                            class="chronik-entry chronik-entry--akt"
-                            :class="{ 'chronik-entry--akt-done': item.akt.erledigt, 'chronik-entry--akt-overdue': isOverdue(item.akt) }"
-                          >
-                            <div class="chronik-dot">
-                              <button class="chronik-akt-check" @click="toggleAktErledigt(item.akt)" :title="item.akt.erledigt ? 'Als offen markieren' : 'Als erledigt markieren'">
-                                <font-awesome-icon :icon="['fas', item.akt.erledigt ? 'circle-check' : 'circle']" />
-                              </button>
-                            </div>
-                            <div class="chronik-content">
-                              <div class="chronik-meta">
-                                <font-awesome-icon :icon="aktTypeIcon(item.akt.type)" class="chronik-akt-type-icon" />
-                                <span class="chronik-akt-type-label">{{ aktTypeLabel(item.akt.type) }}</span>
-                                <span class="chronik-time">{{ formatAktDate(item.akt.datum) }}</span>
-                              </div>
-                              <p class="chronik-text" :class="{ 'chronik-text--done': item.akt.erledigt }">
-                                {{ item.akt.titel || '(kein Titel)' }}
-                              </p>
-                              <span v-if="item.akt.kontakt?.displayName" class="chronik-akt-kontakt">
-                                <font-awesome-icon :icon="['fas', 'user']" /> {{ item.akt.kontakt.displayName }}
-                              </span>
-                            </div>
-                          </div>
-
-                        </template>
-                      </div>
-                    </div>
-
-                    <div class="chronik-inline-compose">
-                      <div class="compose-dot">
-                        <span class="dot-avatar">{{ initials(auth.user?.name) }}</span>
-                      </div>
-                      <div class="compose-input-wrap">
-                        <textarea
-                          v-model="newChronikText"
-                          placeholder="Kommentar hinzufügen…"
-                          class="note-textarea"
-                          rows="2"
-                          @keydown.ctrl.enter.prevent="addChronikEntry"
-                        ></textarea>
-                        <button
-                          class="btn btn-primary compose-send-btn"
-                          :disabled="!newChronikText.trim() || addingChronik"
-                          @click="addChronikEntry"
-                        >
-                          <font-awesome-icon :icon="['fas', addingChronik ? 'spinner' : 'paper-plane']" :spin="addingChronik" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </td>
-            </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
+      <LeadBoard
+        v-else
+        :leads="filteredLeads"
+        :active-lead-id="selectedLead?._id || null"
+        :custom-labels="visibleCustomLabels"
+        :quelle-options="leadConfig.quelleOptions || []"
+        @open="openLead"
+        @toggle-favorite="toggleFavorite"
+        @row-menu="openRowMenu"
+        @stage-change="onStageChange"
+      />
     </div>
 
     <!-- Right Sidebar -->
@@ -935,6 +724,108 @@
       </aside>
     </transition>
 
+    <!-- Chronik bottom drawer (slides up when a lead is open) -->
+    <LeadChronikDrawer
+      :show="!!selectedLead"
+      :sidebar-open="!!selectedLead"
+      :count="chronikEntries.length + (chronikLead?.aktivitaeten?.length || 0)"
+      :lead-title="chronikLead?.title || ''"
+      @close="closeSidebar"
+    >
+      <div class="chronik-drawer-inner">
+        <div v-if="loadingChronik" class="chronik-empty">
+          <font-awesome-icon :icon="['fas', 'spinner']" spin />
+        </div>
+        <div v-else-if="mergedTimeline.length === 0" class="chronik-empty">
+          Noch keine Einträge.
+        </div>
+        <div v-else ref="chronikFeedEl" class="chronik-timeline">
+          <template v-for="item in mergedTimeline" :key="item.kind === 'divider' ? '__divider__' : (item.kind === 'chronik' ? item.entry._id : item.akt._id)">
+            <div v-if="item.kind === 'divider'" class="chronik-divider-now">
+              <span class="chronik-divider-label">Jetzt</span>
+            </div>
+            <div
+              v-else-if="item.kind === 'chronik'"
+              class="chronik-entry"
+              :class="{ 'chronik-entry--system': item.entry.isSystem }"
+            >
+              <div class="chronik-dot">
+                <font-awesome-icon
+                  v-if="item.entry.isSystem"
+                  :icon="['fas', 'circle-dot']"
+                  class="dot-icon dot-icon--system"
+                />
+                <span v-else class="dot-avatar">{{ initials(item.entry.author) }}</span>
+              </div>
+              <div class="chronik-content">
+                <div class="chronik-meta">
+                  <span v-if="!item.entry.isSystem" class="chronik-author">{{ item.entry.author }}</span>
+                  <span class="chronik-time">{{ formatDateTime(item.entry.createdAt) }}</span>
+                </div>
+                <div class="chronik-text-wrap">
+                  <p class="chronik-text">{{ item.entry.text }}</p>
+                  <button
+                    v-if="!item.entry.isSystem && canDeleteChronik(item.entry)"
+                    class="ctx-delete-btn"
+                    @click="deleteChronikEntry(item.entry._id)"
+                    title="Löschen"
+                  >
+                    <font-awesome-icon :icon="['fas', 'trash']" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div
+              v-else-if="item.kind === 'aktivitaet'"
+              class="chronik-entry chronik-entry--akt"
+              :class="{ 'chronik-entry--akt-done': item.akt.erledigt, 'chronik-entry--akt-overdue': isOverdue(item.akt) }"
+            >
+              <div class="chronik-dot">
+                <button class="chronik-akt-check" @click="toggleAktErledigt(item.akt)" :title="item.akt.erledigt ? 'Als offen markieren' : 'Als erledigt markieren'">
+                  <font-awesome-icon :icon="['fas', item.akt.erledigt ? 'circle-check' : 'circle']" />
+                </button>
+              </div>
+              <div class="chronik-content">
+                <div class="chronik-meta">
+                  <font-awesome-icon :icon="aktTypeIcon(item.akt.type)" class="chronik-akt-type-icon" />
+                  <span class="chronik-akt-type-label">{{ aktTypeLabel(item.akt.type) }}</span>
+                  <span class="chronik-time">{{ formatAktDate(item.akt.datum) }}</span>
+                </div>
+                <p class="chronik-text" :class="{ 'chronik-text--done': item.akt.erledigt }">
+                  {{ item.akt.titel || '(kein Titel)' }}
+                </p>
+                <span v-if="item.akt.kontakt?.displayName" class="chronik-akt-kontakt">
+                  <font-awesome-icon :icon="['fas', 'user']" /> {{ item.akt.kontakt.displayName }}
+                </span>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div class="chronik-inline-compose chronik-compose--drawer">
+          <div class="compose-dot">
+            <span class="dot-avatar">{{ initials(auth.user?.name) }}</span>
+          </div>
+          <div class="compose-input-wrap">
+            <textarea
+              v-model="newChronikText"
+              placeholder="Kommentar hinzufügen…"
+              class="note-textarea"
+              rows="1"
+              @keydown.ctrl.enter.prevent="addChronikEntry"
+            ></textarea>
+            <button
+              class="btn btn-primary compose-send-btn"
+              :disabled="!newChronikText.trim() || addingChronik"
+              @click="addChronikEntry"
+            >
+              <font-awesome-icon :icon="['fas', addingChronik ? 'spinner' : 'paper-plane']" :spin="addingChronik" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </LeadChronikDrawer>
+
     <!-- Create Modal -->
     <teleport to="body">
       <div v-if="showCreateModal" class="modal-overlay" @click="showCreateModal = false">
@@ -1383,6 +1274,8 @@ import { useAuth } from '@/stores/auth';
 import ContactCard from './ContactCard.vue';
 import SearchBar from './SearchBar.vue';
 import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
+import LeadBoard from './leads/LeadBoard.vue';
+import LeadChronikDrawer from './leads/LeadChronikDrawer.vue';
 
 library.add(
   faPlus, faXmark, faSpinner, faSliders, faUser, faInfoCircle,
@@ -1854,6 +1747,54 @@ const filteredLeads = computed(() => {
 
   return list;
 });
+
+// ─── Board helpers ────────────────────────────────────────────────────
+// Custom labels visible as chips on board cards (uses existing colConfig).
+const visibleCustomLabels = computed(() => {
+  const visibleIds = new Set(
+    colConfig.value.filter(c => c.visible && c.type !== 'standard').map(c => c._id),
+  );
+  return labels.value.filter(l => l.isActive && visibleIds.has(l._id));
+});
+
+async function onStageChange({ lead, fromStufe, toStufe }) {
+  // Optimistic local update
+  const idx = leads.value.findIndex(l => l._id === lead._id);
+  if (idx >= 0) leads.value[idx] = { ...leads.value[idx], stufe: toStufe };
+  if (selectedLead.value?._id === lead._id) {
+    selectedLead.value = { ...selectedLead.value, stufe: toStufe };
+    detailForm.stufe = toStufe;
+  }
+
+  // Verloren prompts for a reason
+  let verlorenGrund;
+  if (toStufe === 'verloren') {
+    verlorenGrund = prompt('Grund für Verloren (optional):') || undefined;
+  }
+
+  // Auto-mirror status for terminal stages
+  const payload = { stufe: toStufe };
+  if (toStufe === 'gewonnen') payload.status = 'won';
+  else if (toStufe === 'verloren') {
+    payload.status = 'lost';
+    if (verlorenGrund) payload.verlorenGrund = verlorenGrund;
+  }
+
+  try {
+    const { data } = await api.patch(`/api/leads/${lead._id}`, payload);
+    upsertLead(data);
+    if (selectedLead.value?._id === lead._id) selectedLead.value = data;
+  } catch (e) {
+    console.error('Stage-Change fehlgeschlagen', e);
+    // Revert
+    if (idx >= 0) leads.value[idx] = { ...leads.value[idx], stufe: fromStufe };
+    if (selectedLead.value?._id === lead._id) {
+      selectedLead.value = { ...selectedLead.value, stufe: fromStufe };
+      detailForm.stufe = fromStufe;
+    }
+    alert('Stufe konnte nicht aktualisiert werden.');
+  }
+}
 
 // ─── Loading ─────────────────────────────────────────────────────────
 async function loadAll() {
@@ -3648,6 +3589,45 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
     flex-shrink: 0;
     align-self: stretch;
     height: auto;
+    min-width: 56px;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Drawer-specific overrides: wider textarea, slim height, sticky at bottom */
+.chronik-compose--drawer {
+  position: sticky;
+  bottom: -12px; // counter .cd-body's 12px bottom padding so it pins flush
+  z-index: 2;
+  background: var(--tile-bg);
+  margin-top: 0;
+  padding-top: 8px;
+  padding-bottom: 12px;
+
+  /* Extend the timeline path line up into the gap above the compose dot */
+  &::before {
+    top: -8px !important;
+    bottom: 50% !important;
+  }
+
+  .compose-input-wrap {
+    width: 100%;
+  }
+
+  .note-textarea {
+    width: 100%;
+    min-height: 36px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    resize: vertical;
+  }
+
+  .compose-send-btn {
+    min-width: 56px;
+    padding: 0 14px;
   }
 }
 
