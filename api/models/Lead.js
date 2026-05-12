@@ -54,6 +54,8 @@ const AktivitaetSchema = new mongoose.Schema(
     },
     angelegtVon:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     angelegtVonName: { type: String, default: '' },
+    asanaTaskGid:    { type: String, default: null },
+    asanaTaskUrl:    { type: String, default: null },
   },
   { timestamps: true }
 );
@@ -97,6 +99,13 @@ const LeadSchema = new mongoose.Schema(
     isFavorite: {
       type: Boolean,
       default: false,
+    },
+
+    // Location / Standort
+    standort: {
+      type: String,
+      enum: ['Hamburg', 'Berlin', 'Köln'],
+      required: true,
     },
 
     // Lead source

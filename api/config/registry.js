@@ -357,6 +357,17 @@ class Registry {
     return [...new Set(ids)];
   }
 
+  // Sales-Projekte
+  getAsanaSalesProjectId(input) {
+    const t = this.getTeam(input);
+    return t?.asana?.salesProjectId || null;
+  }
+
+  getAsanaSalesAufgabenSectionId(input) {
+    const t = this.getTeam(input);
+    return t?.asana?.salesAufgabenSectionId || null;
+  }
+
   // Alle Asana-Projekte (Bewerber + Disposition + Schulung)
   getAllAsanaProjectIds(keys = null, includeSchulung = true, includeDisposition = true) {
     const bewerberIds = this.getAsanaProjectIds(keys);

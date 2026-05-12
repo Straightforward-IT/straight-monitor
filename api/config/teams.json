@@ -80,7 +80,9 @@
       "asana": { 
         "projectId": "1204666703404588",
         "dispositionProjectId": "1207021175334601",
-        "schulungProjectId": "1206622996192570"
+        "schulungProjectId": "1206622996192570",
+        "salesProjectId": "1202092976425101",
+        "salesAufgabenSectionId": "1213013944967543"
       },
       "routine": {
         "enabled": true,
@@ -130,7 +132,9 @@
       "asana": { 
         "projectId": "1209986644355933",
         "dispositionProjectId": "1203882830937566",
-        "schulungProjectId": "1206484809128286"
+        "schulungProjectId": "1206484809128286",
+        "salesProjectId": "1202069958492312",
+        "salesAufgabenSectionId": "1214693120506501"
       },
       "routine": {
         "enabled": true,
@@ -186,7 +190,9 @@
       "asana": { 
         "projectId": "1207192167671531",
         "dispositionProjectId": "1208815878474860",
-        "schulungProjectId": "1207192167671539"
+        "schulungProjectId": "1207192167671539",
+        "salesProjectId": "1207178669955632",
+        "salesAufgabenSectionId": "1214693120506497"
       },
       "routine": {
         "enabled": true,

@@ -51,6 +51,10 @@ const UserSchema = new mongoose.Schema({
   kundenWatchlist: {
     type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Kunde' }],
     default: []
+  },
+  asana_id: {
+    type: String,
+    default: null
   }
 });
 

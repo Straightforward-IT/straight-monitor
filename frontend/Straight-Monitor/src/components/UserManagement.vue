@@ -20,6 +20,7 @@
             <th>E-Mail</th>
             <th>Standort</th>
             <th>Mitarbeiter</th>
+            <th>Asana</th>
             <th>Rolle</th>
             <th>Bestätigt</th>
             <th>Registriert</th>
@@ -36,6 +37,13 @@
                 <font-awesome-icon icon="fa-solid fa-user-tie" />
                 {{ u.mitarbeiter.vorname }} {{ u.mitarbeiter.nachname }}
                 <span v-if="u.mitarbeiter.personalnr" class="ma-link-nr">#{{ u.mitarbeiter.personalnr }}</span>
+              </span>
+              <span v-else class="ma-unlinked">—</span>
+            </td>
+            <td>
+              <span v-if="u.asana_id" class="asana-link-tag">
+                <img src="@/assets/asana.png" class="asana-icon" alt="Asana" />
+                {{ asanaUserMap[u.asana_id]?.name || u.asana_id }}
               </span>
               <span v-else class="ma-unlinked">—</span>
             </td>
@@ -67,6 +75,13 @@
                 @click="openLink(u)"
               >
                 <font-awesome-icon :icon="u.mitarbeiter ? 'fa-solid fa-link' : 'fa-solid fa-link'" />
+              </button>
+              <button
+                class="btn-icon btn-icon--asana"
+                :title="u.asana_id ? 'Asana-Verknüpfung bearbeiten' : 'Mit Asana-User verknüpfen'"
+                @click="openAsanaLink(u)"
+              >
+                <img src="@/assets/asana.png" class="asana-icon" alt="Asana" />
               </button>
               <button
                 class="btn-icon btn-icon--danger"
@@ -208,6 +223,75 @@
       </div>
     </div>
 
+    <!-- Asana Link Modal -->
+    <div v-if="asanaModal.open" class="modal-backdrop" @click.self="closeAsanaLink">
+      <div class="modal-content modal-content--sm">
+        <header class="modal-header">
+          <h3>Mit Asana-User verknüpfen</h3>
+          <button class="close-btn" @click="closeAsanaLink">
+            <font-awesome-icon icon="fa-solid fa-times" />
+          </button>
+        </header>
+
+        <div class="modal-body">
+          <!-- Current Asana link -->
+          <div v-if="asanaModal.currentAsanaUser" class="current-link">
+            <span class="current-link__label">Aktuell verknüpft:</span>
+            <span class="current-link__name">
+              <img src="@/assets/asana.png" class="asana-icon" alt="Asana" />
+              {{ asanaModal.currentAsanaUser.name }}
+              <span v-if="asanaModal.currentAsanaUser.email" class="ma-link-nr">{{ asanaModal.currentAsanaUser.email }}</span>
+            </span>
+            <button class="btn-unlink" @click="clearAsanaLink" title="Verknüpfung entfernen">
+              <font-awesome-icon icon="fa-solid fa-unlink" />
+              Entfernen
+            </button>
+          </div>
+          <p v-else class="hint-text">Kein Asana-User verknüpft.</p>
+
+          <div class="form-group">
+            <label>{{ asanaModal.currentAsanaUser ? 'Anderen Asana-User auswählen' : 'Asana-User suchen' }}</label>
+            <input
+              v-model="asanaModal.search"
+              type="text"
+              placeholder="Name oder E-Mail…"
+              @input="searchAsanaUsers"
+            />
+            <div v-if="asanaModal.searching" class="asana-search-hint">
+              <font-awesome-icon icon="fa-solid fa-spinner" spin /> Suche…
+            </div>
+            <div v-if="asanaModal.results.length" class="asana-results">
+              <button
+                v-for="au in asanaModal.results"
+                :key="au.gid"
+                class="asana-result-item"
+                :class="{ 'asana-result-item--selected': asanaModal.selectedGid === au.gid }"
+                @click="selectAsanaUser(au)"
+              >
+                <img src="@/assets/asana.png" class="asana-icon" alt="Asana" />
+                <span class="asana-result-name">{{ au.name }}</span>
+                <span v-if="au.email" class="asana-result-email">{{ au.email }}</span>
+              </button>
+            </div>
+            <p v-else-if="asanaModal.searched && !asanaModal.searching" class="hint-text">Keine Ergebnisse.</p>
+          </div>
+
+          <div v-if="asanaModal.error" class="modal-error">{{ asanaModal.error }}</div>
+        </div>
+
+        <footer class="modal-footer">
+          <button class="btn btn-ghost" @click="closeAsanaLink">Abbrechen</button>
+          <button class="btn btn-primary" @click="saveAsanaLink" :disabled="asanaModal.saving || !asanaModal.selectedGid && !asanaModal.clearPending">
+            <font-awesome-icon
+              :icon="asanaModal.saving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'"
+              :class="{ 'fa-spin': asanaModal.saving }"
+            />
+            Speichern
+          </button>
+        </footer>
+      </div>
+    </div>
+
     <!-- Delete Confirm Modal -->
     <div v-if="deleteModal.open" class="modal-backdrop" @click.self="closeDelete">
       <div class="modal-content modal-content--sm">
@@ -247,6 +331,9 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
 import MitarbeiterSearch from '@/components/ui-elements/MitarbeiterSearch.vue';
+
+// Map of asana_gid -> { name, email } for display in the table
+const asanaUserMap = ref({});
 
 const AVAILABLE_ROLES = [
   { value: 'ADMIN', label: 'ADMIN' },
@@ -297,7 +384,10 @@ const linkModal = reactive({
 });
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
-onMounted(fetchUsers);
+onMounted(async () => {
+  await fetchUsers();
+  await loadAsanaUserMap();
+});
 
 async function fetchUsers() {
   loading.value = true;
@@ -310,6 +400,18 @@ async function fetchUsers() {
   } finally {
     loading.value = false;
   }
+}
+
+async function loadAsanaUserMap() {
+  try {
+    const gids = [...new Set(users.value.map(u => u.asana_id).filter(Boolean))];
+    await Promise.all(gids.map(async (gid) => {
+      try {
+        const res = await api.get(`/api/asana/users/${gid}`);
+        asanaUserMap.value[gid] = res.data?.data || { name: gid };
+      } catch { /* ignore individual lookup failures */ }
+    }));
+  } catch { /* ignore */ }
 }
 
 // ─── Edit / Create ──────────────────────────────────────────────────────────
@@ -442,6 +544,101 @@ async function saveLink() {
   }
 }
 
+// ─── Asana Link Modal ────────────────────────────────────────────────────────
+const asanaModal = reactive({
+  open: false,
+  saving: false,
+  searching: false,
+  searched: false,
+  error: '',
+  userId: null,
+  search: '',
+  results: [],
+  selectedGid: null,
+  selectedUser: null,
+  currentAsanaUser: null,
+  clearPending: false,
+});
+
+let searchDebounce = null;
+
+function openAsanaLink(u) {
+  const currentUser = u.asana_id ? (asanaUserMap.value[u.asana_id] || null) : null;
+  Object.assign(asanaModal, {
+    open: true,
+    saving: false,
+    searching: false,
+    searched: false,
+    error: '',
+    userId: u._id,
+    search: '',
+    results: [],
+    selectedGid: null,
+    selectedUser: null,
+    currentAsanaUser: currentUser ? { ...currentUser, gid: u.asana_id } : null,
+    clearPending: false,
+  });
+}
+
+function closeAsanaLink() {
+  asanaModal.open = false;
+  clearTimeout(searchDebounce);
+}
+
+function searchAsanaUsers() {
+  clearTimeout(searchDebounce);
+  asanaModal.results = [];
+  asanaModal.searched = false;
+  if (!asanaModal.search.trim()) return;
+  searchDebounce = setTimeout(async () => {
+    asanaModal.searching = true;
+    try {
+      const res = await api.get('/api/asana/users', { params: { } });
+      const query = asanaModal.search.toLowerCase();
+      asanaModal.results = (res.data?.data || []).filter(u =>
+        u.name?.toLowerCase().includes(query) || u.email?.toLowerCase().includes(query)
+      ).slice(0, 20);
+      asanaModal.searched = true;
+    } catch {
+      asanaModal.results = [];
+    } finally {
+      asanaModal.searching = false;
+    }
+  }, 300);
+}
+
+function selectAsanaUser(au) {
+  asanaModal.selectedGid = au.gid;
+  asanaModal.selectedUser = au;
+  asanaModal.clearPending = false;
+}
+
+function clearAsanaLink() {
+  asanaModal.currentAsanaUser = null;
+  asanaModal.selectedGid = null;
+  asanaModal.selectedUser = null;
+  asanaModal.clearPending = true;
+}
+
+async function saveAsanaLink() {
+  asanaModal.error = '';
+  asanaModal.saving = true;
+  try {
+    const asana_id = asanaModal.selectedGid || null;
+    const res = await api.put(`/api/users/admin/${asanaModal.userId}/asana`, { asana_id });
+    const idx = users.value.findIndex(u => u._id === asanaModal.userId);
+    if (idx !== -1) users.value[idx] = res.data;
+    if (asana_id && asanaModal.selectedUser) {
+      asanaUserMap.value[asana_id] = asanaModal.selectedUser;
+    }
+    closeAsanaLink();
+  } catch (e) {
+    asanaModal.error = e?.response?.data?.msg || 'Fehler beim Speichern.';
+  } finally {
+    asanaModal.saving = false;
+  }
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 function formatDate(d) {
   if (!d) return '—';
@@ -454,7 +651,7 @@ function formatDate(d) {
 
 .um {
   padding: 24px;
-  max-width: 1100px;
+  max-width: 1600px;
   margin: 0 auto;
   color: var(--text);
 }
@@ -821,6 +1018,80 @@ function formatDate(d) {
 // link modal styles
 .btn-icon--link {
   &:hover { border-color: #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.08); }
+}
+
+.btn-icon--asana {
+  padding: 0 6px;
+  &:hover { border-color: #f06a6a; background: rgba(240, 106, 106, 0.08); }
+
+  .asana-icon { width: 14px; height: 14px; object-fit: contain; }
+}
+
+// Asana display in table
+.asana-link-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  color: var(--text);
+
+  .asana-icon { width: 13px; height: 13px; object-fit: contain; opacity: 0.7; }
+}
+
+// Asana search results in modal
+.asana-search-hint {
+  font-size: 0.8rem;
+  opacity: 0.6;
+  padding: 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.asana-results {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.asana-result-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+  color: var(--text);
+
+  &:last-child { border-bottom: none; }
+  &:hover { background: var(--hover); }
+
+  &--selected {
+    background: rgba(var(--primary-rgb, 255, 120, 0), 0.1);
+    border-left: 3px solid var(--primary);
+  }
+
+  .asana-icon { width: 15px; height: 15px; flex-shrink: 0; }
+}
+
+.asana-result-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  flex: 1;
+}
+
+.asana-result-email {
+  font-size: 0.75rem;
+  opacity: 0.55;
+  white-space: nowrap;
 }
 
 .current-link {

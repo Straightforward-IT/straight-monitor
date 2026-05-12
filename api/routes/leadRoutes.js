@@ -11,6 +11,8 @@ const LeadConfig = require('../models/LeadConfig');
 const User = require('../models/User');
 const Comment = require('../models/Comment');
 const R2Service = require('../R2Service');
+const registry = require('../config/registry');
+const { createSalesTask } = require('../AsanaService');
 
 // Multer — memory storage, max 25 MB per file, up to 20 files per request
 const upload = multer({
@@ -542,7 +544,7 @@ router.patch('/:id/aktivitaeten/:aktId', auth, asyncHandler(async (req, res) => 
     return res.status(400).json({ message: 'Ungültige ID.' });
   }
 
-  const allowed = ['type', 'titel', 'datum', 'erledigt', 'kontakt'];
+  const allowed = ['type', 'titel', 'datum', 'erledigt', 'kontakt', 'asanaTaskGid', 'asanaTaskUrl'];
   const updates = {};
   for (const key of allowed) {
     if (req.body[key] !== undefined) {
@@ -576,6 +578,79 @@ router.delete('/:id/aktivitaeten/:aktId', auth, asyncHandler(async (req, res) =>
 
   if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
   res.json({ message: 'Aktivität gelöscht.' });
+}));
+
+// @route   POST /api/leads/:id/asana-sales-task
+// @desc    Aktivität als Asana-Task im Sales-Projekt der zuständigen Location anlegen
+// @access  Private
+router.post('/:id/asana-sales-task', auth, asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'Ungültige ID.' });
+  }
+
+  const { titel, datum, type, kontakt, aktId } = req.body;
+  if (!datum) return res.status(400).json({ message: 'Datum ist erforderlich.' });
+
+  const lead = await Lead.findById(req.params.id)
+    .populate('eigentuemer', 'name email asana_id')
+    .lean();
+  if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
+
+  const salesProjectId = registry.getAsanaSalesProjectId(lead.standort);
+  if (!salesProjectId) {
+    return res.status(400).json({ message: `Kein Sales-Projekt für Standort "${lead.standort}" konfiguriert.` });
+  }
+  const salesSectionId = registry.getAsanaSalesAufgabenSectionId(lead.standort);
+
+  const AKT_TYPE_LABELS = {
+    anruf: 'Anruf', meeting: 'Meeting', aufgabe: 'Aufgabe',
+    frist: 'Frist', email: 'E-Mail', mittagessen: 'Mittagessen', event: 'Event',
+  };
+
+  const appBaseUrl = process.env.MONITOR_APP_URL || 'https://straightmonitor.com';
+  const leadUrl = `${appBaseUrl}/kunden?tab=leads&lead=${lead._id}`;
+
+  const lines = [];
+  lines.push(`Aktivitätstyp: ${AKT_TYPE_LABELS[type] || type || 'Aufgabe'}`);
+  lines.push(`Lead: ${lead.title}`);
+  if (kontakt?.displayName) {
+    lines.push(`Kontakt: ${kontakt.displayName}${kontakt.email ? ` (${kontakt.email})` : ''}`);
+  }
+  lines.push('');
+  lines.push(`Lead im Monitor öffnen: ${leadUrl}`);
+
+  const parsedDate = new Date(datum);
+  const hasTime = parsedDate.getUTCHours() !== 0 || parsedDate.getUTCMinutes() !== 0;
+  const due_on  = hasTime ? null : parsedDate.toISOString().slice(0, 10);
+  const due_at  = hasTime ? parsedDate.toISOString() : null;
+  const assignee = lead.eigentuemer?.asana_id || null;
+  const taskName = (titel || AKT_TYPE_LABELS[type] || 'Aufgabe').trim();
+
+  let created;
+  try {
+    created = await createSalesTask({
+      projectId: salesProjectId,
+      name:      taskName,
+      due_on,
+      due_at,
+      notes:     lines.join('\n'),
+      assignee,
+      sectionId: salesSectionId || null,
+    });
+  } catch (e) {
+    const msg = e.response?.body?.errors?.[0]?.message || e.message;
+    return res.status(502).json({ message: `Asana Fehler: ${msg}` });
+  }
+
+  res.status(201).json({ gid: created.gid, name: created.name, url: created.permalink_url });
+
+  // Fire-and-forget: write the Asana task link back to the activity
+  if (aktId && mongoose.Types.ObjectId.isValid(aktId) && created?.gid) {
+    Lead.findOneAndUpdate(
+      { _id: req.params.id, 'aktivitaeten._id': aktId },
+      { $set: { 'aktivitaeten.$.asanaTaskGid': created.gid, 'aktivitaeten.$.asanaTaskUrl': created.permalink_url || null } }
+    ).catch(e => console.warn('⚠️ asana-sales-task: could not write GID back to activity:', e.message));
+  }
 }));
 
 // ─── Attachments ─────────────────────────────────────────────────────────────

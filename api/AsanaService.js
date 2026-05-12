@@ -22,6 +22,20 @@ function initStoriesApi() {
   return new Asana.StoriesApi();
 }
 
+function initUsersApi() {
+  const client = Asana.ApiClient.instance;
+  const token = client.authentications["token"];
+  token.accessToken = process.env.ASANA_PAT;
+  return new Asana.UsersApi();
+}
+
+function initSectionsApi() {
+  const client = Asana.ApiClient.instance;
+  const token = client.authentications["token"];
+  token.accessToken = process.env.ASANA_PAT;
+  return new Asana.SectionsApi();
+}
+
 /* --------------------------- Queue for html updates ------------------------ */
 const updateQueue = [];
 const maxConcurrentRequests = 15;
@@ -853,6 +867,107 @@ async function uploadAttachmentsToTask(task_gid, files = []) {async function cre
   }
 }
 
+/* ----------------------------- User functions ----------------------------- */
+
+/**
+ * Get a single Asana user by GID, email address, or the special string "me".
+ * @param {string} user_gid - GID, email, or "me"
+ * @param {Object} [opts] - Optional Asana opt_fields / workspace overrides
+ * @returns {Object|null} Asana user record
+ */
+async function getAsanaUser(user_gid, opts = {}) {
+  const api = initUsersApi();
+  try {
+    const response = await api.getUser(user_gid, {
+      opt_fields: "gid,name,email,photo,workspaces",
+      ...opts,
+    });
+    return response?.data || null;
+  } catch (error) {
+    console.error(`❌ Error fetching Asana user ${user_gid}:`, error.response?.body || error.message);
+    throw new Error(`Failed to fetch Asana user: ${error.message}`);
+  }
+}
+
+/**
+ * Get all Asana users accessible to the authenticated PAT.
+ * Uses getUsersForWorkspace under the hood (getUsers requires pagination workspace param).
+ * Falls back to ASANA_WORKSPACE_ID env var, then to the authenticated user's first workspace.
+ * @param {Object} [opts] - Optional filters: workspace, limit, offset
+ * @returns {Array} List of user compact objects
+ */
+async function getAsanaUsers(opts = {}) {
+  const workspace_gid = opts.workspace || process.env.ASANA_WORKSPACE_ID;
+
+  if (workspace_gid) {
+    return getAsanaWorkspaceUsers(workspace_gid, opts);
+  }
+
+  // Last resort: resolve workspace from the authenticated user
+  const me = await getAsanaUser("me");
+  const firstWorkspace = me?.workspaces?.[0]?.gid;
+  if (!firstWorkspace) throw new Error("No Asana workspace found for the configured PAT.");
+  return getAsanaWorkspaceUsers(firstWorkspace, opts);
+}
+
+/**
+ * Get all users in a specific Asana workspace or organization.
+ * @param {string} workspace_gid - Workspace GID
+ * @param {Object} [opts] - Optional opt_fields / offset overrides
+ * @returns {Array} List of user compact objects
+ */
+async function getAsanaWorkspaceUsers(workspace_gid, opts = {}) {
+  const api = initUsersApi();
+  try {
+    const response = await api.getUsersForWorkspace(workspace_gid, {
+      opt_fields: "gid,name,email,photo",
+      ...opts,
+    });
+    return response?.data || [];
+  } catch (error) {
+    console.error(`❌ Error fetching users for workspace ${workspace_gid}:`, error.response?.body || error.message);
+    throw new Error(`Failed to fetch workspace users: ${error.message}`);
+  }
+}
+
+/**
+ * Create a simple task in any Asana project.
+ * @param {object} opts
+ * @param {string}  opts.projectId  - Asana project GID
+ * @param {string}  opts.name       - Task title
+ * @param {string}  [opts.due_on]   - ISO date string (YYYY-MM-DD), mutually exclusive with due_at
+ * @param {string}  [opts.due_at]   - ISO datetime string, mutually exclusive with due_on
+ * @param {string}  [opts.notes]    - Plain-text description
+ * @param {string}  [opts.assignee] - Asana user GID
+ * @param {string}  [opts.sectionId] - Asana section GID to place the task in
+ * @returns {Promise<{gid:string, name:string, permalink_url:string}>}
+ */
+async function createSalesTask({ projectId, name, due_on, due_at, notes, assignee, sectionId }) {
+  const tasksApi = initTasksApi();
+  const body = {
+    data: {
+      name: (name || '(kein Titel)').trim(),
+      projects: [projectId],
+      notes: notes || '',
+      ...(due_at   ? { due_at }   : due_on ? { due_on } : {}),
+      ...(assignee ? { assignee } : {}),
+    },
+  };
+  const resp = await tasksApi.createTask(body, { opt_fields: 'gid,name,permalink_url' });
+  const created = resp?.data || resp;
+
+  if (sectionId && created?.gid) {
+    try {
+      const sectionsApi = initSectionsApi();
+      await sectionsApi.addTaskForSection(sectionId, { body: { data: { task: created.gid } } });
+    } catch (e) {
+      console.warn(`⚠️ createSalesTask: could not move task ${created.gid} to section ${sectionId}:`, e.message);
+    }
+  }
+
+  return created;
+}
+
 module.exports = {  // find/update
   findTasks,
   findAllTasks,
@@ -865,6 +980,9 @@ module.exports = {  // find/update
   // create task from email (+ attachments)
   createTaskFromEmail,
 
+  // create simple sales task
+  createSalesTask,
+
   // misc
   getTaskById,
   getStoryById,
@@ -873,4 +991,10 @@ module.exports = {  // find/update
   createSubtasksOnTask,
   createStoryOnTask,
   deleteStory,
-  completeTaskById,};
+  completeTaskById,
+
+  // users
+  getAsanaUser,
+  getAsanaUsers,
+  getAsanaWorkspaceUsers,
+};

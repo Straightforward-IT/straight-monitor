@@ -362,6 +362,22 @@ router.put(
   })
 );
 
+// PUT /api/users/admin/:id/asana — Link or unlink an Asana user
+router.put(
+  '/admin/:id/asana',
+  auth,
+  asyncHandler(async (req, res) => {
+    if (!await requireAdmin(req, res)) return;
+    const { asana_id } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ msg: 'Benutzer nicht gefunden' });
+    user.asana_id = asana_id || null;
+    await user.save();
+    const result = await User.findById(user._id).select('-password').populate('mitarbeiter', 'vorname nachname personalnr');
+    res.status(200).json(result);
+  })
+);
+
 // ─── WATCHLIST REPORT ────────────────────────────────────────────────────────
 
 // GET /api/users/me/kunden-watchlist/report/check-rechnungen?month=&year=

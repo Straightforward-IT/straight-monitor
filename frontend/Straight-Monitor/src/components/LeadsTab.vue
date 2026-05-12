@@ -215,7 +215,7 @@
                             </div>
                             <div class="chronik-content">
                               <div class="chronik-meta">
-                                <font-awesome-icon :icon="['fas', aktTypeIcon(item.akt.type)]" class="chronik-akt-type-icon" />
+                                <font-awesome-icon :icon="aktTypeIcon(item.akt.type)" class="chronik-akt-type-icon" />
                                 <span class="chronik-akt-type-label">{{ aktTypeLabel(item.akt.type) }}</span>
                                 <span class="chronik-time">{{ formatAktDate(item.akt.datum) }}</span>
                               </div>
@@ -293,6 +293,15 @@
               <div class="kv-item">
                 <label>Organisation</label>
                 <input v-model="detailForm.title" class="form-input" @blur="saveDetail" />
+              </div>
+
+              <div class="kv-item">
+                <label>Standort <span class="req">*</span></label>
+                <select v-model="detailForm.standort" class="form-input" @change="saveDetail">
+                  <option value="Hamburg">Hamburg</option>
+                  <option value="Berlin">Berlin</option>
+                  <option value="Köln">Köln</option>
+                </select>
               </div>
 
               <div class="kv-item">
@@ -537,71 +546,142 @@
 
             <!-- Inline create form -->
             <div v-if="showAktForm" class="akt-form">
-              <div class="akt-type-row">
-                <button
-                  v-for="t in AKT_TYPES" :key="t.value"
-                  class="akt-type-btn"
-                  :class="{ active: aktForm.type === t.value }"
-                  @click="aktForm.type = t.value"
-                  :title="t.label"
-                >
-                  <font-awesome-icon :icon="t.icon" />
-                  <span>{{ t.label }}</span>
-                </button>
-              </div>
-              <input
-                v-model="aktForm.titel"
-                class="form-input"
-                placeholder="Titel / Betreff (optional)"
-              />
-              <div class="akt-datetime-row">
-                <label class="akt-date-label" @click.prevent="$refs.aktDateInput.showPicker()">
-                  <font-awesome-icon :icon="['fas', 'calendar']" class="akt-date-icon" />
-                  <span class="akt-date-text">{{ aktForm.date ? new Date(aktForm.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Datum wählen' }}</span>
-                  <input ref="aktDateInput" v-model="aktForm.date" type="date" class="akt-date-hidden" />
-                </label>
-                <div class="akt-time-picker">
-                  <input
-                    v-model="aktForm.timeHour"
-                    type="number" min="0" max="23"
-                    class="form-input akt-time-hour"
-                    placeholder="Std"
-                  />
-                  <div class="akt-min-btns">
-                    <button v-for="m in ['00','15','30','45']" :key="m" type="button"
-                      class="akt-min-btn" :class="{ active: aktForm.timeMin === m }"
-                      @click="aktForm.timeMin = m"
-                    >{{ m }}</button>
-                  </div>
-                  <template v-if="aktForm.timeHour !== ''">
-                    <input
-                      v-if="aktTimeManual"
-                      type="time"
-                      class="form-input akt-time-override"
-                      :value="`${String(aktForm.timeHour).padStart(2,'0')}:${aktForm.timeMin}`"
-                      @change="e => { applyManualTime(aktForm, e.target.value); aktTimeManual = false }"
-                      @blur="aktTimeManual = false"
-                    />
-                    <span v-else class="akt-time-result" @click="aktTimeManual = true">
-                      {{ String(aktForm.timeHour).padStart(2,'0') }}:{{ aktForm.timeMin }}
-                    </span>
-                  </template>
-                </div>
-              </div>
-              <select
-                v-if="leadContacts.length > 0"
-                v-model="aktForm.kontaktId"
-                class="form-input"
+              <!-- Asana button — top-right corner -->
+              <button
+                class="btn-asana-corner"
+                :class="{ active: asanaView.mode === 'create' }"
+                @click="toggleAsanaView('create')"
+                title="Als Asana-Task planen"
               >
-                <option value="">Kein Kontakt</option>
-                <option v-for="c in leadContacts" :key="c.id" :value="c.id">{{ c.displayName }}</option>
-              </select>
-              <div class="akt-form-actions">
-                <button class="btn btn-secondary" @click="showAktForm = false">Abbrechen</button>
-                <button class="btn btn-primary" :disabled="!aktForm.date || savingAkt" @click="saveAkt">
-                  <font-awesome-icon v-if="savingAkt" :icon="['fas', 'spinner']" spin />
-                  Speichern
-                </button>
+                <svg class="asana-logo-icon" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                  <circle cx="120" cy="28" r="28"/>
+                  <circle cx="52" cy="152" r="28"/>
+                  <circle cx="188" cy="152" r="28"/>
+                </svg>
+              </button>
+
+              <!-- Normal activity form -->
+              <template v-if="asanaView.mode !== 'create'">
+                <div class="akt-type-row">
+                  <button
+                    v-for="t in AKT_TYPES" :key="t.value"
+                    class="akt-type-btn"
+                    :class="{ active: aktForm.type === t.value }"
+                    @click="aktForm.type = t.value"
+                    :title="t.label"
+                  >
+                    <font-awesome-icon :icon="t.icon" />
+                    <span>{{ t.label }}</span>
+                  </button>
+                </div>
+                <input
+                  v-model="aktForm.titel"
+                  class="form-input"
+                  placeholder="Titel / Betreff (optional)"
+                />
+                <div class="akt-datetime-row">
+                  <label class="akt-date-label" @click.prevent="$refs.aktDateInput.showPicker()">
+                    <font-awesome-icon :icon="['fas', 'calendar']" class="akt-date-icon" />
+                    <span class="akt-date-text">{{ aktForm.date ? new Date(aktForm.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Datum wählen' }}</span>
+                    <input ref="aktDateInput" v-model="aktForm.date" type="date" class="akt-date-hidden" />
+                  </label>
+                  <div class="akt-time-picker">
+                    <input
+                      v-model="aktForm.timeHour"
+                      type="number" min="0" max="23"
+                      class="form-input akt-time-hour"
+                      placeholder="Std"
+                    />
+                    <div class="akt-min-btns">
+                      <button v-for="m in ['00','15','30','45']" :key="m" type="button"
+                        class="akt-min-btn" :class="{ active: aktForm.timeMin === m }"
+                        @click="aktForm.timeMin = m"
+                      >{{ m }}</button>
+                    </div>
+                    <template v-if="aktForm.timeHour !== ''">
+                      <input
+                        v-if="aktTimeManual"
+                        type="time"
+                        class="form-input akt-time-override"
+                        :value="`${String(aktForm.timeHour).padStart(2,'0')}:${aktForm.timeMin}`"
+                        @change="e => { applyManualTime(aktForm, e.target.value); aktTimeManual = false }"
+                        @blur="aktTimeManual = false"
+                      />
+                      <span v-else class="akt-time-result" @click="aktTimeManual = true">
+                        {{ String(aktForm.timeHour).padStart(2,'0') }}:{{ aktForm.timeMin }}
+                      </span>
+                    </template>
+                  </div>
+                </div>
+                <select
+                  v-if="leadContacts.length > 0"
+                  v-model="aktForm.kontaktId"
+                  class="form-input"
+                >
+                  <option value="">Kein Kontakt</option>
+                  <option v-for="c in leadContacts" :key="c.id" :value="c.id">{{ c.displayName }}</option>
+                </select>
+                <div class="akt-form-actions">
+                  <button class="btn btn-secondary" @click="showAktForm = false">Abbrechen</button>
+                  <div class="btn-save-wrap">
+                    <button class="btn btn-primary" :disabled="!aktForm.date || savingAkt" @click="saveAkt">
+                      <font-awesome-icon v-if="savingAkt" :icon="['fas', 'spinner']" spin />
+                      <svg v-else-if="asanaView.enabled" class="asana-logo-icon" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><circle cx="120" cy="28" r="28"/><circle cx="52" cy="152" r="28"/><circle cx="188" cy="152" r="28"/></svg>
+                      Erstellen
+                    </button>
+                    <button
+                      class="btn-asana-badge"
+                      :class="{ active: asanaView.enabled }"
+                      :title="asanaView.enabled ? 'Asana Task wird erstellt' : 'Kein Asana Task'"
+                      @click.stop="asanaView.enabled = !asanaView.enabled"
+                    >
+                      <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><circle cx="120" cy="28" r="28"/><circle cx="52" cy="152" r="28"/><circle cx="188" cy="152" r="28"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Asana task creation view -->
+              <div v-else class="asana-task-view">
+                <div class="asana-view-header">
+                  <svg class="asana-logo-icon asana-logo-icon--lg" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                    <circle cx="120" cy="28" r="28"/>
+                    <circle cx="52" cy="152" r="28"/>
+                    <circle cx="188" cy="152" r="28"/>
+                  </svg>
+                  <span>Asana Task erstellen</span>
+                </div>
+                <div class="asana-view-field">
+                  <label class="asana-view-label">Titel</label>
+                  <input v-model="asanaView.titel" class="form-input" placeholder="Task-Titel" />
+                </div>
+                <div class="asana-view-field">
+                  <label class="asana-view-label">Fälligkeitsdatum</label>
+                  <span class="asana-view-value">{{ asanaView.datum ? formatAktDate(asanaView.datum) : '—' }}</span>
+                </div>
+                <div class="asana-view-field">
+                  <label class="asana-view-label">Verantwortlich</label>
+                  <span class="asana-view-value">{{ selectedLead?.eigentuemer?.name || selectedLead?.eigentuemer?.email || '—' }}</span>
+                </div>
+                <div class="asana-view-field">
+                  <label class="asana-view-label">Projekt</label>
+                  <span class="asana-view-value">Sales {{ selectedLead?.standort }}</span>
+                </div>
+                <div class="asana-view-field">
+                  <label class="asana-view-label">Beschreibung</label>
+                  <textarea v-model="asanaView.notes" class="form-input asana-notes-area" rows="3" placeholder="Beschreibung" />
+                </div>
+                <div v-if="asanaView.result" class="asana-view-result">
+                  <font-awesome-icon :icon="['fas', 'circle-check']" />
+                  Task erstellt:
+                  <a :href="asanaView.result.url" target="_blank" rel="noopener noreferrer">{{ asanaView.result.name }}</a>
+                </div>
+                <div v-if="asanaView.error" class="asana-view-error">
+                  <font-awesome-icon :icon="['fas', 'circle-exclamation']" /> {{ asanaView.error }}
+                </div>
+                <div class="akt-form-actions">
+                  <button class="btn btn-secondary" @click="toggleAsanaView(null)">Zurück</button>
+                </div>
               </div>
             </div>
 
@@ -613,63 +693,134 @@
               <template v-for="akt in leadAktivitaeten" :key="akt._id">
                 <!-- Inline edit form -->
                 <div v-if="editingAktId === akt._id" class="akt-form">
-                  <div class="akt-type-row">
-                    <button
-                      v-for="t in AKT_TYPES" :key="t.value"
-                      class="akt-type-btn"
-                      :class="{ active: editAktForm.type === t.value }"
-                      @click="editAktForm.type = t.value"
-                      :title="t.label"
-                    >
-                      <font-awesome-icon :icon="t.icon" />
-                      <span>{{ t.label }}</span>
-                    </button>
-                  </div>
-                  <input v-model="editAktForm.titel" class="form-input" placeholder="Titel / Betreff (optional)" />
-                  <div class="akt-datetime-row">
-                    <label class="akt-date-label" @click.prevent="$refs.editAktDateInput.showPicker()">
-                      <font-awesome-icon :icon="['fas', 'calendar']" class="akt-date-icon" />
-                      <span class="akt-date-text">{{ editAktForm.date ? new Date(editAktForm.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Datum wählen' }}</span>
-                      <input ref="editAktDateInput" v-model="editAktForm.date" type="date" class="akt-date-hidden" />
-                    </label>
-                    <div class="akt-time-picker">
-                      <input
-                        v-model="editAktForm.timeHour"
-                        type="number" min="0" max="23"
-                        class="form-input akt-time-hour"
-                        placeholder="Std"
-                      />
-                      <div class="akt-min-btns">
-                        <button v-for="m in ['00','15','30','45']" :key="m" type="button"
-                          class="akt-min-btn" :class="{ active: editAktForm.timeMin === m }"
-                          @click="editAktForm.timeMin = m"
-                        >{{ m }}</button>
-                      </div>
-                      <template v-if="editAktForm.timeHour !== ''">
-                        <input
-                          v-if="editAktTimeManual"
-                          type="time"
-                          class="form-input akt-time-override"
-                          :value="`${String(editAktForm.timeHour).padStart(2,'0')}:${editAktForm.timeMin}`"
-                          @change="e => { applyManualTime(editAktForm, e.target.value); editAktTimeManual = false }"
-                          @blur="editAktTimeManual = false"
-                        />
-                        <span v-else class="akt-time-result" @click="editAktTimeManual = true">
-                          {{ String(editAktForm.timeHour).padStart(2,'0') }}:{{ editAktForm.timeMin }}
-                        </span>
-                      </template>
+                  <!-- Asana button — top-right corner -->
+                  <button
+                    class="btn-asana-corner"
+                    :class="{ active: asanaView.mode === 'edit' }"
+                    @click="toggleAsanaView('edit')"
+                    title="Als Asana-Task planen"
+                  >
+                    <svg class="asana-logo-icon" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                      <circle cx="120" cy="28" r="28"/>
+                      <circle cx="52" cy="152" r="28"/>
+                      <circle cx="188" cy="152" r="28"/>
+                    </svg>
+                  </button>
+
+                  <!-- Normal edit form -->
+                  <template v-if="asanaView.mode !== 'edit'">
+                    <div class="akt-type-row">
+                      <button
+                        v-for="t in AKT_TYPES" :key="t.value"
+                        class="akt-type-btn"
+                        :class="{ active: editAktForm.type === t.value }"
+                        @click="editAktForm.type = t.value"
+                        :title="t.label"
+                      >
+                        <font-awesome-icon :icon="t.icon" />
+                        <span>{{ t.label }}</span>
+                      </button>
                     </div>
-                  </div>
-                  <select v-if="leadContacts.length > 0" v-model="editAktForm.kontaktId" class="form-input">
-                    <option value="">Kein Kontakt</option>
-                    <option v-for="c in leadContacts" :key="c.id" :value="c.id">{{ c.displayName }}</option>
-                  </select>
-                  <div class="akt-form-actions">
-                    <button class="btn btn-secondary" @click="editingAktId = null">Abbrechen</button>
-                    <button class="btn btn-primary" :disabled="!editAktForm.date || savingAkt" @click="saveEditAkt(akt)">
-                      <font-awesome-icon v-if="savingAkt" :icon="['fas', 'spinner']" spin />
-                      Speichern
-                    </button>
+                    <input v-model="editAktForm.titel" class="form-input" placeholder="Titel / Betreff (optional)" />
+                    <div class="akt-datetime-row">
+                      <label class="akt-date-label" @click.prevent="$refs.editAktDateInput.showPicker()">
+                        <font-awesome-icon :icon="['fas', 'calendar']" class="akt-date-icon" />
+                        <span class="akt-date-text">{{ editAktForm.date ? new Date(editAktForm.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Datum wählen' }}</span>
+                        <input ref="editAktDateInput" v-model="editAktForm.date" type="date" class="akt-date-hidden" />
+                      </label>
+                      <div class="akt-time-picker">
+                        <input
+                          v-model="editAktForm.timeHour"
+                          type="number" min="0" max="23"
+                          class="form-input akt-time-hour"
+                          placeholder="Std"
+                        />
+                        <div class="akt-min-btns">
+                          <button v-for="m in ['00','15','30','45']" :key="m" type="button"
+                            class="akt-min-btn" :class="{ active: editAktForm.timeMin === m }"
+                            @click="editAktForm.timeMin = m"
+                          >{{ m }}</button>
+                        </div>
+                        <template v-if="editAktForm.timeHour !== ''">
+                          <input
+                            v-if="editAktTimeManual"
+                            type="time"
+                            class="form-input akt-time-override"
+                            :value="`${String(editAktForm.timeHour).padStart(2,'0')}:${editAktForm.timeMin}`"
+                            @change="e => { applyManualTime(editAktForm, e.target.value); editAktTimeManual = false }"
+                            @blur="editAktTimeManual = false"
+                          />
+                          <span v-else class="akt-time-result" @click="editAktTimeManual = true">
+                            {{ String(editAktForm.timeHour).padStart(2,'0') }}:{{ editAktForm.timeMin }}
+                          </span>
+                        </template>
+                      </div>
+                    </div>
+                    <select v-if="leadContacts.length > 0" v-model="editAktForm.kontaktId" class="form-input">
+                      <option value="">Kein Kontakt</option>
+                      <option v-for="c in leadContacts" :key="c.id" :value="c.id">{{ c.displayName }}</option>
+                    </select>
+                    <div class="akt-form-actions">
+                      <button class="btn btn-secondary" @click="editingAktId = null">Abbrechen</button>
+                      <div class="btn-save-wrap">
+                        <button class="btn btn-primary" :disabled="!editAktForm.date || savingAkt" @click="saveEditAkt(akt)">
+                          <font-awesome-icon v-if="savingAkt" :icon="['fas', 'spinner']" spin />
+                          <svg v-else-if="asanaView.enabled" class="asana-logo-icon" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><circle cx="120" cy="28" r="28"/><circle cx="52" cy="152" r="28"/><circle cx="188" cy="152" r="28"/></svg>
+                          Update
+                        </button>
+                        <button
+                          class="btn-asana-badge"
+                          :class="{ active: asanaView.enabled }"
+                          :title="asanaView.enabled ? 'Asana Task wird erstellt' : 'Kein Asana Task'"
+                          @click.stop="asanaView.enabled = !asanaView.enabled"
+                        >
+                          <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><circle cx="120" cy="28" r="28"/><circle cx="52" cy="152" r="28"/><circle cx="188" cy="152" r="28"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </template>
+
+                  <!-- Asana task creation view -->
+                  <div v-else class="asana-task-view">
+                    <div class="asana-view-header">
+                      <svg class="asana-logo-icon asana-logo-icon--lg" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                        <circle cx="120" cy="28" r="28"/>
+                        <circle cx="52" cy="152" r="28"/>
+                        <circle cx="188" cy="152" r="28"/>
+                      </svg>
+                      <span>Asana Task erstellen</span>
+                    </div>
+                    <div class="asana-view-field">
+                      <label class="asana-view-label">Titel</label>
+                      <input v-model="asanaView.titel" class="form-input" placeholder="Task-Titel" />
+                    </div>
+                    <div class="asana-view-field">
+                      <label class="asana-view-label">Fälligkeitsdatum</label>
+                      <span class="asana-view-value">{{ asanaView.datum ? formatAktDate(asanaView.datum) : '—' }}</span>
+                    </div>
+                    <div class="asana-view-field">
+                      <label class="asana-view-label">Verantwortlich</label>
+                      <span class="asana-view-value">{{ selectedLead?.eigentuemer?.name || selectedLead?.eigentuemer?.email || '—' }}</span>
+                    </div>
+                    <div class="asana-view-field">
+                      <label class="asana-view-label">Projekt</label>
+                      <span class="asana-view-value">Sales {{ selectedLead?.standort }}</span>
+                    </div>
+                    <div class="asana-view-field">
+                      <label class="asana-view-label">Beschreibung</label>
+                      <textarea v-model="asanaView.notes" class="form-input asana-notes-area" rows="3" placeholder="Beschreibung" />
+                    </div>
+                    <div v-if="asanaView.result" class="asana-view-result">
+                      <font-awesome-icon :icon="['fas', 'circle-check']" />
+                      Task erstellt:
+                      <a :href="asanaView.result.url" target="_blank" rel="noopener noreferrer">{{ asanaView.result.name }}</a>
+                    </div>
+                    <div v-if="asanaView.error" class="asana-view-error">
+                      <font-awesome-icon :icon="['fas', 'circle-exclamation']" /> {{ asanaView.error }}
+                    </div>
+                    <div class="akt-form-actions">
+                      <button class="btn btn-secondary" @click="toggleAsanaView(null)">Zurück</button>
+                    </div>
                   </div>
                 </div>
 
@@ -677,7 +828,7 @@
                 <div
                   v-else
                   class="akt-item"
-                  :class="{ 'akt-item--done': akt.erledigt, 'akt-item--overdue': isOverdue(akt) }"
+                  :class="{ 'akt-item--done': akt.erledigt, 'akt-item--overdue': isOverdue(akt), 'akt-item--has-asana': !!akt.asanaTaskUrl }"
                 >
                   <button
                     class="akt-check"
@@ -702,6 +853,20 @@
                     </div>
                   </div>
                   <div class="akt-actions">
+                    <a
+                      v-if="akt.asanaTaskUrl"
+                      :href="akt.asanaTaskUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="akt-asana-link"
+                      title="In Asana öffnen"
+                    >
+                      <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <circle cx="120" cy="40"  r="40"/>
+                        <circle cx="40"  cy="160" r="40"/>
+                        <circle cx="200" cy="160" r="40"/>
+                      </svg>
+                    </a>
                     <button class="akt-edit" @click="openEditAkt(akt)" title="Bearbeiten">
                       <font-awesome-icon :icon="['fas', 'pen']" />
                     </button>
@@ -784,6 +949,15 @@
 
             <!-- Lead basics -->
             <div class="kv-grid" style="margin-bottom: 16px;">
+              <div class="kv-item">
+                <label>Standort <span class="req">*</span></label>
+                <select v-model="createForm.standort" class="form-input">
+                  <option value="Hamburg">Hamburg</option>
+                  <option value="Berlin">Berlin</option>
+                  <option value="Köln">Köln</option>
+                </select>
+              </div>
+
               <div class="kv-item">
                 <label>Organisation <span class="req">*</span></label>
                 <input v-model="createForm.title" class="form-input" placeholder="z.B. EventRent" />
@@ -1222,6 +1396,11 @@ library.add(
 
 const auth = useAuth();
 
+// ─── Props ───────────────────────────────────────────────────────────
+const props = defineProps({
+  initialLeadId: { type: String, default: null },
+});
+
 // ─── State ───────────────────────────────────────────────────────────
 const loading = ref(false);
 const leads = ref([]);
@@ -1232,6 +1411,7 @@ const detailForm = reactive({
   wert: null,
   waehrung: 'EUR',
   stufe: 'neu',
+  standort: 'Hamburg',
   quelle: null,
   erwartetesAbschlussDatum: '',
   kontakt: { vorname: '', nachname: '', email: '', telefon: '', firma: '' },
@@ -1347,6 +1527,7 @@ function openKontaktAnlegenModal(context) {
 const createForm = reactive({
   title: '',
   wert: null,
+  standort: 'Hamburg',
   quelle: null,
   kontakt: { vorname: '', nachname: '', email: '', telefon: '', firma: '' },
 });
@@ -1707,7 +1888,13 @@ async function prefetchContacts() {
   }
 }
 
-onMounted(loadAll);
+onMounted(async () => {
+  await loadAll();
+  if (props.initialLeadId) {
+    const target = leads.value.find(l => l._id === props.initialLeadId);
+    if (target) openLead(target);
+  }
+});
 
 // ─── Favorite ────────────────────────────────────────────────────────
 async function toggleFavorite(lead) {
@@ -1736,6 +1923,7 @@ function openLead(lead) {
   detailForm.wert = lead.wert ?? null;
   detailForm.waehrung = lead.waehrung || 'EUR';
   detailForm.stufe = lead.stufe || 'neu';
+  detailForm.standort = lead.standort || 'Hamburg';
   detailForm.quelle = lead.quelle || null;
   detailForm.erwartetesAbschlussDatum = lead.erwartetesAbschlussDatum
     ? lead.erwartetesAbschlussDatum.substring(0, 10)
@@ -1774,6 +1962,7 @@ async function saveDetail() {
       title: detailForm.title,
       wert: detailForm.wert,
       stufe: detailForm.stufe,
+      standort: detailForm.standort,
       quelle: detailForm.quelle,
       erwartetesAbschlussDatum: detailForm.erwartetesAbschlussDatum || null,
       kontakt: detailForm.kontakt,
@@ -1922,6 +2111,7 @@ function openCreateModal() {
   Object.assign(createForm, {
     title: '',
     wert: null,
+    standort: 'Hamburg',
     quelle: null,
     kontakt: blankKontakt(),
   });
@@ -1974,10 +2164,11 @@ async function createLead() {
     }
 
     const { data } = await api.post('/api/leads', {
-      title:   createForm.title.trim(),
-      wert:    createForm.wert,
-      quelle:  createForm.quelle,
-      kontakt: createForm.kontakt,
+      title:    createForm.title.trim(),
+      wert:     createForm.wert,
+      standort: createForm.standort,
+      quelle:   createForm.quelle,
+      kontakt:  createForm.kontakt,
       msContact,
     });
     leads.value.unshift(data);
@@ -2417,6 +2608,10 @@ function openAktForm() {
   aktForm.timeMin = String(Math.round(now.getMinutes() / 15) * 15 % 60).padStart(2, '0');
   aktForm.kontaktId = '';
   aktTimeManual.value = false;
+  asanaView.mode = null;
+  asanaView.enabled = true;
+  asanaView.result = null;
+  asanaView.error = null;
   showAktForm.value = true;
 }
 
@@ -2436,6 +2631,15 @@ async function saveAkt() {
     const { data } = await api.post(`/api/leads/${selectedLead.value._id}/aktivitaeten`, payload);
     if (!selectedLead.value.aktivitaeten) selectedLead.value.aktivitaeten = [];
     selectedLead.value.aktivitaeten.push(data);
+    if (asanaView.enabled) {
+      const newAkt = data;
+      submitAsanaTask('create', newAkt._id).then(result => {
+        if (result?.gid) {
+          newAkt.asanaTaskGid = result.gid;
+          newAkt.asanaTaskUrl = result.url || null;
+        }
+      }).catch(e => console.error('Asana Task Fehler', e));
+    }
     showAktForm.value = false;
   } catch (e) {
     console.error('Aktivität speichern fehlgeschlagen', e);
@@ -2484,6 +2688,10 @@ function openEditAkt(akt) {
   editAktForm.timeMin = String(d.getMinutes()).padStart(2, '0');
   editAktForm.kontaktId = akt.kontakt?.id || '';
   editAktTimeManual.value = false;
+  asanaView.mode = null;
+  asanaView.enabled = true;
+  asanaView.result = null;
+  asanaView.error = null;
 }
 
 async function saveEditAkt(akt) {
@@ -2501,6 +2709,14 @@ async function saveEditAkt(akt) {
     };
     const { data } = await api.patch(`/api/leads/${selectedLead.value._id}/aktivitaeten/${akt._id}`, payload);
     Object.assign(akt, data);
+    if (asanaView.enabled) {
+      submitAsanaTask('edit', akt._id).then(result => {
+        if (result?.gid) {
+          akt.asanaTaskGid = result.gid;
+          akt.asanaTaskUrl = result.url || null;
+        }
+      }).catch(e => console.error('Asana Task Fehler', e));
+    }
     editingAktId.value = null;
   } catch (e) {
     console.error('Aktivität bearbeiten fehlgeschlagen', e);
@@ -2536,6 +2752,75 @@ function formatAktDate(dt) {
     day: '2-digit', month: '2-digit', year: 'numeric',
     ...(hasTime ? { hour: '2-digit', minute: '2-digit' } : {}),
   });
+}
+
+// ─── Asana Sales Task ─────────────────────────────────────────────────────────
+const asanaView = reactive({
+  mode:   null,  // null | 'create' | 'edit'
+  enabled: true,  // whether to create an Asana task on save
+  titel:  '',
+  datum:  '',
+  notes:  '',
+  sending: false,
+  result: null,
+  error:  null,
+});
+
+function toggleAsanaView(mode) {
+  if (!mode || asanaView.mode === mode) {
+    asanaView.mode = null;
+    asanaView.result = null;
+    asanaView.error = null;
+    return;
+  }
+  asanaView.mode  = mode;
+  asanaView.enabled = true;
+  asanaView.result = null;
+  asanaView.error  = null;
+
+  const form = mode === 'create' ? aktForm : editAktForm;
+  asanaView.titel = form.titel || aktTypeLabel(form.type);
+
+  const timeStr = form.timeHour !== ''
+    ? `${String(form.timeHour).padStart(2, '0')}:${form.timeMin || '00'}`
+    : '';
+  const datumStr = timeStr ? `${form.date}T${timeStr}` : form.date;
+  asanaView.datum = datumStr ? new Date(datumStr).toISOString() : '';
+
+  const lines = [];
+  lines.push(`Aktivitätstyp: ${aktTypeLabel(form.type)}`);
+  if (selectedLead.value?.title) lines.push(`Lead: ${selectedLead.value.title}`);
+  const linked = form.kontaktId ? leadContacts.value.find(c => c.id === form.kontaktId) : null;
+  if (linked) lines.push(`Kontakt: ${linked.displayName}${linked.email ? ` (${linked.email})` : ''}`);
+  asanaView.notes = lines.join('\n');
+}
+
+async function submitAsanaTask(mode, aktId = null) {
+  if (!selectedLead.value) return null;
+  asanaView.sending = true;
+  asanaView.error   = null;
+  try {
+    const form   = mode === 'create' ? aktForm : editAktForm;
+    const linked = form.kontaktId ? leadContacts.value.find(c => c.id === form.kontaktId) : null;
+    const timeStr = form.timeHour !== '' ? `${String(form.timeHour).padStart(2, '0')}:${form.timeMin || '00'}` : '';
+    const datumStr = timeStr ? `${form.date}T${timeStr}` : form.date;
+    const titel = form.titel?.trim() || aktTypeLabel(form.type);
+    const datum = datumStr ? new Date(datumStr).toISOString() : '';
+    const { data } = await api.post(`/api/leads/${selectedLead.value._id}/asana-sales-task`, {
+      titel,
+      datum,
+      type:    form.type,
+      kontakt: linked ? { displayName: linked.displayName, email: linked.email } : {},
+      aktId:   aktId || null,
+    });
+    asanaView.result = data;
+    return data;
+  } catch (e) {
+    asanaView.error = e.response?.data?.message || 'Asana Task konnte nicht erstellt werden.';
+    return null;
+  } finally {
+    asanaView.sending = false;
+  }
 }
 
 // ─── Dateien / Attachments ──────────────────────────────────────────────────
@@ -4607,14 +4892,145 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 /* ── Aktivitäten ─────────────────────────────────────────────────── */
 
 .akt-form {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-bottom: 14px;
   padding: 12px;
+  padding-right: 38px; // room for Asana corner button
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--hover);
+}
+
+.btn-asana-corner {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+
+  &:hover { color: #f06a6a; border-color: rgba(240, 106, 106, 0.4); }
+  &.active { color: #f06a6a; border-color: #f06a6a; background: rgba(240, 106, 106, 0.08); }
+}
+
+.btn-save-wrap {
+  position: relative;
+  display: inline-flex;
+
+  .btn { padding-right: 28px; }
+}
+
+.btn-asana-badge {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--tile-bg);
+  color: #bbb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  z-index: 1;
+
+  svg { width: 11px; height: 11px; }
+
+  &:hover { color: #d08080; border-color: #d9b0b0; background: #fdf5f5; }
+  &.active {
+    color: #e07070;
+    border-color: #e09090;
+    background: #fdeaea;
+  }
+}
+
+.asana-logo-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+
+  &--lg { width: 18px; height: 18px; }
+}
+
+.asana-task-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.asana-view-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f06a6a;
+  margin-bottom: 2px;
+}
+
+.asana-view-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.asana-view-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.asana-view-value {
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.asana-notes-area {
+  resize: vertical;
+  min-height: 64px;
+  font-size: 0.82rem;
+}
+
+.asana-view-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: #10b981;
+  padding: 6px 8px;
+  background: rgba(16, 185, 129, 0.08);
+  border-radius: 5px;
+
+  a { color: #10b981; font-weight: 600; text-decoration: underline; }
+}
+
+.asana-view-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: #ef4444;
+  padding: 6px 8px;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 5px;
 }
 
 .akt-type-row {
@@ -4875,6 +5291,24 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 
 .akt-edit:hover { color: var(--primary); }
 .akt-delete:hover { color: #ef4444; }
+
+.akt-asana-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: #e07070;
+  transition: color 0.15s, background 0.15s;
+
+  svg {
+    width: 12px;
+    height: 12px;
+    fill: currentColor;
+  }
+
+  &:hover { background: var(--hover); color: #c05050; }
+}
 
 /* ── Dateien / Attachments ──────────────────────────────────────── */
 .section-count {

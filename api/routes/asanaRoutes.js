@@ -1,7 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/AsyncHandler");
-const { findTasks, getTaskById, getStoryById, getStoriesByTask, findAllTasks, updateTask, addLinkToTask, bewerberRoutine, createStoryOnTask} = require("../AsanaService");
+const auth = require("../middleware/auth");
+const User = require("../models/User");
+const { findTasks, getTaskById, getStoryById, getStoriesByTask, findAllTasks, updateTask, addLinkToTask, bewerberRoutine, createStoryOnTask, getAsanaUser, getAsanaUsers, getAsanaWorkspaceUsers } = require("../AsanaService");
 
 
 
@@ -556,5 +558,92 @@ async function performFallbackSearch(projectIds, query, employeeEmail, registry)
   console.log(`📈 Fallback search completed: ${fallbackResults.length} results from ${tasksSearched} tasks`);
   return fallbackResults;
 }
+
+/* =========================================================================
+ * Asana User Routes
+ * GET /asana/users                          — list all users (optional ?workspace=)
+ * GET /asana/users/me                       — get authenticated Asana user
+ * GET /asana/users/:gid                     — get user by GID or email
+ * GET /asana/workspaces/:workspace_gid/users — get users in a workspace
+ * PUT /asana/users/link                     — link local User to an Asana user
+ * DELETE /asana/users/link                  — remove Asana link from local User
+ * ========================================================================= */
+
+/**
+ * Route: Get multiple Asana users
+ * Optional query param: ?workspace=<gid>
+ */
+router.get("/users", asyncHandler(async (req, res) => {
+  const opts = {};
+  if (req.query.workspace) opts.workspace = req.query.workspace;
+  if (req.query.team) opts.team = req.query.team;
+
+  const users = await getAsanaUsers(opts);
+  res.status(200).json({ success: true, data: users, total: users.length });
+}));
+
+/**
+ * Route: Get the currently authenticated Asana user (via PAT)
+ * Note: must come before /:gid to avoid route conflict
+ */
+router.get("/users/me", asyncHandler(async (req, res) => {
+  const user = await getAsanaUser("me");
+  if (!user) return res.status(404).json({ success: false, message: "Asana user not found" });
+  res.status(200).json({ success: true, data: user });
+}));
+
+/**
+ * Route: Get a single Asana user by GID or email address
+ */
+router.get("/users/:gid", asyncHandler(async (req, res) => {
+  const { gid } = req.params;
+  const user = await getAsanaUser(gid);
+  if (!user) return res.status(404).json({ success: false, message: "Asana user not found" });
+  res.status(200).json({ success: true, data: user });
+}));
+
+/**
+ * Route: Get all users in a specific Asana workspace
+ */
+router.get("/workspaces/:workspace_gid/users", asyncHandler(async (req, res) => {
+  const { workspace_gid } = req.params;
+  const users = await getAsanaWorkspaceUsers(workspace_gid);
+  res.status(200).json({ success: true, data: users, total: users.length });
+}));
+
+/**
+ * Route: Link the authenticated local User account to an Asana user.
+ * Body: { asana_gid: "12345" }
+ * Validates that the GID resolves to a real Asana user before saving.
+ */
+router.put("/users/link", auth, asyncHandler(async (req, res) => {
+  const { asana_gid } = req.body;
+
+  if (!asana_gid || typeof asana_gid !== "string" || !asana_gid.trim()) {
+    return res.status(400).json({ success: false, message: "asana_gid is required." });
+  }
+
+  // Verify the GID resolves to a real Asana user
+  const asanaUser = await getAsanaUser(asana_gid.trim());
+  if (!asanaUser) {
+    return res.status(404).json({ success: false, message: "No Asana user found for the given GID." });
+  }
+
+  await User.findByIdAndUpdate(req.user.id, { asana_id: asanaUser.gid });
+
+  res.status(200).json({
+    success: true,
+    message: "Asana user linked successfully.",
+    asanaUser: { gid: asanaUser.gid, name: asanaUser.name, email: asanaUser.email },
+  });
+}));
+
+/**
+ * Route: Remove the Asana link from the authenticated local User account.
+ */
+router.delete("/users/link", auth, asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(req.user.id, { asana_id: null });
+  res.status(200).json({ success: true, message: "Asana link removed." });
+}));
 
 module.exports = router;

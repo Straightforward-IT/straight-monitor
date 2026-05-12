@@ -173,7 +173,7 @@
 
        <!-- Leads Tab (Pipedrive-style sales leads) -->
       <div v-if="currentTab === 'leads'" class="tab-content tab-content--full">
-          <LeadsTab />
+          <LeadsTab :initial-lead-id="route.query.lead || null" />
       </div>
 
       <!-- Kontakte Tab (Microsoft Graph Contacts) -->
