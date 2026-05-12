@@ -29,7 +29,11 @@
     </div>
 
     <!-- Custom field chips (only those marked visible in colConfig) -->
-    <div v-if="customChips.length > 0" class="lc-custom">
+    <div v-if="customChips.length > 0 || (showCreated && lead.createdAt)" class="lc-custom">
+      <div v-if="showCreated && lead.createdAt" class="lc-custom-row">
+        <span class="lc-custom-key">Lead erstellt:</span>
+        <span class="lc-custom-val">{{ formatCreated(lead.createdAt) }}</span>
+      </div>
       <div v-for="chip in customChips" :key="chip.key" class="lc-custom-row">
         <span class="lc-custom-key">{{ chip.name }}:</span>
         <span class="lc-custom-val" v-html="chip.html" />
@@ -54,6 +58,7 @@ const props = defineProps({
   isActive: { type: Boolean, default: false },
   // Visible custom-field labels (filtered list of LeadLabel objects)
   customLabels: { type: Array, default: () => [] },
+  showCreated: { type: Boolean, default: false },
   quelleOptions: { type: Array, default: () => [] },
 });
 defineEmits(['open', 'toggle-favorite', 'row-menu']);
@@ -105,6 +110,11 @@ const customChips = computed(() =>
     html: renderValue(lbl),
   })),
 );
+
+function formatCreated(d) {
+  if (!d) return '—';
+  try { return new Date(d).toLocaleDateString('de-DE'); } catch { return '—'; }
+}
 </script>
 
 <style scoped lang="scss">

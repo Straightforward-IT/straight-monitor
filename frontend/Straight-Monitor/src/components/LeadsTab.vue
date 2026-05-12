@@ -44,6 +44,7 @@
         :leads="filteredLeads"
         :active-lead-id="selectedLead?._id || null"
         :custom-labels="visibleCustomLabels"
+        :show-created="visibleStdCreated"
         :quelle-options="leadConfig.quelleOptions || []"
         @open="openLead"
         @toggle-favorite="toggleFavorite"
@@ -1756,6 +1757,11 @@ const visibleCustomLabels = computed(() => {
   );
   return labels.value.filter(l => l.isActive && visibleIds.has(l._id));
 });
+
+// Standard column visibility (for showing built-in fields as chips on cards)
+const visibleStdCreated = computed(() =>
+  colConfig.value.some(c => c._id === 'std_created' && c.visible),
+);
 
 async function onStageChange({ lead, fromStufe, toStufe }) {
   // Optimistic local update

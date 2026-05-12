@@ -35,6 +35,7 @@
             :lead="element"
             :is-active="activeLeadId === element._id"
             :custom-labels="customLabels"
+            :show-created="showCreated"
             :quelle-options="quelleOptions"
             @open="$emit('open', element)"
             @toggle-favorite="$emit('toggle-favorite', element)"
@@ -55,6 +56,7 @@ const props = defineProps({
   leads: { type: Array, required: true },
   activeLeadId: { type: String, default: null },
   customLabels: { type: Array, default: () => [] },
+  showCreated: { type: Boolean, default: false },
   quelleOptions: { type: Array, default: () => [] },
 });
 

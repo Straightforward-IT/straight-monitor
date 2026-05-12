@@ -339,7 +339,7 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   const allowed = [
     'title', 'wert', 'waehrung', 'status', 'stufe', 'quelle',
     'eigentuemer', 'kunde', 'kontakt', 'labels', 'msContact', 'msContacts',
-    'erwartetesAbschlussDatum', 'verlorenGrund', 'customFields',
+    'erwartetesAbschlussDatum', 'verlorenGrund', 'customFields', 'isFavorite',
   ];
 
   const update = {};
