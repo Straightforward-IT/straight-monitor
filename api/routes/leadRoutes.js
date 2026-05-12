@@ -623,7 +623,7 @@ router.post('/:id/asana-sales-task', auth, asyncHandler(async (req, res) => {
     lines.push(`Kontakt: ${kontakt.displayName}${kontakt.email ? ` (${kontakt.email})` : ''}`);
   }
   lines.push('');
-  lines.push(`Lead im Monitor öffnen: ${leadUrl}`);
+  lines.push(`Im Monitor öffnen: ${leadUrl}`);
 
   const parsedDate = new Date(datum);
   const hasTime = parsedDate.getUTCHours() !== 0 || parsedDate.getUTCMinutes() !== 0;
