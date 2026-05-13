@@ -281,7 +281,7 @@ router.get('/:id', auth, asyncHandler(async (req, res) => {
 // @access  Private
 router.post('/', auth, asyncHandler(async (req, res) => {
   const {
-    title, wert, waehrung, stufe, quelle,
+    title, wert, waehrung, stufe, standort, quelle,
     eigentuemer, kunde, kontakt, labels,
     erwartetesAbschlussDatum, customFields, msContact, msContacts,
   } = req.body;
@@ -299,6 +299,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     wert:  wert  ?? null,
     waehrung: waehrung || 'EUR',
     stufe:  stufe  || 'neu',
+    standort,
     quelle: quelle || null,
     eigentuemer:  ownerId,
     angelegtVon:  req.user.id,
