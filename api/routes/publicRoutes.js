@@ -6,6 +6,7 @@ const Mitarbeiter = require("../models/Mitarbeiter");
 const Einsatz = require("../models/Einsatz");
 const Auftrag = require("../models/Auftrag");
 const Schicht = require("../models/Schicht");
+const Beruf = require("../models/Beruf");
 const Qualifikation = require("../models/Qualifikation");
 const { EventReport, Laufzettel, EvaluierungMA } = require("../models/Classes/FlipDocs");
 const CheckIn = require("../models/CheckIn");
@@ -215,6 +216,18 @@ router.get(
       schichten.map((schicht) => [schicht.idAuftragArbeitsschichten, schicht])
     );
 
+    const berufKeys = [...new Set(
+      einsaetze
+        .map((e) => parseInt(e.berufSchl, 10))
+        .filter((key) => !isNaN(key))
+    )];
+    const berufe = berufKeys.length
+      ? await Beruf.find({ jobKey: { $in: berufKeys } })
+          .select("jobKey designation")
+          .lean()
+      : [];
+    const berufByKey = new Map(berufe.map((beruf) => [beruf.jobKey, beruf]));
+
     // Collect all personalNrs to fetch Mitarbeiter in one query
     const personalNrs = [...new Set(einsaetze.map((e) => e.personalNr).filter(Boolean))];
     const mitarbeiterList = await Mitarbeiter.find({ personalnr: { $in: personalNrs } })
@@ -280,6 +293,8 @@ router.get(
       schichtMap[key].treffpunkt ||= schichtMeta?.treffpunkt || e.treffpunkt || null;
       schichtMap[key].treffpunktOrt ||= schichtMeta?.treffpunktOrt || e.treffpunktOrt || null;
       const ma = maMap[e.personalNr];
+      const berufKey = parseInt(e.berufSchl, 10);
+      const berufData = !isNaN(berufKey) ? berufByKey.get(berufKey) || null : null;
       schichtMap[key].mitarbeiter.push({
         personalNr: e.personalNr,
         vorname: ma?.vorname || null,
@@ -288,6 +303,11 @@ router.get(
         flipId: ma?.flip_id || null,
         isTeamleiter: ma?._isTeamleiter || false,
         bezeichnung: e.bezeichnung || null,
+        berufSchl: e.berufSchl || null,
+        berufKey: !isNaN(berufKey) ? berufKey : null,
+        berufDesignation: berufData?.designation || null,
+        isService: berufKey === 10001,
+        isLogistik: berufKey === 10002,
         checkedIn: false,
         isPseudo: e.isPseudo || false,
         einsatzNr: einsatzCountMap[e.personalNr] || 0,

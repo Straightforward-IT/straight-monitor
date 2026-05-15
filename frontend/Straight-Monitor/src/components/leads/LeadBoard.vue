@@ -113,8 +113,8 @@ function onChange(toStufe, evt) {
   flex: 1 1 0;
   min-width: 240px;
   max-width: 360px;
-  background: var(--surface-bg, #f9fafb);
-  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -129,11 +129,11 @@ function onChange(toStufe, evt) {
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border);
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-color, #111827);
-  background: var(--card-bg, #fff);
+  color: var(--text);
+  background: var(--tile-bg);
 }
 
 .lb-col-dot {
@@ -153,8 +153,8 @@ function onChange(toStufe, evt) {
 
 .lb-col-count {
   font-size: 11px;
-  background: var(--hover-bg, #f3f4f6);
-  color: var(--text-muted, #6b7280);
+  background: var(--hover);
+  color: var(--muted);
   padding: 2px 7px;
   border-radius: 10px;
   font-weight: 600;
@@ -174,7 +174,7 @@ function onChange(toStufe, evt) {
   padding: 20px 12px;
   text-align: center;
   font-size: 12px;
-  color: var(--text-muted, #9ca3af);
+  color: var(--muted);
   font-style: italic;
 }
 

@@ -103,12 +103,12 @@ onUnmounted(stopResize);
   // Align with main content: 32px (#app) + 16px (.content) + 24px (.kunden-page padding)
   left: 73px;
   right: 0;
-  background: var(--card-bg, #fff);
-  border-top: 1px solid var(--border-color, #e5e7eb);
-  border-left: 1px solid var(--border-color, #e5e7eb);
+  background: var(--tile-bg);
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
   border-top-left-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.18);
   display: flex;
   flex-direction: column;
   z-index: 90; // below sidebar (which is typically 100+)
@@ -129,11 +129,11 @@ onUnmounted(stopResize);
   align-items: center;
   justify-content: space-between;
   padding: 8px 14px;
-  border-bottom: 1px solid var(--border-color, #f3f4f6);
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
   user-select: none;
   flex-shrink: 0;
-  background: var(--surface-bg, #f9fafb);
+  background: var(--panel);
 }
 
 .cd-resize-handle {
@@ -151,7 +151,7 @@ onUnmounted(stopResize);
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: var(--text-color, #111827);
+  color: var(--text);
 }
 .cd-count {
   background: var(--primary);
@@ -162,7 +162,7 @@ onUnmounted(stopResize);
   font-weight: 600;
 }
 .cd-lead-title {
-  color: var(--text-muted, #6b7280);
+  color: var(--muted);
   font-weight: 400;
   font-size: 12px;
   max-width: 320px;
@@ -179,11 +179,11 @@ onUnmounted(stopResize);
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--text-muted, #9ca3af);
+  color: var(--muted);
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
-  &:hover { background: var(--hover-bg, #f3f4f6); color: var(--text-color); }
+  &:hover { background: var(--hover); color: var(--text); }
 }
 
 .cd-body {

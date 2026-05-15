@@ -4337,7 +4337,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   align-items: flex-start;
   width: 100%;
   padding: 8px 12px;
-  background: var(--card-bg);
+  background: var(--tile-bg);
   border: none;
   cursor: pointer;
   text-align: left;
@@ -4353,14 +4353,14 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   }
   .result-sub {
     font-size: 0.78rem;
-    color: var(--text-muted);
+    color: var(--muted);
   }
 }
 
 .no-results {
   margin-top: 8px;
   font-size: 0.82rem;
-  color: var(--text-muted);
+  color: var(--muted);
   text-align: center;
   padding: 8px 0;
 }
@@ -4370,7 +4370,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: color.adjust(#0078d4, $lightness: 40%, $saturation: -30%);
+  background: color-mix(in srgb, var(--primary) 16%, var(--tile-bg));
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
   border-radius: 6px;
   margin-bottom: 10px;
 
@@ -4382,13 +4383,13 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
     flex: 1;
 
     strong { font-size: 0.875rem; color: var(--text); }
-    span   { font-size: 0.78rem;  color: var(--text-muted); }
+    span   { font-size: 0.78rem;  color: var(--muted); }
   }
 
   .chip-remove {
     background: transparent;
     border: none;
-    color: var(--text-muted);
+    color: var(--muted);
     cursor: pointer;
     font-size: 0.8rem;
     padding: 2px 4px;
@@ -5357,8 +5358,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   gap: 8px;
   padding: 6px 8px;
   border-radius: 6px;
-  background: var(--card-bg, #fff);
-  border: 1px solid var(--card-border, #e2e8f0);
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
   font-size: 13px;
 
   &:hover { background: var(--hover); }
@@ -5381,7 +5382,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 
 .attach-size {
   font-size: 11px;
-  color: var(--text-muted, #94a3b8);
+  color: var(--muted);
   flex-shrink: 0;
 }
 
@@ -5390,7 +5391,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--text-muted, #94a3b8);
+  color: var(--muted);
   padding: 3px 5px;
   border-radius: 4px;
   transition: color 0.15s;

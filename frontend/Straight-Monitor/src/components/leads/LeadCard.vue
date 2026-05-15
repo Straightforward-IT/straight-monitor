@@ -119,8 +119,8 @@ function formatCreated(d) {
 
 <style scoped lang="scss">
 .lead-card {
-  background: var(--card-bg, #fff);
-  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
   cursor: grab;
@@ -131,15 +131,15 @@ function formatCreated(d) {
   user-select: none;
 
   &:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    border-color: var(--border-color-strong, #d1d5db);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
+    border-color: color-mix(in srgb, var(--border) 55%, var(--text));
   }
   &.active {
     border-color: var(--primary);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 25%, transparent);
   }
   &.is-favorite {
-    background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 4%, transparent), var(--card-bg, #fff));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 7%, transparent), var(--tile-bg));
   }
   &:active { cursor: grabbing; }
 }
@@ -155,14 +155,14 @@ function formatCreated(d) {
   font-size: 14px;
   font-weight: 600;
   line-height: 1.3;
-  color: var(--text-color, #111827);
+  color: var(--text);
   word-break: break-word;
 }
 .lc-fav {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--text-muted, #9ca3af);
+  color: var(--muted);
   font-size: 13px;
   padding: 0;
   line-height: 1;
@@ -173,11 +173,11 @@ function formatCreated(d) {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--text-muted, #9ca3af);
+  color: var(--muted);
   font-size: 13px;
   padding: 2px 4px;
   border-radius: 4px;
-  &:hover { background: var(--hover-bg, #f3f4f6); color: var(--text-color); }
+  &:hover { background: var(--hover); color: var(--text); }
 }
 
 .lc-meta {
@@ -190,8 +190,8 @@ function formatCreated(d) {
   padding: 2px 6px;
   font-size: 11px;
   border-radius: 4px;
-  background: var(--hover-bg, #f3f4f6);
-  color: var(--text-color);
+  background: var(--hover);
+  color: var(--text);
   &--standort {
     background: color-mix(in srgb, var(--primary) 12%, transparent);
     color: var(--primary);
@@ -204,27 +204,27 @@ function formatCreated(d) {
   flex-direction: column;
   gap: 2px;
   font-size: 11px;
-  color: var(--text-muted, #6b7280);
+  color: var(--muted);
 }
 .lc-custom-key { font-weight: 500; margin-right: 4px; }
-.lc-custom-val { color: var(--text-color); }
+.lc-custom-val { color: var(--text); }
 :deep(.cell-pill) {
   display: inline-block;
   padding: 1px 5px;
   margin-right: 2px;
   font-size: 10px;
   border-radius: 3px;
-  background: var(--hover-bg, #f3f4f6);
+  background: var(--hover);
 }
-:deep(.muted) { color: var(--text-muted, #9ca3af); }
+:deep(.muted) { color: var(--muted); }
 
 .lc-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 11px;
-  color: var(--text-muted, #6b7280);
-  border-top: 1px solid var(--border-color, #f3f4f6);
+  color: var(--muted);
+  border-top: 1px solid var(--border);
   padding-top: 6px;
 }
 .lc-owner-icon { margin-right: 3px; opacity: 0.7; }

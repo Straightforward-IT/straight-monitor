@@ -87,14 +87,19 @@
         <span class="count">{{ totalMitarbeiter }}</span>
       </h3>
 
+      <div class="role-filters">
+        <FilterChip :active="serviceFilterActive" @click="toggleServiceFilter">Service</FilterChip>
+        <FilterChip :active="logistikFilterActive" @click="toggleLogistikFilter">Logistik</FilterChip>
+      </div>
+
       <LoadingSpinner v-if="loadingMa" label="Mitarbeiter werden geladen..." class="inline-loader" />
 
-      <div v-else-if="schichtGruppen.length === 0" class="empty">
-        Keine Mitarbeiter für diesen Auftrag gefunden.
+      <div v-else-if="filteredSchichtGruppen.length === 0" class="empty">
+        {{ hasRoleFilter ? 'Keine Mitarbeiter für den gewählten Bereich gefunden.' : 'Keine Mitarbeiter für diesen Auftrag gefunden.' }}
       </div>
 
       <div v-else>
-        <div v-for="schicht in schichtGruppen" :key="schicht.id" class="schicht-group">
+        <div v-for="schicht in filteredSchichtGruppen" :key="schicht.id" class="schicht-group">
           <!-- Schicht Header -->
           <div class="schicht-header">
             <span class="schicht-name">{{ schicht.bezeichnung || 'Schicht ' + schicht.id }}</span>
@@ -257,6 +262,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
+import FilterChip from '@/components/FilterChip.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import { showToast } from '@getflip/bridge';
@@ -286,6 +292,8 @@ defineEmits(['back', 'write-report']);
 
 const loadingMa = ref(false);
 const schichtGruppen = ref([]);
+const serviceFilterActive = ref(true);
+const logistikFilterActive = ref(true);
 
 // MA Annotation state
 const actionSheet = ref({ open: false, ma: null });
@@ -371,9 +379,33 @@ function saveNotiz() {
 }
 
 
-const totalMitarbeiter = computed(() =>
-  schichtGruppen.value.reduce((sum, s) => sum + s.mitarbeiter.length, 0)
+const hasRoleFilter = computed(() => serviceFilterActive.value || logistikFilterActive.value);
+
+function matchesRoleFilter(ma) {
+  if (!hasRoleFilter.value) return true;
+  return (serviceFilterActive.value && ma.isService) || (logistikFilterActive.value && ma.isLogistik);
+}
+
+const filteredSchichtGruppen = computed(() =>
+  schichtGruppen.value
+    .map((schicht) => ({
+      ...schicht,
+      mitarbeiter: schicht.mitarbeiter.filter(matchesRoleFilter)
+    }))
+    .filter((schicht) => schicht.mitarbeiter.length > 0)
 );
+
+const totalMitarbeiter = computed(() =>
+  filteredSchichtGruppen.value.reduce((sum, s) => sum + s.mitarbeiter.length, 0)
+);
+
+function toggleServiceFilter() {
+  serviceFilterActive.value = !serviceFilterActive.value;
+}
+
+function toggleLogistikFilter() {
+  logistikFilterActive.value = !logistikFilterActive.value;
+}
 
 function formatDate(d) {
   if (!d) return '—';
@@ -741,6 +773,13 @@ watch(() => props.einsatz?._id, () => {
 
 .inline-loader {
   padding: 0.75rem 1rem;
+}
+
+.role-filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.75rem;
 }
 
 .empty {
