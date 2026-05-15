@@ -104,13 +104,12 @@
             <span class="schicht-count">{{ schicht.mitarbeiter.length }}</span>
           </div>
           <div v-if="schicht.treffpunkt || schicht.treffpunktOrt" class="schicht-meta">
-            <span v-if="schicht.treffpunkt" class="schicht-meta-item">
+            <span class="schicht-meta-item">
               <font-awesome-icon icon="fa-solid fa-map-pin" />
-              Treffpunkt: {{ formatTreffpunktTime(schicht.treffpunkt) }}
-            </span>
-            <span v-if="schicht.treffpunktOrt" class="schicht-meta-item">
-              <font-awesome-icon icon="fa-solid fa-location-dot" />
-              {{ schicht.treffpunktOrt }}
+              Treffpunkt:
+              <template v-if="schicht.treffpunkt">{{ formatTreffpunktTime(schicht.treffpunkt) }}</template>
+              <template v-if="schicht.treffpunkt && schicht.treffpunktOrt"> | </template>
+              <template v-if="schicht.treffpunktOrt">{{ schicht.treffpunktOrt }}</template>
             </span>
           </div>
           <!-- Mitarbeiter in dieser Schicht -->

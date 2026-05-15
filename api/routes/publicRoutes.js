@@ -5,6 +5,7 @@ const publicAuth = require("../middleware/publicAuth");
 const Mitarbeiter = require("../models/Mitarbeiter");
 const Einsatz = require("../models/Einsatz");
 const Auftrag = require("../models/Auftrag");
+const Schicht = require("../models/Schicht");
 const Qualifikation = require("../models/Qualifikation");
 const { EventReport, Laufzettel, EvaluierungMA } = require("../models/Classes/FlipDocs");
 const CheckIn = require("../models/CheckIn");
@@ -201,6 +202,19 @@ router.get(
 
     if (!einsaetze.length) return res.json([]);
 
+    const schichtIds = [...new Set(einsaetze.map((e) => e.idAuftragArbeitsschichten).filter((id) => id != null))];
+    const schichten = schichtIds.length
+      ? await Schicht.find({
+          auftragNr: parseInt(auftragNr),
+          idAuftragArbeitsschichten: { $in: schichtIds }
+        })
+          .select("idAuftragArbeitsschichten bezeichnung uhrzeitVon uhrzeitBis treffpunkt treffpunktOrt")
+          .lean()
+      : [];
+    const schichtById = Object.fromEntries(
+      schichten.map((schicht) => [schicht.idAuftragArbeitsschichten, schicht])
+    );
+
     // Collect all personalNrs to fetch Mitarbeiter in one query
     const personalNrs = [...new Set(einsaetze.map((e) => e.personalNr).filter(Boolean))];
     const mitarbeiterList = await Mitarbeiter.find({ personalnr: { $in: personalNrs } })
@@ -248,17 +262,23 @@ router.get(
     const schichtMap = {};
     einsaetze.forEach((e) => {
       const key = e.idAuftragArbeitsschichten ?? 0;
+      const schichtMeta = schichtById[key] || null;
       if (!schichtMap[key]) {
         schichtMap[key] = {
           id: key,
-          bezeichnung: e.schichtBezeichnung || null,
-          uhrzeitVon: e.uhrzeitVon || null,
-          uhrzeitBis: e.uhrzeitBis || null,
-          treffpunkt: e.treffpunkt || null,
-          treffpunktOrt: e.treffpunktOrt || null,
+          bezeichnung: schichtMeta?.bezeichnung || e.schichtBezeichnung || null,
+          uhrzeitVon: schichtMeta?.uhrzeitVon || e.uhrzeitVon || null,
+          uhrzeitBis: schichtMeta?.uhrzeitBis || e.uhrzeitBis || null,
+          treffpunkt: schichtMeta?.treffpunkt || e.treffpunkt || null,
+          treffpunktOrt: schichtMeta?.treffpunktOrt || e.treffpunktOrt || null,
           mitarbeiter: []
         };
       }
+      schichtMap[key].bezeichnung ||= schichtMeta?.bezeichnung || e.schichtBezeichnung || null;
+      schichtMap[key].uhrzeitVon ||= schichtMeta?.uhrzeitVon || e.uhrzeitVon || null;
+      schichtMap[key].uhrzeitBis ||= schichtMeta?.uhrzeitBis || e.uhrzeitBis || null;
+      schichtMap[key].treffpunkt ||= schichtMeta?.treffpunkt || e.treffpunkt || null;
+      schichtMap[key].treffpunktOrt ||= schichtMeta?.treffpunktOrt || e.treffpunktOrt || null;
       const ma = maMap[e.personalNr];
       schichtMap[key].mitarbeiter.push({
         personalNr: e.personalNr,

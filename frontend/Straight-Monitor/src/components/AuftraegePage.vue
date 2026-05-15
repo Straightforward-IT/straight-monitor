@@ -388,13 +388,12 @@
 
                 <!-- Schicht Meta Row (Treffpunkt, Ansprechpartner) -->
                 <div class="schicht-meta" v-if="schichtData.meta.treffpunkt || schichtData.meta.treffpunktOrt || schichtData.meta.ansprechpartnerName">
-                  <span class="meta-item" v-if="schichtData.meta.treffpunkt">
+                  <span class="meta-item" v-if="schichtData.meta.treffpunkt || schichtData.meta.treffpunktOrt">
                     <font-awesome-icon icon="fa-solid fa-location-dot" />
-                    Treffpunkt: {{ formatTime(schichtData.meta.treffpunkt) }}
-                  </span>
-                  <span class="meta-item" v-if="schichtData.meta.treffpunktOrt">
-                    <font-awesome-icon icon="fa-solid fa-location-dot" />
-                    Treffpunkt-Ort: {{ schichtData.meta.treffpunktOrt }}
+                    Treffpunkt:
+                    <template v-if="schichtData.meta.treffpunkt">{{ formatTime(schichtData.meta.treffpunkt) }}</template>
+                    <template v-if="schichtData.meta.treffpunkt && schichtData.meta.treffpunktOrt"> | </template>
+                    <template v-if="schichtData.meta.treffpunktOrt">{{ schichtData.meta.treffpunktOrt }}</template>
                   </span>
                   <span class="meta-item ansprechpartner" v-if="schichtData.meta.ansprechpartnerName">
                     <font-awesome-icon icon="fa-solid fa-user-tie" />
