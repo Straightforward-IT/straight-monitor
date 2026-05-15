@@ -387,10 +387,14 @@
                 </div>
 
                 <!-- Schicht Meta Row (Treffpunkt, Ansprechpartner) -->
-                <div class="schicht-meta" v-if="schichtData.meta.treffpunkt || schichtData.meta.ansprechpartnerName">
+                <div class="schicht-meta" v-if="schichtData.meta.treffpunkt || schichtData.meta.treffpunktOrt || schichtData.meta.ansprechpartnerName">
                   <span class="meta-item" v-if="schichtData.meta.treffpunkt">
                     <font-awesome-icon icon="fa-solid fa-location-dot" />
                     Treffpunkt: {{ formatTime(schichtData.meta.treffpunkt) }}
+                  </span>
+                  <span class="meta-item" v-if="schichtData.meta.treffpunktOrt">
+                    <font-awesome-icon icon="fa-solid fa-location-dot" />
+                    Treffpunkt-Ort: {{ schichtData.meta.treffpunktOrt }}
                   </span>
                   <span class="meta-item ansprechpartner" v-if="schichtData.meta.ansprechpartnerName">
                     <font-awesome-icon icon="fa-solid fa-user-tie" />
@@ -983,6 +987,7 @@ export default {
               meta: {
                 schichtBezeichnung: s.bezeichnung || null,
                 treffpunkt: s.treffpunkt || null,
+                treffpunktOrt: s.treffpunktOrt || null,
                 ansprechpartnerName: s.ansprechpartnerName || null,
                 ansprechpartnerTelefon: s.ansprechpartnerTelefon || null,
                 ansprechpartnerEmail: s.ansprechpartnerEmail || null,
@@ -1006,6 +1011,7 @@ export default {
               meta: {
                 schichtBezeichnung: e.schichtBezeichnung || null,
                 treffpunkt: e.treffpunkt || null,
+                treffpunktOrt: e.treffpunktOrt || null,
                 ansprechpartnerName: e.ansprechpartnerName || null,
                 ansprechpartnerTelefon: e.ansprechpartnerTelefon || null,
                 ansprechpartnerEmail: e.ansprechpartnerEmail || null,

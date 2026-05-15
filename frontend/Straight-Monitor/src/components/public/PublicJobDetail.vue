@@ -57,14 +57,6 @@
         </div>
       </div>
 
-      <div v-if="einsatz.treffpunkt" class="info-card">
-        <div class="info-icon"><font-awesome-icon icon="fa-solid fa-map-pin" /></div>
-        <div class="info-content">
-          <span class="info-label">Treffpunkt</span>
-          <span class="info-value">{{ formatTreffpunkt(einsatz.treffpunkt) }}</span>
-        </div>
-      </div>
-
       <div v-if="einsatz.ansprechpartnerName" class="info-card">
         <div class="info-icon"><font-awesome-icon icon="fa-solid fa-user" /></div>
         <div class="info-content">
@@ -110,6 +102,16 @@
               {{ formatTime(schicht.uhrzeitVon) }}{{ schicht.uhrzeitBis ? ' – ' + formatTime(schicht.uhrzeitBis) : '' }}
             </span>
             <span class="schicht-count">{{ schicht.mitarbeiter.length }}</span>
+          </div>
+          <div v-if="schicht.treffpunkt || schicht.treffpunktOrt" class="schicht-meta">
+            <span v-if="schicht.treffpunkt" class="schicht-meta-item">
+              <font-awesome-icon icon="fa-solid fa-map-pin" />
+              Treffpunkt: {{ formatTreffpunktTime(schicht.treffpunkt) }}
+            </span>
+            <span v-if="schicht.treffpunktOrt" class="schicht-meta-item">
+              <font-awesome-icon icon="fa-solid fa-location-dot" />
+              {{ schicht.treffpunktOrt }}
+            </span>
           </div>
           <!-- Mitarbeiter in dieser Schicht -->
           <div class="ma-list">
@@ -402,7 +404,7 @@ function formatTime(val) {
   return '';
 }
 
-function formatTreffpunkt(val) {
+function formatTreffpunktTime(val) {
   if (!val) return '';
   // If it looks like a Date object (or ISO string), format as time
   const d = new Date(val);
@@ -790,6 +792,25 @@ watch(() => props.einsatz?._id, () => {
   font-weight: 700;
   padding: 0.1rem 0.4rem;
   border-radius: 8px;
+}
+
+.schicht-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  padding: 0 0.5rem 0.45rem;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.schicht-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.schicht-meta-item svg {
+  color: var(--primary);
 }
 
 /* Mitarbeiter List */

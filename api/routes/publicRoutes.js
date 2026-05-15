@@ -255,6 +255,7 @@ router.get(
           uhrzeitVon: e.uhrzeitVon || null,
           uhrzeitBis: e.uhrzeitBis || null,
           treffpunkt: e.treffpunkt || null,
+          treffpunktOrt: e.treffpunktOrt || null,
           mitarbeiter: []
         };
       }

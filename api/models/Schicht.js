@@ -13,6 +13,7 @@ const SchichtSchema = new mongoose.Schema({
   // --- Schicht Infos (aus AUFTRAG_ARBEITSSCHICHTEN) ---
   bezeichnung: { type: String }, // BEZEICHNUNG
   treffpunkt: { type: String }, // TREFFPUNKTUHRZEIT
+  treffpunktOrt: { type: String }, // TREFFPUNKTORT
   ansprechpartnerName: { type: String }, // ANSP_NAME
   ansprechpartnerTelefon: { type: String }, // ANSP_TELEFON
   ansprechpartnerEmail: { type: String }, // ANSP_EMAIL

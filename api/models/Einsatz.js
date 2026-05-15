@@ -44,6 +44,7 @@ const EinsatzSchema = new mongoose.Schema({
   // --- Schicht Infos (aus AUFTRAG_ARBEITSSCHICHTEN) ---
   schichtBezeichnung: { type: String, required: false }, // BEZEICHNUNG
   treffpunkt: { type: String, required: false }, // TREFFPUNKTUHRZEIT
+  treffpunktOrt: { type: String, required: false }, // TREFFPUNKTORT
   ansprechpartnerName: { type: String, required: false }, // ANSP_NAME
   ansprechpartnerTelefon: { type: String, required: false }, // ANSP_TELEFON
   ansprechpartnerEmail: { type: String, required: false }, // ANSP_EMAIL
