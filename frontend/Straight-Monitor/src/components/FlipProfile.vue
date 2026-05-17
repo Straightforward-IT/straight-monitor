@@ -191,18 +191,21 @@ export default {
   font-size: 12px;
   
   &.active {
-    background: #e8fbf3;
-    color: #1f8e5d;
+    background: color-mix(in srgb, #21a26a 18%, transparent);
+    color: color-mix(in srgb, #21a26a 70%, var(--text));
+    border: 1px solid color-mix(in srgb, #21a26a 35%, transparent);
   }
   
   &.locked {
-    background: #fff4e6;
-    color: #c65d21;
+    background: color-mix(in srgb, var(--primary) 20%, transparent);
+    color: color-mix(in srgb, var(--primary) 75%, var(--text));
+    border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
   }
   
   &.pending_deletion {
-    background: #fee7e7;
-    color: #d42f2f;
+    background: color-mix(in srgb, #e25555 18%, transparent);
+    color: color-mix(in srgb, #e25555 70%, var(--text));
+    border: 1px solid color-mix(in srgb, #e25555 35%, transparent);
   }
 }
 

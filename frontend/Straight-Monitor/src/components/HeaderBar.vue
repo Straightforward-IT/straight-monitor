@@ -148,7 +148,7 @@
         <custom-tooltip v-if="$route.name === 'Dispo'" text="Kommentar-Feed [C]" position="bottom" :delay-in="150">
           <button class="icon-btn kf-btn" @click="ui.toggle('kommentare')">
             <font-awesome-icon :icon="['fas', 'comments']" />
-            <span v-if="comments.unreadCount > 0" class="kf-badge">{{ comments.unreadCount > 99 ? '99+' : comments.unreadCount }}</span>
+            <CommentBubbleBadge :count="comments.unreadCount" class="kf-badge" />
           </button>
         </custom-tooltip>
         <!-- Theme Toggle -->
@@ -465,7 +465,6 @@
         
         <custom-tooltip text="Die Segel streichen" position="left" :delay-in="150">
           <button class="mobile-menu-btn logout" @click="logout">
-            <font-awesome-icon :icon="['fas', 'sign-out-alt']" />
             Logout
           </button>
         </custom-tooltip>
@@ -582,6 +581,7 @@ import { useAuth } from "@/stores/auth";
 import { useComments } from "@/stores/comments";
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import CustomTooltip from './CustomTooltip.vue';
+import CommentBubbleBadge from './CommentBubbleBadge.vue';
 import api from '@/utils/api';
 import { setTheme } from '@getflip/bridge';
 
@@ -1104,7 +1104,7 @@ onBeforeUnmount(() => {
 }
 
 .mobile-menu-btn.logout {
-  color: #dc3545;
+  color: #333;
   font-weight: 600;
   margin-top: 8px;
 }
@@ -1342,21 +1342,9 @@ button {
 }
 .kf-badge {
   position: absolute;
-  top: -5px;
-  right: -6px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 8px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  line-height: 1;
+  top: -8px;
+  right: -8px;
+  font-size: 20px;
 }
 
 /* Support Modal */

@@ -788,7 +788,7 @@ export default {
 
     statusIcon(status) {
       const s = (status || '').toLowerCase();
-      if (s === 'zugewiesen') return 'fa-solid fa-user-check';
+      if (s === 'zugewiesen') return 'fa-solid fa-list-check';
       if (s === 'abgeschlossen') return 'fa-solid fa-list-check';
       return ['far', 'circle']; // Offen
     },
@@ -1701,18 +1701,21 @@ export default {
 }
 
 .tag.laufzettel {
-  background: #dbeeff;
-  color: #1565c0;
+  background: color-mix(in srgb, #2196f3 18%, var(--surface));
+  color: color-mix(in srgb, #2196f3 80%, var(--text));
+  border: 1px solid color-mix(in srgb, #2196f3 30%, transparent);
 }
 
 .tag.event-bericht {
-  background: #fde8d8;
-  color: #c0541a;
+  background: color-mix(in srgb, #ff8c00 18%, var(--surface));
+  color: color-mix(in srgb, #ff8c00 80%, var(--text));
+  border: 1px solid color-mix(in srgb, #ff8c00 30%, transparent);
 }
 
 .tag.evaluierung {
-  background: #d4f5e8;
-  color: #1a7a4a;
+  background: color-mix(in srgb, #2ec27e 18%, var(--surface));
+  color: color-mix(in srgb, #2ec27e 80%, var(--text));
+  border: 1px solid color-mix(in srgb, #2ec27e 30%, transparent);
 }
 
 /* Status icon (replaces pill) */
@@ -1727,9 +1730,9 @@ export default {
   color: var(--muted);
 }
 
-.status-icon.zugewiesen { color: #1976d2; }
-.status-icon.abgeschlossen { color: #1e8e57; }
-.status-icon.offen { color: #b46c00; }
+.status-icon.zugewiesen { color: #2ec27e; }
+.status-icon.abgeschlossen { color: #2ec27e; }
+.status-icon.offen { color: #f6a019; }
 
 /* Skeleton */
 .table.skeleton {
@@ -1837,7 +1840,7 @@ export default {
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.35), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
   border: 1px solid var(--border);
 }
 
@@ -2200,12 +2203,12 @@ export default {
   }
 
   &.filter-active {
-    color: #ff8c00;
-    background: color-mix(in srgb, #ff8c00 15%, transparent);
+    color: var(--brand);
+    background: color-mix(in srgb, var(--brand) 15%, transparent);
     
     &:hover {
-      color: #ff8c00;
-      background: color-mix(in srgb, #ff8c00 25%, transparent);
+      color: var(--brand);
+      background: color-mix(in srgb, var(--brand) 25%, transparent);
     }
   }
 }

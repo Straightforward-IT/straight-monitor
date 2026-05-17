@@ -54,7 +54,7 @@
             </span>
 
             <!-- Personalnr mit visueller Warnung wenn fehlend -->
-            <span class="pill" :class="resolvedMa.personalnr ? 'ok' : 'warn'">
+            <span class="pill" :class="resolvedMa.personalnr ? 'info' : 'warn'">
               <font-awesome-icon icon="fa-solid fa-id-badge" />
               {{ resolvedMa.personalnr || "Personalnr fehlt" }}
             </span>
@@ -199,7 +199,7 @@
               </h5>
               <div class="doc-list">
                 <div 
-                  v-for="doc in resolvedMa.eventreports" 
+                  v-for="doc in sortByDateDesc(resolvedMa.eventreports)" 
                   :key="doc._id" 
                   class="doc-item"
                   @click="openDocument(doc, 'Event-Bericht')"
@@ -225,7 +225,7 @@
               </div>
               <div v-else-if="eventreportFeedback.length > 0" class="feedback-inline-list">
                 <div 
-                  v-for="fb in eventreportFeedback" 
+                  v-for="fb in sortByDateDesc(eventreportFeedback)" 
                   :key="fb.feedbackId || fb._id" 
                   class="feedback-inline-item feedback-inline-item--hoverable"
                   :class="{ 'feedback-inline-item--editing': editingFeedbackId === fb.feedbackId }"
@@ -293,7 +293,7 @@
               </h5>
               <div class="doc-list">
                 <div 
-                  v-for="doc in resolvedMa.laufzettel_received" 
+                  v-for="doc in sortByDateDesc(resolvedMa.laufzettel_received)" 
                   :key="doc._id" 
                   class="doc-item"
                   @click="openDocument(doc, 'Laufzettel')"
@@ -315,7 +315,7 @@
               </h5>
               <div class="doc-list">
                 <div 
-                  v-for="doc in resolvedMa.laufzettel_submitted" 
+                  v-for="doc in sortByDateDesc(resolvedMa.laufzettel_submitted)" 
                   :key="doc._id" 
                   class="doc-item"
                   @click="openDocument(doc, 'Laufzettel')"
@@ -337,7 +337,7 @@
               </h5>
               <div class="doc-list">
                 <div 
-                  v-for="doc in resolvedMa.evaluierungen_received" 
+                  v-for="doc in sortByDateDesc(resolvedMa.evaluierungen_received)" 
                   :key="doc._id" 
                   class="doc-item"
                   @click="openDocument(doc, 'Evaluierung')"
@@ -359,7 +359,7 @@
               </h5>
               <div class="doc-list">
                 <div 
-                  v-for="doc in resolvedMa.evaluierungen_submitted" 
+                  v-for="doc in sortByDateDesc(resolvedMa.evaluierungen_submitted)" 
                   :key="doc._id" 
                   class="doc-item"
                   @click="openDocument(doc, 'Evaluierung')"
@@ -1059,15 +1059,13 @@
         <template v-if="showTooltips">
           <custom-tooltip text="Monitor-Profil" :position="tooltipPosition" :delay-in="150">
             <button class="icon-btn" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-pressed="view === 'straight'">
-              <img :src="straightLight" class="logo logo--light" alt="Straight Logo light" />
-              <img :src="straightDark" class="logo logo--dark" alt="Straight Logo dark" />
+              <img :src="effectiveTheme === 'dark' ? straightDark : straightLight" class="logo" alt="Straight Logo" />
             </button>
           </custom-tooltip>
         </template>
         <template v-else>
           <button class="icon-btn" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-pressed="view === 'straight'">
-            <img :src="straightLight" class="logo logo--light" alt="Straight Logo light" />
-            <img :src="straightDark" class="logo logo--dark" alt="Straight Logo dark" />
+            <img :src="effectiveTheme === 'dark' ? straightDark : straightLight" class="logo" alt="Straight Logo" />
           </button>
         </template>
 
@@ -1336,7 +1334,7 @@ export default {
   emits: ["open", "edit", "toggle-selection", "quick-actions", "close", "open-employee", "filter-beruf", "filter-qualifikation", "reactivated"],
 
   setup(props) {
-    const theme = useTheme(); // { current: 'light' | 'dark' | 'system' }
+    const theme = useTheme();
     const router = useRouter();
 
     // Self-loading state (used when only mitarbeiterId prop is passed)
@@ -1345,20 +1343,7 @@ export default {
     // Resolves to the passed ma prop, or the self-loaded one
     const resolvedMaSetup = computed(() => props.ma || selfLoadedMa.value);
 
-    // System-Theme live auslesen
-    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
-    const systemDark = ref(media ? media.matches : false);
-    const handleMedia = (e) => (systemDark.value = e.matches);
-    onMounted(() => media && media.addEventListener?.("change", handleMedia));
-    onBeforeUnmount(
-      () => media && media.removeEventListener?.("change", handleMedia)
-    );
-
-    const effectiveTheme = computed(() => {
-      if (theme.current === "system")
-        return systemDark.value ? "dark" : "light";
-      return theme.current || "light";
-    });
+    const effectiveTheme = computed(() => (theme.isDark ? "dark" : "light"));
 
     // Tooltips nur auf Desktop anzeigen
     const isMobile = ref(window.innerWidth <= 768);
@@ -1836,6 +1821,14 @@ export default {
       } catch {
         return '—';
       }
+    },
+    sortByDateDesc(list, dateKey = 'datum') {
+      if (!Array.isArray(list)) return [];
+      return [...list].sort((a, b) => {
+        const ta = new Date(a?.[dateKey] || 0).getTime();
+        const tb = new Date(b?.[dateKey] || 0).getTime();
+        return (tb || 0) - (ta || 0);
+      });
     },
 
     // Personalnr Methods
@@ -2925,25 +2918,36 @@ export default {
   font-size: 12px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: var(--soft);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
   color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
 }
 .pill.ok {
-  background: #e8fbf3;
-  color: #1f8e5d;
+  background: color-mix(in srgb, #21a26a 18%, transparent);
+  color: color-mix(in srgb, #21a26a 70%, var(--text));
+  border-color: color-mix(in srgb, #21a26a 35%, transparent);
 }
 .pill.muted {
-  background: var(--soft);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   color: var(--muted);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
 }
 .pill.warn {
-  background: #fff3cd;
-  color: #856404;
+  background: color-mix(in srgb, #f6a019 20%, transparent);
+  color: color-mix(in srgb, #f6a019 65%, var(--text));
+  border-color: color-mix(in srgb, #f6a019 40%, transparent);
+  font-weight: 600;
+}
+.pill.info {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: color-mix(in srgb, var(--primary) 75%, var(--text));
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
   font-weight: 600;
 }
 .pill--monitor {
-  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
   color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
   font-weight: 500;
 }
 .pill-monitor-icon {
@@ -3001,19 +3005,6 @@ export default {
   object-fit: contain;
   image-rendering: -webkit-optimize-contrast;
 }
-.icon-btn .logo--light {
-  display: block;
-}
-.icon-btn .logo--dark {
-  display: none;
-}
-.card[data-theme="dark"] .icon-btn .logo--light {
-  display: none;
-}
-.card[data-theme="dark"] .icon-btn .logo--dark {
-  display: block;
-}
-
 /* ---------- Body ---------- */
 .card-body {
   padding: 16px;
@@ -3054,8 +3045,8 @@ export default {
 .email-badge {
   display: inline-block;
   padding: 4px 10px;
-  background: #e7f3ff;
-  color: #0066cc;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: color-mix(in srgb, var(--primary) 75%, var(--text));
   border-radius: 6px;
   font-size: 12px;
   font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
@@ -3105,6 +3096,30 @@ export default {
   }
 }
 
+.phone-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border-radius: 4px;
+  transition: background 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+    text-decoration: none;
+  }
+
+  .fa-phone {
+    font-size: 0.8em;
+    opacity: 0.85;
+  }
+}
+
 .personalnr-display {
   color: var(--text);
   font-weight: 500;
@@ -3151,7 +3166,7 @@ export default {
 .documents-section {
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 
   .section-title {
     display: flex;
@@ -3181,12 +3196,13 @@ export default {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 600;
     color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     margin: 0 0 8px 0;
-    padding: 4px 0;
-    border-bottom: 1px solid var(--border);
+    padding: 2px 0;
 
     svg {
       font-size: 11px;
@@ -3280,8 +3296,8 @@ export default {
 }
 
 .feedback-inline-item {
-  background: var(--bg-card, rgba(0,0,0,0.04));
-  border: 1px solid var(--border-color, rgba(0,0,0,0.08));
+  background: var(--soft);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 8px 10px;
   position: relative;
@@ -3451,7 +3467,7 @@ export default {
 .skills-section {
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 
   .section-title {
     display: flex;
@@ -3688,7 +3704,7 @@ export default {
   .fc-select, .fc-input {
     flex: 1;
     padding: 6px 10px;
-    border: 1.5px solid var(--border);
+    border: 1px solid var(--border);
     border-radius: 6px;
     background: var(--tile-bg, var(--surface));
     color: var(--text);
@@ -4009,19 +4025,19 @@ export default {
     
     &.status-open,
     &.status-new {
-      background: #f1f3f6;
+      background: color-mix(in srgb, var(--text) 6%, transparent);
       color: var(--muted);
     }
     
     &.status-in_progress {
-      background: #e8fbf3;
-      color: #1f8e5d;
+      background: color-mix(in srgb, var(--primary) 18%, transparent);
+      color: color-mix(in srgb, var(--primary) 75%, var(--text));
     }
     
     &.status-done,
     &.status-finished {
-      background: #e0f2fe;
-      color: #0277bd;
+      background: color-mix(in srgb, #21a26a 18%, transparent);
+      color: color-mix(in srgb, #21a26a 70%, var(--text));
     }
   }
 }
@@ -4958,8 +4974,8 @@ export default {
       color: var(--primary, #3b82f6);
     }
     
-    .fa-phone { color: #22c55e; }
-    .fa-envelope { color: #f59e0b; }
+    .fa-phone { color: var(--primary); }
+    .fa-envelope { color: var(--primary); }
     .fa-edit { color: #8b5cf6; }
     .fa-user { color: var(--primary, #3b82f6); }
   }
@@ -5172,15 +5188,15 @@ export default {
   svg { flex-shrink: 0; }
 
   &--ok {
-    background: #e8fbf3;
-    color: #1f8e5d;
-    border: 1px solid #a8e6c8;
+    background: color-mix(in srgb, #21a26a 18%, transparent);
+    color: color-mix(in srgb, #21a26a 70%, var(--text));
+    border: 1px solid color-mix(in srgb, #21a26a 35%, transparent);
   }
 
   &--warn {
-    background: #fff8e6;
-    color: #856404;
-    border: 1px solid #ffd96a;
+    background: color-mix(in srgb, var(--primary) 20%, transparent);
+    color: color-mix(in srgb, var(--primary) 75%, var(--text));
+    border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
   }
 
   &--muted {

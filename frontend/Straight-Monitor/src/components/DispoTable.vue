@@ -2,12 +2,12 @@
   <Transition name="dispo-fs">
   <div class="dispo-page" :class="{ 'fullscreen-mode': isFullscreen }">
     <!-- Page header (knechti only) -->
-    <div v-if="!isFullscreen && isKnechti" class="page-header page-header--knechti">
+    <div v-if="!isFullscreen && isKnechti && !isMobile" class="page-header page-header--knechti">
       <h1 class="knechti-title">KNECHTI-LISTE</h1>
     </div>
 
     <!-- Fullscreen toolbar — compact filter bar —-->
-    <div v-if="isFullscreen" class="fs-toolbar">
+    <div v-if="isFullscreen && !isMobile" class="fs-toolbar">
       <div class="fs-toolbar-filters">
         <!-- Standort -->
         <FilterDropdown :has-value="!!filters.standort">
@@ -154,7 +154,7 @@
       </div>
     </div>
 
-    <FilterPanel v-if="!isFullscreen" v-model:expanded="filterExpanded">
+    <FilterPanel v-if="!isFullscreen && !isMobile" v-model:expanded="filterExpanded">
       <template #header-actions>
         <button class="filter-help-btn" @click.stop="showHelp = true" title="Shortcuts &amp; Hilfe [H]">
           <font-awesome-icon icon="fa-solid fa-circle-question" />
@@ -277,7 +277,7 @@
     </FilterPanel>
 
     <!-- Selection Bar (normal mode only) -->
-    <div v-if="!isFullscreen" class="selection-bar">
+    <div v-if="!isFullscreen && !isMobile" class="selection-bar">
       <!-- Left: SearchBar + cell selection chip -->
       <div class="sel-bar-left">
         <SearchBar
@@ -350,7 +350,7 @@
     </div>
 
     <!-- Table area (+ inline feed panel when fullscreen) -->
-    <div class="fs-body" :class="{ 'fs-body--split': isFullscreen && ui.panelType === 'kommentare' && !ui.hidden && !fsFeedCollapsed }">
+    <div v-if="!isMobile" class="fs-body" :class="{ 'fs-body--split': isFullscreen && ui.panelType === 'kommentare' && !ui.hidden && !fsFeedCollapsed }">
 
     <!-- Loading -->
     <div v-if="loading" class="loading-state">
@@ -690,10 +690,7 @@
                     <span v-if="cellKuerzel(ma._id, day.iso)" class="cell-label">{{ cellKuerzel(ma._id, day.iso) }}</span>
                     <font-awesome-icon v-else-if="cellIcon(ma._id, day.iso)" :icon="cellIcon(ma._id, day.iso)" class="cell-icon" />
                   </div>
-                  <span v-if="getCellComments(ma._id, day.iso).length" class="comment-bubble">
-                    <font-awesome-icon icon="fa-solid fa-comment" class="comment-bubble-icon" />
-                    <span v-if="getCellUnreadCount(ma._id, day.iso) > 0" class="comment-badge">{{ getCellUnreadCount(ma._id, day.iso) }}</span>
-                  </span>
+                  <CommentBubbleBadge :count="getCellUnreadCount(ma._id, day.iso)" class="comment-bubble" />
                 </div>
                 </td>
           </tr>
@@ -727,6 +724,414 @@
       </div>
 
     </div><!-- /.fs-body -->
+
+    <!-- ─── Mobile UI (≤768px) ─────────────────────────────────────────── -->
+    <template v-if="isMobile">
+      <!-- Sticky top bar: search · KW chips · filter button -->
+      <div class="m-top-bar">
+        <div class="m-top-bar__row">
+          <SearchBar
+            class="m-search"
+            v-model="searchQuery"
+            placeholder="Mitarbeiter suchen…"
+            aria-label="Mitarbeiter suchen"
+          />
+          <button
+            class="m-filter-btn"
+            :class="{ active: !!filters.standort || filters.tage !== 30 || !!filters.planungFilter || !!filters.kundeFilter || qualFilter.length > 0 }"
+            @click="mobileFilterOpen = true"
+            aria-label="Filter"
+          >
+            <font-awesome-icon icon="fa-solid fa-sliders" />
+          </button>
+        </div>
+
+        <div class="m-kw-row">
+          <div class="m-kw-scroll">
+            <button
+              v-for="chip in kwChips"
+              :key="`${chip.year}-${chip.kw}`"
+              class="m-kw-chip"
+              :class="{ active: selectedKw?.kw === chip.kw && selectedKw?.year === chip.year, current: chip.isCurrent }"
+              @click="toggleKw(chip)"
+            >
+              KW {{ chip.kw }}
+            </button>
+          </div>
+          <button class="m-today-btn" @click="scrollToToday(); scrollMobileToToday()" title="Heute">
+            <font-awesome-icon icon="fa-solid fa-bullseye" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Mitarbeiter card list -->
+      <div class="m-card-list">
+        <div v-if="loading" class="m-loading">
+          <font-awesome-icon icon="fa-solid fa-spinner" spin />
+        </div>
+        <div v-else-if="!filteredMitarbeiter.length" class="m-empty">
+          Keine Mitarbeiter gefunden.
+        </div>
+        <div
+          v-else
+          v-for="ma in filteredMitarbeiter"
+          :key="`m-${ma._id}`"
+          class="m-card"
+          :class="{ 'is-expanded': expandedCardId === String(ma._id) }"
+        >
+          <!-- Header row -->
+          <div class="m-card__header">
+            <button
+              class="m-star"
+              :class="{ active: starredIds.has(String(ma._id)) }"
+              @click="toggleStar(ma._id)"
+              aria-label="Favorit"
+            >
+              <font-awesome-icon :icon="starredIds.has(String(ma._id)) ? 'fa-solid fa-star' : 'fa-regular fa-star'" />
+            </button>
+            <div
+              class="m-name"
+              @click="cardModal.mitarbeiterId = String(ma._id); cardModal.open = true"
+              @touchstart.passive="onNameTouchStart($event, ma)"
+              @touchend="onNameTouchEnd"
+              @touchcancel="onNameTouchEnd"
+            >
+              <span class="m-name__nach">{{ ma.nachname }}</span>
+              <span class="m-name__vor">{{ ma.vorname }}</span>
+              <TlBadge v-if="ma.isTL" />
+            </div>
+            <span v-if="getMaBereich(ma)" class="m-bereich-pill">{{ getMaBereich(ma) }}</span>
+            <button
+              class="m-expand"
+              :class="{ active: expandedCardId === String(ma._id) }"
+              @click="toggleCardExpand(String(ma._id))"
+              aria-label="Details"
+            >
+              <font-awesome-icon icon="fa-solid fa-chevron-down" />
+            </button>
+          </div>
+
+          <!-- Horizontal day strip -->
+          <div
+            class="m-day-strip"
+            :ref="setDayStripRef(ma._id)"
+            @scroll.passive="onDayStripScroll"
+          >
+            <button
+              v-for="day in visibleDays"
+              :key="day.iso"
+              class="m-day-cell"
+              :class="[
+                cellClass(ma._id, day.iso),
+                {
+                  'is-today': day.isToday,
+                  'is-weekend': day.isWeekend,
+                },
+              ]"
+              @click="onMobileCellTap(ma, day)"
+              @touchstart.passive="onCellTouchStart(ma, day, $event)"
+              @touchmove.passive="onCellTouchMove($event)"
+              @touchend="onCellTouchEnd(ma, day)"
+              @touchcancel="onNameTouchEnd"
+            >
+              <span class="m-day-cell__weekday">{{ day.weekday }}</span>
+              <span class="m-day-cell__date">{{ day.label }}</span>
+              <div class="m-day-cell__body">
+                <font-awesome-icon
+                  v-if="cellAnfragart(ma._id, day.iso) === 'tel'"
+                  icon="fa-solid fa-phone"
+                  class="m-day-cell__icon"
+                />
+                <img
+                  v-else-if="cellAnfragart(ma._id, day.iso)"
+                  :src="flipIconUrl"
+                  class="m-day-cell__icon-img"
+                />
+                <template v-else-if="cellTime(ma._id, day.iso)">
+                  <font-awesome-icon
+                    v-if="cellIcon(ma._id, day.iso)"
+                    :icon="cellIcon(ma._id, day.iso)"
+                    class="m-day-cell__icon m-day-cell__icon--corner"
+                  />
+                  <span class="m-day-cell__time">{{ cellTime(ma._id, day.iso) }}</span>
+                </template>
+                <span v-else-if="cellKuerzel(ma._id, day.iso)" class="m-day-cell__label">{{ cellKuerzel(ma._id, day.iso) }}</span>
+                <font-awesome-icon
+                  v-else-if="cellIcon(ma._id, day.iso)"
+                  :icon="cellIcon(ma._id, day.iso)"
+                  class="m-day-cell__icon"
+                />
+              </div>
+              <CommentBubbleBadge :count="getCellUnreadCount(ma._id, day.iso)" class="m-day-cell__badge" />
+            </button>
+          </div>
+
+          <!-- Expanded details: Notiz, Kunden, Chronik -->
+          <div v-if="expandedCardId === String(ma._id)" class="m-card__details">
+            <div class="m-detail-section">
+              <label class="m-detail-label">Notiz</label>
+              <div
+                class="m-notiz"
+                contenteditable="plaintext-only"
+                @input="onNotizInput(ma._id, $event)"
+                @blur="onNotizInput(ma._id, $event)"
+              >{{ getNotizValue(ma._id) }}</div>
+              <button
+                v-if="getNotizValue(ma._id)"
+                class="m-notiz-clear"
+                @click="clearNotiz(ma._id)"
+              >
+                <font-awesome-icon icon="fa-solid fa-eraser" /> Notiz löschen
+              </button>
+            </div>
+
+            <div v-if="(ma.kundenwuensche || []).length" class="m-detail-section">
+              <label class="m-detail-label">Kunden</label>
+              <div class="m-kunden-pills">
+                <span
+                  v-for="w in (ma.kundenwuensche || [])"
+                  :key="w._id"
+                  class="m-kunde-pill"
+                  :class="w.typ === 'positiv' ? 'pos' : 'neg'"
+                >
+                  {{ w.kunde?.kuerzel || w.kunde?.kundName || '?' }}
+                </span>
+              </div>
+            </div>
+
+            <div class="m-detail-section">
+              <label class="m-detail-label">Chronik</label>
+              <div class="m-chronik">
+                <div
+                  v-for="grp in getAktivitaetsLogGrouped(ma._id)"
+                  :key="grp.dayKey"
+                  class="m-chronik-day"
+                >
+                  <div class="m-chronik-date">{{ grp.dayLabel }}</div>
+                  <div
+                    v-for="entry in grp.entries"
+                    :key="entry._id"
+                    class="m-chronik-entry"
+                  >
+                    <span class="m-chronik-text">{{ entry.text }}</span>
+                    <button class="m-chronik-del" @click="deleteAktivitaetsLog(ma._id, entry._id)">
+                      <font-awesome-icon icon="fa-solid fa-trash" />
+                    </button>
+                  </div>
+                </div>
+                <div class="m-chronik-add">
+                  <input
+                    type="text"
+                    :value="aktivitaetsDraftMap[String(ma._id)] || ''"
+                    @input="aktivitaetsDraftMap[String(ma._id)] = $event.target.value"
+                    @keydown.enter="addAktivitaetsLog(ma._id)"
+                    placeholder="Eintrag hinzufügen…"
+                  />
+                  <button @click="addAktivitaetsLog(ma._id)" :disabled="!(aktivitaetsDraftMap[String(ma._id)] || '').trim()">
+                    <font-awesome-icon icon="fa-solid fa-plus" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Filter Bottom Sheet -->
+      <teleport to="body">
+        <transition name="m-sheet">
+          <div v-if="mobileFilterOpen" class="m-sheet-backdrop" @click="mobileFilterOpen = false">
+            <div class="m-sheet m-sheet--filter" @click.stop>
+              <div class="m-sheet__handle"></div>
+              <div class="m-sheet__header">
+                <h3>Filter</h3>
+                <button class="m-sheet__close" @click="mobileFilterOpen = false">
+                  <font-awesome-icon icon="fa-solid fa-xmark" />
+                </button>
+              </div>
+              <div class="m-sheet__body">
+                <FilterGroup label="Standort">
+                  <FilterChip :active="filters.standort === '1'" @click="setStandort('1')">Berlin</FilterChip>
+                  <FilterChip :active="filters.standort === '2'" @click="setStandort('2')">Hamburg</FilterChip>
+                  <FilterChip :active="filters.standort === '3'" @click="setStandort('3')">Köln</FilterChip>
+                  <FilterChip :active="!filters.standort" @click="setStandort(null)">Alle</FilterChip>
+                </FilterGroup>
+                <FilterDivider />
+                <FilterGroup label="Zeitraum">
+                  <FilterChip v-for="opt in [7, 14, 30]" :key="opt" :active="filters.tage === opt" @click="setTage(opt)">
+                    {{ opt }} Tage
+                  </FilterChip>
+                </FilterGroup>
+                <FilterDivider />
+                <FilterGroup label="Planung">
+                  <FilterChip :active="!filters.planungFilter" @click="setPlanung(null)">Alle</FilterChip>
+                  <FilterChip :active="filters.planungFilter === 'eingeplant'" @click="setPlanung('eingeplant')">Eingeplante</FilterChip>
+                  <FilterChip :active="filters.planungFilter === 'ungeplant'" @click="setPlanung('ungeplant')">Ungeplante</FilterChip>
+                </FilterGroup>
+                <FilterDivider />
+                <FilterGroup label="🤝 Kunde">
+                  <div class="kunde-filter-search">
+                    <KundeSearch
+                      :standort="filters.standort"
+                      placeholder="Kunde suchen…"
+                      @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
+                    />
+                    <button v-if="filters.kundeFilter" class="kunde-filter-clear" @click="clearKundeFilter">
+                      <font-awesome-icon icon="fa-solid fa-xmark" />
+                    </button>
+                  </div>
+                </FilterGroup>
+                <FilterDivider v-if="hiddenIds.size > 0" />
+                <button
+                  v-if="hiddenIds.size > 0"
+                  class="show-hidden-btn"
+                  :class="{ active: showHidden }"
+                  @click="showHidden = !showHidden"
+                >
+                  <font-awesome-icon :icon="showHidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" />
+                  {{ showHidden ? 'Ausgeblendete ausblenden' : `${hiddenIds.size} Ausgeblendet` }}
+                </button>
+                <FilterDivider />
+                <FilterChip class="reset-chip" @click="resetFilters">
+                  <font-awesome-icon icon="fa-solid fa-rotate-left" /> Zurücksetzen
+                </FilterChip>
+              </div>
+            </div>
+          </div>
+        </transition>
+      </teleport>
+
+      <!-- Mobile Action Sheet (status setter) -->
+      <teleport to="body">
+        <transition name="m-sheet">
+          <div v-if="ctxMenu.open && isMobile" class="m-sheet-backdrop" @click="closeCtxMenu">
+            <div class="m-sheet m-sheet--action" @click.stop>
+              <div class="m-sheet__handle"></div>
+              <div class="m-sheet__header">
+                <div>
+                  <h3>{{ ctxMenu.ma?.vorname }} {{ ctxMenu.ma?.nachname }}</h3>
+                  <span class="m-sheet__sub">{{ formatIsoDate(ctxMenu.day) }}</span>
+                </div>
+                <button class="m-sheet__close" @click="closeCtxMenu">
+                  <font-awesome-icon icon="fa-solid fa-xmark" />
+                </button>
+              </div>
+
+              <div class="m-sheet__body">
+                <!-- Existing entries -->
+                <template v-if="ctxMenu.entries.length">
+                  <div class="m-sheet-group-label">Vorhandene Einträge</div>
+                  <div v-for="entry in ctxMenu.entries" :key="entry._id" class="m-action-entry">
+                    <span>
+                      <font-awesome-icon v-if="entryIcon(entry)" :icon="entryIcon(entry)" />
+                      {{ entryLabel(entry) }}
+                    </span>
+                    <button v-if="entry._source !== 'einsatz'" class="m-action-del" @click="deleteEntry(entry._id); closeCtxMenu()">
+                      <font-awesome-icon icon="fa-solid fa-trash" />
+                    </button>
+                  </div>
+                  <button
+                    v-for="entry in ctxMenu.entries.filter(e => e._source === 'einsatz' || e.typ === 'planned')"
+                    :key="'open-' + entry._id"
+                    class="m-action-btn m-action-btn--ghost"
+                    @click="openEinsatz(entry)"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" /> Einsatz öffnen
+                  </button>
+                </template>
+
+                <div class="m-sheet-group-label">Status setzen</div>
+                <template v-for="opt in statusOptions" :key="opt.value">
+                  <template v-if="opt.value === 'partially'">
+                    <button :class="['m-action-btn', `m-action-btn--${opt.value}`, { active: partiallyTime.open }]" @click="togglePartiallyTime">
+                      <font-awesome-icon :icon="opt.icon" /> {{ opt.label }}
+                      <font-awesome-icon icon="fa-solid fa-clock" class="m-clock-ico" />
+                    </button>
+                    <div v-if="partiallyTime.open" class="m-time-picker">
+                      <label>Von <input type="time" v-model="partiallyTime.zeitVon" /></label>
+                      <label>Bis <input type="time" v-model="partiallyTime.zeitBis" /></label>
+                      <div class="m-time-actions">
+                        <button class="m-action-btn m-action-btn--primary" @click="setStatus('partially', partiallyTime.zeitVon || null, partiallyTime.zeitBis || null)">
+                          <font-awesome-icon icon="fa-solid fa-check" /> Speichern
+                        </button>
+                        <button class="m-action-btn m-action-btn--ghost" @click="setStatus('partially')">Ohne Zeit</button>
+                      </div>
+                    </div>
+                  </template>
+                  <template v-else-if="opt.value === 'blocked'">
+                    <button :class="['m-action-btn', `m-action-btn--${opt.value}`, { active: blockedTime.open }]" @click="toggleBlockedTime">
+                      <font-awesome-icon :icon="opt.icon" /> {{ opt.label }}
+                      <font-awesome-icon icon="fa-solid fa-clock" class="m-clock-ico" />
+                    </button>
+                    <div v-if="blockedTime.open" class="m-time-picker">
+                      <label>Von <input type="time" v-model="blockedTime.zeitVon" /></label>
+                      <label>Bis <input type="time" v-model="blockedTime.zeitBis" /></label>
+                      <div class="m-time-actions">
+                        <button class="m-action-btn m-action-btn--primary" @click="setStatus('blocked', blockedTime.zeitVon || null, blockedTime.zeitBis || null)">
+                          <font-awesome-icon icon="fa-solid fa-check" /> Speichern
+                        </button>
+                        <button class="m-action-btn m-action-btn--ghost" @click="setStatus('blocked')">Ohne Zeit</button>
+                      </div>
+                    </div>
+                  </template>
+                  <button
+                    v-else-if="opt.anfragart"
+                    class="m-action-btn m-action-btn--angefragt"
+                    @click="setStatus(opt.value)"
+                  >
+                    <font-awesome-icon v-if="opt.anfragart === 'tel'" :icon="opt.icon" />
+                    <img v-else :src="flipIconUrl" class="m-flip-ico" />
+                    {{ opt.label }}
+                  </button>
+                  <button
+                    v-else
+                    :class="['m-action-btn', `m-action-btn--${opt.value}`]"
+                    @click="setStatus(opt.value)"
+                  >
+                    <font-awesome-icon :icon="opt.icon" /> {{ opt.label }}
+                  </button>
+                </template>
+
+                <div class="m-sheet-group-label">Einsatz</div>
+                <button :class="['m-action-btn', 'm-action-btn--eingeplant', { active: eingeplantPicker.open }]" @click="toggleEingeplantPicker">
+                  <font-awesome-icon icon="fa-solid fa-clipboard-list" /> Eingeplant
+                </button>
+                <div v-if="eingeplantPicker.open" class="m-eingeplant-picker">
+                  <KundeSearch
+                    :standort="filters.standort"
+                    placeholder="Kunde wählen…"
+                    @select="onEingeplantKundeSelect"
+                  />
+                  <button class="m-action-btn m-action-btn--ghost" @click="onEingeplantKundeSelect(null)">Ohne Kunde</button>
+                </div>
+
+                <div class="m-sheet-group-label">Abwesenheit</div>
+                <button
+                  v-for="opt in absenceOptions"
+                  :key="opt.value"
+                  class="m-action-btn"
+                  @click="setAbsence(opt.value)"
+                >
+                  <font-awesome-icon :icon="opt.icon" /> {{ opt.label }}
+                </button>
+
+                <div class="m-sheet-group-label">Kommunikation</div>
+                <button class="m-action-btn" @click="openChatModal(ctxMenu.ma, { iso: ctxMenu.day }); closeCtxMenu()">
+                  <font-awesome-icon icon="fa-solid fa-comments" /> Kommentare
+                  <span v-if="getCellUnreadCount(ctxMenu.ma?._id, ctxMenu.day) > 0" class="m-unread-badge">
+                    {{ getCellUnreadCount(ctxMenu.ma?._id, ctxMenu.day) }}
+                  </span>
+                </button>
+
+                <button class="m-action-btn m-action-btn--danger" @click="clearStatus">
+                  <font-awesome-icon icon="fa-solid fa-eraser" /> Löschen
+                </button>
+              </div>
+            </div>
+          </div>
+        </transition>
+      </teleport>
+    </template>
 
     <!-- Help Modal -->
     <teleport to="body">
@@ -933,9 +1338,9 @@
       </div>
     </teleport>
 
-    <!-- Cell Context Menu -->
+    <!-- Cell Context Menu (desktop only — mobile uses bottom-sheet) -->
     <teleport to="body">
-      <div v-if="ctxMenu.open" class="ctx-overlay" @click="closeCtxMenu" @contextmenu.prevent="closeCtxMenu">
+      <div v-if="ctxMenu.open && !isMobile" class="ctx-overlay" @click="closeCtxMenu" @contextmenu.prevent="closeCtxMenu">
         <div
           class="ctx-menu"
           :style="{ top: ctxMenu.y + 'px', left: ctxMenu.x + 'px' }"
@@ -1139,6 +1544,7 @@ import TlBadge from '@/components/ui-elements/TlBadge.vue';
 
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
+import CommentBubbleBadge from '@/components/CommentBubbleBadge.vue';
 import KommentarFeed from '@/components/KommentarFeed.vue';
 import KundeSearch from '@/components/ui-elements/KundeSearch.vue';
 import SearchBar from '@/components/SearchBar.vue';
@@ -2382,9 +2788,10 @@ async function fetchKommentare() {
   const bis = endDate.toISOString().slice(0, 10);
   // fetch dispo day comments (date-bounded: today → bis)
   await comments.fetch({ scope: 'dispo_day', von, bis });
-  // fetch chronik for all loaded MAs in a single batched request, from today onwards
+  // fetch chronik for all loaded MAs in a single batched request (no date bound —
+  // chronik entries are user-typed activity notes with past createdAt timestamps)
   const maIds = mitarbeiter.value.map(ma => String(ma._id));
-  await comments.fetchChronikBatch(maIds, von);
+  await comments.fetchChronikBatch(maIds);
 }
 
 // ─── Filters ───
@@ -3179,6 +3586,146 @@ const options = [7, 14, 30];
   scrollToToday();
   if (q.maId) scrollToMa(q.maId);
 });
+
+// ─── Mobile UI (≤768px) ───────────────────────────────────────────────
+const mobileFilterOpen = ref(false);
+const expandedCardId = ref(null);
+const mobileDayScrollLeft = ref(0);
+const dayStripRefs = new Map(); // maId → HTMLElement
+let _stripScrollSyncing = false;
+let _stripScrollRaf = null;
+
+function setDayStripRef(maId) {
+  return (el) => {
+    if (el) dayStripRefs.set(String(maId), el);
+    else dayStripRefs.delete(String(maId));
+  };
+}
+
+function onDayStripScroll(event) {
+  if (_stripScrollSyncing) return;
+  const sl = event.target.scrollLeft;
+  if (_stripScrollRaf) return;
+  _stripScrollRaf = requestAnimationFrame(() => {
+    _stripScrollRaf = null;
+    mobileDayScrollLeft.value = sl;
+    _stripScrollSyncing = true;
+    for (const el of dayStripRefs.values()) {
+      if (el !== event.target && Math.abs(el.scrollLeft - sl) > 1) {
+        el.scrollLeft = sl;
+      }
+    }
+    _stripScrollSyncing = false;
+  });
+}
+
+function scrollMobileToToday() {
+  nextTick(() => {
+    const firstStrip = dayStripRefs.values().next().value;
+    if (!firstStrip) return;
+    const todayEl = firstStrip.querySelector('.m-day-cell.is-today');
+    if (!todayEl) return;
+    const target = Math.max(0, todayEl.offsetLeft - 8);
+    mobileDayScrollLeft.value = target;
+    _stripScrollSyncing = true;
+    for (const el of dayStripRefs.values()) el.scrollLeft = target;
+    _stripScrollSyncing = false;
+  });
+}
+
+watch(isMobile, (val) => {
+  if (val) {
+    nextTick(scrollMobileToToday);
+  } else {
+    mobileFilterOpen.value = false;
+    expandedCardId.value = null;
+  }
+});
+
+watch(visibleDays, () => {
+  if (isMobile.value) nextTick(scrollMobileToToday);
+});
+
+function toggleCardExpand(maId) {
+  expandedCardId.value = expandedCardId.value === maId ? null : maId;
+}
+
+// Tap a mobile day-cell → populate ctxMenu so existing setStatus / setAbsence /
+// clearStatus / etc. work unchanged, then render the mobile action sheet.
+function onMobileCellTap(ma, day) {
+  const entries = getEntriesForCell(ma._id, day.iso);
+  // Skip einsatz-only cells (no editing allowed) — open einsatz directly
+  if (entries.length && entries.every((e) => e._source === 'einsatz')) {
+    openEinsatz(entries[0]);
+    return;
+  }
+  clearSelection();
+  ctxMenu.x = 0;
+  ctxMenu.y = 0;
+  ctxMenu.ma = ma;
+  ctxMenu.day = day.iso;
+  ctxMenu.entries = entries;
+  ctxMenu.isMulti = false;
+  ctxMenu.open = true;
+}
+
+function onMobileCellLongPress(ma, day) {
+  // Long-press opens the comments thread directly
+  openChatModal(ma, { iso: day.iso });
+}
+
+// Touch long-press detection
+let _lpTimer = null;
+let _lpStartXY = null;
+let _lpFired = false;
+
+function onCellTouchStart(ma, day, event) {
+  _lpFired = false;
+  const t = event.touches?.[0];
+  _lpStartXY = t ? { x: t.clientX, y: t.clientY } : null;
+  if (_lpTimer) clearTimeout(_lpTimer);
+  _lpTimer = setTimeout(() => {
+    _lpFired = true;
+    onMobileCellLongPress(ma, day);
+  }, 450);
+}
+
+function onCellTouchMove(event) {
+  if (!_lpTimer || !_lpStartXY) return;
+  const t = event.touches?.[0];
+  if (!t) return;
+  const dx = Math.abs(t.clientX - _lpStartXY.x);
+  const dy = Math.abs(t.clientY - _lpStartXY.y);
+  if (dx > 8 || dy > 8) {
+    clearTimeout(_lpTimer);
+    _lpTimer = null;
+  }
+}
+
+function onCellTouchEnd(ma, day) {
+  if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+  if (_lpFired) { _lpFired = false; return; }
+  onMobileCellTap(ma, day);
+}
+
+// Long-press on MA name → open name menu (Karte / Telefon / Ausblenden)
+let _nameLpTimer = null;
+function onNameTouchStart(event, ma) {
+  if (_nameLpTimer) clearTimeout(_nameLpTimer);
+  const x = event.touches?.[0]?.clientX || 80;
+  const y = event.touches?.[0]?.clientY || 80;
+  _nameLpTimer = setTimeout(() => {
+    openNameMenu({ clientX: x, clientY: y }, ma);
+  }, 450);
+}
+function onNameTouchEnd() {
+  if (_nameLpTimer) { clearTimeout(_nameLpTimer); _nameLpTimer = null; }
+}
+
+// Watch selectedKw → on mobile, jump strip scroll to start of that week
+watch(selectedKw, () => {
+  if (isMobile.value) nextTick(scrollMobileToToday);
+}, { deep: true });
 </script>
 
 <style scoped lang="scss">
@@ -4923,34 +5470,10 @@ const options = [7, 14, 30];
 
 .comment-bubble {
   position: absolute;
-  top: 2px;
-  right: 3px;
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  pointer-events: none;
-
-  .comment-bubble-icon {
-    font-size: 10px;
-    color: var(--primary);
-    opacity: 0.85;
-    filter: drop-shadow(0 0 3px rgba(238,175,103,0.4));
-  }
-
-  .comment-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 13px;
-    height: 13px;
-    background: #ef4444;
-    color: white;
-    border-radius: 99px;
-    font-size: 8px;
-    font-weight: 700;
-    padding: 0 3px;
-    line-height: 1;
-  }
+  top: 1px;
+  right: 1px;
+  font-size: 18px;
+  z-index: 3;
 }
 
 .dispo-cell-tooltip--comments {
@@ -5919,5 +6442,662 @@ const options = [7, 14, 30];
   &--active .qual-pills-input--fs {
     border-color: var(--primary);
   }
+}
+
+/* ─── Mobile UI (≤768px) ──────────────────────────────────────────────── */
+
+.m-top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border, rgba(0,0,0,0.08));
+  padding: 8px 10px 6px;
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .m-search { flex: 1; min-width: 0; }
+  }
+}
+
+.m-filter-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border, rgba(0,0,0,0.12));
+  background: transparent;
+  color: var(--text, #222);
+  font-size: 1.05rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &.active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(255, 122, 0, 0.08);
+  }
+}
+
+.m-kw-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.m-kw-scroll {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+
+  &::-webkit-scrollbar { display: none; }
+}
+
+.m-kw-chip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border, rgba(0,0,0,0.15));
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted, #666);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+
+  &.current {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+  &.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+  }
+}
+
+.m-today-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(0,0,0,0.12));
+  background: transparent;
+  color: var(--text, #222);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.m-card-list {
+  padding: 8px 10px 24px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.m-loading, .m-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-muted, #888);
+  font-size: 0.9rem;
+}
+
+.m-card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, rgba(0,0,0,0.08));
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 10px 6px;
+  }
+
+  &__details {
+    border-top: 1px solid var(--border, rgba(0,0,0,0.06));
+    padding: 10px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--bg-subtle, rgba(0,0,0,0.015));
+  }
+}
+
+.m-star {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #aaa);
+  font-size: 1rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  &.active { color: #f5b400; }
+}
+
+.m-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  cursor: pointer;
+  overflow: hidden;
+
+  &__nach {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text, #1a1a1a);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  &__vor {
+    font-size: 0.85rem;
+    color: var(--text-muted, #666);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.m-bereich-pill {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(0,0,0,0.06);
+  color: var(--text-muted, #555);
+  font-size: 0.7rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.m-expand {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  transition: transform 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  &.active { transform: rotate(180deg); color: var(--primary); }
+}
+
+.m-day-strip {
+  display: flex;
+  gap: 8px;
+  // extra top-padding so the comment bubble (which sits outside the cell)
+  // isn't clipped by the implicit overflow-y:auto caused by overflow-x:auto
+  padding: 14px 14px 14px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar { display: none; }
+}
+
+.m-day-cell {
+  flex: 0 0 auto;
+  width: 58px;
+  min-height: 70px;
+  scroll-snap-align: start;
+  border: 1px solid var(--border, rgba(0,0,0,0.08));
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  padding: 4px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  position: relative;
+  font-family: inherit;
+  color: inherit;
+  transition: transform 0.08s, border-color 0.15s;
+
+  &:active { transform: scale(0.96); }
+
+  &.is-today {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary) inset;
+  }
+  &.is-weekend { background: rgba(0,0,0,0.025); }
+
+  &__weekday {
+    font-size: 0.62rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted, #888);
+    letter-spacing: 0.5px;
+  }
+  &__date {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text, #222);
+  }
+  &__body {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  &__icon { font-size: 0.95rem; }
+  &__icon--corner {
+    position: absolute;
+    top: 0;
+    left: 2px;
+    font-size: 0.6rem;
+    opacity: 0.7;
+  }
+  &__icon-img { width: 18px; height: 18px; }
+  &__time {
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.1;
+    text-align: center;
+  }
+  &__label {
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  &__badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    font-size: 22px;
+    z-index: 3;
+  }
+
+  /* Status colors — reuse desktop classes when applied */
+  &.cell-available { background: rgba(76, 175, 80, 0.18); }
+  &.cell-partially { background: rgba(255, 193, 7, 0.22); }
+  &.cell-blocked { background: rgba(244, 67, 54, 0.18); }
+  &.cell-planned, &.cell-eingeplant-manuell { background: rgba(63, 81, 181, 0.18); }
+  &.cell-angefragt { background: rgba(156, 39, 176, 0.18); }
+}
+
+/* Card details: Notiz / Kunden / Chronik */
+.m-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.m-detail-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted, #888);
+  letter-spacing: 0.5px;
+}
+.m-notiz {
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid var(--border, rgba(0,0,0,0.1));
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  outline: none;
+
+  &:focus { border-color: var(--primary); }
+  &:empty::before {
+    content: "Notiz hinzufügen…";
+    color: var(--text-muted, #aaa);
+  }
+}
+.m-notiz-clear {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #888);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.m-kunden-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.m-kunde-pill {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(76, 175, 80, 0.15);
+  color: #2e7d32;
+  font-size: 0.75rem;
+  font-weight: 500;
+
+  &.neg { background: rgba(244, 67, 54, 0.15); color: #c62828; }
+}
+.m-chronik {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.m-chronik-day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.m-chronik-date {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted, #888);
+}
+.m-chronik-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 6px;
+  background: var(--surface, #fff);
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+.m-chronik-text { flex: 1; word-break: break-word; }
+.m-chronik-del {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #aaa);
+  cursor: pointer;
+  padding: 2px 4px;
+
+  &:hover { color: #e53935; }
+}
+.m-chronik-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+
+  input {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--border, rgba(0,0,0,0.1));
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: var(--surface, #fff);
+    color: var(--text, #222);
+
+    &:focus { outline: none; border-color: var(--primary); }
+  }
+  button {
+    width: 32px;
+    border: none;
+    border-radius: 6px;
+    background: var(--primary);
+    color: #fff;
+    cursor: pointer;
+
+    &:disabled { opacity: 0.4; cursor: not-allowed; }
+  }
+}
+
+/* Bottom sheets (filter + action) */
+.m-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 2000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: stretch;
+}
+
+.m-sheet {
+  width: 100%;
+  max-height: 88vh;
+  background: var(--surface, #fff);
+  border-radius: 16px 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+
+  &__handle {
+    width: 36px;
+    height: 4px;
+    background: rgba(0,0,0,0.15);
+    border-radius: 2px;
+    margin: 8px auto 4px;
+  }
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 16px 10px;
+    border-bottom: 1px solid var(--border, rgba(0,0,0,0.06));
+
+    h3 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text, #222);
+    }
+  }
+  &__sub {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text-muted, #888);
+    margin-top: 2px;
+  }
+  &__close {
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted, #888);
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 8px;
+
+    &:active { background: rgba(0,0,0,0.05); }
+  }
+  &__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* Filter sheet: compact overrides for vertical layout */
+.m-sheet--filter .m-sheet__body {
+  gap: 4px;
+  padding: 8px 12px 16px;
+
+  /* Turn the vertical divider bar into a slim horizontal rule */
+  :deep(.filter-divider) {
+    display: block;
+    width: 100%;
+    height: 1px;
+    background: var(--border);
+    margin: 2px 0;
+  }
+}
+
+.m-sheet-group-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted, #888);
+  letter-spacing: 0.5px;
+  margin: 10px 0 2px;
+
+  &:first-child { margin-top: 0; }
+}
+
+.m-action-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(0,0,0,0.04);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  gap: 8px;
+
+  .m-action-del {
+    background: transparent;
+    border: none;
+    color: #e53935;
+    cursor: pointer;
+    padding: 4px 6px;
+  }
+}
+
+.m-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border, rgba(0,0,0,0.1));
+  background: var(--surface, #fff);
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--text, #222);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: all 0.12s;
+
+  &:active { transform: scale(0.98); }
+
+  &--primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+    justify-content: center;
+  }
+  &--ghost {
+    background: transparent;
+    color: var(--text-muted, #666);
+    justify-content: center;
+  }
+  &--danger {
+    border-color: rgba(229, 57, 53, 0.4);
+    color: #e53935;
+    margin-top: 10px;
+  }
+  &--available { border-color: rgba(76, 175, 80, 0.5); color: #2e7d32; }
+  &--partially { border-color: rgba(255, 152, 0, 0.5); color: #ef6c00; }
+  &--blocked   { border-color: rgba(244, 67, 54, 0.5); color: #c62828; }
+  &--angefragt { border-color: rgba(156, 39, 176, 0.5); color: #6a1b9a; }
+  &--eingeplant { border-color: rgba(63, 81, 181, 0.5); color: #303f9f; }
+  &.active { background: rgba(255, 122, 0, 0.08); border-color: var(--primary); }
+}
+.m-clock-ico {
+  margin-left: auto;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+.m-flip-ico { width: 18px; height: 18px; }
+
+.m-time-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(0,0,0,0.03);
+  border-radius: 8px;
+
+  label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.85rem;
+
+    input {
+      padding: 6px 8px;
+      border: 1px solid var(--border, rgba(0,0,0,0.15));
+      border-radius: 6px;
+      font-size: 0.9rem;
+      background: var(--surface, #fff);
+      color: var(--text, #222);
+    }
+  }
+}
+.m-time-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+
+  .m-action-btn { padding: 10px; }
+}
+
+.m-eingeplant-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(0,0,0,0.03);
+  border-radius: 8px;
+}
+
+.m-unread-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: #e53935;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Sheet slide-up animation */
+.m-sheet-enter-active, .m-sheet-leave-active {
+  transition: opacity 0.2s ease;
+
+  .m-sheet { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+}
+.m-sheet-enter-from, .m-sheet-leave-to {
+  opacity: 0;
+
+  .m-sheet { transform: translateY(100%); }
 }
 </style>

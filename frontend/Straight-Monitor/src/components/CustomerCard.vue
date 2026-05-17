@@ -545,7 +545,7 @@ function cancelEditKuerzel() {
 }
 
 const theme = useTheme();
-const effectiveTheme = computed(() => theme.current || 'light');
+const effectiveTheme = computed(() => (theme.isDark ? 'dark' : 'light'));
 
 function getStatusText(status) {
   switch(status) {

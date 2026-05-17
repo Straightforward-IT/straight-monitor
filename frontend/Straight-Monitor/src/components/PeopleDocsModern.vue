@@ -2567,19 +2567,19 @@ export default {
   }
   
   .mobile-trinity-item.active {
-    background: #e8fbf3;
-    color: #1f8e5d;
+    background: color-mix(in srgb, var(--ok) 18%, transparent);
+    color: color-mix(in srgb, var(--ok) 70%, var(--text));
   }
   
   .mobile-trinity-item.linked {
-    background: #eff6ff;
-    color: #1e40af;
+    background: color-mix(in srgb, var(--brand) 18%, transparent);
+    color: color-mix(in srgb, var(--brand) 75%, var(--text));
   }
   
   .mobile-trinity-item.inactive,
   .mobile-trinity-item.unlinked {
-    background: #fee7e7;
-    color: #d42f2f;
+    background: color-mix(in srgb, var(--bad) 18%, transparent);
+    color: color-mix(in srgb, var(--bad) 70%, var(--text));
   }
   
   .mobile-trinity-logo {
@@ -2691,13 +2691,13 @@ export default {
 }
 
 .status-badge.active {
-  background: #e8fbf3;
-  color: #1f8e5d;
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: color-mix(in srgb, var(--ok) 70%, var(--text));
 }
 
 .status-badge.inactive {
-  background: #fee7e7;
-  color: #d42f2f;
+  background: color-mix(in srgb, var(--bad) 18%, transparent);
+  color: color-mix(in srgb, var(--bad) 70%, var(--text));
 }
 
 /* Personalnr Badge */
@@ -2709,13 +2709,15 @@ export default {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
-  background: #e8fbf3;
-  color: #1f8e5d;
+  background: color-mix(in srgb, var(--brand) 18%, transparent);
+  color: color-mix(in srgb, var(--brand) 75%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
 }
 
 .personalnr-badge.missing {
-  background: #fff3cd;
-  color: #856404;
+  background: color-mix(in srgb, var(--warn) 20%, transparent);
+  color: color-mix(in srgb, var(--warn) 65%, var(--text));
+  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
 }
 
 .personalnr-badge.missing::after {
@@ -2740,35 +2742,35 @@ export default {
 }
 
 .trinity-badge.active {
-  background: #e8fbf3;
-  color: #1f8e5d;
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: color-mix(in srgb, var(--ok) 70%, var(--text));
 }
 
 .trinity-badge.linked {
-  background: #e9f8ff;
-  color: #1976d2;
+  background: color-mix(in srgb, var(--brand) 18%, transparent);
+  color: color-mix(in srgb, var(--brand) 75%, var(--text));
 }
 
 .trinity-badge.complete {
-  background: #e8fbf3;
-  color: #1f8e5d;
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: color-mix(in srgb, var(--ok) 70%, var(--text));
 }
 
 .trinity-badge.locked {
-  background: #fff4e6;
-  color: #c65d21;
+  background: color-mix(in srgb, var(--brand) 18%, transparent);
+  color: color-mix(in srgb, var(--brand) 75%, var(--text));
 }
 
 .trinity-badge.deleted {
-  background: #fee7e7;
-  color: #d42f2f;
+  background: color-mix(in srgb, var(--bad) 18%, transparent);
+  color: color-mix(in srgb, var(--bad) 70%, var(--text));
 }
 
 .trinity-badge.not-linked,
 .trinity-badge.incomplete,
 .trinity-badge.unknown {
-  background: #f5f5f5;
-  color: #9ca3af;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--muted);
 }
 
 /* Skeleton Updates */
@@ -3060,13 +3062,13 @@ html {
   font-weight: 500;
   
   &.active {
-    background: rgba(34, 197, 94, 0.1);
-    color: #059669;
+    background: color-mix(in srgb, var(--ok) 18%, transparent);
+    color: color-mix(in srgb, var(--ok) 70%, var(--text));
   }
   
   &.inactive {
-    background: rgba(107, 114, 128, 0.1);
-    color: #6b7280;
+    background: color-mix(in srgb, var(--text) 8%, transparent);
+    color: var(--muted);
   }
 }
 
@@ -3086,38 +3088,38 @@ html {
   transition: all 0.2s ease;
   
   &.linked {
-    background: rgba(34, 197, 94, 0.2);
-    color: #059669;
+    background: color-mix(in srgb, var(--ok) 22%, transparent);
+    color: color-mix(in srgb, var(--ok) 70%, var(--text));
   }
   
   &.unlinked {
-    background: rgba(239, 68, 68, 0.2);
-    color: #dc2626;
+    background: color-mix(in srgb, var(--bad) 22%, transparent);
+    color: color-mix(in srgb, var(--bad) 70%, var(--text));
   }
   
   &.partial {
-    background: rgba(245, 158, 11, 0.2);
-    color: #d97706;
+    background: color-mix(in srgb, var(--brand) 22%, transparent);
+    color: color-mix(in srgb, var(--brand) 75%, var(--text));
   }
   
   &.complete {
-    background: rgba(34, 197, 94, 0.2);
-    color: #059669;
+    background: color-mix(in srgb, var(--ok) 22%, transparent);
+    color: color-mix(in srgb, var(--ok) 70%, var(--text));
   }
   
   &.incomplete {
-    background: rgba(239, 68, 68, 0.2);
-    color: #dc2626;
+    background: color-mix(in srgb, var(--bad) 22%, transparent);
+    color: color-mix(in srgb, var(--bad) 70%, var(--text));
   }
 
   &.active {
-    background: rgba(34, 197, 94, 0.2);
-    color: #059669;
+    background: color-mix(in srgb, var(--ok) 22%, transparent);
+    color: color-mix(in srgb, var(--ok) 70%, var(--text));
   }
 
   &.inactive {
-    background: rgba(239, 68, 68, 0.2);
-    color: #dc2626;
+    background: color-mix(in srgb, var(--bad) 22%, transparent);
+    color: color-mix(in srgb, var(--bad) 70%, var(--text));
   }
 }
 
