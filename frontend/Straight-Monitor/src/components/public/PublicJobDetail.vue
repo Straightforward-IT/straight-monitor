@@ -98,6 +98,7 @@
             {{ filter.label }}
           </FilterChip>
         </div>
+        <!-- TODO: Stundenliste-Download temporär deaktiviert für Production
         <button
           v-if="isTeamleiter"
           class="download-icon-btn"
@@ -108,6 +109,8 @@
         >
           <font-awesome-icon :icon="downloadingStundenliste ? 'fa-solid fa-spinner' : 'fa-solid fa-download'" :spin="downloadingStundenliste" />
         </button>
+        -->
+        
       </div>
 
       <LoadingSpinner v-if="loadingMa" label="Mitarbeiter werden geladen..." class="inline-loader" />
