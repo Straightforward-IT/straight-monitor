@@ -93,6 +93,7 @@
             v-for="filter in availableRoleFilters"
             :key="filter.id"
             :active="activeRoleFilterSet.has(filter.id)"
+            hide-mode
             @click="toggleRoleFilter(filter.id)"
           >
             {{ filter.label }}
@@ -116,7 +117,7 @@
       <LoadingSpinner v-if="loadingMa" label="Mitarbeiter werden geladen..." class="inline-loader" />
 
       <div v-else-if="filteredSchichtGruppen.length === 0" class="empty">
-        {{ hasRoleFilter ? 'Keine Mitarbeiter für den gewählten Bereich gefunden.' : 'Keine Mitarbeiter für diesen Auftrag gefunden.' }}
+        {{ hasHiddenRoles ? 'Alle Bereiche sind ausgeblendet.' : 'Keine Mitarbeiter für diesen Auftrag gefunden.' }}
       </div>
 
       <div v-else>
@@ -144,7 +145,7 @@
               v-for="ma in schicht.mitarbeiter"
               :key="ma.personalNr"
               class="ma-card"
-              :class="{ 'checked-in': ma.checkedIn && !ma.noShow, 'nicht-erschienen': ma.noShow, 'is-teamleiter': ma.isTeamleiter }"
+              :class="{ 'checked-in': isTeamleiter && ma.checkedIn && !ma.noShow, 'nicht-erschienen': isTeamleiter && ma.noShow, 'is-teamleiter': ma.isTeamleiter, 'ma-card--readonly': !isTeamleiter }"
             >
               <TlBadge v-if="ma.isTeamleiter" class="tl-badge--corner" />
               <div v-if="ma.einsatzNr" class="job-nr-badge" :class="jobTierClass(ma.einsatzNr)" :title="`Einsatz ${ma.einsatzNr}`">
@@ -476,13 +477,20 @@ const availableRoleFilters = computed(() => collectRoleFilters(schichtGruppen.va
 const activeRoleFilterSet = computed(() => new Set(activeRoleFilterIds.value));
 
 function syncRoleFilters(groups) {
+  // Default: all role filters are active (= all mitarbeiter visible).
+  // Clicking a chip hides that role (chip shows strikethrough/grayed-out).
   activeRoleFilterIds.value = collectRoleFilters(groups).map(filter => filter.id);
 }
 
 const hasRoleFilter = computed(() => activeRoleFilterIds.value.length > 0);
 
+// True when the user has hidden at least one available role (hide-mode UX).
+const hasHiddenRoles = computed(() =>
+  activeRoleFilterIds.value.length < availableRoleFilters.value.length
+);
+
 function matchesRoleFilter(ma) {
-  if (!hasRoleFilter.value) return true;
+  // hide-mode: active chip = visible. Inactive chip = role is hidden.
   return activeRoleFilterSet.value.has(resolveRoleFilterMeta(ma).id);
 }
 
@@ -1238,6 +1246,10 @@ watch(() => props.einsatz?._id, () => {
   border: 1px solid var(--border);
   border-radius: 10px;
   transition: all 0.15s;
+}
+
+.ma-card.ma-card--readonly {
+  padding: 0.9rem 1rem;
 }
 
 .tl-badge--corner {

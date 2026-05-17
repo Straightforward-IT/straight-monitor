@@ -1,7 +1,7 @@
 <template>
   <button 
     class="filter-chip" 
-    :class="{ 'active': active }"
+    :class="{ 'active': active, 'hide-mode': hideMode, 'hidden': hideMode && !active }"
     type="button"
   >
     <slot></slot>
@@ -13,6 +13,12 @@ export default {
   name: "FilterChip",
   props: {
     active: {
+      type: Boolean,
+      default: false
+    },
+    // When true, an inactive chip means "hidden" → show strikethrough + grayed out.
+    // Active chips keep the standard orange highlight.
+    hideMode: {
       type: Boolean,
       default: false
     }
@@ -50,6 +56,23 @@ export default {
   color: var(--brand);
   box-shadow: inset 0 0 0 1px var(--brand);
   font-weight: 600;
+}
+
+/* hide-mode: chips default to active (orange). Inactive means content is hidden. */
+.filter-chip.hide-mode.hidden {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted, #888);
+  box-shadow: none;
+  text-decoration: line-through;
+  opacity: 0.55;
+  font-weight: 500;
+}
+
+.filter-chip.hide-mode.hidden:hover {
+  opacity: 0.8;
+  border-color: var(--brand);
+  background: transparent;
 }
 
 @media (max-width: 768px) {
