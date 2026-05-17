@@ -87,9 +87,27 @@
         <span class="count">{{ totalMitarbeiter }}</span>
       </h3>
 
-      <div class="role-filters">
-        <FilterChip :active="serviceFilterActive" @click="toggleServiceFilter">Service</FilterChip>
-        <FilterChip :active="logistikFilterActive" @click="toggleLogistikFilter">Logistik</FilterChip>
+      <div class="role-filters-row">
+        <div v-if="availableRoleFilters.length > 0" class="role-filters">
+          <FilterChip
+            v-for="filter in availableRoleFilters"
+            :key="filter.id"
+            :active="activeRoleFilterSet.has(filter.id)"
+            @click="toggleRoleFilter(filter.id)"
+          >
+            {{ filter.label }}
+          </FilterChip>
+        </div>
+        <button
+          v-if="isTeamleiter"
+          class="download-icon-btn"
+          :disabled="downloadingStundenliste || totalMitarbeiter === 0"
+          :title="downloadingStundenliste ? 'Stundenliste wird erstellt' : 'Stundenliste herunterladen'"
+          aria-label="Stundenliste herunterladen"
+          @click="downloadStundenliste"
+        >
+          <font-awesome-icon :icon="downloadingStundenliste ? 'fa-solid fa-spinner' : 'fa-solid fa-download'" :spin="downloadingStundenliste" />
+        </button>
       </div>
 
       <LoadingSpinner v-if="loadingMa" label="Mitarbeiter werden geladen..." class="inline-loader" />
@@ -266,8 +284,11 @@ import FilterChip from '@/components/FilterChip.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import { showToast } from '@getflip/bridge';
+import pdfMake from 'pdfmake/build/pdfmake';
+import pdfFonts from 'pdfmake/build/vfs_fonts';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
+pdfMake.vfs = pdfFonts?.vfs || pdfFonts?.pdfMake?.vfs || pdfMake.vfs;
 const theme = useTheme();
 const imgEventreport = computed(() => theme.isDark ? eventreportDark : eventreportLight);
 
@@ -288,12 +309,19 @@ const hasReport = computed(() => {
   );
 });
 
+const downloadingStundenliste = ref(false);
+
 defineEmits(['back', 'write-report']);
 
 const loadingMa = ref(false);
 const schichtGruppen = ref([]);
-const serviceFilterActive = ref(true);
-const logistikFilterActive = ref(true);
+const activeRoleFilterIds = ref([]);
+
+const ROLE_FILTER_ALIAS_RULES = [
+  { pattern: /office|dispo|disponent|assistenz|admin|backoffice/, id: 'office', label: 'Office' },
+  { pattern: /service|kellner|chef de rang|commis de rang|runner|host|hostess|bar|theke|bankett|gastr|catering/, id: 'service', label: 'Service' },
+  { pattern: /logistik|logi|aufbau|abbau|lager|fahrer|stagehand|technik|techniker|hands|crew/, id: 'logistik', label: 'Logistik' },
+];
 
 // MA Annotation state
 const actionSheet = ref({ open: false, ma: null });
@@ -378,12 +406,85 @@ function saveNotiz() {
   try { showToast({ text: 'Notiz gespeichert', intent: 'success', duration: 2000 }); } catch {}
 }
 
+function normalizeRoleFilterValue(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
 
-const hasRoleFilter = computed(() => serviceFilterActive.value || logistikFilterActive.value);
+function formatRoleFilterLabel(value) {
+  const label = String(value || '').trim();
+  if (!label) return 'Sonstiges';
+  if (label.length <= 16) return label;
+
+  const compactPart = label
+    .split(/[|/,;-]+/)
+    .map(part => part.trim())
+    .filter(part => part.length >= 4 && part.length <= 16)
+    .sort((left, right) => right.length - left.length)[0];
+
+  return compactPart || `${label.slice(0, 13).trim()}...`;
+}
+
+function resolveRoleFilterMeta(ma) {
+  const rawValues = [ma.berufDesignation, ma.bezeichnung]
+    .map(value => String(value || '').trim())
+    .filter(Boolean);
+  const sourceText = normalizeRoleFilterValue(rawValues.join(' '));
+
+  for (const rule of ROLE_FILTER_ALIAS_RULES) {
+    if (rule.pattern.test(sourceText)) {
+      return { id: rule.id, label: rule.label };
+    }
+  }
+
+  const primaryValue = rawValues[0];
+  if (primaryValue) {
+    return {
+      id: `beruf-${normalizeRoleFilterValue(primaryValue).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'sonstiges'}`,
+      label: formatRoleFilterLabel(primaryValue),
+    };
+  }
+
+  if (ma.isService) return { id: 'service', label: 'Service' };
+  if (ma.isLogistik) return { id: 'logistik', label: 'Logistik' };
+  return { id: 'sonstiges', label: 'Sonstiges' };
+}
+
+function collectRoleFilters(groups) {
+  const roleFilterMap = new Map();
+  for (const schicht of groups || []) {
+    for (const ma of schicht.mitarbeiter || []) {
+      const filter = resolveRoleFilterMeta(ma);
+      if (!roleFilterMap.has(filter.id)) {
+        roleFilterMap.set(filter.id, filter);
+      }
+    }
+  }
+
+  return [...roleFilterMap.values()].sort((left, right) =>
+    left.label.localeCompare(right.label, 'de-DE', { sensitivity: 'base' })
+  );
+}
+
+const availableRoleFilters = computed(() => collectRoleFilters(schichtGruppen.value));
+const activeRoleFilterSet = computed(() => new Set(activeRoleFilterIds.value));
+
+function syncRoleFilters(groups) {
+  activeRoleFilterIds.value = collectRoleFilters(groups).map(filter => filter.id);
+}
+
+const hasRoleFilter = computed(() => activeRoleFilterIds.value.length > 0);
 
 function matchesRoleFilter(ma) {
   if (!hasRoleFilter.value) return true;
-  return (serviceFilterActive.value && ma.isService) || (logistikFilterActive.value && ma.isLogistik);
+  return activeRoleFilterSet.value.has(resolveRoleFilterMeta(ma).id);
+}
+
+function getMaBereichLabel(ma) {
+  return resolveRoleFilterMeta(ma).label;
 }
 
 const filteredSchichtGruppen = computed(() =>
@@ -399,12 +500,12 @@ const totalMitarbeiter = computed(() =>
   filteredSchichtGruppen.value.reduce((sum, s) => sum + s.mitarbeiter.length, 0)
 );
 
-function toggleServiceFilter() {
-  serviceFilterActive.value = !serviceFilterActive.value;
-}
-
-function toggleLogistikFilter() {
-  logistikFilterActive.value = !logistikFilterActive.value;
+function toggleRoleFilter(filterId) {
+  if (activeRoleFilterSet.value.has(filterId)) {
+    activeRoleFilterIds.value = activeRoleFilterIds.value.filter(id => id !== filterId);
+    return;
+  }
+  activeRoleFilterIds.value = [...activeRoleFilterIds.value, filterId];
 }
 
 function formatDate(d) {
@@ -462,6 +563,234 @@ function jobTierClass(n) {
   if (n >= 21)  return 'job-tier-gold';
   if (n >= 6)   return 'job-tier-silver';
   return 'job-tier-bronze';
+}
+
+function formatDateForFilename(value) {
+  if (!value) return 'ohne-datum';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'ohne-datum';
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${year}-${month}-${day}`;
+}
+
+function sanitizeFilenamePart(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
+function getStundenlisteTitle() {
+  return props.einsatz.auftrag?.eventTitel || props.einsatz.bezeichnung || `Auftrag ${props.einsatz.auftragNr}`;
+}
+
+function getStundenlisteFilename() {
+  const title = sanitizeFilenamePart(getStundenlisteTitle()) || `auftrag-${props.einsatz.auftragNr}`;
+  return `stundenliste_${formatDateForFilename(props.einsatz.datumVon)}_${title}.pdf`;
+}
+
+function buildMetaTable() {
+  return {
+    table: {
+      widths: ['auto', '*', 'auto', '*'],
+      body: [
+        [
+          { text: 'Auftrag', style: 'metaLabel' },
+          { text: String(props.einsatz.auftragNr || '—'), style: 'metaValue' },
+          { text: 'Datum', style: 'metaLabel' },
+          { text: formatZeitraum(props.einsatz.datumVon, props.einsatz.datumBis), style: 'metaValue' },
+        ],
+        [
+          { text: 'Schicht', style: 'metaLabel' },
+          { text: props.einsatz.schichtBezeichnung || '—', style: 'metaValue' },
+          { text: 'Zeit', style: 'metaLabel' },
+          { text: props.einsatz.uhrzeitVon ? `${formatTime(props.einsatz.uhrzeitVon)}${props.einsatz.uhrzeitBis ? ` - ${formatTime(props.einsatz.uhrzeitBis)}` : ''}` : '—', style: 'metaValue' },
+        ],
+        [
+          { text: 'Location', style: 'metaLabel' },
+          { text: props.einsatz.auftrag?.eventLocation || props.einsatz.auftrag?.eventOrt || '—', style: 'metaValue' },
+          { text: 'Teamleitung', style: 'metaLabel' },
+          { text: props.mitarbeiter ? `${props.mitarbeiter.vorname || ''} ${props.mitarbeiter.nachname || ''}`.trim() || '—' : '—', style: 'metaValue' },
+        ],
+      ],
+    },
+    layout: {
+      hLineColor: () => '#d7dde5',
+      vLineColor: () => '#d7dde5',
+      paddingLeft: () => 8,
+      paddingRight: () => 8,
+      paddingTop: () => 7,
+      paddingBottom: () => 7,
+    },
+    margin: [0, 0, 0, 16],
+  };
+}
+
+function buildSchichtTable(schicht) {
+  const body = [
+    [
+      { text: '#', style: 'tableHeader' },
+      { text: 'Mitarbeiter', style: 'tableHeader' },
+      { text: 'Bereich', style: 'tableHeader' },
+      { text: 'Funktion', style: 'tableHeader' },
+      { text: 'Geplant', style: 'tableHeader' },
+      { text: 'Status', style: 'tableHeader' },
+      { text: 'Telefon', style: 'tableHeader' },
+      { text: 'Unterschrift', style: 'tableHeader' },
+    ],
+    ...schicht.mitarbeiter.map((ma, index) => {
+      const status = ma.noShow ? 'Nicht erschienen' : ma.checkedIn ? 'Check-in' : '';
+      const bereich = getMaBereichLabel(ma);
+      const zeit = schicht.uhrzeitVon
+        ? `${formatTime(schicht.uhrzeitVon)}${schicht.uhrzeitBis ? ` - ${formatTime(schicht.uhrzeitBis)}` : ''}`
+        : props.einsatz.uhrzeitVon
+          ? `${formatTime(props.einsatz.uhrzeitVon)}${props.einsatz.uhrzeitBis ? ` - ${formatTime(props.einsatz.uhrzeitBis)}` : ''}`
+          : '—';
+
+      return [
+        { text: String(index + 1), style: 'tableCellCenter' },
+        { text: `${ma.vorname || ''} ${ma.nachname || ''}`.trim() || `PNR ${ma.personalNr}`, style: 'tableCellStrong' },
+        { text: bereich, style: 'tableCell' },
+        { text: ma.bezeichnung || ma.berufDesignation || '—', style: 'tableCell' },
+        { text: zeit, style: 'tableCell' },
+        { text: status, style: 'tableCell' },
+        { text: ma.telefon || '—', style: 'tableCell' },
+        { text: ' ', style: 'signatureCell' },
+      ];
+    }),
+  ];
+
+  return {
+    stack: [
+      {
+        columns: [
+          {
+            text: schicht.bezeichnung || `Schicht ${schicht.id}`,
+            style: 'sectionTitle',
+          },
+          {
+            text: `${schicht.mitarbeiter.length} MA${schicht.uhrzeitVon ? ` • ${formatTime(schicht.uhrzeitVon)}${schicht.uhrzeitBis ? ` - ${formatTime(schicht.uhrzeitBis)}` : ''}` : ''}`,
+            alignment: 'right',
+            style: 'sectionMeta',
+          },
+        ],
+        margin: [0, 0, 0, 6],
+      },
+      schicht.treffpunkt || schicht.treffpunktOrt
+        ? {
+            text: `Treffpunkt: ${schicht.treffpunkt ? formatTreffpunktTime(schicht.treffpunkt) : '—'}${schicht.treffpunktOrt ? ` • ${schicht.treffpunktOrt}` : ''}`,
+            style: 'sectionMeta',
+            margin: [0, 0, 0, 8],
+          }
+        : null,
+      {
+        table: {
+          headerRows: 1,
+          widths: [20, '*', 58, 86, 62, 66, 82, 112],
+          body,
+        },
+        layout: {
+          fillColor: (rowIndex) => (rowIndex === 0 ? '#eff3f8' : rowIndex % 2 === 0 ? '#fafbfd' : null),
+          hLineColor: () => '#d7dde5',
+          vLineColor: () => '#d7dde5',
+          paddingLeft: () => 7,
+          paddingRight: () => 7,
+          paddingTop: (rowIndex) => (rowIndex === 0 ? 8 : 10),
+          paddingBottom: (rowIndex) => (rowIndex === 0 ? 8 : 10),
+        },
+      },
+    ].filter(Boolean),
+    margin: [0, 0, 0, 18],
+    unbreakable: false,
+  };
+}
+
+function buildStundenlisteDefinition() {
+  const exportGruppen = filteredSchichtGruppen.value;
+  const note = getJobNote();
+
+  return {
+    pageSize: 'A4',
+    pageOrientation: 'landscape',
+    pageMargins: [28, 34, 28, 34],
+    footer: (currentPage, pageCount) => ({
+      columns: [
+        { text: `Erstellt am ${new Date().toLocaleString('de-DE')}`, style: 'footerLeft' },
+        { text: `Seite ${currentPage} / ${pageCount}`, alignment: 'right', style: 'footerRight' },
+      ],
+      margin: [28, 0, 28, 14],
+    }),
+    content: [
+      {
+        columns: [
+          {
+            stack: [
+              { text: 'Stundenliste', style: 'title' },
+              { text: getStundenlisteTitle(), style: 'subtitle' },
+            ],
+          },
+          {
+            text: `Mitarbeiter gesamt: ${totalMitarbeiter.value}`,
+            alignment: 'right',
+            style: 'badgeText',
+            margin: [0, 6, 0, 0],
+          },
+        ],
+        margin: [0, 0, 0, 14],
+      },
+      buildMetaTable(),
+      ...exportGruppen.map(buildSchichtTable),
+      note
+        ? {
+            stack: [
+              { text: 'Notizen', style: 'sectionTitle' },
+              { text: note, style: 'noteText' },
+            ],
+            margin: [0, 4, 0, 0],
+          }
+        : null,
+    ].filter(Boolean),
+    styles: {
+      title: { fontSize: 21, bold: true, color: '#152233' },
+      subtitle: { fontSize: 12, color: '#4c6177', margin: [0, 3, 0, 0] },
+      badgeText: { fontSize: 10, bold: true, color: '#1f4f7a' },
+      metaLabel: { fontSize: 9, bold: true, color: '#607385' },
+      metaValue: { fontSize: 10, color: '#152233' },
+      sectionTitle: { fontSize: 12, bold: true, color: '#152233' },
+      sectionMeta: { fontSize: 9, color: '#607385' },
+      tableHeader: { fontSize: 9, bold: true, color: '#152233' },
+      tableCell: { fontSize: 9, color: '#152233' },
+      tableCellStrong: { fontSize: 9, bold: true, color: '#152233' },
+      tableCellCenter: { fontSize: 9, color: '#152233', alignment: 'center' },
+      signatureCell: { fontSize: 9, color: '#152233', margin: [0, 10, 0, 0] },
+      noteText: { fontSize: 10, color: '#152233', lineHeight: 1.4 },
+      footerLeft: { fontSize: 8, color: '#607385' },
+      footerRight: { fontSize: 8, color: '#607385' },
+    },
+    defaultStyle: {
+      fontSize: 10,
+    },
+  };
+}
+
+async function downloadStundenliste() {
+  if (downloadingStundenliste.value || totalMitarbeiter.value === 0) return;
+
+  downloadingStundenliste.value = true;
+  try {
+    const docDefinition = buildStundenlisteDefinition();
+    pdfMake.createPdf(docDefinition).download(getStundenlisteFilename());
+    try { showToast({ text: 'Stundenliste wird heruntergeladen.', intent: 'success', duration: 2200 }); } catch {}
+  } catch (error) {
+    console.error('Fehler beim Erstellen der Stundenliste:', error);
+    try { showToast({ text: 'Stundenliste konnte nicht erstellt werden.', intent: 'error', duration: 2500 }); } catch {}
+  } finally {
+    downloadingStundenliste.value = false;
+  }
 }
 
 async function copyPhone(tel, event) {
@@ -583,7 +912,7 @@ async function loadMitarbeiter() {
       params: { auftragNr: props.einsatz.auftragNr }
     });
     const saved = await loadCheckIns(props.einsatz.auftragNr);
-    schichtGruppen.value = (res.data || []).map(schicht => ({
+    const nextGroups = (res.data || []).map(schicht => ({
       ...schicht,
       mitarbeiter: schicht.mitarbeiter.map(ma => ({
         ...ma,
@@ -591,9 +920,12 @@ async function loadMitarbeiter() {
         noShow: !!saved.noShow[ma.personalNr],
       }))
     }));
+    schichtGruppen.value = nextGroups;
+    syncRoleFilters(nextGroups);
   } catch (err) {
     console.error('Error loading Mitarbeiter for job:', err);
     schichtGruppen.value = [];
+    activeRoleFilterIds.value = [];
   } finally {
     loadingMa.value = false;
   }
@@ -775,11 +1107,46 @@ watch(() => props.einsatz?._id, () => {
   padding: 0.75rem 1rem;
 }
 
+.role-filters-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 0.75rem;
+}
+
 .role-filters {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin: 0 0 0.75rem;
+  min-width: 0;
+}
+
+.download-icon-btn {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  border: 1.5px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  font-size: 1rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s, opacity 0.15s, background 0.15s;
+}
+
+.download-icon-btn:active {
+  transform: scale(0.96);
+  background: rgba(255, 117, 24, 0.08);
+}
+
+.download-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .empty {
@@ -964,6 +1331,8 @@ watch(() => props.einsatz?._id, () => {
   z-index: 40;
   display: flex;
   justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .info-share-btn {

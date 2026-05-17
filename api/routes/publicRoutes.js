@@ -20,6 +20,57 @@ const { flipAxios } = require("../flipAxios");
 // All routes in this file require FLIP_PUBLIC_JWT
 router.use(publicAuth);
 
+const SERVICE_JOB_KEYS = new Set([10001]);
+const LOGISTIK_JOB_KEYS = new Set([10002]);
+const SERVICE_KEYWORDS = [
+  'service',
+  'kellner',
+  'chef de rang',
+  'commis de rang',
+  'runner',
+  'hostess',
+  'host',
+  'bar',
+  'theke',
+  'bankett',
+  'gastr',
+  'catering',
+];
+const LOGISTIK_KEYWORDS = [
+  'logistik',
+  'logi',
+  'aufbau',
+  'abbau',
+  'lager',
+  'fahrer',
+  'stagehand',
+  'technik',
+  'techniker',
+  'hands',
+  'crew',
+];
+
+function normalizeBereichText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function hasBereichKeyword(text, keywords) {
+  return keywords.some((keyword) => text.includes(keyword));
+}
+
+function detectBereiche({ berufKey, berufDesignation, einsatzBezeichnung }) {
+  const sourceText = normalizeBereichText(`${berufDesignation || ''} ${einsatzBezeichnung || ''}`);
+  const numericBerufKey = Number(berufKey);
+
+  const isService = SERVICE_JOB_KEYS.has(numericBerufKey) || hasBereichKeyword(sourceText, SERVICE_KEYWORDS);
+  const isLogistik = LOGISTIK_JOB_KEYS.has(numericBerufKey) || hasBereichKeyword(sourceText, LOGISTIK_KEYWORDS);
+
+  return { isService, isLogistik };
+}
+
 // ──────────────────────────────────────────────
 // SSE: real-time check-in broadcast
 // Map: auftragNr (Number) → Set of SSE response objects
@@ -295,6 +346,11 @@ router.get(
       const ma = maMap[e.personalNr];
       const berufKey = parseInt(e.berufSchl, 10);
       const berufData = !isNaN(berufKey) ? berufByKey.get(berufKey) || null : null;
+      const bereiche = detectBereiche({
+        berufKey,
+        berufDesignation: berufData?.designation,
+        einsatzBezeichnung: e.bezeichnung,
+      });
       schichtMap[key].mitarbeiter.push({
         personalNr: e.personalNr,
         vorname: ma?.vorname || null,
@@ -306,8 +362,8 @@ router.get(
         berufSchl: e.berufSchl || null,
         berufKey: !isNaN(berufKey) ? berufKey : null,
         berufDesignation: berufData?.designation || null,
-        isService: berufKey === 10001,
-        isLogistik: berufKey === 10002,
+        isService: bereiche.isService,
+        isLogistik: bereiche.isLogistik,
         checkedIn: false,
         isPseudo: e.isPseudo || false,
         einsatzNr: einsatzCountMap[e.personalNr] || 0,
