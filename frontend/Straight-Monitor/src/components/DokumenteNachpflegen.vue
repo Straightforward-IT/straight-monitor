@@ -41,16 +41,17 @@
         <form v-else @submit.prevent="submitLaufzettel" class="form-body">
           <div class="field-group">
             <label class="field-label">
-              Auftragsnummer
+              Auftragsnummer *
               <span class="field-hint">Einsatzdaten werden automatisch geladen</span>
             </label>
             <div class="auftrag-input-wrap">
-              <input v-model="lz.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" />
+              <input v-model="lz.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" required />
               <font-awesome-icon v-if="auftragLoading.laufzettel" icon="fa-solid fa-spinner" spin class="auftrag-spinner" />
             </div>
           </div>
 
-          <div v-if="auftragData.laufzettel" class="einsatz-panel">
+          <template v-if="auftragData.laufzettel">
+          <div class="einsatz-panel">
             <div class="einsatz-panel-header">
               <div class="einsatz-panel-icon"><font-awesome-icon icon="fa-solid fa-briefcase" /></div>
               <div>
@@ -90,6 +91,7 @@
           <div class="form-actions">
             <SubmitBtn :loading="loading.laufzettel" :disabled="!lzValid">Laufzettel erstellen</SubmitBtn>
           </div>
+          </template>
         </form>
       </div>
 
@@ -113,16 +115,17 @@
         <form v-else @submit.prevent="submitEvaluierung" class="form-body">
           <div class="field-group">
             <label class="field-label">
-              Auftragsnummer
+              Auftragsnummer *
               <span class="field-hint">Einsatzdaten werden automatisch geladen</span>
             </label>
             <div class="auftrag-input-wrap">
-              <input v-model="ev.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" />
+              <input v-model="ev.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" required />
               <font-awesome-icon v-if="auftragLoading.evaluierung" icon="fa-solid fa-spinner" spin class="auftrag-spinner" />
             </div>
           </div>
 
-          <div v-if="auftragData.evaluierung" class="einsatz-panel">
+          <template v-if="auftragData.evaluierung">
+          <div class="einsatz-panel">
             <div class="einsatz-panel-header">
               <div class="einsatz-panel-icon"><font-awesome-icon icon="fa-solid fa-briefcase" /></div>
               <div>
@@ -176,6 +179,7 @@
           <div class="form-actions">
             <SubmitBtn :loading="loading.evaluierung" :disabled="!evValid">Evaluierung erstellen</SubmitBtn>
           </div>
+          </template>
         </form>
       </div>
 
@@ -198,16 +202,17 @@
         <form v-else @submit.prevent="submitEventReport" class="form-body">
           <div class="field-group">
             <label class="field-label">
-              Auftragsnummer
+              Auftragsnummer *
               <span class="field-hint">Einsatzdaten werden automatisch geladen</span>
             </label>
             <div class="auftrag-input-wrap">
-              <input v-model="er.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" />
+              <input v-model="er.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" required />
               <font-awesome-icon v-if="auftragLoading.eventreport" icon="fa-solid fa-spinner" spin class="auftrag-spinner" />
             </div>
           </div>
 
-          <div v-if="auftragData.eventreport" class="einsatz-panel">
+          <template v-if="auftragData.eventreport">
+          <div class="einsatz-panel">
             <div class="einsatz-panel-header">
               <div class="einsatz-panel-icon"><font-awesome-icon icon="fa-solid fa-briefcase" /></div>
               <div>
@@ -301,6 +306,7 @@
           <div class="form-actions">
             <SubmitBtn :loading="loading.eventreport" :disabled="!erValid">Event Report erstellen</SubmitBtn>
           </div>
+          </template>
         </form>
       </div>
 
@@ -587,7 +593,7 @@ const errors  = ref({ laufzettel: '',    evaluierung: '',    eventreport: '' });
 
 // ── Laufzettel form state ──
 const lz = ref({ ma: null, tl: null, datum: todayStr.value, standort: '', auftragNr: '' });
-const lzValid = computed(() => !!lz.value.ma && !!lz.value.tl && !!lz.value.datum && !!lz.value.standort);
+const lzValid = computed(() => !!auftragData.value.laufzettel && !!lz.value.ma && !!lz.value.tl && !!lz.value.datum && !!lz.value.standort);
 
 async function submitLaufzettel() {
   errors.value.laufzettel = '';
@@ -611,7 +617,7 @@ async function submitLaufzettel() {
 
 // ── Evaluierung form state ──
 const ev = ref({ ma: null, tl: null, datum: todayStr.value, standort: '', auftragNr: '', kunde: '', puenktlichkeit: '', grooming: '', motivation: '', technische_fertigkeiten: '', lernbereitschaft: '', sonstiges: '' });
-const evValid = computed(() => !!ev.value.ma && !!ev.value.tl && !!ev.value.datum && !!ev.value.standort);
+const evValid = computed(() => !!auftragData.value.evaluierung && !!ev.value.ma && !!ev.value.tl && !!ev.value.datum && !!ev.value.standort);
 
 async function submitEvaluierung() {
   errors.value.evaluierung = '';
@@ -646,7 +652,7 @@ function addErMaRow(ma) {
 function removeErMaRow(row) {
   erMaRows.value = erMaRows.value.filter(r => r._id !== row._id);
 }
-const erValid = computed(() => !!er.value.tl && !!er.value.datum && !!er.value.standort && !!er.value.kunde);
+const erValid = computed(() => !!auftragData.value.eventreport && !!er.value.tl && !!er.value.datum && !!er.value.standort && !!er.value.kunde);
 
 async function submitEventReport() {
   errors.value.eventreport = '';
