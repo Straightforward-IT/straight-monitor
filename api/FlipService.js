@@ -1475,11 +1475,11 @@ async function syncFlipAttributes(flipUsersById = {}) {
 
       // Attributes: start from existing Flip attributes, then overlay computed values.
       // This preserves any attributes not managed by this sync (e.g. job_title, phone).
-      const managedKeys = new Set([
-        ...TRACKED_ATTRS,
-        'location',
-        'department',
-      ]);
+      // isService/isLogistik werden nur als managed betrachtet, wenn wir sie auch setzen —
+      // so bleiben manuell gesetzte Werte erhalten wenn keine Berufe hinterlegt sind.
+      const managedKeys = new Set(['isOffice', 'isTeamLead', 'isFesti', 'location', 'department']);
+      if (isService  !== null) managedKeys.add('isService');
+      if (isLogistik !== null) managedKeys.add('isLogistik');
 
       const newAttrsMap = {};
       if (isService  !== null) newAttrsMap.isService  = String(isService);

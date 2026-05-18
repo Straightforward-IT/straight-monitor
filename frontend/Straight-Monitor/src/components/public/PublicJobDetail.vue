@@ -29,53 +29,55 @@
       </div>
     </div>
 
-    <!-- Info Cards -->
-    <div class="info-section">
-      <div class="info-card">
-        <div class="info-icon"><font-awesome-icon icon="fa-solid fa-calendar" /></div>
-        <div class="info-content">
-          <span class="info-label">Datum</span>
-          <span class="info-value">{{ formatZeitraum(einsatz.datumVon, einsatz.datumBis) }}</span>
+    <!-- Deine Schicht -->
+    <div class="my-schicht-section">
+      <h3 class="my-schicht-header">
+        <font-awesome-icon icon="fa-solid fa-user-clock" />
+        Deine Schicht
+      </h3>
+      <div class="my-schicht-card">
+        <div class="msc-row">
+          <span class="msc-icon"><font-awesome-icon icon="fa-solid fa-calendar" /></span>
+          <div class="msc-content">
+            <span class="msc-label">Datum</span>
+            <span class="msc-value">{{ formatZeitraum(einsatz.datumVon, einsatz.datumBis) }}</span>
+          </div>
         </div>
-
-      </div>
-
-      <div v-if="einsatz.uhrzeitVon" class="info-card">
-        <div class="info-icon"><font-awesome-icon icon="fa-solid fa-clock" /></div>
-        <div class="info-content">
-          <span class="info-label">Uhrzeit</span>
-          <span class="info-value">{{ formatTime(einsatz.uhrzeitVon) }}{{ einsatz.uhrzeitBis ? ' – ' + formatTime(einsatz.uhrzeitBis) : '' }}</span>
+        <div v-if="einsatz.uhrzeitVon" class="msc-row">
+          <span class="msc-icon"><font-awesome-icon icon="fa-solid fa-clock" /></span>
+          <div class="msc-content">
+            <span class="msc-label">Uhrzeit</span>
+            <span class="msc-value">{{ formatTime(einsatz.uhrzeitVon) }}{{ einsatz.uhrzeitBis ? ' – ' + formatTime(einsatz.uhrzeitBis) : '' }}</span>
+          </div>
         </div>
-      </div>
-
-      <div v-if="einsatz.auftrag?.eventLocation || einsatz.auftrag?.eventOrt" class="info-card">
-        <div class="info-icon"><font-awesome-icon icon="fa-solid fa-location-dot" /></div>
-        <div class="info-content">
-          <span class="info-label">Location</span>
-          <span class="info-value">{{ einsatz.auftrag?.eventLocation }}</span>
-          <span v-if="einsatz.auftrag?.eventOrt" class="info-sub">{{ einsatz.auftrag.eventOrt }}</span>
+        <div v-if="ownSchicht?.treffpunkt || ownSchicht?.treffpunktOrt" class="msc-row msc-row--treffpunkt">
+          <span class="msc-icon msc-icon--primary"><font-awesome-icon icon="fa-solid fa-map-pin" /></span>
+          <div class="msc-content">
+            <span class="msc-label">Treffpunkt</span>
+            <span v-if="ownSchicht.treffpunkt" class="msc-value">{{ formatTreffpunktTime(ownSchicht.treffpunkt) }}</span>
+            <span v-if="ownSchicht.treffpunktOrt" class="msc-sub">{{ ownSchicht.treffpunktOrt }}</span>
+          </div>
         </div>
-      </div>
-
-      <div v-if="einsatz.ansprechpartnerName" class="info-card">
-        <div class="info-icon"><font-awesome-icon icon="fa-solid fa-user" /></div>
-        <div class="info-content">
-          <span class="info-label">Ansprechpartner</span>
-          <span class="info-value">{{ einsatz.ansprechpartnerName }}</span>
-          <a
-            v-if="isTeamleiter && einsatz.ansprechpartnerTelefon"
-            :href="'tel:' + cleanPhone(einsatz.ansprechpartnerTelefon)"
-            class="info-link"
-          >
-            <font-awesome-icon icon="fa-solid fa-phone" /> {{ einsatz.ansprechpartnerTelefon }}
-          </a>
-          <a
-            v-if="isTeamleiter && einsatz.ansprechpartnerEmail"
-            :href="'mailto:' + einsatz.ansprechpartnerEmail"
-            class="info-link"
-          >
-            <font-awesome-icon icon="fa-solid fa-envelope" /> {{ einsatz.ansprechpartnerEmail }}
-          </a>
+        <div v-if="einsatz.auftrag?.eventLocation || einsatz.auftrag?.eventOrt" class="msc-row">
+          <span class="msc-icon"><font-awesome-icon icon="fa-solid fa-location-dot" /></span>
+          <div class="msc-content">
+            <span class="msc-label">Location</span>
+            <span class="msc-value">{{ einsatz.auftrag?.eventLocation }}</span>
+            <span v-if="einsatz.auftrag?.eventOrt" class="msc-sub">{{ einsatz.auftrag.eventOrt }}</span>
+          </div>
+        </div>
+        <div v-if="einsatz.ansprechpartnerName" class="msc-row">
+          <span class="msc-icon"><font-awesome-icon icon="fa-solid fa-user" /></span>
+          <div class="msc-content">
+            <span class="msc-label">Ansprechpartner</span>
+            <span class="msc-value">{{ einsatz.ansprechpartnerName }}</span>
+            <a v-if="isTeamleiter && einsatz.ansprechpartnerTelefon" :href="'tel:' + cleanPhone(einsatz.ansprechpartnerTelefon)" class="info-link">
+              <font-awesome-icon icon="fa-solid fa-phone" /> {{ einsatz.ansprechpartnerTelefon }}
+            </a>
+            <a v-if="isTeamleiter && einsatz.ansprechpartnerEmail" :href="'mailto:' + einsatz.ansprechpartnerEmail" class="info-link">
+              <font-awesome-icon icon="fa-solid fa-envelope" /> {{ einsatz.ansprechpartnerEmail }}
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -318,6 +320,20 @@ defineEmits(['back', 'write-report']);
 const loadingMa = ref(false);
 const schichtGruppen = ref([]);
 const activeRoleFilterIds = ref([]);
+
+const ownSchicht = computed(() => {
+  if (!schichtGruppen.value.length) return null;
+  const pnr = props.mitarbeiter?.personalnr ? Number(props.mitarbeiter.personalnr) : null;
+  if (pnr) {
+    for (const schicht of schichtGruppen.value) {
+      if (schicht.mitarbeiter?.some(ma => ma.personalNr === pnr)) return schicht;
+    }
+  }
+  if (props.einsatz?.schichtBezeichnung) {
+    return schichtGruppen.value.find(s => s.bezeichnung === props.einsatz.schichtBezeichnung) ?? null;
+  }
+  return null;
+});
 
 const ROLE_FILTER_ALIAS_RULES = [
   { pattern: /office|dispo|disponent|assistenz|admin|backoffice/, id: 'office', label: 'Office' },
@@ -1034,6 +1050,91 @@ watch(() => props.einsatz?._id, () => {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
+}
+
+/* Deine Schicht */
+.my-schicht-section {
+  margin-bottom: 1.5rem;
+}
+
+.my-schicht-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+}
+
+.my-schicht-card {
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.msc-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.msc-row:last-child {
+  border-bottom: none;
+}
+
+.msc-row--treffpunkt {
+  background: rgba(255, 117, 24, 0.04);
+}
+
+.msc-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: rgba(255, 117, 24, 0.1);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.msc-icon--primary {
+  background: rgba(255, 117, 24, 0.18);
+}
+
+.msc-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.msc-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.msc-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.msc-sub {
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 /* Info Section */
