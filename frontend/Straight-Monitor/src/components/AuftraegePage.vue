@@ -148,6 +148,11 @@
         <label class="mobile-date-display" v-if="weekDays[mobileDayIndex]" title="Datum wählen">
           <span class="day-name">{{ weekDays[mobileDayIndex].name }}</span>
           <span class="day-date">{{ formatDayDate(weekDays[mobileDayIndex].date) }}</span>
+          <span
+            v-if="getHolidayForDate(weekDays[mobileDayIndex].date)"
+            class="mobile-holiday-chip"
+            :class="{ 'mobile-holiday-chip--relevant': isHolidayRelevant(getHolidayForDate(weekDays[mobileDayIndex].date)) }"
+          >{{ getHolidayForDate(weekDays[mobileDayIndex].date).name }}</span>
           <input
             ref="mobileDatePicker"
             type="date"
@@ -219,10 +224,20 @@
           v-for="day in weekDays" 
           :key="day.key" 
           class="day-header"
-          :class="{ 'is-today': isToday(day.date) }"
+          :class="{
+            'is-today': isToday(day.date),
+            'is-holiday': !!getHolidayForDate(day.date),
+            'is-holiday-relevant': getHolidayForDate(day.date) && isHolidayRelevant(getHolidayForDate(day.date))
+          }"
         >
           <div class="day-name">{{ day.name }}</div>
           <div class="day-date">{{ formatDayDate(day.date) }}</div>
+          <div v-if="getHolidayForDate(day.date)" class="holiday-label" :class="{ 'holiday-label--relevant': isHolidayRelevant(getHolidayForDate(day.date)) }">
+            <span class="holiday-name">{{ getHolidayForDate(day.date).name }}</span>
+            <span class="holiday-states-badge" :class="{ 'holiday-states-badge--relevant': isHolidayRelevant(getHolidayForDate(day.date)) }">
+              {{ getHolidayForDate(day.date).isNational ? 'Bundesweit' : getHolidayForDate(day.date).states.slice(0, 4).join(', ') }}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -236,7 +251,10 @@
           v-for="day in weekDays" 
           :key="day.key" 
           class="day-column"
-          :class="{ 'is-today': isToday(day.date) }"
+          :class="{
+            'is-today': isToday(day.date),
+            'is-holiday-relevant': getHolidayForDate(day.date) && isHolidayRelevant(getHolidayForDate(day.date))
+          }"
         >
           <div class="day-stats">
             {{ getEventsForDay(day.date).length }} Aufträge • {{ getTotalPositionsForDay(day.date) }} Pos.
@@ -819,6 +837,7 @@ import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import CustomerCard from '@/components/CustomerCard.vue';
 import DocumentCard from '@/components/DocumentCard.vue';
 import SearchBar from '@/components/SearchBar.vue';
+import { loadHolidaysForYear } from '@/utils/holidays.js';
 import laufzettelIcon from '@/assets/laufzettel.png';
 import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
 import eventreportIcon from '@/assets/eventreport.png';
@@ -898,6 +917,9 @@ export default {
       // Document icons
       auftragDocs: [],
       selectedDoc: null,
+      // ── Feiertage ────────────────────────────────────────────────────────────
+      holidayMap: {}, // 'YYYY-MM-DD' → { name, states, isNational, hinweis }
+      loadedHolidayYears: new Set(),
     };
   },
   computed: {
@@ -952,6 +974,11 @@ export default {
       const existing = new Set((this.selectedEvent.labels || []).map(l => l.name.toLowerCase()));
       return this.globalLabels.filter(gl => !existing.has(gl.name.toLowerCase()));
     },
+    // Maps the active Geschäftsstelle filter to its Bundesland code
+    activeStateLand() {
+      const map = { '1': 'BE', '2': 'HH', '3': 'NW' };
+      return map[this.filters.geschSt] || null;
+    },
   },
   watch: {
     '$route.query.openPseudo'(value) {
@@ -960,6 +987,25 @@ export default {
     }
   },
   methods: {
+    // ── Feiertage ──────────────────────────────────────────────────────────
+    async ensureHolidayYearLoaded(year) {
+      if (this.loadedHolidayYears.has(year)) return;
+      // Mark first to prevent concurrent duplicate loads
+      this.loadedHolidayYears.add(year);
+      const lookup = await loadHolidaysForYear(year);
+      Object.assign(this.holidayMap, Object.fromEntries(lookup));
+    },
+    getHolidayForDate(date) {
+      const d = date instanceof Date ? date : new Date(date);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return this.holidayMap[key] || null;
+    },
+    isHolidayRelevant(holiday) {
+      if (!holiday) return false;
+      if (!this.activeStateLand) return holiday.isNational;
+      return holiday.states.includes(this.activeStateLand);
+    },
+    // ──────────────────────────────────────────────────────────────────────────
     async fetchDataStatus() {
       try {
         const response = await api.get('/api/import/last-uploads');
@@ -1183,6 +1229,13 @@ export default {
     },
     async loadAuftraege(fromDate, toDate) {
       this.loading = true;
+      // Proactively load holiday data for the requested year(s)
+      if (fromDate) {
+        await this.ensureHolidayYearLoaded(fromDate.getFullYear());
+        if (toDate && toDate.getFullYear() !== fromDate.getFullYear()) {
+          await this.ensureHolidayYearLoaded(toDate.getFullYear());
+        }
+      }
       try {
         const params = new URLSearchParams();
         if (fromDate) params.append('from', fromDate.toISOString());
@@ -3651,5 +3704,84 @@ export default {
 .pseudo-time-row {
   gap: 10px;
   margin-top: 10px;
+}
+
+// ── Feiertage Highlighting ─────────────────────────────────────────────────
+
+// Desktop day-header: amber tint when holiday is relevant for active Bundesland
+.day-header {
+  &.is-holiday-relevant {
+    background: color-mix(in oklab, #f59e0b 14%, var(--panel));
+  }
+}
+
+// Holiday name + states label inside day-header
+.holiday-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px 2px;
+  width: 100%;
+  overflow: hidden;
+
+  .holiday-name {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    text-align: center;
+  }
+
+  &.holiday-label--relevant .holiday-name {
+    color: #d97706;
+  }
+}
+
+// Bundesland / "Bundesweit" pill
+.holiday-states-badge {
+  display: inline-block;
+  font-size: 0.55rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--muted) 14%, transparent);
+  color: var(--muted);
+  white-space: nowrap;
+  line-height: 1.5;
+
+  &.holiday-states-badge--relevant {
+    background: color-mix(in oklab, #f59e0b 22%, transparent);
+    color: #b45309;
+  }
+}
+
+// Desktop day-column: subtle amber tint when relevant
+.day-column {
+  &.is-holiday-relevant {
+    background: color-mix(in oklab, #f59e0b 6%, transparent);
+  }
+}
+
+// Mobile: holiday chip inside .mobile-date-display
+.mobile-holiday-chip {
+  display: inline-block;
+  font-size: 0.58rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--muted) 12%, transparent);
+  color: var(--muted);
+  white-space: nowrap;
+  line-height: 1.4;
+  margin-top: 1px;
+
+  &.mobile-holiday-chip--relevant {
+    background: color-mix(in oklab, #f59e0b 20%, transparent);
+    color: #b45309;
+  }
 }
 </style>
