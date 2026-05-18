@@ -233,8 +233,15 @@ import { faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, f
 import CustomTooltip from './CustomTooltip.vue';
 import DocumentCard from './DocumentCard.vue';
 import EmployeeCard from './EmployeeCard.vue';
-import eventReportIconUrl from '@/assets/eventreport.png';
-import evaluierungIconUrl from '@/assets/evaluierung.png';
+import { useTheme } from '@/stores/theme';
+import eventReportLightIcon from '@/assets/eventreport.png';
+import eventReportDarkIcon from '@/assets/eventreport-dark.png';
+import evaluierungLightIcon from '@/assets/evaluierung.png';
+import evaluierungDarkIcon from '@/assets/evaluierung-dark.png';
+
+const theme = useTheme();
+const eventReportIconUrl = computed(() => theme.isDark ? eventReportDarkIcon : eventReportLightIcon);
+const evaluierungIconUrl = computed(() => theme.isDark ? evaluierungDarkIcon : evaluierungLightIcon);
 
 library.add(faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle, faEye, faEyeSlash);
 

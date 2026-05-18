@@ -815,7 +815,6 @@
           <div
             class="m-day-strip"
             :ref="setDayStripRef(ma._id)"
-            @scroll.passive="onDayStripScroll"
           >
             <button
               v-for="day in visibleDays"
@@ -831,7 +830,7 @@
               @click="onMobileCellTap(ma, day)"
               @touchstart.passive="onCellTouchStart(ma, day, $event)"
               @touchmove.passive="onCellTouchMove($event)"
-              @touchend="onCellTouchEnd(ma, day)"
+              @touchend="onCellTouchEnd(ma, day, $event)"
               @touchcancel="onNameTouchEnd"
             >
               <span class="m-day-cell__weekday">{{ day.weekday }}</span>
@@ -1023,7 +1022,7 @@
                   <div class="m-sheet-group-label">Vorhandene Einträge</div>
                   <div v-for="entry in ctxMenu.entries" :key="entry._id" class="m-action-entry">
                     <span>
-                      <font-awesome-icon v-if="entryIcon(entry)" :icon="entryIcon(entry)" />
+                      <font-awesome-icon v-if="entryIcon(entry) && entry._source !== 'einsatz' && entry.typ !== 'planned'" :icon="entryIcon(entry)" />
                       {{ entryLabel(entry) }}
                     </span>
                     <button v-if="entry._source !== 'einsatz'" class="m-action-del" @click="deleteEntry(entry._id); closeCtxMenu()">
@@ -1033,7 +1032,7 @@
                   <button
                     v-for="entry in ctxMenu.entries.filter(e => e._source === 'einsatz' || e.typ === 'planned')"
                     :key="'open-' + entry._id"
-                    class="m-action-btn m-action-btn--ghost"
+                    class="m-action-btn m-action-btn--open-einsatz"
                     @click="openEinsatz(entry)"
                   >
                     <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" /> Einsatz öffnen
@@ -3621,15 +3620,18 @@ function onDayStripScroll(event) {
 
 function scrollMobileToToday() {
   nextTick(() => {
-    const firstStrip = dayStripRefs.values().next().value;
-    if (!firstStrip) return;
-    const todayEl = firstStrip.querySelector('.m-day-cell.is-today');
-    if (!todayEl) return;
-    const target = Math.max(0, todayEl.offsetLeft - 8);
-    mobileDayScrollLeft.value = target;
-    _stripScrollSyncing = true;
-    for (const el of dayStripRefs.values()) el.scrollLeft = target;
-    _stripScrollSyncing = false;
+    // rAF ensures the browser has laid out the new cells before we read offsetLeft
+    requestAnimationFrame(() => {
+      const firstStrip = dayStripRefs.values().next().value;
+      if (!firstStrip) return;
+      const todayEl = firstStrip.querySelector('.m-day-cell.is-today');
+      // Fall back to 0 when today is not in the current visibleDays (e.g. future KW was active)
+      const target = todayEl ? Math.max(0, todayEl.offsetLeft - 20) : 0;
+      mobileDayScrollLeft.value = target;
+      _stripScrollSyncing = true;
+      for (const el of dayStripRefs.values()) el.scrollLeft = target;
+      _stripScrollSyncing = false;
+    });
   });
 }
 
@@ -3654,11 +3656,6 @@ function toggleCardExpand(maId) {
 // clearStatus / etc. work unchanged, then render the mobile action sheet.
 function onMobileCellTap(ma, day) {
   const entries = getEntriesForCell(ma._id, day.iso);
-  // Skip einsatz-only cells (no editing allowed) — open einsatz directly
-  if (entries.length && entries.every((e) => e._source === 'einsatz')) {
-    openEinsatz(entries[0]);
-    return;
-  }
   clearSelection();
   ctxMenu.x = 0;
   ctxMenu.y = 0;
@@ -3678,6 +3675,7 @@ function onMobileCellLongPress(ma, day) {
 let _lpTimer = null;
 let _lpStartXY = null;
 let _lpFired = false;
+let _lpCancelled = false;
 
 function onCellTouchStart(ma, day, event) {
   _lpFired = false;
@@ -3691,20 +3689,22 @@ function onCellTouchStart(ma, day, event) {
 }
 
 function onCellTouchMove(event) {
-  if (!_lpTimer || !_lpStartXY) return;
+  if (!_lpStartXY) return;
   const t = event.touches?.[0];
   if (!t) return;
   const dx = Math.abs(t.clientX - _lpStartXY.x);
   const dy = Math.abs(t.clientY - _lpStartXY.y);
   if (dx > 8 || dy > 8) {
-    clearTimeout(_lpTimer);
-    _lpTimer = null;
+    if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+    _lpCancelled = true;
   }
 }
 
-function onCellTouchEnd(ma, day) {
+function onCellTouchEnd(ma, day, event) {
   if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
   if (_lpFired) { _lpFired = false; return; }
+  if (_lpCancelled) { _lpCancelled = false; return; }
+  event?.preventDefault(); // prevent synthetic click from double-firing @click
   onMobileCellTap(ma, day);
 }
 
@@ -6658,9 +6658,10 @@ watch(selectedKw, () => {
   gap: 8px;
   // extra top-padding so the comment bubble (which sits outside the cell)
   // isn't clipped by the implicit overflow-y:auto caused by overflow-x:auto
-  padding: 14px 14px 14px;
+  padding: 14px 14px 14px 20px;
   overflow-x: auto;
   scroll-snap-type: x proximity;
+  scroll-padding-left: 20px; // keep left spacing when snap aligns first cell
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 
@@ -7011,6 +7012,12 @@ watch(selectedKw, () => {
   &--ghost {
     background: transparent;
     color: var(--text-muted, #666);
+    justify-content: center;
+  }
+  &--open-einsatz {
+    background: transparent;
+    border-color: var(--primary);
+    color: var(--primary);
     justify-content: center;
   }
   &--danger {

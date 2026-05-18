@@ -3646,7 +3646,7 @@ onBeforeUnmount(() => {
     color: var(--muted);
     cursor: pointer;
     font-size: 1.1rem;
-    padding: 4px 8px;
+    padding: 4px 16px;
 
     &:hover {
       color: var(--text);
@@ -6055,14 +6055,31 @@ onBeforeUnmount(() => {
 /* Inline chronik (mobile-only) */
 .chronik-timeline--mobile {
   max-height: none;
+
+  // dots must sit below the sticky compose bar
+  .chronik-dot { z-index: 0; }
 }
 .chronik-compose--mobile {
   position: sticky;
-  bottom: 0;
-  background: var(--tile-bg);
-  padding-top: 8px;
-  margin-top: 8px;
+  bottom: -12px; // pull below sidebar-body's padding-bottom (12px) so no gap stays visible
+  background: var(--panel, var(--tile-bg));
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px)) 8px;
+  margin: 0 -12px -12px; // extend into sidebar-body's horizontal & bottom padding
   border-top: 1px solid var(--border);
+  gap: 8px;
+  z-index: 5;
+
+  // override base .chronik-inline-compose::before (timeline line stub at left:10px)
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -16px;
+    height: 16px;
+    background: linear-gradient(to bottom, transparent, var(--panel, var(--tile-bg)));
+    pointer-events: none;
+  }
 }
 
 /* Row menu as bottom sheet on mobile */
