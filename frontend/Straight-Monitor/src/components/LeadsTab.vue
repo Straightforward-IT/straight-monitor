@@ -6,24 +6,62 @@
       <div class="leads-toolbar">
         <div class="toolbar-left">
           <SearchBar v-model="searchQuery" class="leads-search-bar" placeholder="Leads durchsuchen…" aria-label="Leads suchen" />
-          <button class="btn btn-primary" @click="openCreateModal">
+          <button v-if="!isMobile" class="btn btn-primary" @click="openCreateModal">
             <font-awesome-icon :icon="['fas', 'plus']" /> Lead
           </button>
         </div>
 
         <div class="toolbar-right">
-          <button class="btn-icon-toolbar" @click="showFieldManager = true" title="Spalten / Eigene Felder verwalten">
-            <font-awesome-icon :icon="['fas', 'sliders']" />
-          </button>
-          <button
-            class="btn-icon-toolbar"
-            :class="{ active: showColPanel || colConfig.some(c => !c.visible) }"
-            @click="openColPanel($event)"
-            title="Spalten anpassen"
-          >
-            <font-awesome-icon :icon="['fas', 'table-columns']" />
-          </button>
+          <template v-if="!isMobile">
+            <button class="btn-icon-toolbar" @click="showFieldManager = true" title="Spalten / Eigene Felder verwalten">
+              <font-awesome-icon :icon="['fas', 'sliders']" />
+            </button>
+            <button
+              class="btn-icon-toolbar"
+              :class="{ active: showColPanel || colConfig.some(c => !c.visible) }"
+              @click="openColPanel($event)"
+              title="Spalten anpassen"
+            >
+              <font-awesome-icon :icon="['fas', 'table-columns']" />
+            </button>
+          </template>
+          <!-- Mobile overflow menu (kebab) -->
+          <div v-else class="mobile-toolbar-overflow">
+            <button
+              class="btn-icon-toolbar"
+              @click="mobileToolbarMenuOpen = !mobileToolbarMenuOpen"
+              title="Weitere Aktionen"
+            >
+              <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
+            </button>
+            <div v-if="mobileToolbarMenuOpen" class="mobile-overflow-backdrop" @click="mobileToolbarMenuOpen = false"></div>
+            <div v-if="mobileToolbarMenuOpen" class="mobile-overflow-menu" @click.stop>
+              <button class="mobile-overflow-item" @click="mobileToolbarMenuOpen = false; showFieldManager = true">
+                <font-awesome-icon :icon="['fas', 'sliders']" /> Eigene Felder
+              </button>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <!-- Mobile stage filter chips -->
+      <div v-if="isMobile" class="mobile-stage-chips">
+        <button
+          class="mobile-stage-chip"
+          :class="{ active: mobileStageFilter === 'all' }"
+          @click="mobileStageFilter = 'all'"
+        >
+          Alle <span class="mobile-stage-count">{{ mobileStageCounts.all }}</span>
+        </button>
+        <button
+          v-for="s in stufeSteps"
+          :key="s.value"
+          class="mobile-stage-chip"
+          :class="[`mobile-stage-chip--${s.value}`, { active: mobileStageFilter === s.value }]"
+          @click="mobileStageFilter = s.value"
+        >
+          {{ s.label }} <span class="mobile-stage-count">{{ mobileStageCounts[s.value] || 0 }}</span>
+        </button>
       </div>
 
       <!-- Table -->
@@ -37,6 +75,33 @@
         <button class="btn btn-primary" @click="openCreateModal">
           <font-awesome-icon :icon="['fas', 'plus']" /> Ersten Lead anlegen
         </button>
+      </div>
+
+      <!-- Mobile vertical list -->
+      <div v-else-if="isMobile" class="mobile-lead-list">
+        <div v-if="mobileVisibleLeads.length === 0" class="empty-list mobile-empty-stage">
+          <p>Keine Leads in dieser Stufe.</p>
+        </div>
+        <template v-for="group in mobileGroupedLeads" :key="group.stufe">
+          <div class="mobile-list-group-header" :class="`mobile-list-group-header--${group.stufe}`">
+            <span class="mobile-list-group-dot" :class="`stufe-${group.stufe}`"></span>
+            <span class="mobile-list-group-label">{{ group.label }}</span>
+            <span class="mobile-list-group-count">{{ group.leads.length }}</span>
+          </div>
+          <LeadCard
+            v-for="lead in group.leads"
+            :key="lead._id"
+            :lead="lead"
+            :is-active="selectedLead?._id === lead._id"
+            :custom-labels="visibleCustomLabels"
+            :show-created="visibleStdCreated"
+            :quelle-options="leadConfig.quelleOptions || []"
+            :class="['mobile-lead-card', `mobile-lead-card--${group.stufe}`]"
+            @open="openLead(lead)"
+            @toggle-favorite="toggleFavorite(lead)"
+            @row-menu="(e, l) => openRowMenu(e, l)"
+          />
+        </template>
       </div>
 
       <LeadBoard
@@ -53,10 +118,23 @@
       />
     </div>
 
+    <!-- Mobile FAB: new lead -->
+    <button
+      v-if="isMobile && !selectedLead"
+      class="mobile-fab"
+      title="Neuen Lead anlegen"
+      @click="openCreateModal"
+    >
+      <font-awesome-icon :icon="['fas', 'plus']" />
+    </button>
+
     <!-- Right Sidebar -->
     <transition name="sidebar-slide">
-      <aside v-if="selectedLead" class="detail-sidebar">
+      <aside v-if="selectedLead" class="detail-sidebar" :class="{ 'detail-sidebar--mobile': isMobile }">
         <header class="sidebar-header">
+          <button v-if="isMobile" class="mobile-back-btn" @click="closeSidebar" title="Zurück">
+            <font-awesome-icon :icon="['fas', 'chevron-left']" />
+          </button>
           <div class="sidebar-title-area">
             <h3>{{ selectedLead.title }}</h3>
             <div class="sidebar-status">
@@ -65,19 +143,33 @@
               </span>
             </div>
           </div>
-          <button class="btn-archive" @click="archiveLead" :disabled="savingDetail" title="Archivieren">
-            <font-awesome-icon :icon="['fas', 'box-archive']" />
-          </button>
-          <button class="close-btn" @click="closeSidebar">
-            <font-awesome-icon :icon="['fas', 'xmark']" />
-          </button>
+          <template v-if="!isMobile">
+            <button class="btn-archive" @click="archiveLead" :disabled="savingDetail" title="Archivieren">
+              <font-awesome-icon :icon="['fas', 'box-archive']" />
+            </button>
+            <button class="close-btn" @click="closeSidebar">
+              <font-awesome-icon :icon="['fas', 'xmark']" />
+            </button>
+          </template>
+          <div v-else class="mobile-sidebar-overflow">
+            <button class="close-btn" @click="mobileSidebarMenuOpen = !mobileSidebarMenuOpen" title="Aktionen">
+              <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
+            </button>
+            <div v-if="mobileSidebarMenuOpen" class="mobile-overflow-backdrop" @click="mobileSidebarMenuOpen = false"></div>
+            <div v-if="mobileSidebarMenuOpen" class="mobile-overflow-menu mobile-overflow-menu--sidebar" @click.stop>
+              <button class="mobile-overflow-item" :disabled="savingDetail" @click="mobileSidebarMenuOpen = false; archiveLead()">
+                <font-awesome-icon :icon="['fas', 'box-archive']" /> Archivieren
+              </button>
+            </div>
+          </div>
         </header>
 
         <div class="sidebar-body">
           <!-- Standard Fields -->
-          <section class="info-section">
-            <h4 class="section-title">
+          <section class="info-section" :class="{ 'mobile-collapsed': isMobile && !mobileSectionsOpen.daten }">
+            <h4 class="section-title" :class="{ 'section-title--mobile-clickable': isMobile }" @click="isMobile && toggleMobileSection('daten')">
               <font-awesome-icon :icon="['fas', 'info-circle']" /> Lead-Daten
+              <font-awesome-icon v-if="isMobile" class="section-chevron" :icon="['fas', mobileSectionsOpen.daten ? 'chevron-up' : 'chevron-down']" />
             </h4>
             <div class="kv-grid">
               <div class="kv-item">
@@ -222,9 +314,10 @@
           </section>
 
           <!-- Contact Info -->
-          <section class="info-section">
-            <h4 class="section-title">
+          <section class="info-section" :class="{ 'mobile-collapsed': isMobile && !mobileSectionsOpen.kontakte }">
+            <h4 class="section-title" :class="{ 'section-title--mobile-clickable': isMobile }" @click="isMobile && toggleMobileSection('kontakte')">
               <font-awesome-icon :icon="['fas', 'address-book']" /> Kontakte
+              <font-awesome-icon v-if="isMobile" class="section-chevron" :icon="['fas', mobileSectionsOpen.kontakte ? 'chevron-up' : 'chevron-down']" />
             </h4>
             <!-- Microsoft Contact badges (one per linked contact) -->
             <div
@@ -322,9 +415,10 @@
           </section>
 
           <!-- ─── Aktivitäten ─────────────────────────────── -->
-          <section class="info-section">
-            <h4 class="section-title">
+          <section class="info-section" :class="{ 'mobile-collapsed': isMobile && !mobileSectionsOpen.aktivitaeten }">
+            <h4 class="section-title" :class="{ 'section-title--mobile-clickable': isMobile }" @click="isMobile && toggleMobileSection('aktivitaeten')">
               <font-awesome-icon :icon="['fas', 'calendar-check']" /> Aktivitäten
+              <font-awesome-icon v-if="isMobile" class="section-chevron" :icon="['fas', mobileSectionsOpen.aktivitaeten ? 'chevron-up' : 'chevron-down']" />
             </h4>
 
             <!-- Add activity button (shown when form is closed) -->
@@ -670,10 +764,11 @@
           </section>
 
           <!-- ─── Dateien ─────────────────────────────────── -->
-          <section class="info-section">
-            <h4 class="section-title">
+          <section class="info-section" :class="{ 'mobile-collapsed': isMobile && !mobileSectionsOpen.dateien }">
+            <h4 class="section-title" :class="{ 'section-title--mobile-clickable': isMobile }" @click="isMobile && toggleMobileSection('dateien')">
               <font-awesome-icon :icon="['fas', 'paperclip']" /> Dateien
               <span v-if="selectedLead.attachments?.length" class="section-count">{{ selectedLead.attachments.length }}</span>
+              <font-awesome-icon v-if="isMobile" class="section-chevron" :icon="['fas', mobileSectionsOpen.dateien ? 'chevron-up' : 'chevron-down']" />
             </h4>
 
             <!-- Upload area -->
@@ -721,13 +816,122 @@
             </ul>
           </section>
 
+          <!-- ─── Chronik (Mobile-only) ──────────────────── -->
+          <section
+            v-if="isMobile"
+            class="info-section info-section--chronik-mobile"
+            :class="{ 'mobile-collapsed': !mobileSectionsOpen.chronik }"
+          >
+            <h4
+              class="section-title section-title--mobile-clickable"
+              @click="toggleMobileSection('chronik')"
+            >
+              <font-awesome-icon :icon="['fas', 'clock-rotate-left']" /> Chronik
+              <span v-if="chronikEntries.length + (chronikLead?.aktivitaeten?.length || 0) > 0" class="section-count">
+                {{ chronikEntries.length + (chronikLead?.aktivitaeten?.length || 0) }}
+              </span>
+              <font-awesome-icon class="section-chevron" :icon="['fas', mobileSectionsOpen.chronik ? 'chevron-up' : 'chevron-down']" />
+            </h4>
+
+            <div v-if="loadingChronik" class="chronik-empty">
+              <font-awesome-icon :icon="['fas', 'spinner']" spin />
+            </div>
+            <div v-else-if="mergedTimeline.length === 0" class="chronik-empty">
+              Noch keine Einträge.
+            </div>
+            <div v-else class="chronik-timeline chronik-timeline--mobile">
+              <template v-for="item in mergedTimeline" :key="item.kind === 'divider' ? '__divider__' : (item.kind === 'chronik' ? item.entry._id : item.akt._id)">
+                <div v-if="item.kind === 'divider'" class="chronik-divider-now">
+                  <span class="chronik-divider-label">Jetzt</span>
+                </div>
+                <div
+                  v-else-if="item.kind === 'chronik'"
+                  class="chronik-entry"
+                  :class="{ 'chronik-entry--system': item.entry.isSystem }"
+                >
+                  <div class="chronik-dot">
+                    <font-awesome-icon
+                      v-if="item.entry.isSystem"
+                      :icon="['fas', 'circle-dot']"
+                      class="dot-icon dot-icon--system"
+                    />
+                    <span v-else class="dot-avatar">{{ initials(item.entry.author) }}</span>
+                  </div>
+                  <div class="chronik-content">
+                    <div class="chronik-meta">
+                      <span v-if="!item.entry.isSystem" class="chronik-author">{{ item.entry.author }}</span>
+                      <span class="chronik-time">{{ formatDateTime(item.entry.createdAt) }}</span>
+                    </div>
+                    <div class="chronik-text-wrap">
+                      <p class="chronik-text">{{ item.entry.text }}</p>
+                      <button
+                        v-if="!item.entry.isSystem && canDeleteChronik(item.entry)"
+                        class="ctx-delete-btn"
+                        @click="deleteChronikEntry(item.entry._id)"
+                        title="Löschen"
+                      >
+                        <font-awesome-icon :icon="['fas', 'trash']" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  v-else-if="item.kind === 'aktivitaet'"
+                  class="chronik-entry chronik-entry--akt"
+                  :class="{ 'chronik-entry--akt-done': item.akt.erledigt, 'chronik-entry--akt-overdue': isOverdue(item.akt) }"
+                >
+                  <div class="chronik-dot">
+                    <button class="chronik-akt-check" @click="toggleAktErledigt(item.akt)" :title="item.akt.erledigt ? 'Als offen markieren' : 'Als erledigt markieren'">
+                      <font-awesome-icon :icon="['fas', item.akt.erledigt ? 'circle-check' : 'circle']" />
+                    </button>
+                  </div>
+                  <div class="chronik-content">
+                    <div class="chronik-meta">
+                      <font-awesome-icon :icon="aktTypeIcon(item.akt.type)" class="chronik-akt-type-icon" />
+                      <span class="chronik-akt-type-label">{{ aktTypeLabel(item.akt.type) }}</span>
+                      <span class="chronik-time">{{ formatAktDate(item.akt.datum) }}</span>
+                    </div>
+                    <p class="chronik-text" :class="{ 'chronik-text--done': item.akt.erledigt }">
+                      {{ item.akt.titel || '(kein Titel)' }}
+                    </p>
+                    <span v-if="item.akt.kontakt?.displayName" class="chronik-akt-kontakt">
+                      <font-awesome-icon :icon="['fas', 'user']" /> {{ item.akt.kontakt.displayName }}
+                    </span>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <div class="chronik-inline-compose chronik-compose--mobile">
+              <div class="compose-dot">
+                <span class="dot-avatar">{{ initials(auth.user?.name) }}</span>
+              </div>
+              <div class="compose-input-wrap">
+                <textarea
+                  v-model="newChronikText"
+                  placeholder="Kommentar hinzufügen…"
+                  class="note-textarea"
+                  rows="1"
+                  @keydown.ctrl.enter.prevent="addChronikEntry"
+                ></textarea>
+                <button
+                  class="btn btn-primary compose-send-btn"
+                  :disabled="!newChronikText.trim() || addingChronik"
+                  @click="addChronikEntry"
+                >
+                  <font-awesome-icon :icon="['fas', addingChronik ? 'spinner' : 'paper-plane']" :spin="addingChronik" />
+                </button>
+              </div>
+            </div>
+          </section>
+
         </div>
       </aside>
     </transition>
 
     <!-- Chronik bottom drawer (slides up when a lead is open) -->
     <LeadChronikDrawer
-      :show="!!selectedLead"
+      :show="!!selectedLead && !isMobile"
       :sidebar-open="!!selectedLead"
       :count="chronikEntries.length + (chronikLead?.aktivitaeten?.length || 0)"
       :lead-title="chronikLead?.title || ''"
@@ -1171,17 +1375,39 @@
 
     <!-- Row context menu -->
     <teleport to="body">
-      <div v-if="rowMenu.leadId" class="row-menu-overlay" @click="closeRowMenu">
+      <div v-if="rowMenu.leadId" class="row-menu-overlay" :class="{ 'row-menu-overlay--mobile': isMobile }" @pointerdown.self="closeRowMenu">
         <div
           class="row-menu"
-          :style="{ top: rowMenu.y + 'px', left: rowMenu.x + 'px' }"
+          :class="{ 'row-menu--mobile': isMobile }"
+          :style="isMobile ? null : { top: rowMenu.y + 'px', left: rowMenu.x + 'px' }"
           @click.stop
         >
+          <button v-if="isMobile" class="row-menu-item" @click="openMobileStageMenu">
+            <font-awesome-icon :icon="['fas', 'flag']" /> Stufe ändern
+          </button>
           <button class="row-menu-item" @click="archiveLeadById(leads.find(l => l._id === rowMenu.leadId))">
             <font-awesome-icon :icon="['fas', 'box-archive']" /> Archivieren
           </button>
           <button class="row-menu-item row-menu-item--danger" @click="deleteLeadPermanent(leads.find(l => l._id === rowMenu.leadId))">
             <font-awesome-icon :icon="['fas', 'trash']" /> Löschen
+          </button>
+        </div>
+      </div>
+    </teleport>
+
+    <!-- Mobile stage picker (bottom sheet) -->
+    <teleport to="body">
+      <div v-if="mobileStageMenuLead" class="row-menu-overlay row-menu-overlay--mobile" @pointerdown.self="closeMobileStageMenu">
+        <div class="row-menu row-menu--mobile" @click.stop>
+          <div class="row-menu-header">Stufe wählen</div>
+          <button
+            v-for="s in stufeSteps"
+            :key="s.value"
+            class="row-menu-item"
+            :class="{ 'row-menu-item--active': (mobileStageMenuLead.stufe || 'neu') === s.value }"
+            @click="pickMobileStage(s.value)"
+          >
+            <span class="stufe-chip" :class="`stufe-${s.value}`">{{ s.label }}</span>
           </button>
         </div>
       </div>
@@ -1269,6 +1495,7 @@ import {
   faPhone, faUsers, faCalendarDays, faEnvelope, faTv, faCircleCheck, faCircle, faCalendarCheck,
   faFlag, faUtensils, faPen, faFile, faFilePdf, faFileImage, faFileWord, faFileExcel,
   faFileZipper, faDownload, faPaperclip,
+  faChevronLeft, faChevronDown, faChevronUp, faClockRotateLeft, faFilter, faTableColumns,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
@@ -1276,6 +1503,7 @@ import ContactCard from './ContactCard.vue';
 import SearchBar from './SearchBar.vue';
 import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
 import LeadBoard from './leads/LeadBoard.vue';
+import LeadCard from './leads/LeadCard.vue';
 import LeadChronikDrawer from './leads/LeadChronikDrawer.vue';
 
 library.add(
@@ -1285,7 +1513,8 @@ library.add(
   faAddressCard, faArrowUpRightFromSquare, faLinkSlash,
   faPhone, faUsers, faCalendarDays, faEnvelope, faTv, faCircleCheck, faCircle, faCalendarCheck,
   faFlag, faUtensils, faPen, faFile, faFilePdf, faFileImage, faFileWord, faFileExcel,
-  faFileZipper, faDownload, faPaperclip
+  faFileZipper, faDownload, faPaperclip,
+  faChevronLeft, faChevronDown, faChevronUp, faClockRotateLeft, faFilter, faTableColumns
 );
 
 const auth = useAuth();
@@ -1294,6 +1523,33 @@ const auth = useAuth();
 const props = defineProps({
   initialLeadId: { type: String, default: null },
 });
+
+// ─── Mobile detection ───────────────────────────────────────────────
+const MOBILE_BP = 768;
+const isMobile = ref(typeof window !== 'undefined' && window.innerWidth <= MOBILE_BP);
+function onResizeMobile() { isMobile.value = window.innerWidth <= MOBILE_BP; }
+
+// Mobile state
+const mobileStageFilter = ref('all'); // 'all' or one of stufeSteps values
+const mobileToolbarMenuOpen = ref(false);
+const mobileSidebarMenuOpen = ref(false);
+// Per-session collapsed/expanded state of sidebar sections on mobile.
+// Key: section id, value: true=expanded, false=collapsed.
+const mobileSectionsOpen = reactive({
+  daten: true,
+  kontakte: false,
+  aktivitaeten: false,
+  chronik: false,
+  dateien: false,
+});
+function toggleMobileSection(key) { mobileSectionsOpen[key] = !mobileSectionsOpen[key]; }
+function resetMobileSections() {
+  mobileSectionsOpen.daten = true;
+  mobileSectionsOpen.kontakte = false;
+  mobileSectionsOpen.aktivitaeten = false;
+  mobileSectionsOpen.chronik = false;
+  mobileSectionsOpen.dateien = false;
+}
 
 // ─── State ───────────────────────────────────────────────────────────
 const loading = ref(false);
@@ -1319,19 +1575,22 @@ const sortBy = ref('createdAt');
 const sortDir = ref('desc');
 
 const rowMenu = reactive({ leadId: null, x: 0, y: 0 });
+let _rowMenuOpenedAt = 0;
 
 function openRowMenu(event, lead) {
   const rect = event.currentTarget.getBoundingClientRect();
   rowMenu.leadId = lead._id;
   rowMenu.x = rect.right;
   rowMenu.y = rect.bottom + window.scrollY;
+  _rowMenuOpenedAt = Date.now();
 }
-function closeRowMenu() {
+function closeRowMenu(force = false) {
+  if (!force && Date.now() - _rowMenuOpenedAt < 300) return;
   rowMenu.leadId = null;
 }
 
 async function archiveLeadById(lead) {
-  closeRowMenu();
+  closeRowMenu(true);
   if (!confirm(`Lead "${lead.title}" archivieren?`)) return;
   await api.delete(`/api/leads/${lead._id}`);
   leads.value = leads.value.filter((l) => l._id !== lead._id);
@@ -1339,7 +1598,7 @@ async function archiveLeadById(lead) {
 }
 
 async function deleteLeadPermanent(lead) {
-  closeRowMenu();
+  closeRowMenu(true);
   if (!confirm(`Lead "${lead.title}" unwiderruflich löschen?`)) return;
   await api.delete(`/api/leads/${lead._id}/permanent`);
   leads.value = leads.value.filter((l) => l._id !== lead._id);
@@ -1749,6 +2008,60 @@ const filteredLeads = computed(() => {
   return list;
 });
 
+// ─── Mobile list helpers ──────────────────────────────────────────────
+// Counts per stage (over the status-filtered, search-filtered list).
+const mobileStageCounts = computed(() => {
+  const counts = { all: filteredLeads.value.length };
+  for (const s of stufeOrder) counts[s] = 0;
+  for (const l of filteredLeads.value) {
+    const k = counts[l.stufe] != null ? l.stufe : 'neu';
+    counts[k] = (counts[k] || 0) + 1;
+  }
+  return counts;
+});
+
+// Final list shown in the mobile vertical list (filteredLeads + stage filter).
+const mobileVisibleLeads = computed(() => {
+  if (mobileStageFilter.value === 'all') return filteredLeads.value;
+  return filteredLeads.value.filter((l) => (l.stufe || 'neu') === mobileStageFilter.value);
+});
+
+// Grouped view for mobile: when "Alle" is active, group by stufe in stufeOrder.
+// When a specific stufe is selected, returns a single group.
+const mobileGroupedLeads = computed(() => {
+  const items = mobileVisibleLeads.value;
+  if (mobileStageFilter.value !== 'all') {
+    const step = stufeSteps.find((s) => s.value === mobileStageFilter.value);
+    return items.length
+      ? [{ stufe: mobileStageFilter.value, label: step?.label || mobileStageFilter.value, leads: items }]
+      : [];
+  }
+  const buckets = new Map();
+  for (const s of stufeSteps) buckets.set(s.value, { stufe: s.value, label: s.label, leads: [] });
+  for (const l of items) {
+    const key = buckets.has(l.stufe) ? l.stufe : 'neu';
+    buckets.get(key).leads.push(l);
+  }
+  return [...buckets.values()].filter((g) => g.leads.length > 0);
+});
+
+// Stage selector triggered from mobile row menu — reuses onStageChange.
+const mobileStageMenuLead = ref(null);
+function openMobileStageMenu() {
+  const lead = leads.value.find((l) => l._id === rowMenu.leadId);
+  if (!lead) return;
+  mobileStageMenuLead.value = lead;
+  closeRowMenu(true);
+}
+function closeMobileStageMenu() { mobileStageMenuLead.value = null; }
+function pickMobileStage(stufe) {
+  const lead = mobileStageMenuLead.value;
+  if (!lead) return;
+  closeMobileStageMenu();
+  if ((lead.stufe || 'neu') === stufe) return;
+  onStageChange({ lead, fromStufe: lead.stufe, toStufe: stufe });
+}
+
 // ─── Board helpers ────────────────────────────────────────────────────
 // Custom labels visible as chips on board cards (uses existing colConfig).
 const visibleCustomLabels = computed(() => {
@@ -1866,6 +2179,7 @@ function openLead(lead) {
   }
   selectedLead.value = lead;
   if (window.innerWidth <= 1100) document.body.style.overflow = 'hidden';
+  if (isMobile.value) resetMobileSections();
   detailForm.title = lead.title || '';
   detailForm.wert = lead.wert ?? null;
   detailForm.waehrung = lead.waehrung || 'EUR';
@@ -1894,6 +2208,7 @@ function closeSidebar() {
   chronikExpandedLeadId.value = null;
   chronikLead.value = null;
   chronikEntries.value = [];
+  mobileSidebarMenuOpen.value = false;
   document.body.style.overflow = '';
 }
 
@@ -2865,9 +3180,15 @@ function handleEsc(e) {
     else if (selectedLead.value) closeSidebar();
   }
 }
-onMounted(() => document.addEventListener('keydown', handleEsc));
+onMounted(() => {
+  document.addEventListener('keydown', handleEsc);
+  window.addEventListener('resize', onResizeMobile);
+});
 import { onBeforeUnmount } from 'vue';
-onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleEsc);
+  window.removeEventListener('resize', onResizeMobile);
+});
 </script>
 
 <style scoped lang="scss">
@@ -5398,5 +5719,490 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEsc));
 
   &:hover { color: var(--primary); }
   &.attach-btn--delete:hover { color: #ef4444; }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Mobile (≤768px) — Leads Tab
+   ───────────────────────────────────────────────────────────── */
+
+/* Toolbar overflow */
+.mobile-toolbar-overflow {
+  position: relative;
+  display: inline-flex;
+}
+.mobile-overflow-backdrop {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  z-index: 1099;
+}
+.mobile-overflow-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  background: var(--panel, var(--tile-bg));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  padding: 6px;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &--sidebar {
+    top: calc(100% + 4px);
+  }
+}
+.mobile-overflow-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--text);
+  font-size: 14px;
+  border-radius: 6px;
+  width: 100%;
+  min-height: 44px;
+
+  &:hover { background: var(--hover); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  svg { color: var(--muted); width: 16px; }
+}
+
+/* Stage filter chips */
+.mobile-stage-chips {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  background: var(--tile-bg);
+  border-bottom: 1px solid var(--border);
+
+  &::-webkit-scrollbar { display: none; }
+}
+.mobile-stage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel, var(--tile-bg));
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 36px;
+  transition: all 0.15s;
+  position: relative;
+  padding-left: 22px;
+
+  /* Stage color dot */
+  &::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+
+  &--neu::before          { background: #6366f1; }
+  &--qualifiziert::before { background: #06b6d4; }
+  &--angebot::before      { background: #f59e0b; }
+  &--verhandlung::before  { background: #ea580c; }
+  &--gewonnen::before     { background: #10b981; }
+  &--verloren::before     { background: #ef4444; }
+
+  &.active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: transparent;
+  }
+  &.is-active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: transparent;
+  }
+}
+.mobile-stage-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--hover);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+
+  .mobile-stage-chip.active &,
+  .mobile-stage-chip.is-active & {
+    background: rgba(var(--primary-rgb, 234, 88, 12), 0.15);
+    color: var(--primary);
+  }
+}
+
+/* Group headers in mobile list */
+.mobile-list-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  position: sticky;
+  top: 0;
+  background: var(--bg, #0e0f12);
+  z-index: 1;
+
+  &:not(:first-child) {
+    margin-top: 6px;
+  }
+}
+.mobile-list-group-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--muted);
+
+  &.stufe-neu          { background: #6366f1; }
+  &.stufe-qualifiziert { background: #06b6d4; }
+  &.stufe-angebot      { background: #f59e0b; }
+  &.stufe-verhandlung  { background: #ea580c; }
+  &.stufe-gewonnen     { background: #10b981; }
+  &.stufe-verloren     { background: #ef4444; }
+}
+.mobile-list-group-label {
+  flex: 1;
+  color: var(--text);
+}
+.mobile-list-group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--hover);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Stage-colored left border on mobile lead cards */
+.mobile-lead-card {
+  position: relative;
+  border-left: 3px solid var(--border) !important;
+
+  &--neu          { border-left-color: #6366f1 !important; }
+  &--qualifiziert { border-left-color: #06b6d4 !important; }
+  &--angebot      { border-left-color: #f59e0b !important; }
+  &--verhandlung  { border-left-color: #ea580c !important; }
+  &--gewonnen     { border-left-color: #10b981 !important; }
+  &--verloren     { border-left-color: #ef4444 !important; }
+}
+
+/* Mobile vertical list */
+.mobile-lead-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.mobile-lead-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.mobile-empty-stage {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* FAB */
+.mobile-fab {
+  position: fixed;
+  right: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+  font-size: 22px;
+  cursor: pointer;
+  z-index: 950;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s;
+
+  &:active { transform: scale(0.94); }
+}
+
+/* Mobile full-screen sidebar */
+.detail-sidebar--mobile {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: 100vw !important;
+  border-radius: 0 !important;
+  border-left: none !important;
+  z-index: 1100;
+  overscroll-behavior: contain;
+
+  .sidebar-body {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+.mobile-back-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  padding: 8px 10px;
+  margin-right: 4px;
+  font-size: 18px;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+
+  &:hover { background: var(--hover); }
+}
+
+.mobile-sidebar-overflow {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Section accordion (mobile) */
+.section-title--mobile-clickable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 28px;
+  min-height: 44px;
+
+  .section-chevron {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 12px;
+  }
+}
+.info-section.mobile-collapsed {
+  > *:not(.section-title) {
+    display: none !important;
+  }
+}
+
+/* Inline chronik (mobile-only) */
+.chronik-timeline--mobile {
+  max-height: none;
+}
+.chronik-compose--mobile {
+  position: sticky;
+  bottom: 0;
+  background: var(--tile-bg);
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Row menu as bottom sheet on mobile */
+.row-menu-overlay--mobile {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1200;
+  display: flex;
+  align-items: flex-end;
+}
+.row-menu--mobile {
+  position: static !important;
+  width: 100%;
+  max-width: 100vw;
+  border-radius: 16px 16px 0 0 !important;
+  padding: 12px !important;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  box-shadow: 0 -6px 20px rgba(0,0,0,0.2);
+  max-height: 70dvh;
+  overflow-y: auto;
+  animation: rowMenuSlideUp 0.2s ease-out;
+
+  .row-menu-item {
+    min-height: 48px;
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+  .row-menu-header {
+    padding: 8px 14px 10px;
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .row-menu-item--active {
+    background: var(--hover);
+  }
+}
+@keyframes rowMenuSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* General mobile rules */
+@media (max-width: 768px) {
+  .leads-tab .toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  /* iOS no-zoom: inputs ≥ 16px */
+  .form-input,
+  .form-select,
+  .form-textarea,
+  textarea,
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="search"],
+  select {
+    font-size: 16px !important;
+  }
+
+  /* KV-Grid stacks */
+  .kv-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px;
+  }
+
+  /* Modal full-screen on mobile */
+  .modal-content {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+  .modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--tile-bg);
+  }
+  .modal-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    background: var(--tile-bg);
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Column-config panel as bottom sheet */
+  .col-panel {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    max-height: 80dvh;
+    border-radius: 16px 16px 0 0 !important;
+    overflow-y: auto;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Aktivitäten form */
+  .akt-datetime-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .akt-type-row {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+    padding-bottom: 4px;
+
+    > * {
+      scroll-snap-align: start;
+      flex-shrink: 0;
+    }
+  }
+
+  /* Sidebar body padding */
+  .detail-sidebar--mobile .sidebar-body {
+    padding: 12px !important;
+  }
+  .detail-sidebar--mobile .sidebar-header {
+    padding: 10px 12px !important;
+  }
+
+  /* Reduce main-content padding so cards fit screen width */
+  .leads-tab .main-content {
+    padding: 0 !important;
+    width: 100%;
+    max-width: 100vw;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+  .leads-tab {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* Hide chronik bottom-drawer remnants (just in case) */
+  .leads-tab :deep(.chronik-drawer) {
+    display: none !important;
+  }
 }
 </style>

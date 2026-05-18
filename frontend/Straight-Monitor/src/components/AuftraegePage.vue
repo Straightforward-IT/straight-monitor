@@ -608,11 +608,21 @@
             <div class="qa-form-row pseudo-time-row">
               <div style="flex:1">
                 <div class="qa-form-field-label">Von *</div>
-                <input v-model="newAuftrag.vonDatum" type="date" class="qa-input" />
+                <div class="qa-date-input-wrap">
+                  <input ref="newAuftragVonInput" v-model="newAuftrag.vonDatum" type="date" class="qa-input qa-date-input" />
+                  <button class="qa-date-trigger" type="button" title="Datum waehlen" @click="openNewAuftragDatePicker('newAuftragVonInput')">
+                    <font-awesome-icon icon="fa-solid fa-calendar-days" />
+                  </button>
+                </div>
               </div>
               <div style="flex:1">
                 <div class="qa-form-field-label">Bis *</div>
-                <input v-model="newAuftrag.bisDatum" type="date" class="qa-input" />
+                <div class="qa-date-input-wrap">
+                  <input ref="newAuftragBisInput" v-model="newAuftrag.bisDatum" type="date" class="qa-input qa-date-input" />
+                  <button class="qa-date-trigger" type="button" title="Datum waehlen" @click="openNewAuftragDatePicker('newAuftragBisInput')">
+                    <font-awesome-icon icon="fa-solid fa-calendar-days" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1079,6 +1089,16 @@ export default {
     },
     openMobileDatePicker() {
       this.$refs.mobileDatePicker?.showPicker?.() ?? this.$refs.mobileDatePicker?.click();
+    },
+    openNewAuftragDatePicker(refName) {
+      const input = this.$refs[refName];
+      if (!input) return;
+      if (typeof input.showPicker === 'function') {
+        input.showPicker();
+        return;
+      }
+      input.focus();
+      input.click();
     },
     async jumpToDate(event) {
       const selected = new Date(event.target.value + 'T00:00:00');
@@ -3389,8 +3409,45 @@ export default {
   font-family: inherit;
   outline: none;
   transition: border-color 0.2s;
+  color-scheme: light dark;
 
   &:focus { border-color: var(--primary); }
+}
+
+.qa-date-input-wrap {
+  position: relative;
+}
+
+.qa-date-input {
+  padding-right: 38px;
+
+  &::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    cursor: pointer;
+  }
+}
+
+.qa-date-trigger {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.qa-date-trigger:hover,
+.qa-date-trigger:focus-visible {
+  color: var(--primary);
 }
 
 .qa-select {
