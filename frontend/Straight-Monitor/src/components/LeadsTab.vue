@@ -1398,17 +1398,24 @@
     <!-- Mobile stage picker (bottom sheet) -->
     <teleport to="body">
       <div v-if="mobileStageMenuLead" class="row-menu-overlay row-menu-overlay--mobile" @pointerdown.self="closeMobileStageMenu">
-        <div class="row-menu row-menu--mobile" @click.stop>
+        <div class="row-menu row-menu--mobile mobile-stage-sheet" @click.stop>
           <div class="row-menu-header">Stufe wählen</div>
-          <button
-            v-for="s in stufeSteps"
-            :key="s.value"
-            class="row-menu-item"
-            :class="{ 'row-menu-item--active': (mobileStageMenuLead.stufe || 'neu') === s.value }"
-            @click="pickMobileStage(s.value)"
-          >
-            <span class="stufe-chip" :class="`stufe-${s.value}`">{{ s.label }}</span>
-          </button>
+          <div class="stufe-stepper stufe-stepper--mobile">
+            <button
+              v-for="s in stufeSteps"
+              :key="s.value"
+              class="stufe-step"
+              :class="[`stufe-step--${s.value}`, {
+                active: (mobileStageMenuLead.stufe || 'neu') === s.value,
+                done: isStufeBefore(s.value, mobileStageMenuLead.stufe || 'neu'),
+              }]"
+              @click="pickMobileStage(s.value)"
+              :title="s.label"
+            >
+              <span class="step-dot"></span>
+              <span class="step-label">{{ s.label }}</span>
+            </button>
+          </div>
         </div>
       </div>
     </teleport>
@@ -1866,6 +1873,13 @@ const stufeOrder = stufeSteps.map((s) => s.value);
 function isStufeBeforeActive(val) {
   const active = detailForm.stufe;
   if (active === 'verloren') return false; // don't color anything "done" for lost
+  const ai = stufeOrder.indexOf(active);
+  const vi = stufeOrder.indexOf(val);
+  return vi < ai;
+}
+
+function isStufeBefore(val, active) {
+  if (active === 'verloren') return false;
   const ai = stufeOrder.indexOf(active);
   const vi = stufeOrder.indexOf(val);
   return vi < ai;
@@ -6062,6 +6076,7 @@ onBeforeUnmount(() => {
 }
 .row-menu--mobile {
   position: static !important;
+  transform: none !important;
   width: 100%;
   max-width: 100vw;
   border-radius: 16px 16px 0 0 !important;
@@ -6090,8 +6105,30 @@ onBeforeUnmount(() => {
   }
 }
 @keyframes rowMenuSlideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+  from { opacity: 0; margin-bottom: -40px; }
+  to { opacity: 1; margin-bottom: 0; }
+}
+
+/* Mobile stage picker: reuse the desktop stepper inside the bottom sheet */
+.mobile-stage-sheet {
+  .stufe-stepper--mobile {
+    padding: 12px 4px 16px;
+
+    // line must align with dot centers: padding-top (12px) + dot radius (11px) − line half (1px)
+    &::before {
+      top: 22px;
+    }
+
+    .stufe-step { min-height: 56px; }
+    .step-dot {
+      width: 22px;
+      height: 22px;
+    }
+    .step-label {
+      font-size: 12px;
+      margin-top: 6px;
+    }
+  }
 }
 
 /* General mobile rules */
