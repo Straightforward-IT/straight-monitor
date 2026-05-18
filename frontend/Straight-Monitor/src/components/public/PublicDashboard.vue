@@ -45,10 +45,10 @@
 
       <div class="tile" @click="$emit('navigate', 'vergangene-jobs')">
         <div class="tile-icon tile-icon--green">
-          <img :src="imgTasks" class="tile-img" alt="Vergangene Jobs" />
-        </div>
-        <div class="tile-content">
-          <h3>Vergangene Jobs</h3>
+          <img :src="imgTasks" class="tile-img" alt="Alte Jobs" />
+          </div>
+          <div class="tile-content">
+          <h3>Alte Jobs</h3>
           <p>{{ einsaetze.length }} vergangene Einsätze</p>
         </div>
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />

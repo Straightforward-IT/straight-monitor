@@ -99,7 +99,6 @@
             {{ filter.label }}
           </FilterChip>
         </div>
-        <!-- TODO: Stundenliste-Download temporär deaktiviert für Production
         <button
           v-if="isTeamleiter"
           class="download-icon-btn"
@@ -110,7 +109,6 @@
         >
           <font-awesome-icon :icon="downloadingStundenliste ? 'fa-solid fa-spinner' : 'fa-solid fa-download'" :spin="downloadingStundenliste" />
         </button>
-        -->
         
       </div>
 
@@ -632,12 +630,12 @@ function buildMetaTable() {
     layout: {
       hLineColor: () => '#d7dde5',
       vLineColor: () => '#d7dde5',
-      paddingLeft: () => 8,
-      paddingRight: () => 8,
-      paddingTop: () => 7,
-      paddingBottom: () => 7,
+      paddingLeft: () => 6,
+      paddingRight: () => 6,
+      paddingTop: () => 5,
+      paddingBottom: () => 5,
     },
-    margin: [0, 0, 0, 16],
+    margin: [0, 0, 0, 12],
   };
 }
 
@@ -645,16 +643,15 @@ function buildSchichtTable(schicht) {
   const body = [
     [
       { text: '#', style: 'tableHeader' },
+      { text: '✓', style: 'tableHeader' },
       { text: 'Mitarbeiter', style: 'tableHeader' },
       { text: 'Bereich', style: 'tableHeader' },
       { text: 'Funktion', style: 'tableHeader' },
       { text: 'Geplant', style: 'tableHeader' },
-      { text: 'Status', style: 'tableHeader' },
       { text: 'Telefon', style: 'tableHeader' },
       { text: 'Unterschrift', style: 'tableHeader' },
     ],
     ...schicht.mitarbeiter.map((ma, index) => {
-      const status = ma.noShow ? 'Nicht erschienen' : ma.checkedIn ? 'Check-in' : '';
       const bereich = getMaBereichLabel(ma);
       const zeit = schicht.uhrzeitVon
         ? `${formatTime(schicht.uhrzeitVon)}${schicht.uhrzeitBis ? ` - ${formatTime(schicht.uhrzeitBis)}` : ''}`
@@ -662,13 +659,31 @@ function buildSchichtTable(schicht) {
           ? `${formatTime(props.einsatz.uhrzeitVon)}${props.einsatz.uhrzeitBis ? ` - ${formatTime(props.einsatz.uhrzeitBis)}` : ''}`
           : '—';
 
+      const checkboxCell = (() => {
+        if (ma.noShow) {
+          return { canvas: [
+            { type: 'rect', x: 2, y: 1, w: 12, h: 12, lineWidth: 1, lineColor: '#c0392b', color: '#fdecea', r: 1 },
+            { type: 'line', x1: 5, y1: 4, x2: 11, y2: 10, lineWidth: 1.5, lineColor: '#c0392b' },
+            { type: 'line', x1: 11, y1: 4, x2: 5, y2: 10, lineWidth: 1.5, lineColor: '#c0392b' },
+          ]};
+        }
+        if (ma.checkedIn) {
+          return { canvas: [
+            { type: 'rect', x: 2, y: 1, w: 12, h: 12, lineWidth: 1, lineColor: '#27ae60', color: '#eafaf1', r: 1 },
+            { type: 'line', x1: 4, y1: 7, x2: 7, y2: 11, lineWidth: 1.8, lineColor: '#27ae60' },
+            { type: 'line', x1: 7, y1: 11, x2: 13, y2: 3, lineWidth: 1.8, lineColor: '#27ae60' },
+          ]};
+        }
+        return { canvas: [{ type: 'rect', x: 2, y: 1, w: 12, h: 12, lineWidth: 1, lineColor: '#aaa', r: 1 }] };
+      })();
+
       return [
         { text: String(index + 1), style: 'tableCellCenter' },
+        checkboxCell,
         { text: `${ma.vorname || ''} ${ma.nachname || ''}`.trim() || `PNR ${ma.personalNr}`, style: 'tableCellStrong' },
         { text: bereich, style: 'tableCell' },
         { text: ma.bezeichnung || ma.berufDesignation || '—', style: 'tableCell' },
         { text: zeit, style: 'tableCell' },
-        { text: status, style: 'tableCell' },
         { text: ma.telefon || '—', style: 'tableCell' },
         { text: ' ', style: 'signatureCell' },
       ];
@@ -689,33 +704,33 @@ function buildSchichtTable(schicht) {
             style: 'sectionMeta',
           },
         ],
-        margin: [0, 0, 0, 6],
+        margin: [0, 0, 0, 4],
       },
       schicht.treffpunkt || schicht.treffpunktOrt
         ? {
             text: `Treffpunkt: ${schicht.treffpunkt ? formatTreffpunktTime(schicht.treffpunkt) : '—'}${schicht.treffpunktOrt ? ` • ${schicht.treffpunktOrt}` : ''}`,
             style: 'sectionMeta',
-            margin: [0, 0, 0, 8],
+            margin: [0, 0, 0, 5],
           }
         : null,
       {
         table: {
           headerRows: 1,
-          widths: [20, '*', 58, 86, 62, 66, 82, 112],
+          widths: [14, 22, 110, 65, '*', 58, 76, 80],
           body,
         },
         layout: {
           fillColor: (rowIndex) => (rowIndex === 0 ? '#eff3f8' : rowIndex % 2 === 0 ? '#fafbfd' : null),
           hLineColor: () => '#d7dde5',
           vLineColor: () => '#d7dde5',
-          paddingLeft: () => 7,
-          paddingRight: () => 7,
-          paddingTop: (rowIndex) => (rowIndex === 0 ? 8 : 10),
-          paddingBottom: (rowIndex) => (rowIndex === 0 ? 8 : 10),
+          paddingLeft: () => 5,
+          paddingRight: () => 5,
+          paddingTop: (rowIndex) => (rowIndex === 0 ? 5 : 6),
+          paddingBottom: (rowIndex) => (rowIndex === 0 ? 5 : 6),
         },
       },
     ].filter(Boolean),
-    margin: [0, 0, 0, 18],
+    margin: [0, 0, 0, 12],
     unbreakable: false,
   };
 }
@@ -727,7 +742,7 @@ function buildStundenlisteDefinition() {
   return {
     pageSize: 'A4',
     pageOrientation: 'landscape',
-    pageMargins: [28, 34, 28, 34],
+    pageMargins: [22, 28, 22, 28],
     footer: (currentPage, pageCount) => ({
       columns: [
         { text: `Erstellt am ${new Date().toLocaleString('de-DE')}`, style: 'footerLeft' },

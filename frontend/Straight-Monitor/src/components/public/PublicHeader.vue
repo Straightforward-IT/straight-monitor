@@ -82,7 +82,7 @@
               @click="navigate('vergangene-jobs')"
             >
               <img :src="imgTasks" class="menu-nav-img" alt="" />
-              <span>Vergangene Jobs</span>
+              <span>Alte Jobs</span>
             </button>
             <button
               v-if="isTeamleiter"
@@ -163,7 +163,7 @@ const viewTitleMap = {
   'laufzettel': 'Laufzettel',
   'evaluierungen': 'Laufzettel',
   'evaluierung': 'Evaluierung',
-  'vergangene-jobs': 'Vergangene Jobs',
+  'vergangene-jobs': 'Alte Jobs',
   'job-detail': 'Job Details',
   'eventreport': 'Event Report'
 };
