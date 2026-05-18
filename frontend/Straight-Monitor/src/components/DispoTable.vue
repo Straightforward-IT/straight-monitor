@@ -3620,17 +3620,24 @@ function onDayStripScroll(event) {
 
 function scrollMobileToToday() {
   nextTick(() => {
-    // rAF ensures the browser has laid out the new cells before we read offsetLeft
+    // Double rAF: first rAF waits for paint commit, second ensures layout is fully settled
     requestAnimationFrame(() => {
-      const firstStrip = dayStripRefs.values().next().value;
-      if (!firstStrip) return;
-      const todayEl = firstStrip.querySelector('.m-day-cell.is-today');
-      // Fall back to 0 when today is not in the current visibleDays (e.g. future KW was active)
-      const target = todayEl ? Math.max(0, todayEl.offsetLeft - 20) : 0;
-      mobileDayScrollLeft.value = target;
-      _stripScrollSyncing = true;
-      for (const el of dayStripRefs.values()) el.scrollLeft = target;
-      _stripScrollSyncing = false;
+      requestAnimationFrame(() => {
+        // When no KW is selected, today is always the first cell (days[] starts from today).
+        // Skip DOM measurement entirely — just reset to 0.
+        if (!selectedKw.value) {
+          mobileDayScrollLeft.value = 0;
+          for (const el of dayStripRefs.values()) el.scrollLeft = 0;
+          return;
+        }
+        // KW selected: find today in the current subset
+        const firstStrip = dayStripRefs.values().next().value;
+        if (!firstStrip) return;
+        const todayEl = firstStrip.querySelector('.m-day-cell.is-today');
+        const target = todayEl ? Math.max(0, todayEl.offsetLeft - 20) : 0;
+        mobileDayScrollLeft.value = target;
+        for (const el of dayStripRefs.values()) el.scrollLeft = target;
+      });
     });
   });
 }
@@ -3645,7 +3652,8 @@ watch(isMobile, (val) => {
 });
 
 watch(visibleDays, () => {
-  if (isMobile.value) nextTick(scrollMobileToToday);
+  // Call directly — scrollMobileToToday has its own nextTick + double-rAF
+  if (isMobile.value) scrollMobileToToday();
 });
 
 function toggleCardExpand(maId) {
@@ -3722,10 +3730,7 @@ function onNameTouchEnd() {
   if (_nameLpTimer) { clearTimeout(_nameLpTimer); _nameLpTimer = null; }
 }
 
-// Watch selectedKw → on mobile, jump strip scroll to start of that week
-watch(selectedKw, () => {
-  if (isMobile.value) nextTick(scrollMobileToToday);
-}, { deep: true });
+// selectedKw changes are already handled via watch(visibleDays) above
 </script>
 
 <style scoped lang="scss">
