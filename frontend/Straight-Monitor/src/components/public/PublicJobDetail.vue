@@ -8,7 +8,7 @@
       </h2>
       <div class="job-badges">
         <span v-if="einsatz.schichtBezeichnung" class="badge">
-          <font-awesome-icon icon="fa-solid fa-clipboard" /> {{ einsatz.schichtBezeichnung }}
+          {{ einsatz.schichtBezeichnung }}
         </span>
         <span
           v-for="label in (einsatz.auftrag?.labels || [])"
