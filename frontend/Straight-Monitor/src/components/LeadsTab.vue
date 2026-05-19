@@ -5993,6 +5993,7 @@ onBeforeUnmount(() => {
 .detail-sidebar--mobile {
   position: fixed !important;
   inset: 0 !important;
+  margin-left: 0 !important;
   width: 100vw !important;
   height: 100dvh !important;
   max-width: 100vw !important;
