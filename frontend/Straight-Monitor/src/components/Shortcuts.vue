@@ -52,6 +52,11 @@
               </select>
             </label>
 
+            <label class="full">
+              <span class="full-label">Mitarbeiter <span class="optional-hint">(optional)</span></span>
+              <MitarbeiterSearch v-model="mitarbeiterId" />
+            </label>
+
             <div class="grid">
             <label class="row">
               <span class="chk">
@@ -263,10 +268,6 @@
             </label>
           </div>
 
-          <label class="full">
-            <span class="full-label">Mitarbeiter <span class="optional-hint">(optional)</span></span>
-            <MitarbeiterSearch v-model="mitarbeiterId" />
-          </label>
           <label class="full">
             Anmerkung
             <input
