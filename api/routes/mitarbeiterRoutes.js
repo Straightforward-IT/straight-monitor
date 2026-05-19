@@ -270,6 +270,7 @@ router.get(
         { personalnr: regex },
       ]
     })
+      .sort({ createdAt: -1 })
       .select('_id vorname nachname email personalnr')
       .limit(20)
       .lean();

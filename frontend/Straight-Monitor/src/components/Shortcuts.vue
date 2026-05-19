@@ -264,8 +264,8 @@
           </div>
 
           <label class="full">
-            Mitarbeiter <span class="optional-hint">(optional)</span>
-            <MitarbeiterSearch v-model="mitarbeiterId" :dropup="true" />
+            <span class="full-label">Mitarbeiter <span class="optional-hint">(optional)</span></span>
+            <MitarbeiterSearch v-model="mitarbeiterId" />
           </label>
           <label class="full">
             Anmerkung
@@ -306,6 +306,11 @@
                 <option value="Köln">Köln</option>
                 <option value="Berlin">Berlin</option>
               </select>
+            </label>
+
+            <label class="full">
+              <span class="full-label">Mitarbeiter <span class="optional-hint">(optional)</span></span>
+              <MitarbeiterSearch v-model="mitarbeiterId" />
             </label>
 
             <div class="grid">
@@ -502,11 +507,6 @@
               </select>
             </label>
           </div>
-
-          <label class="full">
-            Mitarbeiter <span class="optional-hint">(optional)</span>
-            <MitarbeiterSearch v-model="mitarbeiterId" :dropup="true" />
-          </label>
           <label class="full">
             Anmerkung
             <input
@@ -1296,6 +1296,8 @@ h4 {
 }
 
 .optional-hint {
+  display: inline;
+  margin-left: 4px;
   font-size: 10.5px;
   font-weight: 400;
   color: var(--muted);
@@ -1345,6 +1347,17 @@ h4 {
   gap: 6px;
   margin-top: 8px;
 }
+
+.full-label {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.full :deep(.ma-search) {
+  margin-bottom: 6px;
+}
+
 .full input {
   padding: 6px 8px;
   border: 1px solid var(--border);

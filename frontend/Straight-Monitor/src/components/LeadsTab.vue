@@ -141,6 +141,10 @@
               <span class="stufe-chip" :class="`stufe-${selectedLead.stufe}`">
                 {{ stufeLabel(selectedLead.stufe) }}
               </span>
+              <span v-if="selectedLeadOwnerLabel" class="sidebar-owner">
+                <font-awesome-icon :icon="['fas', 'user']" />
+                {{ selectedLeadOwnerLabel }}
+              </span>
             </div>
           </div>
           <template v-if="!isMobile">
@@ -196,9 +200,11 @@
               <div class="kv-item">
                 <label>Erw. Abschluss</label>
                 <input
+                  ref="expectedCloseDateInput"
                   v-model="detailForm.erwartetesAbschlussDatum"
                   type="date"
                   class="form-input"
+                  @click="openExpectedCloseDatePicker"
                   @blur="saveDetail"
                 />
               </div>
@@ -1617,6 +1623,7 @@ const showFieldManager = ref(false);
 const showColPanel = ref(false);
 const colPanelAnchor = ref({ x: 0, y: 0 });
 const colConfig = ref([]);
+const expectedCloseDateInput = ref(null);
 const showAddressModal = ref(false);
 const addressModalKey = ref('');
 const addressDraft = reactive({ street: '', city: '', zip: '', country: '' });
@@ -2020,6 +2027,12 @@ const filteredLeads = computed(() => {
   list.sort((a, b) => (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0));
 
   return list;
+});
+
+const selectedLeadOwnerLabel = computed(() => {
+  const owner = selectedLead.value?.eigentuemer;
+  if (!owner) return '';
+  return owner.name || owner.email || '';
 });
 
 // ─── Mobile list helpers ──────────────────────────────────────────────
@@ -2767,6 +2780,16 @@ function toggleSort(field) {
 }
 
 // ─── Formatters ──────────────────────────────────────────────────────
+function openExpectedCloseDatePicker() {
+  const input = expectedCloseDateInput.value;
+  if (!input) return;
+  if (typeof input.showPicker === 'function') {
+    input.showPicker();
+    return;
+  }
+  input.focus();
+}
+
 function formatDateTime(dt) {
   if (!dt) return '—';
   return new Date(dt).toLocaleString('de-DE', {
@@ -3637,6 +3660,28 @@ onBeforeUnmount(() => {
       font-size: 1.1rem;
       color: var(--text);
       word-break: break-word;
+    }
+
+    .sidebar-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .sidebar-owner {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 0.8rem;
+      line-height: 1.2;
+
+      svg {
+        flex: 0 0 auto;
+        font-size: 0.75rem;
+      }
     }
   }
 
