@@ -287,7 +287,7 @@ import { useTheme } from '@/stores/theme';
 import FilterChip from '@/components/FilterChip.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
-import { showToast, download as flipDownload } from '@getflip/bridge';
+import { showToast } from '@getflip/bridge';
 import pdfMake from 'pdfmake/build/pdfmake';
 import pdfFonts from 'pdfmake/build/vfs_fonts';
 import eventreportLight from '@/assets/eventreport.png';
@@ -828,24 +828,38 @@ async function downloadStundenliste() {
     const fileName = getStundenlisteFilename();
     const pdfDoc = pdfMake.createPdf(docDefinition);
 
-    const dataUrl = await new Promise((resolve, reject) => {
+    const blob = await new Promise((resolve, reject) => {
       try {
-        pdfDoc.getBase64((b64) => {
-          if (!b64) return reject(new Error('PDF leer'));
-          resolve(`data:application/pdf;base64,${b64}`);
+        pdfDoc.getBlob((b) => {
+          if (!b) return reject(new Error('PDF leer'));
+          resolve(b);
         });
       } catch (err) { reject(err); }
     });
 
-    let bridgeOk = false;
-    try {
-      const result = await flipDownload(fileName, 'application/pdf', undefined, dataUrl);
-      bridgeOk = result === true;
-    } catch { bridgeOk = false; }
+    const file = new File([blob], fileName, { type: 'application/pdf' });
 
-    if (!bridgeOk) {
-      pdfDoc.download(fileName);
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: getStundenlisteTitle(),
+          text: `Stundenliste ${getStundenlisteTitle()}`,
+        });
+        return;
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+      }
     }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     try { showToast({ text: 'Stundenliste wird heruntergeladen.', intent: 'success', duration: 2200 }); } catch {}
   } catch (error) {
     console.error('Fehler beim Erstellen der Stundenliste:', error);
