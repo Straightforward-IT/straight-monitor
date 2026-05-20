@@ -128,13 +128,14 @@ async function submitLogin() {
   flex-direction: column;
   gap: 14px;
   padding: 20px;
+  color: var(--text);
 }
 h2 {
   font-size: 20px;
-  color: $base-text-dark;
+  color: var(--text);
 }
 p {
-  color: $base-text-medium;
+  color: var(--muted);
   margin-top: -6px;
   margin-bottom: 2px;
 }
@@ -146,22 +147,25 @@ p {
 }
 .field span {
   font-size: 12px;
-  color: $base-text-medium;
+  color: var(--muted);
 }
 input {
   width: 100%;
-  border: 1px solid $base-border-color;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: $base-panel-bg;
+  background: color-mix(in srgb, var(--surface) 86%, var(--bg));
   padding: 12px 12px;
   font-size: 14px;
-  color: $base-text-dark;
+  color: var(--text);
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+input::placeholder {
+  color: var(--muted);
 }
 input:focus {
   outline: none;
-  border-color: $base-primary;
-  box-shadow: 0 0 0 3px rgba($base-primary, 0.15);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
 .pw {
@@ -173,11 +177,12 @@ input:focus {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: $base-text-medium;
+  color: var(--muted);
   user-select: none;
 }
 .pw-toggle input {
   width: auto;
+  accent-color: var(--primary);
 }
 
 .actions {
@@ -193,9 +198,9 @@ button {
   cursor: pointer;
   font-weight: 600;
   font-size: 14px;
-  background: $base-primary;
+  background: var(--primary);
   color: white;
-  box-shadow: 0 2px 6px rgba($base-primary, 0.35);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 32%, transparent);
   transition: transform 0.05s ease, filter 0.15s ease;
 }
 button:active {
@@ -207,8 +212,8 @@ button[disabled] {
 }
 button.ghost {
   background: transparent;
-  color: $base-primary;
-  border: 1px solid $base-primary;
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 60%, var(--border));
   box-shadow: none;
 }
 
@@ -216,12 +221,12 @@ button.ghost {
 .login-footer {
   margin-top: 32px;
   padding-top: 20px;
-  border-top: 1px solid rgba($base-border-color, 0.5);
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   text-align: center;
 
   .login-notice {
     font-size: 12px;
-    color: $base-text-medium;
+    color: var(--muted);
     margin: 0 0 12px 0;
     line-height: 1.5;
   }
@@ -234,18 +239,18 @@ button.ghost {
     font-size: 12px;
 
     a {
-      color: $base-primary;
+      color: var(--primary);
       text-decoration: none;
       transition: color 0.2s ease;
       
       &:hover {
-        color: color.adjust($base-primary, $lightness: -10%);
+        color: color-mix(in srgb, var(--primary) 78%, var(--text));
         text-decoration: underline;
       }
     }
 
     .separator {
-      color: $base-text-medium;
+      color: var(--muted);
     }
   }
 }
@@ -259,20 +264,20 @@ button.ghost {
   z-index: 999;
 }
 .modal-card {
-  background: #fff;
+  background: var(--modal-bg);
   width: min(420px, 92vw);
   padding: 18px;
   border-radius: 12px;
   text-align: center;
-  border: 1px solid $base-border-color;
+  border: 1px solid var(--border);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
 }
 .modal-card h3 {
   margin-bottom: 6px;
-  color: $base-text-dark;
+  color: var(--text);
 }
 .modal-card p {
-  color: $base-text-notsodark;
+  color: var(--muted);
   margin-bottom: 10px;
 }
 .modal-card button {

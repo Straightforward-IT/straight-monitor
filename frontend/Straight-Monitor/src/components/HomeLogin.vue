@@ -3,7 +3,7 @@
     <section class="auth-card">
       <header class="auth-head">
         <div class="brand">
-          <img src="@/assets/SF_002.png" alt="Logo" />
+          <img :src="logoSrc" alt="Logo" />
           <span>Straightforward</span>
         </div>
         <nav class="segmented">
@@ -21,14 +21,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import LoginForm from '@/components/LoginForm.vue';
 import RegisterForm from '@/components/RegisterForm.vue';
+import { useTheme } from '@/stores/theme';
 import { jwtDecode } from 'jwt-decode';
+import darkLogo from '@/assets/SF_000.svg';
+import lightLogo from '@/assets/SF_002.png';
 
 const currentForm = ref('login');
 const router = useRouter();
+const theme = useTheme();
+const logoSrc = computed(() => (theme.isDark ? darkLogo : lightLogo));
 
 // Check if user is already logged in and redirect
 onMounted(() => {
@@ -76,9 +81,9 @@ onMounted(() => {
 }
 
 .auth-card{
-  width:min(520px, 100%); background:#fff; border-radius:12px;
-  box-shadow:0 10px 30px rgba(0,0,0,.10); overflow:hidden;
-  border:1px solid $base-border-color;
+  width:min(520px, 100%); background:var(--surface); border-radius:12px;
+  box-shadow:0 18px 48px rgba(0,0,0,.18); overflow:hidden;
+  border:1px solid var(--border);
   
   // Mobile: Full width with max constraints
   @media (max-width: 768px) {
@@ -95,7 +100,7 @@ onMounted(() => {
 
 .auth-head{
   display:flex; align-items:center; justify-content:space-between;
-  padding:14px 16px; background:$base-panel-bg; border-bottom:1px solid $base-border-color;
+  padding:14px 16px; background:color-mix(in srgb, var(--surface) 88%, var(--bg)); border-bottom:1px solid var(--border);
   
   // Mobile: Stack vertically for better space usage
   @media (max-width: 480px) {
@@ -106,7 +111,7 @@ onMounted(() => {
 }
 
 .brand{ 
-  display:flex; align-items:center; gap:10px; font-weight:700; color:$base-text-dark;
+  display:flex; align-items:center; gap:10px; font-weight:700; color:var(--text);
   
   // Mobile: Smaller brand on mobile
   @media (max-width: 480px) {
@@ -118,7 +123,7 @@ onMounted(() => {
 .brand img{ 
   width:28px; 
   height:auto; 
-  filter: brightness(1.2) opacity(0.7);
+  filter:none;
   
   // Mobile: Smaller logo
   @media (max-width: 480px) {
@@ -127,8 +132,8 @@ onMounted(() => {
 }
 
 .segmented{
-  display:flex; gap:6px; background:$base-input-bg; padding:4px; border-radius:999px;
-  border:1px solid $base-border-color;
+  display:flex; gap:6px; background:color-mix(in srgb, var(--bg) 72%, var(--surface)); padding:4px; border-radius:999px;
+  border:1px solid var(--border);
   
   // Mobile: Full width buttons for easier touch
   @media (max-width: 480px) {
@@ -139,7 +144,7 @@ onMounted(() => {
 
 .segmented button{
   appearance:none; border:0; background:transparent; padding:6px 12px; border-radius:999px; cursor:pointer;
-  font-weight:600; color:$base-text-notsodark; font-size: 14px;
+  font-weight:600; color:var(--muted); font-size: 14px;
   
   // Mobile: Better touch targets
   @media (max-width: 480px) {
@@ -150,8 +155,8 @@ onMounted(() => {
 }
 
 .segmented button.active{
-  background:$base-highlight-accent; color:$base-text-dark; border:1px solid mix($base-primary, $base-border-color, 40%);
+  background:color-mix(in srgb, var(--primary) 12%, var(--surface)); color:var(--text); border:1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
 }
 
-.auth-body{ padding:18px 18px 22px; }
+.auth-body{ padding:18px 18px 22px; color:var(--text); }
 </style>

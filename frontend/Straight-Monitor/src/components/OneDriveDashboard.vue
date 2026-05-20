@@ -169,34 +169,38 @@
                         {{ item.name }}
                       </span>
                     </td>
-                    <td class="id-cell">
-                      <span class="item-id">{{ item.id }}</span>
-                      <button class="id-copy-btn" :title="'ID kopieren: ' + item.id" @click="copyItemId(item.id)">
-                        {{ copiedItemId === item.id ? '✓' : 'ID' }}
-                      </button>
+                    <td>
+                      <div class="id-cell">
+                        <span class="item-id">{{ item.id }}</span>
+                        <button class="id-copy-btn" :title="'ID kopieren: ' + item.id" @click="copyItemId(item.id)">
+                          {{ copiedItemId === item.id ? '✓' : 'ID' }}
+                        </button>
+                      </div>
                     </td>
                     <td>{{ item.isFolder ? 'Ordner' : fileTypeLabel(item) }}</td>
                     <td>{{ item.isFolder ? '—' : formatBytes(item.size) }}</td>
                     <td>{{ formatDate(item.lastModifiedDateTime) }}</td>
-                    <td class="actions-cell">
-                      <template v-if="!item.isFolder">
-                        <a
-                          v-if="item.downloadUrl"
-                          :href="item.downloadUrl"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="action-btn"
-                        >Download</a>
+                    <td>
+                      <div class="actions-cell">
+                        <template v-if="!item.isFolder">
+                          <a
+                            v-if="item.downloadUrl"
+                            :href="item.downloadUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="action-btn"
+                          >Download</a>
+                          <button
+                            class="action-btn"
+                            @click="openPreview(item)"
+                          >Vorschau</button>
+                        </template>
                         <button
+                          v-else
                           class="action-btn"
-                          @click="openPreview(item)"
-                        >Vorschau</button>
-                      </template>
-                      <button
-                        v-else
-                        class="action-btn"
-                        @click="selectFolder(item.id)"
-                      >Öffnen</button>
+                          @click="selectFolder(item.id)"
+                        >Öffnen</button>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
@@ -1060,10 +1064,11 @@ onMounted(async () => {
 }
 
 .id-cell {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   white-space: nowrap;
+  max-width: 100%;
 }
 
 .item-id {
@@ -1147,7 +1152,8 @@ onMounted(async () => {
 }
 
 .actions-cell {
-  display: flex;
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 }

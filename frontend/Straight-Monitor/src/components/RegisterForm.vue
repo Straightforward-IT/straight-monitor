@@ -106,40 +106,41 @@ async function submitRegister(){
 </script>
 
 <style scoped lang="scss">
-.auth-form{ display:flex; flex-direction:column; gap:14px; padding: 20px}
-h2{ font-size:20px; color:$base-text-dark; }
-p{ color:$base-text-medium; margin-top:-6px; margin-bottom:2px; }
+.auth-form{ display:flex; flex-direction:column; gap:14px; padding: 20px; color: var(--text); }
+h2{ font-size:20px; color:var(--text); }
+p{ color:var(--muted); margin-top:-6px; margin-bottom:2px; }
 
 .field{ display:flex; flex-direction:column; gap:6px; }
-.field span{ font-size:12px; color:$base-text-medium; }
+.field span{ font-size:12px; color:var(--muted); }
 input, select{
-  width:100%; border:1px solid $base-border-color; border-radius:8px; background:$base-panel-bg;
-  padding:12px 12px; font-size:14px; color:$base-text-dark;
+  width:100%; border:1px solid var(--border); border-radius:8px; background:color-mix(in srgb, var(--surface) 86%, var(--bg));
+  padding:12px 12px; font-size:14px; color:var(--text);
   transition:border-color .15s, box-shadow .15s;
 }
-input:focus, select:focus{ outline:none; border-color:$base-primary; box-shadow:0 0 0 3px rgba($base-primary, .15); }
+input::placeholder, select::placeholder{ color: var(--muted); }
+input:focus, select:focus{ outline:none; border-color:var(--primary); box-shadow:0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
 input.error{ border-color:$base-error; box-shadow:0 0 0 3px rgba($base-error, .15); }
 small.err{ color:$base-error; }
 
-.pw-toggle{ display:flex; align-items:center; gap:6px; color:$base-text-medium; user-select:none; }
-.pw-toggle input{ width:auto; }
+.pw-toggle{ display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none; }
+.pw-toggle input{ width:auto; accent-color: var(--primary); }
 
 .actions{ display:flex; gap:10px; margin-top:4px; }
 button{
   appearance:none; border:0; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; font-size:14px;
-  background:$base-primary; color:white; box-shadow:0 2px 6px rgba($base-primary,.35);
+  background:var(--primary); color:white; box-shadow:0 10px 24px color-mix(in srgb, var(--primary) 32%, transparent);
 }
 button[disabled]{ opacity:.6; cursor:default; }
 button.ghost{
-  background:transparent; color:$base-primary; border:1px solid $base-primary; box-shadow:none;
+  background:transparent; color:var(--primary); border:1px solid color-mix(in srgb, var(--primary) 60%, var(--border)); box-shadow:none;
 }
 
 .modal{ position:fixed; inset:0; background:rgba(0,0,0,.5); display:grid; place-items:center; z-index:999; }
 .modal-card{
-  background:#fff; width:min(420px, 92vw); padding:18px; border-radius:12px; text-align:center;
-  border:1px solid $base-border-color; box-shadow:0 10px 30px rgba(0,0,0,.14);
+  background:var(--modal-bg); width:min(420px, 92vw); padding:18px; border-radius:12px; text-align:center;
+  border:1px solid var(--border); box-shadow:0 10px 30px rgba(0,0,0,.14);
 }
-.modal-card h3{ margin-bottom:6px; color:$base-text-dark; }
-.modal-card p{ color:$base-text-notsodark; margin-bottom:10px; }
+.modal-card h3{ margin-bottom:6px; color:var(--text); }
+.modal-card p{ color:var(--muted); margin-bottom:10px; }
 .modal-card button{ width:100%; }
 </style>
