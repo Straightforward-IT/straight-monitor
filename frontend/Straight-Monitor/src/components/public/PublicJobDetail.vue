@@ -287,7 +287,7 @@ import { useTheme } from '@/stores/theme';
 import FilterChip from '@/components/FilterChip.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
-import { showToast } from '@getflip/bridge';
+import { showToast, download as flipDownload } from '@getflip/bridge';
 import pdfMake from 'pdfmake/build/pdfmake';
 import pdfFonts from 'pdfmake/build/vfs_fonts';
 import eventreportLight from '@/assets/eventreport.png';
@@ -825,7 +825,27 @@ async function downloadStundenliste() {
   downloadingStundenliste.value = true;
   try {
     const docDefinition = buildStundenlisteDefinition();
-    pdfMake.createPdf(docDefinition).download(getStundenlisteFilename());
+    const fileName = getStundenlisteFilename();
+    const pdfDoc = pdfMake.createPdf(docDefinition);
+
+    const dataUrl = await new Promise((resolve, reject) => {
+      try {
+        pdfDoc.getBase64((b64) => {
+          if (!b64) return reject(new Error('PDF leer'));
+          resolve(`data:application/pdf;base64,${b64}`);
+        });
+      } catch (err) { reject(err); }
+    });
+
+    let bridgeOk = false;
+    try {
+      const result = await flipDownload(fileName, 'application/pdf', undefined, dataUrl);
+      bridgeOk = result === true;
+    } catch { bridgeOk = false; }
+
+    if (!bridgeOk) {
+      pdfDoc.download(fileName);
+    }
     try { showToast({ text: 'Stundenliste wird heruntergeladen.', intent: 'success', duration: 2200 }); } catch {}
   } catch (error) {
     console.error('Fehler beim Erstellen der Stundenliste:', error);
