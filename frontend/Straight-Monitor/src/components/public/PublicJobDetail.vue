@@ -658,14 +658,13 @@ function buildMetaTable() {
 function buildSchichtTable(schicht) {
   const body = [
     [
+      { text: '', style: 'tableHeader' },
       { text: '#', style: 'tableHeader' },
-      { text: '✓', style: 'tableHeader' },
       { text: 'Mitarbeiter', style: 'tableHeader' },
       { text: 'Bereich', style: 'tableHeader' },
       { text: 'Funktion', style: 'tableHeader' },
       { text: 'Geplant', style: 'tableHeader' },
       { text: 'Telefon', style: 'tableHeader' },
-      { text: 'Unterschrift', style: 'tableHeader' },
     ],
     ...schicht.mitarbeiter.map((ma, index) => {
       const bereich = getMaBereichLabel(ma);
@@ -694,14 +693,13 @@ function buildSchichtTable(schicht) {
       })();
 
       return [
-        { text: String(index + 1), style: 'tableCellCenter' },
         checkboxCell,
+        { text: String(index + 1), style: 'tableCellCenter' },
         { text: `${ma.vorname || ''} ${ma.nachname || ''}`.trim() || `PNR ${ma.personalNr}`, style: 'tableCellStrong' },
         { text: bereich, style: 'tableCell' },
         { text: ma.bezeichnung || ma.berufDesignation || '—', style: 'tableCell' },
         { text: zeit, style: 'tableCell' },
         { text: ma.telefon || '—', style: 'tableCell' },
-        { text: ' ', style: 'signatureCell' },
       ];
     }),
   ];
@@ -732,7 +730,7 @@ function buildSchichtTable(schicht) {
       {
         table: {
           headerRows: 1,
-          widths: [14, 22, 110, 65, '*', 58, 76, 80],
+          widths: [22, 14, 120, 75, '*', 65, 90],
           body,
         },
         layout: {
@@ -757,7 +755,7 @@ function buildStundenlisteDefinition() {
 
   return {
     pageSize: 'A4',
-    pageOrientation: 'landscape',
+    pageOrientation: 'portrait',
     pageMargins: [22, 28, 22, 28],
     footer: (currentPage, pageCount) => ({
       columns: [
