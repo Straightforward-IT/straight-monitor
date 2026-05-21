@@ -95,7 +95,9 @@ router.delete('/:id', auth, asyncHandler(async (req, res) => {
   const comment = await Comment.findById(req.params.id);
   if (!comment) return res.status(404).json({ message: 'Kommentar nicht gefunden.' });
 
-  if (String(comment.authorId) !== String(req.user.id)) {
+  const isAuthor = String(comment.authorId) === String(req.user.id);
+  const isChronik = comment.scope === 'chronik';
+  if (!isAuthor && !isChronik) {
     return res.status(403).json({ message: 'Keine Berechtigung.' });
   }
 
