@@ -1,7 +1,7 @@
 // routines.js
 const cron = require("node-cron");
 const { getFlipAuthToken } = require("./flipAxios");
-const { flipUserRoutine } = require("./FlipService");
+const { flipUserRoutine, updateTeamleitungWikiPages } = require("./FlipService");
 const { sollRoutine, sendMail } = require("./EmailService");
 const { bewerberRoutine } = require("./AsanaService");
 const {
@@ -229,7 +229,25 @@ async function runApplicantMailGdprCleanup() {
       }));
     }
 
-    // 🗃️ GDPR applicant mailbox cleanup (monthly, deletes only in configured 6-month cadence)
+    // � Flip Wiki — Teamleitung pages (daily 02:00)
+    if (allow("flip_wiki")) {
+      cron.schedule("0 2 * * *", guard(async () => {
+        try {
+          logger.routineStart("Flip Wiki Teamleitung sync");
+          const summary = await updateTeamleitungWikiPages();
+          logger.info("✅ Flip Wiki Teamleitung sync abgeschlossen:", JSON.stringify(summary));
+        } catch (error) {
+          logger.routineError("Flip Wiki Teamleitung Sync", error);
+          await sendMail("it@straightforward.email", "❌ Flip Wiki Teamleitung Sync Failed", `
+            <h3>Fehler beim Flip Wiki Teamleitung Sync</h3>
+            <p><strong>Fehler:</strong> ${error.message}</p>
+            <pre>${error.stack}</pre>
+          `);
+        }
+      }));
+    }
+
+    // �🗃️ GDPR applicant mailbox cleanup (monthly, deletes only in configured 6-month cadence)
     if (allow("gdpr_cleanup")) {
       cron.schedule("0 3 1 * *", guard(async () => {
         try {

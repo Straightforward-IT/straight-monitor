@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const { flipAxios, getFlipAuthToken } = require("./flipAxios");
 const FlipUser = require("./models/Classes/FlipUser");
 const FlipTask = require("./models/Classes/FlipTask");
+const FlipPage = require("./models/Classes/FlipPage");
 const {
   Laufzettel,
   EventReport,
@@ -1960,6 +1961,78 @@ async function uploadFileToFlip({ fileName, fileBuffer, mimeType, mediaTypeHint 
   return file_id;
 }
 
+// Flip wiki page IDs for Teamleitung overview pages
+const TEAMLEITUNG_PAGES = [
+  { id: "cb53cf2f-9cca-4df6-8c0d-043de175fb1c", label: "Teamleitung Hamburg" },
+  { id: "a41a4ade-4e20-4a93-885a-83478d774f2c", label: "Teamleitung Berlin" },
+  { id: "1e641d8d-9408-4cf7-aecc-ea24ae8a68d4", label: "Teamleitung Köln" },
+];
+
+const FLIP_APP_BASE_URL = "https://straightforward.flip-app.com";
+
+/**
+ * Fetches published direct sub-pages for each Teamleitung main page and updates
+ * that page's body with an HTML list of links to those sub-pages.
+ * Only PUBLISHED sub-pages are included. Pages with no published sub-pages are skipped.
+ */
+async function updateTeamleitungWikiPages() {
+  // Auto-discover all published main (top-level) pages
+  const { pages: mainPages } = await FlipPage.list({
+    tree_mode: "ONLY_MAIN_PAGES",
+    publication_statuses: "PUBLISHED",
+    page_limit: 100,
+  });
+
+  /**
+   * Recursively fetch published sub-pages and build a nested <ul> HTML structure.
+   * @param {string} pageId - Parent page ID to fetch children for
+   * @param {number} depth  - Current recursion depth (guard: max 5 levels)
+   */
+  async function buildTree(pageId, depth = 0) {
+    if (depth > 4) return "";
+    const { pages: children } = await FlipPage.list({
+      page_id: pageId,
+      tree_mode: "DIRECT_SUB_PAGES",
+      publication_statuses: "PUBLISHED",
+      page_limit: 100,
+    });
+    if (!children.length) return "";
+
+    const items = [];
+    for (const child of children) {
+      const title = child.title?.text || child.id;
+      const href = `${FLIP_APP_BASE_URL}/knowledge-base/${child.id}`;
+      const subTree = depth < 4 ? await buildTree(child.id, depth + 1) : "";
+      items.push(`<li><a href="${href}">${title}</a>${subTree}</li>`);
+    }
+    return `<ul>${items.join("")}</ul>`;
+  }
+
+  const summary = [];
+
+  for (const mainPage of mainPages) {
+    const label = mainPage.title?.text || mainPage.id;
+    try {
+      const html = await buildTree(mainPage.id);
+      if (!html) continue; // no published sub-pages → skip silently
+
+      await flipAxios.patch(
+        `/api/pages/v4/pages/${mainPage.id}`,
+        { content: { body: { content_format: "HTML", contentHtml: html } } },
+        { headers: { "Content-Type": "application/merge-patch+json" } }
+      );
+
+      logger.info(`[WikiSync] ${label}: Gliederung aktualisiert.`);
+      summary.push({ label, updated: true });
+    } catch (err) {
+      logger.error(`[WikiSync] Fehler bei "${label}": ${err.message}`);
+      summary.push({ label, updated: false, error: err.message });
+    }
+  }
+
+  return summary;
+}
+
 module.exports = {
   flipUserRoutine,
   syncRankGroups,
@@ -1995,4 +2068,5 @@ module.exports = {
   getFlipCalendarOverview,
   getFlipCalendarEvent,
   updateFlipCalendarEvent,
+  updateTeamleitungWikiPages,
 };
