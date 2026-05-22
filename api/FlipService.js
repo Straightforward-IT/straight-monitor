@@ -1431,16 +1431,19 @@ async function syncFlipAttributes(flipUsersById = {}) {
 
   for (const ma of mitarbeiter) {
     try {
-      const berufKeys  = (ma.berufe        || []).map(b => Number(b.jobKey)).filter(k => !isNaN(k));
-      const qualiKeys  = (ma.qualifikationen || []).map(q => Number(q.qualificationKey)).filter(k => !isNaN(k));
+      // Berufe/Qualifikationen nur für Zvoove-Mitarbeiter (mit Personalnr) mappen
+      const hasPersonalnr = !!ma.personalnr;
+      const berufKeys  = hasPersonalnr ? (ma.berufe        || []).map(b => Number(b.jobKey)).filter(k => !isNaN(k)) : [];
+      const qualiKeys  = hasPersonalnr ? (ma.qualifikationen || []).map(q => Number(q.qualificationKey)).filter(k => !isNaN(k)) : [];
 
       // Wenn keine Berufe hinterlegt sind, isService/isLogistik nicht überschreiben —
       // der MA wurde initial evtl. mit isService=true angelegt und hat noch keinen Einsatz.
       const hasBeruf   = berufKeys.length > 0;
       const isService  = hasBeruf ? berufKeys.includes(10001) : null;
       const isLogistik = hasBeruf ? berufKeys.includes(10002) : null;
-      const isOffice   = qualiKeys.includes(40);    // Quali-Key 40 = Office
-      const isTeamLead = qualiKeys.includes(50055);
+      // isOffice/isTeamLead nur setzen wenn Personalnr vorhanden (= Zvoove-Mitarbeiter)
+      const isOffice   = hasPersonalnr ? qualiKeys.includes(40)    : null; // Quali-Key 40 = Office
+      const isTeamLead = hasPersonalnr ? qualiKeys.includes(50055) : null;
       const isFesti    = ma.persgruppe === 101 || ma.persgruppe == 101; // persgruppe 101 = Festangestellt
 
       // Re-use pre-fetched data or fall back to individual GET
@@ -1460,8 +1463,10 @@ async function syncFlipAttributes(flipUsersById = {}) {
         if (TRACKED_ATTRS.includes(key)) beforeMap[key] = a.value;
       });
 
-      // isService/isLogistik sind null wenn keine Berufe → nicht in afterMap aufnehmen
-      const afterMap = { isOffice: String(isOffice), isTeamLead: String(isTeamLead), isFesti: String(isFesti) };
+      // isService/isLogistik/isOffice/isTeamLead sind null wenn kein Zvoove-MA → nicht in afterMap aufnehmen
+      const afterMap = { isFesti: String(isFesti) };
+      if (isOffice   !== null) afterMap.isOffice   = String(isOffice);
+      if (isTeamLead !== null) afterMap.isTeamLead = String(isTeamLead);
       if (isService  !== null) afterMap.isService  = String(isService);
       if (isLogistik !== null) afterMap.isLogistik = String(isLogistik);
 
@@ -1476,17 +1481,19 @@ async function syncFlipAttributes(flipUsersById = {}) {
 
       // Attributes: start from existing Flip attributes, then overlay computed values.
       // This preserves any attributes not managed by this sync (e.g. job_title, phone).
-      // isService/isLogistik werden nur als managed betrachtet, wenn wir sie auch setzen —
-      // so bleiben manuell gesetzte Werte erhalten wenn keine Berufe hinterlegt sind.
-      const managedKeys = new Set(['isOffice', 'isTeamLead', 'isFesti', 'location', 'department']);
+      // Attribute werden nur als managed betrachtet, wenn wir sie auch setzen —
+      // so bleiben manuell gesetzte Werte erhalten wenn kein Zvoove-MA (keine Personalnr).
+      const managedKeys = new Set(['isFesti', 'location', 'department']);
+      if (isOffice   !== null) managedKeys.add('isOffice');
+      if (isTeamLead !== null) managedKeys.add('isTeamLead');
       if (isService  !== null) managedKeys.add('isService');
       if (isLogistik !== null) managedKeys.add('isLogistik');
 
       const newAttrsMap = {};
       if (isService  !== null) newAttrsMap.isService  = String(isService);
       if (isLogistik !== null) newAttrsMap.isLogistik = String(isLogistik);
-      newAttrsMap.isOffice   = String(isOffice);
-      newAttrsMap.isTeamLead = String(isTeamLead);
+      if (isOffice   !== null) newAttrsMap.isOffice   = String(isOffice);
+      if (isTeamLead !== null) newAttrsMap.isTeamLead = String(isTeamLead);
       newAttrsMap.isFesti    = String(isFesti);
 
       const profile = flipUserData.profile || {};

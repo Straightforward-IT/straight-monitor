@@ -1085,13 +1085,22 @@ router.get(
       },
     ]);
     
+    // Enrich with hasUser flag (same as full GET /mitarbeiter)
+    const linkedUsers = await User.find({ mitarbeiter: { $ne: null } }).select('mitarbeiter').lean();
+    const linkedSet = new Set(linkedUsers.map(u => u.mitarbeiter.toString()));
+    const enriched = updated.map(ma => {
+      const obj = ma.toObject ? ma.toObject() : ma;
+      obj.hasUser = linkedSet.has(ma._id.toString());
+      return obj;
+    });
+
     // Note: For deleted documents, you would need a separate "deletedDocuments" collection
     // or soft-delete pattern. For now, we return empty array for deleted.
     // In a production system, consider adding a "deletedAt" field for soft deletes.
     
     res.status(200).json({
       success: true,
-      updated,
+      updated: enriched,
       deleted: [], // Would need soft-delete implementation to track this
       syncedAt: new Date().toISOString()
     });
