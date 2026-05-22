@@ -1023,6 +1023,21 @@ router.get(
  * Returns only documents updated since the provided timestamp
  * Used by frontend cache to minimize data transfer
  */
+
+/**
+ * GET /mitarbeiter/linked-user-ids
+ * Returns only the set of Mitarbeiter _ids that have a linked Monitor User.
+ * Very lightweight — no Mitarbeiter data, just an id-set for frontend hasUser overlay.
+ */
+router.get(
+  "/mitarbeiter/linked-user-ids",
+  auth,
+  asyncHandler(async (req, res) => {
+    const users = await User.find({ mitarbeiter: { $ne: null } }).select("mitarbeiter").lean();
+    res.json({ ids: users.map((u) => u.mitarbeiter.toString()) });
+  })
+);
+
 router.get(
   "/mitarbeiter/sync",
   auth,

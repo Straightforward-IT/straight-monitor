@@ -133,6 +133,9 @@ export const useDataCache = defineStore('dataCache', {
     flipusers: [],
     berufe: [],
     qualifikationen: [],
+    // Set of Mitarbeiter _ids that have a linked Monitor User.
+    // Loaded fresh every session — independent of the Mitarbeiter IndexedDB cache.
+    linkedUserIds: new Set(),
     
     // Loading states
     loading: {
@@ -261,6 +264,19 @@ export const useDataCache = defineStore('dataCache', {
   
   actions: {
     /**
+     * Loads the set of Mitarbeiter _ids that have a linked Monitor User.
+     * Called every session — very lightweight, no caching needed.
+     */
+    async loadLinkedUserIds() {
+      try {
+        const response = await api.get('/api/personal/mitarbeiter/linked-user-ids');
+        this.linkedUserIds = new Set(response.data?.ids || []);
+      } catch (e) {
+        console.error('[Cache] loadLinkedUserIds failed:', e);
+      }
+    },
+
+    /**
      * Load data with smart caching
      * 1. Return cached data immediately if available
      * 2. Sync in background if cache is stale
@@ -289,6 +305,10 @@ export const useDataCache = defineStore('dataCache', {
           // Always sync at least once per session (covers page refresh)
           this.incrementalSyncMitarbeiter();
         }
+
+        // Always refresh the linked-user-ids set once per session — it is very
+        // lightweight and cannot be tracked via Mitarbeiter updatedAt changes.
+        this.loadLinkedUserIds();
         
         this.sessionSynced.mitarbeiter = true;
         return this.mitarbeiter;

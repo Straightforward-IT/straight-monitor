@@ -936,7 +936,7 @@ export default {
           // Populate berufe and qualifikationen from cache
           const enriched = this.dataCache.populateMitarbeiterSkills(ma);
 
-        return { ...enriched, flip: flipUser || null };
+        return { ...enriched, flip: flipUser || null, hasUser: this.dataCache.linkedUserIds.has(ma._id) };
       });
     },
 
