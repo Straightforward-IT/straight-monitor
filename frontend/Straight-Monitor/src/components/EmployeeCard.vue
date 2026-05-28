@@ -122,6 +122,16 @@
                 </dd>
               </div>
             </div>
+            <div class="kv-inline">
+              <div v-if="resolvedMa.eintrittsdatum">
+                <dt>Eintritt</dt>
+                <dd>{{ formatDate(resolvedMa.eintrittsdatum) }}</dd>
+              </div>
+              <div v-if="resolvedMa.austrittsdatum">
+                <dt>Austritt</dt>
+                <dd>{{ formatDate(resolvedMa.austrittsdatum) }}</dd>
+              </div>
+            </div>
             <div v-if="resolvedMa.erstellt_von">
               <dt>Erstellt von</dt>
               <dd>{{ resolvedMa.erstellt_von }}</dd>
