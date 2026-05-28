@@ -85,7 +85,7 @@
           <div class="card-header">
             <div class="header-content">
               <h2>Personal Import (Liste 7002)</h2>
-              <p class="subtitle">Personalnr., Austrittsdatum, Berufe, Qualifikationen, Persgruppe, E-Mail, Telefon</p>
+              <p class="subtitle">Personalnr., Eintritt, Austrittsdatum, Berufe, Qualifikationen, Persgruppe, E-Mail, Telefon</p>
             </div>
             <span v-if="personalFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
@@ -111,8 +111,9 @@
                 <div class="table-scroll">
                   <table class="req-table"><tbody>
                     <tr><td>A – Prüffeld (7002)</td><td>B – Personalnr</td><td>C – Persstatus (6=Ausgetreten)</td></tr>
-                    <tr><td>D – Austrittsdatum</td><td>E – Berufsschlüssel (kommasep.)</td><td>F – Qualischlüssel (kommasep.)</td></tr>
-                    <tr><td>G – Personengruppe</td><td>H – E-Mail</td><td>I – Telefon</td></tr>
+                    <tr><td>D – Eintritt (EINTRITT1)</td><td>E – Austrittsdatum</td><td>F – Berufsschlüssel (kommasep.)</td></tr>
+                    <tr><td>G – Qualischlüssel (kommasep.)</td><td>H – Personengruppe</td><td>I – E-Mail</td></tr>
+                    <tr><td>J – Telefon</td><td colspan="2"></td></tr>
                   </tbody></table>
                 </div>
               </details>

@@ -1133,58 +1133,92 @@
     </template>
 
     <!-- Help Modal -->
-    <teleport to="body">
-      <div v-if="showHelp" class="modal-overlay" @click="showHelp = false">
-        <div class="help-modal" @click.stop>
-          <div class="help-modal-header">
-            <h3> Dispo-Tabelle — Hilfe</h3>
-            <button class="close-btn" @click="showHelp = false"><font-awesome-icon icon="fa-solid fa-times" /></button>
-          </div>
-          <div class="help-modal-body">
-            <div class="help-section">
-              <h4>Tastatur-Shortcuts</h4>
-              <table class="help-shortcuts">
-                <tbody>
-                  <tr><td><kbd>F</kbd></td><td>Vollbild ein/aus</td></tr>
-                  <tr><td><kbd>C</kbd></td><td>Kommentar-Feed ein/aus</td></tr>
-                  <tr><td><kbd>H</kbd></td><td>Hilfe ein/aus</td></tr>
-                  <tr><td><kbd>S</kbd></td><td>Suche fokussieren</td></tr>
-                  <tr><td><kbd>1</kbd> – <kbd>9</kbd></td><td>Kalenderwoche wählen (1 = aktuelle KW)</td></tr>
-                  <tr><td><kbd>+</kbd></td><td>Zoom vergrößern</td></tr>
-                  <tr><td><kbd>–</kbd></td><td>Zoom verkleinern</td></tr>
-                  <tr><td><kbd>Esc</kbd></td><td>Auswahl aufheben</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="help-section">
-              <h4>Zellen-Status setzen</h4>
-              <p><strong>Rechtsklick</strong> auf eine Zelle öffnet das Kontextmenü — dort kannst du Verfügbarkeit, Abwesenheit setzen oder löschen.</p>
-            </div>
-            <div class="help-section">
-              <h4>Mehrfachauswahl</h4>
-              <p>Halte <kbd>⌘ Cmd</kbd> (Mac) gedrückt und klicke oder ziehe über mehrere Zellen. Danach <strong>Rechtsklick</strong> auf die Auswahl, um den Status für alle gleichzeitig zu setzen.</p>
-            </div>
-            <div class="help-section">
-              <h4>Kommentare</h4>
-              <p>Über das Kontextmenü (Rechtsklick) → <em>Kommentare</em> kannst du Notizen zu einer Zelle hinterlassen. Ungelesene Kommentare werden mit einem roten Badge angezeigt.</p>
-            </div>
-            <div class="help-section">
-              <h4>Favoriten &amp; Mitarbeiter-Karte</h4>
-              <p>Klicke auf den <font-awesome-icon icon="fa-regular fa-star" /> Stern neben einem Namen für Favoriten (werden oben gelistet). <strong>Rechtsklick</strong> auf den Namen öffnet ein Menü mit <em>Karte Öffnen</em>.</p>
-            </div>
-            <div class="help-section">
-              <h4>Legende</h4>
-              <div class="help-legend">
-                <div class="help-legend-item"><span class="legend-dot legend-available"></span> Verfügbar</div>
-                <div class="help-legend-item"><span class="legend-dot legend-partially"></span> Eingeschränkt</div>
-                <div class="help-legend-item"><span class="legend-dot legend-blocked"></span> Blocked / Abwesend</div>
-                <div class="help-legend-item"><span class="legend-dot legend-planned"></span> Eingeplant (Einsatz)</div>
-              </div>
-            </div>
-          </div>
+    <HelpModal v-model="showHelp">
+      <template #title>Dispo-Tabelle — Hilfe</template>
+
+      <template #toc>
+        <nav class="help-toc">
+          <span class="help-toc-label">Inhalt</span>
+          <button data-section="help-s-shortcuts"    @click="scrollToHelpSection('help-s-shortcuts')">Shortcuts</button>
+          <button data-section="help-s-filter"       @click="scrollToHelpSection('help-s-filter')">Filter &amp; Ansicht</button>
+          <button data-section="help-s-favoriten"    @click="scrollToHelpSection('help-s-favoriten')">Favoriten</button>
+          <button data-section="help-s-notizen"      @click="scrollToHelpSection('help-s-notizen')">Notiz</button>
+          <button data-section="help-s-kundenwunsch" @click="scrollToHelpSection('help-s-kundenwunsch')">Kundenwünsche</button>
+          <button data-section="help-s-chronik"      @click="scrollToHelpSection('help-s-chronik')">Chronik</button>
+          <button data-section="help-s-status"       @click="scrollToHelpSection('help-s-status')">Zellen-Status</button>
+          <button data-section="help-s-comments"     @click="scrollToHelpSection('help-s-comments')">Kommentare</button>
+          <button data-section="help-s-multiselect"  @click="scrollToHelpSection('help-s-multiselect')">Mehrfachauswahl</button>
+          <button data-section="help-s-legende"      @click="scrollToHelpSection('help-s-legende')">Legende</button>
+        </nav>
+      </template>
+
+      <div id="help-s-shortcuts" class="help-section">
+        <h4>Tastatur-Shortcuts</h4>
+        <table class="help-shortcuts">
+          <tbody>
+            <tr><td><kbd>F</kbd></td><td>Vollbild ein/aus</td></tr>
+            <tr><td><kbd>C</kbd></td><td>Kommentar-Feed ein/aus</td></tr>
+            <tr><td><kbd>H</kbd></td><td>Hilfe ein/aus</td></tr>
+            <tr><td><kbd>S</kbd></td><td>Suche fokussieren</td></tr>
+            <tr><td><kbd>1</kbd> – <kbd>9</kbd></td><td>Kalenderwoche wählen (1 = aktuelle KW)</td></tr>
+            <tr><td><kbd>+</kbd></td><td>Zoom vergrößern</td></tr>
+            <tr><td><kbd>–</kbd></td><td>Zoom verkleinern</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Auswahl aufheben / Modal schließen</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="help-s-filter" class="help-section">
+        <h4>Filter &amp; Ansicht</h4>
+        <p>Der <em>Bereich</em>-Filter (Klick auf den Bereich-Spalten-Header) filtert nach Service (S) oder Logistik (L). Spaltenbreiten lassen sich per Drag auf den Trennlinien in der Kopfzeile individuell anpassen.</p>
+      </div>
+
+      <div id="help-s-favoriten" class="help-section">
+        <h4>Favoriten, Mitarbeiter-Karte &amp; Ausblenden</h4>
+        <p>Klicke auf den <font-awesome-icon icon="fa-regular fa-star" /> Stern neben einem Namen für Favoriten (werden oben gelistet). <strong>Rechtsklick</strong> auf den Namen öffnet ein Menü mit <em>Karte Öffnen</em>, Direktanruf und <em>Ausblenden</em>. Ausgeblendete Mitarbeiter können über den Toggle-Button in der Toolbar wieder eingeblendet werden.</p>
+      </div>
+
+      <div id="help-s-notizen" class="help-section">
+        <h4>Notiz</h4>
+        <p>Die <em>Notiz</em>-Spalte ist direkt editierbar — Klicken und tippen, Änderungen werden automatisch gespeichert.</p>
+      </div>
+
+      <div id="help-s-kundenwunsch" class="help-section">
+        <h4>Kundenwünsche</h4>
+        <p>In der <em>Kunden</em>-Spalte zeigt <strong>+</strong> einen Dialog zum Hinterlegen von positiven oder negativen Kundenwünschen. Bestehende Wünsche erscheinen als farbige Pills.</p>
+      </div>
+
+      <div id="help-s-chronik" class="help-section">
+        <h4>Chronik</h4>
+        <p>Die <em>Aktivität</em>-Spalte zeigt den mitarbeiterbezogenen Chronik-Log — klicken zum Ausklappen, Einträge hinzufügen oder löschen.</p>
+      </div>
+
+      <div id="help-s-status" class="help-section">
+        <h4>Zellen-Status</h4>
+        <p><strong>Rechtsklick</strong> auf eine Zelle öffnet das Kontextmenü. Verfügbar, Eingeschränkt und Blocked können optional mit einer <em>Zeitspanne</em> (Von/Bis) versehen werden. Für Eingeplant lässt sich direkt ein Kunde zuordnen.</p>
+      </div>
+
+      <div id="help-s-comments" class="help-section">
+        <h4>Kommentare</h4>
+        <p>Über das Kontextmenü (Rechtsklick) → <em>Kommentare</em> kannst du Notizen zu einer einzelnen Zelle (Tag) hinterlassen. Ungelesene Kommentare erscheinen als roter Badge im Kommentar-Feed.</p>
+      </div>
+
+      <div id="help-s-multiselect" class="help-section">
+        <h4>Mehrfachauswahl</h4>
+        <p>Halte <kbd>⌘ Cmd</kbd> (Mac) / <kbd>Strg</kbd> (Windows) gedrückt und klicke oder ziehe über mehrere Zellen. Danach <strong>Rechtsklick</strong> auf die Auswahl, um den Status für alle gleichzeitig zu setzen.</p>
+      </div>
+
+      <div id="help-s-legende" class="help-section">
+        <h4>Legende</h4>
+        <div class="help-legend">
+          <div class="help-legend-item"><span class="legend-dot legend-available"></span> Verfügbar</div>
+          <div class="help-legend-item"><span class="legend-dot legend-partially"></span> Eingeschränkt</div>
+          <div class="help-legend-item"><span class="legend-dot legend-blocked"></span> Blocked / Urlaub / Krank</div>
+          <div class="help-legend-item"><span class="legend-dot legend-planned"></span> Eingeplant (Einsatz)</div>
+          <div class="help-legend-item"><span class="legend-dot legend-angefragt"></span> Angefragt (Flip / Tel.)</div>
         </div>
       </div>
-    </teleport>
+    </HelpModal>
 
     <!-- Bereich Filter Menu -->
     <teleport to="body">
@@ -1542,6 +1576,7 @@ import FilterDropdown from '@/components/FilterDropdown.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
+import HelpModal from '@/components/HelpModal.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import CommentBubbleBadge from '@/components/CommentBubbleBadge.vue';
 import KommentarFeed from '@/components/KommentarFeed.vue';
@@ -2674,6 +2709,10 @@ function toggleSort(field) {
     sortField.value = field;
     sortDir.value = field === 'aktivitaet' ? 'desc' : 'asc';
   }
+}
+
+function scrollToHelpSection(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ─── Prefs (Starred + Filters) ───
@@ -4001,114 +4040,6 @@ function onNameTouchEnd() {
     border-color: var(--primary);
   }
 }
-
-.help-modal {
-  background: var(--modal-bg);
-  border-radius: 12px;
-  width: 520px;
-  max-width: 92vw;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
-}
-
-.help-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-
-  h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-}
-
-.help-modal-body {
-  padding: 20px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.help-section {
-  h4 {
-    margin: 0 0 6px;
-    font-size: 0.95rem;
-    color: var(--text);
-  }
-
-  p {
-    margin: 0 0 4px;
-    font-size: 0.88rem;
-    color: var(--muted);
-    line-height: 1.5;
-  }
-
-  kbd {
-    display: inline-block;
-    padding: 1px 6px;
-    font-size: 0.8rem;
-    font-family: inherit;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text);
-  }
-
-  .help-shortcuts {
-    border-collapse: collapse;
-    width: 100%;
-    font-size: 0.88rem;
-
-    td {
-      padding: 4px 8px 4px 0;
-      color: var(--muted);
-      vertical-align: middle;
-
-      &:first-child {
-        width: 1%;
-        white-space: nowrap;
-        padding-right: 16px;
-      }
-    }
-  }
-}
-
-.help-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 6px;
-}
-
-.help-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.legend-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-
-.legend-available { background: #10b98140; border: 1px solid #10b981; }
-.legend-partially { background: #f59e0b40; border: 1px solid #f59e0b; }
-.legend-blocked   { background: #ef444440; border: 1px solid #ef4444; }
-.legend-planned   { background: #6366f140; border: 1px solid #6366f1; }
 
 .search-box input {
   padding: 10px 16px;

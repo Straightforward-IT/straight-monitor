@@ -20,10 +20,12 @@
         <h4>Navigation</h4>
         <ul class="footer-links">
           <li><router-link to="/dashboard">Dashboard</router-link></li>
-          <li><router-link to="/bestand">Bestand</router-link></li>
-          <li><router-link to="/verlauf">Verlauf</router-link></li>
+          <li><router-link to="/dispo">Dispo</router-link></li>
+          <li><router-link to="/auftraege">Aufträge</router-link></li>
           <li><router-link to="/personal">Personal</router-link></li>
-          <li><router-link to="/dokumente">Dokumente</router-link></li>
+          <li><router-link to="/reports">Reports</router-link></li>
+          <li><router-link to="/bestand">Bestand</router-link></li>
+          <li><router-link to="/kunden">Kunden</router-link></li>
         </ul>
       </div>
 

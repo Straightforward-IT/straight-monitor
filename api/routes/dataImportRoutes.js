@@ -651,8 +651,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
   }
 });
 
-// --- Personal Import (kombiniert: Personalnr, Persstatus, Austrittsdatum, Beruf/Quali, Persgruppe, Email, Telefon) ---
-// Spalten (mit Prüffeld): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Austrittsdatum, E=Berufsschlüssel(komma), F=Qualischlüssel(komma), G=Persgruppe, H=Email, I=Telefon
+// --- Personal Import (kombiniert: Personalnr, Persstatus, Eintritt, Austrittsdatum, Beruf/Quali, Persgruppe, Email, Telefon) ---
+// Spalten (mit Prüffeld, neu): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Eintritt1, E=Austritt1, F=Berufsschlüssel(komma), G=Qualischlüssel(komma), H=Persgruppe, I=Email, J=Telefon
 // Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 router.post('/personal', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
@@ -706,41 +706,53 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       // Col C (index 1): Persstatus — 6 = Ausgetreten (nur bei 7002-Format mit colOffset=1 relevant)
       const persstatus = colOffset === 1 && row[1 + colOffset] != null ? parseInt(row[1 + colOffset], 10) : null;
 
-      // Col D (index 2): Austrittsdatum
-      let austrittsdatum = null;
-      if (row[2 + colOffset]) {
+      // New 7002 format has EINTRITT1 at index 2+colOffset, shifting all subsequent cols by 1
+      const hasNewFormat = colOffset === 1;
+      const extraOffset = hasNewFormat ? 1 : 0;
+
+      // Col D (index 2, new format): Eintrittsdatum (nur bei 7002-Format)
+      let eintrittsdatum = null;
+      if (hasNewFormat && row[2 + colOffset]) {
         const d = row[2 + colOffset] instanceof Date ? row[2 + colOffset] : new Date(row[2 + colOffset]);
+        if (!isNaN(d.getTime())) eintrittsdatum = d;
+      }
+
+      // Col E/D (index 2+extraOffset): Austrittsdatum
+      let austrittsdatum = null;
+      if (row[2 + colOffset + extraOffset]) {
+        const d = row[2 + colOffset + extraOffset] instanceof Date ? row[2 + colOffset + extraOffset] : new Date(row[2 + colOffset + extraOffset]);
         if (!isNaN(d.getTime())) austrittsdatum = d;
       }
 
-      // Col D (index 3): Berufsschlüssel kommagetrennt
+      // Col F/E (index 3+extraOffset): Berufsschlüssel kommagetrennt
       // Normalize keys: "00040" → "40" so leading zeros in the Excel don't break the lookup
-      const berufKeys = row[3 + colOffset]
-        ? String(row[3 + colOffset]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
+      const berufKeys = row[3 + colOffset + extraOffset]
+        ? String(row[3 + colOffset + extraOffset]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
         : [];
       const berufIds = berufKeys.map(k => berufMap.get(k)).filter(Boolean);
 
-      // Col E (index 4): Qualifikationsschlüssel kommagetrennt
-      const qualiKeys = row[4 + colOffset]
-        ? String(row[4 + colOffset]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
+      // Col G/F (index 4+extraOffset): Qualifikationsschlüssel kommagetrennt
+      const qualiKeys = row[4 + colOffset + extraOffset]
+        ? String(row[4 + colOffset + extraOffset]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
         : [];
       const qualiIds = qualiKeys.map(k => qualiMap.get(k)).filter(Boolean);
 
-      // Col F (index 5): Personengruppe
-      const persgruppRaw = row[5 + colOffset] != null ? parseInt(row[5 + colOffset], 10) : null;
+      // Col H/G (index 5+extraOffset): Personengruppe
+      const persgruppRaw = row[5 + colOffset + extraOffset] != null ? parseInt(row[5 + colOffset + extraOffset], 10) : null;
       const persgruppe = persgruppRaw != null && VALID_PERSGRUPPEN.has(persgruppRaw) ? persgruppRaw : null;
 
-      // Col G (index 6): Email
-      const email = row[6 + colOffset] ? String(row[6 + colOffset]).trim().toLowerCase() : null;
+      // Col I/H (index 6+extraOffset): Email
+      const email = row[6 + colOffset + extraOffset] ? String(row[6 + colOffset + extraOffset]).trim().toLowerCase() : null;
 
-      // Col H (index 7): Telefon
-      const telefon = row[7 + colOffset] ? String(row[7 + colOffset]).trim() : null;
+      // Col J/I (index 7+extraOffset): Telefon
+      const telefon = row[7 + colOffset + extraOffset] ? String(row[7 + colOffset + extraOffset]).trim() : null;
 
       // Build $set payload — only include fields that have a value
       const setFields = {
         berufe: berufIds,
         qualifikationen: qualiIds,
       };
+      if (eintrittsdatum) setFields.eintrittsdatum = eintrittsdatum;
       if (austrittsdatum) setFields.austrittsdatum = austrittsdatum;
       if (persgruppe != null) setFields.persgruppe = persgruppe;
       if (email) setFields.email = email;
