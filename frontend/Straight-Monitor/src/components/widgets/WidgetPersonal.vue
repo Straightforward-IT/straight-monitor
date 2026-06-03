@@ -2,6 +2,7 @@
   <DashboardWidget
     title="Zuletzt erstellt"
     :icon="['fas', 'people-line']"
+    title-link-to="/personal"
     :loading="loading"
   >
     <template #actions>

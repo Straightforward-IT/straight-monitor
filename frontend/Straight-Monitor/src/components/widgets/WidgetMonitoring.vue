@@ -2,6 +2,7 @@
   <DashboardWidget
     title="Bestand-Logs"
     :icon="['fas', 'timeline']"
+    title-link-to="/verlauf"
     :loading="loading"
   >
     <template #actions>

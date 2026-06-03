@@ -4,7 +4,10 @@
       <slot name="title">
         <div class="dash-widget__title-group">
           <font-awesome-icon v-if="icon" :icon="icon" class="dash-widget__icon" />
-          <h3>{{ title }}</h3>
+          <RouterLink v-if="titleLinkTo" :to="titleLinkTo" class="dash-widget__title-link">
+            <h3>{{ title }}</h3>
+          </RouterLink>
+          <h3 v-else>{{ title }}</h3>
         </div>
       </slot>
       <slot name="actions" />
@@ -38,6 +41,7 @@ import { RouterLink } from "vue-router";
 defineProps({
   title: { type: String, default: '' },
   icon: { type: Array, default: null },
+  titleLinkTo: { type: [String, Object], default: null },
   linkTo: { type: [String, Object], default: null },
   linkLabel: { type: String, default: "Mehr anzeigen" },
   loading: { type: Boolean, default: false },
@@ -77,6 +81,16 @@ defineProps({
       font-weight: 600;
       color: var(--text);
       margin: 0;
+    }
+  }
+
+  &__title-link {
+    text-decoration: none;
+    color: inherit;
+    transition: color 0.15s ease;
+
+    &:hover h3 {
+      color: var(--primary);
     }
   }
 

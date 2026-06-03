@@ -2,6 +2,7 @@
   <DashboardWidget
     title="Zuletzt erstellt"
     :icon="['fas', 'file-alt']"
+    title-link-to="/dokumente"
     :loading="loading"
   >
     <template #actions>

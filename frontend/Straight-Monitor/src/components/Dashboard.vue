@@ -102,7 +102,7 @@ onMounted(async () => {
     userName.value = data?.name || "";
 
     // Load widget preferences keyed by user id (backend prefs take priority)
-    prefs.load(data?._id, data?.dashboardPrefs ?? null);
+    prefs.load(data?._id, data?.dashboardPrefs ?? null, data?.roles ?? []);
   } catch {
     router.push("/");
   }

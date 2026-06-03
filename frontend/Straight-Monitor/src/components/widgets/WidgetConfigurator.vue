@@ -25,7 +25,7 @@
 
             <ul class="cfg__list">
               <li
-                v-for="(w, idx) in prefs.widgetOrder"
+                v-for="(w, idx) in prefs.allowedWidgetOrder"
                 :key="w.id"
                 class="cfg__item"
                 :class="{ 'cfg__item--off': !w.visible, 'cfg__item--drag-over': dragOverIdx === idx }"
@@ -92,16 +92,16 @@ const prefs = useDashboardPrefs();
 const getDef = (id) => WIDGET_DEFINITIONS.find((d) => d.id === id);
 
 // ── Drag & Drop ──────────────────────────────────────────────────────────
-const dragSrcIdx = ref(null);
+const dragSrcId = ref(null);
 const dragOverIdx = ref(null);
 
 function onDragStart(idx, event) {
-  dragSrcIdx.value = idx;
+  dragSrcId.value = prefs.allowedWidgetOrder[idx]?.id ?? null;
   event.dataTransfer.effectAllowed = 'move';
 }
 
 function onDragOver(idx) {
-  if (dragSrcIdx.value === null || dragSrcIdx.value === idx) return;
+  if (dragSrcId.value === null || prefs.allowedWidgetOrder[idx]?.id === dragSrcId.value) return;
   dragOverIdx.value = idx;
 }
 
@@ -110,15 +110,16 @@ function onDragLeave() {
 }
 
 function onDrop(toIdx) {
-  if (dragSrcIdx.value !== null && dragSrcIdx.value !== toIdx) {
-    prefs.reorderWidget(dragSrcIdx.value, toIdx);
+  const toId = prefs.allowedWidgetOrder[toIdx]?.id;
+  if (dragSrcId.value !== null && toId && dragSrcId.value !== toId) {
+    prefs.reorderWidgetByIds(dragSrcId.value, toId);
   }
-  dragSrcIdx.value = null;
+  dragSrcId.value = null;
   dragOverIdx.value = null;
 }
 
 function onDragEnd() {
-  dragSrcIdx.value = null;
+  dragSrcId.value = null;
   dragOverIdx.value = null;
 }
 </script>

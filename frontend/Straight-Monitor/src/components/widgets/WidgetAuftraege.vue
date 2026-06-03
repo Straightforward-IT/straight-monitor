@@ -2,6 +2,7 @@
   <DashboardWidget
     title="Aufträge"
     :icon="['fas', 'calendar-days']"
+    title-link-to="/auftraege"
     :loading="loading"
   >
     <template #actions>

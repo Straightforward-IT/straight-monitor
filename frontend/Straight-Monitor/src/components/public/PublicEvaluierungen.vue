@@ -14,8 +14,8 @@
         </div>
         <div class="doc-info">
           <span class="doc-title">{{ getLaufzettelLabel(lz) }}</span>
+          <span class="doc-sub" v-if="lz.name_mitarbeiter">{{ lz.name_mitarbeiter }}</span>
           <span class="doc-date" v-if="lz.datum || lz.createdAt">{{ formatDate(lz.datum || lz.createdAt) }}</span>
-          <span class="doc-sub" v-if="lz.name_teamleiter">Teamleiter: {{ lz.name_teamleiter }}</span>
         </div>
         <button class="btn-schreiben" @click="$emit('write-evaluierung', lz)">
           <font-awesome-icon icon="fa-solid fa-pen" /> Schreiben
@@ -36,8 +36,8 @@
         </div>
         <div class="doc-info">
           <span class="doc-title">{{ getLaufzettelLabel(lz) }}</span>
+          <span class="doc-sub" v-if="lz.name_mitarbeiter">{{ lz.name_mitarbeiter }}</span>
           <span class="doc-date" v-if="lz.datum || lz.createdAt">{{ formatDate(lz.datum || lz.createdAt) }}</span>
-          <span class="doc-sub" v-if="lz.name_mitarbeiter">Mitarbeiter: {{ lz.name_mitarbeiter }}</span>
         </div>
       </div>
     </div>
@@ -82,9 +82,7 @@ const doneLaufzettel = computed(() =>
 );
 
 function getLaufzettelLabel(lz) {
-  if (lz.name_mitarbeiter && lz.name_teamleiter)
-    return `${lz.name_mitarbeiter} – ${lz.name_teamleiter}`;
-  return 'Laufzettel';
+  return lz.kunde || lz.name_mitarbeiter || 'Laufzettel';
 }
 
 function formatDate(d) {

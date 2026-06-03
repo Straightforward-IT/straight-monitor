@@ -60,6 +60,10 @@
 
       <!-- Auto-filled info -->
       <div v-if="selectedEinsatz" class="prefill-info">
+        <div class="prefill-row" v-if="selectedEinsatz.auftrag?.eventTitel || selectedEinsatz.bezeichnung">
+          <span class="prefill-label">Event</span>
+          <span class="prefill-value">{{ selectedEinsatz.auftrag?.eventTitel || selectedEinsatz.bezeichnung }}</span>
+        </div>
         <div class="prefill-row">
           <span class="prefill-label">Datum</span>
           <span class="prefill-value">{{ formatDate(selectedEinsatz.datumVon) }}</span>
@@ -140,7 +144,10 @@
           <img :src="imgLaufzettel" class="doc-icon-img" alt="" />
         </div>
         <div class="doc-info">
-          <span class="doc-title">{{ doc.name_teamleiter || doc.title || doc.name || 'Laufzettel' }}</span>
+          <span class="doc-title">{{ doc.kunde || doc.title || doc.name || 'Laufzettel' }}</span>
+          <span class="doc-sub" v-if="doc.name_teamleiter">
+            <font-awesome-icon icon="fa-solid fa-user" /> {{ doc.name_teamleiter }}
+          </span>
           <span class="doc-meta" v-if="doc.location">
             <font-awesome-icon icon="fa-solid fa-location-dot" /> {{ doc.location }}
           </span>
@@ -730,6 +737,14 @@ function formatDate(d) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.doc-sub {
+  font-size: 0.75rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 .doc-meta {

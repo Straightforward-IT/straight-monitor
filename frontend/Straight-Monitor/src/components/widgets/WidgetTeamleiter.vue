@@ -2,6 +2,7 @@
   <DashboardWidget
     title="Teamleiter Auswertung"
     :icon="['fas', 'user-tie']"
+    title-link-to="/teamleiter-auswertung"
     :loading="loading"
   >
     <template #actions>

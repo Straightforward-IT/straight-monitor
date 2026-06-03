@@ -10,7 +10,7 @@
  */
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { WIDGET_DEFINITIONS } from "@/components/widgets/widgetRegistry";
+import { WIDGET_DEFINITIONS, isWidgetAllowedForRoles } from "@/components/widgets/widgetRegistry";
 import api from "@/utils/api";
 
 const STORAGE_PREFIX = "dashboard_widgets_";
@@ -19,6 +19,7 @@ const SYNC_DEBOUNCE_MS = 800;
 export const useDashboardPrefs = defineStore("dashboardPrefs", () => {
   /* ── state ─────────────────────────────────────────── */
   const userId = ref("default");
+  const userRoles = ref([]);
   const widgetOrder = ref([]); // [{ id, visible }]  – order = display order
   const loaded = ref(false);
 
@@ -79,9 +80,11 @@ export const useDashboardPrefs = defineStore("dashboardPrefs", () => {
    * @param {string} [id]           – user._id
    * @param {Array|null} [backendPrefs] – value of User.dashboardPrefs from /api/users/me
    *                                     Pass it here to avoid a second HTTP request.
+   * @param {Array} [roles]         – user.roles (used to filter role-restricted widgets)
    */
-  function load(id, backendPrefs) {
+  function load(id, backendPrefs, roles = []) {
     if (id) userId.value = id;
+    userRoles.value = Array.isArray(roles) ? roles : [];
 
     // 1. Backend prefs (most authoritative – survive device switches)
     if (Array.isArray(backendPrefs) && backendPrefs.length > 0) {
@@ -142,6 +145,21 @@ export const useDashboardPrefs = defineStore("dashboardPrefs", () => {
     _save();
   }
 
+  /**
+   * Move a widget by IDs — safe to call with indices from a filtered sub-list.
+   */
+  function reorderWidgetByIds(fromId, toId) {
+    if (fromId === toId) return;
+    const fromIdx = widgetOrder.value.findIndex((w) => w.id === fromId);
+    const toIdx   = widgetOrder.value.findIndex((w) => w.id === toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const arr = [...widgetOrder.value];
+    const [item] = arr.splice(fromIdx, 1);
+    arr.splice(toIdx, 0, item);
+    widgetOrder.value = arr;
+    _save();
+  }
+
   /** Reset to factory defaults */
   function resetToDefaults() {
     widgetOrder.value = _defaults();
@@ -159,16 +177,27 @@ export const useDashboardPrefs = defineStore("dashboardPrefs", () => {
         return def ? { ...w, ...def } : null;
       })
       .filter(Boolean)
+      .filter((w) => isWidgetAllowedForRoles(w, userRoles.value))
+  );
+
+  /** widgetOrder filtered to only include role-allowed widgets (for the configurator) */
+  const allowedWidgetOrder = computed(() =>
+    widgetOrder.value.filter((w) => {
+      const def = WIDGET_DEFINITIONS.find((d) => d.id === w.id);
+      return def ? isWidgetAllowedForRoles(def, userRoles.value) : false;
+    })
   );
 
   return {
     widgetOrder,
+    allowedWidgetOrder,
     activeWidgets,
     loaded,
     load,
     setVisible,
     moveWidget,
     reorderWidget,
+    reorderWidgetByIds,
     resetToDefaults,
   };
 });

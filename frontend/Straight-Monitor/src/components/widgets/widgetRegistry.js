@@ -89,6 +89,15 @@ export const WIDGET_DEFINITIONS = [
     defaultVisible: true,
   },
   {
+    id: 'leads',
+    title: 'Leads',
+    icon: ['fas', 'bullseye'],
+    component: defineAsyncComponent(() => import('./WidgetLeads.vue')),
+    description: 'Zeigt die aktuellen offenen Sales-Leads an',
+    defaultVisible: true,
+    requiresRole: ['ADMIN', 'VERTRIEB'],
+  },
+  {
     id: 'sinnlos',
     title: 'Sinnloser Knopf',
     icon: ['fas', 'circle-exclamation'],
@@ -100,3 +109,19 @@ export const WIDGET_DEFINITIONS = [
 
 /** Lookup helper */
 export const getWidgetById = (id) => WIDGET_DEFINITIONS.find((w) => w.id === id)
+
+/**
+ * Decide whether a widget definition is available for the given user roles.
+ * Widgets without `requiresRole` are available to everyone. ADMIN always
+ * has access. Otherwise the user must hold at least one of the required roles.
+ */
+export const isWidgetAllowedForRoles = (def, roles = []) => {
+  if (!def?.requiresRole?.length) return true
+  const userRoles = Array.isArray(roles) ? roles : []
+  if (userRoles.includes('ADMIN')) return true
+  return def.requiresRole.some((r) => userRoles.includes(r))
+}
+
+/** All widget definitions available to the given user roles. */
+export const getWidgetsForRoles = (roles = []) =>
+  WIDGET_DEFINITIONS.filter((def) => isWidgetAllowedForRoles(def, roles))

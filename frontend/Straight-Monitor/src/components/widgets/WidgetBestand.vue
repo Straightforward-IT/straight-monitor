@@ -2,6 +2,7 @@
   <DashboardWidget
     title="Bestand"
     :icon="['fas', 'warehouse']"
+    title-link-to="/bestand"
     :loading="loading"
   >
     <template #actions>

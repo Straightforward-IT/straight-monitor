@@ -2,6 +2,7 @@
   <DashboardWidget
     title="Letzte Imports"
     :icon="['fas', 'file-import']"
+    title-link-to="/daten-import"
     :loading="loading"
   >
     <ul class="wi-list">
