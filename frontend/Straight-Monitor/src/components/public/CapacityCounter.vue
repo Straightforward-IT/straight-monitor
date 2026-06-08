@@ -484,7 +484,7 @@ function connectStream(auftragNr) {
   disconnectStream();
   if (!auftragNr || !token.value) return;
 
-  const base = import.meta.env.VITE_API_BASE_URL || '';
+  const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
   const params = new URLSearchParams({
     auftragNr: String(auftragNr),
     token: token.value,
