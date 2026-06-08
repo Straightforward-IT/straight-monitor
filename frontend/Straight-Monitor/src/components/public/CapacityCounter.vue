@@ -95,6 +95,17 @@
                 <span v-if="capacity.updatedAt" class="updated-at">{{ formatUpdatedAt(capacity.updatedAt) }}</span>
               </div>
 
+              <div class="counter-grid">
+                <div class="counter-box counter-box--total" :class="{ 'counter-box--over': capacity.isOverLimit }">
+                  <span class="counter-label">Gesamt</span>
+                  <strong>{{ capacity.totalGuests }}</strong>
+                </div>
+                <div class="counter-box counter-box--mine">
+                  <span class="counter-label">Meine Gäste</span>
+                  <strong>{{ capacity.myGuests }}</strong>
+                </div>
+              </div>
+
               <div class="capacity-limit-card" :class="{ 'capacity-limit-card--over': capacity.isOverLimit, 'capacity-limit-card--unset': !hasCapacityLimit }">
                 <div class="limit-summary">
                   <div>
@@ -117,21 +128,10 @@
                     aria-label="Kapazitätsgrenze"
                     :disabled="savingLimit"
                   />
-                  <button class="small-action-btn" type="submit" :disabled="savingLimit">Speichern</button>
+                  <button class="small-action-btn" type="submit" :disabled="savingLimit">Setzen</button>
                   <button v-if="hasCapacityLimit" class="small-action-btn small-action-btn--ghost" type="button" :disabled="savingLimit" @click="clearCapacityLimit">Entfernen</button>
                 </form>
                 <p v-if="limitError" class="limit-error">{{ limitError }}</p>
-              </div>
-
-              <div class="counter-grid">
-                <div class="counter-box counter-box--total" :class="{ 'counter-box--over': capacity.isOverLimit }">
-                  <span class="counter-label">Gesamt Gäste</span>
-                  <strong>{{ capacity.totalGuests }}</strong>
-                </div>
-                <div class="counter-box counter-box--mine">
-                  <span class="counter-label">Meine Gäste</span>
-                  <strong>{{ capacity.myGuests }}</strong>
-                </div>
               </div>
 
               <div class="counter-actions">
@@ -169,7 +169,7 @@
                 <input
                   v-model="chatDraft"
                   maxlength="500"
-                  placeholder="Nachricht"
+                  placeholder="Nachricht schreiben"
                   aria-label="Chatnachricht"
                   :disabled="sendingChat"
                 />
@@ -607,6 +607,14 @@ function formatContributorName(contributor) {
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overscroll-behavior-y: contain;
+}
+
+.capacity-page,
+.capacity-page * {
+  box-sizing: border-box;
 }
 
 .full-page-loader {
@@ -623,8 +631,8 @@ function formatContributorName(contributor) {
   position: sticky;
   top: 0;
   z-index: 50;
-  min-height: 56px;
-  padding: 8px 16px;
+  min-height: 52px;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 14px 8px;
   background: var(--panel);
   display: flex;
   align-items: center;
@@ -635,19 +643,19 @@ function formatContributorName(contributor) {
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
 .logo {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
 .brand h1 {
-  font-size: 1.05rem;
+  font-size: 1rem;
   line-height: 1.2;
   margin: 0;
   color: var(--text);
@@ -664,9 +672,9 @@ function formatContributorName(contributor) {
 }
 
 .icon-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--tile-bg);
   color: var(--text);
@@ -682,9 +690,9 @@ function formatContributorName(contributor) {
 }
 
 .page-body {
-  width: min(100%, 760px);
+  width: min(100%, 720px);
   margin: 0 auto;
-  padding: 1rem 1rem 0;
+  padding: 0.85rem 0.85rem max(1rem, env(safe-area-inset-bottom, 0px));
   flex: 1;
 }
 
@@ -704,7 +712,7 @@ function formatContributorName(contributor) {
 .empty-icon {
   width: 56px;
   height: 56px;
-  border-radius: 14px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -740,7 +748,7 @@ function formatContributorName(contributor) {
   border: 1px solid var(--primary);
   color: var(--primary);
   background: transparent;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 0.65rem 0.9rem;
   display: inline-flex;
   gap: 0.45rem;
@@ -754,7 +762,7 @@ function formatContributorName(contributor) {
 }
 
 .event-picker-section {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .event-picker-section label {
@@ -774,13 +782,13 @@ function formatContributorName(contributor) {
 
 .select-wrap select {
   width: 100%;
-  min-height: 48px;
-  border-radius: 10px;
+  min-height: 46px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--tile-bg);
   color: var(--text);
   padding: 0.75rem 2.4rem 0.75rem 0.9rem;
-  font-size: 0.95rem;
+  font-size: 16px;
   font-weight: 600;
   appearance: none;
 }
@@ -798,14 +806,14 @@ function formatContributorName(contributor) {
 .section {
   background: var(--tile-bg);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1rem;
-  margin-bottom: 0.9rem;
+  border-radius: 8px;
+  padding: 0.9rem;
+  margin-bottom: 0.75rem;
 }
 
 .counter-panel {
   border-color: rgba(255, 117, 24, 0.35);
-  background: linear-gradient(180deg, rgba(255, 117, 24, 0.08), var(--tile-bg) 58%);
+  background: linear-gradient(180deg, rgba(255, 117, 24, 0.08), var(--tile-bg) 48%);
 }
 
 .counter-panel--over-limit {
@@ -818,7 +826,7 @@ function formatContributorName(contributor) {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.9rem;
+  margin-bottom: 0.75rem;
 }
 
 .live-pill,
@@ -844,10 +852,10 @@ function formatContributorName(contributor) {
 
 .capacity-limit-card {
   border: 1px solid rgba(22, 163, 74, 0.25);
-  border-radius: 12px;
+  border-radius: 8px;
   background: rgba(22, 163, 74, 0.08);
-  padding: 0.75rem;
-  margin-bottom: 0.85rem;
+  padding: 0.68rem;
+  margin-bottom: 0.75rem;
 }
 
 .capacity-limit-card--unset {
@@ -879,7 +887,7 @@ function formatContributorName(contributor) {
 .limit-summary strong {
   display: block;
   color: var(--text);
-  font-size: 1.15rem;
+  font-size: 1.06rem;
   line-height: 1.1;
 }
 
@@ -939,23 +947,23 @@ function formatContributorName(contributor) {
 .chat-form input {
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--tile-bg);
   color: var(--text);
-  min-height: 40px;
+  min-height: 42px;
   padding: 0.55rem 0.7rem;
-  font-size: 0.9rem;
+  font-size: 16px;
   font-weight: 600;
 }
 
 .small-action-btn {
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--primary);
   color: white;
-  min-height: 40px;
+  min-height: 42px;
   padding: 0 0.75rem;
-  font-size: 0.8rem;
+  font-size: 0.86rem;
   font-weight: 800;
   cursor: pointer;
 }
@@ -974,13 +982,13 @@ function formatContributorName(contributor) {
 .counter-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
 }
 
 .counter-box {
-  border-radius: 10px;
-  padding: 0.9rem;
+  border-radius: 8px;
+  padding: 0.82rem;
   border: 1px solid var(--border);
   background: var(--surface);
 }
@@ -997,7 +1005,7 @@ function formatContributorName(contributor) {
   border-color: rgba(239, 68, 68, 0.46);
 }
 
-.counter-box--over strong {
+.counter-box.counter-box--over strong {
   color: #ef4444;
 }
 
@@ -1011,7 +1019,7 @@ function formatContributorName(contributor) {
 
 .counter-box strong {
   color: var(--text);
-  font-size: 2.25rem;
+  font-size: 2.32rem;
   line-height: 1;
 }
 
@@ -1022,8 +1030,8 @@ function formatContributorName(contributor) {
 }
 
 .round-btn {
-  height: 58px;
-  border-radius: 14px;
+  height: 56px;
+  border-radius: 10px;
   border: none;
   color: white;
   font-size: 1.2rem;
@@ -1070,7 +1078,7 @@ function formatContributorName(contributor) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.85rem;
+  margin-bottom: 0.75rem;
 }
 
 .section-heading--compact {
@@ -1096,8 +1104,8 @@ function formatContributorName(contributor) {
 }
 
 .detail-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
@@ -1108,9 +1116,9 @@ function formatContributorName(contributor) {
 }
 
 .detail-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1142,6 +1150,7 @@ function formatContributorName(contributor) {
 }
 
 .labels-row {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
@@ -1157,13 +1166,13 @@ function formatContributorName(contributor) {
 
 .contributors-table {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   background: var(--surface);
 }
 
 .contributors-row {
-  min-height: 54px;
+  min-height: 50px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -1232,11 +1241,11 @@ function formatContributorName(contributor) {
 }
 
 .chat-section {
-  padding-bottom: 0.85rem;
+  padding-bottom: 0.8rem;
 }
 
 .chat-list {
-  max-height: 260px;
+  max-height: 230px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1256,7 +1265,7 @@ function formatContributorName(contributor) {
 .chat-bubble {
   max-width: min(86%, 560px);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--surface);
   padding: 0.62rem 0.7rem;
 }
@@ -1307,9 +1316,9 @@ function formatContributorName(contributor) {
 
 .chat-send-btn {
   width: 44px;
-  min-height: 40px;
+  min-height: 42px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--primary);
   color: white;
   cursor: pointer;
@@ -1335,7 +1344,11 @@ function formatContributorName(contributor) {
 
 @media (max-width: 430px) {
   .page-body {
-    padding: 0.85rem 0.75rem 0;
+    padding: 0.75rem 0.7rem max(0.9rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .detail-list {
+    grid-template-columns: 1fr;
   }
 
   .counter-grid,
