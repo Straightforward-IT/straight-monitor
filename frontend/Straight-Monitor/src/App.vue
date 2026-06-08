@@ -43,7 +43,8 @@ const route = useRoute();
 const themeStore = useTheme();
 const isFlipCreate = computed(() => route.name === "BenutzerErstellen");
 const isPublicEinsaetze = computed(() => route.name === "PublicEinsaetze");
-const isSpecialRoute = computed(() => isFlipCreate.value || isPublicEinsaetze.value);
+const isCapacityCounter = computed(() => route.name === "CapacityCounter");
+const isSpecialRoute = computed(() => isFlipCreate.value || isPublicEinsaetze.value || isCapacityCounter.value);
 
 // --- Notification Permission Banner ---
 const showNotifBanner = ref(false);
@@ -71,8 +72,8 @@ function dismissBanner() {
 const updateAppMargin = () => {
   const appDiv = document.getElementById("app");
   if (appDiv) {
-    // Wenn FlipCreate ODER PublicEinsaetze -> Margin/Padding resetten
-    if (isFlipCreate.value || isPublicEinsaetze.value) {
+    // Wenn FlipCreate, PublicEinsaetze oder CapacityCounter -> Margin/Padding resetten
+    if (isSpecialRoute.value) {
       appDiv.style.margin = "unset";
       appDiv.style.padding = "0"; // Entfernt den schwarzen Rand
       appDiv.style.maxWidth = "100%";

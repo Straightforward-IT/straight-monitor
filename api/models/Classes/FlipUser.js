@@ -164,6 +164,25 @@ class FlipUser {
   }
 
   /**
+   * Removes this user from a Flip user group.
+   * Silently ignores 404 (user not in group).
+   * @param {string} groupId - The ID of the group to remove the user from.
+   */
+  async removeFromGroup(groupId) {
+    if (!this.id) throw new Error("FlipUser must have a valid id.");
+    if (!groupId) throw new Error("groupId is required.");
+
+    try {
+      await flipAxios.delete(
+        `/api/admin/users/v4/user-groups/${groupId}/assignments/${this.id}`
+      );
+    } catch (err) {
+      // 404 = user is not in this group → fine, nothing to remove
+      if (err.response?.status !== 404) throw err;
+    }
+  }
+
+  /**
    * Converts FlipUser object to a Mitarbeiter-compatible format.
    */
   toMitarbeiter() {

@@ -1672,9 +1672,16 @@ async function syncRankGroups(mitarbeiterList) {
           return;
         }
 
-        // Flip: zur Rang-Gruppe hinzufügen + als Primary setzen
+        // Flip: erst zur neuen Rang-Gruppe hinzufügen + als Primary setzen,
+        // dann erst (bei Erfolg) alle anderen Rang-Gruppen entfernen
         const flipUser = new (require("./models/Classes/FlipUser"))({ id: ma.flip_id });
         await flipUser.addToGroup(tier.groupId, { setPrimary: true });
+        const otherRankGroupIds = RANKS
+          .filter(r => r.groupId !== tier.groupId)
+          .map(r => r.groupId);
+        for (const oldGroupId of otherRankGroupIds) {
+          await flipUser.removeFromGroup(oldGroupId);
+        }
 
         // DB: Rang cachen
         const prevRank = ma.rank;

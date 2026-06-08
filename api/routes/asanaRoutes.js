@@ -3,7 +3,7 @@ const router = express.Router();
 const asyncHandler = require("../middleware/AsyncHandler");
 const auth = require("../middleware/auth");
 const User = require("../models/User");
-const { findTasks, getTaskById, getStoryById, getStoriesByTask, findAllTasks, updateTask, addLinkToTask, bewerberRoutine, createStoryOnTask, getAsanaUser, getAsanaUsers, getAsanaWorkspaceUsers } = require("../AsanaService");
+const { findTasks, getTaskById, getStoryById, getStoriesByTask, findAllTasks, updateTask, addLinkToTask, bewerberRoutine, createStoryOnTask, getAsanaUser, getAsanaUsers, getAsanaWorkspaceUsers, createSalesTask } = require("../AsanaService");
 
 
 
@@ -644,6 +644,44 @@ router.put("/users/link", auth, asyncHandler(async (req, res) => {
 router.delete("/users/link", auth, asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(req.user.id, { asana_id: null });
   res.status(200).json({ success: true, message: "Asana link removed." });
+}));
+
+/**
+ * Route: Batch-create tasks in an Asana project.
+ * Body: { projectId: string, tasks: Array<{ name, notes?, due_on?, assignee?, sectionId? }> }
+ */
+router.post("/tasks/batch", asyncHandler(async (req, res) => {
+  const { projectId, tasks } = req.body;
+
+  if (!projectId || typeof projectId !== "string" || !projectId.trim()) {
+    return res.status(400).json({ success: false, message: "projectId is required." });
+  }
+  if (!Array.isArray(tasks) || tasks.length === 0) {
+    return res.status(400).json({ success: false, message: "tasks must be a non-empty array." });
+  }
+
+  const results = [];
+  const errors = [];
+
+  for (const task of tasks) {
+    if (!task.name || !task.name.trim()) {
+      errors.push({ input: task, error: "name is required" });
+      continue;
+    }
+    try {
+      const created = await createSalesTask({ projectId: projectId.trim(), ...task });
+      results.push(created);
+    } catch (err) {
+      errors.push({ input: task, error: err.message });
+    }
+  }
+
+  res.status(207).json({
+    success: true,
+    message: `${results.length} task(s) created, ${errors.length} failed.`,
+    created: results,
+    errors,
+  });
 }));
 
 module.exports = router;
