@@ -64,81 +64,88 @@ async function verifyIdToken(idToken) {
   });
 }
 
+async function exchangePublicOidcCode(req, res, clientId, logContext) {
+  const { code, code_verifier, redirect_uri } = req.body;
+
+  if (!code || !code_verifier || !redirect_uri) {
+    return res.status(400).json({ msg: 'Missing required parameters: code, code_verifier, redirect_uri' });
+  }
+
+  if (!clientId) {
+    logger.warn(`${logContext}: client ID is not set — OIDC login unavailable`);
+    return res.status(503).json({ msg: 'OIDC ist noch nicht konfiguriert. Bitte wende dich an den Administrator.' });
+  }
+
+  const params = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: clientId,
+    code,
+    code_verifier,
+    redirect_uri,
+  });
+
+  let tokenSet;
+  try {
+    const tokenRes = await fetch(TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    if (!tokenRes.ok) {
+      const detail = await tokenRes.text();
+      logger.error(`${logContext} token exchange failed:`, detail);
+      return res.status(400).json({ msg: 'Token-Austausch fehlgeschlagen', detail });
+    }
+    tokenSet = await tokenRes.json();
+  } catch (err) {
+    logger.error(`${logContext} token exchange error:`, err.message);
+    return res.status(502).json({ msg: 'Verbindung zu Keycloak fehlgeschlagen' });
+  }
+
+  const idToken = tokenSet.id_token;
+  if (!idToken) {
+    return res.status(400).json({ msg: 'Kein ID-Token in der Antwort' });
+  }
+
+  let claims;
+  try {
+    claims = await verifyIdToken(idToken);
+  } catch (err) {
+    logger.error(`${logContext} ID token verification failed:`, err.message);
+    return res.status(401).json({ msg: 'ID-Token ungültig', detail: err.message });
+  }
+
+  const email = claims.email || (claims.preferred_username?.includes('@') ? claims.preferred_username : null);
+  if (!email) {
+    return res.status(400).json({ msg: 'Kein E-Mail-Anspruch im Token gefunden' });
+  }
+
+  const sessionToken = jwt.sign(
+    { email, flip_id: claims.sub, source: 'oidc' },
+    process.env.JWT_SECRET,
+    { expiresIn: '12h', issuer: 'straight-monitor' }
+  );
+
+  logger.info(`${logContext} login successful: ${email} (flip_id: ${claims.sub})`);
+  return res.json({ session_token: sessionToken, email, flip_id: claims.sub });
+}
+
 // ── POST /api/public/oidc/callback ─────────────────────────────────────────
 // Exchanges an authorization code for a verified session token.
 // Body: { code, code_verifier, redirect_uri }
 router.post(
   '/callback',
   asyncHandler(async (req, res) => {
-    const { code, code_verifier, redirect_uri } = req.body;
+    return exchangePublicOidcCode(req, res, process.env.FLIP_OIDC_CLIENT_ID, 'OIDC public');
+  })
+);
 
-    if (!code || !code_verifier || !redirect_uri) {
-      return res.status(400).json({ msg: 'Missing required parameters: code, code_verifier, redirect_uri' });
-    }
-
-    const clientId = process.env.FLIP_OIDC_CLIENT_ID;
-    if (!clientId) {
-      logger.warn('OIDC: FLIP_OIDC_CLIENT_ID is not set — OIDC login unavailable');
-      return res.status(503).json({ msg: 'OIDC ist noch nicht konfiguriert. Bitte wende dich an den Administrator.' });
-    }
-
-    // Exchange authorization code for token set
-    const params = new URLSearchParams({
-      grant_type: 'authorization_code',
-      client_id: clientId,
-      code,
-      code_verifier,
-      redirect_uri,
-    });
-
-    let tokenSet;
-    try {
-      const tokenRes = await fetch(TOKEN_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      });
-      if (!tokenRes.ok) {
-        const detail = await tokenRes.text();
-        logger.error('OIDC token exchange failed:', detail);
-        return res.status(400).json({ msg: 'Token-Austausch fehlgeschlagen', detail });
-      }
-      tokenSet = await tokenRes.json();
-    } catch (err) {
-      logger.error('OIDC token exchange error:', err.message);
-      return res.status(502).json({ msg: 'Verbindung zu Keycloak fehlgeschlagen' });
-    }
-
-    const idToken = tokenSet.id_token;
-    if (!idToken) {
-      return res.status(400).json({ msg: 'Kein ID-Token in der Antwort' });
-    }
-
-    // Verify the ID token signature and claims via JWKS
-    let claims;
-    try {
-      claims = await verifyIdToken(idToken);
-    } catch (err) {
-      logger.error('OIDC ID token verification failed:', err.message);
-      return res.status(401).json({ msg: 'ID-Token ungültig', detail: err.message });
-    }
-
-    // Extract email — Keycloak uses 'email' or falls back to 'preferred_username'
-    const email = claims.email || (claims.preferred_username?.includes('@') ? claims.preferred_username : null);
-    if (!email) {
-      return res.status(400).json({ msg: 'Kein E-Mail-Anspruch im Token gefunden' });
-    }
-
-    // Issue our own short-lived session JWT containing the verified email and Flip user ID
-    // claims.sub from Flip's Keycloak realm IS the Flip user UUID (= flip_id in Mitarbeiter)
-    const sessionToken = jwt.sign(
-      { email, flip_id: claims.sub, source: 'oidc' },
-      process.env.JWT_SECRET,
-      { expiresIn: '12h', issuer: 'straight-monitor' }
-    );
-
-    logger.info(`OIDC login successful: ${email} (flip_id: ${claims.sub})`);
-    return res.json({ session_token: sessionToken, email, flip_id: claims.sub });
+// ── POST /api/public/oidc/capacity-callback ───────────────────────────────
+// Exchanges a Capacity Counter authorization code for a verified session token.
+router.post(
+  '/capacity-callback',
+  asyncHandler(async (req, res) => {
+    return exchangePublicOidcCode(req, res, process.env.FLIP_OIDC_CAPACITY_CLIENT_ID, 'OIDC capacity');
   })
 );
 
@@ -239,6 +246,20 @@ router.get(
   '/config',
   asyncHandler(async (req, res) => {
     const clientId = process.env.FLIP_OIDC_CLIENT_ID;
+    return res.json({
+      authorization_endpoint: `${ISSUER}/protocol/openid-connect/auth`,
+      client_id: clientId || null,
+      configured: !!clientId,
+    });
+  })
+);
+
+// ── GET /api/oidc/capacity-config ─────────────────────────────────────────
+// Returns config for the Capacity Counter OIDC client.
+router.get(
+  '/capacity-config',
+  asyncHandler(async (req, res) => {
+    const clientId = process.env.FLIP_OIDC_CAPACITY_CLIENT_ID;
     return res.json({
       authorization_endpoint: `${ISSUER}/protocol/openid-connect/auth`,
       client_id: clientId || null,

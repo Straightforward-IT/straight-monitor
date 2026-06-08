@@ -9,6 +9,9 @@ const Mitarbeiter = require('../models/Mitarbeiter');
 const Beruf = require('../models/Beruf');
 const Qualifikation = require('../models/Qualifikation');
 const GuestCapacityCounter = require('../models/GuestCapacityCounter');
+const GuestCapacityMeta = require('../models/GuestCapacityMeta');
+const GuestCapacityChatMessage = require('../models/GuestCapacityChatMessage');
+const User = require('../models/User');
 const logger = require('../utils/logger');
 
 router.use(publicAuth);
@@ -18,6 +21,18 @@ const capacityClients = new Map();
 function parsePositiveInt(value) {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseCapacityLimit(value) {
+  if (value === null || value === undefined || value === '') return { valid: true, limit: null };
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) return { valid: false, limit: null };
+  return { valid: true, limit: parsed };
+}
+
+function normalizeMessage(value) {
+  const body = String(value || '').trim();
+  return body.length > 500 ? body.substring(0, 500) : body;
 }
 
 function toDateOrNull(value) {
@@ -79,7 +94,7 @@ async function resolveOidcMitarbeiter(req) {
   if (!orConditions.length) return null;
 
   return Mitarbeiter.findOne({ $or: orConditions })
-    .select('_id personalnr personalnrHistory vorname nachname email flip_id')
+    .select('_id personalnr personalnrHistory vorname nachname email flip_id qualifikationen')
     .lean();
 }
 
@@ -120,6 +135,64 @@ async function requireAssignedMitarbeiter(req, res, auftragNr) {
   return auth;
 }
 
+async function getCapacityPermissions(auth) {
+  const email = normalizeEmail(auth.mitarbeiter.email);
+  const userConditions = [{ mitarbeiter: auth.mitarbeiter._id }];
+  if (email) userConditions.push({ email });
+
+  const [user, teamleiterQual] = await Promise.all([
+    User.findOne({ $or: userConditions }).select('role roles').lean(),
+    Qualifikation.findOne({ qualificationKey: 50055 }).select('_id').lean(),
+  ]);
+
+  const roles = [user?.role, ...(user?.roles || [])]
+    .filter(Boolean)
+    .map((role) => String(role).trim().toUpperCase());
+  const hasTeamleiterRole = roles.some((role) => ['TEAMLEITER', 'TEAMLEAD', 'TL'].includes(role));
+  const teamleiterQualId = teamleiterQual ? String(teamleiterQual._id) : null;
+  const hasTeamleiterQualification = teamleiterQualId
+    ? (auth.mitarbeiter.qualifikationen || []).some((qualifikation) => {
+        const id = String(qualifikation?._id || qualifikation);
+        const key = Number.parseInt(qualifikation?.qualificationKey, 10);
+        return id === teamleiterQualId || key === 50055;
+      })
+    : false;
+
+  return {
+    canSetCapacityLimit: hasTeamleiterRole || hasTeamleiterQualification,
+    isTeamleiter: hasTeamleiterRole || hasTeamleiterQualification,
+  };
+}
+
+function formatPersonName(person) {
+  return [person?.vorname, person?.nachname].filter(Boolean).join(' ').trim();
+}
+
+function formatCapacityMeta(meta, totalGuests) {
+  const limit = Number.isInteger(meta?.capacityLimit) ? meta.capacityLimit : null;
+  return {
+    limit,
+    limitUpdatedAt: meta?.limitUpdatedAt || null,
+    limitUpdatedByPersonalNr: meta?.limitUpdatedByPersonalNr || null,
+    limitUpdatedByName: formatPersonName(meta?.limitUpdatedBy) || null,
+    remainingCapacity: limit === null ? null : limit - totalGuests,
+    isOverLimit: limit !== null && totalGuests > limit,
+  };
+}
+
+function formatChatMessage(message, currentPersonalNr = null) {
+  return {
+    id: String(message._id),
+    auftragNr: message.auftragNr,
+    personalNr: message.personalNr,
+    vorname: message.mitarbeiter?.vorname || null,
+    nachname: message.mitarbeiter?.nachname || null,
+    body: message.body,
+    createdAt: message.createdAt,
+    isCurrentUser: Number(message.personalNr) === Number(currentPersonalNr),
+  };
+}
+
 function broadcastCapacityUpdate(auftragNr, data) {
   const clients = capacityClients.get(auftragNr);
   if (!clients || clients.size === 0) return;
@@ -136,31 +209,39 @@ function broadcastCapacityUpdate(auftragNr, data) {
 }
 
 async function getCapacityState(auftragNr, personalNr) {
-  const [aggregate] = await GuestCapacityCounter.aggregate([
-    { $match: { auftragNr } },
-    {
-      $group: {
-        _id: '$auftragNr',
-        totalGuests: { $sum: '$guestCount' },
-        updatedAt: { $max: '$updatedAt' },
+  const [aggregateResult, ownCounter, contributors, meta] = await Promise.all([
+    GuestCapacityCounter.aggregate([
+      { $match: { auftragNr } },
+      {
+        $group: {
+          _id: '$auftragNr',
+          totalGuests: { $sum: '$guestCount' },
+          updatedAt: { $max: '$updatedAt' },
+        },
       },
-    },
+    ]),
+    GuestCapacityCounter.findOne({ auftragNr, personalNr })
+      .select('guestCount updatedAt')
+      .lean(),
+    GuestCapacityCounter.find({ auftragNr, guestCount: { $gt: 0 } })
+      .select('personalNr mitarbeiter guestCount updatedAt')
+      .populate({ path: 'mitarbeiter', select: 'vorname nachname email' })
+      .sort({ guestCount: -1, updatedAt: -1 })
+      .lean(),
+    GuestCapacityMeta.findOne({ auftragNr })
+      .select('capacityLimit limitUpdatedAt limitUpdatedBy limitUpdatedByPersonalNr')
+      .populate({ path: 'limitUpdatedBy', select: 'vorname nachname' })
+      .lean(),
   ]);
 
-  const ownCounter = await GuestCapacityCounter.findOne({ auftragNr, personalNr })
-    .select('guestCount updatedAt')
-    .lean();
-
-  const contributors = await GuestCapacityCounter.find({ auftragNr, guestCount: { $gt: 0 } })
-    .select('personalNr mitarbeiter guestCount updatedAt')
-    .populate({ path: 'mitarbeiter', select: 'vorname nachname email' })
-    .sort({ guestCount: -1, updatedAt: -1 })
-    .lean();
+  const aggregate = aggregateResult[0] || null;
+  const totalGuests = aggregate?.totalGuests || 0;
 
   return {
-    totalGuests: aggregate?.totalGuests || 0,
+    totalGuests,
     myGuests: ownCounter?.guestCount || 0,
     updatedAt: ownCounter?.updatedAt || aggregate?.updatedAt || null,
+    ...formatCapacityMeta(meta, totalGuests),
     contributors: contributors.map((counter) => ({
       personalNr: counter.personalNr,
       vorname: counter.mitarbeiter?.vorname || null,
@@ -171,6 +252,17 @@ async function getCapacityState(auftragNr, personalNr) {
       isCurrentUser: Number(counter.personalNr) === Number(personalNr),
     })),
   };
+}
+
+async function getChatMessages(auftragNr, personalNr) {
+  const messages = await GuestCapacityChatMessage.find({ auftragNr })
+    .select('auftragNr personalNr mitarbeiter body createdAt')
+    .populate({ path: 'mitarbeiter', select: 'vorname nachname' })
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .lean();
+
+  return messages.reverse().map((message) => formatChatMessage(message, personalNr));
 }
 
 function isCurrentOrFutureEvent(auftrag, einsaetzeForAuftrag) {
@@ -396,14 +488,21 @@ router.get(
     const details = await buildAuftragDetails(auftragNr);
     if (!details) return res.status(404).json({ msg: 'Auftrag nicht gefunden' });
 
-    const capacity = await getCapacityState(auftragNr, auth.personalNr);
+    const [capacity, permissions, chatMessages] = await Promise.all([
+      getCapacityState(auftragNr, auth.personalNr),
+      getCapacityPermissions(auth),
+      getChatMessages(auftragNr, auth.personalNr),
+    ]);
     res.json({
       ...details,
       capacity,
+      chatMessages,
       currentUser: {
         personalNr: auth.personalNr,
         vorname: auth.mitarbeiter.vorname,
         nachname: auth.mitarbeiter.nachname,
+        canSetCapacityLimit: permissions.canSetCapacityLimit,
+        isTeamleiter: permissions.isTeamleiter,
       },
     });
   })
@@ -482,12 +581,111 @@ router.post(
       personalNr: auth.personalNr,
       myGuests: counter.guestCount,
       totalGuests: capacity.totalGuests,
+      limit: capacity.limit,
+      remainingCapacity: capacity.remainingCapacity,
+      isOverLimit: capacity.isOverLimit,
       contributors: capacity.contributors,
       updatedAt: capacity.updatedAt || new Date(),
     };
     broadcastCapacityUpdate(auftragNr, payload);
 
     res.json({ capacity, personalNr: auth.personalNr });
+  })
+);
+
+router.post(
+  '/limit',
+  asyncHandler(async (req, res) => {
+    const auftragNr = parsePositiveInt(req.body.auftragNr);
+    const parsedLimit = parseCapacityLimit(req.body.limit);
+    if (!auftragNr || !parsedLimit.valid) {
+      return res.status(400).json({ msg: 'auftragNr und gueltige Kapazitaetsgrenze sind erforderlich' });
+    }
+
+    const auth = await requireAssignedMitarbeiter(req, res, auftragNr);
+    if (!auth) return;
+
+    const permissions = await getCapacityPermissions(auth);
+    if (!permissions.canSetCapacityLimit) {
+      return res.status(403).json({ msg: 'Nur Teamleiter koennen die Kapazitaetsgrenze setzen' });
+    }
+
+    const now = new Date();
+    const existing = await GuestCapacityMeta.findOne({ auftragNr }).select('capacityLimit').lean();
+    await GuestCapacityMeta.findOneAndUpdate(
+      { auftragNr },
+      {
+        $setOnInsert: { auftragNr },
+        $set: {
+          capacityLimit: parsedLimit.limit,
+          limitUpdatedBy: auth.mitarbeiter._id,
+          limitUpdatedByPersonalNr: auth.personalNr,
+          limitUpdatedAt: now,
+        },
+        $push: {
+          limitChanges: {
+            previousLimit: Number.isInteger(existing?.capacityLimit) ? existing.capacityLimit : null,
+            nextLimit: parsedLimit.limit,
+            changedBy: auth.mitarbeiter._id,
+            changedByPersonalNr: auth.personalNr,
+            createdAt: now,
+          },
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    const capacity = await getCapacityState(auftragNr, auth.personalNr);
+    const payload = {
+      type: 'capacity:limit',
+      auftragNr,
+      capacity,
+      updatedBy: {
+        personalNr: auth.personalNr,
+        vorname: auth.mitarbeiter.vorname,
+        nachname: auth.mitarbeiter.nachname,
+      },
+    };
+    broadcastCapacityUpdate(auftragNr, payload);
+
+    res.json({ capacity });
+  })
+);
+
+router.post(
+  '/chat',
+  asyncHandler(async (req, res) => {
+    const auftragNr = parsePositiveInt(req.body.auftragNr);
+    const body = normalizeMessage(req.body.message);
+    if (!auftragNr || !body) {
+      return res.status(400).json({ msg: 'auftragNr und Nachricht sind erforderlich' });
+    }
+
+    const auth = await requireAssignedMitarbeiter(req, res, auftragNr);
+    if (!auth) return;
+
+    const message = await GuestCapacityChatMessage.create({
+      auftragNr,
+      mitarbeiter: auth.mitarbeiter._id,
+      personalNr: auth.personalNr,
+      flipId: auth.mitarbeiter.flip_id || req.oidcFlipId || null,
+      email: normalizeEmail(auth.mitarbeiter.email || getRequestEmail(req)) || null,
+      body,
+    });
+
+    const populated = await GuestCapacityChatMessage.findById(message._id)
+      .select('auftragNr personalNr mitarbeiter body createdAt')
+      .populate({ path: 'mitarbeiter', select: 'vorname nachname' })
+      .lean();
+    const formatted = formatChatMessage(populated, auth.personalNr);
+
+    broadcastCapacityUpdate(auftragNr, {
+      type: 'chat:message',
+      auftragNr,
+      message: formatted,
+    });
+
+    res.status(201).json({ message: formatted });
   })
 );
 

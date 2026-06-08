@@ -86,7 +86,7 @@
               </div>
             </section>
 
-            <section class="counter-panel">
+            <section class="counter-panel" :class="{ 'counter-panel--over-limit': capacity.isOverLimit }">
               <div class="counter-status">
                 <span class="live-pill" :class="{ connected: streamConnected }">
                   <span class="live-dot"></span>
@@ -95,8 +95,36 @@
                 <span v-if="capacity.updatedAt" class="updated-at">{{ formatUpdatedAt(capacity.updatedAt) }}</span>
               </div>
 
+              <div class="capacity-limit-card" :class="{ 'capacity-limit-card--over': capacity.isOverLimit, 'capacity-limit-card--unset': !hasCapacityLimit }">
+                <div class="limit-summary">
+                  <div>
+                    <span class="limit-label">Kapazität</span>
+                    <strong>{{ capacityLimitDisplay }}</strong>
+                  </div>
+                  <span class="limit-status">{{ capacityLimitStatus }}</span>
+                </div>
+                <div class="limit-meter" aria-hidden="true">
+                  <span :style="{ width: `${capacityLimitPercent}%` }"></span>
+                </div>
+
+                <form v-if="canSetCapacityLimit" class="limit-editor" @submit.prevent="saveCapacityLimit">
+                  <input
+                    v-model="limitInput"
+                    type="number"
+                    inputmode="numeric"
+                    min="0"
+                    placeholder="Grenze"
+                    aria-label="Kapazitätsgrenze"
+                    :disabled="savingLimit"
+                  />
+                  <button class="small-action-btn" type="submit" :disabled="savingLimit">Speichern</button>
+                  <button v-if="hasCapacityLimit" class="small-action-btn small-action-btn--ghost" type="button" :disabled="savingLimit" @click="clearCapacityLimit">Entfernen</button>
+                </form>
+                <p v-if="limitError" class="limit-error">{{ limitError }}</p>
+              </div>
+
               <div class="counter-grid">
-                <div class="counter-box counter-box--total">
+                <div class="counter-box counter-box--total" :class="{ 'counter-box--over': capacity.isOverLimit }">
                   <span class="counter-label">Gesamt Gäste</span>
                   <strong>{{ capacity.totalGuests }}</strong>
                 </div>
@@ -116,6 +144,40 @@
               </div>
 
               <p v-if="adjustError" class="adjust-error">{{ adjustError }}</p>
+            </section>
+
+            <section class="section chat-section">
+              <div class="section-heading section-heading--compact">
+                <h2>Livechat</h2>
+                <span class="count-pill">{{ chatMessages.length }}</span>
+              </div>
+
+              <div ref="chatListRef" class="chat-list">
+                <div v-if="chatMessages.length === 0" class="empty-inline">Noch keine Nachrichten.</div>
+                <article v-for="message in chatMessages" :key="message.id" class="chat-message" :class="{ 'chat-message--mine': message.isCurrentUser }">
+                  <div class="chat-bubble">
+                    <div class="chat-meta">
+                      <strong>{{ formatContributorName(message) }}</strong>
+                      <span>{{ formatChatTime(message.createdAt) }}</span>
+                    </div>
+                    <p>{{ message.body }}</p>
+                  </div>
+                </article>
+              </div>
+
+              <form class="chat-form" @submit.prevent="sendChatMessage">
+                <input
+                  v-model="chatDraft"
+                  maxlength="500"
+                  placeholder="Nachricht"
+                  aria-label="Chatnachricht"
+                  :disabled="sendingChat"
+                />
+                <button class="chat-send-btn" type="submit" :disabled="sendingChat || !chatDraft.trim()" aria-label="Nachricht senden">
+                  <font-awesome-icon :icon="sendingChat ? 'fa-solid fa-spinner' : 'fa-solid fa-paper-plane'" :spin="sendingChat" />
+                </button>
+              </form>
+              <p v-if="chatError" class="chat-error">{{ chatError }}</p>
             </section>
 
             <section class="section">
@@ -152,7 +214,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import PublicFooter from './PublicFooter.vue';
 import { usePublicOidcAuth } from '@/composables/usePublicOidcAuth';
@@ -170,7 +232,12 @@ const {
   loading: authLoading,
   error: authError,
   initializeAuth,
-} = usePublicOidcAuth();
+} = usePublicOidcAuth({
+  sessionKey: 'capacity_oidc_session',
+  configPath: '/api/oidc/capacity-config',
+  callbackPath: '/api/oidc/capacity-callback',
+  pkceKeyPrefix: 'capacity_oidc',
+});
 
 const events = ref([]);
 const selectedAuftragNr = ref(null);
@@ -182,11 +249,33 @@ const adjustError = ref('');
 const adjusting = ref(false);
 const streamConnected = ref(false);
 const eventSource = ref(null);
+const limitInput = ref('');
+const savingLimit = ref(false);
+const limitError = ref('');
+const chatDraft = ref('');
+const sendingChat = ref(false);
+const chatError = ref('');
+const chatListRef = ref(null);
 
 const pageError = computed(() => authError.value || dataError.value);
 const auftrag = computed(() => state.value?.auftrag || {});
-const capacity = computed(() => state.value?.capacity || { totalGuests: 0, myGuests: 0, updatedAt: null, contributors: [] });
+const capacity = computed(() => state.value?.capacity || { totalGuests: 0, myGuests: 0, updatedAt: null, contributors: [], limit: null, remainingCapacity: null, isOverLimit: false });
 const currentUser = computed(() => state.value?.currentUser || null);
+const canSetCapacityLimit = computed(() => !!currentUser.value?.canSetCapacityLimit);
+const hasCapacityLimit = computed(() => Number.isInteger(capacity.value.limit));
+const capacityLimitPercent = computed(() => {
+  if (!hasCapacityLimit.value) return 0;
+  if (capacity.value.limit <= 0) return capacity.value.totalGuests > 0 ? 100 : 0;
+  return Math.min(100, Math.round((capacity.value.totalGuests / capacity.value.limit) * 100));
+});
+const capacityLimitDisplay = computed(() => hasCapacityLimit.value ? `${capacity.value.totalGuests} / ${capacity.value.limit}` : `${capacity.value.totalGuests} Gäste`);
+const capacityLimitStatus = computed(() => {
+  if (!hasCapacityLimit.value) return 'Keine Grenze';
+  if (capacity.value.isOverLimit) return `${Math.abs(capacity.value.remainingCapacity || 0)} drüber`;
+  if (capacity.value.remainingCapacity === 0) return 'Voll';
+  return `${capacity.value.remainingCapacity} frei`;
+});
+const chatMessages = computed(() => state.value?.chatMessages || []);
 const otherContributors = computed(() =>
   (capacity.value.contributors || [])
     .filter((contributor) => !contributor.isCurrentUser && Number(contributor.guestCount) > 0)
@@ -252,6 +341,9 @@ async function handleEventChange(event) {
 
 async function selectAuftrag(auftragNr) {
   selectedAuftragNr.value = Number(auftragNr);
+  limitError.value = '';
+  chatError.value = '';
+  chatDraft.value = '';
   await loadState(selectedAuftragNr.value);
   connectStream(selectedAuftragNr.value);
 }
@@ -264,6 +356,8 @@ async function loadState(auftragNr) {
   try {
     const response = await api.get('/api/public/capacity/state', { params: { auftragNr, email: email.value } });
     state.value = response.data;
+    syncLimitInput();
+    await scrollChatToBottom();
   } catch (error) {
     state.value = null;
     dataError.value = error.response?.data?.msg || 'Auftrag konnte nicht geladen werden.';
@@ -303,6 +397,89 @@ async function adjustGuests(delta) {
   }
 }
 
+function syncLimitInput() {
+  limitInput.value = hasCapacityLimit.value ? String(capacity.value.limit) : '';
+}
+
+async function saveCapacityLimit() {
+  if (!selectedAuftragNr.value || savingLimit.value) return;
+  const trimmed = String(limitInput.value || '').trim();
+  const nextLimit = trimmed === '' ? null : Number.parseInt(trimmed, 10);
+  if (trimmed !== '' && (!Number.isInteger(nextLimit) || nextLimit < 0)) {
+    limitError.value = 'Bitte eine gueltige Zahl eingeben.';
+    return;
+  }
+
+  await submitCapacityLimit(nextLimit);
+}
+
+async function clearCapacityLimit() {
+  if (!selectedAuftragNr.value || savingLimit.value) return;
+  limitInput.value = '';
+  await submitCapacityLimit(null);
+}
+
+async function submitCapacityLimit(limit) {
+  savingLimit.value = true;
+  limitError.value = '';
+  try {
+    const response = await api.post('/api/public/capacity/limit', {
+      auftragNr: selectedAuftragNr.value,
+      limit,
+      email: email.value,
+    });
+    state.value = { ...state.value, capacity: response.data.capacity };
+    syncLimitInput();
+  } catch (error) {
+    limitError.value = error.response?.data?.msg || 'Grenze konnte nicht gespeichert werden.';
+  } finally {
+    savingLimit.value = false;
+  }
+}
+
+async function sendChatMessage() {
+  if (!selectedAuftragNr.value || sendingChat.value) return;
+  const message = chatDraft.value.trim();
+  if (!message) return;
+
+  sendingChat.value = true;
+  chatError.value = '';
+  try {
+    const response = await api.post('/api/public/capacity/chat', {
+      auftragNr: selectedAuftragNr.value,
+      message,
+      email: email.value,
+    });
+    appendChatMessage(response.data.message);
+    chatDraft.value = '';
+  } catch (error) {
+    chatError.value = error.response?.data?.msg || 'Nachricht konnte nicht gesendet werden.';
+  } finally {
+    sendingChat.value = false;
+  }
+}
+
+function appendChatMessage(message) {
+  if (!message?.id) return;
+  const normalized = {
+    ...message,
+    isCurrentUser: Number(message.personalNr) === Number(currentUser.value?.personalNr),
+  };
+  const existing = chatMessages.value.some((entry) => entry.id === normalized.id);
+  if (existing) return;
+  state.value = {
+    ...state.value,
+    chatMessages: [...chatMessages.value, normalized].slice(-50),
+  };
+  scrollChatToBottom();
+}
+
+async function scrollChatToBottom() {
+  await nextTick();
+  if (!chatListRef.value) return;
+  chatListRef.value.scrollTop = chatListRef.value.scrollHeight;
+}
+
 function connectStream(auftragNr) {
   disconnectStream();
   if (!auftragNr || !token.value) return;
@@ -323,11 +500,27 @@ function connectStream(auftragNr) {
         streamConnected.value = true;
         return;
       }
-      if (payload.type !== 'capacity:update' || Number(payload.auftragNr) !== Number(selectedAuftragNr.value)) return;
+      if (Number(payload.auftragNr) !== Number(selectedAuftragNr.value)) return;
+
+      if (payload.type === 'chat:message') {
+        appendChatMessage(payload.message);
+        return;
+      }
+
+      if (payload.type === 'capacity:limit') {
+        state.value = { ...state.value, capacity: payload.capacity || capacity.value };
+        syncLimitInput();
+        return;
+      }
+
+      if (payload.type !== 'capacity:update') return;
 
       const nextCapacity = {
         ...capacity.value,
         totalGuests: payload.totalGuests,
+        limit: payload.limit,
+        remainingCapacity: payload.remainingCapacity,
+        isOverLimit: payload.isOverLimit,
         contributors: payload.contributors || capacity.value.contributors || [],
         updatedAt: payload.updatedAt,
       };
@@ -388,6 +581,13 @@ function formatUpdatedAt(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return `Stand ${date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' })}`;
+}
+
+function formatChatTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
 }
 
 function initials(ma) {
@@ -608,6 +808,11 @@ function formatContributorName(contributor) {
   background: linear-gradient(180deg, rgba(255, 117, 24, 0.08), var(--tile-bg) 58%);
 }
 
+.counter-panel--over-limit {
+  border-color: rgba(239, 68, 68, 0.72);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.14), var(--tile-bg) 62%);
+}
+
 .counter-status {
   display: flex;
   align-items: center;
@@ -637,6 +842,135 @@ function formatContributorName(contributor) {
   box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12);
 }
 
+.capacity-limit-card {
+  border: 1px solid rgba(22, 163, 74, 0.25);
+  border-radius: 12px;
+  background: rgba(22, 163, 74, 0.08);
+  padding: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.capacity-limit-card--unset {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.capacity-limit-card--over {
+  border-color: rgba(239, 68, 68, 0.62);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.limit-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.limit-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 0.15rem;
+}
+
+.limit-summary strong {
+  display: block;
+  color: var(--text);
+  font-size: 1.15rem;
+  line-height: 1.1;
+}
+
+.limit-status {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: rgba(22, 163, 74, 0.12);
+  color: #16a34a;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 0.28rem 0.55rem;
+}
+
+.capacity-limit-card--unset .limit-status {
+  background: rgba(156, 163, 175, 0.12);
+  color: var(--muted);
+}
+
+.capacity-limit-card--over .limit-status {
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+}
+
+.limit-meter {
+  width: 100%;
+  height: 7px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(156, 163, 175, 0.18);
+  margin-top: 0.65rem;
+}
+
+.limit-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #16a34a;
+  transition: width 180ms ease, background 180ms ease;
+}
+
+.capacity-limit-card--unset .limit-meter span {
+  background: var(--primary);
+}
+
+.capacity-limit-card--over .limit-meter span {
+  background: #ef4444;
+}
+
+.limit-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.limit-editor input,
+.chat-form input {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--tile-bg);
+  color: var(--text);
+  min-height: 40px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.small-action-btn {
+  border: none;
+  border-radius: 10px;
+  background: var(--primary);
+  color: white;
+  min-height: 40px;
+  padding: 0 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.small-action-btn--ghost {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+}
+
+.small-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .counter-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -657,6 +991,14 @@ function formatContributorName(contributor) {
 
 .counter-box--mine {
   border-color: rgba(22, 163, 74, 0.24);
+}
+
+.counter-box--over {
+  border-color: rgba(239, 68, 68, 0.46);
+}
+
+.counter-box--over strong {
+  color: #ef4444;
 }
 
 .counter-label {
@@ -709,11 +1051,18 @@ function formatContributorName(contributor) {
   background: var(--primary);
 }
 
-.adjust-error {
+.adjust-error,
+.limit-error,
+.chat-error {
   margin: 0.75rem 0 0;
   color: #dc2626;
   font-size: 0.82rem;
   text-align: center;
+}
+
+.limit-error,
+.chat-error {
+  text-align: left;
 }
 
 .section-heading {
@@ -882,6 +1231,95 @@ function formatContributorName(contributor) {
   font-size: 1rem;
 }
 
+.chat-section {
+  padding-bottom: 0.85rem;
+}
+
+.chat-list {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.1rem 0.1rem 0.65rem;
+}
+
+.chat-message {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.chat-message--mine {
+  justify-content: flex-end;
+}
+
+.chat-bubble {
+  max-width: min(86%, 560px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 0.62rem 0.7rem;
+}
+
+.chat-message--mine .chat-bubble {
+  border-color: rgba(255, 117, 24, 0.35);
+  background: rgba(255, 117, 24, 0.1);
+}
+
+.chat-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.22rem;
+}
+
+.chat-meta strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-meta span {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.chat-bubble p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.chat-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
+.chat-send-btn {
+  width: 44px;
+  min-height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+}
+
+.chat-send-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .empty-inline {
   color: var(--muted);
   font-size: 0.85rem;
@@ -911,6 +1349,18 @@ function formatContributorName(contributor) {
 
   .counter-box strong {
     font-size: 2rem;
+  }
+
+  .limit-editor {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .limit-editor input {
+    grid-column: 1 / -1;
+  }
+
+  .chat-bubble {
+    max-width: 92%;
   }
 
   .brand p {

@@ -38,6 +38,12 @@ function generateState() {
 export function usePublicOidcAuth(options = {}) {
   const route = useRoute();
   const sessionKey = options.sessionKey || 'oidc_session';
+  const configPath = options.configPath || '/api/oidc/config';
+  const callbackPath = options.callbackPath || '/api/oidc/callback';
+  const pkceKeyPrefix = options.pkceKeyPrefix || 'oidc';
+  const pkceVerifierKey = `${pkceKeyPrefix}_pkce_verifier`;
+  const oidcStateKey = `${pkceKeyPrefix}_state`;
+  const redirectUriKey = `${pkceKeyPrefix}_redirect_uri`;
   const api = apiPublic;
 
   const oidcEmail = ref('');
@@ -90,7 +96,7 @@ export function usePublicOidcAuth(options = {}) {
     let clientId;
 
     try {
-      const response = await api.get('/api/oidc/config');
+      const response = await api.get(configPath);
       authEndpoint = response.data.authorization_endpoint;
       clientId = response.data.client_id;
       if (!clientId) {
@@ -108,9 +114,9 @@ export function usePublicOidcAuth(options = {}) {
     const state = generateState();
     const redirectUri = window.location.origin + window.location.pathname;
 
-    sessionStorage.setItem('oidc_pkce_verifier', verifier);
-    sessionStorage.setItem('oidc_state', state);
-    sessionStorage.setItem('oidc_redirect_uri', redirectUri);
+    sessionStorage.setItem(pkceVerifierKey, verifier);
+    sessionStorage.setItem(oidcStateKey, state);
+    sessionStorage.setItem(redirectUriKey, redirectUri);
 
     const params = new URLSearchParams({
       response_type: 'code',
@@ -127,13 +133,13 @@ export function usePublicOidcAuth(options = {}) {
   }
 
   async function handleOIDCCallback(code, returnedState) {
-    const expectedState = sessionStorage.getItem('oidc_state');
-    const verifier = sessionStorage.getItem('oidc_pkce_verifier');
-    const redirectUri = sessionStorage.getItem('oidc_redirect_uri');
+    const expectedState = sessionStorage.getItem(oidcStateKey);
+    const verifier = sessionStorage.getItem(pkceVerifierKey);
+    const redirectUri = sessionStorage.getItem(redirectUriKey);
 
-    sessionStorage.removeItem('oidc_state');
-    sessionStorage.removeItem('oidc_pkce_verifier');
-    sessionStorage.removeItem('oidc_redirect_uri');
+    sessionStorage.removeItem(oidcStateKey);
+    sessionStorage.removeItem(pkceVerifierKey);
+    sessionStorage.removeItem(redirectUriKey);
     window.history.replaceState({}, '', window.location.pathname);
 
     if (returnedState !== expectedState) {
@@ -149,7 +155,7 @@ export function usePublicOidcAuth(options = {}) {
     }
 
     try {
-      const response = await api.post('/api/oidc/callback', { code, code_verifier: verifier, redirect_uri: redirectUri });
+      const response = await api.post(callbackPath, { code, code_verifier: verifier, redirect_uri: redirectUri });
       oidcEmail.value = response.data.email;
       sessionToken.value = response.data.session_token;
       saveSession(response.data.session_token, response.data.email);
