@@ -10,6 +10,10 @@
     "backend": "nodemon --cwd api app.js",
     "dev": "concurrently \"npm run frontend\" \"npm run backend\" \"cloudflared tunnel run dev-backend 2>&1 | grep -v 'INF'\""
   },
+  "engines": {
+    "node": "22.x",
+    "npm": "10.x"
+  },
   "dependencies": {
     "@fortawesome/free-regular-svg-icons": "^7.0.1",
     "concurrently": "^9.0.1",
