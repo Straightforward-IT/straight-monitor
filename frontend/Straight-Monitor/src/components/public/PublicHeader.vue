@@ -3,7 +3,7 @@
     <div class="left">
       <template v-if="currentView === 'dashboard'">
         <img :src="logoSrc" class="logo logo--clickable" alt="logo" @click="navigate('dashboard')" />
-        <h1 class="title--clickable" @click="navigate('dashboard')">Straightforward</h1>
+        <h1 class="title--clickable" @click="navigate('dashboard')">Public Monitor</h1>
       </template>
       <template v-else>
         <button class="header-back-btn" @click="$emit('back')">
@@ -155,8 +155,8 @@ const props = defineProps({
 
 const emit = defineEmits(['navigate', 'back', 'toggle-debug-tl']);
 
-const DEBUG_EMAIL = 'cedricbglx@gmail.com';
-const isDebugUser = computed(() => props.email === DEBUG_EMAIL);
+const DEBUG_EMAILS = ['cedricbglx@gmail.com', 'dh@straightforward.email'];
+const isDebugUser = computed(() => DEBUG_EMAILS.includes(props.email));
 
 const viewTitleMap = {
   'kalender': 'Kalender',

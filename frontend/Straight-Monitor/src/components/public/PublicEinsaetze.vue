@@ -353,14 +353,14 @@ const openLaufzettelCount = computed(() =>
 );
 
 // Teamleiter detection
-const DEBUG_EMAIL = 'cedricbglx@gmail.com';
-const debugTLMode = ref(false);
+const DEBUG_EMAILS = ['cedricbglx@gmail.com', 'dh@straightforward.email'];
+const debugTLMode = ref(true);
 
 const isTeamleiter = computed(() => {
   const ma = mitarbeiter.value;
   if (!ma) return false;
-  // For the debug user, the toggle exclusively controls TL mode (ignores real isTeamleiter)
-  if (email.value === DEBUG_EMAIL) return debugTLMode.value;
+  // For debug users, the toggle exclusively controls TL mode (ignores real isTeamleiter)
+  if (DEBUG_EMAILS.includes(email.value)) return debugTLMode.value;
   return ma.isTeamleiter === true;
 });
 

@@ -113,6 +113,17 @@
           </div>
         </CustomTooltip>
 
+        <button
+          v-if="hiddenCount > 0"
+          class="show-hidden-btn show-hidden-btn--topline"
+          :class="{ active: showHidden }"
+          @click="toggleHiddenView"
+          :title="showHidden ? 'Zur normalen Ansicht zurück' : 'Ausgeblendete Mitarbeiter anzeigen'"
+        >
+          <font-awesome-icon :icon="showHidden ? 'fa-solid fa-arrow-left' : 'fa-solid fa-eye-slash'" />
+          {{ showHidden ? 'Zurück' : `${hiddenCount} ausgeblendet` }}
+        </button>
+
         <!-- Reset -->
         <button class="fs-reset-btn" @click="resetFilters" title="Zurücksetzen">
           <font-awesome-icon icon="fa-solid fa-rotate-left" />
@@ -255,20 +266,6 @@
 
       <FilterDivider />
 
-      <!-- Ausgeblendete -->
-      <button
-        v-if="hiddenIds.size > 0"
-        class="show-hidden-btn"
-        :class="{ active: showHidden }"
-        @click="showHidden = !showHidden"
-        :title="showHidden ? 'Ausgeblendete verstecken' : 'Ausgeblendete anzeigen'"
-      >
-        <font-awesome-icon :icon="showHidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" />
-        {{ showHidden ? 'Ausgeblendete ausblenden' : `${hiddenIds.size} Ausgeblendet` }}
-      </button>
-
-      <FilterDivider v-if="hiddenIds.size > 0" />
-
       <!-- Reset Button -->
       <FilterChip class="reset-chip" @click="resetFilters" title="Alle Filter zurücksetzen">
         <font-awesome-icon icon="fa-solid fa-rotate-left" />
@@ -286,6 +283,16 @@
           placeholder="Mitarbeiter suchen…"
           aria-label="Mitarbeiter suchen"
         />
+        <button
+          v-if="hiddenCount > 0"
+          class="show-hidden-btn show-hidden-btn--topline"
+          :class="{ active: showHidden }"
+          @click="toggleHiddenView"
+          :title="showHidden ? 'Zur normalen Ansicht zurück' : 'Ausgeblendete Mitarbeiter anzeigen'"
+        >
+          <font-awesome-icon :icon="showHidden ? 'fa-solid fa-arrow-left' : 'fa-solid fa-eye-slash'" />
+          {{ showHidden ? 'Zurück' : `${hiddenCount} ausgeblendet` }}
+        </button>
         <transition name="sel-chip">
           <span v-if="selectedCells.size > 0" class="selection-chip">
             <font-awesome-icon icon="fa-solid fa-table-cells" />
@@ -737,6 +744,16 @@
             aria-label="Mitarbeiter suchen"
           />
           <button
+            v-if="hiddenCount > 0"
+            class="m-hidden-btn"
+            :class="{ active: showHidden }"
+            @click="toggleHiddenView"
+            :aria-label="showHidden ? 'Zur normalen Ansicht zurück' : 'Ausgeblendete Mitarbeiter anzeigen'"
+          >
+            <font-awesome-icon :icon="showHidden ? 'fa-solid fa-arrow-left' : 'fa-solid fa-eye-slash'" />
+            <span>{{ showHidden ? 'Zurück' : `${hiddenCount} ausgeblendet` }}</span>
+          </button>
+          <button
             class="m-filter-btn"
             :class="{ active: !!filters.standort || filters.tage !== 30 || !!filters.planungFilter || !!filters.kundeFilter || qualFilter.length > 0 }"
             @click="mobileFilterOpen = true"
@@ -780,35 +797,59 @@
           :class="{ 'is-expanded': expandedCardId === String(ma._id) }"
         >
           <!-- Header row -->
-          <div class="m-card__header">
+          <div
+            class="m-card__header"
+            role="button"
+            tabindex="0"
+            :aria-expanded="expandedCardId === String(ma._id)"
+            @click="toggleCardExpand(String(ma._id))"
+            @keydown.enter.prevent="toggleCardExpand(String(ma._id))"
+            @keydown.space.prevent="toggleCardExpand(String(ma._id))"
+          >
             <button
               class="m-star"
               :class="{ active: starredIds.has(String(ma._id)) }"
-              @click="toggleStar(ma._id)"
+              @click.stop="toggleStar(ma._id)"
               aria-label="Favorit"
             >
               <font-awesome-icon :icon="starredIds.has(String(ma._id)) ? 'fa-solid fa-star' : 'fa-regular fa-star'" />
             </button>
             <div
               class="m-name"
-              @click="cardModal.mitarbeiterId = String(ma._id); cardModal.open = true"
               @touchstart.passive="onNameTouchStart($event, ma)"
               @touchend="onNameTouchEnd"
               @touchcancel="onNameTouchEnd"
             >
-              <span class="m-name__nach">{{ ma.nachname }}</span>
+              <button class="m-name__nach" @click.stop="openCardModal(ma._id)">{{ ma.nachname }}</button>
               <span class="m-name__vor">{{ ma.vorname }}</span>
               <TlBadge v-if="ma.isTL" />
             </div>
             <span v-if="getMaBereich(ma)" class="m-bereich-pill">{{ getMaBereich(ma) }}</span>
             <button
+              class="m-more"
+              @click.stop="openMobileMaMenu($event, ma)"
+              aria-label="Aktionen"
+            >
+              <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
+            </button>
+            <button
               class="m-expand"
               :class="{ active: expandedCardId === String(ma._id) }"
-              @click="toggleCardExpand(String(ma._id))"
+              @click.stop="toggleCardExpand(String(ma._id))"
               aria-label="Details"
             >
               <font-awesome-icon icon="fa-solid fa-chevron-down" />
             </button>
+          </div>
+
+          <div
+            v-if="getNotizValue(ma._id)"
+            class="m-card__note-preview"
+            :title="getNotizValue(ma._id)"
+            @click="toggleCardExpand(String(ma._id))"
+          >
+            <font-awesome-icon icon="fa-solid fa-sticky-note" />
+            <span>{{ getNotizValue(ma._id) }}</span>
           </div>
 
           <!-- Horizontal day strip -->
@@ -871,6 +912,7 @@
               <label class="m-detail-label">Notiz</label>
               <div
                 class="m-notiz"
+                :data-mobile-notiz-ma="ma._id"
                 contenteditable="plaintext-only"
                 @input="onNotizInput(ma._id, $event)"
                 @blur="onNotizInput(ma._id, $event)"
@@ -884,8 +926,13 @@
               </button>
             </div>
 
-            <div v-if="(ma.kundenwuensche || []).length" class="m-detail-section">
-              <label class="m-detail-label">Kunden</label>
+            <div class="m-detail-section">
+              <div class="m-detail-heading">
+                <label class="m-detail-label">Kunden</label>
+                <button class="m-kunde-add" @click="openKwModal(ma._id)">
+                  <font-awesome-icon icon="fa-solid fa-plus" /> Kundenwunsch
+                </button>
+              </div>
               <div class="m-kunden-pills">
                 <span
                   v-for="w in (ma.kundenwuensche || [])"
@@ -894,7 +941,11 @@
                   :class="w.typ === 'positiv' ? 'pos' : 'neg'"
                 >
                   {{ w.kunde?.kuerzel || w.kunde?.kundName || '?' }}
+                  <button class="m-kunde-remove" @click="removeKundenwunsch(ma._id, w._id)" aria-label="Kundenwunsch entfernen">
+                    <font-awesome-icon icon="fa-solid fa-times" />
+                  </button>
                 </span>
+                <span v-if="!(ma.kundenwuensche || []).length" class="m-kunden-empty">Keine Kundenwünsche</span>
               </div>
             </div>
 
@@ -980,16 +1031,6 @@
                     </button>
                   </div>
                 </FilterGroup>
-                <FilterDivider v-if="hiddenIds.size > 0" />
-                <button
-                  v-if="hiddenIds.size > 0"
-                  class="show-hidden-btn"
-                  :class="{ active: showHidden }"
-                  @click="showHidden = !showHidden"
-                >
-                  <font-awesome-icon :icon="showHidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" />
-                  {{ showHidden ? 'Ausgeblendete ausblenden' : `${hiddenIds.size} Ausgeblendet` }}
-                </button>
                 <FilterDivider />
                 <FilterChip class="reset-chip" @click="resetFilters">
                   <font-awesome-icon icon="fa-solid fa-rotate-left" /> Zurücksetzen
@@ -1175,7 +1216,7 @@
 
       <div id="help-s-favoriten" class="help-section">
         <h4>Favoriten, Mitarbeiter-Karte &amp; Ausblenden</h4>
-        <p>Klicke auf den <font-awesome-icon icon="fa-regular fa-star" /> Stern neben einem Namen für Favoriten (werden oben gelistet). <strong>Rechtsklick</strong> auf den Namen öffnet ein Menü mit <em>Karte Öffnen</em>, Direktanruf und <em>Ausblenden</em>. Ausgeblendete Mitarbeiter können über den Toggle-Button in der Toolbar wieder eingeblendet werden.</p>
+        <p>Klicke auf den <font-awesome-icon icon="fa-regular fa-star" /> Stern neben einem Namen für Favoriten (werden oben gelistet). <strong>Rechtsklick</strong> auf den Namen öffnet ein Menü mit <em>Karte Öffnen</em>, Direktanruf und <em>Ausblenden</em>. Ausgeblendete Mitarbeiter erreichst du über den Button in der oberen Zeile; dort kannst du sie per Kontextmenü wieder einblenden.</p>
       </div>
 
       <div id="help-s-notizen" class="help-section">
@@ -1268,6 +1309,12 @@
           <div class="ctx-divider"></div>
           <button class="ctx-item" @click="openKarte">
             <font-awesome-icon icon="fa-solid fa-address-card" class="ctx-item-icon" /> Karte Öffnen
+          </button>
+          <button class="ctx-item" @click="openKwFromNameMenu">
+            <font-awesome-icon icon="fa-solid fa-handshake" class="ctx-item-icon" /> Kundenwunsch hinzufügen
+          </button>
+          <button class="ctx-item" @click="focusNotizFromNameMenu">
+            <font-awesome-icon icon="fa-solid fa-sticky-note" class="ctx-item-icon" /> Notiz bearbeiten
           </button>
           <a
             v-if="nameMenu.ma?.telefon"
@@ -1989,6 +2036,19 @@ const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
 const isKnechti = computed(() => ['ed@straightforward.email', 'it@straightforward.email'].includes(auth.user?.email?.toLowerCase()));
 const showFsPanel = computed(() => isFullscreen.value && ui.panelType === 'kommentare' && !ui.hidden);
 const fsFeedCollapsed = ref(false);
+const hiddenCount = computed(() =>
+  mitarbeiter.value.filter((m) => hiddenIds.value.has(String(m._id))).length
+);
+
+function toggleHiddenView() {
+  showHidden.value = !showHidden.value;
+  expandedCardId.value = null;
+  clearSelection();
+}
+
+watch(hiddenCount, (count) => {
+  if (count === 0 && showHidden.value) showHidden.value = false;
+});
 
 const standortLabel = computed(() => {
   if (filters.standort === '1') return 'Berlin';
@@ -2012,8 +2072,8 @@ const nameMenu = reactive({
 });
 
 function openNameMenu(event, ma) {
-  const menuW = 180;
-  const menuH = 80;
+  const menuW = 240;
+  const menuH = 260;
   const x = event.clientX + menuW > window.innerWidth ? event.clientX - menuW : event.clientX;
   const y = event.clientY + menuH > window.innerHeight ? event.clientY - menuH : event.clientY;
   nameMenu.x = x;
@@ -2029,6 +2089,11 @@ function closeNameMenu() {
 
 // ─── Employee Card Modal ───
 const cardModal = reactive({ open: false, mitarbeiterId: null });
+
+function openCardModal(maId) {
+  cardModal.mitarbeiterId = String(maId);
+  cardModal.open = true;
+}
 
 // ─── Kundenwunsch Modal ───
 const kwModal = reactive({ open: false, maId: null, typ: 'positiv' });
@@ -2081,10 +2146,25 @@ async function removeKundenwunsch(maId, wunschId) {
 }
 
 function openKarte() {
-  const id = nameMenu.ma._id;
+  const id = nameMenu.ma?._id;
   closeNameMenu();
-  cardModal.mitarbeiterId = String(id);
-  cardModal.open = true;
+  if (id) openCardModal(id);
+}
+
+function openKwFromNameMenu() {
+  const id = nameMenu.ma?._id;
+  closeNameMenu();
+  if (id) openKwModal(id);
+}
+
+function focusNotizFromNameMenu() {
+  const id = nameMenu.ma?._id;
+  closeNameMenu();
+  if (!id) return;
+  expandedCardId.value = String(id);
+  nextTick(() => {
+    document.querySelector(`[data-mobile-notiz-ma="${id}"]`)?.focus();
+  });
 }
 
 function closeCardModal() {
@@ -2218,7 +2298,7 @@ watch(
       needsFetch = true;
     }
     if (q.resetPlanung) filters.planungFilter = null;
-    if (q.showHidden) showHidden.value = true;
+    if (q.showHidden) showHidden.value = hiddenIds.value.size > 0 && (!q.maId || hiddenIds.value.has(String(q.maId)));
     if (q.datum) {
       const today = new Date();
       const target = new Date(q.datum);
@@ -2347,9 +2427,10 @@ const visibleDays = computed(() => {
 
 const filteredMitarbeiter = computed(() => {
   let list = mitarbeiter.value;
-  if (!showHidden.value) {
-    list = list.filter((m) => !hiddenIds.value.has(String(m._id)));
-  }
+  list = list.filter((m) => showHidden.value
+    ? hiddenIds.value.has(String(m._id))
+    : !hiddenIds.value.has(String(m._id))
+  );
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase().trim();
     list = list.filter(
@@ -2778,6 +2859,7 @@ function unhideMA(maId) {
   const next = new Set(hiddenIds.value);
   next.delete(String(maId));
   hiddenIds.value = next;
+  if (next.size === 0) showHidden.value = false;
   closeNameMenu();
   savePrefs();
 }
@@ -2867,6 +2949,7 @@ function resetFilters() {
   filters.standort = null;
   filters.tage = 30;
   filters.planungFilter = null;
+  showHidden.value = false;
   clearKundeFilter();
   bereichFilter.value = null;
   qualFilter.value = [];
@@ -3606,7 +3689,7 @@ onMounted(async () => {
   const q = route.query;
   if (q.standort) filters.standort = q.standort;
   if (q.resetPlanung) filters.planungFilter = null;
-  if (q.showHidden) showHidden.value = true;
+  if (q.showHidden) showHidden.value = hiddenIds.value.size > 0 && (!q.maId || hiddenIds.value.has(String(q.maId)));
   if (q.datum) {
     const today = new Date();
     const target = new Date(q.datum);
@@ -3697,6 +3780,11 @@ watch(visibleDays, () => {
 
 function toggleCardExpand(maId) {
   expandedCardId.value = expandedCardId.value === maId ? null : maId;
+}
+
+function openMobileMaMenu(event, ma) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  openNameMenu({ clientX: rect.right, clientY: rect.bottom + 6 }, ma);
 }
 
 // Tap a mobile day-cell → populate ctxMenu so existing setStatus / setAbsence /
@@ -5237,6 +5325,13 @@ function onNameTouchEnd() {
   }
 }
 
+.show-hidden-btn--topline {
+  height: 32px;
+  padding-inline: 10px;
+  background: var(--surface);
+  border-color: transparent;
+}
+
 // ─── KW Chips ───
 .kw-chips {
   display: flex;
@@ -6424,6 +6519,38 @@ function onNameTouchEnd() {
   }
 }
 
+.m-hidden-btn {
+  flex: 0 0 auto;
+  height: 40px;
+  max-width: 138px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border, rgba(0,0,0,0.12));
+  background: transparent;
+  color: var(--text-muted, #666);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &:hover,
+  &.active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(255, 122, 0, 0.08);
+  }
+}
+
 .m-kw-row {
   display: flex;
   align-items: center;
@@ -6508,6 +6635,37 @@ function onNameTouchEnd() {
     align-items: center;
     gap: 8px;
     padding: 10px 10px 6px;
+    cursor: pointer;
+    touch-action: manipulation;
+
+    &:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--primary) 55%, transparent);
+      outline-offset: -2px;
+    }
+  }
+
+  &__note-preview {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px 8px 50px;
+    color: var(--text-muted, #666);
+    font-size: 0.78rem;
+    line-height: 1.25;
+    cursor: pointer;
+
+    svg {
+      flex: 0 0 auto;
+      color: var(--primary);
+      opacity: 0.85;
+    }
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 
   &__details {
@@ -6542,16 +6700,29 @@ function onNameTouchEnd() {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  cursor: pointer;
   overflow: hidden;
 
   &__nach {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font: inherit;
     font-weight: 600;
     font-size: 0.95rem;
     color: var(--text, #1a1a1a);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: pointer;
+    text-align: left;
+
+    &:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
   }
   &__vor {
     font-size: 0.85rem;
@@ -6573,6 +6744,7 @@ function onNameTouchEnd() {
   white-space: nowrap;
 }
 
+.m-more,
 .m-expand {
   width: 28px;
   height: 28px;
@@ -6586,6 +6758,16 @@ function onNameTouchEnd() {
   align-items: center;
   justify-content: center;
 
+  &:hover,
+  &:focus-visible {
+    color: var(--primary);
+    background: rgba(255, 122, 0, 0.08);
+    border-radius: 8px;
+    outline: none;
+  }
+}
+
+.m-expand {
   &.active { transform: rotate(180deg); color: var(--primary); }
 }
 
@@ -6695,6 +6877,12 @@ function onNameTouchEnd() {
   flex-direction: column;
   gap: 4px;
 }
+.m-detail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .m-detail-label {
   font-size: 0.72rem;
   font-weight: 600;
@@ -6733,6 +6921,9 @@ function onNameTouchEnd() {
   gap: 4px;
 }
 .m-kunde-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 8px;
   border-radius: 6px;
   background: rgba(76, 175, 80, 0.15);
@@ -6741,6 +6932,40 @@ function onNameTouchEnd() {
   font-weight: 500;
 
   &.neg { background: rgba(244, 67, 54, 0.15); color: #c62828; }
+}
+.m-kunde-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary);
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.m-kunde-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: currentColor;
+  opacity: 0.65;
+  padding: 0;
+  cursor: pointer;
+
+  &:hover { opacity: 1; background: rgba(0, 0, 0, 0.08); }
+}
+.m-kunden-empty {
+  color: var(--text-muted, #888);
+  font-size: 0.78rem;
+  font-style: italic;
 }
 .m-chronik {
   display: flex;

@@ -15,7 +15,7 @@ const Mitarbeiter = require("./models/Mitarbeiter");
 const Einsatz = require("./models/Einsatz");
 const Auftrag = require("./models/Auftrag");
 const Qualifikation = require("./models/Qualifikation");
-const { getRankTier, RANK_GROUP_IDS } = require("./config/flipRanks");
+const { RANKS, getRankTier, RANK_GROUP_IDS } = require("./config/flipRanks");
 const { sendMail } = require("./EmailService");
 const logger = require("./utils/logger");
 const {

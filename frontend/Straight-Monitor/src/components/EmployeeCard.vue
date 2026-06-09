@@ -68,6 +68,8 @@
               Monitor
             </span>
 
+            <span class="meta-break" aria-hidden="true"></span>
+
             <!-- Location Badge -->
             <span class="pill muted" v-if="displayLocation">
               <font-awesome-icon icon="fa-solid fa-location-dot" />
@@ -2921,6 +2923,9 @@ export default {
   gap: 6px;
   margin-top: 4px;
 }
+.meta-break {
+  display: none;
+}
 .pill {
   display: inline-flex;
   align-items: center;
@@ -4287,71 +4292,61 @@ export default {
 }
 /* Mobile Optimierungen */
 @media (max-width: 768px) {
-  /* Card Actions auf Mobile nach unten verschieben */
   .card-header {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
   }
-}
 
-.left {
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 14px;
-}
+  .left {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 14px;
+  }
 
-.title {
-  flex: 1;
-  min-width: 0;
-}
+  .title {
+    flex: 1;
+    min-width: 0;
+  }
 
-.title .name {
-  white-space: normal; /* Erlaube Zeilenumbruch auf Mobile */
-  overflow: visible;
-  text-overflow: unset;
-  line-height: 1.3;
-  word-break: break-word;
-}
+  .title .name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    line-height: 1.3;
+    word-break: break-word;
+  }
 
-/* Avatar etwas kleiner auf Mobile */
-.avatar {
-  width: 40px;
-  height: 40px;
-}
-.avatar-img {
-  width: 40px;
-  height: 40px;
-}
+  .avatar,
+  .avatar-img {
+    width: 40px;
+    height: 40px;
+  }
 
-/* Icon Buttons kleiner und kompakter */
-.icon-btn {
-  width: 36px;
-  height: 36px;
-}
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+  }
 
-/* KV-Pairs für Mobile optimieren */
-.kv > div {
-  grid-template-columns: 1fr;
-  gap: 4px;
-}
+  .kv > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
 
-.kv dt {
-  font-size: 11px;
-  text-transform: uppercase;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-}
+  .kv dt {
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
 
-.kv dd {
-  font-size: 14px;
-  word-break: break-all; /* Erlaube Zeilenumbruch für E-Mails */
-  margin-bottom: 12px;
-  line-height: 1.4;
-}
+  .kv dd {
+    font-size: 14px;
+    word-break: break-all;
+    margin-bottom: 12px;
+    line-height: 1.4;
+  }
 
-/* Pills auf Mobile kleiner */
-@media (max-width: 768px) {
   .title .meta {
     gap: 4px;
     margin-top: 6px;
@@ -4384,6 +4379,13 @@ export default {
 
 @media (max-width: 900px) {
   .card[data-expanded="true"] {
+    --mobile-action-size: 34px;
+    --mobile-action-gap: 6px;
+    --mobile-action-strip-width: 194px;
+    --mobile-close-space: 48px;
+    --mobile-header-action-space: calc(
+      var(--mobile-action-strip-width) + var(--mobile-close-space) + 18px
+    );
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
   }
@@ -4391,17 +4393,31 @@ export default {
   .card[data-expanded="true"] .card-header {
     grid-row: 1;
     position: relative;
+    min-height: calc(var(--mobile-action-size) + 24px);
+    padding-right: var(--mobile-header-action-space);
+  }
+
+  .card[data-expanded="true"] .title .meta {
+    row-gap: 5px;
+  }
+
+  .card[data-expanded="true"] .meta-break {
+    display: block;
+    flex-basis: 100%;
+    width: 0;
+    height: 0;
   }
 
   .hero-panel {
     position: absolute;
     top: 8px;
-    right: 8px;
+    right: var(--mobile-close-space);
     grid-column: unset;
     grid-row: unset;
+    display: flex;
     overflow: visible;
     background: none;
-    z-index: 2;
+    z-index: 12;
   }
 
   .hero-media {
@@ -4411,21 +4427,38 @@ export default {
   .hero-panel .card-actions {
     flex-direction: row;
     flex-wrap: nowrap;
+    justify-content: flex-start;
     border-right: none;
     border-bottom: none;
     padding: 0;
-    gap: 2px;
+    gap: var(--mobile-action-gap);
     background: none;
   }
 
   .hero-panel .card-actions .icon-btn {
-    width: 30px;
-    height: 30px;
+    width: var(--mobile-action-size);
+    height: var(--mobile-action-size);
     font-size: 12px;
   }
 
   .card[data-expanded="true"] .card-body {
     grid-row: 2;
+  }
+}
+
+@media (max-width: 520px) {
+  .card[data-expanded="true"] {
+    --mobile-action-size: 30px;
+    --mobile-action-gap: 4px;
+    --mobile-action-strip-width: 166px;
+    --mobile-close-space: 46px;
+    --mobile-header-action-space: calc(
+      var(--mobile-action-strip-width) + var(--mobile-close-space) + 12px
+    );
+  }
+
+  .hero-panel {
+    top: 9px;
   }
 }
 

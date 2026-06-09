@@ -15,10 +15,9 @@
     <div v-else class="content">
       <header class="capacity-header">
         <div class="brand">
-          <img :src="logoSrc" class="logo" alt="Straightforward" />
           <div>
-            <h1>Capacity Counter</h1>
-            <p v-if="email">{{ email }}</p>
+            <h1>Public Monitor</h1>
+            <p>Capacity Counter<span v-if="email"> - {{ email }}</span></p>
           </div>
         </div>
         <button class="icon-btn" :disabled="loadingEvents || loadingState" aria-label="Aktualisieren" @click="retryLoad">
@@ -218,12 +217,6 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import PublicFooter from './PublicFooter.vue';
 import { usePublicOidcAuth } from '@/composables/usePublicOidcAuth';
-import { useTheme } from '@/stores/theme';
-import darkLogo from '@/assets/SF_000.svg';
-import lightLogo from '@/assets/SF_002.png';
-
-const theme = useTheme();
-const logoSrc = computed(() => (theme.isDark ? darkLogo : lightLogo));
 
 const {
   api,
@@ -645,13 +638,6 @@ function formatContributorName(contributor) {
   align-items: center;
   gap: 10px;
   min-width: 0;
-}
-
-.logo {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-  flex-shrink: 0;
 }
 
 .brand h1 {
