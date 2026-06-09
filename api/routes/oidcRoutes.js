@@ -14,8 +14,7 @@
  *      all subsequent /api/public/* requests.
  *
  * Config (api/.env):
- *   FLIP_OIDC_CLIENT_ID   — provided by Flip/Sebastian (public client, no secret needed)
- *   FLIP_OIDC_REDIRECT_URI — registered redirect URI (e.g. https://your-domain.com/mitarbeiter/einsaetze)
+ *   FLIP_OIDC_CLIENT_ID — shared Flip OIDC public client, no secret needed
  */
 
 const express = require('express');
@@ -29,6 +28,19 @@ const User = require('../models/User');
 const ISSUER = 'https://straightforward.flip-app.com/auth/realms/hpstraightforward';
 const TOKEN_ENDPOINT = `${ISSUER}/protocol/openid-connect/token`;
 const JWKS_URI = `${ISSUER}/protocol/openid-connect/certs`;
+
+function getFlipOidcClientId() {
+  return process.env.FLIP_OIDC_CLIENT_ID;
+}
+
+function getFlipOidcConfig() {
+  const clientId = getFlipOidcClientId();
+  return {
+    authorization_endpoint: `${ISSUER}/protocol/openid-connect/auth`,
+    client_id: clientId || null,
+    configured: !!clientId,
+  };
+}
 
 // ── JWKS cache ─────────────────────────────────────────────────────────────
 let _jwksCache = null;
@@ -136,7 +148,7 @@ async function exchangePublicOidcCode(req, res, clientId, logContext) {
 router.post(
   '/callback',
   asyncHandler(async (req, res) => {
-    return exchangePublicOidcCode(req, res, process.env.FLIP_OIDC_CLIENT_ID, 'OIDC public');
+    return exchangePublicOidcCode(req, res, getFlipOidcClientId(), 'OIDC public');
   })
 );
 
@@ -145,7 +157,7 @@ router.post(
 router.post(
   '/capacity-callback',
   asyncHandler(async (req, res) => {
-    return exchangePublicOidcCode(req, res, process.env.FLIP_OIDC_CAPACITY_CLIENT_ID, 'OIDC capacity');
+    return exchangePublicOidcCode(req, res, getFlipOidcClientId(), 'OIDC capacity');
   })
 );
 
@@ -164,7 +176,7 @@ router.post(
       return res.status(400).json({ msg: 'Missing required parameters: code, code_verifier, redirect_uri' });
     }
 
-    const clientId = process.env.FLIP_OIDC_MONITOR_CLIENT_ID;
+    const clientId = getFlipOidcClientId();
     if (!clientId) {
       return res.status(503).json({ msg: 'OIDC ist noch nicht konfiguriert.' });
     }
@@ -241,44 +253,29 @@ router.post(
 );
 
 // ── GET /api/oidc/config ──────────────────────────────────────────────────
-// Returns config for the public Flip Jobs OIDC client.
+// Returns config for the shared Flip OIDC client.
 router.get(
   '/config',
   asyncHandler(async (req, res) => {
-    const clientId = process.env.FLIP_OIDC_CLIENT_ID;
-    return res.json({
-      authorization_endpoint: `${ISSUER}/protocol/openid-connect/auth`,
-      client_id: clientId || null,
-      configured: !!clientId,
-    });
+    return res.json(getFlipOidcConfig());
   })
 );
 
 // ── GET /api/oidc/capacity-config ─────────────────────────────────────────
-// Returns config for the Capacity Counter OIDC client.
+// Returns config for the shared Flip OIDC client.
 router.get(
   '/capacity-config',
   asyncHandler(async (req, res) => {
-    const clientId = process.env.FLIP_OIDC_CAPACITY_CLIENT_ID;
-    return res.json({
-      authorization_endpoint: `${ISSUER}/protocol/openid-connect/auth`,
-      client_id: clientId || null,
-      configured: !!clientId,
-    });
+    return res.json(getFlipOidcConfig());
   })
 );
 
 // ── GET /api/oidc/monitor-config ───────────────────────────────────────────
-// Returns config for the Monitor auto-login OIDC client (separate Keycloak client).
+// Returns config for the shared Flip OIDC client.
 router.get(
   '/monitor-config',
   asyncHandler(async (req, res) => {
-    const clientId = process.env.FLIP_OIDC_MONITOR_CLIENT_ID;
-    return res.json({
-      authorization_endpoint: `${ISSUER}/protocol/openid-connect/auth`,
-      client_id: clientId || null,
-      configured: !!clientId,
-    });
+    return res.json(getFlipOidcConfig());
   })
 );
 
