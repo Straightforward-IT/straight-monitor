@@ -3197,8 +3197,12 @@ export default {
 
 .modal-customer-body {
   padding: 0;
+  flex: 1;
+  min-height: 0;
   max-height: 80vh;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-document-body {

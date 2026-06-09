@@ -456,14 +456,22 @@ const filters = ref(storedFilters ? { ...defaultFilters, ...JSON.parse(storedFil
 
 // 1. Sync Tab with URL
 watch(currentTab, (newTab) => {
-  if (route.query.tab !== newTab) {
+  if (newTab === 'overview') {
+    // Canonical URL for overview is /kunden without ?tab — remove the param
+    if (route.query.tab) {
+      const { tab, ...rest } = route.query;
+      router.replace({ query: Object.keys(rest).length ? rest : {} });
+    }
+  } else if (route.query.tab !== newTab) {
     router.replace({ query: { ...route.query, tab: newTab } });
   }
 });
 
 watch(() => route.query.tab, (newTab) => {
-  if (newTab && ['overview', 'analytics', 'leads', 'watchlist', 'kontakte'].includes(newTab)) {
-    currentTab.value = newTab;
+  const validTabs = ['overview', 'analytics', 'leads', 'watchlist', 'kontakte'];
+  const resolved = (newTab && validTabs.includes(newTab)) ? newTab : 'overview';
+  if (currentTab.value !== resolved) {
+    currentTab.value = resolved;
   }
 }, { immediate: true });
 
@@ -955,7 +963,8 @@ watch(currentTab, (tab) => {
 }
 
 .btn-group:hover {
-    background: var(--hover-bg, #f5f5f5);
+  background: var(--hover);
+  color: var(--text);
 }
 
 .kunden-search-bar {

@@ -147,71 +147,38 @@
         </div>
 
         <div v-else class="contacts-list">
-          <div v-for="contact in linkedContacts" :key="contact.id" class="contact-card">
-
-            <!-- Edit mode -->
-            <template v-if="editingContactId === contact.id">
-              <div class="edit-form">
-                <div class="edit-row">
-                  <input v-model="editForm.givenName" placeholder="Vorname" class="edit-input" />
-                  <input v-model="editForm.surname" placeholder="Nachname" class="edit-input" />
-                </div>
-                <input v-model="editForm.jobTitle" placeholder="Position / Titel" class="edit-input edit-input-full" />
-                <input v-model="editForm.email" placeholder="E-Mail" class="edit-input edit-input-full" />
-                <div class="edit-row">
-                  <input v-model="editForm.businessPhone" placeholder="Festnetz" class="edit-input" />
-                  <input v-model="editForm.mobilePhone" placeholder="Mobil" class="edit-input" />
-                </div>
+          <div
+            v-for="contact in linkedContacts"
+            :key="contact.id"
+            class="contact-card"
+            @click="openContactCard(contact)"
+          >
+            <div class="contact-header">
+              <div class="contact-name">
+                <font-awesome-icon :icon="['fas', 'user']" />
+                {{ contact.displayName }}
               </div>
-              <div class="contact-actions">
-                <button class="action-btn action-save" @click="saveEditContact(contact)" :disabled="contactSaving">
-                  <font-awesome-icon :icon="['fas', contactSaving ? 'spinner' : 'check']" :spin="contactSaving" />
-                  Speichern
-                </button>
-                <button class="action-btn action-cancel" @click="cancelEditContact">
-                  <font-awesome-icon :icon="['fas', 'times']" /> Abbrechen
-                </button>
+              <div class="contact-meta">
+                <span v-if="contact.jobTitle" class="creator">{{ contact.jobTitle }}</span>
               </div>
-            </template>
-
-            <!-- Read mode -->
-            <template v-else>
-              <div class="contact-header">
-                <div class="contact-name">
-                  <font-awesome-icon :icon="['fas', 'user']" />
-                  {{ contact.displayName }}
-                </div>
-                <div class="contact-meta">
-                  <span v-if="contact.jobTitle" class="creator">{{ contact.jobTitle }}</span>
-                </div>
+            </div>
+            <div class="contact-details">
+              <div v-if="contact.emailAddresses && contact.emailAddresses.length" class="detail-row">
+                <font-awesome-icon :icon="['fas', 'envelope']" />
+                <a :href="`mailto:${contact.emailAddresses[0].address}`" @click.stop>{{ contact.emailAddresses[0].address }}</a>
               </div>
-
-              <div class="contact-details">
-                <div v-if="contact.emailAddresses && contact.emailAddresses.length" class="detail-row">
-                  <font-awesome-icon :icon="['fas', 'envelope']" />
-                  <a :href="`mailto:${contact.emailAddresses[0].address}`">{{ contact.emailAddresses[0].address }}</a>
-                </div>
-                <div v-if="contact.businessPhones && contact.businessPhones.length" class="detail-row">
-                  <font-awesome-icon :icon="['fas', 'phone']" />
-                  <a :href="`tel:${contact.businessPhones[0]}`">{{ contact.businessPhones[0] }}</a>
-                </div>
-                <div v-else-if="contact.mobilePhone" class="detail-row">
-                  <font-awesome-icon :icon="['fas', 'mobile-screen']" />
-                  <a :href="`tel:${contact.mobilePhone}`">{{ contact.mobilePhone }}</a>
-                </div>
+              <div v-if="contact.businessPhones && contact.businessPhones.length" class="detail-row">
+                <font-awesome-icon :icon="['fas', 'phone']" />
+                <a :href="`tel:${contact.businessPhones[0]}`" @click.stop>{{ contact.businessPhones[0] }}</a>
               </div>
-
-              <div class="contact-actions">
-                <button class="action-btn action-edit" @click="startEditContact(contact)">
-                  <font-awesome-icon :icon="['fas', 'pen']" /> Bearbeiten
-                </button>
-                <button class="action-btn action-delete" @click="deleteContact(contact)" :disabled="deletingContactId === contact.id">
-                  <font-awesome-icon :icon="['fas', deletingContactId === contact.id ? 'spinner' : 'trash']" :spin="deletingContactId === contact.id" />
-                  Löschen
-                </button>
+              <div v-else-if="contact.mobilePhone" class="detail-row">
+                <font-awesome-icon :icon="['fas', 'mobile-screen']" />
+                <a :href="`tel:${contact.mobilePhone}`" @click.stop>{{ contact.mobilePhone }}</a>
               </div>
-            </template>
-
+            </div>
+            <div class="contact-open-hint">
+              <font-awesome-icon :icon="['fas', 'pen']" /> Bearbeiten
+            </div>
           </div>
         </div>
       </section>
@@ -320,6 +287,18 @@
       <button class="btn btn-secondary" @click="$emit('close')">Schließen</button>
     </footer>
 
+    <!-- Contact Card Modal -->
+    <teleport to="body">
+      <div v-if="selectedContactCard" class="contact-card-overlay" @click.self="selectedContactCard = null">
+        <ContactCard
+          :contact="selectedContactCard"
+          @close="selectedContactCard = null"
+          @deleted="onContactCardDeleted"
+          @updated="onContactCardUpdated"
+        />
+      </div>
+    </teleport>
+
     <!-- Kontakt Anlegen Modal -->
     <KontaktAnlegenModal
       v-if="showKontaktAnlegenModal"
@@ -338,6 +317,7 @@ import { useDataCache } from '@/stores/dataCache';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import KundenAnalyticsEmbed from './KundenAnalyticsEmbed.vue';
 import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
+import ContactCard from './ContactCard.vue';
 import api from '@/utils/api';
 
 const props = defineProps({
@@ -442,10 +422,7 @@ async function loadTopMa() {
 }
 
 onMounted(loadTopMa);
-const editingContactId = ref(null);
-const editForm = ref({});
-const contactSaving = ref(false);
-const deletingContactId = ref(null);
+const selectedContactCard = ref(null);
 const showKontaktAnlegenModal = ref(false);
 
 function onKontaktAngelegt(contact) {
@@ -453,62 +430,19 @@ function onKontaktAngelegt(contact) {
   msContacts.value.unshift(contact);
 }
 
-function startEditContact(contact) {
-  editingContactId.value = contact.id;
-  editForm.value = {
-    givenName: contact.givenName || '',
-    surname: contact.surname || '',
-    jobTitle: contact.jobTitle || '',
-    email: contact.emailAddresses?.[0]?.address || '',
-    businessPhone: contact.businessPhones?.[0] || '',
-    mobilePhone: contact.mobilePhone || '',
-  };
+function openContactCard(contact) {
+  selectedContactCard.value = { ...contact };
 }
 
-function cancelEditContact() {
-  editingContactId.value = null;
-  editForm.value = {};
+function onContactCardDeleted(contactId) {
+  msContacts.value = msContacts.value.filter(c => c.id !== contactId);
+  selectedContactCard.value = null;
 }
 
-async function saveEditContact(contact) {
-  if (contactSaving.value) return;
-  contactSaving.value = true;
-  try {
-    const patch = {
-      upn: contact._upn,
-      givenName: editForm.value.givenName,
-      surname: editForm.value.surname,
-      jobTitle: editForm.value.jobTitle,
-      mobilePhone: editForm.value.mobilePhone || null,
-    };
-    if (editForm.value.businessPhone) {
-      patch.businessPhones = [editForm.value.businessPhone];
-    } else {
-      patch.businessPhones = [];
-    }
-    if (editForm.value.email) {
-      patch.emailAddresses = [{ address: editForm.value.email, name: `${editForm.value.givenName} ${editForm.value.surname}`.trim() }];
-    }
-    const { data } = await api.patch(`/api/graph/contacts/${contact.id}`, patch);
-    // Update in-place
-    const idx = msContacts.value.findIndex(c => c.id === contact.id);
-    if (idx !== -1 && data.contact) {
-      msContacts.value[idx] = { ...msContacts.value[idx], ...data.contact };
-    }
-    editingContactId.value = null;
-  } finally {
-    contactSaving.value = false;
-  }
-}
-
-async function deleteContact(contact) {
-  if (!window.confirm(`Kontakt „${contact.displayName}" wirklich aus Microsoft-Kontakten löschen?`)) return;
-  deletingContactId.value = contact.id;
-  try {
-    await api.delete(`/api/graph/contacts/${contact.id}`, { data: { upn: contact._upn } });
-    msContacts.value = msContacts.value.filter(c => c.id !== contact.id);
-  } finally {
-    deletingContactId.value = null;
+function onContactCardUpdated(updatedContact) {
+  const idx = msContacts.value.findIndex(c => c.id === updatedContact.id);
+  if (idx !== -1) {
+    msContacts.value[idx] = { ...msContacts.value[idx], ...updatedContact };
   }
 }
 
@@ -594,12 +528,15 @@ function formatEuro(value) {
   background: var(--tile-bg);
   border-radius: 12px;
   overflow: hidden;
-  max-height: 90vh;
+  max-height: 100%;
   width: 100%;
 }
 
 /* Header */
 .card-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -748,6 +685,8 @@ function formatEuro(value) {
 
 /* Body */
 .card-body {
+  flex: 1;
+  min-height: 0;
   padding: 24px;
   overflow-y: auto;
   display: flex;
@@ -869,6 +808,32 @@ function formatEuro(value) {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+
+  &:hover {
+    border-color: var(--primary);
+  }
+}
+
+.contact-open-hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.contact-card-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
 }
 
 .contact-header {

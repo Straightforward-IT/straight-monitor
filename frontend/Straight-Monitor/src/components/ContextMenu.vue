@@ -47,29 +47,25 @@ function selectOption(option: any) {
 
 .context-menu {
   position: fixed;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  color: var(--text);
   z-index: 1001;
   min-width: 150px;
+  overflow: hidden;
 
   .context-menu-item {
     padding: 0.75rem 1rem;
     cursor: pointer;
     font-size: 0.9rem;
-    transition: all 0.2s;
+    color: var(--text);
+    transition: background 0.2s, color 0.2s;
 
     &:hover {
-      background: #f0f0f0;
-    }
-
-    &:first-child {
-      border-radius: 4px 4px 0 0;
-    }
-
-    &:last-child {
-      border-radius: 0 0 4px 4px;
+      background: var(--hover);
+      color: var(--text);
     }
   }
 }

@@ -32,16 +32,10 @@
           </button>
         </div>
 
-        <!-- Rechnungen warning -->
-        <div v-if="rechnungenWarning" class="rechnungen-warning">
-          <font-awesome-icon :icon="['fas', 'circle-exclamation']" />
-          Für {{ MONTH_NAMES[selectedMonth - 1] }} {{ selectedYear }} liegen noch keine Rechnungen vor. Der Umsatz im Bericht wird daher leer sein.
-        </div>
-
         <!-- Empty watchlist -->
         <div v-if="!loading && reportData && reportData.kunden.length === 0" class="report-empty">
           <font-awesome-icon :icon="['fas', 'binoculars']" class="empty-icon" />
-          <p>Keine Kunden auf der Watchlist oder keine Daten für diesen Monat.</p>
+          <p>Keine Kunden auf der Watchlist.</p>
         </div>
 
         <!-- Error -->
@@ -51,17 +45,49 @@
         <div v-if="reportData && reportData.kunden.length > 0" class="report-body">
           <p class="report-subtitle">
             {{ MONTH_NAMES[reportData.month - 1] }} {{ reportData.year }}
-            <span class="muted"> — Vergleich mit {{ MONTH_NAMES[reportData.month - 1] }} {{ reportData.year - 1 }}</span>
+            <span class="muted">
+              — Vergleich mit {{ reportData.comparison.previousMonth.label }} und {{ reportData.comparison.previousYear.label }}
+            </span>
           </p>
+
+          <div class="summary-grid">
+            <div class="summary-tile">
+              <span class="summary-value">{{ formatNumber(reportData.totals.current.bedarfCount) }}</span>
+              <span class="summary-label">Bedarf</span>
+            </div>
+            <div class="summary-tile">
+              <span class="summary-value">{{ formatNumber(reportData.totals.current.einsaetzeCount) }}</span>
+              <span class="summary-label">Besetzte Einsätze</span>
+            </div>
+            <div class="summary-tile">
+              <span class="summary-value">{{ formatNumber(reportData.totals.current.offenCount) }}</span>
+              <span class="summary-label">Offen</span>
+            </div>
+            <div class="summary-tile">
+              <span class="summary-value">{{ formatPercent(reportData.totals.current.besetzungsquote) }}</span>
+              <span class="summary-label">Quote</span>
+            </div>
+          </div>
+
+          <div class="ranking-grid">
+            <RankingList title="Winners Vormonat" :items="reportData.winners" empty-text="Keine Gewinner" />
+            <RankingList title="Losers Vormonat" :items="reportData.losers" empty-text="Keine Verlierer" />
+            <RankingList title="Winners Vorjahr" :items="reportData.yoyWinners" empty-text="Keine Gewinner" />
+            <RankingList title="Losers Vorjahr" :items="reportData.yoyLosers" empty-text="Keine Verlierer" />
+          </div>
 
           <div class="table-wrapper">
             <table class="report-table">
               <thead>
                 <tr>
                   <th class="col-kunde">Kunde</th>
-                  <th class="col-metric">Aufträge</th>
+                  <th class="col-metric">Bedarf</th>
                   <th class="col-metric">Einsätze</th>
-                  <th class="col-umsatz">Umsatz</th>
+                  <th class="col-metric">Offen</th>
+                  <th class="col-metric">Quote</th>
+                  <th class="col-metric">Aufträge</th>
+                  <th class="col-delta">Vormonat</th>
+                  <th class="col-delta">Vorjahr</th>
                 </tr>
               </thead>
               <tbody>
@@ -71,13 +97,25 @@
                     <span v-if="k.kuerzel" class="kunde-kuerzel">{{ k.kuerzel }}</span>
                   </td>
                   <td class="col-metric">
-                    <MetricCell :current="k.current.auftraegeCount" :prev="k.prevYear?.auftraegeCount ?? null" />
+                    <MetricCell :current="k.current.bedarfCount" :prev="k.prevMonth?.bedarfCount ?? 0" prev-label="VM" />
                   </td>
                   <td class="col-metric">
-                    <MetricCell :current="k.current.einsaetzeCount" :prev="k.prevYear?.einsaetzeCount ?? null" />
+                    <MetricCell :current="k.current.einsaetzeCount" :prev="k.prevMonth?.einsaetzeCount ?? 0" prev-label="VM" />
                   </td>
-                  <td class="col-umsatz">
-                    <MetricCell :current="k.current.umsatz" :prev="k.prevYear?.umsatz ?? null" currency />
+                  <td class="col-metric">
+                    {{ formatNumber(k.current.offenCount) }}
+                  </td>
+                  <td class="col-metric">
+                    {{ formatPercent(k.current.besetzungsquote) }}
+                  </td>
+                  <td class="col-metric">
+                    {{ formatNumber(k.current.auftraegeCount) }}
+                  </td>
+                  <td class="col-delta">
+                    <DeltaStack :delta="k.deltaPrevMonth" />
+                  </td>
+                  <td class="col-delta">
+                    <DeltaStack :delta="k.deltaPrevYear" />
                   </td>
                 </tr>
               </tbody>
@@ -110,7 +148,7 @@
 </template>
 
 <script setup>
-import { ref, watch, h } from 'vue';
+import { ref, h } from 'vue';
 import api from '@/utils/api';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
@@ -119,33 +157,32 @@ defineEmits(['close']);
 const MONTH_NAMES = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 
 const now = new Date();
-const selectedMonth = ref(now.getMonth() + 1);
-const selectedYear  = ref(now.getFullYear());
+const defaultReportDate = new Date(now.getFullYear(), now.getMonth(), 0);
+const selectedMonth = ref(defaultReportDate.getMonth() + 1);
+const selectedYear  = ref(defaultReportDate.getFullYear());
 
 const loading    = ref(false);
 const sending    = ref(false);
 const reportData = ref(null);
 const error      = ref(null);
 const sendSuccess = ref('');
-const rechnungenWarning = ref(false);
 
-let checkTimeout = null;
-async function checkRechnungen() {
-  try {
-    const { data } = await api.get('/api/users/me/kunden-watchlist/report/check-rechnungen', {
-      params: { month: selectedMonth.value, year: selectedYear.value }
-    });
-    rechnungenWarning.value = !data.available;
-  } catch {
-    rechnungenWarning.value = false;
-  }
+function formatNumber(value) {
+  return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(value || 0);
 }
 
-watch([selectedMonth, selectedYear], () => {
-  clearTimeout(checkTimeout);
-  rechnungenWarning.value = false;
-  checkTimeout = setTimeout(checkRechnungen, 300);
-}, { immediate: true });
+function formatPercent(value) {
+  if (value === null || value === undefined) return '–';
+  return `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(value)}%`;
+}
+
+function formatDelta(delta) {
+  if (!delta) return '–';
+  if (delta.absolute === 0) return '0';
+  const sign = delta.absolute > 0 ? '+' : '';
+  const pct = delta.percent !== null ? ` (${sign}${formatPercent(delta.percent)})` : '';
+  return `${sign}${formatNumber(delta.absolute)}${pct}`;
+}
 
 async function generate() {
   loading.value = true;
@@ -157,7 +194,7 @@ async function generate() {
     });
     reportData.value = data;
   } catch (e) {
-    error.value = e.response?.data?.msg || 'Fehler beim Generieren des Berichts.';
+    error.value = e.response?.data?.msg || e.response?.data?.message || 'Fehler beim Generieren des Berichts.';
   } finally {
     loading.value = false;
   }
@@ -172,34 +209,63 @@ async function sendReport() {
       year:  selectedYear.value
     });
     sendSuccess.value = data.msg;
+    if (data.report) reportData.value = data.report;
   } catch (e) {
-    error.value = e.response?.data?.msg || 'Fehler beim Senden.';
+    error.value = e.response?.data?.msg || e.response?.data?.message || 'Fehler beim Senden.';
   } finally {
     sending.value = false;
   }
 }
 
 // ── MetricCell as inline component (render fn — no runtime compiler needed) ──
-const MetricCell = {
-  props: { current: Number, prev: { type: Number, default: null }, currency: Boolean },
-  setup(props) {
-    const fmt = (n) => props.currency
-      ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n ?? 0)
-      : (n ?? 0).toLocaleString('de-DE');
+const deltaClass = (delta) => {
+  if (!delta || delta.absolute === 0) return 'flat';
+  return delta.absolute > 0 ? 'up' : 'down';
+};
 
+const MetricCell = {
+  props: { current: Number, prev: { type: Number, default: 0 }, prevLabel: { type: String, default: 'VM' } },
+  setup(props) {
     return () => {
-      const curr = h('span', { class: 'metric-curr' }, fmt(props.current));
-      const rest = props.prev !== null
-        ? [
-            h('span', { class: ['metric-delta', props.current >= props.prev ? 'up' : 'down'] },
-              (props.current >= props.prev ? '▲ ' : '▼ ') +
-              (props.prev !== 0 ? Math.abs(((props.current - props.prev) / props.prev) * 100).toFixed(1) + '%' : '')
-            ),
-            h('span', { class: 'metric-prev' }, 'VJ: ' + fmt(props.prev))
-          ]
-        : [h('span', { class: 'metric-prev no-prev' }, '–')];
+      const current = Number(props.current || 0);
+      const prev = Number(props.prev || 0);
+      const delta = { absolute: current - prev, percent: prev > 0 ? ((current - prev) / prev) * 100 : null };
+      const curr = h('span', { class: 'metric-curr' }, formatNumber(current));
+      const rest = [
+        h('span', { class: ['metric-delta', deltaClass(delta)] }, formatDelta(delta)),
+        h('span', { class: 'metric-prev' }, `${props.prevLabel}: ${formatNumber(prev)}`)
+      ];
       return h('div', { class: 'metric-cell' }, [curr, ...rest]);
     };
+  }
+};
+
+const DeltaStack = {
+  props: { delta: Object },
+  setup(props) {
+    return () => {
+      const bedarfDelta = props.delta?.bedarfCount;
+      const einsatzDelta = props.delta?.einsaetzeCount;
+      return h('div', { class: 'delta-stack' }, [
+        h('span', { class: ['delta-main', deltaClass(bedarfDelta)] }, `Bedarf ${formatDelta(bedarfDelta)}`),
+        h('span', { class: ['delta-sub', deltaClass(einsatzDelta)] }, `Einsätze ${formatDelta(einsatzDelta)}`)
+      ]);
+    };
+  }
+};
+
+const RankingList = {
+  props: { title: String, items: Array, emptyText: String },
+  setup(props) {
+    return () => h('div', { class: 'ranking-card' }, [
+      h('div', { class: 'ranking-title' }, props.title),
+      ...(props.items?.length
+        ? props.items.map((item) => h('div', { class: 'ranking-row', key: item.kundenNr }, [
+            h('span', { class: 'ranking-name' }, item.kundName || `#${item.kundenNr}`),
+            h('span', { class: ['ranking-delta', deltaClass(item.delta)] }, formatDelta(item.delta))
+          ]))
+        : [h('div', { class: 'ranking-empty' }, props.emptyText || 'Keine Veränderung')])
+    ]);
   }
 };
 </script>
@@ -223,7 +289,7 @@ const MetricCell = {
   border: 1px solid var(--border);
   box-shadow: 0 24px 64px rgba(0,0,0,0.2);
   width: 100%;
-  max-width: 820px;
+  max-width: 1120px;
   max-height: 88vh;
   display: flex;
   flex-direction: column;
@@ -286,18 +352,6 @@ const MetricCell = {
   color: var(--muted);
 }
 
-.rechnungen-warning {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.4);
-  border-top: none;
-  color: #b45309;
-  font-size: 13px;
-}
-
 .config-select,
 .config-input {
   padding: 7px 10px;
@@ -343,6 +397,84 @@ const MetricCell = {
 
 .report-subtitle .muted { color: var(--muted); font-weight: 400; }
 
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.summary-tile {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.summary-value {
+  color: var(--text);
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.summary-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.ranking-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+:deep(.ranking-card) {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--tile-bg);
+}
+
+:deep(.ranking-title) {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+:deep(.ranking-row) {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+:deep(.ranking-name) {
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:deep(.ranking-delta) {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+:deep(.ranking-empty) {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .table-wrapper { overflow-x: auto; }
 
 .report-table {
@@ -367,10 +499,10 @@ const MetricCell = {
 
 .col-kunde  { text-align: left; min-width: 180px; }
 .col-metric { text-align: center; min-width: 100px; }
-.col-umsatz { text-align: right; min-width: 130px; }
+.col-delta  { text-align: right; min-width: 140px; }
 
 .report-table thead th.col-metric { text-align: center; }
-.report-table thead th.col-umsatz { text-align: right; }
+.report-table thead th.col-delta { text-align: right; }
 
 .report-table tbody tr:last-child td { border-bottom: none; }
 
@@ -405,7 +537,6 @@ const MetricCell = {
 }
 
 .col-metric :deep(.metric-cell) { align-items: center; }
-.col-umsatz :deep(.metric-cell) { align-items: flex-end; }
 
 :deep(.metric-curr) {
   font-weight: 500;
@@ -420,6 +551,7 @@ const MetricCell = {
 
 :deep(.metric-delta.up)   { color: #16a34a; }
 :deep(.metric-delta.down) { color: #dc2626; }
+:deep(.metric-delta.flat) { color: var(--muted); }
 
 :deep(.metric-prev) {
   font-size: 10px;
@@ -427,6 +559,26 @@ const MetricCell = {
 }
 
 :deep(.metric-prev.no-prev) { color: var(--border); }
+
+:deep(.delta-stack) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+:deep(.delta-main) {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+:deep(.delta-sub) {
+  font-size: 10px;
+}
+
+:deep(.up) { color: #16a34a; }
+:deep(.down) { color: #dc2626; }
+:deep(.flat) { color: var(--muted); }
 
 /* Empty / Error states */
 .report-empty {
@@ -502,4 +654,16 @@ const MetricCell = {
 }
 
 .btn-close:hover { background: var(--hover); }
+
+@media (max-width: 780px) {
+  .report-config,
+  .report-footer {
+    flex-wrap: wrap;
+  }
+
+  .summary-grid,
+  .ranking-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

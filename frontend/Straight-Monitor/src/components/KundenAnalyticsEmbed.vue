@@ -427,7 +427,7 @@ const chartData = computed(() => {
   const fromStr = indexToMonthStr(sliderRange.value[0]);
   const toStr = indexToMonthStr(sliderRange.value[1]);
   const months = buildMonthLabels(fromStr, toStr);
-  const isDark = theme.current === 'dark';
+  const isDark = theme.isDark;
 
   const barColor = isDark ? 'rgba(238, 175, 103, 0.8)' : 'rgba(238, 175, 103, 0.85)';
   const dataArr = months.map(m => {
@@ -482,8 +482,8 @@ const chartData = computed(() => {
 });
 
 const chartOptions = computed(() => {
-  const isDark = theme.current === 'dark';
-  const textColor = isDark ? '#fff' : '#333';
+  const isDark = theme.isDark;
+  const textColor = isDark ? '#a6a6a6' : '#333';
   const gridColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
   const hasForecastData = showForecast.value && chartData.value.datasets.some(ds => ds.isForecast);
 
@@ -678,8 +678,8 @@ function handleDrillChartClick(event) {
 }
 
 const drillChartOptions = computed(() => {
-  const isDark = theme.current === 'dark';
-  const textColor = isDark ? '#fff' : '#333';
+  const isDark = theme.isDark;
+  const textColor = isDark ? '#a6a6a6' : '#333';
   const gridColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
   const hasMultiple = drillAuftraege.value.length > 1;
   const hasForecastDS = showForecast.value && drillAuftraege.value.some(a => a.forecastDays && a.forecastDays.length > 0);

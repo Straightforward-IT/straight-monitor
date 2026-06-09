@@ -9,6 +9,7 @@ const {
   deleteMessagesInFolder,
 } = require("./GraphService");
 const { runApplicantMailRetentionCleanup } = require("./ApplicantMailRetentionService");
+const { sendMonthlyWatchlistReports } = require("./KundenWatchlistReportService");
 const registry = require("./config/registry");
 const logger = require("./utils/logger");
 
@@ -257,6 +258,23 @@ async function runApplicantMailGdprCleanup() {
           console.error("❌ GDPR applicant mailbox cleanup:", error.message);
           await sendMail("it@straightforward.email", "❌ GDPR Applicant Mail Cleanup Failed", `
             <h3>Error in GDPR Applicant Mail Cleanup</h3>
+            <p><strong>Error:</strong> ${error.message}</p>
+            <pre>${error.stack}</pre>
+          `);
+        }
+      }));
+    }
+
+    if (allow("watchlist_reports")) {
+      cron.schedule("0 8 1 * *", guard(async () => {
+        try {
+          logger.routineStart("monthly Watchlist reports");
+          const summary = await sendMonthlyWatchlistReports();
+          logger.info("Watchlist reports completed:", JSON.stringify(summary));
+        } catch (error) {
+          logger.routineError("Watchlist Reports", error);
+          await sendMail("it@straightforward.email", "❌ Watchlist Reports Failed", `
+            <h3>Error in Watchlist Reports</h3>
             <p><strong>Error:</strong> ${error.message}</p>
             <pre>${error.stack}</pre>
           `);
