@@ -106,6 +106,28 @@
       "M": "66fc02336eba044dba7612cf",
       "L": "66fc02366eba044dba7612d4",
       "XL": "66fc023b6eba044dba7612d9"
+    },
+    "kuecheFleckenentferner": "6a2a7b40edce0280f5336552",
+    "kuecheTouchon": "6a2a7b55edce0280f5336560",
+    "kuecheKochschuerze": "6a2a89c9440fd4879a576fe5",
+    "kuecheKochhose": {
+      "XS": "6a2a7aaaedce0280f533647a",
+      "S": "6a2a7aaaedce0280f533647c",
+      "M": "6a2a7aaaedce0280f533647e",
+      "L": "6a2a7aaaedce0280f5336482",
+      "XL": "6a2a7aaaedce0280f53364a4",
+      "XXL": "6a2a7aaaedce0280f53364a6",
+      "3XL": "6a2a7aaaedce0280f5336480",
+      "4XL": "6a2a7aaaedce0280f5336484"
+    },
+    "kuecheKochjacke": {
+      "XS": "6a2a787cedce0280f533616f",
+      "S": "6a2a787cedce0280f5336171",
+      "M": "6a2a787cedce0280f533617d",
+      "L": "6a2a787cedce0280f533617f",
+      "XXL": "6a2a787dedce0280f53361c6",
+      "3XL": "6a2a787cedce0280f5336181",
+      "4XL": "6a2a787cedce0280f5336183"
     }
   },
   
@@ -212,6 +234,29 @@
         "M": "676ec35953fe013a546dd7f4",
         "L": "676ec35e53fe013a546dd7fb",
         "XL": "676ec36453fe013a546dd802"
+      },
+      "kuecheFleckenentferner": "6a2a7b40edce0280f5336554",
+      "kuecheTouchon": "6a2a7b55edce0280f5336562",
+      "kuecheKochschuerze": "6a2a89c9440fd4879a576fe3",
+      "kuecheKochhose": {
+        "XS": "6a2a7aaaedce0280f53364a8",
+        "S": "6a2a7aaaedce0280f53364aa",
+        "M": "6a2a7aaaedce0280f53364ac",
+        "L": "6a2a7aaaedce0280f53364ae",
+        "XL": "6a2a7aaaedce0280f53364ca",
+        "XXL": "6a2a7aaaedce0280f53364cc",
+        "3XL": "6a2a7aaaedce0280f53364ce",
+        "4XL": "6a2a7aaaedce0280f53364d0"
+      },
+      "kuecheKochjacke": {
+        "XS": "6a2a787cedce0280f533619c",
+        "S": "6a2a787dedce0280f53361aa",
+        "M": "6a2a787dedce0280f53361a1",
+        "L": "6a2a787dedce0280f53361a3",
+        "XL": "6a2a787dedce0280f53361a5",
+        "XXL": "6a2a787dedce0280f53361cb",
+        "3XL": "6a2a787dedce0280f53361c8",
+        "4XL": "6a2a787dedce0280f53361cd"
       }
     },
   

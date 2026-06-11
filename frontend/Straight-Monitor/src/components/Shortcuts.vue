@@ -18,6 +18,11 @@
         <span>Service-Paket</span>
       </button>
 
+      <button class="s-btn" @click="openKuechenPaketModal">
+        <img :src="logoSrc" alt="" />
+        <span>Küchen-Paket</span>
+      </button>
+
       <button class="s-btn" @click="openBestandsUpdateModal">
         <img :src="logoSrc" alt="" />
         <span>Bestands-Update senden</span>
@@ -527,6 +532,79 @@
       </div>
     </teleport>
 
+    <!-- KÜCHEN-PAKET MODAL -->
+    <teleport to="body">
+      <div v-if="showKuechenModal" class="modal" @click.self="closeAllModals">
+        <div class="modal-content">
+          <font-awesome-icon class="close" :icon="['fas', 'times']" @click="closeAllModals" />
+          <h4>Küchen-Paket</h4>
+          <div class="modal-scrollable">
+            <label class="select-label">
+              Standort
+              <select v-model="selectedLocation">
+                <option value="Hamburg">Hamburg</option>
+                <option value="Köln">Köln</option>
+              </select>
+            </label>
+            <label class="full">
+              <span class="full-label">Mitarbeiter <span class="optional-hint">(optional)</span></span>
+              <MitarbeiterSearch v-model="mitarbeiterId" />
+            </label>
+            <div class="grid">
+              <label class="row">
+                <span class="chk"><input type="checkbox" v-model="kuecheKochjackeChecked" /><span>Kochjacke Weiß</span></span>
+                <select class="sel" v-model="kuecheKochjackeSize" :disabled="!kuecheKochjackeChecked" @focus="kuecheKochjackeChecked = true">
+                  <option value="" disabled>Größe</option>
+                  <option value="XS">XS</option>
+                  <option value="S">S</option>
+                  <option value="M">M</option>
+                  <option value="L">L</option>
+                  <option v-if="selectedLocation !== 'Hamburg'" value="XL">XL</option>
+                  <option value="XXL">XXL</option>
+                  <option value="3XL">3XL</option>
+                  <option value="4XL">4XL</option>
+                </select>
+              </label>
+              <label class="row">
+                <span class="chk"><input type="checkbox" v-model="kuecheKochhoseChecked" /><span>Kochhose Schwarz</span></span>
+                <select class="sel" v-model="kuecheKochhoseSize" :disabled="!kuecheKochhoseChecked" @focus="kuecheKochhoseChecked = true">
+                  <option value="" disabled>Größe</option>
+                  <option value="XS">XS</option>
+                  <option value="S">S</option>
+                  <option value="M">M</option>
+                  <option value="L">L</option>
+                  <option value="XL">XL</option>
+                  <option value="XXL">XXL</option>
+                  <option value="3XL">3XL</option>
+                  <option value="4XL">4XL</option>
+                </select>
+              </label>
+              <label class="row">
+                <span class="chk"><input type="checkbox" v-model="kuecheKochschuerzeChecked" /><span>Kochschürze Schwarz</span></span>
+                <select class="sel" disabled><option>onesize</option></select>
+              </label>
+              <label class="row">
+                <span class="chk"><input type="checkbox" v-model="kuecheTouchonChecked" /><span>Touchon</span></span>
+                <select class="sel" disabled><option>onesize</option></select>
+              </label>
+              <label class="row">
+                <span class="chk"><input type="checkbox" v-model="kuecheFleckenentfernerChecked" /><span>Fleckenentferner</span></span>
+                <select class="sel" disabled><option>onesize</option></select>
+              </label>
+            </div>
+            <label class="full">
+              Anmerkung
+              <input type="text" placeholder="Anmerkung (optional)" v-model="anmerkung" />
+            </label>
+          </div>
+        </div>
+        <div class="modal-buttons">
+          <button @click="submitKuechenModal('add')">Rückgabe</button>
+          <button @click="submitKuechenModal('remove')">Entnahme</button>
+        </div>
+      </div>
+    </teleport>
+
     <!-- BESTAND UPDATE MODAL -->
     <teleport to="body">
       <div
@@ -612,6 +690,7 @@ export default {
       // ui
       showLogiModal: false,
       showServiceModal: false,
+      showKuechenModal: false,
       showBestandUpdateModal: false,
       downloading: false,
       anmerkung: "",
@@ -642,6 +721,15 @@ export default {
       bundhoseSize: "",
       sicherheitsschuheSize: "",
       handschuheSize: "",
+
+      // küchen flags & sizes
+      kuecheFleckenentfernerChecked: true,
+      kuecheKochhoseChecked: true,
+      kuecheKochjackeChecked: true,
+      kuecheTouchonChecked: true,
+      kuecheKochschuerzeChecked: true,
+      kuecheKochhoseSize: "",
+      kuecheKochjackeSize: "",
 
       // service flags & sizes
       kellnermesserChecked: true,
@@ -755,6 +843,7 @@ export default {
     closeAllModals() {
       this.showLogiModal = false;
       this.showServiceModal = false;
+      this.showKuechenModal = false;
       this.showBestandUpdateModal = false;
       this.closeModal();
     },
@@ -792,6 +881,10 @@ export default {
     openServicePaketModal() {
       this.openModal();
       this.showServiceModal = true;
+    },
+    openKuechenPaketModal() {
+      this.openModal();
+      this.showKuechenModal = true;
     },
     openBestandsUpdateModal() {
       this.openModal();
@@ -1067,6 +1160,73 @@ export default {
       this.updateMultiple(sel, count);
       this.closeAllModals();
       this.resetServicePaket();
+    },
+
+    validateKuechenSelections() {
+      const req = [];
+      if (this.kuecheKochhoseChecked && !this.kuecheKochhoseSize) req.push("Kochhose");
+      if (this.kuecheKochjackeChecked && !this.kuecheKochjackeSize) req.push("Kochjacke");
+      if (req.length) {
+        alert("Bitte Größe wählen für:\n• " + req.join("\n• "));
+        return false;
+      }
+      return true;
+    },
+
+    submitKuechenModal(action) {
+      if (!this.validateKuechenSelections()) return;
+
+      const sel = [
+        {
+          checked: this.kuecheFleckenentfernerChecked,
+          _id: this.getItemId("kuecheFleckenentferner"),
+          size: "onesize",
+        },
+        {
+          checked: this.kuecheKochhoseChecked,
+          _id: this.getItemId("kuecheKochhose", this.kuecheKochhoseSize),
+          size: this.kuecheKochhoseSize,
+        },
+        {
+          checked: this.kuecheKochjackeChecked,
+          _id: this.getItemId("kuecheKochjacke", this.kuecheKochjackeSize),
+          size: this.kuecheKochjackeSize,
+        },
+        {
+          checked: this.kuecheTouchonChecked,
+          _id: this.getItemId("kuecheTouchon"),
+          size: "onesize",
+        },
+        {
+          checked: this.kuecheKochschuerzeChecked,
+          _id: this.getItemId("kuecheKochschuerze"),
+          size: "onesize",
+        },
+      ];
+
+      const invalid = sel.filter((s) => s.checked && !s._id);
+      if (invalid.length) {
+        alert("Item-ID nicht gefunden – bitte ItemMappings.json prüfen.");
+        return;
+      }
+
+      const count = action === "add" ? 1 : -1;
+      this.anmerkung = `Küchen-Paket: ${this.anmerkung || ""}`.trim();
+      this.updateMultiple(sel, count);
+      this.closeAllModals();
+      this.resetKuechenPaket();
+    },
+
+    resetKuechenPaket() {
+      this.anmerkung = "";
+      this.mitarbeiterId = null;
+      this.kuecheFleckenentfernerChecked = true;
+      this.kuecheKochhoseChecked = true;
+      this.kuecheKochjackeChecked = true;
+      this.kuecheTouchonChecked = true;
+      this.kuecheKochschuerzeChecked = true;
+      this.kuecheKochhoseSize = "";
+      this.kuecheKochjackeSize = "";
     },
 
     // resets

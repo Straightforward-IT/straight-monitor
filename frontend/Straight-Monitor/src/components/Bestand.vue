@@ -558,15 +558,23 @@ export default {
         return;
       }
 
+      const itemId = item._id || item.id;
+      if (!itemId) {
+        alert("Dieses Item hat keine ID und kann nicht gelöscht werden.");
+        return;
+      }
+
       try {
-        await api.delete(`/api/items/${item._id}`);
+        await api.delete(`/api/items/${itemId}`);
         
-        const idx = this.items.findIndex((x) => x._id === item._id);
+        const idx = this.items.findIndex((x) => (x._id || x.id) === itemId);
         if (idx !== -1) this.items.splice(idx, 1);
-        this.dataCache.removeCachedItem(item._id);
+        this.dataCache.removeCachedItem(itemId);
       } catch (error) {
-        console.error("Fehler beim Löschen des Items:", error);
-        alert("Fehler beim Löschen des Items");
+        const status = error.response?.status;
+        const msg = error.response?.data?.message || error.response?.data?.msg || error.message;
+        console.error(`Fehler beim Löschen (${status}):`, msg, item);
+        alert(`Fehler beim Löschen (${status}): ${msg}`);
       }
     },
 
@@ -1189,6 +1197,11 @@ form {
     outline: none;
     background: var(--tile-bg);
     color: var(--text);
+  }
+
+  input.inputBez {
+    width: calc(100% - 40px);
+    margin-left: 20px;
   }
 
   .item-id-label {
