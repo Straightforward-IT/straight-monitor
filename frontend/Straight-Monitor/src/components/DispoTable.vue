@@ -464,6 +464,7 @@
                 <td class="col-nachname" :style="{ width: colWidths.nachname + 'px', minWidth: colWidths.nachname + 'px', maxWidth: colWidths.nachname + 'px' }">
                   <div class="ma-name-cell">
                     <div v-if="isTeamleiter(ma)" class="tl-corner-wrapper"><TlBadge /></div>
+                    <div v-if="getExitLabel(ma)" class="exit-corner-wrapper">{{ getExitLabel(ma) }}</div>
                     <button
                       class="star-btn"
                       :class="{ active: starredIds.has(ma._id) }"
@@ -2491,6 +2492,14 @@ const filteredMitarbeiter = computed(() => {
     ? hiddenIds.value.has(String(m._id))
     : !hiddenIds.value.has(String(m._id))
   );
+  // Auto-filter: hide employees whose Austritt is before the first visible column date
+  const firstColIso = visibleDays.value[0]?.iso ?? days.value[0]?.iso;
+  if (firstColIso) {
+    list = list.filter((m) => {
+      if (!m.austrittsdatum) return true;
+      return toIso(new Date(m.austrittsdatum)) >= firstColIso;
+    });
+  }
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase().trim();
     list = list.filter(
@@ -2607,6 +2616,19 @@ function getMaBereich(ma) {
 
 function getEntriesForCell(maId, iso) {
   return eintragMap.value[`${maId}_${iso}`] || [];
+}
+
+// Returns EXIT label string (e.g. "EXIT: 31.07.") if austrittsdatum is in the current calendar month
+function getExitLabel(ma) {
+  if (!ma.austrittsdatum) return null;
+  const exit = new Date(ma.austrittsdatum);
+  const now = new Date();
+  if (exit.getFullYear() === now.getFullYear() && exit.getMonth() === now.getMonth()) {
+    const day = String(exit.getDate()).padStart(2, '0');
+    const month = String(exit.getMonth() + 1).padStart(2, '0');
+    return `EXIT: ${day}.${month}.`;
+  }
+  return null;
 }
 
 // Cached iso list for fast index lookup
@@ -5086,6 +5108,21 @@ function onNameTouchEnd() {
     padding: 1px 4px;
     border-radius: 0 0 6px 0;
   }
+}
+
+.exit-corner-wrapper {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 0 0 0 6px;
+  background: #dc3545;
+  color: #fff;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
   .star-btn {

@@ -42,7 +42,7 @@ router.get('/', auth, asyncHandler(async (req, res) => {
   }
 
   const mitarbeiter = await Mitarbeiter.find(maFilter)
-    .select('_id vorname nachname personalnr telefon qualifikationen berufe profilbild dispoNotiz kundenwuensche')
+    .select('_id vorname nachname personalnr telefon qualifikationen berufe profilbild dispoNotiz kundenwuensche austrittsdatum')
     .populate('qualifikationen', 'qualificationKey designation')
     .populate('berufe', 'jobKey designation')
     .populate('kundenwuensche.kunde', 'kundenNr kundName kuerzel')
