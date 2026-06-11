@@ -80,18 +80,50 @@
             <table class="report-table">
               <thead>
                 <tr>
-                  <th class="col-kunde">Kunde</th>
-                  <th class="col-metric">Bedarf</th>
-                  <th class="col-metric">Einsätze</th>
-                  <th class="col-metric">Offen</th>
-                  <th class="col-metric">Quote</th>
-                  <th class="col-metric">Aufträge</th>
-                  <th class="col-delta">Vormonat</th>
-                  <th class="col-delta">Vorjahr</th>
+                  <th class="col-kunde th-sortable" @click="setSort('kundName')">
+                    Kunde
+                    <font-awesome-icon v-if="sortKey === 'kundName'" :icon="['fas', sortAsc ? 'chevron-up' : 'chevron-down']" class="sort-icon" />
+                    <font-awesome-icon v-else :icon="['fas', 'sort']" class="sort-icon muted" />
+                  </th>
+                  <th class="col-metric th-sortable" @click="setSort('bedarfCount')">
+                    Bedarf
+                    <font-awesome-icon v-if="sortKey === 'bedarfCount'" :icon="['fas', sortAsc ? 'chevron-up' : 'chevron-down']" class="sort-icon" />
+                    <font-awesome-icon v-else :icon="['fas', 'sort']" class="sort-icon muted" />
+                  </th>
+                  <th class="col-metric th-sortable" @click="setSort('einsaetzeCount')">
+                    Einsätze
+                    <font-awesome-icon v-if="sortKey === 'einsaetzeCount'" :icon="['fas', sortAsc ? 'chevron-up' : 'chevron-down']" class="sort-icon" />
+                    <font-awesome-icon v-else :icon="['fas', 'sort']" class="sort-icon muted" />
+                  </th>
+                  <th class="col-metric th-sortable" @click="setSort('offenCount')">
+                    Offen
+                    <font-awesome-icon v-if="sortKey === 'offenCount'" :icon="['fas', sortAsc ? 'chevron-up' : 'chevron-down']" class="sort-icon" />
+                    <font-awesome-icon v-else :icon="['fas', 'sort']" class="sort-icon muted" />
+                  </th>
+                  <th class="col-metric th-sortable" @click="setSort('besetzungsquote')">
+                    Quote
+                    <font-awesome-icon v-if="sortKey === 'besetzungsquote'" :icon="['fas', sortAsc ? 'chevron-up' : 'chevron-down']" class="sort-icon" />
+                    <font-awesome-icon v-else :icon="['fas', 'sort']" class="sort-icon muted" />
+                  </th>
+                  <th class="col-metric th-sortable" @click="setSort('auftraegeCount')">
+                    Aufträge
+                    <font-awesome-icon v-if="sortKey === 'auftraegeCount'" :icon="['fas', sortAsc ? 'chevron-up' : 'chevron-down']" class="sort-icon" />
+                    <font-awesome-icon v-else :icon="['fas', 'sort']" class="sort-icon muted" />
+                  </th>
+                  <th class="col-delta th-sortable" @click="setSort('prevMonthBedarf')">
+                    Vormonat
+                    <font-awesome-icon v-if="sortKey === 'prevMonthBedarf'" :icon="['fas', sortAsc ? 'chevron-up' : 'chevron-down']" class="sort-icon" />
+                    <font-awesome-icon v-else :icon="['fas', 'sort']" class="sort-icon muted" />
+                  </th>
+                  <th class="col-delta th-sortable" @click="setSort('prevYearBedarf')">
+                    Vorjahr
+                    <font-awesome-icon v-if="sortKey === 'prevYearBedarf'" :icon="['fas', sortAsc ? 'chevron-up' : 'chevron-down']" class="sort-icon" />
+                    <font-awesome-icon v-else :icon="['fas', 'sort']" class="sort-icon muted" />
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="k in reportData.kunden" :key="k.kundenNr">
+                <tr v-for="k in sortedKunden" :key="k.kundenNr">
                   <td class="col-kunde">
                     <span class="kunde-name">{{ k.kundName }}</span>
                     <span v-if="k.kuerzel" class="kunde-kuerzel">{{ k.kuerzel }}</span>
@@ -148,7 +180,7 @@
 </template>
 
 <script setup>
-import { ref, h } from 'vue';
+import { ref, h, computed } from 'vue';
 import api from '@/utils/api';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
@@ -166,6 +198,45 @@ const sending    = ref(false);
 const reportData = ref(null);
 const error      = ref(null);
 const sendSuccess = ref('');
+
+const sortKey = ref('bedarfCount');
+const sortAsc = ref(false);
+
+function setSort(key) {
+  if (sortKey.value === key) {
+    sortAsc.value = !sortAsc.value;
+  } else {
+    sortKey.value = key;
+    sortAsc.value = false;
+  }
+}
+
+const sortedKunden = computed(() => {
+  if (!reportData.value?.kunden) return [];
+  const arr = [...reportData.value.kunden];
+  const key = sortKey.value;
+  const dir = sortAsc.value ? 1 : -1;
+  arr.sort((a, b) => {
+    let av, bv;
+    if (key === 'kundName') {
+      av = (a.kundName || '').toLowerCase();
+      bv = (b.kundName || '').toLowerCase();
+    } else if (key === 'prevMonthBedarf') {
+      av = a.deltaPrevMonth?.bedarfCount?.absolute ?? 0;
+      bv = b.deltaPrevMonth?.bedarfCount?.absolute ?? 0;
+    } else if (key === 'prevYearBedarf') {
+      av = a.deltaPrevYear?.bedarfCount?.absolute ?? 0;
+      bv = b.deltaPrevYear?.bedarfCount?.absolute ?? 0;
+    } else {
+      av = a.current?.[key] ?? 0;
+      bv = b.current?.[key] ?? 0;
+    }
+    if (av < bv) return -dir;
+    if (av > bv) return dir;
+    return 0;
+  });
+  return arr;
+});
 
 function formatNumber(value) {
   return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(value || 0);
@@ -499,6 +570,21 @@ const RankingList = {
 
 .col-kunde  { text-align: left; min-width: 180px; }
 .col-metric { text-align: center; min-width: 100px; }
+
+.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.th-sortable:hover { color: var(--text); }
+
+.sort-icon {
+  margin-left: 4px;
+  font-size: 9px;
+  vertical-align: middle;
+  opacity: 0.9;
+}
+.sort-icon.muted { opacity: 0.3; }
 .col-delta  { text-align: right; min-width: 140px; }
 
 .report-table thead th.col-metric { text-align: center; }
