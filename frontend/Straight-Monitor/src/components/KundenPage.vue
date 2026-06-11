@@ -131,7 +131,7 @@
           </div>
           <button v-if="watchlistedKunden.length > 0" class="btn-group" @click="showReportModal = true">
             <font-awesome-icon :icon="['fas', 'chart-bar']" />
-            Bericht senden
+            Bericht
           </button>
         </div>
 

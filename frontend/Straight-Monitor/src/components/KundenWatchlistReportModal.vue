@@ -289,7 +289,7 @@ const RankingList = {
   border: 1px solid var(--border);
   box-shadow: 0 24px 64px rgba(0,0,0,0.2);
   width: 100%;
-  max-width: 1120px;
+  max-width: min(1440px, calc(100vw - 40px));
   max-height: 88vh;
   display: flex;
   flex-direction: column;

@@ -278,6 +278,12 @@
                 <button @click="setMitarbeiterSort('createdAt')">
                   Zuletzt erstellt
                 </button>
+                <button @click="setMitarbeiterSort('eintrittsdatum')">
+                  Eintrittsdatum
+                </button>
+                <button @click="setMitarbeiterSort('austrittsdatum')">
+                  Austrittsdatum
+                </button>
                 <button class="sep" disabled />
                 <button
                   @click="mitarbeitersIsAscending = !mitarbeitersIsAscending"
@@ -1143,9 +1149,9 @@ export default {
       const key = this.mitarbeitersSortBy;
       arr.sort((a, b) => {
         let av, bv;
-        if (key === 'createdAt') {
-          av = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
-          bv = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (key === 'createdAt' || key === 'eintrittsdatum' || key === 'austrittsdatum') {
+          av = a?.[key] ? new Date(a[key]).getTime() : 0;
+          bv = b?.[key] ? new Date(b[key]).getTime() : 0;
         } else {
           av = (a?.[key] ?? "").toString().toLowerCase();
           bv = (b?.[key] ?? "").toString().toLowerCase();
