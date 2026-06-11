@@ -636,13 +636,16 @@
                   :class="{
                     'is-today': day.isToday,
                     'is-weekend': day.isWeekend,
+                    'col-day--focused': focusedDay === day.iso,
+                    'col-day--dimmed': focusedDay !== null && focusedDay !== day.iso,
                   }"
+                  @click="toggleFocusedDay(day.iso)"
                 >
                   <div class="day-header">
                     <span class="day-name">{{ day.weekday }}</span>
                     <span class="day-date">{{ day.label }}</span>
                   </div>
-                  <div class="col-resize-handle col-resize-handle--day" @mousedown.prevent.stop="startResizeDay($event)"></div>
+                  <div class="col-resize-handle col-resize-handle--day" @mousedown.prevent.stop="startResizeDay($event)" @click.stop></div>
                 </th>
               </tr>
             </thead>
@@ -671,6 +674,7 @@
                       'is-weekend': day.isWeekend,
                       'is-active': ctxMenu.open && ctxMenu.ma?._id === ma._id && ctxMenu.day === day.iso,
                       'cell-selected': isCellSelected(ma._id, day.iso),
+                      'col-day--dimmed': focusedDay !== null && focusedDay !== day.iso,
                     },
                   ]"
                   @contextmenu.prevent="onCellRightClick($event, ma, day)"
@@ -1664,6 +1668,11 @@ const showHidden = ref(false);
 const highlightedMaId = ref(null);
 const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 0, flipped: false });
 const bereichFilter = ref(null); // null | 'S' | 'L'
+const focusedDay = ref(null); // iso string of focused day column, or null
+
+function toggleFocusedDay(iso) {
+  focusedDay.value = focusedDay.value === iso ? null : iso;
+}
 const tableZoom = ref(100); // percent: 60–150
 const isFullscreen = ref(false);
 const bereichMenuOpen = ref(false);
@@ -5001,6 +5010,20 @@ function onNameTouchEnd() {
         color: var(--primary);
         font-weight: 700;
       }
+    }
+
+    &.col-day--focused {
+      background: rgba(238, 175, 103, 0.18) !important;
+      box-shadow: inset 0 0 0 2px var(--primary) !important;
+      transform: none !important;
+      .day-header {
+        color: var(--primary);
+        font-weight: 700;
+      }
+    }
+
+    &.col-day--dimmed {
+      display: none;
     }
 
     &.is-weekend:not(.cell-planned):not(.cell-blocked):not(.cell-partially):not(.cell-available):not(.cell-angefragt) {

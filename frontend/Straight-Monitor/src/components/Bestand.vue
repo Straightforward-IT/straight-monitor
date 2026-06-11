@@ -88,17 +88,19 @@
         <div class="modal-scrollable">
           <!-- Input fields with keyup.enter event -->
           <label class="select-label">
-            Standort
-            <select
-              v-model="newItem.standort"
-              id="standort"
-              required
-            >
-              <option value="" disabled>Standort auswählen</option>
-              <option value="Hamburg">Hamburg</option>
-              <option value="Köln">Köln</option>
-              <option value="Berlin">Berlin</option>
-            </select>
+            Standorte
+            <div class="multi-select-group">
+              <button
+                v-for="standort in standortOptions"
+                :key="standort"
+                type="button"
+                class="chip-button"
+                :class="{ active: newItem.standorte.includes(standort) }"
+                @click="toggleStandort(standort)"
+              >
+                {{ standort }}
+              </button>
+            </div>
           </label>
 
           <label class="select-label">
@@ -113,13 +115,14 @@
           </label>
 
           <label class="select-label">
-            Größe
+            Größen
             <input
-              v-model="newItem.groesse"
+              v-model="newItem.groessenInput"
               id="groesse"
               type="text"
-              placeholder="Größe (optional)"
+              placeholder="z.B. S, M, L oder 36 38 40"
             />
+            <small class="input-hint">Mehrere Größen mit Komma oder Leerzeichen trennen. Leer = onesize.</small>
           </label>
 
           <div class="count-row">
@@ -221,6 +224,12 @@
   <div class="items-container">
     <div v-for="item in filteredItems" :key="item.id" class="item-wrapper">
       <div class="item-card">
+        <font-awesome-icon
+          v-if="item.isEditing"
+          class="delete-button"
+          :icon="['fas', 'trash']"
+          @click="deleteItem(item)"
+        />
         <div class="item-header">
           <span class="header-and-pen">
             <strong 
@@ -349,11 +358,13 @@ export default {
       items: [],
       newItem: {
         bezeichnung: "",
-        groesse: "",
+        groessenInput: "",
         anzahl: 0,
         soll: 0,
-        standort: "",
+        standorte: [],
       },
+
+      standortOptions: ["Hamburg", "Köln", "Berlin"],
 
       // Edit-Puffer
       originalBezeichnung: "",
@@ -392,10 +403,10 @@ export default {
           const hasHB = words.includes("hamburg");
           const hasK  = words.includes("köln");
           const hasB  = words.includes("berlin");
-          if (hasHB && !hasK && !hasB) this.newItem.standort = "Hamburg";
-          else if (!hasHB && hasK && !hasB) this.newItem.standort = "Köln";
-          else if (!hasHB && !hasK && hasB) this.newItem.standort = "Berlin";
-          else this.newItem.standort = "";
+          if (hasHB && !hasK && !hasB) this.newItem.standorte = ["Hamburg"];
+          else if (!hasHB && hasK && !hasB) this.newItem.standorte = ["Köln"];
+          else if (!hasHB && !hasK && hasB) this.newItem.standorte = ["Berlin"];
+          else this.newItem.standorte = [];
         }, this.debounceMs);
       },
     },
@@ -493,6 +504,29 @@ export default {
       this.searchQuery = `${next} ${kw}`.trim();
     },
 
+    toggleStandort(standort) {
+      const next = new Set(this.newItem.standorte || []);
+      if (next.has(standort)) next.delete(standort);
+      else next.add(standort);
+      this.newItem.standorte = Array.from(next);
+    },
+
+    parseGroessen(rawInput) {
+      const tokens = String(rawInput || "")
+        .split(/[\s,;|/]+/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+
+      if (!tokens.length) return ["onesize"];
+
+      const uniqueByLower = new Map();
+      for (const token of tokens) {
+        const key = token.toLowerCase();
+        if (!uniqueByLower.has(key)) uniqueByLower.set(key, token);
+      }
+      return Array.from(uniqueByLower.values());
+    },
+
     async updateItem(item) {
       if (
         item.bezeichnung === this.originalBezeichnung &&
@@ -516,6 +550,23 @@ export default {
         item.isEditing = false;
       } catch (error) {
         console.error("Fehler beim Aktualisieren des Items:", error);
+      }
+    },
+
+    async deleteItem(item) {
+      if (!confirm(`Möchtest du "${item.bezeichnung}" wirklich löschen?`)) {
+        return;
+      }
+
+      try {
+        await api.delete(`/api/items/${item._id}`);
+        
+        const idx = this.items.findIndex((x) => x._id === item._id);
+        if (idx !== -1) this.items.splice(idx, 1);
+        this.dataCache.removeCachedItem(item._id);
+      } catch (error) {
+        console.error("Fehler beim Löschen des Items:", error);
+        alert("Fehler beim Löschen des Items");
       }
     },
 
@@ -554,29 +605,40 @@ export default {
     },
 
     async submitNewItem() {
-      let { bezeichnung, groesse, anzahl, soll, standort } = this.newItem;
+      let { bezeichnung, anzahl, soll } = this.newItem;
+      const standorte = Array.from(new Set((this.newItem.standorte || []).filter(Boolean)));
+      const groessen = this.parseGroessen(this.newItem.groessenInput);
 
-      groesse = (groesse && groesse.trim()) ? groesse.trim() : "onesize";
       anzahl = Number.isFinite(+anzahl) ? +anzahl : 0;
       soll   = Number.isFinite(+soll)   ? +soll   : 0;
 
-      if (!bezeichnung || !standort || anzahl < 0) {
-        alert("Bezeichnung, Anzahl und Standort sind erforderlich");
+      if (!bezeichnung || !standorte.length || anzahl < 0) {
+        alert("Bezeichnung, Anzahl und mindestens ein Standort sind erforderlich");
         return;
       }
 
       try {
-        const { data: created } = await api.post("/api/items/addNew", {
-          userID: this.userID,
-          bezeichnung,
-          groesse,
-          anzahl,
-          soll,
-          standort,
-          anmerkung: this.anmerkung,
-        });
-        this.items.push(created);
-        this.dataCache.updateCachedItem(created);
+        const payloads = standorte.flatMap((standort) =>
+          groessen.map((groesse) => ({
+            userID: this.userID,
+            bezeichnung,
+            groesse,
+            anzahl,
+            soll,
+            standort,
+            anmerkung: this.anmerkung,
+          }))
+        );
+
+        const createdItems = await Promise.all(
+          payloads.map(async (payload) => {
+            const { data } = await api.post("/api/items/addNew", payload);
+            return data;
+          })
+        );
+
+        this.items.push(...createdItems);
+        createdItems.forEach((item) => this.dataCache.updateCachedItem(item));
         this.resetNewItem();
         this.showAddModal = false;
         this.closeModal();
@@ -586,7 +648,7 @@ export default {
     },
 
     resetNewItem() {
-      this.newItem = { bezeichnung: "", groesse: "", anzahl: 0, soll: 0, standort: "" };
+      this.newItem = { bezeichnung: "", groessenInput: "", anzahl: 0, soll: 0, standorte: [] };
       this.anmerkung = "";
     },
 
@@ -1085,9 +1147,9 @@ form {
   color: var(--text);
 
   .close-button,
-  .accept-button {
+  .accept-button,
+  .delete-button {
     position: absolute;
-    right: 10px;
     font-size: 16px;
     cursor: pointer;
     color: var(--text);
@@ -1096,8 +1158,9 @@ form {
     &:hover { color: var(--muted); }
   }
 
-  .close-button { top: 10px; }
-  .accept-button { top: 25px; right: 9px; }
+  .close-button { top: 10px; right: 10px; }
+  .delete-button { top: 10px; left: 10px; }
+  .accept-button { top: 25px; right: 10px; }
 }
 
 .edit-button {
@@ -1364,6 +1427,44 @@ form {
       opacity: 0.5;
       font-size: 12.5px;
     }
+  }
+
+  .input-hint {
+    font-size: 10.5px;
+    color: var(--muted);
+    opacity: 0.75;
+    line-height: 1.35;
+  }
+}
+
+.multi-select-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip-button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--tile-bg);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  margin: 0;
+  min-width: unset;
+  box-shadow: none;
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+    background: color-mix(in srgb, var(--primary) 8%, var(--tile-bg));
+  }
+
+  &.active {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 16%, var(--tile-bg));
+    color: color-mix(in srgb, var(--primary) 88%, var(--text));
   }
 }
 

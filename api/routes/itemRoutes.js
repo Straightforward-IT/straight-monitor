@@ -486,4 +486,11 @@ router.post("/sendInventoryUpdate", auth, asyncHandler(async (req, res) => {
     });
   }
 }))
+
+router.delete('/:id', auth, asyncHandler(async (req, res) => {
+  const item = await Item.findByIdAndDelete(req.params.id);
+  if (!item) return res.status(404).json({ message: 'Item nicht gefunden' });
+  res.status(200).json({ message: 'Item gelöscht', id: req.params.id });
+}));
+
 module.exports = router;
