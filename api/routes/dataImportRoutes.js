@@ -785,146 +785,160 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       return !(hasNonExited && op.persstatus === 6);
     });
 
-    // Execute bulk updates (find by Personalnr, Fallback per E-Mail)
-    for (const op of filteredOperations) {
-      let ma = await Mitarbeiter.findOne({ personalnr: op.personalnr }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
-      let pnrChanged = false;
-
-      if (!ma) {
-        // Fallback: suche per E-Mail aus der Excel-Zeile
-        const fallbackEmail = op.setFields.email;
-        if (fallbackEmail) {
-          ma = await Mitarbeiter.findOne({
-            $or: [{ email: fallbackEmail }, { additionalEmails: fallbackEmail }]
-          }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
-          if (ma) {
-            pnrChanged = true;
-          }
-        }
-
-        if (!ma) {
-          skipped++;
-          if (notFoundPnrs.length < 30) notFoundPnrs.push(op.personalnr);
-          continue;
-        }
-      }
-
-      matched++;
-
-      // Persstatus 6 = Ausgetreten: Flip löschen, Monitor deaktivieren, Asana abschließen
-      if (op.persstatus === 6 && ma.isActive) {
-        op.setFields.isActive = false;
-        if (ma.flip_id) {
-          op.setFields.flip_id = null;
-          try {
-            await deleteManyFlipUsers([ma.flip_id]);
-          } catch (err) {
-            logger.error(`[PersonalImport] Flip-Löschung fehlgeschlagen für ${ma._id}: ${err.message}`);
-          }
-        }
-        if (ma.asana_id) {
-          try {
-            await completeTaskById(ma.asana_id);
-          } catch (err) {
-            logger.error(`[PersonalImport] Asana-Abschluss fehlgeschlagen für ${ma._id}: ${err.message}`);
-          }
-        }
-        deactivated++;
-      }
-
-      // Respektiere manuell gesetztes persgruppe
-      if (ma.persgruppe_set_explicitly && op.setFields.persgruppe != null) {
-        delete op.setFields.persgruppe;
-      }
-
-      // Flip ist Primary Source für E-Mail: Zvoove-E-Mail darf die
-      // primäre E-Mail nicht überschreiben. Stattdessen wird sie zu
-      // additionalEmails hinzugefügt (falls abweichend und noch nicht vorhanden).
-      const addToAdditional = [];
-      if (op.setFields.email && ma.email && ma.email !== op.setFields.email) {
-        const zvooveEmail = op.setFields.email;
-        const existing = (ma.additionalEmails || []).map(e => e.toLowerCase());
-        if (!existing.includes(zvooveEmail) && zvooveEmail !== ma.email) {
-          addToAdditional.push(zvooveEmail);
-        }
-        delete op.setFields.email; // nicht als Primary überschreiben
-      }
-
-      // Personalnr-Korrektur: neue PNr setzen, alte in Historie schieben
-      if (pnrChanged) {
-        op.setFields.personalnr = op.personalnr;
-        pnrUpdated++;
-        if (pnrUpdatedList.length < 30) {
-          pnrUpdatedList.push({ alt: ma.personalnr || '(leer)', neu: op.personalnr, email: ma.email });
-        }
-      }
-
-      const updateOps = { $set: op.setFields };
-      if (addToAdditional.length > 0) {
-        updateOps.$addToSet = { additionalEmails: { $each: addToAdditional } };
-      }
-      // Alte Personalnr in Historie schreiben (falls vorhanden und geändert)
-      if (pnrChanged && ma.personalnr) {
-        updateOps.$push = {
-          personalnrHistory: {
-            value: ma.personalnr,
-            updatedAt: new Date(),
-            updatedBy: req.user?.email || req.user?.id || 'import',
-            source: 'import'
-          }
-        };
-      }
-
-      const result = await Mitarbeiter.updateOne({ _id: ma._id }, updateOps);
-      if (result.modifiedCount > 0) updated++; else unchanged++;
+    if (filteredOperations.length === 0) {
+      return res.json({ success: true, message: 'Keine gültigen Zeilen gefunden.' });
     }
 
-    const message = `${matched} Mitarbeiter aktualisiert, ${updated} geändert, ${unchanged} unverändert, ${skipped} nicht gefunden${pnrUpdated > 0 ? `, ${pnrUpdated} Personalnr korrigiert` : ''}${deactivated > 0 ? `, ${deactivated} deaktiviert (Persstatus 6)` : ''}.`;
-    const responseData = {
+    // Respond immediately to avoid Heroku's 30s request timeout on large imports.
+    // Processing continues in the background; results are sent via e-mail.
+    res.json({
       success: true,
-      message,
-      details: {
-        total: operations.length,
-        matched,
-        updated,
-        unchanged,
-        notFound: skipped,
-        notFoundPnrs: notFoundPnrs.length > 0 ? notFoundPnrs : undefined,
-        pnrUpdated,
-        pnrUpdatedList: pnrUpdatedList.length > 0 ? pnrUpdatedList : undefined,
-        deactivated,
+      message: `Import gestartet: ${filteredOperations.length} Zeilen werden verarbeitet. Du erhältst eine E-Mail, wenn der Import abgeschlossen ist.`,
+      details: { total: filteredOperations.length, async: true }
+    });
+
+    // Background processing (fire-and-forget)
+    const originalFilename = req.file.originalname;
+    const importedBy = req.user?.id;
+    const updatedBy = req.user?.email || req.user?.id || 'import';
+
+    ;(async () => {
+      try {
+        // Execute bulk updates (find by Personalnr, Fallback per E-Mail)
+        for (const op of filteredOperations) {
+          let ma = await Mitarbeiter.findOne({ personalnr: op.personalnr }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
+          let pnrChanged = false;
+
+          if (!ma) {
+            // Fallback: suche per E-Mail aus der Excel-Zeile
+            const fallbackEmail = op.setFields.email;
+            if (fallbackEmail) {
+              ma = await Mitarbeiter.findOne({
+                $or: [{ email: fallbackEmail }, { additionalEmails: fallbackEmail }]
+              }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
+              if (ma) {
+                pnrChanged = true;
+              }
+            }
+
+            if (!ma) {
+              skipped++;
+              if (notFoundPnrs.length < 30) notFoundPnrs.push(op.personalnr);
+              continue;
+            }
+          }
+
+          matched++;
+
+          // Persstatus 6 = Ausgetreten: Flip löschen, Monitor deaktivieren, Asana abschließen
+          if (op.persstatus === 6 && ma.isActive) {
+            op.setFields.isActive = false;
+            if (ma.flip_id) {
+              op.setFields.flip_id = null;
+              try {
+                await deleteManyFlipUsers([ma.flip_id]);
+              } catch (err) {
+                logger.error(`[PersonalImport] Flip-Löschung fehlgeschlagen für ${ma._id}: ${err.message}`);
+              }
+            }
+            if (ma.asana_id) {
+              try {
+                await completeTaskById(ma.asana_id);
+              } catch (err) {
+                logger.error(`[PersonalImport] Asana-Abschluss fehlgeschlagen für ${ma._id}: ${err.message}`);
+              }
+            }
+            deactivated++;
+          }
+
+          // Respektiere manuell gesetztes persgruppe
+          if (ma.persgruppe_set_explicitly && op.setFields.persgruppe != null) {
+            delete op.setFields.persgruppe;
+          }
+
+          // Flip ist Primary Source für E-Mail: Zvoove-E-Mail darf die
+          // primäre E-Mail nicht überschreiben. Stattdessen wird sie zu
+          // additionalEmails hinzugefügt (falls abweichend und noch nicht vorhanden).
+          const addToAdditional = [];
+          if (op.setFields.email && ma.email && ma.email !== op.setFields.email) {
+            const zvooveEmail = op.setFields.email;
+            const existing = (ma.additionalEmails || []).map(e => e.toLowerCase());
+            if (!existing.includes(zvooveEmail) && zvooveEmail !== ma.email) {
+              addToAdditional.push(zvooveEmail);
+            }
+            delete op.setFields.email; // nicht als Primary überschreiben
+          }
+
+          // Personalnr-Korrektur: neue PNr setzen, alte in Historie schieben
+          if (pnrChanged) {
+            op.setFields.personalnr = op.personalnr;
+            pnrUpdated++;
+            if (pnrUpdatedList.length < 30) {
+              pnrUpdatedList.push({ alt: ma.personalnr || '(leer)', neu: op.personalnr, email: ma.email });
+            }
+          }
+
+          const updateOps = { $set: op.setFields };
+          if (addToAdditional.length > 0) {
+            updateOps.$addToSet = { additionalEmails: { $each: addToAdditional } };
+          }
+          // Alte Personalnr in Historie schreiben (falls vorhanden und geändert)
+          if (pnrChanged && ma.personalnr) {
+            updateOps.$push = {
+              personalnrHistory: {
+                value: ma.personalnr,
+                updatedAt: new Date(),
+                updatedBy,
+                source: 'import'
+              }
+            };
+          }
+
+          const result = await Mitarbeiter.updateOne({ _id: ma._id }, updateOps);
+          if (result.modifiedCount > 0) updated++; else unchanged++;
+        }
+
+        const details = {
+          total: operations.length,
+          matched,
+          updated,
+          unchanged,
+          notFound: skipped,
+          notFoundPnrs: notFoundPnrs.length > 0 ? notFoundPnrs : undefined,
+          pnrUpdated,
+          pnrUpdatedList: pnrUpdatedList.length > 0 ? pnrUpdatedList : undefined,
+          deactivated,
+        };
+
+        await logImport('personal', originalFilename, 'success', matched, details, importedBy);
+
+        // Email notification
+        const timestamp = new Date().toLocaleString('de-DE');
+        const notFoundHtml = notFoundPnrs.length
+          ? `<h3>ℹ️ Nicht gefunden (${skipped}):</h3><ul>${notFoundPnrs.map(p => `<li>${p}</li>`).join('')}${skipped > notFoundPnrs.length ? `<li>…und ${skipped - notFoundPnrs.length} weitere</li>` : ''}</ul>`
+          : '';
+        const emailContent = `
+          <div style="font-family:Arial,sans-serif;color:#333">
+            <h2>Personal Import (kombiniert) – ${timestamp}</h2>
+            <p><strong>Datei:</strong> ${originalFilename}</p>
+            <hr/>
+            <ul>
+              <li>Zeilen: <strong>${operations.length}</strong></li>
+              <li>Gefunden &amp; aktualisiert: <strong>${matched}</strong></li>
+              <li>Davon geändert: <strong>${updated}</strong></li>
+              <li>Unverändert: <strong>${unchanged}</strong></li>
+              <li>Nicht gefunden: <strong>${skipped}</strong></li>
+              ${pnrUpdated > 0 ? `<li>Personalnr per E-Mail korrigiert: <strong>${pnrUpdated}</strong></li>` : ''}
+            </ul>
+            ${notFoundHtml}
+            ${pnrUpdatedList.length > 0 ? `<h3>🔄 Personalnr korrigiert (${pnrUpdated}):</h3><ul>${pnrUpdatedList.map(p => `<li>${p.email}: <code>${p.alt}</code> → <code>${p.neu}</code></li>`).join('')}${pnrUpdated > pnrUpdatedList.length ? `<li>…und ${pnrUpdated - pnrUpdatedList.length} weitere</li>` : ''}</ul>` : ''}
+          </div>`;
+        await sendMail('it@straightforward.email', `Personal Import – ${timestamp}`, emailContent, 'it');
+      } catch (bgError) {
+        logger.error('Background PersonalImport Error:', bgError);
+        await logImport('personal', originalFilename, 'failed', 0, { error: bgError.message }, importedBy).catch(() => {});
       }
-    };
-
-    await logImport('personal', req.file.originalname, 'success', matched, responseData.details, req.user?.id);
-    res.json(responseData);
-
-    // Email notification
-    try {
-      const timestamp = new Date().toLocaleString('de-DE');
-      const notFoundHtml = notFoundPnrs.length
-        ? `<h3>ℹ️ Nicht gefunden (${skipped}):</h3><ul>${notFoundPnrs.map(p => `<li>${p}</li>`).join('')}${skipped > notFoundPnrs.length ? `<li>…und ${skipped - notFoundPnrs.length} weitere</li>` : ''}</ul>`
-        : '';
-      const emailContent = `
-        <div style="font-family:Arial,sans-serif;color:#333">
-          <h2>Personal Import (kombiniert) – ${timestamp}</h2>
-          <p><strong>Datei:</strong> ${req.file.originalname}</p>
-          <hr/>
-          <ul>
-            <li>Zeilen: <strong>${operations.length}</strong></li>
-            <li>Gefunden &amp; aktualisiert: <strong>${matched}</strong></li>
-            <li>Davon geändert: <strong>${updated}</strong></li>
-            <li>Unverändert: <strong>${unchanged}</strong></li>
-            <li>Nicht gefunden: <strong>${skipped}</strong></li>
-            ${pnrUpdated > 0 ? `<li>Personalnr per E-Mail korrigiert: <strong>${pnrUpdated}</strong></li>` : ''}
-          </ul>
-          ${notFoundHtml}
-          ${pnrUpdatedList.length > 0 ? `<h3>🔄 Personalnr korrigiert (${pnrUpdated}):</h3><ul>${pnrUpdatedList.map(p => `<li>${p.email}: <code>${p.alt}</code> → <code>${p.neu}</code></li>`).join('')}${pnrUpdated > pnrUpdatedList.length ? `<li>…und ${pnrUpdated - pnrUpdatedList.length} weitere</li>` : ''}</ul>` : ''}
-        </div>`;
-      await sendMail('it@straightforward.email', `Personal Import – ${timestamp}`, emailContent, 'it');
-    } catch (emailError) {
-      logger.error('Failed to send import notification email:', emailError);
-    }
+    })();
 
   } catch (error) {
     logger.error('Import Personal Error:', error);
