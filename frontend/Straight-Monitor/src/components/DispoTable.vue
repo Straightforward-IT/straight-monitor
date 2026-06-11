@@ -1316,14 +1316,23 @@
           <button class="ctx-item" @click="focusNotizFromNameMenu">
             <font-awesome-icon icon="fa-solid fa-sticky-note" class="ctx-item-icon" /> Notiz bearbeiten
           </button>
-          <a
+          <button
             v-if="nameMenu.ma?.telefon"
-            class="ctx-item ctx-item--phone"
-            :href="`tel:${nameMenu.ma.telefon}`"
-            @click="closeNameMenu"
+            class="ctx-item ctx-item--phone ctx-item--phone-copy"
+            type="button"
+            @click="copyPhoneFromNameMenu"
           >
-            <font-awesome-icon icon="fa-solid fa-phone" class="ctx-item-icon" /> {{ nameMenu.ma.telefon }}
-          </a>
+            <font-awesome-icon icon="fa-solid fa-phone" class="ctx-item-icon" />
+            <span class="ctx-phone-text">{{ nameMenu.ma.telefon }}</span>
+            <span
+              class="ctx-phone-copy"
+              :class="{ 'is-copied': copiedPhone }"
+              :title="copiedPhone ? 'Kopiert' : 'Nummer kopieren'"
+              :aria-label="copiedPhone ? 'Kopiert' : 'Nummer kopieren'"
+            >
+              <font-awesome-icon :icon="copiedPhone ? 'fa-solid fa-check' : 'fa-solid fa-copy'" class="ctx-copy-icon" />
+            </span>
+          </button>
           <div class="ctx-divider"></div>
           <button v-if="!hiddenIds.has(String(nameMenu.ma?._id))" class="ctx-item ctx-item--hide" @click="hideMA(nameMenu.ma._id)">
             <font-awesome-icon icon="fa-solid fa-eye-slash" class="ctx-item-icon" /> Ausblenden
@@ -2070,6 +2079,8 @@ const nameMenu = reactive({
   y: 0,
   ma: null,
 });
+const copiedPhone = ref(false);
+let _copiedPhoneTimer = null;
 
 function openNameMenu(event, ma) {
   const menuW = 240;
@@ -2085,6 +2096,42 @@ function openNameMenu(event, ma) {
 function closeNameMenu() {
   nameMenu.open = false;
   nameMenu.ma = null;
+  copiedPhone.value = false;
+  if (_copiedPhoneTimer) {
+    clearTimeout(_copiedPhoneTimer);
+    _copiedPhoneTimer = null;
+  }
+}
+
+async function copyPhoneFromNameMenu() {
+  const telefon = (nameMenu.ma?.telefon || '').trim();
+  if (!telefon) return;
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(telefon);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = telefon;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+
+    copiedPhone.value = true;
+    if (_copiedPhoneTimer) clearTimeout(_copiedPhoneTimer);
+    _copiedPhoneTimer = setTimeout(() => {
+      copiedPhone.value = false;
+      _copiedPhoneTimer = null;
+      closeNameMenu();
+    }, 900);
+  } catch (err) {
+    console.error('Telefonnummer konnte nicht kopiert werden:', err);
+  }
 }
 
 // ─── Employee Card Modal ───
@@ -2285,6 +2332,10 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', onDocMouseUp);
   document.removeEventListener('keydown', onKeyDown);
   if (_leftRowObserver) { _leftRowObserver.disconnect(); _leftRowObserver = null; }
+  if (_copiedPhoneTimer) {
+    clearTimeout(_copiedPhoneTimer);
+    _copiedPhoneTimer = null;
+  }
 });
 
 // ─── Watch route query for in-page deep-link navigation (e.g. from KommentarFeed) ───
@@ -6038,6 +6089,45 @@ function onNameTouchEnd() {
   &.active              { color: var(--primary); font-weight: 600; }
   &.ctx-item-remove     { color: var(--muted); border-top: 1px solid var(--border); margin-top: 2px; padding-top: 6px; }
   &.ctx-item--phone     { color: #10b981; text-decoration: none; }
+}
+
+.ctx-item--phone-copy {
+  .ctx-phone-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ctx-phone-copy {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0;
+    transition: all 0.12s ease;
+
+    &.is-copied {
+      color: #10b981;
+      border-color: rgba(16, 185, 129, 0.55);
+      background: rgba(16, 185, 129, 0.08);
+    }
+  }
+
+  &:hover .ctx-phone-copy:not(.is-copied) {
+    color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  .ctx-copy-icon {
+    font-size: 12px;
+  }
 }
 
 .ctx-item-icon {
