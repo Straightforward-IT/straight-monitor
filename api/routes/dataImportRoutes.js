@@ -753,10 +753,13 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         qualifikationen: qualiIds,
       };
       if (eintrittsdatum) setFields.eintrittsdatum = eintrittsdatum;
-      if (austrittsdatum) setFields.austrittsdatum = austrittsdatum;
+      // Immer setzen: leeres Feld soll einen bestehenden Wert in der DB explizit löschen
+      setFields.austrittsdatum = austrittsdatum ?? null;
       if (persgruppe != null) setFields.persgruppe = persgruppe;
       if (email) setFields.email = email;
       if (telefon) setFields.telefon = telefon;
+      // Persstatus 1 = Bewerber (noch kein vollständiger MA), 2 = Mitarbeiter
+      if (persstatus != null) setFields.isBewerberstatus = persstatus === 1;
 
       operations.push({ personalnr, persstatus, setFields });
     }

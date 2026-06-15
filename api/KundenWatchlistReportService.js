@@ -42,6 +42,30 @@ function monthRange(year, month) {
   };
 }
 
+// Returns a range spanning the 3 months ending at (and including) endMonth.
+// e.g. endMonth=5/2026 → start=Mar 1 2026, end=Jun 1 2026
+function threeMonthRange(year, endMonth) {
+  const startPeriod = shiftMonth(year, endMonth, -2);
+  return {
+    start: new Date(Date.UTC(startPeriod.year, startPeriod.month - 1, 1)),
+    end: new Date(Date.UTC(year, endMonth, 1))
+  };
+}
+
+const MONTH_NAMES_SHORT_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+
+// Returns a human-readable label for the 3-month window, e.g. "Mär – Mai 2026"
+function threePeriodLabel(year, endMonth) {
+  const startPeriod = shiftMonth(year, endMonth, -2);
+  const startName = MONTH_NAMES_SHORT_DE[startPeriod.month - 1];
+  const endName = MONTH_NAMES_SHORT_DE[endMonth - 1];
+  // If the window spans two years, show both
+  if (startPeriod.year !== year) {
+    return `${startName} ${startPeriod.year} – ${endName} ${year}`;
+  }
+  return `${startName} – ${endName} ${year}`;
+}
+
 function periodLabel(period) {
   return `${MONTH_NAMES_DE[period.month - 1]} ${period.year}`;
 }
@@ -311,27 +335,24 @@ async function buildPeriodMetrics(kunden, context, range) {
 }
 
 function buildEmptyReport(user, period) {
-  const previousMonth = shiftMonth(period.year, period.month, -1);
   const previousYear = { month: period.month, year: period.year - 1 };
+  const label = threePeriodLabel(period.year, period.month);
+  const prevYearLabel = threePeriodLabel(period.year - 1, period.month);
 
   return {
     month: period.month,
     year: period.year,
-    monthLabel: periodLabel(period),
+    monthLabel: label,      // kept for email compat
+    periodLabel: label,
     user: user ? { _id: user._id, name: user.name, email: user.email } : null,
     comparison: {
-      previousMonth: { ...previousMonth, label: periodLabel(previousMonth) },
-      previousYear: { ...previousYear, label: periodLabel(previousYear) }
+      previousYear: { ...previousYear, label: periodLabel(previousYear), periodLabel: prevYearLabel }
     },
     totals: {
       current: emptyMetrics(),
-      prevMonth: emptyMetrics(),
       prevYear: emptyMetrics(),
-      deltaPrevMonth: createDeltaSet(emptyMetrics(), emptyMetrics()),
       deltaPrevYear: createDeltaSet(emptyMetrics(), emptyMetrics())
     },
-    winners: [],
-    losers: [],
     yoyWinners: [],
     yoyLosers: [],
     kunden: []
@@ -350,20 +371,20 @@ async function buildWatchlistReportForKunden(kundenIds, periodInput, user = null
 
   if (!kunden.length) return report;
 
-  const previousMonth = report.comparison.previousMonth;
   const previousYear = report.comparison.previousYear;
   const context = await buildKundenContext(kunden);
 
-  const [currentMap, prevMonthMap, prevYearMap] = await Promise.all([
-    buildPeriodMetrics(kunden, context, monthRange(period.year, period.month)),
-    buildPeriodMetrics(kunden, context, monthRange(previousMonth.year, previousMonth.month)),
-    buildPeriodMetrics(kunden, context, monthRange(previousYear.year, previousYear.month))
+  const currentRange = threeMonthRange(period.year, period.month);
+  const prevYearRange = threeMonthRange(previousYear.year, previousYear.month);
+
+  const [currentMap, prevYearMap] = await Promise.all([
+    buildPeriodMetrics(kunden, context, currentRange),
+    buildPeriodMetrics(kunden, context, prevYearRange)
   ]);
 
   const kundenReport = kunden.map((kunde) => {
     const kundenNr = Number(kunde.kundenNr);
     const current = currentMap.get(kundenNr) || emptyMetrics();
-    const prevMonth = prevMonthMap.get(kundenNr) || emptyMetrics();
     const prevYear = prevYearMap.get(kundenNr) || emptyMetrics();
 
     return {
@@ -374,9 +395,7 @@ async function buildWatchlistReportForKunden(kundenIds, periodInput, user = null
       kundStatus: kunde.kundStatus,
       geschSt: kunde.geschSt,
       current,
-      prevMonth,
       prevYear,
-      deltaPrevMonth: createDeltaSet(current, prevMonth),
       deltaPrevYear: createDeltaSet(current, prevYear)
     };
   }).sort((a, b) => {
@@ -385,23 +404,17 @@ async function buildWatchlistReportForKunden(kundenIds, periodInput, user = null
     return sortByCustomerName(a, b);
   });
 
-  const prevMonthRankings = buildRankings(kundenReport, 'deltaPrevMonth');
   const prevYearRankings = buildRankings(kundenReport, 'deltaPrevYear');
   const currentTotals = createTotals(kundenReport, 'current');
-  const prevMonthTotals = createTotals(kundenReport, 'prevMonth');
   const prevYearTotals = createTotals(kundenReport, 'prevYear');
 
   return {
     ...report,
     totals: {
       current: currentTotals,
-      prevMonth: prevMonthTotals,
       prevYear: prevYearTotals,
-      deltaPrevMonth: createDeltaSet(currentTotals, prevMonthTotals),
       deltaPrevYear: createDeltaSet(currentTotals, prevYearTotals)
     },
-    winners: prevMonthRankings.winners,
-    losers: prevMonthRankings.losers,
     yoyWinners: prevYearRankings.winners,
     yoyLosers: prevYearRankings.losers,
     kunden: kundenReport
@@ -457,14 +470,13 @@ function buildReportHtml(report) {
       <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right">${fmtNumber(kunde.current.einsaetzeCount)}</td>
       <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right">${fmtNumber(kunde.current.offenCount)}<br><span style="color:#9ca3af;font-size:11px">${fmtPercent(kunde.current.besetzungsquote)}</span></td>
       <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right">${fmtNumber(kunde.current.auftraegeCount)}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;color:${deltaColor(kunde.deltaPrevMonth.bedarfCount)}">${fmtDelta(kunde.deltaPrevMonth.bedarfCount)}<br><span style="color:${deltaColor(kunde.deltaPrevMonth.einsaetzeCount)};font-size:11px">Einsätze ${fmtDelta(kunde.deltaPrevMonth.einsaetzeCount)}</span></td>
       <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;color:${deltaColor(kunde.deltaPrevYear.bedarfCount)}">${fmtDelta(kunde.deltaPrevYear.bedarfCount)}<br><span style="color:${deltaColor(kunde.deltaPrevYear.einsaetzeCount)};font-size:11px">Einsätze ${fmtDelta(kunde.deltaPrevYear.einsaetzeCount)}</span></td>
     </tr>`).join('');
 
   return `
     <div style="font-family:-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;max-width:980px;margin:0 auto;color:#374151">
       <h2 style="margin:0 0 4px;color:#111827">Watchlist-Report</h2>
-      <p style="margin:0 0 18px;color:#6b7280">${escapeHtml(report.monthLabel)} im Vergleich zu ${escapeHtml(report.comparison.previousMonth.label)} und ${escapeHtml(report.comparison.previousYear.label)}</p>
+      <p style="margin:0 0 18px;color:#6b7280">${escapeHtml(report.periodLabel)} im Vergleich zu ${escapeHtml(report.comparison.previousYear.periodLabel)}</p>
 
       <table style="width:100%;border-collapse:separate;border-spacing:0 8px;margin-bottom:16px">
         <tr>
@@ -476,8 +488,6 @@ function buildReportHtml(report) {
       </table>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-        ${renderRankingList('Winners ggü. Vormonat', report.winners)}
-        ${renderRankingList('Losers ggü. Vormonat', report.losers)}
         ${renderRankingList('Winners ggü. Vorjahr', report.yoyWinners)}
         ${renderRankingList('Losers ggü. Vorjahr', report.yoyLosers)}
       </div>
@@ -490,8 +500,7 @@ function buildReportHtml(report) {
             <th style="padding:9px 12px;text-align:right;color:#4b5563">Einsätze</th>
             <th style="padding:9px 12px;text-align:right;color:#4b5563">Offen / Quote</th>
             <th style="padding:9px 12px;text-align:right;color:#4b5563">Aufträge</th>
-            <th style="padding:9px 12px;text-align:right;color:#4b5563">Vormonat</th>
-            <th style="padding:9px 12px;text-align:right;color:#4b5563">Vorjahr</th>
+            <th style="padding:9px 12px;text-align:right;color:#4b5563">Vorjahr (3 Mon.)</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -533,7 +542,7 @@ async function sendWatchlistReportToUser(userOrId, periodInput, options = {}) {
   }
 
   const html = buildReportHtml(report);
-  await sendMail(user.email, `Watchlist-Report: ${report.monthLabel}`, html, 'it');
+  await sendMail(user.email, `Watchlist-Report: ${report.periodLabel}`, html, 'it');
 
   return { sent: true, email: user.email, report };
 }

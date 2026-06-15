@@ -456,13 +456,9 @@
                     <font-awesome-icon icon="fa-solid fa-user-tie" />
                     TL
                   </span>
-                </div>
-              </div>
-              
-              <div class="list-col list-col--personalnr">
-                <span 
-                  class="personalnr-badge" 
-                  :class="{ 'missing': !ma.personalnr }"
+                  <span v-else-if="ma.isBewerberstatus" class="bewerber-badge-inline" title="Bewerberstatus">
+                    Bew.
+                  </span>
                   :title="ma.personalnr ? `Personalnr: ${ma.personalnr}` : 'Personalnr fehlt'"
                 >
                   <font-awesome-icon icon="fa-solid fa-id-badge" />
@@ -3028,6 +3024,22 @@ html {
   svg {
     font-size: 9px;
   }
+}
+
+.bewerber-badge-inline {
+  display: inline-flex;
+  align-items: center;
+  background: #eab308;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  box-shadow: 0 1px 3px rgba(234, 179, 8, 0.3);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .email {

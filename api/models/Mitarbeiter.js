@@ -29,6 +29,7 @@ const MitarbeiterSchema = new mongoose.Schema({
         // 101 = Festangestellt, 110 = Kurzfristig Angestellt, 109 = Geringfügig Angestellt, 106 = Werkstudent
     },
     persgruppe_set_explicitly: { type: Boolean, default: false }, // wenn true: Import überschreibt persgruppe nicht
+    isBewerberstatus: { type: Boolean, default: false }, // true wenn Persstatus=1 (Bewerber, noch kein vollständiger MA)
     berufe: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Beruf' }],
     qualifikationen: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Qualifikation' }],
     // ── Legacy v1 Arrays (nicht mehr für v2 Laufzettel benutzen!) ──

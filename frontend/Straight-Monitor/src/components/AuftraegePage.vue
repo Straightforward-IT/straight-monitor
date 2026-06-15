@@ -447,6 +447,7 @@
                           {{ einsatz.mitarbeiterData.vorname }} {{ einsatz.mitarbeiterData.nachname }}
                         </a>
                         <span v-if="isTeamleiter(einsatz.mitarbeiterData)" class="tl-tag">TL</span>
+                        <span v-else-if="einsatz.mitarbeiterData.isBewerberstatus" class="bew-tag">Bew.</span>
                         <button
                           v-for="doc in getDocsForMitarbeiter(einsatz.mitarbeiterData._id)"
                           :key="doc._id"
@@ -2277,6 +2278,15 @@ export default {
       font-weight: 700;
       color: #fff;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    .bew-tag {
+      font-size: 0.6rem;
+      font-weight: 700;
+      color: #fff;
+      background: #eab308;
       padding: 2px 5px;
       border-radius: 4px;
     }

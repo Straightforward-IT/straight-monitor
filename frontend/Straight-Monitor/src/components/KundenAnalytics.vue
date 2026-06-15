@@ -985,7 +985,7 @@ const chartData = computed(() => {
   const toStr = indexToMonthStr(sliderRange.value[1]);
   
   const months = buildMonthLabels(fromStr, toStr);
-  const isDark = theme.current === 'dark';
+  const isDark = theme.isDark;
 
   // Standort comparison mode
   if (compareMode.value === 'standort') {
@@ -1164,8 +1164,8 @@ const chartData = computed(() => {
 });
 
 const chartOptions = computed(() => {
-  const isDark = theme.current === 'dark';
-  const textColor = isDark ? '#fff' : '#333';
+  const isDark = theme.isDark;
+  const textColor = isDark ? '#eaeaea' : '#333';
   const gridColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
   const isStacked = (compareMode.value === 'kunden' && selectedKundenNrs.value.length > 0) || compareMode.value === 'standort' || showForecast.value;
   const isStandort = compareMode.value === 'standort';
@@ -1217,6 +1217,11 @@ const chartOptions = computed(() => {
             const ac = ctx.dataset.auftragCounts ? ctx.dataset.auftragCounts[ctx.dataIndex] : 0;
             const auftragText = ac === 1 ? 'Auftrag' : 'Aufträgen';
             return ` ${ctx.dataset.label}: ${count} Einsätze in ${ac} ${auftragText}`;
+          },
+          afterBody: (items) => {
+            const total = items.reduce((sum, item) => sum + (item.parsed.y || 0), 0);
+            if (items.length < 2 || total === 0) return [];
+            return [``, ` Summe Positionen: ${total}`];
           },
           footer: () => 'Klicken für Tagesansicht'
         }
@@ -1611,8 +1616,8 @@ function handleDrillChartClick(event) {
 }
 
 const drillChartOptions = computed(() => {
-  const isDark = theme.current === 'dark';
-  const textColor = isDark ? '#fff' : '#333';
+  const isDark = theme.isDark;
+  const textColor = isDark ? '#eaeaea' : '#333';
   const gridColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
   const hasMultiple = drillAuftraege.value.length > 1 || (showForecast.value && drillChartData.value.datasets.some(ds => ds.isForecast));
 
@@ -1686,7 +1691,7 @@ const hasPieData = computed(() => {
 });
 
 const pieChartData = computed(() => {
-  const isDark = theme.current === 'dark';
+  const isDark = theme.isDark;
 
   if (compareMode.value === 'standort') {
     // Aggregate standort breakdown across all months in range
@@ -1746,8 +1751,8 @@ const pieChartData = computed(() => {
 });
 
 const pieChartOptions = computed(() => {
-  const isDark = theme.current === 'dark';
-  const textColor = isDark ? '#fff' : '#333';
+  const isDark = theme.isDark;
+  const textColor = isDark ? '#eaeaea' : '#333';
 
   return {
     responsive: true,

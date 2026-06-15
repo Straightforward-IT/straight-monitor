@@ -464,6 +464,7 @@
                 <td class="col-nachname" :style="{ width: colWidths.nachname + 'px', minWidth: colWidths.nachname + 'px', maxWidth: colWidths.nachname + 'px' }">
                   <div class="ma-name-cell">
                     <div v-if="isTeamleiter(ma)" class="tl-corner-wrapper"><TlBadge /></div>
+                    <div v-else-if="ma.isBewerberstatus" class="bew-corner-wrapper">Bew.</div>
                     <div v-if="getExitLabel(ma)" class="exit-corner-wrapper">{{ getExitLabel(ma) }}</div>
                     <button
                       class="star-btn"
@@ -828,6 +829,7 @@
               <button class="m-name__nach" @click.stop="openCardModal(ma._id)">{{ ma.nachname }}</button>
               <span class="m-name__vor">{{ ma.vorname }}</span>
               <TlBadge v-if="ma.isTL" />
+              <span v-else-if="ma.isBewerberstatus" class="bew-badge-inline">Bew.</span>
             </div>
             <span v-if="getMaBereich(ma)" class="m-bereich-pill">{{ getMaBereich(ma) }}</span>
             <button
@@ -5108,6 +5110,33 @@ function onNameTouchEnd() {
     padding: 1px 4px;
     border-radius: 0 0 6px 0;
   }
+}
+
+.bew-corner-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 0 0 6px 0;
+  background: #eab308;
+  color: #fff;
+  line-height: 1.4;
+}
+
+.bew-badge-inline {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #eab308;
+  color: #fff;
+  line-height: 1.4;
+  flex-shrink: 0;
 }
 
 .exit-corner-wrapper {

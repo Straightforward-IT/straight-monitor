@@ -17,7 +17,7 @@
         <!-- Config bar -->
         <div class="report-config">
           <div class="config-field">
-            <label>Monat</label>
+            <label>Ende Monat</label>
             <select v-model="selectedMonth" class="config-select">
               <option v-for="(name, idx) in MONTH_NAMES" :key="idx" :value="idx + 1">{{ name }}</option>
             </select>
@@ -44,9 +44,9 @@
         <!-- Report Table -->
         <div v-if="reportData && reportData.kunden.length > 0" class="report-body">
           <p class="report-subtitle">
-            {{ MONTH_NAMES[reportData.month - 1] }} {{ reportData.year }}
+            {{ reportData.periodLabel }}
             <span class="muted">
-              — Vergleich mit {{ reportData.comparison.previousMonth.label }} und {{ reportData.comparison.previousYear.label }}
+              — Vergleich mit {{ reportData.comparison.previousYear.periodLabel }}
             </span>
           </p>
 
@@ -70,10 +70,8 @@
           </div>
 
           <div class="ranking-grid">
-            <RankingList title="Winners Vormonat" :items="reportData.winners" empty-text="Keine Gewinner" />
-            <RankingList title="Losers Vormonat" :items="reportData.losers" empty-text="Keine Verlierer" />
-            <RankingList title="Winners Vorjahr" :items="reportData.yoyWinners" empty-text="Keine Gewinner" />
-            <RankingList title="Losers Vorjahr" :items="reportData.yoyLosers" empty-text="Keine Verlierer" />
+            <RankingList title="Winners ggü. Vorjahr" :items="reportData.yoyWinners" empty-text="Keine Gewinner" />
+            <RankingList title="Losers ggü. Vorjahr" :items="reportData.yoyLosers" empty-text="Keine Verlierer" />
           </div>
 
           <div class="table-wrapper">
@@ -110,13 +108,8 @@
                     <font-awesome-icon v-if="sortKey === 'auftraegeCount'" :icon="['fas', sortAsc ? 'chevron-up' : 'chevron-down']" class="sort-icon" />
                     <font-awesome-icon v-else :icon="['fas', 'sort']" class="sort-icon muted" />
                   </th>
-                  <th class="col-delta th-sortable" @click="setSort('prevMonthBedarf')">
-                    Vormonat
-                    <font-awesome-icon v-if="sortKey === 'prevMonthBedarf'" :icon="['fas', sortAsc ? 'chevron-up' : 'chevron-down']" class="sort-icon" />
-                    <font-awesome-icon v-else :icon="['fas', 'sort']" class="sort-icon muted" />
-                  </th>
                   <th class="col-delta th-sortable" @click="setSort('prevYearBedarf')">
-                    Vorjahr
+                    Vorjahr (3 Mon.)
                     <font-awesome-icon v-if="sortKey === 'prevYearBedarf'" :icon="['fas', sortAsc ? 'chevron-up' : 'chevron-down']" class="sort-icon" />
                     <font-awesome-icon v-else :icon="['fas', 'sort']" class="sort-icon muted" />
                   </th>
@@ -129,10 +122,10 @@
                     <span v-if="k.kuerzel" class="kunde-kuerzel">{{ k.kuerzel }}</span>
                   </td>
                   <td class="col-metric">
-                    <MetricCell :current="k.current.bedarfCount" :prev="k.prevMonth?.bedarfCount ?? 0" prev-label="VM" />
+                    <MetricCell :current="k.current.bedarfCount" :prev="k.prevYear?.bedarfCount ?? 0" prev-label="VJ" />
                   </td>
                   <td class="col-metric">
-                    <MetricCell :current="k.current.einsaetzeCount" :prev="k.prevMonth?.einsaetzeCount ?? 0" prev-label="VM" />
+                    <MetricCell :current="k.current.einsaetzeCount" :prev="k.prevYear?.einsaetzeCount ?? 0" prev-label="VJ" />
                   </td>
                   <td class="col-metric">
                     {{ formatNumber(k.current.offenCount) }}
@@ -142,9 +135,6 @@
                   </td>
                   <td class="col-metric">
                     {{ formatNumber(k.current.auftraegeCount) }}
-                  </td>
-                  <td class="col-delta">
-                    <DeltaStack :delta="k.deltaPrevMonth" />
                   </td>
                   <td class="col-delta">
                     <DeltaStack :delta="k.deltaPrevYear" />
@@ -221,9 +211,6 @@ const sortedKunden = computed(() => {
     if (key === 'kundName') {
       av = (a.kundName || '').toLowerCase();
       bv = (b.kundName || '').toLowerCase();
-    } else if (key === 'prevMonthBedarf') {
-      av = a.deltaPrevMonth?.bedarfCount?.absolute ?? 0;
-      bv = b.deltaPrevMonth?.bedarfCount?.absolute ?? 0;
     } else if (key === 'prevYearBedarf') {
       av = a.deltaPrevYear?.bedarfCount?.absolute ?? 0;
       bv = b.deltaPrevYear?.bedarfCount?.absolute ?? 0;

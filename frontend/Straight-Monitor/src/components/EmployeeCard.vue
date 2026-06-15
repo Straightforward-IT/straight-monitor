@@ -62,6 +62,12 @@
             <!-- Teamleiter Badge -->
             <TlBadge v-if="isTeamleiter" />
 
+            <!-- Bewerber Badge -->
+            <span v-if="resolvedMa?.isBewerberstatus" class="pill warn">
+              <font-awesome-icon icon="fa-solid fa-user" />
+              Bew.
+            </span>
+
             <!-- Monitor Badge (User linked) -->
             <span v-if="resolvedMa?.hasUser" class="pill pill--monitor">
               <img :src="straightDark" class="pill-monitor-icon" alt="" />
