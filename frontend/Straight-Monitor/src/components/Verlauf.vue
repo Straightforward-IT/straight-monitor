@@ -141,16 +141,21 @@ export default {
       // Text-Filter
       if (searchTerm) {
         processed = processed.filter((log) => {
-          const annotationMatch =
-            log.anmerkung && log.anmerkung.toLowerCase().includes(searchTerm);
-          const itemMatch =
-            Array.isArray(log.items) &&
-            log.items.some(
-              (item) => item.bezeichnung && item.bezeichnung.toLowerCase().includes(searchTerm)
-            );
-          const maNameMatch = log.mitarbeiterName && log.mitarbeiterName.toLowerCase().includes(searchTerm);
-          const maNrMatch = log.mitarbeiterPersonalnr && log.mitarbeiterPersonalnr.toLowerCase().includes(searchTerm);
-          return annotationMatch || itemMatch || maNameMatch || maNrMatch;
+          const searchableFields = [
+            log.anmerkung,
+            log.mitarbeiterName,
+            log.mitarbeiterPersonalnr,
+            log.benutzerMail,
+            log.standort,
+            log.art,
+            ...(Array.isArray(log.items)
+              ? log.items.flatMap((item) => [item.bezeichnung, item.groesse, item.anzahl, item.soll])
+              : []),
+          ];
+
+          return searchableFields.some((value) =>
+            String(value ?? "").toLowerCase().includes(searchTerm)
+          );
         });
       }
 
@@ -179,6 +184,11 @@ export default {
       return Object.keys(this.groupBy)
         .filter((key) => this.groupBy[key])
         .map((key) => (key === "benutzer" ? "benutzerMail" : key));
+    },
+  },
+  watch: {
+    searchQuery() {
+      this.groupLogs();
     },
   },
   methods: {
