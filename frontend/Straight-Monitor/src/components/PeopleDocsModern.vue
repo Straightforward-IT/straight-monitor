@@ -459,6 +459,13 @@
                   <span v-else-if="ma.isBewerberstatus" class="bewerber-badge-inline" title="Bewerberstatus">
                     Bew.
                   </span>
+                </div>
+              </div>
+              
+              <div class="list-col list-col--personalnr">
+                <span 
+                  class="personalnr-badge" 
+                  :class="{ 'missing': !ma.personalnr }"
                   :title="ma.personalnr ? `Personalnr: ${ma.personalnr}` : 'Personalnr fehlt'"
                 >
                   <font-awesome-icon icon="fa-solid fa-id-badge" />
