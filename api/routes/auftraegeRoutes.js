@@ -268,7 +268,7 @@ router.get('/:auftragNr/details', async (req, res) => {
 
     const [mitarbeiterList, berufList, qualiList] = await Promise.all([
       personalNrs.length ? Mitarbeiter.find({ personalnr: { $in: personalNrs } })
-        .select('vorname nachname email personalnr qualifikationen flip_id')
+        .select('vorname nachname email personalnr qualifikationen flip_id isBewerberstatus')
         .populate('qualifikationen')
         .lean() : [],
       berufKeys.length ? Beruf.find({ jobKey: { $in: berufKeys } }).lean() : [],
