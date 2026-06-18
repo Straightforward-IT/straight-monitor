@@ -163,8 +163,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
+import { usePublicDraftAutosave } from '@/composables/usePublicDraftAutosave';
 import laufzettelLight from '@/assets/laufzettel.png';
 import laufzettelDark from '@/assets/laufzettel-dark.png';
 
@@ -175,7 +176,7 @@ const props = defineProps({
   email: { type: String, default: '' }
 });
 
-const emit = defineEmits(['back', 'laufzettel-submitted']);
+const emit = defineEmits(['back', 'laufzettel-submitted', 'draft-status']);
 
 function tryGoBack() {
   if (showForm.value) {
@@ -198,6 +199,15 @@ const imgLaufzettel = computed(() => theme.isDark ? laufzettelDark : laufzettelL
 const showForm = ref(false);
 const submitSuccess = ref(false);
 const submitting = ref(false);
+const draftReady = ref(false);
+
+const {
+  storageGet,
+  storageRemove,
+  scheduleSave,
+  restore,
+  resetStatus
+} = usePublicDraftAutosave(emit);
 
 // ── Standort ──────────────────────────────────
 const selectedStandort = ref('');
@@ -213,6 +223,8 @@ function detectStandort(einsatz) {
 // ── Job selection ─────────────────────────────
 const showJobPicker = ref(false);
 const selectedEinsatz = ref(null);
+
+const draftUserId = computed(() => (props.email || 'u').toLowerCase());
 
 const pastEinsaetze = computed(() => {
   const today = new Date();
@@ -235,12 +247,86 @@ const selectedEinsatzLabel = computed(() => {
   return `${e.auftrag?.eventTitel || e.bezeichnung || `#${e.auftragNr}`} (${formatDate(e.datumVon)})`;
 });
 
-async function selectEinsatz(e) {
+function draftStoragePrefix() {
+  return `public_laufzettel_draft_${draftUserId.value}_`;
+}
+
+function draftIdFor(einsatz = selectedEinsatz.value) {
+  return einsatz?._id || einsatz?.auftragNr || '';
+}
+
+function draftKeyFor(einsatz = selectedEinsatz.value) {
+  const id = draftIdFor(einsatz);
+  return id ? `${draftStoragePrefix()}${id}` : '';
+}
+
+function draftPayload() {
+  return {
+    selectedEinsatzId: selectedEinsatz.value?._id || '',
+    auftragNr: selectedEinsatz.value?.auftragNr || '',
+    selectedStandort: selectedStandort.value,
+    selectedTeamleiter: selectedTeamleiter.value
+      ? {
+          personalnr: selectedTeamleiter.value.personalnr,
+          email: selectedTeamleiter.value.email,
+          vorname: selectedTeamleiter.value.vorname,
+          nachname: selectedTeamleiter.value.nachname
+        }
+      : null
+  };
+}
+
+function findLatestDraft() {
+  try {
+    let latest = null;
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith(draftStoragePrefix())) continue;
+      const draft = storageGet(key);
+      if (!draft?.selectedEinsatzId && !draft?.auftragNr) continue;
+      if (!latest || new Date(draft.savedAt || 0) > new Date(latest.savedAt || 0)) {
+        latest = draft;
+      }
+    }
+    return latest;
+  } catch {
+    return null;
+  }
+}
+
+async function applyDraft(draft) {
+  if (!draft) return false;
+  const einsatz = props.einsaetze.find(e =>
+    (draft.selectedEinsatzId && e._id === draft.selectedEinsatzId) ||
+    (draft.auftragNr && String(e.auftragNr) === String(draft.auftragNr))
+  );
+  if (!einsatz) return false;
+
+  selectedEinsatz.value = einsatz;
+  selectedStandort.value = draft.selectedStandort || detectStandort(einsatz);
+  await loadTeamleiter(einsatz.auftragNr);
+
+  if (draft.selectedTeamleiter) {
+    selectedTeamleiter.value = teamleiterCandidates.value.find(tl =>
+      (draft.selectedTeamleiter.personalnr && tl.personalnr === draft.selectedTeamleiter.personalnr) ||
+      (draft.selectedTeamleiter.email && tl.email === draft.selectedTeamleiter.email)
+    ) || draft.selectedTeamleiter;
+  }
+  return true;
+}
+
+async function selectEinsatz(e, options = {}) {
   selectedEinsatz.value = e;
   showJobPicker.value = false;
   selectedTeamleiter.value = null;
   selectedStandort.value = detectStandort(e);
   await loadTeamleiter(e.auftragNr);
+  if (options.restoreDraft !== false) {
+    const draft = storageGet(draftKeyFor(e));
+    if (draft) {
+      await restore(() => applyDraft(draft));
+    }
+  }
 }
 
 // ── Teamleiter selection ──────────────────────
@@ -274,10 +360,17 @@ function openForm() {
   selectedTeamleiter.value = null;
   selectedStandort.value = '';
   teamleiterCandidates.value = [];
+  draftReady.value = false;
+  restore(async () => {
+    await applyDraft(findLatestDraft());
+  }).finally(() => {
+    draftReady.value = true;
+  });
 }
 
 function closeForm() {
   showForm.value = false;
+  resetStatus();
 }
 
 function resetForm() {
@@ -296,6 +389,8 @@ async function submitLaufzettel() {
       teamleiter_email: selectedTeamleiter.value.email,
       standort: selectedStandort.value
     });
+    storageRemove(draftKeyFor());
+    resetStatus();
     showForm.value = false;
     submitSuccess.value = true;
     emit('laufzettel-submitted');
@@ -306,6 +401,15 @@ async function submitLaufzettel() {
     submitting.value = false;
   }
 }
+
+watch(
+  [selectedEinsatz, selectedTeamleiter, selectedStandort],
+  () => {
+    if (!draftReady.value || !showForm.value || submitSuccess.value || !selectedEinsatz.value) return;
+    scheduleSave(draftKeyFor(), draftPayload());
+  },
+  { deep: true }
+);
 
 // ── Helpers ───────────────────────────────────
 function formatDate(d) {

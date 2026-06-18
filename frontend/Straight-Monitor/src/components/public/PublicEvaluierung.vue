@@ -97,7 +97,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { usePublicDraftAutosave } from '@/composables/usePublicDraftAutosave';
 
 const props = defineProps({
   laufzettel: { type: Object, required: true },
@@ -105,10 +106,19 @@ const props = defineProps({
   email:      { type: String, default: '' },
 });
 
-const emit = defineEmits(['back', 'evaluierung-submitted']);
+const emit = defineEmits(['back', 'evaluierung-submitted', 'draft-status']);
 
 const submitSuccess = ref(false);
 const submitting = ref(false);
+const draftReady = ref(false);
+
+const {
+  storageGet,
+  storageRemove,
+  scheduleSave,
+  restore,
+  resetStatus
+} = usePublicDraftAutosave(emit);
 
 const form = reactive({
   kunde: '',
@@ -120,11 +130,47 @@ const form = reactive({
   sonstiges: '',
 });
 
-onMounted(() => {
-  if (props.laufzettel?.kunde) {
-    form.kunde = props.laufzettel.kunde;
-  }
-});
+const draftUserId = computed(() => (props.email || 'u').toLowerCase());
+const draftLaufzettelId = computed(() => props.laufzettel?._id || props.laufzettel?.auftragnummer || 'new');
+
+function draftKey() {
+  return `public_evaluierung_draft_${draftUserId.value}_${draftLaufzettelId.value}`;
+}
+
+function draftPayload() {
+  return {
+    laufzettelId: props.laufzettel?._id || '',
+    auftragnummer: props.laufzettel?.auftragnummer || '',
+    form: { ...form }
+  };
+}
+
+function loadDraft() {
+  restore(() => {
+    // Pre-fill Kunde aus Laufzettel
+    if (props.laufzettel?.kunde) {
+      form.kunde = props.laufzettel.kunde;
+    }
+
+    // Lade gespeicherten Draft
+    const draft = storageGet(draftKey());
+    if (draft?.form) {
+      Object.assign(form, draft.form);
+    }
+  });
+  draftReady.value = true;
+}
+
+onMounted(loadDraft);
+
+watch(
+  () => ({ ...form }),
+  () => {
+    if (!draftReady.value || submitSuccess.value) return;
+    scheduleSave(draftKey(), draftPayload());
+  },
+  { deep: true }
+);
 
 const canSubmit = computed(() => {
   // Require kunde (auto-filled or entered) + at least one rating field
@@ -150,6 +196,8 @@ async function submitEvaluierung() {
       lernbereitschaft: form.lernbereitschaft,
       sonstiges: form.sonstiges,
     });
+    storageRemove(draftKey());
+    resetStatus();
     submitSuccess.value = true;
     emit('evaluierung-submitted');
   } catch (err) {

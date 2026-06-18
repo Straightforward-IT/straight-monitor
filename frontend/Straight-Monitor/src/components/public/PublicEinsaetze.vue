@@ -24,6 +24,7 @@
         :current-view="currentView"
         :email="email"
         :debug-tl-active="debugTLMode"
+        :draft-status="draftSaveStatus"
         @navigate="navigateTo"
         @back="handleBack"
         @toggle-debug-tl="toggleDebugTL"
@@ -62,6 +63,7 @@
           :api="api"
           :email="email"
           @back="goBack"
+          @draft-status="setDraftSaveStatus"
           @laufzettel-submitted="loadData"
         />
 
@@ -80,6 +82,7 @@
           :api="api"
           :email="email"
           @back="navigateTo('evaluierungen')"
+          @draft-status="setDraftSaveStatus"
           @evaluierung-submitted="loadData"
         />
 
@@ -115,6 +118,7 @@
           :email="email"
           :prefill-einsatz="reportPrefillEinsatz"
           @back="goBackFromReport"
+          @draft-status="setDraftSaveStatus"
         />
       </div>
 
@@ -303,6 +307,15 @@ const reportPrefillEinsatz = ref(null);
 const selectedLaufzettel = ref(null);
 const eventReportRef = ref(null);
 const laufzettelRef = ref(null);
+const draftSaveStatus = ref('hidden');
+
+function setDraftSaveStatus(status) {
+  draftSaveStatus.value = ['hidden', 'saving', 'saved'].includes(status) ? status : 'hidden';
+}
+
+watch(currentView, () => {
+  draftSaveStatus.value = 'hidden';
+});
 
 // Persist nav state to localStorage
 function navStateKey() {

@@ -1,33 +1,41 @@
 <template>
   <header class="public-header">
-    <div class="left">
-      <template v-if="currentView === 'dashboard'">
-        <img :src="logoSrc" class="logo logo--clickable" alt="logo" @click="navigate('dashboard')" />
-        <h1 class="title--clickable" @click="navigate('dashboard')">Public Monitor</h1>
-      </template>
-      <template v-else>
-        <button class="header-back-btn" @click="$emit('back')">
-          <font-awesome-icon icon="fa-solid fa-arrow-left" />
-        </button>
-        <h1 class="header-view-title">{{ viewTitle }}</h1>
-      </template>
+    <div class="public-header-main">
+      <div class="left">
+        <template v-if="currentView === 'dashboard'">
+          <img :src="logoSrc" class="logo logo--clickable" alt="logo" @click="navigate('dashboard')" />
+          <h1 class="title--clickable" @click="navigate('dashboard')">Public Monitor</h1>
+        </template>
+        <template v-else>
+          <button class="header-back-btn" @click="$emit('back')">
+            <font-awesome-icon icon="fa-solid fa-arrow-left" />
+          </button>
+          <h1 class="header-view-title">{{ viewTitle }}</h1>
+          <!-- Draft Status Label (inline with title) -->
+          <Transition name="draft-status-inline">
+            <span v-if="showDraftStatus" class="draft-status-inline">
+              {{ draftStatusLabel }}
+            </span>
+          </Transition>
+        </template>
+      </div>
+
+      <!-- Debug TL Toggle (dev only) -->
+      <button
+        v-if="isDebugUser"
+        class="debug-tl-btn"
+        :class="{ active: debugTlActive }"
+        @click="emit('toggle-debug-tl')"
+      >
+        <font-awesome-icon icon="fa-solid fa-user-tie" />
+        TL
+      </button>
+
+      <!-- Burger Button -->
+      <button class="burger-btn" @click="showMobileMenu = !showMobileMenu">
+        <font-awesome-icon :icon="showMobileMenu ? 'times' : 'bars'" />
+      </button>
     </div>
-
-    <!-- Debug TL Toggle (dev only) -->
-    <button
-      v-if="isDebugUser"
-      class="debug-tl-btn"
-      :class="{ active: debugTlActive }"
-      @click="emit('toggle-debug-tl')"
-    >
-      <font-awesome-icon icon="fa-solid fa-user-tie" />
-      TL
-    </button>
-
-    <!-- Burger Button -->
-    <button class="burger-btn" @click="showMobileMenu = !showMobileMenu">
-      <font-awesome-icon :icon="showMobileMenu ? 'times' : 'bars'" />
-    </button>
 
     <!-- Mobile Menu -->
     <div v-if="showMobileMenu" class="mobile-menu-overlay" @click="showMobileMenu = false">
@@ -112,7 +120,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from "vue";
+import { computed, ref, onMounted, onUnmounted, watch } from "vue";
 import darkLogo from "@/assets/SF_000.svg";
 import lightLogo from "@/assets/SF_002.png";
 import { useTheme } from "@/stores/theme";
@@ -150,6 +158,10 @@ const props = defineProps({
   debugTlActive: {
     type: Boolean,
     default: false
+  },
+  draftStatus: {
+    type: String,
+    default: 'hidden'
   }
 });
 
@@ -184,6 +196,40 @@ const imgTasks = computed(() => theme.isDark ? tasksDark : tasksLight);
 const imgEventreport = computed(() => theme.isDark ? eventreportDark : eventreportLight);
 
 const showMobileMenu = ref(false);
+const savingDotCount = ref(0);
+let savingDotTimer = null;
+
+const showDraftStatus = computed(() => ['saving', 'saved'].includes(props.draftStatus));
+const draftStatusLabel = computed(() => {
+  if (props.draftStatus === 'saving') {
+    const dots = Array.from({ length: savingDotCount.value }, () => '.').join(' ');
+    return `Wird gespeichert${dots ? ` ${dots}` : ''}`;
+  }
+  if (props.draftStatus === 'saved') return 'Änderungen gespeichert';
+  return '';
+});
+
+watch(
+  () => props.draftStatus,
+  (status) => {
+    if (savingDotTimer) {
+      clearInterval(savingDotTimer);
+      savingDotTimer = null;
+    }
+    savingDotCount.value = 0;
+
+    if (status === 'saving') {
+      savingDotTimer = setInterval(() => {
+        savingDotCount.value = savingDotCount.value >= 3 ? 1 : savingDotCount.value + 1;
+      }, 300);
+    }
+  },
+  { immediate: true }
+);
+
+onUnmounted(() => {
+  if (savingDotTimer) clearInterval(savingDotTimer);
+});
 
 const handleThemeToggle = () => {
   const newTheme = theme.isDark ? 'light' : 'dark';
@@ -212,12 +258,61 @@ onMounted(async () => {
   top: 0;
   z-index: 50;
   display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.public-header-main {
+  display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 8px 16px;
-  background: var(--panel);
   min-height: 56px;
-  color: var(--text);
+}
+
+.draft-save-label {
+  min-height: 16px;
+  padding: 0 16px 7px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+}
+
+.draft-status-enter-active,
+.draft-status-leave-active {
+  transition: opacity 0.16s, transform 0.16s;
+}
+
+.draft-status-enter-from,
+.draft-status-leave-to {
+  opacity: 0;
+  transform: translateY(-2px);
+}
+
+.draft-status-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  padding: 2px 6px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.draft-status-inline-enter-active,
+.draft-status-inline-leave-active {
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.draft-status-inline-enter-from,
+.draft-status-inline-leave-to {
+  opacity: 0;
+  transform: scaleX(0.95);
 }
 
 .left {

@@ -321,8 +321,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import { useTheme } from '@/stores/theme';
+import { usePublicDraftAutosave } from '@/composables/usePublicDraftAutosave';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 
@@ -350,7 +351,7 @@ const props = defineProps({
   prefillEinsatz: { type: Object, default: null }
 });
 
-defineEmits(['back']);
+const emit = defineEmits(['back', 'draft-status']);
 
 // Allow parent to attempt internal back-navigation before leaving the view
 function tryGoBack() {
@@ -401,6 +402,15 @@ const detailReport = ref(null);
 const submitSuccess = ref(false);
 const submitting = ref(false);
 const einsatzMitarbeiter = ref([]);
+const draftReady = ref(false);
+
+const {
+  storageGet,
+  storageRemove,
+  storageSet,
+  scheduleSave,
+  resetStatus
+} = usePublicDraftAutosave(emit);
 
 const sortedReports = computed(() =>
   [...(props.mitarbeiter?.eventreports || [])]
@@ -411,6 +421,10 @@ function openForm() {
   submitSuccess.value = false;
   detailReport.value = null;
   showForm.value = true;
+  rebuild(async () => {
+    resetFormFields();
+    selectedEinsatzId.value = '';
+  });
 }
 
 function backToList() {
@@ -473,52 +487,91 @@ const form = reactive({
   notizen: ''
 });
 
-// localStorage draft helpers
-function draftKey() {
-  const nr = props.prefillEinsatz?.auftragNr || form.auftragnummer || 'new';
-  return `eventreport_draft_${props.mitarbeiter?.personalnr || props.email || 'u'}_${nr}`;
-}
-function saveDraft() {
-  try {
-    localStorage.setItem(
-      `eventreport_draft_${props.mitarbeiter?.personalnr || props.email || 'u'}`,
-      JSON.stringify({
-        selectedEinsatzId: selectedEinsatzId.value,
-        form: { ...form },
-        mitarbeiterRows: mitarbeiterRows.value
-      })
-    );
-  } catch {}
-}
-function clearDraft() {
-  try {
-    localStorage.removeItem(`eventreport_draft_${props.mitarbeiter?.personalnr || props.email || 'u'}`);
-  } catch {}
-}
-async function loadDraft() {
-  // Don't restore if we have a fresh prefill from job detail
-  if (props.prefillEinsatz) return false;
-  try {
-    const raw = localStorage.getItem(`eventreport_draft_${props.mitarbeiter?.personalnr || props.email || 'u'}`);
-    if (!raw) return false;
-    const draft = JSON.parse(raw);
-    if (draft.selectedEinsatzId) selectedEinsatzId.value = draft.selectedEinsatzId;
-    if (draft.form) Object.assign(form, draft.form);
-    // Re-fetch Mitarbeiter list so chips are available again
-    if (draft.form?.auftragnummer) {
-      const savedRows = draft.mitarbeiterRows || [];
-      await loadEinsatzMitarbeiter(draft.form.auftragnummer);
-      // loadEinsatzMitarbeiter clears rows – restore saved ones
-      if (savedRows.length) mitarbeiterRows.value = savedRows;
-    } else if (draft.mitarbeiterRows?.length) {
-      mitarbeiterRows.value = draft.mitarbeiterRows;
-    }
-    return true;
-  } catch { return false; }
+// ── Draft helpers ─────────────────────────────────
+const draftUserId = computed(() => (props.mitarbeiter?.personalnr || props.email || 'u').toLowerCase());
+
+function draftKeyFor(einsatzId) {
+  return einsatzId ? `public_eventreport_draft_${draftUserId.value}_${einsatzId}` : null;
 }
 
-// Watch for changes and auto-save draft
-watch([() => ({ ...form }), mitarbeiterRows, selectedEinsatzId], saveDraft, { deep: true });
+function draftKey() {
+  return draftKeyFor(selectedEinsatzId.value);
+}
+
+function draftPayload() {
+  return {
+    selectedEinsatzId: selectedEinsatzId.value,
+    form: { ...form },
+    mitarbeiterRows: mitarbeiterRows.value
+  };
+}
+
+// Only persist a draft when the user has entered meaningful content
+// (prefilled base fields like location/kunde/datum are ignored).
+function formHasUserContent() {
+  return !!(
+    form.team?.trim() ||
+    form.feedback_auftraggeber?.trim() ||
+    form.sonstiges?.trim() ||
+    form.notizen?.trim() ||
+    form.puenktlichkeit?.trim() ||
+    form.erscheinungsbild?.trim() ||
+    form.mitarbeiter_job?.trim() ||
+    mitarbeiterRows.value.some(r => r.text?.trim())
+  );
+}
+
+function resetFormFields() {
+  Object.keys(form).forEach(k => { form[k] = ''; });
+  mitarbeiterRows.value = [];
+  einsatzMitarbeiter.value = [];
+}
+
+// Rebuild the form (switch Einsatz / open / reset) without triggering autosave.
+async function rebuild(fn) {
+  draftReady.value = false;
+  try {
+    await fn();
+  } finally {
+    await nextTick();
+    draftReady.value = true;
+  }
+}
+
+// Save the currently-edited form under its own Einsatz key (silent, no status flash).
+function flushCurrentDraft() {
+  const key = draftKey();
+  if (key && formHasUserContent()) {
+    storageSet(key, draftPayload());
+  }
+}
+
+// Prefill base data from the Einsatz, then overlay any saved draft for that Einsatz.
+async function applyEinsatz(einsatz) {
+  selectedEinsatzId.value = einsatz._id;
+  await prefillFromEinsatz(einsatz);
+
+  const draft = storageGet(draftKeyFor(einsatz._id));
+  if (draft?.form) {
+    Object.assign(form, draft.form);
+    if (Array.isArray(draft.mitarbeiterRows) && draft.mitarbeiterRows.length) {
+      mitarbeiterRows.value = draft.mitarbeiterRows;
+    }
+  }
+}
+
+// Watch for changes and auto-save draft (debounced via composable)
+watch(
+  [() => ({ ...form }), mitarbeiterRows, selectedEinsatzId],
+  () => {
+    if (!draftReady.value || submitSuccess.value) return;
+    const key = draftKey();
+    if (key) {
+      scheduleSave(key, draftPayload());
+    }
+  },
+  { deep: true }
+);
 
 // Persist notizen per Auftrag so they survive across sessions & Einsatz switches
 watch(() => form.notizen, (val) => {
@@ -532,14 +585,30 @@ watch(() => form.notizen, (val) => {
   } catch { /* ignore */ }
 });
 
-// Pre-fill if coming from job detail
-if (props.prefillEinsatz) {
-  prefillFromEinsatz(props.prefillEinsatz);
-}
-
 onMounted(async () => {
-  await loadDraft();
+  await rebuild(async () => {
+    resetFormFields();
+    if (props.prefillEinsatz) {
+      await applyEinsatz(props.prefillEinsatz);
+    }
+  });
 });
+
+// Watch for prefillEinsatz changes (e.g., opening from JobDetail)
+watch(
+  () => props.prefillEinsatz?._id,
+  async (newId, oldId) => {
+    if (!newId || newId === oldId) return;
+    const einsatz = props.einsaetze.find(e => e._id === newId) || props.prefillEinsatz;
+    if (!einsatz) return;
+    flushCurrentDraft();
+    showForm.value = true;
+    await rebuild(async () => {
+      resetFormFields();
+      await applyEinsatz(einsatz);
+    });
+  }
+);
 
 function formatDate(d) {
   if (!d) return '—';
@@ -549,20 +618,27 @@ function formatDate(d) {
   return dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function selectEinsatz(einsatz) {
-  selectedEinsatzId.value = einsatz._id;
+async function selectEinsatz(einsatz) {
   showEinsatzPicker.value = false;
-  prefillFromEinsatz(einsatz);
+  if (einsatz._id === selectedEinsatzId.value) return;
+
+  // Save the current form under its own Einsatz key before rebuilding
+  flushCurrentDraft();
+
+  await rebuild(async () => {
+    resetFormFields();
+    await applyEinsatz(einsatz);
+  });
 }
 
-function prefillFromEinsatz(einsatz) {
+async function prefillFromEinsatz(einsatz) {
   form.notizen = ''; // Clear before loading auftrag-specific note
   form.auftragnummer = String(einsatz.auftragNr || '');
   form.datum = einsatz.datumVon ? new Date(einsatz.datumVon).toISOString().split('T')[0] : '';
   const rawLoc = einsatz.auftrag?.geschSt || einsatz.auftrag?.eventOrt || '';
   form.location = STANDORT_MAP[String(rawLoc)] || rawLoc;
   form.kunde = einsatz.auftrag?.eventTitel || einsatz.bezeichnung || '';
-  loadEinsatzMitarbeiter(einsatz.auftragNr);
+  await loadEinsatzMitarbeiter(einsatz.auftragNr);
 }
 
 async function loadEinsatzMitarbeiter(auftragNr) {
@@ -625,13 +701,14 @@ async function loadEinsatzMitarbeiter(auftragNr) {
 
 
 function resetForm() {
-  clearDraft();
+  storageRemove(draftKey());
+  resetStatus();
   submitSuccess.value = false;
   showForm.value = true;
-  selectedEinsatzId.value = '';
-  mitarbeiterRows.value = [];
-  einsatzMitarbeiter.value = [];
-  Object.keys(form).forEach(k => form[k] = '');
+  rebuild(async () => {
+    resetFormFields();
+    selectedEinsatzId.value = '';
+  });
 }
 
 async function submitReport() {
@@ -657,7 +734,8 @@ async function submitReport() {
       teamleiter_email: props.email
     });
     submitSuccess.value = true;
-    clearDraft();
+    storageRemove(draftKey());
+    resetStatus();
   } catch (err) {
     console.error('Submit error:', err);
     alert('Fehler beim Absenden: ' + (err.response?.data?.msg || err.message));
