@@ -120,6 +120,33 @@ const isValidRow = (row, idField) => {
   return row && row[idField] !== undefined && row[idField] !== null;
 };
 
+// Helper to build Kunden-Adressen from the ADR1_/ADR2_/ADR3_ columns of the 7001 export.
+// Skips address blocks without a NUMMER (empty join result).
+const buildAdressen = (row) => {
+  const adressen = [];
+  for (const prefix of ['ADR1', 'ADR2', 'ADR3']) {
+    const nummer = row[`${prefix}_NUMMER`];
+    if (nummer === undefined || nummer === null || nummer === '') continue;
+    const trim = (v) => (typeof v === 'string' ? v.trim() : v);
+    const name = trim(row[`${prefix}_LNAME`]);
+    adressen.push({
+      nummer,
+      name: name || undefined,
+      branche: trim(row[`${prefix}_BRANCHE`]) || undefined,
+      lbranche: trim(row[`${prefix}_LBRANCHE`]) || undefined,
+      strasse: trim(row[`${prefix}_STRASSE`]) || undefined,
+      plz: row[`${prefix}_PLZ`] != null ? String(row[`${prefix}_PLZ`]).trim() : undefined,
+      ort: trim(row[`${prefix}_ORT`]) || undefined,
+      land: trim(row[`${prefix}_LAND`]) || undefined,
+      telefon1: row[`${prefix}_TELEFON1`] != null ? String(row[`${prefix}_TELEFON1`]).trim() : undefined,
+      telefon2: row[`${prefix}_TELEFON2`] != null ? String(row[`${prefix}_TELEFON2`]).trim() : undefined,
+      email: trim(row[`${prefix}_EMAIL`]) || undefined,
+      homepage: trim(row[`${prefix}_HOMEPAGE`]) || undefined
+    });
+  }
+  return adressen;
+};
+
 // --- Auftrag Import ---
 router.post('/auftrag', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
@@ -437,6 +464,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
         if (row['BEMERKUNG2']) bemerkungen.push(String(row['BEMERKUNG2']));
         if (row['BEMERKUNG3']) bemerkungen.push(String(row['BEMERKUNG3']));
 
+        const adressen = buildAdressen(row);
+
         operationsKunde.push({
           updateOne: {
             filter: { kundenNr: kundenNr },
@@ -446,7 +475,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
               kundStatus: row['KUNDSTATUS'],
               geschSt: row['K_GESCHST'] || row['GESCHST'],
               kostenSt: row['K_KOSTENST'] || row['KOSTENST'],
-              bemerkung: bemerkungen
+              bemerkung: bemerkungen,
+              adressen: adressen
             }},
             upsert: true
           }
@@ -651,8 +681,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
   }
 });
 
-// --- Personal Import (kombiniert: Personalnr, Persstatus, Eintritt, Austrittsdatum, Beruf/Quali, Persgruppe, Email, Telefon) ---
-// Spalten (mit Prüffeld, neu): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Eintritt1, E=Austritt1, F=Berufsschlüssel(komma), G=Qualischlüssel(komma), H=Persgruppe, I=Email, J=Telefon
+// --- Personal Import (kombiniert: Personalnr, Persstatus, Geburtsdatum, Eintritt, Austrittsdatum, Beruf/Quali, Persgruppe, Email, Telefon) ---
+// Spalten (mit Prüffeld, neu): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Eintritt1, F=Austritt1, G=Berufsschlüssel(komma), H=Qualischlüssel(komma), I=Persgruppe, J=Email, K=Telefon
 // Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 router.post('/personal', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
@@ -709,49 +739,60 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       // New 7002 format has EINTRITT1 at index 2+colOffset, shifting all subsequent cols by 1
       const hasNewFormat = colOffset === 1;
       const extraOffset = hasNewFormat ? 1 : 0;
+      // Neues 7002-Format enthält zusätzlich GEBDATUM (Spalte D), wodurch Eintritt und alle
+      // nachfolgenden Spalten um eine weitere Position nach rechts rücken.
+      const gebOffset = hasNewFormat ? 1 : 0;
 
-      // Col D (index 2, new format): Eintrittsdatum (nur bei 7002-Format)
-      let eintrittsdatum = null;
+      // Col D (index 2, new format): Geburtsdatum (nur bei 7002-Format)
+      let geburtsdatum = null;
       if (hasNewFormat && row[2 + colOffset]) {
         const d = row[2 + colOffset] instanceof Date ? row[2 + colOffset] : new Date(row[2 + colOffset]);
+        if (!isNaN(d.getTime())) geburtsdatum = d;
+      }
+
+      // Col E (index 2+colOffset+gebOffset, new format): Eintrittsdatum (nur bei 7002-Format)
+      let eintrittsdatum = null;
+      if (hasNewFormat && row[2 + colOffset + gebOffset]) {
+        const d = row[2 + colOffset + gebOffset] instanceof Date ? row[2 + colOffset + gebOffset] : new Date(row[2 + colOffset + gebOffset]);
         if (!isNaN(d.getTime())) eintrittsdatum = d;
       }
 
-      // Col E/D (index 2+extraOffset): Austrittsdatum
+      // Col F/C (index 2+extraOffset+gebOffset): Austrittsdatum
       let austrittsdatum = null;
-      if (row[2 + colOffset + extraOffset]) {
-        const d = row[2 + colOffset + extraOffset] instanceof Date ? row[2 + colOffset + extraOffset] : new Date(row[2 + colOffset + extraOffset]);
+      if (row[2 + colOffset + extraOffset + gebOffset]) {
+        const d = row[2 + colOffset + extraOffset + gebOffset] instanceof Date ? row[2 + colOffset + extraOffset + gebOffset] : new Date(row[2 + colOffset + extraOffset + gebOffset]);
         if (!isNaN(d.getTime())) austrittsdatum = d;
       }
 
-      // Col F/E (index 3+extraOffset): Berufsschlüssel kommagetrennt
+      // Col G/D (index 3+extraOffset+gebOffset): Berufsschlüssel kommagetrennt
       // Normalize keys: "00040" → "40" so leading zeros in the Excel don't break the lookup
-      const berufKeys = row[3 + colOffset + extraOffset]
-        ? String(row[3 + colOffset + extraOffset]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
+      const berufKeys = row[3 + colOffset + extraOffset + gebOffset]
+        ? String(row[3 + colOffset + extraOffset + gebOffset]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
         : [];
       const berufIds = berufKeys.map(k => berufMap.get(k)).filter(Boolean);
 
-      // Col G/F (index 4+extraOffset): Qualifikationsschlüssel kommagetrennt
-      const qualiKeys = row[4 + colOffset + extraOffset]
-        ? String(row[4 + colOffset + extraOffset]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
+      // Col H/E (index 4+extraOffset+gebOffset): Qualifikationsschlüssel kommagetrennt
+      const qualiKeys = row[4 + colOffset + extraOffset + gebOffset]
+        ? String(row[4 + colOffset + extraOffset + gebOffset]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
         : [];
       const qualiIds = qualiKeys.map(k => qualiMap.get(k)).filter(Boolean);
 
-      // Col H/G (index 5+extraOffset): Personengruppe
-      const persgruppRaw = row[5 + colOffset + extraOffset] != null ? parseInt(row[5 + colOffset + extraOffset], 10) : null;
+      // Col I/F (index 5+extraOffset+gebOffset): Personengruppe
+      const persgruppRaw = row[5 + colOffset + extraOffset + gebOffset] != null ? parseInt(row[5 + colOffset + extraOffset + gebOffset], 10) : null;
       const persgruppe = persgruppRaw != null && VALID_PERSGRUPPEN.has(persgruppRaw) ? persgruppRaw : null;
 
-      // Col I/H (index 6+extraOffset): Email
-      const email = row[6 + colOffset + extraOffset] ? String(row[6 + colOffset + extraOffset]).trim().toLowerCase() : null;
+      // Col J/G (index 6+extraOffset+gebOffset): Email
+      const email = row[6 + colOffset + extraOffset + gebOffset] ? String(row[6 + colOffset + extraOffset + gebOffset]).trim().toLowerCase() : null;
 
-      // Col J/I (index 7+extraOffset): Telefon
-      const telefon = row[7 + colOffset + extraOffset] ? String(row[7 + colOffset + extraOffset]).trim() : null;
+      // Col K/H (index 7+extraOffset+gebOffset): Telefon
+      const telefon = row[7 + colOffset + extraOffset + gebOffset] ? String(row[7 + colOffset + extraOffset + gebOffset]).trim() : null;
 
       // Build $set payload — only include fields that have a value
       const setFields = {
         berufe: berufIds,
         qualifikationen: qualiIds,
       };
+      if (geburtsdatum) setFields.geburtsdatum = geburtsdatum;
       if (eintrittsdatum) setFields.eintrittsdatum = eintrittsdatum;
       // Immer setzen: leeres Feld soll einen bestehenden Wert in der DB explizit löschen
       setFields.austrittsdatum = austrittsdatum ?? null;

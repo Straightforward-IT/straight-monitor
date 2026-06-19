@@ -321,6 +321,10 @@
                     <font-awesome-icon icon="fa-solid fa-user-plus" />
                     Pseudo-MA einplanen
                   </button>
+                  <button class="qa-dropdown-item" @click="generateHoursList" :disabled="isGeneratingHoursList">
+                    <font-awesome-icon :icon="isGeneratingHoursList ? 'fa-solid fa-spinner' : 'fa-solid fa-clock'" :spin="isGeneratingHoursList" />
+                    {{ isGeneratingHoursList ? 'Wird erstellt…' : 'Stundenliste generieren' }}
+                  </button>
                   <button v-if="selectedEvent && selectedEvent.isPseudo" class="qa-dropdown-item qa-dropdown-item--danger" @click="deletePseudoAuftrag">
                     <font-awesome-icon icon="fa-solid fa-trash" />
                     Pseudo-Auftrag löschen
@@ -915,6 +919,7 @@ export default {
       pseudoSaving: false,
       // Three-dots dropdown
       showQuickActions: false,
+      isGeneratingHoursList: false,
       // Document icons
       auftragDocs: [],
       selectedDoc: null,
@@ -1733,6 +1738,28 @@ export default {
         this.showQuickActions = false;
       } catch (err) {
         alert(err.response?.data?.message || 'Fehler beim Löschen');
+      }
+    },
+    async generateHoursList() {
+      this.showQuickActions = false;
+      if (!this.selectedEvent || this.isGeneratingHoursList) return;
+      const auftragNr = this.selectedEvent.auftragNr;
+      this.isGeneratingHoursList = true;
+      try {
+        const { data } = await api.get(`/api/auftraege/${auftragNr}/stundenliste`, { responseType: 'blob' });
+        const blob = new Blob([data], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Stundenliste-${auftragNr}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Fehler beim Erstellen der Stundenliste');
+      } finally {
+        this.isGeneratingHoursList = false;
       }
     },
     openPseudoDialog() {

@@ -9,7 +9,8 @@ const Beruf = require('../models/Beruf');
 const Qualifikation = require('../models/Qualifikation');
 const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
-
+const StundenlisteService = require('../StundenlisteService');
+const R2Service = require('../R2Service');
 // GET /api/auftraege/filters - Get available filter options (bediener, kunden, etc)
 router.get('/filters', async (req, res) => {
   try {
@@ -314,7 +315,25 @@ router.get('/:auftragNr/details', async (req, res) => {
   }
 });
 
-// GET /api/auftraege/search - Search auftraege
+// GET /api/auftraege/:auftragNr/stundenliste - Stundenliste (Überlassungsvertrag) als PDF
+router.get('/:auftragNr/stundenliste', asyncHandler(async (req, res) => {
+  const { auftragNr } = req.params;
+
+  const { buffer } = await StundenlisteService.buildStundenliste(auftragNr);
+
+  // Im Hintergrund nach R2 sichern (ein Dokument pro Auftrag, wird überschrieben)
+  const r2Key = `stundenlisten/${auftragNr}.pdf`;
+  R2Service.uploadFile(r2Key, buffer, 'application/pdf')
+    .catch(err => logger.error(`Stundenliste R2-Upload fehlgeschlagen (${r2Key}):`, err));
+
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `attachment; filename="Stundenliste-${auftragNr}.pdf"`,
+    'Content-Length': buffer.length,
+  });
+  res.send(buffer);
+}));
+
 router.get('/search', async (req, res) => {
   try {
     const { q } = req.query;

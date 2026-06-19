@@ -41,6 +41,11 @@
       "aliases": ["hh", "teamhamburg"],
       "displayName": "Hamburg",
       "email": { "address": "teamhamburg@straightforward.email" },
+      "niederlassung": {
+        "name": "Hamburg",
+        "betriebsNr": "82477593",
+        "telefone": ["+49 40 700 101 90", "+49 176 433 184 82"]
+      },
       "eventReport": {
         "recipients": ["er-hh@straightforward.email", "er-hamburg@straightforward.email"]
       },
@@ -99,6 +104,11 @@
       "aliases": ["b", "teamberlin"],
       "displayName": "Berlin",
       "email": { "address": "teamberlin@straightforward.email" },
+      "niederlassung": {
+        "name": "Berlin",
+        "betriebsNr": "94921437",
+        "telefone": ["+49 (0)30 994 05 90", "+49 30 702 393 33", "+49 176 436 064 20"]
+      },
       "eventReport": {
         "recipients": ["er@straightforward.email", "er-berlin@straightforward.email"]
       },
@@ -151,6 +161,11 @@
       "aliases": ["k", "köln", "teamkoeln", "teamköln"],
       "displayName": "Köln",
       "email": { "address": "teamkoeln@straightforward.email" },
+      "niederlassung": {
+        "name": "Köln",
+        "betriebsNr": "74934500",
+        "telefone": ["+49 221 777 100 22", "+49 176 769 666 39"]
+      },
       "eventReport": {
         "recipients": ["er-kln@straightforward.email", "er-koeln@straightforward.email"]
       },

@@ -71,6 +71,7 @@
                     <tr><td>A – Prüffeld (7001)</td><td colspan="2">Muss in jeder Zeile 7001 enthalten</td></tr>
                     <tr><td>AUFTRAGNR, GESCHST, ...</td><td>Auftragsdaten</td></tr>
                     <tr><td>KUNDENNR, KUNDNAME, ...</td><td>Kundendaten</td></tr>
+                    <tr><td>ADR1_*, ADR2_*, ADR3_* (NUMMER, LNAME, STRASSE, PLZ, ORT, ...)</td><td>Kunden-Adressen</td></tr>
                     <tr><td>ID_AUFTRAG_ARBEITSSCHICHTEN, BEZEICHNUNG, ...</td><td>Schichtdaten</td></tr>
                     <tr><td>PERSONALNR, DATUMVON, BEZEICHN, ...</td><td>Einsatzdaten</td></tr>
                   </tbody></table>
@@ -85,7 +86,7 @@
           <div class="card-header">
             <div class="header-content">
               <h2>Personal Import (Liste 7002)</h2>
-              <p class="subtitle">Personalnr., Eintritt, Austrittsdatum, Berufe, Qualifikationen, Persgruppe, E-Mail, Telefon</p>
+              <p class="subtitle">Personalnr., Geburtsdatum, Eintritt, Austrittsdatum, Berufe, Qualifikationen, Persgruppe, E-Mail, Telefon</p>
             </div>
             <span v-if="personalFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
@@ -111,9 +112,9 @@
                 <div class="table-scroll">
                   <table class="req-table"><tbody>
                     <tr><td>A – Prüffeld (7002)</td><td>B – Personalnr</td><td>C – Persstatus (6=Ausgetreten)</td></tr>
-                    <tr><td>D – Eintritt (EINTRITT1)</td><td>E – Austrittsdatum</td><td>F – Berufsschlüssel (kommasep.)</td></tr>
-                    <tr><td>G – Qualischlüssel (kommasep.)</td><td>H – Personengruppe</td><td>I – E-Mail</td></tr>
-                    <tr><td>J – Telefon</td><td colspan="2"></td></tr>
+                    <tr><td>D – Geburtsdatum (GEBDATUM)</td><td>E – Eintritt (EINTRITT1)</td><td>F – Austrittsdatum</td></tr>
+                    <tr><td>G – Berufsschlüssel (kommasep.)</td><td>H – Qualischlüssel (kommasep.)</td><td>I – Personengruppe</td></tr>
+                    <tr><td>J – E-Mail</td><td>K – Telefon</td><td></td></tr>
                   </tbody></table>
                 </div>
               </details>

@@ -36,6 +36,20 @@ const KundeSchema = new mongoose.Schema({
     type: [String], // Array aus BEMERKUNG, BEMERKUNG2, BEMERKUNG3
     required: false
   },
+  adressen: [{
+    nummer: { type: Number, required: false }, // ADRx_NUMMER
+    name: { type: String, required: false }, // ADRx_LNAME (LNAME1 + LNAME2)
+    branche: { type: String, required: false }, // ADRx_BRANCHE
+    lbranche: { type: String, required: false }, // ADRx_LBRANCHE
+    strasse: { type: String, required: false }, // ADRx_STRASSE
+    plz: { type: String, required: false }, // ADRx_PLZ
+    ort: { type: String, required: false }, // ADRx_ORT
+    land: { type: String, required: false }, // ADRx_LAND
+    telefon1: { type: String, required: false }, // ADRx_TELEFON1
+    telefon2: { type: String, required: false }, // ADRx_TELEFON2
+    email: { type: String, required: false }, // ADRx_EMAIL
+    homepage: { type: String, required: false } // ADRx_HOMEPAGE
+  }],
   kontakte: [{
     vorname: { type: String, required: false },
     nachname: { type: String, required: true }, // Name* implies required

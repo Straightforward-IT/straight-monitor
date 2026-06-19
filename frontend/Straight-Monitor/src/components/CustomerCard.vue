@@ -79,6 +79,47 @@
         </ul>
       </section>
 
+      <!-- Adressen -->
+      <section class="section addresses-section" v-if="kunde.adressen && kunde.adressen.length > 0">
+        <h4 class="section-title">
+          <font-awesome-icon :icon="['fas', 'location-dot']" /> Adressen
+          <span class="badge">{{ kunde.adressen.length }}</span>
+        </h4>
+        <div class="addresses-list">
+          <div v-for="(adr, index) in kunde.adressen" :key="adr.nummer || index" class="address-card">
+            <div class="address-header">
+              <span class="address-name">{{ adr.name || 'Adresse ' + (index + 1) }}</span>
+              <span v-if="adr.branche || adr.lbranche" class="address-branche">{{ adr.lbranche || adr.branche }}</span>
+            </div>
+            <div class="address-body">
+              <div v-if="adr.strasse || adr.plz || adr.ort" class="address-row">
+                <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
+                <span>
+                  <template v-if="adr.strasse">{{ adr.strasse }}<br /></template>
+                  {{ [adr.plz, adr.ort].filter(Boolean).join(' ') }}<template v-if="adr.land">, {{ adr.land }}</template>
+                </span>
+              </div>
+              <div v-if="adr.telefon1" class="address-row">
+                <font-awesome-icon :icon="['fas', 'phone']" />
+                <a :href="`tel:${adr.telefon1}`">{{ adr.telefon1 }}</a>
+              </div>
+              <div v-if="adr.telefon2" class="address-row">
+                <font-awesome-icon :icon="['fas', 'phone']" />
+                <a :href="`tel:${adr.telefon2}`">{{ adr.telefon2 }}</a>
+              </div>
+              <div v-if="adr.email" class="address-row">
+                <font-awesome-icon :icon="['fas', 'envelope']" />
+                <a :href="`mailto:${adr.email}`">{{ adr.email }}</a>
+              </div>
+              <div v-if="adr.homepage" class="address-row">
+                <font-awesome-icon :icon="['fas', 'globe']" />
+                <a :href="formatUrl(adr.homepage)" target="_blank" rel="noopener noreferrer">{{ adr.homepage }}</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Top Mitarbeiter -->
       <section class="section top-ma-section" v-if="kunde.kundenNr">
         <h4 class="section-title">
@@ -519,6 +560,11 @@ function formatEuro(value) {
   if (value == null || value === 0) return '—';
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
 }
+
+function formatUrl(url) {
+  if (!url) return '#';
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
 </script>
 
 <style scoped>
@@ -785,6 +831,62 @@ function formatEuro(value) {
   left: 0;
   color: var(--accent);
   font-weight: bold;
+}
+
+/* Addresses */
+.addresses-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.address-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.address-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.address-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.address-branche {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.address-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.address-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+
+  svg { width: 14px; margin-top: 2px; color: var(--muted); flex-shrink: 0; }
+
+  a { color: var(--primary); text-decoration: none; }
+  a:hover { text-decoration: underline; }
 }
 
 /* Contacts */

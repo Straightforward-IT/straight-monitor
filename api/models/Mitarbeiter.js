@@ -20,6 +20,7 @@ const MitarbeiterSchema = new mongoose.Schema({
     telefon: { type: String, required: false, trim: true },
     profilbild: { type: String, required: false, trim: true }, // R2 key for uploaded profile picture (fallback when no Flip photo)
     isActive: { type: Boolean, default: true },
+    geburtsdatum: { type: Date, required: false },
     eintrittsdatum: { type: Date, required: false },
     austrittsdatum: { type: Date, required: false },
     persgruppe: {
