@@ -90,15 +90,21 @@ class StundenlisteService {
 
     const [mitarbeiterList, berufList, qualiList] = await Promise.all([
       personalNrs.length
-        ? Mitarbeiter.find({ personalnr: { $in: personalNrs } })
-            .select('vorname nachname personalnr geburtsdatum')
+        ? Mitarbeiter.find({ $or: [{ personalnr: { $in: personalNrs } }, { personalnummern: { $in: personalNrs } }] })
+            .select('vorname nachname personalnr personalnummern geburtsdatum')
             .lean()
         : [],
       berufKeys.length ? Beruf.find({ jobKey: { $in: berufKeys } }).lean() : [],
       qualiKeys.length ? Qualifikation.find({ qualificationKey: { $in: qualiKeys } }).lean() : [],
     ]);
 
-    const mitarbeiterMap = new Map(mitarbeiterList.map(m => [String(m.personalnr), m]));
+    // Map nach ALLEN Personalnummern (primär + Zusatznummern) keyen, damit
+    // Einsätze einer zweiten Niederlassung korrekt aufgelöst werden.
+    const mitarbeiterMap = new Map();
+    mitarbeiterList.forEach(m => {
+      const nrs = new Set([m.personalnr, ...(m.personalnummern || [])].filter(Boolean).map(String));
+      nrs.forEach(nr => mitarbeiterMap.set(nr, m));
+    });
     const berufMap = new Map(berufList.map(b => [b.jobKey, b]));
     const qualiMap = new Map(qualiList.map(q => [q.qualificationKey, q]));
 
@@ -152,59 +158,62 @@ class StundenlisteService {
       y: PAGE_H - MARGIN,
     };
 
-    // ── Kopf: Logo ──
+    // ── Kopf: Logo (volle Breite, wie im Original) ──
     if (logoImg) {
-      const logoW = 130;
+      const logoW = CONTENT_W;
       const logoH = (logoImg.height / logoImg.width) * logoW;
       ctx.page.drawImage(logoImg, { x: MARGIN, y: ctx.y - logoH, width: logoW, height: logoH });
-      ctx.y -= logoH + 16;
+      ctx.y -= logoH + 22;
     }
 
     // ── Überschrift ──
     this._text(ctx, 'Arbeitnehmerüberlassungsvertrag und zugleich Konkretisierung zum bestehenden Rahmenvertrag zur Arbeitnehmerüberlassung zwischen nachfolgend genanntem Verleiher und Entleiher.', {
-      font: fontBold, size: 12, lineGap: 3,
+      font: fontBold, size: 13, lineGap: 4,
     });
-    ctx.y -= 8;
+    ctx.y -= 12;
 
     // ── Einleitungstext ──
     const zeitraum = this._dateRange(auftrag.vonDatum, auftrag.bisDatum);
-    this._text(ctx, `Der Verleiher überlässt dem Entleiher am ${zeitraum} im Rahmen der Eventnummer ${auftrag.auftragNr} die untenstehend aufgeführten Arbeitnehmer.`, { size: 10 });
-    ctx.y -= 4;
-    this._text(ctx, 'Die unbefristete Erlaubnis zur Arbeitnehmerüberlassung liegt vor. (Urkunde der Bundesagentur für Arbeit, Agentur für Arbeit Kiel, in Kiel, zuletzt erteilt am 08.11.2021)', { size: 9, color: COLOR_MUTED });
-    ctx.y -= 12;
+    this._text(ctx, `Der Verleiher überlässt dem Entleiher am ${zeitraum} im Rahmen der Eventnummer ${auftrag.auftragNr} die untenstehend aufgeführten Arbeitnehmer.`, { size: 10.5, lineGap: 3 });
+    ctx.y -= 8;
+    this._text(ctx, 'Die unbefristete Erlaubnis zur Arbeitnehmerüberlassung liegt vor. (Urkunde der Bundesagentur für Arbeit, Agentur für Arbeit Kiel, in Kiel, zuletzt erteilt am 08.11.2021)', { size: 9, color: COLOR_MUTED, lineGap: 3 });
+    ctx.y -= 22;
 
     // ── Entleiher / Verleiher (zwei Spalten) ──
     this._twoColumnBlocks(ctx, kunde);
-    ctx.y -= 12;
+    ctx.y -= 20;
 
     // ── Betreuende Niederlassung ──
     this._niederlassungBlock(ctx, niederlassung);
-    ctx.y -= 12;
+    ctx.y -= 20;
 
     // ── Event-Block ──
     this._eventBlock(ctx, auftrag);
-    ctx.y -= 14;
+    ctx.y -= 22;
 
     // ── Tabelle (gruppiert nach Schicht) ──
     this._renderTable(ctx, einsaetze, schichten);
-    ctx.y -= 14;
+    ctx.y -= 20;
 
     // ── Pausen-Hinweis ──
     this._ensureSpace(ctx, 60);
-    this._text(ctx, 'Pausenzeiten sind, wenn extra aufgeführt, in den Arbeitsstunden nach § 4 Arbeitszeit inbegriffen. Bitte gesetzliche Pausenzeiten beachten. Mehr als 6 Stunden = 30 Minuten | Mehr als 9 Stunden = 45 Minuten. Bitte beachten Sie, dass die gesetzliche Regelarbeitszeit 10 Stunden nicht überschreiten darf. Kommt es hier zu Unregelmäßigkeiten, müssen wir von zukünftigen Überlassungen absehen.', { size: 8, color: COLOR_MUTED, lineGap: 2 });
-    ctx.y -= 16;
+    this._text(ctx, 'Pausenzeiten sind, wenn extra aufgeführt, in den Arbeitsstunden nach § 4 Arbeitszeit inbegriffen. Bitte gesetzliche Pausenzeiten beachten. Mehr als 6 Stunden = 30 Minuten | Mehr als 9 Stunden = 45 Minuten. Bitte beachten Sie, dass die gesetzliche Regelarbeitszeit 10 Stunden nicht überschreiten darf. Kommt es hier zu Unregelmäßigkeiten, müssen wir von zukünftigen Überlassungen absehen.', { size: 8, color: COLOR_MUTED, lineGap: 3 });
+    ctx.y -= 26;
 
     // ── Unterschriften ──
     this._signatureBlock(ctx, kunde);
-    ctx.y -= 14;
+    ctx.y -= 22;
 
     // ── Bemerkungsbox ──
     this._bemerkungBox(ctx);
-    ctx.y -= 14;
+    ctx.y -= 22;
 
     // ── Footer ──
     this._ensureSpace(ctx, 50);
-    this._text(ctx, 'Es gelten die allgemeinen Geschäftsbedingungen des Verleihers und die Rahmenabsprachen bzgl. Vergütung, Anforderungs- und Tätigkeitsprofil zwischen Entleiher und Verleiher. Sofern kein Rahmenvertrag vorhanden ist, gelten die AGB der H. & P. Straightforward GmbH und die aktuellen Konditionen für den jeweiligen Überlassungszeitraum. Dieser Nachweis gilt als abgeschlossener Einsatz.', { size: 7, color: COLOR_MUTED, lineGap: 2 });
+    this._text(ctx, 'Es gelten die allgemeinen Geschäftsbedingungen des Verleihers und die Rahmenabsprachen bzgl. Vergütung, Anforderungs- und Tätigkeitsprofil zwischen Entleiher und Verleiher. Sofern kein Rahmenvertrag vorhanden ist, gelten die AGB der H. & P. Straightforward GmbH und die aktuellen Konditionen für den jeweiligen Überlassungszeitraum. Dieser Nachweis gilt als abgeschlossener Einsatz.', { size: 7.5, color: COLOR_MUTED, lineGap: 3 });
+
+    // ── Seiten-Footer (URL unten rechts auf jeder Seite, wie im Original) ──
+    this._drawPageFooters(doc, fontBold);
 
     return Buffer.from(await doc.save());
   }
@@ -219,18 +228,18 @@ class StundenlisteService {
     // Entleiher (links)
     const entleiherAdr = this._entleiherAdresse(kunde);
     const leftLines = [
-      { text: 'Entleiher', font: ctx.fontBold, size: 10 },
-      { text: (kunde && kunde.kundName) || '—', size: 9 },
+      { text: 'Entleiher', font: ctx.fontBold, size: 11 },
+      { text: (kunde && kunde.kundName) || '—', size: 9.5 },
     ];
-    if (entleiherAdr.strasse) leftLines.push({ text: entleiherAdr.strasse, size: 9 });
-    if (entleiherAdr.plzOrt) leftLines.push({ text: entleiherAdr.plzOrt, size: 9 });
+    if (entleiherAdr.strasse) leftLines.push({ text: entleiherAdr.strasse, size: 9.5 });
+    if (entleiherAdr.plzOrt) leftLines.push({ text: entleiherAdr.plzOrt, size: 9.5 });
 
     // Verleiher (rechts)
     const rightLines = [
-      { text: 'Verleiher', font: ctx.fontBold, size: 10 },
-      { text: VERLEIHER.name, size: 9 },
-      { text: VERLEIHER.strasse, size: 9 },
-      { text: VERLEIHER.plzOrt, size: 9 },
+      { text: 'Verleiher', font: ctx.fontBold, size: 11 },
+      { text: VERLEIHER.name, size: 9.5 },
+      { text: VERLEIHER.strasse, size: 9.5 },
+      { text: VERLEIHER.plzOrt, size: 9.5 },
     ];
 
     const leftH = this._columnHeight(leftLines);
@@ -244,24 +253,26 @@ class StundenlisteService {
   }
 
   _niederlassungBlock(ctx, niederlassung) {
-    this._ensureSpace(ctx, 40);
-    this._text(ctx, 'Betreuende Niederlassung', { font: ctx.fontBold, size: 10 });
+    this._ensureSpace(ctx, 44);
+    this._text(ctx, 'Betreuende Niederlassung', { font: ctx.fontBold, size: 11 });
+    ctx.y -= 3;
     if (!niederlassung) {
-      this._text(ctx, '—', { size: 9 });
+      this._text(ctx, '—', { size: 9.5 });
       return;
     }
     const parts = [];
     if (niederlassung.name) parts.push(`Niederlassung ${niederlassung.name}`);
     if (niederlassung.betriebsNr) parts.push(`Betriebs-Nr. ${niederlassung.betriebsNr}`);
-    this._text(ctx, parts.join('  ·  ') || '—', { size: 9 });
+    this._text(ctx, parts.join('  ·  ') || '—', { size: 9.5, lineGap: 3 });
     const tel = Array.isArray(niederlassung.telefone) ? niederlassung.telefone.filter(Boolean) : [];
-    if (tel.length) this._text(ctx, `Tel.: ${tel.join('  /  ')}`, { size: 9 });
-    if (niederlassung.email) this._text(ctx, `E-Mail: ${niederlassung.email}`, { size: 9 });
+    if (tel.length) this._text(ctx, `Tel.: ${tel.join('  /  ')}`, { size: 9.5, lineGap: 3 });
+    if (niederlassung.email) this._text(ctx, `E-Mail: ${niederlassung.email}`, { size: 9.5, lineGap: 3 });
   }
 
   _eventBlock(ctx, auftrag) {
-    this._ensureSpace(ctx, 60);
-    this._text(ctx, 'Event', { font: ctx.fontBold, size: 10 });
+    this._ensureSpace(ctx, 70);
+    this._text(ctx, 'Event', { font: ctx.fontBold, size: 11 });
+    ctx.y -= 4;
     const ort = [auftrag.eventLocation, auftrag.eventStrasse, [auftrag.eventPlz, auftrag.eventOrt].filter(Boolean).join(' ')]
       .filter(Boolean).join(', ');
     const rows = [
@@ -271,15 +282,15 @@ class StundenlisteService {
       ['Überlassungszeitraum', this._dateRange(auftrag.vonDatum, auftrag.bisDatum)],
     ];
     for (const [label, value] of rows) {
-      const labelW = 120;
-      const lineH = 13;
+      const labelW = 130;
+      const lineH = 15;
       this._ensureSpace(ctx, lineH);
-      ctx.page.drawText(`${label}:`, { x: MARGIN, y: ctx.y - 9, size: 9, font: ctx.fontBold, color: COLOR_TEXT });
-      const lines = this._wrap(value, ctx.font, 9, CONTENT_W - labelW);
+      ctx.page.drawText(`${label}:`, { x: MARGIN, y: ctx.y - 10, size: 9.5, font: ctx.fontBold, color: COLOR_TEXT });
+      const lines = this._wrap(value, ctx.font, 9.5, CONTENT_W - labelW);
       lines.forEach((ln, idx) => {
-        ctx.page.drawText(ln, { x: MARGIN + labelW, y: ctx.y - 9 - idx * 11, size: 9, font: ctx.font, color: COLOR_TEXT });
+        ctx.page.drawText(ln, { x: MARGIN + labelW, y: ctx.y - 10 - idx * 12, size: 9.5, font: ctx.font, color: COLOR_TEXT });
       });
-      ctx.y -= Math.max(lineH, lines.length * 11 + 2);
+      ctx.y -= Math.max(lineH, lines.length * 12 + 3);
     }
   }
 
@@ -411,6 +422,29 @@ class StundenlisteService {
     ctx.y = top - boxH;
   }
 
+  /** Zeichnet die URL unten rechts auf jeder Seite (wie im Original). */
+  _drawPageFooters(doc, fontBold) {
+    const url = 'www.Straightforward.services';
+    const size = 9;
+    const pages = doc.getPages();
+    for (const page of pages) {
+      const w = fontBold.widthOfTextAtSize(url, size);
+      page.drawLine({
+        start: { x: MARGIN, y: MARGIN + 14 },
+        end: { x: PAGE_W - MARGIN, y: MARGIN + 14 },
+        thickness: 0.8,
+        color: COLOR_LINE,
+      });
+      page.drawText(url, {
+        x: PAGE_W - MARGIN - w,
+        y: MARGIN,
+        size,
+        font: fontBold,
+        color: COLOR_TEXT,
+      });
+    }
+  }
+
   // ── Hilfsfunktionen Rendering ─────────────────────────────────────────────
 
   /** Mehrzeiliger Fließtext mit automatischem Seitenumbruch. */
@@ -436,7 +470,7 @@ class StundenlisteService {
       const wrapped = this._wrap(l.text, font, size, w);
       for (const ln of wrapped) {
         ctx.page.drawText(ln, { x, y: y - size, size, font, color: COLOR_TEXT });
-        y -= size + 3;
+        y -= size + 4;
       }
     }
   }
@@ -445,14 +479,15 @@ class StundenlisteService {
     let h = 0;
     for (const l of lines) {
       const size = l.size || 9;
-      h += size + 3;
+      h += size + 4;
     }
     return h;
   }
 
   /** Stellt sicher, dass mind. `needed` pt Platz vorhanden ist, sonst neue Seite. */
   _ensureSpace(ctx, needed, onNewPage) {
-    if (ctx.y - needed < MARGIN) {
+    // Unten 26pt für den Seiten-Footer (URL + Trennlinie) reservieren.
+    if (ctx.y - needed < MARGIN + 26) {
       ctx.page = ctx.doc.addPage([PAGE_W, PAGE_H]);
       ctx.y = PAGE_H - MARGIN;
       if (typeof onNewPage === 'function') onNewPage();

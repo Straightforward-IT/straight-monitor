@@ -614,8 +614,9 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 
       // Cleanup: Manuelle "eingeplant"-Platzhalter löschen, wenn echte Einsätze importiert wurden
       const importedPnrs = [...new Set(newEinsaetze.map(e => e.personalNr))];
+      const importedPnrStrs = importedPnrs.map(String);
       const maWithEinsatz = await Mitarbeiter.find(
-        { personalnr: { $in: importedPnrs.map(String) } },
+        { $or: [{ personalnr: { $in: importedPnrStrs } }, { personalnummern: { $in: importedPnrStrs } }] },
         '_id'
       ).lean();
       const maIdsWithEinsatz = maWithEinsatz.map(m => m._id);
@@ -720,9 +721,10 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       }
     }
 
-    let matched = 0, updated = 0, unchanged = 0, skipped = 0, pnrUpdated = 0, deactivated = 0;
+    let matched = 0, updated = 0, unchanged = 0, skipped = 0, pnrUpdated = 0, deactivated = 0, pnrAdded = 0;
     const notFoundPnrs = [];
     const pnrUpdatedList = [];
+    const pnrAddedList = [];
 
     const operations = [];
 
@@ -848,10 +850,18 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
 
     ;(async () => {
       try {
+        // Set aller in DIESEM Import als aktiv geführten Personalnummern.
+        // Dient dazu, eine „zweite aktive Nummer“ (z.B. weitere Niederlassung) von
+        // einer echten Personalnr-Korrektur zu unterscheiden.
+        const importPnrSet = new Set(filteredOperations.map(o => o.personalnr).filter(Boolean));
+
         // Execute bulk updates (find by Personalnr, Fallback per E-Mail)
         for (const op of filteredOperations) {
-          let ma = await Mitarbeiter.findOne({ personalnr: op.personalnr }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
-          let pnrChanged = false;
+          let ma = await Mitarbeiter.findOne({
+            $or: [{ personalnr: op.personalnr }, { personalnummern: op.personalnr }]
+          }).select('_id personalnr personalnummern personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
+          let pnrChanged = false;      // echte Korrektur: primäre personalnr wird überschrieben
+          let pnrAddedToArray = false; // zusätzliche aktive Nr (z.B. zweite Niederlassung)
 
           if (!ma) {
             // Fallback: suche per E-Mail aus der Excel-Zeile
@@ -859,9 +869,18 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             if (fallbackEmail) {
               ma = await Mitarbeiter.findOne({
                 $or: [{ email: fallbackEmail }, { additionalEmails: fallbackEmail }]
-              }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
-              if (ma) {
-                pnrChanged = true;
+              }).select('_id personalnr personalnummern personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
+              if (ma && ma.personalnr !== op.personalnr) {
+                // Führt Zvoove die bereits gespeicherte Nummer in DIESEM Import noch als
+                // aktiv? Dann ist op.personalnr eine ZUSÄTZLICHE aktive Nummer (Doppel-
+                // führung), keine Korrektur → ins Array statt die primäre Nr zu überschreiben.
+                const existingStillActive = ma.personalnr && importPnrSet.has(ma.personalnr);
+                const alreadyInArray = Array.isArray(ma.personalnummern) && ma.personalnummern.includes(op.personalnr);
+                if (existingStillActive && !alreadyInArray) {
+                  pnrAddedToArray = true;
+                } else if (!alreadyInArray) {
+                  pnrChanged = true;
+                }
               }
             }
 
@@ -922,9 +941,28 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             }
           }
 
+          // Zusätzliche aktive Personalnr (Doppelführung, z.B. zweite Niederlassung):
+          // ins Array aufnehmen, primäre personalnr bleibt unverändert.
+          const addPersonalnummern = [];
+          if (pnrAddedToArray) {
+            if (ma.personalnr) addPersonalnummern.push(ma.personalnr); // primäre Nr im Array spiegeln
+            addPersonalnummern.push(op.personalnr);
+            pnrAdded++;
+            if (pnrAddedList.length < 30) {
+              pnrAddedList.push({ primaer: ma.personalnr || '(leer)', zusatz: op.personalnr, email: ma.email });
+            }
+          }
+
           const updateOps = { $set: op.setFields };
+          const addToSet = {};
           if (addToAdditional.length > 0) {
-            updateOps.$addToSet = { additionalEmails: { $each: addToAdditional } };
+            addToSet.additionalEmails = { $each: addToAdditional };
+          }
+          if (addPersonalnummern.length > 0) {
+            addToSet.personalnummern = { $each: addPersonalnummern };
+          }
+          if (Object.keys(addToSet).length > 0) {
+            updateOps.$addToSet = addToSet;
           }
           // Alte Personalnr in Historie schreiben (falls vorhanden und geändert)
           if (pnrChanged && ma.personalnr) {
@@ -951,6 +989,8 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           notFoundPnrs: notFoundPnrs.length > 0 ? notFoundPnrs : undefined,
           pnrUpdated,
           pnrUpdatedList: pnrUpdatedList.length > 0 ? pnrUpdatedList : undefined,
+          pnrAdded,
+          pnrAddedList: pnrAddedList.length > 0 ? pnrAddedList : undefined,
           deactivated,
         };
 
@@ -973,9 +1013,11 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
               <li>Unverändert: <strong>${unchanged}</strong></li>
               <li>Nicht gefunden: <strong>${skipped}</strong></li>
               ${pnrUpdated > 0 ? `<li>Personalnr per E-Mail korrigiert: <strong>${pnrUpdated}</strong></li>` : ''}
+              ${pnrAdded > 0 ? `<li>Zusätzliche Personalnr (Doppelführung): <strong>${pnrAdded}</strong></li>` : ''}
             </ul>
             ${notFoundHtml}
             ${pnrUpdatedList.length > 0 ? `<h3>🔄 Personalnr korrigiert (${pnrUpdated}):</h3><ul>${pnrUpdatedList.map(p => `<li>${p.email}: <code>${p.alt}</code> → <code>${p.neu}</code></li>`).join('')}${pnrUpdated > pnrUpdatedList.length ? `<li>…und ${pnrUpdated - pnrUpdatedList.length} weitere</li>` : ''}</ul>` : ''}
+            ${pnrAddedList.length > 0 ? `<h3>➕ Zusätzliche Personalnr (${pnrAdded}):</h3><ul>${pnrAddedList.map(p => `<li>${p.email}: primär <code>${p.primaer}</code> + zusätzlich <code>${p.zusatz}</code></li>`).join('')}${pnrAdded > pnrAddedList.length ? `<li>…und ${pnrAdded - pnrAddedList.length} weitere</li>` : ''}</ul>` : ''}
           </div>`;
         await sendMail('it@straightforward.email', `Personal Import – ${timestamp}`, emailContent, 'it');
       } catch (bgError) {

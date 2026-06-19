@@ -131,6 +131,10 @@
               </div>
             </div>
             <div class="kv-inline">
+              <div v-if="resolvedMa.geburtsdatum">
+                <dt>Geburtsdatum</dt>
+                <dd>{{ formatDate(resolvedMa.geburtsdatum) }}</dd>
+              </div>
               <div v-if="resolvedMa.eintrittsdatum">
                 <dt>Eintritt</dt>
                 <dd>{{ formatDate(resolvedMa.eintrittsdatum) }}</dd>

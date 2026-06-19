@@ -145,9 +145,19 @@ router.get('/', async (req, res) => {
     ).lean();
     const allPersonalNrs = [...new Set(allEinsaetze.map(e => String(e.personalNr)).filter(Boolean))];
     const maList = allPersonalNrs.length
-      ? await Mitarbeiter.find({ personalnr: { $in: allPersonalNrs } }, { personalnr: 1, vorname: 1, nachname: 1 }).lean()
+      ? await Mitarbeiter.find(
+          { $or: [{ personalnr: { $in: allPersonalNrs } }, { personalnummern: { $in: allPersonalNrs } }] },
+          { personalnr: 1, personalnummern: 1, vorname: 1, nachname: 1 }
+        ).lean()
       : [];
-    const maNameMap = new Map(maList.map(m => [String(m.personalnr), `${m.vorname || ''} ${m.nachname || ''}`.trim()]));
+    // Map nach ALLEN Nummern des MA (primär + Zusatznummern), damit auch Einsätze
+    // einer zweiten Niederlassung dem richtigen Mitarbeiter zugeordnet werden.
+    const maNameMap = new Map();
+    maList.forEach(m => {
+      const name = `${m.vorname || ''} ${m.nachname || ''}`.trim();
+      const nrs = new Set([m.personalnr, ...(m.personalnummern || [])].filter(Boolean).map(String));
+      nrs.forEach(nr => maNameMap.set(nr, name));
+    });
     const mitarbeiterNamesMap = {};
     allEinsaetze.forEach(e => {
       const name = maNameMap.get(String(e.personalNr));
@@ -268,16 +278,21 @@ router.get('/:auftragNr/details', async (req, res) => {
     const qualiKeys = [...new Set(einsaetze.map(e => parseInt(e.qualSchl)).filter(k => !isNaN(k)))];
 
     const [mitarbeiterList, berufList, qualiList] = await Promise.all([
-      personalNrs.length ? Mitarbeiter.find({ personalnr: { $in: personalNrs } })
-        .select('vorname nachname email personalnr qualifikationen flip_id isBewerberstatus')
+      personalNrs.length ? Mitarbeiter.find({ $or: [{ personalnr: { $in: personalNrs } }, { personalnummern: { $in: personalNrs } }] })
+        .select('vorname nachname email personalnr personalnummern qualifikationen flip_id isBewerberstatus')
         .populate('qualifikationen')
         .lean() : [],
       berufKeys.length ? Beruf.find({ jobKey: { $in: berufKeys } }).lean() : [],
       qualiKeys.length ? Qualifikation.find({ qualificationKey: { $in: qualiKeys } }).lean() : []
     ]);
 
-    // Create lookup maps
-    const mitarbeiterMap = new Map(mitarbeiterList.map(m => [String(m.personalnr), m]));
+    // Create lookup maps — keyed by ALL Personalnummern (primär + Zusatznummern),
+    // damit Einsätze einer zweiten Niederlassung korrekt zugeordnet werden.
+    const mitarbeiterMap = new Map();
+    mitarbeiterList.forEach(m => {
+      const nrs = new Set([m.personalnr, ...(m.personalnummern || [])].filter(Boolean).map(String));
+      nrs.forEach(nr => mitarbeiterMap.set(nr, m));
+    });
     const berufMap = new Map(berufList.map(b => [b.jobKey, b]));
     const qualiMap = new Map(qualiList.map(q => [q.qualificationKey, q]));
 

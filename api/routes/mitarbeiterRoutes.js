@@ -268,6 +268,7 @@ router.get(
         { nachname: regex },
         { email: regex },
         { personalnr: regex },
+        { personalnummern: regex },
       ]
     })
       .sort({ createdAt: -1 })
@@ -1135,7 +1136,7 @@ router.get(
     let query;
 
     if (/^\d+$/.test(search)) {
-      query = { personalnr: parseInt(search) };
+      query = { $or: [{ personalnr: search }, { personalnummern: search }] };
     } else {
       const parts = search.split(/\s+/).filter(Boolean);
       if (parts.length >= 2) {
@@ -1185,6 +1186,7 @@ router.get(
     }
     if (personalnr && personalnr.trim() && personalnr.trim() !== "0") {
       conditions.push({ personalnr: personalnr.trim() });
+      conditions.push({ personalnummern: personalnr.trim() });
     }
     if (asana_id && asana_id.trim()) {
       conditions.push({ asana_id: asana_id.trim() });

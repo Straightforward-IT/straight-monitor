@@ -4,6 +4,11 @@ const MitarbeiterSchema = new mongoose.Schema({
     flip_id: { type: String, required: false, trim: true},
     asana_id: {type: String, unique: true, required: false, trim: true},
     personalnr: { type: String, required: false, trim: true, sparse: true, unique: true },
+    // Alle aktiven Personalnummern dieses Mitarbeiters (inkl. der primären personalnr).
+    // Notwendig für Sonderfälle, in denen eine Person in mehreren Niederlassungen
+    // (z.B. Köln + Berlin) mit jeweils eigener aktiver Personalnr geführt wird.
+    // Lookups (Einsatz → Mitarbeiter) matchen sowohl personalnr als auch dieses Array.
+    personalnummern: [{ type: String, trim: true }],
     personalnrHistory: [
         {
             value: { type: String, trim: true },
@@ -161,6 +166,11 @@ MitarbeiterSchema.pre("findOne", function (next) {
 MitarbeiterSchema.virtual('evaluierungSoll').get(function () {
     return this.laufzettel_received ? this.laufzettel_received.length : 0;
 });
+
+// Schneller Lookup über Zusatz-Personalnummern (Einsatz → Mitarbeiter).
+// Bewusst NICHT unique: leere Arrays würden sonst als doppelte null-Keys kollidieren;
+// die Eindeutigkeit der primären Nummer wird bereits über personalnr erzwungen.
+MitarbeiterSchema.index({ personalnummern: 1 }, { sparse: true });
 
 const Mitarbeiter = mongoose.model('Mitarbeiter', MitarbeiterSchema);
 
