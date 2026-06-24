@@ -96,7 +96,7 @@
                   :disabled="refreshing[v._id]"
                   @click="refreshOne(v)"
                 >
-                  <font-awesome-icon :icon="['fas', 'rotate']" :spin="refreshing[v._id]" />
+                  <font-awesome-icon :icon="['fas', 'rotate-right']" :spin="refreshing[v._id]" />
                 </button>
                 <button
                   v-if="v.status === 'completed' && v.signedPdfKey"
