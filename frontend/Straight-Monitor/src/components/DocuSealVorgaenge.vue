@@ -100,6 +100,14 @@
                 </button>
                 <button
                   v-if="v.status === 'completed' && v.signedPdfKey"
+                  class="btn-icon-sm"
+                  title="Unterschriebenes PDF öffnen"
+                  @click="openSigned(v)"
+                >
+                  <font-awesome-icon :icon="['fas', 'eye']" />
+                </button>
+                <button
+                  v-if="v.status === 'completed' && v.signedPdfKey"
                   class="btn-icon-sm btn-download"
                   title="Unterschriebenes PDF herunterladen"
                   :disabled="downloading[v._id]"
@@ -135,7 +143,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import api from '@/utils/api';
 
 const vorgaenge = ref([]);
@@ -143,6 +151,8 @@ const loading = ref(false);
 const refreshing = ref({});
 const refreshingAll = ref(false);
 const downloading = ref({});
+
+let eventSource = null;
 
 const activeTab = ref('all');
 const tabs = [
@@ -254,7 +264,38 @@ async function archive(v) {
   }
 }
 
-onMounted(loadAll);
+async function openSigned(v) {
+  try {
+    const { data } = await api.get(`/api/docuseal/${v._id}/signed-url`);
+    if (data.url) window.open(data.url, '_blank', 'noopener');
+  } catch (err) {
+    console.error('Fehler beim Öffnen:', err);
+    alert('Das Dokument konnte nicht geöffnet werden.');
+  }
+}
+
+function connectSSE() {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+  const base = import.meta.env.VITE_API_BASE_URL || '';
+  eventSource = new EventSource(`${base}/api/docuseal/events?token=${encodeURIComponent(token)}`);
+  eventSource.onmessage = (e) => {
+    try {
+      const { type, payload } = JSON.parse(e.data);
+      if (type === 'vorgang.updated' && payload?._id) {
+        const idx = vorgaenge.value.findIndex(x => x._id === payload._id);
+        if (idx !== -1) vorgaenge.value[idx] = payload;
+        else vorgaenge.value.unshift(payload);
+      }
+    } catch (_) {}
+  };
+  eventSource.onerror = () => {
+    // Auto-reconnect is handled by the browser; no action needed
+  };
+}
+
+onMounted(() => { loadAll(); connectSSE(); });
+onUnmounted(() => { if (eventSource) eventSource.close(); });
 </script>
 
 <style lang="scss" scoped>

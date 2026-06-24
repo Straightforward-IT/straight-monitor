@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
@@ -14,6 +15,16 @@ const StundenlisteService = require('../StundenlisteService');
 const router = express.Router();
 
 const WEBHOOK_SECRET = process.env.DOCUSEAL_WEBHOOK_SECRET;
+
+// SSE: track connected admin clients
+const sseClients = new Set();
+
+function broadcastDocuSealEvent(type, payload) {
+  const msg = `data: ${JSON.stringify({ type, payload })}\n\n`;
+  for (const res of sseClients) {
+    try { res.write(msg); } catch (_) { sseClients.delete(res); }
+  }
+}
 
 /**
  * Ensure the requesting user has the ADMIN role.
@@ -70,6 +81,28 @@ function mapSubmitter(apiSubmitter, requested) {
     completedAt: apiSubmitter.completed_at ? new Date(apiSubmitter.completed_at) : null,
   };
 }
+
+// GET /api/docuseal/events — SSE stream for real-time submission updates (token in query)
+router.get('/events', (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.status(401).json({ message: 'Kein Token übergeben' });
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    return res.status(401).json({ message: 'Ungültiger Token' });
+  }
+
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  });
+  res.flushHeaders();
+  res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+
+  sseClients.add(res);
+  req.on('close', () => sseClients.delete(res));
+});
 
 // GET /api/docuseal/templates — list dashboard templates for the create-request UI
 router.get('/templates', auth, asyncHandler(async (req, res) => {
@@ -251,6 +284,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     docusealTemplateName: 'Stundenliste (PDF)',
     submissionId,
     auftragNr,
+    kundenNr: auftrag.kundenNr || null,
     linkedEntity: kunde ? { type: 'Kunde', refId: kunde._id } : { type: 'Auftrag', refId: null },
     submitters: storedSubmitters,
     status: 'pending',
@@ -298,6 +332,18 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
       ? { role: 'Verleiher', slug: verleiherSubmitter.slug, src: verleiherSubmitter.embedSrc }
       : null,
   });
+}));
+
+// GET /api/docuseal/:id/signed-url — return a presigned R2 URL to open the PDF inline
+router.get('/:id/signed-url', auth, asyncHandler(async (req, res) => {
+  const vorgang = await DocuSealVorgang.findById(req.params.id);
+  if (!vorgang) return res.status(404).json({ message: 'Vorgang nicht gefunden' });
+  if (!vorgang.signedPdfKey) {
+    return res.status(409).json({ message: 'Noch kein unterschriebenes Dokument vorhanden' });
+  }
+  const safeName = vorgang.name.replace(/[^a-z0-9_\- ]/gi, '_') + '.pdf';
+  const url = await R2Service.getSignedDownloadUrl(vorgang.signedPdfKey, 3600, { inline: true, filename: safeName });
+  res.json({ url });
 }));
 
 // GET /api/docuseal/submissions/:id — local record, optionally refreshed from DocuSeal
@@ -405,7 +451,10 @@ router.post('/webhook', verifyDocuSealWebhook, asyncHandler(async (req, res) => 
     vorgang.completedAt = new Date();
     if (data.audit_log_url) vorgang.auditLogUrl = data.audit_log_url;
     try {
-      const stored = await DocuSealService.storeSignedPdf(submissionId, `docuseal/${vorgang._id}`);
+      const r2Prefix = vorgang.kundenNr
+        ? `docuseal/kunden/${vorgang.kundenNr}/${vorgang._id}`
+        : `docuseal/${vorgang._id}`;
+      const stored = await DocuSealService.storeSignedPdf(submissionId, r2Prefix);
       if (stored) vorgang.signedPdfKey = stored.key;
     } catch (err) {
       logger.error(`DocuSeal: failed to store signed PDF for submission ${submissionId}:`, err.message);
@@ -418,6 +467,9 @@ router.post('/webhook', verifyDocuSealWebhook, asyncHandler(async (req, res) => 
 
   await vorgang.save();
   logger.info(`DocuSeal webhook processed: ${eventType} for submission ${submissionId}.`);
+
+  // Push update to all connected admin SSE clients
+  broadcastDocuSealEvent('vorgang.updated', vorgang.toObject());
 }));
 
 module.exports = router;

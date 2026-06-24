@@ -36,6 +36,9 @@ const DocuSealVorgangSchema = new mongoose.Schema({
   // Auftrag (Event) this signing request was generated for, if any.
   auftragNr: { type: Number, default: null, index: true },
 
+  // Customer (Kunde) this signing request belongs to, if any.
+  kundenNr: { type: Number, default: null },
+
   submitters: { type: [SubmitterSchema], default: [] },
 
   // Overall lifecycle status, driven by DocuSeal webhooks.

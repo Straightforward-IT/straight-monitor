@@ -835,6 +835,10 @@
               <font-awesome-icon icon="fa-solid fa-file-signature" />
               Jetzt als Verleiher unterschreiben
             </button>
+            <button v-if="sigResult.vorgang && sigResult.vorgang._id" class="qa-submit-btn qa-submit-btn--secondary" style="margin-top:8px;" @click="$router.push('/signaturen')">
+              <font-awesome-icon icon="fa-solid fa-list-check" />
+              Vorgang öffnen
+            </button>
             <button class="qa-submit-btn qa-submit-btn--secondary" style="margin-top:8px;" @click="closeSignatureDialog">
               Schließen
             </button>
