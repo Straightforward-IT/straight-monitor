@@ -136,7 +136,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import axios from 'axios';
+import api from '@/utils/api';
 
 const vorgaenge = ref([]);
 const loading = ref(false);
@@ -194,7 +194,7 @@ function formatDate(d) {
 async function loadAll() {
   loading.value = true;
   try {
-    const { data } = await axios.get('/api/docuseal/');
+    const { data } = await api.get('/api/docuseal/');
     vorgaenge.value = Array.isArray(data) ? data : [];
     if (!Array.isArray(data)) console.error('Unexpected response from /api/docuseal/:', data);
   } catch (err) {
@@ -208,7 +208,7 @@ async function loadAll() {
 async function refreshOne(v) {
   refreshing.value = { ...refreshing.value, [v._id]: true };
   try {
-    const { data } = await axios.get(`/api/docuseal/${v._id}?refresh=true`);
+    const { data } = await api.get(`/api/docuseal/${v._id}?refresh=true`);
     const idx = vorgaenge.value.findIndex(x => x._id === v._id);
     if (idx !== -1) vorgaenge.value[idx] = data;
   } catch (err) {
@@ -228,7 +228,7 @@ async function refreshAll() {
 async function downloadSigned(v) {
   downloading.value = { ...downloading.value, [v._id]: true };
   try {
-    const resp = await axios.get(`/api/docuseal/${v._id}/signed`, { responseType: 'blob' });
+    const resp = await api.get(`/api/docuseal/${v._id}/signed`, { responseType: 'blob' });
     const url = URL.createObjectURL(resp.data);
     const a = document.createElement('a');
     a.href = url;
@@ -246,7 +246,7 @@ async function downloadSigned(v) {
 async function archive(v) {
   if (!confirm(`„${v.name}" archivieren?`)) return;
   try {
-    await axios.delete(`/api/docuseal/${v._id}`);
+    await api.delete(`/api/docuseal/${v._id}`);
     const idx = vorgaenge.value.findIndex(x => x._id === v._id);
     if (idx !== -1) vorgaenge.value[idx] = { ...vorgaenge.value[idx], status: 'archived' };
   } catch (err) {
