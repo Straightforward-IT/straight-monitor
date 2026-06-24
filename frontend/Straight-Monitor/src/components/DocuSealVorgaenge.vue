@@ -9,7 +9,7 @@
         <span class="stat-chip stat-done">{{ completedCount }} Abgeschlossen</span>
       </div>
       <button class="btn-icon" title="Alle ausstehenden Status aktualisieren" :disabled="refreshingAll" @click="refreshAll">
-        <font-awesome-icon :icon="['fas', 'rotate']" :spin="refreshingAll" />
+        <font-awesome-icon :icon="['fas', 'rotate-right']" :spin="refreshingAll" />
       </button>
     </div>
 

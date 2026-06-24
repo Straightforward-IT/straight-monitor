@@ -39,7 +39,7 @@ require('./serverRoutines');
 const app = express();
 
 // Middleware
-const allowedDomains = ["http://localhost:5173", "https://straightmonitor.com",  "https://straight-monitor-684d4006140b.herokuapp.com", "https://flipcms.de/integration/flipcms/hpstraightforward"];
+const allowedDomains = ["http://localhost:5173", "https://straightmonitor.com",  "https://straight-monitor-684d4006140b.herokuapp.com", "https://flipcms.de/integration/flipcms/hpstraightforward", "https://api.docuseal.eu", "https://app.docuseal.eu"];
 const allowedIPs = [
   '5.39.7.128', '5.39.7.129', '5.39.7.130', '5.39.7.131',
   '5.39.7.132', '5.39.7.133', '5.39.7.134', '5.39.7.135',

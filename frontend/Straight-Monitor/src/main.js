@@ -41,6 +41,11 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faTableCells,
   faBolt,
   faLayerGroup,
+  faFileSignature,
+  faEye,
+  faBoxArchive,
+  faShieldHalved,
+  faClockRotateLeft,
 } from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle, faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 library.add(
@@ -88,7 +93,12 @@ library.add(
   faHandshake, faBan,
   faBinoculars,
   faBolt,
-  faLayerGroup
+  faLayerGroup,
+  faFileSignature,
+  faEye,
+  faBoxArchive,
+  faShieldHalved,
+  faClockRotateLeft,
 );
 
 const app = createApp(App);
