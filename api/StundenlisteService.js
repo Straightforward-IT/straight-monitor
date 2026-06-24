@@ -53,12 +53,41 @@ class StundenlisteService {
   /**
    * Baut die Stundenliste für einen Auftrag und gibt das PDF als Buffer zurück.
    * @param {number|string} auftragNr
+   * @param {object} [options]
+   * @param {boolean} [options.signatureTags=false] - Bettet unsichtbare DocuSeal-Texttags
+   *   ({{...;type=signature}}) an den Unterschriftslinien ein (für digitale Signatur).
    * @returns {Promise<{ buffer: Buffer, auftragNr: number }>}
    */
-  async buildStundenliste(auftragNr) {
+  async buildStundenliste(auftragNr, options = {}) {
     const data = await this._loadData(auftragNr);
-    const buffer = await this._renderPdf(data);
+    const buffer = await this._renderPdf(data, { signatureTags: !!options.signatureTags });
     return { buffer, auftragNr: data.auftrag.auftragNr };
+  }
+
+  /**
+   * Ermittelt den Verleiher-Unterzeichner (Niederlassung) anhand der GESCHST des
+   * Auftrags. Die zugehörige Team-E-Mail (z. B. teamberlin@straightforward.email)
+   * dient als Signer-Identität für die eingebettete Verleiher-Signatur.
+   * @param {object} auftrag - Auftrag-Dokument (mind. geschSt).
+   * @returns {{ name: string, email: string|null, niederlassung: string|null }}
+   */
+  getVerleiherSigner(auftrag) {
+    const teamKey = GESCHST_TO_TEAM[String(auftrag && auftrag.geschSt)];
+    let email = null;
+    let niederlassung = null;
+    if (teamKey) {
+      try {
+        const team = registry.getTeam(teamKey);
+        email = (team.email && team.email.address) || null;
+        niederlassung = (team.niederlassung && team.niederlassung.name) || team.displayName || null;
+      } catch (e) {
+        logger.warn(`StundenlisteService.getVerleiherSigner: Team für geschSt=${auftrag && auftrag.geschSt} nicht gefunden: ${e.message}`);
+      }
+    }
+    const name = niederlassung
+      ? `${VERLEIHER.name} – Niederlassung ${niederlassung}`
+      : VERLEIHER.name;
+    return { name, email, niederlassung };
   }
 
   // ── Datenbeschaffung ──────────────────────────────────────────────────────
@@ -134,7 +163,7 @@ class StundenlisteService {
   }
 
   // ── PDF-Rendering ─────────────────────────────────────────────────────────
-  async _renderPdf({ auftrag, kunde, einsaetze, schichten, niederlassung }) {
+  async _renderPdf({ auftrag, kunde, einsaetze, schichten, niederlassung }, options = {}) {
     const doc = await PDFDocument.create();
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -156,6 +185,7 @@ class StundenlisteService {
       fontBold,
       page: doc.addPage([PAGE_W, PAGE_H]),
       y: PAGE_H - MARGIN,
+      signatureTags: !!options.signatureTags,
     };
 
     // ── Kopf: Logo (volle Breite, wie im Original) ──
@@ -410,7 +440,33 @@ class StundenlisteService {
     ctx.page.drawText('Entleiher Unterschrift / Stempel', { x: MARGIN + colW + colGap, y: lineY - 11, size: 8, font: ctx.font, color: COLOR_MUTED });
     ctx.page.drawText((kunde && kunde.kundName) || '—', { x: MARGIN + colW + colGap, y: lineY - 21, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
 
+    // Unsichtbare DocuSeal-Texttags für die digitale Signatur (nur wenn aktiviert).
+    // DocuSeal erkennt diese Tags im PDF-Text und platziert die Signaturfelder genau
+    // dort, wo die Tags stehen – unabhängig von der finalen Seite/Position.
+    if (ctx.signatureTags) {
+      this._drawSignatureTag(ctx, MARGIN, lineY, 'Verleiher', colW);
+      this._drawSignatureTag(ctx, MARGIN + colW + colGap, lineY, 'Entleiher', colW);
+    }
+
     ctx.y = lineY - 28;
+  }
+
+  /**
+   * Zeichnet einen unsichtbaren (weißen, winzigen) DocuSeal-Texttag oberhalb einer
+   * Unterschriftslinie. Das Feld wird von DocuSeal an der Tag-Position erzeugt und
+   * erstreckt sich um die angegebene Breite/Höhe nach rechts/unten über die Linie.
+   * @param {object} ctx
+   * @param {number} x      - linke X-Position der Spalte
+   * @param {number} lineY  - Y der Unterschriftslinie
+   * @param {string} role   - DocuSeal-Rolle ('Verleiher' | 'Entleiher')
+   * @param {number} colW   - Spaltenbreite (für Feldbreite)
+   */
+  _drawSignatureTag(ctx, x, lineY, role, colW) {
+    const w = Math.round(Math.min(colW, 180));
+    const h = 26;
+    const tag = `{{${role};role=${role};type=signature;required=true;width=${w};height=${h}}}`;
+    // Knapp oberhalb der Linie platzieren, damit das Feld bis auf die Linie reicht.
+    ctx.page.drawText(tag, { x, y: lineY + h, size: 5, font: ctx.font, color: rgb(1, 1, 1) });
   }
 
   _bemerkungBox(ctx) {

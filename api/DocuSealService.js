@@ -78,6 +78,45 @@ class DocuSealService {
   }
 
   /**
+   * Create a one-off signature request directly from a PDF buffer.
+   *
+   * Fillable fields are defined via embedded text tags inside the PDF
+   * (e.g. `{{Entleiher;role=Entleiher;type=signature}}`), so this works for
+   * dynamically generated documents of any page count. Requires a DocuSeal plan
+   * that allows raw-PDF submissions (runs in sandbox/test mode on free tiers).
+   *
+   * @param {object} opts
+   * @param {string} opts.name        - Document/submission name.
+   * @param {Buffer} opts.fileBuffer  - Raw PDF buffer.
+   * @param {Array<object>} opts.submitters - [{ role, name, email, send_email }]
+   * @param {('preserved'|'random')} [opts.order='preserved'] - Signing order.
+   * @param {object} [opts.message]   - Optional { subject, body }.
+   * @returns {Promise<Array<object>>} Array of submitter objects (slug, embed_src, submission_id).
+   */
+  async createSubmissionFromPdf({ name, fileBuffer, submitters, order = 'preserved', message }) {
+    this._ensureConfigured();
+    if (!Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) {
+      throw new Error('createSubmissionFromPdf: fileBuffer (PDF) is required.');
+    }
+    if (!Array.isArray(submitters) || submitters.length === 0) {
+      throw new Error('createSubmissionFromPdf: at least one submitter is required.');
+    }
+
+    const docName = name || 'Document';
+    const payload = {
+      name: docName,
+      documents: [{ name: `${docName}.pdf`, file: fileBuffer.toString('base64') }],
+      submitters,
+      order,
+    };
+    if (message) payload.message = message;
+
+    const result = await docuseal.createSubmissionFromPdf(payload);
+    logger.info(`DocuSeal PDF submission created ("${docName}", ${submitters.length} submitter(s)).`);
+    return result;
+  }
+
+  /**
    * Fetch a submission with its current status and submitters.
    * @param {number} submissionId
    * @returns {Promise<object>}

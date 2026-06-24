@@ -35,6 +35,13 @@
             >
               Pseudo-Auftrag
             </router-link>
+            <router-link
+              to="/signaturen"
+              class="nav-submenu__link"
+              :class="{ active: $route.name === 'DocuSealVorgaenge' }"
+            >
+              Signaturen
+            </router-link>
           </div>
         </div>
           <div class="nav-group nav-group--personal">
@@ -94,7 +101,7 @@
           </div>
         </div>
         <div v-if="canSeeKunden" class="nav-group nav-group--kunden">
-          <router-link to="/kunden" :class="{ active: isKundenSectionActive }"
+          <router-link to="/kunden" :class="{ active: isKundenSectionActive, 'dev-role--vertrieb': isDev }"
             @click="handleNewPageClick($event, '/kunden')"
             > Kunden </router-link
           >
@@ -374,7 +381,7 @@
         <div v-if="canSeeKunden" class="mobile-menu-group">
           <button
             class="mobile-menu-btn mobile-menu-toggle"
-            :class="{ active: isKundenSectionActive, 'mobile-menu-toggle--open': mobileKundenMenuOpen }"
+            :class="{ active: isKundenSectionActive, 'mobile-menu-toggle--open': mobileKundenMenuOpen, 'dev-role--vertrieb': isDev }"
             @click="toggleMobileKundenMenu"
           >
             <span class="mobile-menu-toggle__label">
@@ -601,6 +608,9 @@ const theme = useTheme();
 const auth = useAuth();
 const comments = useComments();
 const route = useRoute();
+
+// In dev mode, role-restricted nav items are highlighted with their required role color.
+const isDev = import.meta.env.DEV;
 
 const logoSrc = computed(() => (theme.isDark ? darkLogo : lightLogo));
 

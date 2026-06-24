@@ -16,7 +16,8 @@ const DocuSealVorgangSchema = new mongoose.Schema({
   name: { type: String, required: true },
 
   // Reference to the DocuSeal dashboard template used for this request.
-  docusealTemplateId:   { type: Number, required: true },
+  // Optional: one-off submissions created directly from a PDF have no template.
+  docusealTemplateId:   { type: Number, default: null },
   docusealTemplateName: { type: String, default: '' },
 
   // DocuSeal submission identifiers (set after createSubmission).
@@ -26,11 +27,14 @@ const DocuSealVorgangSchema = new mongoose.Schema({
   linkedEntity: {
     type: {
       type: String,
-      enum: ['Mitarbeiter', 'Kunde', 'Bewerber', null],
+      enum: ['Mitarbeiter', 'Kunde', 'Bewerber', 'Auftrag', null],
       default: null,
     },
     refId: { type: mongoose.Schema.Types.ObjectId, default: null },
   },
+
+  // Auftrag (Event) this signing request was generated for, if any.
+  auftragNr: { type: Number, default: null, index: true },
 
   submitters: { type: [SubmitterSchema], default: [] },
 

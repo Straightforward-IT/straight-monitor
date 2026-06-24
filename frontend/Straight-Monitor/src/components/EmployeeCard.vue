@@ -1163,7 +1163,7 @@
                   <div class="qa-group-label">Aktionen</div>
                   <button class="qa-item" @click="executeQuickAction('share-link')">
                     <font-awesome-icon :icon="linkCopied ? 'fa-solid fa-check' : 'fa-solid fa-link'" />
-                    {{ linkCopied ? 'Link kopiert!' : 'Link teilen' }}
+                    {{ linkCopied ? 'Link kopiert!' : 'Link kopieren' }}
                   </button>
                   <button class="qa-item" @click="executeQuickAction('upload-photo')">
                     <font-awesome-icon icon="fa-solid fa-camera" /> Bild hochladen

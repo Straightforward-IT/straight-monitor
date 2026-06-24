@@ -470,10 +470,10 @@
                   placeholder="Titel / Betreff (optional)"
                 />
                 <div class="akt-datetime-row">
-                  <label class="akt-date-label" @click.prevent="$refs.aktDateInput.showPicker()">
+                  <label class="akt-date-label" @click.prevent="$event.currentTarget.querySelector('input[type=date]').showPicker()">
                     <font-awesome-icon :icon="['fas', 'calendar']" class="akt-date-icon" />
                     <span class="akt-date-text">{{ aktForm.date ? new Date(aktForm.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Datum wählen' }}</span>
-                    <input ref="aktDateInput" v-model="aktForm.date" type="date" class="akt-date-hidden" />
+                    <input v-model="aktForm.date" type="date" class="akt-date-hidden" />
                   </label>
                   <div class="akt-time-picker">
                     <input
@@ -613,10 +613,10 @@
                     </div>
                     <input v-model="editAktForm.titel" class="form-input" placeholder="Titel / Betreff (optional)" />
                     <div class="akt-datetime-row">
-                      <label class="akt-date-label" @click.prevent="$refs.editAktDateInput.showPicker()">
+                      <label class="akt-date-label" @click.prevent="$event.currentTarget.querySelector('input[type=date]').showPicker()">
                         <font-awesome-icon :icon="['fas', 'calendar']" class="akt-date-icon" />
                         <span class="akt-date-text">{{ editAktForm.date ? new Date(editAktForm.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Datum wählen' }}</span>
-                        <input ref="editAktDateInput" v-model="editAktForm.date" type="date" class="akt-date-hidden" />
+                        <input v-model="editAktForm.date" type="date" class="akt-date-hidden" />
                       </label>
                       <div class="akt-time-picker">
                         <input

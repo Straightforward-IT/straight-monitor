@@ -6,10 +6,29 @@ const logger = require('../utils/logger');
 const DocuSealService = require('../DocuSealService');
 const DocuSealVorgang = require('../models/DocuSealVorgang');
 const R2Service = require('../R2Service');
+const User = require('../models/User');
+const Auftrag = require('../models/Auftrag');
+const Kunde = require('../models/Kunde');
+const StundenlisteService = require('../StundenlisteService');
 
 const router = express.Router();
 
 const WEBHOOK_SECRET = process.env.DOCUSEAL_WEBHOOK_SECRET;
+
+/**
+ * Ensure the requesting user has the ADMIN role.
+ * Returns the user document, or sends a 403 and returns null.
+ */
+async function requireAdmin(req, res) {
+  const adminUser = await User.findById(req.user.id).select('role roles');
+  const isAdmin = !!adminUser && (adminUser.roles?.includes('ADMIN') || adminUser.role === 'ADMIN');
+  if (!isAdmin) {
+    res.status(403).json({ message: 'Zugriff verweigert – nur für Admins' });
+    return null;
+  }
+  return adminUser;
+}
+
 
 /**
  * Verify a DocuSeal webhook request.
@@ -119,6 +138,166 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   await vorgang.save();
 
   res.status(201).json(vorgang);
+}));
+
+// GET /api/docuseal/stundenliste/:auftragNr/signers — resolve default signers (ADMIN)
+// Returns the customer (Entleiher) + location-based Verleiher so the UI can
+// pre-fill the signature dialog. Microsoft contacts are loaded separately by
+// the frontend via /api/graph/contacts (filtered by Kunde-Kürzel).
+router.get('/stundenliste/:auftragNr/signers', auth, asyncHandler(async (req, res) => {
+  if (!await requireAdmin(req, res)) return;
+
+  const auftragNr = parseInt(req.params.auftragNr, 10);
+  if (!Number.isFinite(auftragNr)) {
+    return res.status(400).json({ message: 'Ungültige Auftragsnummer' });
+  }
+
+  const auftrag = await Auftrag.findOne({ auftragNr }).lean();
+  if (!auftrag) return res.status(404).json({ message: `Auftrag ${auftragNr} nicht gefunden` });
+
+  const kunde = auftrag.kundenNr
+    ? await Kunde.findOne({ kundenNr: auftrag.kundenNr }).lean()
+    : null;
+
+  const verleiher = StundenlisteService.getVerleiherSigner(auftrag);
+
+  res.json({
+    auftragNr,
+    eventTitel: auftrag.eventTitel || '',
+    kunde: kunde
+      ? { _id: kunde._id, kundenNr: kunde.kundenNr, kundName: kunde.kundName, kuerzel: kunde.kuerzel || '' }
+      : null,
+    verleiher,
+  });
+}));
+
+// POST /api/docuseal/stundenliste/:auftragNr — generate the Stundenliste PDF and
+// send it for signature (Verleiher embedded, Entleiher via email). (ADMIN)
+// Body: { entleiher: { name, email }, verleiher?: { name, email } }
+router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
+  if (!await requireAdmin(req, res)) return;
+
+  const auftragNr = parseInt(req.params.auftragNr, 10);
+  if (!Number.isFinite(auftragNr)) {
+    return res.status(400).json({ message: 'Ungültige Auftragsnummer' });
+  }
+
+  const { entleiher, verleiher } = req.body || {};
+  if (!entleiher || !entleiher.email) {
+    return res.status(400).json({ message: 'Entleiher (E-Mail) ist erforderlich' });
+  }
+
+  const auftrag = await Auftrag.findOne({ auftragNr }).lean();
+  if (!auftrag) return res.status(404).json({ message: `Auftrag ${auftragNr} nicht gefunden` });
+
+  const kunde = auftrag.kundenNr
+    ? await Kunde.findOne({ kundenNr: auftrag.kundenNr }).lean()
+    : null;
+
+  // Resolve the Verleiher signer (location-based) unless overridden by the request.
+  const verleiherDefault = StundenlisteService.getVerleiherSigner(auftrag);
+  const verleiherSigner = {
+    name:  (verleiher && verleiher.name) || verleiherDefault.name,
+    email: (verleiher && verleiher.email) || verleiherDefault.email,
+  };
+  if (!verleiherSigner.email) {
+    return res.status(400).json({ message: 'Verleiher-E-Mail konnte nicht ermittelt werden (geschSt/Niederlassung prüfen)' });
+  }
+
+  // Build the PDF with embedded DocuSeal signature text tags.
+  const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, { signatureTags: true });
+
+  const docName = `Stundenliste ${auftragNr}`;
+  const requestedSubmitters = [
+    { role: 'Verleiher', name: verleiherSigner.name, email: verleiherSigner.email, embedded: true },
+    { role: 'Entleiher', name: entleiher.name || (kunde && kunde.kundName) || '', email: entleiher.email, embedded: false },
+  ];
+
+  // We are creating the submission, but we do NOT send any emails via DocuSeal, 
+  // because we handle that via our GRAPH Mail integration
+  const apiSubmitters = requestedSubmitters.map((s) => ({
+    role: s.role,
+    name: s.name,
+    email: s.email,
+    send_email: false,
+  }));
+
+  const result = await DocuSealService.createSubmissionFromPdf({
+    name: docName,
+    fileBuffer: buffer,
+    submitters: apiSubmitters,
+    order: 'preserved',
+  });
+
+  logger.info(`[Stundenliste ${auftragNr}] Raw DocuSeal result type=${Array.isArray(result) ? 'array' : typeof result}:`, JSON.stringify(result, null, 2));
+
+  // createSubmissionFromPdf may return either a flat array of submitters (like createSubmission)
+  // or an object like { id, submitters: [...] } — normalise to a flat array.
+  const resultSubmitters = Array.isArray(result)
+    ? result
+    : (result?.submitters || (result?.id ? [result] : []));
+
+  const submissionId = resultSubmitters.length ? resultSubmitters[0].submission_id ?? result?.id : undefined;
+
+  const storedSubmitters = resultSubmitters.map((apiSub) => {
+    const requested = requestedSubmitters.find(
+      (s) => (s.email && s.email === apiSub.email) || s.role === apiSub.role
+    ) || {};
+    return mapSubmitter(apiSub, requested);
+  });
+
+  const vorgang = new DocuSealVorgang({
+    name: docName,
+    docusealTemplateName: 'Stundenliste (PDF)',
+    submissionId,
+    auftragNr,
+    linkedEntity: kunde ? { type: 'Kunde', refId: kunde._id } : { type: 'Auftrag', refId: null },
+    submitters: storedSubmitters,
+    status: 'pending',
+    createdBy: req.user && req.user.id,
+  });
+  await vorgang.save();
+
+  // Custom Graph Email Dispatching
+  // Find external submitters (like Entleiher) that are not embedded in the UI
+  const { sendMail } = require('../EmailService');
+  logger.info(`[Stundenliste ${auftragNr}] storedSubmitters after DocuSeal response:`, JSON.stringify(storedSubmitters, null, 2));
+  for (const apiSub of storedSubmitters) {
+    logger.info(`[Stundenliste ${auftragNr}] Checking submitter for email: role=${apiSub.role}, email=${apiSub.email}, embedded=${apiSub.embedded}, slug=${apiSub.slug || '(empty)'}`);
+    if (!apiSub.embedded && apiSub.slug) {
+      const signingLink = apiSub.embedSrc || `https://docuseal.eu/s/${apiSub.slug}`;
+      const emailContent = `
+        <div style="font-family: Arial, sans-serif; color: #333;">
+          <h2 style="font-weight: bold; color: #000;">Ihre Stundenliste ist bereit zur Unterschrift</h2>
+          <p>Bitte klicken Sie auf den untenstehenden Link, um die Stundenliste für Auftrag ${auftragNr} zu überprüfen und zu unterschreiben.</p>
+          <a href="${signingLink}" style="display:inline-block; padding:10px 15px; color:#fff; background-color:#E36125; text-decoration:none; border-radius:4px; margin-top:20px;">
+            Dokument unterschreiben
+          </a>
+        </div>
+      `;
+      // Use the actual entleiher email (not the DocuSeal-stored one which may be a test address)
+      const recipientEmail = requestedSubmitters.find((s) => s.role === apiSub.role)?.email || apiSub.email;
+      logger.info(`[Stundenliste ${auftragNr}] Attempting to send e-mail to ${recipientEmail} with signing link ${signingLink}`);
+      try {
+        await sendMail(recipientEmail, `Ihre Stundenliste für Auftrag ${auftragNr}`, emailContent, "it");
+        logger.info(`[Stundenliste ${auftragNr}] E-mail successfully dispatched to ${recipientEmail}`);
+      } catch (err) {
+        logger.error(`Could not send custom e-mail to ${recipientEmail}:`, err);
+      }
+    } else {
+      logger.warn(`[Stundenliste ${auftragNr}] Skipping email for submitter role=${apiSub.role}: embedded=${apiSub.embedded}, slug present=${!!apiSub.slug}`);
+    }
+  }
+
+  // Surface the embedded Verleiher signing URL so the UI can show the form.
+  const verleiherSubmitter = storedSubmitters.find((s) => s.role === 'Verleiher');
+
+  res.status(201).json({
+    vorgang,
+    embed: verleiherSubmitter
+      ? { role: 'Verleiher', slug: verleiherSubmitter.slug, src: verleiherSubmitter.embedSrc }
+      : null,
+  });
 }));
 
 // GET /api/docuseal/submissions/:id — local record, optionally refreshed from DocuSeal

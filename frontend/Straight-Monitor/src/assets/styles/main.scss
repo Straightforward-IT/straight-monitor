@@ -38,3 +38,13 @@ input[type="reset"] {
     padding: 0;
   }
 }
+
+// ── Dev Environment — Role Access Indicators ───────────────────────────────
+// Applied conditionally via `isDev = import.meta.env.DEV` in components.
+// These classes are NEVER added in production builds, so !important is safe.
+//
+//   ADMIN    → #d4a017  (amber/yellow)
+//   VERTRIEB → #4f8edc  (blue)
+// ──────────────────────────────────────────────────────────────────────────
+.dev-role--admin    { color: #d4a017 !important; }
+.dev-role--vertrieb { color: #4f8edc !important; }

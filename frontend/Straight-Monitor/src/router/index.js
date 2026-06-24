@@ -33,6 +33,7 @@ import DokumenteNachpflegen from '@/components/DokumenteNachpflegen.vue';
 import PdfBuilder from '@/components/PdfBuilder.vue';
 import PdfFormFill from '@/components/PdfFormFill.vue';
 import PdfVorgaenge from '@/components/PdfVorgaenge.vue';
+import DocuSealVorgaenge from '@/components/DocuSealVorgaenge.vue';
 import PdfMitarbeiterForm from '@/components/PdfMitarbeiterForm.vue';
 import DispoTable from '@/components/DispoTable.vue';
 import UserManagement from '@/components/UserManagement.vue';
@@ -75,6 +76,7 @@ const routes = [
       { path: 'dokumente-nachpflegen', name: 'DokumenteNachpflegen', component: DokumenteNachpflegen },
       { path: 'pdf-vorlagen', name: 'PdfVorlagen', component: PdfBuilder },
       { path: 'pdf-vorgaenge', name: 'PdfVorgaenge', component: PdfVorgaenge },
+      { path: 'signaturen', name: 'DocuSealVorgaenge', component: DocuSealVorgaenge, meta: { roles: ['ADMIN'] } },
       { path: 'pdf-ausfuellen/:id', name: 'PdfAusfuellen', component: PdfFormFill },
       { path: 'dispo', name: 'Dispo', component: DispoTable },
       { path: 'benutzer-verwaltung', name: 'BenutzerVerwaltung', component: UserManagement, meta: { roles: ['ADMIN'] } },

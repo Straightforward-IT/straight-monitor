@@ -325,6 +325,10 @@
                     <font-awesome-icon :icon="isGeneratingHoursList ? 'fa-solid fa-spinner' : 'fa-solid fa-clock'" :spin="isGeneratingHoursList" />
                     {{ isGeneratingHoursList ? 'Wird erstellt…' : 'Stundenliste generieren' }}
                   </button>
+                  <button v-if="isAdmin" :class="{ 'dev-role--admin': isDev }" class="qa-dropdown-item" @click="openSignatureDialog">
+                    <font-awesome-icon icon="fa-solid fa-file-signature" />
+                    Stundenliste zur Signatur
+                  </button>
                   <button v-if="selectedEvent && selectedEvent.isPseudo" class="qa-dropdown-item qa-dropdown-item--danger" @click="deletePseudoAuftrag">
                     <font-awesome-icon icon="fa-solid fa-trash" />
                     Pseudo-Auftrag löschen
@@ -805,6 +809,102 @@
       </div>
     </div>
 
+    <!-- ── Stundenliste-Signatur Dialog (ADMIN) ──────────────────────── -->
+    <div v-if="showSignatureDialog" class="modal-overlay" @click.self="closeSignatureDialog">
+      <div class="modal-content modal-qa">
+        <div class="modal-header">
+          <h2><font-awesome-icon icon="fa-solid fa-file-signature" /> Stundenliste zur Signatur</h2>
+          <button class="close-btn" @click="closeSignatureDialog">×</button>
+        </div>
+        <div class="modal-body">
+          <!-- Loading signers -->
+          <div v-if="sigLoading" class="qa-section" style="text-align:center; padding:20px;">
+            <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade Daten…
+          </div>
+
+          <!-- Success: submission created -->
+          <div v-else-if="sigResult" class="qa-section">
+            <div class="sig-success">
+              <font-awesome-icon icon="fa-solid fa-check" class="sig-success-icon" />
+              <p>Signatur-Anfrage erstellt.</p>
+              <p class="sig-success-sub">
+                Der Entleiher ({{ sigEntleiher.name || sigEntleiher.email }}) erhält eine E-Mail.
+              </p>
+            </div>
+            <button v-if="sigResult.embed && sigResult.embed.src" class="qa-submit-btn" @click="openVerleiherSigning">
+              <font-awesome-icon icon="fa-solid fa-file-signature" />
+              Jetzt als Verleiher unterschreiben
+            </button>
+            <button class="qa-submit-btn qa-submit-btn--secondary" style="margin-top:8px;" @click="closeSignatureDialog">
+              Schließen
+            </button>
+          </div>
+
+          <!-- Form -->
+          <template v-else>
+            <!-- Verleiher (location-based, read-only) -->
+            <div class="qa-section">
+              <div class="qa-section-label">Verleiher (unterschreibt im Monitor)</div>
+              <div class="sig-party-box">
+                <div class="sig-party-name">{{ sigVerleiher.name || '—' }}</div>
+                <div class="sig-party-sub" :class="{ 'sig-party-warn': !sigVerleiher.email }">
+                  {{ sigVerleiher.email || 'Keine Niederlassungs-E-Mail (geschSt prüfen)' }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Entleiher (customer) -->
+            <div class="qa-section">
+              <div class="qa-section-label">Entleiher (Kunde – Signatur per E-Mail)</div>
+
+              <div v-if="sigContactsLoading" class="qa-form-field-label">
+                <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade Kontakte…
+              </div>
+
+              <select v-if="sigContacts.length" v-model="sigSelectedContactId" class="qa-select" @change="onContactSelect">
+                <option value="">— Microsoft-Kontakt wählen —</option>
+                <option v-for="c in sigContacts" :key="c.id" :value="c.id">
+                  {{ c.displayName }}<template v-if="contactEmail(c)"> · {{ contactEmail(c) }}</template>
+                </option>
+              </select>
+              <div v-else-if="!sigContactsLoading" class="qa-form-field-label" style="margin-bottom:8px;">
+                Keine verknüpften Kontakte gefunden{{ sigKuerzel ? ` (Kürzel "${sigKuerzel}")` : '' }}.
+              </div>
+
+              <div class="qa-form-row" style="margin-top:8px;">
+                <div style="flex:1">
+                  <div class="qa-form-field-label">Name</div>
+                  <input v-model="sigEntleiher.name" class="qa-input" placeholder="Name des Unterzeichners" />
+                </div>
+              </div>
+              <div class="qa-form-row" style="margin-top:8px;">
+                <div style="flex:1">
+                  <div class="qa-form-field-label">E-Mail *</div>
+                  <input v-model="sigEntleiher.email" type="email" class="qa-input" placeholder="kontakt@kunde.de" />
+                </div>
+              </div>
+            </div>
+
+            <div v-if="sigError" class="qa-section sig-error">
+              <font-awesome-icon icon="fa-solid fa-times" /> {{ sigError }}
+            </div>
+
+            <div class="qa-section">
+              <button
+                class="qa-submit-btn"
+                :disabled="!canSubmitSignature || sigSubmitting"
+                @click="submitSignature"
+              >
+                <font-awesome-icon v-if="sigSubmitting" icon="fa-solid fa-spinner" spin />
+                <font-awesome-icon v-else icon="fa-solid fa-file-signature" />
+                {{ sigSubmitting ? 'Wird gesendet…' : 'Zur Signatur senden' }}
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
     <!-- Document Card Modal -->
     <div v-if="selectedDoc" class="modal-overlay" @click.self="selectedDoc = null">
       <div class="modal-content modal-customer">
@@ -822,10 +922,10 @@
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash);
+library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
@@ -871,6 +971,7 @@ export default {
     }
 
     return {
+      isDev: import.meta.env.DEV,
       auftraege: [],
       loading: false,
       searchQuery: "",
@@ -920,6 +1021,18 @@ export default {
       // Three-dots dropdown
       showQuickActions: false,
       isGeneratingHoursList: false,
+      // ── Stundenliste-Signatur (DocuSeal) ───────────────────────────────────
+      showSignatureDialog: false,
+      sigLoading: false,
+      sigContactsLoading: false,
+      sigSubmitting: false,
+      sigContacts: [],
+      sigSelectedContactId: '',
+      sigKuerzel: '',
+      sigVerleiher: { name: '', email: '' },
+      sigEntleiher: { name: '', email: '' },
+      sigResult: null,
+      sigError: '',
       // Document icons
       auftragDocs: [],
       selectedDoc: null,
@@ -932,6 +1045,15 @@ export default {
     ...mapState(useAuth, ['user']),
     ...mapState(useUi, { isUiOpen: 'isOpen' }),
     ...mapState(useTheme, ['isDark']),
+    isAdmin() {
+      const u = this.user || {};
+      return String(u.role || '').toUpperCase() === 'ADMIN'
+        || (Array.isArray(u.roles) && u.roles.includes('ADMIN'));
+    },
+    canSubmitSignature() {
+      const email = (this.sigEntleiher.email || '').trim();
+      return !!this.sigVerleiher.email && /\S+@\S+\.\S+/.test(email);
+    },
     laufzettelImg() { return this.isDark ? laufzettelDarkIcon : laufzettelIcon; },
     eventreportImg() { return this.isDark ? eventreportDarkIcon : eventreportIcon; },
     currentWeekEnd() {
@@ -1761,6 +1883,93 @@ export default {
       } finally {
         this.isGeneratingHoursList = false;
       }
+    },
+    // ── Stundenliste-Signatur (DocuSeal) ─────────────────────────────────────
+    contactEmail(c) {
+      if (!c) return '';
+      const list = Array.isArray(c.emailAddresses) ? c.emailAddresses : [];
+      return (list[0] && list[0].address) || '';
+    },
+    async openSignatureDialog() {
+      this.showQuickActions = false;
+      if (!this.selectedEvent) return;
+      const auftragNr = this.selectedEvent.auftragNr;
+      // Reset state
+      this.showSignatureDialog = true;
+      this.sigLoading = true;
+      this.sigContactsLoading = false;
+      this.sigSubmitting = false;
+      this.sigContacts = [];
+      this.sigSelectedContactId = '';
+      this.sigKuerzel = '';
+      this.sigVerleiher = { name: '', email: '' };
+      this.sigEntleiher = { name: '', email: '' };
+      this.sigResult = null;
+      this.sigError = '';
+
+      try {
+        const { data } = await api.get(`/api/docuseal/stundenliste/${auftragNr}/signers`);
+        this.sigVerleiher = {
+          name: data.verleiher?.name || '',
+          email: data.verleiher?.email || '',
+        };
+        this.sigKuerzel = data.kunde?.kuerzel || '';
+        this.sigEntleiher.name = data.kunde?.kundName || '';
+        // Load matching Microsoft contacts (filtered by Kürzel, like CustomerCard).
+        if (this.sigKuerzel) await this.loadSignatureContacts();
+      } catch (err) {
+        this.sigError = err.response?.data?.message || 'Daten konnten nicht geladen werden';
+      } finally {
+        this.sigLoading = false;
+      }
+    },
+    async loadSignatureContacts() {
+      this.sigContactsLoading = true;
+      try {
+        const { data } = await api.get('/api/graph/contacts');
+        const all = data.contacts || [];
+        const kuerzel = this.sigKuerzel.trim().toLowerCase();
+        this.sigContacts = all.filter(
+          c => (c.companyName || '').trim().toLowerCase() === kuerzel
+        );
+      } catch {
+        this.sigContacts = [];
+      } finally {
+        this.sigContactsLoading = false;
+      }
+    },
+    onContactSelect() {
+      const c = this.sigContacts.find(x => x.id === this.sigSelectedContactId);
+      if (!c) return;
+      this.sigEntleiher = {
+        name: c.displayName || this.sigEntleiher.name,
+        email: this.contactEmail(c) || this.sigEntleiher.email,
+      };
+    },
+    async submitSignature() {
+      if (!this.canSubmitSignature || this.sigSubmitting || !this.selectedEvent) return;
+      this.sigSubmitting = true;
+      this.sigError = '';
+      try {
+        const { data } = await api.post(
+          `/api/docuseal/stundenliste/${this.selectedEvent.auftragNr}`,
+          {
+            entleiher: { name: this.sigEntleiher.name, email: this.sigEntleiher.email.trim() },
+          }
+        );
+        this.sigResult = data;
+      } catch (err) {
+        this.sigError = err.response?.data?.message || 'Signatur-Anfrage fehlgeschlagen';
+      } finally {
+        this.sigSubmitting = false;
+      }
+    },
+    openVerleiherSigning() {
+      const src = this.sigResult?.embed?.src;
+      if (src) window.open(src, '_blank', 'noopener');
+    },
+    closeSignatureDialog() {
+      this.showSignatureDialog = false;
     },
     openPseudoDialog() {
       this.showQuickActions = false;
@@ -3710,6 +3919,48 @@ export default {
   &:hover { opacity: 0.88; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
+
+.qa-submit-btn--secondary {
+  width: 100%;
+  justify-content: center;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  &:hover { opacity: 1; background: var(--hover); }
+}
+
+/* ── Stundenliste-Signatur Dialog ──────────────────────────────────── */
+.sig-party-box {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--hover);
+}
+.sig-party-name { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+.sig-party-sub { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+.sig-party-warn { color: #dc3545; }
+
+.sig-error {
+  color: #dc3545;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sig-success {
+  text-align: center;
+  padding: 8px 0 16px;
+}
+.sig-success-icon {
+  font-size: 1.8rem;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+.sig-success-sub { font-size: 0.82rem; color: var(--muted); }
+
+.sig-success + .qa-submit-btn,
+.qa-submit-btn--secondary { width: 100%; justify-content: center; }
 
 /* ── Pseudo shift mode toggle ──────────────────────────────────────── */
 .pseudo-mode-toggle {

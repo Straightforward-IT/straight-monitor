@@ -48,6 +48,7 @@ const routeTitleFallbacks = {
   DokumenteNachpflegen: 'Dokumente nachpflegen',
   PdfVorlagen: 'PDF-Vorlagen',
   PdfVorgaenge: 'Vorgänge',
+  DocuSealVorgaenge: 'Signaturen',
   PdfAusfuellen: 'PDF ausfüllen',
   Dispo: 'Dispo',
   BenutzerVerwaltung: 'Benutzerverwaltung',

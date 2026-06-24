@@ -169,7 +169,7 @@
 
     <!-- System Bereich (nur für Admins) -->
     <div v-if="isAdmin" class="import-section">
-      <div class="import-section-header">
+      <div class="import-section-header" :class="{ 'dev-role--admin': isDev }">
         <i class="fas fa-cogs"></i>
         <h2>System</h2>
       </div>
@@ -288,7 +288,7 @@
 
     <!-- Finanzen Bereich (nur für Admins) -->
     <div v-if="isAdmin" class="import-section">
-      <div class="import-section-header">
+      <div class="import-section-header" :class="{ 'dev-role--admin': isDev }">
         <i class="fas fa-file-invoice-dollar"></i>
         <h2>Finanzen</h2>
       </div>
@@ -583,6 +583,7 @@ export default {
   data() {
     return {
 
+      isDev: import.meta.env.DEV,
       einsatzFile: null,
       personalFile: null,
       verfuegbarkeitFile: null,

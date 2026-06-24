@@ -14,22 +14,22 @@
         <span>Teamleiter&nbsp;Auswertung</span>
       </button>
 
-      <button class="s-btn" @click="go('/lohnabrechnungen')">
+      <button class="s-btn" :class="{ 'dev-role--vertrieb': isDev }" @click="go('/lohnabrechnungen')">
         <img :src="logoSrc" alt="" />
         <span>Lohnabrechnungen</span>
       </button>
 
-      <button class="s-btn" v-if="newPagesEnabled" @click="go('/benutzer-verwaltung')">
+      <button class="s-btn" :class="{ 'dev-role--admin': isDev }" v-if="newPagesEnabled" @click="go('/benutzer-verwaltung')">
         <img :src="logoSrc" alt="" />
         <span>Benutzer Verwaltung</span>
       </button>
 
-      <button class="s-btn" v-if="newPagesEnabled" @click="go('/mailbox-explorer')">
+      <button class="s-btn" :class="{ 'dev-role--admin': isDev }" v-if="newPagesEnabled" @click="go('/mailbox-explorer')">
         <img :src="logoSrc" alt="" />
         <span>Mailbox Explorer</span>
       </button>
 
-      <button class="s-btn" v-if="newPagesEnabled" @click="go('/onedrive-explorer')">
+      <button class="s-btn" :class="{ 'dev-role--admin': isDev }" v-if="newPagesEnabled" @click="go('/onedrive-explorer')">
         <img :src="logoSrc" alt="" />
         <span>OneDrive Explorer</span>
       </button>
@@ -84,6 +84,8 @@ const go = (path) => router.push(path);
 const theme = useTheme();
 const ui = useUi();
 const auth = useAuth();
+
+const isDev = import.meta.env.DEV;
 
 const newPagesEnabled = computed(() => {
   const role = String(auth.user?.role || '').toUpperCase();
