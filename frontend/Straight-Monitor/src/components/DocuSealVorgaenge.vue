@@ -195,9 +195,11 @@ async function loadAll() {
   loading.value = true;
   try {
     const { data } = await axios.get('/api/docuseal/');
-    vorgaenge.value = data;
+    vorgaenge.value = Array.isArray(data) ? data : [];
+    if (!Array.isArray(data)) console.error('Unexpected response from /api/docuseal/:', data);
   } catch (err) {
     console.error('Fehler beim Laden der Signaturen:', err);
+    vorgaenge.value = [];
   } finally {
     loading.value = false;
   }
