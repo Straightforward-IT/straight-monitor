@@ -70,6 +70,14 @@ function rawBodySaver(req, res, buf, encoding) {
   if (buf && buf.length) req.rawBody = buf.toString(encoding || 'utf8');
 }
 
+// Normalize double (or more) slashes in URL paths early, before routing
+app.use((req, _res, next) => {
+  if (req.url.startsWith('//')) {
+    req.url = req.url.replace(/\/+/g, '/');
+  }
+  next();
+});
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -119,7 +127,11 @@ app.use(express.static(distPath));
 
 // SPA fallback: serve index.html for any non-API GET request
 app.get('*', (req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
+  res.sendFile(path.join(distPath, 'index.html'), (err) => {
+    if (err) {
+      res.status(404).json({ success: false, message: 'Not found' });
+    }
+  });
 });
 
 // 404 handler for unmatched non-GET routes (POST, PUT, etc.)
