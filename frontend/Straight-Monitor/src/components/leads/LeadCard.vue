@@ -77,6 +77,28 @@ function escapeHtml(s) {
     .replace(/'/g, '&#039;');
 }
 
+function normalizeUrlDisplay(url) {
+  try {
+    const u = new URL(url);
+    let display = u.hostname;
+    if (u.pathname && u.pathname !== '/') {
+      const pathParts = u.pathname.split('/').filter(Boolean);
+      if (pathParts.length > 0) {
+        display += '/' + pathParts.slice(0, 1).join('/');
+      }
+    }
+    if (display.length > 40) {
+      display = display.substring(0, 37) + '…';
+    }
+    return display;
+  } catch (e) {
+    if (url.length > 40) {
+      return url.substring(0, 37) + '…';
+    }
+    return url;
+  }
+}
+
 function renderValue(lbl) {
   const v = props.lead.customFields?.[lbl.key];
   if (v === undefined || v === null || v === '') return '<span class="muted">—</span>';
@@ -99,6 +121,10 @@ function renderValue(lbl) {
   }
   if (lbl.fieldType === 'address' && typeof v === 'object') {
     return escapeHtml([v.street, [v.zip, v.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—');
+  }
+  // Shorten URLs for display
+  if (typeof v === 'string' && /^https?:\/\//i.test(v)) {
+    return escapeHtml(normalizeUrlDisplay(v));
   }
   return escapeHtml(String(v));
 }

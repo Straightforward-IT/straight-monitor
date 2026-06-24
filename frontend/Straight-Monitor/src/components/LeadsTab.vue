@@ -2383,6 +2383,11 @@ function renderCustomValue(lead, lbl) {
     return escapeHtml(parts.join(', ') || '—');
   }
 
+  // Shorten URLs for display
+  if (typeof v === 'string' && /^https?:\/\//i.test(v)) {
+    return escapeHtml(normalizeUrlDisplay(v));
+  }
+
   return escapeHtml(String(v));
 }
 
@@ -2393,6 +2398,28 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function normalizeUrlDisplay(url) {
+  try {
+    const u = new URL(url);
+    let display = u.hostname;
+    if (u.pathname && u.pathname !== '/') {
+      const pathParts = u.pathname.split('/').filter(Boolean);
+      if (pathParts.length > 0) {
+        display += '/' + pathParts.slice(0, 1).join('/');
+      }
+    }
+    if (display.length > 40) {
+      display = display.substring(0, 37) + '…';
+    }
+    return display;
+  } catch (e) {
+    if (url.length > 40) {
+      return url.substring(0, 37) + '…';
+    }
+    return url;
+  }
 }
 
 // ─── Create Lead ─────────────────────────────────────────────────────
