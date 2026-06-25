@@ -501,6 +501,54 @@
             <font-awesome-icon icon="fa-solid fa-calendar-xmark" />
             <span>Keine Schichten/Einsätze vorhanden</span>
           </div>
+
+          <!-- ── Signaturen Section ─────────────────────────────────── -->
+          <div class="signaturen-section">
+            <div class="section-header">
+              <h3><font-awesome-icon icon="fa-solid fa-file-signature" /> Signaturen</h3>
+              <button
+                v-if="isAdmin"
+                class="section-action-btn"
+                type="button"
+                title="Neue Signatur erstellen"
+                @click="openSignatureDialog"
+              >
+                <font-awesome-icon icon="fa-solid fa-plus" />
+              </button>
+            </div>
+
+            <div v-if="sidebarSigLoading" class="sig-sidebar-state">
+              <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade…
+            </div>
+            <div v-else-if="!sidebarSignaturen.length" class="sig-sidebar-state sig-sidebar-state--empty">
+              Keine Signaturen verknüpft.
+              <button v-if="isAdmin" class="sig-sidebar-create-btn" type="button" @click="openSignatureDialog">
+                <font-awesome-icon icon="fa-solid fa-plus" /> Erstellen
+              </button>
+            </div>
+            <div v-else class="sig-sidebar-list">
+              <div
+                v-for="sig in sidebarSignaturen"
+                :key="sig._id"
+                class="sig-sidebar-item"
+                :class="`sig-sidebar--${sig.status}`"
+              >
+                <div class="sig-sidebar-head">
+                  <span class="sig-sidebar-name">{{ sig.name }}</span>
+                  <span class="sig-sidebar-badge" :class="`badge-${sig.status}`">
+                    {{ { draft: 'Entwurf', open: 'Offen', completed: 'Abgeschlossen', cancelled: 'Storniert' }[sig.status] || sig.status }}
+                  </span>
+                </div>
+                <div class="sig-sidebar-meta">
+                  <span>{{ sig.submitters.filter(s => s.status === 'completed').length }}/{{ sig.submitters.length }} ✓</span>
+                  <span>{{ new Date(sig.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) }}</span>
+                  <router-link :to="`/signaturen`" class="sig-sidebar-link" title="Im Signatur-Hub öffnen">
+                    <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
+                  </router-link>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </transition>
@@ -937,11 +985,11 @@
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 import { DocusealForm } from '@docuseal/vue';
 
-library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature);
+library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
@@ -1051,6 +1099,9 @@ export default {
       sigResult: null,
       sigError: '',
       verleiherSigned: false,
+      // ── Sidebar Signaturen ───────────────────────────────────────────────
+      sidebarSignaturen: [],
+      sidebarSigLoading: false,
       // Document icons
       auftragDocs: [],
       selectedDoc: null,
@@ -1130,7 +1181,14 @@ export default {
     '$route.query.openPseudo'(value) {
       if (!value) return;
       this.handlePseudoRouteQuery();
-    }
+    },
+    selectedEvent(event) {
+      if (event && event.auftragNr) {
+        this.loadSidebarSignaturen(event.auftragNr);
+      } else {
+        this.sidebarSignaturen = [];
+      }
+    },
   },
   methods: {
     // ── Feiertage ──────────────────────────────────────────────────────────
@@ -1908,6 +1966,18 @@ export default {
       const list = Array.isArray(c.emailAddresses) ? c.emailAddresses : [];
       return (list[0] && list[0].address) || '';
     },
+    async loadSidebarSignaturen(auftragNr) {
+      this.sidebarSigLoading = true;
+      try {
+        const { data } = await api.get('/api/signaturen', { params: { auftragNr } });
+        this.sidebarSignaturen = Array.isArray(data) ? data : [];
+      } catch (e) {
+        console.error('Sidebar-Signaturen laden fehlgeschlagen', e);
+        this.sidebarSignaturen = [];
+      } finally {
+        this.sidebarSigLoading = false;
+      }
+    },
     async openSignatureDialog() {
       this.showQuickActions = false;
       if (!this.selectedEvent) return;
@@ -1949,6 +2019,8 @@ export default {
           this.verleiherSigned = false;
           this.sigError = '';
           this.showSignatureDialog = true;
+          // Refresh sidebar
+          if (this.selectedEvent?.auftragNr) this.loadSidebarSignaturen(this.selectedEvent.auftragNr);
         }
       );
     },
@@ -3968,6 +4040,105 @@ export default {
   color: var(--text);
   border: 1px solid var(--border);
   &:hover { opacity: 1; background: var(--hover); }
+}
+
+/* ── Signaturen Section (Sidebar) ──────────────────────────────────── */
+.signaturen-section {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.section-action-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--primary);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  &:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+}
+
+.sig-sidebar-state {
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  &--empty { flex-direction: column; align-items: flex-start; gap: 8px; }
+}
+.sig-sidebar-create-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 7px;
+  background: none;
+  color: var(--primary);
+  font-size: 0.78rem;
+  cursor: pointer;
+  &:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); border-color: var(--primary); }
+}
+
+.sig-sidebar-list { display: flex; flex-direction: column; gap: 8px; }
+
+.sig-sidebar-item {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 10px 12px;
+  background: var(--tile-bg, var(--surface));
+  border-left: 3px solid var(--border);
+  &.sig-sidebar--completed { border-left-color: #10b981; }
+  &.sig-sidebar--open { border-left-color: #f59e0b; }
+  &.sig-sidebar--draft { border-left-color: var(--muted); }
+  &.sig-sidebar--cancelled { border-left-color: #ef4444; opacity: 0.7; }
+}
+.sig-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sig-sidebar-name {
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sig-sidebar-badge {
+  font-size: 0.64rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  &.badge-completed { background: color-mix(in srgb, #10b981 16%, transparent); color: #10b981; }
+  &.badge-open { background: color-mix(in srgb, #f59e0b 14%, transparent); color: #f59e0b; }
+  &.badge-draft { background: var(--hover); color: var(--muted); }
+  &.badge-cancelled { background: color-mix(in srgb, #ef4444 12%, transparent); color: #ef4444; }
+}
+.sig-sidebar-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 5px;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+.sig-sidebar-link {
+  margin-left: auto;
+  color: var(--primary);
+  font-size: 0.72rem;
+  &:hover { opacity: 0.75; }
 }
 
 /* ── Stundenliste-Signatur Dialog ──────────────────────────────────── */

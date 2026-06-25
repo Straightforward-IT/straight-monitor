@@ -28,6 +28,7 @@
               :token="token"
               :host="docusealHost"
               language="de"
+              :custom-css="builderCustomCss"
               @save="onSave"
             />
           </div>
@@ -38,17 +39,55 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faPenRuler, faXmark, faSpinner, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { DocusealBuilder } from '@docuseal/vue';
 import api from '@/utils/api';
 import { useSignaturBuilder } from '@/stores/signaturBuilder';
+import { useTheme } from '@/stores/theme';
 
 library.add(faPenRuler, faXmark, faSpinner, faTriangleExclamation);
 
 const builder = useSignaturBuilder();
+const theme = useTheme();
+
+// Inject dark-mode daisyUI variables into the builder's shadow DOM
+const builderCustomCss = computed(() => {
+  if (!theme.isDark) return '';
+  return `
+    :host {
+      color-scheme: dark;
+      --b1: 222 16% 16%;
+      --b2: 222 15% 12%;
+      --b3: 222 14% 9%;
+      --bc: 220 14% 82%;
+      --n: 218 18% 24%;
+      --nf: 218 18% 18%;
+      --nc: 218 12% 85%;
+      --p: 262 72% 60%;
+      --pf: 262 72% 50%;
+      --pc: 0 0% 100%;
+      --s: 316 60% 55%;
+      --sf: 316 60% 45%;
+      --sc: 0 0% 100%;
+      --a: 174 55% 45%;
+      --af: 174 55% 35%;
+      --ac: 0 0% 100%;
+      --in: 198 80% 55%;
+      --su: 158 60% 48%;
+      --wa: 43 90% 52%;
+      --er: 0 85% 65%;
+    }
+    .menu li > *:not(ul):not(details):not(.menu-title):active,
+    .menu li > *:not(ul):not(details):not(.menu-title).active,
+    .menu li > details > summary:active {
+      background-color: hsl(var(--p) / 0.2);
+      color: hsl(var(--pc));
+    }
+  `;
+});
 
 const token = ref('');
 const loading = ref(false);

@@ -17,6 +17,16 @@
           <span v-if="vorgang.kundenKuerzel" class="sc-pill sc-pill--kunde">{{ vorgang.kundenKuerzel }}</span>
           <span v-if="vorgang.mitarbeiterName" class="sc-pill sc-pill--ma">{{ displayMitarbeiter }}</span>
           <span v-if="vorgang.standort" class="sc-pill sc-pill--standort">{{ standortLabel }}</span>
+          <router-link
+            v-if="vorgang.auftragNr"
+            :to="`/auftraege?auftragNr=${vorgang.auftragNr}`"
+            class="sc-pill sc-pill--auftrag"
+            :title="`Auftrag ${vorgang.auftragNr} öffnen`"
+            @click.stop
+          >
+            <font-awesome-icon :icon="['fas', 'briefcase']" />
+            #{{ vorgang.auftragNr }}
+          </router-link>
           <span class="sc-date">{{ formatDate(vorgang.createdAt) }}</span>
         </div>
       </div>
@@ -106,6 +116,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { RouterLink } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faStar as fasStar, faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotateRight, faBan, faLink, faFileCircleQuestion, faSpinner, faCircleCheck, faClock, faCircleXmark, faHourglassHalf, faPenNib, faFileSignature, faTags, faFileContract, faMoneyBillWave, faPlane } from '@fortawesome/free-solid-svg-icons';
@@ -331,6 +342,15 @@ async function cancel() {
   &--kunde { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); }
   &--ma { background: color-mix(in srgb, #10b981 16%, transparent); color: #10b981; }
   &--standort { background: var(--hover); color: var(--muted); }
+  &--auftrag {
+    background: color-mix(in srgb, #6366f1 14%, transparent);
+    color: #818cf8;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    &:hover { background: color-mix(in srgb, #6366f1 24%, transparent); }
+  }
 }
 .sc-date { font-size: 0.72rem; color: var(--muted); }
 

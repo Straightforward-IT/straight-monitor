@@ -246,6 +246,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     typKey:   'stundenliste',
     standort: standort || null,
     status:   'open',
+    auftragNr,
 
     kunde:         kunde ? kunde._id   : null,
     kundenNr:      kunde ? kunde.kundenNr : null,
@@ -300,13 +301,14 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
 // GET /api/signaturen — list with optional filters
 // Query params: status, standort, typ (ObjectId), mitarbeiter (ObjectId), kunde (ObjectId), limit
 router.get('/', auth, asyncHandler(async (req, res) => {
-  const { status, standort, typ, mitarbeiter, kunde, limit } = req.query;
+  const { status, standort, typ, mitarbeiter, kunde, auftragNr, limit } = req.query;
   const filter = {};
   if (status)      filter.status      = status;
   if (standort)    filter.standort    = standort;
   if (typ)         filter.typ         = typ;
   if (mitarbeiter) filter.mitarbeiter = mitarbeiter;
   if (kunde)       filter.kunde       = kunde;
+  if (auftragNr)   filter.auftragNr   = Number(auftragNr);
 
   const vorgaenge = await SignaturVorgang.find(filter)
     .populate('typ', 'key label linkedTo')

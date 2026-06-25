@@ -59,6 +59,9 @@ const SignaturVorgangSchema = new mongoose.Schema({
   // Used as the R2 folder name under Signatures/kunden/{kuerzel}/
   kundenKuerzel: { type: String, default: null },
 
+  // Linked Auftrag — set for Stundenliste and similar event-based signatures
+  auftragNr:   { type: Number, default: null },
+
   // Microsoft Graph contact (not a DB record — embedded for historical reference)
   graphContact: {
     id:          { type: String, default: null },
@@ -96,6 +99,7 @@ SignaturVorgangSchema.index({ status: 1 });
 SignaturVorgangSchema.index({ standort: 1 });
 SignaturVorgangSchema.index({ kunde: 1 });
 SignaturVorgangSchema.index({ mitarbeiter: 1 });
+SignaturVorgangSchema.index({ auftragNr: 1 }, { sparse: true });
 SignaturVorgangSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('SignaturVorgang', SignaturVorgangSchema);
