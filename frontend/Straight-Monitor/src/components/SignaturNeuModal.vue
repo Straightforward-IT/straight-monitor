@@ -1,0 +1,1003 @@
+<template>
+  <Teleport to="body">
+    <Transition name="sig-modal">
+      <div v-if="modal.open" class="sig-backdrop" @mousedown.self="onBackdrop">
+        <div class="sig-dialog" role="dialog" aria-modal="true">
+          <!-- Header -->
+          <header class="sig-header">
+            <div class="sig-header-title">
+              <font-awesome-icon :icon="['fas', 'file-signature']" />
+              <h2>Neue Signatur</h2>
+            </div>
+            <button class="sig-close" type="button" title="Schließen" @click="close">
+              <font-awesome-icon :icon="['fas', 'xmark']" />
+            </button>
+          </header>
+
+          <!-- Step breadcrumb -->
+          <nav class="sig-steps">
+            <button
+              v-for="(s, i) in steps"
+              :key="s.key"
+              class="sig-step"
+              :class="{ active: currentStep === i, done: currentStep > i, reachable: i <= maxReachableStep }"
+              type="button"
+              :disabled="i > maxReachableStep"
+              @click="i <= maxReachableStep && (currentStep = i)"
+            >
+              <span class="sig-step-num">
+                <font-awesome-icon v-if="currentStep > i" :icon="['fas', 'check']" />
+                <template v-else>{{ i + 1 }}</template>
+              </span>
+              <span class="sig-step-label">{{ s.label }}</span>
+            </button>
+          </nav>
+
+          <!-- Body -->
+          <div class="sig-body">
+            <!-- ───────── STEP 1: Dokument & Typ ───────── -->
+            <section v-show="currentStep === 0" class="sig-section">
+              <label class="sig-field-label">Dokumenttyp</label>
+              <div v-if="typenLoading" class="sig-loading-inline">
+                <font-awesome-icon :icon="['fas', 'spinner']" spin /> Typen laden…
+              </div>
+              <div v-else class="sig-type-grid">
+                <button
+                  v-for="t in typen"
+                  :key="t._id"
+                  class="sig-type-card"
+                  :class="{ active: form.typId === t._id }"
+                  type="button"
+                  @click="selectTyp(t)"
+                >
+                  <font-awesome-icon :icon="typIcon(t.key)" class="sig-type-icon" />
+                  <span class="sig-type-label">{{ t.label }}</span>
+                  <span class="sig-type-link">{{ linkLabel(t.linkedTo) }}</span>
+                </button>
+                <button
+                  v-if="isAdmin"
+                  class="sig-type-card sig-type-card--add"
+                  type="button"
+                  title="Neuen Typ anlegen"
+                  @click="showTypModal = true"
+                >
+                  <font-awesome-icon :icon="['fas', 'plus']" class="sig-type-icon" />
+                  <span class="sig-type-label">Neuer Typ</span>
+                </button>
+              </div>
+
+              <label class="sig-field-label">Standort</label>
+              <div class="sig-chip-row">
+                <FilterChip
+                  v-for="s in standortOptions"
+                  :key="s.key"
+                  :active="form.standort === s.key"
+                  @click="form.standort = form.standort === s.key ? null : s.key"
+                >
+                  {{ s.label }}
+                </FilterChip>
+              </div>
+
+              <label class="sig-field-label" for="sig-name">Bezeichnung</label>
+              <input
+                id="sig-name"
+                v-model="form.name"
+                type="text"
+                class="sig-input"
+                placeholder="z. B. Stundenliste Auftrag 12345"
+              />
+            </section>
+
+            <!-- ───────── STEP 2: Verknüpfung ───────── -->
+            <section v-show="currentStep === 1" class="sig-section">
+              <label class="sig-field-label">Verknüpfen mit</label>
+              <div class="sig-link-toggle">
+                <button
+                  v-for="opt in linkOptions"
+                  :key="opt.key"
+                  class="sig-link-btn"
+                  :class="{ active: linkMode === opt.key }"
+                  type="button"
+                  :disabled="!isLinkAllowed(opt.key)"
+                  @click="setLinkMode(opt.key)"
+                >
+                  <font-awesome-icon :icon="opt.icon" />
+                  {{ opt.label }}
+                </button>
+              </div>
+
+              <!-- Kunde search -->
+              <div v-if="linkMode === 'kunde'" class="sig-link-search">
+                <ContactSearchPlaceholder
+                  v-if="form.kundeId"
+                  :title="selectedKunde ? selectedKunde.kundName : ''"
+                  :subtitle="selectedKunde ? (selectedKunde.kuerzel || 'Kein Kürzel!') : ''"
+                  :warn="selectedKunde && !selectedKunde.kuerzel"
+                  @clear="clearKunde"
+                />
+                <div v-else class="sig-typeahead" ref="kundeBox">
+                  <div class="sig-search-input">
+                    <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
+                    <input v-model="kundeQuery" type="text" placeholder="Kunde / Kürzel suchen…" @focus="kundeOpen = true" />
+                  </div>
+                  <div v-if="kundeOpen && filteredKunden.length" class="sig-typeahead-list">
+                    <button
+                      v-for="k in filteredKunden"
+                      :key="k._id"
+                      class="sig-typeahead-item"
+                      type="button"
+                      @click="selectKunde(k)"
+                    >
+                      <span class="sig-ta-name">{{ k.kundName }}</span>
+                      <span v-if="k.kuerzel" class="sig-ta-kuerzel">{{ k.kuerzel }}</span>
+                      <span v-else class="sig-ta-warn">kein Kürzel</span>
+                    </button>
+                  </div>
+                </div>
+                <p v-if="selectedKunde && !selectedKunde.kuerzel" class="sig-warn">
+                  <font-awesome-icon :icon="['fas', 'triangle-exclamation']" />
+                  Dieser Kunde hat kein Kürzel. Signaturen brauchen ein Kürzel für die Ablage.
+                </p>
+              </div>
+
+              <!-- Mitarbeiter search -->
+              <div v-if="linkMode === 'mitarbeiter'" class="sig-link-search">
+                <ContactSearchPlaceholder
+                  v-if="form.mitarbeiterId"
+                  :title="selectedMitarbeiter ? `${selectedMitarbeiter.vorname} ${selectedMitarbeiter.nachname}` : ''"
+                  :subtitle="selectedMitarbeiter ? (selectedMitarbeiter.email || '') : ''"
+                  @clear="clearMitarbeiter"
+                />
+                <div v-else class="sig-typeahead" ref="maBox">
+                  <div class="sig-search-input">
+                    <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
+                    <input v-model="maQuery" type="text" placeholder="Mitarbeiter suchen…" @focus="maOpen = true" />
+                  </div>
+                  <div v-if="maOpen && filteredMitarbeiter.length" class="sig-typeahead-list">
+                    <button
+                      v-for="m in filteredMitarbeiter"
+                      :key="m._id"
+                      class="sig-typeahead-item"
+                      type="button"
+                      @click="selectMitarbeiter(m)"
+                    >
+                      <span class="sig-ta-name">{{ m.vorname }} {{ m.nachname }}</span>
+                      <span class="sig-ta-kuerzel">{{ m.email || '—' }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <p v-if="linkMode === 'keine'" class="sig-hint">
+                <font-awesome-icon :icon="['fas', 'circle-info']" />
+                Diese Signatur wird unter <code>Signatures/misc</code> abgelegt.
+              </p>
+            </section>
+
+            <!-- ───────── STEP 3: Unterzeichner ───────── -->
+            <section v-show="currentStep === 2" class="sig-section">
+              <label class="sig-field-label">Vorlage</label>
+              <div v-if="usesCustomEndpoint" class="sig-template-auto">
+                <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" />
+                <span>Dokument wird automatisch generiert ({{ modal.context.typKey }}).</span>
+              </div>
+              <div v-else class="sig-template-row">
+                <select v-model="form.templateId" class="sig-select" @change="onTemplateChange">
+                  <option :value="null">— Entwurf ohne Vorlage —</option>
+                  <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }}</option>
+                </select>
+                <button class="sig-btn sig-btn--ghost" type="button" @click="openBuilder">
+                  <font-awesome-icon :icon="['fas', 'pen-ruler']" />
+                  {{ form.templateId ? 'Bearbeiten' : 'Neu erstellen' }}
+                </button>
+              </div>
+
+              <label class="sig-field-label">Unterzeichner</label>
+              <div class="sig-submitters">
+                <ContactSearchPicker
+                  v-for="(sub, i) in form.submitters"
+                  :key="i"
+                  v-model="form.submitters[i]"
+                  :role-name="sub.role || `Unterzeichner ${i + 1}`"
+                  :contacts="graphContacts"
+                  :mitarbeiter="mitarbeiterList"
+                  :kuerzel="selectedKunde?.kuerzel"
+                  :removable="form.submitters.length > 1"
+                  @remove="removeSubmitter(i)"
+                />
+              </div>
+              <button class="sig-add-submitter" type="button" @click="addSubmitter">
+                <font-awesome-icon :icon="['fas', 'user-plus']" /> Unterzeichner hinzufügen
+              </button>
+            </section>
+          </div>
+
+          <!-- Footer -->
+          <footer class="sig-footer">
+            <p v-if="error" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ error }}</p>
+            <div class="sig-footer-actions">
+              <button v-if="currentStep > 0" class="sig-btn sig-btn--ghost" type="button" @click="currentStep--">
+                <font-awesome-icon :icon="['fas', 'arrow-left']" /> Zurück
+              </button>
+              <button v-else class="sig-btn sig-btn--ghost" type="button" @click="close">Abbrechen</button>
+
+              <button
+                v-if="currentStep < steps.length - 1"
+                class="sig-btn sig-btn--primary"
+                type="button"
+                :disabled="!canAdvance"
+                @click="currentStep++"
+              >
+                Weiter <font-awesome-icon :icon="['fas', 'arrow-right']" />
+              </button>
+              <button
+                v-else
+                class="sig-btn sig-btn--primary"
+                type="button"
+                :disabled="!canSubmit || submitting"
+                @click="submit"
+              >
+                <font-awesome-icon :icon="['fas', submitting ? 'spinner' : 'paper-plane']" :spin="submitting" />
+                {{ submitting ? 'Erstelle…' : 'Signatur erstellen' }}
+              </button>
+            </div>
+          </footer>
+        </div>
+      </div>
+    </Transition>
+
+    <SignaturTypAnlegenModal v-model="showTypModal" @created="onTypCreated" />
+  </Teleport>
+</template>
+
+<script setup>
+import { ref, computed, watch, onBeforeUnmount, h } from 'vue';
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import { library } from '@fortawesome/fontawesome-svg-core';
+import {
+  faFileSignature, faXmark, faCheck, faPlus, faArrowLeft, faArrowRight, faPaperPlane,
+  faMagnifyingGlass, faSpinner, faTriangleExclamation, faCircleInfo, faUserPlus,
+  faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
+  faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
+} from '@fortawesome/free-solid-svg-icons';
+import api from '@/utils/api';
+import { useSignaturModal } from '@/stores/signaturModal';
+import { useSignaturBuilder } from '@/stores/signaturBuilder';
+import { useAuth } from '@/stores/auth';
+import { useDataCache } from '@/stores/dataCache';
+import FilterChip from '@/components/FilterChip.vue';
+import ContactSearchPicker from '@/components/ContactSearchPicker.vue';
+import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
+
+library.add(
+  faFileSignature, faXmark, faCheck, faPlus, faArrowLeft, faArrowRight, faPaperPlane,
+  faMagnifyingGlass, faSpinner, faTriangleExclamation, faCircleInfo, faUserPlus,
+  faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
+  faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
+);
+
+const modal = useSignaturModal();
+const builder = useSignaturBuilder();
+const auth = useAuth();
+const dataCache = useDataCache();
+
+const showTypModal = ref(false);
+
+function onTypCreated(typ) {
+  typen.value = [...typen.value, typ].sort((a, b) => (a.order || 0) - (b.order || 0));
+  selectTyp(typ);
+}
+
+const isAdmin = computed(() => {
+  const u = auth.user || {};
+  return (Array.isArray(u.roles) && u.roles.includes('ADMIN')) || u.role === 'ADMIN';
+});
+
+const steps = [
+  { key: 'doc',  label: 'Dokument & Typ' },
+  { key: 'link', label: 'Verknüpfung' },
+  { key: 'sign', label: 'Unterzeichner' },
+];
+
+const standortOptions = [
+  { key: 'hamburg', label: 'Hamburg' },
+  { key: 'berlin',  label: 'Berlin' },
+  { key: 'koeln',   label: 'Köln' },
+];
+
+const linkOptions = [
+  { key: 'kunde',       label: 'Kunde',       icon: ['fas', 'building'] },
+  { key: 'mitarbeiter', label: 'Mitarbeiter', icon: ['fas', 'id-badge'] },
+  { key: 'keine',       label: 'Keine',       icon: ['fas', 'ban'] },
+];
+
+const currentStep = ref(0);
+const submitting = ref(false);
+const error = ref('');
+
+const typen = ref([]);
+const typenLoading = ref(false);
+const templates = ref([]);
+const graphContacts = ref([]);
+const linkMode = ref('keine');
+
+const form = ref(emptyForm());
+
+function emptyForm() {
+  return {
+    typId: null,
+    typKey: null,
+    typLinkedTo: 'Both',
+    standort: null,
+    name: '',
+    kundeId: null,
+    mitarbeiterId: null,
+    templateId: null,
+    templateName: '',
+    submitters: [{ role: 'Unterzeichner', name: '', email: '', embedded: false }],
+  };
+}
+
+// ── Data sources ────────────────────────────────────────────────────────────
+const mitarbeiterList = computed(() => dataCache.mitarbeiter || []);
+const kundenList = computed(() => dataCache.kunden || []);
+
+const selectedKunde = computed(() => kundenList.value.find(k => k._id === form.value.kundeId) || null);
+const selectedMitarbeiter = computed(() => mitarbeiterList.value.find(m => m._id === form.value.mitarbeiterId) || null);
+
+const usesCustomEndpoint = computed(() => !!modal.context.customEndpoint);
+
+// ── Typeahead: Kunde ─────────────────────────────────────────────────────────
+const kundeQuery = ref('');
+const kundeOpen = ref(false);
+const kundeBox = ref(null);
+const filteredKunden = computed(() => {
+  const q = kundeQuery.value.trim().toLowerCase();
+  let list = kundenList.value;
+  if (q) {
+    list = list.filter(k =>
+      (k.kundName || '').toLowerCase().includes(q) ||
+      (k.kuerzel || '').toLowerCase().includes(q) ||
+      String(k.kundenNr || '').includes(q)
+    );
+  }
+  return list.slice(0, 8);
+});
+
+// ── Typeahead: Mitarbeiter ───────────────────────────────────────────────────
+const maQuery = ref('');
+const maOpen = ref(false);
+const maBox = ref(null);
+const filteredMitarbeiter = computed(() => {
+  const q = maQuery.value.trim().toLowerCase();
+  if (!q) return [];
+  return mitarbeiterList.value
+    .filter(m => `${m.vorname} ${m.nachname}`.toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q))
+    .slice(0, 8);
+});
+
+// ── Step gating ──────────────────────────────────────────────────────────────
+const canAdvance = computed(() => {
+  if (currentStep.value === 0) return !!form.value.typId && !!form.value.name.trim();
+  if (currentStep.value === 1) {
+    if (linkMode.value === 'kunde') return !!form.value.kundeId && !!selectedKunde.value?.kuerzel;
+    if (linkMode.value === 'mitarbeiter') return !!form.value.mitarbeiterId;
+    return true;
+  }
+  return true;
+});
+
+const maxReachableStep = computed(() => {
+  if (!form.value.typId || !form.value.name.trim()) return 0;
+  if (linkMode.value === 'kunde' && (!form.value.kundeId || !selectedKunde.value?.kuerzel)) return 1;
+  if (linkMode.value === 'mitarbeiter' && !form.value.mitarbeiterId) return 1;
+  return 2;
+});
+
+const canSubmit = computed(() => {
+  if (!canAdvance.value) return false;
+  // At least one submitter with a name
+  return form.value.submitters.some(s => (s.name || '').trim());
+});
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function typIcon(key) {
+  return {
+    stundenliste:          ['fas', 'clock'],
+    preisblatt:            ['fas', 'tags'],
+    auerv:                 ['fas', 'file-contract'],
+    arbeitsvertrag:        ['fas', 'file-contract'],
+    lohnvorschuss:         ['fas', 'money-bill-wave'],
+    reisekostenabrechnung: ['fas', 'plane'],
+  }[key] || ['fas', 'file-signature'];
+}
+
+function linkLabel(linkedTo) {
+  return { Kunde: 'Kunde', Mitarbeiter: 'Mitarbeiter', Both: 'Kunde / MA', None: '—' }[linkedTo] || '';
+}
+
+function isLinkAllowed(key) {
+  const lt = form.value.typLinkedTo;
+  if (key === 'keine') return true;
+  if (lt === 'Both') return true;
+  if (key === 'kunde') return lt === 'Kunde';
+  if (key === 'mitarbeiter') return lt === 'Mitarbeiter';
+  return true;
+}
+
+function selectTyp(t) {
+  form.value.typId = t._id;
+  form.value.typKey = t.key;
+  form.value.typLinkedTo = t.linkedTo;
+  // Auto-pick link mode based on the type
+  if (t.linkedTo === 'Kunde') linkMode.value = 'kunde';
+  else if (t.linkedTo === 'Mitarbeiter') linkMode.value = 'mitarbeiter';
+}
+
+function setLinkMode(key) {
+  if (!isLinkAllowed(key)) return;
+  linkMode.value = key;
+  if (key !== 'kunde') { form.value.kundeId = null; }
+  if (key !== 'mitarbeiter') { form.value.mitarbeiterId = null; }
+}
+
+function selectKunde(k) {
+  form.value.kundeId = k._id;
+  kundeOpen.value = false;
+  kundeQuery.value = '';
+}
+function clearKunde() { form.value.kundeId = null; }
+
+function selectMitarbeiter(m) {
+  form.value.mitarbeiterId = m._id;
+  maOpen.value = false;
+  maQuery.value = '';
+}
+function clearMitarbeiter() { form.value.mitarbeiterId = null; }
+
+function onTemplateChange() {
+  const t = templates.value.find(t => t.id === form.value.templateId);
+  form.value.templateName = t ? t.name : '';
+}
+
+function addSubmitter() {
+  form.value.submitters.push({ role: `Unterzeichner ${form.value.submitters.length + 1}`, name: '', email: '', embedded: false });
+}
+function removeSubmitter(i) {
+  form.value.submitters.splice(i, 1);
+}
+
+function openBuilder() {
+  builder.openBuilder(
+    { templateId: form.value.templateId || null, name: form.value.name || null },
+    (tpl) => {
+      if (tpl && tpl.id) {
+        loadTemplates();
+        form.value.templateId = tpl.id;
+        form.value.templateName = tpl.name || '';
+      }
+    }
+  );
+}
+
+// ── Loading ──────────────────────────────────────────────────────────────────
+async function loadTypen() {
+  typenLoading.value = true;
+  try {
+    const { data } = await api.get('/api/signatur-typen');
+    typen.value = (Array.isArray(data) ? data : []).sort((a, b) => (a.order || 0) - (b.order || 0));
+  } catch (e) {
+    console.error('Typen laden fehlgeschlagen', e);
+  } finally {
+    typenLoading.value = false;
+  }
+}
+
+async function loadTemplates() {
+  try {
+    const { data } = await api.get('/api/docuseal/templates');
+    templates.value = Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error('Templates laden fehlgeschlagen', e);
+  }
+}
+
+async function loadGraphContacts() {
+  try {
+    const { data } = await api.get('/api/graph/contacts');
+    graphContacts.value = Array.isArray(data?.contacts) ? data.contacts : (Array.isArray(data) ? data : []);
+  } catch (e) {
+    console.error('Kontakte laden fehlgeschlagen', e);
+  }
+}
+
+// ── Open / context hydration ─────────────────────────────────────────────────
+watch(() => modal.open, async (open) => {
+  if (!open) return;
+  // Reset
+  currentStep.value = 0;
+  error.value = '';
+  form.value = emptyForm();
+  linkMode.value = 'keine';
+
+  // Kick off data loads
+  loadTypen();
+  loadTemplates();
+  loadGraphContacts();
+  dataCache.loadKunden?.();
+  dataCache.loadMitarbeiter?.();
+
+  await hydrateFromContext();
+});
+
+async function hydrateFromContext() {
+  const ctx = modal.context;
+  if (ctx.name) form.value.name = ctx.name;
+  if (ctx.standort) form.value.standort = ctx.standort;
+
+  // Pre-select type by key
+  if (ctx.typKey) {
+    await loadTypen();
+    const t = typen.value.find(t => t.key === ctx.typKey);
+    if (t) selectTyp(t);
+  }
+
+  // Pre-select entity links
+  if (ctx.kundeId) {
+    form.value.kundeId = ctx.kundeId;
+    linkMode.value = 'kunde';
+  } else if (ctx.kundenKuerzel) {
+    await dataCache.loadKunden?.();
+    const k = (dataCache.kunden || []).find(k => (k.kuerzel || '').toLowerCase() === ctx.kundenKuerzel.toLowerCase());
+    if (k) { form.value.kundeId = k._id; linkMode.value = 'kunde'; }
+  }
+  if (ctx.mitarbeiterId) {
+    form.value.mitarbeiterId = ctx.mitarbeiterId;
+    linkMode.value = 'mitarbeiter';
+  }
+
+  // Pre-fill submitters
+  if (Array.isArray(ctx.submitters) && ctx.submitters.length) {
+    form.value.submitters = ctx.submitters.map(s => ({
+      role: s.role || 'Unterzeichner',
+      name: s.name || '',
+      email: s.email || '',
+      embedded: !!s.embedded,
+    }));
+  }
+
+  // If context provides a custom endpoint + typKey, jump ahead
+  if (ctx.customEndpoint && form.value.typId) {
+    currentStep.value = form.value.kundeId || form.value.mitarbeiterId ? 2 : 1;
+  }
+}
+
+// ── Submit ───────────────────────────────────────────────────────────────────
+async function submit() {
+  submitting.value = true;
+  error.value = '';
+  try {
+    const ctx = modal.context;
+    let vorgang;
+
+    if (ctx.customEndpoint) {
+      // Server-side document generation flow (e.g. Stundenliste)
+      const payload = {
+        standort: form.value.standort,
+        submitters: form.value.submitters.filter(s => (s.name || '').trim()),
+      };
+      const { data } = await api.post(ctx.customEndpoint, payload);
+      vorgang = data;
+    } else {
+      const payload = {
+        name: form.value.name.trim(),
+        typId: form.value.typId,
+        standort: form.value.standort || undefined,
+        kundeId: linkMode.value === 'kunde' ? form.value.kundeId : undefined,
+        mitarbeiterId: linkMode.value === 'mitarbeiter' ? form.value.mitarbeiterId : undefined,
+        templateId: form.value.templateId || undefined,
+        templateName: form.value.templateName || undefined,
+        submitters: form.value.submitters.filter(s => (s.name || '').trim()),
+      };
+      const { data } = await api.post('/api/signaturen', payload);
+      vorgang = data;
+    }
+
+    modal.notifyCreated(vorgang);
+    close();
+  } catch (e) {
+    console.error('Signatur erstellen fehlgeschlagen', e);
+    error.value = e?.response?.data?.message || 'Die Signatur konnte nicht erstellt werden.';
+  } finally {
+    submitting.value = false;
+  }
+}
+
+function close() {
+  modal.closeModal();
+}
+
+function onBackdrop() {
+  if (!submitting.value) close();
+}
+
+// Close typeahead dropdowns on outside click
+function onDocClick(e) {
+  if (kundeBox.value && !kundeBox.value.contains(e.target)) kundeOpen.value = false;
+  if (maBox.value && !maBox.value.contains(e.target)) maOpen.value = false;
+}
+document.addEventListener('click', onDocClick);
+onBeforeUnmount(() => document.removeEventListener('click', onDocClick));
+
+// Small inline component for a selected entity card
+const ContactSearchPlaceholder = {
+  props: { title: String, subtitle: String, warn: Boolean },
+  emits: ['clear'],
+  setup(props, { emit }) {
+    return () => h('div', { class: ['sig-selected-entity', { warn: props.warn }] }, [
+      h('div', { class: 'sig-selected-entity-info' }, [
+        h('div', { class: 'sig-selected-entity-title' }, props.title),
+        h('div', { class: 'sig-selected-entity-sub' }, props.subtitle),
+      ]),
+      h('button', { class: 'sig-selected-entity-clear', type: 'button', onClick: () => emit('clear') }, '✕'),
+    ]);
+  },
+};
+</script>
+
+<style scoped lang="scss">
+.sig-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.sig-dialog {
+  width: 100%;
+  max-width: 620px;
+  max-height: 90vh;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sig-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+
+  .sig-header-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--primary);
+    h2 { font-size: 1.15rem; font-weight: 700; color: var(--text); margin: 0; }
+  }
+}
+
+.sig-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  &:hover { background: var(--hover); color: var(--text); }
+}
+
+/* Steps */
+.sig-steps {
+  display: flex;
+  gap: 4px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sig-step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  opacity: 0.55;
+
+  &.reachable { opacity: 1; }
+  &.active { color: var(--primary); }
+  &.done { color: var(--text); }
+  &:disabled { cursor: default; }
+}
+
+.sig-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+.sig-step.active .sig-step-num { background: var(--primary); color: #fff; border-color: var(--primary); }
+.sig-step.done .sig-step-num { background: #10b981; color: #fff; border-color: #10b981; }
+
+.sig-step-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Body */
+.sig-body {
+  padding: 20px 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.sig-section { display: flex; flex-direction: column; }
+
+.sig-field-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 14px 0 8px;
+  &:first-child { margin-top: 0; }
+}
+
+.sig-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.sig-type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--tile-bg, var(--surface));
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+  text-align: center;
+
+  &:hover { border-color: color-mix(in srgb, var(--primary) 50%, var(--border)); transform: translateY(-1px); }
+  &.active {
+    border-color: var(--primary);
+    box-shadow: inset 0 0 0 1px var(--primary);
+  }
+  &--add { border-style: dashed; color: var(--muted); }
+
+  .sig-type-icon { font-size: 1.3rem; color: var(--primary); }
+  &--add .sig-type-icon { color: var(--muted); }
+  .sig-type-label { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+  .sig-type-link { font-size: 0.68rem; color: var(--muted); }
+}
+
+.sig-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.sig-input, .sig-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg, var(--surface));
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  &:focus { border-color: var(--primary); }
+}
+
+/* Link toggle */
+.sig-link-toggle { display: flex; gap: 8px; }
+.sig-link-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  background: var(--tile-bg, var(--surface));
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  &:hover:not(:disabled) { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
+  &.active { border-color: var(--primary); color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+.sig-link-search { margin-top: 14px; }
+
+.sig-typeahead { position: relative; }
+.sig-search-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg, var(--surface));
+  color: var(--muted);
+  input { flex: 1; border: none; outline: none; background: transparent; color: var(--text); font-size: 0.9rem; font-family: inherit; }
+}
+
+.sig-typeahead-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  z-index: 20;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.sig-typeahead-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+  &:hover { background: var(--hover); }
+  .sig-ta-name { flex: 1; font-size: 0.86rem; font-weight: 600; color: var(--text); }
+  .sig-ta-kuerzel { font-size: 0.76rem; color: var(--muted); }
+  .sig-ta-warn { font-size: 0.72rem; color: #f59e0b; font-weight: 600; }
+}
+
+.sig-selected-entity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--primary);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+  &.warn { border-color: #f59e0b; background: color-mix(in srgb, #f59e0b 8%, transparent); }
+  .sig-selected-entity-info { flex: 1; }
+  .sig-selected-entity-title { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+  .sig-selected-entity-sub { font-size: 0.78rem; color: var(--muted); }
+  .sig-selected-entity-clear {
+    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.95rem;
+    &:hover { color: #ef4444; }
+  }
+}
+
+.sig-warn {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: #f59e0b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sig-hint {
+  margin-top: 14px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  code { background: var(--hover); padding: 2px 6px; border-radius: 5px; font-size: 0.78rem; }
+}
+
+.sig-template-row { display: flex; gap: 8px; align-items: stretch; }
+.sig-template-row .sig-select { flex: 1; }
+.sig-template-auto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--text);
+  font-size: 0.86rem;
+  svg { color: var(--primary); }
+}
+
+.sig-submitters { display: flex; flex-direction: column; gap: 10px; }
+
+.sig-add-submitter {
+  margin-top: 12px;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1.5px dashed var(--border);
+  border-radius: 9px;
+  background: none;
+  color: var(--primary);
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  &:hover { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, transparent); }
+}
+
+.sig-loading-inline { color: var(--muted); font-size: 0.85rem; display: flex; gap: 8px; align-items: center; padding: 12px 0; }
+
+/* Footer */
+.sig-footer {
+  border-top: 1px solid var(--border);
+  padding: 14px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sig-error {
+  font-size: 0.82rem;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sig-footer-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sig-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 9px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+
+  &--primary {
+    background: var(--primary);
+    color: #fff;
+    &:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 88%, #000); }
+    &:disabled { opacity: 0.5; cursor: not-allowed; }
+  }
+  &--ghost {
+    background: none;
+    border-color: var(--border);
+    color: var(--text);
+    &:hover { background: var(--hover); }
+  }
+}
+
+/* Transition */
+.sig-modal-enter-active, .sig-modal-leave-active { transition: opacity 0.2s; }
+.sig-modal-enter-from, .sig-modal-leave-to { opacity: 0; }
+.sig-modal-enter-active .sig-dialog { transition: transform 0.2s; }
+.sig-modal-enter-from .sig-dialog { transform: translateY(12px) scale(0.98); }
+</style>

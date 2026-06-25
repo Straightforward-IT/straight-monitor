@@ -823,7 +823,7 @@
           </div>
 
           <!-- Success: submission created — Verleiher signing embedded -->
-          <div v-else-if="sigResult && !verleiherSigned" class="qa-section qa-section--signing">
+          <div v-else-if="sigResult && sigResult.embed && sigResult.embed.src && !verleiherSigned" class="qa-section qa-section--signing">
             <p class="sig-success-sub" style="margin-bottom:12px;">
               <font-awesome-icon icon="fa-solid fa-envelope" style="margin-right:4px;" />
               Der Entleiher ({{ sigEntleiher.name || sigEntleiher.email }}) erhält eine E-Mail.
@@ -840,7 +840,7 @@
           </div>
 
           <!-- Verleiher signed: final success -->
-          <div v-else-if="sigResult && verleiherSigned" class="qa-section">
+          <div v-else-if="sigResult" class="qa-section">
             <div class="sig-success">
               <font-awesome-icon icon="fa-solid fa-check" class="sig-success-icon" />
               <p>Stundenliste unterschrieben.</p>
@@ -949,6 +949,7 @@ import { useAuth } from '../stores/auth';
 import { useFlipAll } from '../stores/flipAll';
 import { useUi } from '../stores/ui';
 import { useTheme } from '../stores/theme';
+import { useSignaturModal } from '../stores/signaturModal';
 import FilterPanel from '@/components/FilterPanel.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/FilterChip.vue';
@@ -1911,35 +1912,45 @@ export default {
       this.showQuickActions = false;
       if (!this.selectedEvent) return;
       const auftragNr = this.selectedEvent.auftragNr;
-      // Reset state
-      this.showSignatureDialog = true;
-      this.sigLoading = true;
-      this.sigContactsLoading = false;
-      this.sigSubmitting = false;
-      this.sigContacts = [];
-      this.sigSelectedContactId = '';
-      this.sigKuerzel = '';
-      this.sigVerleiher = { name: '', email: '' };
-      this.sigEntleiher = { name: '', email: '' };
-      this.sigResult = null;
-      this.sigError = '';
-      this.verleiherSigned = false;
 
+      // Pre-fill signers (Verleiher by location + Entleiher from Kunde) before
+      // opening the universal signature modal.
+      let prefill = { verleiher: {}, kuerzel: '', kundName: '', kundeId: null };
       try {
         const { data } = await api.get(`/api/docuseal/stundenliste/${auftragNr}/signers`);
-        this.sigVerleiher = {
-          name: data.verleiher?.name || '',
-          email: data.verleiher?.email || '',
-        };
-        this.sigKuerzel = data.kunde?.kuerzel || '';
-        this.sigEntleiher.name = data.kunde?.kundName || '';
-        // Load matching Microsoft contacts (filtered by Kürzel, like CustomerCard).
-        if (this.sigKuerzel) await this.loadSignatureContacts();
+        prefill.verleiher = data.verleiher || {};
+        prefill.kuerzel = data.kunde?.kuerzel || '';
+        prefill.kundName = data.kunde?.kundName || '';
+        prefill.kundeId = data.kunde?._id || null;
       } catch (err) {
-        this.sigError = err.response?.data?.message || 'Daten konnten nicht geladen werden';
-      } finally {
-        this.sigLoading = false;
+        // Non-fatal: the modal can still be filled in manually.
+        console.error('Signer-Vorbelegung fehlgeschlagen', err);
       }
+
+      const modal = useSignaturModal();
+      modal.openModal(
+        {
+          auftragNr,
+          typKey: 'stundenliste',
+          name: `Stundenliste ${auftragNr}`,
+          kundeId: prefill.kundeId,
+          kundenKuerzel: prefill.kuerzel,
+          customEndpoint: `/api/signaturen/stundenliste/${auftragNr}`,
+          submitters: [
+            { role: 'Verleiher', name: prefill.verleiher.name || '', email: prefill.verleiher.email || '', embedded: true },
+            { role: 'Entleiher', name: prefill.kundName || '', email: '', embedded: false },
+          ],
+        },
+        // After creation: surface the embedded Verleiher signing form.
+        (resp) => {
+          this.sigResult = resp;
+          const ent = (resp?.vorgang?.submitters || []).find((s) => s.role === 'Entleiher');
+          this.sigEntleiher = { name: ent?.name || '', email: ent?.email || '' };
+          this.verleiherSigned = false;
+          this.sigError = '';
+          this.showSignatureDialog = true;
+        }
+      );
     },
     async loadSignatureContacts() {
       this.sigContactsLoading = true;

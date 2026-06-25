@@ -27,6 +27,8 @@ const flipCalendarRoutes = require('./routes/flipCalendarRoutes');
 const flipPageRoutes = require('./routes/flipPageRoutes');
 const pdfTemplateRoutes = require('./routes/pdfTemplateRoutes');
 const pdfVorgangRoutes = require('./routes/pdfVorgangRoutes');
+const signaturRoutes = require('./routes/signaturRoutes');
+const signaturTypRoutes = require('./routes/signaturTypRoutes');
 const dispoRoutes = require('./routes/dispoRoutes');
 const dispoKommentarRoutes = require('./routes/dispoKommentarRoutes');
 const commentRoutes = require('./routes/commentRoutes');
@@ -111,6 +113,8 @@ app.use('/api/flip-calendar', flipCalendarRoutes);
 app.use('/api/flip-pages', flipPageRoutes);
 app.use('/api/pdf-templates', pdfTemplateRoutes);
 app.use('/api/pdf-vorgaenge', pdfVorgangRoutes);
+app.use('/api/signaturen', signaturRoutes);
+app.use('/api/signatur-typen', signaturTypRoutes);
 app.use('/api/dispo', dispoRoutes);
 app.use('/api/dispo-kommentare', dispoKommentarRoutes); // legacy — kept for backwards compat
 app.use('/api/comments', commentRoutes);

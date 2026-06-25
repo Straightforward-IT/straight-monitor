@@ -2,7 +2,7 @@
   <div class="window">
     <div class="page-header">
       <div class="header-left">
-        <h1><font-awesome-icon :icon="['fas', 'file-signature']" /> Signaturen</h1>
+        <h1><font-awesome-icon :icon="['fas', 'file-signature']" /> Signature Portal</h1>
       </div>
       <div class="header-stats" v-if="!loading">
         <span class="stat-chip stat-pending">{{ pendingCount }} Ausstehend</span>
@@ -294,7 +294,14 @@ function connectSSE() {
   };
 }
 
-onMounted(() => { loadAll(); connectSSE(); });
+onMounted(async () => { 
+  await loadAll(); 
+  connectSSE();
+  // Refresh all pending items on page load to get latest states
+  if (vorgaenge.value.some(v => v.status === 'pending')) {
+    await refreshAll();
+  }
+});
 onUnmounted(() => { if (eventSource) eventSource.close(); });
 </script>
 

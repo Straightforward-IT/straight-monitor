@@ -35,14 +35,15 @@
             >
               Pseudo-Auftrag
             </router-link>
-            <router-link
-              to="/signaturen"
-              class="nav-submenu__link"
-              :class="{ active: $route.name === 'DocuSealVorgaenge' }"
-            >
-              Signaturen
-            </router-link>
           </div>
+        </div>
+        <div class="nav-group nav-group--sign">
+          <router-link
+            to="/signaturen"
+            :class="{ active: isSignSectionActive }"
+          >
+            Signatur
+          </router-link>
         </div>
           <div class="nav-group nav-group--personal">
             <router-link
@@ -441,6 +442,18 @@
             </router-link>
           </div>
         </div>
+        
+        <div class="mobile-menu-group">
+          <router-link
+            to="/signaturen"
+            class="mobile-menu-btn"
+            :class="{ active: isSignSectionActive }"
+            @click="showMobileMenu = false"
+          >
+            <font-awesome-icon :icon="['fas', 'pen-fancy']" />
+            Signatur
+          </router-link>
+        </div>
 
         
         <div class="mobile-menu-divider"></div>
@@ -641,6 +654,7 @@ const mobileBestandMenuOpen = ref(false);
 const mobileReportsMenuOpen = ref(false);
 const mobilePersonalMenuOpen = ref(false);
 const mobileKundenMenuOpen = ref(false);
+const mobileSignMenuOpen = ref(false);
 
 // Support Modal State
 const showSupportModal = ref(false);
@@ -702,6 +716,7 @@ const isAuftraegeSectionActive = computed(() => route.name === 'Auftraege');
 const isBestandSectionActive = computed(() => ['Bestand', 'Verlauf'].includes(route.name));
 const isReportsSectionActive = computed(() => ['Dokumente', 'DokumenteNachpflegen'].includes(route.name));
 const isPersonalSectionActive = computed(() => ['Personal', 'BenutzerErstellen', 'TeamleiterAuswertung'].includes(route.name));
+const isSignSectionActive = computed(() => route.name === 'SignaturenPage');
 
 // Handler für deaktivierte neue Pages
 const handleNewPageClick = (event, path) => {
@@ -719,6 +734,7 @@ const closeMobileMenu = () => {
   mobileReportsMenuOpen.value = false;
   mobilePersonalMenuOpen.value = false;
   mobileKundenMenuOpen.value = false;
+  mobileSignMenuOpen.value = false;
 };
 
 const toggleMobileAuftraegeMenu = () => {
@@ -741,6 +757,10 @@ const toggleMobileKundenMenu = () => {
   mobileKundenMenuOpen.value = !mobileKundenMenuOpen.value;
 };
 
+const toggleMobileSignMenu = () => {
+  mobileSignMenuOpen.value = !mobileSignMenuOpen.value;
+};
+
 const handleMobileNavClick = (event, path) => {
   const allowed = handleNewPageClick(event, path);
   if (allowed === false) return;
@@ -755,6 +775,7 @@ watch(
     mobileReportsMenuOpen.value = ['Dokumente', 'DokumenteNachpflegen'].includes(name);
     mobilePersonalMenuOpen.value = ['Personal', 'BenutzerErstellen', 'TeamleiterAuswertung'].includes(name);
     mobileKundenMenuOpen.value = name === 'Kunden';
+    mobileSignMenuOpen.value = name === 'SignaturenPage';
   },
   { immediate: true }
 );

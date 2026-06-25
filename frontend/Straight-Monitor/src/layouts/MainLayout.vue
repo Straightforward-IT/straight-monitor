@@ -9,6 +9,10 @@
       </aside>
     </div>
     <AppFooter @open-support="handleOpenSupport" @open-shortcuts="handleOpenShortcuts" />
+
+    <!-- Global signature modals (accessible from any page) -->
+    <SignaturNeuModal />
+    <SignaturTemplateBuilderModal />
   </div>
 </template>
 
@@ -22,6 +26,8 @@ import AppFooter from '@/components/AppFooter.vue';
 import Shortcuts from '@/components/Shortcuts.vue';
 import Tools from '@/components/Tools.vue';
 import KommentarFeed from '@/components/KommentarFeed.vue';
+import SignaturNeuModal from '@/components/SignaturNeuModal.vue';
+import SignaturTemplateBuilderModal from '@/components/SignaturTemplateBuilderModal.vue';
 
 const route = useRoute();
 const ui = useUi();
@@ -48,7 +54,8 @@ const routeTitleFallbacks = {
   DokumenteNachpflegen: 'Dokumente nachpflegen',
   PdfVorlagen: 'PDF-Vorlagen',
   PdfVorgaenge: 'Vorgänge',
-  DocuSealVorgaenge: 'Signaturen',
+  DocuSealVorgaenge: 'Signature Portal',
+  SignaturenPage: 'Signaturen',
   PdfAusfuellen: 'PDF ausfüllen',
   Dispo: 'Dispo',
   BenutzerVerwaltung: 'Benutzerverwaltung',

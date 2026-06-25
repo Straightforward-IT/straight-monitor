@@ -215,8 +215,21 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Ungültige Auftragsnummer' });
   }
 
-  const { entleiher, verleiher } = req.body || {};
-  if (!entleiher || !entleiher.email) {
+  const { entleiher, verleiher, submitters } = req.body || {};
+
+  // The universal signature modal posts a generic `submitters` array. Map it to the
+  // Entleiher/Verleiher shape this endpoint expects (backward compatible with the
+  // legacy { entleiher, verleiher } body).
+  let entleiherResolved = entleiher;
+  let verleiherOverride = verleiher;
+  if (Array.isArray(submitters) && submitters.length) {
+    const ent = submitters.find((s) => s.role === 'Entleiher') || submitters.find((s) => !s.embedded);
+    const ver = submitters.find((s) => s.role === 'Verleiher') || submitters.find((s) => s.embedded);
+    if (ent) entleiherResolved = { name: ent.name, email: ent.email };
+    if (ver && ver.email) verleiherOverride = { name: ver.name, email: ver.email };
+  }
+
+  if (!entleiherResolved || !entleiherResolved.email) {
     return res.status(400).json({ message: 'Entleiher (E-Mail) ist erforderlich' });
   }
 
@@ -230,8 +243,8 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   // Resolve the Verleiher signer (location-based) unless overridden by the request.
   const verleiherDefault = StundenlisteService.getVerleiherSigner(auftrag);
   const verleiherSigner = {
-    name:  (verleiher && verleiher.name) || verleiherDefault.name,
-    email: (verleiher && verleiher.email) || verleiherDefault.email,
+    name:  (verleiherOverride && verleiherOverride.name) || verleiherDefault.name,
+    email: (verleiherOverride && verleiherOverride.email) || verleiherDefault.email,
   };
   if (!verleiherSigner.email) {
     return res.status(400).json({ message: 'Verleiher-E-Mail konnte nicht ermittelt werden (geschSt/Niederlassung prüfen)' });
@@ -243,7 +256,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   const docName = `Stundenliste ${auftragNr}`;
   const requestedSubmitters = [
     { role: 'Verleiher', name: verleiherSigner.name, email: verleiherSigner.email, embedded: true },
-    { role: 'Entleiher', name: entleiher.name || (kunde && kunde.kundName) || '', email: entleiher.email, embedded: false },
+    { role: 'Entleiher', name: entleiherResolved.name || (kunde && kunde.kundName) || '', email: entleiherResolved.email, embedded: false },
   ];
 
   // We are creating the submission, but we do NOT send any emails via DocuSeal, 

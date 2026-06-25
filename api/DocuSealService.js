@@ -180,6 +180,40 @@ class DocuSealService {
 
     return { key, sourceUrl };
   }
+
+  /**
+   * Download the DocuSeal audit trail PDF for a completed submission and store it in R2.
+   *
+   * @param {number} submissionId    - DocuSeal submission id.
+   * @param {string} keyPrefix       - R2 key prefix, e.g. `Signatures/kunden/sfhh/stundenliste/2026-06-25`.
+   * @param {string} [auditLogUrl]   - Optional pre-known audit URL from the webhook payload.
+   *                                   If omitted, the URL is fetched via getSubmission().
+   * @returns {Promise<{ key: string, sourceUrl: string }|null>}
+   */
+  async storeAuditPdf(submissionId, keyPrefix, auditLogUrl) {
+    this._ensureConfigured();
+
+    let sourceUrl = auditLogUrl || null;
+
+    if (!sourceUrl) {
+      const submission = await this.getSubmission(submissionId);
+      sourceUrl = (submission && submission.audit_log_url) || null;
+    }
+
+    if (!sourceUrl) {
+      logger.warn(`DocuSeal: no audit_log_url available for submission ${submissionId}.`);
+      return null;
+    }
+
+    const response = await axios.get(sourceUrl, { responseType: 'arraybuffer' });
+    const buffer   = Buffer.from(response.data);
+
+    const key = `${keyPrefix}/audit-${submissionId}.pdf`;
+    await R2Service.uploadFile(key, buffer, 'application/pdf');
+    logger.info(`DocuSeal: stored audit PDF for submission ${submissionId} at R2 key ${key}.`);
+
+    return { key, sourceUrl };
+  }
 }
 
 module.exports = new DocuSealService();
