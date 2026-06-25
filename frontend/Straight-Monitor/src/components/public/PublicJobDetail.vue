@@ -910,7 +910,7 @@ function connectCheckInSSE(auftragNr) {
   }
   if (!auftragNr || !props.token) return;
 
-  const base = import.meta.env.VITE_API_BASE_URL || '';
+  const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
   const url = `${base}/api/public/checkins/events?auftragNr=${auftragNr}&token=${encodeURIComponent(props.token)}`;
   const es = new EventSource(url);
 

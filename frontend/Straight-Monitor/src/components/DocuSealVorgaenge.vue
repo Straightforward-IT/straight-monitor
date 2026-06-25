@@ -277,7 +277,7 @@ async function openSigned(v) {
 function connectSSE() {
   const token = localStorage.getItem('token');
   if (!token) return;
-  const base = import.meta.env.VITE_API_BASE_URL || '';
+  const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
   eventSource = new EventSource(`${base}/api/docuseal/events?token=${encodeURIComponent(token)}`);
   eventSource.onmessage = (e) => {
     try {
