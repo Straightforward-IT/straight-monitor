@@ -822,20 +822,31 @@
             <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade Daten…
           </div>
 
-          <!-- Success: submission created -->
-          <div v-else-if="sigResult" class="qa-section">
+          <!-- Success: submission created — Verleiher signing embedded -->
+          <div v-else-if="sigResult && !verleiherSigned" class="qa-section qa-section--signing">
+            <p class="sig-success-sub" style="margin-bottom:12px;">
+              <font-awesome-icon icon="fa-solid fa-envelope" style="margin-right:4px;" />
+              Der Entleiher ({{ sigEntleiher.name || sigEntleiher.email }}) erhält eine E-Mail.
+              Bitte jetzt als Verleiher unterschreiben:
+            </p>
+            <DocusealForm
+              :src="sigResult.embed.src"
+              host="cdn.docuseal.eu"
+              language="de"
+              :with-title="false"
+              :send-copy-email="false"
+              @complete="onVerleiherSigned"
+            />
+          </div>
+
+          <!-- Verleiher signed: final success -->
+          <div v-else-if="sigResult && verleiherSigned" class="qa-section">
             <div class="sig-success">
               <font-awesome-icon icon="fa-solid fa-check" class="sig-success-icon" />
-              <p>Signatur-Anfrage erstellt.</p>
-              <p class="sig-success-sub">
-                Der Entleiher ({{ sigEntleiher.name || sigEntleiher.email }}) erhält eine E-Mail.
-              </p>
+              <p>Stundenliste unterschrieben.</p>
+              <p class="sig-success-sub">Der Entleiher ({{ sigEntleiher.name || sigEntleiher.email }}) erhält die Signaturanfrage per E-Mail.</p>
             </div>
-            <button v-if="sigResult.embed && sigResult.embed.src" class="qa-submit-btn" @click="openVerleiherSigning">
-              <font-awesome-icon icon="fa-solid fa-file-signature" />
-              Jetzt als Verleiher unterschreiben
-            </button>
-            <button v-if="sigResult.vorgang && sigResult.vorgang._id" class="qa-submit-btn qa-submit-btn--secondary" style="margin-top:8px;" @click="$router.push('/signaturen')">
+            <button v-if="sigResult.vorgang && sigResult.vorgang._id" class="qa-submit-btn qa-submit-btn--secondary" style="margin-top:12px;" @click="$router.push('/signaturen')">
               <font-awesome-icon icon="fa-solid fa-list-check" />
               Vorgang öffnen
             </button>
@@ -928,6 +939,7 @@
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
+import { DocusealForm } from '@docuseal/vue';
 
 library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature);
 
@@ -955,7 +967,7 @@ import eventreportDarkIcon from '@/assets/eventreport-dark.png';
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar },
+  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm },
   data() {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
@@ -1037,6 +1049,7 @@ export default {
       sigEntleiher: { name: '', email: '' },
       sigResult: null,
       sigError: '',
+      verleiherSigned: false,
       // Document icons
       auftragDocs: [],
       selectedDoc: null,
@@ -1910,6 +1923,7 @@ export default {
       this.sigEntleiher = { name: '', email: '' };
       this.sigResult = null;
       this.sigError = '';
+      this.verleiherSigned = false;
 
       try {
         const { data } = await api.get(`/api/docuseal/stundenliste/${auftragNr}/signers`);
@@ -1971,6 +1985,9 @@ export default {
     openVerleiherSigning() {
       const src = this.sigResult?.embed?.src;
       if (src) window.open(src, '_blank', 'noopener');
+    },
+    onVerleiherSigned() {
+      this.verleiherSigned = true;
     },
     closeSignatureDialog() {
       this.showSignatureDialog = false;
@@ -3667,6 +3684,15 @@ export default {
 .modal-qa {
   max-width: 480px;
   width: 95%;
+
+  &.modal-qa--signing {
+    max-width: 780px;
+    max-height: 90vh;
+
+    .modal-body {
+      overflow-y: auto;
+    }
+  }
 }
 
 .qa-section {
