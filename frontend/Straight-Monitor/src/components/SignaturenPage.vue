@@ -304,7 +304,7 @@ async function loadTemplates() {
 async function loadVorgaenge() {
   loading.value = true;
   try {
-    const { data } = await api.get('/api/signaturen');
+    const { data } = await api.get('/api/signaturen?refresh=true');
     vorgaenge.value = Array.isArray(data) ? data : [];
   } catch (e) {
     console.error('Signaturen laden fehlgeschlagen', e);
@@ -432,7 +432,7 @@ onUnmounted(() => { if (eventSource) eventSource.close(); });
 .type-pill-add {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: 6px;
   border: 1.5px dashed var(--border);
   background: none;
   color: var(--muted);

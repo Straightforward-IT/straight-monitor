@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const auth = require('../middleware/auth');
 const Auftrag = require('../models/Auftrag');
 const Einsatz = require('../models/Einsatz');
 const Schicht = require('../models/Schicht');
@@ -11,6 +13,14 @@ const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
 const StundenlisteService = require('../StundenlisteService');
 const R2Service = require('../R2Service');
+const SignaturVorgang = require('../models/SignaturVorgang');
+
+const uploadMem = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 30 * 1024 * 1024 }, // 30 MB
+});
+
+const EINSATZ_DOK_PREFIX = (auftragNr) => `Auftraege/${auftragNr}/docs/`;
 // GET /api/auftraege/filters - Get available filter options (bediener, kunden, etc)
 router.get('/filters', async (req, res) => {
   try {
@@ -329,8 +339,92 @@ router.get('/:auftragNr/details', async (req, res) => {
     res.status(500).json({ success: false, message: 'Fehler beim Laden der Auftragsdetails', error: error.message });
   }
 });
+// Helper — returns a signed inline URL for the unsigned Stundenliste PDF if it exists in R2,
+// or null otherwise.  Non-blocking: errors are swallowed so a missing file never breaks the response.
+async function getUnsignedStundenlisteUrl(auftragNr) {
+  const r2Key = `stundenlisten/${auftragNr}.pdf`;
+  try {
+    const objects = await R2Service.listObjects(r2Key);
+    if (objects.some(o => o.Key === r2Key)) {
+      return await R2Service.getSignedDownloadUrl(r2Key, 7200, { inline: true });
+    }
+  } catch (_) { /* file not yet uploaded — ignore */ }
+  return null;
+}
 
-// GET /api/auftraege/:auftragNr/stundenliste - Stundenliste (Überlassungsvertrag) als PDF
+// GET /api/auftraege/:auftragNr/stundenliste-status
+// Returns the active Stundenliste SignaturVorgang for this Auftrag (if any) plus an
+// isOutdated flag that is true when Auftrag, Einsatz or Mitarbeiter data changed after
+// the Stundenliste was generated.
+router.get('/:auftragNr/stundenliste-status', auth, asyncHandler(async (req, res) => {
+  const auftragNr = parseInt(req.params.auftragNr, 10);
+  if (!Number.isFinite(auftragNr)) return res.status(400).json({ message: 'Ungültige Auftragsnummer' });
+
+  const [auftrag, vorgang] = await Promise.all([
+    Auftrag.findOne({ auftragNr }).lean(),
+    SignaturVorgang
+      .findOne({ typKey: 'stundenliste', auftragNr, status: { $ne: 'cancelled' } })
+      .populate('typ', 'key label')
+      .sort({ createdAt: -1 })
+      .lean(),
+  ]);
+
+  if (!vorgang) {
+    const unsignedPdfUrl = await getUnsignedStundenlisteUrl(auftragNr);
+    return res.json({ vorgang: null, isOutdated: false, outdatedReasons: [], unsignedPdfUrl });
+  }
+
+  // The PDF is generated at vorgang.createdAt — compare everything against that.
+  const refDate = vorgang.createdAt;
+  const outdatedReasons = [];
+
+  // 1. Auftrag fields that affect the Stundenliste PDF changed?
+  if (auftrag && auftrag.updatedAt > refDate) {
+    outdatedReasons.push({ entity: 'Auftrag', label: 'Auftragsdaten wurden geändert' });
+  }
+
+  // 2. Any Einsatz for this Auftrag updated after creation?
+  const latestEinsatz = await Einsatz
+    .findOne({ auftragNr })
+    .sort({ updatedAt: -1 })
+    .select('updatedAt')
+    .lean();
+  if (latestEinsatz && latestEinsatz.updatedAt > refDate) {
+    outdatedReasons.push({ entity: 'Einsätze', label: 'Einsatzdaten wurden geändert' });
+  }
+
+  // 3. Any involved Mitarbeiter updated after creation?
+  const einsaetze = await Einsatz.find({ auftragNr }).select('personalNr').lean();
+  const personalNrStrings = [
+    ...new Set(einsaetze.map(e => e.personalNr).filter(Boolean).map(String)),
+  ];
+  if (personalNrStrings.length) {
+    const latestMA = await Mitarbeiter
+      .findOne({
+        $or: [
+          { personalnr:     { $in: personalNrStrings } },
+          { personalnummern: { $in: personalNrStrings } },
+        ],
+      })
+      .sort({ updatedAt: -1 })
+      .select('updatedAt')
+      .lean();
+    if (latestMA && latestMA.updatedAt > refDate) {
+      outdatedReasons.push({ entity: 'Mitarbeiter', label: 'Mitarbeiterdaten wurden geändert' });
+    }
+  }
+
+  // Return signed download URL for the completed/signed PDF when available
+  let signedPdfUrl = null;
+  if (vorgang.r2KeySigned) {
+    try {
+      signedPdfUrl = await R2Service.getSignedDownloadUrl(vorgang.r2KeySigned, 7200, { inline: false });
+    } catch (_) { /* key may not exist yet */ }
+  }
+
+  res.json({ vorgang, isOutdated: outdatedReasons.length > 0, outdatedReasons, unsignedPdfUrl: null, signedPdfUrl });
+}));
+// GET /api/auftraege/:auftragNr/stundenliste — Stundenliste (Überlassungsvertrag) als PDF
 router.get('/:auftragNr/stundenliste', asyncHandler(async (req, res) => {
   const { auftragNr } = req.params;
 
@@ -634,6 +728,61 @@ router.delete('/:auftragNr/pseudo-einsatz/:einsatzId', asyncHandler(async (req, 
   if (!einsatz) return res.status(404).json({ message: 'Pseudo-Einsatz nicht gefunden' });
   await einsatz.deleteOne();
   res.json({ ok: true });
+}));
+
+// ── Einsatzdokumente (R2 file storage per Auftrag) ────────────────────────────
+
+// GET /api/auftraege/:auftragNr/einsatzdokumente
+router.get('/:auftragNr/einsatzdokumente', auth, asyncHandler(async (req, res) => {
+  const { auftragNr } = req.params;
+  const prefix = EINSATZ_DOK_PREFIX(auftragNr);
+  const objects = await R2Service.listObjects(prefix);
+  const docs = await Promise.all(
+    objects
+      .filter(obj => obj.Key !== prefix) // exclude the prefix placeholder itself
+      .map(async (obj) => {
+        const filename = obj.Key.slice(prefix.length);
+        const url = await R2Service.getSignedDownloadUrl(obj.Key, 7200, { inline: true });
+        return {
+          key: obj.Key,
+          filename,
+          size: obj.Size,
+          lastModified: obj.LastModified,
+          url,
+        };
+      })
+  );
+  res.json({ success: true, data: docs });
+}));
+
+// POST /api/auftraege/:auftragNr/einsatzdokumente
+router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyncHandler(async (req, res) => {
+  const { auftragNr } = req.params;
+  if (!req.file) return res.status(400).json({ success: false, message: 'Keine Datei übermittelt' });
+
+  // Sanitise filename to prevent path traversal
+  const safeName = req.file.originalname.replace(/[/\\:*?"<>|]/g, '_');
+  const key = `${EINSATZ_DOK_PREFIX(auftragNr)}${Date.now()}-${safeName}`;
+
+  await R2Service.uploadFile(key, req.file.buffer, req.file.mimetype);
+  const url = await R2Service.getSignedDownloadUrl(key, 7200, { inline: true });
+
+  logger.info(`Einsatzdok uploaded: ${key} (${req.file.size} bytes) by user ${req.user?.id}`);
+  res.json({ success: true, data: { key, filename: safeName, size: req.file.size, url } });
+}));
+
+// DELETE /api/auftraege/:auftragNr/einsatzdokumente
+// Body: { key } — the full R2 key of the file to remove
+router.delete('/:auftragNr/einsatzdokumente', auth, asyncHandler(async (req, res) => {
+  const { auftragNr } = req.params;
+  const { key } = req.body;
+  if (!key) return res.status(400).json({ success: false, message: 'key fehlt' });
+  // Security: key must be within the expected prefix
+  if (!key.startsWith(EINSATZ_DOK_PREFIX(auftragNr))) {
+    return res.status(403).json({ success: false, message: 'Ungültiger Pfad' });
+  }
+  await R2Service.deleteObject(key);
+  res.json({ success: true });
 }));
 
 module.exports = router;

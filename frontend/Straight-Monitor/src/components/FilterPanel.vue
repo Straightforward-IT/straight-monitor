@@ -2,7 +2,6 @@
 <template>
   <div class="filter-panel" :class="{ 'is-expanded': expanded, 'is-locked': locked }">
     <div class="filter-header" @click="toggle" :title="locked ? 'Filter kann nicht zugeklappt werden (aktiver Personenfilter)' : (expanded ? 'Filter einklappen' : 'Filter ausklappen')">
-      <span v-if="!expanded && activeCount > 0" class="filter-count-badge">{{ activeCount }}</span>
       <h3>
         <slot name="title">Filter</slot>
       </h3>
@@ -197,23 +196,6 @@ export default {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.filter-count-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  background: var(--brand);
-  color: #fff;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  margin-right: 4px;
-  flex-shrink: 0;
 }
 
 /* Mobile Optimierung */

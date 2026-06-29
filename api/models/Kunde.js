@@ -52,7 +52,7 @@ const KundeSchema = new mongoose.Schema({
   }],
   kontakte: [{
     vorname: { type: String, required: false },
-    nachname: { type: String, required: true }, // Name* implies required
+    nachname: { type: String, required: true },
     email: { type: String, required: false },
     telefon: { type: String, required: false },
     angelegtVon: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -61,7 +61,10 @@ const KundeSchema = new mongoose.Schema({
       datum: { type: Date, default: Date.now },
       verfasser: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
     }]
-  }]
+  }],
+  // Default contact for signature processes (MS Graph contact)
+  signaturKontaktId:    { type: String, default: null },
+  signaturKontaktEmail: { type: String, default: null },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Kunde', KundeSchema);

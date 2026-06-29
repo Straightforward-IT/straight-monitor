@@ -173,7 +173,7 @@ async function save() {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  z-index: 20000;
   padding: 16px;
 }
 

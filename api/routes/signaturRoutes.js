@@ -30,14 +30,15 @@ function broadcastSignaturEvent(type, payload) {
   }
 }
 
-async function requireAdmin(req, res) {
-  const adminUser = await User.findById(req.user.id).select('role roles');
-  const isAdmin = !!adminUser && (adminUser.roles?.includes('ADMIN') || adminUser.role === 'ADMIN');
-  if (!isAdmin) {
-    res.status(403).json({ message: 'Zugriff verweigert – nur für Admins' });
+async function requireSignaturAccess(req, res) {
+  const user = await User.findById(req.user.id).select('role roles');
+  const isAdmin = !!user && (user.roles?.includes('ADMIN') || user.role === 'ADMIN');
+  const isVertrieb = !!user && user.roles?.includes('VERTRIEB');
+  if (!isAdmin && !isVertrieb) {
+    res.status(403).json({ message: 'Zugriff verweigert – nur für Admins und Vertrieb' });
     return null;
   }
-  return adminUser;
+  return user;
 }
 
 /**
@@ -146,7 +147,7 @@ router.get('/builder-token', auth, asyncHandler(async (req, res) => {
 // Body (from SignaturNeuModal customEndpoint): { standort?, submitters:[{role,name,email,embedded}] }
 // Response: { vorgang, embed: { role, slug, src } }
 router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
-  const adminUser = await requireAdmin(req, res);
+  const adminUser = await requireSignaturAccess(req, res);
   if (!adminUser) return;
 
   const auftragNr = parseInt(req.params.auftragNr, 10);
@@ -195,9 +196,31 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   }
 
   // Build the PDF with embedded DocuSeal text-tag fields
+  // Auto-cancel any existing active Stundenliste for this Auftrag so that re-issuing
+  // always replaces the outdated document rather than accumulating duplicates.
+  const existingVorgang = await SignaturVorgang.findOne({
+    typKey: 'stundenliste',
+    auftragNr,
+    status: { $nin: ['cancelled'] },
+  });
+  if (existingVorgang) {
+    if (existingVorgang.submissionId) {
+      try {
+        await DocuSealService.archiveSubmission(existingVorgang.submissionId);
+      } catch (e) {
+        logger.warn(`[Stundenliste redo] DocuSeal archive failed for ${existingVorgang.submissionId}:`, e.message);
+      }
+    }
+    existingVorgang.status      = 'cancelled';
+    existingVorgang.cancelledAt = new Date();
+    await existingVorgang.save();
+    logger.info(`[Stundenliste redo] Existing vorgang ${existingVorgang._id} cancelled for Auftrag ${auftragNr}`);
+  }
+
   const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, { signatureTags: true });
 
   const docName = `Stundenliste ${auftragNr}`;
+  const today = new Date().toISOString().split('T')[0];
 
   const requestedSubmitters = [
     { role: 'Verleiher', name: verleiherSigner.name, email: verleiherSigner.email, embedded: true },
@@ -213,6 +236,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
       name:       s.name,
       email:      s.email,
       send_email: false, // handled via Graph Mail below
+      values:     { [`${s.role} Datum`]: today },
     })),
     order: 'preserved',
   });
@@ -301,7 +325,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
 // GET /api/signaturen — list with optional filters
 // Query params: status, standort, typ (ObjectId), mitarbeiter (ObjectId), kunde (ObjectId), limit
 router.get('/', auth, asyncHandler(async (req, res) => {
-  const { status, standort, typ, mitarbeiter, kunde, auftragNr, limit } = req.query;
+  const { status, standort, typ, mitarbeiter, kunde, auftragNr, limit, refresh } = req.query;
   const filter = {};
   if (status)      filter.status      = status;
   if (standort)    filter.standort    = standort;
@@ -314,6 +338,40 @@ router.get('/', auth, asyncHandler(async (req, res) => {
     .populate('typ', 'key label linkedTo')
     .sort({ createdAt: -1 })
     .limit(Math.min(Number(limit) || 200, 500));
+
+  // Sync live status for open vorgaenge from DocuSeal (fire-and-wait in parallel).
+  if (refresh === 'true') {
+    const openOnes = vorgaenge.filter(v => v.status === 'open' && v.submissionId);
+    await Promise.allSettled(openOnes.map(async (vorgang) => {
+      try {
+        const submission = await DocuSealService.getSubmission(vorgang.submissionId);
+        if (!submission || !Array.isArray(submission.submitters)) return;
+        let changed = false;
+        vorgang.submitters = vorgang.submitters.map((local) => {
+          const live = submission.submitters.find(
+            (s) => s.slug === local.slug || s.email === local.email
+          );
+          if (!live) return local;
+          if (live.status && live.status !== local.status) {
+            local.status = live.status;
+            changed = true;
+          }
+          if (live.completed_at && !local.completedAt) {
+            local.completedAt = new Date(live.completed_at);
+            changed = true;
+          }
+          return local;
+        });
+        if (submission.status === 'completed' && vorgang.status !== 'completed') {
+          vorgang.status = 'completed';
+          changed = true;
+        }
+        if (changed) await vorgang.save();
+      } catch (err) {
+        logger.warn(`Bulk status refresh failed for vorgang ${vorgang._id}:`, err.message);
+      }
+    }));
+  }
 
   res.json(vorgaenge);
 }));
@@ -501,9 +559,25 @@ router.get('/:id', auth, asyncHandler(async (req, res) => {
 // ─── DOWNLOAD URLs ────────────────────────────────────────────────────────────
 
 // GET /api/signaturen/:id/signed-url — presigned R2 URL for the signed PDF (inline)
+// Falls back to fetching from DocuSeal and caching in R2 when r2KeySigned is not yet set.
 router.get('/:id/signed-url', auth, asyncHandler(async (req, res) => {
   const vorgang = await SignaturVorgang.findById(req.params.id);
   if (!vorgang) return res.status(404).json({ message: 'Vorgang nicht gefunden' });
+
+  // If not cached yet but the DocuSeal submission is done, download & cache now.
+  if (!vorgang.r2KeySigned && vorgang.submissionId && vorgang.status === 'completed') {
+    try {
+      const keyPrefix = `signaturen/${vorgang._id}`;
+      const result = await DocuSealService.storeSignedPdf(vorgang.submissionId, keyPrefix);
+      if (result?.key) {
+        vorgang.r2KeySigned = result.key;
+        await vorgang.save();
+      }
+    } catch (err) {
+      logger.warn(`signed-url: DocuSeal fetch failed for ${vorgang._id}:`, err.message);
+    }
+  }
+
   if (!vorgang.r2KeySigned) {
     return res.status(409).json({ message: 'Noch kein unterschriebenes Dokument vorhanden' });
   }

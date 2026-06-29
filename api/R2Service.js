@@ -1,4 +1,4 @@
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const logger = require('./utils/logger'); // Assuming this exists based on instructions
 
@@ -131,6 +131,37 @@ class R2Service {
       logger.error(`Error connecting to Cloudflare R2 bucket ${this.bucketName}:`, error.message);
       return false;
     }
+  }
+
+  /**
+   * List all objects under a given prefix.
+   * @param {string} prefix - The R2 key prefix to list.
+   * @returns {Promise<Array<{Key, Size, LastModified}>>}
+   */
+  async listObjects(prefix) {
+    const results = [];
+    let continuationToken;
+    do {
+      const command = new ListObjectsV2Command({
+        Bucket: this.bucketName,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      });
+      const response = await this.client.send(command);
+      (response.Contents || []).forEach(obj => results.push(obj));
+      continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+    } while (continuationToken);
+    return results;
+  }
+
+  /**
+   * Delete a single object from R2.
+   * @param {string} key - The R2 object key to delete.
+   */
+  async deleteObject(key) {
+    const command = new DeleteObjectCommand({ Bucket: this.bucketName, Key: key });
+    await this.client.send(command);
+    logger.info(`Deleted R2 object: ${key}`);
   }
 
 }

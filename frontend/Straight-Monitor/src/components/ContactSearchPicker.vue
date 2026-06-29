@@ -19,14 +19,21 @@
         <div class="cp-email">{{ modelValue.email || 'Keine E-Mail' }}</div>
       </div>
       <div class="cp-selected-actions">
-        <label class="cp-embed-toggle" :title="modelValue.embedded ? 'Wird in der App unterschrieben (keine E-Mail)' : 'Erhält eine E-Mail mit Signatur-Link'">
-          <input
-            type="checkbox"
-            :checked="modelValue.embedded"
-            @change="updateField('embedded', $event.target.checked)"
-          />
-          <span>{{ modelValue.embedded ? 'In-App' : 'Per E-Mail' }}</span>
-        </label>
+        <button
+          class="cp-embed-toggle"
+          type="button"
+          :title="modelValue.embedded ? 'Klicken: Per E-Mail senden' : 'Klicken: In der App unterschreiben'"
+          @click="updateField('embedded', !modelValue.embedded)"
+        >
+          <span class="cp-toggle-side" :class="{ 'is-active': modelValue.embedded }">
+            <font-awesome-icon :icon="['fas', 'mobile-screen']" />
+            In-App
+          </span>
+          <span class="cp-toggle-side" :class="{ 'is-active': !modelValue.embedded }">
+            <font-awesome-icon :icon="['fas', 'envelope']" />
+            E-Mail
+          </span>
+        </button>
         <button class="cp-change" type="button" title="Ändern" @click="clearSelection">
           <font-awesome-icon :icon="['fas', 'pen']" />
         </button>
@@ -134,10 +141,10 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faUserPen, faXmark, faMagnifyingGlass, faAddressBook, faIdBadge, faKeyboard, faPen } from '@fortawesome/free-solid-svg-icons';
+import { faUserPen, faXmark, faMagnifyingGlass, faAddressBook, faIdBadge, faKeyboard, faPen, faMobileScreen, faEnvelope } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 
-library.add(faUserPen, faXmark, faMagnifyingGlass, faAddressBook, faIdBadge, faKeyboard, faPen);
+library.add(faUserPen, faXmark, faMagnifyingGlass, faAddressBook, faIdBadge, faKeyboard, faPen, faMobileScreen, faEnvelope);
 
 const props = defineProps({
   // Submitter object: { role, name, email, embedded }
@@ -235,7 +242,7 @@ function selectMitarbeiter(m) {
     ...props.modelValue,
     name: `${m.vorname} ${m.nachname}`.trim(),
     email: m.email || '',
-    embedded: true, // internal employees sign embedded by default
+    // preserve embedded state set by the role default; don't force true
   });
   reset();
 }
@@ -374,14 +381,34 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside));
 .cp-embed-toggle {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--muted);
+  background: var(--hover, rgba(255,255,255,0.07));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px;
   cursor: pointer;
-  user-select: none;
+  gap: 0;
+  transition: border-color 0.15s;
 
-  input { accent-color: var(--primary); cursor: pointer; }
+  &:hover { border-color: var(--primary); }
+
+  .cp-toggle-side {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 18px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--muted);
+    transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+    white-space: nowrap;
+
+    &.is-active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+    }
+  }
 }
 
 .cp-change {

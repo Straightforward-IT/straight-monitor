@@ -427,25 +427,40 @@ class StundenlisteService {
     const colGap = 30;
     const colW = (CONTENT_W - colGap) / 2;
     const lineY = ctx.y - 30;
-    this._ensureSpace(ctx, 50);
+    this._ensureSpace(ctx, 60);
 
-    // Linien
-    ctx.page.drawLine({ start: { x: MARGIN, y: lineY }, end: { x: MARGIN + colW, y: lineY }, thickness: 0.6, color: COLOR_TEXT });
-    ctx.page.drawLine({ start: { x: MARGIN + colW + colGap, y: lineY }, end: { x: MARGIN + CONTENT_W, y: lineY }, thickness: 0.6, color: COLOR_TEXT });
+    // Jede Spalte wird unterteilt in: [Datum | Unterschrift/Stempel]
+    const dateW = 72;    // Breite des Datumsfeldes
+    const subGap = 10;   // Abstand zwischen Datum- und Unterschriftslinie
+    const sigW = colW - dateW - subGap;
 
-    // Labels darunter
-    ctx.page.drawText('Verleiher Unterschrift / Stempel', { x: MARGIN, y: lineY - 11, size: 8, font: ctx.font, color: COLOR_MUTED });
-    ctx.page.drawText(VERLEIHER.name, { x: MARGIN, y: lineY - 21, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
+    const verlX = MARGIN;
+    const entX  = MARGIN + colW + colGap;
 
-    ctx.page.drawText('Entleiher Unterschrift / Stempel', { x: MARGIN + colW + colGap, y: lineY - 11, size: 8, font: ctx.font, color: COLOR_MUTED });
-    ctx.page.drawText((kunde && kunde.kundName) || '—', { x: MARGIN + colW + colGap, y: lineY - 21, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
+    // ── Verleiher: Datum-Linie (links) + Unterschriftslinie (rechts) ──
+    ctx.page.drawLine({ start: { x: verlX,              y: lineY }, end: { x: verlX + dateW,        y: lineY }, thickness: 0.6, color: COLOR_TEXT });
+    ctx.page.drawLine({ start: { x: verlX + dateW + subGap, y: lineY }, end: { x: verlX + colW,      y: lineY }, thickness: 0.6, color: COLOR_TEXT });
+
+    ctx.page.drawText('Datum',                            { x: verlX,                    y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
+    ctx.page.drawText('Verleiher Unterschrift / Stempel', { x: verlX + dateW + subGap,   y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
+    ctx.page.drawText(VERLEIHER.name,                     { x: verlX + dateW + subGap,   y: lineY - 21, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
+
+    // ── Entleiher: Datum-Linie (links) + Unterschriftslinie (rechts) ──
+    ctx.page.drawLine({ start: { x: entX,               y: lineY }, end: { x: entX + dateW,         y: lineY }, thickness: 0.6, color: COLOR_TEXT });
+    ctx.page.drawLine({ start: { x: entX + dateW + subGap, y: lineY }, end: { x: entX + colW,        y: lineY }, thickness: 0.6, color: COLOR_TEXT });
+
+    ctx.page.drawText('Datum',                            { x: entX,                     y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
+    ctx.page.drawText('Entleiher Unterschrift / Stempel', { x: entX + dateW + subGap,    y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
+    ctx.page.drawText((kunde && kunde.kundName) || '—',   { x: entX + dateW + subGap,    y: lineY - 21, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
 
     // Unsichtbare DocuSeal-Texttags für die digitale Signatur (nur wenn aktiviert).
     // DocuSeal erkennt diese Tags im PDF-Text und platziert die Signaturfelder genau
     // dort, wo die Tags stehen – unabhängig von der finalen Seite/Position.
     if (ctx.signatureTags) {
-      this._drawSignatureTag(ctx, MARGIN, lineY, 'Verleiher', colW);
-      this._drawSignatureTag(ctx, MARGIN + colW + colGap, lineY, 'Entleiher', colW);
+      this._drawDateTag(ctx, verlX, lineY, 'Verleiher', dateW);
+      this._drawSignatureTag(ctx, verlX + dateW + subGap, lineY, 'Verleiher', sigW);
+      this._drawDateTag(ctx, entX, lineY, 'Entleiher', dateW);
+      this._drawSignatureTag(ctx, entX  + dateW + subGap, lineY, 'Entleiher', sigW);
     }
 
     ctx.y = lineY - 28;
@@ -466,6 +481,17 @@ class StundenlisteService {
     const h = 26;
     const tag = `{{${role};role=${role};type=signature;required=true;width=${w};height=${h}}}`;
     // Knapp oberhalb der Linie platzieren, damit das Feld bis auf die Linie reicht.
+    ctx.page.drawText(tag, { x, y: lineY + h, size: 5, font: ctx.font, color: rgb(1, 1, 1) });
+  }
+
+  /**
+   * Zeichnet einen unsichtbaren DocuSeal-Datums-Tag an der Datumsunterschriftslinie.
+   * DocuSeal füllt dieses Feld automatisch mit dem Unterzeichnungsdatum.
+   */
+  _drawDateTag(ctx, x, lineY, role, fieldW) {
+    const w = Math.round(Math.min(fieldW, 90));
+    const h = 18;
+    const tag = `{{${role} Datum;role=${role};type=date;required=true;readonly=true;width=${w};height=${h}}}`;
     ctx.page.drawText(tag, { x, y: lineY + h, size: 5, font: ctx.font, color: rgb(1, 1, 1) });
   }
 

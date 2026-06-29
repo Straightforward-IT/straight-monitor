@@ -79,47 +79,6 @@
         </ul>
       </section>
 
-      <!-- Adressen -->
-      <section class="section addresses-section" v-if="kunde.adressen && kunde.adressen.length > 0">
-        <h4 class="section-title">
-          <font-awesome-icon :icon="['fas', 'location-dot']" /> Adressen
-          <span class="badge">{{ kunde.adressen.length }}</span>
-        </h4>
-        <div class="addresses-list">
-          <div v-for="(adr, index) in kunde.adressen" :key="adr.nummer || index" class="address-card">
-            <div class="address-header">
-              <span class="address-name">{{ adr.name || 'Adresse ' + (index + 1) }}</span>
-              <span v-if="adr.branche || adr.lbranche" class="address-branche">{{ adr.lbranche || adr.branche }}</span>
-            </div>
-            <div class="address-body">
-              <div v-if="adr.strasse || adr.plz || adr.ort" class="address-row">
-                <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
-                <span>
-                  <template v-if="adr.strasse">{{ adr.strasse }}<br /></template>
-                  {{ [adr.plz, adr.ort].filter(Boolean).join(' ') }}<template v-if="adr.land">, {{ adr.land }}</template>
-                </span>
-              </div>
-              <div v-if="adr.telefon1" class="address-row">
-                <font-awesome-icon :icon="['fas', 'phone']" />
-                <a :href="`tel:${adr.telefon1}`">{{ adr.telefon1 }}</a>
-              </div>
-              <div v-if="adr.telefon2" class="address-row">
-                <font-awesome-icon :icon="['fas', 'phone']" />
-                <a :href="`tel:${adr.telefon2}`">{{ adr.telefon2 }}</a>
-              </div>
-              <div v-if="adr.email" class="address-row">
-                <font-awesome-icon :icon="['fas', 'envelope']" />
-                <a :href="`mailto:${adr.email}`">{{ adr.email }}</a>
-              </div>
-              <div v-if="adr.homepage" class="address-row">
-                <font-awesome-icon :icon="['fas', 'globe']" />
-                <a :href="formatUrl(adr.homepage)" target="_blank" rel="noopener noreferrer">{{ adr.homepage }}</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <!-- Top Mitarbeiter -->
       <section class="section top-ma-section" v-if="kunde.kundenNr">
         <h4 class="section-title">
@@ -187,7 +146,12 @@
           Keine Microsoft-Kontakte mit Kürzel „{{ kunde.kuerzel }}" gefunden.
         </div>
 
-        <div v-else class="contacts-list">
+        <div v-if="!signaturKontaktId && linkedContacts.length > 0" class="sig-standard-hint">
+          <font-awesome-icon :icon="['fas', 'circle-info']" />
+          Noch kein Signatur-Standard gesetzt – wähle einen Kontakt als Standard für Signaturen.
+        </div>
+
+        <div v-if="linkedContacts.length > 0" class="contacts-list">
           <div
             v-for="contact in linkedContacts"
             :key="contact.id"
@@ -217,8 +181,72 @@
                 <a :href="`tel:${contact.mobilePhone}`" @click.stop>{{ contact.mobilePhone }}</a>
               </div>
             </div>
+            <div class="contact-sig-row">
+              <button
+                v-if="signaturKontaktId !== contact.id"
+                class="sig-set-btn"
+                :disabled="signaturKontaktSaving"
+                @click.stop="toggleSignaturKontakt(contact)"
+              >
+                <font-awesome-icon :icon="['fas', 'file-signature']" />
+                Als Signatur-Standard setzen
+              </button>
+              <span v-else class="sig-active-badge">
+                <font-awesome-icon :icon="['fas', 'circle-check']" />
+                Signatur-Standard
+                <button
+                  class="sig-remove-btn"
+                  :disabled="signaturKontaktSaving"
+                  @click.stop="toggleSignaturKontakt(contact)"
+                  title="Standard entfernen"
+                >
+                  <font-awesome-icon :icon="['fas', 'xmark']" />
+                </button>
+              </span>
+            </div>
             <div class="contact-open-hint">
               <font-awesome-icon :icon="['fas', 'pen']" /> Bearbeiten
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Adressen -->
+      <section class="section addresses-section" v-if="kunde.adressen && kunde.adressen.length > 0">
+        <h4 class="section-title">
+          <font-awesome-icon :icon="['fas', 'location-dot']" /> Adressen
+          <span class="badge">{{ kunde.adressen.length }}</span>
+        </h4>
+        <div class="addresses-list">
+          <div v-for="(adr, index) in kunde.adressen" :key="adr.nummer || index" class="address-card">
+            <div class="address-header">
+              <span class="address-name">{{ adr.name || 'Adresse ' + (index + 1) }}</span>
+              <span v-if="adr.branche || adr.lbranche" class="address-branche">{{ adr.lbranche || adr.branche }}</span>
+            </div>
+            <div class="address-body">
+              <div v-if="adr.strasse || adr.plz || adr.ort" class="address-row">
+                <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
+                <span>
+                  <template v-if="adr.strasse">{{ adr.strasse }}<br /></template>
+                  {{ [adr.plz, adr.ort].filter(Boolean).join(' ') }}<template v-if="adr.land">, {{ adr.land }}</template>
+                </span>
+              </div>
+              <div v-if="adr.telefon1" class="address-row">
+                <font-awesome-icon :icon="['fas', 'phone']" />
+                <a :href="`tel:${adr.telefon1}`">{{ adr.telefon1 }}</a>
+              </div>
+              <div v-if="adr.telefon2" class="address-row">
+                <font-awesome-icon :icon="['fas', 'phone']" />
+                <a :href="`tel:${adr.telefon2}`">{{ adr.telefon2 }}</a>
+              </div>
+              <div v-if="adr.email" class="address-row">
+                <font-awesome-icon :icon="['fas', 'envelope']" />
+                <a :href="`mailto:${adr.email}`">{{ adr.email }}</a>
+              </div>
+              <div v-if="adr.homepage" class="address-row">
+                <font-awesome-icon :icon="['fas', 'globe']" />
+                <a :href="formatUrl(adr.homepage)" target="_blank" rel="noopener noreferrer">{{ adr.homepage }}</a>
+              </div>
             </div>
           </div>
         </div>
@@ -409,6 +437,41 @@ const linkedContacts = computed(() => {
 
 onMounted(loadContacts);
 watch(() => props.kunde.kuerzel, loadContacts);
+
+// Standard-Signatur-Kontakt
+const signaturKontaktId     = ref(props.kunde.signaturKontaktId || '');
+const signaturKontaktSaving = ref(false);
+
+watch(() => props.kunde.signaturKontaktId, (val) => {
+  signaturKontaktId.value = val || '';
+});
+
+async function toggleSignaturKontakt(contact) {
+  // clicking the active contact deselects it; otherwise select the new one
+  const newId    = signaturKontaktId.value === contact.id ? '' : contact.id;
+  const newEmail = newId ? (contact.emailAddresses?.[0]?.address || null) : null;
+  signaturKontaktId.value     = newId;
+  signaturKontaktSaving.value = true;
+  try {
+    await api.put(`/api/kunden/${props.kunde._id}`, {
+      signaturKontaktId:    newId || null,
+      signaturKontaktEmail: newEmail,
+    });
+    props.kunde.signaturKontaktId    = newId || null;
+    props.kunde.signaturKontaktEmail = newEmail;
+    const cached = dataCache.kunden?.find(k => k._id === props.kunde._id);
+    if (cached) {
+      cached.signaturKontaktId    = newId || null;
+      cached.signaturKontaktEmail = newEmail;
+    }
+  } catch (e) {
+    // revert on error
+    signaturKontaktId.value = props.kunde.signaturKontaktId || '';
+    console.error('Fehler beim Speichern des Signatur-Kontakts', e);
+  } finally {
+    signaturKontaktSaving.value = false;
+  }
+}
 
 // Kennzahlen (KPIs)
 const kpi = ref(null);
@@ -887,6 +950,94 @@ function formatUrl(url) {
 
   a { color: var(--primary); text-decoration: none; }
   a:hover { text-decoration: underline; }
+}
+
+/* Signatur-Standard hint (shown when none is set) */
+.sig-standard-hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  padding: 8px 12px;
+  background: var(--soft);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+
+/* Sig toggle row inside each contact card */
+.contact-sig-row {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.sig-set-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sig-set-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+  border-style: solid;
+}
+
+.sig-set-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sig-active-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #d97706;
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  border-radius: 6px;
+  padding: 4px 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sig-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0 2px;
+  cursor: pointer;
+  color: #d97706;
+  opacity: 0.6;
+  font-size: 11px;
+  margin-left: auto;
+  transition: opacity 0.15s;
+}
+
+.sig-remove-btn:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.sig-remove-btn:disabled {
+  cursor: not-allowed;
 }
 
 /* Contacts */

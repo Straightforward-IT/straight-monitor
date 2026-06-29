@@ -215,6 +215,7 @@
           <!-- Footer -->
           <footer class="sig-footer">
             <p v-if="error" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ error }}</p>
+            <p v-else-if="currentStep === 2 && submitBlockReason" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ submitBlockReason }}</p>
             <div class="sig-footer-actions">
               <button v-if="currentStep > 0" class="sig-btn sig-btn--ghost" type="button" @click="currentStep--">
                 <font-awesome-icon :icon="['fas', 'arrow-left']" /> Zurück
@@ -324,11 +325,13 @@ const linkMode = ref('keine');
 const form = ref(emptyForm());
 
 function emptyForm() {
+  const userLoc = (auth.user?.location || '').toLowerCase().trim();
+  const defaultStandort = standortOptions.find(s => s.key === userLoc || s.label.toLowerCase() === userLoc)?.key || null;
   return {
     typId: null,
     typKey: null,
     typLinkedTo: 'Both',
-    standort: null,
+    standort: defaultStandort,
     name: '',
     kundeId: null,
     mitarbeiterId: null,
@@ -346,6 +349,14 @@ const selectedKunde = computed(() => kundenList.value.find(k => k._id === form.v
 const selectedMitarbeiter = computed(() => mitarbeiterList.value.find(m => m._id === form.value.mitarbeiterId) || null);
 
 const usesCustomEndpoint = computed(() => !!modal.context.customEndpoint);
+
+// ── Straightforward own-company contacts per standort ────────────────────────
+const SF_KUNDENNR = { hamburg: 2100003, berlin: 11000024, koeln: 31000001 };
+const straightforwardKunde = computed(() => {
+  const nr = SF_KUNDENNR[form.value.standort];
+  if (!nr) return null;
+  return kundenList.value.find(k => k.kundenNr === nr) || null;
+});
 
 // ── Typeahead: Kunde ─────────────────────────────────────────────────────────
 const kundeQuery = ref('');
@@ -396,8 +407,20 @@ const maxReachableStep = computed(() => {
 
 const canSubmit = computed(() => {
   if (!canAdvance.value) return false;
-  // At least one submitter with a name
-  return form.value.submitters.some(s => (s.name || '').trim());
+  const subs = form.value.submitters.filter(s => (s.name || '').trim());
+  if (!subs.length) return false;
+  // Every non-embedded signer must have an email (they receive the link by mail)
+  return subs.every(s => s.embedded || (s.email || '').trim());
+});
+
+const submitBlockReason = computed(() => {
+  const subs = form.value.submitters.filter(s => (s.name || '').trim());
+  for (const s of subs) {
+    if (!s.embedded && !(s.email || '').trim()) {
+      return `${s.role || 'Unterzeichner'} muss eine E-Mail-Adresse haben (Signatur wird per E-Mail versandt).`;
+    }
+  }
+  return '';
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -461,11 +484,52 @@ function onTemplateChange() {
 }
 
 function addSubmitter() {
-  form.value.submitters.push({ role: `Unterzeichner ${form.value.submitters.length + 1}`, name: '', email: '', embedded: false });
+  form.value.submitters.push({ role: `Unterzeichner ${form.value.submitters.length}`, name: '', email: '', embedded: false });
 }
 function removeSubmitter(i) {
   form.value.submitters.splice(i, 1);
 }
+
+// ── Auto-fill signers when entering step 3 ───────────────────────────────────
+watch(currentStep, (newStep) => {
+  if (newStep !== 2) return;
+  // Skip if this is a custom-endpoint flow (submitters are pre-set via context)
+  if (usesCustomEndpoint.value) return;
+  // Skip if user has already filled in signers
+  const subs = form.value.submitters;
+  const isDefault = subs.length === 1 && !subs[0].name && !subs[0].email;
+  if (!isDefault) return;
+
+  const newSubs = [];
+
+  // Signer 1: Straightforward location contact
+  const sfKunde = straightforwardKunde.value;
+  if (sfKunde) {
+    newSubs.push({
+      role: 'Du',
+      name: sfKunde.kundName || '',
+      email: sfKunde.signaturKontaktEmail || '',
+      embedded: true,
+    });
+  } else {
+    newSubs.push({ role: 'Du', name: '', email: '', embedded: true });
+  }
+
+  // Signer 2: selected Mitarbeiter (if any)
+  if (selectedMitarbeiter.value) {
+    const m = selectedMitarbeiter.value;
+    newSubs.push({
+      role: 'Unterzeichner 1',
+      name: `${m.vorname || ''} ${m.nachname || ''}`.trim(),
+      email: m.email || '',
+      embedded: false,
+    });
+  } else {
+    newSubs.push({ role: 'Unterzeichner 1', name: '', email: '', embedded: false });
+  }
+
+  form.value.submitters = newSubs;
+});
 
 function openBuilder() {
   builder.openBuilder(
@@ -660,8 +724,8 @@ const ContactSearchPlaceholder = {
 
 .sig-dialog {
   width: 100%;
-  max-width: 620px;
-  max-height: 90vh;
+  max-width: 860px;
+  max-height: 92vh;
   background: var(--surface);
   border-radius: 16px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
@@ -855,7 +919,7 @@ const ContactSearchPlaceholder = {
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.18);
-  max-height: 260px;
+  max-height: 420px;
   overflow-y: auto;
   padding: 4px;
 }
@@ -885,10 +949,10 @@ const ContactSearchPlaceholder = {
   border-radius: 10px;
   background: color-mix(in srgb, var(--primary) 6%, transparent);
   &.warn { border-color: #f59e0b; background: color-mix(in srgb, #f59e0b 8%, transparent); }
-  .sig-selected-entity-info { flex: 1; }
-  .sig-selected-entity-title { font-size: 0.92rem; font-weight: 700; color: var(--text); }
-  .sig-selected-entity-sub { font-size: 0.78rem; color: var(--muted); }
-  .sig-selected-entity-clear {
+  :deep(.sig-selected-entity-info) { flex: 1; }
+  :deep(.sig-selected-entity-title) { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+  :deep(.sig-selected-entity-sub) { font-size: 0.78rem; color: var(--muted); }
+  :deep(.sig-selected-entity-clear) {
     background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.95rem;
     &:hover { color: #ef4444; }
   }

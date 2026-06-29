@@ -324,10 +324,89 @@ async function sendFlipWelcomeEmail(email, vorname, senderKey = "it") {
   await sendMail(email, subject, content, senderKey);
 }
 
+// ✍️ Signaturanfrage-E-Mail (schwarzweißes Styling)
+function buildSignaturEmailHtml(name, documentTitle, signingLink) {
+  return `
+<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;max-width:600px;width:100%;">
+
+        <!-- Header -->
+        <tr>
+          <td style="padding:28px 40px 20px;border-bottom:3px solid #1a1a1a;">
+            <p style="margin:0;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#888888;font-weight:600;">Straightforward Hamburg</p>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:40px 40px 32px;font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;">
+            <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">Hallo ${name},</p>
+            <p style="margin:0 0 12px;font-size:20px;font-weight:700;line-height:1.4;color:#000000;">
+              Straightforward Hamburg hat Sie dazu<br>eingeladen, zu unterschreiben:
+            </p>
+            <p style="margin:0 0 32px;font-size:18px;font-style:italic;color:#333333;border-left:3px solid #1a1a1a;padding-left:16px;">
+              &ldquo;${documentTitle}&rdquo;
+            </p>
+            <p style="margin:0 0 28px;font-size:14px;color:#555555;line-height:1.6;">
+              Klicken Sie auf den unten stehenden Button, um das Dokument durchzulesen und zu unterschreiben:
+            </p>
+
+            <!-- CTA Button -->
+            <table cellpadding="0" cellspacing="0" style="margin:0 0 36px;">
+              <tr>
+                <td style="background:#1a1a1a;">
+                  <a href="${signingLink}" style="display:inline-block;padding:14px 36px;background:#1a1a1a;color:#ffffff;text-decoration:none;font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">
+                    DOKUMENT AUFRUFEN
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:0;font-size:12px;color:#999999;line-height:1.7;">
+              Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:<br>
+              <a href="${signingLink}" style="color:#1a1a1a;word-break:break-all;">${signingLink}</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- Divider -->
+        <tr><td style="padding:0 40px;"><hr style="border:none;border-top:1px solid #e8e8e8;margin:0;"></td></tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:20px 40px 28px;font-family:'Helvetica Neue',Arial,sans-serif;background:#fafafa;">
+            <p style="margin:0 0 4px;font-size:12px;color:#555555;font-weight:700;">H. & P. Straightforward GmbH</p>
+            <p style="margin:0 0 12px;font-size:11px;color:#999999;">Diese Nachricht wurde automatisch versandt – bitte antworten Sie nicht direkt auf diese E-Mail.</p>
+            <p style="margin:0;font-size:10px;color:#bbbbbb;line-height:1.5;">
+              H. & P. Straightforward GmbH · Berlin HRB 180342 B · Managing Partners: Daniel Hansen &amp; Christian Peßler
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+async function sendSignaturEmail(recipientEmail, name, documentTitle, signingLink, senderKey = 'it') {
+  const subject = `Einladung zur Unterschrift: ${documentTitle}`;
+  const content = buildSignaturEmailHtml(name, documentTitle, signingLink);
+  await sendMail(recipientEmail, subject, content, senderKey);
+}
+
 module.exports = {
   sendMail,
   sendConfirmationEmail,
   sollRoutine,
   sendInventoryUpdateEmail,
   sendFlipWelcomeEmail,
+  sendSignaturEmail,
 };

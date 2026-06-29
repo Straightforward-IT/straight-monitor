@@ -150,7 +150,8 @@ const progressPct = computed(() => {
   return Math.round((signedCount.value / total) * 100);
 });
 
-const hasSignedDoc = computed(() => props.vorgang.status === 'completed' && !!props.vorgang.r2KeySigned);
+// True for any completed submission — r2KeySigned may be absent (will be fetched on demand from DocuSeal).
+const hasSignedDoc = computed(() => props.vorgang.status === 'completed' && !!props.vorgang.submissionId);
 
 const typIcon = computed(() => ({
   stundenliste: ['fas', 'clock'],

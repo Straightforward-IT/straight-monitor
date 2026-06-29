@@ -325,7 +325,7 @@
                     <font-awesome-icon :icon="isGeneratingHoursList ? 'fa-solid fa-spinner' : 'fa-solid fa-clock'" :spin="isGeneratingHoursList" />
                     {{ isGeneratingHoursList ? 'Wird erstellt…' : 'Stundenliste generieren' }}
                   </button>
-                  <button v-if="isAdmin" :class="{ 'dev-role--admin': isDev }" class="qa-dropdown-item" @click="openSignatureDialog">
+                  <button v-if="canSignaturen" :class="{ 'dev-role--admin': isDev }" class="qa-dropdown-item" @click="openSignatureDialog">
                     <font-awesome-icon icon="fa-solid fa-file-signature" />
                     Stundenliste zur Signatur
                   </button>
@@ -502,52 +502,193 @@
             <span>Keine Schichten/Einsätze vorhanden</span>
           </div>
 
-          <!-- ── Signaturen Section ─────────────────────────────────── -->
-          <div class="signaturen-section">
+          <!-- ── Einsatzdokumente Section ──────────────────────────── -->
+          <div class="einsatzdoks-section">
             <div class="section-header">
-              <h3><font-awesome-icon icon="fa-solid fa-file-signature" /> Signaturen</h3>
-              <button
-                v-if="isAdmin"
-                class="section-action-btn"
-                type="button"
-                title="Neue Signatur erstellen"
-                @click="openSignatureDialog"
-              >
-                <font-awesome-icon icon="fa-solid fa-plus" />
-              </button>
+              <h3><font-awesome-icon icon="fa-solid fa-folder-open" /> Einsatzdokumente</h3>
             </div>
 
-            <div v-if="sidebarSigLoading" class="sig-sidebar-state">
+            <!-- Stundenliste row -->
+            <div v-if="stundenlisteStatusLoading" class="einsatz-dok-loading">
               <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade…
             </div>
-            <div v-else-if="!sidebarSignaturen.length" class="sig-sidebar-state sig-sidebar-state--empty">
-              Keine Signaturen verknüpft.
-              <button v-if="isAdmin" class="sig-sidebar-create-btn" type="button" @click="openSignatureDialog">
-                <font-awesome-icon icon="fa-solid fa-plus" /> Erstellen
-              </button>
-            </div>
-            <div v-else class="sig-sidebar-list">
+            <template v-else>
               <div
-                v-for="sig in sidebarSignaturen"
-                :key="sig._id"
-                class="sig-sidebar-item"
-                :class="`sig-sidebar--${sig.status}`"
+                class="einsatz-dok-row"
+                :class="sidebarStundenliste
+                  ? `einsatz-dok--${sidebarStundenliste.status}`
+                  : (generatedStundenlisteUrl ? 'einsatz-dok--generated' : 'einsatz-dok--none')"
               >
-                <div class="sig-sidebar-head">
-                  <span class="sig-sidebar-name">{{ sig.name }}</span>
-                  <span class="sig-sidebar-badge" :class="`badge-${sig.status}`">
-                    {{ { draft: 'Entwurf', open: 'Offen', completed: 'Abgeschlossen', cancelled: 'Storniert' }[sig.status] || sig.status }}
-                  </span>
+                <font-awesome-icon
+                  icon="fa-solid fa-file-contract"
+                  class="einsatz-dok-icon"
+                  :class="{ 'einsatz-dok-icon--muted': !sidebarStundenliste && !generatedStundenlisteUrl }"
+                />
+                <div class="einsatz-dok-info">
+                  <div class="einsatz-dok-name">Stundenliste</div>
+                  <div v-if="sidebarStundenliste" class="einsatz-dok-meta">
+                    {{ sidebarStundenliste.submitters.filter(s => s.status === 'completed').length }}/{{ sidebarStundenliste.submitters.length }} unterschrieben
+                  </div>
+                  <div v-else-if="generatedStundenlisteUrl" class="einsatz-dok-meta">
+                    Stundenliste-{{ selectedEvent?.auftragNr }}.pdf &middot; Nicht unterschrieben
+                  </div>
+                  <div v-else class="einsatz-dok-meta">Noch nicht erstellt</div>
                 </div>
-                <div class="sig-sidebar-meta">
-                  <span>{{ sig.submitters.filter(s => s.status === 'completed').length }}/{{ sig.submitters.length }} ✓</span>
-                  <span>{{ new Date(sig.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) }}</span>
-                  <router-link :to="`/signaturen`" class="sig-sidebar-link" title="Im Signatur-Hub öffnen">
+
+                <!-- Right-side actions -->
+                <template v-if="sidebarStundenliste">
+                  <div class="einsatz-dok-actions">
+                    <a
+                      v-if="stundenlisteStatus?.signedPdfUrl"
+                      :href="stundenlisteStatus.signedPdfUrl"
+                      target="_blank"
+                      rel="noopener"
+                      class="einsatz-dok-action"
+                      title="Unterzeichnete Stundenliste öffnen"
+                    >
+                      <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
+                    </a>
+                    <button
+                      v-if="stundenlisteStatus?.signedPdfUrl"
+                      class="einsatz-dok-action"
+                      type="button"
+                      title="Unterzeichnete Stundenliste herunterladen"
+                      @click="downloadFile(stundenlisteStatus.signedPdfUrl, `Stundenliste-${selectedEvent?.auftragNr}-unterschrieben.pdf`)"
+                    >
+                      <font-awesome-icon icon="fa-solid fa-download" />
+                    </button>
+                    <button
+                      v-if="sidebarStundenliste.status === 'completed' && canSignaturen"
+                      class="einsatz-dok-action"
+                      type="button"
+                      title="Signaturprozess öffnen"
+                      @click="$router.push('/signaturen')"
+                    >
+                      <font-awesome-icon icon="fa-solid fa-file-signature" />
+                    </button>
+                    <span class="einsatz-dok-badge" :class="`badge-${sidebarStundenliste.status}`">
+                      {{ { open: 'Ausstehend', completed: 'Unterschrieben', draft: 'Entwurf', cancelled: 'Storniert' }[sidebarStundenliste.status] || sidebarStundenliste.status }}
+                    </span>
+                  </div>
+                </template>
+                <template v-else-if="generatedStundenlisteUrl">
+                  <!-- PDF ready: view + download + sign actions -->
+                  <div class="einsatz-dok-actions">
+                    <a
+                      :href="generatedStundenlisteUrl"
+                      target="_blank"
+                      rel="noopener"
+                      class="einsatz-dok-action"
+                      title="Stundenliste öffnen"
+                    >
+                      <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
+                    </a>
+                    <button
+                      class="einsatz-dok-action"
+                      type="button"
+                      title="Stundenliste herunterladen"
+                      @click="downloadFile(generatedStundenlisteUrl, `Stundenliste-${selectedEvent?.auftragNr}.pdf`)"
+                    >
+                      <font-awesome-icon icon="fa-solid fa-download" />
+                    </button>
+                    <button
+                      v-if="canSignaturen"
+                      class="einsatz-dok-gen-btn"
+                      type="button"
+                      title="Stundenliste zur Signatur senden"
+                      @click="openSignatureDialog"
+                    >
+                      <font-awesome-icon icon="fa-solid fa-file-signature" /> Signieren
+                    </button>
+                  </div>
+                </template>
+                <template v-else>
+                  <!-- Not yet generated -->
+                  <button
+                    v-if="canSignaturen"
+                    class="einsatz-dok-gen-btn"
+                    type="button"
+                    :disabled="isGeneratingHoursList"
+                    title="Stundenliste mit aktuellen Einsatzdaten erzeugen"
+                    @click="generateAndPreview"
+                  >
+                    <font-awesome-icon :icon="isGeneratingHoursList ? 'fa-solid fa-spinner' : 'fa-solid fa-wand-magic-sparkles'" :spin="isGeneratingHoursList" />
+                    {{ isGeneratingHoursList ? 'Wird erstellt…' : 'Generieren' }}
+                  </button>
+                  <span v-else class="einsatz-dok-badge badge-none">–</span>
+                </template>
+              </div>
+
+              <!-- Outdated bar — shown when Auftrag/Einsatz/Mitarbeiter changed after Stundenliste was generated -->
+              <div v-if="stundenlisteIsOutdated" class="einsatz-dok-outdated-bar">
+                <font-awesome-icon icon="fa-solid fa-triangle-exclamation" class="outdated-bar-icon" />
+                <div class="outdated-bar-info">
+                  <div class="outdated-bar-title">Stundenliste veraltet</div>
+                  <div
+                    v-for="r in stundenlisteOutdatedReasons"
+                    :key="r.entity"
+                    class="outdated-bar-reason"
+                  >{{ r.label }}</div>
+                </div>
+                <button
+                  v-if="canSignaturen"
+                  class="einsatz-dok-redo-btn"
+                  type="button"
+                  title="Stundenliste mit aktuellen Daten neu ausstellen"
+                  @click="openSignatureDialog"
+                >
+                  <font-awesome-icon icon="fa-solid fa-rotate-right" /> Neu ausstellen
+                </button>
+              </div>
+            </template>
+
+            <!-- Uploaded docs -->
+            <div v-if="einsatzDoksLoading" class="einsatz-dok-loading">
+              <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade…
+            </div>
+            <template v-else>
+              <div
+                v-for="dok in einsatzDoks"
+                :key="dok.key"
+                class="einsatz-dok-row einsatz-dok--upload"
+              >
+                <font-awesome-icon icon="fa-solid fa-file" class="einsatz-dok-icon" />
+                <div class="einsatz-dok-info">
+                  <div class="einsatz-dok-name">{{ dok.filename }}</div>
+                  <div class="einsatz-dok-meta">{{ formatFileSize(dok.size) }}</div>
+                </div>
+                <div class="einsatz-dok-actions">
+                  <a :href="dok.url" target="_blank" class="einsatz-dok-action" title="Öffnen">
                     <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
-                  </router-link>
+                  </a>
+                  <button class="einsatz-dok-action" type="button" title="Herunterladen" @click="downloadFile(dok.url, dok.filename)">
+                    <font-awesome-icon icon="fa-solid fa-download" />
+                  </button>
+                  <button class="einsatz-dok-action einsatz-dok-action--del" title="Löschen" type="button" @click="deleteEinsatzDok(dok)">
+                    <font-awesome-icon icon="fa-solid fa-xmark" />
+                  </button>
                 </div>
               </div>
-            </div>
+
+              <!-- Uploading indicator -->
+              <div v-if="einsatzDokUploading" class="einsatz-dok-row einsatz-dok--uploading">
+                <font-awesome-icon icon="fa-solid fa-spinner" spin class="einsatz-dok-icon" />
+                <div class="einsatz-dok-info">
+                  <div class="einsatz-dok-name">Wird hochgeladen…</div>
+                </div>
+              </div>
+
+              <label class="einsatz-dok-upload-btn">
+                <font-awesome-icon icon="fa-solid fa-upload" />
+                Dokumente hochladen
+                <input
+                  type="file"
+                  multiple
+                  class="sr-only"
+                  @change="onEinsatzDokUpload"
+                />
+              </label>
+            </template>
           </div>
         </div>
       </div>
@@ -985,11 +1126,11 @@
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 import { DocusealForm } from '@docuseal/vue';
 
-library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare);
+library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
@@ -1099,9 +1240,14 @@ export default {
       sigResult: null,
       sigError: '',
       verleiherSigned: false,
-      // ── Sidebar Signaturen ───────────────────────────────────────────────
-      sidebarSignaturen: [],
-      sidebarSigLoading: false,
+      // ── Stundenliste status (Einsatzdokumente sidebar) ───────────────────────────
+      stundenlisteStatus: null,        // { vorgang, isOutdated, outdatedReasons }
+      stundenlisteStatusLoading: false,
+      generatedStundenlisteUrl: null,   // blob URL for unsigned PDF preview (ephemeral)
+      // ── Einsatzdokumente (R2 uploads) ────────────────────────────────────
+      einsatzDoks: [],
+      einsatzDoksLoading: false,
+      einsatzDokUploading: false,
       // Document icons
       auftragDocs: [],
       selectedDoc: null,
@@ -1119,9 +1265,25 @@ export default {
       return String(u.role || '').toUpperCase() === 'ADMIN'
         || (Array.isArray(u.roles) && u.roles.includes('ADMIN'));
     },
+    isVertrieb() {
+      const u = this.user || {};
+      return Array.isArray(u.roles) && u.roles.includes('VERTRIEB');
+    },
+    canSignaturen() {
+      return this.isAdmin || this.isVertrieb;
+    },
     canSubmitSignature() {
       const email = (this.sigEntleiher.email || '').trim();
       return !!this.sigVerleiher.email && /\S+@\S+\.\S+/.test(email);
+    },
+    sidebarStundenliste() {
+      return this.stundenlisteStatus?.vorgang || null;
+    },
+    stundenlisteIsOutdated() {
+      return this.stundenlisteStatus?.isOutdated || false;
+    },
+    stundenlisteOutdatedReasons() {
+      return this.stundenlisteStatus?.outdatedReasons || [];
     },
     laufzettelImg() { return this.isDark ? laufzettelDarkIcon : laufzettelIcon; },
     eventreportImg() { return this.isDark ? eventreportDarkIcon : eventreportIcon; },
@@ -1183,10 +1345,17 @@ export default {
       this.handlePseudoRouteQuery();
     },
     selectedEvent(event) {
+      // Revoke blob URLs to avoid memory leaks (R2 signed URLs are plain https — revokeObjectURL is a no-op for them)
+      if (this.generatedStundenlisteUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(this.generatedStundenlisteUrl);
+      }
+      this.generatedStundenlisteUrl = null;
       if (event && event.auftragNr) {
-        this.loadSidebarSignaturen(event.auftragNr);
+        this.loadStundenlisteStatus(event.auftragNr);
+        this.loadEinsatzDoks(event.auftragNr);
       } else {
-        this.sidebarSignaturen = [];
+        this.stundenlisteStatus = null;
+        this.einsatzDoks = [];
       }
     },
   },
@@ -1938,6 +2107,21 @@ export default {
         alert(err.response?.data?.message || 'Fehler beim Löschen');
       }
     },
+    async generateAndPreview() {
+      if (!this.selectedEvent?.auftragNr || this.isGeneratingHoursList) return;
+      const auftragNr = this.selectedEvent.auftragNr;
+      this.isGeneratingHoursList = true;
+      try {
+        const { data } = await api.get(`/api/auftraege/${auftragNr}/stundenliste`, { responseType: 'blob' });
+        if (this.generatedStundenlisteUrl) URL.revokeObjectURL(this.generatedStundenlisteUrl);
+        const blob = new Blob([data], { type: 'application/pdf' });
+        this.generatedStundenlisteUrl = URL.createObjectURL(blob);
+      } catch (err) {
+        console.error('Stundenliste generieren fehlgeschlagen', err);
+      } finally {
+        this.isGeneratingHoursList = false;
+      }
+    },
     async generateHoursList() {
       this.showQuickActions = false;
       if (!this.selectedEvent || this.isGeneratingHoursList) return;
@@ -1966,17 +2150,85 @@ export default {
       const list = Array.isArray(c.emailAddresses) ? c.emailAddresses : [];
       return (list[0] && list[0].address) || '';
     },
-    async loadSidebarSignaturen(auftragNr) {
-      this.sidebarSigLoading = true;
+    async loadStundenlisteStatus(auftragNr) {
+      this.stundenlisteStatusLoading = true;
       try {
-        const { data } = await api.get('/api/signaturen', { params: { auftragNr } });
-        this.sidebarSignaturen = Array.isArray(data) ? data : [];
+        const { data } = await api.get(`/api/auftraege/${auftragNr}/stundenliste-status`);
+        this.stundenlisteStatus = data;
+        // Restore unsigned PDF preview from R2 if no active signature vorgang exists
+        if (data.unsignedPdfUrl && !data.vorgang) {
+          this.generatedStundenlisteUrl = data.unsignedPdfUrl;
+        }
       } catch (e) {
-        console.error('Sidebar-Signaturen laden fehlgeschlagen', e);
-        this.sidebarSignaturen = [];
+        console.error('Stundenliste-Status laden fehlgeschlagen', e);
+        this.stundenlisteStatus = null;
       } finally {
-        this.sidebarSigLoading = false;
+        this.stundenlisteStatusLoading = false;
       }
+    },
+    async downloadFile(url, filename) {
+      try {
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      } catch (e) {
+        console.error('Download fehlgeschlagen', e);
+      }
+    },
+    async loadEinsatzDoks(auftragNr) {
+      this.einsatzDoksLoading = true;
+      try {
+        const { data } = await api.get(`/api/auftraege/${auftragNr}/einsatzdokumente`);
+        this.einsatzDoks = data.data || [];
+      } catch (e) {
+        console.error('Einsatzdokumente laden fehlgeschlagen', e);
+        this.einsatzDoks = [];
+      } finally {
+        this.einsatzDoksLoading = false;
+      }
+    },
+    async onEinsatzDokUpload(event) {
+      const files = Array.from(event.target.files || []);
+      if (!files.length || !this.selectedEvent?.auftragNr) return;
+      event.target.value = ''; // reset so same file can be re-selected
+      this.einsatzDokUploading = true;
+      try {
+        for (const file of files) {
+          const form = new FormData();
+          form.append('file', file);
+          const { data } = await api.post(
+            `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`,
+            form,
+            { headers: { 'Content-Type': 'multipart/form-data' } }
+          );
+          this.einsatzDoks.push(data.data);
+        }
+      } catch (e) {
+        console.error('Upload fehlgeschlagen', e);
+      } finally {
+        this.einsatzDokUploading = false;
+      }
+    },
+    async deleteEinsatzDok(dok) {
+      if (!this.selectedEvent?.auftragNr) return;
+      try {
+        await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`, {
+          data: { key: dok.key },
+        });
+        this.einsatzDoks = this.einsatzDoks.filter(d => d.key !== dok.key);
+      } catch (e) {
+        console.error('Löschen fehlgeschlagen', e);
+      }
+    },
+    formatFileSize(bytes) {
+      if (!bytes) return '0 B';
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     },
     async openSignatureDialog() {
       this.showQuickActions = false;
@@ -1992,6 +2244,7 @@ export default {
         prefill.kuerzel = data.kunde?.kuerzel || '';
         prefill.kundName = data.kunde?.kundName || '';
         prefill.kundeId = data.kunde?._id || null;
+        prefill.entleiherEmail = data.entleiherEmail || '';
       } catch (err) {
         // Non-fatal: the modal can still be filled in manually.
         console.error('Signer-Vorbelegung fehlgeschlagen', err);
@@ -2008,7 +2261,7 @@ export default {
           customEndpoint: `/api/signaturen/stundenliste/${auftragNr}`,
           submitters: [
             { role: 'Verleiher', name: prefill.verleiher.name || '', email: prefill.verleiher.email || '', embedded: true },
-            { role: 'Entleiher', name: prefill.kundName || '', email: '', embedded: false },
+            { role: 'Entleiher', name: prefill.kundName || '', email: prefill.entleiherEmail || '', embedded: false },
           ],
         },
         // After creation: surface the embedded Verleiher signing form.
@@ -2020,7 +2273,7 @@ export default {
           this.sigError = '';
           this.showSignatureDialog = true;
           // Refresh sidebar
-          if (this.selectedEvent?.auftragNr) this.loadSidebarSignaturen(this.selectedEvent.auftragNr);
+          if (this.selectedEvent?.auftragNr) this.loadStundenlisteStatus(this.selectedEvent.auftragNr);
         }
       );
     },
@@ -2213,6 +2466,7 @@ export default {
     this.handlePseudoRouteQuery();
   },
   beforeUnmount() {
+    if (this.generatedStundenlisteUrl?.startsWith('blob:')) URL.revokeObjectURL(this.generatedStundenlisteUrl);
     window.removeEventListener('resize', this.checkMobile);
     document.removeEventListener('keydown', this.handleEscapeKey);
     document.removeEventListener('click', this.handleDocumentClick);
@@ -4042,8 +4296,8 @@ export default {
   &:hover { opacity: 1; background: var(--hover); }
 }
 
-/* ── Signaturen Section (Sidebar) ──────────────────────────────────── */
-.signaturen-section {
+/* ── Einsatzdokumente Section (Sidebar) ────────────────────────────── */
+.einsatzdoks-section {
   margin-top: 20px;
   border-top: 1px solid var(--border);
   padding-top: 14px;
@@ -4064,81 +4318,200 @@ export default {
   &:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
 }
 
-.sig-sidebar-state {
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.einsatz-dok-loading {
   font-size: 0.8rem;
   color: var(--muted);
-  padding: 12px 0;
+  padding: 8px 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  &--empty { flex-direction: column; align-items: flex-start; gap: 8px; }
 }
-.sig-sidebar-create-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  border: 1px dashed var(--border);
-  border-radius: 7px;
-  background: none;
-  color: var(--primary);
+.einsatz-dok-empty {
   font-size: 0.78rem;
-  cursor: pointer;
-  &:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); border-color: var(--primary); }
+  color: var(--muted);
+  padding: 6px 0;
+  font-style: italic;
 }
 
-.sig-sidebar-list { display: flex; flex-direction: column; gap: 8px; }
+.einsatz-dok-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 7px;
+  padding: 9px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 9px;
+  background: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 
-.sig-sidebar-item {
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: color-mix(in oklab, var(--primary) 6%, transparent);
+  }
+}
+
+.einsatz-dok-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 9px;
-  padding: 10px 12px;
+  margin-top: 7px;
   background: var(--tile-bg, var(--surface));
   border-left: 3px solid var(--border);
-  &.sig-sidebar--completed { border-left-color: #10b981; }
-  &.sig-sidebar--open { border-left-color: #f59e0b; }
-  &.sig-sidebar--draft { border-left-color: var(--muted); }
-  &.sig-sidebar--cancelled { border-left-color: #ef4444; opacity: 0.7; }
+  &.einsatz-dok--completed { border-left-color: #10b981; }
+  &.einsatz-dok--open      { border-left-color: #f59e0b; }
+  &.einsatz-dok--draft     { border-left-color: var(--muted); }
+  &.einsatz-dok--cancelled { border-left-color: #ef4444; opacity: 0.7; }
+  &.einsatz-dok--none      { border-left-color: var(--border); }
+  &.einsatz-dok--generated  { border-left-color: var(--muted); }
+  &.einsatz-dok--upload    { border-left-color: #6366f1; }
+  &.einsatz-dok--uploading { border-left-color: var(--muted); opacity: 0.7; }
 }
-.sig-sidebar-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+
+.einsatz-dok-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  color: var(--primary);
+  &--muted { color: var(--muted); }
 }
-.sig-sidebar-name {
+
+.einsatz-dok-info {
+  flex: 1;
+  min-width: 0;
+}
+.einsatz-dok-name {
   font-size: 0.83rem;
   font-weight: 600;
   color: var(--text);
-  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sig-sidebar-badge {
+.einsatz-dok-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.einsatz-dok-badge {
   font-size: 0.64rem;
   font-weight: 700;
   padding: 2px 7px;
   border-radius: 10px;
   flex-shrink: 0;
   &.badge-completed { background: color-mix(in srgb, #10b981 16%, transparent); color: #10b981; }
-  &.badge-open { background: color-mix(in srgb, #f59e0b 14%, transparent); color: #f59e0b; }
-  &.badge-draft { background: var(--hover); color: var(--muted); }
+  &.badge-open      { background: color-mix(in srgb, #f59e0b 14%, transparent); color: #f59e0b; }
+  &.badge-draft     { background: var(--hover); color: var(--muted); }
   &.badge-cancelled { background: color-mix(in srgb, #ef4444 12%, transparent); color: #ef4444; }
+  &.badge-none      { background: var(--hover); color: var(--muted); }
 }
-.sig-sidebar-meta {
+
+.einsatz-dok-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 5px;
-  font-size: 0.74rem;
-  color: var(--muted);
+  gap: 4px;
+  flex-shrink: 0;
 }
-.sig-sidebar-link {
-  margin-left: auto;
+.einsatz-dok-action {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  &:hover { background: var(--hover); color: var(--text); }
+  &--del:hover { color: #ef4444; background: color-mix(in srgb, #ef4444 10%, transparent); }
+}
+
+.einsatz-dok-gen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--primary);
+  border-radius: 7px;
+  background: none;
   color: var(--primary);
-  font-size: 0.72rem;
-  &:hover { opacity: 0.75; }
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  &:hover {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+}
+
+.einsatz-dok-outdated-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: color-mix(in srgb, #f59e0b 8%, transparent);
+  border: 1px solid color-mix(in srgb, #f59e0b 30%, transparent);
+  border-radius: 9px;
+  padding: 9px 12px;
+  margin-top: 6px;
+}
+.outdated-bar-icon {
+  color: #f59e0b;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.outdated-bar-info {
+  flex: 1;
+  min-width: 0;
+}
+.outdated-bar-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #f59e0b;
+}
+.outdated-bar-reason {
+  font-size: 0.73rem;
+  color: var(--muted);
+  margin-top: 2px;
+  &::before { content: '• '; }
+}
+.einsatz-dok-redo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid #f59e0b;
+  border-radius: 7px;
+  background: none;
+  color: #f59e0b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  &:hover {
+    background: color-mix(in srgb, #f59e0b 14%, transparent);
+  }
 }
 
 /* ── Stundenliste-Signatur Dialog ──────────────────────────────────── */

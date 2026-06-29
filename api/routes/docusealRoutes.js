@@ -132,12 +132,12 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Mindestens ein Unterzeichner ist erforderlich' });
   }
 
-  // Embedded signers (our employees) sign inside the app → suppress DocuSeal emails.
+  // Suppress DocuSeal's built-in emails — we send our own branded version below.
   const apiSubmitters = submitters.map((s) => ({
     role:  s.role,
     name:  s.name,
     email: s.email,
-    send_email: s.embedded ? false : true,
+    send_email: false,
   }));
 
   const result = await DocuSealService.createSubmission({
@@ -170,6 +170,23 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   });
   await vorgang.save();
 
+  // Send branded signature-request emails for non-embedded signers.
+  const { sendSignaturEmail } = require('../EmailService');
+  for (const apiSub of storedSubmitters) {
+    if (!apiSub.embedded && apiSub.slug) {
+      const signingLink = apiSub.embedSrc || `https://docuseal.eu/s/${apiSub.slug}`;
+      const requested = submitters.find((s) => (s.email && s.email === apiSub.email) || s.role === apiSub.role) || {};
+      const recipientEmail = requested.email || apiSub.email;
+      const recipientName = requested.name || apiSub.name || recipientEmail;
+      try {
+        await sendSignaturEmail(recipientEmail, recipientName, name, signingLink, 'it');
+        logger.info(`[docuseal] Signature email sent to ${recipientEmail} for "${name}"`);
+      } catch (err) {
+        logger.error(`[docuseal] Could not send signature email to ${recipientEmail}:`, err);
+      }
+    }
+  }
+
   res.status(201).json(vorgang);
 }));
 
@@ -201,6 +218,7 @@ router.get('/stundenliste/:auftragNr/signers', auth, asyncHandler(async (req, re
       ? { _id: kunde._id, kundenNr: kunde.kundenNr, kundName: kunde.kundName, kuerzel: kunde.kuerzel || '' }
       : null,
     verleiher,
+    entleiherEmail: kunde?.signaturKontaktEmail || null,
   });
 }));
 
@@ -261,11 +279,13 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
 
   // We are creating the submission, but we do NOT send any emails via DocuSeal, 
   // because we handle that via our GRAPH Mail integration
+  const today = new Date().toISOString().split('T')[0];
   const apiSubmitters = requestedSubmitters.map((s) => ({
     role: s.role,
     name: s.name,
     email: s.email,
     send_email: false,
+    values: { [`${s.role} Datum`]: today },
   }));
 
   const result = await DocuSealService.createSubmissionFromPdf({
@@ -307,26 +327,17 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
 
   // Custom Graph Email Dispatching
   // Find external submitters (like Entleiher) that are not embedded in the UI
-  const { sendMail } = require('../EmailService');
+  const { sendSignaturEmail } = require('../EmailService');
   logger.info(`[Stundenliste ${auftragNr}] storedSubmitters after DocuSeal response:`, JSON.stringify(storedSubmitters, null, 2));
   for (const apiSub of storedSubmitters) {
     logger.info(`[Stundenliste ${auftragNr}] Checking submitter for email: role=${apiSub.role}, email=${apiSub.email}, embedded=${apiSub.embedded}, slug=${apiSub.slug || '(empty)'}`);
     if (!apiSub.embedded && apiSub.slug) {
       const signingLink = apiSub.embedSrc || `https://docuseal.eu/s/${apiSub.slug}`;
-      const emailContent = `
-        <div style="font-family: Arial, sans-serif; color: #333;">
-          <h2 style="font-weight: bold; color: #000;">Ihre Stundenliste ist bereit zur Unterschrift</h2>
-          <p>Bitte klicken Sie auf den untenstehenden Link, um die Stundenliste für Auftrag ${auftragNr} zu überprüfen und zu unterschreiben.</p>
-          <a href="${signingLink}" style="display:inline-block; padding:10px 15px; color:#fff; background-color:#E36125; text-decoration:none; border-radius:4px; margin-top:20px;">
-            Dokument unterschreiben
-          </a>
-        </div>
-      `;
-      // Use the actual entleiher email (not the DocuSeal-stored one which may be a test address)
       const recipientEmail = requestedSubmitters.find((s) => s.role === apiSub.role)?.email || apiSub.email;
+      const recipientName = requestedSubmitters.find((s) => s.role === apiSub.role)?.name || apiSub.name || recipientEmail;
       logger.info(`[Stundenliste ${auftragNr}] Attempting to send e-mail to ${recipientEmail} with signing link ${signingLink}`);
       try {
-        await sendMail(recipientEmail, `Ihre Stundenliste für Auftrag ${auftragNr}`, emailContent, "it");
+        await sendSignaturEmail(recipientEmail, recipientName, docName, signingLink, 'it');
         logger.info(`[Stundenliste ${auftragNr}] E-mail successfully dispatched to ${recipientEmail}`);
       } catch (err) {
         logger.error(`Could not send custom e-mail to ${recipientEmail}:`, err);
