@@ -2107,12 +2107,23 @@ export default {
         alert(err.response?.data?.message || 'Fehler beim Löschen');
       }
     },
+    async _askExcludePseudo() {
+      const einsaetze = this.selectedEvent?.einsaetze || [];
+      const pseudoCount = einsaetze.filter(e => e.isPseudo).length;
+      if (pseudoCount === 0) return false;
+      return confirm(
+        `In diesem Job ${pseudoCount === 1 ? 'ist' : 'sind'} ${pseudoCount} Pseudo-Mitarbeiter${pseudoCount === 1 ? '' : ''} eingeplant.\n` +
+        'Sollen diese aus der Stundenliste ausgeschlossen werden?'
+      );
+    },
     async generateAndPreview() {
       if (!this.selectedEvent?.auftragNr || this.isGeneratingHoursList) return;
       const auftragNr = this.selectedEvent.auftragNr;
+      const excludePseudo = await this._askExcludePseudo();
       this.isGeneratingHoursList = true;
       try {
-        const { data } = await api.get(`/api/auftraege/${auftragNr}/stundenliste`, { responseType: 'blob' });
+        const params = excludePseudo ? { excludePseudo: 'true' } : {};
+        const { data } = await api.get(`/api/auftraege/${auftragNr}/stundenliste`, { responseType: 'blob', params });
         if (this.generatedStundenlisteUrl) URL.revokeObjectURL(this.generatedStundenlisteUrl);
         const blob = new Blob([data], { type: 'application/pdf' });
         this.generatedStundenlisteUrl = URL.createObjectURL(blob);
@@ -2126,9 +2137,11 @@ export default {
       this.showQuickActions = false;
       if (!this.selectedEvent || this.isGeneratingHoursList) return;
       const auftragNr = this.selectedEvent.auftragNr;
+      const excludePseudo = await this._askExcludePseudo();
       this.isGeneratingHoursList = true;
       try {
-        const { data } = await api.get(`/api/auftraege/${auftragNr}/stundenliste`, { responseType: 'blob' });
+        const params = excludePseudo ? { excludePseudo: 'true' } : {};
+        const { data } = await api.get(`/api/auftraege/${auftragNr}/stundenliste`, { responseType: 'blob', params });
         const blob = new Blob([data], { type: 'application/pdf' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');

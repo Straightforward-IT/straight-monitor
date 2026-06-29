@@ -427,8 +427,9 @@ router.get('/:auftragNr/stundenliste-status', auth, asyncHandler(async (req, res
 // GET /api/auftraege/:auftragNr/stundenliste — Stundenliste (Überlassungsvertrag) als PDF
 router.get('/:auftragNr/stundenliste', asyncHandler(async (req, res) => {
   const { auftragNr } = req.params;
+  const excludePseudo = req.query.excludePseudo === 'true';
 
-  const { buffer } = await StundenlisteService.buildStundenliste(auftragNr);
+  const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, { excludePseudo });
 
   // Im Hintergrund nach R2 sichern (ein Dokument pro Auftrag, wird überschrieben)
   const r2Key = `stundenlisten/${auftragNr}.pdf`;

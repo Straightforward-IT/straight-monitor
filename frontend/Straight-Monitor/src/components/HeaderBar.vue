@@ -42,6 +42,7 @@
             to="/signaturen"
             :class="{ active: isSignSectionActive }"
           >
+            <font-awesome-icon :icon="['fas', 'file-signature']" />
             Signatur
           </router-link>
         </div>
@@ -450,7 +451,7 @@
             :class="{ active: isSignSectionActive }"
             @click="showMobileMenu = false"
           >
-            <font-awesome-icon :icon="['fas', 'pen-fancy']" />
+            <font-awesome-icon :icon="['fas', 'file-signature']" />
             Signatur
           </router-link>
         </div>

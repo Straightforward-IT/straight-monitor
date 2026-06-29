@@ -59,7 +59,7 @@ class StundenlisteService {
    * @returns {Promise<{ buffer: Buffer, auftragNr: number }>}
    */
   async buildStundenliste(auftragNr, options = {}) {
-    const data = await this._loadData(auftragNr);
+    const data = await this._loadData(auftragNr, { excludePseudo: !!options.excludePseudo });
     const buffer = await this._renderPdf(data, { signatureTags: !!options.signatureTags });
     return { buffer, auftragNr: data.auftrag.auftragNr };
   }
@@ -91,7 +91,7 @@ class StundenlisteService {
   }
 
   // ── Datenbeschaffung ──────────────────────────────────────────────────────
-  async _loadData(auftragNr) {
+  async _loadData(auftragNr, options = {}) {
     const nr = parseInt(auftragNr, 10);
     const auftrag = await Auftrag.findOne({ auftragNr: nr }).lean();
     if (!auftrag) {
@@ -104,7 +104,10 @@ class StundenlisteService {
       ? await Kunde.findOne({ kundenNr: auftrag.kundenNr }).lean()
       : null;
 
-    const einsaetze = await Einsatz.find({ auftragNr: nr })
+    const einsaetzeQuery = options.excludePseudo
+      ? { auftragNr: nr, isPseudo: { $ne: true } }
+      : { auftragNr: nr };
+    const einsaetze = await Einsatz.find(einsaetzeQuery)
       .sort({ idAuftragArbeitsschichten: 1, datumVon: 1 })
       .lean();
 
