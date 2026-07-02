@@ -705,6 +705,15 @@ async function completeTaskById(task_gid) {
     }
 }
 
+async function deleteTask(task_gid) {
+  const api = initTasksApi();
+  try {
+    await api.deleteTask(task_gid);
+  } catch (error) {
+    console.error(`❌ Error deleting task ${task_gid}:`, error.response?.body || error.message);
+    throw new Error('Failed to delete Task in Asana');
+  }
+}
 
 /* ------------------------- Attachment upload helper ------------------------ */
 /**
@@ -992,6 +1001,7 @@ module.exports = {  // find/update
   createStoryOnTask,
   deleteStory,
   completeTaskById,
+  deleteTask,
 
   // users
   getAsanaUser,

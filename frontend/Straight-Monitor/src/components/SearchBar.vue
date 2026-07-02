@@ -12,6 +12,7 @@
       @blur="isFocused = false"
       @keydown.escape="$emit('update:modelValue', '')"
     />
+    <kbd v-if="!isFocused && !modelValue" class="search-bar-hint" title="Taste F drücken zum Suchen">F</kbd>
   </div>
 </template>
 
@@ -35,7 +36,8 @@ const inputEl = ref(null);
 const isFocused = ref(false);
 
 function onKeydown(e) {
-  if (e.key !== 's' && e.key !== 'S') return;
+  if (e.key !== 'f' && e.key !== 'F') return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = document.activeElement?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
   e.preventDefault();
@@ -81,6 +83,26 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
     &::placeholder {
       color: var(--muted);
     }
+  }
+
+  .search-bar-hint {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-family: inherit;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    box-shadow: 0 1px 0 var(--border);
+    pointer-events: none;
   }
 }
 </style>

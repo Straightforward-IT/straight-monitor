@@ -494,7 +494,7 @@ class StundenlisteService {
   _drawDateTag(ctx, x, lineY, role, fieldW) {
     const w = Math.round(Math.min(fieldW, 90));
     const h = 18;
-    const tag = `{{${role} Datum;role=${role};type=date;required=true;readonly=true;width=${w};height=${h}}}`;
+    const tag = `{{${role} Datum;role=${role};type=date;required=true;readonly=true;format=DD.MM.YYYY;width=${w};height=${h}}}`;
     ctx.page.drawText(tag, { x, y: lineY + h, size: 5, font: ctx.font, color: rgb(1, 1, 1) });
   }
 

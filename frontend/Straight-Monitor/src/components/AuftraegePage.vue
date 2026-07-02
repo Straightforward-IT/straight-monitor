@@ -219,7 +219,15 @@
 
     <div v-else class="calendar-grid">
       <div class="calendar-header">
-        <div class="kw-cell">KW</div>
+        <label class="kw-cell" style="cursor: pointer; cursor: hand;">
+          KW
+          <input 
+            type="date" 
+            class="hidden-date-input" 
+            @change="handleDatePick"
+            @input="handleDatePick"
+          >
+        </label>
         <div 
           v-for="day in weekDays" 
           :key="day.key" 
@@ -246,7 +254,21 @@
       </div>
 
       <div v-else class="calendar-body">
-        <div class="kw-cell kw-number">{{ currentKW }}</div>
+        <div class="kw-cell kw-number">
+          <div ref="kwScroller" class="kw-scroller" @mouseleave="delayedScrollKwToActive" @mouseenter="clearKwScrollTimer">
+            <template v-for="week in weekScrollList" :key="week.key">
+              <div v-if="week.showYear" class="kw-year-sep">{{ week.year }}</div>
+              <button
+                class="kw-week-btn"
+                :class="{ 'is-active': week.isActive, 'is-today-week': week.isTodayWeek }"
+                :title="`KW ${week.kw} \u00b7 ${week.year}`"
+                @click="jumpToWeek(week.date)"
+              >
+                <span class="kw-num-value">{{ week.kw }}</span>
+              </button>
+            </template>
+          </div>
+        </div>
         <div 
           v-for="day in weekDays" 
           :key="day.key" 
@@ -1140,6 +1162,7 @@ import { useUi } from '../stores/ui';
 import { useTheme } from '../stores/theme';
 import { useSignaturModal } from '../stores/signaturModal';
 import FilterPanel from '@/components/FilterPanel.vue';
+import ThinScrollContainer from '@/components/ThinScrollContainer.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/FilterChip.vue';
 import FilterDivider from '@/components/FilterDivider.vue';
@@ -1157,7 +1180,7 @@ import eventreportDarkIcon from '@/assets/eventreport-dark.png';
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm },
+  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm },
   data() {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
@@ -1297,6 +1320,31 @@ export default {
       if (!this.currentWeekStart) return '';
       return this.getWeekNumber(this.currentWeekStart);
     },
+    weekScrollList() {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dow = today.getDay() || 7;
+      const thisMonday = new Date(today);
+      thisMonday.setDate(today.getDate() - dow + 1);
+
+      const currentStart = this.currentWeekStart ? new Date(this.currentWeekStart) : null;
+      if (currentStart) currentStart.setHours(0, 0, 0, 0);
+
+      const list = [];
+      let prevYear = null;
+      for (let i = -26; i <= 26; i++) {
+        const d = new Date(thisMonday);
+        d.setDate(thisMonday.getDate() + i * 7);
+        const kw   = this.getWeekNumber(d);
+        const year = d.getFullYear();
+        const isActive    = !!currentStart && d.toDateString() === currentStart.toDateString();
+        const isTodayWeek = today >= d && today < new Date(d.getTime() + 7 * 86400000);
+        const showYear    = year !== prevYear;
+        prevYear = year;
+        list.push({ key: `${year}-${kw}`, kw, year, date: d, isActive, isTodayWeek, showYear });
+      }
+      return list;
+    },
     mobileDatePickerValue() {
       const d = this.weekDays[this.mobileDayIndex]?.date;
       if (!d) return '';
@@ -1340,6 +1388,9 @@ export default {
     },
   },
   watch: {
+    currentWeekStart() {
+      this.$nextTick(() => this.scrollKwToActive('smooth'));
+    },
     '$route.query.openPseudo'(value) {
       if (!value) return;
       this.handlePseudoRouteQuery();
@@ -1760,6 +1811,49 @@ export default {
       
       await this.loadAuftraege(startOfMonth, endOfMonth);
       this.loadedMonths.add(monthKey);
+    },
+    jumpToWeek(date) {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      this.currentWeekStart = d;
+      this.ensureMonthLoaded(d);
+    },
+    scrollKwToActive(behavior = 'instant') {
+      const container = this.$refs.kwScroller;
+      if (!container) return;
+      const active = container.querySelector('.kw-week-btn.is-active');
+      if (!active) return;
+      // Dock the active KW directly under the container header
+      const target = active.offsetTop - 6; // Accounts for scroller padding
+      if (behavior === 'instant') {
+        container.scrollTop = Math.max(0, target);
+      } else {
+        container.scrollTo({ top: Math.max(0, target), behavior });
+      }
+    },
+    
+    delayedScrollKwToActive() {
+      if (this.kwScrollTimer) clearTimeout(this.kwScrollTimer);
+      this.kwScrollTimer = setTimeout(() => {
+        this.scrollKwToActive('smooth');
+      }, 500);
+    },
+    
+    clearKwScrollTimer() {
+      if (this.kwScrollTimer) clearTimeout(this.kwScrollTimer);
+    },
+    
+    scrollKwToToday(behavior = 'smooth') {
+      const container = this.$refs.kwScroller;
+      if (!container) return;
+      const todayWeek = container.querySelector('.kw-week-btn.is-today-week');
+      if (!todayWeek) return;
+      const target = todayWeek.offsetTop - 6; // Accounts for scroller padding
+      if (behavior === 'instant') {
+        container.scrollTop = Math.max(0, target);
+      } else {
+        container.scrollTo({ top: Math.max(0, target), behavior });
+      }
     },
     async previousWeek() {
       const newStart = new Date(this.currentWeekStart);
@@ -2463,6 +2557,9 @@ export default {
     this.fetchDataStatus();
     this.initializeWeek();
     await this.loadInitialData();
+    // Wait for layout paint before measuring the KW scroller height
+    await this.$nextTick();
+    requestAnimationFrame(() => requestAnimationFrame(() => this.scrollKwToActive()));
     
     // Check deep link & filters
     const { auftragnr, geschSt, focusDate } = this.$route.query;
@@ -3009,12 +3106,15 @@ export default {
 }
 
 .nav-search {
-  padding: 6px 12px;
-  border-radius: 8px;
+  flex-shrink: 1;
+  min-width: 0;
+  padding: clamp(3px, 0.5cqi, 6px) clamp(6px, 1cqi, 12px);
+  border-radius: clamp(5px, 0.7cqi, 8px);
 
   :deep(input) {
-    width: 220px;
-    font-size: 0.875rem;
+    width: clamp(80px, 18cqi, 220px);
+    font-size: clamp(0.65rem, 0.3rem + 0.9cqi, 0.875rem);
+    min-width: 0;
   }
 }
 
@@ -3086,21 +3186,40 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 15px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
+  container-type: inline-size;
+  gap: clamp(4px, 0.6cqi, 8px);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto 20px;
+  flex-wrap: nowrap;
+  padding: clamp(6px, 0.8cqi, 10px);
+  overflow: hidden;
+  background: color-mix(in oklab, var(--tile-bg) 94%, var(--primary));
+  border: 1px solid color-mix(in oklab, var(--primary) 18%, var(--border));
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.07);
 }
 
 .nav-btn {
-  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: clamp(32px, 4.2cqi, 46px);
+  padding: clamp(4px, 0.7cqi, 9px) clamp(6px, 1.1cqi, 13px);
+  font-size: clamp(0.6rem, 0.3rem + 0.85cqi, 0.92rem);
   background: var(--tile-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: clamp(5px, 0.7cqi, 8px);
   color: var(--text);
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s;
   position: relative;
+  flex-shrink: 1;
+  min-width: 0;
+  white-space: nowrap;
+  gap: clamp(2px, 0.3cqi, 4px);
 
   &:hover {
     background: var(--hover);
@@ -3108,28 +3227,56 @@ export default {
   }
 
   &.today-btn {
-    background: transparent;
+    background: color-mix(in oklab, var(--primary) 7%, var(--tile-bg));
     color: var(--primary);
-    border-color: var(--primary);
+    border-color: color-mix(in oklab, var(--primary) 34%, var(--border));
+    font-weight: 700;
 
     &:hover {
-      background: color-mix(in oklab, var(--primary) 10%, transparent);
+      background: color-mix(in oklab, var(--primary) 12%, var(--tile-bg));
     }
   }
 }
 
+.nav-btn.calendar-btn {
+  height: 27px;
+  min-height: 27px;
+  padding: 0 10px;
+}
+
 .nav-btn.calendar-btn:hover {
-  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  background: color-mix(in oklab, var(--primary) 8%, transparent);
   color: var(--primary);
   border-color: var(--primary);
 }
 
 .current-range {
-  font-size: 1.1rem;
-  font-weight: 600;
+  position: relative;
+  font-size: clamp(0.7rem, 0.35rem + 1cqi, 1.05rem);
+  font-weight: 700;
   color: var(--text);
-  min-width: 250px;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 340px;
+  padding: clamp(5px, 0.7cqi, 9px) clamp(8px, 1.5cqi, 18px) clamp(6px, 0.8cqi, 10px);
+  white-space: nowrap;
+  overflow: hidden;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   text-align: center;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: -1px;
+    height: 3px;
+    border-radius: 999px 999px 0 0;
+    background: var(--primary);
+  }
 }
 
 .loading-body {
@@ -3143,16 +3290,19 @@ export default {
 
 .calendar-grid {
   background: var(--tile-bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--border) 82%, var(--primary));
+  border-radius: 16px;
   overflow: hidden;
+  background-clip: padding-box;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.08);
 }
 
 .calendar-header {
   display: grid;
-  grid-template-columns: 50px repeat(7, 1fr);
+  grid-template-columns: 58px repeat(7, 1fr);
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
 }
 
 .kw-cell {
@@ -3165,8 +3315,102 @@ export default {
 }
 
 .kw-number {
-  font-size: 1rem;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--primary) 5%, var(--panel)),
+    color-mix(in oklab, var(--primary) 2%, var(--tile-bg))
+  );
+}
+
+.kw-scroller {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px;
+  gap: 2px;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary) transparent;
+
+  &::-webkit-scrollbar       { width: 3px; }
+  &::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 999px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+}
+
+.kw-year-sep {
+  width: 100%;
+  text-align: center;
+  font-size: 0.5rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  padding: 6px 0 2px;
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+
+.kw-week-btn {
+  width: 50px;
+  min-height: 44px;
+  flex-shrink: 0;
+  border: 1px solid transparent; /* Keep for stable size, transparent by default */
+  border-radius: 8px;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  /* Leave: starts slow, then accelerates */
+  transition: transform 0.45s cubic-bezier(0.6, 0, 1, 1),
+              font-weight 0.45s cubic-bezier(0.6, 0, 1, 1),
+              color 0.45s cubic-bezier(0.6, 0, 1, 1);
+  padding: 4px 2px;
+
+  &:hover {
+    /* Enter: fast */
+    transition: transform 0.12s ease-out,
+                font-weight 0.12s ease-out,
+                color 0.12s ease-out;
+    transform: scale(1.1);
+    
+    .kw-num-value {
+      font-weight: 800;
+    }
+  }
+
+  &.is-today-week:not(.is-active) {
+    border-color: color-mix(in oklab, var(--primary) 35%, transparent);
+  }
+
+  &.is-active {
+    .kw-num-label, .kw-num-value { 
+      color: var(--primary);
+    }
+  }
+}
+
+.kw-num-label {
+  color: var(--muted);
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.kw-num-value {
   color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .day-header {
@@ -3179,7 +3423,8 @@ export default {
   }
 
   &.is-today {
-    background: color-mix(in oklab, var(--primary) 15%, transparent);
+    background: color-mix(in oklab, var(--primary) 7%, transparent);
+    box-shadow: inset 0 3px 0 var(--primary);
   }
 
   .day-name {
@@ -3197,7 +3442,7 @@ export default {
 
 .calendar-body {
   display: grid;
-  grid-template-columns: 50px repeat(7, 1fr);
+  grid-template-columns: 58px repeat(7, 1fr);
   min-height: 500px;
 }
 

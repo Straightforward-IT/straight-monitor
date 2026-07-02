@@ -87,6 +87,28 @@ const SignaturVorgangSchema = new mongoose.Schema({
   // Full R2 key of the DocuSeal audit trail PDF
   r2KeyAudit:  { type: String, default: '' },
 
+  // ── Folgeaktionen (optional, executed after submission.completed) ──────────
+
+  folgeaktionen: {
+    // E-mail addresses to receive the signed PDF once the submission is done
+    ausliefernAn: {
+      type: [{ displayName: { type: String, default: '' }, email: { type: String, default: '' } }],
+      default: [],
+    },
+    // If false → send_email:false is passed to DocuSeal (no signing-request emails)
+    emailBenachrichtigung: { type: Boolean, default: true },
+    // Asana tasks to act on after completion
+    asanaActions: {
+      type: [{
+        type:     { type: String, enum: ['complete', 'comment', 'delete'], required: true },
+        taskGid:  { type: String, required: true },
+        taskName: { type: String, default: '' },
+        comment:  { type: String, default: '' }, // only used when type === 'comment'
+      }],
+      default: [],
+    },
+  },
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   createdBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

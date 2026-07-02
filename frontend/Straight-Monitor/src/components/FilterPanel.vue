@@ -64,12 +64,12 @@ export default {
 <style scoped lang="scss">
 .filter-panel {
   margin-bottom: 20px;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in oklab, var(--primary) 18%, var(--border));
   border-radius: 8px;
   background: var(--bg);
   /* Use conditional overflow for dropdowns */
   overflow: hidden; 
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.035);
 
   --soft: var(--hover);
   --brand: var(--primary);
@@ -107,13 +107,15 @@ export default {
   align-items: center;
   padding: 12px 20px;
   background: var(--bg);
+  border-left: 4px solid color-mix(in oklab, var(--primary) 80%, transparent);
   border-bottom: 1px solid transparent;
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
 
   &:hover {
-    background: var(--hover);
+    background: color-mix(in oklab, var(--primary) 4%, var(--hover));
+    border-bottom-color: color-mix(in oklab, var(--primary) 45%, transparent);
     
     .collapse-btn {
         background: var(--bg);
@@ -137,8 +139,8 @@ export default {
       width: 16px; 
       height: 16px;
       /* Legacy icon, keeping it */
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%2364748b' d='M3.9 54.9C10.5 40.9 24.5 32 40 32l432 0c15.5 0 29.5 8.9 36.1 22.9s4.6 30.5-5.2 42.5L320 320.9 320 448c0 12.1-6.8 23.2-17.7 28.6s-23.8 4.3-33.5-3l-64-48c-8.1-6-12.8-15.5-12.8-25.6l0-79.1L9 97.3C-1 85.4-2.8 68.8 3.9 54.9z'/%3E%3C/svg%3E");
-      opacity: 0.7;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23f28c28' d='M3.9 54.9C10.5 40.9 24.5 32 40 32l432 0c15.5 0 29.5 8.9 36.1 22.9s4.6 30.5-5.2 42.5L320 320.9 320 448c0 12.1-6.8 23.2-17.7 28.6s-23.8 4.3-33.5-3l-64-48c-8.1-6-12.8-15.5-12.8-25.6l0-79.1L9 97.3C-1 85.4-2.8 68.8 3.9 54.9z'/%3E%3C/svg%3E");
+      opacity: 0.85;
       background-size: contain;
       background-repeat: no-repeat;
     }

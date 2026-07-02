@@ -210,13 +210,122 @@
                 <font-awesome-icon :icon="['fas', 'user-plus']" /> Unterzeichner hinzufügen
               </button>
             </section>
+
+            <!-- ───────── STEP 4: Folgeaktionen ───────── -->
+            <section v-show="currentStep === 3" class="sig-section">
+
+              <!-- Ausliefern an -->
+              <label class="sig-field-label">
+                <font-awesome-icon :icon="['fas', 'envelope']" /> Fertig­gestelltes Dokument ausliefern an
+              </label>
+              <p class="sig-hint" style="margin-top:0;margin-bottom:10px;">
+                Nach Abschluss aller Unterschriften wird das signierte PDF an diese Adressen geschickt.
+              </p>
+              <div class="sig-email-chips">
+                <span v-for="(r, i) in folgeaktionen.ausliefernAn" :key="i" class="sig-email-chip">
+                  {{ r.email }}
+                  <button type="button" class="sig-chip-remove" @click="removeAusliefernEmail(i)">×</button>
+                </span>
+              </div>
+              <div class="sig-email-add-row">
+                <div class="sig-search-input">
+                  <font-awesome-icon :icon="['fas', 'at']" />
+                  <input
+                    v-model="newEmailInput"
+                    type="email"
+                    placeholder="E-Mail-Adresse eingeben…"
+                    @keydown.enter.prevent="addAusliefernEmail"
+                  />
+                </div>
+                <button class="sig-btn sig-btn--ghost" type="button" @click="addAusliefernEmail">
+                  <font-awesome-icon :icon="['fas', 'plus']" /> Hinzufügen
+                </button>
+              </div>
+              <p v-if="newEmailError" class="sig-error" style="margin-top:6px;">{{ newEmailError }}</p>
+
+              <!-- E-Mail-Benachrichtigung toggle -->
+              <label class="sig-field-label" style="margin-top:20px;">
+                <font-awesome-icon :icon="['fas', 'envelope']" /> Signaturanfrage per E-Mail
+              </label>
+              <div class="sig-chip-row">
+                <FilterChip
+                  :active="folgeaktionen.emailBenachrichtigung"
+                  @click="folgeaktionen.emailBenachrichtigung = !folgeaktionen.emailBenachrichtigung"
+                >
+                  {{ folgeaktionen.emailBenachrichtigung ? 'Aktiviert – Unterzeichner erhalten eine E-Mail' : 'Deaktiviert – Keine Signatur-E-Mails' }}
+                </FilterChip>
+              </div>
+
+              <!-- Asana Aktionen -->
+              <label class="sig-field-label" style="margin-top:20px;">
+                <font-awesome-icon :icon="['fas', 'robot']" /> Asana-Aktionen nach Abschluss
+              </label>
+
+              <!-- Added actions list -->
+              <div v-if="folgeaktionen.asanaActions.length" class="sig-asana-list">
+                <div v-for="(a, i) in folgeaktionen.asanaActions" :key="i" class="sig-asana-item">
+                  <font-awesome-icon :icon="asanaActionIcons[a.type]" class="sig-asana-type-icon" :class="`sig-asana-type--${a.type}`" />
+                  <div class="sig-asana-item-info">
+                    <span class="sig-asana-action-label">{{ asanaActionLabels[a.type] }}</span>
+                    <span class="sig-asana-task-name">{{ a.taskName || a.taskGid }}</span>
+                    <span v-if="a.type === 'comment' && a.comment" class="sig-asana-comment-preview">„{{ a.comment }}"</span>
+                  </div>
+                  <button type="button" class="sig-chip-remove" @click="removeAsanaAction(i)">×</button>
+                </div>
+              </div>
+
+              <!-- Asana action builder -->
+              <div v-if="showAsanaBuilder" class="sig-asana-builder">
+                <div class="sig-typeahead">
+                  <div class="sig-search-input">
+                    <font-awesome-icon :icon="asanaSearching ? ['fas', 'spinner'] : ['fas', 'magnifying-glass']" :spin="asanaSearching" />
+                    <input v-model="asanaSearchQuery" type="text" placeholder="Asana-Task suchen…" />
+                  </div>
+                  <div v-if="asanaSearchResults.length" class="sig-typeahead-list">
+                    <button
+                      v-for="t in asanaSearchResults"
+                      :key="t.gid"
+                      class="sig-typeahead-item"
+                      type="button"
+                      @click="selectAsanaTask(t)"
+                    >
+                      <span class="sig-ta-name">{{ t.name }}</span>
+                    </button>
+                  </div>
+                </div>
+                <div v-if="pendingAction.taskGid" class="sig-asana-action-row">
+                  <select v-model="pendingAction.type" class="sig-select sig-select--inline">
+                    <option value="complete">Erledigen</option>
+                    <option value="comment">Kommentieren</option>
+                    <option value="delete">Löschen</option>
+                  </select>
+                  <textarea
+                    v-if="pendingAction.type === 'comment'"
+                    v-model="pendingAction.comment"
+                    class="sig-input sig-textarea"
+                    placeholder="Kommentartext…"
+                    rows="2"
+                  />
+                  <button class="sig-btn sig-btn--primary" type="button" @click="addAsanaAction">
+                    <font-awesome-icon :icon="['fas', 'plus']" /> Aktion hinzufügen
+                  </button>
+                </div>
+              </div>
+
+              <button v-if="!showAsanaBuilder" class="sig-add-submitter" type="button" @click="showAsanaBuilder = true">
+                <font-awesome-icon :icon="['fas', 'bolt']" /> Asana-Aktion hinzufügen
+              </button>
+              <button v-else class="sig-add-submitter" style="color:var(--muted);" type="button" @click="showAsanaBuilder = false; asanaSearchQuery = ''; asanaSearchResults = []">
+                Abbrechen
+              </button>
+
+            </section>
           </div>
 
           <!-- Footer -->
           <footer class="sig-footer">
             <p v-if="error" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ error }}</p>
-            <p v-else-if="currentStep === 2 && submitBlockReason" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ submitBlockReason }}</p>
-            <div class="sig-footer-actions">
+            <p v-else-if="currentStep === 2 && submitBlockReason" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ submitBlockReason }}</p>            <div class="sig-footer-actions">
               <button v-if="currentStep > 0" class="sig-btn sig-btn--ghost" type="button" @click="currentStep--">
                 <font-awesome-icon :icon="['fas', 'arrow-left']" /> Zurück
               </button>
@@ -260,6 +369,7 @@ import {
   faMagnifyingGlass, faSpinner, faTriangleExclamation, faCircleInfo, faUserPlus,
   faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
   faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
+  faBolt, faTrash, faCommentDots, faEnvelope, faAt, faRobot,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useSignaturModal } from '@/stores/signaturModal';
@@ -275,6 +385,7 @@ library.add(
   faMagnifyingGlass, faSpinner, faTriangleExclamation, faCircleInfo, faUserPlus,
   faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
   faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
+  faBolt, faTrash, faCommentDots, faEnvelope, faAt, faRobot,
 );
 
 const modal = useSignaturModal();
@@ -295,9 +406,10 @@ const isAdmin = computed(() => {
 });
 
 const steps = [
-  { key: 'doc',  label: 'Dokument & Typ' },
-  { key: 'link', label: 'Verknüpfung' },
-  { key: 'sign', label: 'Unterzeichner' },
+  { key: 'doc',     label: 'Dokument & Typ' },
+  { key: 'link',    label: 'Verknüpfung' },
+  { key: 'sign',    label: 'Unterzeichner' },
+  { key: 'actions', label: 'Folgeaktionen' },
 ];
 
 const standortOptions = [
@@ -315,6 +427,74 @@ const linkOptions = [
 const currentStep = ref(0);
 const submitting = ref(false);
 const error = ref('');
+
+// ── Folgeaktionen state ──────────────────────────────────────────────────────
+const folgeaktionen = ref({
+  ausliefernAn: [],
+  emailBenachrichtigung: true,
+  asanaActions: [],
+});
+
+// "Ausliefern an" input
+const newEmailInput = ref('');
+const newEmailError = ref('');
+
+function addAusliefernEmail() {
+  const val = newEmailInput.value.trim();
+  if (!val) return;
+  if (!/\S+@\S+\.\S+/.test(val)) { newEmailError.value = 'Ungültige E-Mail-Adresse'; return; }
+  if (folgeaktionen.value.ausliefernAn.some(r => r.email === val)) { newEmailError.value = 'Bereits hinzugefügt'; return; }
+  folgeaktionen.value.ausliefernAn.push({ displayName: '', email: val });
+  newEmailInput.value = '';
+  newEmailError.value = '';
+}
+
+function removeAusliefernEmail(i) {
+  folgeaktionen.value.ausliefernAn.splice(i, 1);
+}
+
+// Asana action builder
+const asanaSearchQuery = ref('');
+const asanaSearchResults = ref([]);
+const asanaSearching = ref(false);
+const pendingAction = ref({ taskGid: '', taskName: '', type: 'complete', comment: '' });
+const showAsanaBuilder = ref(false);
+
+let asanaDebounce = null;
+watch(asanaSearchQuery, (q) => {
+  clearTimeout(asanaDebounce);
+  if (!q || q.length < 2) { asanaSearchResults.value = []; return; }
+  asanaDebounce = setTimeout(async () => {
+    asanaSearching.value = true;
+    try {
+      const { data } = await api.get('/api/asana/tasks/search', { params: { query: q } });
+      asanaSearchResults.value = Array.isArray(data.data) ? data.data.slice(0, 10) : [];
+    } catch { asanaSearchResults.value = []; }
+    finally { asanaSearching.value = false; }
+  }, 350);
+});
+
+function selectAsanaTask(task) {
+  pendingAction.value.taskGid  = task.gid;
+  pendingAction.value.taskName = task.name;
+  asanaSearchQuery.value = task.name;
+  asanaSearchResults.value = [];
+}
+
+function addAsanaAction() {
+  if (!pendingAction.value.taskGid) return;
+  folgeaktionen.value.asanaActions.push({ ...pendingAction.value });
+  pendingAction.value = { taskGid: '', taskName: '', type: 'complete', comment: '' };
+  asanaSearchQuery.value = '';
+  showAsanaBuilder.value = false;
+}
+
+function removeAsanaAction(i) {
+  folgeaktionen.value.asanaActions.splice(i, 1);
+}
+
+const asanaActionLabels = { complete: 'Erledigen', comment: 'Kommentieren', delete: 'Löschen' };
+const asanaActionIcons  = { complete: ['fas', 'check'], comment: ['fas', 'comment-dots'], delete: ['fas', 'trash'] };
 
 const typen = ref([]);
 const typenLoading = ref(false);
@@ -402,7 +582,7 @@ const maxReachableStep = computed(() => {
   if (!form.value.typId || !form.value.name.trim()) return 0;
   if (linkMode.value === 'kunde' && (!form.value.kundeId || !selectedKunde.value?.kuerzel)) return 1;
   if (linkMode.value === 'mitarbeiter' && !form.value.mitarbeiterId) return 1;
-  return 2;
+  return 3;
 });
 
 const canSubmit = computed(() => {
@@ -583,6 +763,13 @@ watch(() => modal.open, async (open) => {
   error.value = '';
   form.value = emptyForm();
   linkMode.value = 'keine';
+  folgeaktionen.value = { ausliefernAn: [], emailBenachrichtigung: true, asanaActions: [] };
+  newEmailInput.value = '';
+  newEmailError.value = '';
+  showAsanaBuilder.value = false;
+  asanaSearchQuery.value = '';
+  asanaSearchResults.value = [];
+  pendingAction.value = { taskGid: '', taskName: '', type: 'complete', comment: '' };
 
   // Kick off data loads
   loadTypen();
@@ -649,6 +836,7 @@ async function submit() {
       const payload = {
         standort: form.value.standort,
         submitters: form.value.submitters.filter(s => (s.name || '').trim()),
+        folgeaktionen: folgeaktionen.value,
       };
       const { data } = await api.post(ctx.customEndpoint, payload);
       vorgang = data;
@@ -662,6 +850,7 @@ async function submit() {
         templateId: form.value.templateId || undefined,
         templateName: form.value.templateName || undefined,
         submitters: form.value.submitters.filter(s => (s.name || '').trim()),
+        folgeaktionen: folgeaktionen.value,
       };
       const { data } = await api.post('/api/signaturen', payload);
       vorgang = data;
@@ -1064,4 +1253,88 @@ const ContactSearchPlaceholder = {
 .sig-modal-enter-from, .sig-modal-leave-to { opacity: 0; }
 .sig-modal-enter-active .sig-dialog { transition: transform 0.2s; }
 .sig-modal-enter-from .sig-dialog { transform: translateY(12px) scale(0.98); }
+
+/* ── Folgeaktionen — Ausliefern an ──────────────────────────── */
+.sig-email-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.sig-email-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+  border-radius: 20px;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+.sig-chip-remove {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+  &:hover { color: #ef4444; }
+}
+.sig-email-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  .sig-search-input { flex: 1; }
+}
+
+/* ── Folgeaktionen — Asana ──────────────────────────────────── */
+.sig-asana-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.sig-asana-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--tile-bg, var(--surface));
+}
+.sig-asana-type-icon {
+  font-size: 0.9rem;
+  &.sig-asana-type--complete { color: #10b981; }
+  &.sig-asana-type--comment  { color: var(--primary); }
+  &.sig-asana-type--delete   { color: #ef4444; }
+}
+.sig-asana-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sig-asana-action-label  { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--muted); }
+.sig-asana-task-name     { font-size: 0.86rem; font-weight: 600; color: var(--text); }
+.sig-asana-comment-preview { font-size: 0.78rem; color: var(--muted); font-style: italic; }
+
+.sig-asana-builder {
+  padding: 12px;
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.sig-asana-action-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sig-select--inline { width: auto; min-width: 160px; }
+.sig-textarea { resize: vertical; min-height: 52px; }
 </style>

@@ -42,7 +42,6 @@
             to="/signaturen"
             :class="{ active: isSignSectionActive }"
           >
-            <font-awesome-icon :icon="['fas', 'file-signature']" />
             Signatur
           </router-link>
         </div>
