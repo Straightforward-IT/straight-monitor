@@ -8,8 +8,8 @@
       :title="modelValue ? 'Filter schließen' : 'Filter'"
       @click="toggle"
     >
+      <span v-if="activeCount > 0" class="tf-count">{{ activeCount }}</span>
       <font-awesome-icon icon="fa-solid fa-filter" />
-      <span v-if="activeCount > 0" class="tf-badge">{{ activeCount }}</span>
     </button>
 
     <!-- Expanded panel — overlays the whole toolbar -->
@@ -21,8 +21,8 @@
           title="Filter schließen"
           @click="toggle"
         >
+          <span v-if="activeCount > 0" class="tf-count">{{ activeCount }}</span>
           <font-awesome-icon icon="fa-solid fa-xmark" />
-          <span v-if="activeCount > 0" class="tf-badge">{{ activeCount }}</span>
         </button>
         <div class="tf-content">
           <div class="tf-scroll">
@@ -76,6 +76,8 @@ function toggle() {
   position: relative;
   width: 44px;
   align-self: stretch;
+  flex-direction: column;
+  gap: 1px;
 
   // No outer box — only a right separator
   border: none;
@@ -102,21 +104,11 @@ function toggle() {
   }
 }
 
-.tf-badge {
-  position: absolute;
-  top: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  border-radius: 7px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 0.62rem;
+.tf-count {
+  font-size: 0.65rem;
   font-weight: 700;
-  line-height: 14px;
-  text-align: center;
+  line-height: 1;
+  color: var(--primary);
   pointer-events: none;
 }
 
