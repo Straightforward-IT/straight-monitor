@@ -297,7 +297,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import FilterChip from '@/components/FilterChip.vue';
+import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import api from '@/utils/api';
 
 const route = useRoute();

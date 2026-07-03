@@ -1,12 +1,16 @@
 <template>
   <section class="um">
-    <header class="um__head">
-      <h1>Benutzer<span>verwaltung</span></h1>
-      <button class="btn btn-primary" @click="openCreate">
-        <font-awesome-icon icon="fa-solid fa-plus" />
-        Neuer Benutzer
-      </button>
-    </header>
+    <h1 class="um__title">Benutzer<span>verwaltung</span></h1>
+    <Toolbar>
+      <SearchBar class="toolbar-search" v-model="searchQuery" placeholder="Benutzer suchen…" aria-label="Benutzer suchen" />
+      <ToolbarLabel>{{ filteredUsers.length }} Benutzer</ToolbarLabel>
+      <ToolbarGroup push-right>
+        <ToolbarButton variant="secondary" @click="openCreate">
+          <font-awesome-icon icon="fa-solid fa-plus" />
+          Neuer Benutzer
+        </ToolbarButton>
+      </ToolbarGroup>
+    </Toolbar>
 
     <!-- Fehlermeldung -->
     <div v-if="error" class="um__error">{{ error }}</div>
@@ -28,7 +32,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="u in users" :key="u._id" :class="{ 'row--self': u._id === currentUserId }">
+        <tr v-for="u in filteredUsers" :key="u._id" :class="{ 'row--self': u._id === currentUserId }">
             <td>{{ u.name || '—' }}</td>
             <td>{{ u.email }}</td>
             <td>{{ u.location || '—' }}</td>
@@ -331,6 +335,11 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
 import MitarbeiterSearch from '@/components/ui-elements/MitarbeiterSearch.vue';
+import SearchBar from '@/components/SearchBar.vue';
+import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
+import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
+import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 
 // Map of asana_gid -> { name, email } for display in the table
 const asanaUserMap = ref({});
@@ -346,6 +355,17 @@ const currentUserId = computed(() => auth.user?._id || auth.user?.id);
 const users = ref([]);
 const loading = ref(true);
 const error = ref('');
+const searchQuery = ref('');
+
+const filteredUsers = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return users.value;
+  return users.value.filter(u =>
+    (u.name || '').toLowerCase().includes(q) ||
+    (u.email || '').toLowerCase().includes(q) ||
+    (u.location || '').toLowerCase().includes(q)
+  );
+});
 
 // ─── Edit / Create Modal ────────────────────────────────────────────────────
 const editModal = reactive({
@@ -656,20 +676,11 @@ function formatDate(d) {
   color: var(--text);
 }
 
-.um__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-  gap: 12px;
-  flex-wrap: wrap;
-
-  h1 {
-    font-size: 1.7rem;
-    font-weight: 700;
-    margin: 0;
-    span { color: var(--primary); }
-  }
+.um__title {
+  font-size: 1.7rem;
+  font-weight: 700;
+  margin: 0 0 16px;
+  span { color: var(--primary); }
 }
 
 .um__error {

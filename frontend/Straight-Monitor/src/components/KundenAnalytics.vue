@@ -404,7 +404,7 @@ import {
   Legend
 } from 'chart.js';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import FilterChip from './FilterChip.vue';
+import FilterChip from './ui-elements/FilterChip.vue';
 import DoubleRangeSlider from './DoubleRangeSlider.vue'; // Import Slider
 import { useDataCache } from '@/stores/dataCache';
 import { useTheme } from '@/stores/theme';

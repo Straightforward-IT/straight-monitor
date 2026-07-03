@@ -160,6 +160,12 @@
             </div>
           </div>
 
+          <!-- Einsatz-Verlauf Chart -->
+          <MitarbeiterEinsatzChart
+            v-if="expanded && resolvedMa?._id"
+            :mitarbeiterId="resolvedMa._id.toString()"
+          />
+
           <!-- Skills Section (Berufe & Qualifikationen) -->
           <div v-if="resolvedMa.berufe?.length || resolvedMa.qualifikationen?.length" class="skills-section">
             <h4 class="section-title">
@@ -1342,10 +1348,11 @@ import straightLight from "@/assets/SF_002.png";
 import straightDark from "@/assets/SF_000.svg";
 import flipLogo from "@/assets/flip.png";
 import asanaLogo from "@/assets/asana.png";
+import MitarbeiterEinsatzChart from "./MitarbeiterEinsatzChart.vue";
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DocumentCard, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DocumentCard, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart },
   props: {
     ma: { type: Object, required: false, default: null },
     mitarbeiterId: { type: String, default: null },

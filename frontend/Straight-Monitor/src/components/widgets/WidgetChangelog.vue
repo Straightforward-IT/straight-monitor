@@ -48,6 +48,8 @@ const defaultCount = 2;
 watch(activeTab, () => { showAll.value = false; });
 
 const released = [
+  { icon: ["fas", "palette"],        text: "Design Overhaul: Kompaktere Toolboxen, kleineres Filterpanel und mehr Platz für den Wichtigen Inhalt" },
+  { icon: ["fas", "chart-line"],     text: "Mitarbeiter Analytics - Diagramm für Mitarbeiter Einsätze jetzt in Mitarbeiter-Karte" },
   { icon: ["fas", "shirt"],          text: "Neues Kleiderpaket - Küche für Hamburg und Köln" },
   { icon: ["fas", "comment-dots"],   text: "Feedback bearbeiten & löschen — aus Dokumente und Mitarbeiterkarte" },
   { icon: ["fas", "list"],           text: "Neue Navigation — Unterpunkte & Reihenfolge" },

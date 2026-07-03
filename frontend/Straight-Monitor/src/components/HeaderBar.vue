@@ -50,61 +50,80 @@
               :to="newPagesEnabled ? '/personal' : '#'"
               :class="{ active: isPersonalSectionActive, disabled: !newPagesEnabled }"
               @click="handleNewPageClick($event, '/personal')"
-            >
-              Personal
-            </router-link>
+            >{{ personalNavLabel }}</router-link>
             <div class="nav-submenu" aria-label="Personal Untermenue">
               <router-link
+                v-if="$route.name !== 'BenutzerErstellen'"
                 to="/flip/benutzer-erstellen"
                 class="nav-submenu__link"
-                :class="{ active: $route.name === 'BenutzerErstellen' }"
               >
-                Mitarbeiter erstellen
+                MA erstellen
               </router-link>
               <router-link
-                to="/teamleiter-auswertung"
+                v-else
+                :to="newPagesEnabled ? '/personal' : '#'"
                 class="nav-submenu__link"
-                :class="{ active: $route.name === 'TeamleiterAuswertung' }"
+                @click="handleNewPageClick($event, '/personal')"
               >
-                Teamleiter Auswertung
+                Personal
               </router-link>
             </div>
           </div>
         <div class="nav-group nav-group--reports">
           <router-link
-            to="/dokumente"
+            :to="reportsNavTarget"
             :class="{ active: isReportsSectionActive }"
-          >
-            Reports
-          </router-link>
+          >{{ reportsNavLabel }}</router-link>
           <div class="nav-submenu" aria-label="Reports Untermenue">
             <router-link
+              v-if="$route.name !== 'Dokumente'"
+              to="/dokumente"
+              class="nav-submenu__link"
+            >
+              Reports
+            </router-link>
+            <router-link
+              v-if="$route.name !== 'DokumenteNachpflegen'"
               to="/dokumente-nachpflegen"
               class="nav-submenu__link"
-              :class="{ active: $route.name === 'DokumenteNachpflegen' }"
             >
               Nachpflege
+            </router-link>
+            <router-link
+              v-if="$route.name !== 'TeamleiterAuswertung'"
+              to="/teamleiter-auswertung"
+              class="nav-submenu__link"
+            >
+              Auswertung
             </router-link>
           </div>
         </div>
         <div class="nav-group nav-group--bestand">
-          <router-link to="/bestand" :class="{ active: isBestandSectionActive }"
-            >Bestand</router-link
-          >
+          <router-link
+            :to="$route.name === 'Verlauf' ? '/verlauf' : '/bestand'"
+            :class="{ active: isBestandSectionActive }"
+          >{{ $route.name === 'Verlauf' ? 'Verlauf' : 'Bestand' }}</router-link>
           <div class="nav-submenu" aria-label="Bestand Untermenue">
             <router-link
+              v-if="$route.name !== 'Verlauf'"
               to="/verlauf"
               class="nav-submenu__link"
-              :class="{ active: $route.name === 'Verlauf' }"
             >
               Verlauf
+            </router-link>
+            <router-link
+              v-else
+              to="/bestand"
+              class="nav-submenu__link"
+            >
+              Bestand
             </router-link>
           </div>
         </div>
         <div v-if="canSeeKunden" class="nav-group nav-group--kunden">
           <router-link to="/kunden" :class="{ active: isKundenSectionActive, 'dev-role--vertrieb': isDev }"
             @click="handleNewPageClick($event, '/kunden')"
-            > Kunden </router-link
+            >{{ kundenTabLabel }}</router-link
           >
           <div class="nav-submenu" aria-label="Kunden Untermenue">
             <router-link
@@ -293,16 +312,7 @@
               @click="closeMobileMenu"
             >
               <font-awesome-icon :icon="['fas', 'user-plus']" />
-              Mitarbeiter erstellen
-            </router-link>
-            <router-link
-              to="/teamleiter-auswertung"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'TeamleiterAuswertung' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'user-tie']" />
-              Teamleiter Auswertung
+              MA erstellen
             </router-link>
           </div>
         </div>
@@ -339,6 +349,15 @@
             >
               <font-awesome-icon :icon="['fas', 'pen-to-square']" />
               Nachpflege
+            </router-link>
+            <router-link
+              to="/teamleiter-auswertung"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'TeamleiterAuswertung' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'user-tie']" />
+              Auswertung
             </router-link>
           </div>
         </div>
@@ -712,10 +731,25 @@ const newPagesEnabled = computed(() => !!auth.user);
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
 const canSeeKunden = computed(() => isAdmin.value || auth.user?.roles?.includes('VERTRIEB'));
 const isKundenSectionActive = computed(() => route.name === 'Kunden');
+const kundenTabLabel = computed(() => {
+  if (route.name !== 'Kunden') return 'Kunden';
+  const tabMap = { analytics: 'Analytics', leads: 'Leads', watchlist: 'Watchlist', kontakte: 'Kontakte' };
+  return tabMap[route.query.tab] || 'Übersicht';
+});
 const isAuftraegeSectionActive = computed(() => route.name === 'Auftraege');
 const isBestandSectionActive = computed(() => ['Bestand', 'Verlauf'].includes(route.name));
-const isReportsSectionActive = computed(() => ['Dokumente', 'DokumenteNachpflegen'].includes(route.name));
-const isPersonalSectionActive = computed(() => ['Personal', 'BenutzerErstellen', 'TeamleiterAuswertung'].includes(route.name));
+const isReportsSectionActive = computed(() => ['Dokumente', 'DokumenteNachpflegen', 'TeamleiterAuswertung'].includes(route.name));
+const reportsNavLabel = computed(() => {
+  const m = { Dokumente: 'Reports', DokumenteNachpflegen: 'Nachpflege', TeamleiterAuswertung: 'Auswertung' };
+  return m[route.name] || 'Reports';
+});
+const reportsNavTarget = computed(() => {
+  if (route.name === 'DokumenteNachpflegen') return '/dokumente-nachpflegen';
+  if (route.name === 'TeamleiterAuswertung') return '/teamleiter-auswertung';
+  return '/dokumente';
+});
+const isPersonalSectionActive = computed(() => ['Personal', 'BenutzerErstellen'].includes(route.name));
+const personalNavLabel = computed(() => route.name === 'BenutzerErstellen' ? 'MA erstellen' : 'Personal');
 const isSignSectionActive = computed(() => route.name === 'SignaturenPage');
 
 // Handler für deaktivierte neue Pages
@@ -772,8 +806,8 @@ watch(
   (name) => {
     mobileAuftraegeMenuOpen.value = ['Auftraege'].includes(name);
     mobileBestandMenuOpen.value = ['Bestand', 'Verlauf'].includes(name);
-    mobileReportsMenuOpen.value = ['Dokumente', 'DokumenteNachpflegen'].includes(name);
-    mobilePersonalMenuOpen.value = ['Personal', 'BenutzerErstellen', 'TeamleiterAuswertung'].includes(name);
+    mobileReportsMenuOpen.value = ['Dokumente', 'DokumenteNachpflegen', 'TeamleiterAuswertung'].includes(name);
+    mobilePersonalMenuOpen.value = ['Personal', 'BenutzerErstellen'].includes(name);
     mobileKundenMenuOpen.value = name === 'Kunden';
     mobileSignMenuOpen.value = name === 'SignaturenPage';
   },

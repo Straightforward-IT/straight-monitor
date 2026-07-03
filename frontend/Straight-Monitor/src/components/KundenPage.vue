@@ -17,65 +17,29 @@
 
     <div class="content-section" :class="{ 'content-section--flush': currentTab === 'leads' }">
       
-      <!-- Shared Filter Panel (Not for Analytics/Kontakte/Leads) -->
-      <FilterPanel 
-        v-if="currentTab !== 'analytics' && currentTab !== 'kontakte' && currentTab !== 'leads'"
-        v-model:expanded="filtersExpanded" 
-        title="Filter & Sortierung"
-        class="mb-4"
-      >
-        <!-- GeschSt Filter -->
-        <FilterGroup label="Geschäftsstelle">
-          <FilterChip :active="filters.geschSt === '1'" @click="setGeschStFilter('1')">Berlin</FilterChip>
-          <FilterChip :active="filters.geschSt === '2'" @click="setGeschStFilter('2')">Hamburg</FilterChip>
-          <FilterChip :active="filters.geschSt === '3'" @click="setGeschStFilter('3')">Köln</FilterChip>
-          <FilterChip :active="!filters.geschSt" @click="setGeschStFilter(null)">Alle</FilterChip>
-        </FilterGroup>
-
-        <FilterDivider />
-
-        <!-- Status Filter (Only valid for Overview tab where we have mixed Active/Inactive) -->
-        <FilterGroup v-if="currentTab === 'overview'" label="Status">
-          <FilterChip :active="filters.status === 2" @click="setStatusFilter(2)">Aktiv</FilterChip>
-          <FilterChip :active="filters.status === 3" @click="setStatusFilter(3)">Inaktiv</FilterChip>
-           <FilterChip :active="!filters.status" @click="setStatusFilter(null)">Alle</FilterChip>
-        </FilterGroup>
-
-        <FilterDivider v-if="currentTab === 'overview'" />
-
-        <!-- Sortierung -->
-        <FilterGroup label="Sortierung">
-           <CustomTooltip :text="filters.sortDir === 'asc' ? 'A - Z' : 'Z - A'" position="bottom">
-             <FilterChip 
-              :active="filters.sortBy === 'name'" 
-              @click="toggleSort('name')"
-             >
-               Name
-               <font-awesome-icon v-if="filters.sortBy === 'name'" :icon="filters.sortDir === 'asc' ? 'sort-alpha-down' : 'sort-alpha-up'" class="ml-2" />
-             </FilterChip>
-           </CustomTooltip>
-           
-           <CustomTooltip :text="filters.sortDir === 'asc' ? 'Älteste zuerst' : 'Neueste zuerst'" position="bottom">
-             <FilterChip 
-              :active="filters.sortBy === 'date'" 
-              @click="toggleSort('date')"
-             >
-               Kunde Seit
-               <font-awesome-icon v-if="filters.sortBy === 'date'" :icon="filters.sortDir === 'asc' ? 'sort-numeric-down' : 'sort-numeric-up'" class="ml-2" />
-             </FilterChip>
-           </CustomTooltip>
-        </FilterGroup>
-
-      </FilterPanel>
-
       <!-- Übersicht Tab (Alle außer Status 1) -->
       <div v-if="currentTab === 'overview'" class="tab-content">
-        <div class="toolbar">
-           <div class="search-group">
-            <SearchBar v-model="searchQuery" class="kunden-search-bar" placeholder="Kunden suchen…" aria-label="Kunden suchen" />
-            <span class="count-tag">{{ filteredKunden.length }} Kunden</span>
-           </div>
-        </div>
+        <Toolbar>
+          <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
+            <FilterGroup label="Geschäftsstelle">
+              <FilterChip :active="filters.geschSt === '1'" @click="setGeschStFilter(filters.geschSt === '1' ? null : '1')">Berlin</FilterChip>
+              <FilterChip :active="filters.geschSt === '2'" @click="setGeschStFilter(filters.geschSt === '2' ? null : '2')">Hamburg</FilterChip>
+              <FilterChip :active="filters.geschSt === '3'" @click="setGeschStFilter(filters.geschSt === '3' ? null : '3')">Köln</FilterChip>
+            </FilterGroup>
+            <FilterDivider />
+            <FilterGroup label="Status">
+              <FilterChip :active="filters.status === 2" @click="setStatusFilter(2)">Aktiv</FilterChip>
+              <FilterChip :active="filters.status === 3" @click="setStatusFilter(3)">Inaktiv</FilterChip>
+            </FilterGroup>
+            <FilterDivider />
+            <FilterGroup label="Sortierung">
+              <FilterChip :active="filters.sortBy === 'name'" @click="toggleSort('name')">Name</FilterChip>
+              <FilterChip :active="filters.sortBy === 'date'" @click="toggleSort('date')">Datum</FilterChip>
+            </FilterGroup>
+          </ToolbarFilter>
+          <SearchBar v-model="searchQuery" class="toolbar-search" placeholder="Kunden suchen…" aria-label="Kunden suchen" />
+          <ToolbarLabel>{{ filteredKunden.length }} Kunden</ToolbarLabel>
+        </Toolbar>
         
         <div v-if="isLoading" class="loading-state">
            <font-awesome-icon :icon="['fas', 'spinner']" spin /> Lädt...
@@ -125,15 +89,15 @@
 
       <!-- Watchlist Tab -->
       <div v-if="currentTab === 'watchlist'" class="tab-content">
-        <div class="toolbar">
-          <div class="search-group">
-            <span class="count-tag">{{ watchlistedKunden.length }} auf der Watchlist</span>
-          </div>
-          <button v-if="watchlistedKunden.length > 0" class="btn-group" @click="showReportModal = true">
-            <font-awesome-icon :icon="['fas', 'chart-bar']" />
-            Bericht
-          </button>
-        </div>
+        <Toolbar>
+          <ToolbarLabel>{{ watchlistedKunden.length }} auf der Watchlist</ToolbarLabel>
+          <ToolbarGroup push-right>
+            <ToolbarButton v-if="watchlistedKunden.length > 0" variant="secondary" @click="showReportModal = true">
+              <font-awesome-icon :icon="['fas', 'chart-bar']" />
+              Bericht
+            </ToolbarButton>
+          </ToolbarGroup>
+        </Toolbar>
 
         <div v-if="watchlistedKunden.length === 0" class="empty-list">
           <font-awesome-icon :icon="['fas', 'binoculars']" style="font-size: 32px; margin-bottom: 12px; opacity: 0.3;" />
@@ -178,36 +142,32 @@
 
       <!-- Kontakte Tab (Microsoft Graph Contacts) -->
       <div v-if="currentTab === 'kontakte'" class="tab-content">
-        <div class="contact-filters mb-4">
-          <FilterGroup label="Standort">
-            <FilterChip :active="contactFilters.team === 'berlin'" @click="toggleContactTeam('berlin')">Berlin</FilterChip>
-            <FilterChip :active="contactFilters.team === 'hamburg'" @click="toggleContactTeam('hamburg')">Hamburg</FilterChip>
-            <FilterChip :active="contactFilters.team === 'koeln'" @click="toggleContactTeam('koeln')">Köln</FilterChip>
-            <FilterChip :active="!contactFilters.team" @click="toggleContactTeam(null)">Alle</FilterChip>
-          </FilterGroup>
-          <FilterGroup label="Verknüpfung">
-            <FilterChip :active="contactFilters.linked === true" @click="toggleContactLinked(true)">Kunde</FilterChip>
-            <FilterChip :active="contactFilters.linked === false" @click="toggleContactLinked(false)">Kein Kunde</FilterChip>
-            <FilterChip :active="contactFilters.linked === null" @click="toggleContactLinked(null)">Alle</FilterChip>
-          </FilterGroup>
-        </div>
-
-        <div class="toolbar">
-          <div class="search-group">
-            <SearchBar v-model="contactSearch" class="kunden-search-bar" placeholder="Kontakt suchen…" aria-label="Kontakte suchen" />
-            <span class="count-tag">{{ filteredContacts.length }} Kontakte</span>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button class="btn-group" @click="showKontaktAnlegenModal = true">
+        <Toolbar>
+          <ToolbarFilter v-model="contactFilterExpanded" :active-count="contactActiveFilterCount" @reset="resetContactFilters">
+            <FilterGroup label="Standort">
+              <FilterChip :active="contactFilters.team === 'berlin'" @click="toggleContactTeam('berlin')">Berlin</FilterChip>
+              <FilterChip :active="contactFilters.team === 'hamburg'" @click="toggleContactTeam('hamburg')">Hamburg</FilterChip>
+              <FilterChip :active="contactFilters.team === 'koeln'" @click="toggleContactTeam('koeln')">Köln</FilterChip>
+            </FilterGroup>
+            <FilterDivider />
+            <FilterGroup label="Verknüpfung">
+              <FilterChip :active="contactFilters.linked === true" @click="toggleContactLinked(true)">Kunde</FilterChip>
+              <FilterChip :active="contactFilters.linked === false" @click="toggleContactLinked(false)">Kein Kunde</FilterChip>
+            </FilterGroup>
+          </ToolbarFilter>
+          <SearchBar v-model="contactSearch" class="toolbar-search" placeholder="Kontakt suchen…" aria-label="Kontakte suchen" />
+          <ToolbarLabel>{{ filteredContacts.length }} Kontakte</ToolbarLabel>
+          <ToolbarGroup push-right>
+            <ToolbarButton variant="secondary" @click="showKontaktAnlegenModal = true">
               <font-awesome-icon :icon="['fas', 'plus']" />
               Kontakt anlegen
-            </button>
-            <button class="btn-group" @click="loadContacts" :disabled="contactsLoading">
+            </ToolbarButton>
+            <ToolbarButton variant="secondary" :disabled="contactsLoading" @click="loadContacts">
               <font-awesome-icon :icon="['fas', 'rotate']" :spin="contactsLoading" />
               Aktualisieren
-            </button>
-          </div>
-        </div>
+            </ToolbarButton>
+          </ToolbarGroup>
+        </Toolbar>
 
         <div v-if="contactsLoading && msContacts.length === 0" class="loading-state">
           <font-awesome-icon :icon="['fas', 'spinner']" spin /> Lädt Kontakte...
@@ -365,8 +325,8 @@ import { useAuth } from '@/stores/auth'; // Import Auth Store
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import FilterPanel from './FilterPanel.vue';
 import FilterGroup from './FilterGroup.vue';
-import FilterChip from './FilterChip.vue';
-import FilterDivider from './FilterDivider.vue';
+import FilterChip from './ui-elements/FilterChip.vue';
+import FilterDivider from './ui-elements/FilterDivider.vue';
 import FilterDropdown from './FilterDropdown.vue';
 import CustomerCard from './CustomerCard.vue';
 import CustomTooltip from './CustomTooltip.vue';
@@ -375,6 +335,11 @@ import LeadsTab from './LeadsTab.vue';
 import KundenWatchlistReportModal from './KundenWatchlistReportModal.vue';
 import ContextMenu from './ContextMenu.vue';
 import SearchBar from './SearchBar.vue';
+import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
+import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
+import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
+import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
 import api from '@/utils/api';
 
@@ -403,6 +368,32 @@ const showReportModal = ref(false);
 const searchQuery = ref('');
 const isLoading = ref(false);
 const filtersExpanded = ref(false);
+const filterExpanded = ref(false);
+const contactFilterExpanded = ref(false);
+
+const activeFilterCount = computed(() => {
+  let count = 0;
+  if (filters.value.geschSt) count++;
+  if (filters.value.status !== null && filters.value.status !== undefined) count++;
+  return count;
+});
+
+const contactActiveFilterCount = computed(() => {
+  let count = 0;
+  if (contactFilters.value.team) count++;
+  if (contactFilters.value.linked !== null) count++;
+  return count;
+});
+
+function resetFilters() {
+  filters.value.geschSt = null;
+  filters.value.status = null;
+}
+
+function resetContactFilters() {
+  contactFilters.value.team = null;
+  contactFilters.value.linked = null;
+}
 const selectedKunde = ref(null);
 
 // Context Menu
@@ -936,55 +927,6 @@ watch(currentTab, (tab) => {
   overflow: clip;
 }
 
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.search-group {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.btn-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: transparent;
-    border: 1px solid var(--border);
-    padding: 8px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    color: var(--text);
-    transition: background 0.2s;
-}
-
-.btn-group:hover {
-  background: var(--hover);
-  color: var(--text);
-}
-
-.kunden-search-bar {
-  border-radius: 8px;
-  min-width: 250px;
-
-  :deep(.search-bar-root) {
-    border-color: transparent;
-  }
-}
-
-.count-tag {
-  background: var(--tile-bg);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--muted);
-  border: 1px solid var(--border);
-}
-
 .kunden-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -1431,28 +1373,6 @@ watch(currentTab, (tab) => {
 
   .content-section {
     padding: 12px;
-  }
-
-  .toolbar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-
-  .search-group {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .kunden-search-bar {
-    min-width: unset;
-    flex: 1;
-    width: 100%;
-  }
-
-  .btn-group {
-    width: 100%;
-    justify-content: center;
   }
 
   .kunden-grid {

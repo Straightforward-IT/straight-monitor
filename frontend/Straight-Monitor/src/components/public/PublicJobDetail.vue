@@ -284,7 +284,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useTheme } from '@/stores/theme';
-import FilterChip from '@/components/FilterChip.vue';
+import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import { showToast } from '@getflip/bridge';

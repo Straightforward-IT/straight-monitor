@@ -103,6 +103,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
     border-radius: 5px;
     box-shadow: 0 1px 0 var(--border);
     pointer-events: none;
+
+    @media (max-width: 768px) {
+      display: none;
+    }
   }
 }
 </style>

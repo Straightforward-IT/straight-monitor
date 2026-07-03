@@ -5,9 +5,6 @@
       <div class="header-left">
         <h1 data-page-title><font-awesome-icon :icon="['fas', 'file-signature']" /> Signaturen</h1>
       </div>
-      <button class="btn-primary" type="button" @click="openNewSignature">
-        <font-awesome-icon :icon="['fas', 'plus']" /> Neue Signatur
-      </button>
     </div>
 
     <!-- Tabs -->
@@ -27,37 +24,40 @@
 
     <!-- ───────────── TAB: SIGNATUREN ───────────── -->
     <template v-if="activeTab === 'signaturen'">
-      <FilterPanel v-model:expanded="filterExpanded" :active-count="activeFilterCount">
-        <template #title>Filter</template>
-        <FilterGroup label="Standort">
-          <FilterChip
-            v-for="s in standortOptions"
-            :key="s.key"
-            :active="filters.standort === s.key"
-            @click="toggleFilter('standort', s.key)"
-          >{{ s.label }}</FilterChip>
-        </FilterGroup>
-        <FilterDivider />
-        <FilterGroup label="Status">
-          <FilterChip
-            v-for="s in statusOptions"
-            :key="s.key"
-            :active="filters.status === s.key"
-            @click="toggleFilter('status', s.key)"
-          >{{ s.label }}</FilterChip>
-        </FilterGroup>
-        <FilterDivider />
-        <FilterGroup label="Verknüpfung">
-          <FilterChip :active="filters.entity === 'kunde'" @click="toggleFilter('entity', 'kunde')">Kunde</FilterChip>
-          <FilterChip :active="filters.entity === 'mitarbeiter'" @click="toggleFilter('entity', 'mitarbeiter')">Mitarbeiter</FilterChip>
-        </FilterGroup>
-      </FilterPanel>
-
-      <!-- Search + count -->
-      <div class="toolbar">
+      <!-- Search + inline filter + count -->
+      <Toolbar>
+        <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount">
+          <FilterGroup label="Standort">
+            <FilterChip
+              v-for="s in standortOptions"
+              :key="s.key"
+              :active="filters.standort === s.key"
+              @click="toggleFilter('standort', s.key)"
+            >{{ s.label }}</FilterChip>
+          </FilterGroup>
+          <FilterDivider />
+          <FilterGroup label="Status">
+            <FilterChip
+              v-for="s in statusOptions"
+              :key="s.key"
+              :active="filters.status === s.key"
+              @click="toggleFilter('status', s.key)"
+            >{{ s.label }}</FilterChip>
+          </FilterGroup>
+          <FilterDivider />
+          <FilterGroup label="Verknüpfung">
+            <FilterChip :active="filters.entity === 'kunde'" @click="toggleFilter('entity', 'kunde')">Kunde</FilterChip>
+            <FilterChip :active="filters.entity === 'mitarbeiter'" @click="toggleFilter('entity', 'mitarbeiter')">Mitarbeiter</FilterChip>
+          </FilterGroup>
+        </ToolbarFilter>
         <SearchBar v-model="search" placeholder="Mitarbeiter, Kunde, Kürzel oder Titel suchen…" class="toolbar-search" />
-        <span class="result-count">{{ filteredVorgaenge.length }} {{ filteredVorgaenge.length === 1 ? 'Eintrag' : 'Einträge' }}</span>
-      </div>
+        <ToolbarLabel>{{ filteredVorgaenge.length }} {{ filteredVorgaenge.length === 1 ? 'Eintrag' : 'Einträge' }}</ToolbarLabel>
+        <ToolbarGroup push-right>
+          <ToolbarButton variant="secondary" @click="openNewSignature">
+            <font-awesome-icon :icon="['fas', 'plus']" /> Neue Signatur
+          </ToolbarButton>
+        </ToolbarGroup>
+      </Toolbar>
 
       <!-- Type pills -->
       <div class="type-pills">
@@ -100,12 +100,14 @@
 
     <!-- ───────────── TAB: TEMPLATES ───────────── -->
     <template v-else>
-      <div class="toolbar">
+      <Toolbar>
         <SearchBar v-model="templateSearch" placeholder="Vorlage suchen…" class="toolbar-search" />
-        <button class="btn-primary" type="button" @click="createTemplate">
-          <font-awesome-icon :icon="['fas', 'plus']" /> Neue Vorlage
-        </button>
-      </div>
+        <ToolbarGroup push-right>
+          <ToolbarButton variant="secondary" @click="createTemplate">
+            <font-awesome-icon :icon="['fas', 'plus']" /> Neue Vorlage
+          </ToolbarButton>
+        </ToolbarGroup>
+      </Toolbar>
 
       <div v-if="templatesLoading" class="state">
         <font-awesome-icon :icon="['fas', 'spinner']" spin size="2x" />
@@ -145,11 +147,15 @@ import api from '@/utils/api';
 import { useSignaturModal } from '@/stores/signaturModal';
 import { useSignaturBuilder } from '@/stores/signaturBuilder';
 import { useAuth } from '@/stores/auth';
-import FilterPanel from '@/components/FilterPanel.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
-import FilterDivider from '@/components/FilterDivider.vue';
-import FilterChip from '@/components/FilterChip.vue';
+import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
+import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import SearchBar from '@/components/SearchBar.vue';
+import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
+import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
+import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
+import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import SignaturCard from '@/components/SignaturCard.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
 
@@ -413,14 +419,6 @@ onUnmounted(() => { if (eventSource) eventSource.close(); });
   &.active { color: var(--primary); border-bottom-color: var(--primary); }
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 16px 0;
-  .toolbar-search { flex: 1; max-width: 460px; }
-}
-.result-count { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
 
 .type-pills {
   display: flex;

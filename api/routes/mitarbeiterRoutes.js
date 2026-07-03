@@ -3759,4 +3759,168 @@ router.delete(
   })
 );
 
+// --- Mitarbeiter Analytics: Einsätze täglich (Drill-down) ---
+router.get(
+  "/:id/analytics/einsaetze/daily",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { year, month } = req.query;
+    if (!year || !month) return res.status(400).json({ msg: "year und month erforderlich" });
+
+    const ma = await Mitarbeiter.findById(req.params.id)
+      .select("personalnr personalnummern")
+      .lean();
+    if (!ma) return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
+
+    const pNrSet = new Set();
+    if (ma.personalnr) {
+      const n = Number(ma.personalnr);
+      if (!isNaN(n) && n > 0) pNrSet.add(n);
+    }
+    (ma.personalnummern || []).forEach(p => {
+      const n = Number(p);
+      if (!isNaN(n) && n > 0) pNrSet.add(n);
+    });
+    const pNrs = [...pNrSet];
+    if (!pNrs.length) return res.json({ days: [], year: Number(year), month: Number(month) });
+
+    const y = Number(year);
+    const m = Number(month);
+    const startOfMonth = new Date(y, m - 1, 1);
+    const endOfMonth = new Date(y, m, 0, 23, 59, 59);
+    const now = new Date();
+
+    const records = await Einsatz.find({
+      personalNr: { $in: pNrs },
+      datumVon: { $gte: startOfMonth, $lte: endOfMonth }
+    })
+      .select("datumVon uhrzeitVon uhrzeitBis bedarf endeOffen")
+      .lean();
+
+    function parseHours(uhrzeitVon, uhrzeitBis, bedarf, endeOffen) {
+      if (endeOffen === 1) return typeof bedarf === "number" ? bedarf : 0;
+      if (uhrzeitVon && uhrzeitBis) {
+        try {
+          const [vh, vm] = uhrzeitVon.split(":").map(Number);
+          const [bh, bm] = uhrzeitBis.split(":").map(Number);
+          let diff = bh * 60 + bm - (vh * 60 + vm);
+          if (diff <= 0) diff += 24 * 60;
+          return diff / 60;
+        } catch (_) { /* fall through */ }
+      }
+      return typeof bedarf === "number" ? bedarf : 0;
+    }
+
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const dayMap = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayDate = new Date(y, m - 1, d);
+      dayMap[d] = {
+        day: d,
+        count: 0,
+        hours: 0,
+        isForecast: dayDate > now,
+        isToday:
+          dayDate.getFullYear() === now.getFullYear() &&
+          dayDate.getMonth() === now.getMonth() &&
+          dayDate.getDate() === now.getDate()
+      };
+    }
+
+    records.forEach(e => {
+      const d = new Date(e.datumVon).getDate();
+      if (!dayMap[d]) return;
+      dayMap[d].count++;
+      dayMap[d].hours += parseHours(e.uhrzeitVon, e.uhrzeitBis, e.bedarf, e.endeOffen);
+    });
+
+    const days = Object.values(dayMap).map(r => ({
+      ...r,
+      hours: Math.round(r.hours * 10) / 10
+    }));
+
+    res.json({ days, year: y, month: m });
+  })
+);
+
+// --- Mitarbeiter Analytics: Einsätze pro Monat ---
+router.get(
+  "/:id/analytics/einsaetze",
+  auth,
+  asyncHandler(async (req, res) => {
+    const ma = await Mitarbeiter.findById(req.params.id)
+      .select("personalnr personalnummern")
+      .lean();
+    if (!ma) return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
+
+    // Build set of all known personalNr values (Numbers, matching Einsatz.personalNr)
+    const pNrSet = new Set();
+    if (ma.personalnr) {
+      const n = Number(ma.personalnr);
+      if (!isNaN(n) && n > 0) pNrSet.add(n);
+    }
+    (ma.personalnummern || []).forEach(p => {
+      const n = Number(p);
+      if (!isNaN(n) && n > 0) pNrSet.add(n);
+    });
+    const pNrs = [...pNrSet];
+
+    if (!pNrs.length) return res.json({ ist: [], forecast: [] });
+
+    const now = new Date();
+    const vonDate = req.query.von ? new Date(req.query.von) : new Date(2022, 0, 1);
+    const bisDate = req.query.bis
+      ? new Date(req.query.bis)
+      : new Date(now.getFullYear() + 1, 5, 30, 23, 59, 59);
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+    function parseHours(uhrzeitVon, uhrzeitBis, bedarf, endeOffen) {
+      if (endeOffen === 1) return typeof bedarf === "number" ? bedarf : 0;
+      if (uhrzeitVon && uhrzeitBis) {
+        try {
+          const [vh, vm] = uhrzeitVon.split(":").map(Number);
+          const [bh, bm] = uhrzeitBis.split(":").map(Number);
+          let diff = bh * 60 + bm - (vh * 60 + vm);
+          if (diff <= 0) diff += 24 * 60; // overnight shift
+          return diff / 60;
+        } catch (_) { /* fall through */ }
+      }
+      return typeof bedarf === "number" ? bedarf : 0;
+    }
+
+    function groupByMonth(records) {
+      const map = {};
+      records.forEach(e => {
+        const d = new Date(e.datumVon);
+        const year = d.getFullYear();
+        const month = d.getMonth() + 1;
+        const key = `${year}-${String(month).padStart(2, "0")}`;
+        if (!map[key]) map[key] = { year, month, count: 0, hours: 0 };
+        map[key].count++;
+        map[key].hours += parseHours(e.uhrzeitVon, e.uhrzeitBis, e.bedarf, e.endeOffen);
+      });
+      return Object.values(map)
+        .map(r => ({ ...r, hours: Math.round(r.hours * 10) / 10 }))
+        .sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
+    }
+
+    const [istRaw, forecastRaw] = await Promise.all([
+      Einsatz.find({
+        personalNr: { $in: pNrs },
+        datumVon: { $gte: vonDate, $lte: endOfToday }
+      })
+        .select("datumVon uhrzeitVon uhrzeitBis bedarf endeOffen")
+        .lean(),
+      Einsatz.find({
+        personalNr: { $in: pNrs },
+        datumVon: { $gt: endOfToday, $lte: bisDate }
+      })
+        .select("datumVon uhrzeitVon uhrzeitBis bedarf endeOffen")
+        .lean()
+    ]);
+
+    res.json({ ist: groupByMonth(istRaw), forecast: groupByMonth(forecastRaw) });
+  })
+);
+
 module.exports = router;

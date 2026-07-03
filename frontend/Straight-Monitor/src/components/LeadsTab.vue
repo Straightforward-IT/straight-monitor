@@ -3,37 +3,32 @@
     <!-- Main Content -->
     <div class="main-content">
       <!-- Toolbar -->
-      <div class="leads-toolbar">
-        <div class="toolbar-left">
-          <SearchBar v-model="searchQuery" class="leads-search-bar" placeholder="Leads durchsuchen…" aria-label="Leads suchen" />
-          <button v-if="!isMobile" class="btn btn-primary" @click="openCreateModal">
-            <font-awesome-icon :icon="['fas', 'plus']" /> Lead
-          </button>
-        </div>
+      <Toolbar wrap>
+        <ToolbarGroup>
+          <SearchBar v-model="searchQuery" class="toolbar-search" placeholder="Leads durchsuchen…" aria-label="Leads suchen" />
+        </ToolbarGroup>
 
-        <div class="toolbar-right">
+        <ToolbarGroup push-right>
           <template v-if="!isMobile">
-            <button class="btn-icon-toolbar" @click="showFieldManager = true" title="Spalten / Eigene Felder verwalten">
+            <ToolbarIconButton title="Spalten / Eigene Felder verwalten" @click="showFieldManager = true">
               <font-awesome-icon :icon="['fas', 'sliders']" />
-            </button>
-            <button
-              class="btn-icon-toolbar"
-              :class="{ active: showColPanel || colConfig.some(c => !c.visible) }"
-              @click="openColPanel($event)"
+            </ToolbarIconButton>
+            <ToolbarIconButton
+              :active="showColPanel || colConfig.some(c => !c.visible)"
               title="Spalten anpassen"
+              @click="openColPanel($event)"
             >
               <font-awesome-icon :icon="['fas', 'table-columns']" />
-            </button>
+            </ToolbarIconButton>
+            <ToolbarButton variant="secondary" @click="openCreateModal">
+              <font-awesome-icon :icon="['fas', 'plus']" /> Lead
+            </ToolbarButton>
           </template>
           <!-- Mobile overflow menu (kebab) -->
           <div v-else class="mobile-toolbar-overflow">
-            <button
-              class="btn-icon-toolbar"
-              @click="mobileToolbarMenuOpen = !mobileToolbarMenuOpen"
-              title="Weitere Aktionen"
-            >
+            <ToolbarIconButton title="Weitere Aktionen" @click="mobileToolbarMenuOpen = !mobileToolbarMenuOpen">
               <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-            </button>
+            </ToolbarIconButton>
             <div v-if="mobileToolbarMenuOpen" class="mobile-overflow-backdrop" @click="mobileToolbarMenuOpen = false"></div>
             <div v-if="mobileToolbarMenuOpen" class="mobile-overflow-menu" @click.stop>
               <button class="mobile-overflow-item" @click="mobileToolbarMenuOpen = false; showFieldManager = true">
@@ -41,8 +36,8 @@
               </button>
             </div>
           </div>
-        </div>
-      </div>
+        </ToolbarGroup>
+      </Toolbar>
 
       <!-- Mobile stage filter chips -->
       <div v-if="isMobile" class="mobile-stage-chips">
@@ -1514,6 +1509,10 @@ import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
 import ContactCard from './ContactCard.vue';
 import SearchBar from './SearchBar.vue';
+import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
+import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
+import ToolbarIconButton from '@/components/ui-elements/ToolbarIconButton.vue';
 import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
 import LeadBoard from './leads/LeadBoard.vue';
 import LeadCard from './leads/LeadCard.vue';
@@ -3270,24 +3269,6 @@ onBeforeUnmount(() => {
 }
 
 /* ── Toolbar ─────────────────────────────────────────────────────── */
-.leads-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0 16px;
-  flex-wrap: wrap;
-
-  .toolbar-left,
-  .toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .toolbar-right {
-    margin-left: auto;
-  }
-}
 
 .search-input {
   width: 100%;
@@ -3350,30 +3331,6 @@ onBeforeUnmount(() => {
 
   &.btn-secondary {
     background: transparent;
-  }
-}
-
-.btn-icon-toolbar {
-  width: 34px;
-  height: 34px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--tile-bg);
-  color: var(--muted);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  &:hover {
-    color: var(--primary);
-    border-color: var(--primary);
-  }
-
-  &.active {
-    color: var(--primary);
-    border-color: var(--primary);
-    background: color-mix(in oklab, var(--primary) 10%, transparent);
   }
 }
 

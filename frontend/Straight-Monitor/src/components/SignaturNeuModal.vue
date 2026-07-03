@@ -376,7 +376,7 @@ import { useSignaturModal } from '@/stores/signaturModal';
 import { useSignaturBuilder } from '@/stores/signaturBuilder';
 import { useAuth } from '@/stores/auth';
 import { useDataCache } from '@/stores/dataCache';
-import FilterChip from '@/components/FilterChip.vue';
+import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import ContactSearchPicker from '@/components/ContactSearchPicker.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
 

@@ -165,116 +165,71 @@
       </div>
     </div>
 
-    <FilterPanel v-if="!isFullscreen && !isMobile" v-model:expanded="filterExpanded">
-      <template #header-actions>
-        <button class="filter-help-btn" @click.stop="showHelp = true" title="Shortcuts &amp; Hilfe [H]">
-          <font-awesome-icon icon="fa-solid fa-circle-question" />
-        </button>
-      </template>
-      <!-- Standort Filter -->
-      <FilterGroup label="Standort">
-        <FilterChip :active="filters.standort === '1'" @click="setStandort('1')">Berlin</FilterChip>
-        <FilterChip :active="filters.standort === '2'" @click="setStandort('2')">Hamburg</FilterChip>
-        <FilterChip :active="filters.standort === '3'" @click="setStandort('3')">Köln</FilterChip>
-        <FilterChip :active="!filters.standort" @click="setStandort(null)">Alle</FilterChip>
-      </FilterGroup>
-
-      <FilterDivider />
-
-      <!-- Zeitraum Filter -->
-      <FilterGroup label="Zeitraum">
-        <FilterDropdown :has-value="filters.tage !== 30">
-          <template #label>{{ filters.tage }} Tage</template>
-          <div
-            v-for="opt in [7, 14, 30]"
-            :key="opt"
-            class="dropdown-item clickable"
-            :class="{ selected: filters.tage === opt }"
-            @click="setTage(opt)"
-          >
-            {{ opt }} Tage
-          </div>
-        </FilterDropdown>
-      </FilterGroup>
-
-      <FilterDivider />
-
-      <!-- Planung Filter -->
-      <FilterGroup label="Planung">
-        <FilterChip :active="!filters.planungFilter" @click="setPlanung(null)">Alle</FilterChip>
-        <FilterChip :active="filters.planungFilter === 'eingeplant'" @click="setPlanung('eingeplant')">Eingeplante</FilterChip>
-        <FilterChip :active="filters.planungFilter === 'ungeplant'" @click="setPlanung('ungeplant')">Ungeplante</FilterChip>
-      </FilterGroup>
-
-      <FilterDivider />
-
-      <!-- Qualifikation Filter -->
-      <FilterGroup label="Qualifikation">
-        <div class="qual-filter-box">
-          <div class="qual-pills-input" @click="qualInputRef?.focus()">
-            <span
-              v-for="(q, idx) in qualFilter"
-              :key="q._id"
-              class="qual-pill"
-              :class="{ 'is-focused': qualFocusedPillIdx === idx }"
-            >
-              <span class="qual-pill-text">{{ q.designation }}</span>
-              <button class="qual-pill-remove" @click.stop="removeQual(q)" title="Entfernen">✕</button>
-            </span>
-            <input
-              ref="qualInputRef"
-              v-model="qualSearchQuery"
-              class="qual-search-input"
-              type="text"
-              :placeholder="qualFilter.length ? '' : 'Qualifikation suchen…'"
-              @focus="qualDropdownOpen = true"
-              @input="qualDropdownOpen = true"
-              @blur="onQualBlur"
-              @keydown="onQualKeydown"
-            />
-          </div>
-          <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown">
-            <div
-              v-for="q in qualSuggestions"
-              :key="q._id"
-              class="qual-dropdown-item"
-              @mousedown.prevent="addQual(q)"
-            >
-              <span class="qual-key">{{ q.qualificationKey }}</span>
-              {{ q.designation }}
+    <!-- Selection Bar (normal mode only) -->
+    <Toolbar v-if="!isFullscreen && !isMobile" class="selection-bar">
+      <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
+          <!-- Standort -->
+          <FilterGroup label="Standort">
+            <FilterChip :active="filters.standort === '1'" @click="setStandort('1')">Berlin</FilterChip>
+            <FilterChip :active="filters.standort === '2'" @click="setStandort('2')">Hamburg</FilterChip>
+            <FilterChip :active="filters.standort === '3'" @click="setStandort('3')">Köln</FilterChip>
+          </FilterGroup>
+          <FilterDivider />
+          <!-- Planung -->
+          <FilterGroup label="Planung">
+            <FilterChip :active="filters.planungFilter === 'eingeplant'" @click="setPlanung('eingeplant')">Eingeplante</FilterChip>
+            <FilterChip :active="filters.planungFilter === 'ungeplant'" @click="setPlanung('ungeplant')">Ungeplante</FilterChip>
+          </FilterGroup>
+          <FilterDivider />
+          <!-- Qualifikation (compact inline) -->
+          <div class="tf-qual-filter" :class="{ 'tf-qual-filter--active': qualFilter.length > 0 }">
+            <div class="qual-pills-input qual-pills-input--fs" @click="qualInputRef?.focus()">
+              <span
+                v-for="(q, idx) in qualFilter"
+                :key="q._id"
+                class="qual-pill qual-pill--sm"
+                :class="{ 'is-focused': qualFocusedPillIdx === idx }"
+              >
+                <span class="qual-pill-text">{{ q.designation }}</span>
+                <button class="qual-pill-remove" @click.stop="removeQual(q)">✕</button>
+              </span>
+              <input
+                ref="qualInputRef"
+                v-model="qualSearchQuery"
+                type="text"
+                :placeholder="qualFilter.length ? '' : 'Qualifikation...'"
+                @focus="qualDropdownOpen = true"
+                @input="qualDropdownOpen = true"
+                @blur="onQualBlur"
+                @keydown="onQualKeydown"
+              />
+            </div>
+            <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown qual-dropdown--fs">
+              <div
+                v-for="q in qualSuggestions"
+                :key="q._id"
+                class="qual-dropdown-item"
+                @mousedown.prevent="addQual(q)"
+              >
+                <span class="qual-key">{{ q.qualificationKey }}</span>
+                {{ q.designation }}
+              </div>
             </div>
           </div>
-        </div>
-      </FilterGroup>
-
-      <FilterDivider />
-
-      <!-- Kunden Filter -->
-      <FilterGroup label="🤝 Kunde">
-        <div class="kunde-filter-search">
-          <KundeSearch
-            ref="kundeFilterRef"
-            :standort="filters.standort"
-            placeholder="Kunde suchen…"
-            @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
-          />
-          <button v-if="filters.kundeFilter" class="kunde-filter-clear" @click="clearKundeFilter" title="Filter entfernen">
-            <font-awesome-icon icon="fa-solid fa-xmark" />
-          </button>
-        </div>
-      </FilterGroup>
-
-      <FilterDivider />
-
-      <!-- Reset Button -->
-      <FilterChip class="reset-chip" @click="resetFilters" title="Alle Filter zurücksetzen">
-        <font-awesome-icon icon="fa-solid fa-rotate-left" />
-        Zurücksetzen
-      </FilterChip>
-    </FilterPanel>
-
-    <!-- Selection Bar (normal mode only) -->
-    <div v-if="!isFullscreen && !isMobile" class="selection-bar">
+          <FilterDivider />
+          <!-- Kunden Filter (compact inline) -->
+          <div class="fs-kunde-filter" :class="{ 'fs-kunde-filter--active': !!filters.kundeFilter }">
+            <KundeSearch
+              ref="kundeFilterRef"
+              :standort="filters.standort"
+              placeholder="Kunde…"
+              @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
+            />
+            <button v-if="filters.kundeFilter" class="fs-kunde-filter-clear" @click="clearKundeFilter">
+              <font-awesome-icon icon="fa-solid fa-xmark" />
+            </button>
+          </div>
+      </ToolbarFilter>
       <!-- Left: SearchBar + cell selection chip -->
       <div class="sel-bar-left">
         <SearchBar
@@ -283,6 +238,10 @@
           placeholder="Mitarbeiter suchen…"
           aria-label="Mitarbeiter suchen"
         />
+        <FilterDropdown :has-value="filters.tage !== 30" class="zeitraum-dropdown">
+          <template #label><font-awesome-icon icon="fa-solid fa-calendar" style="margin-right:4px" />{{ filters.tage }} Tage</template>
+          <div v-for="opt in [7, 14, 30]" :key="opt" class="dropdown-item" :class="{ selected: filters.tage === opt }" @click="setTage(opt)">{{ opt }} Tage</div>
+        </FilterDropdown>
         <button
           v-if="hiddenCount > 0"
           class="show-hidden-btn show-hidden-btn--topline"
@@ -343,7 +302,7 @@
             </button>
           </CustomTooltip>
         </div>
-        <CustomTooltip text="Vollbild (F)" position="top">
+        <CustomTooltip text="Vollbild (V)" position="top">
           <button class="zoom-btn" @click="toggleFullscreen">
             <font-awesome-icon icon="fa-solid fa-expand-alt" />
           </button>
@@ -354,7 +313,7 @@
           </button>
         </CustomTooltip>
       </div>
-    </div>
+    </Toolbar>
 
     <!-- Table area (+ inline feed panel when fullscreen) -->
     <div v-if="!isMobile" class="fs-body" :class="{ 'fs-body--split': isFullscreen && ui.panelType === 'kommentare' && !ui.hidden && !fsFeedCollapsed }">
@@ -1011,7 +970,6 @@
                   <FilterChip :active="filters.standort === '1'" @click="setStandort('1')">Berlin</FilterChip>
                   <FilterChip :active="filters.standort === '2'" @click="setStandort('2')">Hamburg</FilterChip>
                   <FilterChip :active="filters.standort === '3'" @click="setStandort('3')">Köln</FilterChip>
-                  <FilterChip :active="!filters.standort" @click="setStandort(null)">Alle</FilterChip>
                 </FilterGroup>
                 <FilterDivider />
                 <FilterGroup label="Zeitraum">
@@ -1021,7 +979,6 @@
                 </FilterGroup>
                 <FilterDivider />
                 <FilterGroup label="Planung">
-                  <FilterChip :active="!filters.planungFilter" @click="setPlanung(null)">Alle</FilterChip>
                   <FilterChip :active="filters.planungFilter === 'eingeplant'" @click="setPlanung('eingeplant')">Eingeplante</FilterChip>
                   <FilterChip :active="filters.planungFilter === 'ungeplant'" @click="setPlanung('ungeplant')">Ungeplante</FilterChip>
                 </FilterGroup>
@@ -1204,7 +1161,7 @@
         <h4>Tastatur-Shortcuts</h4>
         <table class="help-shortcuts">
           <tbody>
-            <tr><td><kbd>F</kbd></td><td>Vollbild ein/aus</td></tr>
+            <tr><td><kbd>V</kbd></td><td>Vollbild ein/aus</td></tr>
             <tr><td><kbd>C</kbd></td><td>Kommentar-Feed ein/aus</td></tr>
             <tr><td><kbd>H</kbd></td><td>Hilfe ein/aus</td></tr>
             <tr><td><kbd>S</kbd></td><td>Suche fokussieren</td></tr>
@@ -1633,8 +1590,8 @@ import { useUi } from '@/stores/ui';
 import FilterPanel from '@/components/FilterPanel.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import flipIconUrl from '@/assets/flip.png';
-import FilterChip from '@/components/FilterChip.vue';
-import FilterDivider from '@/components/FilterDivider.vue';
+import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 
@@ -1645,6 +1602,8 @@ import CommentBubbleBadge from '@/components/CommentBubbleBadge.vue';
 import KommentarFeed from '@/components/KommentarFeed.vue';
 import KundeSearch from '@/components/ui-elements/KundeSearch.vue';
 import SearchBar from '@/components/SearchBar.vue';
+import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 
 const auth = useAuth();
 const dataCache = useDataCache();
@@ -1663,7 +1622,7 @@ const searchInputNormal = ref(null);
 const searchInputFs = ref(null);
 const tableWrapper = ref(null);
 const chatThreadRef = ref(null);
-const filterExpanded = ref(true);
+const filterExpanded = ref(false);
 const isMobile = ref(window.innerWidth <= 768);
 const starredIds = ref(new Set());
 const hiddenIds = ref(new Set());
@@ -1927,6 +1886,14 @@ const qualDropdownOpen = ref(false);
 const qualInputRef = ref(null);
 const qualInputFsRef = ref(null);
 const qualFocusedPillIdx = ref(-1); // -1 = kein Pill fokussiert, Cursor im Input
+const activeFilterCount = computed(() => {
+  let count = 0;
+  if (filters.standort) count++;
+  if (filters.planungFilter) count++;
+  if (filters.kundeFilter) count++;
+  if (qualFilter.value.length > 0) count++;
+  return count;
+});
 
 async function fetchQualifikationen() {
   try {
@@ -2307,7 +2274,7 @@ function onKeyDown(e) {
   if (e.key === 'Escape') { clearSelection(); return; }
   const tag = document.activeElement?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
-  if (e.key === 'f' || e.key === 'F') {
+  if (e.key === 'v' || e.key === 'V') {
     toggleFullscreen();
   } else if (e.key === 'c' || e.key === 'C') {
     if (isFullscreen.value) {
@@ -3000,7 +2967,7 @@ async function fetchKommentare() {
 
 // ─── Filters ───
 function setStandort(val) {
-  filters.standort = val;
+  filters.standort = filters.standort === val ? null : val;
   savePrefs();
   fetchDispo();
 }
@@ -3012,7 +2979,7 @@ function setTage(val) {
 }
 
 function setPlanung(val) {
-  filters.planungFilter = val;
+  filters.planungFilter = filters.planungFilter === val ? null : val;
   savePrefs();
 }
 
@@ -5329,10 +5296,12 @@ function onNameTouchEnd() {
 
 .selection-bar {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: auto 1fr auto 1fr;
   align-items: center;
   gap: 8px;
   min-height: 36px;
+  padding: 7px 14px;
+  margin-bottom: 12px;
 }
 
 .sel-bar-left {
@@ -5341,20 +5310,7 @@ function onNameTouchEnd() {
   gap: 8px;
 }
 
-:deep(.filter-panel) {
-  --surface: var(--panel);
-  border-color: transparent;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 
-  .filter-content {
-    border-top-color: transparent;
-  }
-
-  .filter-group {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-  }
-}
 
 :deep(.qual-pills-input) {
   border-color: transparent;
@@ -5387,6 +5343,15 @@ function onNameTouchEnd() {
 
   :deep(input) {
     font-size: 0.85rem;
+  }
+}
+
+.zeitraum-dropdown {
+  :deep(.dropdown-trigger) {
+    min-width: unset;
+    padding: 4px 10px;
+    font-size: 0.82rem;
+    border-radius: 8px;
   }
 }
 

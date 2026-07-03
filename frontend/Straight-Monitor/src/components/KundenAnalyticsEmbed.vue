@@ -104,7 +104,7 @@ import {
 } from 'chart.js';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import DoubleRangeSlider from './DoubleRangeSlider.vue';
-import FilterChip from './FilterChip.vue';
+import FilterChip from './ui-elements/FilterChip.vue';
 import { useTheme } from '@/stores/theme';
 import api from '@/utils/api';
 

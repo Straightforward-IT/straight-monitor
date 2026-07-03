@@ -1,70 +1,36 @@
 <template>
   <div class="window">
-    <FilterPanel v-model:expanded="filtersExpanded">
-      <template #title>Filter &amp; Gruppierung</template>
-
-      <FilterGroup class="verlauf-filter-group grouping-group" label="Gruppieren">
-        <div class="verlauf-chip-row">
-          <FilterChip :active="groupBy.standort" @click="toggleGroupBy('standort')">
-            Standort
-          </FilterChip>
-          <FilterChip :active="groupBy.monat" @click="toggleGroupBy('monat')">
-            Monat
-          </FilterChip>
-          <FilterChip :active="groupBy.tag" @click="toggleGroupBy('tag')">
-            Tag
-          </FilterChip>
-          <FilterChip :active="groupBy.benutzer" @click="toggleGroupBy('benutzer')">
-            Benutzer
-          </FilterChip>
-          <FilterChip :active="groupBy.art" @click="toggleGroupBy('art')">
-            Art
-          </FilterChip>
-        </div>
-      </FilterGroup>
-
-      <FilterGroup class="verlauf-filter-group date-group" label="Datum">
-        <div class="date-filter-container">
-          <input
-            id="date-filter"
-            type="date"
-            v-model="dateFilter"
-            @change="groupLogs"
-            class="date-input"
-            aria-label="Datum filtern"
-          />
-          <button
-            v-if="dateFilter"
-            @click="clearDateFilter"
-            class="clear-date-btn"
-            type="button"
-            title="Datums-Filter löschen"
-          >
-            <font-awesome-icon :icon="['fas', 'times']" />
-          </button>
-        </div>
-      </FilterGroup>
-
-      <FilterGroup class="verlauf-filter-group sort-group" label="Sortieren">
-        <select
-          id="sort-select"
-          v-model="sortBy"
-          @change="groupLogs"
-          class="panel-select"
-          aria-label="Sortierung auswählen"
-        >
-          <option value="timestamp_desc">Neueste zuerst</option>
-          <option value="timestamp_asc">Älteste zuerst</option>
-        </select>
-      </FilterGroup>
-    </FilterPanel>
-
-    <SearchBar
-      class="verlauf-search-bar"
-      v-model="searchQuery"
-      placeholder="in Anmerkungen, Items, Mitarbeiter..."
-      aria-label="Verlauf durchsuchen"
-    />
+    <Toolbar class="verlauf-search-toolbar">
+      <ToolbarFilter v-model="filtersExpanded" :active-count="activeFilterCount" @reset="resetFilters">
+        <FilterGroup label="Gruppieren">
+          <FilterChip :active="groupBy.standort" @click="toggleGroupBy('standort')">Standort</FilterChip>
+          <FilterChip :active="groupBy.monat" @click="toggleGroupBy('monat')">Monat</FilterChip>
+          <FilterChip :active="groupBy.tag" @click="toggleGroupBy('tag')">Tag</FilterChip>
+          <FilterChip :active="groupBy.benutzer" @click="toggleGroupBy('benutzer')">Benutzer</FilterChip>
+          <FilterChip :active="groupBy.art" @click="toggleGroupBy('art')">Art</FilterChip>
+        </FilterGroup>
+        <FilterDivider />
+        <FilterGroup label="Datum">
+          <div class="verlauf-date-filter">
+            <input type="date" v-model="dateFilter" @change="groupLogs" class="verlauf-date-input" aria-label="Datum filtern" />
+            <button v-if="dateFilter" @click="clearDateFilter" class="verlauf-date-clear" type="button" title="Datum löschen">
+              <font-awesome-icon :icon="['fas', 'times']" />
+            </button>
+          </div>
+        </FilterGroup>
+        <FilterDivider />
+        <FilterGroup label="Sortieren">
+          <FilterChip :active="sortBy === 'timestamp_desc'" @click="sortBy = 'timestamp_desc'; groupLogs()">Neueste zuerst</FilterChip>
+          <FilterChip :active="sortBy === 'timestamp_asc'" @click="sortBy = 'timestamp_asc'; groupLogs()">Älteste zuerst</FilterChip>
+        </FilterGroup>
+      </ToolbarFilter>
+      <SearchBar
+        class="toolbar-search"
+        v-model="searchQuery"
+        placeholder="in Anmerkungen, Items, Mitarbeiter..."
+        aria-label="Verlauf durchsuchen"
+      />
+    </Toolbar>
 
     <div v-if="Object.keys(groupedLogs).length > 0">
       <verlauf-group
@@ -100,10 +66,12 @@
 import api from "@/utils/api";
 import VerlaufGroup from "./VerlaufGroup.vue";
 import EmployeeCardModal from "./EmployeeCardModal.vue";
-import FilterChip from "./FilterChip.vue";
+import FilterChip from "./ui-elements/FilterChip.vue";
 import FilterGroup from "./FilterGroup.vue";
-import FilterPanel from "./FilterPanel.vue";
+import FilterDivider from "./ui-elements/FilterDivider.vue";
 import SearchBar from "./SearchBar.vue";
+import Toolbar from "@/components/ui-elements/Toolbar.vue";
+import ToolbarFilter from "@/components/ui-elements/ToolbarFilter.vue";
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
 export default {
@@ -114,8 +82,10 @@ export default {
     EmployeeCardModal,
     FilterChip,
     FilterGroup,
-    FilterPanel,
+    FilterDivider,
     SearchBar,
+    Toolbar,
+    ToolbarFilter,
   },
   data() {
     return {
@@ -123,7 +93,7 @@ export default {
       logs: [],
       // EmployeeCard modal
       selectedMitarbeiterId: null,
-      filtersExpanded: true,
+      filtersExpanded: false,
       groupBy: { standort: true, monat: true, tag: false, benutzer: false, art: false },
       sortBy: "timestamp_desc",
       searchQuery: "",
@@ -134,6 +104,12 @@ export default {
     };
   },
   computed: {
+    activeFilterCount() {
+      let count = 0;
+      if (this.dateFilter) count++;
+      if (this.sortBy !== 'timestamp_desc') count++;
+      return count;
+    },
     processedLogs() {
       let processed = [...this.logs];
       const searchTerm = this.searchQuery.trim().toLowerCase();
@@ -252,6 +228,11 @@ export default {
         this.groupedLogs = {};
       }
     },
+    resetFilters() {
+      this.dateFilter = '';
+      this.sortBy = 'timestamp_desc';
+      this.groupLogs();
+    },
     clearDateFilter() {
       this.dateFilter = "";
       this.groupLogs();
@@ -338,145 +319,50 @@ export default {
 }
 .discrete:hover{ color: var(--c-primary); }
 
-.verlauf-filter-group {
-  min-height: 44px;
-}
+.verlauf-search-toolbar {
+  overflow: visible;
 
-.verlauf-filter-group.grouping-group {
-  align-items: flex-start;
-}
-
-.verlauf-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-:deep(.filter-panel) {
-  --surface: var(--panel);
-  border-color: transparent;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-
-  .filter-content {
-    border-top-color: transparent;
-  }
-
-  .filter-group {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
+  :deep(.toolbar-search) {
+    max-width: none;
   }
 }
 
-.verlauf-search-bar {
-  width: 100%;
-  border-radius: 8px;
-
-  :deep(.search-bar-root) {
-    border-color: transparent;
-  }
-}
-
-.panel-select{
-  flex-grow:1;
-  padding:.8rem 1rem;
-  font-size:.95rem;
-  border-radius:8px;
-  border:1px solid var(--c-border);
-  background: var(--c-surface);
-  color: var(--c-text-primary);
-  transition: border-color .2s, box-shadow .2s, background .2s;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  box-sizing: border-box;
-  min-width: 220px;
-  width: min(260px, 100%);
-}
-
-.panel-select {
-  width: min(260px, 100%);
-  background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%23666" d="M2 0L0 2h4zm0 5L0 3h4z"/></svg>');
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 12px;
-  padding-right: 40px;
-  cursor: pointer;
-}
-
-.panel-select:hover,
-.date-input:hover {
-  border-color: color-mix(in oklab, var(--c-primary) 35%, var(--c-border));
-}
-
-.panel-select:focus,
-.date-input:focus {
-  outline:none;
-  border-color: var(--c-primary);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--c-primary) 25%, transparent);
-}
-
-.date-filter-container {
+.verlauf-date-filter {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
+  gap: 6px;
 }
 
-.date-input {
-  width: 170px;
-  padding: 8px 12px;
-  border: 1px solid var(--c-border);
-  border-radius: 12px;
-  background: var(--c-surface);
-  color: var(--c-text-primary);
-  font-size: 14px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.date-input::-webkit-calendar-picker-indicator {
+.verlauf-date-input {
+  padding: 3px 8px;
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--text);
   cursor: pointer;
-  filter: invert(55%) sepia(100%) saturate(1500%) hue-rotate(15deg) brightness(1.1);
+  transition: border-color 0.15s;
+  &:focus { outline: none; border-color: var(--primary); }
+  &:hover { border-color: var(--primary); }
 }
 
-.date-input::-webkit-calendar-picker-indicator:hover {
-  filter: invert(45%) sepia(100%) saturate(2000%) hue-rotate(15deg) brightness(1.3);
-  transform: scale(1.1);
-}
-
-.date-input::-webkit-inner-spin-button {
-  display: none;
-}
-
-.clear-date-btn {
+.verlauf-date-clear {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 22px;
+  height: 22px;
   padding: 0;
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: 12px; /* Weichere, rundere Ränder */
-  color: var(--c-text-secondary);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Weichere Animation */
-  font-size: 13px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); /* Subtiler Schatten */
+  font-size: 11px;
+  transition: border-color 0.15s, color 0.15s;
+  &:hover { border-color: var(--primary); color: var(--primary); }
 }
 
-.clear-date-btn:hover {
-  background: var(--c-tertiary-bg);
-  border-color: var(--c-primary);
-  color: var(--c-text-primary);
-  transform: translateY(-1px); /* Leichter Lift-Effekt */
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-}
-
-.clear-date-btn:active {
-  transform: translateY(0); /* Zurück zur ursprünglichen Position beim Klick */
-  transition: all 0.15s ease;
-}
 
 .no-logs-message{
   text-align:center; margin-top:3rem; padding:2rem;
@@ -492,54 +378,6 @@ export default {
     margin: 12px 8px;
     padding: 16px 12px;
     border-radius: 8px;
-  }
-
-  .verlauf-filter-group {
-    width: 100%;
-    flex-wrap: wrap;
-    align-items: flex-start;
-  }
-
-  .verlauf-search-bar {
-    width: 100%;
-  }
-
-  .panel-select {
-    padding: 8px 10px;
-    font-size: 14px;
-    max-width: none;
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .panel-select {
-    padding-right: 32px;
-    background-size: 10px;
-    background-position: right 10px center;
-  }
-
-  .date-filter-container {
-    width: 100%;
-  }
-
-  .date-input {
-    max-width: none;
-    flex: 1;
-    width: auto;
-    padding: 12px 16px; /* Größere Touch-Targets auf Mobile */
-    font-size: 16px; /* Verhindert Auto-Zoom auf Mobile */
-    border-radius: 12px;
-  }
-
-  .clear-date-btn {
-    width: 36px; /* Größer für bessere Touch-Bedienung */
-    height: 36px;
-    font-size: 14px;
-    border-radius: 12px;
-  }
-
-  .verlauf-chip-row {
-    width: 100%;
   }
 
   .no-logs-message {

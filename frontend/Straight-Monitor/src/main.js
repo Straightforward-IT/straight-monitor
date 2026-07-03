@@ -43,7 +43,7 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faLayerGroup,
   faFileSignature,
   faEye,
-  faBoxArchive,
+  faBoxArchive, faPalette,
   faShieldHalved,
   faClockRotateLeft,
 } from '@fortawesome/free-solid-svg-icons';
@@ -65,7 +65,7 @@ library.add(
   // Merge Icon
   faObjectGroup, faAddressCard, faBinoculars, faTableCells,
   // Pie Chart Icon
-  faChartPie,
+  faChartPie, faPalette, faChartLine, faCommentDots, faComment, faToggleOn, faToggleOff, faArrowUpFromBracket,
   // Mobile Menu Icons
   faBars, faChartLine, faHistory, faTools, faSignOutAlt, faExpand, faExpandAlt, faExpandArrowsAlt, faCompressAlt,
   // Footer Icons

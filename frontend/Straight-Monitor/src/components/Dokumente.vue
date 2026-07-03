@@ -3,132 +3,64 @@
     <!-- Document Management Section -->
     <div class="panel">
       <div class="controls">
-        <FilterPanel v-model:expanded="filtersExpanded">
-          <template #header-actions>
-            <div class="filter-search-box" :class="{ 'search-expanded': searchExpanded }">
-              <button
-                class="filter-search-toggle"
-                @click.stop="toggleSearchExpanded"
-                type="button"
-                title="Suche"
-              >
-                <font-awesome-icon icon="fa-solid fa-magnifying-glass" />
-              </button>
-              <input
-                ref="searchInput"
-                v-model="documentsSearchQuery"
-                type="text"
-                placeholder="Dokumente durchsuchen..."
-                aria-label="Dokumente suchen"
-                @keydown.escape.stop="handleSearchEscape"
-                @blur="handleSearchBlur"
-                @click.stop
-              />
-            </div>
-          </template>
-        <div class="filter-chips">
-          <div class="chip-group">
-            <span class="chip-label">Standort</span>
-            <div class="chips">
-              <button
-                class="chip"
-                :class="{ active: activeDocLocationFilter === 'Alle' }"
-                @click="setDocFilter('location', 'Alle')"
-              >
-                <font-awesome-icon icon="fa-solid fa-earth-europe" />
-                Alle
-              </button>
-              <button
+        <!-- Toolbar with ToolbarFilter -->
+        <Toolbar class="docs-search-toolbar">
+          <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFiltersExceptSearch">
+            <FilterGroup label="Standort">
+              <FilterChip
                 v-for="loc in locations"
                 :key="loc"
-                class="chip"
-                :class="{ active: activeDocLocationFilter === loc }"
-                @click="setDocFilter('location', loc)"
-              >
-                <font-awesome-icon icon="fa-solid fa-location-dot" />
-                {{ locationShort(loc) }}
-              </button>
-            </div>
-          </div>
-
-          <span class="divider" />
-          
-          <div class="chip-group">
-            <span class="chip-label">Typ</span>
-            <div class="chips">
-              <button
-                class="chip"
-                :class="{ active: activeDocTypeFilters.includes('Laufzettel (v2)') }"
+                :active="activeDocLocationFilter === loc"
+                @click="setDocFilter('location', activeDocLocationFilter === loc ? 'Alle' : loc)"
+              >{{ loc }}</FilterChip>
+            </FilterGroup>
+            <FilterDivider />
+            <FilterGroup label="Typ">
+              <FilterChip
+                :active="activeDocTypeFilters.includes('Laufzettel (v2)')"
                 @click="toggleDocTypeFilter('Laufzettel (v2)')"
-              >
-                <font-awesome-icon icon="fa-solid fa-file-lines" />
-                Laufzettel
-              </button>
-              <button
-                class="chip"
-                :class="{ active: activeDocTypeFilters.includes('Event-Bericht') }"
+              >Laufzettel</FilterChip>
+              <FilterChip
+                :active="activeDocTypeFilters.includes('Event-Bericht')"
                 @click="toggleDocTypeFilter('Event-Bericht')"
-              >
-                <font-awesome-icon icon="fa-solid fa-clipboard" />
-                Event Report
-              </button>
-            </div>
-          </div>
-
-          <span class="divider" />
-
-          <div class="chip-group">
-            <span class="chip-label">Status</span>
-            <div class="chips">
-              <button
-                class="chip"
-                :class="{ active: showOnlyOffen }"
+              >Event Report</FilterChip>
+            </FilterGroup>
+            <FilterDivider />
+            <FilterGroup label="Status">
+              <FilterChip
+                :active="showOnlyOffen"
                 @click="showOnlyOffen = !showOnlyOffen; currentPage = 1"
-              >
-                <font-awesome-icon :icon="['far', 'circle']" />
-                Offen
-              </button>
-            </div>
-          </div>
-
-          <!-- Person Filter Chips (wenn aktiv) -->
-          <template v-if="filteredTeamleiter || filteredMitarbeiter">
-            <span class="divider" />
-            
-            <div class="chip-group">
-              <span class="chip-label">Person</span>
-              <div class="chips">
-                <button
+              >Offen</FilterChip>
+            </FilterGroup>
+            <template v-if="filteredTeamleiter || filteredMitarbeiter">
+              <FilterDivider />
+              <FilterGroup label="Person">
+                <FilterChip
                   v-if="filteredTeamleiter"
-                  class="chip active"
+                  :active="true"
                   @click="filterByTeamleiter(filteredTeamleiter)"
-                  :title="`Filter aktiv: ${filteredTeamleiter} - klicken zum Zurücksetzen`"
-                >
-                  <font-awesome-icon icon="fa-solid fa-user-tie" />
-                  TL: {{ filteredTeamleiter }}
-                </button>
-                <button
+                >TL: {{ filteredTeamleiter }}</FilterChip>
+                <FilterChip
                   v-if="filteredMitarbeiter"
-                  class="chip active"
+                  :active="true"
                   @click="filterByMitarbeiter(filteredMitarbeiter)"
-                  :title="`Filter aktiv: ${filteredMitarbeiter} - klicken zum Zurücksetzen`"
-                >
-                  <font-awesome-icon icon="fa-solid fa-user" />
-                  MA: {{ filteredMitarbeiter }}
-                </button>
-              </div>
-            </div>
-          </template>
-        </div>
-        </FilterPanel>
-
-        <!-- Desktop Search Bar (hidden on mobile) -->
-        <SearchBar
-          class="desktop-search-bar"
-          v-model="documentsSearchQuery"
-          placeholder="Dokumente durchsuchen..."
-          aria-label="Dokumente suchen"
-        />
+                >MA: {{ filteredMitarbeiter }}</FilterChip>
+              </FilterGroup>
+            </template>
+          </ToolbarFilter>
+          <div class="toolbar-inner">
+            <SearchBar
+              class="toolbar-search"
+              v-model="documentsSearchQuery"
+              placeholder="Dokumente durchsuchen..."
+              aria-label="Dokumente suchen"
+            />
+            <button class="btn-nachpflege" @click="$router.push('/dokumente/nachpflege')">
+              <font-awesome-icon :icon="['fas', 'plus']" />
+              Nachpflege
+            </button>
+          </div>
+        </Toolbar>
 
         <div v-if="!loading.documents && filteredDocumentsSorted.length > 0" class="search-sort">
           <div class="pagination-compact">
@@ -426,6 +358,11 @@ import DocumentCard from '@/components/DocumentCard.vue';
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import CustomerCard from '@/components/CustomerCard.vue';
 import SearchBar from '@/components/SearchBar.vue';
+import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
+import FilterGroup from '@/components/FilterGroup.vue';
+import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import asanaLogo from '@/assets/asana.png';
 
 import {
@@ -489,7 +426,7 @@ library.add(
 
 export default {
   name: "Dokumente",
-  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, DocumentCard, EmployeeCardModal, CustomerCard, SearchBar },
+  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, DocumentCard, EmployeeCardModal, CustomerCard, SearchBar, Toolbar, ToolbarFilter, FilterGroup, FilterChip, FilterDivider },
 
   setup() {
     const dataCache = useDataCache();
@@ -537,6 +474,7 @@ export default {
       documents: [],
       locations: ["Hamburg", "Berlin", "Köln"],
       filtersExpanded: false,
+      filterExpanded: false,
 
       // filters and search (restored from session or defaults)
       activeDocTypeFilters: filterDefaults.activeDocTypeFilters,
@@ -574,6 +512,16 @@ export default {
   },
 
   computed: {
+    activeFilterCount() {
+      let count = 0;
+      if (this.activeDocLocationFilter !== 'Alle') count++;
+      if (this.activeDocTypeFilters.length !== 2) count++;
+      if (this.showOnlyOffen) count++;
+      if (this.filteredTeamleiter) count++;
+      if (this.filteredMitarbeiter) count++;
+      return count;
+    },
+
     auftragTitelMap() {
       const map = new Map();
       for (const a of this.dataCache.auftraege) {
@@ -1349,12 +1297,8 @@ export default {
 <style scoped lang="scss">
 /* Tokens an globale Variablen anbinden */
 .dokumente-page {
-  --bg: var(--bg);
   --surface: var(--panel);
   --soft: var(--hover);
-  --border: var(--border);
-  --muted: var(--muted);
-  --text: var(--text);
   --brand: var(--primary);
   --brand-ink: var(--primary);
   --ok: #21a26a;
@@ -1369,9 +1313,7 @@ export default {
 
 .panel {
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 16px;
-  box-shadow: var(--shadow);
   padding: 20px;
 }
 
@@ -1501,17 +1443,45 @@ export default {
   }
 }
 
-// Desktop Search Bar
-.desktop-search-bar {
-  gap: 10px;
-  padding: 8px 14px;
-  border-radius: 10px;
-  margin-top: 8px;
-  margin-bottom: 0;
+// Docs search toolbar (hidden on mobile)
+.docs-search-toolbar {
+  margin-bottom: 12px;
+  overflow: visible;
 
   @media (max-width: 768px) {
     display: none;
   }
+}
+
+.toolbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.btn-nachpflege {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  &:hover { border-color: var(--primary); color: var(--primary); }
 }
 
 .filter-search-box {

@@ -1,142 +1,84 @@
 <template>
   <div class="auftraege-page" :class="{ 'sidebar-open': selectedEvent }">
     <div class="main-content">
-    <FilterPanel v-model:expanded="filtersExpanded" title="Filter Optionen">
-      <!-- Mobile search toggle in filter header -->
-      <template #header-actions>
-        <div class="filter-search-box" :class="{ 'search-expanded': searchExpanded }">
-          <button class="filter-search-toggle" @click.stop="toggleSearchExpanded" type="button" title="Suche">
-            <font-awesome-icon icon="fa-solid fa-magnifying-glass" />
-          </button>
-          <input 
-            ref="searchInput"
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="Suchen..."
-            @input="debouncedSearch"
-            @keydown.escape="searchExpanded = false"
-            @blur="handleSearchBlur"
-            @click.stop
-          />
+    <Toolbar class="calendar-navigation">
+      <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetAllFilters">
+        <!-- Geschäftsstelle -->
+        <FilterGroup label="Geschäftsstelle">
+          <FilterChip :active="filters.geschSt === '1'" @click="setGeschStFilter('1')">Berlin</FilterChip>
+          <FilterChip :active="filters.geschSt === '2'" @click="setGeschStFilter('2')">Hamburg</FilterChip>
+          <FilterChip :active="filters.geschSt === '3'" @click="setGeschStFilter('3')">Köln</FilterChip>
+        </FilterGroup>
+        <FilterDivider />
+        <!-- Bediener -->
+        <FilterGroup label="Bediener">
+          <FilterDropdown :has-value="filters.bediener.length > 0">
+            <template #label>
+              <span v-if="filters.bediener.length === 0">Alle Bediener</span>
+              <span v-else>{{ filters.bediener.length }} ausgewählt</span>
+            </template>
+            <div v-if="filterOptions.bediener.length === 0" class="no-options">Keine Bediener gefunden</div>
+            <label v-for="bed in filterOptions.bediener" :key="bed" class="dropdown-item">
+              <input type="checkbox" :checked="filters.bediener.includes(bed)" @change="toggleBedienerFilter(bed)">
+              <span class="label-text">{{ bed }}</span>
+            </label>
+          </FilterDropdown>
+        </FilterGroup>
+        <FilterDivider />
+        <!-- Kunden -->
+        <FilterGroup label="Kunden">
+          <FilterDropdown :has-value="filters.kunden.length > 0">
+            <template #label>
+              <span v-if="filters.kunden.length === 0">Alle Kunden</span>
+              <span v-else>{{ filters.kunden.length }} ausgewählt</span>
+            </template>
+            <div v-if="filterOptions.kunden.length === 0" class="no-options">Keine Kunden gefunden</div>
+            <label v-for="kunde in filterOptions.kunden" :key="kunde.kundenNr" class="dropdown-item">
+              <input type="checkbox" :checked="filters.kunden.includes(kunde.kundenNr)" @change="toggleKundeFilter(kunde.kundenNr)">
+              <span class="label-text">{{ kunde.kundName }}</span>
+            </label>
+          </FilterDropdown>
+        </FilterGroup>
+      </ToolbarFilter>
+      <div class="nav-inner">
+        <button class="nav-btn" @click="previousWeek">
+          <span>← Vorherige Woche</span>
+        </button>
+        <div class="current-range">
+          {{ formatDateRange(currentWeekStart, currentWeekEnd) }}
         </div>
-      </template>
-          <!-- GeschSt Filter -->
-          <FilterGroup label="Geschäftsstelle">
-            <FilterChip
-              :active="filters.geschSt === '1'"
-              @click="setGeschStFilter('1')"
-            >
-              Berlin
-            </FilterChip>
-            <FilterChip
-              :active="filters.geschSt === '2'"
-              @click="setGeschStFilter('2')"
-            >
-              Hamburg
-            </FilterChip>
-            <FilterChip
-              :active="filters.geschSt === '3'"
-              @click="setGeschStFilter('3')"
-            >
-              Köln
-            </FilterChip>
-             <FilterChip
-              :active="!filters.geschSt"
-              @click="setGeschStFilter(null)"
-            >
-              Alle
-            </FilterChip>
-          </FilterGroup>
-
-          <FilterDivider />
-
-          <!-- Bediener Filter -->
-          <FilterGroup label="Bediener">
-            <FilterDropdown :has-value="filters.bediener.length > 0">
-              <template #label>
-                <span v-if="filters.bediener.length === 0">Alle Bediener</span>
-                <span v-else>{{ filters.bediener.length }} ausgewählt</span>
-              </template>
-              
-              <div v-if="filterOptions.bediener.length === 0" class="no-options">Keine Bediener gefunden</div>
-              <label v-for="bed in filterOptions.bediener" :key="bed" class="dropdown-item">
-                <input 
-                  type="checkbox" 
-                  :checked="filters.bediener.includes(bed)"
-                  @change="toggleBedienerFilter(bed)"
-                >
-                <span class="label-text">{{ bed }}</span>
-              </label>
-            </FilterDropdown>
-          </FilterGroup>
-
-          <FilterDivider />
-
-          <!-- Kunden Filter -->
-          <FilterGroup label="Kunden">
-            <FilterDropdown :has-value="filters.kunden.length > 0">
-              <template #label>
-                <span v-if="filters.kunden.length === 0">Alle Kunden</span>
-                <span v-else>{{ filters.kunden.length }} ausgewählt</span>
-              </template>
-              
-              <div v-if="filterOptions.kunden.length === 0" class="no-options">Keine Kunden gefunden</div>
-              <label v-for="kunde in filterOptions.kunden" :key="kunde.kundenNr" class="dropdown-item">
-                <input 
-                  type="checkbox" 
-                  :checked="filters.kunden.includes(kunde.kundenNr)"
-                  @change="toggleKundeFilter(kunde.kundenNr)"
-                >
-                <span class="label-text">{{ kunde.kundName }}</span>
-              </label>
-            </FilterDropdown>
-          </FilterGroup>
-
-          <FilterDivider />
-          
-           <!-- Reset Button -->
-          <FilterChip class="reset-chip" @click="resetAllFilters" title="Alle Filter zurücksetzen">
-            <font-awesome-icon icon="fa-solid fa-rotate-left" />
-            Zurücksetzen
-          </FilterChip>
-
-          <!-- Stand der Auftragsdaten -->
-          <div v-if="dataStatus" class="data-status-badge" title="Stand der Daten (Zvoove Import)">
-            <font-awesome-icon icon="fa-solid fa-clock" />
-            <span>Stand: {{ formatDataStatus(dataStatus) }}</span>
-          </div>
-      </FilterPanel>
-
-    <div class="calendar-navigation">
-      <button class="nav-btn" @click="previousWeek">
-        <span>← Vorherige Woche</span>
-      </button>
-      <div class="current-range">
-        {{ formatDateRange(currentWeekStart, currentWeekEnd) }}
+        <button class="nav-btn" @click="nextWeek">
+          <span>Nächste Woche →</span>
+        </button>
+        <button class="nav-btn today-btn" @click="goToToday">Heute</button>
+        <label class="nav-btn calendar-btn" title="Zu Woche springen (Datum wählen)">
+          <font-awesome-icon icon="fa-solid fa-calendar" />
+          <input 
+            ref="datePicker" 
+            type="date" 
+            class="hidden-date-input" 
+            @change="handleDatePick"
+            @input="handleDatePick"
+          >
+        </label>
+        <!-- Desktop Search -->
+        <SearchBar
+          v-if="!isMobile"
+          class="nav-search"
+          v-model="searchQuery"
+          placeholder="Mitarbeiter, Events, Kunden..."
+          aria-label="Aufträge suchen"
+        />
+        <div v-if="dataStatus && !isMobile" class="data-status-badge" title="Stand der Daten (Zvoove Import)">
+          <font-awesome-icon icon="fa-solid fa-clock" />
+          <span>Stand: {{ formatDataStatus(dataStatus) }}</span>
+        </div>
+        <button class="btn-create-pseudo" @click="openPseudoDialog">
+          <font-awesome-icon :icon="['fas', 'plus']" />
+          Pseudo-Auftrag
+        </button>
       </div>
-      <button class="nav-btn" @click="nextWeek">
-        <span>Nächste Woche →</span>
-      </button>
-      <button class="nav-btn today-btn" @click="goToToday">Heute</button>
-      <label class="nav-btn calendar-btn" title="Zu Woche springen (Datum wählen)">
-        <font-awesome-icon icon="fa-solid fa-calendar" />
-        <input 
-          ref="datePicker" 
-          type="date" 
-          class="hidden-date-input" 
-          @change="handleDatePick"
-          @input="handleDatePick"
-        >
-      </label>
-      <!-- Desktop Search -->
-      <SearchBar
-        v-if="!isMobile"
-        class="nav-search"
-        v-model="searchQuery"
-        placeholder="Mitarbeiter, Events, Kunden..."
-        aria-label="Aufträge suchen"
-      />
-    </div>
+    </Toolbar>
 
     <!-- Mobile View -->
     <div v-if="isMobile" class="mobile-calendar-view">
@@ -1164,13 +1106,15 @@ import { useSignaturModal } from '../stores/signaturModal';
 import FilterPanel from '@/components/FilterPanel.vue';
 import ThinScrollContainer from '@/components/ThinScrollContainer.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
-import FilterChip from '@/components/FilterChip.vue';
-import FilterDivider from '@/components/FilterDivider.vue';
+import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import CustomerCard from '@/components/CustomerCard.vue';
 import DocumentCard from '@/components/DocumentCard.vue';
 import SearchBar from '@/components/SearchBar.vue';
+import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
 import laufzettelIcon from '@/assets/laufzettel.png';
 import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
@@ -1180,7 +1124,7 @@ import eventreportDarkIcon from '@/assets/eventreport-dark.png';
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm },
+  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter },
   data() {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
@@ -1212,6 +1156,7 @@ export default {
       
       // Filter State
       filtersExpanded: false,
+      filterExpanded: false,
       filterOptions: {
         bediener: [],
         kunden: []
@@ -1380,6 +1325,13 @@ export default {
       if (!this.selectedEvent) return this.globalLabels;
       const existing = new Set((this.selectedEvent.labels || []).map(l => l.name.toLowerCase()));
       return this.globalLabels.filter(gl => !existing.has(gl.name.toLowerCase()));
+    },
+    activeFilterCount() {
+      let count = 0;
+      if (this.filters.geschSt) count++;
+      if (this.filters.bediener.length > 0) count++;
+      if (this.filters.kunden.length > 0) count++;
+      return count;
     },
     // Maps the active Geschäftsstelle filter to its Bundesland code
     activeStateLand() {
@@ -1733,8 +1685,8 @@ export default {
       this.filtersExpanded = !this.filtersExpanded;
     },
     setGeschStFilter(val) {
-      if (this.filters.geschSt === val) return;
-      this.filters.geschSt = val;
+      const next = this.filters.geschSt === val ? null : val;
+      this.filters.geschSt = next;
       // Reset dependent filters as they might not apply to new location
       this.filters.kunden = [];
       this.filters.bediener = [];
@@ -2589,12 +2541,8 @@ export default {
 
 .auftraege-page {
   /* Variable Mappings to match new components */
-  --bg: var(--bg);
   --surface: var(--panel);
   --soft: var(--hover);
-  --border: var(--border);
-  --muted: var(--muted);
-  --text: var(--text);
   --brand: var(--primary);
   
   display: flex;
@@ -2604,7 +2552,7 @@ export default {
 .main-content {
   flex: 1;
   min-width: 0;
-  padding: 20px;
+  padding: 0px 20px 20px;
   /* Removed transition on margin-right as layout is now flex-driven */
 
   @media (max-width: 768px) {
@@ -2615,10 +2563,10 @@ export default {
 /* Sidebar Styles */
 .detail-sidebar {
   position: sticky;
-  top: 88px;
+  top: 0;
   width: 420px;
   min-width: 420px; /* Ensure it keeps size during flex resize of siblings */
-  height: calc(100vh - 88px);
+  height: 100vh;
   overflow-y: auto;
   background: var(--tile-bg);
   border-left: 1px solid var(--border);
@@ -3064,17 +3012,20 @@ export default {
 .data-status-badge {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
+  gap: 5px;
+  font-size: 0.7rem;
   color: var(--muted);
   background: var(--hover);
   padding: 4px 10px;
   border-radius: 20px;
   border: 1px solid var(--border);
-  
+  white-space: nowrap;
+  flex-shrink: 0;
+
   svg {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: var(--primary);
+    flex-shrink: 0;
   }
 }
 
@@ -3107,13 +3058,13 @@ export default {
 
 .nav-search {
   flex-shrink: 1;
-  min-width: 0;
-  padding: clamp(3px, 0.5cqi, 6px) clamp(6px, 1cqi, 12px);
-  border-radius: clamp(5px, 0.7cqi, 8px);
+  min-width: 120px;
+  padding: 4px 10px;
+  border-radius: 8px;
 
   :deep(input) {
     width: clamp(80px, 18cqi, 220px);
-    font-size: clamp(0.65rem, 0.3rem + 0.9cqi, 0.875rem);
+    font-size: 0.82rem;
     min-width: 0;
   }
 }
@@ -3183,47 +3134,67 @@ export default {
 }
 
 .calendar-navigation {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  container-type: inline-size;
-  gap: clamp(4px, 0.6cqi, 8px);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  margin: 0 auto 20px;
   flex-wrap: nowrap;
-  padding: clamp(6px, 0.8cqi, 10px);
-  overflow: hidden;
-  background: color-mix(in oklab, var(--tile-bg) 94%, var(--primary));
-  border: 1px solid color-mix(in oklab, var(--primary) 18%, var(--border));
-  border-radius: 14px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.07);
+  overflow: visible; // allow ToolbarFilter dropdowns to escape
+}
+
+.nav-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.btn-create-pseudo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+  &:hover { border-color: var(--primary); color: var(--primary); }
 }
 
 .nav-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: clamp(32px, 4.2cqi, 46px);
-  padding: clamp(4px, 0.7cqi, 9px) clamp(6px, 1.1cqi, 13px);
-  font-size: clamp(0.6rem, 0.3rem + 0.85cqi, 0.92rem);
+  height: 28px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
   background: var(--tile-bg);
   border: 1px solid var(--border);
-  border-radius: clamp(5px, 0.7cqi, 8px);
+  border-radius: 6px;
   color: var(--text);
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s;
-  position: relative;
-  flex-shrink: 1;
-  min-width: 0;
   white-space: nowrap;
-  gap: clamp(2px, 0.3cqi, 4px);
+  flex-shrink: 0;
+  gap: 4px;
 
   &:hover {
     background: var(--hover);
     border-color: var(--primary);
+    color: var(--primary);
   }
 
   &.today-btn {
@@ -3239,9 +3210,9 @@ export default {
 }
 
 .nav-btn.calendar-btn {
-  height: 27px;
-  min-height: 27px;
-  padding: 0 10px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
 }
 
 .nav-btn.calendar-btn:hover {
@@ -3251,32 +3222,16 @@ export default {
 }
 
 .current-range {
-  position: relative;
-  font-size: clamp(0.7rem, 0.35rem + 1cqi, 1.05rem);
+  font-size: 0.88rem;
   font-weight: 700;
   color: var(--text);
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 340px;
-  padding: clamp(5px, 0.7cqi, 9px) clamp(8px, 1.5cqi, 18px) clamp(6px, 0.8cqi, 10px);
+  flex: 0 0 auto;
+  padding: 4px 14px;
   white-space: nowrap;
-  overflow: hidden;
   background: var(--tile-bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border-radius: 6px;
   text-align: center;
-
-  &::before {
-    content: '';
-    position: absolute;
-    left: 18px;
-    right: 18px;
-    bottom: -1px;
-    height: 3px;
-    border-radius: 999px 999px 0 0;
-    background: var(--primary);
-  }
 }
 
 .loading-body {
@@ -3299,7 +3254,7 @@ export default {
 
 .calendar-header {
   display: grid;
-  grid-template-columns: 58px repeat(7, 1fr);
+  grid-template-columns: 58px repeat(7, minmax(0, 1fr));
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   border-top: 1px solid var(--border);
@@ -3414,7 +3369,7 @@ export default {
 }
 
 .day-header {
-  padding: 12px 8px;
+  padding: 10px 4px;
   text-align: center;
   border-right: 1px solid var(--border);
 
@@ -3429,9 +3384,12 @@ export default {
 
   .day-name {
     font-weight: 700;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--muted);
     margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .day-date {
@@ -3442,7 +3400,7 @@ export default {
 
 .calendar-body {
   display: grid;
-  grid-template-columns: 58px repeat(7, 1fr);
+  grid-template-columns: 58px repeat(7, minmax(0, 1fr));
   min-height: 500px;
 }
 
