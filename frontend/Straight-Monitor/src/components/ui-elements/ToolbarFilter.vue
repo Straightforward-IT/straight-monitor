@@ -179,6 +179,13 @@ function toggle() {
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
 
+  @media (max-width: 768px) {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
   // Strip FilterGroup's own box (border, bg, padding) for inline toolbar display
   :deep(.filter-group) {
     border: none;

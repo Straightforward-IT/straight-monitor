@@ -41,17 +41,17 @@
         </FilterGroup>
       </ToolbarFilter>
       <div class="nav-inner">
-        <button class="nav-btn" @click="previousWeek">
-          <span>← Vorherige Woche</span>
+        <button v-if="!isMobile" class="nav-btn nav-btn--icon" @click="previousWeek" title="Vorherige Woche">
+          <font-awesome-icon icon="fa-solid fa-chevron-left" />
         </button>
-        <div class="current-range">
+        <div v-if="!isMobile" class="current-range">
           {{ formatDateRange(currentWeekStart, currentWeekEnd) }}
         </div>
-        <button class="nav-btn" @click="nextWeek">
-          <span>Nächste Woche →</span>
+        <button v-if="!isMobile" class="nav-btn nav-btn--icon" @click="nextWeek" title="Nächste Woche">
+          <font-awesome-icon icon="fa-solid fa-chevron-right" />
         </button>
-        <button class="nav-btn today-btn" @click="goToToday">Heute</button>
-        <label class="nav-btn calendar-btn" title="Zu Woche springen (Datum wählen)">
+        <button v-if="!isMobile" class="nav-btn today-btn" @click="goToToday">Heute</button>
+        <label v-if="!isMobile" class="nav-btn calendar-btn" title="Zu Woche springen (Datum wählen)">
           <font-awesome-icon icon="fa-solid fa-calendar" />
           <input 
             ref="datePicker" 
@@ -62,59 +62,76 @@
           >
         </label>
         <!-- Desktop Search -->
-        <SearchBar
-          v-if="!isMobile"
-          class="nav-search"
-          v-model="searchQuery"
-          placeholder="Mitarbeiter, Events, Kunden..."
-          aria-label="Aufträge suchen"
-        />
-        <div v-if="dataStatus && !isMobile" class="data-status-badge" title="Stand der Daten (Zvoove Import)">
-          <font-awesome-icon icon="fa-solid fa-clock" />
-          <span>Stand: {{ formatDataStatus(dataStatus) }}</span>
+        <div v-if="!isMobile" class="search-wrapper" @focusin="onSearchFocusIn" @focusout="onSearchFocusOut">
+          <SearchBar
+            class="nav-search"
+            v-model="searchQuery"
+            placeholder="Mitarbeiter, Events, Kunden..."
+            aria-label="Aufträge suchen"
+          />
         </div>
+        <div v-if="dataStatus && !isMobile" class="data-status-badge" :title="'Stand der Daten: ' + formatDataStatus(dataStatus)">
+          <font-awesome-icon icon="fa-solid fa-clock" />
+          <span>{{ formatDataStatus(dataStatus) }}</span>
+        </div>
+
+        <!-- Mobile day nav — lives inside the toolbar -->
+        <template v-if="isMobile">
+          <button class="mdn-btn" @click="previousWeek" title="Vorherige Woche">
+            <font-awesome-icon icon="fa-solid fa-angles-left" />
+          </button>
+          <button class="mdn-btn" @click="prevDay" title="Vorheriger Tag">
+            <font-awesome-icon icon="fa-solid fa-chevron-left" />
+          </button>
+          <DatePicker :model-value="mobileDayDate" @update:model-value="setDateFromPicker">
+            <template #default="{ toggle }">
+              <button class="mdn-cal-btn" @click="toggle" title="Datum w\u00e4hlen">
+                <font-awesome-icon icon="fa-solid fa-calendar" />
+              </button>
+            </template>
+          </DatePicker>
+          <button class="mdn-btn" @click="nextDay" title="Nächster Tag">
+            <font-awesome-icon icon="fa-solid fa-chevron-right" />
+          </button>
+          <button class="mdn-btn" @click="nextWeek" title="Nächste Woche">
+            <font-awesome-icon icon="fa-solid fa-angles-right" />
+          </button>
+          <div class="search-wrapper mdn-search" @focusin="onSearchFocusIn" @focusout="onSearchFocusOut">
+            <SearchBar
+              class="nav-search"
+              v-model="searchQuery"
+              placeholder="Suchen..."
+              aria-label="Aufträge suchen"
+            />
+          </div>
+        </template>
+
         <button class="btn-create-pseudo" @click="openPseudoDialog">
           <font-awesome-icon :icon="['fas', 'plus']" />
-          Pseudo-Auftrag
+          <span class="btn-pseudo-text">Pseudo-Auftrag</span>
         </button>
       </div>
     </Toolbar>
 
     <!-- Mobile View -->
     <div v-if="isMobile" class="mobile-calendar-view">
-      <div class="mobile-nav">
-        <button class="nav-btn-mobile" @click="prevDay">
-          <font-awesome-icon icon="fa-solid fa-chevron-left" />
-        </button>
-        
-        <label class="mobile-date-display" v-if="weekDays[mobileDayIndex]" title="Datum wählen">
-          <span class="day-name">{{ weekDays[mobileDayIndex].name }}</span>
-          <span class="day-date">{{ formatDayDate(weekDays[mobileDayIndex].date) }}</span>
+      <!-- Day title -->
+      <div class="mobile-day-title" v-if="weekDays[mobileDayIndex]">
+        <div class="mobile-day-title__row">
+          <span class="mobile-day-title__name">{{ weekDays[mobileDayIndex].name }}</span>
+          <span class="mobile-day-title__date">{{ formatDayDateFull(weekDays[mobileDayIndex].date) }}</span>
           <span
             v-if="getHolidayForDate(weekDays[mobileDayIndex].date)"
             class="mobile-holiday-chip"
             :class="{ 'mobile-holiday-chip--relevant': isHolidayRelevant(getHolidayForDate(weekDays[mobileDayIndex].date)) }"
           >{{ getHolidayForDate(weekDays[mobileDayIndex].date).name }}</span>
-          <input
-            ref="mobileDatePicker"
-            type="date"
-            class="hidden-date-input"
-            :value="mobileDatePickerValue"
-            @change="jumpToDate"
-            @input="jumpToDate"
-          />
-        </label>
-        
-        <button class="nav-btn-mobile" @click="nextDay">
-            <font-awesome-icon icon="fa-solid fa-chevron-right" />
-        </button>
+        </div>
+        <div class="mobile-day-title__stats">
+          {{ getEventsForDay(weekDays[mobileDayIndex].date).length }} Aufträge &bull; {{ getTotalPositionsForDay(weekDays[mobileDayIndex].date) }} Pos.
+        </div>
       </div>
 
       <div class="mobile-day-content" v-if="weekDays[mobileDayIndex]">
-        <!-- Reuse existing methods -->
-        <div class="day-stats" style="text-align: center; margin-bottom: 10px;">
-          {{ getEventsForDay(weekDays[mobileDayIndex].date).length }} Aufträge • {{ getTotalPositionsForDay(weekDays[mobileDayIndex].date) }} Pos.
-        </div>
         
         <div v-if="getEventsForDay(weekDays[mobileDayIndex].date).length === 0" class="empty-day-state">
             Keine Aufträge heute
@@ -1085,16 +1102,33 @@
       </div>
     </div>
   </div>
+
+  <!-- Search dropdown — teleported to body to escape toolbar overflow clipping -->
+  <Teleport to="body">
+    <div class="search-dropdown" v-if="showSearchDropdown" :style="dropdownStyle">
+      <button
+        v-for="a in searchDropdownResults"
+        :key="a._id"
+        class="sdrop-item"
+        @mousedown.prevent="selectSearchResult(a)"
+      >
+        <span class="sdrop-kuerzel" v-if="a.kundeData?.kuerzel">{{ a.kundeData.kuerzel }}</span>
+        <span class="sdrop-title">{{ a.eventTitel || '(kein Titel)' }}</span>
+        <span class="sdrop-date">{{ formatDropdownDate(a.vonDatum) }}</span>
+      </button>
+      <div v-if="searchDropdownResults.length === 0" class="sdrop-empty">Keine Ergebnisse</div>
+    </div>
+  </Teleport>
 </template>
 
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 import { DocusealForm } from '@docuseal/vue';
 
-library.add(faChevronLeft, faChevronRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload);
+library.add(faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
@@ -1115,6 +1149,7 @@ import DocumentCard from '@/components/DocumentCard.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
+import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
 import laufzettelIcon from '@/assets/laufzettel.png';
 import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
@@ -1124,7 +1159,7 @@ import eventreportDarkIcon from '@/assets/eventreport-dark.png';
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter },
+  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker },
   data() {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
@@ -1148,6 +1183,8 @@ export default {
       auftraege: [],
       loading: false,
       searchQuery: "",
+      searchFocused: false,
+      searchWrapperRect: null,
       searchExpanded: false,
       currentWeekStart: null,
       selectedEvent: null,
@@ -1295,6 +1332,65 @@ export default {
       if (!d) return '';
       return d.toISOString().slice(0, 10);
     },
+    mobileDayDate() {
+      return this.weekDays[this.mobileDayIndex]?.date || null;
+    },
+    searchDropdownResults() {
+      const q = this.searchQuery.trim().toLowerCase();
+      if (!q) return [];
+      const words = q.split(/\s+/).filter(Boolean);
+      const now = Date.now();
+      const MS_PER_DAY = 86400000;
+      return this.auftraege
+        .filter(a => {
+          const haystack = [
+            a.eventTitel,
+            a.kundeData?.kuerzel,
+            a.kundeData?.kundName,
+            String(a.auftragNr || ''),
+          ].filter(Boolean).join(' ').toLowerCase();
+          return words.every(w => haystack.includes(w));
+        })
+        .map(a => {
+          let score = 0;
+          if (a.vonDatum) {
+            const daysDiff = (new Date(a.vonDatum).getTime() - now) / MS_PER_DAY;
+            const effectiveDist = daysDiff >= 0 ? daysDiff / 4 : Math.abs(daysDiff);
+            score = 1 / (effectiveDist + 1);
+          }
+          return { ...a, _score: score };
+        })
+        .sort((a, b) => b._score - a._score)
+        .slice(0, 8);
+    },
+    showSearchDropdown() {
+      return this.searchFocused && this.searchQuery.trim().length > 0;
+    },
+    dropdownStyle() {
+      const r = this.searchWrapperRect;
+      if (!r) return {};
+      if (this.isMobile) {
+        return {
+          position: 'fixed',
+          top: (r.bottom + 6) + 'px',
+          left: '12px',
+          right: '12px',
+          zIndex: 3000,
+        };
+      }
+      // Desktop: wide, centered on search bar, clamped to viewport
+      const vw = window.innerWidth;
+      const dropW = Math.min(520, vw - 24);
+      const idealLeft = r.left + r.width / 2 - dropW / 2;
+      const left = Math.max(12, Math.min(idealLeft, vw - dropW - 12));
+      return {
+        position: 'fixed',
+        top: (r.bottom + 6) + 'px',
+        left: left + 'px',
+        width: dropW + 'px',
+        zIndex: 3000,
+      };
+    },
     weekDays() {
       if (!this.currentWeekStart) return [];
       const days = [];
@@ -1312,14 +1408,18 @@ export default {
     },
     filteredAuftraege() {
       if (!this.searchQuery.trim()) return this.auftraege;
-      const q = this.searchQuery.toLowerCase();
-      return this.auftraege.filter(a => 
-        (a.eventTitel && a.eventTitel.toLowerCase().includes(q)) ||
-        (a.eventOrt && a.eventOrt.toLowerCase().includes(q)) ||
-        (a.kundeData?.kundName && a.kundeData.kundName.toLowerCase().includes(q)) ||
-        (a.auftragNr && String(a.auftragNr).includes(q)) ||
-        (a.mitarbeiterNames && a.mitarbeiterNames.some(name => name.toLowerCase().includes(q)))
-      );
+      const words = this.searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      return this.auftraege.filter(a => {
+        const haystack = [
+          a.eventTitel,
+          a.eventOrt,
+          a.kundeData?.kundName,
+          a.kundeData?.kuerzel,
+          String(a.auftragNr || ''),
+          ...(a.mitarbeiterNames || []),
+        ].filter(Boolean).join(' ').toLowerCase();
+        return words.every(w => haystack.includes(w));
+      });
     },
     availableGlobalLabels() {
       if (!this.selectedEvent) return this.globalLabels;
@@ -1533,6 +1633,40 @@ export default {
       this.currentWeekStart = monday;
       await this.ensureMonthLoaded(monday);
       this.mobileDayIndex = day === 0 ? 6 : day - 1;
+    },
+    async setDateFromPicker(date) {
+      if (!date) return;
+      const day = date.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const monday = new Date(date);
+      monday.setDate(date.getDate() + diff);
+      monday.setHours(0, 0, 0, 0);
+      this.currentWeekStart = monday;
+      await this.ensureMonthLoaded(monday);
+      this.mobileDayIndex = day === 0 ? 6 : day - 1;
+    },
+    async selectSearchResult(auftrag) {
+      this.searchQuery = '';
+      this.searchFocused = false;
+      if (auftrag.vonDatum) {
+        await this.setDateFromPicker(new Date(auftrag.vonDatum));
+      }
+      await this.$nextTick();
+      this.selectEvent(auftrag);
+    },
+    onSearchFocusIn(e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      this.searchWrapperRect = { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right, width: rect.width };
+      this.searchFocused = true;
+    },
+    onSearchFocusOut(e) {
+      if (!e.currentTarget.contains(e.relatedTarget)) {
+        this.searchFocused = false;
+      }
+    },
+    formatDropdownDate(dateStr) {
+      if (!dateStr) return '';
+      return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },
     async prevDay() {
       if (this.mobileDayIndex > 0) {
@@ -3171,6 +3305,12 @@ export default {
   font-family: inherit;
   transition: border-color 0.15s, color 0.15s;
   &:hover { border-color: var(--primary); color: var(--primary); }
+
+  @media (max-width: 768px) {
+    margin-left: 0;
+    padding: 6px 10px;
+    .btn-pseudo-text { display: none; }
+  }
 }
 
 .nav-btn {
@@ -3195,6 +3335,12 @@ export default {
     background: var(--hover);
     border-color: var(--primary);
     color: var(--primary);
+  }
+
+  &.nav-btn--icon {
+    width: 28px;
+    padding: 4px;
+    font-size: 0.78rem;
   }
 
   &.today-btn {
@@ -3225,13 +3371,16 @@ export default {
   font-size: 0.88rem;
   font-weight: 700;
   color: var(--text);
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   padding: 4px 14px;
   white-space: nowrap;
   background: var(--tile-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   text-align: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .loading-body {
@@ -3779,7 +3928,7 @@ export default {
   }
 
   .calendar-navigation {
-    display: none; /* Hide standard navigation in mobile view */
+    overflow-x: auto;
   }
 }
 
@@ -3791,15 +3940,127 @@ export default {
 }
 
 .mobile-nav {
+  display: none; // replaced by .mobile-day-nav
+}
+
+// ── New combined mobile day nav ───────────────────────────────────────────────
+.mobile-day-nav {
+  display: none; // replaced by inline toolbar items
+}
+
+// ── Mobile day nav items (inside toolbar) ─────────────────────────────────────
+
+.mdn-btn {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  background: var(--surface);
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 10px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+
+  &:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: color-mix(in oklab, var(--primary) 8%, transparent);
+  }
 }
+
+.mdn-cal-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--primary) 8%, transparent);
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.15s, border-color 0.15s;
+
+  &:hover {
+    background: color-mix(in oklab, var(--primary) 18%, transparent);
+    border-color: var(--primary);
+  }
+}
+
+// Remove old mdn-center now that day display moved below toolbar
+.mdn-center { display: none; }
+.mdn-dayname { display: none; }
+.mdn-date { display: none; }
+
+// ── Mobile day title (below toolbar) ─────────────────────────────────────────
+.mobile-day-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0 8px;
+}
+
+.mobile-day-title__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.mobile-day-title__name {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mobile-day-title__date {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mobile-day-title__stats {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+// ── Search dropdown ───────────────────────────────────────────────────────────
+.search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 1 220px;
+  min-width: 120px;
+
+  :deep(.search-bar-root) { width: 100%; }
+}
+
+.mdn-search {
+  max-width: 140px;
+  flex: 0 1 140px;
+}
+
+.search-dropdown {
+  background: var(--tile-bg);
+  border: 1px solid color-mix(in oklab, var(--primary) 25%, var(--border));
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+  min-width: 240px;
+}
+
+
 
 .mobile-date-display {
   text-align: center;
@@ -4875,6 +5136,63 @@ export default {
   &.mobile-holiday-chip--relevant {
     background: color-mix(in oklab, #f59e0b 20%, transparent);
     color: #b45309;
+  }
+}
+</style>
+
+<style lang="scss">
+// Unscoped — needed because .search-dropdown is teleported to <body>
+.search-dropdown {
+  .sdrop-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 9px 14px;
+    border: none;
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    font-family: -apple-system, BlinkMacSystemFont, "San Francisco", Helvetica, Arial, sans-serif;
+    font-weight: 300;
+    transition: background 0.12s;
+
+    &:last-child { border-bottom: none; }
+    &:hover { background: color-mix(in oklab, var(--primary) 8%, transparent); }
+  }
+
+  .sdrop-kuerzel {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--primary);
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    border: 1px solid color-mix(in oklab, var(--primary) 30%, transparent);
+    border-radius: 4px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .sdrop-title {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .sdrop-date {
+    font-size: 0.75rem;
+    color: var(--muted);
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .sdrop-empty {
+    padding: 12px 14px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-align: center;
   }
 }
 </style>

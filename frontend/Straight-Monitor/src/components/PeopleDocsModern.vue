@@ -2060,10 +2060,6 @@ export default {
 .people-search-toolbar {
   margin-bottom: 12px;
   overflow: visible;
-
-  @media (max-width: 768px) {
-    display: none;
-  }
 }
 
 .toolbar-inner {
