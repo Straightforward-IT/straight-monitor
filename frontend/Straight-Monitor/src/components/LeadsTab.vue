@@ -6,9 +6,6 @@
       <Toolbar wrap>
         <ToolbarGroup>
           <SearchBar v-model="searchQuery" class="toolbar-search" placeholder="Leads durchsuchen…" aria-label="Leads suchen" />
-        </ToolbarGroup>
-
-        <ToolbarGroup push-right>
           <template v-if="!isMobile">
             <ToolbarIconButton title="Spalten / Eigene Felder verwalten" @click="showFieldManager = true">
               <font-awesome-icon :icon="['fas', 'sliders']" />
@@ -20,6 +17,11 @@
             >
               <font-awesome-icon :icon="['fas', 'table-columns']" />
             </ToolbarIconButton>
+          </template>
+        </ToolbarGroup>
+
+        <ToolbarGroup push-right>
+          <template v-if="!isMobile">
             <ToolbarButton variant="secondary" @click="openCreateModal">
               <font-awesome-icon :icon="['fas', 'plus']" /> Lead
             </ToolbarButton>
