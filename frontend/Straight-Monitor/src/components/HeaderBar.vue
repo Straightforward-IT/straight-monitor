@@ -191,7 +191,7 @@
         </custom-tooltip>
 
         <!-- Support Button -->
-        <custom-tooltip text="Support" position="bottom" :delay-in="150">
+        <custom-tooltip text="Nachricht an Cedi" position="bottom" :delay-in="150">
           <button 
             class="icon-btn"
             @click="showSupportModal = true"
@@ -494,7 +494,7 @@
         
         <button class="mobile-menu-btn" @click="showSupportModal = true; showMobileMenu = false">
           <font-awesome-icon :icon="['fas', 'ticket-alt']" />
-          Support
+          Nachricht an Cedi
         </button>
         
         <button class="mobile-menu-btn" @click="toggleTheme">

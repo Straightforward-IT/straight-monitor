@@ -6,8 +6,8 @@
           <!-- Header -->
           <header class="sig-header">
             <div class="sig-header-title">
-              <font-awesome-icon :icon="['fas', 'file-signature']" />
-              <h2>Neue Signatur</h2>
+              <font-awesome-icon :icon="['fas', modal.context.draftId ? 'pen-nib' : 'file-signature']" />
+              <h2>{{ modal.context.draftId ? 'Entwurf bearbeiten' : 'Neue Signatur' }}</h2>
             </div>
             <button class="sig-close" type="button" title="Schließen" @click="close">
               <font-awesome-icon :icon="['fas', 'xmark']" />
@@ -322,6 +322,24 @@
             </section>
           </div>
 
+          <!-- Close confirm overlay -->
+          <div v-if="showCloseConfirm" class="sig-close-confirm">
+            <p class="sig-close-confirm-msg">Möchten Sie den Entwurf speichern?</p>
+            <div class="sig-close-confirm-actions">
+              <button
+                class="sig-btn sig-btn--primary"
+                type="button"
+                :disabled="savingDraft || !canSaveDraft"
+                @click="saveAsDraft"
+              >
+                <font-awesome-icon :icon="['fas', savingDraft ? 'spinner' : 'floppy-disk']" :spin="savingDraft" />
+                Als Entwurf speichern
+              </button>
+              <button class="sig-btn sig-btn--ghost" type="button" @click="confirmDiscard">Verwerfen</button>
+              <button class="sig-btn sig-btn--ghost" type="button" @click="showCloseConfirm = false">Weiter bearbeiten</button>
+            </div>
+          </div>
+
           <!-- Footer -->
           <footer class="sig-footer">
             <p v-if="error" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ error }}</p>
@@ -330,6 +348,17 @@
                 <font-awesome-icon :icon="['fas', 'arrow-left']" /> Zurück
               </button>
               <button v-else class="sig-btn sig-btn--ghost" type="button" @click="close">Abbrechen</button>
+
+              <button
+                v-if="canSaveDraft"
+                class="sig-btn sig-btn--ghost sig-btn--save-draft"
+                type="button"
+                :disabled="savingDraft"
+                @click="saveAsDraft"
+              >
+                <font-awesome-icon :icon="['fas', savingDraft ? 'spinner' : 'floppy-disk']" :spin="savingDraft" />
+                {{ modal.context.draftId ? 'Änderungen speichern' : 'Als Entwurf speichern' }}
+              </button>
 
               <button
                 v-if="currentStep < steps.length - 1"
@@ -370,6 +399,7 @@ import {
   faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
   faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
   faBolt, faTrash, faCommentDots, faEnvelope, faAt, faRobot,
+  faFloppyDisk, faPenNib,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useSignaturModal } from '@/stores/signaturModal';
@@ -386,6 +416,7 @@ library.add(
   faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
   faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
   faBolt, faTrash, faCommentDots, faEnvelope, faAt, faRobot,
+  faFloppyDisk, faPenNib,
 );
 
 const modal = useSignaturModal();
@@ -426,7 +457,11 @@ const linkOptions = [
 
 const currentStep = ref(0);
 const submitting = ref(false);
+const savingDraft = ref(false);
+const showCloseConfirm = ref(false);
 const error = ref('');
+
+const canSaveDraft = computed(() => !!(form.value.typId && form.value.name.trim()));
 
 // ── Folgeaktionen state ──────────────────────────────────────────────────────
 const folgeaktionen = ref({
@@ -761,6 +796,7 @@ watch(() => modal.open, async (open) => {
   // Reset
   currentStep.value = 0;
   error.value = '';
+  showCloseConfirm.value = false;
   form.value = emptyForm();
   linkMode.value = 'keine';
   folgeaktionen.value = { ausliefernAn: [], emailBenachrichtigung: true, asanaActions: [] };
@@ -783,7 +819,60 @@ watch(() => modal.open, async (open) => {
 
 async function hydrateFromContext() {
   const ctx = modal.context;
-  if (ctx.name) form.value.name = ctx.name;
+
+  // ── Draft editing: restore full draft state ──────────────────────────────
+  if (ctx.draftData) {
+    const d = ctx.draftData;
+    form.value.name     = d.name     || '';
+    form.value.standort = d.standort || null;
+
+    // Restore typ (populated object or ObjectId string)
+    if (d.typ && typeof d.typ === 'object') {
+      form.value.typId      = d.typ._id || String(d.typ);
+      form.value.typKey     = d.typKey  || d.typ.key || null;
+      form.value.typLinkedTo = d.typ.linkedTo || 'Both';
+      if (d.typ.linkedTo === 'Kunde')       linkMode.value = 'kunde';
+      else if (d.typ.linkedTo === 'Mitarbeiter') linkMode.value = 'mitarbeiter';
+    }
+
+    // Restore entity links
+    if (d.kunde) {
+      form.value.kundeId = typeof d.kunde === 'object' ? (d.kunde._id || String(d.kunde)) : d.kunde;
+      linkMode.value = 'kunde';
+    } else if (d.mitarbeiter) {
+      form.value.mitarbeiterId = typeof d.mitarbeiter === 'object' ? (d.mitarbeiter._id || String(d.mitarbeiter)) : d.mitarbeiter;
+      linkMode.value = 'mitarbeiter';
+    }
+
+    // Restore template
+    if (d.docusealTemplateId) {
+      form.value.templateId   = d.docusealTemplateId;
+      form.value.templateName = d.docusealTemplateName || '';
+    }
+
+    // Restore submitters
+    if (Array.isArray(d.submitters) && d.submitters.length) {
+      form.value.submitters = d.submitters.map(s => ({
+        role:     s.role     || 'Unterzeichner',
+        name:     s.name     || '',
+        email:    s.email    || '',
+        embedded: !!s.embedded,
+      }));
+    }
+
+    // Restore folgeaktionen
+    if (d.folgeaktionen) {
+      folgeaktionen.value = {
+        ausliefernAn:          Array.isArray(d.folgeaktionen.ausliefernAn) ? d.folgeaktionen.ausliefernAn : [],
+        emailBenachrichtigung: d.folgeaktionen.emailBenachrichtigung !== false,
+        asanaActions:          Array.isArray(d.folgeaktionen.asanaActions) ? d.folgeaktionen.asanaActions : [],
+      };
+    }
+    return;
+  }
+
+  // ── Standard pre-fill from context ──────────────────────────────────────
+  if (ctx.name)    form.value.name    = ctx.name;
   if (ctx.standort) form.value.standort = ctx.standort;
 
   // Pre-select type by key
@@ -831,7 +920,22 @@ async function submit() {
     const ctx = modal.context;
     let vorgang;
 
-    if (ctx.customEndpoint) {
+    if (ctx.draftId) {
+      // Editing an existing draft → PATCH with submit: true
+      const payload = {
+        name: form.value.name.trim(),
+        standort: form.value.standort || undefined,
+        kundeId: linkMode.value === 'kunde' ? form.value.kundeId : undefined,
+        mitarbeiterId: linkMode.value === 'mitarbeiter' ? form.value.mitarbeiterId : undefined,
+        templateId: form.value.templateId || undefined,
+        templateName: form.value.templateName || undefined,
+        submitters: form.value.submitters.filter(s => (s.name || '').trim()),
+        folgeaktionen: folgeaktionen.value,
+        submit: true,
+      };
+      const { data } = await api.patch(`/api/signaturen/${ctx.draftId}`, payload);
+      vorgang = data;
+    } else if (ctx.customEndpoint) {
       // Server-side document generation flow (e.g. Stundenliste)
       const payload = {
         standort: form.value.standort,
@@ -857,7 +961,7 @@ async function submit() {
     }
 
     modal.notifyCreated(vorgang);
-    close();
+    closeWithoutPrompt();
   } catch (e) {
     console.error('Signatur erstellen fehlgeschlagen', e);
     error.value = e?.response?.data?.message || 'Die Signatur konnte nicht erstellt werden.';
@@ -866,7 +970,56 @@ async function submit() {
   }
 }
 
+async function saveAsDraft() {
+  if (!canSaveDraft.value) return;
+  savingDraft.value = true;
+  error.value = '';
+  try {
+    const ctx = modal.context;
+    const payload = {
+      name: form.value.name.trim(),
+      standort: form.value.standort || undefined,
+      kundeId: linkMode.value === 'kunde' ? form.value.kundeId : undefined,
+      mitarbeiterId: linkMode.value === 'mitarbeiter' ? form.value.mitarbeiterId : undefined,
+      templateId: form.value.templateId || undefined,
+      templateName: form.value.templateName || undefined,
+      submitters: form.value.submitters.filter(s => (s.name || '').trim()),
+      folgeaktionen: folgeaktionen.value,
+    };
+    let vorgang;
+    if (ctx.draftId) {
+      const { data } = await api.patch(`/api/signaturen/${ctx.draftId}`, payload);
+      vorgang = data;
+    } else {
+      const { data } = await api.post('/api/signaturen', { ...payload, typId: form.value.typId });
+      vorgang = data;
+    }
+    modal.notifyCreated(vorgang);
+    closeWithoutPrompt();
+  } catch (e) {
+    console.error('Entwurf speichern fehlgeschlagen', e);
+    error.value = e?.response?.data?.message || 'Entwurf konnte nicht gespeichert werden.';
+  } finally {
+    savingDraft.value = false;
+  }
+}
+
 function close() {
+  // When creating new (no draftId): prompt to save if form has data
+  if (!modal.context.draftId && canSaveDraft.value && !submitting.value) {
+    showCloseConfirm.value = true;
+    return;
+  }
+  closeWithoutPrompt();
+}
+
+function confirmDiscard() {
+  showCloseConfirm.value = false;
+  modal.closeModal();
+}
+
+function closeWithoutPrompt() {
+  showCloseConfirm.value = false;
   modal.closeModal();
 }
 
@@ -1253,6 +1406,31 @@ const ContactSearchPlaceholder = {
 .sig-modal-enter-from, .sig-modal-leave-to { opacity: 0; }
 .sig-modal-enter-active .sig-dialog { transition: transform 0.2s; }
 .sig-modal-enter-from .sig-dialog { transform: translateY(12px) scale(0.98); }
+
+/* Close confirm overlay */
+.sig-close-confirm {
+  border-top: 1px solid var(--border);
+  padding: 14px 22px;
+  background: color-mix(in srgb, var(--surface) 96%, var(--primary));
+}
+.sig-close-confirm-msg {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.sig-close-confirm-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Save-draft ghost button variant */
+.sig-btn--save-draft {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  &:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); border-color: var(--primary); }
+}
 
 /* ── Folgeaktionen — Ausliefern an ──────────────────────────── */
 .sig-email-chips {

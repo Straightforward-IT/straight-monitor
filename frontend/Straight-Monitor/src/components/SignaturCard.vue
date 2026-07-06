@@ -91,6 +91,9 @@
             </div>
 
             <div class="sc-actions">
+              <button v-if="vorgang.status === 'draft'" class="sc-action sc-action--edit" type="button" @click="editDraft">
+                <font-awesome-icon :icon="['fas', 'pen-nib']" /> Bearbeiten
+              </button>
               <button v-if="hasSignedDoc" class="sc-action" type="button" @click="download">
                 <font-awesome-icon :icon="['fas', downloading ? 'spinner' : 'download']" :spin="downloading" /> Download
               </button>
@@ -129,7 +132,7 @@ const props = defineProps({
   vorgang: { type: Object, required: true },
   starred: { type: Boolean, default: false },
 });
-const emit = defineEmits(['toggle-star', 'cancelled', 'refreshed']);
+const emit = defineEmits(['toggle-star', 'cancelled', 'refreshed', 'edit-draft']);
 
 const expanded = ref(false);
 const previewUrl = ref('');
@@ -267,7 +270,9 @@ async function cancel() {
     alert(e?.response?.data?.message || 'Stornieren fehlgeschlagen.');
   }
 }
-</script>
+function editDraft() {
+  emit('edit-draft', props.vorgang);
+}</script>
 
 <style scoped lang="scss">
 .sig-card {
@@ -474,6 +479,7 @@ async function cancel() {
   &:hover { background: var(--hover); border-color: var(--primary); }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
   &--danger:hover { border-color: #ef4444; color: #ef4444; }
+  &--edit:hover { border-color: var(--primary); color: var(--primary); }
 }
 
 .sc-expand-enter-active, .sc-expand-leave-active { transition: opacity 0.18s; }

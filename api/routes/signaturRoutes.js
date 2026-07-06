@@ -692,6 +692,127 @@ router.get('/:id/audit-url', auth, asyncHandler(async (req, res) => {
   res.json({ url });
 }));
 
+// ─── UPDATE DRAFT ────────────────────────────────────────────────────────────
+
+// PATCH /api/signaturen/:id — update a draft's fields, optionally submit it
+// Body: { name?, standort?, kundeId?, mitarbeiterId?, templateId?, templateName?,
+//         submitters?, folgeaktionen?, submit? }
+// Only allowed when status === 'draft'.
+// If submit: true, creates the DocuSeal submission and transitions to 'open'.
+router.patch('/:id', auth, asyncHandler(async (req, res) => {
+  const adminUser = await requireSignaturAccess(req, res);
+  if (!adminUser) return;
+
+  const vorgang = await SignaturVorgang.findById(req.params.id);
+  if (!vorgang) return res.status(404).json({ message: 'Vorgang nicht gefunden' });
+  if (vorgang.status !== 'draft') {
+    return res.status(409).json({ message: 'Nur Entwürfe können bearbeitet werden' });
+  }
+
+  const {
+    name, standort, kundeId, mitarbeiterId,
+    templateId, templateName, submitters,
+    folgeaktionen: folgeaktionenRaw,
+    submit,
+  } = req.body;
+
+  const folgeaktionen = parseFolgeaktionen(folgeaktionenRaw);
+
+  if (name !== undefined) vorgang.name = name;
+  if (standort !== undefined) vorgang.standort = standort || null;
+
+  if (kundeId !== undefined) {
+    if (kundeId) {
+      const kundeDoc = await Kunde.findById(kundeId).select('kundenNr kundName kuerzel').lean();
+      if (!kundeDoc) return res.status(400).json({ message: 'Kunde nicht gefunden' });
+      if (!kundeDoc.kuerzel) return res.status(400).json({ message: 'Dieser Kunde hat kein Kürzel.' });
+      vorgang.kunde = kundeDoc._id;
+      vorgang.kundenNr = kundeDoc.kundenNr;
+      vorgang.kundenKuerzel = kundeDoc.kuerzel;
+    } else {
+      vorgang.kunde = null;
+      vorgang.kundenNr = null;
+      vorgang.kundenKuerzel = null;
+    }
+  }
+
+  if (mitarbeiterId !== undefined) {
+    if (mitarbeiterId) {
+      const mitarbeiterDoc = await Mitarbeiter.findById(mitarbeiterId).select('vorname nachname').lean();
+      if (!mitarbeiterDoc) return res.status(400).json({ message: 'Mitarbeiter nicht gefunden' });
+      vorgang.mitarbeiter = mitarbeiterDoc._id;
+      vorgang.mitarbeiterName = `${mitarbeiterDoc.vorname}-${mitarbeiterDoc.nachname}`;
+    } else {
+      vorgang.mitarbeiter = null;
+      vorgang.mitarbeiterName = null;
+    }
+  }
+
+  if (templateId !== undefined) {
+    vorgang.docusealTemplateId   = templateId ? Number(templateId) : null;
+    vorgang.docusealTemplateName = templateName || '';
+  }
+
+  if (folgeaktionen) vorgang.folgeaktionen = folgeaktionen;
+
+  if (Array.isArray(submitters)) {
+    vorgang.submitters = submitters.map((s) => ({
+      role:        s.role     || '',
+      name:        s.name     || '',
+      email:       s.email    || '',
+      slug:        '',
+      embedSrc:    '',
+      embedded:    !!s.embedded,
+      status:      'awaiting',
+      completedAt: null,
+    }));
+  }
+
+  if (submit) {
+    if (vorgang.docusealTemplateId && Array.isArray(vorgang.submitters) && vorgang.submitters.length > 0) {
+      const fa = folgeaktionen || vorgang.folgeaktionen;
+      const emailOn = !fa || fa.emailBenachrichtigung !== false;
+      const apiSubmitters = vorgang.submitters.map((s) => ({
+        role:       s.role,
+        name:       s.name,
+        email:      s.email,
+        send_email: s.embedded ? false : emailOn,
+      }));
+
+      const result = await DocuSealService.createSubmission({
+        templateId: vorgang.docusealTemplateId,
+        submitters: apiSubmitters,
+        order: 'preserved',
+      });
+
+      const resultArr    = Array.isArray(result) ? result : (result?.submitters || []);
+      vorgang.submissionId = resultArr.length ? resultArr[0].submission_id : undefined;
+      const prevSubs = [...vorgang.submitters];
+      vorgang.submitters = resultArr.map((apiSub) => {
+        const requested = prevSubs.find(
+          (s) => (s.email && s.email === apiSub.email) || s.role === apiSub.role
+        ) || {};
+        return mapSubmitter(apiSub, requested);
+      });
+      vorgang.status = 'open';
+    } else {
+      vorgang.status = 'open';
+    }
+
+    // Update R2 prefix based on final entity links
+    vorgang.r2Prefix = buildSignaturR2Prefix({
+      entityType:       vorgang.kundenKuerzel ? 'Kunde' : (vorgang.mitarbeiterName ? 'Mitarbeiter' : null),
+      entityIdentifier: vorgang.kundenKuerzel || vorgang.mitarbeiterName,
+      typKey:           vorgang.typKey,
+    });
+  }
+
+  await vorgang.save();
+  await vorgang.populate('typ', 'key label linkedTo');
+  broadcastSignaturEvent('vorgang.updated', vorgang.toObject());
+  res.json(vorgang);
+}));
+
 // ─── CANCEL ───────────────────────────────────────────────────────────────────
 
 // DELETE /api/signaturen/:id — cancel the Vorgang and archive in DocuSeal

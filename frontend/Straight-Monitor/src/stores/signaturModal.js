@@ -24,6 +24,9 @@ const emptyContext = () => ({
   // Optional: an existing endpoint to call instead of the generic POST /api/signaturen.
   // Used by the Stundenliste flow which generates the PDF server-side.
   customEndpoint: null,   // e.g. '/api/docuseal/stundenliste/12345'
+  // Draft editing: set these to re-open an existing draft for editing.
+  draftId: null,          // ObjectId of the existing draft SignaturVorgang
+  draftData: null,        // full draft object (populated from list) for form pre-fill
 });
 
 export const useSignaturModal = defineStore('signaturModal', {

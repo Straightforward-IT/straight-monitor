@@ -94,6 +94,7 @@
           @toggle-star="toggleStar"
           @cancelled="onCancelled"
           @refreshed="onRefreshed"
+          @edit-draft="onEditDraft"
         />
       </div>
     </template>
@@ -276,6 +277,12 @@ function onCancelled(id) {
   if (idx !== -1) vorgaenge.value[idx] = { ...vorgaenge.value[idx], status: 'cancelled' };
 }
 function onRefreshed(v) { upsertVorgang(v); }
+
+function onEditDraft(vorgang) {
+  modal.openModal({ draftId: vorgang._id, draftData: vorgang }, (updated) => {
+    upsertVorgang(updated);
+  });
+}
 
 function onTypCreated(typ) {
   typen.value = [...typen.value, typ].sort((a, b) => (a.order || 0) - (b.order || 0));
