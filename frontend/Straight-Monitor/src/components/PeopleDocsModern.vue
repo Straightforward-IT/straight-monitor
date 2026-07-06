@@ -3676,6 +3676,17 @@ html {
   .people-docs-modern {
     padding: 12px 8px;
   }
+
+  /* Panel padding auf Mobile reduzieren */
+  .panel {
+    padding: 10px 8px;
+  }
+
+  /* Sort-Dropdown von links öffnen (Button ist auf Mobile links) */
+  .sort .menu {
+    left: 0;
+    right: auto;
+  }
   
   .view-controls-right {
     width: 100%;

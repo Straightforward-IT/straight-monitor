@@ -4399,9 +4399,9 @@ export default {
     --mobile-action-size: 34px;
     --mobile-action-gap: 6px;
     --mobile-action-strip-width: 194px;
-    --mobile-close-space: 48px;
+    --mobile-close-space: 8px;
     --mobile-header-action-space: calc(
-      var(--mobile-action-strip-width) + var(--mobile-close-space) + 18px
+      var(--mobile-action-strip-width) + var(--mobile-close-space) + 16px
     );
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
@@ -4468,9 +4468,9 @@ export default {
     --mobile-action-size: 30px;
     --mobile-action-gap: 4px;
     --mobile-action-strip-width: 166px;
-    --mobile-close-space: 46px;
+    --mobile-close-space: 8px;
     --mobile-header-action-space: calc(
-      var(--mobile-action-strip-width) + var(--mobile-close-space) + 12px
+      var(--mobile-action-strip-width) + var(--mobile-close-space) + 10px
     );
   }
 
