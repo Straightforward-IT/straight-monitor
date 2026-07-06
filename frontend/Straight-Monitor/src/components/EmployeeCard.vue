@@ -3004,6 +3004,8 @@ export default {
   background: var(--surface);
   display: grid;
   place-items: center;
+  padding: 0;
+  box-sizing: border-box;
   cursor: pointer;
   color: var(--muted);
   transition: background 0.14s ease, color 0.14s ease, border-color 0.2s ease,
@@ -3032,6 +3034,7 @@ export default {
 
 /* Logos – NICHT src-swappen, nur zeigen/verstecken */
 .icon-btn .logo {
+  display: block;
   width: 22px;
   height: 22px;
   object-fit: contain;
