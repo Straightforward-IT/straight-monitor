@@ -172,7 +172,7 @@ function toggle() {
   align-items: center;
   gap: 10px;
   flex-wrap: nowrap;
-  overflow-x: clip;
+  overflow-x: auto;
   overflow-y: visible;
   min-width: 0;
   flex: 1;

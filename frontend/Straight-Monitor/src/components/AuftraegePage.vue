@@ -51,16 +51,13 @@
           <font-awesome-icon icon="fa-solid fa-chevron-right" />
         </button>
         <button v-if="!isMobile" class="nav-btn today-btn" @click="goToToday">Heute</button>
-        <label v-if="!isMobile" class="nav-btn calendar-btn" title="Zu Woche springen (Datum wählen)">
-          <font-awesome-icon icon="fa-solid fa-calendar" />
-          <input 
-            ref="datePicker" 
-            type="date" 
-            class="hidden-date-input" 
-            @change="handleDatePick"
-            @input="handleDatePick"
-          >
-        </label>
+        <DatePicker v-if="!isMobile" :model-value="currentWeekStart" @update:model-value="setDateFromPicker">
+          <template #default="{ toggle }">
+            <button class="nav-btn calendar-btn" @click="toggle" title="Zu Woche springen (Datum wählen)">
+              <font-awesome-icon icon="fa-solid fa-calendar" />
+            </button>
+          </template>
+        </DatePicker>
         <!-- Desktop Search -->
         <div v-if="!isMobile" class="search-wrapper" @focusin="onSearchFocusIn" @focusout="onSearchFocusOut">
           <SearchBar
