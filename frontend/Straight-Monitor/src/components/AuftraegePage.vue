@@ -1883,7 +1883,12 @@ export default {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       await this.loadAuftraege(startOfMonth, null);
-      this.loadedMonths.add(`${now.getFullYear()}-${now.getMonth()}`);
+      // Mark the next 24 months as loaded — the initial fetch has no upper bound
+      // and already contains all future data, so don't re-fetch them on navigation.
+      for (let i = 0; i < 24; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+        this.loadedMonths.add(`${d.getFullYear()}-${d.getMonth()}`);
+      }
     },
     async ensureMonthLoaded(date) {
       const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
@@ -1900,6 +1905,11 @@ export default {
       d.setHours(0, 0, 0, 0);
       this.currentWeekStart = d;
       this.ensureMonthLoaded(d);
+      // Prefetch the next 2 months ahead of the jump target
+      for (let i = 1; i <= 2; i++) {
+        const ahead = new Date(d.getFullYear(), d.getMonth() + i, 1);
+        this.ensureMonthLoaded(ahead); // intentionally not awaited
+      }
     },
     scrollKwToActive(behavior = 'instant') {
       const container = this.$refs.kwScroller;
@@ -1949,6 +1959,11 @@ export default {
       newStart.setDate(newStart.getDate() + 7);
       this.currentWeekStart = newStart;
       await this.ensureMonthLoaded(newStart);
+      // Silently prefetch the next 2 months so forward navigation never triggers a visible reload
+      for (let i = 1; i <= 2; i++) {
+        const ahead = new Date(newStart.getFullYear(), newStart.getMonth() + i, 1);
+        this.ensureMonthLoaded(ahead); // intentionally not awaited
+      }
     },
     goToToday() {
       this.initializeWeek();

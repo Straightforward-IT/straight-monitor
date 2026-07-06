@@ -461,6 +461,8 @@ const savingDraft = ref(false);
 const showCloseConfirm = ref(false);
 const error = ref('');
 
+// Draft saving is not available for custom-endpoint flows (e.g. Stundenliste)
+// because those use a specialised backend route that cannot produce a partial draft.
 const canSaveDraft = computed(() => !!(form.value.typId && form.value.name.trim()));
 
 // ── Folgeaktionen state ──────────────────────────────────────────────────────
@@ -986,15 +988,13 @@ async function saveAsDraft() {
       submitters: form.value.submitters.filter(s => (s.name || '').trim()),
       folgeaktionen: folgeaktionen.value,
     };
-    let vorgang;
     if (ctx.draftId) {
-      const { data } = await api.patch(`/api/signaturen/${ctx.draftId}`, payload);
-      vorgang = data;
+      await api.patch(`/api/signaturen/${ctx.draftId}`, payload);
     } else {
-      const { data } = await api.post('/api/signaturen', { ...payload, typId: form.value.typId });
-      vorgang = data;
+      await api.post('/api/signaturen', { ...payload, typId: form.value.typId });
     }
-    modal.notifyCreated(vorgang);
+    // Do NOT call notifyCreated — callers like AuftraegePage expect a full submission
+    // response (with embed.src), not a draft. The SignaturenPage list updates via SSE.
     closeWithoutPrompt();
   } catch (e) {
     console.error('Entwurf speichern fehlgeschlagen', e);
@@ -1005,8 +1005,8 @@ async function saveAsDraft() {
 }
 
 function close() {
-  // When creating new (no draftId): prompt to save if form has data
-  if (!modal.context.draftId && canSaveDraft.value && !submitting.value) {
+  // Prompt to save only for new non-customEndpoint signatures with filled data
+  if (!modal.context.draftId && !modal.context.customEndpoint && canSaveDraft.value && !submitting.value) {
     showCloseConfirm.value = true;
     return;
   }
