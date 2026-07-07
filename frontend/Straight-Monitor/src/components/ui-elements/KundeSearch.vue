@@ -43,33 +43,35 @@
       <span v-if="loading" class="kunde-search__spinner" />
     </div>
 
-    <!-- Dropdown -->
-    <ul v-if="showDropdown && results.length" :class="['kunde-search__dropdown', { 'kunde-search__dropdown--dropup': dropup }]" :style="dropdownStyle">
-      <li
-        v-for="(k, i) in results"
-        :key="k._id"
-        :class="['kunde-search__item', {
-          'kunde-search__item--active': i === highlighted,
-          'kunde-search__item--selected': isSelected(k),
-        }]"
-        @mousedown.prevent="select(k)"
-        @mouseover="highlighted = i"
-      >
-        <font-awesome-icon v-if="isSelected(k)" :icon="['fas', 'check']" class="kunde-search__check" />
-        <span class="kunde-search__item-name">
-          <span v-if="k.kuerzel" class="kunde-search__kuerzel">{{ k.kuerzel }}</span>
-          <span v-if="k.kundenNr" class="kunde-search__nr">{{ k.kundenNr }}</span>
-          {{ k.kundName }}
-        </span>
-        <span class="kunde-search__metric">
-          {{ k.einsatzCount ?? 0 }} Einsatz{{ (k.einsatzCount ?? 0) !== 1 ? 'e' : '' }}
-        </span>
-      </li>
-    </ul>
+    <!-- Dropdown — teleported to body to escape any parent stacking context -->
+    <teleport to="body">
+      <ul v-if="showDropdown && results.length" :class="['kunde-search__dropdown', { 'kunde-search__dropdown--dropup': dropup }]" :style="dropdownStyle">
+        <li
+          v-for="(k, i) in results"
+          :key="k._id"
+          :class="['kunde-search__item', {
+            'kunde-search__item--active': i === highlighted,
+            'kunde-search__item--selected': isSelected(k),
+          }]"
+          @mousedown.prevent="select(k)"
+          @mouseover="highlighted = i"
+        >
+          <font-awesome-icon v-if="isSelected(k)" :icon="['fas', 'check']" class="kunde-search__check" />
+          <span class="kunde-search__item-name">
+            <span v-if="k.kuerzel" class="kunde-search__kuerzel">{{ k.kuerzel }}</span>
+            <span v-if="k.kundenNr" class="kunde-search__nr">{{ k.kundenNr }}</span>
+            {{ k.kundName }}
+          </span>
+          <span class="kunde-search__metric">
+            {{ k.einsatzCount ?? 0 }} Einsatz{{ (k.einsatzCount ?? 0) !== 1 ? 'e' : '' }}
+          </span>
+        </li>
+      </ul>
 
-    <p v-if="showDropdown && !results.length && !loading && query.length >= 2" class="kunde-search__empty">
-      Keine Treffer
-    </p>
+      <p v-if="showDropdown && !results.length && !loading && query.length >= 2" class="kunde-search__empty" :style="dropdownStyle">
+        Keine Treffer
+      </p>
+    </teleport>
 
   </div>
 </template>
@@ -429,9 +431,14 @@ defineExpose({ focus, clearSingle });
 .kunde-search__empty {
   font-size: 11.5px;
   color: var(--muted);
-  margin: 4px 0 0;
-  padding: 0;
+  margin: 0;
+  padding: 8px 12px;
   opacity: 0.7;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  z-index: 9999;
 }
 
 @keyframes kunde-spin { to { transform: rotate(360deg); } }

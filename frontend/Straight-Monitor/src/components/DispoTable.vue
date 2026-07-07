@@ -80,22 +80,11 @@
                     v-model="qualSearchQuery"
                     type="text"
                     :placeholder="qualFilter.length ? '' : 'Qual…'"
-                    @focus="qualDropdownOpen = true"
-                    @input="qualDropdownOpen = true"
+                    @focus="openQualDropdown(qualInputFsRef)"
+                    @input="openQualDropdown(qualInputFsRef)"
                     @blur="onQualBlur"
                     @keydown="onQualKeydown"
                   />
-                </div>
-                <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown qual-dropdown--fs">
-                  <div
-                    v-for="q in qualSuggestions"
-                    :key="q._id"
-                    class="qual-dropdown-item"
-                    @mousedown.prevent="addQual(q)"
-                  >
-                    <span class="qual-key">{{ q.qualificationKey }}</span>
-                    {{ q.designation }}
-                  </div>
                 </div>
               </div>
 
@@ -222,22 +211,11 @@
                 v-model="qualSearchQuery"
                 type="text"
                 :placeholder="qualFilter.length ? '' : 'Qualifikation...'"
-                @focus="qualDropdownOpen = true"
-                @input="qualDropdownOpen = true"
+                @focus="openQualDropdown(qualInputRef)"
+                @input="openQualDropdown(qualInputRef)"
                 @blur="onQualBlur"
                 @keydown="onQualKeydown"
               />
-            </div>
-            <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown qual-dropdown--fs">
-              <div
-                v-for="q in qualSuggestions"
-                :key="q._id"
-                class="qual-dropdown-item"
-                @mousedown.prevent="addQual(q)"
-              >
-                <span class="qual-key">{{ q.qualificationKey }}</span>
-                {{ q.designation }}
-              </div>
             </div>
           </div>
           <FilterDivider />
@@ -1249,6 +1227,25 @@
       </div>
     </HelpModal>
 
+    <!-- Qualifikation Dropdown (teleported to escape overflow/stacking-context clipping) -->
+    <teleport to="body">
+      <div
+        v-if="qualDropdownOpen && qualSuggestions.length"
+        class="qual-dropdown"
+        :style="qualDropdownStyle"
+      >
+        <div
+          v-for="q in qualSuggestions"
+          :key="q._id"
+          class="qual-dropdown-item"
+          @mousedown.prevent="addQual(q)"
+        >
+          <span class="qual-key">{{ q.qualificationKey }}</span>
+          {{ q.designation }}
+        </div>
+      </div>
+    </teleport>
+
     <!-- Bereich Filter Menu -->
     <teleport to="body">
       <div v-if="bereichMenuOpen" class="ctx-overlay" @click="bereichMenuOpen = false" @contextmenu.prevent="bereichMenuOpen = false">
@@ -1908,9 +1905,25 @@ const qualFilter = ref([]);          // [{_id, qualificationKey, designation}]
 const allQualifikationen = ref([]);  // full list from API
 const qualSearchQuery = ref('');
 const qualDropdownOpen = ref(false);
+const qualDropdownStyle = ref({});
 const qualInputRef = ref(null);
 const qualInputFsRef = ref(null);
 const qualFocusedPillIdx = ref(-1); // -1 = kein Pill fokussiert, Cursor im Input
+
+function openQualDropdown(inputEl) {
+  const el = inputEl?.$el ?? inputEl;
+  if (el) {
+    const rect = el.getBoundingClientRect();
+    qualDropdownStyle.value = {
+      position: 'fixed',
+      top: `${rect.bottom + 4}px`,
+      left: `${rect.left}px`,
+      minWidth: `${Math.max(rect.width, 320)}px`,
+      zIndex: 9999,
+    };
+  }
+  qualDropdownOpen.value = true;
+}
 const activeFilterCount = computed(() => {
   let count = 0;
   if (filters.standort) count++;
@@ -2486,9 +2499,10 @@ const filteredMitarbeiter = computed(() => {
     ? hiddenIds.value.has(String(m._id))
     : !hiddenIds.value.has(String(m._id))
   );
-  // Auto-filter: hide employees whose Austritt is before the first visible column date
+  // Auto-filter: hide employees whose Austritt is before the first visible column date.
+  // Skip when showHidden is active — ausgeblendete MAs should always be fully visible.
   const firstColIso = visibleDays.value[0]?.iso ?? days.value[0]?.iso;
-  if (firstColIso) {
+  if (firstColIso && !showHidden.value) {
     list = list.filter((m) => {
       if (!m.austrittsdatum) return true;
       return toIso(new Date(m.austrittsdatum)) >= firstColIso;

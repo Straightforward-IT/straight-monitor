@@ -1677,23 +1677,41 @@ async function syncRankGroups(mitarbeiterList) {
         const flipUser = new (require("./models/Classes/FlipUser"))({ id: ma.flip_id });
 
         if (isBirthday) {
-          // Geburtstag: Rang-Gruppe hinzufügen (ohne Primary), Geburtstags-Gruppe als Primary setzen
-          await flipUser.addToGroup(tier.groupId);
-          await flipUser.addToGroup(BIRTHDAY_GROUP_ID, { setPrimary: true });
-          // Andere Rang-Gruppen entfernen
+          if (!ma.birthdayGroupActive) {
+            // Erster Aufruf an diesem Geburtstag: Rang-Gruppe hinzufügen, Geburtstags-Gruppe als Primary
+            await flipUser.addToGroup(tier.groupId);
+            await flipUser.addToGroup(BIRTHDAY_GROUP_ID, { setPrimary: true });
+            const otherRankGroupIds = RANKS
+              .filter(r => r.groupId !== tier.groupId)
+              .map(r => r.groupId);
+            for (const oldGroupId of otherRankGroupIds) {
+              await flipUser.removeFromGroup(oldGroupId);
+            }
+            await Mitarbeiter.updateOne({ _id: ma._id }, { birthdayGroupActive: true });
+            logs.push(`🎂 ${ma.vorname} ${ma.nachname}: Geburtstag! Geburtstags-Gruppe als Primary gesetzt (Rang: ${tier.key})`);
+            promoted++;
+          } else {
+            unchanged++;
+          }
+          return;
+        }
+
+        // Kein Geburtstag: Geburtstags-Gruppe nur entfernen wenn sie aktiv war (vermeidet 429er)
+        if (ma.birthdayGroupActive) {
+          await flipUser.removeFromGroup(BIRTHDAY_GROUP_ID);
+          await Mitarbeiter.updateOne({ _id: ma._id }, { birthdayGroupActive: false });
+          // Rang-Gruppe als Primary wiederherstellen (auch wenn Rang unverändert)
+          await flipUser.addToGroup(tier.groupId, { setPrimary: true });
           const otherRankGroupIds = RANKS
             .filter(r => r.groupId !== tier.groupId)
             .map(r => r.groupId);
           for (const oldGroupId of otherRankGroupIds) {
             await flipUser.removeFromGroup(oldGroupId);
           }
-          logs.push(`🎂 ${ma.vorname} ${ma.nachname}: Geburtstag! Geburtstags-Gruppe als Primary gesetzt (Rang: ${tier.key})`);
+          logs.push(`🎂↩ ${ma.vorname} ${ma.nachname}: Geburtstags-Gruppe entfernt, Rang ${tier.key} wiederhergestellt`);
           promoted++;
           return;
         }
-
-        // Kein Geburtstag: Geburtstags-Gruppe entfernen (falls vorhanden)
-        await flipUser.removeFromGroup(BIRTHDAY_GROUP_ID);
 
         // Idempotenz-Check
         if (ma.rank === tier.key) {

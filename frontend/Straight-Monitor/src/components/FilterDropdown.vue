@@ -12,9 +12,15 @@
       <font-awesome-icon icon="fa-solid fa-chevron-down" class="chevron" :class="{ 'rotate': isOpen }" />
     </button>
     
-    <div v-if="isOpen" class="dropdown-menu">
-      <slot></slot>
-    </div>
+    <teleport to="body">
+      <div
+        v-if="isOpen"
+        class="dropdown-menu"
+        :style="menuStyle"
+      >
+        <slot></slot>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -40,21 +46,38 @@ export default {
   },
   data() {
     return {
-      isOpen: false
+      isOpen: false,
+      menuStyle: {}
     };
   },
   mounted() {
     document.addEventListener('click', this.handleClickOutside);
+    window.addEventListener('scroll', this.updatePosition, true);
+    window.addEventListener('resize', this.updatePosition);
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside);
+    window.removeEventListener('scroll', this.updatePosition, true);
+    window.removeEventListener('resize', this.updatePosition);
   },
   methods: {
     toggle() {
       this.isOpen = !this.isOpen;
+      if (this.isOpen) this.$nextTick(this.updatePosition);
     },
     close() {
       this.isOpen = false;
+    },
+    updatePosition() {
+      const trigger = this.$refs.dropdownRef;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      this.menuStyle = {
+        position: 'fixed',
+        top: `${rect.bottom + 4}px`,
+        left: `${rect.left}px`,
+        zIndex: 9999,
+      };
     },
     handleClickOutside(event) {
       if (this.$refs.dropdownRef && !this.$refs.dropdownRef.contains(event.target)) {
@@ -120,15 +143,10 @@ export default {
 }
 
 .dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 4px;
-  background: var(--surface); /* Use surface instead of tile-bg for consistency */
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 100;
   min-width: 220px;
   max-height: 300px;
   overflow-y: auto;

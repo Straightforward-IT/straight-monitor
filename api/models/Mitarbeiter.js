@@ -85,6 +85,7 @@ const MitarbeiterSchema = new mongoose.Schema({
     // dispoAktivitaetsLog migrated to Comment collection (scope: 'chronik')
     rank: { type: String, default: null },           // aktueller Rang-Tier-Key (z.B. 'gold', 'diamond')
     einsatzCount: { type: Number, default: null },   // gecachte Anzahl vergangener Einsätze (für Rang)
+    birthdayGroupActive: { type: Boolean, default: false }, // true solange Geburtstags-Gruppe als Primary gesetzt ist
 }, { timestamps: true });
 
 

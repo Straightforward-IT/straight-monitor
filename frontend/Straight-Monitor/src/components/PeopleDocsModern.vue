@@ -156,7 +156,28 @@
             </div>
           </Toolbar>
 
-        <!-- Controls: Sort + Pagination -->
+        <!-- Controls: Tabs + Sort + Pagination -->
+        <div class="view-controls-bar">
+          <!-- Tab Toggle -->
+          <div class="tab-bar">
+            <button
+              class="tab-btn"
+              :class="{ active: activeTab === 'mitarbeiter' }"
+              @click="activeTab = 'mitarbeiter'; currentPage = 1"
+            >
+              <font-awesome-icon icon="fa-solid fa-id-badge" />
+              Mitarbeiter
+            </button>
+            <button
+              class="tab-btn"
+              :class="{ active: activeTab === 'bewerber' }"
+              @click="activeTab = 'bewerber'; currentPage = 1"
+            >
+              <font-awesome-icon icon="fa-solid fa-user" />
+              Bewerber
+            </button>
+          </div>
+
         <div class="view-controls-right">
             <!-- Sort -->
             <div class="sort">
@@ -239,6 +260,7 @@
               </div>
             </div>
         </div>
+        </div><!-- end view-controls-bar -->
 
         <!-- Loading State -->
         <div v-if="loading.mitarbeiter" class="loading-container">
@@ -248,21 +270,30 @@
 
         <!-- Grid View -->
         <div v-else class="grid">
-          <EmployeeCard
-            v-for="ma in paginatedMitarbeiters"
-            :key="ma._id"
-            :ma="ma"
-            :class="{ 'highlight-card': isEmployeeExpanded(ma), 'selected': selectedMitarbeiterIds.has(ma._id) }"
-            :initiallyExpanded="isEmployeeExpanded(ma)"
-            :showCheckbox="true"
-            :isSelected="selectedMitarbeiterIds.has(ma._id)"
-            @open="openProfile"
-            @edit="editMitarbeiter"
-            @toggle-selection="toggleSelection(ma._id)"
-            @filter-beruf="activateBerufFilter"
-            @filter-qualifikation="activateQualifikationFilter"
-            @reactivated="filters.status = 'Alle'"
-          />
+          <template v-if="activeTab === 'mitarbeiter'">
+            <EmployeeCard
+              v-for="ma in paginatedMitarbeiters"
+              :key="ma._id"
+              :ma="ma"
+              :class="{ 'highlight-card': isEmployeeExpanded(ma), 'selected': selectedMitarbeiterIds.has(ma._id) }"
+              :initiallyExpanded="isEmployeeExpanded(ma)"
+              :showCheckbox="true"
+              :isSelected="selectedMitarbeiterIds.has(ma._id)"
+              @open="openProfile"
+              @edit="editMitarbeiter"
+              @toggle-selection="toggleSelection(ma._id)"
+              @filter-beruf="activateBerufFilter"
+              @filter-qualifikation="activateQualifikationFilter"
+              @reactivated="filters.status = 'Alle'"
+            />
+          </template>
+          <template v-else-if="activeTab === 'bewerber'">
+            <BewerberCard
+              v-for="ma in paginatedMitarbeiters"
+              :key="ma._id"
+              :ma="ma"
+            />
+          </template>
         </div>
 
         <!-- List View (removed) -->
@@ -612,6 +643,7 @@ import api from "@/utils/api";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import EmployeeCard from "@/components/EmployeeCard.vue";
+import BewerberCard from "@/components/BewerberCard.vue";
 import FilterPanel from "@/components/FilterPanel.vue";
 import FilterDropdown from "@/components/FilterDropdown.vue";
 import FilterChip from "@/components/ui-elements/FilterChip.vue";
@@ -714,7 +746,7 @@ library.add(
 
 export default {
   name: "Personal",
-  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel, FilterDropdown, FilterChip, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar, ToolbarFilter, FilterGroup, FilterDivider },
+  components: { FontAwesomeIcon, EmployeeCard, BewerberCard, CustomTooltip, FilterPanel, FilterDropdown, FilterChip, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar, ToolbarFilter, FilterGroup, FilterDivider },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -733,6 +765,9 @@ export default {
 
   data() {
     return {
+      // active tab
+      activeTab: 'mitarbeiter', // 'mitarbeiter' | 'bewerber'
+
       // auth/user
       token: localStorage.getItem("token") || null,
       userEmail: "",
@@ -880,6 +915,13 @@ export default {
 
     filteredMitarbeiters() {
       let result = this.mitarbeitersEnriched || [];
+
+      // Tab Filter
+      if (this.activeTab === 'mitarbeiter') {
+        result = result.filter((ma) => !ma.isBewerberstatus);
+      } else if (this.activeTab === 'bewerber') {
+        result = result.filter((ma) => !!ma.isBewerberstatus);
+      }
 
       // Basic Status Filter
       if (this.filters.status === "Aktiv") {
@@ -3259,6 +3301,52 @@ html {
   
   .fa-phone {
     font-size: 0.75rem;
+  }
+}
+
+.view-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  background: var(--hover);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--text);
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+  }
+
+  &.active {
+    background: transparent;
+    color: var(--primary);
+    font-weight: 600;
+    border: 1px solid var(--primary);
   }
 }
 
