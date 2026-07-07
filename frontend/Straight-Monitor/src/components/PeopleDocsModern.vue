@@ -110,14 +110,8 @@
                   </span>
                   <input ref="qualInput" v-model="qualSearchQuery" class="qual-search-input" type="text"
                     :placeholder="filters.qualifikationen.length ? '' : 'Suchen…'"
-                    @focus="qualDropdownOpen = true" @input="qualDropdownOpen = true"
+                    @focus="openQualDropdown" @input="openQualDropdown"
                     @blur="onQualBlur" @keydown="onQualKeydown" />
-                </div>
-                <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown">
-                  <div v-for="q in qualSuggestions" :key="q._id" class="qual-dropdown-item" @mousedown.prevent="addQual(q)">
-                    <span class="qual-key">{{ q.qualificationKey }}</span>
-                    {{ q.designation }}
-                  </div>
                 </div>
               </div>
             </FilterGroup>
@@ -578,6 +572,20 @@
       @close="showExportModal = false"
     />
 
+    <!-- Teleported Qual Dropdown -->
+    <teleport to="body">
+      <div
+        v-if="qualDropdownOpen && qualSuggestions.length"
+        class="qual-dropdown"
+        :style="qualDropdownStyle"
+      >
+        <div v-for="q in qualSuggestions" :key="q._id" class="qual-dropdown-item" @mousedown.prevent="addQual(q)">
+          <span class="qual-key">{{ q.qualificationKey }}</span>
+          {{ q.designation }}
+        </div>
+      </div>
+    </teleport>
+
     <!-- Teleported Quick Actions Menu (List View) -->
     <teleport to="body">
       <div v-if="activeQuickActionId && activeQuickActionMa" class="list-qa-overlay" @click="activeQuickActionId = null">
@@ -825,6 +833,7 @@ export default {
       mitarbeitersSearchQuery: "",
       qualSearchQuery: "",
       qualDropdownOpen: false,
+      qualDropdownStyle: {},
       qualFocusedPillIdx: -1,
       mitarbeitersSortBy: "nachname",
       mitarbeitersIsAscending: true,
@@ -1616,6 +1625,24 @@ export default {
       this.qualSearchQuery = '';
       this.currentPage = 1;
       this.saveFiltersToCookie();
+    },
+
+    openQualDropdown() {
+      const input = this.$refs.qualInput;
+      if (input) {
+        const rect = input.getBoundingClientRect();
+        // Position below the pills-input container (parent of the input)
+        const container = input.closest('.qual-filter-box') || input.parentElement;
+        const cRect = container ? container.getBoundingClientRect() : rect;
+        this.qualDropdownStyle = {
+          position: 'fixed',
+          top: `${cRect.bottom + 4}px`,
+          left: `${cRect.left}px`,
+          minWidth: `${Math.max(cRect.width, 320)}px`,
+          zIndex: 9999,
+        };
+      }
+      this.qualDropdownOpen = true;
     },
 
     onQualBlur() {

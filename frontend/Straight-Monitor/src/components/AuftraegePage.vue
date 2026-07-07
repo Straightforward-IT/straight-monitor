@@ -432,7 +432,7 @@
                         >
                           {{ einsatz.mitarbeiterData.vorname }} {{ einsatz.mitarbeiterData.nachname }}
                         </a>
-                        <span v-if="isTeamleiter(einsatz.mitarbeiterData)" class="tl-tag">TL</span>
+                        <TlBadge v-if="isTeamleiter(einsatz.mitarbeiterData)" />
                         <span v-else-if="einsatz.mitarbeiterData.isBewerberstatus" class="bew-tag">Bew.</span>
                         <button
                           v-for="doc in getDocsForMitarbeiter(einsatz.mitarbeiterData._id)"
@@ -1147,6 +1147,7 @@ import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import DatePicker from '@/components/ui-elements/DatePicker.vue';
+import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
 import laufzettelIcon from '@/assets/laufzettel.png';
 import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
@@ -1156,7 +1157,7 @@ import eventreportDarkIcon from '@/assets/eventreport-dark.png';
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker },
+  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge },
   data() {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
@@ -3071,15 +3072,6 @@ export default {
       font-size: 0.8rem;
     }
     
-    .tl-tag {
-      font-size: 0.6rem;
-      font-weight: 700;
-      color: #fff;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      padding: 2px 5px;
-      border-radius: 4px;
-    }
-
     .bew-tag {
       font-size: 0.6rem;
       font-weight: 700;
