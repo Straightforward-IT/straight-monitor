@@ -3923,4 +3923,63 @@ router.get(
   })
 );
 
+// ─── Einsatz-Kontext (Letzter + Nächster Einsatz für EmployeeCard Dispo) ──────
+router.get(
+  "/:id/einsatz-context",
+  auth,
+  asyncHandler(async (req, res) => {
+    const ma = await Mitarbeiter.findById(req.params.id)
+      .select("personalnr personalnummern")
+      .lean();
+    if (!ma) return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
+
+    const pNrSet = new Set();
+    if (ma.personalnr) {
+      const n = Number(ma.personalnr);
+      if (!isNaN(n) && n > 0) pNrSet.add(n);
+    }
+    (ma.personalnummern || []).forEach((p) => {
+      const n = Number(p);
+      if (!isNaN(n) && n > 0) pNrSet.add(n);
+    });
+    const pNrs = [...pNrSet];
+    if (!pNrs.length) return res.json({ last: null, next: null });
+
+    const now = new Date();
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+    const [lastRaw, nextRaw] = await Promise.all([
+      Einsatz.find({ personalNr: { $in: pNrs }, datumVon: { $lte: endOfToday } })
+        .sort({ datumVon: -1 })
+        .limit(1)
+        .select("datumVon uhrzeitVon uhrzeitBis auftragNr bezeichnung")
+        .lean(),
+      Einsatz.find({ personalNr: { $in: pNrs }, datumVon: { $gt: endOfToday } })
+        .sort({ datumVon: 1 })
+        .limit(1)
+        .select("datumVon uhrzeitVon uhrzeitBis auftragNr bezeichnung")
+        .lean(),
+    ]);
+
+    async function enrich(einsatz) {
+      if (!einsatz) return null;
+      const auftrag = await Auftrag.findOne({ auftragNr: einsatz.auftragNr })
+        .select("eventTitel eventLocation eventOrt")
+        .lean();
+      return {
+        ...einsatz,
+        eventTitel: auftrag?.eventTitel || null,
+        eventLocation: auftrag?.eventLocation || auftrag?.eventOrt || null,
+      };
+    }
+
+    const [last, next] = await Promise.all([
+      enrich(lastRaw[0] || null),
+      enrich(nextRaw[0] || null),
+    ]);
+
+    res.json({ last, next });
+  })
+);
+
 module.exports = router;

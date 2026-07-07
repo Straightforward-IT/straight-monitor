@@ -37,9 +37,24 @@
         </div>
       </div>
       <div v-if="viewMode === 'monat'" class="slider-row">
-        <div class="slider-label-row">
-          <span class="slider-label">{{ formatSliderLabel(sliderRange[0]) }}</span>
-          <span class="slider-label">{{ formatSliderLabel(sliderRange[1]) }}</span>
+        <div class="slider-inputs-row">
+          <input
+            class="slider-month-input"
+            type="text"
+            :value="idxToGermanDate(sliderRange[0])"
+            placeholder="1.1.2024"
+            @change="e => onDateTextChange(e, 0)"
+            @focus="e => e.target.select()"
+          />
+          <span class="slider-inputs-sep">—</span>
+          <input
+            class="slider-month-input"
+            type="text"
+            :value="idxToGermanDate(sliderRange[1])"
+            placeholder="1.12.2026"
+            @change="e => onDateTextChange(e, 1)"
+            @focus="e => e.target.select()"
+          />
         </div>
         <DoubleRangeSlider :min="0" :max="sliderMax" v-model="sliderRange" :formatLabel="formatSliderLabel" />
       </div>
@@ -119,15 +134,30 @@ import api from '@/utils/api';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-const props = defineProps({ mitarbeiterId: { type: String, default: null } });
+const props = defineProps({
+  mitarbeiterId: { type: String, default: null },
+  eintrittsdatum: { type: String, default: null },
+});
 const theme = useTheme();
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const startDate = new Date(2022, 0, 1);
+const FALLBACK_START = new Date(2022, 0, 1);
 const now = new Date();
-const currentMonthIdx =
-  (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
 const FUTURE_MONTHS = 6;
+
+// Derived from eintrittsdatum prop; falls back to Jan 2022
+const startDate = computed(() => {
+  if (props.eintrittsdatum) {
+    const d = new Date(props.eintrittsdatum);
+    if (!isNaN(d)) return new Date(d.getFullYear(), d.getMonth(), 1);
+  }
+  return FALLBACK_START;
+});
+
+const currentMonthIdx = computed(() =>
+  (now.getFullYear() - startDate.value.getFullYear()) * 12 +
+  (now.getMonth() - startDate.value.getMonth())
+);
 const monthNames     = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const monthNamesFull = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
@@ -139,7 +169,7 @@ const viewMode     = ref('monat');
 const metric       = ref('tage');
 const showForecast = ref(true);
 const chartKey     = ref(0);
-const sliderRange  = ref([0, currentMonthIdx + FUTURE_MONTHS]);
+const sliderRange  = ref([0, currentMonthIdx.value + FUTURE_MONTHS]);
 // Drill-down
 const drillMonth   = ref(null);
 const drillDayData = ref([]);
@@ -244,7 +274,7 @@ const todayLinePlugin = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function indexToDate(idx) { return new Date(startDate.getFullYear(), startDate.getMonth() + idx, 1); }
+function indexToDate(idx) { return new Date(startDate.value.getFullYear(), startDate.value.getMonth() + idx, 1); }
 function indexToMonthStr(idx) { const d = indexToDate(idx); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function formatSliderLabel(idx) {
   const d = indexToDate(idx);
@@ -260,14 +290,43 @@ function buildMonthRange(from, to) {
   return result;
 }
 
-// ─── Slider / forecast ────────────────────────────────────────────────────────
-const sliderMax = computed(() => showForecast.value ? currentMonthIdx + FUTURE_MONTHS : currentMonthIdx);
+// ─── Slider ↔ text-date helpers ────────────────────────────────────────────
+function idxToGermanDate(idx) {
+  const d = indexToDate(idx);
+  return `1.${d.getMonth() + 1}.${d.getFullYear()}`;
+}
+function germanDateToIndex(str) {
+  // Accept "1.3.2024" or "3.2024" or "03.2024"
+  const parts = str.trim().split('.');
+  let month, year;
+  if (parts.length === 3) { month = parseInt(parts[1], 10); year = parseInt(parts[2], 10); }
+  else if (parts.length === 2) { month = parseInt(parts[0], 10); year = parseInt(parts[1], 10); }
+  else return null;
+  if (isNaN(month) || isNaN(year) || month < 1 || month > 12 || year < 2000) return null;
+  return (year - startDate.value.getFullYear()) * 12 + (month - 1 - startDate.value.getMonth());
+}
+function onDateTextChange(e, side) {
+  const idx = germanDateToIndex(e.target.value);
+  if (idx === null) { e.target.value = idxToGermanDate(sliderRange.value[side]); return; }
+  const clamped = Math.max(0, Math.min(sliderMax.value, idx));
+  const next = [...sliderRange.value];
+  next[side] = clamped;
+  if (next[0] > next[1]) next[1 - side] = clamped;
+  sliderRange.value = next;
+  e.target.value = idxToGermanDate(clamped); // normalise display
+}
+// kept for internal use
+function sliderRangeToMonth(idx) {
+  const d = indexToDate(idx);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+const sliderMax = computed(() => showForecast.value ? currentMonthIdx.value + FUTURE_MONTHS : currentMonthIdx.value);
 function toggleForecast() {
   showForecast.value = !showForecast.value;
   if (showForecast.value) {
-    sliderRange.value = [sliderRange.value[0], currentMonthIdx + FUTURE_MONTHS];
-  } else if (sliderRange.value[1] > currentMonthIdx) {
-    sliderRange.value = [sliderRange.value[0], currentMonthIdx];
+    sliderRange.value = [sliderRange.value[0], currentMonthIdx.value + FUTURE_MONTHS];
+  } else if (sliderRange.value[1] > currentMonthIdx.value) {
+    sliderRange.value = [sliderRange.value[0], currentMonthIdx.value];
   }
   chartKey.value++;
 }
@@ -301,7 +360,7 @@ async function fetchData() {
   if (!props.mitarbeiterId) return;
   loading.value = true;
   try {
-    const von = new Date(2022, 0, 1).toISOString();
+    const von = startDate.value.toISOString();
     const bis = new Date(now.getFullYear() + 1, now.getMonth() + FUTURE_MONTHS, 0, 23, 59, 59).toISOString();
     const { data } = await api.get(`/api/personal/${props.mitarbeiterId}/analytics/einsaetze`, { params: { von, bis } });
     istData.value = data.ist || [];
@@ -315,6 +374,10 @@ async function fetchData() {
 }
 
 watch(() => props.mitarbeiterId, id => { if (id) fetchData(); }, { immediate: true });
+watch(startDate, () => {
+  sliderRange.value = [0, currentMonthIdx.value + FUTURE_MONTHS];
+  fetchData();
+});
 watch([metric, viewMode, sliderRange, showForecast], () => { chartKey.value++; });
 
 // ─── Computed stats ───────────────────────────────────────────────────────────
@@ -387,7 +450,7 @@ const chartOptions = computed(() => {
       if (!label) return;
       if (viewMode.value === 'jahr') {
         const year = Number(label); if (isNaN(year)) return;
-        const si = (year - startDate.getFullYear()) * 12;
+        const si = (year - startDate.value.getFullYear()) * 12;
         sliderRange.value = [Math.max(0, si), Math.min(sliderMax.value, si + 11)];
         viewMode.value = 'monat';
       } else if (viewMode.value === 'monat') {
@@ -526,12 +589,28 @@ const drillChartOptions = computed(() => {
 
 .slider-row { margin-top: 12px; }
 
-.slider-label-row {
-  display: flex; justify-content: space-between;
-  font-size: 11px; color: var(--muted, #888); margin-bottom: 2px; padding: 0 2px;
+.slider-inputs-row {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 6px;
 }
 
-.slider-label { font-size: 11px; color: var(--muted, #888); }
+.slider-month-input {
+  font-size: 11px;
+  color: var(--text);
+  background: var(--tile-bg, #fff);
+  border: 1px solid var(--border, #ccc);
+  border-radius: 6px;
+  padding: 2px 8px;
+  height: 24px;
+  width: 80px;
+  text-align: center;
+  cursor: text;
+  outline: none;
+  transition: border-color 0.15s;
+  &:focus { border-color: var(--primary); }
+}
+
+.slider-inputs-sep { font-size: 11px; color: var(--muted, #888); }
 
 /* ── Drill-down header ── */
 .drill-header {

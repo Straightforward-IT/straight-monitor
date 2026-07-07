@@ -8,80 +8,108 @@
 
     <!-- Fullscreen toolbar — compact filter bar —-->
     <div v-if="isFullscreen && !isMobile" class="fs-toolbar">
-      <div class="fs-toolbar-filters">
-        <!-- Standort -->
-        <FilterDropdown :has-value="!!filters.standort">
-          <template #label><font-awesome-icon icon="fa-solid fa-location-dot" style="margin-right:4px" />{{ standortLabel }}</template>
-          <div class="dropdown-item" :class="{ selected: !filters.standort }" @click="setStandort(null)">Alle Standorte</div>
-          <div class="dropdown-item" :class="{ selected: filters.standort === '1' }" @click="setStandort('1')">Berlin</div>
-          <div class="dropdown-item" :class="{ selected: filters.standort === '2' }" @click="setStandort('2')">Hamburg</div>
-          <div class="dropdown-item" :class="{ selected: filters.standort === '3' }" @click="setStandort('3')">Köln</div>
-        </FilterDropdown>
+      <!-- Left: filter toggle + filters overlay anchor -->
+      <div class="fs-toolbar-left">
+        <!-- Filter toggle button -->
+        <button
+          class="fs-filter-toggle"
+          :class="{ 'fs-filter-toggle--active': fsFilterExpanded }"
+          type="button"
+          :title="fsFilterExpanded ? 'Filter schließen' : 'Filter'"
+          @click="fsFilterExpanded = !fsFilterExpanded"
+        >
+          <span v-if="activeFilterCount > 0" class="fs-filter-count">{{ activeFilterCount }}</span>
+          <font-awesome-icon :icon="fsFilterExpanded ? 'fa-solid fa-xmark' : 'fa-solid fa-filter'" />
+        </button>
 
-        <!-- Zeitraum -->
-        <FilterDropdown :has-value="filters.tage !== 30">
-          <template #label><font-awesome-icon icon="fa-solid fa-calendar" style="margin-right:4px" />{{ filters.tage }} Tage</template>
-          <div v-for="opt in [7, 14, 30]" :key="opt" class="dropdown-item" :class="{ selected: filters.tage === opt }" @click="setTage(opt)">{{ opt }} Tage</div>
-        </FilterDropdown>
+        <!-- Filters panel (drop-down overlay, only filter controls) -->
+        <transition name="fs-filter-expand">
+          <div v-if="fsFilterExpanded" class="fs-filters-panel">
+            <div class="fs-toolbar-filters">
+              <!-- Standort -->
+              <FilterDropdown :has-value="!!filters.standort">
+                <template #label><font-awesome-icon icon="fa-solid fa-location-dot" style="margin-right:4px" />{{ standortLabel }}</template>
+                <div class="dropdown-item" :class="{ selected: !filters.standort }" @click="setStandort(null)">Alle Standorte</div>
+                <div class="dropdown-item" :class="{ selected: filters.standort === '1' }" @click="setStandort('1')">Berlin</div>
+                <div class="dropdown-item" :class="{ selected: filters.standort === '2' }" @click="setStandort('2')">Hamburg</div>
+                <div class="dropdown-item" :class="{ selected: filters.standort === '3' }" @click="setStandort('3')">Köln</div>
+              </FilterDropdown>
 
-        <!-- Planung -->
-        <FilterDropdown :has-value="!!filters.planungFilter">
-          <template #label><font-awesome-icon icon="fa-solid fa-clipboard-list" style="margin-right:4px" />{{ planungLabel }}</template>
-          <div class="dropdown-item" :class="{ selected: !filters.planungFilter }" @click="setPlanung(null)">Alle</div>
-          <div class="dropdown-item" :class="{ selected: filters.planungFilter === 'eingeplant' }" @click="setPlanung('eingeplant')">Eingeplante</div>
-          <div class="dropdown-item" :class="{ selected: filters.planungFilter === 'ungeplant' }" @click="setPlanung('ungeplant')">Ungeplante</div>
-        </FilterDropdown>
+              <!-- Zeitraum -->
+              <FilterDropdown :has-value="filters.tage !== 30">
+                <template #label><font-awesome-icon icon="fa-solid fa-calendar" style="margin-right:4px" />{{ filters.tage }} Tage</template>
+                <div v-for="opt in [7, 14, 30]" :key="opt" class="dropdown-item" :class="{ selected: filters.tage === opt }" @click="setTage(opt)">{{ opt }} Tage</div>
+              </FilterDropdown>
 
-        <!-- Kunden Filter (fs-toolbar) -->
-        <div class="fs-kunde-filter" :class="{ 'fs-kunde-filter--active': !!filters.kundeFilter }">
-          <span class="fs-kunde-filter-label">🤝</span>
-          <KundeSearch
-            ref="kundeFilterFsRef"
-            :standort="filters.standort"
-            placeholder="Kunde…"
-            @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
-          />
-          <button v-if="filters.kundeFilter" class="fs-kunde-filter-clear" @click="clearKundeFilter">
-            <font-awesome-icon icon="fa-solid fa-xmark" />
-          </button>
-        </div>
+              <!-- Planung -->
+              <FilterDropdown :has-value="!!filters.planungFilter">
+                <template #label><font-awesome-icon icon="fa-solid fa-clipboard-list" style="margin-right:4px" />{{ planungLabel }}</template>
+                <div class="dropdown-item" :class="{ selected: !filters.planungFilter }" @click="setPlanung(null)">Alle</div>
+                <div class="dropdown-item" :class="{ selected: filters.planungFilter === 'eingeplant' }" @click="setPlanung('eingeplant')">Eingeplante</div>
+                <div class="dropdown-item" :class="{ selected: filters.planungFilter === 'ungeplant' }" @click="setPlanung('ungeplant')">Ungeplante</div>
+              </FilterDropdown>
 
-        <!-- Qualifikation Filter (fs-toolbar) -->
-        <div class="fs-qual-filter" :class="{ 'fs-qual-filter--active': qualFilter.length > 0 }">
-          <div class="qual-pills-input qual-pills-input--fs" @click="qualInputFsRef?.focus()">
-            <span
-              v-for="(q, idx) in qualFilter"
-              :key="q._id"
-              class="qual-pill qual-pill--sm"
-              :class="{ 'is-focused': qualFocusedPillIdx === idx }"
-            >
-              <span class="qual-pill-text">{{ q.designation }}</span>
-              <button class="qual-pill-remove" @click.stop="removeQual(q)">✕</button>
-            </span>
-            <input
-              ref="qualInputFsRef"
-              v-model="qualSearchQuery"
-              type="text"
-              :placeholder="qualFilter.length ? '' : 'Qual…'"
-              @focus="qualDropdownOpen = true"
-              @input="qualDropdownOpen = true"
-              @blur="onQualBlur"
-              @keydown="onQualKeydown"
-            />
-          </div>
-          <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown qual-dropdown--fs">
-            <div
-              v-for="q in qualSuggestions"
-              :key="q._id"
-              class="qual-dropdown-item"
-              @mousedown.prevent="addQual(q)"
-            >
-              <span class="qual-key">{{ q.qualificationKey }}</span>
-              {{ q.designation }}
+              <!-- Kunden Filter -->
+              <div class="fs-kunde-filter" :class="{ 'fs-kunde-filter--active': !!filters.kundeFilter }">
+                <span class="fs-kunde-filter-label">🤝</span>
+                <KundeSearch
+                  ref="kundeFilterFsRef"
+                  :standort="filters.standort"
+                  placeholder="Kunde…"
+                  @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
+                />
+                <button v-if="filters.kundeFilter" class="fs-kunde-filter-clear" @click="clearKundeFilter">
+                  <font-awesome-icon icon="fa-solid fa-xmark" />
+                </button>
+              </div>
+
+              <!-- Qualifikation Filter -->
+              <div class="fs-qual-filter" :class="{ 'fs-qual-filter--active': qualFilter.length > 0 }">
+                <div class="qual-pills-input qual-pills-input--fs" @click="qualInputFsRef?.focus()">
+                  <span
+                    v-for="(q, idx) in qualFilter"
+                    :key="q._id"
+                    class="qual-pill qual-pill--sm"
+                    :class="{ 'is-focused': qualFocusedPillIdx === idx }"
+                  >
+                    <span class="qual-pill-text">{{ q.designation }}</span>
+                    <button class="qual-pill-remove" @click.stop="removeQual(q)">✕</button>
+                  </span>
+                  <input
+                    ref="qualInputFsRef"
+                    v-model="qualSearchQuery"
+                    type="text"
+                    :placeholder="qualFilter.length ? '' : 'Qual…'"
+                    @focus="qualDropdownOpen = true"
+                    @input="qualDropdownOpen = true"
+                    @blur="onQualBlur"
+                    @keydown="onQualKeydown"
+                  />
+                </div>
+                <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown qual-dropdown--fs">
+                  <div
+                    v-for="q in qualSuggestions"
+                    :key="q._id"
+                    class="qual-dropdown-item"
+                    @mousedown.prevent="addQual(q)"
+                  >
+                    <span class="qual-key">{{ q.qualificationKey }}</span>
+                    {{ q.designation }}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Reset -->
+              <button class="fs-reset-btn" @click="resetFilters" title="Zurücksetzen">
+                <font-awesome-icon icon="fa-solid fa-rotate-left" />
+              </button>
             </div>
           </div>
-        </div>
+        </transition>
+      </div>
 
+      <!-- Center: always-visible controls -->
+      <div class="fs-toolbar-center">
         <!-- KW Chips -->
         <div class="kw-chips">
           <span class="kw-label">KW</span>
@@ -113,6 +141,7 @@
           </div>
         </CustomTooltip>
 
+        <!-- Hidden employees -->
         <button
           v-if="hiddenCount > 0"
           class="show-hidden-btn show-hidden-btn--topline"
@@ -122,11 +151,6 @@
         >
           <font-awesome-icon :icon="showHidden ? 'fa-solid fa-arrow-left' : 'fa-solid fa-eye-slash'" />
           {{ showHidden ? 'Zurück' : `${hiddenCount} ausgeblendet` }}
-        </button>
-
-        <!-- Reset -->
-        <button class="fs-reset-btn" @click="resetFilters" title="Zurücksetzen">
-          <font-awesome-icon icon="fa-solid fa-rotate-left" />
         </button>
       </div>
 
@@ -304,7 +328,7 @@
         </div>
         <CustomTooltip text="Vollbild (V)" position="top">
           <button class="zoom-btn" @click="toggleFullscreen">
-            <font-awesome-icon icon="fa-solid fa-expand-alt" />
+            <font-awesome-icon icon="fa-solid fa-expand" />
           </button>
         </CustomTooltip>
         <CustomTooltip text="Hilfe [H]" position="top">
@@ -1637,6 +1661,7 @@ function toggleFocusedDay(iso) {
 }
 const tableZoom = ref(100); // percent: 60–150
 const isFullscreen = ref(false);
+const fsFilterExpanded = ref(false); // fullscreen filter toggle
 const bereichMenuOpen = ref(false);
 const bereichMenuPos = ref({ x: 0, y: 0 });
 const showHelp = ref(false);
@@ -3940,7 +3965,6 @@ function onNameTouchEnd() {
 .fs-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   padding: 6px 12px;
   background: var(--panel);
@@ -3981,13 +4005,25 @@ function onNameTouchEnd() {
   }
 }
 
-.fs-toolbar-filters {
+.fs-toolbar-left {
+  flex-shrink: 0;
+}
+
+.fs-toolbar-center {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 1;
   flex-wrap: nowrap;
-  overflow: visible; /* must be visible so dropdown menus are not clipped */
   min-width: 0;
+}
+
+.fs-toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  overflow: visible; /* must be visible so dropdown menus are not clipped */
 }
 
 .fs-toolbar-right {
@@ -3995,6 +4031,7 @@ function onNameTouchEnd() {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .fs-search-box {
@@ -4051,6 +4088,95 @@ function onNameTouchEnd() {
 .fs-exit-btn {
   color: var(--primary);
   border-color: var(--primary);
+}
+
+// ─── Fullscreen Filter Toggle Button ───
+.fs-filter-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+
+  &:hover {
+    color: var(--primary);
+    background: color-mix(in oklab, var(--primary) 8%, transparent);
+    border-color: var(--primary);
+  }
+
+  &--active {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: color-mix(in oklab, var(--primary) 8%, transparent);
+  }
+}
+
+.fs-filter-count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 20px;
+  height: 20px;
+  background: var(--primary);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+// ─── Fullscreen Filters Panel (Expanded Overlay) ───
+.fs-filters-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 12px 12px;
+  padding: 12px;
+  z-index: 60;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  margin-top: -1px;
+}
+
+.fs-toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  overflow: visible; /* must be visible so dropdown menus are not clipped */
+}
+
+// ─── Transition for fs-filter-expand ───
+.fs-filter-expand-enter-active,
+.fs-filter-expand-leave-active {
+  transition: all 0.2s ease;
+}
+
+.fs-filter-expand-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+  max-height: 0;
+}
+
+.fs-filter-expand-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+  max-height: 0;
 }
 
 .knechti-title {
@@ -5295,19 +5421,20 @@ function onNameTouchEnd() {
 }
 
 .selection-bar {
-  display: grid;
-  grid-template-columns: auto 1fr auto 1fr;
+  display: flex;
   align-items: center;
   gap: 8px;
   min-height: 36px;
   padding: 7px 14px;
   margin-bottom: 12px;
+  flex-wrap: nowrap;
 }
 
 .sel-bar-left {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 
@@ -5375,6 +5502,8 @@ function onNameTouchEnd() {
   align-items: center;
   gap: 8px;
   justify-content: flex-end;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .shortcut-hint {
@@ -5785,6 +5914,38 @@ function onNameTouchEnd() {
   &--active {
     border-color: var(--primary);
     background: rgba(238, 175, 103, 0.08);
+  }
+
+  // Strip KundeSearch's own border/background — the outer wrapper IS the border
+  :deep(.kunde-search__input-wrap) {
+    border-color: transparent;
+    background: transparent;
+    padding: 0;
+    height: auto;
+    gap: 4px;
+
+    &:focus-within {
+      border-color: transparent;
+    }
+  }
+
+  :deep(.kunde-search__icon) {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  :deep(.kunde-search__input) {
+    font-size: 0.82rem;
+    padding: 0;
+    min-width: 60px;
+  }
+
+  :deep(.kunde-search .selected-chip) {
+    border-color: transparent;
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    height: 20px;
+    font-size: 0.78rem;
+    padding: 0 6px;
   }
 }
 

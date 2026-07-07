@@ -35,6 +35,7 @@ require("dotenv").config();
 
 const apiUserGroup = "e9e8e278-08a9-4b0e-bdf6-681f8e26c43a";
 const user_role = "53267279-ffb8-4cb9-aced-e5d92ed9be05";
+const BIRTHDAY_GROUP_ID = "be2b944f-5322-4287-9c04-246106f5dc42";
 const FLIP_JOBS_MENU_ITEM_ID = process.env.FLIP_JOBS_MENU_ITEM_ID || "c672be9c-d742-4034-8aa3-5ff5afaf8e3c";
 async function flipUserRoutine() {
   let emailLogs = [];
@@ -1666,6 +1667,34 @@ async function syncRankGroups(mitarbeiterList) {
         const tier = getRankTier(count);
         if (!tier) return; // Keine Einsätze → kein Rang
 
+        // Geburtstags-Check: Tag und Monat mit aktuellem Datum vergleichen
+        const today = new Date();
+        const isBirthday = ma.geburtsdatum
+          ? new Date(ma.geburtsdatum).getDate() === today.getDate() &&
+            new Date(ma.geburtsdatum).getMonth() === today.getMonth()
+          : false;
+
+        const flipUser = new (require("./models/Classes/FlipUser"))({ id: ma.flip_id });
+
+        if (isBirthday) {
+          // Geburtstag: Rang-Gruppe hinzufügen (ohne Primary), Geburtstags-Gruppe als Primary setzen
+          await flipUser.addToGroup(tier.groupId);
+          await flipUser.addToGroup(BIRTHDAY_GROUP_ID, { setPrimary: true });
+          // Andere Rang-Gruppen entfernen
+          const otherRankGroupIds = RANKS
+            .filter(r => r.groupId !== tier.groupId)
+            .map(r => r.groupId);
+          for (const oldGroupId of otherRankGroupIds) {
+            await flipUser.removeFromGroup(oldGroupId);
+          }
+          logs.push(`🎂 ${ma.vorname} ${ma.nachname}: Geburtstag! Geburtstags-Gruppe als Primary gesetzt (Rang: ${tier.key})`);
+          promoted++;
+          return;
+        }
+
+        // Kein Geburtstag: Geburtstags-Gruppe entfernen (falls vorhanden)
+        await flipUser.removeFromGroup(BIRTHDAY_GROUP_ID);
+
         // Idempotenz-Check
         if (ma.rank === tier.key) {
           unchanged++;
@@ -1674,7 +1703,6 @@ async function syncRankGroups(mitarbeiterList) {
 
         // Flip: erst zur neuen Rang-Gruppe hinzufügen + als Primary setzen,
         // dann erst (bei Erfolg) alle anderen Rang-Gruppen entfernen
-        const flipUser = new (require("./models/Classes/FlipUser"))({ id: ma.flip_id });
         await flipUser.addToGroup(tier.groupId, { setPrimary: true });
         const otherRankGroupIds = RANKS
           .filter(r => r.groupId !== tier.groupId)

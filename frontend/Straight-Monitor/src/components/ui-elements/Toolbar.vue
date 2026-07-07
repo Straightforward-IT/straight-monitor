@@ -22,6 +22,10 @@ defineProps({
   border: 1px solid color-mix(in oklab, var(--primary) 18%, var(--border));
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
 
   &--wrap {
     flex-wrap: wrap;

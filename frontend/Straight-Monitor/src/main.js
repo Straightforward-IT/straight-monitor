@@ -32,6 +32,8 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faExpandAlt,
   faExpandArrowsAlt,
   faCompressAlt,
+  faFilter,
+  faEyeSlash,
   faSliders,
   faBullhorn,
   faTableColumns,
@@ -46,6 +48,7 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faBoxArchive, faPalette,
   faShieldHalved,
   faClockRotateLeft,
+  faCheckDouble,
 } from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle, faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 library.add(
@@ -63,11 +66,11 @@ library.add(
   // Customer Card Icons
   faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faThLarge, faFileImport, faBookmark, faGripVertical,
   // Merge Icon
-  faObjectGroup, faAddressCard, faBinoculars, faTableCells,
+  faObjectGroup, faAddressCard, faBinoculars, faTableCells, faCheckDouble,
   // Pie Chart Icon
   faChartPie, faPalette, faChartLine, faCommentDots, faComment, faToggleOn, faToggleOff, faArrowUpFromBracket,
   // Mobile Menu Icons
-  faBars, faChartLine, faHistory, faTools, faSignOutAlt, faExpand, faExpandAlt, faExpandArrowsAlt, faCompressAlt,
+  faBars, faChartLine, faHistory, faTools, faSignOutAlt, faExpand, faExpandAlt, faExpandArrowsAlt, faCompressAlt, faFilter, faEyeSlash,
   // Footer Icons
   faHeart, faKeyboard, faCodeBranch, faUser, faEuroSign, faQuestion,
   // 404 Page Icons

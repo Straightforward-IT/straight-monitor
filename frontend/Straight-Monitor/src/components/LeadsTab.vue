@@ -4,6 +4,41 @@
     <div class="main-content">
       <!-- Toolbar -->
       <Toolbar wrap>
+        <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetLeadFilters">
+          <FilterGroup label="Standort">
+            <FilterChip
+              v-for="s in standortOptions"
+              :key="s"
+              :active="filterStandorte.includes(s)"
+              @click="toggleArrayFilter(filterStandorte, s)"
+            >{{ s }}</FilterChip>
+          </FilterGroup>
+          <FilterDivider v-if="leadConfig.quelleOptions?.length" />
+          <FilterGroup v-if="leadConfig.quelleOptions?.length" label="Quelle">
+            <FilterChip
+              v-for="opt in leadConfig.quelleOptions"
+              :key="opt.value"
+              :active="filterQuellen.includes(opt.value)"
+              @click="toggleArrayFilter(filterQuellen, opt.value)"
+            >{{ opt.label }}</FilterChip>
+          </FilterGroup>
+          <FilterDivider v-if="ownerOptions.length" />
+          <FilterGroup v-if="ownerOptions.length" label="Besitzer">
+            <FilterChip
+              v-for="owner in ownerOptions"
+              :key="owner.id"
+              :active="filterOwnerIds.includes(owner.id)"
+              @click="toggleArrayFilter(filterOwnerIds, owner.id)"
+            >{{ owner.label }}</FilterChip>
+          </FilterGroup>
+          <FilterDivider />
+          <FilterGroup label="Aktivitäten">
+            <FilterChip
+              :active="filterOffeneAktivitaeten"
+              @click="filterOffeneAktivitaeten = !filterOffeneAktivitaeten"
+            >Offen</FilterChip>
+          </FilterGroup>
+        </ToolbarFilter>
         <ToolbarGroup>
           <SearchBar v-model="searchQuery" class="toolbar-search" placeholder="Leads durchsuchen…" aria-label="Leads suchen" />
           <template v-if="!isMobile">
@@ -1519,6 +1554,10 @@ import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
 import LeadBoard from './leads/LeadBoard.vue';
 import LeadCard from './leads/LeadCard.vue';
 import LeadChronikDrawer from './leads/LeadChronikDrawer.vue';
+import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
+import FilterGroup from '@/components/FilterGroup.vue';
+import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 
 library.add(
   faPlus, faXmark, faSpinner, faSliders, faUser, faInfoCircle,
@@ -1587,6 +1626,51 @@ const searchQuery = ref('');
 const statusFilter = ref('open');
 const sortBy = ref('createdAt');
 const sortDir = ref('desc');
+
+// ─── Toolbar filter state ────────────────────────────────────────────
+const filterExpanded = ref(false);
+const filterStandorte = ref([]);
+const filterQuellen = ref([]);
+const filterOwnerIds = ref([]);
+const filterOffeneAktivitaeten = ref(false);
+
+function toggleArrayFilter(arr, value) {
+  const idx = arr.indexOf(value);
+  if (idx >= 0) arr.splice(idx, 1);
+  else arr.push(value);
+}
+
+function resetLeadFilters() {
+  filterStandorte.value = [];
+  filterQuellen.value = [];
+  filterOwnerIds.value = [];
+  filterOffeneAktivitaeten.value = false;
+}
+
+const activeFilterCount = computed(() => {
+  return (filterStandorte.value.length > 0 ? 1 : 0)
+    + (filterQuellen.value.length > 0 ? 1 : 0)
+    + (filterOwnerIds.value.length > 0 ? 1 : 0)
+    + (filterOffeneAktivitaeten.value ? 1 : 0);
+});
+
+const standortOptions = computed(() => {
+  const set = new Set(leads.value.map(l => l.standort).filter(Boolean));
+  return [...set].sort();
+});
+
+const ownerOptions = computed(() => {
+  const map = new Map();
+  for (const l of leads.value) {
+    const o = l.eigentuemer;
+    if (!o) continue;
+    const id = o._id || o.id || o.email;
+    if (id && !map.has(id)) {
+      map.set(id, { id, label: o.name || o.email || id });
+    }
+  }
+  return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'de'));
+});
 
 const rowMenu = reactive({ leadId: null, x: 0, y: 0 });
 let _rowMenuOpenedAt = 0;
@@ -1996,6 +2080,27 @@ const filteredLeads = computed(() => {
         (l.kontakt?.email || '').toLowerCase().includes(q)
       );
     });
+  }
+
+  if (filterStandorte.value.length > 0) {
+    list = list.filter(l => filterStandorte.value.includes(l.standort));
+  }
+
+  if (filterQuellen.value.length > 0) {
+    list = list.filter(l => filterQuellen.value.includes(l.quelle));
+  }
+
+  if (filterOwnerIds.value.length > 0) {
+    list = list.filter(l => {
+      const o = l.eigentuemer;
+      if (!o) return false;
+      const id = o._id || o.id || o.email;
+      return filterOwnerIds.value.includes(id);
+    });
+  }
+
+  if (filterOffeneAktivitaeten.value) {
+    list = list.filter(l => (l.aktivitaeten || []).some(a => !a.erledigt));
   }
 
   const dir = sortDir.value === 'asc' ? 1 : -1;

@@ -12,6 +12,31 @@ API läuft auf `http://localhost:5050`, Frontend auf `http://localhost:5173`.
 
 ---
 
+## TODO: Stundenkonto (EmployeeCard Dispo-Bereich)
+
+**Geplante Funktion:** Im Dispo-Bereich der `EmployeeCard` soll für den laufenden Monat angezeigt werden,
+wieviele Stunden ein Mitarbeiter arbeiten darf und wieviele davon bereits eingeplant sind.
+
+**Benötigte Modell-Änderung in `api/models/Mitarbeiter.js`:**
+```js
+stundenkontoMonatlich: [{
+  monat: { type: String, required: true }, // Format: "YYYY-MM"
+  erlaubteStunden: { type: Number, required: true }, // z.B. 70 bei KZF/Mini
+  // geplant wird dynamisch aus Einsatz-Collection berechnet, nicht gespeichert
+}]
+```
+
+**Berechnung geplanter Stunden:** Summe der `bedarf`-Felder aller Einsatz-Dokumente
+des Mitarbeiters im aktuellen Monat (inkl. zukünftiger Schichten).
+
+**Backend:** `GET /api/personal/:id/einsatz-context` um
+`geplantStundenAktuellerMonat: Number` und `erlaubteStundenAktuellerMonat: Number` erweitern.
+
+**Frontend:** `EmployeeCard.vue` Dispo-Sektion zeigt Fortschrittsbalken
+`geplantStunden / erlaubteStunden` mit Warnung bei Überschreitung.
+
+---
+
 ## Zvoove Daten-Import
 
 Importdateien werden als Excel-Export aus L1 bezogen und über `DatenImport.vue` hochgeladen.

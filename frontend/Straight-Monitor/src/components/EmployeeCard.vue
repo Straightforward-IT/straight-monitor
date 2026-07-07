@@ -1,5 +1,5 @@
 <template>
-  <article class="card" :class="{ 'card--has-user': resolvedMa?.hasUser }" :data-expanded="expanded" :data-theme="effectiveTheme">
+  <article class="card" :class="{ 'card--has-user': resolvedMa?.hasUser, 'card--inactive': resolvedMa && !resolvedMa.isActive }" :data-expanded="expanded" :data-theme="effectiveTheme">
     <!-- Self-loading skeleton -->
     <div v-if="selfLoading && !resolvedMa" class="card-self-loading">
       <font-awesome-icon icon="fa-solid fa-spinner" spin />
@@ -104,59 +104,121 @@
       <div v-show="expanded" class="card-body">
         <!-- Straight View -->
         <section v-if="view === 'straight'" class="straight-view">
-          <div class="section-header-row">
+          <!-- Dispo Section -->
+          <div class="dispo-section">
             <h4 class="section-title">
-              <img 
-                :src="effectiveTheme === 'dark' ? straightDark : straightLight" 
-                alt="Monitor" 
-                class="section-icon" 
-              />
-              Monitor Profil
+              <font-awesome-icon icon="fa-solid fa-calendar-days" class="section-icon" />
+              Disposition
+              <button class="dispo-open-btn" @click.stop="executeQuickAction('open-dispo')" title="In Dispo öffnen">
+                <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
+                In Dispo
+              </button>
             </h4>
-          </div>
-          
-          <div class="kv">
-            <div class="kv-inline">
-              <div>
-                <dt>E-Mail</dt>
-                <dd>{{ resolvedMa.email || "—" }}</dd>
-              </div>
-              <div v-if="resolvedMa.telefon">
-                <dt>Telefon</dt>
-                <dd>
-                  <a :href="generateSipgateLink(resolvedMa.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')">
-                    <font-awesome-icon icon="fa-solid fa-phone" /> {{ resolvedMa.telefon }}
-                  </a>
-                </dd>
-              </div>
-            </div>
-            <div class="kv-inline">
-              <div v-if="resolvedMa.geburtsdatum">
-                <dt>Geburtsdatum</dt>
-                <dd>{{ formatDate(resolvedMa.geburtsdatum) }}</dd>
-              </div>
-              <div v-if="resolvedMa.eintrittsdatum">
-                <dt>Eintritt</dt>
-                <dd>{{ formatDate(resolvedMa.eintrittsdatum) }}</dd>
-              </div>
-              <div v-if="resolvedMa.austrittsdatum">
-                <dt>Austritt</dt>
-                <dd>{{ formatDate(resolvedMa.austrittsdatum) }}</dd>
-              </div>
-            </div>
-            <div v-if="resolvedMa.erstellt_von">
-              <dt>Erstellt von</dt>
-              <dd>{{ resolvedMa.erstellt_von }}</dd>
-            </div>
-            <div v-if="resolvedMa.additionalEmails && resolvedMa.additionalEmails.length > 0">
-              <dt>Alternative E-Mails</dt>
-              <dd>
-                <div class="email-list">
-                  <span v-for="(email, idx) in resolvedMa.additionalEmails" :key="idx" class="email-badge">
-                    {{ email }}
-                  </span>
+
+            <!-- Letzter / Nächster Einsatz -->
+            <div class="einsatz-context-row">
+              <div class="einsatz-context-card einsatz-context-card--last">
+                <div class="ec-label">Letzter Einsatz</div>
+                <div v-if="loadingEinsatzContext" class="ec-loading">
+                  <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" />
                 </div>
-              </dd>
+                <template v-else-if="einsatzContext.last">
+                  <div class="ec-date">
+                    {{ formatDate(einsatzContext.last.datumVon) }}
+                    <span v-if="einsatzContext.last.uhrzeitVon" class="ec-time">
+                      &middot; {{ einsatzContext.last.uhrzeitVon }}<template v-if="einsatzContext.last.uhrzeitBis">–{{ einsatzContext.last.uhrzeitBis }}</template>
+                    </span>
+                  </div>
+                  <div class="ec-title">{{ einsatzContext.last.eventTitel || einsatzContext.last.bezeichnung || '—' }}</div>
+                  <div v-if="einsatzContext.last.eventLocation" class="ec-location">{{ einsatzContext.last.eventLocation }}</div>
+                </template>
+                <span v-else class="ec-none">Keine vergangenen Einsätze</span>
+              </div>
+              <div class="einsatz-context-card einsatz-context-card--next">
+                <div class="ec-label">Nächster Einsatz</div>
+                <div v-if="loadingEinsatzContext" class="ec-loading">
+                  <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" />
+                </div>
+                <template v-else-if="einsatzContext.next">
+                  <div class="ec-date">
+                    {{ formatDate(einsatzContext.next.datumVon) }}
+                    <span v-if="einsatzContext.next.uhrzeitVon" class="ec-time">
+                      &middot; {{ einsatzContext.next.uhrzeitVon }}<template v-if="einsatzContext.next.uhrzeitBis">–{{ einsatzContext.next.uhrzeitBis }}</template>
+                    </span>
+                  </div>
+                  <div class="ec-title">{{ einsatzContext.next.eventTitel || einsatzContext.next.bezeichnung || '—' }}</div>
+                  <div v-if="einsatzContext.next.eventLocation" class="ec-location">{{ einsatzContext.next.eventLocation }}</div>
+                </template>
+                <span v-else class="ec-none">Kein geplanter Einsatz</span>
+              </div>
+            </div>
+
+            <!-- Kundenwünsche -->
+            <div v-if="resolvedMa.kundenwuensche && resolvedMa.kundenwuensche.length > 0" class="kw-section">
+              <div class="kw-section-label">Kundenwünsche</div>
+              <div class="kw-chips">
+                <span
+                  v-for="kw in resolvedMa.kundenwuensche"
+                  :key="kw._id"
+                  class="kw-chip"
+                  :class="'kw-chip--' + kw.typ"
+                  :title="kw.kommentar || ''"
+                >
+                  <font-awesome-icon :icon="kw.typ === 'positiv' ? 'fa-solid fa-heart' : 'fa-solid fa-ban'" />
+                  {{ kw.kunde?.kuerzel || kw.kunde?.kundName || kw.kunde?.kundenNr || '—' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Dispo-Notiz -->
+            <div class="dispo-notiz-section">
+              <div class="dispo-notiz-header">
+                <span class="kw-section-label">Notiz</span>
+                <button v-if="!editingDispoNotiz" class="dispo-notiz-edit-btn" @click.stop="startEditDispoNotiz" title="Notiz bearbeiten">
+                  <font-awesome-icon icon="fa-solid fa-pen" />
+                </button>
+              </div>
+              <template v-if="editingDispoNotiz">
+                <textarea v-model="dispoNotizDraft" class="dispo-notiz-textarea" rows="3" placeholder="Interne Notiz…" @keydown.esc="cancelDispoNotiz" />
+                <div class="dispo-notiz-actions">
+                  <button class="btn btn-sm" @click.stop="saveDispoNotiz" :disabled="savingDispoNotiz">
+                    <font-awesome-icon v-if="savingDispoNotiz" icon="fa-solid fa-spinner" class="fa-spin" />
+                    <span v-else>Speichern</span>
+                  </button>
+                  <button class="btn btn-sm btn-ghost" @click.stop="cancelDispoNotiz">Abbrechen</button>
+                </div>
+              </template>
+              <p v-else class="dispo-notiz-text" @click.stop="startEditDispoNotiz" :class="{ 'dispo-notiz-text--empty': !resolvedMa.dispoNotiz }">
+                {{ resolvedMa.dispoNotiz || 'Notiz hinzufügen…' }}
+              </p>
+            </div>
+
+            <!-- Chronik -->
+            <div class="chronik-section">
+              <div class="kw-section-label">Chronik</div>
+              <div v-if="loadingChronik" class="chronik-loading">
+                <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" /> Lade…
+              </div>
+              <ul v-else-if="chronik.length > 0" class="chronik-list">
+                <li v-for="entry in chronik" :key="entry._id" class="chronik-entry">
+                  <div class="chronik-meta">
+                    <span class="chronik-author">{{ entry.author }}</span>
+                    <span class="chronik-date">{{ formatDate(entry.createdAt) }}</span>
+                    <button class="chronik-delete-btn" @click.stop="deleteChronikEntry(entry._id)" title="Eintrag löschen">
+                      <font-awesome-icon icon="fa-solid fa-trash" />
+                    </button>
+                  </div>
+                  <p class="chronik-text">{{ entry.text }}</p>
+                </li>
+              </ul>
+              <p v-else class="ec-none">Keine Einträge</p>
+              <div class="chronik-add">
+                <textarea v-model="newChronikText" class="dispo-notiz-textarea" rows="2" placeholder="Neuer Chronik-Eintrag…" />
+                <button class="btn btn-sm" @click.stop="addChronikEntry" :disabled="!newChronikText.trim() || savingChronik">
+                  <font-awesome-icon v-if="savingChronik" icon="fa-solid fa-spinner" class="fa-spin" />
+                  <span v-else>Senden</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -164,6 +226,7 @@
           <MitarbeiterEinsatzChart
             v-if="expanded && resolvedMa?._id"
             :mitarbeiterId="resolvedMa._id.toString()"
+            :eintrittsdatum="resolvedMa.eintrittsdatum"
           />
 
           <!-- Skills Section (Berufe & Qualifikationen) -->
@@ -1194,6 +1257,7 @@
         </div>
       </div>
 
+      <div class="hero-right">
       <div class="hero-media" :class="{ 'hero-media--clickable': !photoUrl }" @click="!photoUrl && (showImageCropModal = true)" :title="!photoUrl ? 'Bild hochladen' : undefined">
         <img v-if="photoUrl" :src="photoUrl" :alt="`${resolvedMa.vorname} ${resolvedMa.nachname}`" class="hero-img" />
         <div v-else class="hero-initials" :style="{ '--hue': avatarHue(resolvedMa) }">
@@ -1202,6 +1266,53 @@
         <div v-if="!photoUrl" class="hero-upload-hint">
           <font-awesome-icon icon="fa-solid fa-camera" />
         </div>
+      </div>
+
+      <!-- Steckbrief (Monitor Profil, kompakt unter dem Foto) -->
+      <div class="steckbrief">
+        <div class="steckbrief-row">
+          <span class="steckbrief-label">E-Mail</span>
+          <span class="steckbrief-value">
+            {{ resolvedMa.email || '—' }}
+            <button v-if="resolvedMa.email" class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.email)" title="Kopieren">
+              <font-awesome-icon icon="fa-solid fa-copy" />
+            </button>
+          </span>
+        </div>
+        <div v-if="resolvedMa.telefon" class="steckbrief-row">
+          <span class="steckbrief-label">Telefon</span>
+          <span class="steckbrief-value">
+            <a :href="generateSipgateLink(resolvedMa.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')">
+              <font-awesome-icon icon="fa-solid fa-phone" /> {{ resolvedMa.telefon }}
+            </a>
+            <button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.telefon)" title="Kopieren">
+              <font-awesome-icon icon="fa-solid fa-copy" />
+            </button>
+          </span>
+        </div>
+        <div v-if="resolvedMa.geburtsdatum" class="steckbrief-row">
+          <span class="steckbrief-label">Geburtstag</span>
+          <span class="steckbrief-value">{{ formatDate(resolvedMa.geburtsdatum) }}</span>
+        </div>
+        <div v-if="resolvedMa.eintrittsdatum" class="steckbrief-row">
+          <span class="steckbrief-label">Eintritt</span>
+          <span class="steckbrief-value">{{ formatDate(resolvedMa.eintrittsdatum) }}</span>
+        </div>
+        <div v-if="resolvedMa.austrittsdatum" class="steckbrief-row">
+          <span class="steckbrief-label">Austritt</span>
+          <span class="steckbrief-value">{{ formatDate(resolvedMa.austrittsdatum) }}</span>
+        </div>
+        <div v-if="resolvedMa.additionalEmails && resolvedMa.additionalEmails.length > 0" class="steckbrief-row steckbrief-row--block">
+          <span class="steckbrief-label">Alt. Mails</span>
+          <div class="email-list">
+            <span v-for="(email, idx) in resolvedMa.additionalEmails" :key="idx" class="email-badge">{{ email }}</span>
+          </div>
+        </div>
+        <div v-if="resolvedMa.erstellt_von" class="steckbrief-row">
+          <span class="steckbrief-label">Erstellt</span>
+          <span class="steckbrief-value steckbrief-value--muted">{{ resolvedMa.erstellt_von }}</span>
+        </div>
+      </div>
       </div>
     </aside>
 
@@ -1577,6 +1688,17 @@ export default {
       // Reaktivierungs-Modal
       showReaktivierungModal: false,
       reaktivierungLoading: false,
+
+      // Dispo / Chronik
+      einsatzContext: { last: null, next: null },
+      loadingEinsatzContext: false,
+      chronik: [],
+      loadingChronik: false,
+      newChronikText: '',
+      savingChronik: false,
+      editingDispoNotiz: false,
+      dispoNotizDraft: '',
+      savingDispoNotiz: false,
     };
   },
 
@@ -1705,6 +1827,12 @@ export default {
       if (this.view === 'inventar' && this.inventarLogs.length === 0 && !this.inventarLoading) {
         this.fetchInventar();
       }
+      if (!this.einsatzContext.last && !this.einsatzContext.next && !this.loadingEinsatzContext) {
+        this.loadEinsatzContext();
+      }
+      if (this.chronik.length === 0 && !this.loadingChronik) {
+        this.loadChronik();
+      }
     }
   },
 
@@ -1741,6 +1869,12 @@ export default {
           if (this.view === 'inventar' && this.inventarLogs.length === 0 && !this.inventarLoading) {
             this.fetchInventar();
           }
+          if (!this.einsatzContext.last && !this.einsatzContext.next && !this.loadingEinsatzContext) {
+            this.loadEinsatzContext();
+          }
+          if (this.chronik.length === 0 && !this.loadingChronik) {
+            this.loadChronik();
+          }
         }
       } catch (err) {
         console.error('[EmployeeCard] loadSelf failed:', err);
@@ -1762,6 +1896,14 @@ export default {
         // Auto-load tasks if flip view and not loaded yet
         if (this.view === 'flip' && this.resolvedMa?.flip?.id && !this.tasksLoaded) {
           this.loadFlipTasks();
+        }
+
+        // Dispo lazy-loads
+        if (!this.einsatzContext.last && !this.einsatzContext.next && !this.loadingEinsatzContext) {
+          this.loadEinsatzContext();
+        }
+        if (this.chronik.length === 0 && !this.loadingChronik) {
+          this.loadChronik();
         }
       }
     },
@@ -1920,10 +2062,91 @@ export default {
     async copyToClipboard(text) {
       try {
         await navigator.clipboard.writeText(text);
-        // Optional: Toast-Notification zeigen
-        console.log("📋 Asana-ID kopiert:", text);
       } catch (error) {
         console.error("❌ Fehler beim Kopieren:", error);
+      }
+    },
+
+    // ─── Dispo / Einsatz-Kontext ─────────────────────────────────────────────────
+    async loadEinsatzContext() {
+      if (!this.resolvedMa?._id) return;
+      this.loadingEinsatzContext = true;
+      try {
+        const { data } = await api.get(`/api/personal/${this.resolvedMa._id}/einsatz-context`);
+        this.einsatzContext = data;
+      } catch (err) {
+        console.error('Einsatz-Kontext Fehler:', err);
+      } finally {
+        this.loadingEinsatzContext = false;
+      }
+    },
+
+    // ─── Chronik ───────────────────────────────────────────────────────────────
+    async loadChronik() {
+      if (!this.resolvedMa?._id) return;
+      this.loadingChronik = true;
+      try {
+        const { data } = await api.get('/api/comments', {
+          params: { scope: 'chronik', mitarbeiterId: this.resolvedMa._id }
+        });
+        this.chronik = (data || []).reverse(); // newest first
+      } catch (err) {
+        console.error('Chronik Fehler:', err);
+      } finally {
+        this.loadingChronik = false;
+      }
+    },
+
+    async addChronikEntry() {
+      const text = this.newChronikText.trim();
+      if (!text || !this.resolvedMa?._id) return;
+      this.savingChronik = true;
+      try {
+        const { data } = await api.post('/api/comments', {
+          scope: 'chronik',
+          text,
+          context: { mitarbeiter: this.resolvedMa._id }
+        });
+        this.chronik.unshift(data); // newest first
+        this.newChronikText = '';
+      } catch (err) {
+        console.error('Chronik Eintrag Fehler:', err);
+      } finally {
+        this.savingChronik = false;
+      }
+    },
+
+    async deleteChronikEntry(id) {
+      try {
+        await api.delete(`/api/comments/${id}`);
+        this.chronik = this.chronik.filter(e => e._id !== id);
+      } catch (err) {
+        console.error('Chronik Löschen Fehler:', err);
+      }
+    },
+
+    // ─── Dispo-Notiz ────────────────────────────────────────────────────────────
+    startEditDispoNotiz() {
+      this.dispoNotizDraft = this.resolvedMa.dispoNotiz || '';
+      this.editingDispoNotiz = true;
+    },
+    cancelDispoNotiz() {
+      this.editingDispoNotiz = false;
+      this.dispoNotizDraft = '';
+    },
+    async saveDispoNotiz() {
+      if (!this.resolvedMa?._id) return;
+      this.savingDispoNotiz = true;
+      try {
+        await api.patch(`/api/personal/mitarbeiter/${this.resolvedMa._id}`, {
+          dispoNotiz: this.dispoNotizDraft
+        });
+        this.resolvedMa.dispoNotiz = this.dispoNotizDraft;
+        this.cancelDispoNotiz();
+      } catch (err) {
+        console.error('Dispo-Notiz Fehler:', err);
+      } finally {
+        this.savingDispoNotiz = false;
       }
     },
 
@@ -2829,6 +3052,404 @@ export default {
   overflow: hidden;
 }
 
+/* ── Inactive card ─────────────────────────────────────────────────────────── */
+.card--inactive {
+  opacity: 0.65;
+  filter: grayscale(30%);
+
+  .hero-img,
+  .hero-initials,
+  .avatar,
+  .avatar-img {
+    filter: grayscale(50%);
+  }
+}
+
+/* ── Steckbrief (Monitor-Profil kompakt unter Foto) ─────────────────────────── */
+.steckbrief {
+  flex: 1;
+  padding: 10px 12px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.steckbrief-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+
+  &.steckbrief-row--block {
+    align-items: flex-start;
+  }
+}
+
+.steckbrief-label {
+  flex: 0 0 64px;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.steckbrief-value {
+  flex: 1;
+  color: var(--text);
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  &.steckbrief-value--muted {
+    color: var(--muted);
+    font-size: 10px;
+  }
+}
+
+.copy-inline-btn {
+  flex: none;
+  background: none;
+  border: none;
+  padding: 1px 3px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 10px;
+  border-radius: 3px;
+  transition: color 0.12s, background 0.12s;
+
+  &:hover {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+}
+
+/* ── Dispo Section ──────────────────────────────────────────────────────────── */
+.dispo-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+
+  > .section-title {
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.dispo-open-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+
+  &:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+  }
+}
+
+.einsatz-context-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.einsatz-context-card {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--soft);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+
+  &.einsatz-context-card--next {
+    border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+    background: color-mix(in srgb, var(--primary) 6%, var(--soft));
+  }
+}
+
+.ec-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.ec-date {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ec-time {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.ec-title {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ec-location {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ec-loading {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.ec-none {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Kundenwünsche */
+.kw-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kw-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.kw-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kw-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid transparent;
+
+  &.kw-chip--positiv {
+    background: color-mix(in srgb, #21a26a 15%, transparent);
+    color: color-mix(in srgb, #21a26a 70%, var(--text));
+    border-color: color-mix(in srgb, #21a26a 35%, transparent);
+  }
+
+  &.kw-chip--negativ {
+    background: color-mix(in srgb, #dc3545 15%, transparent);
+    color: color-mix(in srgb, #dc3545 70%, var(--text));
+    border-color: color-mix(in srgb, #dc3545 35%, transparent);
+  }
+}
+
+/* Dispo-Notiz */
+.dispo-notiz-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dispo-notiz-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dispo-notiz-edit-btn {
+  background: none;
+  border: none;
+  padding: 2px 5px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 11px;
+  border-radius: 4px;
+  transition: color 0.12s, background 0.12s;
+
+  &:hover {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+}
+
+.dispo-notiz-text {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px dashed transparent;
+  transition: border-color 0.15s, background 0.15s;
+  white-space: pre-wrap;
+
+  &:hover {
+    border-color: var(--border);
+    background: var(--soft);
+  }
+
+  &.dispo-notiz-text--empty {
+    color: var(--muted);
+    font-style: italic;
+  }
+}
+
+.dispo-notiz-textarea {
+  width: 100%;
+  font-size: 13px;
+  line-height: 1.5;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+}
+
+.dispo-notiz-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Chronik */
+.chronik-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chronik-loading {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chronik-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.chronik-entry {
+  padding: 8px 10px;
+  border-left: 3px solid color-mix(in srgb, var(--primary) 40%, transparent);
+  background: var(--soft);
+  border-radius: 0 6px 6px 0;
+}
+
+.chronik-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.chronik-delete-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: transparent;
+  font-size: 10px;
+  border-radius: 3px;
+  transition: color 0.12s;
+
+  .chronik-entry:hover & {
+    color: var(--muted);
+  }
+
+  &:hover {
+    color: #dc3545 !important;
+  }
+}
+
+.chronik-author {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.chronik-date {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.chronik-text {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.chronik-add {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 4px;
+
+  .dispo-notiz-textarea {
+    flex: 1;
+    min-width: 0;
+    resize: none;
+  }
+
+  .btn {
+    flex-shrink: 0;
+    align-self: stretch;
+  }
+}
+
 /* ── User-verknüpfte Karte: 2 diagonale Streifen ── */
 .card--has-user::after {
   content: '';
@@ -3069,6 +3690,12 @@ export default {
 .kv dd.missing-value {
   color: #d9534f;
   font-weight: 600;
+}
+
+.erstellt-von-value {
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
 }
 
 /* Email badges for alternative emails */
@@ -4242,10 +4869,19 @@ export default {
   overflow: hidden;
 }
 
+/* Wrapper: column stack of photo + steckbrief */
+.hero-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
 .hero-media {
   flex: none;
   width: 300px;
-  height: 300px;
+  height: 240px;
   overflow: hidden;
   background: var(--soft);
   position: relative;
@@ -4441,6 +5077,10 @@ export default {
   }
 
   .hero-media {
+    display: none;
+  }
+
+  .steckbrief {
     display: none;
   }
 
