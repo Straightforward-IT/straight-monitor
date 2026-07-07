@@ -701,51 +701,71 @@
 
     <!-- ─── Mobile UI (≤768px) ─────────────────────────────────────────── -->
     <template v-if="isMobile">
-      <!-- Sticky top bar: search · KW chips · filter button -->
-      <div class="m-top-bar">
-        <div class="m-top-bar__row">
-          <SearchBar
-            class="m-search"
-            v-model="searchQuery"
-            placeholder="Mitarbeiter suchen…"
-            aria-label="Mitarbeiter suchen"
-          />
-          <button
-            v-if="hiddenCount > 0"
-            class="m-hidden-btn"
-            :class="{ active: showHidden }"
-            @click="toggleHiddenView"
-            :aria-label="showHidden ? 'Zur normalen Ansicht zurück' : 'Ausgeblendete Mitarbeiter anzeigen'"
-          >
-            <font-awesome-icon :icon="showHidden ? 'fa-solid fa-arrow-left' : 'fa-solid fa-eye-slash'" />
-            <span>{{ showHidden ? 'Zurück' : `${hiddenCount} ausgeblendet` }}</span>
-          </button>
-          <button
-            class="m-filter-btn"
-            :class="{ active: !!filters.standort || filters.tage !== 30 || !!filters.planungFilter || !!filters.kundeFilter || qualFilter.length > 0 }"
-            @click="mobileFilterOpen = true"
-            aria-label="Filter"
-          >
-            <font-awesome-icon icon="fa-solid fa-sliders" />
-          </button>
-        </div>
+      <!-- Sticky top bar using Toolbar.vue + ToolbarFilter (same as desktop) -->
+      <Toolbar class="m-toolbar">
+        <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
+          <FilterGroup label="Standort">
+            <FilterChip :active="filters.standort === '1'" @click="setStandort('1')">Berlin</FilterChip>
+            <FilterChip :active="filters.standort === '2'" @click="setStandort('2')">Hamburg</FilterChip>
+            <FilterChip :active="filters.standort === '3'" @click="setStandort('3')">Köln</FilterChip>
+          </FilterGroup>
+          <FilterDivider />
+          <FilterGroup label="Zeitraum">
+            <FilterChip v-for="opt in [7, 14, 30]" :key="opt" :active="filters.tage === opt" @click="setTage(opt)">{{ opt }} Tage</FilterChip>
+          </FilterGroup>
+          <FilterDivider />
+          <FilterGroup label="Planung">
+            <FilterChip :active="filters.planungFilter === 'eingeplant'" @click="setPlanung('eingeplant')">Eingeplante</FilterChip>
+            <FilterChip :active="filters.planungFilter === 'ungeplant'" @click="setPlanung('ungeplant')">Ungeplante</FilterChip>
+          </FilterGroup>
+          <FilterDivider />
+          <FilterGroup label="🤝 Kunde">
+            <div class="kunde-filter-search">
+              <KundeSearch
+                :standort="filters.standort"
+                placeholder="Kunde suchen…"
+                @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
+              />
+              <button v-if="filters.kundeFilter" class="kunde-filter-clear" @click="clearKundeFilter">
+                <font-awesome-icon icon="fa-solid fa-xmark" />
+              </button>
+            </div>
+          </FilterGroup>
+        </ToolbarFilter>
+        <SearchBar
+          class="toolbar-search"
+          v-model="searchQuery"
+          placeholder="Mitarbeiter suchen…"
+          aria-label="Mitarbeiter suchen"
+        />
+        <button
+          v-if="hiddenCount > 0"
+          class="show-hidden-btn show-hidden-btn--topline"
+          :class="{ active: showHidden }"
+          @click="toggleHiddenView"
+          :title="showHidden ? 'Zur normalen Ansicht zurück' : `${hiddenCount} ausgeblendet`"
+        >
+          <font-awesome-icon :icon="showHidden ? 'fa-solid fa-arrow-left' : 'fa-solid fa-eye-slash'" />
+          {{ showHidden ? 'Zurück' : `${hiddenCount} ausgeblendet` }}
+        </button>
+      </Toolbar>
 
-        <div class="m-kw-row">
-          <div class="m-kw-scroll">
-            <button
-              v-for="chip in kwChips"
-              :key="`${chip.year}-${chip.kw}`"
-              class="m-kw-chip"
-              :class="{ active: selectedKw?.kw === chip.kw && selectedKw?.year === chip.year, current: chip.isCurrent }"
-              @click="toggleKw(chip)"
-            >
-              KW {{ chip.kw }}
-            </button>
-          </div>
-          <button class="m-today-btn" @click="scrollToToday(); scrollMobileToToday()" title="Heute">
-            <font-awesome-icon icon="fa-solid fa-bullseye" />
+      <!-- KW chips row -->
+      <div class="m-kw-row">
+        <div class="m-kw-scroll">
+          <button
+            v-for="chip in kwChips"
+            :key="`${chip.year}-${chip.kw}`"
+            class="m-kw-chip"
+            :class="{ active: selectedKw?.kw === chip.kw && selectedKw?.year === chip.year, current: chip.isCurrent }"
+            @click="toggleKw(chip)"
+          >
+            KW {{ chip.kw }}
           </button>
         </div>
+        <button class="m-today-btn" @click="scrollToToday(); scrollMobileToToday()" title="Heute">
+          <font-awesome-icon icon="fa-solid fa-bullseye" />
+        </button>
       </div>
 
       <!-- Mitarbeiter card list -->
@@ -954,58 +974,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Mobile Filter Bottom Sheet -->
-      <teleport to="body">
-        <transition name="m-sheet">
-          <div v-if="mobileFilterOpen" class="m-sheet-backdrop" @click="mobileFilterOpen = false">
-            <div class="m-sheet m-sheet--filter" @click.stop>
-              <div class="m-sheet__handle"></div>
-              <div class="m-sheet__header">
-                <h3>Filter</h3>
-                <button class="m-sheet__close" @click="mobileFilterOpen = false">
-                  <font-awesome-icon icon="fa-solid fa-xmark" />
-                </button>
-              </div>
-              <div class="m-sheet__body">
-                <FilterGroup label="Standort">
-                  <FilterChip :active="filters.standort === '1'" @click="setStandort('1')">Berlin</FilterChip>
-                  <FilterChip :active="filters.standort === '2'" @click="setStandort('2')">Hamburg</FilterChip>
-                  <FilterChip :active="filters.standort === '3'" @click="setStandort('3')">Köln</FilterChip>
-                </FilterGroup>
-                <FilterDivider />
-                <FilterGroup label="Zeitraum">
-                  <FilterChip v-for="opt in [7, 14, 30]" :key="opt" :active="filters.tage === opt" @click="setTage(opt)">
-                    {{ opt }} Tage
-                  </FilterChip>
-                </FilterGroup>
-                <FilterDivider />
-                <FilterGroup label="Planung">
-                  <FilterChip :active="filters.planungFilter === 'eingeplant'" @click="setPlanung('eingeplant')">Eingeplante</FilterChip>
-                  <FilterChip :active="filters.planungFilter === 'ungeplant'" @click="setPlanung('ungeplant')">Ungeplante</FilterChip>
-                </FilterGroup>
-                <FilterDivider />
-                <FilterGroup label="🤝 Kunde">
-                  <div class="kunde-filter-search">
-                    <KundeSearch
-                      :standort="filters.standort"
-                      placeholder="Kunde suchen…"
-                      @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
-                    />
-                    <button v-if="filters.kundeFilter" class="kunde-filter-clear" @click="clearKundeFilter">
-                      <font-awesome-icon icon="fa-solid fa-xmark" />
-                    </button>
-                  </div>
-                </FilterGroup>
-                <FilterDivider />
-                <FilterChip class="reset-chip" @click="resetFilters">
-                  <font-awesome-icon icon="fa-solid fa-rotate-left" /> Zurücksetzen
-                </FilterChip>
-              </div>
-            </div>
-          </div>
-        </transition>
-      </teleport>
 
       <!-- Mobile Action Sheet (status setter) -->
       <teleport to="body">
@@ -3799,7 +3767,7 @@ const options = [7, 14, 30];
 });
 
 // ─── Mobile UI (≤768px) ───────────────────────────────────────────────
-const mobileFilterOpen = ref(false);
+const mobileFilterOpen = ref(false); // kept for legacy, filter now uses filterExpanded via ToolbarFilter
 const expandedCardId = ref(null);
 const mobileDayScrollLeft = ref(0);
 const dayStripRefs = new Map(); // maId → HTMLElement
@@ -3858,7 +3826,8 @@ watch(isMobile, (val) => {
   if (val) {
     nextTick(scrollMobileToToday);
   } else {
-    mobileFilterOpen.value = false;
+    mobileFilterOpen.value = false; // legacy
+    filterExpanded.value = false;
     expandedCardId.value = null;
   }
 });
@@ -6795,6 +6764,17 @@ function onNameTouchEnd() {
 }
 
 /* ─── Mobile UI (≤768px) ──────────────────────────────────────────────── */
+
+// Mobile toolbar — reuses Toolbar.vue with sticky positioning
+.m-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-radius: 0;
+  margin-bottom: 0;
+  overflow: visible;
+  padding-top: calc(7px + env(safe-area-inset-top, 0px));
+}
 
 .m-top-bar {
   position: sticky;

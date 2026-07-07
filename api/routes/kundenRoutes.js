@@ -105,9 +105,6 @@ router.get('/search', auth, asyncHandler(async (req, res) => {
     ? await getKundenCountMapForMitarbeiter(mitarbeiterId)
     : new Map();
 
-  const standortMin = standort ? Number(standort) * 1000000 : null;
-  const standortMax = standort ? (Number(standort) + 1) * 1000000 : null;
-
   let kunden = [];
 
   if (q.length >= 2) {
@@ -115,11 +112,8 @@ router.get('/search', auth, asyncHandler(async (req, res) => {
     let filter;
 
     if (isNum) {
-      const kundenNr = Number(q);
-      if (standort && (kundenNr < standortMin || kundenNr >= standortMax)) {
-        return res.json([]);
-      }
-      filter = { kundenNr };
+      filter = { kundenNr: Number(q) };
+      if (standort) filter.kostenSt = standort;
     } else {
       filter = {
         $or: [
@@ -129,12 +123,12 @@ router.get('/search', auth, asyncHandler(async (req, res) => {
       };
 
       if (standort) {
-        filter.kundenNr = { $gte: standortMin, $lt: standortMax };
+        filter.kostenSt = standort;
       }
     }
 
     kunden = await Kunde.find(filter)
-      .select('_id kundenNr kundName kuerzel kundStatus geschSt')
+      .select('_id kundenNr kundName kuerzel kundStatus geschSt kostenSt')
       .sort({ kundName: 1 })
       .limit(20)
       .lean();
@@ -143,14 +137,13 @@ router.get('/search', auth, asyncHandler(async (req, res) => {
       .sort((a, b) => b[1] - a[1])
       .map(([kundenNr]) => kundenNr);
 
-    if (standort) {
-      kundenNrs = kundenNrs.filter((kundenNr) => kundenNr >= standortMin && kundenNr < standortMax);
-    }
-
     if (!kundenNrs.length) return res.json([]);
 
-    const kundenDocs = await Kunde.find({ kundenNr: { $in: kundenNrs } })
-      .select('_id kundenNr kundName kuerzel kundStatus geschSt')
+    const kundenQuery = { kundenNr: { $in: kundenNrs } };
+    if (standort) kundenQuery.kostenSt = standort;
+
+    const kundenDocs = await Kunde.find(kundenQuery)
+      .select('_id kundenNr kundName kuerzel kundStatus geschSt kostenSt')
       .lean();
 
     const kundeByNr = new Map(kundenDocs.map((kunde) => [kunde.kundenNr, kunde]));

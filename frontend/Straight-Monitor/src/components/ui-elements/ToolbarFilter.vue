@@ -12,9 +12,9 @@
       <font-awesome-icon icon="fa-solid fa-filter" />
     </button>
 
-    <!-- Expanded panel — overlays the whole toolbar -->
+    <!-- Desktop: expanded panel — overlays the whole toolbar -->
     <transition name="tf-expand">
-      <div v-if="modelValue" class="tf-panel">
+      <div v-if="modelValue && !isMobile" class="tf-panel">
         <button
           class="tf-toggle tf-toggle--active"
           type="button"
@@ -22,7 +22,7 @@
           @click="toggle"
         >
           <span v-if="activeCount > 0" class="tf-count">{{ activeCount }}</span>
-          <font-awesome-icon icon="fa-solid fa-xmark" />
+          <font-awesome-icon icon="fa-solid fa-filter" />
         </button>
         <div class="tf-content">
           <div class="tf-scroll">
@@ -39,10 +39,35 @@
         </button>
       </div>
     </transition>
+
+    <!-- Mobile: bottom sheet teleported to body -->
+    <teleport to="body">
+      <transition name="tf-mobile-sheet">
+        <div v-if="modelValue && isMobile" class="tf-mobile-backdrop" @click.self="toggle">
+          <div class="tf-mobile-sheet">
+            <div class="tf-mobile-handle"></div>
+            <div class="tf-mobile-header">
+              <h3>Filter</h3>
+              <button class="tf-mobile-close" type="button" @click="toggle">
+                <font-awesome-icon icon="fa-solid fa-xmark" />
+              </button>
+            </div>
+            <div class="tf-mobile-body">
+              <slot />
+              <button class="tf-mobile-reset" type="button" @click="emit('reset'); toggle()">
+                <font-awesome-icon icon="fa-solid fa-rotate-left" />
+                Zurücksetzen
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </teleport>
   </div>
 </template>
 
 <script setup>
+import { ref, onMounted, onUnmounted } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faFilter, faXmark, faRotateLeft } from '@fortawesome/free-solid-svg-icons';
@@ -54,6 +79,11 @@ const props = defineProps({
   activeCount: { type: Number, default: 0 },
 });
 const emit = defineEmits(['update:modelValue', 'reset']);
+
+const isMobile = ref(typeof window !== 'undefined' && window.innerWidth <= 768);
+function onResize() { isMobile.value = window.innerWidth <= 768; }
+onMounted(() => window.addEventListener('resize', onResize));
+onUnmounted(() => window.removeEventListener('resize', onResize));
 
 function toggle() {
   emit('update:modelValue', !props.modelValue);
@@ -235,5 +265,145 @@ function toggle() {
 .tf-expand-leave-to {
   opacity: 0;
   transform: scaleX(0.96);
+}
+</style>
+
+<!-- Unscoped: mobile sheet — needs to affect teleported content and slot children -->
+<style lang="scss">
+// ── Mobile bottom sheet ──────────────────────────────────────────────────────
+.tf-mobile-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 2000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: stretch;
+}
+
+.tf-mobile-sheet {
+  width: 100%;
+  max-height: 88vh;
+  background: var(--surface, #fff);
+  border-radius: 16px 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.tf-mobile-handle {
+  width: 36px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
+  margin: 8px auto 4px;
+  flex-shrink: 0;
+}
+
+.tf-mobile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px 10px;
+  border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.06));
+  flex-shrink: 0;
+
+  h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text, #222);
+    font-family: -apple-system, BlinkMacSystemFont, "San Francisco", Helvetica, Arial, sans-serif;
+  }
+}
+
+.tf-mobile-close {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: var(--muted, #888);
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:active { background: rgba(0, 0, 0, 0.05); }
+}
+
+.tf-mobile-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  // Compact filter groups in vertical layout
+  .filter-group {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 4px 0 !important;
+    border-radius: 0 !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+  }
+
+  // Horizontal divider instead of vertical bar
+  .filter-divider {
+    display: block !important;
+    width: 100% !important;
+    height: 1px !important;
+    background: var(--border, rgba(0, 0, 0, 0.1)) !important;
+    margin: 2px 0 !important;
+    align-self: auto !important;
+  }
+
+  .filter-group-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--muted, #888);
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+}
+
+.tf-mobile-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-top: 4px;
+  width: 100%;
+  justify-content: center;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted, #666);
+  font-size: 0.88rem;
+  font-family: -apple-system, BlinkMacSystemFont, "San Francisco", Helvetica, Arial, sans-serif;
+  cursor: pointer;
+
+  &:active { background: var(--hover, #f7f7f7); }
+}
+
+// ── Slide-up animation ───────────────────────────────────────────────────────
+.tf-mobile-sheet-enter-active {
+  transition: opacity 0.2s ease;
+  .tf-mobile-sheet { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+}
+.tf-mobile-sheet-leave-active {
+  transition: opacity 0.18s ease;
+  .tf-mobile-sheet { transition: transform 0.2s ease; }
+}
+.tf-mobile-sheet-enter-from,
+.tf-mobile-sheet-leave-to {
+  opacity: 0;
+  .tf-mobile-sheet { transform: translateY(100%); }
 }
 </style>

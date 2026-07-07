@@ -25,7 +25,7 @@
     <!-- ───────────── TAB: SIGNATUREN ───────────── -->
     <template v-if="activeTab === 'signaturen'">
       <!-- Search + inline filter + count -->
-      <Toolbar>
+      <Toolbar class="sig-toolbar">
         <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount">
           <FilterGroup label="Standort">
             <FilterChip
@@ -50,13 +50,15 @@
             <FilterChip :active="filters.entity === 'mitarbeiter'" @click="toggleFilter('entity', 'mitarbeiter')">Mitarbeiter</FilterChip>
           </FilterGroup>
         </ToolbarFilter>
-        <SearchBar v-model="search" placeholder="Mitarbeiter, Kunde, Kürzel oder Titel suchen…" class="toolbar-search" />
-        <ToolbarLabel>{{ filteredVorgaenge.length }} {{ filteredVorgaenge.length === 1 ? 'Eintrag' : 'Einträge' }}</ToolbarLabel>
-        <ToolbarGroup push-right>
-          <ToolbarButton variant="secondary" @click="openNewSignature">
-            <font-awesome-icon :icon="['fas', 'plus']" /> Neue Signatur
-          </ToolbarButton>
-        </ToolbarGroup>
+        <div class="sig-inner">
+          <SearchBar v-model="search" placeholder="Suchen…" class="toolbar-search" />
+          <ToolbarLabel>{{ filteredVorgaenge.length }} {{ filteredVorgaenge.length === 1 ? 'Eintrag' : 'Einträge' }}</ToolbarLabel>
+          <ToolbarGroup push-right>
+            <ToolbarButton variant="secondary" @click="openNewSignature">
+              <font-awesome-icon :icon="['fas', 'plus']" /> Neue Signatur
+            </ToolbarButton>
+          </ToolbarGroup>
+        </div>
       </Toolbar>
 
       <!-- Type pills -->
@@ -452,6 +454,21 @@ onUnmounted(() => { if (eventSource) eventSource.close(); });
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.sig-toolbar {
+  overflow: visible;
+}
+
+.sig-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
 }
 
 .state {

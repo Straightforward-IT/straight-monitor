@@ -6,14 +6,21 @@
         <font-awesome-icon :icon="[starred ? 'fas' : 'far', 'star']" />
       </button>
 
-      <div class="sc-type-pill" :title="typLabel">
-        <font-awesome-icon :icon="typIcon" />
-        <span>{{ typLabel }}</span>
-      </div>
-
       <div class="sc-main">
-        <div class="sc-name">{{ vorgang.name }}</div>
-        <div class="sc-meta-row">
+        <!-- Row 1: name + status -->
+        <div class="sc-row1">
+          <div class="sc-name">{{ vorgang.name }}</div>
+          <span class="sc-status" :class="`badge-${vorgang.status}`">
+            <font-awesome-icon :icon="statusIcon" />
+            {{ statusLabel }}
+          </span>
+        </div>
+        <!-- Row 2: type · meta pills · progress -->
+        <div class="sc-row2">
+          <div class="sc-type-pill" :title="typLabel">
+            <font-awesome-icon :icon="typIcon" />
+            <span>{{ typLabel }}</span>
+          </div>
           <span v-if="vorgang.kundenKuerzel" class="sc-pill sc-pill--kunde">{{ vorgang.kundenKuerzel }}</span>
           <span v-if="vorgang.mitarbeiterName" class="sc-pill sc-pill--ma">{{ displayMitarbeiter }}</span>
           <span v-if="vorgang.standort" class="sc-pill sc-pill--standort">{{ standortLabel }}</span>
@@ -27,19 +34,13 @@
             <font-awesome-icon :icon="['fas', 'briefcase']" />
             #{{ vorgang.auftragNr }}
           </router-link>
+          <span class="sc-progress-pill" :title="`${signedCount}/${vorgang.submitters.length} unterschrieben`">
+            <span class="sc-progress-bar-mini"><span class="sc-progress-fill-mini" :style="{ width: progressPct + '%' }"></span></span>
+            {{ signedCount }}/{{ vorgang.submitters.length }}
+          </span>
           <span class="sc-date">{{ formatDate(vorgang.createdAt) }}</span>
         </div>
       </div>
-
-      <div class="sc-progress" :title="`${signedCount}/${vorgang.submitters.length} unterschrieben`">
-        <span class="sc-progress-text">{{ signedCount }}/{{ vorgang.submitters.length }}</span>
-        <div class="sc-progress-bar"><div class="sc-progress-fill" :style="{ width: progressPct + '%' }"></div></div>
-      </div>
-
-      <span class="sc-status" :class="`badge-${vorgang.status}`">
-        <font-awesome-icon :icon="statusIcon" />
-        {{ statusLabel }}
-      </span>
 
       <button class="sc-chevron" type="button">
         <font-awesome-icon :icon="['fas', expanded ? 'chevron-up' : 'chevron-down']" />
@@ -293,9 +294,35 @@ function editDraft() {
 .sc-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: 10px;
+  padding: 10px 14px;
   cursor: pointer;
+}
+
+.sc-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+// Row 1: name left, status badge right
+.sc-row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+// Row 2: type pill + meta pills, single non-wrapping line
+.sc-row2 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  flex-wrap: nowrap;
 }
 
 .sc-star {
@@ -310,23 +337,25 @@ function editDraft() {
 }
 
 .sc-type-pill {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 4px;
+  padding: 2px 8px;
   border-radius: 20px;
   background: color-mix(in srgb, var(--primary) 10%, transparent);
   color: var(--primary);
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   font-weight: 700;
   flex-shrink: 0;
-  max-width: 140px;
-  span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  white-space: nowrap;
+  span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
 }
 
 .sc-main { flex: 1; min-width: 0; }
 .sc-name {
-  font-size: 0.92rem;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
@@ -358,29 +387,46 @@ function editDraft() {
     &:hover { background: color-mix(in srgb, #6366f1 24%, transparent); }
   }
 }
-.sc-date { font-size: 0.72rem; color: var(--muted); }
+.sc-date { font-size: 0.68rem; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
 
-.sc-progress {
-  flex-shrink: 0;
-  width: 70px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+// Inline progress pill in row 2
+.sc-progress-pill {
+  display: inline-flex;
   align-items: center;
-  .sc-progress-text { font-size: 0.68rem; color: var(--muted); font-weight: 600; }
-  .sc-progress-bar { width: 100%; height: 4px; background: var(--hover); border-radius: 3px; overflow: hidden; }
-  .sc-progress-fill { height: 100%; background: var(--primary); transition: width 0.3s; }
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.sc-progress-bar-mini {
+  width: 28px;
+  height: 3px;
+  background: var(--hover);
+  border-radius: 2px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+}
+.sc-progress-fill-mini {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  border-radius: 2px;
+  transition: width 0.3s;
 }
 
 .sc-status {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
+  gap: 4px;
+  padding: 2px 8px;
   border-radius: 20px;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   flex-shrink: 0;
+  white-space: nowrap;
   &.badge-completed { background: color-mix(in srgb, #10b981 16%, transparent); color: #10b981; }
   &.badge-open { background: color-mix(in srgb, #f59e0b 16%, transparent); color: #f59e0b; }
   &.badge-draft { background: var(--hover); color: var(--muted); }

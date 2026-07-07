@@ -19,7 +19,7 @@
       
       <!-- Übersicht Tab (Alle außer Status 1) -->
       <div v-if="currentTab === 'overview'" class="tab-content">
-        <Toolbar>
+        <Toolbar class="kunden-toolbar">
           <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
             <FilterGroup label="Geschäftsstelle">
               <FilterChip :active="filters.geschSt === '1'" @click="setGeschStFilter(filters.geschSt === '1' ? null : '1')">Berlin</FilterChip>
@@ -142,7 +142,7 @@
 
       <!-- Kontakte Tab (Microsoft Graph Contacts) -->
       <div v-if="currentTab === 'kontakte'" class="tab-content">
-        <Toolbar>
+        <Toolbar class="kunden-toolbar">
           <ToolbarFilter v-model="contactFilterExpanded" :active-count="contactActiveFilterCount" @reset="resetContactFilters">
             <FilterGroup label="Standort">
               <FilterChip :active="contactFilters.team === 'berlin'" @click="toggleContactTeam('berlin')">Berlin</FilterChip>
@@ -925,6 +925,10 @@ watch(currentTab, (tab) => {
 .content-section--flush {
   padding: 0;
   overflow: clip;
+}
+
+.kunden-toolbar {
+  overflow: visible;
 }
 
 .kunden-grid {
