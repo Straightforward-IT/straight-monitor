@@ -59,7 +59,7 @@
           <font-awesome-icon v-if="isSelected(k)" :icon="['fas', 'check']" class="kunde-search__check" />
           <span class="kunde-search__item-name">
             <span v-if="k.kuerzel" class="kunde-search__kuerzel">{{ k.kuerzel }}</span>
-            <span v-if="k.kundenNr" class="kunde-search__nr">{{ k.kundenNr }}</span>
+            <span v-if="k.kostenSt" class="kunde-search__nr">{{ { '1': 'Berlin', '2': 'Hamburg', '3': 'Köln' }[k.kostenSt] ?? k.kostenSt }}</span>
             {{ k.kundName }}
           </span>
           <span class="kunde-search__metric">
