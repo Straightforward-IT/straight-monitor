@@ -1698,9 +1698,8 @@ async function syncRankGroups(mitarbeiterList) {
 
         // Kein Geburtstag: Geburtstags-Gruppe nur entfernen wenn sie aktiv war (vermeidet 429er)
         if (ma.birthdayGroupActive) {
-          await flipUser.removeFromGroup(BIRTHDAY_GROUP_ID);
-          await Mitarbeiter.updateOne({ _id: ma._id }, { birthdayGroupActive: false });
-          // Rang-Gruppe als Primary wiederherstellen (auch wenn Rang unverändert)
+          // Erst Rang-Gruppe als Primary setzen, DANN aus Geburtstags-Gruppe entfernen
+          // (Flip erlaubt kein Löschen der aktuellen Primary-Gruppe)
           await flipUser.addToGroup(tier.groupId, { setPrimary: true });
           const otherRankGroupIds = RANKS
             .filter(r => r.groupId !== tier.groupId)
@@ -1708,6 +1707,9 @@ async function syncRankGroups(mitarbeiterList) {
           for (const oldGroupId of otherRankGroupIds) {
             await flipUser.removeFromGroup(oldGroupId);
           }
+          // Jetzt wo Rang-Gruppe Primary ist, komplett aus Geburtstags-Gruppe entfernen
+          await flipUser.removeFromGroup(BIRTHDAY_GROUP_ID);
+          await Mitarbeiter.updateOne({ _id: ma._id }, { birthdayGroupActive: false });
           logs.push(`🎂↩ ${ma.vorname} ${ma.nachname}: Geburtstags-Gruppe entfernt, Rang ${tier.key} wiederhergestellt`);
           promoted++;
           return;
