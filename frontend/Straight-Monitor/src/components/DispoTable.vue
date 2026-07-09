@@ -1269,6 +1269,9 @@
           <button class="ctx-item" @click="focusNotizFromNameMenu">
             <font-awesome-icon icon="fa-solid fa-sticky-note" class="ctx-item-icon" /> Notiz bearbeiten
           </button>
+          <button class="ctx-item ctx-item--verfuegbarkeit" @click="openVerfModal">
+            <font-awesome-icon icon="fa-solid fa-calendar-plus" class="ctx-item-icon" /> Verfügbarkeiten eintragen
+          </button>
           <button
             v-if="nameMenu.ma?.telefon"
             class="ctx-item ctx-item--phone ctx-item--phone-copy"
@@ -1302,6 +1305,91 @@
       :mitarbeiterId="cardModal.open ? cardModal.mitarbeiterId : null"
       @close="closeCardModal"
     />
+
+    <!-- Verfügbarkeiten Bulk Modal -->
+    <teleport to="body">
+      <div v-if="verfModal.open" class="modal-overlay" @click="closeVerfModal">
+        <div class="verf-modal" @click.stop>
+          <div class="verf-modal-header">
+            <div class="verf-modal-title">
+              <font-awesome-icon icon="fa-solid fa-calendar-plus" />
+              Verfügbarkeiten — {{ verfModal.ma?.vorname }} {{ verfModal.ma?.nachname }}
+            </div>
+            <button class="close-btn" @click="closeVerfModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
+          </div>
+          <div class="verf-modal-body">
+            <!-- Type selector -->
+            <div class="verf-type-row">
+              <button
+                v-for="t in verfTypOptions"
+                :key="t.value"
+                class="verf-type-btn"
+                :class="['verf-type-btn--' + t.value, { active: verfModal.typ === t.value }]"
+                @click="verfModal.typ = t.value"
+              >
+                <font-awesome-icon :icon="t.icon" />
+                {{ t.label }}
+              </button>
+            </div>
+
+            <!-- Date range rows -->
+            <div class="verf-rows">
+              <div v-for="(row, i) in verfModal.rows" :key="i" class="verf-row">
+                <div class="verf-row-main">
+                  <div class="verf-row-dates">
+                    <div class="verf-row-field">
+                      <label>Von</label>
+                      <input type="date" v-model="row.von" :class="{ 'has-error': row.error }" />
+                    </div>
+                    <span class="verf-row-sep">–</span>
+                    <div class="verf-row-field">
+                      <label>Bis</label>
+                      <input type="date" v-model="row.bis" :class="{ 'has-error': row.error }" />
+                    </div>
+                  </div>
+                  <div v-if="!isVerfAbsence" class="verf-row-times">
+                    <div class="verf-row-field verf-row-field--time">
+                      <label>Zeit von</label>
+                      <input type="time" v-model="row.zeitVon" placeholder="–" />
+                    </div>
+                    <div class="verf-row-field verf-row-field--time">
+                      <label>Zeit bis</label>
+                      <input type="time" v-model="row.zeitBis" placeholder="–" />
+                    </div>
+                  </div>
+                  <button class="verf-row-remove" @click="removeVerfRow(i)" title="Entfernen">
+                    <font-awesome-icon icon="fa-solid fa-times" />
+                  </button>
+                </div>
+                <div v-if="row.error" class="verf-row-error">
+                  <font-awesome-icon icon="fa-solid fa-triangle-exclamation" /> {{ row.error }}
+                </div>
+              </div>
+            </div>
+
+            <button class="verf-add-row-btn" @click="addVerfRow">
+              <font-awesome-icon icon="fa-solid fa-plus" /> Zeitraum hinzufügen
+            </button>
+
+            <div v-if="verfModal.globalError" class="verf-global-error">
+              <font-awesome-icon icon="fa-solid fa-triangle-exclamation" /> {{ verfModal.globalError }}
+            </div>
+          </div>
+          <div class="verf-modal-footer">
+            <button class="verf-cancel-btn" @click="closeVerfModal">Abbrechen</button>
+            <button
+              class="verf-submit-btn"
+              :disabled="verfModal.saving || !verfModal.rows.length"
+              @click="submitVerfModal"
+            >
+              <font-awesome-icon v-if="verfModal.saving" icon="fa-solid fa-spinner" spin />
+              <font-awesome-icon v-else icon="fa-solid fa-check" />
+              {{ verfModal.rows.length }} Zeitraum{{ verfModal.rows.length !== 1 ? 'e' : '' }} speichern
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
 
     <!-- Kundenwunsch Modal -->
     <teleport to="body">
@@ -1989,6 +2077,14 @@ function onQualKeydown(e) {
   }
 }
 
+const verfTypOptions = [
+  { value: 'available', label: 'Verfügbar', icon: 'fa-solid fa-check' },
+  { value: 'partially', label: 'Eingeschränkt', icon: 'fa-solid fa-circle-half-stroke' },
+  { value: 'blocked', label: 'Blocked', icon: 'fa-solid fa-xmark' },
+  { value: 'urlaub', label: 'Urlaub', icon: 'fa-solid fa-umbrella-beach' },
+  { value: 'krank', label: 'Krank', icon: 'fa-solid fa-briefcase-medical' },
+];
+
 const statusOptions = [
   { value: 'available', label: 'Verfügbar', icon: 'fa-solid fa-check' },
   { value: 'partially', label: 'Eingeschränkt', icon: 'fa-solid fa-circle-half-stroke' },
@@ -2197,6 +2293,110 @@ function focusNotizFromNameMenu() {
   nextTick(() => {
     document.querySelector(`[data-mobile-notiz-ma="${id}"]`)?.focus();
   });
+}
+
+// ─── Verfügbarkeiten Bulk Modal ───
+const verfModal = reactive({
+  open: false,
+  ma: null,
+  typ: 'available',
+  rows: [],
+  saving: false,
+  globalError: '',
+});
+
+const isVerfAbsence = computed(() =>
+  verfModal.typ === 'urlaub' || verfModal.typ === 'krank'
+);
+
+function openVerfModal() {
+  const ma = nameMenu.ma;
+  closeNameMenu();
+  if (!ma) return;
+  verfModal.ma = ma;
+  verfModal.typ = 'available';
+  verfModal.rows = [_createVerfRow()];
+  verfModal.saving = false;
+  verfModal.globalError = '';
+  verfModal.open = true;
+}
+
+function closeVerfModal() {
+  verfModal.open = false;
+  verfModal.ma = null;
+  verfModal.rows = [];
+  verfModal.globalError = '';
+}
+
+function _createVerfRow() {
+  return { von: '', bis: '', zeitVon: '', zeitBis: '', error: '' };
+}
+
+function addVerfRow() {
+  verfModal.rows.push(_createVerfRow());
+}
+
+function removeVerfRow(i) {
+  verfModal.rows.splice(i, 1);
+}
+
+function _validateVerfRows() {
+  let valid = true;
+  for (const row of verfModal.rows) row.error = '';
+
+  // Validate individual rows
+  for (const row of verfModal.rows) {
+    if (!row.von) { row.error = 'Startdatum fehlt'; valid = false; continue; }
+    if (!row.bis) { row.error = 'Enddatum fehlt'; valid = false; continue; }
+    if (row.von > row.bis) { row.error = 'Startdatum muss vor oder gleich Enddatum liegen'; valid = false; }
+  }
+  if (!valid) return false;
+
+  // Check for overlaps between rows
+  const rows = verfModal.rows;
+  for (let i = 0; i < rows.length; i++) {
+    for (let j = i + 1; j < rows.length; j++) {
+      if (rows[i].von <= rows[j].bis && rows[j].von <= rows[i].bis) {
+        rows[i].error = 'Überschneidung mit einem anderen Zeitraum';
+        rows[j].error = 'Überschneidung mit einem anderen Zeitraum';
+        valid = false;
+      }
+    }
+  }
+  return valid;
+}
+
+async function submitVerfModal() {
+  verfModal.globalError = '';
+  if (!_validateVerfRows()) return;
+
+  const absence = isVerfAbsence.value;
+  const maId = verfModal.ma._id;
+  verfModal.saving = true;
+  try {
+    const created = [];
+    for (const row of verfModal.rows) {
+      const payload = { mitarbeiter: maId, datumVon: row.von, datumBis: row.bis };
+      if (absence) {
+        payload.typ = 'abwesenheit';
+        payload.abwesenheitsKategorie = verfModal.typ;
+      } else {
+        payload.typ = 'verfuegbarkeit';
+        payload.verfuegbarkeit = verfModal.typ;
+        if (row.zeitVon) payload.zeitVon = row.zeitVon;
+        if (row.zeitBis) payload.zeitBis = row.zeitBis;
+      }
+      const { data } = await api.post('/api/dispo', payload);
+      created.push(data);
+    }
+    localAddEntries(created);
+    closeVerfModal();
+  } catch (err) {
+    console.error('Verfügbarkeiten eintragen fehlgeschlagen:', err);
+    verfModal.globalError = 'Fehler beim Speichern. Bitte erneut versuchen.';
+  } finally {
+    verfModal.saving = false;
+  }
 }
 
 function closeCardModal() {
@@ -7566,5 +7766,264 @@ function onNameTouchEnd() {
   opacity: 0;
 
   .m-sheet { transform: translateY(100%); }
+}
+
+// ─── Verfügbarkeiten Bulk Modal ───
+.verf-modal {
+  background: var(--modal-bg, #fff);
+  border-radius: 14px;
+  width: 560px;
+  max-width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.verf-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.verf-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+
+  svg { color: var(--primary); }
+}
+
+.verf-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.verf-type-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.verf-type-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+
+  &:hover { border-color: var(--text); color: var(--text); }
+
+  &--available.active  { border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.08); }
+  &--partially.active  { border-color: #f59e0b; color: #f59e0b; background: rgba(245, 158, 11, 0.08); }
+  &--blocked.active    { border-color: #ef4444; color: #ef4444; background: rgba(239, 68, 68, 0.08); }
+  &--urlaub.active     { border-color: #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.08); }
+  &--krank.active      { border-color: #a855f7; color: #a855f7; background: rgba(168, 85, 247, 0.08); }
+}
+
+.verf-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.verf-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  transition: border-color 0.15s;
+
+  &:has(.has-error) { border-color: #ef444470; }
+}
+
+.verf-row-main {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.verf-row-dates {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.verf-row-times {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.verf-row-sep {
+  font-size: 14px;
+  color: var(--muted);
+  padding-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.verf-row-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  input[type="date"],
+  input[type="time"] {
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+
+    &:focus { border-color: var(--primary); }
+    &.has-error { border-color: #ef4444; }
+  }
+
+  &--time input { width: 102px; }
+}
+
+.verf-row-remove {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  margin-bottom: 1px;
+  transition: color 0.15s, background 0.15s;
+
+  &:hover { color: #ef4444; background: rgba(239, 68, 68, 0.08); }
+}
+
+.verf-row-error {
+  font-size: 11px;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.verf-add-row-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(238, 175, 103, 0.06);
+  }
+}
+
+.verf-global-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #ef4444;
+}
+
+.verf-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.verf-cancel-btn {
+  padding: 7px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+
+  &:hover { color: var(--text); border-color: var(--text); }
+}
+
+.verf-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 18px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+  &:hover:not(:disabled) { opacity: 0.88; }
+}
+
+.ctx-item--verfuegbarkeit {
+  color: var(--primary);
 }
 </style>

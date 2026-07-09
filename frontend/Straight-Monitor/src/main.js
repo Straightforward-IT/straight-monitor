@@ -43,7 +43,7 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faTableCells,
   faBolt,
   faLayerGroup,
-  faFileSignature,
+  faFileSignature, faCalendarPlus,
   faEye,
   faBoxArchive, faPalette,
   faShieldHalved,
@@ -62,7 +62,7 @@ library.add(
   faCopy, faLink, faUnlink, faRotateRight, faHourglassHalf, faClock, faPaperPlane, faCalendar, faCalendarAlt, faCalendarDays,
   faUnlock, faLock, faTrophy, faDice, faInbox, faStar, faUserTie, faGraduationCap, faFileCirclePlus, faCircleQuestion,
   // Customer & Sort Icons
-  faBuilding, faBullseye, faSortAlphaDown, faSortAlphaUp, faSortNumericDown, faSortNumericUp, faPaperclip,
+  faBuilding, faBullseye, faSortAlphaDown, faSortAlphaUp, faSortNumericDown, faSortNumericUp, faPaperclip, faCalendarPlus,
   // Customer Card Icons
   faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faThLarge, faFileImport, faBookmark, faGripVertical,
   // Merge Icon
