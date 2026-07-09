@@ -170,54 +170,147 @@
               </div>
             </div>
 
-            <!-- Dispo-Notiz -->
-            <div class="dispo-notiz-section">
-              <div class="dispo-notiz-header">
-                <span class="kw-section-label">Notiz</span>
-                <button v-if="!editingDispoNotiz" class="dispo-notiz-edit-btn" @click.stop="startEditDispoNotiz" title="Notiz bearbeiten">
-                  <font-awesome-icon icon="fa-solid fa-pen" />
-                </button>
-              </div>
-              <template v-if="editingDispoNotiz">
-                <textarea v-model="dispoNotizDraft" class="dispo-notiz-textarea" rows="3" placeholder="Interne Notiz…" @keydown.esc="cancelDispoNotiz" />
-                <div class="dispo-notiz-actions">
-                  <button class="btn btn-sm" @click.stop="saveDispoNotiz" :disabled="savingDispoNotiz">
-                    <font-awesome-icon v-if="savingDispoNotiz" icon="fa-solid fa-spinner" class="fa-spin" />
-                    <span v-else>Speichern</span>
-                  </button>
-                  <button class="btn btn-sm btn-ghost" @click.stop="cancelDispoNotiz">Abbrechen</button>
-                </div>
-              </template>
-              <p v-else class="dispo-notiz-text" @click.stop="startEditDispoNotiz" :class="{ 'dispo-notiz-text--empty': !resolvedMa.dispoNotiz }">
-                {{ resolvedMa.dispoNotiz || 'Notiz hinzufügen…' }}
-              </p>
-            </div>
+            <!-- Calendar + Notiz/Chronik: two-column on desktop -->
+            <div class="dispo-cal-layout">
 
-            <!-- Chronik -->
-            <div class="chronik-section">
-              <div class="kw-section-label">Chronik</div>
-              <div v-if="loadingChronik" class="chronik-loading">
-                <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" /> Lade…
+              <!-- Mini calendar -->
+              <div class="dispo-mini-cal">
+                <!-- Navigation spanning both months -->
+                <div class="dispo-cal-nav">
+                  <button class="dispo-cal-nav-btn" @click.stop="prevCalMonth">
+                    <font-awesome-icon icon="fa-solid fa-chevron-left" />
+                  </button>
+                  <span class="dispo-cal-month-label">{{ calendarMonthName }}</span>
+                  <span class="dispo-cal-month-sep">–</span>
+                  <span class="dispo-cal-month-label">{{ calendarMonthNameNext }}</span>
+                  <button class="dispo-cal-nav-btn" @click.stop="nextCalMonth">
+                    <font-awesome-icon icon="fa-solid fa-chevron-right" />
+                  </button>
+                </div>
+
+                <!-- Two months side by side -->
+                <div class="dispo-two-months">
+                  <!-- Current month -->
+                  <div class="dispo-cal-grid dispo-cal-grid--sm">
+                    <div v-for="wd in ['Mo','Di','Mi','Do','Fr','Sa','So']" :key="'a'+wd" class="dispo-cal-wd">{{ wd }}</div>
+                    <div
+                      v-for="(day, i) in calendarDays"
+                      :key="i"
+                      class="dispo-cal-day"
+                      :class="{
+                        'dispo-cal-day--other':      !day.isCurrentMonth,
+                        'dispo-cal-day--today':       day.isToday,
+                        'dispo-cal-day--has-einsatz': day.einsaetze.length > 0,
+                        'dispo-cal-day--selected':    calendarSelectedDay === day,
+                      }"
+                      @click.stop="onCalDayClick(day)"
+                    >
+                      <span class="dispo-cal-day-num">{{ day.number }}</span>
+                      <div v-if="day.einsaetze.length > 0" class="dispo-cal-dots">
+                        <span v-for="(_, di) in Math.min(day.einsaetze.length, 3)" :key="di" class="dispo-cal-dot" />
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Next month -->
+                  <div class="dispo-cal-grid dispo-cal-grid--sm">
+                    <div v-for="wd in ['Mo','Di','Mi','Do','Fr','Sa','So']" :key="'b'+wd" class="dispo-cal-wd">{{ wd }}</div>
+                    <div
+                      v-for="(day, i) in calendarDaysNext"
+                      :key="'n'+i"
+                      class="dispo-cal-day"
+                      :class="{
+                        'dispo-cal-day--other':      !day.isCurrentMonth,
+                        'dispo-cal-day--today':       day.isToday,
+                        'dispo-cal-day--has-einsatz': day.einsaetze.length > 0,
+                        'dispo-cal-day--selected':    calendarSelectedDay === day,
+                      }"
+                      @click.stop="onCalDayClick(day)"
+                    >
+                      <span class="dispo-cal-day-num">{{ day.number }}</span>
+                      <div v-if="day.einsaetze.length > 0" class="dispo-cal-dots">
+                        <span v-for="(_, di) in Math.min(day.einsaetze.length, 3)" :key="di" class="dispo-cal-dot" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="calendarLoading" class="dispo-cal-loading">
+                  <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" />
+                </div>
+                <transition name="expand">
+                  <div v-if="calendarSelectedDay" class="dispo-cal-detail">
+                    <div class="dispo-cal-detail-date">{{ formatCalSelectedDate }}</div>
+                    <template v-if="calendarSelectedDay.einsaetze.length > 0">
+                      <div
+                        v-for="e in calendarSelectedDay.einsaetze"
+                        :key="e._id"
+                        class="dispo-cal-detail-item dispo-cal-detail-item--link"
+                        @click.stop="openCalEinsatz(e)"
+                      >
+                        <span v-if="e.uhrzeitVon" class="dispo-cal-detail-time">
+                          {{ formatCalTime(e.uhrzeitVon) }}{{ e.uhrzeitBis ? '–' + formatCalTime(e.uhrzeitBis) : '' }}
+                        </span>
+                        <span class="dispo-cal-detail-name">{{ e.auftrag?.eventTitel || e.bezeichnung || `#${e.auftragNr}` }}</span>
+                        <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" class="dispo-cal-detail-arrow" />
+                      </div>
+                    </template>
+                    <p v-else class="dispo-cal-detail-empty">Keine Einsätze</p>
+                  </div>
+                </transition>
               </div>
-              <ul v-else-if="chronik.length > 0" class="chronik-list">
-                <li v-for="entry in chronik" :key="entry._id" class="chronik-entry">
-                  <div class="chronik-meta">
-                    <span class="chronik-author">{{ entry.author }}</span>
-                    <span class="chronik-date">{{ formatDate(entry.createdAt) }}</span>
-                    <button class="chronik-delete-btn" @click.stop="deleteChronikEntry(entry._id)" title="Eintrag löschen">
-                      <font-awesome-icon icon="fa-solid fa-trash" />
+
+              <!-- Notiz + Chronik -->
+              <div class="dispo-notiz-col">
+                <!-- Dispo-Notiz -->
+                <div class="dispo-notiz-section">
+                  <div class="dispo-notiz-header">
+                    <span class="kw-section-label">Notiz</span>
+                    <button v-if="!editingDispoNotiz" class="dispo-notiz-edit-btn" @click.stop="startEditDispoNotiz" title="Notiz bearbeiten">
+                      <font-awesome-icon icon="fa-solid fa-pen" />
                     </button>
                   </div>
-                  <p class="chronik-text">{{ entry.text }}</p>
-                </li>
-              </ul>
-              <p v-else class="ec-none">Keine Einträge</p>
-              <div class="chronik-add">
-                <textarea v-model="newChronikText" class="dispo-notiz-textarea" rows="2" placeholder="Neuer Chronik-Eintrag…" />
-                <button class="btn btn-sm" @click.stop="addChronikEntry" :disabled="!newChronikText.trim() || savingChronik">
-                  <font-awesome-icon v-if="savingChronik" icon="fa-solid fa-spinner" class="fa-spin" />
-                  <span v-else>Senden</span>
-                </button>
+                  <template v-if="editingDispoNotiz">
+                    <textarea v-model="dispoNotizDraft" class="dispo-notiz-textarea" rows="3" placeholder="Interne Notiz…" @keydown.esc="cancelDispoNotiz" />
+                    <div class="dispo-notiz-actions">
+                      <button class="btn btn-sm" @click.stop="saveDispoNotiz" :disabled="savingDispoNotiz">
+                        <font-awesome-icon v-if="savingDispoNotiz" icon="fa-solid fa-spinner" class="fa-spin" />
+                        <span v-else>Speichern</span>
+                      </button>
+                      <button class="btn btn-sm btn-ghost" @click.stop="cancelDispoNotiz">Abbrechen</button>
+                    </div>
+                  </template>
+                  <p v-else class="dispo-notiz-text" @click.stop="startEditDispoNotiz" :class="{ 'dispo-notiz-text--empty': !resolvedMa.dispoNotiz }">
+                    {{ resolvedMa.dispoNotiz || 'Notiz hinzufügen…' }}
+                  </p>
+                </div>
+
+                <!-- Chronik -->
+                <div class="chronik-section">
+                  <div class="kw-section-label">Chronik</div>
+                  <div v-if="loadingChronik" class="chronik-loading">
+                    <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" /> Lade…
+                  </div>
+                  <ul v-else-if="chronik.length > 0" class="chronik-list">
+                    <li v-for="entry in chronik" :key="entry._id" class="chronik-entry">
+                      <div class="chronik-meta">
+                        <span class="chronik-author">{{ entry.author }}</span>
+                        <span class="chronik-date">{{ formatDate(entry.createdAt) }}</span>
+                        <button class="chronik-delete-btn" @click.stop="deleteChronikEntry(entry._id)" title="Eintrag löschen">
+                          <font-awesome-icon icon="fa-solid fa-trash" />
+                        </button>
+                      </div>
+                      <p class="chronik-text">{{ entry.text }}</p>
+                    </li>
+                  </ul>
+                  <p v-else class="ec-none">Keine Einträge</p>
+                  <div class="chronik-add">
+                    <textarea v-model="newChronikText" class="dispo-notiz-textarea" rows="2" placeholder="Neuer Chronik-Eintrag…" />
+                    <button class="btn btn-sm" @click.stop="addChronikEntry" :disabled="!newChronikText.trim() || savingChronik">
+                      <font-awesome-icon v-if="savingChronik" icon="fa-solid fa-spinner" class="fa-spin" />
+                      <span v-else>Senden</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1699,6 +1792,12 @@ export default {
       editingDispoNotiz: false,
       dispoNotizDraft: '',
       savingDispoNotiz: false,
+      // Mini-calendar
+      calendarEinsaetze: [],
+      calendarLoading: false,
+      calendarYear: new Date().getFullYear(),
+      calendarMonth: new Date().getMonth(),
+      calendarSelectedDay: null,
     };
   },
 
@@ -1778,6 +1877,92 @@ export default {
       }
       return Object.values(holdings).filter(h => h.net > 0);
     },
+    // Mini-calendar
+    calendarMonthName() {
+      return new Date(this.calendarYear, this.calendarMonth)
+        .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    },
+    calendarDays() {
+      const days = [];
+      const year = this.calendarYear;
+      const month = this.calendarMonth;
+      const firstDay = new Date(year, month, 1);
+      const lastDay  = new Date(year, month + 1, 0);
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+
+      let startDow = firstDay.getDay() - 1;
+      if (startDow === -1) startDow = 6;
+      const prevLastDay = new Date(year, month, 0);
+      for (let i = startDow - 1; i >= 0; i--) {
+        const date = new Date(year, month - 1, prevLastDay.getDate() - i);
+        days.push({ number: date.getDate(), date, isCurrentMonth: false, isToday: false, einsaetze: [] });
+      }
+      for (let day = 1; day <= lastDay.getDate(); day++) {
+        const date = new Date(year, month, day);
+        const dt = new Date(date); dt.setHours(0, 0, 0, 0);
+        const einsaetze = this.calendarEinsaetze.filter(e => {
+          const von = new Date(e.datumVon); von.setHours(0, 0, 0, 0);
+          const bis = new Date(e.datumBis || e.datumVon); bis.setHours(23, 59, 59, 999);
+          return dt >= von && dt <= bis;
+        });
+        days.push({ number: day, date, isCurrentMonth: true, isToday: dt.getTime() === today.getTime(), einsaetze });
+      }
+      const remaining = 42 - days.length;
+      for (let day = 1; day <= remaining; day++) {
+        const date = new Date(year, month + 1, day);
+        days.push({ number: day, date, isCurrentMonth: false, isToday: false, einsaetze: [] });
+      }
+      return days;
+    },
+    formatCalSelectedDate() {
+      if (!this.calendarSelectedDay) return '';
+      const d = this.calendarSelectedDay.date;
+      if (d.toDateString() === new Date().toDateString()) return 'Heute';
+      return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    },
+    // Next month helpers
+    calendarYearNext() {
+      return this.calendarMonth === 11 ? this.calendarYear + 1 : this.calendarYear;
+    },
+    calendarMonthNext() {
+      return (this.calendarMonth + 1) % 12;
+    },
+    calendarMonthNameNext() {
+      return new Date(this.calendarYearNext, this.calendarMonthNext)
+        .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    },
+    calendarDaysNext() {
+      const days = [];
+      const year = this.calendarYearNext;
+      const month = this.calendarMonthNext;
+      const firstDay = new Date(year, month, 1);
+      const lastDay  = new Date(year, month + 1, 0);
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+
+      let startDow = firstDay.getDay() - 1;
+      if (startDow === -1) startDow = 6;
+      const prevLastDay = new Date(year, month, 0);
+      for (let i = startDow - 1; i >= 0; i--) {
+        const date = new Date(year, month - 1, prevLastDay.getDate() - i);
+        days.push({ number: date.getDate(), date, isCurrentMonth: false, isToday: false, einsaetze: [] });
+      }
+      for (let day = 1; day <= lastDay.getDate(); day++) {
+        const date = new Date(year, month, day);
+        const dt = new Date(date); dt.setHours(0, 0, 0, 0);
+        const einsaetze = this.calendarEinsaetze.filter(e => {
+          const von = new Date(e.datumVon); von.setHours(0, 0, 0, 0);
+          const bis = new Date(e.datumBis || e.datumVon); bis.setHours(23, 59, 59, 999);
+          return dt >= von && dt <= bis;
+        });
+        days.push({ number: day, date, isCurrentMonth: true, isToday: dt.getTime() === today.getTime(), einsaetze });
+      }
+      const remaining = 42 - days.length;
+      for (let day = 1; day <= remaining; day++) {
+        const date = new Date(year, month + 1, day);
+        days.push({ number: day, date, isCurrentMonth: false, isToday: false, einsaetze: [] });
+      }
+      return days;
+    },
   },
 
   watch: {
@@ -1833,6 +2018,9 @@ export default {
       if (this.chronik.length === 0 && !this.loadingChronik) {
         this.loadChronik();
       }
+      if (this.calendarEinsaetze.length === 0 && !this.calendarLoading) {
+        this._loadCalMonth();
+      }
     }
   },
 
@@ -1875,6 +2063,9 @@ export default {
           if (this.chronik.length === 0 && !this.loadingChronik) {
             this.loadChronik();
           }
+          if (this.calendarEinsaetze.length === 0 && !this.calendarLoading) {
+            this._loadCalMonth();
+          }
         }
       } catch (err) {
         console.error('[EmployeeCard] loadSelf failed:', err);
@@ -1904,6 +2095,9 @@ export default {
         }
         if (this.chronik.length === 0 && !this.loadingChronik) {
           this.loadChronik();
+        }
+        if (this.calendarEinsaetze.length === 0 && !this.calendarLoading) {
+          this._loadCalMonth();
         }
       }
     },
@@ -2068,6 +2262,73 @@ export default {
     },
 
     // ─── Dispo / Einsatz-Kontext ─────────────────────────────────────────────────
+    async _loadCalMonthFor(year, month) {
+      const key = `${year}-${month}`;
+      if (!this._calFetchedMonths) this._calFetchedMonths = new Set();
+      if (this._calFetchedMonths.has(key)) return;
+      this._calFetchedMonths.add(key);
+      try {
+        const from = new Date(year, month, 1).toISOString();
+        const to   = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+        const { data } = await api.get(`/api/dispo?von=${from}&bis=${to}`);
+        const maId = String(this.resolvedMa._id);
+        const newEntries = (data.eintraege || []).filter(e => {
+          const id = typeof e.mitarbeiter === 'object'
+            ? String(e.mitarbeiter?._id || e.mitarbeiter) : String(e.mitarbeiter);
+          return id === maId && (e.typ === 'planned' || e._source === 'einsatz');
+        });
+        const existing = new Set(this.calendarEinsaetze.map(e => String(e._id)));
+        const toAdd = newEntries.filter(e => !existing.has(String(e._id)));
+        if (toAdd.length) this.calendarEinsaetze = [...this.calendarEinsaetze, ...toAdd];
+      } catch (err) {
+        console.error('Calendar load failed:', err);
+        if (this._calFetchedMonths) this._calFetchedMonths.delete(key);
+      }
+    },
+    async _loadCalMonth() {
+      if (!this.resolvedMa?._id) return;
+      this.calendarLoading = true;
+      try {
+        await Promise.all([
+          this._loadCalMonthFor(this.calendarYear, this.calendarMonth),
+          this._loadCalMonthFor(this.calendarYearNext, this.calendarMonthNext),
+        ]);
+      } finally {
+        this.calendarLoading = false;
+      }
+    },
+    prevCalMonth() {
+      if (this.calendarMonth === 0) { this.calendarMonth = 11; this.calendarYear--; }
+      else this.calendarMonth--;
+      this.calendarSelectedDay = null;
+      this._loadCalMonth();
+    },
+    nextCalMonth() {
+      if (this.calendarMonth === 11) { this.calendarMonth = 0; this.calendarYear++; }
+      else this.calendarMonth++;
+      this.calendarSelectedDay = null;
+      this._loadCalMonth();
+    },
+    onCalDayClick(day) {
+      if (!day.isCurrentMonth) return;
+      this.calendarSelectedDay = this.calendarSelectedDay === day ? null : day;
+    },
+    formatCalTime(val) {
+      if (!val) return '';
+      if (typeof val === 'string' && /^\d{1,2}:\d{2}/.test(val)) return val.substring(0, 5);
+      return '';
+    },
+    openCalEinsatz(e) {
+      if (!e.auftragNr) return;
+      const focusDate = e.datumVon
+        ? new Date(e.datumVon).toISOString().slice(0, 10)
+        : undefined;
+      this.$router.push({
+        path: '/auftraege',
+        query: { auftragnr: String(e.auftragNr), ...(focusDate ? { focusDate } : {}) },
+      });
+    },
+
     async loadEinsatzContext() {
       if (!this.resolvedMa?._id) return;
       this.loadingEinsatzContext = true;
@@ -5616,6 +5877,213 @@ export default {
 /* Quick Actions Wrapper in header */
 .quick-actions-wrapper {
   position: relative;
+}
+
+/* ── Dispo mini-calendar layout ──────────────────────────────────────────────── */
+.dispo-cal-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+
+  @media (max-width: 700px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dispo-mini-cal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dispo-cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  gap: 4px;
+}
+
+.dispo-cal-month-sep {
+  font-size: 10px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.dispo-two-months {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.dispo-cal-month-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.dispo-cal-nav-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: color 0.15s, background 0.15s;
+  &:hover { color: var(--text); background: var(--hover); }
+}
+
+.dispo-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.dispo-cal-grid--sm {
+  .dispo-cal-wd  { font-size: 7px; }
+  .dispo-cal-day-num { font-size: 8px; }
+  .dispo-cal-dot { width: 2px; height: 2px; }
+}
+
+.dispo-cal-wd {
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  padding: 2px 0 4px;
+}
+
+.dispo-cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s;
+
+  &:hover:not(.dispo-cal-day--other) { background: var(--hover); }
+
+  &--other { opacity: 0.2; cursor: default; pointer-events: none; }
+
+  &--today .dispo-cal-day-num { color: var(--primary); font-weight: 700; }
+
+  &--has-einsatz { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+
+  &--selected {
+    background: var(--primary) !important;
+    .dispo-cal-day-num { color: #fff !important; font-weight: 700; }
+    .dispo-cal-dot { background: rgba(255,255,255,0.8); }
+  }
+}
+
+.dispo-cal-day-num {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text);
+}
+
+.dispo-cal-dots {
+  display: flex;
+  gap: 2px;
+}
+
+.dispo-cal-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.dispo-cal-loading {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.dispo-cal-detail {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dispo-cal-detail-date {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.dispo-cal-detail-item {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 12px;
+
+  &--link {
+    cursor: pointer;
+    border-radius: 5px;
+    padding: 2px 4px;
+    margin: 0 -4px;
+    transition: background 0.12s;
+
+    &:hover {
+      background: var(--hover);
+      .dispo-cal-detail-name { color: var(--primary); }
+      .dispo-cal-detail-arrow { opacity: 1; color: var(--primary); }
+    }
+  }
+}
+
+.dispo-cal-detail-arrow {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 9px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.dispo-cal-detail-time {
+  font-weight: 600;
+  color: var(--primary);
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.dispo-cal-detail-name {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dispo-cal-detail-empty {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  margin: 0;
+}
+
+.dispo-notiz-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 /* Quick Actions Overlay + Menu (teleported to body, so not scoped) */

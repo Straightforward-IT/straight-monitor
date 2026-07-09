@@ -49,6 +49,7 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faShieldHalved,
   faClockRotateLeft,
   faCheckDouble,
+  faScissors,
 } from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle, faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 library.add(
@@ -66,7 +67,7 @@ library.add(
   // Customer Card Icons
   faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faThLarge, faFileImport, faBookmark, faGripVertical,
   // Merge Icon
-  faObjectGroup, faAddressCard, faBinoculars, faTableCells, faCheckDouble, faMousePointer, 
+  faObjectGroup, faAddressCard, faBinoculars, faTableCells, faCheckDouble, faMousePointer, faScissors,
   // Pie Chart Icon
   faChartPie, faPalette, faChartLine, faCommentDots, faComment, faToggleOn, faToggleOff, faArrowUpFromBracket, faCalendarWeek, faBell,
   // Mobile Menu Icons

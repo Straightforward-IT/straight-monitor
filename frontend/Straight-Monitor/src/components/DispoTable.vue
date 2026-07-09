@@ -2383,6 +2383,16 @@ const isVerfAbsence = computed(() =>
   verfModal.typ === 'urlaub' || verfModal.typ === 'krank'
 );
 
+// Clear time fields from all rows when switching to an absence type
+watch(isVerfAbsence, (isAbsence) => {
+  if (isAbsence) {
+    for (const row of verfModal.rows) {
+      row.zeitVon = '';
+      row.zeitBis = '';
+    }
+  }
+});
+
 const verfCalMonthName = computed(() =>
   new Date(verfCalMonth.year, verfCalMonth.month)
     .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
@@ -2683,6 +2693,26 @@ async function submitVerfModal() {
   const maId = verfModal.ma._id;
   verfModal.saving = true;
   try {
+    // ── 1. Delete existing non-einsatz entries that overlap the new ranges ──
+    const toDeleteIds = new Set();
+    for (const row of verfModal.rows) {
+      if (!row.von || !row.bis) continue;
+      let d = row.von;
+      while (d <= row.bis) {
+        for (const e of (eintragMap.value[`${String(maId)}_${d}`] || [])) {
+          if (e.typ !== 'planned' && e._source !== 'einsatz') {
+            toDeleteIds.add(String(e._id));
+          }
+        }
+        d = isoAddDays(d, 1);
+      }
+    }
+    if (toDeleteIds.size > 0) {
+      await Promise.all([...toDeleteIds].map(id => api.delete(`/api/dispo/${id}`)));
+      localRemoveEntries([...toDeleteIds]);
+    }
+
+    // ── 2. Create new entries ──
     const created = [];
     for (const row of verfModal.rows) {
       const payload = { mitarbeiter: maId, datumVon: row.von, datumBis: row.bis };
