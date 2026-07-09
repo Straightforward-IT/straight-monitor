@@ -4430,7 +4430,7 @@ const dispoAnnouncements = [
   {
     id: 'dispo-verf-bulk-v1',
     title: 'Alternative Eintragmöglichkeit für Verfügbarkeit',
-    text: '<strong>Über Rechtsklick auf Mitarbeiter</strong> → <em>Verfügbarkeiten eintragen</em>: Mehrere Datumsbereiche (z.B. 10.10.–16.10. und 18.10.–20.10.) auf einmal anlegen, Typ wählen (Verfügbar, Blocked, Urlaub …) und optional Uhrzeiten angeben.',
+    text: '<strong>Über Rechtsklick auf Mitarbeiter</strong> → <em>Verfügbarkeiten eintragen</em>: Mehrere Datumsbereiche (z.B. 10.10.–16.10. und 18.10.–20.10.) auf einmal anlegen, Typ wählen (Verfügbar, Blocked, Urlaub …) und optional Uhrzeiten angeben.<br>Falls sich die Bereiche überschneiden, kann die Auswahl gesplittet werden. Bestehende Einsatz-Einträge bleiben unberührt.',
   },
 ];
 </script>
