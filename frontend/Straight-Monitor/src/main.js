@@ -43,8 +43,8 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faTableCells,
   faBolt,
   faLayerGroup,
-  faFileSignature, faCalendarPlus,
-  faEye,
+  faFileSignature, faCalendarPlus, faMousePointer, faCalendarWeek,
+  faEye, faBell,
   faBoxArchive, faPalette,
   faShieldHalved,
   faClockRotateLeft,
@@ -66,9 +66,9 @@ library.add(
   // Customer Card Icons
   faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faThLarge, faFileImport, faBookmark, faGripVertical,
   // Merge Icon
-  faObjectGroup, faAddressCard, faBinoculars, faTableCells, faCheckDouble,
+  faObjectGroup, faAddressCard, faBinoculars, faTableCells, faCheckDouble, faMousePointer, 
   // Pie Chart Icon
-  faChartPie, faPalette, faChartLine, faCommentDots, faComment, faToggleOn, faToggleOff, faArrowUpFromBracket,
+  faChartPie, faPalette, faChartLine, faCommentDots, faComment, faToggleOn, faToggleOff, faArrowUpFromBracket, faCalendarWeek, faBell,
   // Mobile Menu Icons
   faBars, faChartLine, faHistory, faTools, faSignOutAlt, faExpand, faExpandAlt, faExpandArrowsAlt, faCompressAlt, faFilter, faEyeSlash,
   // Footer Icons

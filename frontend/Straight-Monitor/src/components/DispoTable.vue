@@ -1107,6 +1107,9 @@
       </teleport>
     </template>
 
+    <!-- Announcements -->
+    <AnnouncementModal :announcements="dispoAnnouncements" />
+
     <!-- Help Modal -->
     <HelpModal v-model="showHelp">
       <template #title>Dispo-Tabelle — Hilfe</template>
@@ -1310,6 +1313,7 @@
     <teleport to="body">
       <div v-if="verfModal.open" class="modal-overlay" @click="closeVerfModal">
         <div class="verf-modal" @click.stop>
+          <!-- Header -->
           <div class="verf-modal-header">
             <div class="verf-modal-title">
               <font-awesome-icon icon="fa-solid fa-calendar-plus" />
@@ -1317,75 +1321,142 @@
             </div>
             <button class="close-btn" @click="closeVerfModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
           </div>
-          <div class="verf-modal-body">
-            <!-- Type selector -->
-            <div class="verf-type-row">
-              <button
-                v-for="t in verfTypOptions"
-                :key="t.value"
-                class="verf-type-btn"
-                :class="['verf-type-btn--' + t.value, { active: verfModal.typ === t.value }]"
-                @click="verfModal.typ = t.value"
-              >
-                <font-awesome-icon :icon="t.icon" />
-                {{ t.label }}
-              </button>
-            </div>
 
-            <!-- Date range rows -->
-            <div class="verf-rows">
-              <div v-for="(row, i) in verfModal.rows" :key="i" class="verf-row">
-                <div class="verf-row-main">
-                  <div class="verf-row-dates">
-                    <div class="verf-row-field">
-                      <label>Von</label>
-                      <input type="date" v-model="row.von" :class="{ 'has-error': row.error }" />
+          <!-- Two-column layout -->
+          <div class="verf-modal-layout">
+
+            <!-- Left: form -->
+            <div class="verf-form-pane">
+              <div class="verf-type-row">
+                <button
+                  v-for="t in verfTypOptions" :key="t.value"
+                  class="verf-type-btn"
+                  :class="['verf-type-btn--' + t.value, { active: verfModal.typ === t.value }]"
+                  @click="verfModal.typ = t.value"
+                >
+                  <font-awesome-icon :icon="t.icon" /> {{ t.label }}
+                </button>
+              </div>
+
+              <div class="verf-rows">
+                <div v-for="(row, i) in verfModal.rows" :key="i" class="verf-row">
+                  <div class="verf-row-main">
+                    <div class="verf-row-dates">
+                      <div class="verf-row-field">
+                        <label>Von</label>
+                        <input type="date" v-model="row.von" :class="{ 'has-error': row.error }" />
+                      </div>
+                      <span class="verf-row-sep">–</span>
+                      <div class="verf-row-field">
+                        <label>Bis</label>
+                        <input type="date" v-model="row.bis" :class="{ 'has-error': row.error }" />
+                      </div>
                     </div>
-                    <span class="verf-row-sep">–</span>
-                    <div class="verf-row-field">
-                      <label>Bis</label>
-                      <input type="date" v-model="row.bis" :class="{ 'has-error': row.error }" />
+                    <div v-if="!isVerfAbsence" class="verf-row-times">
+                      <div class="verf-row-field verf-row-field--time">
+                        <label>Zeit von</label>
+                        <input type="time" v-model="row.zeitVon" placeholder="–" />
+                      </div>
+                      <div class="verf-row-field verf-row-field--time">
+                        <label>Zeit bis</label>
+                        <input type="time" v-model="row.zeitBis" placeholder="–" />
+                      </div>
                     </div>
+                    <button class="verf-row-remove" @click="removeVerfRow(i)" title="Entfernen">
+                      <font-awesome-icon icon="fa-solid fa-times" />
+                    </button>
                   </div>
-                  <div v-if="!isVerfAbsence" class="verf-row-times">
-                    <div class="verf-row-field verf-row-field--time">
-                      <label>Zeit von</label>
-                      <input type="time" v-model="row.zeitVon" placeholder="–" />
-                    </div>
-                    <div class="verf-row-field verf-row-field--time">
-                      <label>Zeit bis</label>
-                      <input type="time" v-model="row.zeitBis" placeholder="–" />
-                    </div>
+                  <div v-if="row.error" class="verf-row-error">
+                    <font-awesome-icon icon="fa-solid fa-triangle-exclamation" /> {{ row.error }}
                   </div>
-                  <button class="verf-row-remove" @click="removeVerfRow(i)" title="Entfernen">
-                    <font-awesome-icon icon="fa-solid fa-times" />
-                  </button>
                 </div>
-                <div v-if="row.error" class="verf-row-error">
-                  <font-awesome-icon icon="fa-solid fa-triangle-exclamation" /> {{ row.error }}
+              </div>
+
+              <button class="verf-add-row-btn" @click="addVerfRow">
+                <font-awesome-icon icon="fa-solid fa-plus" /> Zeitraum hinzufügen
+              </button>
+
+              <!-- Conflict warnings -->
+              <div v-if="verfHasHardConflict" class="verf-conflict-banner verf-conflict-banner--hard">
+                <font-awesome-icon icon="fa-solid fa-circle-exclamation" />
+                <div>
+                  <strong>Einsatz-Konflikt</strong>
+                  <p>{{ verfConflicts.hard.length }} geplante{{ verfConflicts.hard.length !== 1 ? ' Einsätze überlappen' : 'r Einsatz überlappt' }} — Speichern ist nicht möglich.</p>
                 </div>
+              </div>
+              <div v-if="verfHasSoftConflict" class="verf-conflict-banner verf-conflict-banner--soft">
+                <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
+                <div>
+                  <strong>Überschreibung</strong>
+                  <p>{{ verfConflicts.soft.length }} bestehende{{ verfConflicts.soft.length !== 1 ? ' Einträge werden' : 'r Eintrag wird' }} überschrieben.</p>
+                </div>
+              </div>
+
+              <div v-if="verfModal.globalError" class="verf-global-error">
+                <font-awesome-icon icon="fa-solid fa-triangle-exclamation" /> {{ verfModal.globalError }}
               </div>
             </div>
 
-            <button class="verf-add-row-btn" @click="addVerfRow">
-              <font-awesome-icon icon="fa-solid fa-plus" /> Zeitraum hinzufügen
-            </button>
-
-            <div v-if="verfModal.globalError" class="verf-global-error">
-              <font-awesome-icon icon="fa-solid fa-triangle-exclamation" /> {{ verfModal.globalError }}
+            <!-- Right: mini calendar -->
+            <div class="verf-cal-pane">
+              <div class="verf-cal-nav">
+                <button class="verf-cal-nav-btn" @click="prevVerfCalMonth">
+                  <font-awesome-icon icon="fa-solid fa-chevron-left" />
+                </button>
+                <span class="verf-cal-month-label">
+                  {{ verfCalMonthName }}
+                  <font-awesome-icon v-if="verfCalLoading" icon="fa-solid fa-spinner" spin class="verf-cal-spin" />
+                </span>
+                <button class="verf-cal-nav-btn" @click="nextVerfCalMonth">
+                  <font-awesome-icon icon="fa-solid fa-chevron-right" />
+                </button>
+              </div>
+              <div class="verf-cal-grid" @mouseleave="verfCalHoverDay = null">
+                <div v-for="wd in ['Mo','Di','Mi','Do','Fr','Sa','So']" :key="wd" class="verf-cal-wd">{{ wd }}</div>
+                <div
+                  v-for="(day, i) in verfCalDays"
+                  :key="i"
+                  class="verf-cal-day"
+                  :class="verfDayCls(day)"
+                  @click="onVerfCalDayClick(day)"
+                  @mouseenter="onVerfCalDayHover(day)"
+                >
+                  <span class="verf-cal-day-num">{{ day.number }}</span>
+                </div>
+              </div>
+              <p v-if="verfCalSelecting.active" class="verf-cal-hint">Bis-Datum wählen…</p>
+              <div class="verf-cal-legend">
+                <span class="verf-legend-item verf-legend-item--planned">Einsatz</span>
+                <span class="verf-legend-item verf-legend-item--available">Verfügbar</span>
+                <span class="verf-legend-item verf-legend-item--partially">Eingeschränkt</span>
+                <span class="verf-legend-item verf-legend-item--blocked">Blocked/Abw.</span>
+                <span class="verf-legend-item verf-legend-item--preview">Vorschau</span>
+                <span class="verf-legend-item verf-legend-item--conflict">Konflikt</span>
+              </div>
             </div>
           </div>
+
+          <!-- Footer -->
           <div class="verf-modal-footer">
             <button class="verf-cancel-btn" @click="closeVerfModal">Abbrechen</button>
-            <button
-              class="verf-submit-btn"
-              :disabled="verfModal.saving || !verfModal.rows.length"
-              @click="submitVerfModal"
-            >
-              <font-awesome-icon v-if="verfModal.saving" icon="fa-solid fa-spinner" spin />
-              <font-awesome-icon v-else icon="fa-solid fa-check" />
-              {{ verfModal.rows.length }} Zeitraum{{ verfModal.rows.length !== 1 ? 'e' : '' }} speichern
-            </button>
+            <div class="verf-footer-actions">
+              <button
+                v-if="verfHasHardConflict || verfHasSoftConflict"
+                class="verf-split-btn"
+                @click="splitVerfAroundConflicts"
+              >
+                <font-awesome-icon icon="fa-solid fa-scissors" /> Verfügbarkeit splitten
+              </button>
+              <button
+                class="verf-submit-btn"
+                :disabled="verfModal.saving || !verfModal.rows.length || verfHasHardConflict"
+                @click="submitVerfModal"
+              >
+                <font-awesome-icon v-if="verfModal.saving" icon="fa-solid fa-spinner" spin />
+                <font-awesome-icon v-else icon="fa-solid fa-check" />
+                {{ verfModal.rows.length }} Zeitraum{{ verfModal.rows.length !== 1 ? 'e' : '' }} speichern
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1681,6 +1752,7 @@ import KundeSearch from '@/components/ui-elements/KundeSearch.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
+import AnnouncementModal from '@/components/ui-elements/AnnouncementModal.vue';
 
 const auth = useAuth();
 const dataCache = useDataCache();
@@ -2305,9 +2377,213 @@ const verfModal = reactive({
   globalError: '',
 });
 
+const verfCalMonth = reactive({ year: new Date().getFullYear(), month: new Date().getMonth() });
+
 const isVerfAbsence = computed(() =>
   verfModal.typ === 'urlaub' || verfModal.typ === 'krank'
 );
+
+const verfCalMonthName = computed(() =>
+  new Date(verfCalMonth.year, verfCalMonth.month)
+    .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+);
+
+function prevVerfCalMonth() {
+  if (verfCalMonth.month === 0) { verfCalMonth.month = 11; verfCalMonth.year--; }
+  else verfCalMonth.month--;
+  _fetchVerfCalMonth();
+}
+function nextVerfCalMonth() {
+  if (verfCalMonth.month === 11) { verfCalMonth.month = 0; verfCalMonth.year++; }
+  else verfCalMonth.month++;
+  _fetchVerfCalMonth();
+}
+
+// Fetch entries for the displayed calendar month if not already covered
+const _verfFetchedMonths = new Set();
+const verfCalLoading = ref(false);
+
+function _isVerfCalMonthCovered() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const monthStart = new Date(verfCalMonth.year, verfCalMonth.month, 1);
+  const monthEnd   = new Date(verfCalMonth.year, verfCalMonth.month + 1, 0);
+  const fetchEnd   = new Date(today); fetchEnd.setDate(fetchEnd.getDate() + effectiveTage.value);
+  return monthStart <= fetchEnd && monthEnd >= today;
+}
+
+async function _fetchVerfCalMonth() {
+  const key = `${verfCalMonth.year}-${String(verfCalMonth.month + 1).padStart(2, '0')}`;
+  if (_verfFetchedMonths.has(key) || _isVerfCalMonthCovered()) return;
+  _verfFetchedMonths.add(key);
+  verfCalLoading.value = true;
+  try {
+    const from = new Date(verfCalMonth.year, verfCalMonth.month, 1).toISOString();
+    const to   = new Date(verfCalMonth.year, verfCalMonth.month + 1, 0, 23, 59, 59).toISOString();
+    const params = new URLSearchParams({ von: from, bis: to });
+    if (filters.standort) params.append('standort', filters.standort);
+    const { data } = await api.get(`/api/dispo?${params.toString()}`);
+    localAddEntries(data.eintraege || []);
+  } catch (err) {
+    console.error('Verf-Kalender Monat laden fehlgeschlagen:', err);
+    _verfFetchedMonths.delete(key);
+  } finally {
+    verfCalLoading.value = false;
+  }
+}
+
+// Calendar click selection
+const verfCalSelecting = reactive({ active: false, rowIdx: -1 });
+const verfCalHoverDay  = ref(null);
+
+function onVerfCalDayClick(day) {
+  if (!day.isCurrentMonth) return;
+  if (!verfCalSelecting.active) {
+    // First click — set von on last row (or new row)
+    let idx = verfModal.rows.length - 1;
+    if (idx < 0 || (verfModal.rows[idx].von && verfModal.rows[idx].bis)) {
+      verfModal.rows.push(_createVerfRow());
+      idx = verfModal.rows.length - 1;
+    }
+    verfModal.rows[idx].von  = day.iso;
+    verfModal.rows[idx].bis  = '';
+    verfModal.rows[idx].error = '';
+    verfCalSelecting.active  = true;
+    verfCalSelecting.rowIdx  = idx;
+  } else {
+    // Second click — set bis (swap if before von)
+    const row = verfModal.rows[verfCalSelecting.rowIdx];
+    if (row) {
+      if (day.iso >= row.von) { row.bis = day.iso; }
+      else { row.bis = row.von; row.von = day.iso; }
+      row.error = '';
+    }
+    verfCalSelecting.active = false;
+    verfCalSelecting.rowIdx = -1;
+    verfCalHoverDay.value   = null;
+  }
+}
+
+function onVerfCalDayHover(day) {
+  if (!verfCalSelecting.active || !day.isCurrentMonth) return;
+  verfCalHoverDay.value = day.iso;
+}
+const _verfFirstVon = computed(() => {
+  for (const row of verfModal.rows) {
+    if (row.von && /^\d{4}-\d{2}-\d{2}$/.test(row.von)) return row.von;
+  }
+  return null;
+});
+watch(_verfFirstVon, (iso) => {
+  if (!iso) return;
+  const d = new Date(iso + 'T00:00:00');
+  if (!isNaN(d.getTime())) { verfCalMonth.year = d.getFullYear(); verfCalMonth.month = d.getMonth(); }
+});
+
+// Preview: days covered by current row inputs
+const _verfPreviewDays = computed(() => {
+  const map = new Map();
+  for (const row of verfModal.rows) {
+    if (!row.von || !row.bis || row.von > row.bis) continue;
+    let d = row.von;
+    while (d <= row.bis) { map.set(d, verfModal.typ); d = isoAddDays(d, 1); }
+  }
+  return map;
+});
+
+// Conflict detection
+const verfConflicts = computed(() => {
+  if (!verfModal.open || !verfModal.ma) return { hard: [], soft: [] };
+  const maId = String(verfModal.ma._id);
+  const hardMap = new Map();
+  const softMap = new Map();
+  for (const [iso] of _verfPreviewDays.value) {
+    for (const e of (eintragMap.value[`${maId}_${iso}`] || [])) {
+      const id = String(e._id);
+      if ((e.typ === 'planned' || e._source === 'einsatz') && !hardMap.has(id))
+        hardMap.set(id, { ...e, day: iso });
+      else if ((e.typ === 'verfuegbarkeit' || e.typ === 'abwesenheit') && !softMap.has(id))
+        softMap.set(id, { ...e, day: iso });
+    }
+  }
+  return { hard: [...hardMap.values()], soft: [...softMap.values()] };
+});
+
+const verfHasHardConflict = computed(() => verfConflicts.value.hard.length > 0);
+const verfHasSoftConflict = computed(() => verfConflicts.value.soft.length > 0);
+
+// Calendar grid for the mini-calendar
+const verfCalDays = computed(() => {
+  if (!verfModal.open || !verfModal.ma) return [];
+  const maId = String(verfModal.ma._id);
+  const { year, month } = verfCalMonth;
+  const firstDay = new Date(year, month, 1);
+  const lastDay  = new Date(year, month + 1, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const preview = _verfPreviewDays.value;
+  const days = [];
+
+  let startDow = firstDay.getDay() - 1;
+  if (startDow === -1) startDow = 6;
+  const prevLastDay = new Date(year, month, 0);
+  for (let i = startDow - 1; i >= 0; i--) {
+    const date = new Date(year, month - 1, prevLastDay.getDate() - i);
+    days.push({ number: date.getDate(), iso: toIso(date), isCurrentMonth: false, isToday: false, entries: [], preview: null, conflict: null });
+  }
+  for (let day = 1; day <= lastDay.getDate(); day++) {
+    const date = new Date(year, month, day);
+    const iso  = toIso(date);
+    const dt   = new Date(date); dt.setHours(0, 0, 0, 0);
+    const entries  = eintragMap.value[`${maId}_${iso}`] || [];
+    const isPreview = preview.has(iso);
+    let conflict = null;
+    if (isPreview) {
+      if (entries.some(e => e.typ === 'planned' || e._source === 'einsatz')) conflict = 'hard';
+      else if (entries.some(e => e.typ === 'verfuegbarkeit' || e.typ === 'abwesenheit')) conflict = 'soft';
+    }
+    days.push({ number: day, iso, isCurrentMonth: true, isToday: dt.getTime() === today.getTime(), entries, preview: isPreview ? verfModal.typ : null, conflict });
+  }
+  const remaining = 42 - days.length;
+  for (let day = 1; day <= remaining; day++) {
+    const date = new Date(year, month + 1, day);
+    days.push({ number: day, iso: toIso(date), isCurrentMonth: false, isToday: false, entries: [], preview: null, conflict: null });
+  }
+  return days;
+});
+
+function verfDayCls(day) {
+  if (!day.isCurrentMonth) return 'verf-cal-day--other';
+  const cls = [];
+  if (day.isToday) cls.push('verf-cal-day--today');
+
+  // Hover-range while waiting for bis-click
+  if (verfCalSelecting.active) {
+    const anchor = verfModal.rows[verfCalSelecting.rowIdx]?.von;
+    if (anchor) {
+      const hover  = verfCalHoverDay.value;
+      const start  = hover ? (anchor <= hover ? anchor : hover) : anchor;
+      const end    = hover ? (anchor <= hover ? hover  : anchor) : anchor;
+      if (day.iso >= start && day.iso <= end) {
+        cls.push(day.iso === anchor ? 'verf-cal-day--hover-anchor' : 'verf-cal-day--hover-range');
+        return cls.join(' ');
+      }
+    }
+  }
+
+  if (day.conflict === 'hard') { cls.push('verf-cal-day--conflict-hard'); return cls.join(' '); }
+  if (day.preview) {
+    cls.push(`verf-cal-day--preview-${day.preview}`);
+    if (day.conflict === 'soft') cls.push('verf-cal-day--conflict-soft');
+    return cls.join(' ');
+  }
+  if (day.entries.length > 0) {
+    const e = day.entries[0];
+    if (e.typ === 'planned' || e._source === 'einsatz' || e.verfuegbarkeit === 'eingeplant') cls.push('verf-cal-day--planned');
+    else if (e.verfuegbarkeit === 'available') cls.push('verf-cal-day--has-available');
+    else if (e.verfuegbarkeit === 'partially') cls.push('verf-cal-day--has-partially');
+    else if (e.verfuegbarkeit === 'blocked' || e.typ === 'abwesenheit') cls.push('verf-cal-day--has-blocked');
+  }
+  return cls.join(' ') || '';
+}
 
 function openVerfModal() {
   const ma = nameMenu.ma;
@@ -2318,7 +2594,11 @@ function openVerfModal() {
   verfModal.rows = [_createVerfRow()];
   verfModal.saving = false;
   verfModal.globalError = '';
+  const now = new Date();
+  verfCalMonth.year = now.getFullYear();
+  verfCalMonth.month = now.getMonth();
   verfModal.open = true;
+  _fetchVerfCalMonth();
 }
 
 function closeVerfModal() {
@@ -2326,6 +2606,9 @@ function closeVerfModal() {
   verfModal.ma = null;
   verfModal.rows = [];
   verfModal.globalError = '';
+  verfCalSelecting.active = false;
+  verfCalSelecting.rowIdx = -1;
+  verfCalHoverDay.value   = null;
 }
 
 function _createVerfRow() {
@@ -2340,19 +2623,46 @@ function removeVerfRow(i) {
   verfModal.rows.splice(i, 1);
 }
 
+// Split all rows around hard-conflict (einsatz) days
+function splitVerfAroundConflicts() {
+  const maId = String(verfModal.ma._id);
+  const newRows = [];
+  for (const row of verfModal.rows) {
+    if (!row.von || !row.bis || row.von > row.bis) { newRows.push({ ...row }); continue; }
+    const avoidDays = new Set();
+    let d = row.von;
+    while (d <= row.bis) {
+      if ((eintragMap.value[`${maId}_${d}`] || []).some(e => e.typ === 'planned' || e._source === 'einsatz'))
+        avoidDays.add(d);
+      d = isoAddDays(d, 1);
+    }
+    if (avoidDays.size === 0) { newRows.push({ ...row }); continue; }
+    let segStart = null;
+    d = row.von;
+    while (d <= row.bis) {
+      if (!avoidDays.has(d)) {
+        if (!segStart) segStart = d;
+        if (d === row.bis) { newRows.push({ ...row, von: segStart, bis: d, error: '' }); segStart = null; }
+      } else {
+        if (segStart) { newRows.push({ ...row, von: segStart, bis: isoAddDays(d, -1), error: '' }); segStart = null; }
+      }
+      d = isoAddDays(d, 1);
+    }
+  }
+  const valid = newRows.filter(r => r.von && r.bis && r.von <= r.bis);
+  verfModal.rows.splice(0, verfModal.rows.length, ...valid);
+  verfModal.globalError = valid.length === 0 ? 'Alle Zeiträume sind von Einsätzen belegt.' : '';
+}
+
 function _validateVerfRows() {
   let valid = true;
   for (const row of verfModal.rows) row.error = '';
-
-  // Validate individual rows
   for (const row of verfModal.rows) {
     if (!row.von) { row.error = 'Startdatum fehlt'; valid = false; continue; }
     if (!row.bis) { row.error = 'Enddatum fehlt'; valid = false; continue; }
     if (row.von > row.bis) { row.error = 'Startdatum muss vor oder gleich Enddatum liegen'; valid = false; }
   }
   if (!valid) return false;
-
-  // Check for overlaps between rows
   const rows = verfModal.rows;
   for (let i = 0; i < rows.length; i++) {
     for (let j = i + 1; j < rows.length; j++) {
@@ -2369,7 +2679,6 @@ function _validateVerfRows() {
 async function submitVerfModal() {
   verfModal.globalError = '';
   if (!_validateVerfRows()) return;
-
   const absence = isVerfAbsence.value;
   const maId = verfModal.ma._id;
   verfModal.saving = true;
@@ -2377,12 +2686,9 @@ async function submitVerfModal() {
     const created = [];
     for (const row of verfModal.rows) {
       const payload = { mitarbeiter: maId, datumVon: row.von, datumBis: row.bis };
-      if (absence) {
-        payload.typ = 'abwesenheit';
-        payload.abwesenheitsKategorie = verfModal.typ;
-      } else {
-        payload.typ = 'verfuegbarkeit';
-        payload.verfuegbarkeit = verfModal.typ;
+      if (absence) { payload.typ = 'abwesenheit'; payload.abwesenheitsKategorie = verfModal.typ; }
+      else {
+        payload.typ = 'verfuegbarkeit'; payload.verfuegbarkeit = verfModal.typ;
         if (row.zeitVon) payload.zeitVon = row.zeitVon;
         if (row.zeitBis) payload.zeitBis = row.zeitBis;
       }
@@ -3125,6 +3431,7 @@ function unhideMA(maId) {
 // ─── API ───
 async function fetchDispo() {
   loading.value = true;
+  _verfFetchedMonths.clear(); // invalidate per-month cache since entries are replaced
   try {
     const today = new Date();
     const endDate = new Date(today);
@@ -4117,6 +4424,15 @@ function onNameTouchEnd() {
 }
 
 // selectedKw changes are already handled via watch(visibleDays) above
+
+// ─── Announcements ───
+const dispoAnnouncements = [
+  {
+    id: 'dispo-verf-bulk-v1',
+    title: 'Alternative Eintragmöglichkeit für Verfügbarkeit',
+    text: '<strong>Über Rechtsklick auf Mitarbeiter</strong> → <em>Verfügbarkeiten eintragen</em>: Mehrere Datumsbereiche (z.B. 10.10.–16.10. und 18.10.–20.10.) auf einmal anlegen, Typ wählen (Verfügbar, Blocked, Urlaub …) und optional Uhrzeiten angeben.',
+  },
+];
 </script>
 
 <style scoped lang="scss">
@@ -7772,9 +8088,9 @@ function onNameTouchEnd() {
 .verf-modal {
   background: var(--modal-bg, #fff);
   border-radius: 14px;
-  width: 560px;
-  max-width: 95vw;
-  max-height: 90vh;
+  width: 900px;
+  max-width: 97vw;
+  max-height: 88vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
@@ -7797,17 +8113,221 @@ function onNameTouchEnd() {
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
-
   svg { color: var(--primary); }
 }
 
-.verf-modal-body {
+// Two-column body
+.verf-modal-layout {
+  display: flex;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.verf-form-pane {
+  flex: 1;
+  min-width: 0;
   overflow-y: auto;
   padding: 18px 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+}
+
+.verf-cal-pane {
+  width: 272px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  padding: 14px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+// Calendar nav
+.verf-cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.verf-cal-month-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: capitalize;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.verf-cal-spin {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.verf-cal-nav-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: color 0.15s, background 0.15s;
+  &:hover { color: var(--text); background: var(--hover); }
+}
+
+// Calendar grid
+.verf-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.verf-cal-wd {
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  padding: 2px 0 4px;
+}
+
+.verf-cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  position: relative;
+  cursor: pointer;
+
+  &--other { opacity: 0.2; cursor: default; pointer-events: none; }
+
+  &--today .verf-cal-day-num {
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  &:not(.verf-cal-day--other):hover {
+    background: var(--hover);
+  }
+
+  // Hover selection range
+  &--hover-range {
+    background: color-mix(in srgb, var(--primary) 18%, transparent) !important;
+    border-radius: 0;
+  }
+  &--hover-anchor {
+    background: var(--primary) !important;
+    border-radius: 5px !important;
+    .verf-cal-day-num { color: #fff !important; font-weight: 700; }
+  }
+
+  // Existing entry colors
+  &--planned           { background: #6366f122; }
+  &--has-available     { background: #10b98118; }
+  &--has-partially     { background: #f59e0b18; }
+  &--has-blocked       { background: #ef444418; }
+
+  // Preview — dashed outline in type color
+  &--preview-available { background: #10b98130; outline: 2px dashed #10b981; outline-offset: -2px; }
+  &--preview-partially { background: #f59e0b30; outline: 2px dashed #f59e0b; outline-offset: -2px; }
+  &--preview-blocked   { background: #ef444430; outline: 2px dashed #ef4444; outline-offset: -2px; }
+  &--preview-urlaub    { background: #3b82f630; outline: 2px dashed #3b82f6; outline-offset: -2px; }
+  &--preview-krank     { background: #a855f730; outline: 2px dashed #a855f7; outline-offset: -2px; }
+
+  // Conflicts
+  &--conflict-hard {
+    background: #ef4444 !important;
+    outline: 2px solid #b91c1c !important;
+    outline-offset: -2px;
+    .verf-cal-day-num { color: #fff !important; font-weight: 700; }
+  }
+  &--conflict-soft {
+    outline: 2px solid #f59e0b !important;
+    outline-offset: -2px;
+  }
+}
+
+.verf-cal-day-num {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text);
+  pointer-events: none;
+}
+
+// Legend
+.verf-cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+.verf-cal-hint {
+  font-size: 11px;
+  color: var(--primary);
+  font-weight: 600;
+  text-align: center;
+  animation: verf-hint-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes verf-hint-pulse {
+  from { opacity: 0.6; }
+  to   { opacity: 1; }
+}
+
+.verf-legend-item {
+  font-size: 10px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  &::before {
+    content: '';
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  &--planned::before   { background: #6366f155; }
+  &--available::before { background: #10b98150; }
+  &--partially::before { background: #f59e0b50; }
+  &--blocked::before   { background: #ef444450; }
+  &--preview::before   { background: transparent; outline: 2px dashed var(--muted); outline-offset: -1px; }
+  &--conflict::before  { background: #ef4444; }
+}
+
+// Conflict banners
+.verf-conflict-banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  svg { flex-shrink: 0; margin-top: 1px; }
+  p { margin: 3px 0 0; font-size: 11px; font-weight: 400; opacity: 0.9; }
+  &--hard {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #ef4444;
+  }
+  &--soft {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #d97706;
+  }
 }
 
 .verf-type-row {
@@ -7983,11 +8503,17 @@ function onNameTouchEnd() {
 .verf-modal-footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 10px;
   padding: 14px 20px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.verf-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .verf-cancel-btn {
@@ -8002,6 +8528,23 @@ function onNameTouchEnd() {
   transition: color 0.15s, border-color 0.15s;
 
   &:hover { color: var(--text); border-color: var(--text); }
+}
+
+.verf-split-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover { border-color: var(--primary); color: var(--primary); }
 }
 
 .verf-submit-btn {
