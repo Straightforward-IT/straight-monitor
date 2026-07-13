@@ -333,28 +333,7 @@ export default {
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
         
-        // Helper für Sortierung (analog Backend)
-        const normalize = (str) => {
-            if (!str) return "";
-            return String(str)
-                .toLowerCase()
-                .replace(/ä/g, "ae")
-                .replace(/ö/g, "oe")
-                .replace(/ü/g, "ue")
-                .replace(/ß/g, "ss")
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .replace(/[^a-z\s]/g, ""); 
-        };
-
-        const sorted = rows.slice(1).sort((a, b) => {
-          const nachnameCompare = normalize(a[1]).localeCompare(normalize(b[1]));
-          if (nachnameCompare !== 0) return nachnameCompare;
-          // Tiebreaker: Vorname alphabetisch (wie in der Quell-PDF)
-          return normalize(a[2]).localeCompare(normalize(b[2]));
-        });
-        
-        this.excelData = sorted;
+        this.excelData = rows.slice(1);
         this.validateCounts();
       };
       reader.readAsArrayBuffer(file);

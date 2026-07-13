@@ -127,6 +127,27 @@ class DocuSealService {
   }
 
   /**
+   * Archive (soft-delete) a template in DocuSeal.
+   * @param {number} templateId
+   * @returns {Promise<object>}
+   */
+  async archiveTemplate(templateId) {
+    this._ensureConfigured();
+    return docuseal.archiveTemplate(templateId);
+  }
+
+  /**
+   * Update a template (e.g. rename).
+   * @param {number} templateId
+   * @param {object} data - e.g. { name }
+   * @returns {Promise<object>}
+   */
+  async updateTemplate(templateId, data) {
+    this._ensureConfigured();
+    return docuseal.updateTemplate(templateId, data);
+  }
+
+  /**
    * Archive (soft-delete) a submission in DocuSeal.
    * @param {number} submissionId
    * @returns {Promise<object>}

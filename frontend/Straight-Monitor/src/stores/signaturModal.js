@@ -21,6 +21,8 @@ const emptyContext = () => ({
   name: null,             // pre-filled document name
   standort: null,         // pre-selected Standort (team key)
   submitters: [],         // pre-filled submitter rows [{ role, name, email, embedded }]
+  templateId: null,       // pre-selects a DocuSeal template (step 2)
+  templateName: null,     // display name for the pre-selected template
   // Optional: an existing endpoint to call instead of the generic POST /api/signaturen.
   // Used by the Stundenliste flow which generates the PDF server-side.
   customEndpoint: null,   // e.g. '/api/docuseal/stundenliste/12345'

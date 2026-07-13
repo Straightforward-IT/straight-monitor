@@ -37,6 +37,15 @@
           <div class="sig-body">
             <!-- ───────── STEP 1: Dokument & Typ ───────── -->
             <section v-show="currentStep === 0" class="sig-section">
+              <label class="sig-field-label" for="sig-name">Bezeichnung</label>
+              <input
+                id="sig-name"
+                v-model="form.name"
+                type="text"
+                class="sig-input"
+                placeholder="z. B. Stundenliste Auftrag 12345"
+              />
+
               <label class="sig-field-label">Dokumenttyp</label>
               <div v-if="typenLoading" class="sig-loading-inline">
                 <font-awesome-icon :icon="['fas', 'spinner']" spin /> Typen laden…
@@ -77,15 +86,6 @@
                   {{ s.label }}
                 </FilterChip>
               </div>
-
-              <label class="sig-field-label" for="sig-name">Bezeichnung</label>
-              <input
-                id="sig-name"
-                v-model="form.name"
-                type="text"
-                class="sig-input"
-                placeholder="z. B. Stundenliste Auftrag 12345"
-              />
             </section>
 
             <!-- ───────── STEP 2: Verknüpfung ───────── -->
@@ -906,6 +906,12 @@ async function hydrateFromContext() {
       email: s.email || '',
       embedded: !!s.embedded,
     }));
+  }
+
+  // Pre-select DocuSeal template
+  if (ctx.templateId) {
+    form.value.templateId   = ctx.templateId;
+    form.value.templateName = ctx.templateName || '';
   }
 
   // If context provides a custom endpoint + typKey, jump ahead

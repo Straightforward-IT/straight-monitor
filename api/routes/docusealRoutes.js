@@ -115,6 +115,24 @@ router.get('/templates', auth, asyncHandler(async (req, res) => {
   res.json(result.data || result);
 }));
 
+// DELETE /api/docuseal/templates/:id — archive (soft-delete) a template (admin only)
+router.delete('/templates/:id', auth, asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Ungültige Template-ID' });
+  const result = await DocuSealService.archiveTemplate(id);
+  res.json(result);
+}));
+
+// PATCH /api/docuseal/templates/:id — update a template (e.g. rename)
+router.patch('/templates/:id', auth, asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Ungültige Template-ID' });
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ message: 'name ist erforderlich' });
+  const result = await DocuSealService.updateTemplate(id, { name: name.trim() });
+  res.json(result);
+}));
+
 // GET /api/docuseal/submissions — list local signing requests
 router.get('/', auth, asyncHandler(async (req, res) => {
   const vorgaenge = await DocuSealVorgang.find().sort({ createdAt: -1 }).limit(200);

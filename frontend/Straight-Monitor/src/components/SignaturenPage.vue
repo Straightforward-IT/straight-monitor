@@ -124,28 +124,80 @@
         </button>
       </div>
       <div v-else class="template-grid">
-        <div v-for="t in filteredTemplates" :key="t.id" class="template-card" @click="editTemplate(t)">
+        <div
+          v-for="t in filteredTemplates"
+          :key="t.id"
+          class="template-card"
+          @click="editTemplate(t)"
+        >
           <div class="tc-icon"><font-awesome-icon :icon="['fas', 'file-lines']" /></div>
           <div class="tc-info">
-            <div class="tc-name">{{ t.name }}</div>
+            <template v-if="renamingId === t.id">
+              <input
+                ref="renameInput"
+                v-model="renamingValue"
+                class="tc-rename-input"
+                type="text"
+                @keydown.enter.prevent="confirmRename(t)"
+                @keydown.esc.prevent="renamingId = null"
+                @blur="confirmRename(t)"
+                @click.stop
+              />
+            </template>
+            <template v-else>
+              <div class="tc-name">{{ t.name }}</div>
+            </template>
             <div class="tc-meta">{{ (t.fields && t.fields.length) || 0 }} Felder · {{ formatDate(t.created_at) }}</div>
           </div>
-          <button class="tc-edit" type="button" title="Bearbeiten" @click.stop="editTemplate(t)">
-            <font-awesome-icon :icon="['fas', 'pen-ruler']" />
-          </button>
+          <!-- Context menu trigger -->
+          <div class="tc-menu-wrap" @click.stop>
+            <button class="tc-menu-btn" type="button" title="Optionen" @click.stop="toggleMenu(t.id, $event)">
+              <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
+            </button>
+          </div>
         </div>
       </div>
     </template>
 
     <SignaturTypAnlegenModal v-model="showTypModal" @created="onTypCreated" />
+
+    <!-- Template context menu — teleported to body to escape overflow clipping -->
+    <Teleport to="body">
+      <transition name="ctx-fade">
+        <div
+          v-if="openMenuId !== null"
+          class="tc-dropdown-portal"
+          :style="{ top: menuPos.top + 'px', left: menuPos.left + 'px' }"
+          @click.stop
+        >
+          <template v-for="t in filteredTemplates" :key="t.id">
+            <template v-if="openMenuId === t.id">
+              <button type="button" @click="editTemplate(t); openMenuId = null">
+                <font-awesome-icon :icon="['fas', 'pen-ruler']" /> Bearbeiten
+              </button>
+              <button type="button" @click="startRename(t); openMenuId = null">
+                <font-awesome-icon :icon="['fas', 'pencil']" /> Umbenennen
+              </button>
+              <button type="button" @click="newSignatureFromTemplate(t); openMenuId = null">
+                <font-awesome-icon :icon="['fas', 'file-signature']" /> Neue Signatur
+              </button>
+              <div class="tc-dropdown-divider" />
+              <button type="button" class="tc-dropdown--danger" @click="archiveTemplate(t); openMenuId = null">
+                <font-awesome-icon :icon="['fas', 'box-archive']" /> Archivieren
+              </button>
+            </template>
+          </template>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck } from '@fortawesome/free-solid-svg-icons';
+import { faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useSignaturModal } from '@/stores/signaturModal';
 import { useSignaturBuilder } from '@/stores/signaturBuilder';
@@ -162,7 +214,7 @@ import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import SignaturCard from '@/components/SignaturCard.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
 
-library.add(faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck);
+library.add(faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil);
 
 const modal = useSignaturModal();
 const builder = useSignaturBuilder();
@@ -296,11 +348,78 @@ function formatDate(d) {
 }
 
 // ── Templates ────────────────────────────────────────────────────────────────
+const openMenuId = ref(null);
+const menuPos = ref({ top: 0, left: 0 });
+const renamingId = ref(null);
+const renamingValue = ref('');
+const renameInput = ref(null);
+let menuBtnEl = null;
+
+function updateMenuPos() {
+  if (!menuBtnEl) return;
+  const rect = menuBtnEl.getBoundingClientRect();
+  menuPos.value = { top: rect.bottom + 6, left: rect.right - 210 };
+}
+
+function toggleMenu(id, event) {
+  if (openMenuId.value === id) {
+    openMenuId.value = null;
+    menuBtnEl = null;
+    return;
+  }
+  menuBtnEl = event.currentTarget;
+  updateMenuPos();
+  openMenuId.value = id;
+}
+
+function closeMenuOnOutsideClick(e) {
+  if (!e.target.closest('.tc-menu-wrap') && !e.target.closest('.tc-dropdown-portal')) {
+    openMenuId.value = null;
+    menuBtnEl = null;
+  }
+}
+
+async function startRename(t) {
+  renamingId.value = t.id;
+  renamingValue.value = t.name;
+  await nextTick();
+  renameInput.value?.focus();
+  renameInput.value?.select();
+}
+
+async function confirmRename(t) {
+  const newName = renamingValue.value.trim();
+  renamingId.value = null;
+  if (!newName || newName === t.name) return;
+  try {
+    await api.patch(`/api/docuseal/templates/${t.id}`, { name: newName });
+    const idx = templates.value.findIndex(x => x.id === t.id);
+    if (idx !== -1) templates.value[idx] = { ...templates.value[idx], name: newName };
+  } catch (e) {
+    alert('Umbenennen fehlgeschlagen: ' + (e?.response?.data?.message || e.message));
+  }
+}
+
 function createTemplate() {
   builder.openBuilder({}, () => loadTemplates());
 }
 function editTemplate(t) {
   builder.openBuilder({ templateId: t.id, name: t.name }, () => loadTemplates());
+}
+function newSignatureFromTemplate(t) {
+  modal.openModal({ templateId: t.id, templateName: t.name }, (vorgang) => {
+    upsertVorgang(vorgang);
+    activeTab.value = 'signaturen';
+  });
+}
+async function archiveTemplate(t) {
+  if (!confirm(`Vorlage "${t.name}" archivieren? Sie wird aus der Liste entfernt.`)) return;
+  try {
+    await api.delete(`/api/docuseal/templates/${t.id}`);
+    templates.value = templates.value.filter(x => x.id !== t.id);
+  } catch (e) {
+    alert('Archivieren fehlgeschlagen: ' + (e?.response?.data?.message || e.message));
+  }
 }
 
 async function loadTemplates() {
@@ -361,8 +480,14 @@ onMounted(() => {
   loadVorgaenge();
   loadTypen();
   connectSSE();
+  window.addEventListener('click', closeMenuOnOutsideClick);
+  window.addEventListener('scroll', updateMenuPos, true);
 });
-onUnmounted(() => { if (eventSource) eventSource.close(); });
+onUnmounted(() => {
+  if (eventSource) eventSource.close();
+  window.removeEventListener('click', closeMenuOnOutsideClick);
+  window.removeEventListener('scroll', updateMenuPos, true);
+});
 </script>
 
 <style scoped lang="scss">
@@ -505,11 +630,71 @@ onUnmounted(() => { if (eventSource) eventSource.close(); });
   }
   .tc-info { flex: 1; min-width: 0; }
   .tc-name { font-size: 0.9rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tc-rename-input {
+    width: 100%; font-size: 0.9rem; font-weight: 600; color: var(--text);
+    background: none; border: none; border-bottom: 1.5px solid var(--primary);
+    outline: none; padding: 0; line-height: 1.3;
+  }
   .tc-meta { font-size: 0.74rem; color: var(--muted); }
-  .tc-edit {
+
+  .tc-menu-wrap {
+    position: relative;
+    flex-shrink: 0;
+  }
+  .tc-menu-btn {
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    width: 34px; height: 34px; color: var(--muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    &:hover { border-color: var(--primary); color: var(--primary); }
+  }
+  .tc-edit, .tc-archive {
     background: none; border: 1px solid var(--border); border-radius: 8px;
     width: 34px; height: 34px; color: var(--muted); cursor: pointer; flex-shrink: 0;
     &:hover { border-color: var(--primary); color: var(--primary); }
+  }
+  .tc-archive:hover { border-color: #dc3545 !important; color: #dc3545 !important; }
+}
+
+.ctx-fade-enter-active, .ctx-fade-leave-active { transition: opacity 0.12s, transform 0.12s; }
+.ctx-fade-enter-from, .ctx-fade-leave-to { opacity: 0; transform: translateY(-4px); }
+</style>
+
+<style lang="scss">
+/* Unscoped — portal dropdown is rendered at body level */
+.tc-dropdown-portal {
+  position: fixed;
+  z-index: 9999;
+  min-width: 210px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #a4a4a470);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+  padding: 4px;
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 9px 12px;
+    background: none;
+    border: none;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    font-weight: 300;
+    color: var(--text, #222);
+    cursor: pointer;
+    text-align: left;
+    &:hover { background: color-mix(in srgb, var(--primary, #eeaf67) 10%, transparent); color: var(--primary, #eeaf67); }
+  }
+  .tc-dropdown--danger {
+    color: #dc3545;
+    &:hover { background: color-mix(in srgb, #dc3545 10%, transparent) !important; color: #dc3545 !important; }
+  }
+  .tc-dropdown-divider {
+    height: 1px;
+    background: var(--border, #a4a4a470);
+    margin: 4px 8px;
   }
 }
 </style>
