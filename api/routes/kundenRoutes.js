@@ -1189,4 +1189,45 @@ router.get('/:kundenNr/top-mitarbeiter', auth, asyncHandler(async (req, res) => 
   res.json(results);
 }));
 
+// @route   GET /api/kunden/:kundenNr/top-mitarbeiter/:mitarbeiterId/einsaetze
+// @desc    Alle Einsätze eines Mitarbeiters bei einem Kunden (neueste zuerst, max 50)
+// @access  Private
+router.get('/:kundenNr/top-mitarbeiter/:mitarbeiterId/einsaetze', auth, asyncHandler(async (req, res) => {
+  const kundenNr = parseInt(req.params.kundenNr);
+  const { mitarbeiterId } = req.params;
+  if (isNaN(kundenNr)) return res.status(400).json({ message: 'Ungültige Kunden-Nr.' });
+
+  const ma = await Mitarbeiter.findById(mitarbeiterId).select('personalnr personalnrHistory').lean();
+  if (!ma) return res.status(404).json({ message: 'Mitarbeiter nicht gefunden' });
+
+  const personalNrs = new Set();
+  if (ma.personalnr) personalNrs.add(Number(ma.personalnr));
+  for (const h of (ma.personalnrHistory || [])) {
+    if (h.value) personalNrs.add(Number(h.value));
+  }
+  if (personalNrs.size === 0) return res.json([]);
+
+  const auftragNrs = await Auftrag.distinct('auftragNr', { kundenNr });
+  if (auftragNrs.length === 0) return res.json([]);
+
+  const einsaetze = await Einsatz.find({
+    auftragNr: { $in: auftragNrs },
+    personalNr: { $in: Array.from(personalNrs) }
+  })
+    .select('auftragNr datumVon datumBis schichtBezeichnung uhrzeitVon uhrzeitBis bezeichnung')
+    .sort({ datumVon: -1 })
+    .limit(50)
+    .lean();
+
+  if (einsaetze.length === 0) return res.json([]);
+
+  const uniqueNrs = [...new Set(einsaetze.map(e => e.auftragNr))];
+  const auftraege = await Auftrag.find({ auftragNr: { $in: uniqueNrs } })
+    .select('auftragNr eventTitel vonDatum bisDatum eventOrt')
+    .lean();
+  const auftragMap = Object.fromEntries(auftraege.map(a => [a.auftragNr, a]));
+
+  res.json(einsaetze.map(e => ({ ...e, auftrag: auftragMap[e.auftragNr] || null })));
+}));
+
 module.exports = router;

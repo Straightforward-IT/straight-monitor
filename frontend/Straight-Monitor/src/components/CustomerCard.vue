@@ -99,12 +99,42 @@
             <div
               v-for="(ma, idx) in topMaVisible"
               :key="ma._id"
-              class="top-ma-row"
+              class="top-ma-item"
             >
-              <span class="top-ma-rank">#{{ idx + 1 }}</span>
-              <span class="top-ma-name">{{ ma.vorname }} {{ ma.nachname }}</span>
-              <span class="top-ma-nr" v-if="ma.personalnr">Nr. {{ ma.personalnr }}</span>
-              <span class="top-ma-count">{{ ma.count }} Einsatz{{ ma.count !== 1 ? 'e' : '' }}</span>
+              <div class="top-ma-row">
+                <span class="top-ma-rank">#{{ idx + 1 }}</span>
+                <button class="top-ma-name" @click.stop="openEmployeeCard(ma._id)" title="Mitarbeiterprofil öffnen">{{ ma.vorname }} {{ ma.nachname }}</button>
+                <span class="top-ma-nr" v-if="ma.personalnr">Nr. {{ ma.personalnr }}</span>
+                <span class="top-ma-count">{{ ma.count }} Einsatz{{ ma.count !== 1 ? 'e' : '' }}</span>
+                <button class="top-ma-expand-btn" @click="toggleMaExpand(ma)" :title="expandedMaIds.has(String(ma._id)) ? 'Einklappen' : 'Einsätze anzeigen'">
+                  <font-awesome-icon :icon="['fas', expandedMaIds.has(String(ma._id)) ? 'chevron-up' : 'chevron-down']" />
+                </button>
+              </div>
+              <div v-if="expandedMaIds.has(String(ma._id))" class="top-ma-einsatz-expand">
+                <div v-if="maEinsaetzeMap[String(ma._id)]?.loading" class="top-ma-einsatz-loading">
+                  <font-awesome-icon :icon="['fas', 'spinner']" spin /> Lade Einsätze…
+                </div>
+                <div v-else-if="!maEinsaetzeMap[String(ma._id)]?.data?.length" class="top-ma-einsatz-empty">
+                  Keine Einsätze gefunden.
+                </div>
+                <div v-else class="top-ma-einsatz-list">
+                  <button
+                    v-for="e in maEinsaetzeMap[String(ma._id)].data"
+                    :key="e._id"
+                    class="top-ma-einsatz-row"
+                    @click="openAuftrag(e)"
+                    title="In Aufträgen öffnen"
+                  >
+                    <span class="tme-date">{{ formatEinsatzDate(e.datumVon) }}</span>
+                    <span class="tme-title">{{ e.auftrag?.eventTitel || ('Auftrag ' + e.auftragNr) }}</span>
+                    <span class="tme-shift" v-if="e.schichtBezeichnung || e.uhrzeitVon">
+                      {{ [e.schichtBezeichnung, e.uhrzeitVon && e.uhrzeitBis ? e.uhrzeitVon + '–' + e.uhrzeitBis : e.uhrzeitVon].filter(Boolean).join(' · ') }}
+                    </span>
+                    <span class="tme-location" v-if="e.auftrag?.eventOrt">{{ e.auftrag.eventOrt }}</span>
+                    <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" class="tme-link-icon" />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           <button
@@ -356,6 +386,12 @@
       <button class="btn btn-secondary" @click="$emit('close')">Schließen</button>
     </footer>
 
+    <!-- Employee Card Modal -->
+    <EmployeeCardModal
+      :mitarbeiterId="selectedEmployeeId"
+      @close="selectedEmployeeId = null"
+    />
+
     <!-- Contact Card Modal -->
     <teleport to="body">
       <div v-if="selectedContactCard" class="contact-card-overlay" @click.self="selectedContactCard = null">
@@ -380,6 +416,7 @@
 
 <script setup>
 import { computed, ref, nextTick, watch, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuth } from '@/stores/auth';
 import { useTheme } from '@/stores/theme';
 import { useDataCache } from '@/stores/dataCache';
@@ -387,6 +424,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import KundenAnalyticsEmbed from './KundenAnalyticsEmbed.vue';
 import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
 import ContactCard from './ContactCard.vue';
+import EmployeeCardModal from './EmployeeCardModal.vue';
 import api from '@/utils/api';
 
 const props = defineProps({
@@ -397,6 +435,51 @@ const emit = defineEmits(['close']);
 
 const auth = useAuth();
 const dataCache = useDataCache();
+const router = useRouter();
+
+// ── Employee Modal ────────────────────────────────────────────────────────────
+const selectedEmployeeId = ref(null);
+function openEmployeeCard(id) {
+  selectedEmployeeId.value = String(id);
+}
+
+// ── MA Einsatz Expand ─────────────────────────────────────────────────────────
+const expandedMaIds = ref(new Set());
+const maEinsaetzeMap = ref({});
+
+async function toggleMaExpand(ma) {
+  const id = String(ma._id);
+  if (expandedMaIds.value.has(id)) {
+    const next = new Set(expandedMaIds.value);
+    next.delete(id);
+    expandedMaIds.value = next;
+    return;
+  }
+  expandedMaIds.value = new Set([...expandedMaIds.value, id]);
+  if (maEinsaetzeMap.value[id]) return;
+  maEinsaetzeMap.value = { ...maEinsaetzeMap.value, [id]: { loading: true, data: [] } };
+  try {
+    const { data } = await api.get(`/api/kunden/${props.kunde.kundenNr}/top-mitarbeiter/${id}/einsaetze`);
+    maEinsaetzeMap.value = { ...maEinsaetzeMap.value, [id]: { loading: false, data } };
+  } catch {
+    maEinsaetzeMap.value = { ...maEinsaetzeMap.value, [id]: { loading: false, data: [] } };
+  }
+}
+
+function openAuftrag(einsatz) {
+  const focusDate = einsatz.datumVon
+    ? new Date(einsatz.datumVon).toISOString().slice(0, 10)
+    : undefined;
+  const query = { auftragnr: String(einsatz.auftragNr) };
+  if (focusDate) query.focusDate = focusDate;
+  router.push({ path: '/auftraege', query });
+  emit('close');
+}
+
+function formatEinsatzDate(dateStr) {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
 
 const canSeeSensitiveKpi = computed(() => {
   const primaryRole = String(auth.user?.role || '').toUpperCase();
@@ -1435,14 +1518,20 @@ function formatUrl(url) {
   margin-bottom: 10px;
 }
 
+.top-ma-item {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
 .top-ma-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 7px;
   font-size: 13px;
 }
 
@@ -1455,9 +1544,122 @@ function formatUrl(url) {
 
 .top-ma-name {
   font-weight: 600;
+  color: var(--primary);
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  &:hover { opacity: 0.75; text-decoration: underline; }
+}
+
+.top-ma-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  &:hover { color: var(--primary); border-color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); }
+}
+
+.top-ma-einsatz-expand {
+  border-top: 1px solid var(--border);
+  background: var(--soft);
+  padding: 6px 0;
+}
+
+.top-ma-einsatz-loading,
+.top-ma-einsatz-empty {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.top-ma-einsatz-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.top-ma-einsatz-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  transition: background 0.12s;
+  &:last-child { border-bottom: none; }
+  &:hover { background: color-mix(in srgb, var(--primary) 7%, transparent); }
+}
+
+.tme-date {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  min-width: 78px;
+}
+
+.tme-title {
+  font-weight: 600;
   color: var(--text);
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+.tme-shift {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+  max-width: 140px;
+}
+
+.tme-location {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+  max-width: 120px;
+}
+
+.tme-link-icon {
+  color: var(--primary);
+  font-size: 11px;
+  flex-shrink: 0;
+  opacity: 0.5;
+  margin-left: auto;
+}
+
+.top-ma-einsatz-row:hover .tme-link-icon { opacity: 1; }
 
 .top-ma-nr {
   font-size: 11px;

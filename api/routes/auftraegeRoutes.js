@@ -444,6 +444,32 @@ router.get('/:auftragNr/stundenliste', asyncHandler(async (req, res) => {
   res.send(buffer);
 }));
 
+// DELETE /api/auftraege/:auftragNr/stundenliste — Löscht die unsignierte Stundenliste aus R2.
+// Wird blockiert wenn ein aktiver Signaturprozess (open/draft) existiert.
+router.delete('/:auftragNr/stundenliste', auth, asyncHandler(async (req, res) => {
+  const auftragNr = parseInt(req.params.auftragNr, 10);
+  if (!Number.isFinite(auftragNr)) return res.status(400).json({ message: 'Ungültige Auftragsnummer' });
+
+  const activeVorgang = await SignaturVorgang.findOne({
+    typKey: 'stundenliste',
+    auftragNr,
+    status: { $in: ['open', 'draft'] },
+  }).lean();
+
+  if (activeVorgang) {
+    return res.status(409).json({ message: 'Stundenliste kann nicht gelöscht werden – es läuft ein aktiver Signaturprozess.' });
+  }
+
+  const r2Key = `stundenlisten/${auftragNr}.pdf`;
+  try {
+    await R2Service.deleteObject(r2Key);
+  } catch (err) {
+    logger.warn(`Stundenliste R2-Löschen fehlgeschlagen (${r2Key}): ${err.message}`);
+  }
+
+  res.json({ success: true });
+}));
+
 router.get('/search', async (req, res) => {
   try {
     const { q } = req.query;

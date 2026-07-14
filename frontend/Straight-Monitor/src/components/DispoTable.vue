@@ -4981,6 +4981,7 @@ const dispoAnnouncements = [
     top: 0;
     z-index: 9;
     background: var(--panel);
+    user-select: none;
   }
 
   /* Kombinierter Hover-Rahmen um die linke Tabelle */
@@ -5038,6 +5039,12 @@ const dispoAnnouncements = [
     top: 0;
     z-index: 7;
     background: var(--panel);
+    user-select: none;
+
+    // Focused day: opaque background so sticky header doesn't bleed through
+    &.col-day--focused {
+      background: color-mix(in srgb, var(--primary) 20%, var(--panel)) !important;
+    }
   }
 }
 
@@ -5066,6 +5073,7 @@ const dispoAnnouncements = [
     color: var(--text);
     padding: 6px 4px;
     height: 52px; /* Fixe Header-Höhe */
+    user-select: none;
   }
 
   /* Sticky Spalten-Logik wird im Split-Layout nicht mehr benötigt! */

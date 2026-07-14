@@ -574,6 +574,14 @@
                       <font-awesome-icon icon="fa-solid fa-download" />
                     </button>
                     <button
+                      class="einsatz-dok-action einsatz-dok-action--del"
+                      type="button"
+                      title="Stundenliste löschen"
+                      @click="deleteUnsignedStundenliste"
+                    >
+                      <font-awesome-icon icon="fa-solid fa-trash" />
+                    </button>
+                    <button
                       v-if="canSignaturen"
                       class="einsatz-dok-gen-btn"
                       type="button"
@@ -1448,6 +1456,10 @@ export default {
     '$route.query.openPseudo'(value) {
       if (!value) return;
       this.handlePseudoRouteQuery();
+    },
+    async '$route.query.auftragnr'(auftragNr) {
+      if (!auftragNr) return;
+      await this.loadOrderDirectly(auftragNr, this.$route.query.focusDate);
     },
     selectedEvent(event) {
       // Revoke blob URLs to avoid memory leaks (R2 signed URLs are plain https — revokeObjectURL is a no-op for them)
@@ -2423,6 +2435,16 @@ export default {
         console.error('Upload fehlgeschlagen', e);
       } finally {
         this.einsatzDokUploading = false;
+      }
+    },
+    async deleteUnsignedStundenliste() {
+      if (!this.selectedEvent?.auftragNr) return;
+      if (!confirm('Unsignierte Stundenliste wirklich löschen?')) return;
+      try {
+        await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}/stundenliste`);
+        this.generatedStundenlisteUrl = null;
+      } catch (err) {
+        alert(err.response?.data?.message || 'Fehler beim Löschen der Stundenliste');
       }
     },
     async deleteEinsatzDok(dok) {

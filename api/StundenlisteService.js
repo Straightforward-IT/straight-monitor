@@ -182,6 +182,19 @@ class StundenlisteService {
       logger.warn(`StundenlisteService: Logo konnte nicht eingebettet werden: ${e.message}`);
     }
 
+    // DocuSeal-Siegel einbetten (nur für Signatur-PDFs)
+    let docusealLogoImg = null;
+    if (options.signatureTags) {
+      try {
+        const dsPath = path.join(__dirname, 'assets', 'docuseal-logo.png');
+        if (fs.existsSync(dsPath)) {
+          docusealLogoImg = await doc.embedPng(fs.readFileSync(dsPath));
+        }
+      } catch (e) {
+        logger.warn(`StundenlisteService: DocuSeal-Logo nicht eingebettet: ${e.message}`);
+      }
+    }
+
     const ctx = {
       doc,
       font,
@@ -189,6 +202,7 @@ class StundenlisteService {
       page: doc.addPage([PAGE_W, PAGE_H]),
       y: PAGE_H - MARGIN,
       signatureTags: !!options.signatureTags,
+      docusealLogoImg,
     };
 
     // ── Kopf: Logo (volle Breite, wie im Original) ──
@@ -207,7 +221,7 @@ class StundenlisteService {
 
     // ── Einleitungstext ──
     const zeitraum = this._dateRange(auftrag.vonDatum, auftrag.bisDatum);
-    this._text(ctx, `Der Verleiher überlässt dem Entleiher am ${zeitraum} im Rahmen der Eventnummer ${auftrag.auftragNr} die untenstehend aufgeführten Arbeitnehmer.`, { size: 10.5, lineGap: 3 });
+    this._text(ctx, `Der Verleiher überlässt dem Entleiher am ${zeitraum} die untenstehend aufgeführten Arbeitnehmer.`, { size: 10.5, lineGap: 3 });
     ctx.y -= 8;
     this._text(ctx, 'Die unbefristete Erlaubnis zur Arbeitnehmerüberlassung liegt vor. (Urkunde der Bundesagentur für Arbeit, Agentur für Arbeit Kiel, in Kiel, zuletzt erteilt am 08.11.2021)', { size: 9, color: COLOR_MUTED, lineGap: 3 });
     ctx.y -= 22;
@@ -304,7 +318,6 @@ class StundenlisteService {
 
   _eventBlock(ctx, auftrag) {
     this._ensureSpace(ctx, 70);
-    this._text(ctx, 'Event', { font: ctx.fontBold, size: 11 });
     ctx.y -= 4;
     const ort = [auftrag.eventLocation, auftrag.eventStrasse, [auftrag.eventPlz, auftrag.eventOrt].filter(Boolean).join(' ')]
       .filter(Boolean).join(', ');
@@ -455,10 +468,14 @@ class StundenlisteService {
   _signatureBlock(ctx, kunde) {
     const colGap = 30;
     const colW = (CONTENT_W - colGap) / 2;
+    // Ensure enough space for sig + badge (when active) + bemerkung before computing positions.
+    // Must be called BEFORE lineY is derived from ctx.y, otherwise a page-jump resets ctx.y
+    // while lineY still points to the old near-bottom position.
+    this._ensureSpace(ctx, ctx.signatureTags ? 185 : 150);
+    // lineY is the same regardless of badge — badge goes BELOW the sig names
     const lineY = ctx.y - 30;
-    this._ensureSpace(ctx, 60);
 
-    // Jede Spalte wird unterteilt in: [Datum | Unterschrift/Stempel]
+    // Jede Spalte wird unterteilt in: [Datum | Unterschrift]
     const dateW = 72;    // Breite des Datumsfeldes
     const subGap = 10;   // Abstand zwischen Datum- und Unterschriftslinie
     const sigW = colW - dateW - subGap;
@@ -471,7 +488,7 @@ class StundenlisteService {
     ctx.page.drawLine({ start: { x: verlX + dateW + subGap, y: lineY }, end: { x: verlX + colW,      y: lineY }, thickness: 0.6, color: COLOR_TEXT });
 
     ctx.page.drawText('Datum',                            { x: verlX,                    y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
-    ctx.page.drawText('Verleiher Unterschrift / Stempel', { x: verlX + dateW + subGap,   y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
+    ctx.page.drawText('Verleiher Unterschrift', { x: verlX + dateW + subGap,   y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
     ctx.page.drawText(VERLEIHER.name,                     { x: verlX + dateW + subGap,   y: lineY - 21, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
 
     // ── Entleiher: Datum-Linie (links) + Unterschriftslinie (rechts) ──
@@ -479,20 +496,59 @@ class StundenlisteService {
     ctx.page.drawLine({ start: { x: entX + dateW + subGap, y: lineY }, end: { x: entX + colW,        y: lineY }, thickness: 0.6, color: COLOR_TEXT });
 
     ctx.page.drawText('Datum',                            { x: entX,                     y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
-    ctx.page.drawText('Entleiher Unterschrift / Stempel', { x: entX + dateW + subGap,    y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
+    ctx.page.drawText('Entleiher Unterschrift', { x: entX + dateW + subGap,    y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
     ctx.page.drawText((kunde && kunde.kundName) || '—',   { x: entX + dateW + subGap,    y: lineY - 21, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
 
-    // Unsichtbare DocuSeal-Texttags für die digitale Signatur (nur wenn aktiviert).
-    // DocuSeal erkennt diese Tags im PDF-Text und platziert die Signaturfelder genau
-    // dort, wo die Tags stehen – unabhängig von der finalen Seite/Position.
+    // Unsichtbare DocuSeal-Texttags + sichtbares "Verified by DocuSeal" Badge (zentriert unter den Feldern).
     if (ctx.signatureTags) {
+      // Badge sits BELOW the signature names (lineY - 21) with 10pt top gap and 8pt bottom gap:
+      //   lineY - 21 (last text baseline)
+      //   lineY - 31 (top edge of badge, 10pt gap)
+      //   lineY - 53 (bottom edge of badge, 22pt tall)
+      //   lineY - 61 (ctx.y will be set here, 8pt gap below badge)
+      const badgeW = 130;
+      const badgeH = 22;
+      const badgeX = PAGE_W / 2 - badgeW / 2;  // horizontally centered
+      const badgeY = lineY - 53;                // bottom edge of badge
+      const COLOR_DS_RED   = rgb(0.94, 0.27, 0.35);
+      const COLOR_DS_LIGHT = rgb(1.0,  0.96, 0.96);
+
+      ctx.page.drawRectangle({
+        x: badgeX, y: badgeY,
+        width: badgeW, height: badgeH,
+        color: COLOR_DS_LIGHT,
+        borderColor: COLOR_DS_RED,
+        borderWidth: 0.9,
+      });
+
+      // Logo-Siegel links im Badge
+      const logoSize = 16;
+      const logoX = badgeX + 6;
+      const logoY = badgeY + (badgeH - logoSize) / 2;
+      if (ctx.docusealLogoImg) {
+        ctx.page.drawImage(ctx.docusealLogoImg, {
+          x: logoX, y: logoY,
+          width: logoSize, height: logoSize,
+        });
+      }
+
+      // Text "Verified by DocuSeal"
+      ctx.page.drawText('Verified by DocuSeal', {
+        x: badgeX + 28,
+        y: badgeY + (badgeH - 8) / 2 + 1,
+        size: 8,
+        font: ctx.fontBold,
+        color: COLOR_DS_RED,
+      });
+
       this._drawDateTag(ctx, verlX, lineY, 'Verleiher', dateW);
       this._drawSignatureTag(ctx, verlX + dateW + subGap, lineY, 'Verleiher', sigW);
       this._drawDateTag(ctx, entX, lineY, 'Entleiher', dateW);
       this._drawSignatureTag(ctx, entX  + dateW + subGap, lineY, 'Entleiher', sigW);
     }
 
-    ctx.y = lineY - 28;
+    // Advance cursor: include badge height when present
+    ctx.y = lineY - (ctx.signatureTags ? 61 : 28);
   }
 
   /**
