@@ -342,12 +342,11 @@ class StundenlisteService {
     // Spaltenbreiten (Summe = CONTENT_W = 515.28)
     const cols = [
       { key: 'name', label: 'Nachname, Vorname (Geb.)', w: 150 },
-      { key: 'datum', label: 'Datum', w: 62 },
       { key: 'beginn', label: 'Beginn', w: 48 },
       { key: 'ende', label: 'Ende', w: 48 },
       { key: 'pause', label: 'Pause', w: 42 },
       { key: 'stunden', label: 'Stunden', w: 50 },
-      { key: 'unterschrift', label: 'Unterschrift', w: CONTENT_W - (150 + 62 + 48 + 48 + 42 + 50) },
+      { key: 'unterschrift', label: 'Unterschrift', w: CONTENT_W - (150 + 48 + 48 + 42 + 50) },
     ];
 
     // Sort groups: 1. by beruf jobKey, 2. by schicht.uhrzeitVon
@@ -383,7 +382,9 @@ class StundenlisteService {
         const bis = schicht.endeOffen ? 'Offen' : (schicht.uhrzeitBis || '');
         return bis ? `${von} – ${bis}` : von;
       })();
-      const headerText = `Beruf, Tätigkeit: ${[beruf, quali].filter(Boolean).join(' – ') || '—'}` + (timeStr ? `   |   ${timeStr}` : '');
+      const dateStr = this._date(schicht?.datumVon || first.datumVon || null);
+      const infoStr = [dateStr, timeStr].filter(Boolean).join('   ');
+      const headerText = `Beruf, T\u00e4tigkeit: ${[beruf, quali].filter(Boolean).join(' \u2013 ') || '\u2014'}` + (infoStr ? `   |   ${infoStr}` : '');
 
       // Schicht-Überschrift
       this._ensureSpace(ctx, 18 + 20 + 26);
@@ -440,9 +441,6 @@ class StundenlisteService {
         if (geb) {
           ctx.page.drawText(geb, { x: x + 3, y: top - 21, size: 7, font: ctx.font, color: COLOR_MUTED });
         }
-      } else if (c.key === 'datum') {
-        const datum = einsatz.datumVon ? this._date(einsatz.datumVon) : '';
-        if (datum) ctx.page.drawText(datum, { x: x + 3, y: top - 14, size: 8, font: ctx.font, color: COLOR_TEXT });
       }
       // Beginn/Ende/Pause/Stunden/Unterschrift bleiben leer (handschriftlich)
       x += c.w;

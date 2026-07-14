@@ -364,16 +364,16 @@
           </div>
 
           <!-- Schichten Section -->
-          <div class="schichten-section" v-if="preparedSchichten.size">
+          <div class="schichten-section" v-if="preparedSchichten.length">
             <div class="section-header">
               <h3>Schichten</h3>
-              <span class="section-count">{{ preparedSchichten.size }}</span>
+              <span class="section-count">{{ preparedSchichten.length }}</span>
             </div>
             
             <div class="schichten-list">
               <div 
-                v-for="(schichtData, schichtId) in preparedSchichten" 
-                :key="schichtId"
+                v-for="schichtData in preparedSchichten" 
+                :key="schichtData.key"
                 class="schicht-card"
               >
                 <!-- Schicht Header with Times & Bedarf -->
@@ -894,11 +894,11 @@
             <select v-model="pseudoSelectedSchicht" class="qa-select">
               <option :value="null">— Automatisch (erste Schicht) —</option>
               <option
-                v-for="(schicht, key) in preparedSchichten"
-                :key="key"
-                :value="key"
+                v-for="schicht in preparedSchichten"
+                :key="schicht.key"
+                :value="schicht.key"
               >
-                {{ schicht.meta.schichtBezeichnung || ('Schicht ' + key) }}
+                {{ schicht.meta.schichtBezeichnung || ('Schicht ' + schicht.key) }}
                 <template v-if="schicht.meta.uhrzeitVon"> · {{ schicht.meta.uhrzeitVon.substring(0,5) }}</template>
               </option>
             </select>
@@ -1206,7 +1206,7 @@ export default {
       selectedMitarbeiter: null,
       selectedKunde: null,
       fullKundeData: null,
-      preparedSchichten: new Map(), // Lazy loaded schichten data
+      preparedSchichten: [], // Lazy loaded schichten data
       dataStatus: null, // Last import timestamp
       // ── Quick Actions ──────────────────────────────────────────────────────
       // Label dialog
@@ -1507,7 +1507,7 @@ export default {
     },
     // Determine shifts and metadata from event details (Lazy Load)
     calculateSchichten(event) {
-      if (!event?.einsaetze && !event?.schichten) return {};
+      if (!event?.einsaetze && !event?.schichten) return [];
       const grouped = {};
 
       // 1. Seed from Schicht records (7011 import — includes empty shifts with bedarf)
@@ -1582,7 +1582,7 @@ export default {
         return vonA.localeCompare(vonB);
       });
 
-      return new Map(sortedEntries);
+      return sortedEntries.map(([key, schicht]) => ({ key, ...schicht }));
     },
 
     // Check if all einsaetze in a schicht have the same beruf

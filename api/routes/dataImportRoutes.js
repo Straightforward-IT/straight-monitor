@@ -106,11 +106,11 @@ const parseExcelTime = (val) => {
   return String(val);
 };
 
-// Helper to clean keys (trim spaces)
+// Helper to clean keys (trim spaces and normalize to uppercase)
 const cleanKeys = (obj) => {
   const newObj = {};
   Object.keys(obj).forEach(key => {
-    newObj[key.trim()] = obj[key];
+    newObj[key.trim().toUpperCase()] = obj[key];
   });
   return newObj;
 };
@@ -448,7 +448,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
               eventLocation: row['EVENT_LOCATION'],
               aktiv: row['AKTIV'],
               auftStatus: row['AUFTSTATUS'],
-              referenz: row['Referenz'] || undefined
+              referenz: row['REFERENZ'] || undefined
             }},
             upsert: true
           }
