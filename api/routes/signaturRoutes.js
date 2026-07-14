@@ -7,6 +7,7 @@ const logger = require('../utils/logger');
 const DocuSealService = require('../DocuSealService');
 const SignaturVorgang = require('../models/SignaturVorgang');
 const SignaturTyp = require('../models/SignaturTyp');
+const SignaturFolgeDefaults = require('../models/SignaturFolgeDefaults');
 const Mitarbeiter = require('../models/Mitarbeiter');
 const Kunde = require('../models/Kunde');
 const R2Service = require('../R2Service');
@@ -403,6 +404,37 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   });
 }));
 
+// ─── FOLGE-DEFAULTS ───────────────────────────────────────────────────────────
+
+// GET /api/signaturen/folge-defaults?kundeId=X&typId=Y
+// Returns the shared default ausliefernAn recipients for a Kunde+Typ combo.
+router.get('/folge-defaults', auth, asyncHandler(async (req, res) => {
+  const { kundeId, typId } = req.query;
+  if (!kundeId || !typId) return res.json({ ausliefernAn: [] });
+
+  const defaults = await SignaturFolgeDefaults.findOne({ kundeId, typId }).lean();
+  res.json({ ausliefernAn: defaults?.ausliefernAn || [] });
+}));
+
+// PUT /api/signaturen/folge-defaults
+// Upsert the shared default ausliefernAn recipients for a Kunde+Typ combo.
+// Body: { kundeId, typId, ausliefernAn: [{ displayName, email }] }
+router.put('/folge-defaults', auth, asyncHandler(async (req, res) => {
+  const { kundeId, typId, ausliefernAn } = req.body || {};
+  if (!kundeId || !typId) return res.status(400).json({ message: 'kundeId und typId erforderlich' });
+
+  const sanitized = Array.isArray(ausliefernAn)
+    ? ausliefernAn.filter(r => r && r.email).map(r => ({ displayName: r.displayName || '', email: r.email.toLowerCase().trim() }))
+    : [];
+
+  const doc = await SignaturFolgeDefaults.findOneAndUpdate(
+    { kundeId, typId },
+    { ausliefernAn: sanitized, updatedBy: req.user.id },
+    { upsert: true, new: true }
+  );
+  res.json({ ausliefernAn: doc.ausliefernAn });
+}));
+
 // ─── LIST ─────────────────────────────────────────────────────────────────────
 
 // GET /api/signaturen — list with optional filters
@@ -456,9 +488,25 @@ router.get('/', auth, asyncHandler(async (req, res) => {
     }));
   }
 
-  res.json(vorgaenge);
-}));
+  // Batch-fetch Auftrag titles for vorgaenge that have an auftragNr
+  const auftragNrs = [...new Set(vorgaenge.map(v => v.auftragNr).filter(Boolean))];
+  const auftragTitelMap = {};
+  if (auftragNrs.length) {
+    const auftraege = await Auftrag.find(
+      { auftragNr: { $in: auftragNrs } },
+      { auftragNr: 1, eventTitel: 1 }
+    ).lean();
+    auftraege.forEach(a => { auftragTitelMap[a.auftragNr] = a.eventTitel || null; });
+  }
 
+  const result = vorgaenge.map(v => {
+    const obj = v.toObject();
+    if (obj.auftragNr) obj.auftragTitel = auftragTitelMap[obj.auftragNr] || null;
+    return obj;
+  });
+
+  res.json(result);
+}));
 // ─── CREATE ───────────────────────────────────────────────────────────────────
 
 // POST /api/signaturen — create a new SignaturVorgang

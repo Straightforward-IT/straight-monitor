@@ -141,6 +141,12 @@
           :class="[getEventStatusClass(event), getBedarfClass(event)]"
           @click="selectEvent(event)"
         >
+            <img
+              :src="docusealLogoImg"
+              class="sig-status-icon"
+              :style="{ filter: getSignaturIconFilter(event) }"
+              :title="getSignaturIconTitle(event)"
+            />
             <div class="event-header">
               <span v-if="event.auftStatus !== 2" class="event-status">{{ getStatusText(event.auftStatus) }}</span>
               <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
@@ -244,6 +250,12 @@
             :class="[getEventStatusClass(event), getBedarfClass(event)]"
             @click="selectEvent(event)"
           >
+            <img
+              :src="docusealLogoImg"
+              class="sig-status-icon"
+              :style="{ filter: getSignaturIconFilter(event) }"
+              :title="getSignaturIconTitle(event)"
+            />
             <div class="event-header" v-if="event.auftStatus !== 2 || event.isPseudo">
               <span class="event-status">{{ getStatusText(event.auftStatus) }}</span>
               <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
@@ -497,9 +509,13 @@
             <template v-else>
               <div
                 class="einsatz-dok-row"
-                :class="sidebarStundenliste
-                  ? `einsatz-dok--${sidebarStundenliste.status}`
-                  : (generatedStundenlisteUrl ? 'einsatz-dok--generated' : 'einsatz-dok--none')"
+                :class="[
+                  sidebarStundenliste
+                    ? `einsatz-dok--${sidebarStundenliste.status}`
+                    : (generatedStundenlisteUrl ? 'einsatz-dok--generated' : 'einsatz-dok--none'),
+                  sidebarStundenliste?.status === 'open' ? 'einsatz-dok-row--clickable' : ''
+                ]"
+                @click="sidebarStundenliste?.status === 'open' ? $router.push('/signaturen') : null"
               >
                 <font-awesome-icon
                   icon="fa-solid fa-file-contract"
@@ -547,6 +563,15 @@
                       @click="$router.push('/signaturen')"
                     >
                       <font-awesome-icon icon="fa-solid fa-file-signature" />
+                    </button>
+                    <button
+                      v-if="sidebarStundenliste.status === 'open' && canSignaturen"
+                      class="einsatz-dok-action einsatz-dok-action--open-sig"
+                      type="button"
+                      title="Signaturprozess anzeigen"
+                      @click.stop="$router.push('/signaturen')"
+                    >
+                      <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
                     </button>
                     <span class="einsatz-dok-badge" :class="`badge-${sidebarStundenliste.status}`">
                       {{ { open: 'Ausstehend', completed: 'Unterschrieben', draft: 'Entwurf', cancelled: 'Storniert' }[sidebarStundenliste.status] || sidebarStundenliste.status }}
@@ -1165,6 +1190,7 @@ import laufzettelIcon from '@/assets/laufzettel.png';
 import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
 import eventreportIcon from '@/assets/eventreport.png';
 import eventreportDarkIcon from '@/assets/eventreport-dark.png';
+import docusealLogoImg from '@/assets/docuseal-logo.webp';
 
 
 export default {
@@ -1302,6 +1328,7 @@ export default {
     },
     laufzettelImg() { return this.isDark ? laufzettelDarkIcon : laufzettelIcon; },
     eventreportImg() { return this.isDark ? eventreportDarkIcon : eventreportIcon; },
+    docusealLogoImg() { return docusealLogoImg; },
     currentWeekEnd() {
       if (!this.currentWeekStart) return null;
       const end = new Date(this.currentWeekStart);
@@ -2097,6 +2124,20 @@ export default {
       const s = event.schichtStatus;
       if (!s || s === 'none') return 'bedarf-none';
       return `bedarf-${s}`;
+    },
+    getSignaturIconFilter(event) {
+      const s = event.stundenlisteSignaturStatus;
+      if (s === 'open')      return 'hue-rotate(50deg) saturate(1.5) brightness(0.85)';
+      if (s === 'completed') return 'hue-rotate(110deg) saturate(1.3) brightness(0.9)';
+      // null, draft, or cancelled → red (not signed yet)
+      return 'hue-rotate(0deg) saturate(1.8) brightness(0.9)';
+    },
+    getSignaturIconTitle(event) {
+      const s = event.stundenlisteSignaturStatus;
+      if (s === 'completed') return 'Stundenliste signiert';
+      if (s === 'open')      return 'Signatur ausstehend';
+      if (s === 'draft')     return 'Signatur gestartet (Entwurf)';
+      return 'Keine Signatur';
     },
     getSchichtenForDay(event, date) {
       if (!event.schichten?.length || !date) return [];
@@ -3620,6 +3661,7 @@ export default {
   cursor: pointer;
   transition: all 0.15s;
   font-size: 0.75rem;
+  position: relative;
 
   &:hover {
     transform: translateY(-1px);
@@ -4181,6 +4223,7 @@ export default {
   flex-direction: column;
   gap: 4px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  position: relative;
 
   // Bedarf-based left border
   &.bedarf-none        { border-left: 4px solid var(--muted); }
@@ -4219,6 +4262,17 @@ export default {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.sig-status-icon {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 3px;
+  pointer-events: none;
 }
 
 .event-title {
@@ -4885,6 +4939,15 @@ export default {
   margin-top: 7px;
   background: var(--tile-bg, var(--surface));
   border-left: 3px solid var(--border);
+
+  &.einsatz-dok-row--clickable {
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    &:hover {
+      background: color-mix(in oklab, #f59e0b 6%, var(--tile-bg, var(--surface)));
+      border-color: color-mix(in oklab, #f59e0b 40%, var(--border));
+    }
+  }
   &.einsatz-dok--completed { border-left-color: #10b981; }
   &.einsatz-dok--open      { border-left-color: #f59e0b; }
   &.einsatz-dok--draft     { border-left-color: var(--muted); }

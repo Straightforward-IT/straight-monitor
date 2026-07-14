@@ -218,6 +218,44 @@
               <label class="sig-field-label">
                 <font-awesome-icon :icon="['fas', 'envelope']" /> Fertig­gestelltes Dokument ausliefern an
               </label>
+
+              <!-- Kontakt-Vorschläge vom verlinkten Kunden -->
+              <div v-if="linkMode === 'kunde' && kundeContactSuggestions.length" class="sig-follower-suggestions">
+                <div class="sig-follower-header">
+                  <span class="sig-follower-label">
+                    <font-awesome-icon :icon="['fas', 'building']" />
+                    Kontakte von {{ selectedKunde?.kundName || selectedKunde?.kuerzel }}
+                  </span>
+                  <span v-if="followerDefaultsLoading" class="sig-follower-loading">
+                    <font-awesome-icon :icon="['fas', 'spinner']" spin /> Laden…
+                  </span>
+                  <button
+                    v-else-if="form.typId"
+                    class="sig-follower-save-btn"
+                    type="button"
+                    :disabled="followerDefaultsSaving"
+                    @click="saveFollowerDefaults"
+                  >
+                    <font-awesome-icon :icon="['fas', followerDefaultsSaving ? 'spinner' : 'floppy-disk']" :spin="followerDefaultsSaving" />
+                    Als Standard speichern
+                  </button>
+                </div>
+                <div class="sig-follower-chips">
+                  <button
+                    v-for="c in kundeContactSuggestions"
+                    :key="c.email"
+                    class="sig-follower-chip"
+                    :class="{ selected: isFollowerSelected(c.email) }"
+                    :style="isFollowerSelected(c.email) ? {} : followerChipColor(c.displayName)"
+                    type="button"
+                    :title="c.email"
+                    @click="toggleFollower(c)"
+                  >
+                    <font-awesome-icon :icon="['fas', isFollowerSelected(c.email) ? 'circle-check' : 'circle']" class="sig-follower-chip-icon" />
+                    <span class="sig-follower-chip-name">{{ c.displayName }}</span>
+                  </button>
+                </div>
+              </div>
               <p class="sig-hint" style="margin-top:0;margin-bottom:10px;">
                 Nach Abschluss aller Unterschriften wird das signierte PDF an diese Adressen geschickt.
               </p>
@@ -399,7 +437,7 @@ import {
   faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
   faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
   faBolt, faTrash, faCommentDots, faEnvelope, faAt, faRobot,
-  faFloppyDisk, faPenNib,
+  faFloppyDisk, faPenNib, faCircleCheck, faCircle,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useSignaturModal } from '@/stores/signaturModal';
@@ -416,7 +454,7 @@ library.add(
   faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
   faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
   faBolt, faTrash, faCommentDots, faEnvelope, faAt, faRobot,
-  faFloppyDisk, faPenNib,
+  faFloppyDisk, faPenNib, faCircleCheck, faCircle,
 );
 
 const modal = useSignaturModal();
@@ -564,6 +602,125 @@ const kundenList = computed(() => dataCache.kunden || []);
 
 const selectedKunde = computed(() => kundenList.value.find(k => k._id === form.value.kundeId) || null);
 const selectedMitarbeiter = computed(() => mitarbeiterList.value.find(m => m._id === form.value.mitarbeiterId) || null);
+
+// ── Follower-Vorschläge (Kontakte des ausgewählten Kunden) ──────────────────
+const followerDefaultsLoading  = ref(false);
+const followerDefaultsSaving   = ref(false);
+const followerDefaultsLoaded   = ref(false);
+
+// All Graph contacts whose companyName matches the selected Kunde's kuerzel
+const kundeContactSuggestions = computed(() => {
+  const kuerzel = selectedKunde.value?.kuerzel;
+  if (!kuerzel) return [];
+
+  const k = kuerzel.toLowerCase();
+  const seen = new Set();
+
+  return graphContacts.value
+    .map(c => {
+      const email = (c.emailAddresses?.[0]?.address || '').trim().toLowerCase();
+
+      return {
+        ...c,
+        email,
+        displayName: c.displayName || email,
+      };
+    })
+    .filter(c => {
+      if (!c.email) return false;
+      if ((c.companyName || '').toLowerCase() !== k) return false;
+      if (seen.has(c.email)) return false;
+
+      seen.add(c.email);
+      return true;
+    });
+});
+
+function isFollowerSelected(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return false;
+
+  return folgeaktionen.value.ausliefernAn.some(r =>
+    String(r.email || '').trim().toLowerCase() === normalizedEmail
+  );
+}
+
+function followerChipColor(name) {
+  let hash = 0;
+  for (let i = 0; i < String(name).length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash) % 360;
+  return {
+    background: `hsl(${hue}, 55%, 92%)`,
+    borderColor: `hsl(${hue}, 45%, 75%)`,
+    color: `hsl(${hue}, 40%, 30%)`,
+  };
+}
+
+function toggleFollower(contact) {
+  const email = String(contact.email || contact.emailAddresses?.[0]?.address || '')
+    .trim()
+    .toLowerCase();
+
+  if (!email) return;
+
+  const idx = folgeaktionen.value.ausliefernAn.findIndex(r =>
+    String(r.email || '').trim().toLowerCase() === email
+  );
+
+  if (idx === -1) {
+    folgeaktionen.value.ausliefernAn.push({
+      displayName: contact.displayName || '',
+      email,
+    });
+  } else {
+    folgeaktionen.value.ausliefernAn.splice(idx, 1);
+  }
+}
+
+async function saveFollowerDefaults() {
+  if (!form.value.kundeId || !form.value.typId || followerDefaultsSaving.value) return;
+  followerDefaultsSaving.value = true;
+  try {
+    await api.put('/api/signaturen/folge-defaults', {
+      kundeId: form.value.kundeId,
+      typId: form.value.typId,
+      ausliefernAn: folgeaktionen.value.ausliefernAn,
+    });
+    window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Standard gespeichert', type: 'success' } }));
+  } catch (e) {
+    console.error('Folge-Defaults speichern fehlgeschlagen', e);
+    window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Speichern fehlgeschlagen', type: 'error' } }));
+  } finally {
+    followerDefaultsSaving.value = false;
+  }
+}
+
+// Load defaults when entering Step 4 with a Kunde+Typ selected
+watch(currentStep, async (step) => {
+  if (step !== 3) return;
+  if (linkMode.value !== 'kunde' || !form.value.kundeId || !form.value.typId) return;
+  if (followerDefaultsLoaded.value) return;
+
+  followerDefaultsLoading.value = true;
+  try {
+    const { data } = await api.get('/api/signaturen/folge-defaults', {
+      params: { kundeId: form.value.kundeId, typId: form.value.typId },
+    });
+    if (folgeaktionen.value.ausliefernAn.length === 0 && data.ausliefernAn?.length) {
+      folgeaktionen.value.ausliefernAn = data.ausliefernAn;
+    }
+    followerDefaultsLoaded.value = true;
+  } catch (e) {
+    console.error('Folge-Defaults laden fehlgeschlagen', e);
+  } finally {
+    followerDefaultsLoading.value = false;
+  }
+});
+
+// Reset loaded flag when Kunde or Typ changes
+watch([() => form.value.kundeId, () => form.value.typId], () => {
+  followerDefaultsLoaded.value = false;
+});
 
 const usesCustomEndpoint = computed(() => !!modal.context.customEndpoint);
 
@@ -804,6 +961,7 @@ watch(() => modal.open, async (open) => {
   folgeaktionen.value = { ausliefernAn: [], emailBenachrichtigung: true, asanaActions: [] };
   newEmailInput.value = '';
   newEmailError.value = '';
+  followerDefaultsLoaded.value = false;
   showAsanaBuilder.value = false;
   asanaSearchQuery.value = '';
   asanaSearchResults.value = [];
@@ -1521,4 +1679,100 @@ const ContactSearchPlaceholder = {
 }
 .sig-select--inline { width: auto; min-width: 160px; }
 .sig-textarea { resize: vertical; min-height: 52px; }
+
+// ── Follower suggestions (Kontakte des Kunden) ──────────────────────────────
+.sig-follower-suggestions {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: color-mix(in oklab, var(--primary) 5%, transparent);
+  border: 1px solid color-mix(in oklab, var(--primary) 22%, var(--border));
+  border-radius: 10px;
+}
+
+.sig-follower-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.sig-follower-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+
+  svg { font-size: 0.8rem; }
+}
+
+.sig-follower-loading {
+  font-size: 0.78rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sig-follower-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid color-mix(in oklab, var(--primary) 35%, var(--border));
+  border-radius: 7px;
+  background: transparent;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  &:hover { background: color-mix(in oklab, var(--primary) 10%, transparent); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.sig-follower-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sig-follower-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--hover);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  transition: opacity 0.12s, transform 0.1s;
+
+  &:hover { opacity: 0.85; transform: scale(1.03); }
+
+  &.selected {
+    border-color: var(--primary) !important;
+    background: color-mix(in oklab, var(--primary) 15%, transparent) !important;
+    color: var(--primary) !important;
+
+    .sig-follower-chip-icon { color: var(--primary); }
+  }
+
+  .sig-follower-chip-icon {
+    font-size: 0.7rem;
+    opacity: 0.6;
+    flex-shrink: 0;
+  }
+  .sig-follower-chip-name {
+    line-height: 1.3;
+  }
+}
 </style>

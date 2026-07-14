@@ -220,6 +220,18 @@ router.get('/', async (req, res) => {
       schichtStatusMap[Number(auftragNr)] = schichtStatus;
     }
 
+    // Batch-fetch Stundenliste signature status (most recent non-cancelled per auftrag)
+    const sigVorgaenge = await SignaturVorgang.find(
+      { typKey: 'stundenliste', auftragNr: { $in: auftragNrs }, status: { $ne: 'cancelled' } },
+      { auftragNr: 1, status: 1, createdAt: 1 }
+    ).sort({ createdAt: -1 }).lean();
+    const stundenlisteSignaturStatusMap = {};
+    sigVorgaenge.forEach(v => {
+      if (!stundenlisteSignaturStatusMap[v.auftragNr]) {
+        stundenlisteSignaturStatusMap[v.auftragNr] = v.status;
+      }
+    });
+
     // Build schichten display map (times + occupancy per shift, grouped by auftragNr)
     const schichtenDisplayMap = {};
     schichten.forEach(s => {
@@ -244,7 +256,8 @@ router.get('/', async (req, res) => {
       earliestEinsatzTime: earliestTimeMap[a.auftragNr] || null,
       mitarbeiterNames: mitarbeiterNamesMap[a.auftragNr] || [],
       schichtStatus: schichtStatusMap[a.auftragNr] || 'none',
-      schichten: schichtenDisplayMap[a.auftragNr] || []
+      schichten: schichtenDisplayMap[a.auftragNr] || [],
+      stundenlisteSignaturStatus: stundenlisteSignaturStatusMap[a.auftragNr] || null
     }));
     
     res.json(result);

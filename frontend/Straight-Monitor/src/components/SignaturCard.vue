@@ -50,10 +50,24 @@
     <!-- Expanded body -->
     <Transition name="sc-expand">
       <div v-if="expanded" class="sc-body">
+        <!-- Pending in-app signature banner -->
+        <div v-if="activeEmbedSrc" class="sc-sign-banner">
+          <font-awesome-icon :icon="['fas', 'pen-to-square']" />
+          <span>Deine Unterschrift steht noch aus – nach unten scrollen, um das Dokument zu unterschreiben.</span>
+        </div>
         <div class="sc-body-grid">
           <!-- PDF preview -->
           <div class="sc-preview">
-            <div v-if="!hasSignedDoc" class="sc-preview-empty">
+            <!-- Inline in-app signing form -->
+            <DocusealForm
+              v-if="activeEmbedSrc && vorgang.status === 'open'"
+              :src="activeEmbedSrc"
+              host="cdn.docuseal.eu"
+              :with-title="false"
+              class="sc-preview-form"
+              @complete="onEmbedComplete"
+            />
+            <div v-else-if="!hasSignedDoc" class="sc-preview-empty">
               <font-awesome-icon :icon="['fas', 'file-circle-question']" size="2x" />
               <p>{{ vorgang.status === 'completed' ? 'Kein Dokument hinterlegt' : 'Noch nicht unterschrieben' }}</p>
             </div>
@@ -74,8 +88,20 @@
                   <span class="sc-sub-name">{{ s.name || s.email || '—' }}</span>
                   <span class="sc-sub-role">{{ s.role }}</span>
                 </div>
+                <!-- Embedded in-app signing button -->
                 <button
-                  v-if="vorgang.status === 'open' && s.embedSrc"
+                  v-if="vorgang.status === 'open' && s.embedded && s.embedSrc && s.status !== 'completed'"
+                  class="sc-sub-link sc-sub-link--sign"
+                  :class="{ active: activeEmbedSrc === s.embedSrc }"
+                  type="button"
+                  title="In-App signieren"
+                  @click="selectEmbedSubmitter(s)"
+                >
+                  <font-awesome-icon :icon="['fas', 'pen-to-square']" />
+                </button>
+                <!-- Copy link button for non-embedded submitters -->
+                <button
+                  v-else-if="vorgang.status === 'open' && s.embedSrc && !s.embedded"
                   class="sc-sub-link"
                   type="button"
                   title="Signatur-Link kopieren"
@@ -89,6 +115,103 @@
             <div class="sc-detail-block" v-if="vorgang.docusealTemplateName">
               <h4>Vorlage</h4>
               <p class="sc-detail-val">{{ vorgang.docusealTemplateName }}</p>
+            </div>
+
+            <!-- Verknüpfungen -->
+            <div class="sc-detail-block" v-if="vorgang.auftragNr || vorgang.kundenKuerzel || vorgang.mitarbeiterName || vorgang.graphContact?.displayName">
+              <h4>Verknüpfungen</h4>
+              <div class="sc-links">
+                <router-link
+                  v-if="vorgang.auftragNr"
+                  :to="`/auftraege?auftragNr=${vorgang.auftragNr}`"
+                  class="sc-link-row"
+                  @click.stop
+                >
+                  <font-awesome-icon :icon="['fas', 'briefcase']" class="sc-link-icon" />
+                  <span class="sc-link-label">{{ vorgang.auftragTitel || `Auftrag #${vorgang.auftragNr}` }}</span>
+                  <span class="sc-link-sub">#{{ vorgang.auftragNr }}</span>
+                  <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" class="sc-link-ext" />
+                </router-link>
+                <router-link
+                  v-if="vorgang.kundenKuerzel"
+                  to="/kunden"
+                  class="sc-link-row"
+                  @click.stop
+                >
+                  <font-awesome-icon :icon="['fas', 'building']" class="sc-link-icon" />
+                  <span class="sc-link-label">{{ vorgang.kundenKuerzel }}</span>
+                  <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" class="sc-link-ext" />
+                </router-link>
+                <router-link
+                  v-if="vorgang.mitarbeiterName"
+                  to="/personal"
+                  class="sc-link-row"
+                  @click.stop
+                >
+                  <font-awesome-icon :icon="['fas', 'user']" class="sc-link-icon" />
+                  <span class="sc-link-label">{{ displayMitarbeiter }}</span>
+                  <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" class="sc-link-ext" />
+                </router-link>
+                <div v-if="vorgang.graphContact?.displayName" class="sc-link-row sc-link-row--static">
+                  <font-awesome-icon :icon="['fas', 'address-card']" class="sc-link-icon" />
+                  <span class="sc-link-label">{{ vorgang.graphContact.displayName }}</span>
+                  <span class="sc-link-sub" v-if="vorgang.graphContact.email">{{ vorgang.graphContact.email }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Folgeaktionen -->
+            <div class="sc-detail-block" v-if="hasFolgeaktionen">
+              <h4>Folgeaktionen</h4>
+              <div class="sc-links">
+                <div
+                  v-for="r in vorgang.folgeaktionen.ausliefernAn"
+                  :key="r.email"
+                  class="sc-link-row sc-link-row--static"
+                >
+                  <font-awesome-icon :icon="['fas', 'envelope']" class="sc-link-icon" />
+                  <span class="sc-link-label">{{ r.displayName || r.email }}</span>
+                  <span class="sc-link-sub" v-if="r.displayName && r.email">{{ r.email }}</span>
+                </div>
+                <div
+                  v-for="a in vorgang.folgeaktionen.asanaActions"
+                  :key="a.taskGid"
+                  class="sc-link-row sc-link-row--static"
+                >
+                  <font-awesome-icon :icon="['fas', 'list-check']" class="sc-link-icon" />
+                  <span class="sc-link-label">{{ a.taskName || a.taskGid }}</span>
+                  <span class="sc-link-sub">{{ { complete: 'Abschließen', comment: 'Kommentieren', delete: 'Löschen' }[a.type] }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Zeitstempel -->
+            <div class="sc-detail-block">
+              <h4>Zeitstempel</h4>
+              <div class="sc-timestamps">
+                <div class="sc-ts-row">
+                  <font-awesome-icon :icon="['fas', 'calendar-days']" class="sc-link-icon" />
+                  <span class="sc-ts-label">Erstellt</span>
+                  <span class="sc-ts-val">{{ formatDateTime(vorgang.createdAt) }}</span>
+                </div>
+                <template v-for="s in vorgang.submitters" :key="s.slug || s.email || s.role">
+                  <div v-if="s.completedAt" class="sc-ts-row sc-ts-row--signer">
+                    <font-awesome-icon :icon="['fas', 'pen-nib']" class="sc-link-icon" />
+                    <span class="sc-ts-label">{{ s.name || s.role }}</span>
+                    <span class="sc-ts-val">{{ formatDateTime(s.completedAt) }}</span>
+                  </div>
+                </template>
+                <div v-if="vorgang.completedAt" class="sc-ts-row sc-ts-row--done">
+                  <font-awesome-icon :icon="['fas', 'circle-check']" class="sc-link-icon" />
+                  <span class="sc-ts-label">Abgeschlossen</span>
+                  <span class="sc-ts-val">{{ formatDateTime(vorgang.completedAt) }}</span>
+                </div>
+                <div v-if="vorgang.cancelledAt" class="sc-ts-row sc-ts-row--cancelled">
+                  <font-awesome-icon :icon="['fas', 'circle-xmark']" class="sc-link-icon" />
+                  <span class="sc-ts-label">Storniert</span>
+                  <span class="sc-ts-val">{{ formatDateTime(vorgang.cancelledAt) }}</span>
+                </div>
+              </div>
             </div>
 
             <div class="sc-actions">
@@ -123,11 +246,12 @@ import { ref, computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faStar as fasStar, faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotateRight, faBan, faLink, faFileCircleQuestion, faSpinner, faCircleCheck, faClock, faCircleXmark, faHourglassHalf, faPenNib, faFileSignature, faTags, faFileContract, faMoneyBillWave, faPlane } from '@fortawesome/free-solid-svg-icons';
+import { faStar as fasStar, faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotateRight, faBan, faLink, faFileCircleQuestion, faSpinner, faCircleCheck, faClock, faCircleXmark, faHourglassHalf, faPenNib, faFileSignature, faTags, faFileContract, faMoneyBillWave, faPlane, faPenToSquare, faBuilding, faEnvelope, faCalendarDays, faListCheck, faAddressCard, faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons';
 import { faStar as farStar } from '@fortawesome/free-regular-svg-icons';
+import { DocusealForm } from '@docuseal/vue';
 import api from '@/utils/api';
 
-library.add(fasStar, farStar, faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotateRight, faBan, faLink, faFileCircleQuestion, faSpinner, faCircleCheck, faClock, faCircleXmark, faHourglassHalf, faPenNib, faFileSignature, faTags, faFileContract, faMoneyBillWave, faPlane);
+library.add(fasStar, farStar, faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotateRight, faBan, faLink, faFileCircleQuestion, faSpinner, faCircleCheck, faClock, faCircleXmark, faHourglassHalf, faPenNib, faFileSignature, faTags, faFileContract, faMoneyBillWave, faPlane, faPenToSquare, faBuilding, faEnvelope, faCalendarDays, faListCheck, faAddressCard, faArrowUpRightFromSquare);
 
 const props = defineProps({
   vorgang: { type: Object, required: true },
@@ -188,9 +312,27 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+function formatDateTime(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+const hasFolgeaktionen = computed(() => {
+  const f = props.vorgang.folgeaktionen;
+  if (!f) return false;
+  return (f.ausliefernAn?.length > 0) || (f.asanaActions?.length > 0);
+});
+
 function toggleExpand() {
   expanded.value = !expanded.value;
-  if (expanded.value && hasSignedDoc.value && !previewLoaded.value) loadPreview();
+  if (expanded.value) {
+    // Auto-open in-app form for first pending embedded submitter
+    if (firstPendingEmbedded.value) {
+      activeEmbedSrc.value = firstPendingEmbedded.value.embedSrc;
+    } else if (hasSignedDoc.value && !previewLoaded.value) {
+      loadPreview();
+    }
+  }
 }
 
 async function loadPreview() {
@@ -273,6 +415,23 @@ async function cancel() {
 }
 function editDraft() {
   emit('edit-draft', props.vorgang);
+}
+
+// ── In-App Signing (inline preview) ────────────────────────────────────────────────
+const activeEmbedSrc = ref('');
+
+// Auto-select the first pending embedded submitter when the card expands
+const firstPendingEmbedded = computed(() =>
+  props.vorgang.submitters.find(s => s.embedded && s.embedSrc && s.status !== 'completed') || null
+);
+
+function selectEmbedSubmitter(submitter) {
+  activeEmbedSrc.value = activeEmbedSrc.value === submitter.embedSrc ? '' : submitter.embedSrc;
+}
+
+function onEmbedComplete() {
+  activeEmbedSrc.value = '';
+  refresh();
 }</script>
 
 <style scoped lang="scss">
@@ -446,6 +605,21 @@ function editDraft() {
   border-top: 1px solid var(--border);
   padding: 16px;
 }
+.sc-sign-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: color-mix(in oklab, var(--primary) 8%, transparent);
+  border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border));
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--primary);
+
+  svg { flex-shrink: 0; font-size: 0.9rem; }
+}
 .sc-body-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
@@ -474,6 +648,7 @@ function editDraft() {
   font-size: 0.82rem;
 }
 .sc-preview-frame { width: 100%; height: 100%; min-height: 280px; border: none; }
+.sc-preview-form { width: 100%; min-height: 400px; }
 
 .sc-detail-block { margin-bottom: 14px; }
 .sc-detail-block h4 {
@@ -486,6 +661,60 @@ function editDraft() {
 }
 .sc-detail-val { font-size: 0.85rem; color: var(--text); }
 
+// ── Linked entities + Folgeaktionen ──────────────────────────────────
+.sc-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sc-link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--primary);
+  text-decoration: none;
+  transition: background 0.12s;
+
+  &:hover { background: color-mix(in oklab, var(--primary) 8%, transparent); }
+
+  &.sc-link-row--static {
+    color: var(--text);
+    cursor: default;
+    &:hover { background: transparent; }
+  }
+
+  .sc-link-icon { font-size: 0.78rem; color: var(--muted); flex-shrink: 0; width: 14px; text-align: center; }
+  .sc-link-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sc-link-sub { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+  .sc-link-ext { font-size: 0.65rem; color: var(--muted); flex-shrink: 0; }
+}
+
+// ── Timestamps ────────────────────────────────────────────────────────
+.sc-timestamps { display: flex; flex-direction: column; gap: 4px; }
+
+.sc-ts-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+
+  .sc-link-icon { font-size: 0.78rem; color: var(--muted); flex-shrink: 0; width: 14px; text-align: center; }
+  .sc-ts-label { color: var(--muted); min-width: 100px; flex-shrink: 0; }
+  .sc-ts-val { color: var(--text); font-weight: 500; }
+
+  &.sc-ts-row--done .sc-link-icon { color: #10b981; }
+  &.sc-ts-row--cancelled .sc-link-icon { color: #ef4444; }
+  &.sc-ts-row--signer .sc-link-icon { color: var(--primary); }
+  &.sc-ts-row--signer .sc-ts-label { font-style: italic; }
+}
+
 .sc-submitter {
   display: flex;
   align-items: center;
@@ -497,7 +726,16 @@ function editDraft() {
   .sc-sub-role { font-size: 0.72rem; color: var(--muted); }
   .sc-sub-link {
     background: none; border: none; color: var(--muted); cursor: pointer;
+    padding: 4px 6px; border-radius: 5px; font-size: 0.85rem;
     &:hover { color: var(--primary); }
+
+    &.sc-sub-link--sign {
+      color: var(--primary);
+      border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border));
+      background: color-mix(in oklab, var(--primary) 7%, transparent);
+      font-size: 0.78rem;
+      &:hover, &.active { background: color-mix(in oklab, var(--primary) 14%, transparent); border-color: var(--primary); }
+    }
   }
   &.sub-completed .sc-sub-icon { color: #10b981; }
   &.sub-awaiting .sc-sub-icon { color: #f59e0b; }
