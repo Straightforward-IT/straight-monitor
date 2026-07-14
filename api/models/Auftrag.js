@@ -62,6 +62,10 @@ const AuftragSchema = new mongoose.Schema({
     type: Number, // AUFTSTATUS
     required: false
   },
+  referenz: {
+    type: String, // BEZEICHN from EINSORT (es.BEZEICHN AS Referenz)
+    required: false
+  },
   excludedTeamleiter: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Mitarbeiter' }],
   statusOverrideTeamleiter: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Mitarbeiter' }],
   labels: [{

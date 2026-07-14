@@ -222,6 +222,46 @@
 
   <!-- Items Display -->
   <div class="items-container">
+
+  <!-- Changelog Modal -->
+  <teleport to="body">
+    <HelpModal v-model="showChangelog">
+      <template #title>
+        <font-awesome-icon :icon="['fas', 'sparkles']" style="color: var(--primary)" />
+        Neu in Bestand
+      </template>
+      <template #toc>
+        <nav class="help-toc">
+          <span class="help-toc-label">Springen zu</span>
+          <button data-section="cl-prefill" @click="scrollChangelogTo('cl-prefill')">Inventar-Vorauswahl</button>
+          <button data-section="cl-categories" @click="scrollChangelogTo('cl-categories')">Kategorien & Alles anwählen</button>
+        </nav>
+      </template>
+
+      <div id="cl-prefill" class="help-section">
+        <h4>📦 Automatische Vorauswahl aus Mitarbeiter-Inventar</h4>
+        <p>
+          Wählst du einen Mitarbeiter in einem <strong>Paket-Modal</strong> (Logi, Service, Küche),
+          werden die Artikel, die er aktuell im Besitz hat, <em>automatisch vorausgewählt</em>
+          &ndash; inklusive der richtigen Größe.
+        </p>
+        <p>So siehst du sofort, was bereits raus ist, und kannst direkt Rückgabe oder Entnahme buchen.</p>
+      </div>
+
+      <div id="cl-categories" class="help-section">
+        <h4>☑️ Kategorien mit Alles-anwählen</h4>
+        <p>Die Artikel in den Paketen sind jetzt in Kategorien unterteilt:</p>
+        <p>
+          <strong>Service-Paket:</strong> Kautionsgegenstände &middot; Kaufgegenstände &middot; Verbrauchsgegenstände<br />
+          <strong>Logi-Paket:</strong> Kautionsgegenstände &middot; Optional &middot; Bezahlt
+        </p>
+        <p>
+          Jede Kategorie hat ein <strong>Kontrollkästchen</strong> im Header &mdash;
+          ein Klick wählt alle Artikel der Kategorie auf einmal an oder ab.
+        </p>
+      </div>
+    </HelpModal>
+  </teleport>
     <div v-for="item in filteredItems" :key="item.id" class="item-wrapper">
       <div class="item-card">
         <font-awesome-icon
@@ -310,7 +350,9 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
 import { useDataCache } from "@/stores/dataCache";
 import MitarbeiterSearch from "@/components/ui-elements/MitarbeiterSearch.vue";
+import HelpModal from "@/components/HelpModal.vue";
 
+const CHANGELOG_KEY = "seenChangelog_v4_bestand_prefill";
 const collator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
 
 export default {
@@ -321,7 +363,7 @@ export default {
     "switch-to-dashboard",
     "switch-to-verlauf",
   ],
-  components: { FontAwesomeIcon, MitarbeiterSearch },
+  components: { FontAwesomeIcon, MitarbeiterSearch, HelpModal },
   props: { isModalOpen: Boolean },
 
   setup() {
@@ -374,6 +416,9 @@ export default {
       // Sortierung
       sortBy: "name",    // "name" | "count"
       isAscending: true,
+
+      // Changelog
+      showChangelog: false,
     };
   },
 
@@ -409,6 +454,10 @@ export default {
           else this.newItem.standorte = [];
         }, this.debounceMs);
       },
+    },
+
+    showChangelog(val) {
+      if (!val) localStorage.setItem(CHANGELOG_KEY, '1');
     },
   },
 
@@ -701,12 +750,19 @@ export default {
       this.closeModal();
       this.selectedItem = null;
     },
+
+    scrollChangelogTo(id) {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    },
   },
 
   mounted() {
-    this.setAxiosAuthToken();   // harmless; eig. durch api-Interceptor abgedeckt
+    this.setAxiosAuthToken();
     this.fetchUserData();
     this.fetchItems();
+    if (!localStorage.getItem(CHANGELOG_KEY)) {
+      setTimeout(() => { this.showChangelog = true; }, 600);
+    }
   },
 
   beforeUnmount() {

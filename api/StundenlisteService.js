@@ -309,9 +309,9 @@ class StundenlisteService {
     const ort = [auftrag.eventLocation, auftrag.eventStrasse, [auftrag.eventPlz, auftrag.eventOrt].filter(Boolean).join(' ')]
       .filter(Boolean).join(', ');
     const rows = [
-      ['Event-Nr.', String(auftrag.auftragNr)],
-      ['Event-Titel', auftrag.eventTitel || '—'],
-      ['Event-Ort', ort || '—'],
+      ['Event', auftrag.eventTitel || '—'],
+      ['Ort', ort || '—'],
+      ['Referenz', auftrag.referenz || '—'],
       ['Überlassungszeitraum', this._dateRange(auftrag.vonDatum, auftrag.bisDatum)],
     ];
     for (const [label, value] of rows) {
@@ -355,7 +355,14 @@ class StundenlisteService {
       const first = list[0] || {};
       const beruf = first.berufData?.designation || schicht?.bezeichnung || '';
       const quali = first.qualifikationData?.designation || '';
-      const headerText = `Beruf, Tätigkeit: ${[beruf, quali].filter(Boolean).join(' – ') || '—'}`;
+      const timeStr = (() => {
+        if (!schicht) return '';
+        const von = schicht.uhrzeitVon || '';
+        if (!von) return '';
+        const bis = schicht.endeOffen ? 'Offen' : (schicht.uhrzeitBis || '');
+        return bis ? `${von} – ${bis}` : von;
+      })();
+      const headerText = `Beruf, Tätigkeit: ${[beruf, quali].filter(Boolean).join(' – ') || '—'}` + (timeStr ? `   |   ${timeStr}` : '');
 
       // Schicht-Überschrift
       this._ensureSpace(ctx, 18 + 20 + 26);

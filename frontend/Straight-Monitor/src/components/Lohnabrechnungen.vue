@@ -209,6 +209,55 @@
     <div v-if="loading" class="loader">
       ⏳ Bitte warten – PDF wird verarbeitet ...
     </div>
+
+    <!-- Sort-Vergleich Tool -->
+    <div class="sort-check-section">
+      <div class="sort-check-header" @click="showSortCheck = !showSortCheck">
+        <span>🔍 Sort-Vergleich (Alt vs. Neu)</span>
+        <span class="sort-check-toggle">{{ showSortCheck ? '▲' : '▼' }}</span>
+      </div>
+      <div v-if="showSortCheck" class="sort-check-body">
+        <p class="sort-check-hint">Excel hochladen um zu prüfen, welche Positionen sich durch die Umlauts-Normalisierung verschoben haben.</p>
+        <label for="sort-check-upload" class="upload-btn sort-check-upload-btn">Excel hochladen</label>
+        <input id="sort-check-upload" type="file" accept=".xlsx,.xls" @change="handleSortCheckUpload" />
+
+        <div v-if="sortCheckData.length" class="sort-check-results">
+          <div class="sort-check-summary-row">
+            <div class="sort-check-summary" :class="sortCheckDiffCount === 0 ? 'ok' : 'warn'">
+              <template v-if="sortCheckDiffCount === 0">✅ Keine Abweichungen – beide Sortierungen sind identisch.</template>
+              <template v-else>⚠ {{ sortCheckDiffCount }} von {{ sortCheckData.length }} Positionen weichen ab.</template>
+            </div>
+            <button v-if="sortCheckDiffCount > 0" class="upload-btn sort-check-upload-btn" @click="downloadDiffsXlsx">⬇️ XLSX</button>
+          </div>
+          <div class="sort-check-table-wrapper">
+            <table class="sort-check-table">
+              <thead>
+                <tr>
+                  <th>Empfänger</th>
+                  <th>Erhielt Dok. von</th>
+                  <th>Gesendet (Seite)</th>
+                  <th>Korrekte Seite</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(row, i) in sortCheckData.filter(r => r.diff)"
+                  :key="i"
+                  class="diff-row"
+                >
+                  <td>{{ row.old[1] }}, {{ row.old[2] }}</td>
+                  <td class="received-from">{{ row.receivedDocOf ? row.receivedDocOf[1] + ', ' + row.receivedDocOf[2] : '?' }}</td>
+                  <td class="page-cell">{{ row.oldPos }}</td>
+                  <td class="page-cell correct">{{ row.newPos }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -264,9 +313,16 @@ export default {
       progressActive: false,
       progressPercent: 0,
       progressMessage: "",
+
+      // Sort-Vergleich
+      showSortCheck: false,
+      sortCheckData: [],
     };
   },
   computed: {
+    sortCheckDiffCount() {
+      return this.sortCheckData.filter((r) => r.diff).length;
+    },
     readyToSplit() {
       return this.pdfFile && this.excelData.length > 0;
     },
@@ -577,6 +633,66 @@ export default {
         .finally(() => {
           this.loading = false;
         });
+    },
+
+
+    downloadDiffsXlsx() {
+      const diffs = this.sortCheckData.filter((r) => r.diff);
+      const wsData = [
+        ["Empf\u00e4nger", "Erhielt Dok. von", "Gesendet (Seite)", "Korrekte Seite", "Email Empf\u00e4nger"],
+        ...diffs.map((r) => [
+          `${r.old[1]}, ${r.old[2]}`,
+          r.receivedDocOf ? `${r.receivedDocOf[1]}, ${r.receivedDocOf[2]}` : "?",
+          r.oldPos,
+          r.newPos,
+          r.old[4] || "",
+        ]),
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Abweichungen");
+      XLSX.writeFile(wb, `Sort_Abweichungen_${this.monat}_${this.jahr}.xlsx`);
+    },
+    handleSortCheckUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        const rawRows = rows.slice(1).filter((r) => r.some((c) => c !== null && String(c).trim() !== ""));
+
+        // Old sort: normalize umlauts
+        const normalize = (str) => {
+          if (!str) return "";
+          return String(str)
+            .toLowerCase()
+            .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z\s]/g, "");
+        };
+        const oldSorted = [...rawRows].sort((a, b) => {
+          const nc = normalize(a[1]).localeCompare(normalize(b[1]));
+          return nc !== 0 ? nc : normalize(a[2]).localeCompare(normalize(b[2]));
+        });
+
+        // New sort: as-is (PostgreSQL order)
+        const newSorted = [...rawRows];
+
+        // Build comparison rows keyed by old order
+        this.sortCheckData = oldSorted.map((oldRow, i) => {
+          const newPos = newSorted.findIndex((r) => r[0] === oldRow[0] && r[1] === oldRow[1] && r[2] === oldRow[2]);
+          const matchingNewRow = newSorted[newPos] ?? oldRow;
+          const diff = newPos !== i;
+          // Who's document did this person receive? Whoever sits at their old position in the new sort
+          const receivedDocOf = diff ? (newSorted[i] ?? null) : null;
+          return { old: oldRow, new: matchingNewRow, oldPos: i + 1, newPos: newPos + 1, diff, receivedDocOf };
+        });
+      };
+      reader.readAsArrayBuffer(file);
+      // reset so same file can be re-uploaded
+      e.target.value = "";
     },
     listenToMailProgress() {
       this.progressActive = true;
@@ -1131,6 +1247,132 @@ export default {
       padding: 8px 16px;
       /* reuse standard button styles */
    }
+}
+
+/* Sort-Check Section */
+.sort-check-section {
+  margin-top: 28px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.sort-check-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: var(--panel);
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+  user-select: none;
+  &:hover { background: var(--hover); }
+}
+
+.sort-check-toggle { color: var(--muted); font-size: 0.85rem; }
+
+.sort-check-body {
+  padding: 18px;
+  background: var(--tile-bg);
+}
+
+.sort-check-hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+#sort-check-upload {
+  display: none;
+}
+
+.sort-check-upload-btn {
+  display: inline-block;
+  padding: 10px 20px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.2s ease;
+  &:hover { filter: brightness(0.92); }
+}
+
+.sort-check-results { margin-top: 20px; }
+
+.sort-check-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+
+  .sort-check-summary { margin-bottom: 0; flex: 1; }
+}
+
+.sort-check-summary {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  text-align: left;
+  &.ok { background: color-mix(in oklab, #22c55e 15%, transparent); color: #16a34a; border: 1px solid #22c55e; }
+  &.warn { background: color-mix(in oklab, #f97316 15%, transparent); color: #c2410c; border: 1px solid #f97316; }
+}
+
+.sort-check-table-wrapper {
+  max-height: 420px;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.sort-check-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+
+  th {
+    background: var(--panel);
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr.diff-row td {
+    background: color-mix(in oklab, #f97316 10%, transparent);
+    color: #c2410c;
+    font-weight: 600;
+  }
+
+  tr.diff-row td.received-from {
+    color: #b45309;
+    font-style: italic;
+  }
+
+  tr.diff-row td.page-cell {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  tr.diff-row td.page-cell.correct {
+    color: #16a34a;
+    background: color-mix(in oklab, #22c55e 10%, transparent);
+  }
 }
 
 @media (max-width: 768px) {

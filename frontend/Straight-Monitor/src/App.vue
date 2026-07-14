@@ -36,7 +36,6 @@ import { useRoute } from "vue-router";
 import { getTheme, initFlipBridge, subscribe, BridgeEventType } from "@getflip/bridge";
 import { useTheme } from "@/stores/theme";
 import { useDataCache } from "@/stores/dataCache";
-
 const NOTIF_STORAGE_KEY = "notif_prompted_v1";
 
 const route = useRoute();

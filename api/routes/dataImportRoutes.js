@@ -447,7 +447,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
               eventOrt: row['EVENT_ORT'],
               eventLocation: row['EVENT_LOCATION'],
               aktiv: row['AKTIV'],
-              auftStatus: row['AUFTSTATUS']
+              auftStatus: row['AUFTSTATUS'],
+              referenz: row['Referenz'] || undefined
             }},
             upsert: true
           }

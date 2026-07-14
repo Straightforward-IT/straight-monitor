@@ -2303,7 +2303,15 @@ router.post(
         .slice(1)
         .filter((row) =>
           row.some((cell) => cell !== null && String(cell).trim() !== "")
-        );
+        )
+        .sort((a, b) => {
+          const nachnameCompare = normalizeUmlautsForSort(a[1])?.localeCompare(
+            normalizeUmlautsForSort(b[1])
+          );
+          if (nachnameCompare !== 0) return nachnameCompare;
+          // Tiebreaker: Vorname alphabetisch (wie in der Quell-PDF)
+          return normalizeUmlautsForSort(a[2])?.localeCompare(normalizeUmlautsForSort(b[2])) ?? 0;
+        });
 
       if (pageCount !== data.length) {
         return res

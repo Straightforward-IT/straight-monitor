@@ -63,6 +63,7 @@
             </label>
 
             <div class="grid">
+              <div class="cat-row"><label class="chk-all"><input type="checkbox" v-model="logiKautionAllChecked" /><span>Kautionsgegenstände</span></label></div>
             <label class="row">
               <span class="chk">
                 <input type="checkbox" v-model="cuttermesserChecked" />
@@ -174,7 +175,7 @@
               </select>
             </label>
 
-            <h5 class="sub">Optional</h5>
+              <div class="cat-row"><label class="chk-all"><input type="checkbox" v-model="logiOptionalAllChecked" /><span>Optional</span></label></div>
 
             <label class="row">
               <span class="chk">
@@ -226,7 +227,7 @@
               </select>
             </label>
 
-            <h5 class="sub">Bezahlt</h5>
+              <div class="cat-row"><label class="chk-all"><input type="checkbox" v-model="logiBezahltAllChecked" /><span>Bezahlt</span></label></div>
 
             <label class="row">
               <span class="chk">
@@ -320,199 +321,59 @@
             </label>
 
             <div class="grid">
-            <label class="row"
-              ><span class="chk"
-                ><input type="checkbox" v-model="kellnermesserChecked" /><span
-                  >Kellnermesser</span
-                ></span
-              ><select class="sel" disabled>
-                <option>onesize</option>
-              </select></label
-            >
-            <label v-if="selectedLocation === 'Hamburg' || selectedLocation === 'Berlin'" class="row"
-              ><span class="chk"
-                ><input type="checkbox" v-model="kellnerblockChecked" /><span
-                  >Kellnerblock</span
-                ></span
-              ><select class="sel" disabled>
-                <option>onesize</option>
-              </select></label
-            >
-            <label class="row"
-              ><span class="chk"
-                ><input type="checkbox" v-model="kugelschreiberChecked" /><span
-                  >Kugelschreiber</span
-                ></span
-              ><select class="sel" disabled>
-                <option>onesize</option>
-              </select></label
-            >
-            <label class="row"
-              ><span class="chk"
-                ><input type="checkbox" v-model="namensschildChecked" /><span
-                  >Namensschild</span
-                ></span
-              ><select class="sel" disabled>
-                <option>onesize</option>
-              </select></label
-            >
-            <label class="row"
-              ><span class="chk"
-                ><input type="checkbox" v-model="feuerzeugChecked" /><span
-                  >Feuerzeug</span
-                ></span
-              ><select class="sel" disabled>
-                <option>onesize</option>
-              </select></label
-            >
-            <label class="row"
-              ><span class="chk"
-                ><input type="checkbox" v-model="schuhputzzeugChecked" /><span
-                  >Schuhputzzeug</span
-                ></span
-              ><select class="sel" disabled>
-                <option>onesize</option>
-              </select></label
-            >
-            <label class="row"
-              ><span class="chk"
-                ><input
-                  type="checkbox"
-                  v-model="schwarzeKrawatteChecked"
-                /><span>Schwarze Krawatte</span></span
-              ><select class="sel" disabled>
-                <option>onesize</option>
-              </select></label
-            >
-            <label v-if="selectedLocation === 'Berlin'" class="row"
-              ><span class="chk"
-                ><input type="checkbox" v-model="schwarzeFliegeChecked" /><span
-                  >Schwarze Fliege</span
-                ></span
-              ><select class="sel" disabled>
-                <option>onesize</option>
-              </select></label
-            >
-            <label class="row"
-              ><span class="chk"
-                ><input
-                  type="checkbox"
-                  v-model="schwarzeSchuerzeChecked"
-                /><span>Schwarze Schürze</span></span
-              ><select class="sel" disabled>
-                <option>onesize</option>
-              </select></label
-            >
-            <label class="row"
-              ><span class="chk"
-                ><input type="checkbox" v-model="kleidersackChecked" /><span
-                  >Kleidersack</span
-                ></span
-              ><select class="sel" disabled>
-                <option>onesize</option>
-              </select></label
-            >
-            <label class="row">
-              <span class="chk">
-                <input
-                  type="checkbox"
-                  v-model="serviceHandschuheChecked"
-                />
-                <span>Service Handschuhe</span>
-              </span>
-              <select
-                v-if="selectedLocation === 'Hamburg'"
-                class="sel"
-                v-model="serviceHandschuheSize"
-                :disabled="!serviceHandschuheChecked"
-                @focus="serviceHandschuheChecked = true"
-              >
-                <option value="" disabled>Größe</option>
-                <option value="8">8</option>
-                <option value="9">9</option>
-                <option value="10">10</option>
-              </select>
-              <select v-else class="sel" disabled>
-                <option>onesize</option>
-              </select>
-            </label>
+              <!-- Kautionsgegenstände -->
+              <div class="cat-row"><label class="chk-all"><input type="checkbox" v-model="serviceKautionAllChecked" /><span>Kautionsgegenstände</span></label></div>
+              <label class="row"><span class="chk"><input type="checkbox" v-model="kellnermesserChecked" /><span>Kellnermesser</span></span><select class="sel" disabled><option>onesize</option></select></label>
+              <label class="row"><span class="chk"><input type="checkbox" v-model="schwarzeKrawatteChecked" /><span>Schwarze Krawatte</span></span><select class="sel" disabled><option>onesize</option></select></label>
+              <label class="row"><span class="chk"><input type="checkbox" v-model="schwarzeSchuerzeChecked" /><span>Schwarze Schürze</span></span><select class="sel" disabled><option>onesize</option></select></label>
+              <label class="row"><span class="chk"><input type="checkbox" v-model="kleidersackChecked" /><span>Kleidersack</span></span><select class="sel" disabled><option>onesize</option></select></label>
+              <label class="row">
+                <span class="chk"><input type="checkbox" v-model="serviceHandschuheChecked" /><span>Service Handschuhe</span></span>
+                <select v-if="selectedLocation === 'Hamburg'" class="sel" v-model="serviceHandschuheSize" :disabled="!serviceHandschuheChecked" @focus="serviceHandschuheChecked = true">
+                  <option value="" disabled>Größe</option>
+                  <option value="8">8</option>
+                  <option value="9">9</option>
+                  <option value="10">10</option>
+                </select>
+                <select v-else class="sel" disabled><option>onesize</option></select>
+              </label>
 
-            <label class="row">
-              <span class="chk"
-                ><input
-                  type="checkbox"
-                  v-model="weisseHemdenDamenChecked"
-                /><span>Weiße Hemden Damen</span></span
-              >
-              <select
-                class="sel"
-                v-model="weisseHemdenDamenSize"
-                :disabled="!weisseHemdenDamenChecked"
-              >
-                <option value="S">S</option>
-                <option value="M">M</option>
-                <option value="L">L</option>
-                <option value="XL">XL</option>
-              </select>
-            </label>
+              <!-- Kaufgegenstände -->
+              <div class="cat-row"><label class="chk-all"><input type="checkbox" v-model="serviceKaufAllChecked" /><span>Kaufgegenstände</span></label></div>
+              <label class="row">
+                <span class="chk"><input type="checkbox" v-model="weisseHemdenDamenChecked" /><span>Weiße Hemden Damen</span></span>
+                <select class="sel" v-model="weisseHemdenDamenSize" :disabled="!weisseHemdenDamenChecked">
+                  <option value="S">S</option><option value="M">M</option><option value="L">L</option><option value="XL">XL</option>
+                </select>
+              </label>
+              <label class="row">
+                <span class="chk"><input type="checkbox" v-model="schwarzeHemdenDamenChecked" /><span>Schwarze Hemden Damen</span></span>
+                <select class="sel" v-model="schwarzeHemdenDamenSize" :disabled="!schwarzeHemdenDamenChecked">
+                  <option value="S">S</option><option value="M">M</option><option value="L">L</option><option value="XL">XL</option>
+                </select>
+              </label>
+              <label class="row">
+                <span class="chk"><input type="checkbox" v-model="weisseHemdenHerrenChecked" /><span>Weiße Hemden Herren</span></span>
+                <select class="sel" v-model="weisseHemdenHerrenSize" :disabled="!weisseHemdenHerrenChecked">
+                  <option value="S">S</option><option value="M">M</option><option value="L">L</option><option value="XL">XL</option>
+                </select>
+              </label>
+              <label class="row">
+                <span class="chk"><input type="checkbox" v-model="schwarzeHemdenHerrenChecked" /><span>Schwarze Hemden Herren</span></span>
+                <select class="sel" v-model="schwarzeHemdenHerrenSize" :disabled="!schwarzeHemdenHerrenChecked">
+                  <option value="S">S</option><option value="M">M</option><option value="L">L</option><option value="XL">XL</option>
+                </select>
+              </label>
 
-            <label class="row">
-              <span class="chk"
-                ><input
-                  type="checkbox"
-                  v-model="schwarzeHemdenDamenChecked"
-                /><span>Schwarze Hemden Damen</span></span
-              >
-              <select
-                class="sel"
-                v-model="schwarzeHemdenDamenSize"
-                :disabled="!schwarzeHemdenDamenChecked"
-              >
-                <option value="S">S</option>
-                <option value="M">M</option>
-                <option value="L">L</option>
-                <option value="XL">XL</option>
-              </select>
-            </label>
-
-            <label class="row">
-              <span class="chk"
-                ><input
-                  type="checkbox"
-                  v-model="weisseHemdenHerrenChecked"
-                /><span>Weiße Hemden Herren</span></span
-              >
-              <select
-                class="sel"
-                v-model="weisseHemdenHerrenSize"
-                :disabled="!weisseHemdenHerrenChecked"
-              >
-                <option value="S">S</option>
-                <option value="M">M</option>
-                <option value="L">L</option>
-                <option value="XL">XL</option>
-              </select>
-            </label>
-
-            <label class="row">
-              <span class="chk"
-                ><input
-                  type="checkbox"
-                  v-model="schwarzeHemdenHerrenChecked"
-                /><span>Schwarze Hemden Herren</span></span
-              >
-              <select
-                class="sel"
-                v-model="schwarzeHemdenHerrenSize"
-                :disabled="!schwarzeHemdenHerrenChecked"
-              >
-                <option value="S">S</option>
-                <option value="M">M</option>
-                <option value="L">L</option>
-                <option value="XL">XL</option>
-              </select>
-            </label>
-          </div>
+              <!-- Verbrauchsgegenstände -->
+              <div class="cat-row"><label class="chk-all"><input type="checkbox" v-model="serviceVerbrauchAllChecked" /><span>Verbrauchsgegenstände</span></label></div>
+              <label v-if="selectedLocation === 'Hamburg' || selectedLocation === 'Berlin'" class="row"><span class="chk"><input type="checkbox" v-model="kellnerblockChecked" /><span>Kellnerblock</span></span><select class="sel" disabled><option>onesize</option></select></label>
+              <label class="row"><span class="chk"><input type="checkbox" v-model="kugelschreiberChecked" /><span>Kugelschreiber</span></span><select class="sel" disabled><option>onesize</option></select></label>
+              <label class="row"><span class="chk"><input type="checkbox" v-model="namensschildChecked" /><span>Namensschild</span></span><select class="sel" disabled><option>onesize</option></select></label>
+              <label class="row"><span class="chk"><input type="checkbox" v-model="feuerzeugChecked" /><span>Feuerzeug</span></span><select class="sel" disabled><option>onesize</option></select></label>
+              <label class="row"><span class="chk"><input type="checkbox" v-model="schuhputzzeugChecked" /><span>Schuhputzzeug</span></span><select class="sel" disabled><option>onesize</option></select></label>
+              <label v-if="selectedLocation === 'Berlin'" class="row"><span class="chk"><input type="checkbox" v-model="schwarzeFliegeChecked" /><span>Schwarze Fliege</span></span><select class="sel" disabled><option>onesize</option></select></label>
+            </div>
           <label class="full">
             Anmerkung
             <input
@@ -752,7 +613,35 @@ export default {
       schwarzeHemdenDamenSize: "",
       weisseHemdenHerrenSize: "",
       schwarzeHemdenHerrenSize: "",
+
+      // employee holdings pre-fill
+      mitarbeiterHoldings: [],
     };
+  },
+
+  watch: {
+    mitarbeiterId(newId) {
+      if (newId) {
+        this.fetchMitarbeiterHoldings();
+      } else {
+        this.mitarbeiterHoldings = [];
+      }
+    },
+    showLogiModal(val) {
+      if (val && this.mitarbeiterHoldings.length) {
+        this.$nextTick(() => this.applyHoldingsToLogi());
+      }
+    },
+    showServiceModal(val) {
+      if (val && this.mitarbeiterHoldings.length) {
+        this.$nextTick(() => this.applyHoldingsToService());
+      }
+    },
+    showKuechenModal(val) {
+      if (val && this.mitarbeiterHoldings.length) {
+        this.$nextTick(() => this.applyHoldingsToKueche());
+      }
+    },
   },
 
   computed: {
@@ -781,13 +670,264 @@ export default {
       };
       const email = emailMap[this.inventoryLocation];
       return email ? `Leer lassen → wird an ${email} gesendet` : 'Leer lassen → wird an Team-E-Mail gesendet';
-    }
+    },
+
+    // ── Select-all for Logi Modal ──
+    logiKautionAllChecked: {
+      get() {
+        const base = [this.cuttermesserChecked, this.jutebeutelChecked, this.logistikHoseChecked,
+          this.tshirtChecked[0], this.tshirtChecked[1], this.schwarzeKapuzenjackeChecked];
+        if (this.selectedLocation === 'Hamburg' || this.selectedLocation === 'Berlin') base.push(this.sicherheitshelmChecked);
+        return base.every(Boolean);
+      },
+      set(val) {
+        this.cuttermesserChecked = val;
+        this.jutebeutelChecked = val;
+        this.logistikHoseChecked = val;
+        this.tshirtChecked = [val, val, val];
+        this.schwarzeKapuzenjackeChecked = val;
+        if (this.selectedLocation === 'Hamburg' || this.selectedLocation === 'Berlin') this.sicherheitshelmChecked = val;
+      }
+    },
+    logiOptionalAllChecked: {
+      get() { return this.softshelljackeChecked && this.bundhoseChecked; },
+      set(val) { this.softshelljackeChecked = val; this.bundhoseChecked = val; }
+    },
+    logiBezahltAllChecked: {
+      get() { return this.sicherheitsschuheChecked && this.handschuheChecked; },
+      set(val) { this.sicherheitsschuheChecked = val; this.handschuheChecked = val; }
+    },
+
+    // ── Select-all for Service Modal ──
+    serviceKautionAllChecked: {
+      get() {
+        return this.kellnermesserChecked && this.schwarzeKrawatteChecked &&
+          this.schwarzeSchuerzeChecked && this.kleidersackChecked && this.serviceHandschuheChecked;
+      },
+      set(val) {
+        this.kellnermesserChecked = val;
+        this.schwarzeKrawatteChecked = val;
+        this.schwarzeSchuerzeChecked = val;
+        this.kleidersackChecked = val;
+        this.serviceHandschuheChecked = val;
+      }
+    },
+    serviceKaufAllChecked: {
+      get() {
+        return this.weisseHemdenDamenChecked && this.schwarzeHemdenDamenChecked &&
+          this.weisseHemdenHerrenChecked && this.schwarzeHemdenHerrenChecked;
+      },
+      set(val) {
+        this.weisseHemdenDamenChecked = val;
+        this.schwarzeHemdenDamenChecked = val;
+        this.weisseHemdenHerrenChecked = val;
+        this.schwarzeHemdenHerrenChecked = val;
+      }
+    },
+    serviceVerbrauchAllChecked: {
+      get() {
+        const items = [this.kugelschreiberChecked, this.namensschildChecked,
+          this.feuerzeugChecked, this.schuhputzzeugChecked];
+        if (this.selectedLocation !== 'Köln') items.push(this.kellnerblockChecked);
+        if (this.selectedLocation === 'Berlin') items.push(this.schwarzeFliegeChecked);
+        return items.every(Boolean);
+      },
+      set(val) {
+        this.kugelschreiberChecked = val;
+        this.namensschildChecked = val;
+        this.feuerzeugChecked = val;
+        this.schuhputzzeugChecked = val;
+        if (this.selectedLocation !== 'Köln') this.kellnerblockChecked = val;
+        if (this.selectedLocation === 'Berlin') this.schwarzeFliegeChecked = val;
+      }
+    },
   },
 
   methods: {
     setAxiosAuthToken() {
       api.defaults.headers.common["x-auth-token"] = this.token;
     },
+
+    async fetchMitarbeiterHoldings() {
+      if (!this.mitarbeiterId) return;
+      try {
+        const { data } = await api.get(`/api/monitoring/mitarbeiter/${this.mitarbeiterId}`);
+        const holdings = {};
+        for (const log of (data || [])) {
+          const isAdd = log.art === 'entnahme';
+          const isRemove = log.art === 'zugabe';
+          if (!isAdd && !isRemove) continue;
+          for (const item of (log.items || [])) {
+            const key = String(item.itemId || item.bezeichnung);
+            if (!holdings[key]) {
+              holdings[key] = { itemId: String(item.itemId || ''), bezeichnung: item.bezeichnung, groesse: item.groesse, net: 0 };
+            }
+            holdings[key].net += isAdd ? (item.anzahl || 1) : -(item.anzahl || 1);
+            holdings[key].net = Math.max(0, holdings[key].net);
+          }
+        }
+        this.mitarbeiterHoldings = Object.values(holdings).filter(h => h.net > 0);
+        this.applyHoldingsToOpenModal();
+      } catch (e) {
+        console.error('Fehler beim Laden der Mitarbeiter-Holdings:', e);
+        this.mitarbeiterHoldings = [];
+      }
+    },
+
+    buildGlobalReverseMap() {
+      const categoryConfig = {
+        cuttermesser:          { field: 'cuttermesserChecked', modal: 'logi' },
+        jutebeutel:            { field: 'jutebeutelChecked', sizeField: 'jutebeutelArt', modal: 'logi' },
+        logistikHose:          { field: 'logistikHoseChecked', sizeField: 'logistikHoseSize', modal: 'logi' },
+        tshirt:                { field: 'tshirt', modal: 'logi' },
+        kapuzenjacke:          { field: 'schwarzeKapuzenjackeChecked', sizeField: 'schwarzeKapuzenjackeSize', modal: 'logi' },
+        sicherheitshelm:       { field: 'sicherheitshelmChecked', sizeField: 'sicherheitshelmArt', modal: 'logi' },
+        softshelljacke:        { field: 'softshelljackeChecked', sizeField: 'softshelljackeSize', modal: 'logi' },
+        bundhose:              { field: 'bundhoseChecked', sizeField: 'bundhoseSize', modal: 'logi' },
+        sicherheitsschuhe:     { field: 'sicherheitsschuheChecked', sizeField: 'sicherheitsschuheSize', modal: 'logi' },
+        handschuhe:            { field: 'handschuheChecked', sizeField: 'handschuheSize', modal: 'logi' },
+        kellnermesser:         { field: 'kellnermesserChecked', modal: 'service' },
+        kellnerblock:          { field: 'kellnerblockChecked', modal: 'service' },
+        kugelschreiber:        { field: 'kugelschreiberChecked', modal: 'service' },
+        namensschild:          { field: 'namensschildChecked', modal: 'service' },
+        feuerzeug:             { field: 'feuerzeugChecked', modal: 'service' },
+        schuhputzzeug:         { field: 'schuhputzzeugChecked', modal: 'service' },
+        schwarzeKrawatte:      { field: 'schwarzeKrawatteChecked', modal: 'service' },
+        schwarzeFliege:        { field: 'schwarzeFliegeChecked', modal: 'service' },
+        schwarzeSchuerze:      { field: 'schwarzeSchuerzeChecked', modal: 'service' },
+        kleidersack:           { field: 'kleidersackChecked', modal: 'service' },
+        serviceHandschuhe:     { field: 'serviceHandschuheChecked', sizeField: 'serviceHandschuheSize', modal: 'service' },
+        weisseHemdenDamen:     { field: 'weisseHemdenDamenChecked', sizeField: 'weisseHemdenDamenSize', modal: 'service' },
+        schwarzeHemdenDamen:   { field: 'schwarzeHemdenDamenChecked', sizeField: 'schwarzeHemdenDamenSize', modal: 'service' },
+        weisseHemdenHerren:    { field: 'weisseHemdenHerrenChecked', sizeField: 'weisseHemdenHerrenSize', modal: 'service' },
+        schwarzeHemdenHerren:  { field: 'schwarzeHemdenHerrenChecked', sizeField: 'schwarzeHemdenHerrenSize', modal: 'service' },
+        kuecheFleckenentferner:{ field: 'kuecheFleckenentfernerChecked', modal: 'kueche' },
+        kuecheTouchon:         { field: 'kuecheTouchonChecked', modal: 'kueche' },
+        kuecheKochschuerze:    { field: 'kuecheKochschuerzeChecked', modal: 'kueche' },
+        kuecheKochhose:        { field: 'kuecheKochhoseChecked', sizeField: 'kuecheKochhoseSize', modal: 'kueche' },
+        kuecheKochjacke:       { field: 'kuecheKochjackeChecked', sizeField: 'kuecheKochjackeSize', modal: 'kueche' },
+      };
+
+      const reverseMap = {};
+      for (const [, locationMap] of Object.entries(itemMappings)) {
+        for (const [category, value] of Object.entries(locationMap)) {
+          const info = categoryConfig[category];
+          if (!info) continue;
+          if (typeof value === 'string') {
+            reverseMap[value] = { ...info };
+          } else if (typeof value === 'object' && value !== null) {
+            for (const [size, id] of Object.entries(value)) {
+              reverseMap[id] = { ...info, sizeValue: size };
+            }
+          }
+        }
+      }
+      return reverseMap;
+    },
+
+    applyHoldingsToOpenModal() {
+      if (this.showServiceModal) this.applyHoldingsToService();
+      else if (this.showLogiModal) this.applyHoldingsToLogi();
+      else if (this.showKuechenModal) this.applyHoldingsToKueche();
+    },
+
+    applyHoldingsToService() {
+      if (!this.mitarbeiterHoldings.length) return;
+      const reverseMap = this.buildGlobalReverseMap();
+      // Reset all service fields
+      this.kellnermesserChecked = false;
+      this.kellnerblockChecked = false;
+      this.kugelschreiberChecked = false;
+      this.namensschildChecked = false;
+      this.feuerzeugChecked = false;
+      this.schuhputzzeugChecked = false;
+      this.schwarzeKrawatteChecked = false;
+      this.schwarzeFliegeChecked = false;
+      this.schwarzeSchuerzeChecked = false;
+      this.kleidersackChecked = false;
+      this.serviceHandschuheChecked = false;
+      this.serviceHandschuheSize = '';
+      this.weisseHemdenDamenChecked = false;
+      this.weisseHemdenDamenSize = '';
+      this.schwarzeHemdenDamenChecked = false;
+      this.schwarzeHemdenDamenSize = '';
+      this.weisseHemdenHerrenChecked = false;
+      this.weisseHemdenHerrenSize = '';
+      this.schwarzeHemdenHerrenChecked = false;
+      this.schwarzeHemdenHerrenSize = '';
+      for (const holding of this.mitarbeiterHoldings) {
+        const id = holding.itemId;
+        if (!id || !reverseMap[id]) continue;
+        const info = reverseMap[id];
+        if (info.modal !== 'service') continue;
+        this[info.field] = true;
+        if (info.sizeField) this[info.sizeField] = info.sizeValue || holding.groesse || '';
+      }
+    },
+
+    applyHoldingsToLogi() {
+      if (!this.mitarbeiterHoldings.length) return;
+      const reverseMap = this.buildGlobalReverseMap();
+      // Reset all logi fields
+      this.cuttermesserChecked = false;
+      this.jutebeutelChecked = false;
+      this.jutebeutelArt = '';
+      this.logistikHoseChecked = false;
+      this.logistikHoseSize = '';
+      this.tshirtChecked = [false, false, false];
+      this.tshirtSize = ['', '', ''];
+      this.schwarzeKapuzenjackeChecked = false;
+      this.schwarzeKapuzenjackeSize = '';
+      this.sicherheitshelmChecked = false;
+      this.sicherheitshelmArt = '';
+      this.softshelljackeChecked = false;
+      this.softshelljackeSize = '';
+      this.bundhoseChecked = false;
+      this.bundhoseSize = '';
+      this.sicherheitsschuheChecked = false;
+      this.sicherheitsschuheSize = '';
+      this.handschuheChecked = false;
+      this.handschuheSize = '';
+      let tshirtSlot = 0;
+      for (const holding of this.mitarbeiterHoldings) {
+        const id = holding.itemId;
+        if (!id || !reverseMap[id]) continue;
+        const info = reverseMap[id];
+        if (info.modal !== 'logi') continue;
+        if (info.field === 'tshirt') {
+          const count = Math.min(holding.net, 3 - tshirtSlot);
+          for (let i = 0; i < count && tshirtSlot < 3; i++, tshirtSlot++) {
+            this.tshirtChecked[tshirtSlot] = true;
+            this.tshirtSize[tshirtSlot] = info.sizeValue || holding.groesse || '';
+          }
+        } else {
+          this[info.field] = true;
+          if (info.sizeField) this[info.sizeField] = info.sizeValue || holding.groesse || '';
+        }
+      }
+    },
+
+    applyHoldingsToKueche() {
+      if (!this.mitarbeiterHoldings.length) return;
+      const reverseMap = this.buildGlobalReverseMap();
+      // Reset all küchen fields
+      this.kuecheFleckenentfernerChecked = false;
+      this.kuecheTouchonChecked = false;
+      this.kuecheKochschuerzeChecked = false;
+      this.kuecheKochhoseChecked = false;
+      this.kuecheKochhoseSize = '';
+      this.kuecheKochjackeChecked = false;
+      this.kuecheKochjackeSize = '';
+      for (const holding of this.mitarbeiterHoldings) {
+        const id = holding.itemId;
+        if (!id || !reverseMap[id]) continue;
+        const info = reverseMap[id];
+        if (info.modal !== 'kueche') continue;
+        this[info.field] = true;
+        if (info.sizeField) this[info.sizeField] = info.sizeValue || holding.groesse || '';
+      }
+    },
+
     async fetchUserData() {
       if (!this.token) return this.$router.push("/");
       try {
@@ -1614,5 +1754,39 @@ h4 {
 
 .modal-buttons button:active {
   transform: scale(0.98);
+}
+
+/* Category section headers */
+.cat-row {
+  padding: 8px 2px 2px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.cat-row:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 2px;
+}
+
+.chk-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  user-select: none;
+
+  input[type="checkbox"] {
+    width: 13px;
+    height: 13px;
+    cursor: pointer;
+    accent-color: var(--primary);
+    flex-shrink: 0;
+  }
 }
 </style>
