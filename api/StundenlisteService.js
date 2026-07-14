@@ -350,7 +350,28 @@ class StundenlisteService {
       { key: 'unterschrift', label: 'Unterschrift', w: CONTENT_W - (150 + 62 + 48 + 48 + 42 + 50) },
     ];
 
-    for (const [key, list] of groups) {
+    // Sort groups: 1. by beruf jobKey, 2. by schicht.uhrzeitVon
+    const sortedGroups = [...groups.entries()].sort(([keyA, listA], [keyB, listB]) => {
+      const firstA = listA[0] || {};
+      const firstB = listB[0] || {};
+      const jkA = parseInt(firstA.berufSchl, 10);
+      const jkB = parseInt(firstB.berufSchl, 10);
+      const a = isNaN(jkA) ? Infinity : jkA;
+      const b = isNaN(jkB) ? Infinity : jkB;
+      if (a !== b) return a - b;
+      const vonA = schichtMap.get(keyA)?.uhrzeitVon || '';
+      const vonB = schichtMap.get(keyB)?.uhrzeitVon || '';
+      return vonA.localeCompare(vonB);
+    });
+
+    for (const [key, list] of sortedGroups) {
+      // Sort einsaetze within this group by nachname
+      list.sort((a, b) => {
+        const nameA = (a.mitarbeiterData?.nachname || '').toLowerCase();
+        const nameB = (b.mitarbeiterData?.nachname || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+
       const schicht = schichtMap.get(key);
       const first = list[0] || {};
       const beruf = first.berufData?.designation || schicht?.bezeichnung || '';

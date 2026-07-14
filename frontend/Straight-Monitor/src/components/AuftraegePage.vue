@@ -343,6 +343,10 @@
                 {{ selectedEvent.eventStrasse || '' }} {{ selectedEvent.eventPlz || '' }} {{ selectedEvent.eventOrt || '' }}
               </span>
             </div>
+            <div v-if="selectedEvent.referenz" class="info-item full-width">
+              <span class="info-label">Referenz</span>
+              <span class="info-value">{{ selectedEvent.referenz }}</span>
+            </div>
             <!-- Label badges -->
             <div v-if="selectedEvent.labels && selectedEvent.labels.length" class="info-item full-width">
               <span class="info-label">Labels</span>
@@ -360,10 +364,10 @@
           </div>
 
           <!-- Schichten Section -->
-          <div class="schichten-section" v-if="Object.keys(preparedSchichten).length">
+          <div class="schichten-section" v-if="preparedSchichten.size">
             <div class="section-header">
               <h3>Schichten</h3>
-              <span class="section-count">{{ Object.keys(preparedSchichten).length }}</span>
+              <span class="section-count">{{ preparedSchichten.size }}</span>
             </div>
             
             <div class="schichten-list">
@@ -1202,7 +1206,7 @@ export default {
       selectedMitarbeiter: null,
       selectedKunde: null,
       fullKundeData: null,
-      preparedSchichten: {}, // Lazy loaded schichten data
+      preparedSchichten: new Map(), // Lazy loaded schichten data
       dataStatus: null, // Last import timestamp
       // ── Quick Actions ──────────────────────────────────────────────────────
       // Label dialog
@@ -1555,28 +1559,30 @@ export default {
         });
       }
       
-      // Calculate bedarfMet for each schicht and sort employees (Teamleiter first)
+      // Calculate bedarfMet for each schicht and sort einsaetze by nachname
       Object.values(grouped).forEach(schicht => {
         const bedarf = schicht.meta.bedarf;
         const actual = schicht.einsaetze.length;
         schicht.meta.bedarfMet = bedarf ? actual >= bedarf : true;
 
-        // Sort: Teamleiter first, then alphabetical by name
         schicht.einsaetze.sort((a, b) => {
-          const isTLa = this.isTeamleiter(a.mitarbeiterData);
-          const isTLb = this.isTeamleiter(b.mitarbeiterData);
-          
-          if (isTLa && !isTLb) return -1;
-          if (!isTLa && isTLb) return 1;
-          
-          // Same status, sort by name
-          const nameA = (a.mitarbeiterData?.nachname || "").toLowerCase();
-          const nameB = (b.mitarbeiterData?.nachname || "").toLowerCase();
+          const nameA = (a.mitarbeiterData?.nachname || '').toLowerCase();
+          const nameB = (b.mitarbeiterData?.nachname || '').toLowerCase();
           return nameA.localeCompare(nameB);
         });
       });
-      
-      return grouped;
+
+      // Sort schichten: 1. by beruf jobKey, 2. by uhrzeitVon
+      const sortedEntries = Object.entries(grouped).sort(([, a], [, b]) => {
+        const jkA = a.einsaetze[0]?.berufData?.jobKey ?? Infinity;
+        const jkB = b.einsaetze[0]?.berufData?.jobKey ?? Infinity;
+        if (jkA !== jkB) return jkA - jkB;
+        const vonA = a.meta.uhrzeitVon || '';
+        const vonB = b.meta.uhrzeitVon || '';
+        return vonA.localeCompare(vonB);
+      });
+
+      return new Map(sortedEntries);
     },
 
     // Check if all einsaetze in a schicht have the same beruf
