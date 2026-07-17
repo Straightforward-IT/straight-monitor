@@ -94,14 +94,27 @@ router.get('/events', (req, res) => {
 
   res.set({
     'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
+    'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
   });
   res.flushHeaders();
+
+  // Disable Nagle so heartbeat frames are sent immediately.
+  if (req.socket) req.socket.setNoDelay(true);
+
   res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
 
+  // Heroku closes idle HTTP connections after ~55s, so emit SSE comment pings.
+  const keepAlive = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch (_) {}
+  }, 25000);
+
   sseClients.add(res);
-  req.on('close', () => sseClients.delete(res));
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    sseClients.delete(res);
+  });
 });
 
 // GET /api/docuseal/templates — list dashboard templates for the create-request UI

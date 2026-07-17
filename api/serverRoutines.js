@@ -4,6 +4,7 @@ const { getFlipAuthToken } = require("./flipAxios");
 const { flipUserRoutine, updateTeamleitungWikiPages } = require("./FlipService");
 const { sollRoutine, sendMail } = require("./EmailService");
 const { bewerberRoutine } = require("./AsanaService");
+const { syncCompanies } = require("./ZvooveService");
 const {
   ensureMultipleGraphSubscriptions,
   deleteMessagesInFolder,
@@ -276,6 +277,77 @@ async function runApplicantMailGdprCleanup() {
           await sendMail("it@straightforward.email", "❌ Watchlist Reports Failed", `
             <h3>Error in Watchlist Reports</h3>
             <p><strong>Error:</strong> ${error.message}</p>
+            <pre>${error.stack}</pre>
+          `);
+        }
+      }));
+    }
+
+    // ----------------------------------------------------------------------
+    // 🔄 Zvoove Incremental Sync Routines
+    // ----------------------------------------------------------------------
+    if (false) { // DISABLED: All Zvoove routines disabled until further notice
+      // 1. Reference Data (Nightly at 01:00)
+      // * = minute 0 | * = hour 1 | * = every day | * = every month | * = every weekday
+      cron.schedule("0 1 * * *", guard(async () => {
+        try {
+          logger.routineStart("Zvoove nightly reference sync");
+          // TODO: await syncProfessions();
+          // TODO: await syncQualifications();
+        } catch (error) {
+          logger.routineError("Zvoove Reference Sync", error);
+          await sendMail("it@straightforward.email", "❌ Zvoove Reference Sync Failed", `
+            <h3>Fehler beim Zvoove Reference Sync</h3>
+            <p><strong>Fehler:</strong> ${error.message}</p>
+            <pre>${error.stack}</pre>
+          `);
+        }
+      }));
+
+      // 2. Employees (Monday-Friday, every 2 hours from 10:00 to 18:00)
+      // Evaluates to: 10:00, 12:00, 14:00, 16:00, 18:00 Mon-Fri
+      cron.schedule("0 10-18/2 * * 1-5", guard(async () => {
+        try {
+          logger.routineStart("Zvoove employee sync");
+          // TODO: await syncEmployees();
+        } catch (error) {
+          logger.routineError("Zvoove Employee Sync", error);
+          await sendMail("it@straightforward.email", "❌ Zvoove Employee Sync Failed", `
+            <h3>Fehler beim Zvoove Employee Sync</h3>
+            <p><strong>Fehler:</strong> ${error.message}</p>
+            <pre>${error.stack}</pre>
+          `);
+        }
+      }));
+
+      // 3. Operations: Orders, Companies, Assignments (Every hour from 06:00 to 20:00)
+      cron.schedule("0 6-20 * * *", guard(async () => {
+        try {
+          logger.routineStart("Zvoove operations sync");
+          // TODO: await syncCompanies();
+          // TODO: await syncOrders();
+          // TODO: await syncAssignments();
+        } catch (error) {
+          logger.routineError("Zvoove Operations Sync", error);
+          await sendMail("it@straightforward.email", "❌ Zvoove Operations Sync Failed", `
+            <h3>Fehler beim Zvoove Operations Sync</h3>
+            <p><strong>Fehler:</strong> ${error.message}</p>
+            <pre>${error.stack}</pre>
+          `);
+        }
+      }));
+
+      // 4. Companies sync (Weekly Friday at 10:00)
+      cron.schedule("0 10 * * 5", guard(async () => {
+        try {
+          logger.routineStart("Zvoove weekly companies sync");
+          const summary = await syncCompanies();
+          logger.info(`✅ Zvoove companies sync done: fetched=${summary.fetched}, upserted=${summary.upserted}, modified=${summary.modified}`);
+        } catch (error) {
+          logger.routineError("Zvoove Weekly Companies Sync", error);
+          await sendMail("it@straightforward.email", "❌ Zvoove Companies Sync Failed", `
+            <h3>Fehler beim Zvoove Companies Sync</h3>
+            <p><strong>Fehler:</strong> ${error.message}</p>
             <pre>${error.stack}</pre>
           `);
         }

@@ -3,175 +3,255 @@
     <main class="main">
       <!-- ============== EMPLOYEE VIEW ============== -->
       <section class="panel">
-          <!-- Toolbar with integrated ToolbarFilter -->
-          <Toolbar class="people-search-toolbar">
-            <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetAllFilters">
+          <!-- Minimierbare Filter-Sektion -->
+          <FilterPanel v-model:expanded="filtersExpanded">
+            <template #header-actions>
+              <div class="filter-search-box" :class="{ 'search-expanded': searchExpanded }">
+                <button class="filter-search-toggle" @click.stop="toggleSearchExpanded" type="button" title="Suche">
+                  <font-awesome-icon icon="fa-solid fa-magnifying-glass" />
+                </button>
+                <input
+                  ref="searchInput"
+                  v-model="mitarbeitersSearchQuery"
+                  type="text"
+                  placeholder="Suchen..."
+                  aria-label="Mitarbeiter suchen"
+                  @keydown.escape="searchExpanded = false"
+                  @blur="handleSearchBlur"
+                  @click.stop
+                />
+              </div>
+            </template>
 
-              <!-- Filter groups -->
+            <!-- Enhanced Filter Chips (nur sichtbar wenn expanded) -->
+            <div class="filter-chips">
+            <!-- Compact Filters (Dropdowns) -->
             
-            <!-- Status / Location / Department -->
-            <FilterGroup label="Status">
+            <!-- Status Dropdown -->
+            <div class="chip-group compact-group">
                 <FilterDropdown ref="statusDropdown" :has-value="filters.status !== 'Alle'">
-                  <template #label>{{ filters.status === 'Alle' ? 'Alle' : filters.status }}</template>
+                  <template #label><font-awesome-icon icon="fa-solid fa-filter" style="margin-right: 0.5rem" /> {{ filters.status === 'Alle' ? 'Status' : filters.status }}</template>
                   <div class="dropdown-item clickable" :class="{ selected: filters.status === 'Alle' }"
-                       @click="setFilter('status', 'Alle'); $refs.statusDropdown.close()">Alle</div>
-                  <div v-for="status in ['Aktiv', 'Inaktiv']" :key="status"
+                       @click="setFilter('status', 'Alle'); $refs.statusDropdown.close()">
+                    Alle
+                  </div>
+                  <div v-for="status in ['Aktiv', 'Inaktiv']" :key="status" 
                        class="dropdown-item clickable" :class="{ selected: filters.status === status }"
-                       @click="setFilter('status', status); $refs.statusDropdown.close()">{{ status }}</div>
+                       @click="setFilter('status', status); $refs.statusDropdown.close()">
+                    <font-awesome-icon 
+                      :icon="status === 'Aktiv' ? 'fa-solid fa-circle-check' : 
+                             'fa-regular fa-circle-xmark'"
+                      style="margin-right: 8px; width: 16px;" 
+                      :class="status === 'Aktiv' ? 'text-success' : 'text-danger'"
+                    />
+                    {{ status }}
+                  </div>
                 </FilterDropdown>
-            </FilterGroup>
-            <FilterGroup label="Standort">
-                <FilterDropdown ref="locationDropdown" :has-value="filters.location !== 'Alle'">
-                  <template #label>{{ filters.location === 'Alle' ? 'Alle' : filters.location }}</template>
-                  <div class="dropdown-item clickable" :class="{ selected: filters.location === 'Alle' }"
-                       @click="setFilter('location', 'Alle'); $refs.locationDropdown.close()">Alle Standorte</div>
-                  <div v-for="loc in locations" :key="loc"
-                       class="dropdown-item clickable" :class="{ selected: filters.location === loc }"
-                       @click="setFilter('location', loc); $refs.locationDropdown.close()">{{ loc }}</div>
-                </FilterDropdown>
-            </FilterGroup>
-            <FilterGroup label="Bereich">
-                <FilterDropdown ref="deptDropdown" :has-value="filters.department !== 'Alle'">
-                  <template #label>{{ filters.department === 'Alle' ? 'Alle' : filters.department }}</template>
-                  <div class="dropdown-item clickable" :class="{ selected: filters.department === 'Alle' }"
-                       @click="setFilter('department', 'Alle'); $refs.deptDropdown.close()">Alle Bereiche</div>
-                  <div v-for="dept in departments" :key="dept"
-                       class="dropdown-item clickable" :class="{ selected: filters.department === dept }"
-                       @click="setFilter('department', dept); $refs.deptDropdown.close()">{{ dept }}</div>
-                </FilterDropdown>
-            </FilterGroup>
-            <FilterDivider />
-            <FilterGroup label="Asana">
-                <FilterDropdown ref="asanaDropdown" :has-value="filters.asanaStatus !== 'Alle'">
-                  <template #label>{{ filters.asanaStatus === 'Alle' ? 'Alle' : filters.asanaStatus.replace('_', ' ') }}</template>
-                  <div v-for="stat in ['Alle', 'Verknüpft', 'Nicht_verknüpft']" :key="stat"
-                       class="dropdown-item clickable" :class="{ selected: filters.asanaStatus === stat }"
-                       @click="setFilter('asanaStatus', stat); $refs.asanaDropdown.close()">{{ stat.replace('_', ' ') }}</div>
-                </FilterDropdown>
-            </FilterGroup>
-            <FilterDivider />
-            <FilterGroup label="P-Nr.">
-                <FilterDropdown ref="pnrDropdown" :has-value="filters.personalnrStatus !== 'Alle'">
-                  <template #label>{{ filters.personalnrStatus === 'Alle' ? 'Alle' : filters.personalnrStatus }}</template>
-                  <div v-for="stat in ['Alle', 'Vorhanden', 'Fehlt']" :key="stat"
-                       class="dropdown-item clickable" :class="{ selected: filters.personalnrStatus === stat }"
-                       @click="setFilter('personalnrStatus', stat); $refs.pnrDropdown.close()">{{ stat }}</div>
-                </FilterDropdown>
-            </FilterGroup>
-            <FilterGroup label="Profilbild">
-                <FilterDropdown ref="profilbildDropdown" :has-value="filters.profilbildStatus !== 'Alle'">
-                  <template #label>{{ filters.profilbildStatus === 'Alle' ? 'Alle' : filters.profilbildStatus }}</template>
-                  <div v-for="stat in ['Alle', 'Vorhanden', 'Fehlt']" :key="stat"
-                       class="dropdown-item clickable" :class="{ selected: filters.profilbildStatus === stat }"
-                       @click="setFilter('profilbildStatus', stat); $refs.profilbildDropdown.close()">{{ stat }}</div>
-                </FilterDropdown>
-            </FilterGroup>
-            <FilterGroup label="Persgruppe">
-                <FilterDropdown ref="pgDropdown" :has-value="filters.persgruppe !== 'Alle'">
-                  <template #label>{{ filters.persgruppe === 'Alle' ? 'Alle' : filters.persgruppe === 'Keine' ? 'Keine' : { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' }[filters.persgruppe] }}</template>
-                  <div class="dropdown-item clickable" :class="{ selected: filters.persgruppe === 'Alle' }"
-                       @click="setFilter('persgruppe', 'Alle'); $refs.pgDropdown.close()">Alle</div>
-                  <div class="dropdown-item clickable" :class="{ selected: filters.persgruppe === 'Keine' }"
-                       @click="setFilter('persgruppe', 'Keine'); $refs.pgDropdown.close()">Keine</div>
-                  <div v-for="pg in [{ val: 101, label: 'Festi (101)' }, { val: 110, label: 'KZF (110)' }, { val: 109, label: 'Mini (109)' }, { val: 106, label: 'Werkst. (106)' }]" :key="pg.val"
-                       class="dropdown-item clickable" :class="{ selected: filters.persgruppe === pg.val }"
-                       @click="setFilter('persgruppe', pg.val); $refs.pgDropdown.close()">{{ pg.label }}</div>
-                </FilterDropdown>
-            </FilterGroup>
-            <FilterGroup label="Rolle">
-                <FilterDropdown ref="tlDropdown" :has-value="filters.teamleiter !== 'Alle'">
-                  <template #label>{{ filters.teamleiter === 'Alle' ? 'Alle' : filters.teamleiter }}</template>
-                  <div v-for="stat in ['Alle', 'Nur Teamleiter', 'Keine Teamleiter']" :key="stat"
-                       class="dropdown-item clickable" :class="{ selected: filters.teamleiter === stat }"
-                       @click="setFilter('teamleiter', stat); $refs.tlDropdown.close()">{{ stat }}</div>
-                </FilterDropdown>
-            </FilterGroup>
-            <FilterDivider />
-            <FilterGroup label="Berufe">
-                <FilterDropdown :has-value="filters.berufe.length > 0">
-                  <template #label>
-                    <span v-if="filters.berufe.length === 0">Alle</span>
-                    <span v-else>{{ filters.berufe.length }} gewählt</span>
-                  </template>
-                  <div v-if="availableBerufe.length === 0" class="no-options">Keine Berufe gefunden</div>
-                  <label v-for="beruf in availableBerufe" :key="beruf._id" class="dropdown-item">
-                    <input type="checkbox" :checked="filters.berufe.includes(beruf._id)" @change="toggleBerufFilter(beruf._id)">
-                    <span class="label-text">{{ beruf.designation }}</span>
-                    <span class="badge-small">{{ beruf.jobKey }}</span>
-                  </label>
-                </FilterDropdown>
-            </FilterGroup>
-            <FilterGroup label="Qualifikation">
+            </div>
+
+            <!-- Location Dropdown -->
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="locationDropdown" :has-value="filters.location !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-location-dot" style="margin-right: 0.5rem" /> {{ filters.location === 'Alle' ? 'Standort' : filters.location }}</template>
+                    <div class="dropdown-item clickable" :class="{ selected: filters.location === 'Alle' }"
+                        @click="setFilter('location', 'Alle'); $refs.locationDropdown.close()">
+                        Alle Standorte
+                    </div>
+                    <div v-for="loc in locations" :key="loc" 
+                         class="dropdown-item clickable"
+                         :class="{ selected: filters.location === loc }"
+                         @click="setFilter('location', loc); $refs.locationDropdown.close()">
+                      {{ loc }}
+                    </div>
+                 </FilterDropdown>
+            </div>
+
+            <!-- Department Dropdown -->
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="deptDropdown" :has-value="filters.department !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-layer-group" style="margin-right: 0.5rem" /> {{ filters.department === 'Alle' ? 'Bereich' : filters.department }}</template>
+                    <div class="dropdown-item clickable" :class="{ selected: filters.department === 'Alle' }"
+                        @click="setFilter('department', 'Alle'); $refs.deptDropdown.close()">
+                        Alle Bereiche
+                    </div>
+                    <div v-for="dept in departments" :key="dept" 
+                         class="dropdown-item clickable"
+                         :class="{ selected: filters.department === dept }"
+                         @click="setFilter('department', dept); $refs.deptDropdown.close()">
+                      {{ dept }}
+                    </div>
+                 </FilterDropdown>
+            </div>
+
+            <span class="divider" />
+
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="asanaDropdown" :has-value="filters.asanaStatus !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-clipboard-list" style="margin-right: 0.5rem" /> {{ filters.asanaStatus === 'Alle' ? 'Asana' : filters.asanaStatus.replace('_', ' ') }}</template>
+                     <div v-for="stat in ['Alle', 'Verknüpft', 'Nicht_verknüpft']" 
+                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.asanaStatus === stat }"
+                          @click="setFilter('asanaStatus', stat); $refs.asanaDropdown.close()">
+                       {{ stat.replace('_', ' ') }}
+                     </div>
+                 </FilterDropdown>
+            </div>
+
+            <span class="divider" />
+            
+            <!-- Metadata Group -->
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="pnrDropdown" :has-value="filters.personalnrStatus !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-id-badge" style="margin-right: 0.5rem" /> {{ filters.personalnrStatus === 'Alle' ? 'P-Nr.' : filters.personalnrStatus }}</template>
+                     <div v-for="stat in ['Alle', 'Vorhanden', 'Fehlt']" 
+                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.personalnrStatus === stat }"
+                          @click="setFilter('personalnrStatus', stat); $refs.pnrDropdown.close()">
+                       {{ stat }}
+                     </div>
+                 </FilterDropdown>
+            </div>
+
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="profilbildDropdown" :has-value="filters.profilbildStatus !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-camera" style="margin-right: 0.5rem" /> {{ filters.profilbildStatus === 'Alle' ? 'Profilbild' : filters.profilbildStatus }}</template>
+                     <div v-for="stat in ['Alle', 'Vorhanden', 'Fehlt']" 
+                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.profilbildStatus === stat }"
+                          @click="setFilter('profilbildStatus', stat); $refs.profilbildDropdown.close()">
+                       {{ stat }}
+                     </div>
+                 </FilterDropdown>
+            </div>
+
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="pgDropdown" :has-value="filters.persgruppe !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-user" style="margin-right: 0.5rem" /> {{ filters.persgruppe === 'Alle' ? 'Persgruppe' : filters.persgruppe === 'Keine' ? 'Keine' : { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' }[filters.persgruppe] }}</template>
+                    <div class="dropdown-item clickable" :class="{ selected: filters.persgruppe === 'Alle' }"
+                        @click="setFilter('persgruppe', 'Alle'); $refs.pgDropdown.close()">
+                        Alle
+                    </div>
+                    <div class="dropdown-item clickable" :class="{ selected: filters.persgruppe === 'Keine' }"
+                        @click="setFilter('persgruppe', 'Keine'); $refs.pgDropdown.close()">
+                        Keine
+                    </div>
+                    <div v-for="pg in [{ val: 101, label: 'Festi (101)' }, { val: 110, label: 'KZF (110)' }, { val: 109, label: 'Mini (109)' }, { val: 106, label: 'Werkst. (106)' }]" :key="pg.val"
+                         class="dropdown-item clickable" :class="{ selected: filters.persgruppe === pg.val }"
+                         @click="setFilter('persgruppe', pg.val); $refs.pgDropdown.close()">
+                      {{ pg.label }}
+                    </div>
+                 </FilterDropdown>
+            </div>
+
+            <div class="chip-group compact-group">
+                 <FilterDropdown ref="tlDropdown" :has-value="filters.teamleiter !== 'Alle'">
+                    <template #label><font-awesome-icon icon="fa-solid fa-user-tie" style="margin-right: 0.5rem" /> {{ filters.teamleiter === 'Alle' ? 'Rolle' : filters.teamleiter }}</template>
+                     <div v-for="stat in ['Alle', 'Nur Teamleiter', 'Keine Teamleiter']" 
+                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.teamleiter === stat }"
+                          @click="setFilter('teamleiter', stat); $refs.tlDropdown.close()">
+                       {{ stat }}
+                     </div>
+                 </FilterDropdown>
+            </div>
+
+            <span class="divider" />
+
+            <!-- Skills (Multi Select) -->
+            <div class="chip-group compact-group">
+                  <FilterDropdown :has-value="filters.berufe.length > 0">
+                    <template #label>
+                       <font-awesome-icon icon="fa-solid fa-briefcase" style="margin-right: 0.5rem" />
+                       <span v-if="filters.berufe.length === 0"> Berufe</span>
+                       <span v-else> {{ filters.berufe.length }} gewählt</span>
+                    </template>
+                    
+                    <div v-if="availableBerufe.length === 0" class="no-options">Keine Berufe gefunden</div>
+                    <label v-for="beruf in availableBerufe" :key="beruf._id" class="dropdown-item">
+                      <input 
+                        type="checkbox" 
+                        :checked="filters.berufe.includes(beruf._id)"
+                        @change="toggleBerufFilter(beruf._id)"
+                      >
+                      <span class="label-text">{{ beruf.designation }}</span>
+                      <span class="badge-small">{{ beruf.jobKey }}</span>
+                    </label>
+                  </FilterDropdown>
+            </div>
+            
+            <div class="chip-group compact-group qual-chip-group">
               <div class="qual-filter-box">
                 <div class="qual-pills-input" @click="$refs.qualInput?.focus()">
-                  <span v-for="(q, idx) in qualFilterObjects" :key="q._id" class="qual-pill" :class="{ 'is-focused': qualFocusedPillIdx === idx }">
+                  <span
+                    v-for="(q, idx) in qualFilterObjects"
+                    :key="q._id"
+                    class="qual-pill"
+                    :class="{ 'is-focused': qualFocusedPillIdx === idx }"
+                  >
                     <span class="qual-pill-text">{{ q.designation }}</span>
                     <button class="qual-pill-remove" @click.stop="removeQual(q)" title="Entfernen">✕</button>
                   </span>
-                  <input ref="qualInput" v-model="qualSearchQuery" class="qual-search-input" type="text"
-                    :placeholder="filters.qualifikationen.length ? '' : 'Suchen…'"
-                    @focus="openQualDropdown" @input="openQualDropdown"
-                    @blur="onQualBlur" @keydown="onQualKeydown" />
+                  <input
+                    ref="qualInput"
+                    v-model="qualSearchQuery"
+                    class="qual-search-input"
+                    type="text"
+                    :placeholder="filters.qualifikationen.length ? '' : 'Qualifikation suchen…'"
+                    @focus="qualDropdownOpen = true"
+                    @input="qualDropdownOpen = true"
+                    @blur="onQualBlur"
+                    @keydown="onQualKeydown"
+                  />
+                </div>
+                <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown">
+                  <div
+                    v-for="q in qualSuggestions"
+                    :key="q._id"
+                    class="qual-dropdown-item"
+                    @mousedown.prevent="addQual(q)"
+                  >
+                    <span class="qual-key">{{ q.qualificationKey }}</span>
+                    {{ q.designation }}
+                  </div>
                 </div>
               </div>
-            </FilterGroup>
+            </div>
+            
+            <span class="divider" />
 
-            </ToolbarFilter>
-            <!-- Search & selection actions in the toolbar -->
-            <div class="toolbar-inner">
-              <SearchBar
-                class="toolbar-search"
-                v-model="mitarbeitersSearchQuery"
-                placeholder="Mitarbeiter suchen..."
-                aria-label="Mitarbeiter suchen"
-              />
-              <div v-if="selectedMitarbeiterIds.size > 0" class="selection-info">
-                <span class="selection-count">{{ selectedMitarbeiterIds.size }} ausgewählt</span>
-                <button
-                  v-if="selectedMitarbeiterIds.size < filteredMitarbeitersSorted.length"
-                  class="btn-select-all-filtered"
-                  @click="selectAllFiltered"
-                >
-                  Alle {{ filteredMitarbeitersSorted.length }} auswählen
-                </button>
-                <button class="btn-export-action" @click="showExportModal = true">
-                  <font-awesome-icon icon="fa-solid fa-table" />
-                  Exportieren
-                </button>
-                <button class="btn-clear" @click="clearSelection">
-                  <font-awesome-icon icon="fa-solid fa-times" />
-                  Auswahl löschen
-                </button>
-              </div>
-              <button class="btn-create-ma" @click="$router.push('/flip/benutzer-erstellen')">
-                <font-awesome-icon :icon="['fas', 'user-plus']" />
-                Erstellen
+            <FilterChip class="reset-chip" @click="resetAllFilters" title="Alle Filter zurücksetzen">
+              <font-awesome-icon icon="fa-solid fa-rotate-left" />
+              Zurücksetzen
+            </FilterChip>
+            </div>
+          </FilterPanel>
+
+        <!-- Desktop Search Toolbar (hidden on mobile) -->
+        <Toolbar class="people-search-toolbar">
+          <SearchBar
+            class="toolbar-search"
+            v-model="mitarbeitersSearchQuery"
+            placeholder="Mitarbeiter suchen..."
+            aria-label="Mitarbeiter suchen"
+          />
+            <!-- Selection Info -->
+            <div v-if="selectedMitarbeiterIds.size > 0" class="selection-info">
+              <span class="selection-count">{{ selectedMitarbeiterIds.size }} ausgewählt</span>
+              <button
+                v-if="selectedMitarbeiterIds.size < filteredMitarbeitersSorted.length"
+                class="btn-select-all-filtered"
+                @click="selectAllFiltered"
+              >
+                Alle {{ filteredMitarbeitersSorted.length }} auswählen
+              </button>
+              <button class="btn-export-action" @click="showExportModal = true">
+                <font-awesome-icon icon="fa-solid fa-table" />
+                Exportieren
+              </button>
+              <button class="btn-clear" @click="clearSelection">
+                <font-awesome-icon icon="fa-solid fa-times" />
+                Auswahl löschen
               </button>
             </div>
-          </Toolbar>
+        </Toolbar>
 
-        <!-- Controls: Tabs + Sort + Pagination -->
-        <div class="view-controls-bar">
-          <!-- Tab Toggle -->
-          <div class="tab-bar">
-            <button
-              class="tab-btn"
-              :class="{ active: activeTab === 'mitarbeiter' }"
-              @click="activeTab = 'mitarbeiter'; currentPage = 1"
-            >
-              <font-awesome-icon icon="fa-solid fa-id-badge" />
-              Mitarbeiter
-            </button>
-            <button
-              class="tab-btn"
-              :class="{ active: activeTab === 'bewerber' }"
-              @click="activeTab = 'bewerber'; currentPage = 1"
-            >
-              <font-awesome-icon icon="fa-solid fa-user" />
-              Bewerber
-            </button>
-          </div>
-
+        <!-- Controls: Sort + Pagination -->
         <div class="view-controls-right">
             <!-- Sort -->
             <div class="sort">
@@ -254,7 +334,6 @@
               </div>
             </div>
         </div>
-        </div><!-- end view-controls-bar -->
 
         <!-- Loading State -->
         <div v-if="loading.mitarbeiter" class="loading-container">
@@ -264,30 +343,21 @@
 
         <!-- Grid View -->
         <div v-else class="grid">
-          <template v-if="activeTab === 'mitarbeiter'">
-            <EmployeeCard
-              v-for="ma in paginatedMitarbeiters"
-              :key="ma._id"
-              :ma="ma"
-              :class="{ 'highlight-card': isEmployeeExpanded(ma), 'selected': selectedMitarbeiterIds.has(ma._id) }"
-              :initiallyExpanded="isEmployeeExpanded(ma)"
-              :showCheckbox="true"
-              :isSelected="selectedMitarbeiterIds.has(ma._id)"
-              @open="openProfile"
-              @edit="editMitarbeiter"
-              @toggle-selection="toggleSelection(ma._id)"
-              @filter-beruf="activateBerufFilter"
-              @filter-qualifikation="activateQualifikationFilter"
-              @reactivated="filters.status = 'Alle'"
-            />
-          </template>
-          <template v-else-if="activeTab === 'bewerber'">
-            <BewerberCard
-              v-for="ma in paginatedMitarbeiters"
-              :key="ma._id"
-              :ma="ma"
-            />
-          </template>
+          <EmployeeCard
+            v-for="ma in paginatedMitarbeiters"
+            :key="ma._id"
+            :ma="ma"
+            :class="{ 'highlight-card': isEmployeeExpanded(ma), 'selected': selectedMitarbeiterIds.has(ma._id) }"
+            :initiallyExpanded="isEmployeeExpanded(ma)"
+            :showCheckbox="true"
+            :isSelected="selectedMitarbeiterIds.has(ma._id)"
+            @open="openProfile"
+            @edit="editMitarbeiter"
+            @toggle-selection="toggleSelection(ma._id)"
+            @filter-beruf="activateBerufFilter"
+            @filter-qualifikation="activateQualifikationFilter"
+            @reactivated="filters.status = 'Alle'"
+          />
         </div>
 
         <!-- List View (removed) -->
@@ -572,20 +642,6 @@
       @close="showExportModal = false"
     />
 
-    <!-- Teleported Qual Dropdown -->
-    <teleport to="body">
-      <div
-        v-if="qualDropdownOpen && qualSuggestions.length"
-        class="qual-dropdown"
-        :style="qualDropdownStyle"
-      >
-        <div v-for="q in qualSuggestions" :key="q._id" class="qual-dropdown-item" @mousedown.prevent="addQual(q)">
-          <span class="qual-key">{{ q.qualificationKey }}</span>
-          {{ q.designation }}
-        </div>
-      </div>
-    </teleport>
-
     <!-- Teleported Quick Actions Menu (List View) -->
     <teleport to="body">
       <div v-if="activeQuickActionId && activeQuickActionMa" class="list-qa-overlay" @click="activeQuickActionId = null">
@@ -651,7 +707,6 @@ import api from "@/utils/api";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import EmployeeCard from "@/components/EmployeeCard.vue";
-import BewerberCard from "@/components/BewerberCard.vue";
 import FilterPanel from "@/components/FilterPanel.vue";
 import FilterDropdown from "@/components/FilterDropdown.vue";
 import FilterChip from "@/components/ui-elements/FilterChip.vue";
@@ -659,9 +714,6 @@ import ExportMitarbeiterModal from "@/components/ExportMitarbeiterModal.vue";
 import ImageCropModal from "@/components/ImageCropModal.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
-import ToolbarFilter from "@/components/ui-elements/ToolbarFilter.vue";
-import FilterGroup from "@/components/FilterGroup.vue";
-import FilterDivider from "@/components/ui-elements/FilterDivider.vue";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
 
@@ -754,7 +806,7 @@ library.add(
 
 export default {
   name: "Personal",
-  components: { FontAwesomeIcon, EmployeeCard, BewerberCard, CustomTooltip, FilterPanel, FilterDropdown, FilterChip, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar, ToolbarFilter, FilterGroup, FilterDivider },
+  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel, FilterDropdown, FilterChip, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -773,9 +825,6 @@ export default {
 
   data() {
     return {
-      // active tab
-      activeTab: 'mitarbeiter', // 'mitarbeiter' | 'bewerber'
-
       // auth/user
       token: localStorage.getItem("token") || null,
       userEmail: "",
@@ -788,7 +837,6 @@ export default {
       
       // filter UI state
       filtersExpanded: true, // Filter standardmäßig ausgeklappt
-      filterExpanded: false, // ToolbarFilter open/closed
       searchExpanded: false, // Expandable search in filter header
 
       locations: ["Hamburg", "Berlin", "Köln"],
@@ -833,7 +881,6 @@ export default {
       mitarbeitersSearchQuery: "",
       qualSearchQuery: "",
       qualDropdownOpen: false,
-      qualDropdownStyle: {},
       qualFocusedPillIdx: -1,
       mitarbeitersSortBy: "nachname",
       mitarbeitersIsAscending: true,
@@ -845,12 +892,6 @@ export default {
       showImageCropModal: false,
       imageCropMa: null,
       profilbildUrlCache: {}, // Cache: mitarbeiterId → signed URL
-
-      // Quick actions (list view)
-      activeQuickActionId: null,
-      activeQuickActionMa: null,
-      quickActionMenuStyle: {},
-      quickActionBtnRefs: {},
     };
   },
 
@@ -870,21 +911,6 @@ export default {
       return this.availableQualifikationen.filter(q =>
         this.filters.qualifikationen.includes(q._id)
       );
-    },
-
-    activeFilterCount() {
-      let count = 0;
-      if (this.filters.status !== 'Aktiv') count++;
-      if (this.filters.location !== 'Alle') count++;
-      if (this.filters.department !== 'Alle') count++;
-      if (this.filters.asanaStatus !== 'Alle') count++;
-      if (this.filters.personalnrStatus !== 'Alle') count++;
-      if (this.filters.profilbildStatus !== 'Alle') count++;
-      if (this.filters.persgruppe !== 'Alle') count++;
-      if (this.filters.teamleiter !== 'Alle') count++;
-      if (this.filters.berufe.length > 0) count++;
-      if (this.filters.qualifikationen.length > 0) count++;
-      return count;
     },
 
     // Vorschläge für das Qualifikations-Suchfeld
@@ -924,13 +950,6 @@ export default {
 
     filteredMitarbeiters() {
       let result = this.mitarbeitersEnriched || [];
-
-      // Tab Filter
-      if (this.activeTab === 'mitarbeiter') {
-        result = result.filter((ma) => !ma.isBewerberstatus);
-      } else if (this.activeTab === 'bewerber') {
-        result = result.filter((ma) => !!ma.isBewerberstatus);
-      }
 
       // Basic Status Filter
       if (this.filters.status === "Aktiv") {
@@ -1158,42 +1177,6 @@ export default {
   },
 
   methods: {
-    /* -------------------- Quick Actions -------------------- */
-    showQuickActions(ma, event) {
-      if (this.activeQuickActionId === ma._id) {
-        this.activeQuickActionId = null;
-        this.activeQuickActionMa = null;
-        return;
-      }
-      const btn = event.currentTarget;
-      const rect = btn.getBoundingClientRect();
-      this.quickActionMenuStyle = {
-        position: 'fixed',
-        top: `${rect.bottom + 4}px`,
-        right: `${window.innerWidth - rect.right}px`,
-        zIndex: 9999,
-      };
-      this.activeQuickActionId = ma._id;
-      this.activeQuickActionMa = ma;
-    },
-    executeQuickAction(ma, action) {
-      this.activeQuickActionId = null;
-      this.activeQuickActionMa = null;
-      if (action === 'profile') {
-        this.expandedEmployeeId = ma._id;
-      } else if (action === 'sipgate') {
-        const link = this.generateSipgateLink(this.getPhoneNumber(ma));
-        if (link) window.location.href = link;
-      } else if (action === 'outlook') {
-        if (ma.email) window.location.href = `mailto:${ma.email}`;
-      } else if (action === 'upload-photo') {
-        this.imageCropMa = ma;
-        this.showImageCropModal = true;
-      } else if (action === 'edit') {
-        this.expandedEmployeeId = ma._id;
-      }
-    },
-
     /* -------------------- UX helpers -------------------- */
     isTeamleiter(ma) {
       if (!ma?.qualifikationen?.length) return false;
@@ -1627,24 +1610,6 @@ export default {
       this.saveFiltersToCookie();
     },
 
-    openQualDropdown() {
-      const input = this.$refs.qualInput;
-      if (input) {
-        const rect = input.getBoundingClientRect();
-        // Position below the pills-input container (parent of the input)
-        const container = input.closest('.qual-filter-box') || input.parentElement;
-        const cRect = container ? container.getBoundingClientRect() : rect;
-        this.qualDropdownStyle = {
-          position: 'fixed',
-          top: `${cRect.bottom + 4}px`,
-          left: `${cRect.left}px`,
-          minWidth: `${Math.max(cRect.width, 320)}px`,
-          zIndex: 9999,
-        };
-      }
-      this.qualDropdownOpen = true;
-    },
-
     onQualBlur() {
       setTimeout(() => {
         this.qualDropdownOpen = false;
@@ -1901,8 +1866,12 @@ export default {
 <style scoped lang="scss">
 /* Tokens an globale Variablen anbinden */
 .people-page {
+  --bg: var(--bg);
   --surface: var(--panel);
   --soft: var(--hover);
+  --border: var(--border);
+  --muted: var(--muted);
+  --text: var(--text);
   --brand: var(--primary);
   --brand-ink: var(--primary);
   --ok: #21a26a;
@@ -1917,7 +1886,9 @@ export default {
 
 .main {
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 16px;
+  box-shadow: var(--shadow);
 }
 .panel {
   padding: 20px;
@@ -2127,39 +2098,9 @@ export default {
 
 // People search toolbar (hidden on mobile)
 .people-search-toolbar {
-  margin-bottom: 12px;
-  overflow: visible;
-}
-
-.toolbar-inner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  padding: 0;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
-}
-
-.btn-create-ma {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  margin-left: auto;
-  padding: 6px 14px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  white-space: nowrap;
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-  &:hover { border-color: var(--primary); color: var(--primary); }
+  @media (max-width: 768px) {
+    display: none;
+  }
 }
 
 .filter-search-box {
@@ -2901,8 +2842,6 @@ html {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1rem;
   padding: 0.5rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.07);
 }
 
 /* List View */
@@ -3331,52 +3270,6 @@ html {
   }
 }
 
-.view-controls-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 0;
-}
-
-.tab-bar {
-  display: flex;
-  gap: 4px;
-  background: var(--hover);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 3px;
-}
-
-.tab-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
-
-  &:hover {
-    color: var(--text);
-    background: color-mix(in srgb, var(--primary) 8%, transparent);
-  }
-
-  &.active {
-    background: transparent;
-    color: var(--primary);
-    font-weight: 600;
-    border: 1px solid var(--primary);
-  }
-}
-
 .view-controls-right {
   display: flex;
   align-items: center;
@@ -3790,17 +3683,6 @@ html {
 /* ==================== MINIMIERBARE FILTER SEKTION ==================== */
   .people-docs-modern {
     padding: 12px 8px;
-  }
-
-  /* Panel padding auf Mobile reduzieren */
-  .panel {
-    padding: 10px 8px;
-  }
-
-  /* Sort-Dropdown von links öffnen (Button ist auf Mobile links) */
-  .sort .menu {
-    left: 0;
-    right: auto;
   }
   
   .view-controls-right {
