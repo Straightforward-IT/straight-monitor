@@ -22,6 +22,7 @@ import Lohnabrechnungen from '@/components/Lohnabrechnungen.vue';
 import Personal from '@/components/PeopleDocsModern.vue';
 import Dokumente from '@/components/Dokumente.vue';
 import FlipCreate from '@/components/FlipCreate.vue';
+import BewerberCreate from '@/components/BewerberCreate.vue';
 import FlipExit from '@/components/FlipExit.vue';
 import FlipUserFix from '@/components/FlipUserFix.vue';
 import VerlosungTool from '@/components/VerlosungTool.vue';
@@ -67,6 +68,7 @@ const routes = [
       { path: 'personal', name: 'Personal', component: Personal },
       { path: 'dokumente', name: 'Dokumente', component: Dokumente },
       { path: 'flip/benutzer-erstellen/:id?', name: 'BenutzerErstellen', component: FlipCreate },
+      { path: 'bewerber/erstellen/:id', name: 'BewerberErstellen', component: BewerberCreate },
       { path: 'flip/austritte', name: 'Austritte', component: FlipExit },
       { path: 'flip/user-fix', name: 'FlipUserFix', component: FlipUserFix },
       { path: 'verlosung', name: 'VerlosungTool', component: VerlosungTool },

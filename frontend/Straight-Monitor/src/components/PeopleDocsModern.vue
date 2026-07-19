@@ -1,255 +1,86 @@
 <template>
   <div class="people-page">
     <main class="main">
-      <!-- ============== EMPLOYEE VIEW ============== -->
       <section class="panel">
+        <div class="controls people-tab-controls">
+          <nav class="people-tabs" aria-label="Personalansicht">
+            <button type="button" :class="{ active: activeTab === 'mitarbeiter' }" @click="activeTab = 'mitarbeiter'">Mitarbeiter</button>
+            <button type="button" :class="{ active: activeTab === 'bewerber' }" @click="activeTab = 'bewerber'">Bewerber</button>
+          </nav>
+        </div>
+        <!-- ============== EMPLOYEE VIEW ============== -->
+        <template v-if="activeTab === 'mitarbeiter'">
           <!-- Minimierbare Filter-Sektion -->
-          <FilterPanel v-model:expanded="filtersExpanded">
-            <template #header-actions>
-              <div class="filter-search-box" :class="{ 'search-expanded': searchExpanded }">
-                <button class="filter-search-toggle" @click.stop="toggleSearchExpanded" type="button" title="Suche">
-                  <font-awesome-icon icon="fa-solid fa-magnifying-glass" />
+          <div class="controls">
+          <!-- Toolbar with ToolbarFilter -->
+          <Toolbar class="people-search-toolbar">
+            <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetAllFilters">
+              <FilterGroup label="Status">
+                <FilterChip :active="filters.status === 'Aktiv'" @click="setFilter('status', filters.status === 'Aktiv' ? 'Alle' : 'Aktiv')">Aktiv</FilterChip>
+                <FilterChip :active="filters.status === 'Inaktiv'" @click="setFilter('status', filters.status === 'Inaktiv' ? 'Alle' : 'Inaktiv')">Inaktiv</FilterChip>
+              </FilterGroup>
+              <FilterDivider />
+              <FilterGroup label="Standort">
+                <FilterChip v-for="loc in locations" :key="loc" :active="filters.location === loc" @click="setFilter('location', filters.location === loc ? 'Alle' : loc)">{{ loc }}</FilterChip>
+              </FilterGroup>
+              <FilterDivider />
+              <FilterGroup label="Bereich">
+                <FilterChip v-for="dept in departments" :key="dept" :active="filters.department === dept" @click="setFilter('department', filters.department === dept ? 'Alle' : dept)">{{ dept }}</FilterChip>
+              </FilterGroup>
+              <FilterDivider />
+              <FilterGroup label="Rolle">
+                <FilterChip :active="filters.teamleiter === 'Nur Teamleiter'" @click="setFilter('teamleiter', filters.teamleiter === 'Nur Teamleiter' ? 'Alle' : 'Nur Teamleiter')">Teamleiter</FilterChip>
+                <FilterChip :active="filters.teamleiter === 'Keine Teamleiter'" @click="setFilter('teamleiter', filters.teamleiter === 'Keine Teamleiter' ? 'Alle' : 'Keine Teamleiter')">Keine TL</FilterChip>
+              </FilterGroup>
+              <FilterDivider />
+              <FilterGroup label="Asana">
+                <FilterChip :active="filters.asanaStatus === 'Verknüpft'" @click="setFilter('asanaStatus', filters.asanaStatus === 'Verknüpft' ? 'Alle' : 'Verknüpft')">Verknüpft</FilterChip>
+                <FilterChip :active="filters.asanaStatus === 'Nicht_verknüpft'" @click="setFilter('asanaStatus', filters.asanaStatus === 'Nicht_verknüpft' ? 'Alle' : 'Nicht_verknüpft')">Nicht verknüpft</FilterChip>
+              </FilterGroup>
+              <FilterDivider />
+              <FilterGroup label="P-Nr.">
+                <FilterChip :active="filters.personalnrStatus === 'Vorhanden'" @click="setFilter('personalnrStatus', filters.personalnrStatus === 'Vorhanden' ? 'Alle' : 'Vorhanden')">Vorhanden</FilterChip>
+                <FilterChip :active="filters.personalnrStatus === 'Fehlt'" @click="setFilter('personalnrStatus', filters.personalnrStatus === 'Fehlt' ? 'Alle' : 'Fehlt')">Fehlt</FilterChip>
+              </FilterGroup>
+              <FilterDivider />
+              <FilterGroup label="Profilbild">
+                <FilterChip :active="filters.profilbildStatus === 'Vorhanden'" @click="setFilter('profilbildStatus', filters.profilbildStatus === 'Vorhanden' ? 'Alle' : 'Vorhanden')">Vorhanden</FilterChip>
+                <FilterChip :active="filters.profilbildStatus === 'Fehlt'" @click="setFilter('profilbildStatus', filters.profilbildStatus === 'Fehlt' ? 'Alle' : 'Fehlt')">Fehlt</FilterChip>
+              </FilterGroup>
+              <FilterDivider />
+              <FilterGroup label="Persgruppe">
+                <FilterChip :active="filters.persgruppe === 'Keine'" @click="setFilter('persgruppe', filters.persgruppe === 'Keine' ? 'Alle' : 'Keine')">Keine</FilterChip>
+                <FilterChip v-for="pg in [{val: 101, label: 'Festi'}, {val: 110, label: 'KZF'}, {val: 109, label: 'Mini'}, {val: 106, label: 'Werkst.'}]" :key="pg.val" :active="filters.persgruppe === pg.val" @click="setFilter('persgruppe', filters.persgruppe === pg.val ? 'Alle' : pg.val)">{{ pg.label }}</FilterChip>
+              </FilterGroup>
+            </ToolbarFilter>
+            <div class="toolbar-inner">
+              <SearchBar
+                class="toolbar-search"
+                v-model="mitarbeitersSearchQuery"
+                placeholder="Mitarbeiter suchen..."
+                aria-label="Mitarbeiter suchen"
+              />
+              <!-- Selection Info -->
+              <div v-if="selectedMitarbeiterIds.size > 0" class="selection-info">
+                <span class="selection-count">{{ selectedMitarbeiterIds.size }} ausgewählt</span>
+                <button
+                  v-if="selectedMitarbeiterIds.size < filteredMitarbeitersSorted.length"
+                  class="btn-select-all-filtered"
+                  @click="selectAllFiltered"
+                >
+                  Alle {{ filteredMitarbeitersSorted.length }} auswählen
                 </button>
-                <input
-                  ref="searchInput"
-                  v-model="mitarbeitersSearchQuery"
-                  type="text"
-                  placeholder="Suchen..."
-                  aria-label="Mitarbeiter suchen"
-                  @keydown.escape="searchExpanded = false"
-                  @blur="handleSearchBlur"
-                  @click.stop
-                />
-              </div>
-            </template>
-
-            <!-- Enhanced Filter Chips (nur sichtbar wenn expanded) -->
-            <div class="filter-chips">
-            <!-- Compact Filters (Dropdowns) -->
-            
-            <!-- Status Dropdown -->
-            <div class="chip-group compact-group">
-                <FilterDropdown ref="statusDropdown" :has-value="filters.status !== 'Alle'">
-                  <template #label><font-awesome-icon icon="fa-solid fa-filter" style="margin-right: 0.5rem" /> {{ filters.status === 'Alle' ? 'Status' : filters.status }}</template>
-                  <div class="dropdown-item clickable" :class="{ selected: filters.status === 'Alle' }"
-                       @click="setFilter('status', 'Alle'); $refs.statusDropdown.close()">
-                    Alle
-                  </div>
-                  <div v-for="status in ['Aktiv', 'Inaktiv']" :key="status" 
-                       class="dropdown-item clickable" :class="{ selected: filters.status === status }"
-                       @click="setFilter('status', status); $refs.statusDropdown.close()">
-                    <font-awesome-icon 
-                      :icon="status === 'Aktiv' ? 'fa-solid fa-circle-check' : 
-                             'fa-regular fa-circle-xmark'"
-                      style="margin-right: 8px; width: 16px;" 
-                      :class="status === 'Aktiv' ? 'text-success' : 'text-danger'"
-                    />
-                    {{ status }}
-                  </div>
-                </FilterDropdown>
-            </div>
-
-            <!-- Location Dropdown -->
-            <div class="chip-group compact-group">
-                 <FilterDropdown ref="locationDropdown" :has-value="filters.location !== 'Alle'">
-                    <template #label><font-awesome-icon icon="fa-solid fa-location-dot" style="margin-right: 0.5rem" /> {{ filters.location === 'Alle' ? 'Standort' : filters.location }}</template>
-                    <div class="dropdown-item clickable" :class="{ selected: filters.location === 'Alle' }"
-                        @click="setFilter('location', 'Alle'); $refs.locationDropdown.close()">
-                        Alle Standorte
-                    </div>
-                    <div v-for="loc in locations" :key="loc" 
-                         class="dropdown-item clickable"
-                         :class="{ selected: filters.location === loc }"
-                         @click="setFilter('location', loc); $refs.locationDropdown.close()">
-                      {{ loc }}
-                    </div>
-                 </FilterDropdown>
-            </div>
-
-            <!-- Department Dropdown -->
-            <div class="chip-group compact-group">
-                 <FilterDropdown ref="deptDropdown" :has-value="filters.department !== 'Alle'">
-                    <template #label><font-awesome-icon icon="fa-solid fa-layer-group" style="margin-right: 0.5rem" /> {{ filters.department === 'Alle' ? 'Bereich' : filters.department }}</template>
-                    <div class="dropdown-item clickable" :class="{ selected: filters.department === 'Alle' }"
-                        @click="setFilter('department', 'Alle'); $refs.deptDropdown.close()">
-                        Alle Bereiche
-                    </div>
-                    <div v-for="dept in departments" :key="dept" 
-                         class="dropdown-item clickable"
-                         :class="{ selected: filters.department === dept }"
-                         @click="setFilter('department', dept); $refs.deptDropdown.close()">
-                      {{ dept }}
-                    </div>
-                 </FilterDropdown>
-            </div>
-
-            <span class="divider" />
-
-            <div class="chip-group compact-group">
-                 <FilterDropdown ref="asanaDropdown" :has-value="filters.asanaStatus !== 'Alle'">
-                    <template #label><font-awesome-icon icon="fa-solid fa-clipboard-list" style="margin-right: 0.5rem" /> {{ filters.asanaStatus === 'Alle' ? 'Asana' : filters.asanaStatus.replace('_', ' ') }}</template>
-                     <div v-for="stat in ['Alle', 'Verknüpft', 'Nicht_verknüpft']" 
-                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.asanaStatus === stat }"
-                          @click="setFilter('asanaStatus', stat); $refs.asanaDropdown.close()">
-                       {{ stat.replace('_', ' ') }}
-                     </div>
-                 </FilterDropdown>
-            </div>
-
-            <span class="divider" />
-            
-            <!-- Metadata Group -->
-            <div class="chip-group compact-group">
-                 <FilterDropdown ref="pnrDropdown" :has-value="filters.personalnrStatus !== 'Alle'">
-                    <template #label><font-awesome-icon icon="fa-solid fa-id-badge" style="margin-right: 0.5rem" /> {{ filters.personalnrStatus === 'Alle' ? 'P-Nr.' : filters.personalnrStatus }}</template>
-                     <div v-for="stat in ['Alle', 'Vorhanden', 'Fehlt']" 
-                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.personalnrStatus === stat }"
-                          @click="setFilter('personalnrStatus', stat); $refs.pnrDropdown.close()">
-                       {{ stat }}
-                     </div>
-                 </FilterDropdown>
-            </div>
-
-            <div class="chip-group compact-group">
-                 <FilterDropdown ref="profilbildDropdown" :has-value="filters.profilbildStatus !== 'Alle'">
-                    <template #label><font-awesome-icon icon="fa-solid fa-camera" style="margin-right: 0.5rem" /> {{ filters.profilbildStatus === 'Alle' ? 'Profilbild' : filters.profilbildStatus }}</template>
-                     <div v-for="stat in ['Alle', 'Vorhanden', 'Fehlt']" 
-                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.profilbildStatus === stat }"
-                          @click="setFilter('profilbildStatus', stat); $refs.profilbildDropdown.close()">
-                       {{ stat }}
-                     </div>
-                 </FilterDropdown>
-            </div>
-
-            <div class="chip-group compact-group">
-                 <FilterDropdown ref="pgDropdown" :has-value="filters.persgruppe !== 'Alle'">
-                    <template #label><font-awesome-icon icon="fa-solid fa-user" style="margin-right: 0.5rem" /> {{ filters.persgruppe === 'Alle' ? 'Persgruppe' : filters.persgruppe === 'Keine' ? 'Keine' : { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' }[filters.persgruppe] }}</template>
-                    <div class="dropdown-item clickable" :class="{ selected: filters.persgruppe === 'Alle' }"
-                        @click="setFilter('persgruppe', 'Alle'); $refs.pgDropdown.close()">
-                        Alle
-                    </div>
-                    <div class="dropdown-item clickable" :class="{ selected: filters.persgruppe === 'Keine' }"
-                        @click="setFilter('persgruppe', 'Keine'); $refs.pgDropdown.close()">
-                        Keine
-                    </div>
-                    <div v-for="pg in [{ val: 101, label: 'Festi (101)' }, { val: 110, label: 'KZF (110)' }, { val: 109, label: 'Mini (109)' }, { val: 106, label: 'Werkst. (106)' }]" :key="pg.val"
-                         class="dropdown-item clickable" :class="{ selected: filters.persgruppe === pg.val }"
-                         @click="setFilter('persgruppe', pg.val); $refs.pgDropdown.close()">
-                      {{ pg.label }}
-                    </div>
-                 </FilterDropdown>
-            </div>
-
-            <div class="chip-group compact-group">
-                 <FilterDropdown ref="tlDropdown" :has-value="filters.teamleiter !== 'Alle'">
-                    <template #label><font-awesome-icon icon="fa-solid fa-user-tie" style="margin-right: 0.5rem" /> {{ filters.teamleiter === 'Alle' ? 'Rolle' : filters.teamleiter }}</template>
-                     <div v-for="stat in ['Alle', 'Nur Teamleiter', 'Keine Teamleiter']" 
-                          :key="stat" class="dropdown-item clickable" :class="{ selected: filters.teamleiter === stat }"
-                          @click="setFilter('teamleiter', stat); $refs.tlDropdown.close()">
-                       {{ stat }}
-                     </div>
-                 </FilterDropdown>
-            </div>
-
-            <span class="divider" />
-
-            <!-- Skills (Multi Select) -->
-            <div class="chip-group compact-group">
-                  <FilterDropdown :has-value="filters.berufe.length > 0">
-                    <template #label>
-                       <font-awesome-icon icon="fa-solid fa-briefcase" style="margin-right: 0.5rem" />
-                       <span v-if="filters.berufe.length === 0"> Berufe</span>
-                       <span v-else> {{ filters.berufe.length }} gewählt</span>
-                    </template>
-                    
-                    <div v-if="availableBerufe.length === 0" class="no-options">Keine Berufe gefunden</div>
-                    <label v-for="beruf in availableBerufe" :key="beruf._id" class="dropdown-item">
-                      <input 
-                        type="checkbox" 
-                        :checked="filters.berufe.includes(beruf._id)"
-                        @change="toggleBerufFilter(beruf._id)"
-                      >
-                      <span class="label-text">{{ beruf.designation }}</span>
-                      <span class="badge-small">{{ beruf.jobKey }}</span>
-                    </label>
-                  </FilterDropdown>
-            </div>
-            
-            <div class="chip-group compact-group qual-chip-group">
-              <div class="qual-filter-box">
-                <div class="qual-pills-input" @click="$refs.qualInput?.focus()">
-                  <span
-                    v-for="(q, idx) in qualFilterObjects"
-                    :key="q._id"
-                    class="qual-pill"
-                    :class="{ 'is-focused': qualFocusedPillIdx === idx }"
-                  >
-                    <span class="qual-pill-text">{{ q.designation }}</span>
-                    <button class="qual-pill-remove" @click.stop="removeQual(q)" title="Entfernen">✕</button>
-                  </span>
-                  <input
-                    ref="qualInput"
-                    v-model="qualSearchQuery"
-                    class="qual-search-input"
-                    type="text"
-                    :placeholder="filters.qualifikationen.length ? '' : 'Qualifikation suchen…'"
-                    @focus="qualDropdownOpen = true"
-                    @input="qualDropdownOpen = true"
-                    @blur="onQualBlur"
-                    @keydown="onQualKeydown"
-                  />
-                </div>
-                <div v-if="qualDropdownOpen && qualSuggestions.length" class="qual-dropdown">
-                  <div
-                    v-for="q in qualSuggestions"
-                    :key="q._id"
-                    class="qual-dropdown-item"
-                    @mousedown.prevent="addQual(q)"
-                  >
-                    <span class="qual-key">{{ q.qualificationKey }}</span>
-                    {{ q.designation }}
-                  </div>
-                </div>
+                <button class="btn-export-action" @click="showExportModal = true">
+                  <font-awesome-icon icon="fa-solid fa-table" />
+                  Exportieren
+                </button>
+                <button class="btn-clear" @click="clearSelection">
+                  <font-awesome-icon icon="fa-solid fa-times" />
+                  Auswahl löschen
+                </button>
               </div>
             </div>
-            
-            <span class="divider" />
-
-            <FilterChip class="reset-chip" @click="resetAllFilters" title="Alle Filter zurücksetzen">
-              <font-awesome-icon icon="fa-solid fa-rotate-left" />
-              Zurücksetzen
-            </FilterChip>
-            </div>
-          </FilterPanel>
-
-        <!-- Desktop Search Toolbar (hidden on mobile) -->
-        <Toolbar class="people-search-toolbar">
-          <SearchBar
-            class="toolbar-search"
-            v-model="mitarbeitersSearchQuery"
-            placeholder="Mitarbeiter suchen..."
-            aria-label="Mitarbeiter suchen"
-          />
-            <!-- Selection Info -->
-            <div v-if="selectedMitarbeiterIds.size > 0" class="selection-info">
-              <span class="selection-count">{{ selectedMitarbeiterIds.size }} ausgewählt</span>
-              <button
-                v-if="selectedMitarbeiterIds.size < filteredMitarbeitersSorted.length"
-                class="btn-select-all-filtered"
-                @click="selectAllFiltered"
-              >
-                Alle {{ filteredMitarbeitersSorted.length }} auswählen
-              </button>
-              <button class="btn-export-action" @click="showExportModal = true">
-                <font-awesome-icon icon="fa-solid fa-table" />
-                Exportieren
-              </button>
-              <button class="btn-clear" @click="clearSelection">
-                <font-awesome-icon icon="fa-solid fa-times" />
-                Auswahl löschen
-              </button>
-            </div>
-        </Toolbar>
+          </Toolbar>
 
         <!-- Controls: Sort + Pagination -->
         <div class="view-controls-right">
@@ -334,6 +165,7 @@
               </div>
             </div>
         </div>
+        </div> <!-- end controls -->
 
         <!-- Loading State -->
         <div v-if="loading.mitarbeiter" class="loading-container">
@@ -632,6 +464,8 @@
         >
           <p>Keine Mitarbeiter gefunden. Filter anpassen?</p>
         </div>
+        </template>
+        <BewerberTab v-else :initial-applicant-id="$route.query.bewerber_id || ''" />
       </section>
     </main>
     
@@ -707,8 +541,10 @@ import api from "@/utils/api";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import EmployeeCard from "@/components/EmployeeCard.vue";
-import FilterPanel from "@/components/FilterPanel.vue";
-import FilterDropdown from "@/components/FilterDropdown.vue";
+import BewerberTab from "@/components/BewerberTab.vue";
+import FilterGroup from "@/components/FilterGroup.vue";
+import FilterDivider from "@/components/ui-elements/FilterDivider.vue";
+import ToolbarFilter from "@/components/ui-elements/ToolbarFilter.vue";
 import FilterChip from "@/components/ui-elements/FilterChip.vue";
 import ExportMitarbeiterModal from "@/components/ExportMitarbeiterModal.vue";
 import ImageCropModal from "@/components/ImageCropModal.vue";
@@ -806,7 +642,7 @@ library.add(
 
 export default {
   name: "Personal",
-  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterPanel, FilterDropdown, FilterChip, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar },
+  components: { FontAwesomeIcon, EmployeeCard, BewerberTab, CustomTooltip, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -825,6 +661,7 @@ export default {
 
   data() {
     return {
+      activeTab: this.$route.query.tab === 'bewerber' ? 'bewerber' : 'mitarbeiter',
       // auth/user
       token: localStorage.getItem("token") || null,
       userEmail: "",
@@ -836,7 +673,7 @@ export default {
       expandedEmployeeId: null,
       
       // filter UI state
-      filtersExpanded: true, // Filter standardmäßig ausgeklappt
+      filterExpanded: false,
       searchExpanded: false, // Expandable search in filter header
 
       locations: ["Hamburg", "Berlin", "Köln"],
@@ -896,6 +733,20 @@ export default {
   },
 
   computed: {
+    activeFilterCount() {
+      let count = 0;
+      if (this.filters.status !== 'Aktiv') count++;
+      if (this.filters.location !== 'Alle') count++;
+      if (this.filters.department !== 'Alle') count++;
+      if (this.filters.asanaStatus !== 'Alle') count++;
+      if (this.filters.personalnrStatus !== 'Alle') count++;
+      if (this.filters.profilbildStatus !== 'Alle') count++;
+      if (this.filters.teamleiter !== 'Alle') count++;
+      if (this.filters.berufe.length > 0) count++;
+      if (this.filters.qualifikationen.length > 0) count++;
+      if (this.filters.persgruppe !== 'Alle') count++;
+      return count;
+    },
     // Verfügbare Berufe aus dem Cache
     availableBerufe() {
       return this.dataCache.berufe || [];
@@ -1183,7 +1034,7 @@ export default {
       return ma.qualifikationen.some(q => parseInt(String(q.qualificationKey), 10) === 50055);
     },
     toggleFilters() {
-      this.filtersExpanded = !this.filtersExpanded;
+      this.filterExpanded = !this.filterExpanded;
     },
     toggleSearchExpanded() {
       this.searchExpanded = !this.searchExpanded;
@@ -1901,6 +1752,43 @@ export default {
   margin-bottom: 4px;
 }
 
+.people-tab-controls {
+  margin-bottom: 16px;
+}
+
+.people-tabs {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  width: fit-content;
+  padding: 4px;
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.people-tabs button {
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 7px 12px;
+}
+
+.people-tabs button:hover {
+  color: var(--text);
+}
+
+.people-tabs button.active {
+  background: var(--tile-bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  color: var(--primary);
+  font-weight: 600;
+}
+
 /* View Controls */
 .view-controls {
   display: flex;
@@ -1964,56 +1852,7 @@ export default {
 }
 
 /* Filter Chips */
-.filter-chips {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 16px;
-  background: var(--soft);
-  border-radius: 12px;
-  border: 1px solid var(--border);
-}
-
-.chip-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--surface);
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  transition: all 200ms ease;
-  position: relative;
-}
-
-.chip-group:hover {
-  background: color-mix(in srgb, var(--brand) 5%, var(--surface));
-  border-color: color-mix(in srgb, var(--brand) 30%, var(--border));
-}
-.chips {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.chip-label {
-  color: var(--brand);
-  font-weight: 700;
-  margin-right: 6px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 2px 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  
-  svg {
-    font-size: 12px;
-  }
-}
-
+/* Removed legacy chip styles */
 /* Dropdown Label Text & Badge */
 .label-text {
   flex: 1;
@@ -2096,21 +1935,20 @@ export default {
   margin: 0 4px;
 }
 
-// People search toolbar (hidden on mobile)
 .people-search-toolbar {
-  @media (max-width: 768px) {
-    display: none;
-  }
+  margin-bottom: 12px;
+  overflow: visible;
 }
 
-.filter-search-box {
+.toolbar-inner {
   display: flex;
   align-items: center;
-  position: relative;
-
-  @media (min-width: 769px) {
-    display: none;
-  }
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
 }
 
 .filter-search-toggle {
@@ -2152,11 +1990,6 @@ export default {
 @media (max-width: 640px) {
   .filter-search-box.search-expanded input {
     width: 150px;
-  }
-
-  .filter-chips {
-    gap: 8px;
-    padding: 12px;
   }
 
   .chip-group {
@@ -3373,15 +3206,6 @@ html {
   }
 }
 
-.reset-chip :deep(.filter-chip) {
-  color: #ff4d4f;
-  border-color: #ff4d4f;
-
-  &:hover {
-    background: rgba(255, 77, 79, 0.1);
-  }
-}
-
 .divider {
   width: 1px;
   height: 24px;
@@ -3821,10 +3645,6 @@ html {
   .pagination-select-compact,
   .pagination-btn-compact {
     font-size: 0.82rem;
-  }
-  
-  .filter-chips {
-    gap: 6px;
   }
   
   .chip-group {

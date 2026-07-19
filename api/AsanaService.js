@@ -6,6 +6,7 @@ require("dotenv").config();
 const { sendMail } = require("./EmailService");
 const registry = require("./config/registry");
 const Mitarbeiter = require("./models/Mitarbeiter");
+const Bewerber = require("./models/Bewerber");
 
 /* ------------------------------- Asana inits ------------------------------- */
 function initTasksApi() {
@@ -212,7 +213,7 @@ async function updateTask(task_gid, updateData, opts = {}) {
  * Adds either "Im Monitor anzeigen" (if a Mitarbeiter with this asana_id exists)
  * or "Bewerber erstellen" link to a task if not already present.
  */
-async function addLinkToTask(taskOrGid) {
+async function addLinkToTask(taskOrGid, { projectId = null } = {}) {
   // taskOrGid kann { gid, html_notes } oder nur "gid" sein
   const gid = typeof taskOrGid === "string" ? taskOrGid : taskOrGid?.gid;
   if (!gid) return;
@@ -229,31 +230,28 @@ async function addLinkToTask(taskOrGid) {
     }
   }
 
-  // 2) Wenn "Im Monitor anzeigen" bereits vorhanden → nichts tun
-  if (currentHtml.includes("Im Monitor anzeigen</a>")) return;
-
-  // 3) Prüfen ob ein Mitarbeiter mit dieser asana_id existiert
-  let ma = null;
-  try {
-    ma = await Mitarbeiter.findOne({ asana_id: gid }).select("_id").lean();
-  } catch (e) {
-    console.warn("⚠️ addLinkToTask: DB-Abfrage fehlgeschlagen", e.message);
-  }
-
+  const isHamburgApplicantProject = projectId === registry.getAsanaProjectId("hamburg");
   let header;
-  if (ma) {
-    // Mitarbeiter bekannt → Link zur EmployeeCard im Monitor
-    header = `<h1><a href="https://straightmonitor.com/personal?asana_id=${gid}">Im Monitor anzeigen</a></h1>\n`;
-    // Alten "Bewerber erstellen"-Link entfernen falls vorhanden
-    currentHtml = currentHtml.replace(
-      /<h1><a href="[^"]*">Bewerber erstellen<\/a><\/h1>\n?/g,
-      ""
-    );
+
+  if (isHamburgApplicantProject) {
+    const bewerber = await Bewerber.findOne({ asana_id: gid }).select("_id").lean();
+    header = bewerber
+      ? `<h1><a href="https://straightmonitor.com/personal?tab=bewerber&bewerber_id=${bewerber._id}">Bewerber im Monitor anzeigen</a></h1>\n`
+      : `<h1><a href="https://straightmonitor.com/bewerber/erstellen/${gid}">Bewerber erstellen</a></h1>\n`;
   } else {
-    // Noch kein Mitarbeiter → "Bewerber erstellen" einfügen (falls noch nicht vorhanden)
-    if (currentHtml.includes("Bewerber erstellen</a>")) return;
-    header = `<h1><a href="https://straightmonitor.com/flip/benutzer-erstellen/${gid}">Bewerber erstellen</a></h1>\n`;
+    const ma = await Mitarbeiter.findOne({ asana_id: gid }).select("_id").lean();
+    header = ma
+      ? `<h1><a href="https://straightmonitor.com/personal?asana_id=${gid}">Im Monitor anzeigen</a></h1>\n`
+      : `<h1><a href="https://straightmonitor.com/flip/benutzer-erstellen/${gid}">Bewerber erstellen</a></h1>\n`;
   }
+
+  if (currentHtml.includes(header.trim())) return;
+
+  // Remove only links maintained by this routine before replacing them.
+  currentHtml = currentHtml.replace(
+    /<h1><a href="https:\/\/straightmonitor\.com\/(?:flip\/benutzer-erstellen\/[^"<]+|bewerber\/erstellen\/[^"<]+|personal\?(?:asana_id|tab=bewerber&bewerber_id)=[^"<]+)">(?:Bewerber erstellen|Im Monitor anzeigen|Bewerber im Monitor anzeigen)<\/a><\/h1>\n?/g,
+    ""
+  );
 
   // 4) Link-Header vor den existierenden Body setzen
   let updatedHtml;
@@ -296,7 +294,7 @@ async function bewerberRoutine(teamKeys = null) {
         (t) => !t.html_notes?.includes("Im Monitor anzeigen</a>")
       );
 
-      tasksToUpdate.forEach(addLinkToTask);
+      tasksToUpdate.forEach((task) => addLinkToTask(task, { projectId: id }));
       console.log(`✅ ${tasksToUpdate.length} tasks queued for project ${id}`);
     }
   } catch (error) {
@@ -425,7 +423,7 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
 
   // 5) Bewerber-Link oben einfügen
   try {
-    await addLinkToTask(createdTask.gid);
+    await addLinkToTask(createdTask.gid, { projectId });
   } catch (e) {
     console.warn("⚠️ addLinkToTask failed:", e.message);
   }

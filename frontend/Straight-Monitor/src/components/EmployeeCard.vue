@@ -416,11 +416,6 @@
                 >
                   <div class="feedback-inline-header">
                     <span class="feedback-inline-event">{{ fb.kunde || fb.location || 'Unbekannt' }}</span>
-                    <span class="feedback-inline-date">{{ formatDate(fb.datum) }}</span>
-                    <button class="btn-report-small" @click.stop="openDocument(fb, 'Event-Bericht')" title="Report öffnen">
-                      <font-awesome-icon icon="fa-solid fa-file-lines" />
-                      Report
-                    </button>
                     <div v-if="fb.feedbackId" class="feedback-inline-actions">
                       <button
                         v-if="editingFeedbackId !== fb.feedbackId"
@@ -440,6 +435,15 @@
                         <font-awesome-icon v-else icon="fa-solid fa-trash" />
                       </button>
                     </div>
+                    <span class="feedback-inline-date">{{ formatDate(fb.datum) }}</span>
+                    <span v-if="fb.teamleiter || fb.name_teamleiter" class="feedback-inline-author">
+                      <font-awesome-icon icon="fa-solid fa-user-tie" />
+                      {{ fb.teamleiter ? `${fb.teamleiter.vorname} ${fb.teamleiter.nachname}` : fb.name_teamleiter }}
+                    </span>
+                    <button class="btn-report-small" @click.stop="openDocument(fb, 'Event-Bericht')" title="Report öffnen">
+                      <font-awesome-icon icon="fa-solid fa-file-lines" />
+                      Report
+                    </button>
                   </div>
                   <template v-if="editingFeedbackId === fb.feedbackId">
                     <textarea
@@ -4336,6 +4340,16 @@ export default {
   font-size: 11px;
   color: var(--muted);
   white-space: nowrap;
+}
+
+.feedback-inline-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-style: italic;
 }
 
 .btn-report-small {

@@ -33,6 +33,7 @@ const dispoRoutes = require('./routes/dispoRoutes');
 const dispoKommentarRoutes = require('./routes/dispoKommentarRoutes');
 const commentRoutes = require('./routes/commentRoutes');
 const leadRoutes = require('./routes/leadRoutes');
+const bewerberRoutes = require('./routes/bewerberRoutes');
 const ErrorHandler = require('./middleware/ErrorHandler');
 const logger = require('./utils/logger');
 require('dotenv').config();
@@ -119,6 +120,7 @@ app.use('/api/dispo', dispoRoutes);
 app.use('/api/dispo-kommentare', dispoKommentarRoutes); // legacy — kept for backwards compat
 app.use('/api/comments', commentRoutes);
 app.use('/api/leads', leadRoutes);
+app.use('/api/bewerber', bewerberRoutes);
 
 // Debug endpoint (moved to specific path instead of catch-all)
 app.get('/api/debug/headers', (req, res) => {

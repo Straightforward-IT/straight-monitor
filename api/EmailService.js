@@ -402,6 +402,76 @@ async function sendSignaturEmail(recipientEmail, name, documentTitle, signingLin
   await sendMail(recipientEmail, subject, content, senderKey);
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function formatAppointment(value) {
+  return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function buildBewerberInvitationEmailHtml({ bewerber, type, appointmentAt, publicUrl, accessCode, senderName, teamKey }) {
+  const team = registry.getTeam(teamKey);
+  const branch = team.niederlassung || {};
+  const appointment = formatAppointment(appointmentAt);
+  const trainingText = type === "vertrag_service"
+    ? "Im Anschluss startet die Service-Schulung und wird voraussichtlich bis ca. 21:00 Uhr andauern."
+    : type === "vertrag_logistik"
+      ? "Im Anschluss startet die Logistik-Schulung und wird voraussichtlich bis ca. 21:00 Uhr andauern. In der Logistik brauchst du Stahlkappenschuhe (Sicherheitsstufe 2) und Arbeitshandschuhe. Das Kautionspaket beinhaltet zwei schwarze T-Shirts, einen schwarzen Pullover, eine Logistikhose, ein Cuttermesser und einen Helm."
+      : "";
+  const salutation = escapeHtml(bewerber.vorname || "");
+  const address = escapeHtml(branch.name || team.displayName || team.key);
+  const phones = (branch.telefone || []).map(escapeHtml).join(" · ");
+
+  return `
+    <div style="font-family:Arial,sans-serif;color:#222;max-width:640px;margin:0 auto;line-height:1.55;">
+      <p>Hallo ${salutation},</p>
+      <p>vielen Dank für das angenehme Gespräch. Wie im Vorstellungsgespräch besprochen, findet deine Vertragsunterschrift bei uns am folgenden Termin statt:</p>
+      <p style="font-size:17px;font-weight:700;">${escapeHtml(appointment)} Uhr bei uns im Office</p>
+      ${trainingText ? `<p>${escapeHtml(trainingText)}</p>` : ""}
+      <p>Bitte bestätige uns kurz per E-Mail den oben stehenden Termin. Sollte sich etwas an deinen Plänen ändern, gib uns bitte Bescheid und wir finden gemeinsam einen neuen Termin.</p>
+      <p>Für die Vertragsunterschrift benötigen wir einige Unterlagen. Die ausgewählten Unterlagen findest du im Anhang dieser E-Mail.</p>
+      <p>Bitte ergänze vor dem Termin deine persönlichen Angaben über den folgenden Link:</p>
+      <p style="margin:24px 0;"><a href="${escapeHtml(publicUrl)}" style="display:inline-block;background:#e8730a;color:#fff;padding:12px 20px;text-decoration:none;font-weight:700;">Angaben ergänzen</a></p>
+      <p>Dein Zugangscode: <strong style="font-size:18px;letter-spacing:2px;">${escapeHtml(accessCode)}</strong></p>
+      <p>Falls noch Fragen offen sind, kannst du uns jederzeit kontaktieren.</p>
+      <p>Wir freuen uns auf deine Teilnahme und verbleiben mit bestem Gruß,<br><br>${escapeHtml(senderName)}<br><strong>Team ${address}</strong></p>
+      <hr style="border:0;border-top:1px solid #ddd;margin:24px 0;">
+      <p style="font-size:12px;color:#666;margin:0;">${escapeHtml(branch.name || team.displayName || team.key)}<br>${escapeHtml(team.email?.address || "")}<br>${phones}</p>
+      <p style="font-size:10px;color:#888;margin-top:16px;">H. &amp; P. Straightforward GmbH · Berlin HRB 180342 B · Managing Partners: Daniel Hansen &amp; Christian Peßler · VAT no.: DE308384616</p>
+    </div>
+  `.trim();
+}
+
+async function sendBewerberInvitationEmail({ bewerber, type, appointmentAt, publicUrl, accessCode, senderName, attachments = [] }) {
+  const subject = type === "vertrag"
+    ? "Einladung zur Vertragsunterschrift"
+    : "Einladung zur Vertragsunterschrift und Schulung";
+  const content = buildBewerberInvitationEmailHtml({
+    bewerber,
+    type,
+    appointmentAt,
+    publicUrl,
+    accessCode,
+    senderName,
+    teamKey: bewerber.teamKey,
+  });
+  await sendMail(bewerber.email, subject, content, bewerber.teamKey, attachments);
+}
+
 module.exports = {
   sendMail,
   sendConfirmationEmail,
@@ -409,4 +479,6 @@ module.exports = {
   sendInventoryUpdateEmail,
   sendFlipWelcomeEmail,
   sendSignaturEmail,
+  buildBewerberInvitationEmailHtml,
+  sendBewerberInvitationEmail,
 };

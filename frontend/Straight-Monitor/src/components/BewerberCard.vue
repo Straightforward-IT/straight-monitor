@@ -1,305 +1,153 @@
 <template>
-  <article class="bewerber-card" :class="{ 'bewerber-card--inactive': !ma.isActive }">
-    <!-- Header -->
-    <header class="card-header" role="button" tabindex="0" @click="toggle" @keydown.enter.prevent="toggle" @keydown.space.prevent="toggle">
-      <div class="left">
-        <div class="avatar" :style="{ '--hue': avatarHue }">{{ initials }}</div>
-        <div class="title">
-          <div class="name">{{ ma.vorname }} {{ ma.nachname }}</div>
-          <div class="meta">
-            <span class="pill info" v-if="ma.personalnr">
-              <font-awesome-icon icon="fa-solid fa-id-badge" />
-              {{ ma.personalnr }}
-            </span>
-            <span class="pill ok" v-if="ma.isActive">
-              <font-awesome-icon icon="fa-solid fa-circle-check" />
-              Aktiv
-            </span>
-            <span class="pill muted" v-else>
-              <font-awesome-icon icon="fa-regular fa-circle" />
-              Inaktiv
-            </span>
-            <span class="pill warn">
-              <font-awesome-icon icon="fa-solid fa-user" />
-              Bewerber
-            </span>
-            <span class="pill info" v-if="displayLocation">
-              <font-awesome-icon icon="fa-solid fa-location-dot" />
-              {{ displayLocation }}
-            </span>
-          </div>
+  <article class="bewerber-card">
+    <header class="card-header" @click="expanded = !expanded">
+      <div class="identity">
+        <div class="avatar">{{ initials }}</div>
+        <div>
+          <h3>{{ bewerber.vorname }} {{ bewerber.nachname }}</h3>
+          <p>{{ bewerber.email || 'Keine E-Mail hinterlegt' }}</p>
         </div>
       </div>
-      <font-awesome-icon
-        icon="fa-solid fa-chevron-right"
-        class="chevron"
-        :class="{ 'chevron--open': expanded }"
-      />
+      <div class="header-actions" @click.stop>
+        <span :class="['status', `status--${bewerber.status}`]">{{ statusLabel }}</span>
+        <button ref="actionButton" type="button" class="icon-button" aria-label="Aktionen" @click="openContextMenu">
+          <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
+        </button>
+      </div>
     </header>
 
-    <!-- Expanded Body -->
-    <transition name="expand">
-      <div v-if="expanded" class="card-body">
-        <div class="detail-row" v-if="ma.email">
-          <span class="detail-label">E-Mail</span>
-          <a :href="`mailto:${ma.email}`" class="detail-value link">{{ ma.email }}</a>
+    <div class="card-meta">
+      <span v-if="bewerber.telefon">{{ bewerber.telefon }}</span>
+      <span>läuft ab {{ formatDate(bewerber.expiresAt) }}</span>
+      <span v-if="bewerber.asana_id">Asana verknüpft</span>
+    </div>
+
+    <div v-if="expanded" class="card-body">
+      <template v-if="editing">
+        <div class="form-grid">
+          <label>Vorname <input v-model.trim="draft.vorname" required /></label>
+          <label>Nachname <input v-model.trim="draft.nachname" required /></label>
+          <label>E-Mail <input v-model.trim="draft.email" required type="email" /></label>
+          <label>Telefon <input v-model.trim="draft.telefon" type="tel" /></label>
         </div>
-        <div class="detail-row" v-if="ma.telefon">
-          <span class="detail-label">Telefon</span>
-          <span class="detail-value">{{ ma.telefon }}</span>
+        <div class="form-actions">
+          <button type="button" class="secondary-button" @click="cancelEdit">Abbrechen</button>
+          <button type="button" class="primary-button" :disabled="saving" @click="save">{{ saving ? 'Speichert ...' : 'Speichern' }}</button>
         </div>
-        <div class="detail-row" v-if="ma.geburtsdatum">
-          <span class="detail-label">Geburtsdatum</span>
-          <span class="detail-value">{{ formatDate(ma.geburtsdatum) }}</span>
-        </div>
-        <div class="detail-row" v-if="ma.eintrittsdatum">
-          <span class="detail-label">Eintrittsdatum</span>
-          <span class="detail-value">{{ formatDate(ma.eintrittsdatum) }}</span>
-        </div>
-        <div class="detail-row" v-if="ma.asana_id">
-          <span class="detail-label">Asana</span>
-          <span class="detail-value pill info">
-            <font-awesome-icon icon="fa-solid fa-check" />
-            Verknüpft
-          </span>
-        </div>
-        <div class="detail-row" v-if="ma.berufe && ma.berufe.length">
-          <span class="detail-label">Berufe</span>
-          <div class="pill-list">
-            <span v-for="b in ma.berufe" :key="b._id" class="pill muted">{{ b.designation || b }}</span>
-          </div>
-        </div>
-        <div class="detail-row" v-if="ma.dispoNotiz">
-          <span class="detail-label">Notiz</span>
-          <span class="detail-value notiz">{{ ma.dispoNotiz }}</span>
-        </div>
-      </div>
-    </transition>
+      </template>
+      <dl v-else>
+        <div><dt>Telefon</dt><dd>{{ bewerber.telefon || '—' }}</dd></div>
+        <div><dt>Wohnort</dt><dd>{{ location || '—' }}</dd></div>
+        <div><dt>Formular</dt><dd>{{ bewerber.submittedAt ? `Eingereicht am ${formatDate(bewerber.submittedAt)}` : 'Noch nicht eingereicht' }}</dd></div>
+        <div><dt>Dokumente</dt><dd>{{ bewerber.documents?.length || 0 }} hinterlegt</dd></div>
+      </dl>
+    </div>
+
+    <ContextMenu v-if="showContextMenu" :x="contextMenuX" :y="contextMenuY" :options="contextMenuOptions" @close="showContextMenu = false" @select="handleContextAction" />
   </article>
 </template>
 
-<script setup>
-import { ref, computed } from 'vue';
+<script>
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import {
-  faIdBadge, faCircleCheck, faCircle, faUser, faLocationDot,
-  faChevronRight, faCheck
-} from '@fortawesome/free-solid-svg-icons';
-import { faCircle as faCircleRegular } from '@fortawesome/free-regular-svg-icons';
+import { faEllipsisVertical } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
+import api from '@/utils/api';
+import ContextMenu from './ContextMenu.vue';
 
-library.add(faIdBadge, faCircleCheck, faCircle, faUser, faLocationDot, faChevronRight, faCheck, faCircleRegular);
+library.add(faEllipsisVertical);
 
-const props = defineProps({
-  ma: { type: Object, required: true },
-});
+const EDIT_FIELDS = ['vorname', 'nachname', 'email', 'telefon'];
 
-const expanded = ref(false);
-
-function toggle() {
-  expanded.value = !expanded.value;
-}
-
-const initials = computed(() => {
-  const a = (props.ma?.vorname || '').trim()[0] || '';
-  const b = (props.ma?.nachname || '').trim()[0] || '';
-  return (a + b).toUpperCase() || '•';
-});
-
-const avatarHue = computed(() => {
-  const seed = (props.ma?._id || props.ma?.email || '')
-    .split('').reduce((s, c) => s + c.charCodeAt(0), 0);
-  return seed % 360;
-});
-
-const displayLocation = computed(() => {
-  if (props.ma?.flip?.profile?.location) return props.ma.flip.profile.location;
-  if (props.ma?.standort) return props.ma.standort;
-  const pnr = String(props.ma?.personalnr || '').trim();
-  if (pnr.startsWith('1')) return 'Berlin';
-  if (pnr.startsWith('2')) return 'Hamburg';
-  if (pnr.startsWith('3')) return 'Köln';
-  return null;
-});
-
-function formatDate(val) {
-  if (!val) return '—';
-  const d = new Date(val);
-  if (isNaN(d)) return '—';
-  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
+export default {
+  name: 'BewerberCard',
+  components: { ContextMenu, FontAwesomeIcon },
+  props: { bewerber: { type: Object, required: true } },
+  emits: ['saved', 'invite'],
+  data() {
+    return { expanded: false, editing: false, saving: false, draft: {}, showContextMenu: false, contextMenuX: 0, contextMenuY: 0 };
+  },
+  computed: {
+    initials() {
+      return `${this.bewerber.vorname?.[0] || ''}${this.bewerber.nachname?.[0] || ''}`.toUpperCase() || '?';
+    },
+    location() {
+      return [this.bewerber.strasse, this.bewerber.plz, this.bewerber.ort].filter(Boolean).join(', ');
+    },
+    statusLabel() {
+      return { neu: 'Neu', eingeladen: 'Eingeladen', formular_geoeffnet: 'Formular geöffnet', eingereicht: 'Eingereicht', abgelaufen: 'Abgelaufen' }[this.bewerber.status] || 'Neu';
+    },
+    contextMenuOptions() {
+      const options = [{ label: 'Informationen bearbeiten', action: 'edit' }];
+      if (this.bewerber.asana_permalink) options.unshift({ label: 'Asana-Aufgabe öffnen', action: 'asana' });
+      options.push({ label: 'Einladung senden', action: 'invite' });
+      return options;
+    },
+  },
+  methods: {
+    formatDate(value) {
+      return value ? new Date(value).toLocaleDateString('de-DE') : '—';
+    },
+    openContextMenu() {
+      const rect = this.$refs.actionButton.getBoundingClientRect();
+      this.contextMenuX = rect.right - 160;
+      this.contextMenuY = rect.bottom + 4;
+      this.showContextMenu = true;
+    },
+    handleContextAction(action) {
+      if (action === 'asana') window.open(this.bewerber.asana_permalink, '_blank', 'noopener,noreferrer');
+      if (action === 'edit') this.startEdit();
+      if (action === 'invite') this.$emit('invite', this.bewerber);
+    },
+    startEdit() {
+      this.draft = Object.fromEntries(EDIT_FIELDS.map((field) => [field, this.bewerber[field] || '']));
+      this.expanded = true;
+      this.editing = true;
+    },
+    cancelEdit() {
+      this.editing = false;
+      this.draft = {};
+    },
+    async save() {
+      if (!this.draft.vorname || !this.draft.nachname || !this.draft.email) return;
+      this.saving = true;
+      try {
+        const response = await api.patch(`/api/bewerber/${this.bewerber._id}`, this.draft);
+        this.$emit('saved', response.data.data);
+        this.cancelEdit();
+      } finally {
+        this.saving = false;
+      }
+    },
+  },
+};
 </script>
 
 <style scoped lang="scss">
-.bewerber-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-  transition: box-shadow 0.2s, border-color 0.2s;
-
-  &:hover {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-    border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
-  }
-
-  &--inactive {
-    opacity: 0.7;
-  }
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  cursor: pointer;
-  gap: 12px;
-  user-select: none;
-
-  &:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: -2px;
-  }
-}
-
-.left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: hsl(var(--hue, 200), 55%, 52%);
-  color: white;
-  font-weight: 700;
-  font-size: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.title {
-  min-width: 0;
-}
-
-.name {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
-}
-
-.chevron {
-  color: var(--muted);
-  font-size: 12px;
-  flex-shrink: 0;
-  transition: transform 0.2s;
-
-  &--open {
-    transform: rotate(90deg);
-    color: var(--primary);
-  }
-}
-
-.card-body {
-  border-top: 1px solid var(--border);
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  background: var(--hover);
-}
-
-.detail-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 13px;
-}
-
-.detail-label {
-  color: var(--muted);
-  font-weight: 500;
-  min-width: 110px;
-  flex-shrink: 0;
-}
-
-.detail-value {
-  color: var(--text);
-
-  &.link {
-    color: var(--primary);
-    text-decoration: none;
-    &:hover { text-decoration: underline; }
-  }
-
-  &.notiz {
-    font-style: italic;
-    color: var(--muted);
-  }
-}
-
-.pill-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-/* Pill styles (match EmployeeCard convention) */
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 500;
-
-  &.ok {
-    background: color-mix(in srgb, #21a26a 15%, transparent);
-    color: color-mix(in srgb, #21a26a 80%, var(--text));
-  }
-
-  &.warn {
-    background: color-mix(in srgb, #f6a019 15%, transparent);
-    color: color-mix(in srgb, #f6a019 80%, var(--text));
-  }
-
-  &.info {
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
-    color: color-mix(in srgb, var(--primary) 75%, var(--text));
-  }
-
-  &.muted {
-    background: color-mix(in srgb, var(--text) 8%, transparent);
-    color: var(--muted);
-  }
-}
-
-/* Expand transition */
-.expand-enter-active,
-.expand-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
-}
-
-.expand-enter-from,
-.expand-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
+.bewerber-card { background: var(--tile-bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.card-header { align-items: center; cursor: pointer; display: flex; gap: 12px; justify-content: space-between; padding: 14px; }
+.identity, .header-actions, .card-meta, .form-actions { align-items: center; display: flex; }
+.identity { gap: 10px; min-width: 0; }
+.avatar { align-items: center; background: var(--primary); border-radius: 6px; color: #fff; display: flex; flex: 0 0 38px; font-weight: 700; height: 38px; justify-content: center; }
+h3, p { margin: 0; }
+h3 { color: var(--text); font-size: .95rem; }
+.identity p, .card-meta, dt { color: var(--muted); font-size: .8rem; }
+.header-actions { gap: 8px; }
+.icon-button { background: transparent; border: 0; color: var(--muted); cursor: pointer; height: 32px; width: 32px; }
+.status { border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: .72rem; font-weight: 700; padding: 3px 7px; white-space: nowrap; }
+.status--eingereicht { border-color: var(--success, #15803d); color: var(--success, #15803d); }
+.status--eingeladen, .status--formular_geoeffnet { border-color: var(--primary); color: var(--primary); }
+.status--abgelaufen { border-color: var(--danger, #b91c1c); color: var(--danger, #b91c1c); }
+.card-meta { border-top: 1px solid var(--border); flex-wrap: wrap; gap: 8px 14px; padding: 9px 14px; }
+.card-body { background: var(--hover); border-top: 1px solid var(--border); padding: 14px; }
+dl { display: grid; gap: 8px; margin: 0; }
+dl div { display: grid; gap: 3px; grid-template-columns: 105px minmax(0, 1fr); }
+dd { color: var(--text); font-size: .85rem; margin: 0; }
+.form-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+label { color: var(--text); display: grid; font-size: .8rem; font-weight: 600; gap: 5px; }
+input { background: var(--tile-bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); min-height: 36px; padding: 6px 8px; }
+.form-actions { gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.primary-button, .secondary-button { border-radius: 5px; cursor: pointer; font: inherit; padding: 7px 10px; }
+.primary-button { background: var(--primary); border: 1px solid var(--primary); color: #fff; }
+.secondary-button { background: transparent; border: 1px solid var(--border); color: var(--text); }
+@media (max-width: 520px) { .form-grid { grid-template-columns: 1fr; } }
 </style>
