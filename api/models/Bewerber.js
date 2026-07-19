@@ -74,6 +74,18 @@ const BewerberSchema = new mongoose.Schema(
     wohnsitz: { type: String, trim: true, default: "" },
     staatsangehoerigkeit: { type: String, trim: true, default: "" },
     familienstand: { type: String, trim: true, default: "" },
+    geburtsdatum: { type: Date, default: null },
+    bevorzugterBereich: {
+      type: String,
+      enum: ["service", "logistik", "beides", ""],
+      default: "",
+    },
+    erfahrungGastronomieLogistik: { type: String, trim: true, default: "" },
+    aktuellesAnstellungsverhaeltnis: { type: String, trim: true, default: "" },
+    verfuegbarAb: { type: String, trim: true, default: "" },
+    verfuegbarBis: { type: String, trim: true, default: "" },
+    verfuegbarkeit: { type: String, trim: true, default: "" },
+    bemerkungen: { type: String, trim: true, default: "" },
 
     fuehrerscheine: [{ type: String, enum: FUHRERSCHEIN_KLASSEN }],
     eigenesAuto: { type: Boolean, default: null },

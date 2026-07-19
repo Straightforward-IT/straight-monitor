@@ -38,6 +38,49 @@
               Telefon
               <input v-model.trim="form.telefon" type="tel" autocomplete="tel" />
             </label>
+            <label>
+              Geburtsdatum
+              <input v-model="form.geburtsdatum" type="date" autocomplete="bday" />
+            </label>
+            <label>
+              Bevorzugter Bereich
+              <select v-model="form.bevorzugterBereich">
+                <option value="">Nicht angegeben</option>
+                <option value="service">Service</option>
+                <option value="logistik">Logistik</option>
+                <option value="beides">Service &amp; Logistik</option>
+              </select>
+            </label>
+            <label>
+              Führerschein
+              <select v-model="form.fuehrerscheine" multiple>
+                <option v-for="license in licenseClasses" :key="license" :value="license">{{ license }}</option>
+              </select>
+            </label>
+            <label>
+              Verfügbar ab
+              <input v-model="form.verfuegbarAb" type="time" />
+            </label>
+            <label>
+              Verfügbar bis
+              <input v-model="form.verfuegbarBis" type="time" />
+            </label>
+            <label class="form-field--full">
+              Aktueller Job / Anstellungsverhältnis
+              <input v-model.trim="form.aktuellesAnstellungsverhaeltnis" type="text" />
+            </label>
+            <label class="form-field--full">
+              Erfahrung in Gastronomie / Logistik
+              <textarea v-model.trim="form.erfahrungGastronomieLogistik" rows="3" />
+            </label>
+            <label class="form-field--full">
+              Verfügbarkeit
+              <textarea v-model.trim="form.verfuegbarkeit" rows="3" placeholder="Zum Beispiel Wochentage, Schichten oder Sperrzeiten" />
+            </label>
+            <label class="form-field--full">
+              Bemerkungen
+              <textarea v-model.trim="form.bemerkungen" rows="3" />
+            </label>
           </div>
 
           <div class="actions">
@@ -76,7 +119,9 @@ function parseTaskName(name = "") {
 }
 
 function extractContact(text = "") {
-  const plainText = String(text).replace(/<[^>]*>/g, " ");
+  const plainText = String(text)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/https?:\/\/[^\s<]+/gi, " ");
   const email = plainText.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)?.[0] || "";
   const telefon = plainText.match(/(?:\+?\d[\d\s/()\-.]{6,}\d)/)?.[0]?.trim() || "";
   return { email, telefon };
@@ -99,8 +144,22 @@ export default {
         nachname: "",
         email: "",
         telefon: "",
+        geburtsdatum: "",
+        bevorzugterBereich: "",
+        fuehrerscheine: [],
+        erfahrungGastronomieLogistik: "",
+        aktuellesAnstellungsverhaeltnis: "",
+        verfuegbarAb: "",
+        verfuegbarBis: "",
+        verfuegbarkeit: "",
+        bemerkungen: "",
       },
     };
+  },
+  computed: {
+    licenseClasses() {
+      return ["B", "BE", "A", "A1", "C1", "C1E", "C", "CE", "D1", "D1E", "D", "DE", "L", "T", "M"];
+    },
   },
   methods: {
     async loadTask() {
@@ -251,7 +310,9 @@ label {
   gap: 6px;
 }
 
-input {
+input,
+select,
+textarea {
   min-height: 42px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -261,7 +322,22 @@ input {
   padding: 8px 10px;
 }
 
-input:focus {
+select[multiple] {
+  min-height: 116px;
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.form-field--full {
+  grid-column: 1 / -1;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
   border-color: var(--primary);
   outline: 2px solid color-mix(in srgb, var(--primary) 20%, transparent);
 }
