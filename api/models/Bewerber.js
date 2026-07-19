@@ -82,8 +82,8 @@ const BewerberSchema = new mongoose.Schema(
     },
     erfahrungGastronomieLogistik: { type: String, trim: true, default: "" },
     aktuellesAnstellungsverhaeltnis: { type: String, trim: true, default: "" },
-    verfuegbarAb: { type: String, trim: true, default: "" },
-    verfuegbarBis: { type: String, trim: true, default: "" },
+    verfuegbarAb: { type: Date, default: null },
+    verfuegbarBis: { type: Date, default: null },
     verfuegbarkeit: { type: String, trim: true, default: "" },
     bemerkungen: { type: String, trim: true, default: "" },
 

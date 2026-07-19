@@ -53,17 +53,22 @@
             </label>
             <label>
               Führerschein
-              <select v-model="form.fuehrerscheine" multiple>
-                <option v-for="license in licenseClasses" :key="license" :value="license">{{ license }}</option>
+              <select :value="form.fuehrerscheine[0] || ''" @change="setLicense($event.target.value)">
+                <option value="">Kein Führerschein angegeben</option>
+                <option v-for="license in licenseClasses" :key="license" :value="license">Klasse {{ license }}</option>
               </select>
             </label>
             <label>
               Verfügbar ab
-              <input v-model="form.verfuegbarAb" type="time" />
+              <input v-model="form.verfuegbarAb" type="date" />
             </label>
             <label>
               Verfügbar bis
-              <input v-model="form.verfuegbarBis" type="time" />
+              <input v-model="form.verfuegbarBis" type="date" />
+            </label>
+            <label class="form-field--full">
+              Verfügbarkeit
+              <textarea v-model.trim="form.verfuegbarkeit" rows="3" placeholder="Zum Beispiel Wochentage, Schichten oder Sperrzeiten" />
             </label>
             <label class="form-field--full">
               Aktueller Job / Anstellungsverhältnis
@@ -72,10 +77,6 @@
             <label class="form-field--full">
               Erfahrung in Gastronomie / Logistik
               <textarea v-model.trim="form.erfahrungGastronomieLogistik" rows="3" />
-            </label>
-            <label class="form-field--full">
-              Verfügbarkeit
-              <textarea v-model.trim="form.verfuegbarkeit" rows="3" placeholder="Zum Beispiel Wochentage, Schichten oder Sperrzeiten" />
             </label>
             <label class="form-field--full">
               Bemerkungen
@@ -162,6 +163,9 @@ export default {
     },
   },
   methods: {
+    setLicense(value) {
+      this.form.fuehrerscheine = value ? [value] : [];
+    },
     async loadTask() {
       const taskId = this.form.asana_id;
       if (!taskId) {
