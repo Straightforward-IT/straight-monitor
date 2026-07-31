@@ -1,1615 +1,385 @@
 <template>
-  <span></span>
-  <h2 data-page-title="Bestand">
-    Straight
-    <span><font-awesome-icon :icon="['fas', 'warehouse']" /> Bestand</span>
-  </h2>
+  <section class="inventory-page">
+    <header class="page-header">
+      <div>
+        <h2 data-page-title="Bestand">
+          <font-awesome-icon :icon="['fas', 'warehouse']" /> Bestand
+        </h2>
+      </div>
+      <span class="stock-count">{{ filteredStocks.length }} Kombinationen</span>
+    </header>
 
-  <div class="search-outer">
-    <div class="search-container">
-    <textarea
-      v-model="searchQuery"
-      placeholder="Suche nach Bezeichnung, Größe oder Standort"
-      class="search-textarea"
-      rows="1"
-      @input="autoResize($event)"
-    ></textarea>
-    <button v-if="isModalOpen" class="add-button">+</button>
-    <button
-      v-if="!isModalOpen"
-      class="add-button"
-      @click="
-        showAddModal = true;
-        openModal();
-      "
-    >
-      +
-    </button>
-  </div>
+    <Toolbar wrap>
+      <ToolbarFilter v-model="filterOpen" :active-count="activeFilterCount" @reset="resetFilters">
+        <FilterGroup label="Standort">
+          <FilterChip
+            v-for="location in locations"
+            :key="location._id"
+            :active="selectedLocationIds.includes(String(location._id))"
+            @click="toggleLocationFilter(String(location._id))"
+          >
+            {{ location.nameFull }}
+          </FilterChip>
+        </FilterGroup>
+        <FilterGroup label="Bestand">
+          <FilterChip :active="stockState === 'under-target'" @click="stockState = stockState === 'under-target' ? 'all' : 'under-target'">Unter Soll</FilterChip>
+          <FilterChip :active="stockState === 'empty'" @click="stockState = stockState === 'empty' ? 'all' : 'empty'">Leer</FilterChip>
+        </FilterGroup>
+        <FilterGroup label="Merkmale">
+          <FilterChip :active="variationOnly" @click="variationOnly = !variationOnly">Mit Variation</FilterChip>
+          <FilterChip :active="sizeOnly" @click="sizeOnly = !sizeOnly">Mit Größe</FilterChip>
+        </FilterGroup>
+      </ToolbarFilter>
 
-  <div class="filter-buttons">
-  <div 
-    :class="{ active: sortBy === 'name' }" 
-    @click="setSortBy('name')" 
-    id="nameFilter"
-  >
-    Name
-    <font-awesome-icon 
-      v-if="sortBy === 'name' && isAscending" 
-      :icon="['fas', 'sort-up']" 
-    />
-    <font-awesome-icon 
-      v-if="sortBy === 'name' && !isAscending" 
-      :icon="['fas', 'sort-down']" 
-    />
-  </div>
-  <div 
-    :class="{ active: sortBy === 'count' }" 
-    @click="setSortBy('count')" 
-    id="countFilter"
-  >
-    Anzahl
-    <font-awesome-icon 
-      v-if="sortBy === 'count' && isAscending" 
-      :icon="['fas', 'sort-up']" 
-    />
-    <font-awesome-icon 
-      v-if="sortBy === 'count' && !isAscending" 
-      :icon="['fas', 'sort-down']" 
-    />
-  </div>
+      <SearchBar v-model="search" class="toolbar-search" placeholder="Bezeichnung, Variante, Größe oder Standort" />
 
-  <div class="keyword-button" @click="insertKeyword('logistik')">
-    Logistik
-  </div>
-  <div class="keyword-button" @click="insertKeyword('service')">
-    Service
-  </div>
-</div>
+      <ToolbarGroup push-right>
+        <ToolbarButton variant="secondary" title="Bestand aktualisieren" @click="refreshStocks">
+          <font-awesome-icon :icon="['fas', loading ? 'spinner' : 'rotate']" :spin="loading" />
+          Aktualisieren
+        </ToolbarButton>
+        <ToolbarButton @click="openItemCreate">
+          <font-awesome-icon :icon="['fas', 'plus']" />
+          Artikel anlegen
+        </ToolbarButton>
+      </ToolbarGroup>
+    </Toolbar>
 
-  </div>
-  
+    <p v-if="error" class="state state--error">{{ error }}</p>
+    <p v-else-if="loading && !stocks.length" class="state">Bestand wird geladen…</p>
+    <p v-else-if="!filteredStocks.length" class="state">Keine Bestandskombinationen gefunden.</p>
 
-  
-  <!-- Modal for adding an item -->
-  <teleport to="body">
-    <div v-if="showAddModal" class="modal" @click.self="showAddModal = false; closeModal();">
-      <div class="modal-content add-item-modal">
-        <font-awesome-icon
-          class="close"
-          :icon="['fas', 'times']"
-          @click="
-            showAddModal = false;
-            closeModal();
-          "
-        />
-        <h4>Artikel hinzufügen</h4>
+    <div v-else class="inventory-list">
+      <article v-for="item in groupedItems" :key="item.id" class="item-card">
+        <header class="item-card__header" @click="toggleItemDetails(item)">
+          <div class="item-card__summary">
+            <button type="button" class="item-card__details-trigger" :aria-expanded="isItemExpanded(item.id)" @click.stop="toggleItemDetails(item)">
+              <h3>{{ item.bezeichnung }}</h3>
+              <span class="item-card__meta">{{ item.locations.length }} {{ item.locations.length === 1 ? 'Standort' : 'Standorte' }} · {{ item.stocks.length }} Kombinationen</span>
+            </button>
+            <a v-if="item.shopUrl" :href="item.shopUrl" target="_blank" rel="noopener noreferrer" class="shop-link" @click.stop>
+              <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" /> Shop
+            </a>
+          </div>
+          <div class="item-card__actions">
+            <span class="item-card__total">{{ item.totalBestand }}</span>
+            <button type="button" class="item-card__edit" title="Artikel bearbeiten" @click.stop="openItemEdit(item)">
+              <font-awesome-icon :icon="['fas', 'pen']" />
+            </button>
+            <button type="button" class="item-card__edit" :title="isItemExpanded(item.id) ? 'Details schließen' : 'Details anzeigen'" @click.stop="toggleItemDetails(item)">
+              <font-awesome-icon :icon="['fas', isItemExpanded(item.id) ? 'chevron-up' : 'chevron-down']" />
+            </button>
+          </div>
+        </header>
 
-        <div class="modal-scrollable">
-          <!-- Input fields with keyup.enter event -->
-          <label class="select-label">
-            Standorte
-            <div class="multi-select-group">
-              <button
-                v-for="standort in standortOptions"
-                :key="standort"
-                type="button"
-                class="chip-button"
-                :class="{ active: newItem.standorte.includes(standort) }"
-                @click="toggleStandort(standort)"
-              >
-                {{ standort }}
-              </button>
+        <div v-if="isItemExpanded(item.id)" class="item-card__details">
+          <div v-if="item.locations.length > 1" class="location-tabs" role="tablist" aria-label="Standort auswählen">
+            <button
+              v-for="location in item.locations"
+              :key="location.id"
+              type="button"
+              :class="{ active: selectedItemLocation(item) === location.id }"
+              @click="selectItemLocation(item.id, location.id)"
+            >
+              {{ location.shortName || location.name }}
+            </button>
+          </div>
+
+          <section v-for="location in visibleItemLocations(item)" :key="location.id" class="stock-matrix-section">
+            <div class="stock-matrix-section__header">
+              <h4>{{ location.name }}</h4>
+              <span>{{ location.shortName }}</span>
             </div>
-          </label>
-
-          <label class="select-label">
-            Bezeichnung
-            <input
-              v-model="newItem.bezeichnung"
-              id="bezeichnung"
-              type="text"
-              placeholder="Bezeichnung"
-              required
-            />
-          </label>
-
-          <label class="select-label">
-            Größen
-            <input
-              v-model="newItem.groessenInput"
-              id="groesse"
-              type="text"
-              placeholder="z.B. S, M, L oder 36 38 40"
-            />
-            <small class="input-hint">Mehrere Größen mit Komma oder Leerzeichen trennen. Leer = onesize.</small>
-          </label>
-
-          <div class="count-row">
-            <label class="count-label">
-              Anzahl
-              <input
-                v-model="newItem.anzahl"
-                id="anzahl"
-                type="number"
-                placeholder="Anzahl"
-                min="0"
-                required
-              />
-            </label>
-            <label class="count-label">
-              Sollwert
-              <input
-                v-model="newItem.soll"
-                id="soll"
-                type="number"
-                placeholder="Sollwert"
-                min="1"
-                required
-              />
-            </label>
-          </div>
-
-          <label class="select-label">
-            Anmerkung
-            <input
-              type="text"
-              v-model="anmerkung"
-              placeholder="Anmerkung (Optional)"
-            />
-          </label>
+            <div class="stock-matrix-scroll">
+              <table class="stock-matrix">
+                <thead>
+                  <tr>
+                    <th scope="col">Variation</th>
+                    <th v-for="size in item.sizes" :key="size.key" scope="col">{{ size.label }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="variation in item.variations" :key="variation.key">
+                    <th scope="row">{{ variation.label }}</th>
+                    <td v-for="size in item.sizes" :key="size.key">
+                      <button
+                        v-if="matrixStock(item, location.id, variation.key, size.key)"
+                        type="button"
+                        class="matrix-cell"
+                        :class="matrixCellState(matrixStock(item, location.id, variation.key, size.key))"
+                        @click="selectedStock = matrixStock(item, location.id, variation.key, size.key)"
+                      >
+                        <b>{{ matrixStock(item, location.id, variation.key, size.key).anzahl }}</b>
+                        <small>/ {{ matrixStock(item, location.id, variation.key, size.key).soll }}</small>
+                      </button>
+                      <span v-else class="matrix-cell--empty">—</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
-
-        <!-- Submit button -->
-        <div class="modal-buttons">
-          <button @click="submitNewItem()">Hinzufügen</button>
-        </div>
-      </div>
+      </article>
     </div>
-  </teleport>
 
-  <teleport to="body">
-    <div v-if="showInputField" class="modal" @click.self="resetInput()">
-      <div class="modal-content update-item-modal">
-        <font-awesome-icon
-          class="close"
-          :icon="['fas', 'times']"
-          @click="resetInput()"
-        />
-
-        <div class="modal-header">
-          <h4>{{ selectedItem?.bezeichnung }}</h4>
-          <div class="header-badges">
-            <span class="badge badge-size">{{ selectedItem?.groesse || "onesize" }}</span>
-            <span class="badge badge-location">
-              <font-awesome-icon :icon="['fas', 'location-dot']" />
-              {{ selectedItem?.standort }}
-            </span>
-          </div>
-        </div>
-
-        <div class="modal-scrollable">
-          <label class="select-label">
-            Aktuell: {{ selectedItem?.anzahl }}
-            <input
-              type="number"
-              v-model="inputValue"
-              min="0"
-              placeholder="Zahl eingeben"
-            />
-          </label>
-          <label class="select-label">
-            Anmerkung
-            <input
-              type="text"
-              v-model="anmerkung"
-              placeholder="Anmerkung (Optional)"
-            />
-          </label>
-          <label class="select-label">
-            Mitarbeiter <span class="optional-hint">(optional)</span>
-            <MitarbeiterSearch v-model="mitarbeiterId" />
-          </label>
-        </div>
-
-        <div class="modal-buttons">
-          <button @click="submitAddOrRemove('add')">Rückgabe</button>
-          <button @click="submitAddOrRemove('remove')">Entnahme</button>
-        </div>
-      </div>
-    </div>
-  </teleport>
-
-  <!-- Items Display -->
-  <div class="items-container">
-
-  <!-- Changelog Modal -->
-  <teleport to="body">
-    <HelpModal v-model="showChangelog">
-      <template #title>
-        <font-awesome-icon :icon="['fas', 'sparkles']" style="color: var(--primary)" />
-        Neu in Bestand
-      </template>
-      <template #toc>
-        <nav class="help-toc">
-          <span class="help-toc-label">Springen zu</span>
-          <button data-section="cl-prefill" @click="scrollChangelogTo('cl-prefill')">Inventar-Vorauswahl</button>
-          <button data-section="cl-categories" @click="scrollChangelogTo('cl-categories')">Kategorien & Alles anwählen</button>
-        </nav>
-      </template>
-
-      <div id="cl-prefill" class="help-section">
-        <h4>📦 Automatische Vorauswahl aus Mitarbeiter-Inventar</h4>
-        <p>
-          Wählst du einen Mitarbeiter in einem <strong>Paket-Modal</strong> (Logi, Service, Küche),
-          werden die Artikel, die er aktuell im Besitz hat, <em>automatisch vorausgewählt</em>
-          &ndash; inklusive der richtigen Größe.
-        </p>
-        <p>So siehst du sofort, was bereits raus ist, und kannst direkt Rückgabe oder Entnahme buchen.</p>
-      </div>
-
-      <div id="cl-categories" class="help-section">
-        <h4>☑️ Kategorien mit Alles-anwählen</h4>
-        <p>Die Artikel in den Paketen sind jetzt in Kategorien unterteilt:</p>
-        <p>
-          <strong>Service-Paket:</strong> Kautionsgegenstände &middot; Kaufgegenstände &middot; Verbrauchsgegenstände<br />
-          <strong>Logi-Paket:</strong> Kautionsgegenstände &middot; Optional &middot; Bezahlt
-        </p>
-        <p>
-          Jede Kategorie hat ein <strong>Kontrollkästchen</strong> im Header &mdash;
-          ein Klick wählt alle Artikel der Kategorie auf einmal an oder ab.
-        </p>
-      </div>
-    </HelpModal>
-  </teleport>
-    <div v-for="item in filteredItems" :key="item.id" class="item-wrapper">
-      <div class="item-card">
-        <font-awesome-icon
-          v-if="item.isEditing"
-          class="delete-button"
-          :icon="['fas', 'trash']"
-          @click="deleteItem(item)"
-        />
-        <div class="item-header">
-          <span class="header-and-pen">
-            <strong 
-            class="inputBez"
-            v-if="!item.isEditing">{{ item.bezeichnung }}</strong>
-            <input
-              class="inputBez"
-              v-if="item.isEditing"
-              type="text"
-              v-model="item.bezeichnung"
-            />
-            <font-awesome-icon
-              v-if="!item.isEditing"
-              class="edit-button"
-              :icon="['fas', 'pencil']"
-              @click="enableEdit(item)"
-            />
-            <span class="vertical-buttons">
-              <font-awesome-icon
-                v-if="item.isEditing"
-                class="close-button"
-                :icon="['fas', 'times']"
-                @click="cancelEdit(item)"
-              />
-              <font-awesome-icon
-                v-if="item.isEditing"
-                class="accept-button"
-                :icon="['fas', 'check']"
-                @click="updateItem(item)"
-              />
-            </span>
-          </span>
-          <span v-if="item.isEditing" class="item-id-label">ID: {{ item._id }}</span>
-        </div>
-
-        <div class="item-detail">
-          <span>Größe:</span>
-          <span>{{ item.groesse ? item.groesse : "onesize" }}</span>
-        </div>
-        <div class="item-detail">
-          <span>Soll:</span>
-          <span v-if="!item.isEditing">{{ item.soll }}</span>
-          <input
-            class="inputMen"
-            v-if="item.isEditing"
-            type="number"
-            v-model="item.soll"
-          />
-          
-        </div>
-        <div class="item-detail">
-          <span>Menge:</span>
-          <span v-if="!item.isEditing">{{ item.anzahl }}</span>
-          <input
-            class="inputMen"
-            v-if="item.isEditing"
-            type="number"
-            v-model="item.anzahl"
-          />
-        </div>
-        <div class="item-detail">
-          <span>Standort:</span>
-          <span>{{ item.standort }}</span>
-        </div>
-      </div>
-
-      <div class="item-actions">
-        <button class="update-button" @click="startUpdate(item, $event)">
-          Entnahme/Einlagerung
-        </button>
-      </div>
-    </div>
-  </div>
+    <InventoryItemModal v-model="showCreateDialog" :item="editingItem" @created="handleCreated" @updated="handleItemUpdated" />
+    <InventoryTransactionModal v-if="selectedStock" v-model="selectedStock" @updated="handleStockUpdated" />
+  </section>
 </template>
 
-<script>
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import api from "@/utils/api";
-import { useDataCache } from "@/stores/dataCache";
-import MitarbeiterSearch from "@/components/ui-elements/MitarbeiterSearch.vue";
-import HelpModal from "@/components/HelpModal.vue";
+<script setup>
+import { computed, onMounted, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import { faArrowUpRightFromSquare, faChevronDown, faChevronUp, faPen, faPlus, faRotate, faSpinner, faWarehouse } from '@fortawesome/free-solid-svg-icons';
+import { library } from '@fortawesome/fontawesome-svg-core';
+import { useDataCache } from '@/stores/dataCache';
+import { useAuth } from '@/stores/auth';
+import { useInventoryFilters } from '@/stores/inventoryFilters';
+import api from '@/utils/api';
+import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
+import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
+import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
+import SearchBar from '@/components/ui-elements/SearchBar.vue';
+import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import FilterGroup from '@/components/FilterGroup.vue';
+import InventoryItemModal from '@/components/InventoryItemModal.vue';
+import InventoryTransactionModal from '@/components/InventoryTransactionModal.vue';
 
-const CHANGELOG_KEY = "seenChangelog_v4_bestand_prefill";
-const collator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
+library.add(faArrowUpRightFromSquare, faChevronDown, faChevronUp, faPen, faPlus, faRotate, faSpinner, faWarehouse);
 
-export default {
-  name: "Bestand",
-  emits: [
-    "update-modal",
-    "switch-to-bestand",
-    "switch-to-dashboard",
-    "switch-to-verlauf",
-  ],
-  components: { FontAwesomeIcon, MitarbeiterSearch, HelpModal },
-  props: { isModalOpen: Boolean },
+const dataCache = useDataCache();
+const auth = useAuth();
+const inventoryFilters = useInventoryFilters();
+const { locationIds: selectedLocationIds } = storeToRefs(inventoryFilters);
+const stocks = computed(() => dataCache.items);
+const search = ref('');
+const filterOpen = ref(false);
+const locationRecords = ref([]);
+const hasAppliedLocationDefault = ref(false);
+const stockState = ref('all');
+const variationOnly = ref(false);
+const sizeOnly = ref(false);
+const loading = ref(false);
+const error = ref('');
+const selectedStock = ref(null);
+const showCreateDialog = ref(false);
+const editingItem = ref(null);
+const expandedItemIds = ref([]);
+const selectedItemLocationIds = ref({});
 
-  setup() {
-    const dataCache = useDataCache();
-    return { dataCache };
-  },
+const locations = computed(() => {
+  const usedLocationIds = new Set(stocks.value.map((stock) => String(stock.locationId)).filter(Boolean));
+  return locationRecords.value
+    .filter((location) => usedLocationIds.has(String(location._id)))
+    .sort((left, right) => left.nameFull.localeCompare(right.nameFull, 'de'));
+});
+const activeFilterCount = computed(() => selectedLocationIds.value.length + (stockState.value !== 'all' ? 1 : 0) + Number(variationOnly.value) + Number(sizeOnly.value));
 
-  data() {
-    return {
-      token: localStorage.getItem("token") || null,
+const filteredStocks = computed(() => {
+  const needle = search.value.trim().toLocaleLowerCase('de');
+  return stocks.value.filter((stock) => {
+    if (selectedLocationIds.value.length && !selectedLocationIds.value.includes(String(stock.locationId))) return false;
+    if (stockState.value === 'under-target' && !(stock.anzahl < stock.soll)) return false;
+    if (stockState.value === 'empty' && stock.anzahl !== 0) return false;
+    if (variationOnly.value && !stock.variationKey) return false;
+    if (sizeOnly.value && (!stock.groesseKey || stock.groesseKey === 'onesize')) return false;
+    if (!needle) return true;
+    return [stock.bezeichnung, stock.standort, stock.standortKurz, stock.variation, stock.groesse]
+      .filter(Boolean)
+      .some((value) => String(value).toLocaleLowerCase('de').includes(needle));
+  });
+});
 
-      userEmail: "",
-      userName: "",
-      userID: "",
-
-      // Suche & UI
-      searchQuery: "",
-      searchWords: [],          // ← wird aus searchQuery (debounced) befüllt
-      debounceMs: 300,
-      _searchT: null,           // timer handle fürs Debounce
-
-      // Modal / Eingaben
-      inputValue: "",
-      anmerkung: "",
-      mitarbeiterId: null,
-      showInputField: false,
-      showAddModal: false,
-      modalOpen: false,
-      mouseX: 0,
-      mouseY: 0,
-      selectedItem: null,
-
-      // Daten
-      items: [],
-      newItem: {
-        bezeichnung: "",
-        groessenInput: "",
-        anzahl: 0,
-        soll: 0,
-        standorte: [],
-      },
-
-      standortOptions: ["Hamburg", "Köln", "Berlin"],
-
-      // Edit-Puffer
-      originalBezeichnung: "",
-      originalAnzahl: 0,
-      originalSoll: 0,
-
-      // Sortierung
-      sortBy: "name",    // "name" | "count"
-      isAscending: true,
-
-      // Changelog
-      showChangelog: false,
-    };
-  },
-
-  watch: {
-    // Token-Update (optional, falls du’s noch lokal setzt)
-    token(newToken) {
-      if (newToken) {
-        localStorage.setItem("token", newToken);
-        this.setAxiosAuthToken();
-      } else {
-        localStorage.removeItem("token");
-      }
-    },
-
-    // Debounced Suche + Standort-Autofill — KEINE Seiteneffekte mehr im computed!
-    searchQuery: {
-      immediate: true,
-      handler(q) {
-        clearTimeout(this._searchT);
-        const text = (q || "").toLowerCase();
-
-        this._searchT = setTimeout(() => {
-          const words = text.split(/\s+/).filter(Boolean);
-          this.searchWords = words;
-
-          // Standort-Autofill nur wenn eindeutig
-          const hasHB = words.includes("hamburg");
-          const hasK  = words.includes("köln");
-          const hasB  = words.includes("berlin");
-          if (hasHB && !hasK && !hasB) this.newItem.standorte = ["Hamburg"];
-          else if (!hasHB && hasK && !hasB) this.newItem.standorte = ["Köln"];
-          else if (!hasHB && !hasK && hasB) this.newItem.standorte = ["Berlin"];
-          else this.newItem.standorte = [];
-        }, this.debounceMs);
-      },
-    },
-
-    showChangelog(val) {
-      if (!val) localStorage.setItem(CHANGELOG_KEY, '1');
-    },
-  },
-
-  computed: {
-    filteredItems() {
-      const words = this.searchWords;
-
-      // Filtern
-      let filtered = words.length
-        ? this.items.filter((item) => {
-            const bezeichnung = (item.bezeichnung || "").toLowerCase();
-            const groesse    = (item.groesse || "").toLowerCase();
-            const standort   = (item.standort || "").toLowerCase();
-            const hay = `${bezeichnung} ${groesse} ${standort}`;
-            return words.every((w) => hay.includes(w));
-          })
-        : this.items.slice(); // Kopie, damit sort() nicht das Original zerdeppert
-
-      // Sortiere mit stabilem Index für editierte Items
-      filtered.sort((a, b) => {
-        // Beide editiert: behalte relative Position aus items array
-        if (a.isEditing && b.isEditing) {
-          return this.items.indexOf(a) - this.items.indexOf(b);
-        }
-        
-        // Nur a editiert: behalte Position basierend auf original array
-        if (a.isEditing) {
-          return this.items.indexOf(a) - this.items.indexOf(b);
-        }
-        
-        // Nur b editiert: behalte Position basierend auf original array
-        if (b.isEditing) {
-          return this.items.indexOf(a) - this.items.indexOf(b);
-        }
-        
-        // Beide nicht editiert: normale Sortierung
-        if (this.sortBy === "count") {
-          return this.isAscending
-            ? (a.anzahl ?? 0) - (b.anzahl ?? 0)
-            : (b.anzahl ?? 0) - (a.anzahl ?? 0);
-        } else {
-          return this.isAscending
-            ? collator.compare(a.bezeichnung || "", b.bezeichnung || "")
-            : collator.compare(b.bezeichnung || "", a.bezeichnung || "");
-        }
+const groupedItems = computed(() => {
+  const groups = new Map();
+  for (const stock of filteredStocks.value) {
+    const key = String(stock.itemId || stock._id);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id: key,
+        bezeichnung: stock.bezeichnung,
+        shopUrl: stock.shopUrl,
+        stocks: [],
+        totalBestand: 0,
+        locations: new Map(),
+        variations: new Map(),
+        sizes: new Map(),
       });
-
-      return filtered;
-    },
-  },
-
-  methods: {
-    setAxiosAuthToken() {
-      // Mit neuem api-Interceptor eigentlich nicht mehr nötig,
-      // aber schadet nicht, falls du den Token hier zentral pflegst.
-      api.defaults.headers.common["x-auth-token"] = this.token;
-    },
-
-    enableEdit(item) {
-      this.originalBezeichnung = item.bezeichnung;
-      this.originalAnzahl = item.anzahl;
-      this.originalSoll = item.soll;
-      item.isEditing = true;
-    },
-    cancelEdit(item) {
-      item.bezeichnung = this.originalBezeichnung;
-      item.anzahl = this.originalAnzahl;
-      item.soll = this.originalSoll;
-      item.isEditing = false;
-    },
-
-    setSortBy(criteria) {
-      if (this.sortBy === criteria) {
-        this.isAscending = !this.isAscending;
-      } else {
-        this.sortBy = criteria;
-        this.isAscending = true;
-      }
-    },
-
-    insertKeyword(keyword) {
-      // robust: toggelt "logistik" vs "service" ohne Freitext zu vermurksen
-      const kw = String(keyword || "").toLowerCase();
-      if (!kw) return;
-
-      const tokens = (this.searchQuery || "").toLowerCase().split(/\s+/).filter(Boolean);
-      if (tokens.includes(kw)) return;
-
-      const other = kw === "logistik" ? "service" : "logistik";
-      const re = new RegExp(`\\b${other}\\b`, "i");
-      let next = (this.searchQuery || "").replace(re, "").trim();
-
-      this.searchQuery = `${next} ${kw}`.trim();
-    },
-
-    toggleStandort(standort) {
-      const next = new Set(this.newItem.standorte || []);
-      if (next.has(standort)) next.delete(standort);
-      else next.add(standort);
-      this.newItem.standorte = Array.from(next);
-    },
-
-    parseGroessen(rawInput) {
-      const tokens = String(rawInput || "")
-        .split(/[\s,;|/]+/)
-        .map((x) => x.trim())
-        .filter(Boolean);
-
-      if (!tokens.length) return ["onesize"];
-
-      const uniqueByLower = new Map();
-      for (const token of tokens) {
-        const key = token.toLowerCase();
-        if (!uniqueByLower.has(key)) uniqueByLower.set(key, token);
-      }
-      return Array.from(uniqueByLower.values());
-    },
-
-    async updateItem(item) {
-      if (
-        item.bezeichnung === this.originalBezeichnung &&
-        item.anzahl === this.originalAnzahl &&
-        item.soll === this.originalSoll
-      ) {
-        return this.cancelEdit(item);
-      }
-
-      try {
-        const { data: updatedItem } = await api.put(`/api/items/edit/${item._id}`, {
-          userID: this.userID,
-          bezeichnung: item.bezeichnung,
-          anzahl: item.anzahl,
-          soll: item.soll,
-        });
-
-        const idx = this.items.findIndex((x) => x._id === updatedItem._id);
-        if (idx !== -1) this.items.splice(idx, 1, updatedItem);
-        this.dataCache.updateCachedItem(updatedItem);
-        item.isEditing = false;
-      } catch (error) {
-        console.error("Fehler beim Aktualisieren des Items:", error);
-      }
-    },
-
-    async deleteItem(item) {
-      if (!confirm(`Möchtest du "${item.bezeichnung}" wirklich löschen?`)) {
-        return;
-      }
-
-      const itemId = item._id || item.id;
-      if (!itemId) {
-        alert("Dieses Item hat keine ID und kann nicht gelöscht werden.");
-        return;
-      }
-
-      try {
-        await api.delete(`/api/items/${itemId}`);
-        
-        const idx = this.items.findIndex((x) => (x._id || x.id) === itemId);
-        if (idx !== -1) this.items.splice(idx, 1);
-        this.dataCache.removeCachedItem(itemId);
-      } catch (error) {
-        const status = error.response?.status;
-        const msg = error.response?.data?.message || error.response?.data?.msg || error.message;
-        console.error(`Fehler beim Löschen (${status}):`, msg, item);
-        alert(`Fehler beim Löschen (${status}): ${msg}`);
-      }
-    },
-
-    autoResize(event) {
-      const ta = event.target;
-      ta.style.height = "auto";
-      ta.style.height = `${ta.scrollHeight}px`;
-    },
-
-    openModal() { this.$emit("update-modal", true); },
-    closeModal() { this.$emit("update-modal", false); },
-
-    async fetchUserData() {
-      if (!this.token) return this.$router.push("/");
-      try {
-        const { data } = await api.get("/api/users/me");
-        this.userEmail = data.email;
-        this.userID = data._id;
-        this.userName = data.name;
-
-        // Standort als Start-Suchbegriff (triggert Watcher → searchWords & Autofill)
-        this.searchQuery = data.location || "";
-      } catch (error) {
-        console.error("Fehler beim Abrufen der Benutzerdaten:", error);
-        this.$router.push("/");
-      }
-    },
-
-    async fetchItems() {
-      try {
-        // Use cache store for optimized loading
-        this.items = await this.dataCache.loadItems();
-      } catch (error) {
-        console.error("Fehler beim Abrufen der Artikel:", error);
-      }
-    },
-
-    async submitNewItem() {
-      let { bezeichnung, anzahl, soll } = this.newItem;
-      const standorte = Array.from(new Set((this.newItem.standorte || []).filter(Boolean)));
-      const groessen = this.parseGroessen(this.newItem.groessenInput);
-
-      anzahl = Number.isFinite(+anzahl) ? +anzahl : 0;
-      soll   = Number.isFinite(+soll)   ? +soll   : 0;
-
-      if (!bezeichnung || !standorte.length || anzahl < 0) {
-        alert("Bezeichnung, Anzahl und mindestens ein Standort sind erforderlich");
-        return;
-      }
-
-      try {
-        const payloads = standorte.flatMap((standort) =>
-          groessen.map((groesse) => ({
-            userID: this.userID,
-            bezeichnung,
-            groesse,
-            anzahl,
-            soll,
-            standort,
-            anmerkung: this.anmerkung,
-          }))
-        );
-
-        const createdItems = await Promise.all(
-          payloads.map(async (payload) => {
-            const { data } = await api.post("/api/items/addNew", payload);
-            return data;
-          })
-        );
-
-        this.items.push(...createdItems);
-        createdItems.forEach((item) => this.dataCache.updateCachedItem(item));
-        this.resetNewItem();
-        this.showAddModal = false;
-        this.closeModal();
-      } catch (error) {
-        console.error("Fehler beim Hinzufügen des Artikels:", error);
-      }
-    },
-
-    resetNewItem() {
-      this.newItem = { bezeichnung: "", groessenInput: "", anzahl: 0, soll: 0, standorte: [] };
-      this.anmerkung = "";
-    },
-
-    startUpdate(item) {
-      this.selectedItem = item;
-      this.showInputField = true;
-      this.openModal();
-    },
-
-    async submitAddOrRemove(action) {
-      const value = parseInt(this.inputValue, 10);
-      if (Number.isNaN(value)) return;
-
-      try {
-        const endpoint =
-          action === "add"
-            ? `/api/items/add/${this.selectedItem._id}`
-            : `/api/items/remove/${this.selectedItem._id}`;
-
-        const { data: updated } = await api.put(endpoint, {
-          userID: this.userID,
-          anzahl: value,
-          anmerkung: this.anmerkung,
-          mitarbeiterId: this.mitarbeiterId || undefined,
-        });
-
-        const idx = this.items.findIndex((x) => x._id === updated._id);
-        if (idx !== -1) this.items.splice(idx, 1, updated);
-        this.dataCache.updateCachedItem(updated);
-
-        this.resetInput();
-      } catch (error) {
-        console.error("Fehler beim Aktualisieren des Artikels:", error);
-      }
-    },
-
-    resetInput() {
-      this.inputValue = "";
-      this.anmerkung = "";
-      this.mitarbeiterId = null;
-      this.showInputField = false;
-      this.closeModal();
-      this.selectedItem = null;
-    },
-
-    scrollChangelogTo(id) {
-      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-    },
-  },
-
-  mounted() {
-    this.setAxiosAuthToken();
-    this.fetchUserData();
-    this.fetchItems();
-    if (!localStorage.getItem(CHANGELOG_KEY)) {
-      setTimeout(() => { this.showChangelog = true; }, 600);
     }
-  },
+    const group = groups.get(key);
+    group.stocks.push(stock);
+    group.totalBestand += Number(stock.anzahl || 0);
+    group.locations.set(String(stock.locationId), {
+      id: String(stock.locationId),
+      name: stock.standort || 'Ohne Standort',
+      shortName: stock.standortKurz || '',
+    });
+    group.variations.set(stock.variationKey || '__standard', {
+      key: stock.variationKey || '__standard',
+      label: stock.variation || 'Standard',
+    });
+    group.sizes.set(stock.groesseKey || 'onesize', {
+      key: stock.groesseKey || 'onesize',
+      label: stock.groesse || 'onesize',
+    });
+  }
+  return [...groups.values()].map((group) => ({
+    ...group,
+    locations: [...group.locations.values()].sort((left, right) => left.name.localeCompare(right.name, 'de')),
+    variations: [...group.variations.values()],
+    sizes: [...group.sizes.values()],
+  })).sort((left, right) => left.bezeichnung.localeCompare(right.bezeichnung, 'de'));
+});
 
-  beforeUnmount() {
-    clearTimeout(this._searchT);
-  },
-};
+function toggleLocationFilter(locationId) {
+  inventoryFilters.toggleLocation(locationId);
+}
+
+function resetFilters() {
+  inventoryFilters.clearLocations();
+  stockState.value = 'all';
+  variationOnly.value = false;
+  sizeOnly.value = false;
+}
+
+function applyLocationDefault() {
+  if (hasAppliedLocationDefault.value || !auth.user) return;
+  hasAppliedLocationDefault.value = true;
+  const locationId = auth.user.locationV2?._id || auth.user.locationV2;
+  if (locationId) inventoryFilters.setLocations([locationId]);
+}
+
+async function refreshStocks() {
+  loading.value = true;
+  error.value = '';
+  try {
+    const [, locationsResponse] = await Promise.all([
+      dataCache.loadItems(true),
+      api.get('/api/locations'),
+    ]);
+    locationRecords.value = locationsResponse.data;
+    applyLocationDefault();
+  } catch (requestError) {
+    error.value = requestError.response?.data?.message || 'Der Bestand konnte nicht geladen werden.';
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function handleCreated(response) {
+  for (const stock of response.stocks || []) await dataCache.updateCachedItem(stock);
+}
+
+function openItemCreate() {
+  editingItem.value = null;
+  showCreateDialog.value = true;
+}
+
+function openItemEdit(item) {
+  editingItem.value = {
+    ...item,
+    stocks: stocks.value.filter((stock) => String(stock.itemId || stock._id) === item.id),
+  };
+  showCreateDialog.value = true;
+}
+
+function isItemExpanded(itemId) {
+  return expandedItemIds.value.includes(itemId);
+}
+
+function toggleItemDetails(item) {
+  if (isItemExpanded(item.id)) {
+    expandedItemIds.value = expandedItemIds.value.filter((itemId) => itemId !== item.id);
+    return;
+  }
+  expandedItemIds.value = [...expandedItemIds.value, item.id];
+  if (!selectedItemLocationIds.value[item.id]) selectItemLocation(item.id, item.locations[0]?.id);
+}
+
+function selectItemLocation(itemId, locationId) {
+  selectedItemLocationIds.value = { ...selectedItemLocationIds.value, [itemId]: locationId };
+}
+
+function selectedItemLocation(item) {
+  return selectedItemLocationIds.value[item.id] || item.locations[0]?.id;
+}
+
+function visibleItemLocations(item) {
+  const selectedLocationId = selectedItemLocation(item);
+  return item.locations.filter((location) => location.id === selectedLocationId);
+}
+
+function matrixStock(item, locationId, variationKey, sizeKey) {
+  return item.stocks.find((stock) => (
+    String(stock.locationId) === locationId
+    && (stock.variationKey || '__standard') === variationKey
+    && (stock.groesseKey || 'onesize') === sizeKey
+  ));
+}
+
+function matrixCellState(stock) {
+  if (stock.anzahl === 0) return 'matrix-cell--empty-stock';
+  if (stock.anzahl < stock.soll) return 'matrix-cell--under-target';
+  return '';
+}
+
+async function handleItemUpdated() {
+  await refreshStocks();
+}
+
+async function handleStockUpdated(stock) {
+  await dataCache.updateCachedItem(stock);
+}
+
+watch(() => auth.user, applyLocationDefault, { immediate: true });
+
+onMounted(refreshStocks);
 </script>
 
-<style scoped lang="scss">@import "@/assets/styles/global.scss";
-
-/* --------- Layout Grundstruktur --------- */
-.session {
-  display: flex;
-  flex-direction: row;
-}
-
-.left { display: block; }
-
-@media only screen and (max-width: 768px) {
-  .left { display: none; }
-  form { width: 100%; height: 100%; }
-}
-
-/* --------- Links/Typo --------- */
-a.discrete {
-  user-select: none;
-  color: color-mix(in srgb, var(--text) 40%, transparent);
-  font-size: 14px;
-  border-bottom: solid 1px rgba(0,0,0,0);
-  cursor: pointer;
-  padding-bottom: 4px;
-  margin-left: auto;
-  font-weight: 300;
-  transition: all 0.3s ease;
-  margin-top: 0;
-
-  &:hover { border-bottom: solid 1px var(--border); }
-}
-
-.top { display: block; }
-
-/* --------- Formular-Panel (Kopfbereich) --------- */
-form {
-  padding: 40px 30px 20px;
-  background: var(--panel);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  width: 100%;
-  max-width: 500px;
-
-  h4 {
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--text);
-    opacity: 0.85;
-    margin-bottom: 20px;
-
-    span {
-      color: var(--text);
-      font-weight: 700;
-    }
-  }
-
-  p {
-    line-height: 155%;
-    font-size: 14px;
-    color: var(--text);
-    opacity: 0.65;
-    font-weight: 400;
-    max-width: 200px;
-    margin: 0 0 40px;
-  }
-}
-
-/* (Duplikat aus Original behalten) */
-a.discrete {
-  user-select: none;
-  color: color-mix(in srgb, var(--text) 40%, transparent);
-  font-size: 14px;
-  border-bottom: solid 1px rgba(0,0,0,0);
-  padding-bottom: 4px;
-  margin-left: auto;
-  font-weight: 300;
-  transition: all 0.3s ease;
-  margin-top: 40px;
-
-  &:hover { border-bottom: solid 1px var(--border); }
-}
-
-/* --------- Buttons --------- */
-button {
-  user-select: none;
-  width: auto;
-  min-width: 100px;
-  border-radius: 24px;
-  text-align: center;
-  padding: 15px 40px;
-  margin-top: 5px;
-  background-color: var(--primary);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 500;
-  box-shadow: 0px 2px 6px -1px rgba(0,0,0,0.13);
-  border: none;
-  outline: 0;
-}
-
-/* Modal Buttons spezifisch zentrieren */
-.modal-buttons button {
-  margin-left: 0;
-}
-
-/* --------- Modal Grundstruktur --------- */
-.modal { z-index: 10; }
-
-.close {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  font-size: 20px;
-  color: var(--muted);
-  cursor: pointer;
-  z-index: 1;
-  padding: 4px;
-
-  &:hover { color: var(--text); }
-}
-
-/* --------- Floating Label Karte --------- */
-.floating-label {
-  transition: all 0.3s ease;
-
-  &:hover {
-    cursor: pointer;
-    transform: translateY(-3px);
-    box-shadow: 0px 10px 20px 0px rgba(0,0,0,0.2);
-
-    &:active { transform: scale(0.99); }
-  }
-
-  button { margin-top: 0; }
-  .icon { height: 48px !important; }
-}
-
-.inactive {
-  transition: unset;
-
-  &:hover {
-    cursor: unset;
-    transform: unset;
-    box-shadow: unset;
-  }
-
-  button { background-color: color-mix(in srgb, var(--tile-bg) 70%, var(--text) 30%); }
-}
-
-/* --------- Inputs & Dropdowns --------- */
-input,
-.standort-dropdown {
-  user-select: none;
-  font-size: 16px;
-  padding: 20px 0px;
-  height: 56px;
-  border: none;
-  border-bottom: solid 1px var(--border);
-  background: var(--tile-bg);
-  width: 280px;
-  box-sizing: border-box;
-  transition: all 0.3s linear;
-  color: var(--text);
-  font-weight: 400;
-
-  &:focus {
-    border-bottom: solid 1px var(--primary);
-    outline: 0;
-    box-shadow: 0 2px 6px -8px color-mix(in srgb, var(--primary) 45%, transparent);
-  }
-}
-
-.standort-dropdown { height: unset; }
-
-/* Floating label helper (behalten) */
-.floating-label {
-  position: relative;
-  margin-bottom: 10px;
-  width: 100%;
-
-  label {
-    position: absolute;
-    top: calc(50% - 7px);
-    left: 0;
-    opacity: 0;
-    transition: all 0.3s ease;
-    padding-left: 44px;
-  }
-
-  input {
-    width: calc(100% - 44px);
-    margin-left: auto;
-    display: flex;
-  }
-
-  .icon {
-    position: absolute;
-    top: 0; left: 0;
-    height: 56px; width: 44px;
-    display: flex;
-
-    svg {
-      height: 30px; width: 30px;
-      margin: auto;
-      opacity: 0.15;
-      transition: all 0.3s ease;
-
-      path { transition: all 0.3s ease; }
-    }
-  }
-
-  input:not(:placeholder-shown) { padding: 28px 0px 12px 0px; }
-  input:not(:placeholder-shown) + label { transform: translateY(-10px); opacity: 0.7; }
-
-  input:valid:not(:placeholder-shown) + label + .icon svg {
-    opacity: 1;
-    path { fill: var(--primary); }
-  }
-
-  input:not(:valid):not(:focus) + label + .icon {
-    animation-name: shake-shake;
-    animation-duration: 0.3s;
-  }
-}
-
-$displacement: 3px;
-@keyframes shake-shake {
-  0% { transform: translateX(-$displacement); }
-  20% { transform: translateX($displacement); }
-  40% { transform: translateX(-$displacement); }
-  60% { transform: translateX($displacement); }
-  80% { transform: translateX(-$displacement); }
-  100% { transform: translateX(0px); }
-}
-
-/* --------- Wrapper + Sidebarhintergrund --------- */
-.session {
-  display: flex;
-  flex-direction: row;
-  width: auto; height: auto;
-  margin: auto auto;
-  background: var(--panel);
-  border-radius: 4px;
-  box-shadow: 0px 0px 20px 10px rgba(255,255,255,0.02);
-}
-
-.left {
-  width: 220px; height: auto; min-height: 100%;
-  position: relative;
-  background-image: url("@/assets/SF_001.jpg");
-  background-position: 60% center;
-  background-size: cover;
-  border-top-left-radius: 4px; border-bottom-left-radius: 4px;
-  box-shadow: 10px 0px 20px -5px rgba(0,0,0,0.1);
-
-  svg { height: 40px; width: auto; margin: 20px; }
-}
-
-.right {
-  padding: 15px 15px;
-  box-shadow: -10px 0px 20px -5px rgba(0,0,0,0.1);
-  background: var(--tile-bg);
-  display: flex; flex-direction: column; align-items: flex-start;
-  padding-bottom: 20px;
-  width: 160px;
-
-  h4 {
-    margin-bottom: 20px;
-    color: var(--text);
-    opacity: 0.7;
-
-    span { color: var(--text); font-weight: 700; }
-  }
-
-  .shortcut-container {
-    font-size: 14px;
-    color: var(--text);
-    opacity: 0.65;
-    font-weight: 400;
-
-    .item-list-sf {
-      width: 30px; height: auto;
-      margin: 5px; cursor: pointer;
-    }
-  }
-}
-
-.list-item { display: flex; flex-direction: row; align-items: center; }
-
-/* SVG Fills (belassen) */
-.logo-svg .st01 { fill: #fff; }
-.icon-svg .st0 { fill: none; }
-.icon-svg .st1 { fill: #010101; }
-
-.logo-svg {
-  width: 50px; height: auto;
-  margin: 20px 0px 0px 10px;
-}
-
-/* --------- Suche + Filter (wie vorher, nur thematisiert) --------- */
-.search-container {
-  display: flex;
-  align-items: center;
-  width: 100%;
-}
-
-.search-outer{
-  width: 100%;
-  max-width: 500px;
-  padding: 1vh;
-}
-
-.search-textarea {
-  z-index: 4;
-  width: 100%;
-  padding: 8px;
-  font-size: 16px; /* Verhindert Auto-Zoom auf Mobile */
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  box-sizing: border-box;
-  resize: none;
-  overflow: hidden;
-  background: var(--tile-bg);
-  color: var(--text);
-
-  &::placeholder {
-    font-size: 16px; /* Gleiche Größe wie Haupttext */
-    color: var(--muted);
-    opacity: 1;
-  }
-}
-
-/* Mobile-spezifische Anpassungen */
-@media (max-width: 768px) {
-  .search-textarea {
-    font-size: 16px; /* Explizit für Mobile */
-    padding: 8px; /* Reduziert von 12px */
-    line-height: 1.3;
-  }
-  
-  .search-textarea::placeholder {
-    font-size: 16px;
-  }
-  
-  .add-button {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    font-size: 20px;
-    min-width: unset;
-    padding: 0;
-  }
-}
-
-.filter-buttons {
-  z-index: 3;
-  margin-top: -3px;
-  display: flex;
-  gap: 5px !important;
-  margin-bottom: 10px;
-  width: 50%;
-
-  div {
-    font-size: 9px;
-    min-width: 40px;
-    margin-top: 0;
-    padding: 5px 10px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    background-color: var(--tile-bg);
-    color: var(--text);
-    display: flex; justify-content: space-between; align-items: center;
-    cursor: pointer;
-    transition: background-color 0.3s, color 0.2s, border-color 0.2s;
-    user-select: none;
-
-    &.active {
-      background-color: var(--primary);
-      color: #fff;
-      border-color: var(--primary);
-    }
-
-    &:hover {
-      background-color: var(--hover);
-      color: var(--text);
-    }
-  }
-
-  .keyword-button {
-    background-color: var(--hover);
-    padding: 5px;
-    cursor: pointer;
-    border-radius: 5px;
-
-    &:hover {
-      background-color: color-mix(in srgb, var(--hover) 80%, var(--primary) 20%);
-    }
-  }
-}
-
-/* --------- Items Grid --------- */
-.items-container {
-  width: 100%;
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-}
-
-@media (max-width: 500px) {
-  .items-container { grid-template-columns: 1fr; }
-}
-
-form {
-  @media only screen and (max-width: 768) { width: 300px; }
-}
-
-.item-wrapper {
-  margin-bottom: 20px;
-  position: relative;
-}
-
-.header-and-pen {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  word-wrap: break-word;
-  width: 100%;
-}
-
-.item-card {
-  background-color: var(--tile-bg);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 10px;
-  font-size: 14px;
-  width: 100%;
-  box-sizing: border-box;
-  color: var(--text);
-
-  .close-button,
-  .accept-button,
-  .delete-button {
-    position: absolute;
-    font-size: 16px;
-    cursor: pointer;
-    color: var(--text);
-    opacity: .85;
-
-    &:hover { color: var(--muted); }
-  }
-
-  .close-button { top: 10px; right: 10px; }
-  .delete-button { top: 10px; left: 10px; }
-  .accept-button { top: 25px; right: 10px; }
-}
-
-.edit-button {
-  position: absolute;
-  top: 10px; right: 10px;
-  font-size: 16px;
-  cursor: pointer;
-  color: var(--text);
-
-  &:hover { color: var(--muted); }
-}
-
-/* Item Header and Input */
-.item-header {
-  font-size: 16px;
-  margin-bottom: 5px;
-  text-align: center;
-
-  .inputBez {
-    width: calc(100% - 20px);
-    height: min-content;
-    font-size: 16px;
-    padding: 5px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    outline: none;
-    background: var(--tile-bg);
-    color: var(--text);
-  }
-
-  input.inputBez {
-    width: calc(100% - 40px);
-    margin-left: 20px;
-  }
-
-  .item-id-label {
-    display: block;
-    margin-top: 6px;
-    font-size: 10px;
-    color: var(--muted);
-    opacity: 0.6;
-    font-family: monospace;
-    letter-spacing: -0.5px;
-  }
-}
-
-.item-detail {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 5px;
-
-  .inputMen {
-    width: 30%;
-    height: min-content;
-    font-size: 16px;
-    padding: 5px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    outline: none;
-    background: var(--tile-bg);
-    color: var(--text);
-  }
-}
-
-.item-detail span { font-size: 14px; }
-
-/* Actions */
-.item-actions { display: flex; justify-content: center; }
-
-.update-button {
-  width: 100%; height: 2rem;
-  font-size: 14px; line-height: 0rem;
-  background-color: var(--primary);
-  color: white; border: none;
-  margin-top: 0; border-radius: 5px;
-  cursor: pointer; transition: background-color 0.3s;
-
-  &:hover {
-    box-shadow: 0 2px 6px -1px color-mix(in srgb, var(--primary) 65%, transparent);
-    background-color: color-mix(in srgb, var(--primary) 90%, black);
-
-    &:active { transform: translateY(-3px); }
-  }
-}
-
-/* Add (+) Button neben Suche */
-.add-button {
-  width: 40px;
-  height: 40px;
-  margin: 0 10px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 5;
-  background: var(--tile-bg);
-  color: var(--primary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 200ms ease;
-  font-size: 20px;
-  font-weight: 600;
-  padding: 0;
-  min-width: unset;
-
-  &:hover {
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 5%, var(--tile-bg));
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 10%, transparent);
-  }
-}
-
-.floating-input {
-  position: fixed; z-index: 1000;
-  background-color: var(--tile-bg);
-  border: 1px solid var(--border);
-  padding: 10px; border-radius: 5px;
-  color: var(--text);
-}
-
-.floating-input input {
-  width: 50px; text-align: center; background: var(--tile-bg); color: var(--text);
-}
-
-/* --------- Modal Overlay & Card --------- */
-.modal {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  position: relative;
-  width: 360px;
-  max-width: calc(100vw - 32px);
-  background: var(--tile-bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-
-  h4 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    flex-shrink: 0;
-    padding: 16px 16px 12px 16px;
-    text-align: left;
-    color: var(--text);
-    opacity: 0.9;
-  }
-}
-
-.modal-header {
-  padding: 16px 16px 12px 16px;
-  flex-shrink: 0;
-
-  h4 {
-    margin: 0 0 8px 0;
-    padding: 0;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text);
-    opacity: 0.95;
-  }
-
-  .header-badges {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 500;
-    line-height: 1.2;
-
-    svg {
-      font-size: 10px;
-      opacity: 0.8;
-    }
-  }
-
-  .badge-size {
-    background: color-mix(in srgb, var(--primary) 15%, var(--tile-bg));
-    color: color-mix(in srgb, var(--primary) 95%, black);
-    border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
-  }
-
-  .badge-location {
-    background: color-mix(in srgb, var(--muted) 10%, var(--tile-bg));
-    color: var(--text);
-    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-    opacity: 0.85;
-  }
-}
-
-.add-item-modal,
-.update-item-modal {
-  height: auto;
-  max-height: min(80vh, 560px);
-  min-height: 260px;
-}
-
-@media screen and (max-height: 500px) {
-  .modal-content {
-    height: calc(100vh - 40px);
-    max-height: calc(100vh - 40px);
-  }
-}
-
-.modal-scrollable {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0 16px 16px 16px;
-  min-height: 0;
-}
-
-.select-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 14px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text);
-  opacity: 0.85;
-
-  .optional-hint {
-    font-size: 10.5px;
-    font-weight: 400;
-    color: var(--muted);
-    opacity: 0.7;
-  }
-
-  select,
-  input {
-    padding: 7px 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--tile-bg);
-    color: var(--text);
-    font-size: 13px;
-    height: auto;
-    width: 100%;
-    transition: border-color 0.2s, box-shadow 0.2s;
-
-    &:focus {
-      border-color: var(--primary);
-      outline: none;
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent);
-    }
-
-    &::placeholder {
-      color: var(--muted);
-      opacity: 0.5;
-      font-size: 12.5px;
-    }
-  }
-
-  .input-hint {
-    font-size: 10.5px;
-    color: var(--muted);
-    opacity: 0.75;
-    line-height: 1.35;
-  }
-}
-
-.multi-select-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.chip-button {
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--tile-bg);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 500;
-  padding: 6px 12px;
-  margin: 0;
-  min-width: unset;
-  box-shadow: none;
-  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
-
-  &:hover {
-    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
-    background: color-mix(in srgb, var(--primary) 8%, var(--tile-bg));
-  }
-
-  &.active {
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 16%, var(--tile-bg));
-    color: color-mix(in srgb, var(--primary) 88%, var(--text));
-  }
-}
-
-.count-row {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 14px;
-
-  .count-label {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-size: 11.5px;
-    font-weight: 500;
-    color: var(--text);
-    opacity: 0.85;
-    min-width: 0;
-
-    input {
-      padding: 7px 10px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--tile-bg);
-      color: var(--text);
-      font-size: 13px;
-      height: auto;
-      width: 100%;
-      box-sizing: border-box;
-      transition: border-color 0.2s, box-shadow 0.2s;
-
-      &:focus {
-        border-color: var(--primary);
-        outline: none;
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent);
-      }
-    }
-  }
-}
-
-.modal-buttons {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  padding: 14px 16px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-  background: var(--tile-bg);
-  border-radius: 0 0 12px 12px;
-  flex-shrink: 0;
-  min-height: auto;
-  position: relative;
-  z-index: 10;
-
-  button {
-    flex: 1;
-    max-width: 140px;
-    padding: 9px 16px;
-    border: none;
-    border-radius: 6px;
-    background: var(--primary);
-    color: #fff;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    transition: filter 0.2s, transform 0.1s;
-    margin: 0;
-
-    &:hover {
-      filter: brightness(0.95);
-    }
-
-    &:active {
-      transform: scale(0.97);
-    }
-  }
-}
-
-
+<style scoped lang="scss">
+.inventory-page { color: var(--text); }
+.page-header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+h2 { margin: 0; font-size: 1.55rem; display: flex; gap: 9px; align-items: center; }
+.stock-count { color: var(--muted); font-size: 0.82rem; padding-bottom: 3px; }
+.state { margin: 24px 0; color: var(--muted); }
+.state--error { color: #c3423f; }
+.inventory-list { display: grid; gap: 10px; }
+.item-card { border: 1px solid var(--border); border-radius: 8px; background: var(--tile-bg); overflow: hidden; }
+.item-card__header { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 14px 14px 11px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.item-card__summary { min-width: 0; display: grid; justify-items: start; gap: 5px; }
+.item-card__details-trigger { min-width: 0; display: grid; justify-items: start; gap: 5px; border: 0; padding: 0; background: transparent; color: var(--text); cursor: pointer; font: inherit; text-align: left; }
+.item-card h3 { font-size: 0.98rem; margin: 0; }
+.item-card__meta { color: var(--muted); font-size: 0.74rem; }
+.item-card__actions { display: flex; align-items: center; gap: 7px; }
+.item-card__total { min-width: 28px; padding: 4px 7px; border-radius: 5px; background: color-mix(in srgb, var(--primary) 12%, var(--tile-bg)); color: var(--primary); font-size: 0.78rem; font-weight: 700; text-align: center; }
+.item-card__edit { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+.item-card__edit:hover { border-color: var(--primary); color: var(--primary); }
+.shop-link { color: var(--muted); font-size: 0.72rem; text-decoration: none; }
+.shop-link:hover { color: var(--primary); }
+.item-card__details { display: grid; gap: 12px; padding: 12px 14px 14px; }
+.location-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.location-tabs button { flex: 0 0 auto; border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; background: transparent; color: var(--muted); cursor: pointer; font: inherit; font-size: 0.76rem; }
+.location-tabs button.active { border-color: var(--primary); color: var(--primary); }
+.stock-matrix-section { border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.stock-matrix-section__header { display: flex; align-items: baseline; gap: 8px; padding: 9px 11px; border-bottom: 1px solid var(--border); }
+.stock-matrix-section__header h4 { margin: 0; font-size: 0.84rem; }
+.stock-matrix-section__header span { color: var(--muted); font-size: 0.72rem; }
+.stock-matrix-scroll { overflow-x: auto; }
+.stock-matrix { width: 100%; min-width: 480px; border-collapse: collapse; font-size: 0.78rem; }
+.stock-matrix th, .stock-matrix td { height: 48px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 4px; text-align: center; }
+.stock-matrix th { background: color-mix(in srgb, var(--hover) 70%, var(--tile-bg)); color: var(--muted); font-size: 0.72rem; font-weight: 600; }
+.stock-matrix th:first-child { min-width: 120px; padding: 0 9px; text-align: left; }
+.stock-matrix tr:last-child th, .stock-matrix tr:last-child td { border-bottom: 0; }
+.stock-matrix th:last-child, .stock-matrix td:last-child { border-right: 0; }
+.matrix-cell { width: 100%; height: 100%; min-height: 38px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text); cursor: pointer; font: inherit; }
+.matrix-cell:hover { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--tile-bg)); }
+.matrix-cell b { font-size: 0.88rem; }
+.matrix-cell small { color: var(--muted); font-size: 0.7rem; }
+.matrix-cell--under-target { color: #a96100; background: color-mix(in srgb, #d78a00 10%, var(--tile-bg)); }
+.matrix-cell--empty-stock { color: #c3423f; background: color-mix(in srgb, #c3423f 9%, var(--tile-bg)); }
+.matrix-cell--empty { color: var(--muted); }
+@media (max-width: 620px) { .page-header { align-items: start; flex-direction: column; gap: 5px; } .stock-count { padding: 0; } .item-card__header { padding: 12px; } .item-card__details { padding: 10px; } }
 </style>

@@ -1,7 +1,9 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 const auth = require("../middleware/auth");
 const User = require("../models/User");
+const Location = require("../models/Location");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { sollRoutine, sendConfirmationEmail } = require("../EmailService");
@@ -205,13 +207,19 @@ async function requireAdmin(req, res) {
   return admin;
 }
 
+async function resolveLocationV2(locationId) {
+  if (!locationId) return null;
+  if (!mongoose.isValidObjectId(locationId)) return null;
+  return Location.findOne({ _id: locationId, isActive: true }).select('_id nameFull');
+}
+
 // GET /api/users/admin/all
 router.get(
   '/admin/all',
   auth,
   asyncHandler(async (req, res) => {
     if (!await requireAdmin(req, res)) return;
-    const users = await User.find().select('-password').populate('mitarbeiter', 'vorname nachname personalnr').sort({ date: -1 });
+    const users = await User.find().select('-password').populate('mitarbeiter', 'vorname nachname personalnr').populate('locationV2', 'nameFull shortName').sort({ date: -1 });
     res.status(200).json(users);
   })
 );
@@ -222,22 +230,26 @@ router.post(
   auth,
   asyncHandler(async (req, res) => {
     if (!await requireAdmin(req, res)) return;
-    const { name, email, password, location, roles, isConfirmed } = req.body;
+    const { name, email, password, location, locationV2, roles, isConfirmed } = req.body;
     if (!email || !password) return res.status(400).json({ msg: 'E-Mail und Passwort sind erforderlich' });
     if (!email.includes('@straightforward.email')) return res.status(400).json({ msg: 'Bitte benutze eine E-Mail der Firma Straightforward' });
     const existing = await User.findOne({ email });
     if (existing) return res.status(400).json({ msg: 'Benutzer mit dieser E-Mail existiert bereits' });
+    const resolvedLocationV2 = await resolveLocationV2(locationV2);
+    if (locationV2 && !resolvedLocationV2) return res.status(400).json({ msg: 'Der gewählte Standort ist nicht aktiv oder existiert nicht' });
     const resolvedRoles = Array.isArray(roles) && roles.length > 0 ? roles : ['USER'];
     const user = new User({
       name: name || '',
       email,
       password,
-      location: location || '',
+      location: resolvedLocationV2?.nameFull || location || '',
+      locationV2: resolvedLocationV2?._id || null,
       role: resolvedRoles.includes('ADMIN') ? 'ADMIN' : 'USER', // keep legacy field in sync
       roles: resolvedRoles,
       isConfirmed: isConfirmed !== undefined ? isConfirmed : true,
     });
     await user.save();
+    await user.populate('locationV2', 'nameFull shortName');
     const result = user.toObject();
     delete result.password;
     res.status(201).json(result);
@@ -250,12 +262,18 @@ router.put(
   auth,
   asyncHandler(async (req, res) => {
     if (!await requireAdmin(req, res)) return;
-    const { name, email, password, location, roles, isConfirmed } = req.body;
+    const { name, email, password, location, locationV2, roles, isConfirmed } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: 'Benutzer nicht gefunden' });
     if (name !== undefined) user.name = name;
     if (email !== undefined) user.email = email;
     if (location !== undefined) user.location = location;
+    if (locationV2 !== undefined) {
+      const resolvedLocationV2 = await resolveLocationV2(locationV2);
+      if (locationV2 && !resolvedLocationV2) return res.status(400).json({ msg: 'Der gewählte Standort ist nicht aktiv oder existiert nicht' });
+      user.locationV2 = resolvedLocationV2?._id || null;
+      if (resolvedLocationV2) user.location = resolvedLocationV2.nameFull;
+    }
     if (isConfirmed !== undefined) user.isConfirmed = isConfirmed;
     if (Array.isArray(roles)) {
       user.roles = roles;
@@ -263,6 +281,7 @@ router.put(
     }
     if (password) user.password = password; // pre-save hook handles hashing
     await user.save();
+    await user.populate('locationV2', 'nameFull shortName');
     const result = user.toObject();
     delete result.password;
     res.status(200).json(result);

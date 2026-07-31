@@ -436,7 +436,7 @@ export const useDataCache = defineStore('dataCache', {
     async fullSyncItems() {
       try {
         console.log('[Cache] Full sync Items...');
-        const response = await api.get('/api/items');
+        const response = await api.get('/api/inventory/stocks');
         const data = response.data?.data || response.data || [];
         
         await clearStore('items');
@@ -461,7 +461,7 @@ export const useDataCache = defineStore('dataCache', {
         this.syncing.items = true;
         const since = this.lastSync.items;
         
-        const response = await api.get('/api/items/sync', {
+        const response = await api.get('/api/inventory/stocks/sync', {
           params: { since }
         });
         

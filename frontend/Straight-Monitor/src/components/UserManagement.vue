@@ -1,7 +1,119 @@
 <template>
   <section class="um">
-    <h1 class="um__title">Benutzer<span>verwaltung</span></h1>
-    <Toolbar>
+    <h1 class="um__title">Monitor<span>verwaltung</span></h1>
+
+    <nav class="management-tabs" aria-label="Monitorverwaltung">
+      <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'locations' }" @click="activeTab = 'locations'">
+        <font-awesome-icon icon="fa-solid fa-location-dot" />
+        Standorte
+      </button>
+      <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'users' }" @click="activeTab = 'users'">
+        <font-awesome-icon icon="fa-solid fa-users" />
+        Benutzer
+      </button>
+    </nav>
+
+    <template v-if="activeTab === 'locations'">
+    <section class="locations">
+      <div class="locations__header">
+        <ToolbarButton @click="openLocationCreate">
+          <font-awesome-icon icon="fa-solid fa-plus" />
+          Standort anlegen
+        </ToolbarButton>
+      </div>
+      <p v-if="locationError" class="um__error">{{ locationError }}</p>
+      <p v-else-if="locationsLoading" class="locations__state">Standorte werden geladen…</p>
+      <div v-else class="locations__list">
+        <div v-for="location in locations" :key="location._id" class="location-row" :class="{ 'location-row--inactive': !location.isActive }">
+          <span class="location-row__short">{{ location.shortName }}</span>
+          <span class="location-row__details"><b>{{ location.nameFull }}</b><small>{{ formatLocationAddress(location.address) || 'Keine Adresse hinterlegt' }}</small><small v-if="location.locationManager">Leitung: {{ location.locationManager.name || location.locationManager.email }}</small></span>
+          <span class="location-row__status">{{ location.isActive ? 'Aktiv' : 'Inaktiv' }}</span>
+          <button type="button" class="btn-icon" title="Standort bearbeiten" @click="openLocationEdit(location)">
+            <font-awesome-icon icon="fa-solid fa-pen" />
+          </button>
+          <button type="button" class="btn-icon" :title="location.isActive ? 'Standort deaktivieren' : 'Standort aktivieren'" @click="toggleLocation(location)">
+            <font-awesome-icon :icon="location.isActive ? 'fa-solid fa-ban' : 'fa-solid fa-check'" />
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <div v-if="locationModal.open" class="modal-backdrop" @click.self="closeLocationModal">
+      <form class="modal-content modal-content--location" @submit.prevent="saveLocation">
+        <header class="modal-header">
+          <h3>{{ locationModal.isNew ? 'Standort anlegen' : 'Standort bearbeiten' }}</h3>
+          <button type="button" class="close-btn" @click="closeLocationModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
+        </header>
+        <nav class="location-modal-tabs" aria-label="Standortfelder">
+          <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'general' }" @click="locationModal.activeTab = 'general'">Stammdaten</button>
+          <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'contact' }" @click="locationModal.activeTab = 'contact'">Kontakt & Rechtliches</button>
+          <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'hours' }" @click="locationModal.activeTab = 'hours'">Öffnungszeiten</button>
+          <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'logistics' }" @click="locationModal.activeTab = 'logistics'">Sonstiges</button>
+        </nav>
+        <div class="modal-body">
+          <template v-if="locationModal.activeTab === 'general'">
+          <div class="form-grid">
+            <div class="form-group"><label>Name <span class="required">*</span></label><input v-model="locationForm.nameFull" type="text" required /></div>
+            <div class="form-group"><label>Kürzel <span class="required">*</span></label><input v-model="locationForm.shortName" type="text" maxlength="8" required /></div>
+          </div>
+          <div class="form-grid location-form-grid--address">
+            <div class="form-group"><label>Straße</label><input v-model="locationForm.address.street" type="text" /></div>
+            <div class="form-group"><label>Hausnummer</label><input v-model="locationForm.address.houseNumber" type="text" /></div>
+            <div class="form-group"><label>PLZ</label><input v-model="locationForm.address.postalCode" type="text" inputmode="numeric" /></div>
+            <div class="form-group"><label>Ort</label><input v-model="locationForm.address.city" type="text" /></div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group"><label>Land</label><input v-model="locationForm.address.country" type="text" /></div>
+            <div class="form-group"><label>Standortleitung</label><select v-model="locationForm.locationManager"><option value="">Nicht zugeordnet</option><option v-for="user in users" :key="user._id" :value="user._id">{{ user.name || user.email }}</option></select></div>
+          </div>
+          </template>
+          <template v-else-if="locationModal.activeTab === 'contact'">
+          <div class="form-grid">
+            <div class="form-group"><label>Haupt-E-Mail</label><input v-model="locationForm.contact.mainEmail" type="email" /></div>
+            <div class="form-group"><label>Telefon</label><input v-model="locationForm.contact.phone" type="tel" /></div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group"><label>Zeitzone</label><input v-model="locationForm.timeZone" type="text" /></div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group"><label>Rechtsträger</label><input v-model="locationForm.legal.legalName" type="text" /></div>
+            <div class="form-group"><label>USt-ID</label><input v-model="locationForm.legal.vatId" type="text" /></div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group"><label>Handelsregister</label><input v-model="locationForm.legal.registrationNumber" type="text" /></div>
+          </div>
+          </template>
+          <section v-else-if="locationModal.activeTab === 'hours'" class="opening-hours">
+            <div class="opening-hours__header"><label>Öffnungszeiten</label><small>Mehrere Zeitfenster pro Tag möglich</small></div>
+            <div v-for="day in WEEKDAYS" :key="day.key" class="opening-hours__day">
+              <span class="opening-hours__day-name">{{ day.label }}</span>
+              <div class="opening-hours__slots">
+                <div v-for="(slot, index) in locationForm.openingHours[day.key]" :key="index" class="opening-hours__slot">
+                  <input v-model="slot.start" type="time" :aria-label="`${day.label} von`" />
+                  <span>bis</span>
+                  <input v-model="slot.end" type="time" :aria-label="`${day.label} bis`" />
+                  <button type="button" class="btn-icon" title="Zeitfenster entfernen" @click="removeOpeningHour(day.key, index)"><font-awesome-icon icon="fa-solid fa-trash" /></button>
+                </div>
+                <button type="button" class="opening-hours__add" @click="addOpeningHour(day.key)"><font-awesome-icon icon="fa-solid fa-plus" /> Zeitfenster</button>
+              </div>
+            </div>
+          </section>
+          <template v-else>
+          <div class="form-group"><label>Externe ID</label><input v-model="locationForm.externalId" type="text" /></div>
+          <div class="form-group"><label>Anlieferhinweise</label><textarea v-model="locationForm.deliveryNotes" rows="3" /></div>
+          </template>
+          <p v-if="locationModal.error" class="modal-error">{{ locationModal.error }}</p>
+        </div>
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-ghost" @click="closeLocationModal">Abbrechen</button>
+          <button type="submit" class="btn btn-primary" :disabled="locationSaving || !canCreateLocation"><font-awesome-icon :icon="locationSaving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'" :spin="locationSaving" /> {{ locationModal.isNew ? 'Anlegen' : 'Speichern' }}</button>
+        </footer>
+      </form>
+    </div>
+    </template>
+
+    <section v-else class="users">
+      <Toolbar>
       <SearchBar class="toolbar-search" v-model="searchQuery" placeholder="Benutzer suchen…" aria-label="Benutzer suchen" />
       <ToolbarLabel>{{ filteredUsers.length }} Benutzer</ToolbarLabel>
       <ToolbarGroup push-right>
@@ -10,14 +122,14 @@
           Neuer Benutzer
         </ToolbarButton>
       </ToolbarGroup>
-    </Toolbar>
+      </Toolbar>
 
-    <!-- Fehlermeldung -->
-    <div v-if="error" class="um__error">{{ error }}</div>
+      <!-- Fehlermeldung -->
+      <div v-if="error" class="um__error">{{ error }}</div>
 
-    <!-- Tabelle -->
-    <div class="um__table-wrap">
-      <table class="um__table" v-if="!loading">
+      <!-- Tabelle -->
+      <div class="um__table-wrap">
+        <table class="um__table" v-if="!loading">
         <thead>
           <tr>
             <th>Name</th>
@@ -98,12 +210,13 @@
             </td>
           </tr>
         </tbody>
-      </table>
-      <div v-else class="um__loading">
-        <font-awesome-icon icon="fa-solid fa-spinner" spin />
-        Wird geladen…
+        </table>
+        <div v-else class="um__loading">
+          <font-awesome-icon icon="fa-solid fa-spinner" spin />
+          Wird geladen…
+        </div>
       </div>
-    </div>
+    </section>
 
     <!-- Edit / Create Modal -->
     <div v-if="editModal.open" class="modal-backdrop" @click.self="closeEdit">
@@ -122,8 +235,15 @@
               <input v-model="editModal.form.name" type="text" placeholder="Max Mustermann" />
             </div>
             <div class="form-group">
-              <label>Standort</label>
+              <label>Standort (Legacy)</label>
               <input v-model="editModal.form.location" type="text" placeholder="Hamburg" />
+            </div>
+            <div class="form-group">
+              <label>Standort v2</label>
+              <select v-model="editModal.form.locationV2">
+                <option value="">Nicht zugeordnet</option>
+                <option v-for="location in activeLocations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
+              </select>
             </div>
           </div>
 
@@ -356,6 +476,36 @@ const users = ref([]);
 const loading = ref(true);
 const error = ref('');
 const searchQuery = ref('');
+const activeTab = ref('locations');
+const locations = ref([]);
+const locationsLoading = ref(false);
+const locationSaving = ref(false);
+const locationError = ref('');
+const WEEKDAYS = [
+  { key: 'monday', label: 'Montag' },
+  { key: 'tuesday', label: 'Dienstag' },
+  { key: 'wednesday', label: 'Mittwoch' },
+  { key: 'thursday', label: 'Donnerstag' },
+  { key: 'friday', label: 'Freitag' },
+  { key: 'saturday', label: 'Samstag' },
+  { key: 'sunday', label: 'Sonntag' },
+];
+const locationForm = reactive({
+  nameFull: '',
+  shortName: '',
+  address: { street: '', houseNumber: '', postalCode: '', city: '', country: 'Deutschland' },
+  locationManager: '',
+  contact: { mainEmail: '', phone: '' },
+  openingHours: emptyOpeningHours(),
+  timeZone: 'Europe/Berlin',
+  legal: { legalName: '', vatId: '', registrationNumber: '' },
+  externalId: '',
+  deliveryNotes: '',
+  settings: {},
+});
+const locationModal = reactive({ open: false, isNew: true, locationId: null, activeTab: 'general', error: '' });
+const canCreateLocation = computed(() => locationForm.nameFull.trim() && locationForm.shortName.trim());
+const activeLocations = computed(() => locations.value.filter((location) => location.isActive));
 
 const filteredUsers = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
@@ -379,6 +529,7 @@ const editModal = reactive({
     email: '',
     password: '',
     location: '',
+    locationV2: '',
     roles: ['USER'],
     isConfirmed: true,
   },
@@ -407,6 +558,7 @@ const linkModal = reactive({
 onMounted(async () => {
   await fetchUsers();
   await loadAsanaUserMap();
+  await fetchLocations();
 });
 
 async function fetchUsers() {
@@ -434,6 +586,136 @@ async function loadAsanaUserMap() {
   } catch { /* ignore */ }
 }
 
+async function fetchLocations() {
+  locationsLoading.value = true;
+  locationError.value = '';
+  try {
+    const { data } = await api.get('/api/locations', { params: { all: true } });
+    locations.value = data;
+  } catch (e) {
+    locationError.value = e?.response?.data?.message || 'Fehler beim Laden der Standorte.';
+  } finally {
+    locationsLoading.value = false;
+  }
+}
+
+function resetLocationForm() {
+  locationForm.nameFull = '';
+  locationForm.shortName = '';
+  Object.assign(locationForm.address, { street: '', houseNumber: '', postalCode: '', city: '', country: 'Deutschland' });
+  locationForm.locationManager = '';
+  Object.assign(locationForm.contact, { mainEmail: '', phone: '' });
+  Object.assign(locationForm.openingHours, emptyOpeningHours());
+  locationForm.timeZone = 'Europe/Berlin';
+  Object.assign(locationForm.legal, { legalName: '', vatId: '', registrationNumber: '' });
+  locationForm.externalId = '';
+  locationForm.deliveryNotes = '';
+  locationForm.settings = {};
+}
+
+function openLocationCreate() {
+  resetLocationForm();
+  Object.assign(locationModal, { open: true, isNew: true, locationId: null, activeTab: 'general', error: '' });
+}
+
+function openLocationEdit(location) {
+  locationForm.nameFull = location.nameFull || '';
+  locationForm.shortName = location.shortName || '';
+  Object.assign(locationForm.address, { street: '', houseNumber: '', postalCode: '', city: '', country: 'Deutschland', ...location.address });
+  locationForm.locationManager = location.locationManager?._id || location.locationManager || '';
+  Object.assign(locationForm.contact, { mainEmail: '', phone: '', ...location.contact });
+  Object.assign(locationForm.openingHours, normalizeOpeningHours(location.openingHours));
+  locationForm.timeZone = location.timeZone || 'Europe/Berlin';
+  Object.assign(locationForm.legal, { legalName: '', vatId: '', registrationNumber: '', ...location.legal });
+  locationForm.externalId = location.externalId || '';
+  locationForm.deliveryNotes = location.deliveryNotes || '';
+  locationForm.settings = location.settings || {};
+  Object.assign(locationModal, { open: true, isNew: false, locationId: location._id, activeTab: 'general', error: '' });
+}
+
+function closeLocationModal() {
+  locationModal.open = false;
+}
+
+async function saveLocation() {
+  if (!canCreateLocation.value) return;
+  const openingHourSlots = Object.values(locationForm.openingHours).flat();
+  if (openingHourSlots.some((slot) => Boolean(slot.start) !== Boolean(slot.end))) {
+    locationModal.error = 'Bitte für jedes Zeitfenster sowohl Start- als auch Endzeit angeben.';
+    return;
+  }
+
+  const payload = {
+    ...locationForm,
+    openingHours: Object.fromEntries(WEEKDAYS.map(({ key }) => [
+      key,
+      locationForm.openingHours[key].filter((slot) => slot.start && slot.end),
+    ])),
+  };
+  locationSaving.value = true;
+  locationError.value = '';
+  locationModal.error = '';
+  try {
+    if (locationModal.isNew) {
+      const { data } = await api.post('/api/locations', payload);
+      locations.value = [...locations.value, data].sort((left, right) => left.nameFull.localeCompare(right.nameFull, 'de'));
+    } else {
+      const { data } = await api.patch(`/api/locations/${locationModal.locationId}`, payload);
+      const index = locations.value.findIndex((entry) => entry._id === data._id);
+      if (index >= 0) locations.value[index] = data;
+      locations.value.sort((left, right) => left.nameFull.localeCompare(right.nameFull, 'de'));
+    }
+    closeLocationModal();
+  } catch (e) {
+    locationModal.error = e?.response?.data?.message || 'Standort konnte nicht gespeichert werden.';
+  } finally {
+    locationSaving.value = false;
+  }
+}
+
+async function toggleLocation(location) {
+  locationError.value = '';
+  try {
+    const { data } = await api.patch(`/api/locations/${location._id}`, { isActive: !location.isActive });
+    const index = locations.value.findIndex((entry) => entry._id === data._id);
+    if (index >= 0) locations.value[index] = data;
+  } catch (e) {
+    locationError.value = e?.response?.data?.message || 'Standort konnte nicht aktualisiert werden.';
+  }
+}
+
+function formatLocationAddress(address) {
+  if (!address || typeof address !== 'object') return '';
+  const street = [address.street, address.houseNumber].filter(Boolean).join(' ');
+  const city = [address.postalCode, address.city].filter(Boolean).join(' ');
+  return [street, city, address.country].filter(Boolean).join(', ');
+}
+
+function emptyOpeningHours() {
+  return Object.fromEntries(WEEKDAYS.map(({ key }) => [key, []]));
+}
+
+function normalizeOpeningHours(openingHours = {}) {
+  return Object.fromEntries(WEEKDAYS.map(({ key }) => {
+    const slots = openingHours[key];
+    if (typeof slots === 'string') {
+      const match = slots.match(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/);
+      return [key, match ? [{ start: match[1], end: match[2] }] : []];
+    }
+    return [key, Array.isArray(slots)
+      ? slots.map((slot) => ({ start: slot.start || '', end: slot.end || '' }))
+      : []];
+  }));
+}
+
+function addOpeningHour(day) {
+  locationForm.openingHours[day].push({ start: '', end: '' });
+}
+
+function removeOpeningHour(day, index) {
+  locationForm.openingHours[day].splice(index, 1);
+}
+
 // ─── Edit / Create ──────────────────────────────────────────────────────────
 function openCreate() {
   Object.assign(editModal, {
@@ -442,7 +724,7 @@ function openCreate() {
     saving: false,
     error: '',
     userId: null,
-    form: { name: '', email: '', password: '', location: '', roles: ['USER'], isConfirmed: true },
+    form: { name: '', email: '', password: '', location: '', locationV2: '', roles: ['USER'], isConfirmed: true },
   });
 }
 
@@ -458,6 +740,7 @@ function openEdit(u) {
       email: u.email || '',
       password: '',
       location: u.location || '',
+      locationV2: u.locationV2?._id || u.locationV2 || '',
       roles: u.roles?.length ? [...u.roles] : [u.role || 'USER'],
       isConfirmed: !!u.isConfirmed,
     },
@@ -683,6 +966,34 @@ function formatDate(d) {
   span { color: var(--primary); }
 }
 
+.management-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 14px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.85rem;
+
+    &:hover { color: var(--text); }
+  }
+
+  .management-tabs__tab--active {
+    border-bottom-color: var(--primary);
+    color: var(--primary);
+    font-weight: 700;
+  }
+}
+
 .um__error {
   background: rgba(220, 53, 69, 0.12);
   border: 1px solid rgba(220, 53, 69, 0.4);
@@ -706,6 +1017,45 @@ function formatDate(d) {
   border: 1px solid var(--border);
   overflow: auto;
 }
+
+.locations {
+  padding-top: 22px;
+}
+
+.users {
+  padding-top: 22px;
+}
+
+.locations__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+
+  p { margin: 0 0 3px; color: var(--primary); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  h2 { margin: 0; font-size: 1.05rem; }
+}
+
+.locations__state { color: var(--muted); font-size: 0.85rem; }
+.locations__list { display: grid; gap: 6px; }
+.location-row {
+  display: grid;
+  grid-template-columns: 52px 1fr auto 32px 32px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--tile-bg);
+  font-size: 0.85rem;
+
+  &--inactive { opacity: 0.55; }
+}
+.location-row__short { color: var(--primary); font-weight: 700; }
+.location-row__details { display: grid; gap: 2px; }
+.location-row__details small { color: var(--muted); font-size: 0.72rem; }
+.location-row__status { color: var(--muted); font-size: 0.75rem; }
 
 .um__table {
   width: 100%;
@@ -878,6 +1228,7 @@ function formatDate(d) {
   overflow: auto;
 
   &--sm { max-width: 400px; }
+  &--location { max-width: 700px; overflow: hidden; }
 }
 
 .modal-header {
@@ -888,6 +1239,28 @@ function formatDate(d) {
   border-bottom: 1px solid var(--border);
 
   h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+}
+
+.location-modal-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 20px 0;
+  border-bottom: 1px solid var(--border);
+
+  button {
+    padding: 8px 10px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.78rem;
+
+    &:hover { color: var(--text); }
+  }
+
+  .location-modal-tabs__tab--active { border-bottom-color: var(--primary); color: var(--primary); font-weight: 700; }
 }
 
 .close-btn {
@@ -933,6 +1306,54 @@ function formatDate(d) {
   gap: 14px;
 
   @media (max-width: 480px) { grid-template-columns: 1fr; }
+}
+
+.location-form-grid--address { grid-template-columns: 2fr 1fr 1fr 2fr; }
+
+.opening-hours {
+  display: grid;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.opening-hours__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+
+  label { font-size: 0.8rem; font-weight: 500; opacity: 0.75; }
+  small { color: var(--muted); font-size: 0.75rem; }
+}
+
+.opening-hours__day {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.opening-hours__day-name { padding-top: 8px; font-size: 0.82rem; font-weight: 500; }
+.opening-hours__slots { display: grid; gap: 6px; }
+.opening-hours__slot { display: flex; align-items: center; gap: 7px; }
+.opening-hours__slot input {
+  width: 112px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--text);
+}
+.opening-hours__slot span { color: var(--muted); font-size: 0.8rem; }
+.opening-hours__add {
+  justify-self: start;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
 }
 
 .form-group {
@@ -999,6 +1420,15 @@ function formatDate(d) {
 
 .required { color: #dc3545; margin-left: 2px; }
 .hint { color: var(--text); opacity: 0.5; font-size: 0.75rem; margin-left: 4px; font-weight: 400; }
+
+@media (max-width: 700px) {
+  .locations__header { align-items: stretch; flex-direction: column; }
+  .location-form-grid--address { grid-template-columns: 1fr 1fr; }
+  .opening-hours__day { grid-template-columns: 1fr; gap: 3px; }
+  .opening-hours__day-name { padding-top: 0; }
+  .location-modal-tabs { overflow-x: auto; padding-inline: 12px; }
+  .location-modal-tabs button { white-space: nowrap; }
+}
 
 .warning-text {
   margin: 0;

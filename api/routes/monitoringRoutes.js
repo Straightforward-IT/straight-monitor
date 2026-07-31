@@ -1,14 +1,33 @@
 const express = require("express");
 const router = express.Router();
 const Monitoring = require("../models/Monitoring");
+const PaketVorlage = require("../models/PaketVorlage");
 const auth = require("../middleware/auth");
 const Item = require("../models/Item");
 const asyncHandler = require("../middleware/AsyncHandler");
 
+async function enrichPackageTemplateNames(logs) {
+  const templateIds = logs
+    .filter((log) => !log.packageTemplateName)
+    .map((log) => log.anmerkung?.match(/\[Paketvorlage: ([a-f\d]{24})\]/i)?.[1])
+    .filter(Boolean);
+  const templates = templateIds.length
+    ? await PaketVorlage.find({ _id: { $in: templateIds } }).select('name').lean()
+    : [];
+  const namesById = new Map(templates.map((template) => [String(template._id), template.name]));
+
+  return logs.map((log) => ({
+    ...log,
+    packageTemplateName: log.packageTemplateName
+      || namesById.get(String(log.packageTemplate || log.anmerkung?.match(/\[Paketvorlage: ([a-f\d]{24})\]/i)?.[1]))
+      || null,
+  }));
+}
+
 // GET all monitoring logs
 router.get("/", auth, asyncHandler( async (req, res) => {
-    const monitoringLogs = await Monitoring.find();
-    res.status(200).json(monitoringLogs);
+    const monitoringLogs = await Monitoring.find().lean();
+    res.status(200).json(await enrichPackageTemplateNames(monitoringLogs));
 }));
 
 // GET recent monitoring logs for dashboard widget

@@ -10,9 +10,18 @@ const MonitoringSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  benutzerName: {
+    type: String,
+    required: false,
+  },
   standort: {
     type: String,
     required: true,
+  },
+  locationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Location",
+    required: false,
   },
   art: {
     type: String, // 'zugabe' for add, 'entnahme' for remove, 'änderung' for change
@@ -30,11 +39,29 @@ const MonitoringSchema = new mongoose.Schema({
         ref: "Item", // Reference the Item collection
         required: true,
       },
+      inventoryItemId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "InventoryItem",
+        required: false,
+      },
+      stockId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: false,
+      },
+      locationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Location",
+        required: false,
+      },
       bezeichnung: {
         type: String,
         required: true,
       },
       groesse: {
+        type: String,
+        required: false,
+      },
+      variationKey: {
         type: String,
         required: false,
       },
@@ -49,6 +76,15 @@ const MonitoringSchema = new mongoose.Schema({
     },
   ],
   anmerkung: {
+    type: String,
+    required: false,
+  },
+  packageTemplate: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PaketVorlage",
+    required: false,
+  },
+  packageTemplateName: {
     type: String,
     required: false,
   },

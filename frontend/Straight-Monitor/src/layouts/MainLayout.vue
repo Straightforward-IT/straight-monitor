@@ -58,7 +58,7 @@ const routeTitleFallbacks = {
   SignaturenPage: 'Signaturen',
   PdfAusfuellen: 'PDF ausfüllen',
   Dispo: 'Dispo',
-  BenutzerVerwaltung: 'Benutzerverwaltung',
+  BenutzerVerwaltung: 'Monitor Verwaltung',
   MailboxExplorer: 'Mailbox Explorer',
 };
 

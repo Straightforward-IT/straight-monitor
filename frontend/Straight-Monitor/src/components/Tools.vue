@@ -21,7 +21,7 @@
 
       <button class="s-btn" :class="{ 'dev-role--admin': isDev }" v-if="newPagesEnabled" @click="go('/benutzer-verwaltung')">
         <img :src="logoSrc" alt="" />
-        <span>Benutzer Verwaltung</span>
+        <span>Monitor Verwaltung</span>
       </button>
 
       <button class="s-btn" :class="{ 'dev-role--admin': isDev }" v-if="newPagesEnabled" @click="go('/mailbox-explorer')">

@@ -97,7 +97,20 @@
     <aside v-if="task" class="task-panel">
       <p class="eyebrow">Asana-Aufgabe</p>
       <h2>{{ task.name }}</h2>
-      <p v-if="task.notes" class="task-notes">{{ task.notes }}</p>
+      <div v-if="taskContent" class="task-content">{{ taskContent }}</div>
+
+      <section class="task-comments">
+        <h3>Kommentare</h3>
+        <p v-if="loadingComments" class="task-panel-state">Kommentare werden geladen ...</p>
+        <p v-else-if="!comments.length" class="task-panel-state">Keine Kommentare vorhanden.</p>
+        <article v-for="comment in comments" :key="comment.gid" class="task-comment">
+          <header>
+            <strong>{{ comment.created_by?.name || 'Asana' }}</strong>
+            <time v-if="comment.created_at">{{ formatCommentDate(comment.created_at) }}</time>
+          </header>
+          <p>{{ commentText(comment) }}</p>
+        </article>
+      </section>
     </aside>
   </main>
 </template>
@@ -128,12 +141,34 @@ function extractContact(text = "") {
   return { email, telefon };
 }
 
+function removeMonitorLinks(text = "") {
+  return String(text)
+    .replace(/https?:\/\/straightmonitor\.com\/(?:bewerber\/erstellen|flip\/benutzer-erstellen)\/[^\s<]+\s*/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function htmlToPlainText(html = "") {
+  return String(html)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>|<\/div>|<\/li>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\n\s*\n\s*\n+/g, "\n\n")
+    .trim();
+}
+
 export default {
   name: "BewerberCreate",
   data() {
     return {
       task: null,
+      comments: [],
       loading: true,
+      loadingComments: false,
       submitting: false,
       existingApplicant: null,
       error: "",
@@ -161,10 +196,31 @@ export default {
     licenseClasses() {
       return ["B", "BE", "A", "A1", "C1", "C1E", "C", "CE", "D1", "D1E", "D", "DE", "L", "T", "M"];
     },
+    taskContent() {
+      return removeMonitorLinks(this.task?.notes || this.task?.html_notes || "");
+    },
   },
   methods: {
     setLicense(value) {
       this.form.fuehrerscheine = value ? [value] : [];
+    },
+    commentText(comment) {
+      return htmlToPlainText(comment.html_text || comment.text || "");
+    },
+    formatCommentDate(value) {
+      return new Date(value).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
+    },
+    async loadComments(taskId) {
+      this.loadingComments = true;
+      try {
+        const response = await api.get(`/api/asana/task/${taskId}/stories`);
+        const stories = response.data.stories?.data || response.data.stories || [];
+        this.comments = stories.filter((story) => this.commentText(story));
+      } catch (error) {
+        this.comments = [];
+      } finally {
+        this.loadingComments = false;
+      }
     },
     async loadTask() {
       const taskId = this.form.asana_id;
@@ -193,6 +249,7 @@ export default {
         this.form.nachname = name.nachname;
         this.form.email = contact.email;
         this.form.telefon = contact.telefon;
+        this.loadComments(taskId);
       } catch (error) {
         this.error = error.response?.data?.message || "Die Asana-Aufgabe konnte nicht geladen werden.";
       } finally {
@@ -245,6 +302,17 @@ export default {
   padding: 24px;
 }
 
+.task-panel {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  position: sticky;
+  top: 20px;
+}
+
 .panel-header {
   display: flex;
   justify-content: space-between;
@@ -270,11 +338,21 @@ h2 {
 }
 
 .panel-header p:not(.eyebrow),
-.task-notes {
+.task-content {
   color: var(--muted);
   line-height: 1.5;
   margin-top: 8px;
+  white-space: pre-wrap;
 }
+
+.task-comments { border-top: 1px solid var(--border); display: grid; gap: 10px; margin-top: 8px; padding-top: 16px; }
+.task-comments h3 { color: var(--text); font-size: .9rem; }
+.task-panel-state { color: var(--muted); font-size: .8rem; }
+.task-comment { border-left: 2px solid var(--primary); display: grid; gap: 6px; padding-left: 10px; }
+.task-comment header { align-items: baseline; display: flex; gap: 8px; justify-content: space-between; }
+.task-comment strong { color: var(--text); font-size: .8rem; }
+.task-comment time, .task-comment p { color: var(--muted); font-size: .75rem; }
+.task-comment p { line-height: 1.45; white-space: pre-wrap; }
 
 .eyebrow {
   color: var(--primary);
@@ -405,5 +483,7 @@ textarea:focus {
     grid-template-columns: 1fr;
     display: grid;
   }
+
+  .task-panel { max-height: none; position: static; }
 }
 </style>

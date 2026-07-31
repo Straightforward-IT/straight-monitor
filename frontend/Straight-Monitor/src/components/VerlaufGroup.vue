@@ -57,8 +57,10 @@
               <font-awesome-icon class="expand-icon small" :icon="['fas', log.isExpanded ? 'eye-slash' : 'eye']" />
             </div>
 
-            <p v-if="log.anmerkung" class="log-annotation">
-              <strong>Anmerkung:</strong> {{ log.anmerkung }}
+            <p v-if="log.packageTemplateName || annotationText(log)" class="log-annotation">
+              <template v-if="log.packageTemplateName"><strong>Paket:</strong> {{ log.packageTemplateName }}</template>
+              <template v-if="log.packageTemplateName && annotationText(log)"> · </template>
+              <template v-if="annotationText(log)"><strong>Anmerkung:</strong> {{ annotationText(log) }}</template>
             </p>
 
             <div v-if="log.isExpanded" class="log-details">
@@ -113,6 +115,9 @@ export default {
       if (this.expandedKeys.has(key)) this.expandedKeys.delete(key);
       else this.expandedKeys.add(key);
       this.$forceUpdate();
+    },
+    annotationText(log) {
+      return String(log.anmerkung || '').replace(/\[Paketvorlage: [a-f\d]{24}\]\s*/i, '').trim();
     },
     toggleExpandLog(log) { log.isExpanded = !log.isExpanded; },
     areLogsExpanded(logs) {
