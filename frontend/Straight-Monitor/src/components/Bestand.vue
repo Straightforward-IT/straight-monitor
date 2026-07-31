@@ -34,6 +34,10 @@
       <SearchBar v-model="search" class="toolbar-search" placeholder="Bezeichnung, Variante, Größe oder Standort" />
 
       <ToolbarGroup push-right>
+        <ToolbarButton variant="secondary" title="Bestandsaktionen" @click="openActionMenu">
+          <font-awesome-icon :icon="['fas', 'ellipsis']" />
+          Aktionen
+        </ToolbarButton>
         <ToolbarButton variant="secondary" title="Bestand aktualisieren" @click="refreshStocks">
           <font-awesome-icon :icon="['fas', loading ? 'spinner' : 'rotate']" :spin="loading" />
           Aktualisieren
@@ -125,6 +129,15 @@
 
     <InventoryItemModal v-model="showCreateDialog" :item="editingItem" @created="handleCreated" @updated="handleItemUpdated" />
     <InventoryTransactionModal v-if="selectedStock" v-model="selectedStock" @updated="handleStockUpdated" />
+    <InventoryReportModal
+      v-if="reportMode"
+      :mode="reportMode"
+      :stocks="stocks"
+      :locations="locationRecords"
+      :initial-location-ids="selectedLocationIds"
+      @close="reportMode = null"
+    />
+    <ContextMenu v-if="actionMenu.visible" :x="actionMenu.x" :y="actionMenu.y" :options="actionMenuOptions" @close="actionMenu.visible = false" @select="handleActionMenu" />
   </section>
 </template>
 
@@ -132,7 +145,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faArrowUpRightFromSquare, faChevronDown, faChevronUp, faPen, faPlus, faRotate, faSpinner, faWarehouse } from '@fortawesome/free-solid-svg-icons';
+import { faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faWarehouse } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { useDataCache } from '@/stores/dataCache';
 import { useAuth } from '@/stores/auth';
@@ -147,8 +160,10 @@ import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import InventoryItemModal from '@/components/InventoryItemModal.vue';
 import InventoryTransactionModal from '@/components/InventoryTransactionModal.vue';
+import ContextMenu from '@/components/ContextMenu.vue';
+import InventoryReportModal from '@/components/InventoryReportModal.vue';
 
-library.add(faArrowUpRightFromSquare, faChevronDown, faChevronUp, faPen, faPlus, faRotate, faSpinner, faWarehouse);
+library.add(faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faWarehouse);
 
 const dataCache = useDataCache();
 const auth = useAuth();
@@ -169,6 +184,12 @@ const showCreateDialog = ref(false);
 const editingItem = ref(null);
 const expandedItemIds = ref([]);
 const selectedItemLocationIds = ref({});
+const reportMode = ref(null);
+const actionMenu = ref({ visible: false, x: 0, y: 0 });
+const actionMenuOptions = [
+  { label: 'Bestandsupdate senden', action: 'email' },
+  { label: 'Excel-Liste herunterladen', action: 'excel' },
+];
 
 const locations = computed(() => {
   const usedLocationIds = new Set(stocks.value.map((stock) => String(stock.locationId)).filter(Boolean));
@@ -243,6 +264,14 @@ function resetFilters() {
   stockState.value = 'all';
   variationOnly.value = false;
   sizeOnly.value = false;
+}
+
+function openActionMenu(event) {
+  actionMenu.value = { visible: true, x: event.clientX - 150, y: event.clientY + 8 };
+}
+
+function handleActionMenu(action) {
+  reportMode.value = action;
 }
 
 function applyLocationDefault() {

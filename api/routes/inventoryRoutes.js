@@ -8,6 +8,7 @@ const Monitoring = require('../models/Monitoring');
 const Mitarbeiter = require('../models/Mitarbeiter');
 const PaketVorlage = require('../models/PaketVorlage');
 const User = require('../models/User');
+const { sendMail } = require('../EmailService');
 const {
   findInventoryStock,
   listFlatStocks,
@@ -40,6 +41,33 @@ function normalizeItemPayload(body, partial = false) {
 
 function stockCombinationKey(stock) {
   return [String(stock.location), stock.variationKey || '', stock.groesseKey || 'onesize'].join('|');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function inventoryReportHtml(location, rows, groupByShop) {
+  const groups = groupByShop
+    ? [...rows.reduce((map, row) => {
+      const key = row.shopUrl || 'Ohne Shop-Zuordnung';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(row);
+      return map;
+    }, new Map()).entries()]
+    : [['Bestand', rows]];
+  const tables = groups.map(([shop, groupRows]) => `
+    ${groupByShop ? `<h3>${escapeHtml(shop)}</h3>` : ''}
+    <table style="border-collapse:collapse;width:100%;margin:12px 0 20px">
+      <thead><tr><th>Artikel</th><th>Variation</th><th>Größe</th><th>Bestand</th><th>Soll</th></tr></thead>
+      <tbody>${groupRows.map((row) => `<tr><td>${escapeHtml(row.bezeichnung)}</td><td>${escapeHtml(row.variation || 'Standard')}</td><td>${escapeHtml(row.groesse || 'Onesize')}</td><td style="text-align:right">${row.bestand}</td><td style="text-align:right">${row.soll}</td></tr>`).join('')}</tbody>
+    </table>`).join('');
+  return `<div style="font-family:Arial,sans-serif;color:#222"><h2>Bestandsupdate ${escapeHtml(location.nameFull)}</h2><p>Stand: ${new Date().toLocaleDateString('de-DE')}</p>${tables}</div>`;
 }
 
 async function currentUser(userId) {
@@ -101,6 +129,46 @@ router.get('/items', auth, asyncHandler(async (_req, res) => {
     .sort({ bezeichnung: 1 })
     .lean();
   res.json(items);
+}));
+
+router.post('/stock-report/email', auth, asyncHandler(async (req, res) => {
+  const locationIds = [...new Set((req.body.locationIds || []).filter(mongoose.isValidObjectId).map(String))];
+  const itemIds = [...new Set((req.body.itemIds || []).filter(mongoose.isValidObjectId).map(String))];
+  const groupByShop = Boolean(req.body.groupByShop);
+  if (!locationIds.length || !itemIds.length) throw httpError(400, 'Mindestens ein Standort und Artikel ist erforderlich');
+
+  const [locations, items] = await Promise.all([
+    Location.find({ _id: { $in: locationIds }, isActive: true }).select('nameFull contact.mainEmail').lean(),
+    InventoryItem.find({ _id: { $in: itemIds }, isActive: true }).populate('bestaende.location', 'nameFull').lean(),
+  ]);
+  const selectedLocations = new Map(locations.map((location) => [String(location._id), location]));
+  const sent = [];
+  const skipped = [];
+
+  for (const locationId of locationIds) {
+    const location = selectedLocations.get(locationId);
+    if (!location) continue;
+    const recipient = location.contact?.mainEmail;
+    if (!recipient) {
+      skipped.push({ location: location.nameFull, reason: 'Keine Kontakt-E-Mail hinterlegt' });
+      continue;
+    }
+    const rows = items.flatMap((item) => item.bestaende
+      .filter((stock) => stock.isActive && String(stock.location?._id) === locationId)
+      .map((stock) => ({
+        bezeichnung: item.bezeichnung,
+        variation: item.variationen.find((option) => option.key === stock.variationKey)?.label || '',
+        groesse: item.groessen.find((option) => option.key === stock.groesseKey)?.label || stock.groesseKey,
+        bestand: stock.bestand,
+        soll: stock.soll,
+        shopUrl: stock.shopUrl || item.shopUrl || '',
+      })));
+    if (!rows.length) continue;
+    await sendMail([recipient], `Bestandsupdate ${location.nameFull} vom ${new Date().toLocaleDateString('de-DE')}`, inventoryReportHtml(location, rows, groupByShop), 'it');
+    sent.push({ location: location.nameFull, recipient, count: rows.length });
+  }
+
+  res.json({ sent, skipped });
 }));
 
 router.post('/items', auth, asyncHandler(async (req, res) => {
