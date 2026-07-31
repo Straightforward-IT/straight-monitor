@@ -142,13 +142,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faWarehouse } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { useDataCache } from '@/stores/dataCache';
-import { useAuth } from '@/stores/auth';
 import { useInventoryFilters } from '@/stores/inventoryFilters';
 import api from '@/utils/api';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
@@ -166,14 +165,12 @@ import InventoryReportModal from '@/components/InventoryReportModal.vue';
 library.add(faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faWarehouse);
 
 const dataCache = useDataCache();
-const auth = useAuth();
 const inventoryFilters = useInventoryFilters();
 const { locationIds: selectedLocationIds } = storeToRefs(inventoryFilters);
 const stocks = computed(() => dataCache.items);
 const search = ref('');
 const filterOpen = ref(false);
 const locationRecords = ref([]);
-const hasAppliedLocationDefault = ref(false);
 const stockState = ref('all');
 const variationOnly = ref(false);
 const sizeOnly = ref(false);
@@ -274,13 +271,6 @@ function handleActionMenu(action) {
   reportMode.value = action;
 }
 
-function applyLocationDefault() {
-  if (hasAppliedLocationDefault.value || !auth.user) return;
-  hasAppliedLocationDefault.value = true;
-  const locationId = auth.user.locationV2?._id || auth.user.locationV2;
-  if (locationId) inventoryFilters.setLocations([locationId]);
-}
-
 async function refreshStocks() {
   loading.value = true;
   error.value = '';
@@ -290,7 +280,6 @@ async function refreshStocks() {
       api.get('/api/locations'),
     ]);
     locationRecords.value = locationsResponse.data;
-    applyLocationDefault();
   } catch (requestError) {
     error.value = requestError.response?.data?.message || 'Der Bestand konnte nicht geladen werden.';
   } finally {
@@ -362,8 +351,6 @@ async function handleItemUpdated() {
 async function handleStockUpdated(stock) {
   await dataCache.updateCachedItem(stock);
 }
-
-watch(() => auth.user, applyLocationDefault, { immediate: true });
 
 onMounted(refreshStocks);
 </script>
