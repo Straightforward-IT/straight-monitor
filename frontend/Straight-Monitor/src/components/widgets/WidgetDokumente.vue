@@ -6,10 +6,10 @@
     :loading="loading"
   >
     <template #actions>
-      <select v-model="standort" class="wp-select">
+      <select v-model="selectedLocation" class="wp-select">
         <option value="Alle">Alle</option>
-        <option v-for="loc in LOCATIONS" :key="loc.value" :value="loc.value">
-          {{ loc.label }}
+        <option v-for="location in locations" :key="location._id" :value="location._id">
+          {{ location.shortName || location.nameFull }}
         </option>
       </select>
     </template>
@@ -49,16 +49,11 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { RouterLink } from "vue-router";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import api from "@/utils/api";
 import { useDataCache } from "@/stores/dataCache";
 import { useAuth } from "@/stores/auth";
 import DashboardWidget from "./DashboardWidget.vue";
 import TlBadge from "@/components/ui-elements/TlBadge.vue";
-
-const LOCATIONS = [
-  { label: "HH", value: "Hamburg" },
-  { label: "B",  value: "Berlin"  },
-  { label: "K",  value: "Köln"    },
-];
 
 const cache = useDataCache();
 const auth = useAuth();
@@ -66,15 +61,14 @@ const auth = useAuth();
 const loading = computed(() => cache.loading.documents);
 
 // Default to user's location, fallback to 'Alle'
-const standort = ref("Alle");
+const locations = ref([]);
+const selectedLocation = ref("Alle");
 const _locationInitialized = ref(false);
 watch(
   () => auth.user,
   (u) => {
-    if (!_locationInitialized.value && u?.location) {
-      if (LOCATIONS.some((l) => l.value === u.location)) {
-        standort.value = u.location;
-      }
+    if (!_locationInitialized.value && u?.locationV2) {
+      selectedLocation.value = String(u.locationV2?._id || u.locationV2);
       _locationInitialized.value = true;
     }
   },
@@ -97,10 +91,10 @@ const formatDate = (val) => {
 const recentFiltered = computed(() => {
   let list = [...(cache.documents || [])];
   
-  if (standort.value !== "Alle") {
+  if (selectedLocation.value !== "Alle") {
     list = list.filter((doc) => {
-      const location = doc.details?.location || doc.bezeichnung;
-      return location === standort.value;
+      const location = doc.details?.locationV2;
+      return String(location?._id || location) === selectedLocation.value;
     });
   }
   
@@ -109,7 +103,9 @@ const recentFiltered = computed(() => {
     .slice(0, 3);
 });
 
-onMounted(() => {
+onMounted(async () => {
+  const { data } = await api.get("/api/locations");
+  locations.value = data || [];
   cache.loadDocuments();
 });
 </script>

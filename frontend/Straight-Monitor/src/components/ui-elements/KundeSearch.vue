@@ -59,7 +59,7 @@
           <font-awesome-icon v-if="isSelected(k)" :icon="['fas', 'check']" class="kunde-search__check" />
           <span class="kunde-search__item-name">
             <span v-if="k.kuerzel" class="kunde-search__kuerzel">{{ k.kuerzel }}</span>
-            <span v-if="k.kostenSt" class="kunde-search__nr">{{ { '1': 'Berlin', '2': 'Hamburg', '3': 'Köln' }[k.kostenSt] ?? k.kostenSt }}</span>
+            <span v-if="k.locationV2" class="kunde-search__nr">{{ k.locationV2.shortName || k.locationV2.nameFull }}</span>
             {{ k.kundName }}
           </span>
           <span class="kunde-search__metric">
@@ -87,7 +87,7 @@ const props = defineProps({
   multiple:    { type: Boolean, default: false },
   placeholder: { type: String,  default: 'Kunde suchen (Name, Nr., Kürzel)…' },
   dropup:      { type: Boolean, default: false },
-  standort:    { type: String,  default: null },
+  locationV2:  { type: String,  default: null },
   mitarbeiterId: { type: String, default: null },
 });
 const emit = defineEmits(['update:modelValue', 'select']);
@@ -107,11 +107,11 @@ const dropdownStyle = ref({});
 let debounceTimer   = null;
 
 function sortResults(list) {
-  const userLoc = auth.user?.location || null;
+  const userLocationV2 = auth.user?.locationV2?._id || auth.user?.locationV2 || null;
   const score = (kunde) => (
     (kunde.kundStatus === 2 ? 4 : 0) +
     (kunde.kuerzel ? 2 : 0) +
-    (userLoc && kunde.geschSt === userLoc ? 1 : 0)
+    (userLocationV2 && String(kunde.locationV2?._id || kunde.locationV2) === String(userLocationV2) ? 1 : 0)
   );
 
   return [...list].sort((a, b) => {
@@ -137,7 +137,7 @@ async function fetchResults(searchText = query.value) {
   try {
     const params = {};
     if (trimmed) params.q = trimmed;
-    if (props.standort) params.standort = props.standort;
+    if (props.locationV2) params.locationV2 = props.locationV2;
     if (props.mitarbeiterId) params.mitarbeiterId = props.mitarbeiterId;
 
     const { data } = await api.get('/api/kunden/search', { params });

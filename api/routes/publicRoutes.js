@@ -16,6 +16,10 @@ const { sendMail } = require("../EmailService");
 const registry = require("../config/registry");
 const { assignTeamleiter, updateLaufzettelBadge } = require("../FlipService");
 const { flipAxios } = require("../flipAxios");
+const {
+  resolveActiveLocation,
+  resolveLocationFromStandortName,
+} = require("../services/LocationResolutionService");
 
 // All routes in this file require FLIP_PUBLIC_JWT
 router.use(publicAuth);
@@ -69,6 +73,29 @@ function detectBereiche({ berufKey, berufDesignation, einsatzBezeichnung }) {
   const isLogistik = LOGISTIK_JOB_KEYS.has(numericBerufKey) || hasBereichKeyword(sourceText, LOGISTIK_KEYWORDS);
 
   return { isService, isLogistik };
+}
+
+async function resolveDocumentLocation({ location, locationV2 }) {
+  if (locationV2) {
+    const resolvedLocation = await resolveActiveLocation(locationV2);
+    if (!resolvedLocation) {
+      return { error: "Der gewählte Standort ist nicht aktiv oder existiert nicht" };
+    }
+
+    return {
+      location: resolvedLocation.nameFull,
+      locationV2: resolvedLocation._id,
+    };
+  }
+
+  const legacyLocation = String(location || "").trim();
+  if (!legacyLocation) return { error: "Standort ist erforderlich" };
+
+  const resolvedLocation = await resolveLocationFromStandortName(legacyLocation);
+  return {
+    location: resolvedLocation?.nameFull || legacyLocation,
+    locationV2: resolvedLocation?._id || null,
+  };
 }
 
 // ──────────────────────────────────────────────
@@ -397,10 +424,16 @@ router.post(
       feedback_auftraggeber,
       sonstiges,
       teamleiter_email,
+      locationV2,
     } = req.body;
 
-    if (!datum || !name_teamleiter || !kunde || !location) {
+    if (!datum || !name_teamleiter || !kunde || (!location && !locationV2)) {
       return res.status(400).json({ msg: "Pflichtfelder fehlen (datum, name_teamleiter, kunde, location)" });
+    }
+
+    const resolvedDocumentLocation = await resolveDocumentLocation({ location, locationV2 });
+    if (resolvedDocumentLocation.error) {
+      return res.status(400).json({ msg: resolvedDocumentLocation.error });
     }
 
     // Find the Teamleiter by email (check additionalEmails too)
@@ -427,7 +460,8 @@ router.post(
     }
 
     const eventReport = new EventReport({
-      location,
+      location: resolvedDocumentLocation.location,
+      locationV2: resolvedDocumentLocation.locationV2,
       kunde,
       auftragnummer: auftragnummer || "",
       name_teamleiter,
@@ -453,7 +487,7 @@ router.post(
     (async () => {
       try {
         const BASE_URL = 'https://straightmonitor.com';
-        const recipients = registry.getEventReportRecipients(location);
+        const recipients = registry.getEventReportRecipients(resolvedDocumentLocation.location);
         const fmtField = (v) => v && String(v).trim() ? String(v).trim() : '<span style="color:#999;">—</span>';
         const fmtText = (v) => v && String(v).trim() ? String(v).trim().replace(/\n/g, '<br>') : '<span style="color:#999;">—</span>';
         const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
@@ -678,14 +712,18 @@ router.get(
 router.post(
   "/laufzettel",
   asyncHandler(async (req, res) => {
-    const { email, auftragNr, teamleiter_email, standort } = req.body;
+    const { email, auftragNr, teamleiter_email, standort, locationV2 } = req.body;
 
-    const VALID_STANDORTE = ['Hamburg', 'Berlin', 'Köln'];
     if (!email || !auftragNr || !teamleiter_email) {
       return res.status(400).json({ msg: "Pflichtfelder fehlen (email, auftragNr, teamleiter_email)" });
     }
-    if (!standort || !VALID_STANDORTE.includes(standort)) {
-      return res.status(400).json({ msg: `Ungültige Niederlassung. Erlaubt: ${VALID_STANDORTE.join(', ')}` });
+
+    const resolvedDocumentLocation = await resolveDocumentLocation({
+      location: standort,
+      locationV2,
+    });
+    if (resolvedDocumentLocation.error) {
+      return res.status(400).json({ msg: resolvedDocumentLocation.error });
     }
 
     // Resolve Mitarbeiter (submitter — check additionalEmails too)
@@ -707,12 +745,13 @@ router.post(
       .select("eventTitel eventLocation eventOrt kundenNr geschSt vonDatum")
       .lean();
 
-    const location = standort; // Niederlassung (Hamburg/Berlin/Köln), not event venue
+    const location = resolvedDocumentLocation.location;
     const kunde = auftrag?.eventTitel || "";
     const datum = auftrag?.vonDatum ? new Date(auftrag.vonDatum) : new Date();
 
     const laufzettel = new Laufzettel({
       location,
+      locationV2: resolvedDocumentLocation.locationV2,
       auftragnummer: parseInt(auftragNr),
       kunde,
       name_mitarbeiter: `${mitarbeiter.vorname} ${mitarbeiter.nachname}`.trim(),

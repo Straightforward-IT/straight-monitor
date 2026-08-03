@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Kunde = require('../models/Kunde');
 const Auftrag = require('../models/Auftrag');
@@ -84,6 +85,7 @@ async function getKundenCountMapForMitarbeiter(mitarbeiterId) {
 // @access  Private
 router.get('/', auth, asyncHandler(async (req, res) => {
   const kunden = await Kunde.find()
+    .populate('locationV2', 'nameFull shortName color externalId')
     .populate('kontakte.angelegtVon', 'name email')
     .populate('kontakte.kommentare.verfasser', 'name email')
     .sort({ kundName: 1 });
@@ -96,10 +98,13 @@ router.get('/', auth, asyncHandler(async (req, res) => {
 // @access  Private
 router.get('/search', auth, asyncHandler(async (req, res) => {
   const q = (req.query.q || '').trim();
-  const standort = (req.query.standort || '').trim();
+  const locationV2 = (req.query.locationV2 || '').trim();
   const mitarbeiterId = (req.query.mitarbeiterId || '').trim();
 
   if (q.length < 2 && !mitarbeiterId) return res.json([]);
+  if (locationV2 && !mongoose.isValidObjectId(locationV2)) {
+    return res.status(400).json({ message: 'Ungültige locationV2.' });
+  }
 
   const countByKunde = mitarbeiterId
     ? await getKundenCountMapForMitarbeiter(mitarbeiterId)
@@ -113,7 +118,7 @@ router.get('/search', auth, asyncHandler(async (req, res) => {
 
     if (isNum) {
       filter = { kundenNr: Number(q) };
-      if (standort) filter.kostenSt = standort;
+      if (locationV2) filter.locationV2 = locationV2;
     } else {
       filter = {
         $or: [
@@ -122,13 +127,14 @@ router.get('/search', auth, asyncHandler(async (req, res) => {
         ]
       };
 
-      if (standort) {
-        filter.kostenSt = standort;
+      if (locationV2) {
+        filter.locationV2 = locationV2;
       }
     }
 
     kunden = await Kunde.find(filter)
-      .select('_id kundenNr kundName kuerzel kundStatus geschSt kostenSt')
+      .select('_id kundenNr kundName kuerzel kundStatus locationV2')
+      .populate('locationV2', 'shortName nameFull')
       .sort({ kundName: 1 })
       .limit(20)
       .lean();
@@ -140,10 +146,11 @@ router.get('/search', auth, asyncHandler(async (req, res) => {
     if (!kundenNrs.length) return res.json([]);
 
     const kundenQuery = { kundenNr: { $in: kundenNrs } };
-    if (standort) kundenQuery.kostenSt = standort;
+    if (locationV2) kundenQuery.locationV2 = locationV2;
 
     const kundenDocs = await Kunde.find(kundenQuery)
-      .select('_id kundenNr kundName kuerzel kundStatus geschSt kostenSt')
+      .select('_id kundenNr kundName kuerzel kundStatus locationV2')
+      .populate('locationV2', 'shortName nameFull')
       .lean();
 
     const kundeByNr = new Map(kundenDocs.map((kunde) => [kunde.kundenNr, kunde]));

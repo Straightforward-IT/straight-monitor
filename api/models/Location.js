@@ -16,6 +16,7 @@ const openingHourSlotSchema = new mongoose.Schema({
 const locationSchema = new mongoose.Schema({
   nameFull: { type: String, required: true, trim: true },
   shortName: { type: String, required: true, trim: true },
+  color: { type: String, default: '#6b7280', trim: true },
   address: {
     street: { type: String, default: '', trim: true },
     houseNumber: { type: String, default: '', trim: true },

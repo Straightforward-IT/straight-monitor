@@ -6,9 +6,9 @@
     :loading="loading"
   >
     <template #actions>
-      <select v-model="standort" class="wt-select">
+      <select v-model="selectedLocation" class="wt-select">
         <option value="">Alle</option>
-        <option v-for="loc in LOCATIONS" :key="loc.value" :value="loc.value">{{ loc.label }}</option>
+        <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.shortName || location.nameFull }}</option>
       </select>
     </template>
 
@@ -38,26 +38,18 @@ import { useAuth } from "@/stores/auth";
 import api from "@/utils/api";
 import DashboardWidget from "./DashboardWidget.vue";
 
-const LOCATIONS = [
-  { label: "HH", value: "2" },
-  { label: "B",  value: "1" },
-  { label: "K",  value: "3" },
-];
-
-const USER_LOC_MAP = { hamburg: "2", berlin: "1", "köln": "3", koeln: "3" };
-
 const auth    = useAuth();
 const list    = ref([]);
 const loading = ref(true);
-const standort  = ref("");
+const locations = ref([]);
+const selectedLocation = ref("");
 const _initDone = ref(false);
 
 watch(
   () => auth.user,
   (u) => {
-    if (!_initDone.value && u?.location) {
-      const key = u.location.toLowerCase().replace(/ö/g, "o");
-      standort.value = Object.entries(USER_LOC_MAP).find(([k]) => k === key)?.[1] ?? "";
+    if (!_initDone.value && u?.locationV2) {
+      selectedLocation.value = String(u.locationV2?._id || u.locationV2);
       _initDone.value = true;
     }
   },
@@ -70,11 +62,7 @@ const year  = String(now.getFullYear());
 const month = String(now.getMonth() + 1).padStart(2, "0");
 
 const filtered = computed(() => {
-  let data = list.value;
-  if (standort.value) {
-    data = data.filter((tl) => String(tl.personalnr).charAt(0) === standort.value);
-  }
-  return [...data].sort((a, b) => b.quote - a.quote); // best first
+  return [...list.value].sort((a, b) => b.quote - a.quote); // best first
 });
 
 const quoteColor = (q) => {
@@ -89,15 +77,17 @@ const deepLink = (tl) => ({
   query: {
     year,
     month,
-    ...(standort.value ? { standort: standort.value } : {}),
+    ...(selectedLocation.value ? { locationV2: selectedLocation.value } : {}),
     expanded: tl._id,
   },
 });
 
 onMounted(async () => {
   try {
+    const { data: locationData } = await api.get("/api/locations");
+    locations.value = locationData || [];
     const res = await api.get("/api/personal/teamleiter-stats", {
-      params: { month, year },
+      params: { month, year, ...(selectedLocation.value ? { locationV2: selectedLocation.value } : {}) },
     });
     list.value = (res.data ?? []).map((tl) => ({
       ...tl,
@@ -105,6 +95,21 @@ onMounted(async () => {
     }));
   } catch (e) {
     console.error("WidgetTeamleiter fetch error:", e);
+  } finally {
+    loading.value = false;
+  }
+});
+
+watch(selectedLocation, async () => {
+  loading.value = true;
+  try {
+    const res = await api.get("/api/personal/teamleiter-stats", {
+      params: { month, year, ...(selectedLocation.value ? { locationV2: selectedLocation.value } : {}) },
+    });
+    list.value = (res.data ?? []).map((tl) => ({
+      ...tl,
+      quote: tl.einsatzCount ? Math.round((tl.reportCount / tl.einsatzCount) * 100) : 0,
+    }));
   } finally {
     loading.value = false;
   }

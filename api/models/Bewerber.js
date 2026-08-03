@@ -62,6 +62,12 @@ const BewerberSchema = new mongoose.Schema(
     asana_id: { type: String, trim: true, sparse: true, unique: true },
     asana_permalink: { type: String, trim: true, default: "" },
     teamKey: { type: String, required: true, trim: true, lowercase: true },
+    locationV2: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      default: null,
+      index: true,
+    },
 
     anrede: { type: String, enum: ["Herr", "Frau", ""], default: "" },
     vorname: { type: String, required: true, trim: true },

@@ -79,7 +79,7 @@
         <label>Niederlassung</label>
         <div v-if="selectedStandort" class="prefill-info">
           <div class="prefill-row">
-            <span class="prefill-value">{{ selectedStandort }}</span>
+            <span class="prefill-value">{{ selectedStandortName }}</span>
           </div>
         </div>
         <div v-else class="empty-hint-sm">Keine Niederlassung ermittelbar.</div>
@@ -163,7 +163,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useTheme } from '@/stores/theme';
 import { usePublicDraftAutosave } from '@/composables/usePublicDraftAutosave';
 import laufzettelLight from '@/assets/laufzettel.png';
@@ -211,13 +211,45 @@ const {
 
 // ── Standort ──────────────────────────────────
 const selectedStandort = ref('');
+const locations = ref([]);
+
+function normalizeLocationName(value) {
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function resolveLocationId(value) {
+  if (!value) return '';
+  const directLocation = locations.value.find((location) => String(location._id) === String(value));
+  if (directLocation) return directLocation._id;
+
+  const legacyName = { 1: 'Berlin', 2: 'Hamburg', 3: 'Köln' }[value] || value;
+  return locations.value.find((location) => (
+    String(location.externalId) === String(value)
+    || normalizeLocationName(location.nameFull) === normalizeLocationName(legacyName)
+    || normalizeLocationName(location.shortName) === normalizeLocationName(legacyName)
+  ))?._id || '';
+}
+
+const selectedStandortName = computed(() =>
+  locations.value.find((location) => String(location._id) === String(selectedStandort.value))?.nameFull || ''
+);
+
+async function fetchLocations() {
+  try {
+    const { data } = await props.api.get('/api/locations');
+    locations.value = data || [];
+    if (selectedEinsatz.value) selectedStandort.value = detectStandort(selectedEinsatz.value);
+  } catch (error) {
+    console.error('Standorte konnten nicht geladen werden:', error);
+  }
+}
 
 function detectStandort(einsatz) {
-  const gs = einsatz?.auftrag?.geschSt;
-  if (gs == 1) return 'Berlin';
-  if (gs == 2) return 'Hamburg';
-  if (gs == 3) return 'Köln';
-  return '';
+  return resolveLocationId(einsatz?.auftrag?.locationV2?._id || einsatz?.auftrag?.locationV2 || einsatz?.auftrag?.geschSt);
 }
 
 // ── Job selection ─────────────────────────────
@@ -303,7 +335,7 @@ async function applyDraft(draft) {
   if (!einsatz) return false;
 
   selectedEinsatz.value = einsatz;
-  selectedStandort.value = draft.selectedStandort || detectStandort(einsatz);
+  selectedStandort.value = resolveLocationId(draft.selectedStandort) || detectStandort(einsatz);
   await loadTeamleiter(einsatz.auftragNr);
 
   if (draft.selectedTeamleiter) {
@@ -387,7 +419,7 @@ async function submitLaufzettel() {
       email: props.email,
       auftragNr: selectedEinsatz.value.auftragNr,
       teamleiter_email: selectedTeamleiter.value.email,
-      standort: selectedStandort.value
+      locationV2: selectedStandort.value
     });
     storageRemove(draftKeyFor());
     resetStatus();
@@ -410,6 +442,8 @@ watch(
   },
   { deep: true }
 );
+
+onMounted(fetchLocations);
 
 // ── Helpers ───────────────────────────────────
 function formatDate(d) {

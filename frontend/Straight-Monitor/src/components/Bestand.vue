@@ -16,6 +16,7 @@
             v-for="location in locations"
             :key="location._id"
             :active="selectedLocationIds.includes(String(location._id))"
+            :style="{ '--location-color': location.color || '#6b7280' }"
             @click="toggleLocationFilter(String(location._id))"
           >
             {{ location.nameFull }}
@@ -66,7 +67,15 @@
             </a>
           </div>
           <div class="item-card__actions">
-            <span class="item-card__total">{{ item.totalBestand }}</span>
+            <span class="item-card__totals" aria-label="Bestand nach Standort">
+              <span
+                v-for="location in item.locationTotals"
+                :key="location.id"
+                class="item-card__total"
+                :style="{ '--location-color': location.color }"
+                :title="`${location.name}: ${location.anzahl}`"
+              >{{ location.shortName || location.name }} {{ location.anzahl }}</span>
+            </span>
             <button type="button" class="item-card__edit" title="Artikel bearbeiten" @click.stop="openItemEdit(item)">
               <font-awesome-icon :icon="['fas', 'pen']" />
             </button>
@@ -221,7 +230,6 @@ const groupedItems = computed(() => {
         bezeichnung: stock.bezeichnung,
         shopUrl: stock.shopUrl,
         stocks: [],
-        totalBestand: 0,
         locations: new Map(),
         variations: new Map(),
         sizes: new Map(),
@@ -229,11 +237,11 @@ const groupedItems = computed(() => {
     }
     const group = groups.get(key);
     group.stocks.push(stock);
-    group.totalBestand += Number(stock.anzahl || 0);
     group.locations.set(String(stock.locationId), {
       id: String(stock.locationId),
       name: stock.standort || 'Ohne Standort',
       shortName: stock.standortKurz || '',
+      color: stock.standortColor || '#6b7280',
     });
     group.variations.set(stock.variationKey || '__standard', {
       key: stock.variationKey || '__standard',
@@ -247,6 +255,14 @@ const groupedItems = computed(() => {
   return [...groups.values()].map((group) => ({
     ...group,
     locations: [...group.locations.values()].sort((left, right) => left.name.localeCompare(right.name, 'de')),
+    locationTotals: [...group.locations.values()]
+      .map((location) => ({
+        ...location,
+        anzahl: group.stocks
+          .filter((stock) => String(stock.locationId) === location.id)
+          .reduce((total, stock) => total + Number(stock.anzahl || 0), 0),
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name, 'de')),
     variations: [...group.variations.values()],
     sizes: [...group.sizes.values()],
   })).sort((left, right) => left.bezeichnung.localeCompare(right.bezeichnung, 'de'));
@@ -357,6 +373,8 @@ onMounted(refreshStocks);
 
 <style scoped lang="scss">
 .inventory-page { color: var(--text); }
+.inventory-page :deep(.filter-chip) { border-color: color-mix(in srgb, var(--location-color) 45%, var(--border)); color: var(--location-color); }
+.inventory-page :deep(.filter-chip.active) { border-color: var(--location-color); color: var(--location-color); background: color-mix(in srgb, var(--location-color) 12%, transparent); }
 .page-header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 h2 { margin: 0; font-size: 1.55rem; display: flex; gap: 9px; align-items: center; }
 .stock-count { color: var(--muted); font-size: 0.82rem; padding-bottom: 3px; }
@@ -370,7 +388,8 @@ h2 { margin: 0; font-size: 1.55rem; display: flex; gap: 9px; align-items: center
 .item-card h3 { font-size: 0.98rem; margin: 0; }
 .item-card__meta { color: var(--muted); font-size: 0.74rem; }
 .item-card__actions { display: flex; align-items: center; gap: 7px; }
-.item-card__total { min-width: 28px; padding: 4px 7px; border-radius: 5px; background: color-mix(in srgb, var(--primary) 12%, var(--tile-bg)); color: var(--primary); font-size: 0.78rem; font-weight: 700; text-align: center; }
+.item-card__totals { display: flex; align-items: center; justify-content: flex-end; gap: 4px; flex-wrap: wrap; }
+.item-card__total { min-width: 28px; padding: 4px 7px; border-radius: 5px; background: color-mix(in srgb, var(--location-color) 14%, var(--tile-bg)); color: var(--location-color); font-size: 0.78rem; font-weight: 700; text-align: center; white-space: nowrap; }
 .item-card__edit { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
 .item-card__edit:hover { border-color: var(--primary); color: var(--primary); }
 .shop-link { color: var(--muted); font-size: 0.72rem; text-decoration: none; }

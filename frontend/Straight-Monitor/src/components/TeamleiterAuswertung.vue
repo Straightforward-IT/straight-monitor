@@ -20,7 +20,7 @@
         <label>Standort:</label>
         <select 
           v-model="selectedStandort" 
-          @change="updateUrl"
+          @change="fetchData"
           class="standort-select"
         >
           <option v-for="opt in standortOptions" :key="opt.value" :value="opt.value">
@@ -262,29 +262,48 @@ const yyyy = today.getFullYear();
 const mm = String(today.getMonth() + 1).padStart(2, '0');
 const selectedMonth = ref(`${yyyy}-${mm}`);
 const selectedStandort = ref(null); // null = Alle
+const locations = ref([]);
 
-const standortOptions = [
+const standortOptions = computed(() => [
   { value: null, label: 'Alle' },
-  { value: '1', label: 'Berlin' },
-  { value: '2', label: 'Hamburg' },
-  { value: '3', label: 'Köln' }
-];
+  ...locations.value.map((location) => ({
+    value: location._id,
+    label: location.nameFull,
+  })),
+]);
 
-function getStandortPrefix(personalnr) {
-  return String(personalnr).charAt(0);
+function normalizeLocationName(value) {
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
 }
 
-function setStandort(val) {
-  selectedStandort.value = val;
-  updateUrl();
+function resolveLocationId(value) {
+  if (!value) return null;
+  const existingLocation = locations.value.find(
+    (location) => String(location._id) === String(value)
+  );
+  if (existingLocation) return existingLocation._id;
+
+  const legacyNames = { 1: 'Berlin', 2: 'Hamburg', 3: 'Köln' };
+  const legacyName = legacyNames[value] || value;
+  const legacyLocation = locations.value.find((location) => (
+    normalizeLocationName(location.nameFull) === normalizeLocationName(legacyName)
+    || normalizeLocationName(location.shortName) === normalizeLocationName(legacyName)
+  ));
+  return legacyLocation?._id || null;
 }
 
 const updateUrl = () => {
   // Save to storage
   localStorage.setItem('tl_stats_period', selectedMonth.value);
   if (selectedStandort.value) {
-    localStorage.setItem('tl_stats_standort', selectedStandort.value);
+    localStorage.setItem('tl_stats_locationV2', selectedStandort.value);
+    localStorage.removeItem('tl_stats_standort');
   } else {
+    localStorage.removeItem('tl_stats_locationV2');
     localStorage.removeItem('tl_stats_standort');
   }
 
@@ -295,7 +314,7 @@ const updateUrl = () => {
   };
   
   if (selectedStandort.value) {
-    query.standort = selectedStandort.value;
+    query.locationV2 = selectedStandort.value;
   }
   
   if (expandedRows.value.length > 0) {
@@ -322,8 +341,7 @@ const formatDate = (val) => {
 };
 
 const filteredTeamleiter = computed(() => {
-  if (!selectedStandort.value) return teamleiterList.value;
-  return teamleiterList.value.filter(tl => getStandortPrefix(tl.personalnr) === selectedStandort.value);
+  return teamleiterList.value;
 });
 
 const totalEinsaetze = computed(() => {
@@ -451,7 +469,11 @@ const fetchData = async (keepExpanded) => {
     const [year, month] = selectedMonth.value.split('-');
 
     const response = await api.get('/api/personal/teamleiter-stats', {
-      params: { month, year }
+      params: {
+        month,
+        year,
+        ...(selectedStandort.value ? { locationV2: selectedStandort.value } : {}),
+      }
     }); 
     teamleiterList.value = response.data.map(tl => ({
       ...tl,
@@ -465,9 +487,20 @@ const fetchData = async (keepExpanded) => {
   }
 };
 
-onMounted(() => {
-  const { month, year, expanded, standort } = route.query;
+async function fetchLocations() {
+  const { data } = await api.get('/api/locations');
+  locations.value = data || [];
+}
+
+onMounted(async () => {
+  const { month, year, expanded, locationV2, standort } = route.query;
   let keep = false;
+
+  try {
+    await fetchLocations();
+  } catch (err) {
+    console.error('Fehler beim Laden der Standorte:', err);
+  }
   
   // Priority 1: URL Params
   if (month && year) {
@@ -481,12 +514,13 @@ onMounted(() => {
       }
   }
   
-  // Standort: URL > localStorage
-  if (standort) {
-      selectedStandort.value = standort;
+    // Standort: URL > locationV2-Speicher > bisheriger Standortwert
+    if (locationV2) {
+      selectedStandort.value = resolveLocationId(locationV2);
   } else {
-      const storedSt = localStorage.getItem('tl_stats_standort');
-      if (storedSt) selectedStandort.value = storedSt;
+      const storedLocationV2 = localStorage.getItem('tl_stats_locationV2');
+      const legacyStandort = standort || localStorage.getItem('tl_stats_standort');
+      selectedStandort.value = resolveLocationId(storedLocationV2 || legacyStandort);
   }
   
   if (expanded) {

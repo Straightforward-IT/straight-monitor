@@ -5,6 +5,12 @@ const EinsatzSchema = new mongoose.Schema({
     type: Number, // AUFTRAGNR - Foreign Key zu Auftrag
     required: true
   },
+  locationV2: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    default: null,
+    index: true,
+  },
   personalNr: {
     type: Number, // PERSONALNR
     required: false

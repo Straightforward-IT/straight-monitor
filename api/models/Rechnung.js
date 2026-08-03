@@ -18,6 +18,7 @@ const RechnungSchema = new mongoose.Schema(
     buchDatum:   { type: Date,   index: true }, // needed for range queries
     kundenNr:    { type: Number },              // needed for customer joins
     auftragNr:   { type: Number },              // needed for order joins
+    locationV2:  { type: mongoose.Schema.Types.ObjectId, ref: 'Location', default: null, index: true },
     rechnungNr:  { type: String, unique: true, sparse: true }, // deduplication key
 
     // ── Encrypted fields (stored as AES-256-GCM JSON strings) ────────────────

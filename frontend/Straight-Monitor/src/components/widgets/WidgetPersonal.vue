@@ -6,10 +6,10 @@
     :loading="loading"
   >
     <template #actions>
-      <select v-model="standort" class="wp-select">
+      <select v-model="selectedLocation" class="wp-select">
         <option value="Alle">Alle</option>
-        <option v-for="loc in LOCATIONS" :key="loc.value" :value="loc.value">
-          {{ loc.label }}
+        <option v-for="location in locations" :key="location._id" :value="location._id">
+          {{ location.shortName || location.nameFull }}
         </option>
       </select>
     </template>
@@ -39,16 +39,11 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { RouterLink } from "vue-router";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import api from "@/utils/api";
 import { useDataCache } from "@/stores/dataCache";
 import { useFlipAll } from "@/stores/flipAll";
 import { useAuth } from "@/stores/auth";
 import DashboardWidget from "./DashboardWidget.vue";
-
-const LOCATIONS = [
-  { label: "HH", value: "Hamburg" },
-  { label: "B",  value: "Berlin"  },
-  { label: "K",  value: "Köln"    },
-];
 
 const cache = useDataCache();
 const flip  = useFlipAll();
@@ -57,44 +52,28 @@ const auth  = useAuth();
 const loading = computed(() => cache.loading.mitarbeiter && cache.mitarbeiter.length === 0);
 
 // Default to user's location, fallback to 'Alle'
-const standort = ref("Alle");
+const locations = ref([]);
+const selectedLocation = ref("Alle");
 const _locationInitialized = ref(false);
 watch(
   () => auth.user,
   (u) => {
-    if (!_locationInitialized.value && u?.location) {
-      if (LOCATIONS.some((l) => l.value === u.location)) {
-        standort.value = u.location;
-      }
+    if (!_locationInitialized.value && u?.locationV2) {
+      selectedLocation.value = String(u.locationV2?._id || u.locationV2);
       _locationInitialized.value = true;
     }
   },
   { immediate: true }
 );
 
-// ── Helpers (mirrors PeopleDocsModern logic) ─────────────────────────────────
-const getFlipUser = (ma) =>
-  flip.getById(ma.flip_id) ?? (ma.email ? flip.getByEmail(ma.email) : null);
-
-const getLocation = (ma) => {
-  const fu = getFlipUser(ma);
-  const flipLoc =
-    fu?.profile?.location ??
-    fu?.attributes?.find((a) => /standort|location/i.test(a.name ?? ""))?.value;
-  if (flipLoc) return flipLoc;
-  if (ma.standort) return ma.standort;
-  const p = String(ma.personalnr ?? "").trim();
-  if (p.startsWith("1")) return "Berlin";
-  if (p.startsWith("2")) return "Hamburg";
-  if (p.startsWith("3")) return "Köln";
-  return null;
-};
-
 const formatDateTime = (d) =>
   d ? new Intl.DateTimeFormat('de-DE', {
     day: '2-digit', month: '2-digit', year: '2-digit',
     hour: '2-digit', minute: '2-digit',
   }).format(new Date(d)) : null;
+
+const getFlipUser = (ma) =>
+  flip.getById(ma.flip_id) ?? (ma.email ? flip.getByEmail(ma.email) : null);
 
 const getAbteilung = (ma) => {
   const fu = getFlipUser(ma);
@@ -109,8 +88,8 @@ const getAbteilung = (ma) => {
 // ── Data ─────────────────────────────────────────────────────────────────────
 const recentFiltered = computed(() => {
   let list = [...cache.mitarbeiter];
-  if (standort.value !== "Alle") {
-    list = list.filter((m) => getLocation(m) === standort.value);
+  if (selectedLocation.value !== "Alle") {
+    list = list.filter((m) => String(m.locationV2?._id || m.locationV2) === selectedLocation.value);
   }
   return list
     .sort(
@@ -121,7 +100,11 @@ const recentFiltered = computed(() => {
     .slice(0, 3);
 });
 
-onMounted(() => cache.loadMitarbeiter());
+onMounted(async () => {
+  const { data } = await api.get("/api/locations");
+  locations.value = data || [];
+  cache.loadMitarbeiter();
+});
 </script>
 
 <style scoped lang="scss">

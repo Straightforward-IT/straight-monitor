@@ -17,10 +17,10 @@
           <font-awesome-icon :icon="['fas', 'chevron-right']" />
         </button>
       </div>
-      <select v-model="geschSt" class="wa-select">
+      <select v-model="selectedLocation" class="wa-select">
         <option value="">Alle</option>
-        <option v-for="loc in LOCATIONS" :key="loc.value" :value="loc.value">
-          {{ loc.label }}
+        <option v-for="location in locations" :key="location._id" :value="location._id">
+          {{ location.shortName || location.nameFull }}
         </option>
       </select>
     </template>
@@ -58,33 +58,24 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { RouterLink } from "vue-router";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import api from "@/utils/api";
 import { useDataCache } from "@/stores/dataCache";
 import { useAuth } from "@/stores/auth";
 import DashboardWidget from "./DashboardWidget.vue";
-
-// geschSt mapping: '1' = Berlin, '2' = Hamburg, '3' = Köln (matches AuftraegePage)
-const LOCATIONS = [
-  { label: "HH", value: "2" },
-  { label: "B",  value: "1" },
-  { label: "K",  value: "3" },
-];
-
-const USER_LOC_MAP = { berlin: "1", hamburg: "2", "köln": "3", koeln: "3" };
 
 const cache = useDataCache();
 const auth  = useAuth();
 
 const loading = computed(() => cache.loading.auftraege && cache.auftraege.length === 0);
 
-const geschSt = ref("");
+const locations = ref([]);
+const selectedLocation = ref("");
 const _initialized = ref(false);
 watch(
   () => auth.user,
   (u) => {
-    if (!_initialized.value && u?.location) {
-      const key = u.location.toLowerCase();
-      const mapped = USER_LOC_MAP[key] ?? Object.entries(USER_LOC_MAP).find(([k]) => key.includes(k))?.[1];
-      if (mapped) geschSt.value = mapped;
+    if (!_initialized.value && u?.locationV2) {
+      selectedLocation.value = String(u.locationV2?._id || u.locationV2);
       _initialized.value = true;
     }
   },
@@ -127,13 +118,15 @@ const dayFiltered = computed(() => {
     const bis = a.bisDatum ? new Date(a.bisDatum) : null;
     return von && bis && von <= dayEnd && bis >= dayStart;
   });
-  if (geschSt.value) {
-    list = list.filter((a) => a.geschSt === geschSt.value);
+  if (selectedLocation.value) {
+    list = list.filter((a) => String(a.locationV2?._id || a.locationV2) === selectedLocation.value);
   }
   return list.sort((a, b) => new Date(a.vonDatum) - new Date(b.vonDatum));
 });
 
-onMounted(() => {
+onMounted(async () => {
+  const { data } = await api.get("/api/locations");
+  locations.value = data || [];
   cache.loadAuftraege().then(() => {
     // If cached data is missing enriched fields (old cache), force a full refresh
     const sample = cache.auftraege[0];

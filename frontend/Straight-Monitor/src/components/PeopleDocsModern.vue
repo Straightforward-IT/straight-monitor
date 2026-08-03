@@ -21,7 +21,14 @@
               </FilterGroup>
               <FilterDivider />
               <FilterGroup label="Standort">
-                <FilterChip v-for="loc in locations" :key="loc" :active="filters.location === loc" @click="setFilter('location', filters.location === loc ? 'Alle' : loc)">{{ loc }}</FilterChip>
+                <FilterChip
+                  v-for="location in locations"
+                  :key="location._id"
+                  class="location-filter-chip"
+                  :active="filters.location === String(location._id)"
+                  :style="{ '--location-color': location.color || '#6b7280' }"
+                  @click="setFilter('location', filters.location === String(location._id) ? 'Alle' : String(location._id))"
+                >{{ location.shortName || location.nameFull }}</FilterChip>
               </FilterGroup>
               <FilterDivider />
               <FilterGroup label="Bereich">
@@ -676,7 +683,7 @@ export default {
       filterExpanded: false,
       searchExpanded: false, // Expandable search in filter header
 
-      locations: ["Hamburg", "Berlin", "Köln"],
+      locations: [],
       departments: ["Service", "Logistik", "Office"],
 
       // selection state
@@ -703,7 +710,7 @@ export default {
       // enhanced filters matching the "trinity" (Straight + Asana + Flip)
       filters: {
         status: "Aktiv", // Aktiv, Inaktiv, Alle
-        location: "Alle", // Hamburg, Berlin, Köln, Alle (wird später auf userLocation gesetzt)
+        location: "Alle", // Location-ID oder Alle
         department: "Alle", // Service, Logistik, Management, IT, Alle
         flipStatus: "Alle", // Aktiv, Gesperrt, Gelöscht, Nicht_verknüpft, Alle
         asanaStatus: "Alle", // Verknüpft, Nicht_verknüpft, Alle
@@ -811,7 +818,7 @@ export default {
 
       // Location Filter
       if (this.filters.location !== "Alle") {
-        result = result.filter((ma) => this.getDisplayLocation(ma) === this.filters.location);
+        result = result.filter((ma) => this.getLocationId(ma) === this.filters.location);
       }
 
       // Department Filter
@@ -1177,6 +1184,9 @@ export default {
 
     // Display Helper Methods
     getDisplayLocation(ma) {
+      const location = this.locations.find((entry) => String(entry._id) === this.getLocationId(ma));
+      if (location) return location.nameFull;
+
       // 1. Flip Location
       const flipLoc = ma.flip?.profile?.location || 
              ma.flip?.attributes?.find(attr => attr.name?.toLowerCase().includes('standort') || 
@@ -1197,6 +1207,14 @@ export default {
       }
 
       return null;
+    },
+
+    getLocationId(ma) {
+      const locationId = ma.locationV2?._id || ma.locationV2;
+      if (locationId) return String(locationId);
+
+      const externalId = String(ma.personalnr || '').trim().match(/^\d/)?.[0];
+      return this.locations.find((location) => String(location.externalId || '') === externalId)?._id?.toString() || null;
     },
 
     getDisplayDepartment(ma) {
@@ -1524,7 +1542,7 @@ export default {
     resetAllFilters() {
       this.filters = {
         status: "Aktiv",
-        location: (this.userLocation && this.locations.includes(this.userLocation)) ? this.userLocation : "Alle",
+        location: this.hasUserLocation() ? this.userLocation : "Alle",
         department: "Alle",
         flipStatus: "Alle",
         asanaStatus: "Alle",
@@ -1622,16 +1640,36 @@ export default {
         this.userEmail = data.email;
         this.userID = data._id;
         this.userName = data.name;
-        this.userLocation = data.location;
-        
-        // Setze userLocation als Standard für Location-Filter, falls verfügbar und kein Cookie geladen wurde
-        if (this.userLocation && this.locations.includes(this.userLocation) && !this.filtersLoadedFromCookie) {
-          this.filters.location = this.userLocation;
-        }
+        this.userLocation = String(data.locationV2?._id || data.locationV2 || '');
+        this.applyUserLocationDefault();
       } catch (e) {
         console.error("Fehler beim Abrufen der Benutzerdaten:", e);
         this.$router.push("/");
       }
+    },
+    async fetchLocations() {
+      try {
+        const { data } = await api.get('/api/locations');
+        this.locations = data;
+        this.normalizeLocationFilter();
+        this.applyUserLocationDefault();
+      } catch (error) {
+        console.error('Standorte konnten nicht geladen werden:', error);
+      }
+    },
+    hasUserLocation() {
+      return Boolean(this.userLocation && this.locations.some((location) => String(location._id) === this.userLocation));
+    },
+    applyUserLocationDefault() {
+      if (this.hasUserLocation() && !this.filtersLoadedFromCookie) this.filters.location = this.userLocation;
+    },
+    normalizeLocationFilter() {
+      if (this.filters.location === 'Alle' || this.locations.some((location) => String(location._id) === this.filters.location)) return;
+      const normalizedFilter = String(this.filters.location).trim().toLocaleLowerCase('de');
+      const matchingLocation = this.locations.find((location) => [location.nameFull, location.shortName]
+        .filter(Boolean)
+        .some((value) => String(value).trim().toLocaleLowerCase('de') === normalizedFilter));
+      this.filters.location = matchingLocation ? String(matchingLocation._id) : 'Alle';
     },
     async fetchMitarbeiters() {
       try {
@@ -1693,6 +1731,7 @@ export default {
     // 2) API-Daten parallel laden (inkl. Berufe & Qualifikationen für Skills)
     await Promise.allSettled([
       this.fetchUserData(),
+      this.fetchLocations(),
       this.fetchMitarbeiters(),
       this.dataCache.loadBerufe(),
       this.dataCache.loadQualifikationen(),
@@ -1733,6 +1772,18 @@ export default {
     0 1px 2px rgba(0, 0, 0, 0.06),
     0 8px 24px rgba(0, 0, 0, 0.06)
   );
+}
+
+.people-page :deep(.location-filter-chip) {
+  border-color: color-mix(in srgb, var(--location-color) 45%, var(--border));
+  color: var(--location-color);
+}
+
+.people-page :deep(.location-filter-chip.active) {
+  background: color-mix(in srgb, var(--location-color) 12%, transparent);
+  border-color: var(--location-color);
+  box-shadow: inset 0 0 0 1px var(--location-color);
+  color: var(--location-color);
 }
 
 .main {

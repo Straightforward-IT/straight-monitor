@@ -5,6 +5,10 @@ const crypto = require("crypto");
 const asyncHandler = require("../middleware/AsyncHandler");
 const auth = require("../middleware/auth");
 const Bewerber = require("../models/Bewerber");
+const {
+  resolveActiveLocation,
+  resolveLocationFromTeamKey,
+} = require("../services/LocationResolutionService");
 const Mitarbeiter = require("../models/Mitarbeiter");
 const BewerberEmailDocument = require("../models/BewerberEmailDocument");
 const User = require("../models/User");
@@ -60,6 +64,7 @@ const EDITABLE_FIELDS = new Set([
   "hat70TageGearbeitet",
   "tage70Regelung",
   "studiumStatus",
+  "locationV2",
 ]);
 
 function pickEditableFields(source = {}) {
@@ -191,6 +196,7 @@ router.get("/", asyncHandler(async (req, res) => {
   }
 
   const bewerber = await Bewerber.find(filter)
+    .populate("locationV2", "nameFull shortName color externalId")
     .select("+invitations.accessTokenHash +invitations.accessCodeHash")
     .sort({ createdAt: -1 })
     .lean();
@@ -210,7 +216,9 @@ router.get("/asana/:asanaId", asyncHandler(async (req, res) => {
   const bewerber = await Bewerber.findOne({
     teamKey: ENABLED_TEAM_KEY,
     asana_id: req.params.asanaId,
-  }).lean();
+  })
+    .populate("locationV2", "nameFull shortName color externalId")
+    .lean();
 
   if (!bewerber) return res.status(404).json({ message: "Bewerber nicht gefunden." });
   res.json({ data: bewerber });
@@ -235,13 +243,22 @@ router.post("/", asyncHandler(async (req, res) => {
     }
   }
 
+  const location = values.locationV2
+    ? await resolveActiveLocation(values.locationV2)
+    : await resolveLocationFromTeamKey(ENABLED_TEAM_KEY);
+  if (values.locationV2 && !location) {
+    return res.status(400).json({ message: "Der gewählte Standort ist nicht aktiv oder existiert nicht." });
+  }
+
   const bewerber = await Bewerber.create({
     ...values,
     asana_id: asana_id?.trim() || undefined,
     asana_permalink: asana_permalink?.trim() || "",
     teamKey: ENABLED_TEAM_KEY,
+    locationV2: location?._id || null,
     createdBy: req.user.id,
   });
+  await bewerber.populate("locationV2", "nameFull shortName color externalId");
 
   logger.info(`Bewerber erstellt: ${bewerber._id} (${bewerber.email})`);
   res.status(201).json({ data: bewerber });
@@ -290,7 +307,9 @@ router.post("/:id/invitations", asyncHandler(async (req, res) => {
 // GET /api/bewerber/:id
 router.get("/:id", asyncHandler(async (req, res) => {
   if (!isValidId(req.params.id)) return res.status(400).json({ message: "Ungültige Bewerber-ID." });
-  const bewerber = await Bewerber.findOne({ _id: req.params.id, teamKey: ENABLED_TEAM_KEY }).lean();
+  const bewerber = await Bewerber.findOne({ _id: req.params.id, teamKey: ENABLED_TEAM_KEY })
+    .populate("locationV2", "nameFull shortName color externalId")
+    .lean();
   if (!bewerber) return res.status(404).json({ message: "Bewerber nicht gefunden." });
   res.json({ data: bewerber });
 }));
@@ -306,8 +325,18 @@ router.patch("/:id", asyncHandler(async (req, res) => {
   const bewerber = await Bewerber.findOne({ _id: req.params.id, teamKey: ENABLED_TEAM_KEY });
   if (!bewerber) return res.status(404).json({ message: "Bewerber nicht gefunden." });
 
+  if (values.locationV2 !== undefined) {
+    if (!values.locationV2) values.locationV2 = null;
+    else {
+      const location = await resolveActiveLocation(values.locationV2);
+      if (!location) return res.status(400).json({ message: "Der gewählte Standort ist nicht aktiv oder existiert nicht." });
+      values.locationV2 = location._id;
+    }
+  }
+
   Object.assign(bewerber, values);
   await bewerber.save();
+  await bewerber.populate("locationV2", "nameFull shortName color externalId");
   res.json({ data: bewerber });
 }));
 

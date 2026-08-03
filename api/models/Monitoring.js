@@ -18,6 +18,12 @@ const MonitoringSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  locationV2: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Location",
+    default: null,
+    index: true,
+  },
   locationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Location",

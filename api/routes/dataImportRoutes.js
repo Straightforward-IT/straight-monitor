@@ -6,6 +6,7 @@ const Auftrag = require('../models/Auftrag');
 const Kunde = require('../models/Kunde');
 const Einsatz = require('../models/Einsatz');
 const Schicht = require('../models/Schicht');
+const Location = require('../models/Location');
 const Mitarbeiter = require('../models/Mitarbeiter');
 const Beruf = require('../models/Beruf');
 const Qualifikation = require('../models/Qualifikation');
@@ -395,6 +396,24 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 
     const rawData = XLSX.utils.sheet_to_json(sheet);
 
+    const activeLocations = await Location.find({ isActive: true })
+      .select('_id externalId')
+      .lean();
+    const locationsByExternalId = new Map();
+    const duplicateExternalIds = new Set();
+    for (const location of activeLocations) {
+      const externalId = String(location.externalId || '').trim();
+      if (!externalId) continue;
+      if (locationsByExternalId.has(externalId)) duplicateExternalIds.add(externalId);
+      else locationsByExternalId.set(externalId, location);
+    }
+    if (duplicateExternalIds.size) {
+      return res.status(409).json({
+        success: false,
+        message: `Doppelte externe Standort-IDs: ${[...duplicateExternalIds].join(', ')}. Import abgebrochen.`,
+      });
+    }
+
     const operationsAuftrag = [];
     const operationsKunde = [];
     const newEinsaetze = [];
@@ -408,6 +427,34 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
     // Sets to avoid duplicate operations in one batch
     const processedAuftraege = new Set();
     const processedKunden = new Set();
+    const locationResolution = {
+      auftrag: { resolved: 0, unresolved: 0 },
+      kunde: { resolved: 0, unresolved: 0, customerNumberFallback: 0 },
+      schicht: { resolved: 0, unresolved: 0 },
+      einsatz: { resolved: 0, unresolved: 0 },
+      unresolvedEntries: [],
+    };
+
+    function resolveLocation(externalId, entity, context, source) {
+      const normalizedExternalId = String(externalId || '').trim();
+      const location = normalizedExternalId ? locationsByExternalId.get(normalizedExternalId) : null;
+      if (location) {
+        locationResolution[entity].resolved += 1;
+        if (source === 'kundenNr') locationResolution.kunde.customerNumberFallback += 1;
+        return location;
+      }
+
+      locationResolution[entity].unresolved += 1;
+      if (locationResolution.unresolvedEntries.length < 30) {
+        locationResolution.unresolvedEntries.push({
+          entity,
+          externalId: normalizedExternalId || null,
+          source,
+          ...context,
+        });
+      }
+      return null;
+    }
 
     for (const rawRow of rawData) {
       const row = cleanKeys(rawRow);
@@ -416,6 +463,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 
       const auftragNr = row['AUFTRAGNR'];
       auftragNrs.add(auftragNr);
+      const auftragGeschSt = row['A_GESCHST'] || row['GESCHST'];
 
       // IST_PSEUDO=1 means the row represents an unfilled shift (no real employee)
       // Pseudo rows have no DATUMVON/DATUMBIS (no employee assigned), use DETAIL_DATUMVON as fallback
@@ -430,26 +478,29 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
       // 1. Prepare Auftrag Update/Upsert
       if (!processedAuftraege.has(auftragNr)) {
         processedAuftraege.add(auftragNr);
+        const auftragLocation = resolveLocation(auftragGeschSt, 'auftrag', { auftragNr }, 'geschSt');
+        const auftragFields = {
+          geschSt: auftragGeschSt,
+          kundenNr: row['KUNDENNR'],
+          eventTitel: row['EVENTTITEL'],
+          bediener: row['BEDIENER'],
+          dtAngelegtAm: row['DTANGELEGTAM'],
+          bestDatum: row['BESTDATUM'],
+          vonDatum: row['VONDATUM'],
+          bisDatum: row['BISDATUM'],
+          eventStrasse: row['EVENT_STRASSE'],
+          eventPlz: row['EVENT_PLZ'],
+          eventOrt: row['EVENT_ORT'],
+          eventLocation: row['EVENT_LOCATION'],
+          aktiv: row['AKTIV'],
+          auftStatus: row['AUFTSTATUS'],
+          referenz: row['REFERENZ'] || undefined,
+        };
+        if (auftragLocation) auftragFields.locationV2 = auftragLocation._id;
         operationsAuftrag.push({
           updateOne: {
             filter: { auftragNr: auftragNr },
-            update: { $set: {
-              geschSt: row['A_GESCHST'] || row['GESCHST'], // Fallback if old column name
-              kundenNr: row['KUNDENNR'],
-              eventTitel: row['EVENTTITEL'],
-              bediener: row['BEDIENER'],
-              dtAngelegtAm: row['DTANGELEGTAM'],
-              bestDatum: row['BESTDATUM'],
-              vonDatum: row['VONDATUM'],
-              bisDatum: row['BISDATUM'],
-              eventStrasse: row['EVENT_STRASSE'],
-              eventPlz: row['EVENT_PLZ'],
-              eventOrt: row['EVENT_ORT'],
-              eventLocation: row['EVENT_LOCATION'],
-              aktiv: row['AKTIV'],
-              auftStatus: row['AUFTSTATUS'],
-              referenz: row['REFERENZ'] || undefined
-            }},
+            update: { $set: auftragFields },
             upsert: true
           }
         });
@@ -466,19 +517,29 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
         if (row['BEMERKUNG3']) bemerkungen.push(String(row['BEMERKUNG3']));
 
         const adressen = buildAdressen(row);
+        const kundenGeschSt = row['K_GESCHST'] || row['GESCHST'];
+        const kundenSource = kundenGeschSt ? 'geschSt' : 'kundenNr';
+        const kundenLocation = resolveLocation(
+          kundenGeschSt || String(kundenNr).trim().match(/^\d/)?.[0],
+          'kunde',
+          { kundenNr },
+          kundenSource,
+        );
+        const kundenFields = {
+          kundName: row['KUNDNAME'],
+          kundeSeit: row['KUNDESEIT'],
+          kundStatus: row['KUNDSTATUS'],
+          geschSt: kundenGeschSt,
+          kostenSt: row['K_KOSTENST'] || row['KOSTENST'],
+          bemerkung: bemerkungen,
+          adressen,
+        };
+        if (kundenLocation) kundenFields.locationV2 = kundenLocation._id;
 
         operationsKunde.push({
           updateOne: {
             filter: { kundenNr: kundenNr },
-            update: { $set: {
-              kundName: row['KUNDNAME'],
-              kundeSeit: row['KUNDESEIT'],
-              kundStatus: row['KUNDSTATUS'],
-              geschSt: row['K_GESCHST'] || row['GESCHST'],
-              kostenSt: row['K_KOSTENST'] || row['KOSTENST'],
-              bemerkung: bemerkungen,
-              adressen: adressen
-            }},
+            update: { $set: kundenFields },
             upsert: true
           }
         });
@@ -491,8 +552,10 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
       if (idSchicht && !processedSchichten.has(schichtKey)) {
         processedSchichten.add(schichtKey);
         const bedarf = typeof row['BEDARF'] === 'number' ? row['BEDARF'] : (parseInt(row['BEDARF']) || 0);
+        const schichtLocation = resolveLocation(auftragGeschSt, 'schicht', { auftragNr, idSchicht }, 'geschSt');
         newSchichten.push({
           auftragNr,
+          ...(schichtLocation ? { locationV2: schichtLocation._id } : {}),
           idAuftragArbeitsschichten: idSchicht,
           bezeichnung: row['BEZEICHNUNG'],
           treffpunkt: row['TREFFPUNKTUHRZEIT'],
@@ -514,8 +577,10 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 
       // 4. Einsatz Record — skip pseudo rows (IST_PSEUDO=1 means unfilled shift)
       if (!isPseudoRow) {
+        const einsatzLocation = resolveLocation(auftragGeschSt, 'einsatz', { auftragNr, personalNr: row['PERSONALNR'] || null }, 'geschSt');
         newEinsaetze.push({
           auftragNr: auftragNr,
+          ...(einsatzLocation ? { locationV2: einsatzLocation._id } : {}),
           personalNr: row['PERSONALNR'],
           berufSchl: row['BERUFSCHL'],
           qualSchl: row['QUALSCHL'],
@@ -552,7 +617,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
       auftrag: { upserted: 0, matched: 0, deactivated: 0 },
       kunde: { upserted: 0, matched: 0 },
       schicht: { inserted: 0, deleted: 0 },
-      einsatz: { inserted: 0, deleted: 0 }
+      einsatz: { inserted: 0, deleted: 0 },
+      locationResolution,
     };
 
     // 4. Deactivate Auftraege not in the list, but only within the imported date range
@@ -636,11 +702,20 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
       }
     }
 
+    const unresolvedLocationCount = locationResolution.auftrag.unresolved
+      + locationResolution.kunde.unresolved
+      + locationResolution.schicht.unresolved
+      + locationResolution.einsatz.unresolved;
+    const resolvedLocationCount = locationResolution.auftrag.resolved
+      + locationResolution.kunde.resolved
+      + locationResolution.schicht.resolved
+      + locationResolution.einsatz.resolved;
     const message = `Verarbeitung abgeschlossen:\n` +
       `- Schichten: ${stats.schicht.inserted} neu, ${stats.schicht.deleted} gelöscht/ersetzt\n` +
       `- Einsätze: ${stats.einsatz.inserted} neu, ${stats.einsatz.deleted} gelöscht/ersetzt\n` +
       `- Aufträge: ${stats.auftrag.upserted} neu, ${stats.auftrag.matched} aktualisiert, ${stats.auftrag.deactivated} deaktiviert\n` +
-      `- Kunden: ${stats.kunde.upserted} neu, ${stats.kunde.matched} aktualisiert`;
+      `- Kunden: ${stats.kunde.upserted} neu, ${stats.kunde.matched} aktualisiert\n` +
+      `- Standorte: ${resolvedLocationCount} aufgelöst, ${unresolvedLocationCount} offene Zuordnungen`;
 
     await logImport('einsatz-komplett', req.file.originalname, 'success', newSchichten.length, stats, req.user?.id);
     
@@ -661,6 +736,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
             <li><strong>Einsätze:</strong> ${stats.einsatz.inserted} (Importiert), ${stats.einsatz.deleted} (Ersetzt)</li>
             <li><strong>Aufträge:</strong> ${stats.auftrag.upserted} (Neu), ${stats.auftrag.matched} (Update)</li>
             <li><strong>Kunden:</strong> ${stats.kunde.upserted} (Neu), ${stats.kunde.matched} (Update)</li>
+            <li><strong>Standorte:</strong> ${resolvedLocationCount} aufgelöst, ${unresolvedLocationCount} offen</li>
           </ul>
           <p style="color: green;">✓ System erfolgreich synchronisiert.</p>
         </div>
@@ -836,6 +912,31 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       return res.json({ success: true, message: 'Keine gültigen Zeilen gefunden.' });
     }
 
+    const activeLocations = await Location.find({ isActive: true })
+      .select('_id externalId')
+      .lean();
+    const locationsByExternalId = new Map();
+    const duplicateExternalIds = new Set();
+    for (const location of activeLocations) {
+      const externalId = String(location.externalId || '').trim();
+      if (!externalId) continue;
+      if (locationsByExternalId.has(externalId)) duplicateExternalIds.add(externalId);
+      else locationsByExternalId.set(externalId, location);
+    }
+    if (duplicateExternalIds.size) {
+      return res.status(409).json({
+        success: false,
+        message: `Doppelte externe Standort-IDs: ${[...duplicateExternalIds].join(', ')}. Import abgebrochen.`,
+      });
+    }
+    for (const operation of filteredOperations) {
+      const externalId = String(operation.personalnr || '').trim().match(/^\d/)?.[0] || null;
+      operation.locationResolution = {
+        externalId,
+        location: externalId ? locationsByExternalId.get(externalId) || null : null,
+      };
+    }
+
     // Respond immediately to avoid Heroku's 30s request timeout on large imports.
     // Processing continues in the background; results are sent via e-mail.
     res.json({
@@ -855,12 +956,20 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         // Dient dazu, eine „zweite aktive Nummer“ (z.B. weitere Niederlassung) von
         // einer echten Personalnr-Korrektur zu unterscheiden.
         const importPnrSet = new Set(filteredOperations.map(o => o.personalnr).filter(Boolean));
+        const locationResolution = {
+          resolved: 0,
+          updated: 0,
+          unchanged: 0,
+          unresolved: 0,
+          ignoredAdditionalNumbers: 0,
+          unresolvedEntries: [],
+        };
 
         // Execute bulk updates (find by Personalnr, Fallback per E-Mail)
         for (const op of filteredOperations) {
           let ma = await Mitarbeiter.findOne({
             $or: [{ personalnr: op.personalnr }, { personalnummern: op.personalnr }]
-          }).select('_id personalnr personalnummern personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
+          }).select('_id personalnr personalnummern personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2').lean();
           let pnrChanged = false;      // echte Korrektur: primäre personalnr wird überschrieben
           let pnrAddedToArray = false; // zusätzliche aktive Nr (z.B. zweite Niederlassung)
 
@@ -870,7 +979,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             if (fallbackEmail) {
               ma = await Mitarbeiter.findOne({
                 $or: [{ email: fallbackEmail }, { additionalEmails: fallbackEmail }]
-              }).select('_id personalnr personalnummern personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive').lean();
+              }).select('_id personalnr personalnummern personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2').lean();
               if (ma && ma.personalnr !== op.personalnr) {
                 // Führt Zvoove die bereits gespeicherte Nummer in DIESEM Import noch als
                 // aktiv? Dann ist op.personalnr eine ZUSÄTZLICHE aktive Nummer (Doppel-
@@ -954,6 +1063,32 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             }
           }
 
+          const importedNumberIsPrimary = ma.personalnr === op.personalnr || pnrChanged;
+          if (importedNumberIsPrimary) {
+            const resolvedLocation = op.locationResolution.location;
+            if (resolvedLocation) {
+              locationResolution.resolved++;
+              if (String(ma.locationV2 || '') !== String(resolvedLocation._id)) {
+                op.setFields.locationV2 = resolvedLocation._id;
+                locationResolution.updated++;
+              } else {
+                locationResolution.unchanged++;
+              }
+            } else {
+              locationResolution.unresolved++;
+              if (locationResolution.unresolvedEntries.length < 30) {
+                locationResolution.unresolvedEntries.push({
+                  mitarbeiterId: String(ma._id),
+                  personalnr: op.personalnr,
+                  externalId: op.locationResolution.externalId,
+                  reason: op.locationResolution.externalId ? 'unknown-external-id' : 'missing-prefix',
+                });
+              }
+            }
+          } else if (pnrAddedToArray) {
+            locationResolution.ignoredAdditionalNumbers++;
+          }
+
           const updateOps = { $set: op.setFields };
           const addToSet = {};
           if (addToAdditional.length > 0) {
@@ -993,6 +1128,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           pnrAdded,
           pnrAddedList: pnrAddedList.length > 0 ? pnrAddedList : undefined,
           deactivated,
+          locationResolution,
         };
 
         await logImport('personal', originalFilename, 'success', matched, details, importedBy);
@@ -1015,6 +1151,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
               <li>Nicht gefunden: <strong>${skipped}</strong></li>
               ${pnrUpdated > 0 ? `<li>Personalnr per E-Mail korrigiert: <strong>${pnrUpdated}</strong></li>` : ''}
               ${pnrAdded > 0 ? `<li>Zusätzliche Personalnr (Doppelführung): <strong>${pnrAdded}</strong></li>` : ''}
+              <li>Standorte: <strong>${locationResolution.resolved}</strong> aufgelöst, <strong>${locationResolution.updated}</strong> geändert, <strong>${locationResolution.unresolved}</strong> offen</li>
             </ul>
             ${notFoundHtml}
             ${pnrUpdatedList.length > 0 ? `<h3>🔄 Personalnr korrigiert (${pnrUpdated}):</h3><ul>${pnrUpdatedList.map(p => `<li>${p.email}: <code>${p.alt}</code> → <code>${p.neu}</code></li>`).join('')}${pnrUpdated > pnrUpdatedList.length ? `<li>…und ${pnrUpdated - pnrUpdatedList.length} weitere</li>` : ''}</ul>` : ''}
@@ -1416,6 +1553,37 @@ router.post('/rechnung', auth, extendTimeout, upload.single('file'), async (req,
       });
     }
 
+    const auftragNrs = [...new Set(docs.map((doc) => doc.auftragNr).filter(Number.isFinite))];
+    const kundenNrs = [...new Set(docs.map((doc) => doc.kundenNr).filter(Number.isFinite))];
+    const [auftraege, kunden, activeLocations] = await Promise.all([
+      auftragNrs.length ? Auftrag.find({ auftragNr: { $in: auftragNrs } }).select('auftragNr geschSt locationV2').lean() : [],
+      kundenNrs.length ? Kunde.find({ kundenNr: { $in: kundenNrs } }).select('kundenNr geschSt locationV2').lean() : [],
+      Location.find({ isActive: true }).select('_id externalId').lean(),
+    ]);
+    const locationsByExternalId = new Map(activeLocations.map((location) => [String(location.externalId || '').trim(), location._id]));
+    const locationForGeschSt = (geschSt) => locationsByExternalId.get(String(geschSt || '').trim()) || null;
+    const locationByAuftragNr = new Map(auftraege.map((auftrag) => [auftrag.auftragNr, auftrag.locationV2 || locationForGeschSt(auftrag.geschSt)]));
+    const locationByKundenNr = new Map(kunden.map((kunde) => [kunde.kundenNr, kunde.locationV2 || locationForGeschSt(kunde.geschSt)]));
+    const locationResolution = { auftrag: 0, kunde: 0, legacyGeschSt: 0, unresolved: 0, unresolvedEntries: [] };
+    for (const doc of docs) {
+      const auftragLocation = locationByAuftragNr.get(doc.auftragNr);
+      const kundenLocation = locationByKundenNr.get(doc.kundenNr);
+      if (auftragLocation) {
+        doc.locationV2 = auftragLocation;
+        locationResolution.auftrag += 1;
+        if (!auftraege.find((auftrag) => auftrag.auftragNr === doc.auftragNr)?.locationV2) locationResolution.legacyGeschSt += 1;
+      } else if (kundenLocation) {
+        doc.locationV2 = kundenLocation;
+        locationResolution.kunde += 1;
+        if (!kunden.find((kunde) => kunde.kundenNr === doc.kundenNr)?.locationV2) locationResolution.legacyGeschSt += 1;
+      } else {
+        locationResolution.unresolved += 1;
+        if (locationResolution.unresolvedEntries.length < 30) {
+          locationResolution.unresolvedEntries.push({ auftragNr: doc.auftragNr || null, kundenNr: doc.kundenNr || null });
+        }
+      }
+    }
+
     // Upsert strategy: for each record with a rechnungNr, replace the existing
     // document if it already exists; insert if it doesn't. Records NOT in the
     // upload are never touched.
@@ -1441,10 +1609,11 @@ router.post('/rechnung', auth, extendTimeout, upload.single('file'), async (req,
       dateRange: {
         from: minDate.toISOString().split('T')[0],
         to:   maxDate.toISOString().split('T')[0]
-      }
+      },
+      locationResolution,
     };
 
-    const message = `Rechnungen importiert: ${stats.inserted} neu, ${stats.updated} aktualisiert (${stats.dateRange.from} – ${stats.dateRange.to}).`;
+    const message = `Rechnungen importiert: ${stats.inserted} neu, ${stats.updated} aktualisiert (${stats.dateRange.from} – ${stats.dateRange.to}). Standorte: ${locationResolution.auftrag + locationResolution.kunde} aufgelöst, ${locationResolution.unresolved} offen.`;
 
     await logImport('rechnung', req.file.originalname, 'success', stats.inserted, stats, req.user?.id);
     logger.info(`[Import Rechnung] ${message} by user ${req.user?.id}`);
@@ -1505,6 +1674,25 @@ router.post('/verfuegbarkeit', auth, extendTimeout, upload.single('file'), async
 
     const operations = [];
     const now = new Date();
+    const personalnrs = [...new Set(dataRows.map((cols) => String(cols?.[2] || '').trim()).filter(Boolean))];
+    const [mitarbeiter, activeLocations] = await Promise.all([
+      personalnrs.length
+      ? await Mitarbeiter.find({ $or: [{ personalnr: { $in: personalnrs } }, { personalnummern: { $in: personalnrs } }] })
+        .select('personalnr personalnummern locationV2')
+        .lean()
+      : [],
+      Location.find({ isActive: true }).select('_id externalId').lean(),
+    ]);
+    const locationsByExternalId = new Map(activeLocations.map((location) => [String(location.externalId || '').trim(), location._id]));
+    const locationByPersonalnr = new Map();
+    for (const ma of mitarbeiter) {
+      const primaryLocation = ma.locationV2 || locationsByExternalId.get(String(ma.personalnr || '').trim().match(/^\d/)?.[0]) || null;
+      for (const personalnr of [ma.personalnr, ...(ma.personalnummern || [])].filter(Boolean)) {
+        locationByPersonalnr.set(String(personalnr), primaryLocation);
+      }
+    }
+    const locationResolution = { resolved: 0, unresolved: 0, unresolvedEntries: [] };
+    const unresolvedPersonalnrs = new Set();
 
     for (const cols of dataRows) {
       // Col A (0) = CODE/Prüffeld, B (1) = ID, C (2) = PERSONALNR, D (3) = DATUM,
@@ -1527,6 +1715,17 @@ router.post('/verfuegbarkeit', auth, extendTimeout, upload.single('file'), async
         ganztaegig: parseInt(cols[10], 10) === 1,
         importiertAm: now,
       };
+      const location = locationByPersonalnr.get(String(personalnr));
+      if (location) {
+        doc.locationV2 = location;
+        locationResolution.resolved += 1;
+      } else {
+        locationResolution.unresolved += 1;
+        if (!unresolvedPersonalnrs.has(personalnr) && locationResolution.unresolvedEntries.length < 30) {
+          unresolvedPersonalnrs.add(personalnr);
+          locationResolution.unresolvedEntries.push({ personalnr });
+        }
+      }
 
       operations.push({
         updateOne: {
@@ -1546,8 +1745,8 @@ router.post('/verfuegbarkeit', auth, extendTimeout, upload.single('file'), async
     const inserted = result.upsertedCount || 0;
     const updated = result.modifiedCount || 0;
 
-    const stats = { total: operations.length, inserted, updated };
-    const message = `${operations.length} Verfügbarkeiten verarbeitet: ${inserted} neu, ${updated} aktualisiert.`;
+    const stats = { total: operations.length, inserted, updated, locationResolution };
+    const message = `${operations.length} Verfügbarkeiten verarbeitet: ${inserted} neu, ${updated} aktualisiert. Standorte: ${locationResolution.resolved} aufgelöst, ${locationResolution.unresolved} offen.`;
 
     await logImport('verfuegbarkeit', req.file.originalname, 'success', operations.length, stats, req.user?.id);
     logger.info(`[Import Verfuegbarkeit] ${message} by user ${req.user?.id}`);

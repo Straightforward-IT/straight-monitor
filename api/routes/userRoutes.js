@@ -21,7 +21,9 @@ router.get(
   "/me",
   auth,
   asyncHandler(async (req, res) => {
-    const user = await User.findById(req.user.id).select("-password");
+    const user = await User.findById(req.user.id)
+      .select("-password")
+      .populate("locationV2", "nameFull shortName color externalId");
     res.status(200).json(user);
   })
 );

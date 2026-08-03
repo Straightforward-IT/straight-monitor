@@ -185,7 +185,10 @@
       <div class="form-row">
         <div class="form-group">
           <label>Standort *</label>
-          <input v-model="form.location" type="text" required />
+          <select v-model="form.locationV2" required>
+            <option disabled value="">Standort wählen</option>
+            <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
+          </select>
         </div>
         <div class="form-group">
           <label>Kunde *</label>
@@ -403,6 +406,7 @@ const submitSuccess = ref(false);
 const submitting = ref(false);
 const einsatzMitarbeiter = ref([]);
 const draftReady = ref(false);
+const locations = ref([]);
 
 const {
   storageGet,
@@ -474,6 +478,7 @@ const showNotizModal = ref(false);
 
 const form = reactive({
   location: '',
+  locationV2: '',
   kunde: '',
   auftragnummer: '',
   datum: '',
@@ -525,6 +530,32 @@ function resetFormFields() {
   Object.keys(form).forEach(k => { form[k] = ''; });
   mitarbeiterRows.value = [];
   einsatzMitarbeiter.value = [];
+}
+
+function normalizeLocationName(value) {
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function resolveLocationId(value) {
+  if (!value) return '';
+  const directLocation = locations.value.find((location) => String(location._id) === String(value));
+  if (directLocation) return directLocation._id;
+
+  const legacyName = STANDORT_MAP[String(value)] || value;
+  return locations.value.find((location) => (
+    String(location.externalId) === String(value)
+    || normalizeLocationName(location.nameFull) === normalizeLocationName(legacyName)
+    || normalizeLocationName(location.shortName) === normalizeLocationName(legacyName)
+  ))?._id || '';
+}
+
+async function fetchLocations() {
+  const { data } = await props.api.get('/api/locations');
+  locations.value = data || [];
 }
 
 // Rebuild the form (switch Einsatz / open / reset) without triggering autosave.
@@ -586,6 +617,11 @@ watch(() => form.notizen, (val) => {
 });
 
 onMounted(async () => {
+  try {
+    await fetchLocations();
+  } catch (error) {
+    console.error('Standorte konnten nicht geladen werden:', error);
+  }
   await rebuild(async () => {
     resetFormFields();
     if (props.prefillEinsatz) {
@@ -636,7 +672,9 @@ async function prefillFromEinsatz(einsatz) {
   form.auftragnummer = String(einsatz.auftragNr || '');
   form.datum = einsatz.datumVon ? new Date(einsatz.datumVon).toISOString().split('T')[0] : '';
   const rawLoc = einsatz.auftrag?.geschSt || einsatz.auftrag?.eventOrt || '';
-  form.location = STANDORT_MAP[String(rawLoc)] || rawLoc;
+  form.locationV2 = resolveLocationId(einsatz.auftrag?.locationV2?._id || einsatz.auftrag?.locationV2 || rawLoc);
+  form.location = locations.value.find((location) => String(location._id) === String(form.locationV2))?.nameFull
+    || STANDORT_MAP[String(rawLoc)] || rawLoc;
   form.kunde = einsatz.auftrag?.eventTitel || einsatz.bezeichnung || '';
   await loadEinsatzMitarbeiter(einsatz.auftragNr);
 }
@@ -716,6 +754,7 @@ async function submitReport() {
   try {
     await props.api.post('/api/public/eventreport', {
       location: form.location,
+      locationV2: form.locationV2,
       kunde: form.kunde,
       auftragnummer: form.auftragnummer,
       name_teamleiter: teamleiterName.value,

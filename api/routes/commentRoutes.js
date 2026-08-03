@@ -4,6 +4,8 @@ const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
 const Comment = require('../models/Comment');
 const User = require('../models/User');
+const Mitarbeiter = require('../models/Mitarbeiter');
+const mongoose = require('mongoose');
 
 /**
  * Unified Comments API
@@ -19,13 +21,20 @@ const User = require('../models/User');
 
 // ─── GET /api/comments ───
 router.get('/', auth, asyncHandler(async (req, res) => {
-  const { scope, von, bis, mitarbeiterId, mitarbeiterIds, vonDate, resourceId } = req.query;
+  const { scope, von, bis, mitarbeiterId, mitarbeiterIds, vonDate, resourceId, locationV2 } = req.query;
 
   if (!scope) {
     return res.status(400).json({ message: '"scope" ist erforderlich.' });
   }
 
   const filter = { scope };
+
+  if (locationV2) {
+    if (!mongoose.isValidObjectId(locationV2)) {
+      return res.status(400).json({ message: 'Ungültige locationV2.' });
+    }
+    filter.locationV2 = locationV2;
+  }
 
   // Single MA filter or batch MA filter (comma-separated list)
   if (mitarbeiterIds) {
@@ -71,6 +80,10 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id).select('name email').lean();
   if (!user) return res.status(404).json({ message: 'User nicht gefunden.' });
 
+  const mitarbeiter = mongoose.isValidObjectId(context.mitarbeiter)
+    ? await Mitarbeiter.findById(context.mitarbeiter).select('locationV2').lean()
+    : null;
+
   const comment = new Comment({
     scope,
     text: text.trim(),
@@ -78,6 +91,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     author: user.name || user.email,
     authorId: req.user.id,
     readBy: [req.user.id], // author already read their own
+    locationV2: mitarbeiter?.locationV2 || null,
     context: {
       mitarbeiter:  context.mitarbeiter  || undefined,
       datum:        context.datum        || undefined,

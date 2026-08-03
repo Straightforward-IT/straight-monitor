@@ -13,6 +13,12 @@ const ZvooveVerfuegbarkeitSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
+  locationV2: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    default: null,
+    index: true,
+  },
   datum: {
     type: Date, // DATUM – the calendar date of the entry
     required: true,

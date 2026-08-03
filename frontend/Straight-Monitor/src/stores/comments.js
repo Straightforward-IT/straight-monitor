@@ -10,16 +10,7 @@
  */
 import { defineStore } from 'pinia';
 import { useAuth } from './auth';
-import { useDataCache } from './dataCache';
 import api from '@/utils/api';
-
-function getMaStandortFromPnr(personalnr) {
-  const pnr = String(personalnr ?? '').trim();
-  if (pnr.startsWith('1')) return 'Berlin';
-  if (pnr.startsWith('2')) return 'Hamburg';
-  if (pnr.startsWith('3')) return 'Köln';
-  return null;
-}
 
 export const useComments = defineStore('comments', {
   state: () => ({
@@ -27,37 +18,29 @@ export const useComments = defineStore('comments', {
     zvooveItems: [],  // Virtual comments from ZvooveVerfuegbarkeit.info (display-only, never persisted)
     loading: false,
 
-    // For the KommentarFeed panel — standort + read filter
-    standortFilter: 'auto', // 'auto' = user's own location | null = Alle | specific city
+    // For the KommentarFeed panel — 'auto' = user's own locationV2, null = all
+    locationV2Filter: 'auto',
 
     // Track which scopes & ranges have been loaded to avoid redundant fetches
     _loadedKeys: new Set(),
   }),
 
   getters: {
-    // Total unread (all scopes, all MAs), respecting standort filter — for HeaderBar badge
+    // Total unread (all scopes), respecting the locationV2 filter — for HeaderBar badge
     unreadCount(state) {
       const auth = useAuth();
-      const cache = useDataCache();
       const userId = String(auth.user?._id ?? '');
       if (!userId) return 0;
 
-      const activeFilter = state.standortFilter === 'auto'
-        ? (auth.user?.location ?? null)
-        : state.standortFilter;
-
-      const maMap = {};
-      for (const ma of cache.mitarbeiter) maMap[String(ma._id)] = ma;
+      const activeLocationV2 = state.locationV2Filter === 'auto'
+        ? (auth.user?.locationV2?._id || auth.user?.locationV2 || null)
+        : state.locationV2Filter;
 
       return state.items.filter((c) => {
         if (String(c.authorId) === userId) return false;
         if ((c.readBy ?? []).map(String).includes(userId)) return false;
-        if (activeFilter && c.context?.mitarbeiter) {
-          const ma = maMap[String(c.context.mitarbeiter)];
-          if (ma) {
-            const maStandort = getMaStandortFromPnr(ma.personalnr);
-            if (maStandort && maStandort !== activeFilter) return false;
-          }
+        if (activeLocationV2 && String(c.locationV2?._id || c.locationV2) !== String(activeLocationV2)) {
+          return false;
         }
         return true;
       }).length;
@@ -67,10 +50,14 @@ export const useComments = defineStore('comments', {
     unreadCountByScope(state) {
       const auth = useAuth();
       const userId = String(auth.user?._id ?? '');
+      const activeLocationV2 = state.locationV2Filter === 'auto'
+        ? (auth.user?.locationV2?._id || auth.user?.locationV2 || null)
+        : state.locationV2Filter;
       const counts = {};
       for (const c of state.items) {
         if (String(c.authorId) === userId) continue;
         if ((c.readBy ?? []).map(String).includes(userId)) continue;
+        if (activeLocationV2 && String(c.locationV2?._id || c.locationV2) !== String(activeLocationV2)) continue;
         counts[c.scope] = (counts[c.scope] ?? 0) + 1;
       }
       return counts;
@@ -127,8 +114,8 @@ export const useComments = defineStore('comments', {
       return this.dispoDayMap[`${String(maId)}_${datum}`] ?? [];
     },
 
-    setStandortFilter(loc) {
-      this.standortFilter = loc;
+    setLocationV2Filter(locationV2) {
+      this.locationV2Filter = locationV2;
     },
 
     /**
@@ -139,7 +126,7 @@ export const useComments = defineStore('comments', {
      * @param {string} [opts.bis]         — date range end  (dispo_day)
      * @param {string} [opts.mitarbeiterId] — filter by MA
      */
-    async fetch({ scope, von, bis, mitarbeiterId } = {}) {
+    async fetch({ scope, von, bis, mitarbeiterId, locationV2 } = {}) {
       if (!scope) throw new Error('scope required');
       this.loading = true;
       try {
@@ -147,6 +134,7 @@ export const useComments = defineStore('comments', {
         if (von) params.set('von', von);
         if (bis) params.set('bis', bis);
         if (mitarbeiterId) params.set('mitarbeiterId', mitarbeiterId);
+        if (locationV2) params.set('locationV2', locationV2);
 
         const { data } = await api.get(`/api/comments?${params}`);
 
@@ -155,6 +143,7 @@ export const useComments = defineStore('comments', {
           ...this.items.filter(c => {
             if (c.scope !== scope) return true;
             if (mitarbeiterId && String(c.context?.mitarbeiter) !== String(mitarbeiterId)) return true;
+            if (locationV2 && String(c.locationV2?._id || c.locationV2) !== String(locationV2)) return true;
             return false;
           }),
           ...data,
@@ -171,13 +160,14 @@ export const useComments = defineStore('comments', {
      * @param {string[]} maIds  — array of Mitarbeiter IDs
      * @param {string}   vonDate — YYYY-MM-DD lower bound on createdAt (e.g. today)
      */
-    async fetchChronikBatch(maIds, vonDate) {
+    async fetchChronikBatch(maIds, vonDate, locationV2) {
       if (!maIds?.length) return;
       this.loading = true;
       try {
         const params = new URLSearchParams({ scope: 'chronik' });
         params.set('mitarbeiterIds', maIds.join(','));
         if (vonDate) params.set('vonDate', vonDate);
+        if (locationV2) params.set('locationV2', locationV2);
 
         const { data } = await api.get(`/api/comments?${params}`);
 

@@ -10,6 +10,11 @@ const xlsx = require("xlsx");
 const multer = require("multer");
 const path = require("path");
 const Mitarbeiter = require("../models/Mitarbeiter");
+const {
+  resolveActiveLocation,
+  resolveLocationFromPersonalnr,
+  resolveLocationFromStandortName,
+} = require("../services/LocationResolutionService");
 const User = require("../models/User");
 const Einsatz = require("../models/Einsatz");
 const Auftrag = require("../models/Auftrag");
@@ -1066,6 +1071,7 @@ router.get(
     const updated = await Mitarbeiter.find({
       updatedAt: { $gt: sinceDate }
     }).populate([
+      { path: "locationV2", select: "nameFull shortName color externalId" },
       "berufe",
       "qualifikationen",
       { 
@@ -1206,18 +1212,41 @@ router.get(
 
 // --- POST manual Laufzettel creation (admin) ---
 // POST /api/personal/laufzettel/manual
+async function resolveManualDocumentLocation({ standort, locationV2 }) {
+  if (locationV2) {
+    const resolvedLocation = await resolveActiveLocation(locationV2);
+    if (!resolvedLocation) {
+      return { error: 'Der gewählte Standort ist nicht aktiv oder existiert nicht' };
+    }
+
+    return {
+      location: resolvedLocation.nameFull,
+      locationV2: resolvedLocation._id,
+    };
+  }
+
+  const legacyLocation = String(standort || '').trim();
+  if (!legacyLocation) return { error: 'Standort ist erforderlich' };
+
+  const resolvedLocation = await resolveLocationFromStandortName(legacyLocation);
+  return {
+    location: resolvedLocation?.nameFull || legacyLocation,
+    locationV2: resolvedLocation?._id || null,
+  };
+}
+
 router.post(
   "/laufzettel/manual",
   auth,
   asyncHandler(async (req, res) => {
-    const { mitarbeiter_id, teamleiter_id, auftragNr, datum, standort } = req.body;
-    const VALID_STANDORTE = ['Hamburg', 'Berlin', 'Köln'];
+    const { mitarbeiter_id, teamleiter_id, auftragNr, datum, standort, locationV2 } = req.body;
 
-    if (!mitarbeiter_id || !teamleiter_id || !datum || !standort) {
+    if (!mitarbeiter_id || !teamleiter_id || !datum || (!standort && !locationV2)) {
       return res.status(400).json({ msg: 'Pflichtfelder fehlen (mitarbeiter_id, teamleiter_id, datum, standort)' });
     }
-    if (!VALID_STANDORTE.includes(standort)) {
-      return res.status(400).json({ msg: `Ungültige Niederlassung. Erlaubt: ${VALID_STANDORTE.join(', ')}` });
+    const resolvedDocumentLocation = await resolveManualDocumentLocation({ standort, locationV2 });
+    if (resolvedDocumentLocation.error) {
+      return res.status(400).json({ msg: resolvedDocumentLocation.error });
     }
 
     const mitarbeiter = await Mitarbeiter.findById(mitarbeiter_id);
@@ -1233,7 +1262,8 @@ router.post(
     }
 
     const laufzettel = new Laufzettel({
-      location: standort,
+      location: resolvedDocumentLocation.location,
+      locationV2: resolvedDocumentLocation.locationV2,
       auftragnummer: auftragNr ? parseInt(auftragNr) : undefined,
       kunde,
       name_mitarbeiter: `${mitarbeiter.vorname} ${mitarbeiter.nachname}`.trim(),
@@ -1276,17 +1306,18 @@ router.post(
   asyncHandler(async (req, res) => {
     const {
       mitarbeiter_id, teamleiter_id, datum, standort,
+      locationV2,
       auftragNr, kunde,
       puenktlichkeit, grooming, motivation,
       technische_fertigkeiten, lernbereitschaft, sonstiges,
     } = req.body;
 
-    const VALID_STANDORTE = ['Hamburg', 'Berlin', 'Köln'];
-    if (!mitarbeiter_id || !teamleiter_id || !datum || !standort) {
+    if (!mitarbeiter_id || !teamleiter_id || !datum || (!standort && !locationV2)) {
       return res.status(400).json({ msg: 'Pflichtfelder fehlen (mitarbeiter_id, teamleiter_id, datum, standort)' });
     }
-    if (!VALID_STANDORTE.includes(standort)) {
-      return res.status(400).json({ msg: `Ungültige Niederlassung. Erlaubt: ${VALID_STANDORTE.join(', ')}` });
+    const resolvedDocumentLocation = await resolveManualDocumentLocation({ standort, locationV2 });
+    if (resolvedDocumentLocation.error) {
+      return res.status(400).json({ msg: resolvedDocumentLocation.error });
     }
 
     const mitarbeiter = await Mitarbeiter.findById(mitarbeiter_id);
@@ -1304,7 +1335,8 @@ router.post(
     const laufzettel = new Laufzettel({
       version: 'v2',
       status: 'ABGESCHLOSSEN',
-      location: standort,
+      location: resolvedDocumentLocation.location,
+      locationV2: resolvedDocumentLocation.locationV2,
       auftragnummer: auftragNr ? parseInt(auftragNr) : undefined,
       kunde: resolvedKunde,
       name_mitarbeiter: `${mitarbeiter.vorname} ${mitarbeiter.nachname}`.trim(),
@@ -1342,23 +1374,25 @@ router.post(
   asyncHandler(async (req, res) => {
     const {
       teamleiter_id, datum, standort, kunde, auftragNr,
+      locationV2,
       mitarbeiter_anzahl, puenktlichkeit, erscheinungsbild,
       team, mitarbeiter_job, feedback_auftraggeber, sonstiges,
     } = req.body;
 
-    const VALID_STANDORTE = ['Hamburg', 'Berlin', 'Köln'];
-    if (!teamleiter_id || !datum || !standort || !kunde) {
+    if (!teamleiter_id || !datum || (!standort && !locationV2) || !kunde) {
       return res.status(400).json({ msg: 'Pflichtfelder fehlen (teamleiter_id, datum, standort, kunde)' });
     }
-    if (!VALID_STANDORTE.includes(standort)) {
-      return res.status(400).json({ msg: `Ungültige Niederlassung. Erlaubt: ${VALID_STANDORTE.join(', ')}` });
+    const resolvedDocumentLocation = await resolveManualDocumentLocation({ standort, locationV2 });
+    if (resolvedDocumentLocation.error) {
+      return res.status(400).json({ msg: resolvedDocumentLocation.error });
     }
 
     const teamleiter = await Mitarbeiter.findById(teamleiter_id);
     if (!teamleiter) return res.status(404).json({ msg: 'Teamleiter nicht gefunden' });
 
     const eventReport = new EventReport({
-      location: standort,
+      location: resolvedDocumentLocation.location,
+      locationV2: resolvedDocumentLocation.locationV2,
       kunde,
       auftragnummer: auftragNr ? String(auftragNr) : '',
       name_teamleiter: `${teamleiter.vorname} ${teamleiter.nachname}`.trim(),
@@ -1486,7 +1520,8 @@ router.get(
           ]
         },
         "berufe",
-        "qualifikationen"
+        "qualifikationen",
+        { path: "locationV2", select: "nameFull shortName color externalId" },
       ]);
 
     if (!mitarbeiter) {
@@ -1536,6 +1571,7 @@ router.get(
     const mitarbeiter = await Mitarbeiter.find(filters)
       .sort(sortOptions)
       .populate([
+        { path: "locationV2", select: "nameFull shortName color externalId" },
         "berufe",
         "qualifikationen",
         { 
@@ -1616,6 +1652,21 @@ router.patch(
       updateData.email = updateData.email.toLowerCase();
     }
 
+    if (updateData.locationV2 !== undefined) {
+      if (!updateData.locationV2) {
+        updateData.locationV2 = null;
+      } else {
+        const location = await resolveActiveLocation(updateData.locationV2);
+        if (!location) {
+          return res.status(400).json({ success: false, message: "Der gewählte Standort ist nicht aktiv oder existiert nicht." });
+        }
+        updateData.locationV2 = location._id;
+      }
+    } else if (updateData.personalnr !== undefined) {
+      const location = await resolveLocationFromPersonalnr(updateData.personalnr);
+      updateData.locationV2 = location?._id || null;
+    }
+
     // Personalnr conflict check
     if (updateData.personalnr?.trim()) {
       const conflicting = await Mitarbeiter.findOne({
@@ -1665,6 +1716,7 @@ router.patch(
           context: "query", // Wichtig für 'unique' Validatoren bei Updates
         }
       ).populate([
+        { path: "locationV2", select: "nameFull shortName color externalId" },
         { path: "laufzettel_received", select: "_id name" },
         { path: "laufzettel_submitted", select: "_id name" },
         { path: "eventreports", select: "_id title" },
@@ -1749,7 +1801,8 @@ router.patch(
 
       // Prepare update with history tracking
       const updateData = {
-        personalnr: personalnr?.trim() || null
+        personalnr: personalnr?.trim() || null,
+        locationV2: (await resolveLocationFromPersonalnr(personalnr))?._id || null,
       };
 
       // Add to history if there was a previous value
@@ -1757,7 +1810,7 @@ router.patch(
         await Mitarbeiter.updateOne(
           { _id: id },
           {
-            $set: { personalnr: personalnr?.trim() || null },
+            $set: updateData,
             $push: {
               personalnrHistory: {
                 value: mitarbeiter.personalnr,
@@ -1771,11 +1824,12 @@ router.patch(
       } else {
         await Mitarbeiter.updateOne(
           { _id: id },
-          { $set: { personalnr: personalnr?.trim() || null } }
+          { $set: updateData }
         );
       }
 
-      const updatedMitarbeiter = await Mitarbeiter.findById(id);
+      const updatedMitarbeiter = await Mitarbeiter.findById(id)
+        .populate('locationV2', 'nameFull shortName color externalId');
 
       res.status(200).json({
         success: true,
@@ -3360,12 +3414,20 @@ router.get(
       return res.status(404).json({ message: "Qualifikation mit Key 50055 nicht gefunden." });
     }
 
+    const { month, year, locationV2 } = req.query;
+    const teamleiterQuery = { qualifikationen: qual._id };
+    if (locationV2) {
+      const selectedLocation = await resolveActiveLocation(locationV2);
+      if (!selectedLocation) {
+        return res.status(400).json({ message: "Der gewählte Standort ist nicht aktiv oder existiert nicht." });
+      }
+      teamleiterQuery.locationV2 = selectedLocation._id;
+    }
+
     // 2. Find all TLs
     // Using lean() for better performance as we just read
-    const teamleiter = await Mitarbeiter.find({
-      qualifikationen: qual._id,
-    })
-    .select("vorname nachname personalnr")
+    const teamleiter = await Mitarbeiter.find(teamleiterQuery)
+    .select("vorname nachname personalnr locationV2")
     .lean();
 
     // 3. Get all personalNrs as numbers for querying Einsatz
@@ -3386,7 +3448,6 @@ router.get(
     });
 
     // Date Filter Logic
-    const { month, year } = req.query;
     let startDate, endDate;
     let dateMatch = {};
     if (month && year) {
@@ -3686,6 +3747,7 @@ router.get(
         vorname: tl.vorname,
         nachname: tl.nachname,
         personalnr: tl.personalnr,
+        locationV2: tl.locationV2 || null,
         einsatzCount: data ? data.count : 0,
         reportCount: data ? data.reportCount : 0,
         einsaetze: data ? data.details : []

@@ -25,7 +25,7 @@
       <p v-else-if="locationsLoading" class="locations__state">Standorte werden geladen…</p>
       <div v-else class="locations__list">
         <div v-for="location in locations" :key="location._id" class="location-row" :class="{ 'location-row--inactive': !location.isActive }">
-          <span class="location-row__short">{{ location.shortName }}</span>
+          <span class="location-row__short" :style="{ color: location.color || '#6b7280' }">{{ location.shortName }}</span>
           <span class="location-row__details"><b>{{ location.nameFull }}</b><small>{{ formatLocationAddress(location.address) || 'Keine Adresse hinterlegt' }}</small><small v-if="location.locationManager">Leitung: {{ location.locationManager.name || location.locationManager.email }}</small></span>
           <span class="location-row__status">{{ location.isActive ? 'Aktiv' : 'Inaktiv' }}</span>
           <button type="button" class="btn-icon" title="Standort bearbeiten" @click="openLocationEdit(location)">
@@ -55,6 +55,9 @@
           <div class="form-grid">
             <div class="form-group"><label>Name <span class="required">*</span></label><input v-model="locationForm.nameFull" type="text" required /></div>
             <div class="form-group"><label>Kürzel <span class="required">*</span></label><input v-model="locationForm.shortName" type="text" maxlength="8" required /></div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group"><label>Standortfarbe</label><input v-model="locationForm.color" class="location-color-input" type="color" /></div>
           </div>
           <div class="form-grid location-form-grid--address">
             <div class="form-group"><label>Straße</label><input v-model="locationForm.address.street" type="text" /></div>
@@ -493,6 +496,7 @@ const WEEKDAYS = [
 const locationForm = reactive({
   nameFull: '',
   shortName: '',
+  color: '#6b7280',
   address: { street: '', houseNumber: '', postalCode: '', city: '', country: 'Deutschland' },
   locationManager: '',
   contact: { mainEmail: '', phone: '' },
@@ -602,6 +606,7 @@ async function fetchLocations() {
 function resetLocationForm() {
   locationForm.nameFull = '';
   locationForm.shortName = '';
+  locationForm.color = '#6b7280';
   Object.assign(locationForm.address, { street: '', houseNumber: '', postalCode: '', city: '', country: 'Deutschland' });
   locationForm.locationManager = '';
   Object.assign(locationForm.contact, { mainEmail: '', phone: '' });
@@ -621,6 +626,7 @@ function openLocationCreate() {
 function openLocationEdit(location) {
   locationForm.nameFull = location.nameFull || '';
   locationForm.shortName = location.shortName || '';
+  locationForm.color = location.color || '#6b7280';
   Object.assign(locationForm.address, { street: '', houseNumber: '', postalCode: '', city: '', country: 'Deutschland', ...location.address });
   locationForm.locationManager = location.locationManager?._id || location.locationManager || '';
   Object.assign(locationForm.contact, { mainEmail: '', phone: '', ...location.contact });
@@ -1053,6 +1059,7 @@ function formatDate(d) {
   &--inactive { opacity: 0.55; }
 }
 .location-row__short { color: var(--primary); font-weight: 700; }
+.location-color-input { width: 48px; min-height: 36px; padding: 3px !important; cursor: pointer; }
 .location-row__details { display: grid; gap: 2px; }
 .location-row__details small { color: var(--muted); font-size: 0.72rem; }
 .location-row__status { color: var(--muted); font-size: 0.75rem; }

@@ -98,10 +98,16 @@ router.get('/activity', auth, asyncHandler(async (req, res) => {
     .filter((locationId) => mongoose.isValidObjectId(locationId));
   const limit = Math.min(Math.max(Number(req.query.limit) || 8, 1), 20);
   const filter = { 'items.stockId': { $exists: true } };
-  if (locationIds.length) filter.locationId = { $in: locationIds };
+  if (locationIds.length) {
+    filter.$or = [
+      { locationV2: { $in: locationIds } },
+      { locationId: { $in: locationIds } },
+    ];
+  }
 
   const activity = await Monitoring.find(filter)
-    .select('locationId standort art timestamp items benutzer benutzerName benutzerMail packageTemplate packageTemplateName anmerkung')
+    .select('locationV2 locationId standort art timestamp items benutzer benutzerName benutzerMail packageTemplate packageTemplateName anmerkung')
+    .populate('locationV2', 'shortName')
     .populate('locationId', 'shortName')
     .populate('benutzer', 'name')
     .sort({ timestamp: -1 })
@@ -348,6 +354,7 @@ router.post('/transactions', auth, asyncHandler(async (req, res) => {
         benutzerMail: user.email || user.name || '-',
         benutzerName: user.name || null,
         standort: location.nameFull,
+        locationV2: location._id,
         locationId,
         art: direction === 'issue' ? 'entnahme' : 'zugabe',
         timestamp: new Date(),

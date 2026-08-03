@@ -9,6 +9,12 @@ const EventReportSchema = new mongoose.Schema(
   {
     version: { type: String, default: "v2" },
     location: { type: String, required: true },
+    locationV2: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      default: null,
+      index: true,
+    },
     kunde: { type: String, required: true },
     auftragnummer: { type: String, required: false },
     name_teamleiter: { type: String, required: true },

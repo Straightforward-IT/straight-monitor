@@ -5,10 +5,10 @@
     :loading="loading"
   >
     <template #actions>
-      <select v-model="standort" class="wdk-select">
+      <select v-model="selectedLocation" class="wdk-select">
         <option value="Alle">Alle</option>
-        <option v-for="loc in LOCATIONS" :key="loc.value" :value="loc.value">
-          {{ loc.label }}
+        <option v-for="location in locations" :key="location._id" :value="location._id">
+          {{ location.shortName || location.nameFull }}
         </option>
       </select>
     </template>
@@ -41,19 +41,11 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
 import { useDataCache } from '@/stores/dataCache';
 import { useComments } from '@/stores/comments';
 import DashboardWidget from './DashboardWidget.vue';
-
-const LOCATIONS = [
-  { label: 'HH', value: 'Hamburg' },
-  { label: 'B',  value: 'Berlin'  },
-  { label: 'K',  value: 'Köln'    },
-];
-
-// Standort-Prefix matching DispoTable logic (personalnr.charAt(0))
-const STANDORT_PREFIX = { Berlin: '1', Hamburg: '2', Köln: '3' };
 
 const auth = useAuth();
 const cache = useDataCache();
@@ -65,15 +57,14 @@ const loading = computed(
 );
 
 // ── Standort filter — defaults to user's location ─────────────────────────
-const standort = ref('Alle');
+const locations = ref([]);
+const selectedLocation = ref('Alle');
 const _locationInitialized = ref(false);
 watch(
   () => auth.user,
   (u) => {
-    if (!_locationInitialized.value && u?.location) {
-      if (LOCATIONS.some((l) => l.value === u.location)) {
-        standort.value = u.location;
-      }
+    if (!_locationInitialized.value && u?.locationV2) {
+      selectedLocation.value = String(u.locationV2?._id || u.locationV2);
       _locationInitialized.value = true;
     }
   },
@@ -88,16 +79,6 @@ const maMap = computed(() => {
   }
   return map;
 });
-
-function getMaStandort(maId) {
-  const ma = maMap.value[String(maId)];
-  if (!ma) return null;
-  const pnr = String(ma.personalnr ?? '').trim();
-  if (pnr.startsWith('1')) return 'Berlin';
-  if (pnr.startsWith('2')) return 'Hamburg';
-  if (pnr.startsWith('3')) return 'Köln';
-  return null;
-}
 
 function getMaName(maId) {
   const ma = maMap.value[String(maId)];
@@ -118,15 +99,12 @@ const unreadKommentare = computed(() => {
 
 // ── Standort filter ───────────────────────────────────────────────────────
 const filteredKommentare = computed(() => {
-  if (standort.value === 'Alle') return unreadKommentare.value;
-  const prefix = STANDORT_PREFIX[standort.value];
+  if (selectedLocation.value === 'Alle') return unreadKommentare.value;
   return unreadKommentare.value.filter((c) => {
     const maId = c.context?.mitarbeiter;
-    const s = getMaStandort(maId);
-    if (s) return s === standort.value;
     const ma = maMap.value[String(maId)];
-    const pnr = String(ma?.personalnr ?? '').trim();
-    return prefix ? pnr.startsWith(prefix) : true;
+    const location = c.locationV2 || ma?.locationV2;
+    return String(location?._id || location) === selectedLocation.value;
   });
 });
 
@@ -157,11 +135,9 @@ function truncate(text, max) {
 
 function goToDispo(item) {
   const ma = maMap.value[String(item.mitarbeiter)];
-  const pnr = String(ma?.personalnr ?? '').trim();
   const query = { resetPlanung: '1', showHidden: '1' };
-  if (pnr.startsWith('1')) query.standort = '1';
-  else if (pnr.startsWith('2')) query.standort = '2';
-  else if (pnr.startsWith('3')) query.standort = '3';
+  const location = item.locationV2 || ma?.locationV2;
+  if (location) query.locationV2 = String(location?._id || location);
   if (item.datum) query.datum = item.datum;
   if (item.mitarbeiter) query.maId = String(item.mitarbeiter);
   router.push({ path: '/dispo', query });
@@ -185,7 +161,11 @@ async function fetchKommentare() {
 }
 
 onMounted(() => {
-  Promise.all([cache.loadMitarbeiter(), fetchKommentare()]);
+  Promise.all([
+    cache.loadMitarbeiter(),
+    fetchKommentare(),
+    api.get('/api/locations').then(({ data }) => { locations.value = data || []; }),
+  ]);
 });
 </script>
 

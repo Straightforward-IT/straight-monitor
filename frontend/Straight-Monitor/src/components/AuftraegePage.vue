@@ -3,11 +3,15 @@
     <div class="main-content">
     <Toolbar class="calendar-navigation">
       <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetAllFilters">
-        <!-- Geschäftsstelle -->
-        <FilterGroup label="Geschäftsstelle">
-          <FilterChip :active="filters.geschSt === '1'" @click="setGeschStFilter('1')">Berlin</FilterChip>
-          <FilterChip :active="filters.geschSt === '2'" @click="setGeschStFilter('2')">Hamburg</FilterChip>
-          <FilterChip :active="filters.geschSt === '3'" @click="setGeschStFilter('3')">Köln</FilterChip>
+        <FilterGroup label="Standort">
+          <FilterChip
+            v-for="location in locations"
+            :key="location._id"
+            class="location-filter-chip"
+            :active="filters.locationV2 === String(location._id)"
+            :style="{ '--location-color': location.color || '#6b7280' }"
+            @click="setLocationFilter(String(location._id))"
+          >{{ location.shortName || location.nameFull }}</FilterChip>
         </FilterGroup>
         <FilterDivider />
         <!-- Bediener -->
@@ -860,12 +864,12 @@
           <div class="qa-section">
             <div class="qa-form-row pseudo-time-row">
               <div style="flex:1">
-                <div class="qa-form-field-label">Geschäftsstelle</div>
-                <select v-model="newAuftrag.geschSt" class="qa-select">
+                <div class="qa-form-field-label">Standort</div>
+                <select v-model="newAuftrag.locationV2" class="qa-select">
                   <option value="">— Keine —</option>
-                  <option value="1">Berlin</option>
-                  <option value="2">Hamburg</option>
-                  <option value="3">Köln</option>
+                  <option v-for="location in locations" :key="location._id" :value="location._id">
+                    {{ location.nameFull }}
+                  </option>
                 </select>
               </div>
               <div style="flex:1">
@@ -1200,7 +1204,7 @@ export default {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
     let filterDefaults = {
-      geschSt: null,
+      locationV2: null,
       bediener: [],
       kunden: []
     };
@@ -1235,6 +1239,7 @@ export default {
         kunden: []
       },
       filters: filterDefaults,
+      locations: [],
       isMobile: false,
       mobileDayIndex: 0,
       selectedMitarbeiter: null,
@@ -1252,7 +1257,7 @@ export default {
       labelSaving: false,
       // New pseudo Auftrag dialog
       showNewAuftragDialog: false,
-      newAuftrag: { eventTitel: '', vonDatum: '', bisDatum: '', geschSt: '', eventLocation: '', eventOrt: '' },
+      newAuftrag: { eventTitel: '', vonDatum: '', bisDatum: '', locationV2: '', eventLocation: '', eventOrt: '' },
       newAuftragSaving: false,
       // Pseudo-MA dialog
       showPseudoDialog: false,
@@ -1465,15 +1470,16 @@ export default {
     },
     activeFilterCount() {
       let count = 0;
-      if (this.filters.geschSt) count++;
+      if (this.filters.locationV2) count++;
       if (this.filters.bediener.length > 0) count++;
       if (this.filters.kunden.length > 0) count++;
       return count;
     },
-    // Maps the active Geschäftsstelle filter to its Bundesland code
+    // Maps the active Location v2 filter to its Bundesland code.
     activeStateLand() {
       const map = { '1': 'BE', '2': 'HH', '3': 'NW' };
-      return map[this.filters.geschSt] || null;
+      const location = this.locations.find((entry) => String(entry._id) === String(this.filters.locationV2));
+      return map[location?.externalId] || null;
     },
   },
   watch: {
@@ -1536,6 +1542,49 @@ export default {
       } catch (err) {
         console.error("Error fetching data status:", err);
       }
+    },
+    async fetchLocations() {
+      try {
+        const { data } = await api.get('/api/locations');
+        this.locations = data || [];
+
+        const hasLegacyGeschSt = Object.hasOwn(this.filters, 'geschSt');
+        const legacyGeschSt = String(this.filters.geschSt || '').trim();
+        let filtersChanged = hasLegacyGeschSt;
+        if (!this.filters.locationV2 && legacyGeschSt) {
+          this.filters.locationV2 = this.getLocationIdForExternalId(legacyGeschSt);
+        }
+        delete this.filters.geschSt;
+
+        if (this.filters.locationV2 && !this.locations.some(
+          (location) => String(location._id) === String(this.filters.locationV2)
+        )) {
+          this.filters.locationV2 = null;
+          filtersChanged = true;
+        }
+        if (filtersChanged) this.saveFiltersToStorage();
+      } catch (error) {
+        console.error('Error fetching locations:', error);
+        this.locations = [];
+      }
+    },
+    getLocationIdForExternalId(externalId) {
+      const location = this.locations.find(
+        (entry) => String(entry.externalId || '').trim() === String(externalId || '').trim()
+      );
+      return location ? String(location._id) : null;
+    },
+    getUserLocationId() {
+      const locationId = this.user?.locationV2?._id || this.user?.locationV2;
+      if (locationId && this.locations.some((location) => String(location._id) === String(locationId))) {
+        return String(locationId);
+      }
+
+      const legacyLocation = String(this.user?.location || this.user?.standort || '').trim().toLocaleLowerCase('de');
+      const location = this.locations.find((entry) => [entry.nameFull, entry.shortName]
+        .filter(Boolean)
+        .some((name) => String(name).trim().toLocaleLowerCase('de') === legacyLocation));
+      return location ? String(location._id) : null;
     },
     formatDataStatus(dateStr) {
        if (!dateStr) return '';
@@ -1795,8 +1844,8 @@ export default {
         if (toDate) params.append('to', toDate.toISOString());
         
         // Add Filters
-        if (this.filters.geschSt) {
-          params.append('geschSt', this.filters.geschSt);
+        if (this.filters.locationV2) {
+          params.append('locationV2', this.filters.locationV2);
         }
         if (this.filters.bediener && this.filters.bediener.length > 0) {
           params.append('bediener', this.filters.bediener.join(','));
@@ -1821,8 +1870,8 @@ export default {
     async fetchFilterOptions() {
       try {
         const params = new URLSearchParams();
-        if (this.filters.geschSt) {
-          params.append('geschSt', this.filters.geschSt);
+        if (this.filters.locationV2) {
+          params.append('locationV2', this.filters.locationV2);
         }
         const res = await api.get(`/api/auftraege/filters?${params.toString()}`);
         this.filterOptions.bediener = res.data.bediener || [];
@@ -1839,20 +1888,11 @@ export default {
         return;
       }
 
-      // 1=Berlin, 2=Hamburg, 3=Köln
-      // Check both standort (legacy) and location (model)
-      const userLoc = this.user?.location || this.user?.standort;
-      
-      if (userLoc) {
-        const loc = userLoc.toLowerCase();
-        if (loc.includes('berlin')) this.filters.geschSt = '1';
-        else if (loc.includes('hamburg')) this.filters.geschSt = '2';
-        else if (loc.includes('köln') || loc.includes('koeln')) this.filters.geschSt = '3';
-      }
+      this.filters.locationV2 = this.getUserLocationId();
     },
     saveFiltersToStorage() {
       const filters = {
-        geschSt: this.filters.geschSt,
+        locationV2: this.filters.locationV2,
         bediener: this.filters.bediener,
         kunden: this.filters.kunden
       };
@@ -1861,9 +1901,9 @@ export default {
     toggleFilters() {
       this.filtersExpanded = !this.filtersExpanded;
     },
-    setGeschStFilter(val) {
-      const next = this.filters.geschSt === val ? null : val;
-      this.filters.geschSt = next;
+    setLocationFilter(locationId) {
+      const next = this.filters.locationV2 === locationId ? null : locationId;
+      this.filters.locationV2 = next;
       // Reset dependent filters as they might not apply to new location
       this.filters.kunden = [];
       this.filters.bediener = [];
@@ -1892,20 +1932,14 @@ export default {
       this.resetAndReload();
     },
     resetAllFilters() {
-      this.filters.geschSt = null;
+      this.filters.locationV2 = null;
       this.filters.bediener = [];
       this.filters.kunden = [];
       // Clear storage on reset, then apply user defaults
       sessionStorage.removeItem('auftraege_filters');
-      // Set defaults based on user location
-      const userLoc = this.user?.location || this.user?.standort;
-      if (userLoc) {
-        const loc = userLoc.toLowerCase();
-        if (loc.includes('berlin')) this.filters.geschSt = '1';
-        else if (loc.includes('hamburg')) this.filters.geschSt = '2';
-        else if (loc.includes('köln') || loc.includes('koeln')) this.filters.geschSt = '3';
-      }
+      this.filters.locationV2 = this.getUserLocationId();
       this.saveFiltersToStorage();
+      this.fetchFilterOptions();
       this.resetAndReload();
     },
     async resetAndReload() {
@@ -2305,7 +2339,7 @@ export default {
         eventTitel: '',
         vonDatum: today,
         bisDatum: today,
-        geschSt: this.filters.geschSt || '',
+        locationV2: this.filters.locationV2 || '',
         eventLocation: '',
         eventOrt: '',
       };
@@ -2331,7 +2365,7 @@ export default {
           vonDatum: this.newAuftrag.vonDatum,
           bisDatum: this.newAuftrag.bisDatum,
         };
-        if (this.newAuftrag.geschSt) payload.geschSt = this.newAuftrag.geschSt;
+        if (this.newAuftrag.locationV2) payload.locationV2 = this.newAuftrag.locationV2;
         if (this.newAuftrag.eventLocation.trim()) payload.eventLocation = this.newAuftrag.eventLocation.trim();
         if (this.newAuftrag.eventOrt.trim()) payload.eventOrt = this.newAuftrag.eventOrt.trim();
         const res = await api.post('/api/auftraege', payload);
@@ -2717,6 +2751,8 @@ export default {
     document.addEventListener('keydown', this.handleEscapeKey);
     document.addEventListener('click', this.handleDocumentClick);
     
+    await this.fetchLocations();
+
     // Set default filters first (e.g. from user location if no storage)
     this.setDefaultFilters();
     // Then fetch options which might depend on those filters
@@ -2730,11 +2766,17 @@ export default {
     requestAnimationFrame(() => requestAnimationFrame(() => this.scrollKwToActive()));
     
     // Check deep link & filters
-    const { auftragnr, geschSt, focusDate } = this.$route.query;
+    const { auftragnr, locationV2, geschSt, focusDate } = this.$route.query;
     
     // Apply filter first if present
-    if (geschSt) {
-        this.setGeschStFilter(geschSt);
+    const queryLocationId = locationV2 || this.getLocationIdForExternalId(geschSt);
+    if (queryLocationId) {
+        this.setLocationFilter(String(queryLocationId));
+        if (!locationV2 && geschSt) {
+          const nextQuery = { ...this.$route.query, locationV2: queryLocationId };
+          delete nextQuery.geschSt;
+          this.$router.replace({ query: nextQuery });
+        }
     }
 
     if (auftragnr) {
@@ -2763,6 +2805,18 @@ export default {
   
   display: flex;
   align-items: flex-start;
+}
+
+.auftraege-page :deep(.location-filter-chip) {
+  border-color: color-mix(in srgb, var(--location-color) 45%, var(--border));
+  color: var(--location-color);
+}
+
+.auftraege-page :deep(.location-filter-chip.active) {
+  background: color-mix(in srgb, var(--location-color) 12%, transparent);
+  border-color: var(--location-color);
+  box-shadow: inset 0 0 0 1px var(--location-color);
+  color: var(--location-color);
 }
 
 .main-content {

@@ -40,10 +40,10 @@
           <span v-if="store.unreadCountByScope?.[s]" class="kf-chip-badge">{{ store.unreadCountByScope[s] }}</span>
         </button>
       </template>
-      <select class="kf-standort-select" v-model="standortFilterModel">
-        <option value="Hamburg">HH</option>
-        <option value="Berlin">B</option>
-        <option value="Köln">K</option>
+      <select class="kf-standort-select" v-model="locationV2FilterModel">
+        <option v-for="location in locations" :key="location._id" :value="String(location._id)">
+          {{ location.shortName || location.nameFull }}
+        </option>
         <option :value="null">Alle</option>
       </select>
     </div>
@@ -119,6 +119,7 @@ import { useUi } from '@/stores/ui';
 import { useAuth } from '@/stores/auth';
 import { useComments } from '@/stores/comments';
 import { useDataCache } from '@/stores/dataCache';
+import api from '@/utils/api';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 
 const ui = useUi();
@@ -136,26 +137,18 @@ const itemRefs = ref({});
 const SCOPE_LABELS = { dispo_day: 'Dispo', chronik: 'Chronik', event_report: 'Event' };
 function scopeLabel(scope) { return SCOPE_LABELS[scope] ?? scope; }
 
-// ── Standort filter (synced with store) ────────────────────────────────────────
-const activeStandort = computed(() => {
-  const f = store.standortFilter;
-  if (f === 'auto') return auth.user?.location ?? null;
-  return f; // null = Alle, or specific city
+// ── LocationV2 filter (synced with store) ───────────────────────────────────
+const locations = ref([]);
+const activeLocationV2 = computed(() => {
+  const filterValue = store.locationV2Filter;
+  if (filterValue === 'auto') return auth.user?.locationV2?._id || auth.user?.locationV2 || null;
+  return filterValue;
 });
 
-const standortFilterModel = computed({
-  get: () => activeStandort.value,
-  set: (val) => store.setStandortFilter(val),
+const locationV2FilterModel = computed({
+  get: () => activeLocationV2.value,
+  set: (value) => store.setLocationV2Filter(value),
 });
-
-function getMaStandort(maId) {
-  const ma = maMap.value[String(maId)];
-  const pnr = String(ma?.personalnr ?? '').trim();
-  if (pnr.startsWith('1')) return 'Berlin';
-  if (pnr.startsWith('2')) return 'Hamburg';
-  if (pnr.startsWith('3')) return 'Köln';
-  return null;
-}
 
 function setItemRef(el, id) {
   if (el) itemRefs.value[id] = el;
@@ -193,7 +186,7 @@ const enrichedItems = computed(() => {
       datum: c.context?.datum,
       timestamp: c.createdAt,
       maName: getMaName(c.context?.mitarbeiter),
-      maStandort: getMaStandort(c.context?.mitarbeiter),
+      locationV2: c.locationV2 || maMap.value[String(c.context?.mitarbeiter)]?.locationV2 || null,
       isUnread: String(c.authorId) !== userId.value && !(c.readBy ?? []).map(String).includes(userId.value),
       canDelete: String(c.authorId) === userId.value,
       scopeLabel: scopeLabel(c.scope),
@@ -203,22 +196,25 @@ const enrichedItems = computed(() => {
 const visibleItems = computed(() => {
   let items = enrichedItems.value;
   if (scopeFilter.value) items = items.filter(c => c.scope === scopeFilter.value);
-  const loc = activeStandort.value;
-  if (loc) items = items.filter((k) => !k.maStandort || k.maStandort === loc);
+  const locationV2 = activeLocationV2.value;
+  if (locationV2) items = items.filter((item) => String(item.locationV2?._id || item.locationV2) === String(locationV2));
   if (filter.value === 'unread') items = items.filter((k) => k.isUnread);
   return items;
 });
 
 // ── Load data on mount if not already loaded ───────────────────────────────
 onMounted(async () => {
-  await cache.loadMitarbeiter();
+  await Promise.all([
+    cache.loadMitarbeiter(),
+    api.get('/api/locations').then(({ data }) => { locations.value = data || []; }),
+  ]);
   if (!store.items.length && !store.loading) {
     const today = new Date();
     const end = new Date(today);
     end.setDate(end.getDate() + 30);
     const von = today.toISOString().slice(0, 10);
     const bis = end.toISOString().slice(0, 10);
-    await store.fetch({ scope: 'dispo_day', von, bis });
+    await store.fetch({ scope: 'dispo_day', von, bis, locationV2: activeLocationV2.value });
   }
 });
 
@@ -241,12 +237,8 @@ function onItemLeave(id) {
 
 // ── Jump To ─────────────────────────────────────────────────────────────────
 function jumpTo(item) {
-  const ma = maMap.value[String(item.mitarbeiter)];
-  const pnr = String(ma?.personalnr ?? '').trim();
   const query = { resetPlanung: '1', showHidden: '1' };
-  if (pnr.startsWith('1')) query.standort = '1';
-  else if (pnr.startsWith('2')) query.standort = '2';
-  else if (pnr.startsWith('3')) query.standort = '3';
+  if (item.locationV2) query.locationV2 = String(item.locationV2?._id || item.locationV2);
   if (item.datum) query.datum = item.datum;
   if (item.mitarbeiter) query.maId = String(item.mitarbeiter);
 

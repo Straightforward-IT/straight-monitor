@@ -19,6 +19,7 @@ function toFlatStock(item, stock) {
     locationId,
     standort: locationName,
     standortKurz: location?.shortName || '',
+    standortColor: location?.color || '#6b7280',
     variationKey: stock.variationKey || null,
     variation: optionLabel(item.variationen, stock.variationKey, stock.variationKey),
     groesseKey: stock.groesseKey || 'onesize',
@@ -37,7 +38,7 @@ async function listFlatStocks({ since = null, locationId = null, includeInactive
   if (since) query.updatedAt = { $gt: since };
 
   const items = await InventoryItem.find(query)
-    .populate('bestaende.location', 'nameFull shortName isActive')
+    .populate('bestaende.location', 'nameFull shortName color isActive')
     .lean();
 
   return items.flatMap((item) => item.bestaende
@@ -53,7 +54,7 @@ async function findInventoryStock(stockId, session = null) {
   if (!mongoose.isValidObjectId(stockId)) return null;
 
   let query = InventoryItem.findOne({ 'bestaende._id': stockId, isActive: true })
-    .populate('bestaende.location', 'nameFull shortName isActive');
+    .populate('bestaende.location', 'nameFull shortName color isActive');
   if (session) query = query.session(session);
 
   const item = await query;

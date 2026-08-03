@@ -22,9 +22,14 @@
         <Toolbar class="kunden-toolbar">
           <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
             <FilterGroup label="Geschäftsstelle">
-              <FilterChip :active="filters.geschSt === '1'" @click="setGeschStFilter(filters.geschSt === '1' ? null : '1')">Berlin</FilterChip>
-              <FilterChip :active="filters.geschSt === '2'" @click="setGeschStFilter(filters.geschSt === '2' ? null : '2')">Hamburg</FilterChip>
-              <FilterChip :active="filters.geschSt === '3'" @click="setGeschStFilter(filters.geschSt === '3' ? null : '3')">Köln</FilterChip>
+              <FilterChip
+                v-for="location in locations"
+                :key="location._id"
+                class="location-filter-chip"
+                :active="filters.locationId === String(location._id)"
+                :style="{ '--location-color': location.color || '#6b7280' }"
+                @click="setLocationFilter(filters.locationId === String(location._id) ? null : String(location._id))"
+              >{{ location.shortName || location.nameFull }}</FilterChip>
             </FilterGroup>
             <FilterDivider />
             <FilterGroup label="Status">
@@ -364,6 +369,7 @@ const tabs = computed(() => baseTabs.filter(t => {
 }));
 
 const currentTab = ref('overview');
+const locations = ref([]);
 const showReportModal = ref(false);
 const searchQuery = ref('');
 const isLoading = ref(false);
@@ -373,7 +379,7 @@ const contactFilterExpanded = ref(false);
 
 const activeFilterCount = computed(() => {
   let count = 0;
-  if (filters.value.geschSt) count++;
+  if (filters.value.locationId) count++;
   if (filters.value.status !== null && filters.value.status !== undefined) count++;
   return count;
 });
@@ -386,7 +392,7 @@ const contactActiveFilterCount = computed(() => {
 });
 
 function resetFilters() {
-  filters.value.geschSt = null;
+  filters.value.locationId = null;
   filters.value.status = null;
 }
 
@@ -423,19 +429,14 @@ function handleContextMenuAction(action) {
   contextMenuKunde.value = null;
 }
 
-// Helper to map user location to GeschSt ID
-function getUserGeschSt() {
-  const loc = auth.user?.location?.toLowerCase();
-  if (loc === 'berlin') return '1';
-  if (loc === 'hamburg') return '2';
-  if (loc === 'köln' || loc === 'koeln') return '3';
-  return null;
+function getUserLocationId() {
+  return auth.user?.locationV2?._id || auth.user?.locationV2 || null;
 }
 
 // Get stored filters or set defaults
 const storedFilters = localStorage.getItem('kundenFilters');
 const defaultFilters = {
-  geschSt: getUserGeschSt(), 
+  locationId: getUserLocationId(),
   status: 2, 
   sortBy: 'name', 
   sortDir: 'asc' 
@@ -483,7 +484,7 @@ onMounted(async () => {
   }
   
   try {
-    await dataCache.loadKunden();
+    await Promise.all([dataCache.loadKunden(), loadLocations()]);
   } catch (e) {
     console.error(e);
   } finally {
@@ -530,6 +531,24 @@ function isOnWatchlist(kunde) {
   return (auth.kundenWatchlist || []).some(id => id.toString() === kunde._id.toString());
 }
 
+async function loadLocations() {
+  const { data } = await api.get('/api/locations');
+  locations.value = data;
+  const legacyGeschSt = filters.value.geschSt;
+  if (!filters.value.locationId && legacyGeschSt) {
+    const location = locations.value.find((entry) => String(entry.externalId) === String(legacyGeschSt));
+    if (location) filters.value.locationId = String(location._id);
+  }
+  delete filters.value.geschSt;
+  if (!filters.value.locationId) filters.value.locationId = getUserLocationId() ? String(getUserLocationId()) : null;
+}
+
+function kundeLocationId(kunde) {
+  const locationId = kunde.locationV2?._id || kunde.locationV2;
+  if (locationId) return String(locationId);
+  return locations.value.find((location) => String(location.externalId) === String(kunde.geschSt))?._id?.toString() || null;
+}
+
 // Helper for filtering & sorting
 function processData(list) {
   let result = list;
@@ -544,9 +563,9 @@ function processData(list) {
     );
   }
 
-  // Filter: GeschSt
-  if (filters.value.geschSt) {
-    result = result.filter(k => String(k.geschSt) === String(filters.value.geschSt));
+  // Filter: dynamic Location with legacy GESCHST fallback
+  if (filters.value.locationId) {
+    result = result.filter((kunde) => kundeLocationId(kunde) === filters.value.locationId);
   }
 
   // Filter: Status (only applied if set)
@@ -608,9 +627,9 @@ const leads = computed(() => {
     );
   }
 
-  // Filter: GeschSt
-  if (filters.value.geschSt) {
-    result = result.filter(k => k.geschSt == filters.value.geschSt);
+  // Filter: dynamic Location with legacy GESCHST fallback
+  if (filters.value.locationId) {
+    result = result.filter((kunde) => kundeLocationId(kunde) === filters.value.locationId);
   }
 
   // Sort
@@ -643,8 +662,8 @@ function toggleSort(field) {
   }
 }
 
-function setGeschStFilter(val) {
-  filters.value.geschSt = val;
+function setLocationFilter(locationId) {
+  filters.value.locationId = locationId;
 }
 
 function setStatusFilter(val) {

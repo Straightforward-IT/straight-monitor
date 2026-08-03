@@ -9,10 +9,12 @@
             <FilterGroup label="Standort">
               <FilterChip
                 v-for="loc in locations"
-                :key="loc"
-                :active="activeDocLocationFilter === loc"
-                @click="setDocFilter('location', activeDocLocationFilter === loc ? 'Alle' : loc)"
-              >{{ loc }}</FilterChip>
+                :key="loc._id"
+                class="location-filter-chip"
+                :active="activeDocLocationFilter === loc._id"
+                :style="{ '--location-color': loc.color || '#6b7280' }"
+                @click="setDocFilter('location', activeDocLocationFilter === loc._id ? 'Alle' : loc._id)"
+              >{{ loc.shortName || loc.nameFull }}</FilterChip>
             </FilterGroup>
             <FilterDivider />
             <FilterGroup label="Typ">
@@ -472,7 +474,7 @@ export default {
 
       // data sets
       documents: [],
-      locations: ["Hamburg", "Berlin", "Köln"],
+      locations: [],
       filtersExpanded: false,
       filterExpanded: false,
 
@@ -546,10 +548,7 @@ export default {
         );
       }
       if (this.activeDocLocationFilter !== "Alle") {
-        result = result.filter((d) => {
-          const loc = d.details?.location || d.bezeichnung || "";
-          return loc === this.activeDocLocationFilter;
-        });
+        result = result.filter((d) => this.matchesDocumentLocation(d));
       }
 
       if (this.showOnlyOffen) {
@@ -742,8 +741,26 @@ export default {
     },
 
     locationShort(loc) {
-      const map = { Hamburg: 'HH', Berlin: 'B', Köln: 'K' };
-      return map[loc] || loc;
+      const location = this.locations.find((entry) => entry.nameFull === loc || entry.shortName === loc);
+      return location?.shortName || loc;
+    },
+
+    normalizeLocationName(value) {
+      return String(value || '')
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+    },
+
+    matchesDocumentLocation(doc) {
+      const selectedLocation = this.locations.find(
+        (location) => String(location._id) === String(this.activeDocLocationFilter)
+      );
+      if (!selectedLocation) return false;
+
+      const documentLocation = doc.details?.locationV2;
+      return String(documentLocation?._id || '') === String(selectedLocation._id);
     },
 
     handleSort(key) {
@@ -1198,8 +1215,14 @@ export default {
         
         // Setze userLocation als Standard nur wenn noch keine Session-Daten vorhanden
         const savedFilters = sessionStorage.getItem('dokumente_filters');
-        if (!savedFilters && this.userLocation && this.locations.includes(this.userLocation)) {
-          this.activeDocLocationFilter = this.userLocation;
+        const userLocation = data.locationV2?._id
+          ? this.locations.find((location) => String(location._id) === String(data.locationV2._id))
+          : this.locations.find((location) => (
+            this.normalizeLocationName(location.nameFull) === this.normalizeLocationName(this.userLocation)
+            || this.normalizeLocationName(location.shortName) === this.normalizeLocationName(this.userLocation)
+          ));
+        if (!savedFilters && userLocation) {
+          this.activeDocLocationFilter = userLocation._id;
           this.saveFilters();
         }
       } catch (e) {
@@ -1215,6 +1238,30 @@ export default {
         console.error(this.error.documents);
       } finally {
         this.loading.documents = false;
+      }
+    },
+
+    async fetchLocations() {
+      try {
+        const { data } = await api.get('/api/locations');
+        this.locations = data || [];
+
+        if (this.activeDocLocationFilter !== 'Alle') {
+          const matchesLocationId = this.locations.some(
+            (location) => String(location._id) === String(this.activeDocLocationFilter)
+          );
+          if (!matchesLocationId) {
+            const legacyLocation = this.locations.find((location) => (
+              this.normalizeLocationName(location.nameFull) === this.normalizeLocationName(this.activeDocLocationFilter)
+              || this.normalizeLocationName(location.shortName) === this.normalizeLocationName(this.activeDocLocationFilter)
+            ));
+            this.activeDocLocationFilter = legacyLocation?._id || 'Alle';
+            this.saveFilters();
+          }
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden der Standorte:', error);
+        this.locations = [];
       }
     },
 
@@ -1243,14 +1290,17 @@ export default {
     // 1) Token setzen
     this.setAxiosAuthToken();
 
-    // 2) User Daten & Dokumente laden (Aufträge non-blocking im Hintergrund)
+    // 2) Standorte zuerst laden, damit gespeicherte Namen und der User-Standard auf IDs migriert werden können.
+    await this.fetchLocations();
+
+    // 3) User Daten & Dokumente laden (Aufträge non-blocking im Hintergrund)
     await Promise.all([
       this.fetchUserData(),
       this.fetchDocuments(),
     ]);
     this.dataCache.loadAuftraege(); // fire-and-forget: nur für auftragTitelFor() benötigt
 
-    // 3) Query-Parameter verarbeiten (Filter aus Navigation)
+    // 4) Query-Parameter verarbeiten (Filter aus Navigation)
     const hasFilterParam = this.$route.query.filterTeamleiter || this.$route.query.filterMitarbeiter;
     
     if (hasFilterParam) {
@@ -1309,6 +1359,18 @@ export default {
     0 1px 2px rgba(0, 0, 0, 0.06),
     0 8px 24px rgba(0, 0, 0, 0.06)
   );
+}
+
+.dokumente-page :deep(.location-filter-chip) {
+  border-color: color-mix(in srgb, var(--location-color) 45%, var(--border));
+  color: var(--location-color);
+}
+
+.dokumente-page :deep(.location-filter-chip.active) {
+  background: color-mix(in srgb, var(--location-color) 12%, transparent);
+  border-color: var(--location-color);
+  box-shadow: inset 0 0 0 1px var(--location-color);
+  color: var(--location-color);
 }
 
 .panel {

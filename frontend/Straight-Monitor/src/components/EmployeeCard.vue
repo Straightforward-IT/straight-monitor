@@ -16,7 +16,6 @@
         class="selection-checkbox"
       />
     </div>
-
     <!-- Header (togglable) -->
     <header
       class="card-header"
@@ -1604,6 +1603,9 @@ export default {
       resolvedMaSetup.value?.flip?.attributes?.find?.((a) => a?.name === name)?.value;
 
     const displayLocation = computed(() => {
+      const location = resolvedMaSetup.value?.locationV2;
+      if (location?.nameFull || location?.shortName) return location.nameFull || location.shortName;
+
         // 1. Flip Location
         const flipLoc = resolvedMaSetup.value?.flip?.profile?.location || getFlipAttr("location");
         if (flipLoc) return flipLoc;
@@ -3095,11 +3097,9 @@ export default {
           this.openDeleteModal();
           break;
         case 'open-dispo': {
-          const pnr = String(this.resolvedMa?.personalnr ?? '').trim();
           const query = { maId: String(this.resolvedMa._id), showHidden: '1' };
-          if (pnr.startsWith('1')) query.standort = '1';
-          else if (pnr.startsWith('2')) query.standort = '2';
-          else if (pnr.startsWith('3')) query.standort = '3';
+          const locationV2 = this.resolvedMa?.locationV2?._id || this.resolvedMa?.locationV2;
+          if (locationV2) query.locationV2 = String(locationV2);
           this.$router.push({ path: '/dispo', query });
           this.$emit('close');
           break;

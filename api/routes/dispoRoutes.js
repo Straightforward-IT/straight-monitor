@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
@@ -8,11 +9,12 @@ const Einsatz = require('../models/Einsatz');
 const Auftrag = require('../models/Auftrag');
 const Kunde = require('../models/Kunde');
 const ZvooveVerfuegbarkeit = require('../models/ZvooveVerfuegbarkeit');
+const Location = require('../models/Location');
 
-// ─── GET /api/dispo?von=&bis=&standort=&mitarbeiterId= ───
+// ─── GET /api/dispo?von=&bis=&locationV2=&mitarbeiterId= ───
 // Liefert DispoEinträge + Einsätze (gemerged) für den Zeitraum
 router.get('/', auth, asyncHandler(async (req, res) => {
-  const { von, bis, standort, mitarbeiterId } = req.query;
+  const { von, bis, locationV2, mitarbeiterId } = req.query;
 
   if (!von || !bis) {
     return res.status(400).json({ message: 'Query-Parameter "von" und "bis" sind erforderlich.' });
@@ -32,13 +34,25 @@ router.get('/', auth, asyncHandler(async (req, res) => {
 
   // ── 1. Mitarbeiter laden (gefiltert nach Standort) ──
   const maFilter = { isActive: true };
+  let selectedLocationId = null;
   if (mitarbeiterId) {
     maFilter._id = mitarbeiterId;
   }
-  // Push standort prefix into the DB query to avoid loading all employees
-  // Validate to a single digit to prevent ReDoS
-  if (standort && /^\d$/.test(standort)) {
-    maFilter.personalnr = { $regex: `^${standort}` };
+  if (locationV2) {
+    if (!mongoose.isValidObjectId(locationV2)) {
+      return res.status(400).json({ message: 'Ungültige locationV2.' });
+    }
+
+    const location = await Location.findOne({ _id: locationV2, isActive: true })
+      .select('_id')
+      .lean();
+
+    if (location) {
+      selectedLocationId = location._id;
+      maFilter.locationV2 = selectedLocationId;
+    } else {
+      maFilter._id = null;
+    }
   }
 
   const mitarbeiter = await Mitarbeiter.find(maFilter)
@@ -63,11 +77,15 @@ router.get('/', auth, asyncHandler(async (req, res) => {
   }).lean();
 
   // ── 3. Einsätze im Zeitraum laden (für planned-Status) ──
-  const einsaetze = await Einsatz.find({
+  const einsatzFilter = {
     personalNr: { $in: personalNrs },
     datumVon: { $lte: dateBis },
     datumBis: { $gte: dateVon },
-  }).select('personalNr datumVon datumBis auftragNr bezeichnung schichtBezeichnung uhrzeitVon uhrzeitBis isPseudo').lean();
+  };
+  if (selectedLocationId) einsatzFilter.locationV2 = selectedLocationId;
+  const einsaetze = await Einsatz.find(einsatzFilter)
+    .select('personalNr datumVon datumBis auftragNr bezeichnung schichtBezeichnung uhrzeitVon uhrzeitBis isPseudo')
+    .lean();
 
   // PersonalNr → Mitarbeiter._id Mapping
   const pnrToMaId = {};
@@ -128,10 +146,12 @@ router.get('/', auth, asyncHandler(async (req, res) => {
       }
     }
 
-    const zvooveVerfuegbarkeiten = await ZvooveVerfuegbarkeit.find({
+    const zvooveFilter = {
       personalnr: { $in: personalNrs },
       datum: { $gte: dateVon, $lte: dateBis },
-    }).lean();
+    };
+    if (selectedLocationId) zvooveFilter.locationV2 = selectedLocationId;
+    const zvooveVerfuegbarkeiten = await ZvooveVerfuegbarkeit.find(zvooveFilter).lean();
 
     for (const v of zvooveVerfuegbarkeiten) {
       const maId = pnrToMaId[v.personalnr];

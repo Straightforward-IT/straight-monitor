@@ -27,12 +27,17 @@
           <div v-if="fsFilterExpanded" class="fs-filters-panel">
             <div class="fs-toolbar-filters">
               <!-- Standort -->
-              <FilterDropdown :has-value="!!filters.standort">
+              <FilterDropdown :has-value="!!filters.locationV2">
                 <template #label><font-awesome-icon icon="fa-solid fa-location-dot" style="margin-right:4px" />{{ standortLabel }}</template>
-                <div class="dropdown-item" :class="{ selected: !filters.standort }" @click="setStandort(null)">Alle Standorte</div>
-                <div class="dropdown-item" :class="{ selected: filters.standort === '1' }" @click="setStandort('1')">Berlin</div>
-                <div class="dropdown-item" :class="{ selected: filters.standort === '2' }" @click="setStandort('2')">Hamburg</div>
-                <div class="dropdown-item" :class="{ selected: filters.standort === '3' }" @click="setStandort('3')">Köln</div>
+                <div class="dropdown-item" :class="{ selected: !filters.locationV2 }" @click="setLocationV2(null)">Alle Standorte</div>
+                <div
+                  v-for="location in locations"
+                  :key="location._id"
+                  class="dropdown-item"
+                  :class="{ selected: filters.locationV2 === String(location._id) }"
+                  :style="{ color: location.color || '#6b7280' }"
+                  @click="setLocationV2(String(location._id))"
+                >{{ location.shortName || location.nameFull }}</div>
               </FilterDropdown>
 
               <!-- Zeitraum -->
@@ -54,7 +59,7 @@
                 <span class="fs-kunde-filter-label">🤝</span>
                 <KundeSearch
                   ref="kundeFilterFsRef"
-                  :standort="filters.standort"
+                  :location-v2="filters.locationV2"
                   placeholder="Kunde…"
                   @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
                 />
@@ -183,9 +188,14 @@
       <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
           <!-- Standort -->
           <FilterGroup label="Standort">
-            <FilterChip :active="filters.standort === '1'" @click="setStandort('1')">Berlin</FilterChip>
-            <FilterChip :active="filters.standort === '2'" @click="setStandort('2')">Hamburg</FilterChip>
-            <FilterChip :active="filters.standort === '3'" @click="setStandort('3')">Köln</FilterChip>
+            <FilterChip
+              v-for="location in locations"
+              :key="location._id"
+              class="location-filter-chip"
+              :active="filters.locationV2 === String(location._id)"
+              :style="{ '--location-color': location.color || '#6b7280' }"
+              @click="setLocationV2(String(location._id))"
+            >{{ location.shortName || location.nameFull }}</FilterChip>
           </FilterGroup>
           <FilterDivider />
           <!-- Planung -->
@@ -223,7 +233,7 @@
           <div class="fs-kunde-filter" :class="{ 'fs-kunde-filter--active': !!filters.kundeFilter }">
             <KundeSearch
               ref="kundeFilterRef"
-              :standort="filters.standort"
+              :location-v2="filters.locationV2"
               placeholder="Kunde…"
               @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
             />
@@ -705,9 +715,14 @@
       <Toolbar class="m-toolbar">
         <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
           <FilterGroup label="Standort">
-            <FilterChip :active="filters.standort === '1'" @click="setStandort('1')">Berlin</FilterChip>
-            <FilterChip :active="filters.standort === '2'" @click="setStandort('2')">Hamburg</FilterChip>
-            <FilterChip :active="filters.standort === '3'" @click="setStandort('3')">Köln</FilterChip>
+            <FilterChip
+              v-for="location in locations"
+              :key="location._id"
+              class="location-filter-chip"
+              :active="filters.locationV2 === String(location._id)"
+              :style="{ '--location-color': location.color || '#6b7280' }"
+              @click="setLocationV2(String(location._id))"
+            >{{ location.shortName || location.nameFull }}</FilterChip>
           </FilterGroup>
           <FilterDivider />
           <FilterGroup label="Zeitraum">
@@ -722,7 +737,7 @@
           <FilterGroup label="🤝 Kunde">
             <div class="kunde-filter-search">
               <KundeSearch
-                :standort="filters.standort"
+                :location-v2="filters.locationV2"
                 placeholder="Kunde suchen…"
                 @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
               />
@@ -1072,7 +1087,7 @@
                 </button>
                 <div v-if="eingeplantPicker.open" class="m-eingeplant-picker">
                   <KundeSearch
-                    :standort="filters.standort"
+                    :location-v2="filters.locationV2"
                     placeholder="Kunde wählen…"
                     @select="onEingeplantKundeSelect"
                   />
@@ -1487,7 +1502,7 @@
                 🚫
               </button>
             </div>
-            <KundeSearch ref="kwSearchRef" :standort="filters.standort" :mitarbeiter-id="kwModal.maId" @select="addKundenwunsch" />
+            <KundeSearch ref="kwSearchRef" :location-v2="filters.locationV2" :mitarbeiter-id="kwModal.maId" @select="addKundenwunsch" />
           </div>
         </div>
       </div>
@@ -1677,7 +1692,7 @@
           <div v-if="eingeplantPicker.open" class="ctx-eingeplant-picker" @click.stop>
             <KundeSearch
               ref="ctxKundeSearchRef"
-              :standort="filters.standort"
+              :location-v2="filters.locationV2"
               placeholder="Kunde wählen…"
               @select="onEingeplantKundeSelect"
             />
@@ -2012,11 +2027,15 @@ onMounted(() => window.addEventListener('resize', onResize));
 onUnmounted(() => window.removeEventListener('resize', onResize));
 
 const filters = reactive({
-  standort: null,
+  locationV2: null,
   tage: 30,
   planungFilter: null,
   kundeFilter: null, // ObjectId string
 });
+const locations = ref([]);
+const selectedLocation = computed(() =>
+  locations.value.find((location) => String(location._id) === filters.locationV2) || null
+);
 const filterKunde = ref(null); // full kunde object for display
 const kundeFilterRef = ref(null);
 const kundeFilterFsRef = ref(null);
@@ -2054,7 +2073,7 @@ function openQualDropdown(inputEl) {
 }
 const activeFilterCount = computed(() => {
   let count = 0;
-  if (filters.standort) count++;
+  if (filters.locationV2) count++;
   if (filters.planungFilter) count++;
   if (filters.kundeFilter) count++;
   if (qualFilter.value.length > 0) count++;
@@ -2213,10 +2232,7 @@ watch(hiddenCount, (count) => {
 });
 
 const standortLabel = computed(() => {
-  if (filters.standort === '1') return 'Berlin';
-  if (filters.standort === '2') return 'Hamburg';
-  if (filters.standort === '3') return 'Köln';
-  return 'Standort';
+  return selectedLocation.value?.shortName || selectedLocation.value?.nameFull || 'Standort';
 });
 
 const planungLabel = computed(() => {
@@ -2430,7 +2446,7 @@ async function _fetchVerfCalMonth() {
     const from = new Date(verfCalMonth.year, verfCalMonth.month, 1).toISOString();
     const to   = new Date(verfCalMonth.year, verfCalMonth.month + 1, 0, 23, 59, 59).toISOString();
     const params = new URLSearchParams({ von: from, bis: to });
-    if (filters.standort) params.append('standort', filters.standort);
+    if (filters.locationV2) params.append('locationV2', filters.locationV2);
     const { data } = await api.get(`/api/dispo?${params.toString()}`);
     localAddEntries(data.eintraege || []);
   } catch (err) {
@@ -2863,10 +2879,10 @@ onUnmounted(() => {
 watch(
   () => route.query,
   async (q) => {
-    if (!q.datum && !q.maId) return;
+    if (!q.datum && !q.maId && !q.locationV2) return;
     let needsFetch = false;
-    if (q.standort && q.standort !== filters.standort) {
-      filters.standort = q.standort;
+    if (q.locationV2 && q.locationV2 !== filters.locationV2) {
+      filters.locationV2 = q.locationV2;
       needsFetch = true;
     }
     if (q.resetPlanung) filters.planungFilter = null;
@@ -3392,6 +3408,7 @@ function scrollToHelpSection(id) {
 
 // ─── Prefs (Starred + Filters) ───
 let _savedPrefs = null;
+let _legacyLocationPreference = null;
 
 async function loadPrefs() {
   try {
@@ -3400,7 +3417,8 @@ async function loadPrefs() {
     starredIds.value = new Set(_savedPrefs.starredMitarbeiter || []);
     hiddenIds.value = new Set(_savedPrefs.hiddenMitarbeiter || []);
     // Restore saved filters
-    if (_savedPrefs.standort !== undefined) filters.standort = _savedPrefs.standort;
+    if (_savedPrefs.locationV2 !== undefined) filters.locationV2 = _savedPrefs.locationV2;
+    else _legacyLocationPreference = _savedPrefs.standort ?? null;
     if (_savedPrefs.tage !== undefined) filters.tage = _savedPrefs.tage;
     if (_savedPrefs.planungFilter !== undefined) filters.planungFilter = _savedPrefs.planungFilter;
     if (_savedPrefs.bereichFilter !== undefined) bereichFilter.value = _savedPrefs.bereichFilter;
@@ -3414,11 +3432,12 @@ async function loadPrefs() {
 
 async function savePrefs() {
   try {
+    const { standort: _legacyStandort, ...savedPrefs } = _savedPrefs || {};
     const prefs = {
-      ...(_savedPrefs || {}),
+      ...savedPrefs,
       starredMitarbeiter: [...starredIds.value],
       hiddenMitarbeiter: [...hiddenIds.value],
-      standort: filters.standort,
+      locationV2: filters.locationV2,
       tage: filters.tage,
       planungFilter: filters.planungFilter,
       bereichFilter: bereichFilter.value,
@@ -3471,7 +3490,7 @@ async function fetchDispo() {
       von: today.toISOString(),
       bis: endDate.toISOString(),
     });
-    if (filters.standort) params.append('standort', filters.standort);
+    if (filters.locationV2) params.append('locationV2', filters.locationV2);
 
     const { data } = await api.get(`/api/dispo?${params.toString()}`);
     mitarbeiter.value = data.mitarbeiter || [];
@@ -3495,6 +3514,36 @@ async function fetchDispo() {
   fetchKommentare();
 }
 
+async function fetchLocations() {
+  try {
+    const { data } = await api.get('/api/locations');
+    locations.value = data || [];
+  } catch (err) {
+    console.error('Standorte laden fehlgeschlagen:', err);
+  }
+}
+
+function normalizeLocationV2Filter() {
+  if (!filters.locationV2) return;
+  const value = String(filters.locationV2);
+  if (locations.value.some((location) => String(location._id) === value)) return;
+  filters.locationV2 = null;
+}
+
+function migrateLegacyLocationPreference() {
+  if (!_legacyLocationPreference || filters.locationV2) return;
+  const value = String(_legacyLocationPreference).trim();
+  const normalizedValue = value.toLocaleLowerCase('de');
+  const location = locations.value.find((entry) => (
+    String(entry.externalId || '') === value
+    || [entry.nameFull, entry.shortName].some((name) =>
+      String(name || '').trim().toLocaleLowerCase('de') === normalizedValue
+    )
+  ));
+  _legacyLocationPreference = null;
+  if (location) filters.locationV2 = String(location._id);
+}
+
 async function fetchKommentare() {
   const today = new Date();
   const endDate = new Date(today);
@@ -3502,16 +3551,16 @@ async function fetchKommentare() {
   const von = today.toISOString().slice(0, 10);
   const bis = endDate.toISOString().slice(0, 10);
   // fetch dispo day comments (date-bounded: today → bis)
-  await comments.fetch({ scope: 'dispo_day', von, bis });
+  await comments.fetch({ scope: 'dispo_day', von, bis, locationV2: filters.locationV2 });
   // fetch chronik for all loaded MAs in a single batched request (no date bound —
   // chronik entries are user-typed activity notes with past createdAt timestamps)
   const maIds = mitarbeiter.value.map(ma => String(ma._id));
-  await comments.fetchChronikBatch(maIds);
+  await comments.fetchChronikBatch(maIds, undefined, filters.locationV2);
 }
 
 // ─── Filters ───
-function setStandort(val) {
-  filters.standort = filters.standort === val ? null : val;
+function setLocationV2(val) {
+  filters.locationV2 = filters.locationV2 === val ? null : val;
   savePrefs();
   fetchDispo();
 }
@@ -3533,15 +3582,14 @@ function setBereich(val) {
 }
 
 function setDefaultStandort() {
-  const loc = auth.user?.location || auth.user?.standort || '';
-  const l = loc.toLowerCase();
-  if (l.includes('berlin')) filters.standort = '1';
-  else if (l.includes('hamburg')) filters.standort = '2';
-  else if (l.includes('köln') || l.includes('koeln')) filters.standort = '3';
+  const locationId = auth.user?.locationV2?._id || auth.user?.locationV2;
+  if (locationId && locations.value.some((location) => String(location._id) === String(locationId))) {
+    filters.locationV2 = String(locationId);
+  }
 }
 
 function resetFilters() {
-  filters.standort = null;
+  filters.locationV2 = null;
   filters.tage = 30;
   filters.planungFilter = null;
   showHidden.value = false;
@@ -4271,8 +4319,10 @@ function scrollToMa(maId) {
 
 // ─── Lifecycle ───
 onMounted(async () => {
-  setDefaultStandort();
-  await Promise.all([loadPrefs(), fetchQualifikationen()]);
+  await Promise.all([loadPrefs(), fetchQualifikationen(), fetchLocations()]);
+  migrateLegacyLocationPreference();
+  normalizeLocationV2Filter();
+  if (!filters.locationV2) setDefaultStandort();
   // Restore qual filter now that qualifications are loaded
   if (_savedPrefs?.qualFilterIds?.length) {
     qualFilter.value = allQualifikationen.value.filter(
@@ -4282,7 +4332,8 @@ onMounted(async () => {
 
   // ── Apply deep-link query params from widget navigation ──
   const q = route.query;
-  if (q.standort) filters.standort = q.standort;
+  if (q.locationV2) filters.locationV2 = q.locationV2;
+  normalizeLocationV2Filter();
   if (q.resetPlanung) filters.planungFilter = null;
   if (q.showHidden) showHidden.value = hiddenIds.value.size > 0 && (!q.maId || hiddenIds.value.has(String(q.maId)));
   if (q.datum) {
@@ -6008,6 +6059,18 @@ const dispoAnnouncements = [
   :deep(input) {
     font-size: 0.85rem;
   }
+}
+
+.dispo-page :deep(.location-filter-chip) {
+  border-color: color-mix(in srgb, var(--location-color) 45%, var(--border));
+  color: var(--location-color);
+}
+
+.dispo-page :deep(.location-filter-chip.active) {
+  background: color-mix(in srgb, var(--location-color) 12%, transparent);
+  border-color: var(--location-color);
+  box-shadow: inset 0 0 0 1px var(--location-color);
+  color: var(--location-color);
 }
 
 .zeitraum-dropdown {

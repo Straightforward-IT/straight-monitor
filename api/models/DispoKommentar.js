@@ -34,6 +34,12 @@ const DispoKommentarSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
   }],
+  locationV2: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    default: null,
+    index: true,
+  },
 });
 
 DispoKommentarSchema.index({ mitarbeiter: 1, datum: 1 });

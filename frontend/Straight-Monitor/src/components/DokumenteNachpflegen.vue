@@ -83,7 +83,10 @@
             </div>
             <div class="field-group">
               <label class="field-label">Niederlassung *</label>
-              <StandortChips v-model="lz.standort" />
+              <select v-model="lz.locationV2" class="input-field" required>
+                <option disabled value="">Standort wählen</option>
+                <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
+              </select>
             </div>
           </div>
 
@@ -157,7 +160,10 @@
             </div>
             <div class="field-group">
               <label class="field-label">Niederlassung *</label>
-              <StandortChips v-model="ev.standort" />
+              <select v-model="ev.locationV2" class="input-field" required>
+                <option disabled value="">Standort wählen</option>
+                <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
+              </select>
             </div>
           </div>
 
@@ -234,7 +240,10 @@
             </div>
             <div class="field-group">
               <label class="field-label">Niederlassung *</label>
-              <StandortChips v-model="er.standort" />
+              <select v-model="er.locationV2" class="input-field" required>
+                <option disabled value="">Standort wählen</option>
+                <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
+              </select>
             </div>
           </div>
 
@@ -343,7 +352,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, defineComponent, h } from 'vue';
+import { ref, computed, watch, onMounted, defineComponent, h } from 'vue';
 import api from '@/utils/api';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useTheme } from '@/stores/theme';
@@ -590,10 +599,29 @@ const sessionHistory = ref([]);
 const success = ref({ laufzettel: false, evaluierung: false, eventreport: false });
 const loading = ref({ laufzettel: false, evaluierung: false, eventreport: false });
 const errors  = ref({ laufzettel: '',    evaluierung: '',    eventreport: '' });
+const locations = ref([]);
+
+function locationName(locationId) {
+  return locations.value.find((location) => String(location._id) === String(locationId))?.nameFull || '';
+}
+
+function locationIdForGeschSt(geschSt) {
+  return locations.value.find((location) => String(location.externalId) === String(geschSt || ''))?._id || '';
+}
+
+async function fetchLocations() {
+  try {
+    const { data } = await api.get('/api/locations');
+    locations.value = data || [];
+  } catch (error) {
+    console.error('Standorte konnten nicht geladen werden:', error);
+    locations.value = [];
+  }
+}
 
 // ── Laufzettel form state ──
-const lz = ref({ ma: null, tl: null, datum: todayStr.value, standort: '', auftragNr: '' });
-const lzValid = computed(() => !!auftragData.value.laufzettel && !!lz.value.ma && !!lz.value.tl && !!lz.value.datum && !!lz.value.standort);
+const lz = ref({ ma: null, tl: null, datum: todayStr.value, locationV2: '', auftragNr: '' });
+const lzValid = computed(() => !!auftragData.value.laufzettel && !!lz.value.ma && !!lz.value.tl && !!lz.value.datum && !!lz.value.locationV2);
 
 async function submitLaufzettel() {
   errors.value.laufzettel = '';
@@ -601,14 +629,14 @@ async function submitLaufzettel() {
     return (errors.value.laufzettel = 'Mitarbeiter und Teamleitung dürfen nicht identisch sein.');
   loading.value.laufzettel = true;
   try {
-    const payload = { mitarbeiter_id: lz.value.ma._id, teamleiter_id: lz.value.tl._id, datum: lz.value.datum, standort: lz.value.standort };
+    const payload = { mitarbeiter_id: lz.value.ma._id, teamleiter_id: lz.value.tl._id, datum: lz.value.datum, locationV2: lz.value.locationV2 };
     if (lz.value.auftragNr) payload.auftragNr = lz.value.auftragNr;
     await api.post('/api/personal/laufzettel/manual', payload);
     sessionHistory.value.unshift({
       id: Date.now(), type: 'laufzettel',
       title: `${lz.value.ma.vorname} ${lz.value.ma.nachname}`,
       tl: `${lz.value.tl.vorname} ${lz.value.tl.nachname}`,
-      standort: lz.value.standort, datum: lz.value.datum, auftragNr: lz.value.auftragNr || null,
+      standort: locationName(lz.value.locationV2), datum: lz.value.datum, auftragNr: lz.value.auftragNr || null,
     });
     success.value.laufzettel = true;
   } catch (e) { errors.value.laufzettel = e.response?.data?.msg || 'Fehler beim Erstellen.'; }
@@ -616,8 +644,8 @@ async function submitLaufzettel() {
 }
 
 // ── Evaluierung form state ──
-const ev = ref({ ma: null, tl: null, datum: todayStr.value, standort: '', auftragNr: '', kunde: '', puenktlichkeit: '', grooming: '', motivation: '', technische_fertigkeiten: '', lernbereitschaft: '', sonstiges: '' });
-const evValid = computed(() => !!auftragData.value.evaluierung && !!ev.value.ma && !!ev.value.tl && !!ev.value.datum && !!ev.value.standort);
+const ev = ref({ ma: null, tl: null, datum: todayStr.value, locationV2: '', auftragNr: '', kunde: '', puenktlichkeit: '', grooming: '', motivation: '', technische_fertigkeiten: '', lernbereitschaft: '', sonstiges: '' });
+const evValid = computed(() => !!auftragData.value.evaluierung && !!ev.value.ma && !!ev.value.tl && !!ev.value.datum && !!ev.value.locationV2);
 
 async function submitEvaluierung() {
   errors.value.evaluierung = '';
@@ -625,7 +653,7 @@ async function submitEvaluierung() {
     return (errors.value.evaluierung = 'Mitarbeiter und Teamleitung dürfen nicht identisch sein.');
   loading.value.evaluierung = true;
   try {
-    const payload = { mitarbeiter_id: ev.value.ma._id, teamleiter_id: ev.value.tl._id, datum: ev.value.datum, standort: ev.value.standort };
+    const payload = { mitarbeiter_id: ev.value.ma._id, teamleiter_id: ev.value.tl._id, datum: ev.value.datum, locationV2: ev.value.locationV2 };
     ['auftragNr','kunde','puenktlichkeit','grooming','motivation','technische_fertigkeiten','lernbereitschaft','sonstiges']
       .forEach(k => { if (ev.value[k]) payload[k] = ev.value[k]; });
     await api.post('/api/personal/evaluierung/manual', payload);
@@ -633,7 +661,7 @@ async function submitEvaluierung() {
       id: Date.now(), type: 'evaluierung',
       title: `${ev.value.ma.vorname} ${ev.value.ma.nachname}`,
       tl: `${ev.value.tl.vorname} ${ev.value.tl.nachname}`,
-      standort: ev.value.standort, datum: ev.value.datum, auftragNr: ev.value.auftragNr || null,
+      standort: locationName(ev.value.locationV2), datum: ev.value.datum, auftragNr: ev.value.auftragNr || null,
     });
     success.value.evaluierung = true;
   } catch (e) { errors.value.evaluierung = e.response?.data?.msg || 'Fehler beim Erstellen.'; }
@@ -641,7 +669,7 @@ async function submitEvaluierung() {
 }
 
 // ── EventReport form state ──
-const er = ref({ tl: null, datum: todayStr.value, standort: '', kunde: '', auftragNr: '', mitarbeiter_anzahl: '', puenktlichkeit: '', erscheinungsbild: '', team: '', mitarbeiter_job: '', feedback_auftraggeber: '', sonstiges: '' });
+const er = ref({ tl: null, datum: todayStr.value, locationV2: '', kunde: '', auftragNr: '', mitarbeiter_anzahl: '', puenktlichkeit: '', erscheinungsbild: '', team: '', mitarbeiter_job: '', feedback_auftraggeber: '', sonstiges: '' });
 const erMaRows = ref([]); // [{ _id, name, text }]
 const erMaAvailable = computed(() =>
   erEinsatzMAs.value.filter(ma => !erMaRows.value.some(r => r._id === ma._id))
@@ -652,13 +680,13 @@ function addErMaRow(ma) {
 function removeErMaRow(row) {
   erMaRows.value = erMaRows.value.filter(r => r._id !== row._id);
 }
-const erValid = computed(() => !!auftragData.value.eventreport && !!er.value.tl && !!er.value.datum && !!er.value.standort && !!er.value.kunde);
+const erValid = computed(() => !!auftragData.value.eventreport && !!er.value.tl && !!er.value.datum && !!er.value.locationV2 && !!er.value.kunde);
 
 async function submitEventReport() {
   errors.value.eventreport = '';
   loading.value.eventreport = true;
   try {
-    const payload = { teamleiter_id: er.value.tl._id, datum: er.value.datum, standort: er.value.standort, kunde: er.value.kunde };
+    const payload = { teamleiter_id: er.value.tl._id, datum: er.value.datum, locationV2: er.value.locationV2, kunde: er.value.kunde };
     ['auftragNr','mitarbeiter_anzahl','puenktlichkeit','erscheinungsbild','team','feedback_auftraggeber','sonstiges']
       .forEach(k => { if (er.value[k]) payload[k] = er.value[k]; });
     // Per-MA feedback rows take priority over generic mitarbeiter_job field
@@ -670,7 +698,7 @@ async function submitEventReport() {
       id: Date.now(), type: 'eventreport',
       title: er.value.kunde,
       tl: `${er.value.tl.vorname} ${er.value.tl.nachname}`,
-      standort: er.value.standort, datum: er.value.datum, auftragNr: er.value.auftragNr || null,
+      standort: locationName(er.value.locationV2), datum: er.value.datum, auftragNr: er.value.auftragNr || null,
     });
     success.value.eventreport = true;
   } catch (e) { errors.value.eventreport = e.response?.data?.msg || 'Fehler beim Erstellen.'; }
@@ -682,10 +710,10 @@ function resetForm(type) {
   errors.value[type] = '';
   auftragData.value[type] = null;
   const d = todayStr.value;
-  if (type === 'laufzettel') lz.value = { ma: null, tl: null, datum: d, standort: '', auftragNr: '' };
-  if (type === 'evaluierung') ev.value = { ma: null, tl: null, datum: d, standort: '', auftragNr: '', kunde: '', puenktlichkeit: '', grooming: '', motivation: '', technische_fertigkeiten: '', lernbereitschaft: '', sonstiges: '' };
+  if (type === 'laufzettel') lz.value = { ma: null, tl: null, datum: d, locationV2: '', auftragNr: '' };
+  if (type === 'evaluierung') ev.value = { ma: null, tl: null, datum: d, locationV2: '', auftragNr: '', kunde: '', puenktlichkeit: '', grooming: '', motivation: '', technische_fertigkeiten: '', lernbereitschaft: '', sonstiges: '' };
   if (type === 'eventreport') {
-    er.value = { tl: null, datum: d, standort: '', kunde: '', auftragNr: '', mitarbeiter_anzahl: '', puenktlichkeit: '', erscheinungsbild: '', team: '', mitarbeiter_job: '', feedback_auftraggeber: '', sonstiges: '' };
+    er.value = { tl: null, datum: d, locationV2: '', kunde: '', auftragNr: '', mitarbeiter_anzahl: '', puenktlichkeit: '', erscheinungsbild: '', team: '', mitarbeiter_job: '', feedback_auftraggeber: '', sonstiges: '' };
     erMaRows.value = [];
   }
 }
@@ -711,19 +739,19 @@ function debouncedAuftragFetch(formType, nr) {
 }
 
 function applyAuftragAutoFill(formType, data) {
-  const standort = geschStToStandort[data.geschSt] || '';
+  const locationV2 = data.locationV2?._id || data.locationV2 || locationIdForGeschSt(data.geschSt);
   const kundeLabel = data.kundeData?.kundName || data.eventTitel || '';
   const datum = data.vonDatum ? data.vonDatum.slice(0, 10) : '';
 
   if (formType === 'laufzettel') {
-    if (standort) lz.value.standort = standort;
+    if (locationV2) lz.value.locationV2 = locationV2;
     if (datum) lz.value.datum = datum;
   } else if (formType === 'evaluierung') {
-    if (standort) ev.value.standort = standort;
+    if (locationV2) ev.value.locationV2 = locationV2;
     if (datum) ev.value.datum = datum;
     if (kundeLabel) ev.value.kunde = kundeLabel;
   } else if (formType === 'eventreport') {
-    if (standort) er.value.standort = standort;
+    if (locationV2) er.value.locationV2 = locationV2;
     if (datum) er.value.datum = datum;
     if (kundeLabel) er.value.kunde = kundeLabel;
     erMaRows.value = []; // Clear MA rows when a new Auftrag is loaded
@@ -776,6 +804,8 @@ function auftragDisplayMeta(formType) {
 watch(() => lz.value.auftragNr, (v) => debouncedAuftragFetch('laufzettel', v));
 watch(() => ev.value.auftragNr, (v) => debouncedAuftragFetch('evaluierung', v));
 watch(() => er.value.auftragNr, (v) => debouncedAuftragFetch('eventreport', v));
+
+onMounted(fetchLocations);
 
 function typeIcon(type) {
   if (type === 'laufzettel') return 'fa-solid fa-file-lines';

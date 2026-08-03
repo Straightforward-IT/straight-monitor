@@ -5,6 +5,12 @@ const SchichtSchema = new mongoose.Schema({
     type: Number, // AUFTRAGNR - Foreign Key zu Auftrag
     required: true
   },
+  locationV2: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    default: null,
+    index: true,
+  },
   idAuftragArbeitsschichten: {
     type: Number, // ID_AUFTRAG_ARBEITSSCHICHTEN - Zvoove Shift ID
     required: true

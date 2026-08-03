@@ -5,6 +5,12 @@ const AuftragSchema = new mongoose.Schema({
     type: String, // GESCHST
     required: false
   },
+  locationV2: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    default: null,
+    index: true,
+  },
   auftragNr: {
     type: Number, // AUFTRAGNR
     required: true,

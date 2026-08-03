@@ -23,6 +23,12 @@ const KundeSchema = new mongoose.Schema({
     type: String, // GESCHST
     required: false
   },
+  locationV2: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    default: null,
+    index: true,
+  },
   kostenSt: {
     type: String, // KOSTENST
     required: false

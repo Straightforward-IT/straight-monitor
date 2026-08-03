@@ -42,45 +42,42 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import api from "@/utils/api";
+import { useDataCache } from "@/stores/dataCache";
 import { useFlipAll } from "@/stores/flipAll";
 import DashboardWidget from "./DashboardWidget.vue";
 
-const LOCATIONS = [
-  { label: "Hamburg", keys: ["hamburg"] },
-  { label: "Berlin",  keys: ["berlin"]  },
-  { label: "Köln",    keys: ["köln", "koeln", "cologne"] },
-];
-
 const flip = useFlipAll();
+const cache = useDataCache();
+const locations = ref([]);
 
-const loading = computed(() => flip.loading && !flip.loaded);
+const loading = computed(() =>
+  (flip.loading && !flip.loaded)
+  || (cache.loading.mitarbeiter && cache.mitarbeiter.length === 0)
+);
 
 const activeUsers = computed(() =>
   flip.allFlipUsers.filter((u) => u.status === "ACTIVE")
 );
 
-const getLocation = (u) => {
-  const raw =
-    u.profile?.location ??
-    u.attributes?.find((a) => /standort|location/i.test(a.name ?? ""))?.value ??
-    null;
-  return raw ? String(raw).trim() : null;
-};
-
-const locKey = (loc) => (loc ?? "").toLowerCase().replace(/ö/g, "o");
+const employeeByFlipId = computed(() => new Map(
+  cache.mitarbeiter
+    .filter((employee) => employee.flip_id)
+    .map((employee) => [String(employee.flip_id), employee])
+));
 
 const standorte = computed(() =>
-  LOCATIONS.map((def) => {
+  locations.value.map((location) => {
     const users = activeUsers.value.filter((u) => {
-      const k = locKey(getLocation(u));
-      return def.keys.some((dk) => k.startsWith(locKey(dk)));
+      const employee = employeeByFlipId.value.get(String(u.id));
+      return String(employee?.locationV2?._id || employee?.locationV2) === String(location._id);
     });
     const withPic = users.filter((u) => u.profilbild).length;
     const total   = users.length;
     const quote   = total > 0 ? Math.round((withPic / total) * 100) : 0;
-    return { label: def.label, with: withPic, total, quote };
+    return { label: location.nameFull, with: withPic, total, quote };
   })
 );
 
@@ -114,6 +111,14 @@ const refresh = async () => {
     refreshing.value = false;
   }
 };
+
+onMounted(async () => {
+  const [locationsResponse] = await Promise.all([
+    api.get("/api/locations"),
+    cache.loadMitarbeiter(),
+  ]);
+  locations.value = locationsResponse.data || [];
+});
 </script>
 
 <style scoped lang="scss">

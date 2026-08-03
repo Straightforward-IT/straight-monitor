@@ -9,6 +9,7 @@ const xlsx = require("xlsx");
 const asyncHandler = require("../middleware/AsyncHandler");
 const { sollRoutine, sendInventoryUpdateEmail} = require("../EmailService");
 const registry = require("../config/registry");
+const { resolveLocationFromStandortName } = require('../services/LocationResolutionService');
 
 // Variables
 const cities = registry.listInventoryStandorte();
@@ -29,10 +30,13 @@ async function findOrCreateUser(userID) {
 
 // Helper function to log monitoring actions
 async function logMonitoring({ user, standort, items, art, anmerkung, mitarbeiterId }) {
+  const location = await resolveLocationFromStandortName(standort);
   const logEntry = new Monitoring({
     benutzer: user._id,
     benutzerMail: user.email,
-    standort,
+    standort: location?.nameFull || standort,
+    locationV2: location?._id || null,
+    locationId: location?._id || null,
     art,
     items,
     anmerkung,

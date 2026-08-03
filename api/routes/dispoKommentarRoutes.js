@@ -4,10 +4,12 @@ const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
 const DispoKommentar = require('../models/DispoKommentar');
 const User = require('../models/User');
+const Mitarbeiter = require('../models/Mitarbeiter');
+const mongoose = require('mongoose');
 
 // ─── GET /api/dispo-kommentare?von=YYYY-MM-DD&bis=YYYY-MM-DD ───
 router.get('/', auth, asyncHandler(async (req, res) => {
-  const { von, bis, mitarbeiterId } = req.query;
+  const { von, bis, mitarbeiterId, locationV2 } = req.query;
 
   if (!von || !bis) {
     return res.status(400).json({ message: '"von" und "bis" sind erforderlich.' });
@@ -19,6 +21,12 @@ router.get('/', auth, asyncHandler(async (req, res) => {
 
   const filter = { datum: { $gte: von, $lte: bis } };
   if (mitarbeiterId) filter.mitarbeiter = mitarbeiterId;
+  if (locationV2) {
+    if (!mongoose.isValidObjectId(locationV2)) {
+      return res.status(400).json({ message: 'Ungültige locationV2.' });
+    }
+    filter.locationV2 = locationV2;
+  }
 
   const kommentare = await DispoKommentar.find(filter).sort({ timestamp: 1 }).lean();
   res.json(kommentare);
@@ -39,6 +47,10 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id).select('name email').lean();
   if (!user) return res.status(404).json({ message: 'User nicht gefunden.' });
 
+  const mitarbeiter = mongoose.isValidObjectId(mitarbeiterId)
+    ? await Mitarbeiter.findById(mitarbeiterId).select('locationV2').lean()
+    : null;
+
   const kommentar = new DispoKommentar({
     mitarbeiter: mitarbeiterId,
     datum,
@@ -46,6 +58,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     author: user.name || user.email,
     authorId: req.user.id,
     readBy: [req.user.id], // author has already read their own comment
+    locationV2: mitarbeiter?.locationV2 || null,
   });
 
   await kommentar.save();

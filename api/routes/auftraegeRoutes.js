@@ -11,6 +11,7 @@ const Beruf = require('../models/Beruf');
 const Qualifikation = require('../models/Qualifikation');
 const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
+const { resolveActiveLocation } = require('../services/LocationResolutionService');
 const StundenlisteService = require('../StundenlisteService');
 const R2Service = require('../R2Service');
 const SignaturVorgang = require('../models/SignaturVorgang');
@@ -24,21 +25,22 @@ const EINSATZ_DOK_PREFIX = (auftragNr) => `Auftraege/${auftragNr}/docs/`;
 // GET /api/auftraege/filters - Get available filter options (bediener, kunden, etc)
 router.get('/filters', async (req, res) => {
   try {
-    const { geschSt } = req.query;
+    const { locationV2 } = req.query;
     
-    // Base query for finding relevant orders if geschSt is provided
+    // Base query for finding relevant orders if a Location v2 id is provided.
     const filterQuery = {};
-    if (geschSt) {
-      const stList = geschSt.split(',').map(s => s.trim()).filter(Boolean);
-      if (stList.length > 0) {
-        filterQuery.geschSt = { $in: stList };
+    if (locationV2) {
+      const location = await resolveActiveLocation(locationV2);
+      if (!location) {
+        return res.status(400).json({ success: false, message: 'Der gewählte Standort ist nicht aktiv oder existiert nicht.' });
       }
+      filterQuery.locationV2 = location._id;
     }
 
-    // Get distinct operators (filtered by geschSt)
+    // Get distinct operators for the selected Location.
     const bediener = await Auftrag.find(filterQuery).distinct('bediener');
     
-    // Get distinct kundenNrs used in Aufträge (filtered by geschSt AND future jobs)
+    // Get distinct kundenNrs used in Aufträgen for the selected Location and future jobs.
     // "Zukunft" = bisDatum >= today (including today)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -73,10 +75,10 @@ router.get('/filters', async (req, res) => {
 });
 
 // GET /api/auftraege - List auftraege with date filtering
-// Query params: from, to (ISO date strings), geschSt (string), bediener (comma-separated string), kunden (comma-separated numbers)
+// Query params: from, to (ISO date strings), locationV2 (ObjectId), bediener (comma-separated string), kunden (comma-separated numbers)
 router.get('/', async (req, res) => {
   try {
-    const { from, to, geschSt, bediener, kunden: kundenQuery } = req.query;
+    const { from, to, locationV2, bediener, kunden: kundenQuery } = req.query;
     
     const query = {};
     
@@ -96,13 +98,13 @@ router.get('/', async (req, res) => {
       }
     }
 
-    // Geschäftsstelle Filter
-    if (geschSt) {
-      // Allow for multiple comma separated values or single
-      const stList = geschSt.split(',').map(s => s.trim()).filter(Boolean);
-      if (stList.length > 0) {
-        query.geschSt = { $in: stList };
+    // Location v2 filter
+    if (locationV2) {
+      const location = await resolveActiveLocation(locationV2);
+      if (!location) {
+        return res.status(400).json({ success: false, message: 'Der gewählte Standort ist nicht aktiv oder existiert nicht.' });
       }
+      query.locationV2 = location._id;
     }
 
     // Bediener Filter
@@ -126,6 +128,7 @@ router.get('/', async (req, res) => {
     query.aktiv = { $ne: 0 };
     
     const auftraege = await Auftrag.find(query)
+      .populate('locationV2', 'nameFull shortName color externalId')
       .sort({ vonDatum: 1 })
       .lean();
     
@@ -273,7 +276,9 @@ router.get('/:auftragNr/details', async (req, res) => {
   try {
     const { auftragNr } = req.params;
     
-    const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) }).lean();
+    const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) })
+      .populate('locationV2', 'nameFull shortName color externalId')
+      .lean();
     
     if (!auftrag) {
       return res.status(404).json({ success: false, message: 'Auftrag nicht gefunden' });
@@ -638,7 +643,7 @@ router.delete('/:auftragNr/labels/:labelId', asyncHandler(async (req, res) => {
 
 // POST /api/auftraege – Create a new pseudo Auftrag
 router.post('/', asyncHandler(async (req, res) => {
-  const { eventTitel, vonDatum, bisDatum, geschSt, eventLocation, eventOrt, kundenNr } = req.body;
+  const { eventTitel, vonDatum, bisDatum, locationV2, eventLocation, eventOrt, kundenNr } = req.body;
   if (!eventTitel || !vonDatum || !bisDatum) {
     return res.status(400).json({ message: 'Titel, vonDatum und bisDatum sind erforderlich' });
   }
@@ -646,13 +651,18 @@ router.post('/', asyncHandler(async (req, res) => {
   // Generate an auftragNr in the pseudo range (>= 9000001)
   const lastPseudo = await Auftrag.findOne({ isPseudo: true }).sort({ auftragNr: -1 }).lean();
   const nextNr = lastPseudo ? lastPseudo.auftragNr + 1 : 9000001;
+  const location = locationV2 ? await resolveActiveLocation(locationV2) : null;
+  if (locationV2 && !location) {
+    return res.status(400).json({ message: 'Der gewählte Standort ist nicht aktiv oder existiert nicht.' });
+  }
 
   const auftrag = new Auftrag({
     auftragNr: nextNr,
     eventTitel: eventTitel.trim(),
     vonDatum: new Date(vonDatum),
     bisDatum: new Date(bisDatum),
-    geschSt: geschSt || null,
+    geschSt: location?.externalId || null,
+    locationV2: location?._id || null,
     eventLocation: eventLocation?.trim() || null,
     eventOrt: eventOrt?.trim() || null,
     kundenNr: kundenNr ? parseInt(kundenNr) : null,
@@ -661,6 +671,7 @@ router.post('/', asyncHandler(async (req, res) => {
     isPseudo: true,
   });
   await auftrag.save();
+  await auftrag.populate('locationV2', 'nameFull shortName color externalId');
   res.status(201).json(auftrag.toObject());
 }));
 
@@ -733,6 +744,7 @@ router.post('/:auftragNr/pseudo-einsatz', asyncHandler(async (req, res) => {
 
   const newEinsatz = new Einsatz({
     auftragNr: parseInt(auftragNr),
+    locationV2: auftrag.locationV2 || null,
     personalNr: personalnrInt,
     datumVon: tpl?.datumVon || auftrag.vonDatum,
     datumBis: tpl?.datumBis || auftrag.bisDatum,

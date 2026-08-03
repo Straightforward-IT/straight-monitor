@@ -13,6 +13,7 @@ const Comment = require('../models/Comment');
 const R2Service = require('../R2Service');
 const registry = require('../config/registry');
 const { createSalesTask, updateTask } = require('../AsanaService');
+const { resolveLocationFromStandortName } = require('../services/LocationResolutionService');
 
 // Multer — memory storage, max 25 MB per file, up to 20 files per request
 const upload = multer({
@@ -34,8 +35,9 @@ const QUELLE_LABELS = {
 };
 
 // ─── Create a system event in the lead chronik ──────────────────────
-async function createChronikEvent(leadId, authorId, authorName, text) {
+async function createChronikEvent(lead, authorId, authorName, text) {
   try {
+    const location = await resolveLocationFromStandortName(lead.standort);
     await Comment.create({
       scope: 'lead_chronik',
       text,
@@ -43,7 +45,8 @@ async function createChronikEvent(leadId, authorId, authorName, text) {
       authorId,
       readBy: [authorId],
       isSystem: true,
-      context: { resourceId: leadId, resourceType: 'Lead' },
+      locationV2: location?._id || null,
+      context: { resourceId: lead._id, resourceType: 'Lead' },
     });
   } catch (_) {
     // Non-critical — don't block main flow
@@ -324,7 +327,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   ]);
 
   const uName = creatorUser?.name || creatorUser?.email || 'Unbekannt';
-  createChronikEvent(lead._id, req.user.id, uName, `${uName} – Lead erstellt.`);
+  createChronikEvent(lead, req.user.id, uName, `${uName} – Lead erstellt.`);
 
   res.status(201).json(populated);
 }));
@@ -426,6 +429,7 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   }
 
   if (events.length > 0) {
+    const location = await resolveLocationFromStandortName(lead.standort).catch(() => null);
     Comment.insertMany(events.map(text => ({
       scope: 'lead_chronik',
       text,
@@ -433,6 +437,7 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
       authorId: req.user.id,
       readBy: [req.user.id],
       isSystem: true,
+      locationV2: location?._id || null,
       context: { resourceId: lead._id, resourceType: 'Lead' },
     }))).catch(() => {});
   }

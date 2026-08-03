@@ -31,6 +31,13 @@ const CommentSchema = new mongoose.Schema(
 
     isSystem: { type: Boolean, default: false },
 
+    locationV2: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Location',
+      default: null,
+      index: true,
+    },
+
     context: {
       mitarbeiter: { type: mongoose.Schema.Types.ObjectId, ref: 'Mitarbeiter', index: true },
       datum:        { type: String },                // 'YYYY-MM-DD'

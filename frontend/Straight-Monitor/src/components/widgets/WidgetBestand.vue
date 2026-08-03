@@ -10,10 +10,10 @@
         <option value="percent">% Soll</option>
         <option value="anzahl">Anzahl</option>
       </select>
-      <select v-model="standort" class="wb-select">
+      <select v-model="selectedLocation" class="wb-select">
         <option value="">Alle</option>
-        <option v-for="loc in LOCATIONS" :key="loc.value" :value="loc.value">
-          {{ loc.label }}
+        <option v-for="location in locations" :key="location._id" :value="location._id">
+          {{ location.shortName || location.nameFull }}
         </option>
       </select>
     </template>
@@ -54,32 +54,24 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
-import { useDataCache } from "@/stores/dataCache";
+import api from "@/utils/api";
 import { useAuth } from "@/stores/auth";
 import DashboardWidget from "./DashboardWidget.vue";
 
-const LOCATIONS = [
-  { label: "HH", value: "Hamburg" },
-  { label: "B",  value: "Berlin"  },
-  { label: "K",  value: "K\u00f6ln"    },
-];
-
-const cache   = useDataCache();
 const auth    = useAuth();
-const loading = computed(() => cache.loading.items && cache.items.length === 0);
+const locations = ref([]);
+const stocks = ref([]);
+const loading = ref(false);
 
-const standort  = ref("");
+const selectedLocation = ref("");
 const sortMode  = ref("percent");
 const _initDone = ref(false);
 
 watch(
   () => auth.user,
   (u) => {
-    if (!_initDone.value && u?.location) {
-      const loc = LOCATIONS.find(
-        (l) => l.value.toLowerCase().replace(/\u00f6/g, "o") === u.location.toLowerCase().replace(/\u00f6/g, "o")
-      );
-      if (loc) standort.value = loc.value;
+    if (!_initDone.value && u?.locationV2) {
+      selectedLocation.value = String(u.locationV2?._id || u.locationV2);
       _initDone.value = true;
     }
   },
@@ -87,8 +79,8 @@ watch(
 );
 
 const filtered = computed(() => {
-  if (!standort.value) return cache.items;
-  return cache.items.filter((i) => i.standort === standort.value);
+  if (!selectedLocation.value) return stocks.value;
+  return stocks.value.filter((stock) => String(stock.locationId) === selectedLocation.value);
 });
 
 const pct = (item) =>
@@ -115,7 +107,21 @@ const noSoll = computed(() => {
   return [...list].sort((a, b) => (b.anzahl ?? 0) - (a.anzahl ?? 0));
 });
 
-onMounted(() => cache.loadItems());
+async function loadData() {
+  loading.value = true;
+  try {
+    const [locationsResponse, stocksResponse] = await Promise.all([
+      api.get("/api/locations"),
+      api.get("/api/inventory/stocks"),
+    ]);
+    locations.value = locationsResponse.data || [];
+    stocks.value = stocksResponse.data || [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(loadData);
 </script>
 
 <style scoped lang="scss">

@@ -27,7 +27,9 @@
           <FilterChip
             v-for="location in applicantLocations"
             :key="location.key"
+            class="location-filter-chip"
             :active="locationFilter === location.key"
+            :style="{ '--location-color': location.color || '#6b7280' }"
             @click="locationFilter = locationFilter === location.key ? '' : location.key"
           >
             {{ location.label }}
@@ -109,12 +111,6 @@ import FilterChip from './ui-elements/FilterChip.vue';
 import ToolbarFilter from './ui-elements/ToolbarFilter.vue';
 import Toolbar from './ui-elements/Toolbar.vue';
 
-const LOCATION_LABELS = {
-  berlin: 'Berlin',
-  hamburg: 'Hamburg',
-  koeln: 'Köln',
-};
-
 export default {
   name: 'BewerberTab',
   components: { BewerberCard, FilterChip, FilterGroup, SearchBar, Toolbar, ToolbarFilter },
@@ -147,14 +143,25 @@ export default {
       return this.locationFilter ? 1 : 0;
     },
     applicantLocations() {
-      return [...new Set(this.applicants.map((bewerber) => bewerber.teamKey).filter(Boolean))]
-        .sort()
-        .map((key) => ({ key, label: LOCATION_LABELS[key] || key }));
+      const locations = new Map();
+      for (const bewerber of this.applicants) {
+        const location = bewerber.locationV2;
+        const locationId = location?._id || location;
+        const key = locationId ? `location:${locationId}` : `team:${bewerber.teamKey || 'unbekannt'}`;
+        if (!locations.has(key)) {
+          locations.set(key, {
+            key,
+            label: location?.nameFull || location?.shortName || bewerber.teamKey || 'Nicht zugeordnet',
+            color: location?.color || '#6b7280',
+          });
+        }
+      }
+      return [...locations.values()].sort((left, right) => left.label.localeCompare(right.label, 'de'));
     },
     filteredApplicants() {
       const needle = this.search.trim().toLowerCase();
       return this.applicants.filter((bewerber) =>
-        (!this.locationFilter || bewerber.teamKey === this.locationFilter)
+        (!this.locationFilter || this.applicantLocationKey(bewerber) === this.locationFilter)
         && (!needle || [bewerber.vorname, bewerber.nachname, bewerber.email, bewerber.telefon]
           .filter(Boolean)
           .some((value) => value.toLowerCase().includes(needle)))
@@ -162,6 +169,10 @@ export default {
     },
   },
   methods: {
+    applicantLocationKey(bewerber) {
+      const locationId = bewerber.locationV2?._id || bewerber.locationV2;
+      return locationId ? `location:${locationId}` : `team:${bewerber.teamKey || 'unbekannt'}`;
+    },
     async loadApplicants() {
       this.loading = true;
       this.error = '';
@@ -281,6 +292,8 @@ export default {
 
 <style scoped lang="scss">
 .bewerber-tab { padding: 20px; }
+.bewerber-tab :deep(.location-filter-chip) { border-color: color-mix(in srgb, var(--location-color) 45%, var(--border)); color: var(--location-color); }
+.bewerber-tab :deep(.location-filter-chip.active) { background: color-mix(in srgb, var(--location-color) 12%, transparent); border-color: var(--location-color); box-shadow: inset 0 0 0 1px var(--location-color); color: var(--location-color); }
 .suggestions-bar { border-bottom: 1px solid var(--border); display: grid; gap: 10px; margin: -4px 0 18px; padding: 0 0 18px; }
 .suggestions-heading { align-items: baseline; display: flex; gap: 8px; }
 .suggestions-heading span { color: var(--text); font-size: .9rem; font-weight: 600; }

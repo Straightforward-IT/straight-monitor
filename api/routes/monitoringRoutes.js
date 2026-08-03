@@ -5,6 +5,15 @@ const PaketVorlage = require("../models/PaketVorlage");
 const auth = require("../middleware/auth");
 const Item = require("../models/Item");
 const asyncHandler = require("../middleware/AsyncHandler");
+const {
+  resolveActiveLocation,
+  resolveLocationFromStandortName,
+} = require('../services/LocationResolutionService');
+
+async function resolveMonitoringLocation(locationId, standort) {
+  return (locationId ? await resolveActiveLocation(locationId) : null)
+    || (standort ? await resolveLocationFromStandortName(standort) : null);
+}
 
 async function enrichPackageTemplateNames(logs) {
   const templateIds = logs
@@ -33,10 +42,15 @@ router.get("/", auth, asyncHandler( async (req, res) => {
 // GET recent monitoring logs for dashboard widget
 router.get("/recent", auth, asyncHandler(async (req, res) => {
   const count = parseInt(req.query.count) || 3;
+  const locationV2 = req.query.locationV2;
   const standort = req.query.standort;
 
   let filter = {};
-  if (standort && standort !== "Alle") {
+  if (locationV2) {
+    const location = await resolveActiveLocation(locationV2);
+    if (!location) return res.status(400).json({ message: 'Standort nicht gefunden oder inaktiv.' });
+    filter.$or = [{ locationV2: location._id }, { locationId: location._id }];
+  } else if (standort && standort !== "Alle") {
     filter.standort = standort;
   }
 
@@ -67,7 +81,7 @@ router.get("/:id", auth, asyncHandler( async (req, res) => {
 
 // POST a new monitoring log
 router.post("/", auth, asyncHandler( async (req, res) => {
-  const { userID, standort, art, items, anmerkung } = req.body;
+  const { userID, standort, locationV2, locationId, art, items, anmerkung } = req.body;
 
     // Validate items structure
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -79,10 +93,17 @@ router.post("/", auth, asyncHandler( async (req, res) => {
       return res.status(404).json({ msg: "User not found" });
     }
 
+    const location = await resolveMonitoringLocation(locationV2 || locationId, standort);
+    if ((locationV2 || locationId) && !location) {
+      return res.status(400).json({ message: 'Standort nicht gefunden oder inaktiv.' });
+    }
+
     const newMonitoringLog = new Monitoring({
       benutzer: user._id,
       benutzerMail: user.email,
-      standort,
+      standort: location?.nameFull || standort,
+      locationV2: location?._id || null,
+      locationId: location?._id || null,
       art,
       items,
       anmerkung,
@@ -96,7 +117,7 @@ router.post("/", auth, asyncHandler( async (req, res) => {
 
 // PUT (update) a specific monitoring log by ID
 router.put("/:id", auth, asyncHandler( async (req, res) => {
-  const { standort, art, items, anmerkung, timestamp } = req.body;
+  const { standort, locationV2, locationId, art, items, anmerkung, timestamp } = req.body;
 
  
     let monitoringLog = await Monitoring.findById(req.params.id);
@@ -104,8 +125,18 @@ router.put("/:id", auth, asyncHandler( async (req, res) => {
       return res.status(404).json({ msg: "Monitoring log not found" });
     }
 
-    // Update fields
-    monitoringLog.standort = standort || monitoringLog.standort;
+    if (locationV2 !== undefined || locationId !== undefined || standort !== undefined) {
+      const location = await resolveMonitoringLocation(locationV2 || locationId, standort);
+      if ((locationV2 || locationId) && !location) {
+        return res.status(400).json({ message: 'Standort nicht gefunden oder inaktiv.' });
+      }
+      monitoringLog.standort = location?.nameFull || standort || monitoringLog.standort;
+      if (location) {
+        monitoringLog.locationV2 = location._id;
+        monitoringLog.locationId = location._id;
+      }
+    }
+
     monitoringLog.art = art || monitoringLog.art;
     monitoringLog.items = items || monitoringLog.items;
     monitoringLog.anmerkung = anmerkung || monitoringLog.anmerkung;

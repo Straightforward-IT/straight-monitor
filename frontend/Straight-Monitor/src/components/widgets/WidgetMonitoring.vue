@@ -8,9 +8,9 @@
     <template #actions>
       <select v-model="selectedStandort" class="wp-select">
         <option value="Alle">Alle</option>
-        <option value="Hamburg">HH</option>
-        <option value="Berlin">B</option>
-        <option value="Köln">K</option>
+        <option v-for="location in locations" :key="location._id" :value="location._id">
+          {{ location.shortName || location.nameFull }}
+        </option>
       </select>
     </template>
 
@@ -53,8 +53,10 @@ import DashboardWidget from "./DashboardWidget.vue";
 const auth = useAuth();
 
 const selectedStandort = ref("Alle");
+const locations = ref([]);
 const recentLogs = ref([]);
 const loading = ref(false);
+const locationInitialized = ref(false);
 
 // Format time as HH:MM
 const formatTime = (timestamp) => {
@@ -84,7 +86,7 @@ const loadRecentLogs = async () => {
     loading.value = true;
     const params = {
       count: 3,
-      ...(selectedStandort.value !== "Alle" && { standort: selectedStandort.value }),
+      ...(selectedStandort.value !== "Alle" && { locationV2: selectedStandort.value }),
     };
     const { data } = await api.get("/api/monitoring/recent", { params });
     recentLogs.value = data;
@@ -96,15 +98,12 @@ const loadRecentLogs = async () => {
   }
 };
 
-// Init standort from user location
 watch(
   () => auth.user,
   (u) => {
-    if (u?.location) {
-      const validLocations = ["Hamburg", "Berlin", "Köln"];
-      if (validLocations.includes(u.location)) {
-        selectedStandort.value = u.location;
-      }
+    if (!locationInitialized.value && u?.locationV2) {
+      selectedStandort.value = String(u.locationV2?._id || u.locationV2);
+      locationInitialized.value = true;
     }
   },
   { immediate: true }
@@ -113,7 +112,9 @@ watch(
 // Reload when standort changes
 watch(selectedStandort, () => loadRecentLogs());
 
-onMounted(() => {
+onMounted(async () => {
+  const { data } = await api.get("/api/locations");
+  locations.value = data || [];
   loadRecentLogs();
 });
 </script>

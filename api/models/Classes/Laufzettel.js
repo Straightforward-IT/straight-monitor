@@ -23,6 +23,12 @@ const LaufzettelSchema = new mongoose.Schema(
 
     // ── Basis-Felder (ehemals Laufzettel) ───────────────────
     location: { type: String, required: true },
+    locationV2: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      default: null,
+      index: true,
+    },
     name_mitarbeiter: { type: String, required: true },
     name_teamleiter: { type: String, required: true },
     mitarbeiter: {

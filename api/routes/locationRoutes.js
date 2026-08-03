@@ -31,7 +31,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   }
 
   const {
-    nameFull, shortName, address, locationManager, contact, openingHours,
+    nameFull, shortName, color, address, locationManager, contact, openingHours,
     timeZone, legal, externalId, deliveryNotes, settings,
   } = req.body;
   if (!nameFull?.trim() || !shortName?.trim()) {
@@ -51,7 +51,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   }
 
   const location = await Location.create({
-    nameFull, shortName, address, locationManager: locationManager || null, contact,
+    nameFull, shortName, color, address, locationManager: locationManager || null, contact,
     openingHours, timeZone, legal, externalId, deliveryNotes, settings, createdBy: req.user.id,
   });
   await location.populate('locationManager', 'name email');
@@ -83,6 +83,7 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
 
   location.nameFull = req.body.nameFull;
   location.shortName = req.body.shortName;
+  if (req.body.color !== undefined) location.color = req.body.color;
 
   const editableFields = [
     'address', 'locationManager', 'contact', 'openingHours', 'timeZone',

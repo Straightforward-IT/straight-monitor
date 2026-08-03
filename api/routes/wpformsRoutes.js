@@ -22,6 +22,7 @@ const { sendMail } = require("../EmailService"); // Ensure sendMail is properly 
 
 const Mitarbeiter = require("../models/Mitarbeiter");
 const Auftrag = require("../models/Auftrag");
+const { resolveLocationFromStandortName } = require("../services/LocationResolutionService");
 
 const {
   findMitarbeiterByName,
@@ -86,6 +87,8 @@ router.post(
       const { location, name_mitarbeiter, name_teamleiter, email, datum } =
         req.body;
 
+      const resolvedLocation = await resolveLocationFromStandortName(location);
+
       logger.debug("Laufzettel data:", {
         location,
         name_mitarbeiter,
@@ -99,7 +102,8 @@ router.post(
 
       // v2: Refs auf dem Laufzettel sind Source of Truth (keine Array-Pushes auf Mitarbeiter)
       parsedBody = new Laufzettel({
-        location,
+        location: resolvedLocation?.nameFull || location,
+        locationV2: resolvedLocation?._id || null,
         name_mitarbeiter,
         name_teamleiter,
         datum,
@@ -181,11 +185,14 @@ router.post(
         sonstiges,
       } = req.body;
 
+      const resolvedLocation = await resolveLocationFromStandortName(location);
+
       let teamleiter = await Mitarbeiter.findOne({ email });
 
       // v2: Ref auf dem EventReport ist Source of Truth (kein Array-Push auf Mitarbeiter)
       parsedBody = new EventReport({
-        location,
+        location: resolvedLocation?.nameFull || location,
+        locationV2: resolvedLocation?._id || null,
         name_teamleiter,
         datum,
         kunde,
@@ -819,8 +826,8 @@ router.get(
     // (e.g. version: 'v2') to old documents that don't have the field in the DB.
     // Without lean(), every old Laufzettel/EventReport would appear as version 'v2'.
     const [laufzettel, eventReports, evaluierungen] = await Promise.all([
-      Laufzettel.find().lean().sort({ datum: -1 }),
-      EventReport.find().lean().sort({ datum: -1 }),
+      Laufzettel.find().populate("locationV2", "nameFull shortName color externalId").lean().sort({ datum: -1 }),
+      EventReport.find().populate("locationV2", "nameFull shortName color externalId").lean().sort({ datum: -1 }),
       EvaluierungMA.find().lean().sort({ datum: -1 }),
     ]);
 
@@ -902,8 +909,8 @@ router.get(
     const { auftragNr } = req.params;
 
     const [laufzettel, eventReports] = await Promise.all([
-      Laufzettel.find({ auftragnummer: Number(auftragNr) }).lean().sort({ datum: -1 }),
-      EventReport.find({ auftragnummer: String(auftragNr) }).lean().sort({ datum: -1 }),
+      Laufzettel.find({ auftragnummer: Number(auftragNr) }).populate("locationV2", "nameFull shortName color externalId").lean().sort({ datum: -1 }),
+      EventReport.find({ auftragnummer: String(auftragNr) }).populate("locationV2", "nameFull shortName color externalId").lean().sort({ datum: -1 }),
     ]);
 
     const formatDoc = (doc, type) => ({
@@ -951,8 +958,8 @@ router.get(
     
     // .lean() prevents schema defaults (version: 'v2') from applying to old docs
     const [laufzettel, eventReports, evaluierungen] = await Promise.all([
-      Laufzettel.find({ updatedAt: { $gt: sinceDate } }).lean(),
-      EventReport.find({ updatedAt: { $gt: sinceDate } }).lean(),
+      Laufzettel.find({ updatedAt: { $gt: sinceDate } }).populate("locationV2", "nameFull shortName color externalId").lean(),
+      EventReport.find({ updatedAt: { $gt: sinceDate } }).populate("locationV2", "nameFull shortName color externalId").lean(),
       EvaluierungMA.find({ updatedAt: { $gt: sinceDate } }).lean(),
     ]);
 
