@@ -86,6 +86,7 @@ const props = defineProps({
   label:       { type: String,  default: '' },
   placeholder: { type: String,  default: 'Mitarbeiter suchen (Name, Nr.)…' },
   dropup:      { type: Boolean, default: false },
+  includeInactive: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue', 'select']);
 
@@ -129,7 +130,7 @@ function onInput() {
   loading.value = true;
   debounceTimer = setTimeout(async () => {
     try {
-      const { data } = await api.get('/api/personal/search', { params: { q: query.value } });
+      const { data } = await api.get('/api/personal/search', { params: { q: query.value, includeInactive: props.includeInactive } });
       results.value = data;
       highlighted.value = 0;
       if (data.length > 0) {

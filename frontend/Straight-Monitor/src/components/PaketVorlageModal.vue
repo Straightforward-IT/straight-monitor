@@ -12,7 +12,7 @@
             <label>Standort
               <select v-model="locationId"><option v-for="location in availableLocations" :key="location._id" :value="location._id">{{ location.nameFull }} ({{ location.shortName }})</option></select>
             </label>
-            <label>Mitarbeiter<MitarbeiterSearch v-model="mitarbeiterId" /></label>
+            <label>Mitarbeiter<MitarbeiterSearch v-model="mitarbeiterId" include-inactive /></label>
           </div>
 
           <div class="mode-switch">

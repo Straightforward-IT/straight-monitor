@@ -1629,6 +1629,7 @@ async function updateAllTeamleiterBadges() {
  * @param {Array} mitarbeiterList - Array von Mongoose Mitarbeiter-Dokumenten
  * @returns {Promise<{ promoted: number, unchanged: number, errors: number, logs: string[] }>}
  */
+
 async function syncRankGroups(mitarbeiterList) {
   const now = new Date();
   const logs = [];

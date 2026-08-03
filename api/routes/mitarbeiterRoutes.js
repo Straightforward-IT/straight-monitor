@@ -258,11 +258,10 @@ router.get(
   '/search',
   auth,
   asyncHandler(async (req, res) => {
-    const { q } = req.query;
+    const { q, includeInactive } = req.query;
     if (!q || String(q).trim().length < 2) return res.json([]);
     const regex = new RegExp(String(q).trim(), 'i');
-    const results = await Mitarbeiter.find({
-      isActive: true,
+    const filter = {
       $or: [
         { vorname: regex },
         { nachname: regex },
@@ -270,7 +269,9 @@ router.get(
         { personalnr: regex },
         { personalnummern: regex },
       ]
-    })
+    };
+    if (includeInactive !== 'true') filter.isActive = true;
+    const results = await Mitarbeiter.find(filter)
       .sort({ createdAt: -1 })
       .select('_id vorname nachname email personalnr')
       .limit(20)

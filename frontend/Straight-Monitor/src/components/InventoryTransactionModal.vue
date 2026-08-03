@@ -17,7 +17,7 @@
             <button type="button" :class="{ active: direction === 'return' }" @click="direction = 'return'">Rückgabe</button>
           </div>
           <p class="available">Aktueller Bestand: <b>{{ stock.anzahl }}</b> / {{ stock.soll }}</p>
-          <label>Mitarbeiter<MitarbeiterSearch v-model="mitarbeiterId" /></label>
+          <label>Mitarbeiter<MitarbeiterSearch v-model="mitarbeiterId" include-inactive /></label>
           <div class="two-columns">
             <label>Menge<input v-model.number="anzahl" type="number" min="1" :max="direction === 'issue' ? stock.anzahl : undefined" /></label>
             <label>Anmerkung<input v-model="anmerkung" type="text" placeholder="Optional" /></label>
