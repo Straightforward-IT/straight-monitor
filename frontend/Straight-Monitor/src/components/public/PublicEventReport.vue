@@ -185,9 +185,8 @@
       <div class="form-row">
         <div class="form-group">
           <label>Standort *</label>
-          <select v-model="form.locationV2" required>
-            <option disabled value="">Standort wählen</option>
-            <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
+          <select :value="form.locationV2" class="readonly" disabled>
+            <option :value="form.locationV2">{{ form.location || 'Standort nicht verfügbar' }}</option>
           </select>
         </div>
         <div class="form-group">
@@ -378,7 +377,6 @@ const theme = useTheme();
 const imgEventreport = computed(() => theme.isDark ? eventreportDark : eventreportLight);
 
 const ratingOptions = ['Sehr gut', 'Gut', 'Befriedigend', 'Mangelhaft'];
-const STANDORT_MAP = { '1': 'Berlin', '2': 'Hamburg', '3': 'Köln' };
 
 const pastEinsaetze = computed(() => {
   const endOfToday = new Date();
@@ -406,7 +404,6 @@ const submitSuccess = ref(false);
 const submitting = ref(false);
 const einsatzMitarbeiter = ref([]);
 const draftReady = ref(false);
-const locations = ref([]);
 
 const {
   storageGet,
@@ -532,32 +529,6 @@ function resetFormFields() {
   einsatzMitarbeiter.value = [];
 }
 
-function normalizeLocationName(value) {
-  return String(value || '')
-    .trim()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-}
-
-function resolveLocationId(value) {
-  if (!value) return '';
-  const directLocation = locations.value.find((location) => String(location._id) === String(value));
-  if (directLocation) return directLocation._id;
-
-  const legacyName = STANDORT_MAP[String(value)] || value;
-  return locations.value.find((location) => (
-    String(location.externalId) === String(value)
-    || normalizeLocationName(location.nameFull) === normalizeLocationName(legacyName)
-    || normalizeLocationName(location.shortName) === normalizeLocationName(legacyName)
-  ))?._id || '';
-}
-
-async function fetchLocations() {
-  const { data } = await props.api.get('/api/locations');
-  locations.value = data || [];
-}
-
 // Rebuild the form (switch Einsatz / open / reset) without triggering autosave.
 async function rebuild(fn) {
   draftReady.value = false;
@@ -580,7 +551,7 @@ function flushCurrentDraft() {
 // Prefill base data from the Einsatz, then overlay any saved draft for that Einsatz.
 async function applyEinsatz(einsatz) {
   selectedEinsatzId.value = einsatz._id;
-  await prefillFromEinsatz(einsatz);
+  const orderLocation = await prefillFromEinsatz(einsatz);
 
   const draft = storageGet(draftKeyFor(einsatz._id));
   if (draft?.form) {
@@ -589,6 +560,7 @@ async function applyEinsatz(einsatz) {
       mitarbeiterRows.value = draft.mitarbeiterRows;
     }
   }
+  Object.assign(form, orderLocation);
 }
 
 // Watch for changes and auto-save draft (debounced via composable)
@@ -617,11 +589,6 @@ watch(() => form.notizen, (val) => {
 });
 
 onMounted(async () => {
-  try {
-    await fetchLocations();
-  } catch (error) {
-    console.error('Standorte konnten nicht geladen werden:', error);
-  }
   await rebuild(async () => {
     resetFormFields();
     if (props.prefillEinsatz) {
@@ -671,12 +638,15 @@ async function prefillFromEinsatz(einsatz) {
   form.notizen = ''; // Clear before loading auftrag-specific note
   form.auftragnummer = String(einsatz.auftragNr || '');
   form.datum = einsatz.datumVon ? new Date(einsatz.datumVon).toISOString().split('T')[0] : '';
-  const rawLoc = einsatz.auftrag?.geschSt || einsatz.auftrag?.eventOrt || '';
-  form.locationV2 = resolveLocationId(einsatz.auftrag?.locationV2?._id || einsatz.auftrag?.locationV2 || rawLoc);
-  form.location = locations.value.find((location) => String(location._id) === String(form.locationV2))?.nameFull
-    || STANDORT_MAP[String(rawLoc)] || rawLoc;
+  const location = einsatz.auftrag?.locationV2;
+  const orderLocation = {
+    locationV2: location?._id ? String(location._id) : '',
+    location: location?.nameFull || '',
+  };
+  Object.assign(form, orderLocation);
   form.kunde = einsatz.auftrag?.eventTitel || einsatz.bezeichnung || '';
   await loadEinsatzMitarbeiter(einsatz.auftragNr);
+  return orderLocation;
 }
 
 async function loadEinsatzMitarbeiter(auftragNr) {
@@ -1261,6 +1231,7 @@ async function submitReport() {
 }
 
 .form-group input,
+.form-group select,
 .form-group textarea:not(.ma-row-input) {
   width: 100%;
   padding: 0.65rem 0.75rem;
@@ -1279,6 +1250,7 @@ async function submitReport() {
 }
 
 .form-group input:focus,
+.form-group select:focus,
 .form-group textarea:not(.ma-row-input):focus {
   outline: none;
   border-color: var(--primary);

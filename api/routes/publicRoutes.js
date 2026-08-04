@@ -5,6 +5,7 @@ const publicAuth = require("../middleware/publicAuth");
 const Mitarbeiter = require("../models/Mitarbeiter");
 const Einsatz = require("../models/Einsatz");
 const Auftrag = require("../models/Auftrag");
+const Location = require("../models/Location");
 const Schicht = require("../models/Schicht");
 const Beruf = require("../models/Beruf");
 const Qualifikation = require("../models/Qualifikation");
@@ -18,6 +19,7 @@ const { assignTeamleiter, updateLaufzettelBadge } = require("../FlipService");
 const { flipAxios } = require("../flipAxios");
 const {
   resolveActiveLocation,
+  resolveLocationFromExternalId,
   resolveLocationFromStandortName,
 } = require("../services/LocationResolutionService");
 
@@ -96,6 +98,25 @@ async function resolveDocumentLocation({ location, locationV2 }) {
     location: resolvedLocation?.nameFull || legacyLocation,
     locationV2: resolvedLocation?._id || null,
   };
+}
+
+async function resolveLocationFromAuftrag(auftragnummer) {
+  const auftragNr = Number(auftragnummer);
+  if (!Number.isFinite(auftragNr)) return null;
+
+  const auftrag = await Auftrag.findOne({ auftragNr })
+    .select('auftragNr locationV2')
+    .lean();
+  if (!auftrag) return null;
+
+  if (auftrag.locationV2) {
+    return resolveActiveLocation(auftrag.locationV2);
+  }
+
+  const externalId = String(auftrag.auftragNr).trim().charAt(0);
+  return /^[123]$/.test(externalId)
+    ? resolveLocationFromExternalId(externalId)
+    : null;
 }
 
 // ──────────────────────────────────────────────
@@ -243,12 +264,38 @@ router.get(
     // Get unique auftragNrs to enrich with Auftrag details
     const auftragNrs = [...new Set(einsaetze.map((e) => e.auftragNr))];
     const auftraege = await Auftrag.find({ auftragNr: { $in: auftragNrs } })
-      .select("auftragNr eventTitel kundenNr geschSt eventLocation eventOrt vonDatum bisDatum labels")
+      .select("auftragNr eventTitel kundenNr geschSt locationV2 eventLocation eventOrt vonDatum bisDatum labels")
+      .populate('locationV2', 'nameFull shortName color externalId isActive')
       .lean();
+
+    const fallbackExternalIds = [...new Set(auftraege
+      .filter((auftrag) => !auftrag.locationV2?.isActive)
+      .map((auftrag) => String(auftrag.auftragNr).trim().charAt(0))
+      .filter((externalId) => /^[123]$/.test(externalId)))];
+    const fallbackLocations = fallbackExternalIds.length
+      ? await Location.find({ isActive: true, externalId: { $in: fallbackExternalIds } })
+        .select('nameFull shortName color externalId')
+        .lean()
+      : [];
+    const fallbackLocationByExternalId = new Map(
+      fallbackLocations.map((location) => [location.externalId, location])
+    );
 
     const auftragMap = {};
     auftraege.forEach((a) => {
-      auftragMap[a.auftragNr] = a;
+      const location = a.locationV2?.isActive
+        ? a.locationV2
+        : fallbackLocationByExternalId.get(String(a.auftragNr).trim().charAt(0)) || null;
+      auftragMap[a.auftragNr] = {
+        ...a,
+        locationV2: location ? {
+          _id: location._id,
+          nameFull: location.nameFull,
+          shortName: location.shortName,
+          color: location.color,
+          externalId: location.externalId,
+        } : null,
+      };
     });
 
     // Merge
@@ -427,11 +474,18 @@ router.post(
       locationV2,
     } = req.body;
 
-    if (!datum || !name_teamleiter || !kunde || (!location && !locationV2)) {
-      return res.status(400).json({ msg: "Pflichtfelder fehlen (datum, name_teamleiter, kunde, location)" });
+    if (!datum || !name_teamleiter || !kunde || !auftragnummer) {
+      return res.status(400).json({ msg: "Pflichtfelder fehlen (datum, name_teamleiter, kunde, auftragnummer)" });
     }
 
-    const resolvedDocumentLocation = await resolveDocumentLocation({ location, locationV2 });
+    const auftragLocation = await resolveLocationFromAuftrag(auftragnummer);
+    if (!auftragLocation) {
+      return res.status(400).json({ msg: "Der Standort konnte für diesen Auftrag nicht ermittelt werden." });
+    }
+    const resolvedDocumentLocation = {
+      location: auftragLocation.nameFull,
+      locationV2: auftragLocation._id,
+    };
     if (resolvedDocumentLocation.error) {
       return res.status(400).json({ msg: resolvedDocumentLocation.error });
     }
