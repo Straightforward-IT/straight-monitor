@@ -25,6 +25,10 @@
             <dt>Datum</dt>
             <dd>{{ formatDate(doc.datum) }}</dd>
           </div>
+          <div v-if="documentLocationName">
+            <dt>Standort</dt>
+            <dd>{{ documentLocationName }}</dd>
+          </div>
           <div v-if="doc.details?.auftragnummer">
             <dt>Auftrag</dt>
             <dd>
@@ -445,7 +449,7 @@ export default {
     },
     filteredDetails() {
       if (!this.doc.details) return {};
-      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date', 'mitarbeiter_feedback', 'comments', 'version', 'createdAt', 'updatedAt', 'status', 'kunde', 'auftragnummer', 'puenktlichkeit', 'grooming', 'motivation', 'technische_fertigkeiten', 'lernbereitschaft', 'sonstiges'];
+      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date', 'location', 'locationV2', 'mitarbeiter_feedback', 'comments', 'version', 'createdAt', 'updatedAt', 'status', 'kunde', 'auftragnummer', 'puenktlichkeit', 'grooming', 'motivation', 'technische_fertigkeiten', 'lernbereitschaft', 'sonstiges'];
       const filtered = {};
       for (const [key, value] of Object.entries(this.doc.details)) {
         if (!excludeKeys.includes(key)) {
@@ -462,6 +466,10 @@ export default {
     commentList() {
       const base = Array.isArray(this.doc.details?.comments) ? this.doc.details.comments : [];
       return this.localComments !== null ? this.localComments : base;
+    },
+    documentLocationName() {
+      const location = this.doc.details?.locationV2;
+      return location?.nameFull || location?.shortName || this.doc.details?.location || '';
     },
   },
 
