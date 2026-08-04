@@ -10,12 +10,13 @@ const SignaturTyp = require('../models/SignaturTyp');
 const SignaturFolgeDefaults = require('../models/SignaturFolgeDefaults');
 const Mitarbeiter = require('../models/Mitarbeiter');
 const Kunde = require('../models/Kunde');
+const Location = require('../models/Location');
 const R2Service = require('../R2Service');
 const User = require('../models/User');
 const Auftrag = require('../models/Auftrag');
 const StundenlisteService = require('../StundenlisteService');
 const { sendMail } = require('../EmailService');
-const { buildSignaturR2Prefix } = require('../utils/signaturR2Path');
+const { buildSignaturR2Prefix, sanitizeSegment } = require('../utils/signaturR2Path');
 const AsanaService = require('../AsanaService');
 
 const router = express.Router();
@@ -155,6 +156,97 @@ function mapSubmitter(apiSubmitter, requested = {}) {
   };
 }
 
+async function resolveSignaturLocation({ locationId, entityLocationId, auftragLocationId, standort } = {}) {
+  if (locationId) {
+    if (!/^[a-f\d]{24}$/i.test(String(locationId))) return null;
+    return Location.findOne({ _id: locationId, isActive: true })
+      .select('_id nameFull shortName nameKey shortNameKey')
+      .lean();
+  }
+
+  for (const candidate of [entityLocationId, auftragLocationId]) {
+    if (!candidate) continue;
+    const location = await Location.findOne({ _id: candidate, isActive: true })
+      .select('_id nameFull shortName nameKey shortNameKey')
+      .lean();
+    if (location) return location;
+  }
+
+  if (!standort) return null;
+  const normalized = Location.normalize(standort);
+  return Location.findOne({
+    isActive: true,
+    $or: [{ nameKey: normalized }, { shortNameKey: normalized }, { externalId: String(standort) }],
+  }).select('_id nameFull shortName nameKey shortNameKey').lean();
+}
+
+function getEntityValidationMessage(signaturTyp, kundeDoc, mitarbeiterDoc) {
+  if (!signaturTyp) return 'Der Signaturtyp wurde nicht gefunden.';
+  if (kundeDoc && mitarbeiterDoc) return 'Eine Signatur kann nur einem Kunden oder Mitarbeiter zugeordnet werden.';
+  if (signaturTyp.linkedTo === 'Kunde' && !kundeDoc) return 'Dieser Dokumententyp benötigt einen Kunden.';
+  if (signaturTyp.linkedTo === 'Mitarbeiter' && !mitarbeiterDoc) return 'Dieser Dokumententyp benötigt einen Mitarbeiter.';
+  return null;
+}
+
+async function ensureSignaturOrdner(entityType, entityDoc) {
+  if (!entityDoc) return null;
+  if (entityDoc.signaturOrdner) return entityDoc.signaturOrdner;
+
+  const identifier = entityType === 'Kunde'
+    ? entityDoc.kuerzel || entityDoc.kundName || entityDoc.kundenNr || entityDoc._id
+    : [entityDoc.vorname, entityDoc.nachname].filter(Boolean).join('-') || entityDoc.personalnr || entityDoc._id;
+
+  entityDoc.signaturOrdner = sanitizeSegment(identifier) || String(entityDoc._id);
+  await entityDoc.save();
+  return entityDoc.signaturOrdner;
+}
+
+async function buildR2PrefixForVorgang(vorgang, resolvedLocation = null) {
+  let entityType = null;
+  let entityIdentifier = null;
+  let entityLocationId = null;
+  if (vorgang.kunde) {
+    const kunde = await Kunde.findById(vorgang.kunde)
+      .select('_id kundenNr kundName kuerzel signaturOrdner locationV2');
+    entityType = 'Kunde';
+    entityLocationId = kunde?.locationV2 || null;
+    entityIdentifier = kunde
+      ? await ensureSignaturOrdner(entityType, kunde)
+      : vorgang.kundenKuerzel;
+  } else if (vorgang.mitarbeiter) {
+    const mitarbeiter = await Mitarbeiter.findById(vorgang.mitarbeiter)
+      .select('_id personalnr vorname nachname signaturOrdner locationV2');
+    entityType = 'Mitarbeiter';
+    entityLocationId = mitarbeiter?.locationV2 || null;
+    entityIdentifier = mitarbeiter
+      ? await ensureSignaturOrdner(entityType, mitarbeiter)
+      : vorgang.mitarbeiterName;
+  }
+
+  let auftragLocationId = null;
+  if (vorgang.auftragNr) {
+    const auftrag = await Auftrag.findOne({ auftragNr: vorgang.auftragNr }).select('locationV2').lean();
+    auftragLocationId = auftrag?.locationV2 || null;
+  }
+  const location = resolvedLocation || await resolveSignaturLocation({
+    locationId: vorgang.locationV2,
+    entityLocationId,
+    auftragLocationId,
+    standort: vorgang.standort,
+  });
+
+  return buildSignaturR2Prefix({
+    locationIdentifier: location?.shortName || location?.nameFull || vorgang.standort,
+    entityType,
+    entityIdentifier,
+    typKey: vorgang.typKey,
+  });
+}
+
+function isCanonicalSignaturPrefix(prefix) {
+  return /^Signatures\/[^/]+\/(?:kunden|mitarbeiter|sonstige)(?:\/|$)/.test(prefix || '');
+}
+
 // ─── SSE ──────────────────────────────────────────────────────────────────────
 
 // GET /api/signaturen/events — real-time updates (token passed as query param)
@@ -235,7 +327,7 @@ router.get('/builder-token', auth, asyncHandler(async (req, res) => {
 // POST /api/signaturen/stundenliste/:auftragNr
 // Generates the Stundenliste PDF server-side, creates a DocuSeal submission from
 // the PDF, and saves the result as a SignaturVorgang (the new hub model).
-// Body (from SignaturNeuModal customEndpoint): { standort?, submitters:[{role,name,email,embedded}] }
+// Body (from SignaturNeuModal customEndpoint): { locationId, submitters:[{role,name,email,embedded}] }
 // Response: { vorgang, embed: { role, slug, src } }
 router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   const adminUser = await requireSignaturAccess(req, res);
@@ -246,7 +338,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Ungültige Auftragsnummer' });
   }
 
-  const { standort, submitters, folgeaktionen: folgeaktionenRaw } = req.body || {};
+  const { locationId, standort, submitters, folgeaktionen: folgeaktionenRaw } = req.body || {};
   const folgeaktionen = parseFolgeaktionen(folgeaktionenRaw);
 
   // Resolve submitters: the modal sends a generic submitters array.
@@ -266,13 +358,27 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   if (!auftrag) return res.status(404).json({ message: `Auftrag ${auftragNr} nicht gefunden` });
 
   const kunde = auftrag.kundenNr
-    ? await Kunde.findOne({ kundenNr: auftrag.kundenNr }).select('_id kundenNr kundName kuerzel').lean()
+    ? await Kunde.findOne({ kundenNr: auftrag.kundenNr })
+        .select('_id kundenNr kundName kuerzel locationV2 signaturOrdner')
     : null;
 
   // Resolve the Stundenliste type
   const signaturTyp = await SignaturTyp.findOne({ key: 'stundenliste', isActive: true });
   if (!signaturTyp) {
     return res.status(400).json({ message: 'Signaturtyp "stundenliste" nicht gefunden – bitte Seed-Skript ausführen.' });
+  }
+  if (!kunde) {
+    return res.status(400).json({ message: 'Für die Stundenliste wurde kein Kunde gefunden.' });
+  }
+
+  const location = await resolveSignaturLocation({
+    locationId,
+    entityLocationId: kunde.locationV2,
+    auftragLocationId: auftrag.locationV2,
+    standort,
+  });
+  if (!location) {
+    return res.status(400).json({ message: 'Bitte eine gültige Location auswählen.' });
   }
 
   // Verleiher: use request override or derive from Auftrag location
@@ -349,10 +455,11 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     return mapSubmitter(apiSub, req);
   });
 
-  // Build R2 prefix using the new path scheme
+  const entityFolder = await ensureSignaturOrdner('Kunde', kunde);
   const r2Prefix = buildSignaturR2Prefix({
-    entityType: kunde ? 'Kunde' : null,
-    entityIdentifier: kunde ? kunde.kuerzel : null,
+    locationIdentifier: location.shortName || location.nameFull,
+    entityType: 'Kunde',
+    entityIdentifier: entityFolder,
     typKey: 'stundenliste',
   });
 
@@ -361,7 +468,8 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     name:     docName,
     typ:      signaturTyp._id,
     typKey:   'stundenliste',
-    standort: standort || null,
+    standort: standort || location.shortNameKey || null,
+    locationV2: location._id,
     status:   'open',
     auftragNr,
 
@@ -379,7 +487,10 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     createdBy: req.user.id,
   });
   await vorgang.save();
-  await vorgang.populate('typ', 'key label linkedTo');
+  await vorgang.populate([
+    { path: 'typ', select: 'key label linkedTo' },
+    { path: 'locationV2', select: 'nameFull shortName color' },
+  ]);
 
   // Send Graph email to the non-embedded Entleiher (only if email notification is enabled)
   if (entleiherEmailOn) {
@@ -451,11 +562,12 @@ router.put('/folge-defaults', auth, asyncHandler(async (req, res) => {
 // ─── LIST ─────────────────────────────────────────────────────────────────────
 
 // GET /api/signaturen — list with optional filters
-// Query params: status, standort, typ (ObjectId), mitarbeiter (ObjectId), kunde (ObjectId), limit
+// Query params: status, locationV2, standort (legacy), typ, mitarbeiter, kunde, limit
 router.get('/', auth, asyncHandler(async (req, res) => {
-  const { status, standort, typ, mitarbeiter, kunde, auftragNr, limit, refresh } = req.query;
+  const { status, locationV2, standort, typ, mitarbeiter, kunde, auftragNr, limit, refresh } = req.query;
   const filter = {};
   if (status)      filter.status      = status;
+  if (locationV2)  filter.locationV2  = locationV2;
   if (standort)    filter.standort    = standort;
   if (typ)         filter.typ         = typ;
   if (mitarbeiter) filter.mitarbeiter = mitarbeiter;
@@ -463,7 +575,10 @@ router.get('/', auth, asyncHandler(async (req, res) => {
   if (auftragNr)   filter.auftragNr   = Number(auftragNr);
 
   const vorgaenge = await SignaturVorgang.find(filter)
-    .populate('typ', 'key label linkedTo')
+    .populate([
+      { path: 'typ', select: 'key label linkedTo' },
+      { path: 'locationV2', select: 'nameFull shortName color' },
+    ])
     .sort({ createdAt: -1 })
     .limit(Math.min(Number(limit) || 200, 500));
 
@@ -520,13 +635,151 @@ router.get('/', auth, asyncHandler(async (req, res) => {
 
   res.json(result);
 }));
+
+// ─── R2 STORAGE BROWSER ─────────────────────────────────────────────────────
+
+// GET /api/signaturen/storage — list every object in the signature archive.
+router.get('/storage', auth, asyncHandler(async (_req, res) => {
+  const [structuredObjects, legacyObjects, locations] = await Promise.all([
+    R2Service.listObjects('Signatures/'),
+    R2Service.listObjects('signaturen/'),
+    Location.find({}).select('_id nameFull shortName nameKey shortNameKey').lean(),
+  ]);
+
+  const objects = [...structuredObjects, ...legacyObjects]
+    .filter((object) => object.Key && !object.Key.endsWith('/'));
+  const objectKeys = objects.map((object) => object.Key);
+  const legacyVorgangIds = [...new Set(legacyObjects
+    .map((object) => object.Key?.split('/')[1])
+    .filter((id) => /^[a-f\d]{24}$/i.test(id || '')))];
+
+  const vorgaenge = objectKeys.length || legacyVorgangIds.length
+    ? await SignaturVorgang.find({
+        $or: [
+          { _id: { $in: legacyVorgangIds } },
+          { r2KeySigned: { $in: objectKeys } },
+          { r2KeyAudit: { $in: objectKeys } },
+        ],
+      })
+        .select('_id name typ typKey standort locationV2 kunde kundenKuerzel mitarbeiter mitarbeiterName auftragNr r2KeySigned r2KeyAudit')
+        .populate([
+          { path: 'typ', select: 'key label linkedTo' },
+          { path: 'locationV2', select: 'nameFull shortName' },
+          {
+            path: 'kunde',
+            select: 'kundenNr kundName kuerzel signaturOrdner locationV2',
+            populate: { path: 'locationV2', select: 'nameFull shortName' },
+          },
+          {
+            path: 'mitarbeiter',
+            select: 'personalnr vorname nachname signaturOrdner locationV2',
+            populate: { path: 'locationV2', select: 'nameFull shortName' },
+          },
+        ])
+        .lean()
+    : [];
+
+  const auftragNrs = [...new Set(vorgaenge.map((vorgang) => vorgang.auftragNr).filter(Boolean))];
+  const auftraege = auftragNrs.length
+    ? await Auftrag.find({ auftragNr: { $in: auftragNrs } })
+        .select('auftragNr locationV2')
+        .populate('locationV2', 'nameFull shortName')
+        .lean()
+    : [];
+  const locationByAuftragNr = new Map(auftraege.map((auftrag) => [auftrag.auftragNr, auftrag.locationV2]));
+  const locationByLegacyKey = new Map();
+  locations.forEach((location) => {
+    locationByLegacyKey.set(location.nameKey, location);
+    locationByLegacyKey.set(location.shortNameKey, location);
+  });
+
+  const vorgangById = new Map(vorgaenge.map((vorgang) => [String(vorgang._id), vorgang]));
+  const vorgangByKey = new Map();
+  vorgaenge.forEach((vorgang) => {
+    if (vorgang.r2KeySigned) vorgangByKey.set(vorgang.r2KeySigned, vorgang);
+    if (vorgang.r2KeyAudit) vorgangByKey.set(vorgang.r2KeyAudit, vorgang);
+  });
+
+  res.json(objects.map((object) => {
+    const legacyId = object.Key.startsWith('signaturen/') ? object.Key.split('/')[1] : null;
+    const vorgang = vorgangByKey.get(object.Key) || (legacyId ? vorgangById.get(legacyId) : null);
+    const responseObject = {
+      key: object.Key,
+      size: object.Size || 0,
+      lastModified: object.LastModified || null,
+    };
+    if (!vorgang) return responseObject;
+
+    const legacyLocation = locationByLegacyKey.get(Location.normalize(vorgang.standort));
+    const displayLocation = vorgang.locationV2
+      || vorgang.kunde?.locationV2
+      || vorgang.mitarbeiter?.locationV2
+      || locationByAuftragNr.get(vorgang.auftragNr)
+      || legacyLocation;
+    const locationName = displayLocation?.nameFull || vorgang.standort || 'Ohne Location';
+    const locationFolder = sanitizeSegment(displayLocation?.shortName || locationName) || 'ohne-location';
+    const linkedTo = vorgang.typ?.linkedTo;
+    const isKunde = linkedTo === 'Kunde' || (linkedTo !== 'Mitarbeiter' && !!vorgang.kunde);
+    const isMitarbeiter = linkedTo === 'Mitarbeiter' || (!isKunde && !!vorgang.mitarbeiter);
+    const pathSegments = [locationFolder];
+    const folderLabels = [locationName];
+
+    if (isKunde) {
+      const entityName = vorgang.kunde?.kuerzel || vorgang.kunde?.kundName || vorgang.kundenKuerzel || 'Ohne Zuordnung';
+      const entityFolder = vorgang.kunde?.signaturOrdner || sanitizeSegment(entityName) || 'ohne-zuordnung';
+      pathSegments.push('kunden', entityFolder);
+      folderLabels.push('Kunden', entityName);
+    } else if (isMitarbeiter) {
+      const fullName = [vorgang.mitarbeiter?.vorname, vorgang.mitarbeiter?.nachname].filter(Boolean).join(' ')
+        || vorgang.mitarbeiterName
+        || 'Ohne Zuordnung';
+      const entityFolder = vorgang.mitarbeiter?.signaturOrdner || sanitizeSegment(fullName) || 'ohne-zuordnung';
+      pathSegments.push('mitarbeiter', entityFolder);
+      folderLabels.push('Mitarbeiter', fullName);
+    } else {
+      pathSegments.push('sonstige');
+      folderLabels.push('Sonstige');
+    }
+
+    const typFolder = sanitizeSegment(vorgang.typ?.key || vorgang.typKey || 'dokument');
+    pathSegments.push(typFolder);
+    folderLabels.push(vorgang.typ?.label || vorgang.typKey || 'Dokument');
+
+    const storedFileName = object.Key.split('/').pop() || 'dokument.pdf';
+    const isAudit = object.Key === vorgang.r2KeyAudit || storedFileName.startsWith('audit-');
+    return {
+      ...responseObject,
+      displayPath: [...pathSegments, storedFileName].join('/'),
+      folderLabels,
+      fileName: `${vorgang.name}${isAudit ? ' - Audit' : ''}.pdf`,
+    };
+  }));
+}));
+
+// GET /api/signaturen/storage/url?key=...&download=true — temporary R2 file URL.
+router.get('/storage/url', auth, asyncHandler(async (req, res) => {
+  const key = String(req.query.key || '');
+  const isSignatureKey = key.startsWith('Signatures/') || key.startsWith('signaturen/');
+  if (!isSignatureKey || key.endsWith('/')) {
+    return res.status(400).json({ message: 'Ungültiger Signatur-Dateipfad' });
+  }
+
+  const filename = key.split('/').pop() || 'dokument.pdf';
+  const url = await R2Service.getSignedDownloadUrl(key, 3600, {
+    inline: req.query.download !== 'true',
+    filename,
+  });
+  res.json({ url });
+}));
+
 // ─── CREATE ───────────────────────────────────────────────────────────────────
 
 // POST /api/signaturen — create a new SignaturVorgang
 // Body: {
 //   name          string (required)
 //   typId         ObjectId (required)
-//   standort?     string — team key ('hamburg', 'berlin', 'koeln', ...)
+//   locationId?   Location ObjectId (falls back to the linked entity's Location)
+//   standort?     legacy location key
 //   mitarbeiterId? ObjectId
 //   kundeId?       ObjectId — Kunde must have a kuerzel set
 //   graphContact?  { id, displayName, email }
@@ -537,7 +790,7 @@ router.get('/', auth, asyncHandler(async (req, res) => {
 // }
 router.post('/', auth, asyncHandler(async (req, res) => {
   const {
-    name, typId, standort,
+    name, typId, locationId, standort,
     mitarbeiterId, kundeId, graphContact,
     templateId, templateName, order,
     submitters, folgeaktionen: folgeaktionenRaw,
@@ -558,22 +811,31 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   let kundeDoc       = null;
 
   if (mitarbeiterId) {
-    mitarbeiterDoc = await Mitarbeiter.findById(mitarbeiterId).select('vorname nachname').lean();
+    mitarbeiterDoc = await Mitarbeiter.findById(mitarbeiterId)
+      .select('vorname nachname personalnr locationV2 signaturOrdner');
     if (!mitarbeiterDoc) {
       return res.status(400).json({ message: 'Mitarbeiter nicht gefunden' });
     }
   }
 
   if (kundeId) {
-    kundeDoc = await Kunde.findById(kundeId).select('kundenNr kundName kuerzel').lean();
+    kundeDoc = await Kunde.findById(kundeId)
+      .select('kundenNr kundName kuerzel locationV2 signaturOrdner');
     if (!kundeDoc) {
       return res.status(400).json({ message: 'Kunde nicht gefunden' });
     }
-    if (!kundeDoc.kuerzel) {
-      return res.status(400).json({
-        message: 'Dieser Kunde hat kein Kürzel. Bitte zuerst ein Kürzel im Kundenstamm vergeben.',
-      });
-    }
+  }
+
+  const entityValidationMessage = getEntityValidationMessage(signaturTyp, kundeDoc, mitarbeiterDoc);
+  if (entityValidationMessage) return res.status(400).json({ message: entityValidationMessage });
+
+  const location = await resolveSignaturLocation({
+    locationId,
+    entityLocationId: kundeDoc?.locationV2 || mitarbeiterDoc?.locationV2,
+    standort,
+  });
+  if (!location) {
+    return res.status(400).json({ message: 'Bitte eine gültige Location auswählen.' });
   }
 
   // Denormalized name slug for R2 path (set once at creation, stable)
@@ -583,9 +845,13 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 
   // Build R2 prefix using the entity type and identifier
   const entityType = kundeDoc ? 'Kunde' : (mitarbeiterDoc ? 'Mitarbeiter' : null);
-  const entityIdentifier = kundeDoc ? kundeDoc.kuerzel : mitarbeiterName;
+  const entityDoc = kundeDoc || mitarbeiterDoc;
+  const entityIdentifier = entityDoc
+    ? await ensureSignaturOrdner(entityType, entityDoc)
+    : null;
 
   const r2Prefix = buildSignaturR2Prefix({
+    locationIdentifier: location.shortName || location.nameFull,
     entityType,
     entityIdentifier,
     typKey: signaturTyp.key,
@@ -639,7 +905,8 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     name,
     typ:     signaturTyp._id,
     typKey:  signaturTyp.key,
-    standort: standort || null,
+    standort: standort || location.shortNameKey || null,
+    locationV2: location._id,
     status:  initialStatus,
 
     mitarbeiter:     mitarbeiterDoc ? mitarbeiterDoc._id : null,
@@ -666,7 +933,10 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   });
 
   await vorgang.save();
-  await vorgang.populate('typ', 'key label linkedTo');
+  await vorgang.populate([
+    { path: 'typ', select: 'key label linkedTo' },
+    { path: 'locationV2', select: 'nameFull shortName color' },
+  ]);
   res.status(201).json(vorgang);
 }));
 
@@ -675,7 +945,10 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 // GET /api/signaturen/:id — fetch one, optionally refreshed from DocuSeal (?refresh=true)
 router.get('/:id', auth, asyncHandler(async (req, res) => {
   const vorgang = await SignaturVorgang.findById(req.params.id)
-    .populate('typ', 'key label linkedTo');
+    .populate([
+      { path: 'typ', select: 'key label linkedTo' },
+      { path: 'locationV2', select: 'nameFull shortName color' },
+    ]);
   if (!vorgang) return res.status(404).json({ message: 'Vorgang nicht gefunden' });
 
   if (req.query.refresh === 'true' && vorgang.submissionId) {
@@ -716,9 +989,12 @@ router.get('/:id/signed-url', auth, asyncHandler(async (req, res) => {
   // If not cached yet but the DocuSeal submission is done, download & cache now.
   if (!vorgang.r2KeySigned && vorgang.submissionId && vorgang.status === 'completed') {
     try {
-      const keyPrefix = `signaturen/${vorgang._id}`;
+      const keyPrefix = isCanonicalSignaturPrefix(vorgang.r2Prefix)
+        ? vorgang.r2Prefix
+        : await buildR2PrefixForVorgang(vorgang);
       const result = await DocuSealService.storeSignedPdf(vorgang.submissionId, keyPrefix);
       if (result?.key) {
+        vorgang.r2Prefix = keyPrefix;
         vorgang.r2KeySigned = result.key;
         await vorgang.save();
       }
@@ -756,7 +1032,7 @@ router.get('/:id/audit-url', auth, asyncHandler(async (req, res) => {
 // ─── UPDATE DRAFT ────────────────────────────────────────────────────────────
 
 // PATCH /api/signaturen/:id — update a draft's fields, optionally submit it
-// Body: { name?, standort?, kundeId?, mitarbeiterId?, templateId?, templateName?,
+// Body: { name?, locationId?, standort?, kundeId?, mitarbeiterId?, templateId?, templateName?,
 //         submitters?, folgeaktionen?, submit? }
 // Only allowed when status === 'draft'.
 // If submit: true, creates the DocuSeal submission and transitions to 'open'.
@@ -771,7 +1047,7 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   }
 
   const {
-    name, standort, kundeId, mitarbeiterId,
+    name, locationId, standort, kundeId, mitarbeiterId,
     templateId, templateName, submitters,
     folgeaktionen: folgeaktionenRaw,
     submit,
@@ -782,14 +1058,23 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   if (name !== undefined) vorgang.name = name;
   if (standort !== undefined) vorgang.standort = standort || null;
 
+  let resolvedLocation = null;
+  if (locationId !== undefined) {
+    resolvedLocation = await resolveSignaturLocation({ locationId });
+    if (!resolvedLocation) return res.status(400).json({ message: 'Bitte eine gültige Location auswählen.' });
+    vorgang.locationV2 = resolvedLocation._id;
+    vorgang.standort = resolvedLocation.shortNameKey || vorgang.standort;
+  }
+
   if (kundeId !== undefined) {
     if (kundeId) {
-      const kundeDoc = await Kunde.findById(kundeId).select('kundenNr kundName kuerzel').lean();
+      const kundeDoc = await Kunde.findById(kundeId).select('kundenNr kundName kuerzel');
       if (!kundeDoc) return res.status(400).json({ message: 'Kunde nicht gefunden' });
-      if (!kundeDoc.kuerzel) return res.status(400).json({ message: 'Dieser Kunde hat kein Kürzel.' });
       vorgang.kunde = kundeDoc._id;
       vorgang.kundenNr = kundeDoc.kundenNr;
       vorgang.kundenKuerzel = kundeDoc.kuerzel;
+      vorgang.mitarbeiter = null;
+      vorgang.mitarbeiterName = null;
     } else {
       vorgang.kunde = null;
       vorgang.kundenNr = null;
@@ -799,10 +1084,13 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
 
   if (mitarbeiterId !== undefined) {
     if (mitarbeiterId) {
-      const mitarbeiterDoc = await Mitarbeiter.findById(mitarbeiterId).select('vorname nachname').lean();
+      const mitarbeiterDoc = await Mitarbeiter.findById(mitarbeiterId).select('vorname nachname');
       if (!mitarbeiterDoc) return res.status(400).json({ message: 'Mitarbeiter nicht gefunden' });
       vorgang.mitarbeiter = mitarbeiterDoc._id;
       vorgang.mitarbeiterName = `${mitarbeiterDoc.vorname}-${mitarbeiterDoc.nachname}`;
+      vorgang.kunde = null;
+      vorgang.kundenNr = null;
+      vorgang.kundenKuerzel = null;
     } else {
       vorgang.mitarbeiter = null;
       vorgang.mitarbeiterName = null;
@@ -830,6 +1118,27 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   }
 
   if (submit) {
+    const [signaturTyp, kundeDoc, mitarbeiterDoc] = await Promise.all([
+      SignaturTyp.findById(vorgang.typ),
+      vorgang.kunde
+        ? Kunde.findById(vorgang.kunde).select('_id locationV2')
+        : null,
+      vorgang.mitarbeiter
+        ? Mitarbeiter.findById(vorgang.mitarbeiter).select('_id locationV2')
+        : null,
+    ]);
+    const entityValidationMessage = getEntityValidationMessage(signaturTyp, kundeDoc, mitarbeiterDoc);
+    if (entityValidationMessage) return res.status(400).json({ message: entityValidationMessage });
+
+    resolvedLocation = resolvedLocation || await resolveSignaturLocation({
+      locationId: vorgang.locationV2,
+      entityLocationId: kundeDoc?.locationV2 || mitarbeiterDoc?.locationV2,
+      standort: vorgang.standort,
+    });
+    if (!resolvedLocation) return res.status(400).json({ message: 'Bitte eine gültige Location auswählen.' });
+    vorgang.locationV2 = resolvedLocation._id;
+    vorgang.standort = resolvedLocation.shortNameKey || vorgang.standort;
+
     if (vorgang.docusealTemplateId && Array.isArray(vorgang.submitters) && vorgang.submitters.length > 0) {
       const fa = folgeaktionen || vorgang.folgeaktionen;
       const emailOn = !fa || fa.emailBenachrichtigung !== false;
@@ -860,16 +1169,14 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
       vorgang.status = 'open';
     }
 
-    // Update R2 prefix based on final entity links
-    vorgang.r2Prefix = buildSignaturR2Prefix({
-      entityType:       vorgang.kundenKuerzel ? 'Kunde' : (vorgang.mitarbeiterName ? 'Mitarbeiter' : null),
-      entityIdentifier: vorgang.kundenKuerzel || vorgang.mitarbeiterName,
-      typKey:           vorgang.typKey,
-    });
+    vorgang.r2Prefix = await buildR2PrefixForVorgang(vorgang, resolvedLocation);
   }
 
   await vorgang.save();
-  await vorgang.populate('typ', 'key label linkedTo');
+  await vorgang.populate([
+    { path: 'typ', select: 'key label linkedTo' },
+    { path: 'locationV2', select: 'nameFull shortName color' },
+  ]);
   broadcastSignaturEvent('vorgang.updated', vorgang.toObject());
   res.json(vorgang);
 }));
@@ -946,11 +1253,10 @@ router.post('/webhook', verifyDocuSealWebhook, asyncHandler(async (req, res) => 
     vorgang.completedAt = new Date();
 
     // Use the stored prefix (or rebuild as fallback)
-    const r2Prefix = vorgang.r2Prefix || buildSignaturR2Prefix({
-      entityType:       vorgang.kundenKuerzel ? 'Kunde' : (vorgang.mitarbeiterName ? 'Mitarbeiter' : null),
-      entityIdentifier: vorgang.kundenKuerzel || vorgang.mitarbeiterName,
-      typKey:           vorgang.typKey,
-    });
+    const r2Prefix = isCanonicalSignaturPrefix(vorgang.r2Prefix)
+      ? vorgang.r2Prefix
+      : await buildR2PrefixForVorgang(vorgang);
+    vorgang.r2Prefix = r2Prefix;
 
     // Store signed PDF in R2
     try {

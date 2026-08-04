@@ -7,6 +7,10 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const Item = require("./models/Item");
 const registry = require("./config/registry");
+const {
+  renderTemplate,
+  resolveTemplate,
+} = require("./services/BewerberEmailTemplateService");
 
 const BASE_URL = "https://straightmonitor.com";
 
@@ -457,19 +461,42 @@ function buildBewerberInvitationEmailHtml({ bewerber, type, appointmentAt, publi
 }
 
 async function sendBewerberInvitationEmail({ bewerber, type, appointmentAt, publicUrl, accessCode, senderName, attachments = [] }) {
-  const subject = type === "vertrag"
-    ? "Einladung zur Vertragsunterschrift"
-    : "Einladung zur Vertragsunterschrift und Schulung";
-  const content = buildBewerberInvitationEmailHtml({
-    bewerber,
-    type,
-    appointmentAt,
-    publicUrl,
-    accessCode,
-    senderName,
+  const team = registry.getTeam(bewerber.teamKey);
+  const branch = team.niederlassung || {};
+  const location = bewerber.locationV2?.nameFull ? bewerber.locationV2 : null;
+  const locationId = location?._id || bewerber.locationV2 || null;
+  const { template } = await resolveTemplate({
     teamKey: bewerber.teamKey,
+    locationId,
+    type,
   });
-  await sendMail(bewerber.email, subject, content, bewerber.teamKey, attachments);
+  const rendered = renderTemplate(template, {
+    "bewerber.vorname": bewerber.vorname,
+    "bewerber.nachname": bewerber.nachname,
+    termin: formatAppointment(appointmentAt),
+    link: publicUrl,
+    zugangscode: accessCode,
+    absender: senderName,
+    standort: location?.nameFull || branch.name || team.displayName || team.key,
+    standortEmail: location?.contact?.mainEmail || team.email?.address || "",
+    standortTelefon: location?.contact?.phone || (branch.telefone || []).join(" · "),
+  });
+  await sendMail(bewerber.email, rendered.subject, rendered.html, bewerber.teamKey, attachments);
+}
+
+async function sendBewerberSubmittedEmail({ bewerber, invitation }) {
+  const team = registry.getTeam(bewerber.teamKey);
+  const location = bewerber.locationV2?.nameFull ? bewerber.locationV2 : null;
+  const recipient = location?.contact?.mainEmail || team.email?.address;
+  if (!recipient) throw new Error(`Keine Empfängeradresse für Team ${bewerber.teamKey} hinterlegt.`);
+  const baseUrl = (process.env.APP_URL || BASE_URL).replace(/\/$/, "");
+  const applicantName = `${escapeHtml(bewerber.vorname)} ${escapeHtml(bewerber.nachname)}`.trim();
+  const content = `<div style="font-family:Arial,sans-serif;color:#222;line-height:1.5">
+    <p>Die Selbstauskunft von <strong>${applicantName}</strong> wurde vollständig eingereicht.</p>
+    <p>Einladungstyp: ${escapeHtml(invitation.type)}<br>Standort: ${escapeHtml(location?.nameFull || team.displayName || team.key)}<br>Eingereicht: ${escapeHtml(formatAppointment(bewerber.submittedAt))}</p>
+    <p><a href="${escapeHtml(`${baseUrl}/personal?tab=bewerber&bewerber_id=${bewerber._id}`)}">Bewerber im Monitor öffnen</a></p>
+  </div>`;
+  await sendMail(recipient, `Bewerberdaten eingereicht: ${bewerber.vorname} ${bewerber.nachname}`, content, bewerber.teamKey);
 }
 
 module.exports = {
@@ -481,4 +508,5 @@ module.exports = {
   sendSignaturEmail,
   buildBewerberInvitationEmailHtml,
   sendBewerberInvitationEmail,
+  sendBewerberSubmittedEmail,
 };

@@ -4,9 +4,9 @@
  * Builds the R2 key prefix for a signature document.
  *
  * Directory structure:
- *   Signatures/kunden/{kuerzel}/{typKey}/{YYYY-MM-DD}/
- *   Signatures/mitarbeiter/{vorname-nachname}/{typKey}/{YYYY-MM-DD}/
- *   Signatures/misc/{typKey}/{YYYY-MM-DD}/
+ *   Signatures/{location}/kunden/{kuerzel-or-name}/{typKey}/
+ *   Signatures/{location}/mitarbeiter/{name}/{typKey}/
+ *   Signatures/{location}/sonstige/{typKey}/
  *
  * Files placed under each prefix:
  *   signed-{submissionId}.pdf   — signed document
@@ -19,24 +19,39 @@
  * @param {object} opts
  * @param {'Kunde'|'Mitarbeiter'|null} opts.entityType
  * @param {string}  opts.entityIdentifier  kuerzel (Kunde) or "{vorname}-{nachname}" (Mitarbeiter)
+ * @param {string}  opts.locationIdentifier Location shortName or name
  * @param {string}  opts.typKey            e.g. 'stundenliste', 'auerv'
- * @param {Date|string} [opts.date]        defaults to today (UTC)
+ * @param {string}  [opts.entityPrefix]    previously persisted entity base folder
  * @returns {string} R2 key prefix without trailing slash
  */
-function buildSignaturR2Prefix({ entityType, entityIdentifier, typKey, date } = {}) {
-  const dateStr  = formatDate(date || new Date());
-  const safeTyp  = sanitizeSegment(typKey || 'dokument');
-  const safeId   = sanitizeSegment(entityIdentifier || '');
+function buildSignaturR2Prefix({
+  locationIdentifier,
+  entityType,
+  entityIdentifier,
+  entityPrefix,
+  typKey,
+} = {}) {
+  const basePrefix = entityPrefix || buildSignaturEntityR2Prefix({
+    locationIdentifier,
+    entityType,
+    entityIdentifier,
+  });
+  return `${String(basePrefix).replace(/\/+$/, '')}/${sanitizeSegment(typKey || 'dokument')}`;
+}
 
-  if (entityType === 'Kunde' && safeId) {
-    return `Signatures/kunden/${safeId}/${safeTyp}/${dateStr}`;
+function buildSignaturEntityR2Prefix({ locationIdentifier, entityType, entityIdentifier } = {}) {
+  const safeLocation = sanitizeSegment(locationIdentifier || 'ohne-location');
+  const safeId = sanitizeSegment(entityIdentifier || 'allgemein');
+
+  if (entityType === 'Kunde') {
+    return `Signatures/${safeLocation}/kunden/${safeId}`;
   }
 
-  if (entityType === 'Mitarbeiter' && safeId) {
-    return `Signatures/mitarbeiter/${safeId}/${safeTyp}/${dateStr}`;
+  if (entityType === 'Mitarbeiter') {
+    return `Signatures/${safeLocation}/mitarbeiter/${safeId}`;
   }
 
-  return `Signatures/misc/${safeTyp}/${dateStr}`;
+  return `Signatures/${safeLocation}/sonstige`;
 }
 
 /**
@@ -73,4 +88,4 @@ function formatDate(date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-module.exports = { buildSignaturR2Prefix, sanitizeSegment, formatDate };
+module.exports = { buildSignaturR2Prefix, buildSignaturEntityR2Prefix, sanitizeSegment, formatDate };

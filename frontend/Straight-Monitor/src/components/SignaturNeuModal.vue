@@ -75,15 +75,15 @@
                 </button>
               </div>
 
-              <label class="sig-field-label">Standort</label>
+              <label class="sig-field-label">Location</label>
               <div class="sig-chip-row">
                 <FilterChip
-                  v-for="s in standortOptions"
-                  :key="s.key"
-                  :active="form.standort === s.key"
-                  @click="form.standort = form.standort === s.key ? null : s.key"
+                  v-for="location in locations"
+                  :key="location._id"
+                  :active="form.locationId === location._id"
+                  @click="form.locationId = form.locationId === location._id ? null : location._id"
                 >
-                  {{ s.label }}
+                  {{ location.nameFull }}
                 </FilterChip>
               </div>
             </section>
@@ -111,8 +111,7 @@
                 <ContactSearchPlaceholder
                   v-if="form.kundeId"
                   :title="selectedKunde ? selectedKunde.kundName : ''"
-                  :subtitle="selectedKunde ? (selectedKunde.kuerzel || 'Kein Kürzel!') : ''"
-                  :warn="selectedKunde && !selectedKunde.kuerzel"
+                  :subtitle="selectedKunde ? (selectedKunde.kuerzel || String(selectedKunde.kundenNr || '')) : ''"
                   @clear="clearKunde"
                 />
                 <div v-else class="sig-typeahead" ref="kundeBox">
@@ -130,14 +129,10 @@
                     >
                       <span class="sig-ta-name">{{ k.kundName }}</span>
                       <span v-if="k.kuerzel" class="sig-ta-kuerzel">{{ k.kuerzel }}</span>
-                      <span v-else class="sig-ta-warn">kein Kürzel</span>
+                      <span v-else class="sig-ta-kuerzel">{{ k.kundenNr }}</span>
                     </button>
                   </div>
                 </div>
-                <p v-if="selectedKunde && !selectedKunde.kuerzel" class="sig-warn">
-                  <font-awesome-icon :icon="['fas', 'triangle-exclamation']" />
-                  Dieser Kunde hat kein Kürzel. Signaturen brauchen ein Kürzel für die Ablage.
-                </p>
               </div>
 
               <!-- Mitarbeiter search -->
@@ -168,10 +163,6 @@
                 </div>
               </div>
 
-              <p v-if="linkMode === 'keine'" class="sig-hint">
-                <font-awesome-icon :icon="['fas', 'circle-info']" />
-                Diese Signatur wird unter <code>Signatures/misc</code> abgelegt.
-              </p>
             </section>
 
             <!-- ───────── STEP 3: Unterzeichner ───────── -->
@@ -433,7 +424,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
   faFileSignature, faXmark, faCheck, faPlus, faArrowLeft, faArrowRight, faPaperPlane,
-  faMagnifyingGlass, faSpinner, faTriangleExclamation, faCircleInfo, faUserPlus,
+  faMagnifyingGlass, faSpinner, faTriangleExclamation, faUserPlus,
   faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
   faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
   faBolt, faTrash, faCommentDots, faEnvelope, faAt, faRobot,
@@ -450,7 +441,7 @@ import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
 
 library.add(
   faFileSignature, faXmark, faCheck, faPlus, faArrowLeft, faArrowRight, faPaperPlane,
-  faMagnifyingGlass, faSpinner, faTriangleExclamation, faCircleInfo, faUserPlus,
+  faMagnifyingGlass, faSpinner, faTriangleExclamation, faUserPlus,
   faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
   faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
   faBolt, faTrash, faCommentDots, faEnvelope, faAt, faRobot,
@@ -481,12 +472,6 @@ const steps = [
   { key: 'actions', label: 'Folgeaktionen' },
 ];
 
-const standortOptions = [
-  { key: 'hamburg', label: 'Hamburg' },
-  { key: 'berlin',  label: 'Berlin' },
-  { key: 'koeln',   label: 'Köln' },
-];
-
 const linkOptions = [
   { key: 'kunde',       label: 'Kunde',       icon: ['fas', 'building'] },
   { key: 'mitarbeiter', label: 'Mitarbeiter', icon: ['fas', 'id-badge'] },
@@ -501,7 +486,7 @@ const error = ref('');
 
 // Draft saving is not available for custom-endpoint flows (e.g. Stundenliste)
 // because those use a specialised backend route that cannot produce a partial draft.
-const canSaveDraft = computed(() => !!(form.value.typId && form.value.name.trim()));
+const canSaveDraft = computed(() => !!(form.value.typId && form.value.locationId && form.value.name.trim()));
 
 // ── Folgeaktionen state ──────────────────────────────────────────────────────
 const folgeaktionen = ref({
@@ -575,18 +560,18 @@ const typen = ref([]);
 const typenLoading = ref(false);
 const templates = ref([]);
 const graphContacts = ref([]);
+const locations = ref([]);
 const linkMode = ref('keine');
 
 const form = ref(emptyForm());
 
 function emptyForm() {
-  const userLoc = (auth.user?.location || '').toLowerCase().trim();
-  const defaultStandort = standortOptions.find(s => s.key === userLoc || s.label.toLowerCase() === userLoc)?.key || null;
+  const userLocation = auth.user?.locationV2;
   return {
     typId: null,
     typKey: null,
     typLinkedTo: 'Both',
-    standort: defaultStandort,
+    locationId: typeof userLocation === 'object' ? userLocation?._id || null : userLocation || null,
     name: '',
     kundeId: null,
     mitarbeiterId: null,
@@ -724,10 +709,12 @@ watch([() => form.value.kundeId, () => form.value.typId], () => {
 
 const usesCustomEndpoint = computed(() => !!modal.context.customEndpoint);
 
-// ── Straightforward own-company contacts per standort ────────────────────────
+// ── Straightforward own-company contacts per Location ───────────────────────
 const SF_KUNDENNR = { hamburg: 2100003, berlin: 11000024, koeln: 31000001 };
+const selectedLocation = computed(() => locations.value.find(location => location._id === form.value.locationId) || null);
 const straightforwardKunde = computed(() => {
-  const nr = SF_KUNDENNR[form.value.standort];
+  const locationKey = selectedLocation.value?.shortNameKey || selectedLocation.value?.nameKey;
+  const nr = selectedLocation.value?.settings?.signaturKundenNr || SF_KUNDENNR[locationKey];
   if (!nr) return null;
   return kundenList.value.find(k => k.kundenNr === nr) || null;
 });
@@ -763,9 +750,9 @@ const filteredMitarbeiter = computed(() => {
 
 // ── Step gating ──────────────────────────────────────────────────────────────
 const canAdvance = computed(() => {
-  if (currentStep.value === 0) return !!form.value.typId && !!form.value.name.trim();
+  if (currentStep.value === 0) return !!form.value.typId && !!form.value.locationId && !!form.value.name.trim();
   if (currentStep.value === 1) {
-    if (linkMode.value === 'kunde') return !!form.value.kundeId && !!selectedKunde.value?.kuerzel;
+    if (linkMode.value === 'kunde') return !!form.value.kundeId;
     if (linkMode.value === 'mitarbeiter') return !!form.value.mitarbeiterId;
     return true;
   }
@@ -773,8 +760,8 @@ const canAdvance = computed(() => {
 });
 
 const maxReachableStep = computed(() => {
-  if (!form.value.typId || !form.value.name.trim()) return 0;
-  if (linkMode.value === 'kunde' && (!form.value.kundeId || !selectedKunde.value?.kuerzel)) return 1;
+  if (!form.value.typId || !form.value.locationId || !form.value.name.trim()) return 0;
+  if (linkMode.value === 'kunde' && !form.value.kundeId) return 1;
   if (linkMode.value === 'mitarbeiter' && !form.value.mitarbeiterId) return 1;
   return 3;
 });
@@ -931,6 +918,22 @@ async function loadTypen() {
   }
 }
 
+async function loadLocations() {
+  try {
+    const { data } = await api.get('/api/locations');
+    locations.value = Array.isArray(data) ? data : [];
+    if (form.value.locationId) return;
+
+    const legacyLocation = String(auth.user?.location || '').trim().toLowerCase();
+    const match = locations.value.find((location) =>
+      location.nameKey === legacyLocation || location.shortNameKey === legacyLocation
+    );
+    if (match) form.value.locationId = match._id;
+  } catch (e) {
+    console.error('Locations laden fehlgeschlagen', e);
+  }
+}
+
 async function loadTemplates() {
   try {
     const { data } = await api.get('/api/docuseal/templates');
@@ -969,6 +972,7 @@ watch(() => modal.open, async (open) => {
 
   // Kick off data loads
   loadTypen();
+  loadLocations();
   loadTemplates();
   loadGraphContacts();
   dataCache.loadKunden?.();
@@ -984,7 +988,7 @@ async function hydrateFromContext() {
   if (ctx.draftData) {
     const d = ctx.draftData;
     form.value.name     = d.name     || '';
-    form.value.standort = d.standort || null;
+    form.value.locationId = typeof d.locationV2 === 'object' ? d.locationV2?._id || null : d.locationV2 || null;
 
     // Restore typ (populated object or ObjectId string)
     if (d.typ && typeof d.typ === 'object') {
@@ -1033,7 +1037,7 @@ async function hydrateFromContext() {
 
   // ── Standard pre-fill from context ──────────────────────────────────────
   if (ctx.name)    form.value.name    = ctx.name;
-  if (ctx.standort) form.value.standort = ctx.standort;
+  if (ctx.locationId) form.value.locationId = ctx.locationId;
 
   // Pre-select type by key
   if (ctx.typKey) {
@@ -1090,7 +1094,7 @@ async function submit() {
       // Editing an existing draft → PATCH with submit: true
       const payload = {
         name: form.value.name.trim(),
-        standort: form.value.standort || undefined,
+        locationId: form.value.locationId,
         kundeId: linkMode.value === 'kunde' ? form.value.kundeId : undefined,
         mitarbeiterId: linkMode.value === 'mitarbeiter' ? form.value.mitarbeiterId : undefined,
         templateId: form.value.templateId || undefined,
@@ -1104,7 +1108,7 @@ async function submit() {
     } else if (ctx.customEndpoint) {
       // Server-side document generation flow (e.g. Stundenliste)
       const payload = {
-        standort: form.value.standort,
+        locationId: form.value.locationId,
         submitters: form.value.submitters.filter(s => (s.name || '').trim()),
         folgeaktionen: folgeaktionen.value,
       };
@@ -1114,7 +1118,7 @@ async function submit() {
       const payload = {
         name: form.value.name.trim(),
         typId: form.value.typId,
-        standort: form.value.standort || undefined,
+        locationId: form.value.locationId,
         kundeId: linkMode.value === 'kunde' ? form.value.kundeId : undefined,
         mitarbeiterId: linkMode.value === 'mitarbeiter' ? form.value.mitarbeiterId : undefined,
         templateId: form.value.templateId || undefined,
@@ -1144,7 +1148,7 @@ async function saveAsDraft() {
     const ctx = modal.context;
     const payload = {
       name: form.value.name.trim(),
-      standort: form.value.standort || undefined,
+      locationId: form.value.locationId,
       kundeId: linkMode.value === 'kunde' ? form.value.kundeId : undefined,
       mitarbeiterId: linkMode.value === 'mitarbeiter' ? form.value.mitarbeiterId : undefined,
       templateId: form.value.templateId || undefined,

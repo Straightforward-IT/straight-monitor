@@ -3,6 +3,12 @@ const mongoose = require("mongoose");
 const BewerberEmailDocumentSchema = new mongoose.Schema(
   {
     teamKey: { type: String, required: true, trim: true, lowercase: true, index: true },
+    locationV2: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      default: null,
+      index: true,
+    },
     name: { type: String, required: true, trim: true },
     key: { type: String, required: true, trim: true, unique: true },
     contentType: { type: String, required: true, trim: true },
@@ -13,6 +19,6 @@ const BewerberEmailDocumentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-BewerberEmailDocumentSchema.index({ teamKey: 1, isActive: 1, name: 1 });
+BewerberEmailDocumentSchema.index({ teamKey: 1, locationV2: 1, isActive: 1, name: 1 });
 
 module.exports = mongoose.model("BewerberEmailDocument", BewerberEmailDocumentSchema);

@@ -11,6 +11,10 @@
         <font-awesome-icon icon="fa-solid fa-users" />
         Benutzer
       </button>
+      <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'applicants' }" @click="activeTab = 'applicants'">
+        <font-awesome-icon icon="fa-solid fa-envelope" />
+        Bewerbermanagement
+      </button>
     </nav>
 
     <template v-if="activeTab === 'locations'">
@@ -115,7 +119,7 @@
     </div>
     </template>
 
-    <section v-else class="users">
+    <section v-else-if="activeTab === 'users'" class="users">
       <Toolbar>
       <SearchBar class="toolbar-search" v-model="searchQuery" placeholder="Benutzer suchen…" aria-label="Benutzer suchen" />
       <ToolbarLabel>{{ filteredUsers.length }} Benutzer</ToolbarLabel>
@@ -220,6 +224,8 @@
         </div>
       </div>
     </section>
+
+    <BewerberManagementTab v-else :locations="activeLocations" />
 
     <!-- Edit / Create Modal -->
     <div v-if="editModal.open" class="modal-backdrop" @click.self="closeEdit">
@@ -463,6 +469,7 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
+import BewerberManagementTab from '@/components/BewerberManagementTab.vue';
 
 // Map of asana_gid -> { name, email } for display in the table
 const asanaUserMap = ref({});

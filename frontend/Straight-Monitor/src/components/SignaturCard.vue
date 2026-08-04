@@ -23,7 +23,7 @@
           </div>
           <span v-if="vorgang.kundenKuerzel" class="sc-pill sc-pill--kunde">{{ vorgang.kundenKuerzel }}</span>
           <span v-if="vorgang.mitarbeiterName" class="sc-pill sc-pill--ma">{{ displayMitarbeiter }}</span>
-          <span v-if="vorgang.standort" class="sc-pill sc-pill--standort">{{ standortLabel }}</span>
+          <span v-if="vorgang.locationV2 || vorgang.standort" class="sc-pill sc-pill--standort">{{ locationLabel }}</span>
           <router-link
             v-if="vorgang.auftragNr"
             :to="`/auftraege?auftragNr=${vorgang.auftragNr}`"
@@ -266,10 +266,8 @@ const previewLoaded = ref(false);
 const downloading = ref(false);
 const refreshing = ref(false);
 
-const standortLabels = { hamburg: 'Hamburg', berlin: 'Berlin', koeln: 'Köln', it: 'IT', hr: 'HR', rs: 'RS' };
-
 const typLabel = computed(() => props.vorgang.typ?.label || props.vorgang.typKey || 'Signatur');
-const standortLabel = computed(() => standortLabels[props.vorgang.standort] || props.vorgang.standort);
+const locationLabel = computed(() => props.vorgang.locationV2?.nameFull || props.vorgang.standort || '');
 const displayMitarbeiter = computed(() => (props.vorgang.mitarbeiterName || '').replace(/-/g, ' '));
 
 const signedCount = computed(() => props.vorgang.submitters.filter(s => s.status === 'completed').length);

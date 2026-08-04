@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const BewerberEmailDocument = require("./models/BewerberEmailDocument");
+const Bewerber = require("./models/Bewerber");
 const R2Service = require("./R2Service");
 const { sendBewerberInvitationEmail } = require("./EmailService");
 
@@ -14,6 +15,22 @@ function hashSecret(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+function secretsMatch(value, expectedHash) {
+  const actual = Buffer.from(hashSecret(value), "hex");
+  const expected = Buffer.from(String(expectedHash || ""), "hex");
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
+async function findInvitationByToken(accessToken) {
+  const accessTokenHash = hashSecret(accessToken || "");
+  const bewerber = await Bewerber.findOne({
+    "invitations.accessTokenHash": accessTokenHash,
+  }).select("+invitations.accessTokenHash +invitations.accessCodeHash");
+  if (!bewerber) return null;
+  const invitation = bewerber.invitations.find((entry) => entry.accessTokenHash === accessTokenHash);
+  return invitation ? { bewerber, invitation, accessTokenHash } : null;
+}
+
 function createAccessCode() {
   return String(crypto.randomInt(100000, 1000000));
 }
@@ -24,7 +41,7 @@ function getPublicInvitationUrl(accessToken) {
   return `${baseUrl}/bewerbung/${accessToken}`;
 }
 
-async function getInvitationAttachments({ documentIds, teamKey }) {
+async function getInvitationAttachments({ documentIds, teamKey, locationId }) {
   const ids = [...new Set((documentIds || []).map(String))];
   if (!ids.length) return [];
 
@@ -32,6 +49,9 @@ async function getInvitationAttachments({ documentIds, teamKey }) {
     _id: { $in: ids },
     teamKey,
     isActive: true,
+    ...(locationId
+      ? { $or: [{ locationV2: null }, { locationV2: locationId }] }
+      : { locationV2: null }),
   }).lean();
 
   if (documents.length !== ids.length) {
@@ -56,7 +76,11 @@ async function sendInvitation({ bewerber, type, appointmentAt, documentIds, send
     throw new Error("Bitte einen zukünftigen Termin für die Einladung wählen.");
   }
 
-  const attachments = await getInvitationAttachments({ documentIds, teamKey: bewerber.teamKey });
+  const attachments = await getInvitationAttachments({
+    documentIds,
+    teamKey: bewerber.teamKey,
+    locationId: bewerber.locationV2?._id || bewerber.locationV2,
+  });
   const accessToken = crypto.randomBytes(32).toString("base64url");
   const accessCode = createAccessCode();
   const now = new Date();
@@ -100,6 +124,8 @@ async function sendInvitation({ bewerber, type, appointmentAt, documentIds, send
 
 module.exports = {
   INVITATION_TYPES,
+  findInvitationByToken,
   hashSecret,
+  secretsMatch,
   sendInvitation,
 };

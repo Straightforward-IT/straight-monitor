@@ -77,15 +77,13 @@
         <section class="documents-section">
           <div class="section-title">
             <h3>Anhänge</h3>
-            <label class="upload-button">Dokument hinzufügen
-              <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" :disabled="uploadingDocument" @change="uploadDocument" />
-            </label>
           </div>
           <p v-if="loadingDocuments" class="document-state">Dokumente werden geladen ...</p>
           <p v-else-if="!emailDocuments.length" class="document-state">Noch keine Vorlagen hinterlegt.</p>
           <label v-for="document in emailDocuments" :key="document._id" class="document-option">
             <input v-model="invitation.documentIds" :value="document._id" type="checkbox" />
             <span>{{ document.name }}</span>
+            <small>{{ document.locationV2?.shortName || 'Global' }}</small>
             <small>{{ formatFileSize(document.size) }}</small>
           </label>
         </section>
@@ -132,7 +130,6 @@ export default {
       invitingApplicant: null,
       emailDocuments: [],
       loadingDocuments: false,
-      uploadingDocument: false,
       sendingInvitation: false,
       inviteError: '',
       invitation: { type: 'vertrag', appointmentAt: '', documentIds: [] },
@@ -233,31 +230,13 @@ export default {
     async loadEmailDocuments() {
       this.loadingDocuments = true;
       try {
-        const response = await api.get('/api/bewerber/email-documents');
+        const locationId = this.invitingApplicant?.locationV2?._id || this.invitingApplicant?.locationV2 || '';
+        const response = await api.get('/api/bewerber/email-documents', { params: { locationId } });
         this.emailDocuments = response.data.data || [];
       } catch (error) {
         this.inviteError = error.response?.data?.message || 'Dokumente konnten nicht geladen werden.';
       } finally {
         this.loadingDocuments = false;
-      }
-    },
-    async uploadDocument(event) {
-      const [file] = event.target.files || [];
-      event.target.value = '';
-      if (!file) return;
-
-      this.uploadingDocument = true;
-      this.inviteError = '';
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        const response = await api.post('/api/bewerber/email-documents', formData);
-        this.emailDocuments.push(response.data.data);
-        this.invitation.documentIds.push(response.data.data._id);
-      } catch (error) {
-        this.inviteError = error.response?.data?.message || 'Dokument konnte nicht hochgeladen werden.';
-      } finally {
-        this.uploadingDocument = false;
       }
     },
     async sendInvitation() {

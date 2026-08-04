@@ -52,6 +52,7 @@ const routes = [
   { path: '/integration/task-bestaetigen', name: 'TaskBestaetigen', component: TaskBestaetigen, meta: { requiresAuth: false } },
   { path: '/integration/monitor-login', name: 'FlipMonitorLogin', component: FlipMonitorLogin, meta: { requiresAuth: false } },
   { path: '/formular/:token', name: 'PdfMitarbeiterForm', component: PdfMitarbeiterForm, meta: { requiresAuth: false } },
+  { path: '/bewerbung/:accessToken', name: 'BewerberEinladung', component: () => import('@/components/public/BewerberInvitationForm.vue'), meta: { requiresAuth: false } },
 
   // Authentifizierter Bereich unter Layout:
   {

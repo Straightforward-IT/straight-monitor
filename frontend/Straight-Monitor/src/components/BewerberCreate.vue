@@ -57,6 +57,7 @@
                 <option value="">Kein Führerschein angegeben</option>
                 <option v-for="license in licenseClasses" :key="license" :value="license">Klasse {{ license }}</option>
               </select>
+              <span class="field-hint">Klasse B ist der normale Standard-Führerschein.</span>
             </label>
             <label>
               Verfügbar ab
@@ -390,6 +391,12 @@ label {
   font-size: 0.85rem;
   font-weight: 600;
   gap: 6px;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
 }
 
 input,

@@ -17,6 +17,7 @@ const { findAllTasks } = require("../AsanaService");
 const R2Service = require("../R2Service");
 const registry = require("../config/registry");
 const logger = require("../utils/logger");
+const { pickEditableFields } = require("../services/BewerberFields");
 
 const router = express.Router();
 const ENABLED_TEAM_KEY = "hamburg";
@@ -36,45 +37,13 @@ const documentUpload = multer({
   },
 });
 
-const EDITABLE_FIELDS = new Set([
-  "anrede",
-  "vorname",
-  "nachname",
-  "email",
-  "telefon",
-  "strasse",
-  "plz",
-  "ort",
-  "wohnsitz",
-  "staatsangehoerigkeit",
-  "familienstand",
-  "geburtsdatum",
-  "bevorzugterBereich",
-  "erfahrungGastronomieLogistik",
-  "aktuellesAnstellungsverhaeltnis",
-  "verfuegbarAb",
-  "verfuegbarBis",
-  "verfuegbarkeit",
-  "bemerkungen",
-  "fuehrerscheine",
-  "eigenesAuto",
-  "nutzungsberechtigung",
-  "reisebereitschaft",
-  "deutschlandticket",
-  "hat70TageGearbeitet",
-  "tage70Regelung",
-  "studiumStatus",
-  "locationV2",
-]);
-
-function pickEditableFields(source = {}) {
-  return Object.fromEntries(
-    Object.entries(source).filter(([key]) => EDITABLE_FIELDS.has(key))
-  );
-}
-
 function isValidId(id) {
   return mongoose.Types.ObjectId.isValid(id);
+}
+
+async function isAdmin(userId) {
+  const user = await User.findById(userId).select("role roles").lean();
+  return !!user && (user.role === "ADMIN" || user.roles?.includes("ADMIN"));
 }
 
 router.use(auth);
@@ -113,13 +82,22 @@ router.get("/suggestions", asyncHandler(async (_req, res) => {
 }));
 
 // GET /api/bewerber/email-documents
-router.get("/email-documents", asyncHandler(async (_req, res) => {
+router.get("/email-documents", asyncHandler(async (req, res) => {
+  const locationId = req.query.locationId;
+  if (locationId && !isValidId(locationId)) {
+    return res.status(400).json({ message: "Ungültiger Standort." });
+  }
+  const locationScope = locationId
+    ? { $or: [{ locationV2: null }, { locationV2: locationId }] }
+    : { locationV2: null };
   const documents = await BewerberEmailDocument.find({
     teamKey: ENABLED_TEAM_KEY,
     isActive: true,
+    ...locationScope,
   })
-    .select("name contentType size createdAt updatedAt")
-    .sort({ name: 1 })
+    .populate("locationV2", "nameFull shortName color")
+    .select("name contentType size locationV2 createdAt updatedAt")
+    .sort({ locationV2: 1, name: 1 })
     .lean();
 
   res.json({ data: documents });
@@ -127,6 +105,9 @@ router.get("/email-documents", asyncHandler(async (_req, res) => {
 
 // POST /api/bewerber/email-documents
 router.post("/email-documents", documentUpload.single("file"), asyncHandler(async (req, res) => {
+  if (!await isAdmin(req.user.id)) {
+    return res.status(403).json({ message: "Zugriff verweigert - nur für Admins." });
+  }
   if (!req.file) return res.status(400).json({ message: "Keine Datei hochgeladen." });
 
   const extension = req.file.originalname.includes(".")
@@ -170,6 +151,9 @@ router.get("/email-documents/:id/download", asyncHandler(async (req, res) => {
 
 // DELETE /api/bewerber/email-documents/:id
 router.delete("/email-documents/:id", asyncHandler(async (req, res) => {
+  if (!await isAdmin(req.user.id)) {
+    return res.status(403).json({ message: "Zugriff verweigert - nur für Admins." });
+  }
   if (!isValidId(req.params.id)) return res.status(400).json({ message: "Ungültige Dokument-ID." });
 
   const document = await BewerberEmailDocument.findOne({
@@ -277,7 +261,8 @@ router.post("/:id/invitations", asyncHandler(async (req, res) => {
   }
 
   const [bewerber, sender] = await Promise.all([
-    Bewerber.findOne({ _id: req.params.id, teamKey: ENABLED_TEAM_KEY }),
+    Bewerber.findOne({ _id: req.params.id, teamKey: ENABLED_TEAM_KEY })
+      .populate("locationV2", "nameFull shortName contact"),
     User.findById(req.user.id).select("name email").lean(),
   ]);
   if (!bewerber) return res.status(404).json({ message: "Bewerber nicht gefunden." });

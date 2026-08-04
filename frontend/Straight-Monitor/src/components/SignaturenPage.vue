@@ -27,13 +27,13 @@
       <!-- Search + inline filter + count -->
       <Toolbar class="sig-toolbar">
         <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount">
-          <FilterGroup label="Standort">
+          <FilterGroup label="Location">
             <FilterChip
-              v-for="s in standortOptions"
-              :key="s.key"
-              :active="filters.standort === s.key"
-              @click="toggleFilter('standort', s.key)"
-            >{{ s.label }}</FilterChip>
+              v-for="location in locations"
+              :key="location._id"
+              :active="filters.locationId === location._id"
+              @click="toggleFilter('locationId', location._id)"
+            >{{ location.nameFull }}</FilterChip>
           </FilterGroup>
           <FilterDivider />
           <FilterGroup label="Status">
@@ -102,7 +102,7 @@
     </template>
 
     <!-- ───────────── TAB: TEMPLATES ───────────── -->
-    <template v-else>
+    <template v-else-if="activeTab === 'templates'">
       <Toolbar>
         <SearchBar v-model="templateSearch" placeholder="Vorlage suchen…" class="toolbar-search" />
         <ToolbarGroup push-right>
@@ -159,6 +159,11 @@
       </div>
     </template>
 
+    <!-- ───────────── TAB: R2-ABLAGE ───────────── -->
+    <template v-else>
+      <SignaturR2Browser />
+    </template>
+
     <SignaturTypAnlegenModal v-model="showTypModal" @created="onTypCreated" />
 
     <!-- Template context menu — teleported to body to escape overflow clipping -->
@@ -197,7 +202,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil } from '@fortawesome/free-solid-svg-icons';
+import { faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil, faFolderOpen } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useSignaturModal } from '@/stores/signaturModal';
 import { useSignaturBuilder } from '@/stores/signaturBuilder';
@@ -213,8 +218,9 @@ import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import SignaturCard from '@/components/SignaturCard.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
+import SignaturR2Browser from '@/components/SignaturR2Browser.vue';
 
-library.add(faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil);
+library.add(faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil, faFolderOpen);
 
 const modal = useSignaturModal();
 const builder = useSignaturBuilder();
@@ -230,14 +236,10 @@ const STAR_KEY = 'signatur_starred';
 const tabs = [
   { key: 'signaturen', label: 'Signaturen', icon: ['fas', 'list-check'] },
   { key: 'templates',  label: 'Templates',  icon: ['fas', 'file-lines'] },
+  { key: 'ablage',     label: 'Ablage',     icon: ['fas', 'folder-open'] },
 ];
 const activeTab = ref('signaturen');
 
-const standortOptions = [
-  { key: 'hamburg', label: 'Hamburg' },
-  { key: 'berlin', label: 'Berlin' },
-  { key: 'koeln', label: 'Köln' },
-];
 const statusOptions = [
   { key: 'draft', label: 'Entwurf' },
   { key: 'open', label: 'Offen' },
@@ -247,16 +249,17 @@ const statusOptions = [
 
 const vorgaenge = ref([]);
 const typen = ref([]);
+const locations = ref([]);
 const loading = ref(false);
 const search = ref('');
 const filterExpanded = ref(false);
 const showTypModal = ref(false);
 const starred = ref(loadStarred());
 
-const filters = ref({ standort: null, status: null, entity: null, typKey: null });
+const filters = ref({ locationId: null, status: null, entity: null, typKey: null });
 
 const activeFilterCount = computed(() =>
-  ['standort', 'status', 'entity', 'typKey'].filter(k => filters.value[k] !== null).length
+  ['locationId', 'status', 'entity', 'typKey'].filter(k => filters.value[k] !== null).length
 );
 
 let eventSource = null;
@@ -275,7 +278,15 @@ const filteredTemplates = computed(() => {
 const filteredVorgaenge = computed(() => {
   const q = search.value.trim().toLowerCase();
   let list = vorgaenge.value.filter(v => {
-    if (filters.value.standort && v.standort !== filters.value.standort) return false;
+    if (filters.value.locationId) {
+      const location = locations.value.find(item => item._id === filters.value.locationId);
+      const vorgangLocationId = v.locationV2?._id || v.locationV2;
+      const legacyLocationKeys = [location?.nameFull, location?.shortName, location?.nameKey, location?.shortNameKey]
+        .filter(Boolean)
+        .map(normalizeLocationKey);
+      if (String(vorgangLocationId || '') !== filters.value.locationId
+        && !legacyLocationKeys.includes(normalizeLocationKey(v.standort))) return false;
+    }
     if (filters.value.status && v.status !== filters.value.status) return false;
     if (filters.value.typKey && v.typKey !== filters.value.typKey) return false;
     if (filters.value.entity === 'kunde' && !v.kunde) return false;
@@ -301,6 +312,10 @@ const filteredVorgaenge = computed(() => {
 // ── Actions ──────────────────────────────────────────────────────────────────
 function toggleFilter(key, value) {
   filters.value[key] = filters.value[key] === value ? null : value;
+}
+
+function normalizeLocationKey(value) {
+  return String(value || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 function openNewSignature() {
@@ -457,6 +472,15 @@ async function loadTypen() {
   }
 }
 
+async function loadLocations() {
+  try {
+    const { data } = await api.get('/api/locations');
+    locations.value = Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error('Locations laden fehlgeschlagen', e);
+  }
+}
+
 function connectSSE() {
   const token = localStorage.getItem('token');
   if (!token) return;
@@ -479,6 +503,7 @@ watch(activeTab, (tab) => {
 onMounted(() => {
   loadVorgaenge();
   loadTypen();
+  loadLocations();
   connectSSE();
   window.addEventListener('click', closeMenuOnOutsideClick);
   window.addEventListener('scroll', updateMenuPos, true);

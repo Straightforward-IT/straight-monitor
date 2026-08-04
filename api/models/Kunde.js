@@ -71,6 +71,8 @@ const KundeSchema = new mongoose.Schema({
   // Default contact for signature processes (MS Graph contact)
   signaturKontaktId:    { type: String, default: null },
   signaturKontaktEmail: { type: String, default: null },
+  // Stable R2 folder name for customer-related signature documents.
+  signaturOrdner:       { type: String, default: null, trim: true },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Kunde', KundeSchema);

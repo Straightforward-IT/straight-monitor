@@ -22,6 +22,7 @@ const auftraegeRoutes = require('./routes/auftraegeRoutes');
 const kundenRoutes = require('./routes/kundenRoutes');
 const publicCapacityRoutes = require('./routes/publicCapacityRoutes');
 const publicRoutes = require('./routes/publicRoutes');
+const publicBewerberRoutes = require('./routes/publicBewerberRoutes');
 const oidcRoutes = require('./routes/oidcRoutes');
 const flipTaskRoutes = require('./routes/flipTaskRoutes');
 const flipUserFixRoutes = require('./routes/flipUserFixRoutes');
@@ -37,6 +38,7 @@ const dispoKommentarRoutes = require('./routes/dispoKommentarRoutes');
 const commentRoutes = require('./routes/commentRoutes');
 const leadRoutes = require('./routes/leadRoutes');
 const bewerberRoutes = require('./routes/bewerberRoutes');
+const bewerberManagementRoutes = require('./routes/bewerberManagementRoutes');
 const ErrorHandler = require('./middleware/ErrorHandler');
 const logger = require('./utils/logger');
 require('dotenv').config();
@@ -110,6 +112,7 @@ app.use('/api/import', dataImportRoutes);
 app.use('/api/auftraege', auftraegeRoutes);
 app.use('/api/kunden', kundenRoutes);
 app.use('/api/public/capacity', publicCapacityRoutes);
+app.use('/api/public/bewerber', publicBewerberRoutes);
 app.use('/api/public', publicRoutes);
 // OIDC routes are mounted separately — NOT under /api/public which requires publicAuth
 app.use('/api/oidc', oidcRoutes);
@@ -126,6 +129,7 @@ app.use('/api/dispo', dispoRoutes);
 app.use('/api/dispo-kommentare', dispoKommentarRoutes); // legacy — kept for backwards compat
 app.use('/api/comments', commentRoutes);
 app.use('/api/leads', leadRoutes);
+app.use('/api/bewerber/admin', bewerberManagementRoutes);
 app.use('/api/bewerber', bewerberRoutes);
 
 // Debug endpoint (moved to specific path instead of catch-all)

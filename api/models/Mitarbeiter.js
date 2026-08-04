@@ -29,6 +29,8 @@ const MitarbeiterSchema = new mongoose.Schema({
         default: null,
         index: true,
     },
+    // Stable R2 folder name for employee-related signature documents.
+    signaturOrdner: { type: String, default: null, trim: true },
     profilbild: { type: String, required: false, trim: true }, // R2 key for uploaded profile picture (fallback when no Flip photo)
     isActive: { type: Boolean, default: true },
     geburtsdatum: { type: Date, required: false },

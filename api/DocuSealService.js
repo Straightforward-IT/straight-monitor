@@ -206,7 +206,7 @@ class DocuSealService {
    * Download the DocuSeal audit trail PDF for a completed submission and store it in R2.
    *
    * @param {number} submissionId    - DocuSeal submission id.
-   * @param {string} keyPrefix       - R2 key prefix, e.g. `Signatures/kunden/sfhh/stundenliste/2026-06-25`.
+  * @param {string} keyPrefix       - R2 key prefix, e.g. `Signatures/hh/kunden/sfhh/stundenliste`.
    * @param {string} [auditLogUrl]   - Optional pre-known audit URL from the webhook payload.
    *                                   If omitted, the URL is fetched via getSubmission().
    * @returns {Promise<{ key: string, sourceUrl: string }|null>}

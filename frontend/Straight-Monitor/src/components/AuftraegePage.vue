@@ -2565,6 +2565,9 @@ export default {
           auftragNr,
           typKey: 'stundenliste',
           name: `Stundenliste ${auftragNr}`,
+          locationId: typeof this.selectedEvent.locationV2 === 'object'
+            ? this.selectedEvent.locationV2?._id
+            : this.selectedEvent.locationV2,
           kundeId: prefill.kundeId,
           kundenKuerzel: prefill.kuerzel,
           customEndpoint: `/api/signaturen/stundenliste/${auftragNr}`,

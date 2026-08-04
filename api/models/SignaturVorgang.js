@@ -17,7 +17,7 @@ const SubmitterSchema = new mongoose.Schema({
  *
  * Key differences from DocuSealVorgang:
  *   - Explicit standort (Niederlassung) field
- *   - Structured R2 path: Signatures/{kunden|mitarbeiter}/{id}/{typKey}/{date}/
+ *   - Structured R2 path: Signatures/{location}/{kunden|mitarbeiter}/{entity}/{typKey}/
  *   - Richer status: draft → open → completed | cancelled
  *   - Linked to SignaturTyp collection (extensible document types)
  *   - Both R2 signed PDF and audit PDF are stored
@@ -35,8 +35,10 @@ const SignaturVorgangSchema = new mongoose.Schema({
   // Not updated if the type is renamed later, ensuring stable file paths.
   typKey:  { type: String, required: true },
 
-  // Location (team key from teams.json): 'hamburg', 'berlin', 'koeln', 'it', 'hr', 'rs'
+  // Legacy location key retained for historical records.
   standort: { type: String, default: null },
+  // Canonical location used for filtering and R2 folder placement.
+  locationV2: { type: mongoose.Schema.Types.ObjectId, ref: 'Location', default: null },
 
   // Lifecycle status
   status: {
@@ -56,7 +58,7 @@ const SignaturVorgangSchema = new mongoose.Schema({
   kunde:         { type: mongoose.Schema.Types.ObjectId, ref: 'Kunde', default: null },
   kundenNr:      { type: Number, default: null },
   // Denormalized from Kunde.kuerzel — required if kunde is set (validated at route layer).
-  // Used as the R2 folder name under Signatures/kunden/{kuerzel}/
+  // Historical display value; the stable folder name is stored on Kunde.signaturOrdner.
   kundenKuerzel: { type: String, default: null },
 
   // Linked Auftrag — set for Stundenliste and similar event-based signatures
@@ -80,7 +82,7 @@ const SignaturVorgangSchema = new mongoose.Schema({
   // ── R2 storage ────────────────────────────────────────────────────────────
 
   // Prefix stored at creation time (immutable) so webhooks can place files correctly.
-  // e.g. 'Signatures/kunden/sfhh/stundenliste/2026-06-25'
+  // e.g. 'Signatures/hh/kunden/sfhh/stundenliste'
   r2Prefix:    { type: String, default: '' },
   // Full R2 key of the signed document (set when DocuSeal webhook fires)
   r2KeySigned: { type: String, default: '' },
@@ -119,6 +121,7 @@ const SignaturVorgangSchema = new mongoose.Schema({
 SignaturVorgangSchema.index({ submissionId: 1 }, { sparse: true });
 SignaturVorgangSchema.index({ status: 1 });
 SignaturVorgangSchema.index({ standort: 1 });
+SignaturVorgangSchema.index({ locationV2: 1 });
 SignaturVorgangSchema.index({ kunde: 1 });
 SignaturVorgangSchema.index({ mitarbeiter: 1 });
 SignaturVorgangSchema.index({ auftragNr: 1 }, { sparse: true });
