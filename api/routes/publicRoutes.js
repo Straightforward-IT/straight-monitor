@@ -169,14 +169,16 @@ router.get(
         path: "laufzettel_submitted",
         populate: [
           { path: "mitarbeiter", select: "vorname nachname" },
-          { path: "teamleiter", select: "vorname nachname" }
+          { path: "teamleiter", select: "vorname nachname" },
+          { path: "locationV2", select: "nameFull shortName color externalId" }
         ]
       })
       .populate({
         path: "laufzettel_received",
         populate: [
           { path: "mitarbeiter", select: "vorname nachname" },
-          { path: "teamleiter", select: "vorname nachname" }
+          { path: "teamleiter", select: "vorname nachname" },
+          { path: "locationV2", select: "nameFull shortName color externalId" }
         ]
       });
 
@@ -766,19 +768,20 @@ router.get(
 router.post(
   "/laufzettel",
   asyncHandler(async (req, res) => {
-    const { email, auftragNr, teamleiter_email, standort, locationV2 } = req.body;
+    const { email, auftragNr, teamleiter_email } = req.body;
 
     if (!email || !auftragNr || !teamleiter_email) {
       return res.status(400).json({ msg: "Pflichtfelder fehlen (email, auftragNr, teamleiter_email)" });
     }
 
-    const resolvedDocumentLocation = await resolveDocumentLocation({
-      location: standort,
-      locationV2,
-    });
-    if (resolvedDocumentLocation.error) {
-      return res.status(400).json({ msg: resolvedDocumentLocation.error });
+    const auftragLocation = await resolveLocationFromAuftrag(auftragNr);
+    if (!auftragLocation) {
+      return res.status(400).json({ msg: "Der Standort konnte für diesen Auftrag nicht ermittelt werden." });
     }
+    const resolvedDocumentLocation = {
+      location: auftragLocation.nameFull,
+      locationV2: auftragLocation._id,
+    };
 
     // Resolve Mitarbeiter (submitter — check additionalEmails too)
     const maEmail = email.toLowerCase().trim();
@@ -879,6 +882,14 @@ router.post(
     const laufzettel = await Laufzettel.findById(laufzettel_id);
     if (!laufzettel) {
       return res.status(404).json({ msg: "Laufzettel nicht gefunden" });
+    }
+
+    if (!laufzettel.locationV2 && laufzettel.auftragnummer) {
+      const auftragLocation = await resolveLocationFromAuftrag(laufzettel.auftragnummer);
+      if (auftragLocation) {
+        laufzettel.location = auftragLocation.nameFull;
+        laufzettel.locationV2 = auftragLocation._id;
+      }
     }
 
     // Merge evaluation fields into the Laufzettel (v2)

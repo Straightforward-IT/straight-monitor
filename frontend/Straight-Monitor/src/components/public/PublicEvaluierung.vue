@@ -32,9 +32,9 @@
           <span class="prefill-label">Kunde</span>
           <span class="prefill-value">{{ laufzettel.kunde }}</span>
         </div>
-        <div class="prefill-row" v-if="laufzettel?.location">
+        <div class="prefill-row" v-if="laufzettel?.locationV2?.nameFull || laufzettel?.location">
           <span class="prefill-label">Location</span>
-          <span class="prefill-value">{{ laufzettel.location }}</span>
+          <span class="prefill-value">{{ laufzettel.locationV2?.nameFull || laufzettel.location }}</span>
         </div>
         <div class="prefill-row" v-if="laufzettel?.datum">
           <span class="prefill-label">Datum</span>
