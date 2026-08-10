@@ -14,7 +14,7 @@
         <div class="body">
           <div class="mode-switch">
             <button type="button" :class="{ active: direction === 'issue' }" @click="direction = 'issue'">Entnahme</button>
-            <button type="button" :class="{ active: direction === 'return' }" @click="direction = 'return'">Rückgabe</button>
+            <button type="button" :class="{ active: direction === 'return' }" @click="direction = 'return'">Zugabe</button>
           </div>
           <p class="available">Aktueller Bestand: <b>{{ stock.anzahl }}</b> / {{ stock.soll }}</p>
           <label>Mitarbeiter <span>(optional)</span><MitarbeiterSearch v-model="mitarbeiterId" include-inactive /></label>
@@ -29,7 +29,7 @@
           <button type="button" class="secondary" @click="close">Abbrechen</button>
           <button type="button" class="primary" :disabled="saving || !canSubmit" @click="submit">
             <font-awesome-icon :icon="['fas', saving ? 'spinner' : 'check']" :spin="saving" />
-            {{ direction === 'issue' ? 'Entnehmen' : 'Zurücknehmen' }}
+            {{ direction === 'issue' ? 'Entnehmen' : 'Einlagern' }}
           </button>
         </footer>
       </section>

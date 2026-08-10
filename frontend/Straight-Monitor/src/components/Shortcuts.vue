@@ -108,7 +108,7 @@ function activitySummary(entry) {
   if (entry.packageTemplateName) return entry.packageTemplateName;
   const items = entry.items || [];
   const visibleItems = items.slice(0, 2).map((item) => `${item.bezeichnung} × ${item.anzahl}`);
-  return `${entry.art === 'entnahme' ? 'Entnahme' : 'Rückgabe'}: ${visibleItems.join(', ')}${items.length > 2 ? ` +${items.length - 2}` : ''}`;
+  return `${entry.art === 'entnahme' ? 'Entnahme' : 'Zugabe'}: ${visibleItems.join(', ')}${items.length > 2 ? ` +${items.length - 2}` : ''}`;
 }
 
 function activityMeta(entry) {

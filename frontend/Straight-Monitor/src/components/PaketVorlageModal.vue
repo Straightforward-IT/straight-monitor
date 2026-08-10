@@ -3,7 +3,7 @@
     <div class="backdrop" @mousedown.self="close">
       <section class="dialog" role="dialog" aria-modal="true" :aria-label="template.name">
         <header class="dialog__header">
-          <div><p>Paketvorlage</p><h3>{{ template.name }}</h3></div>
+          <div><p>{{ template.name }}</p></div>
           <button type="button" class="icon-button" title="Schließen" @click="close"><font-awesome-icon :icon="['fas', 'xmark']" /></button>
         </header>
 
@@ -17,7 +17,7 @@
 
           <div class="mode-switch">
             <button type="button" :class="{ active: direction === 'issue' }" @click="setDirection('issue')">Entnahme</button>
-            <button type="button" :class="{ active: direction === 'return' }" @click="setDirection('return')">Rückgabe</button>
+            <button type="button" :class="{ active: direction === 'return' }" @click="setDirection('return')">Zugabe</button>
           </div>
 
           <section v-for="section in template.sections.filter((entry) => entry.isActive)" :key="section._id" class="package-section">
@@ -68,7 +68,7 @@
           <button type="button" class="secondary" @click="close">Abbrechen</button>
           <button type="button" class="primary" :disabled="saving || !canBook" @click="book">
             <font-awesome-icon :icon="['fas', saving ? 'spinner' : 'check']" :spin="saving" />
-            {{ direction === 'issue' ? 'Entnehmen' : 'Zurücknehmen' }}
+            {{ direction === 'issue' ? 'Entnehmen' : 'Einlagern' }}
           </button>
         </footer>
       </section>
