@@ -17,7 +17,7 @@
             <button type="button" :class="{ active: direction === 'return' }" @click="direction = 'return'">Rückgabe</button>
           </div>
           <p class="available">Aktueller Bestand: <b>{{ stock.anzahl }}</b> / {{ stock.soll }}</p>
-          <label>Mitarbeiter<MitarbeiterSearch v-model="mitarbeiterId" include-inactive /></label>
+          <label>Mitarbeiter <span>(optional)</span><MitarbeiterSearch v-model="mitarbeiterId" include-inactive /></label>
           <div class="two-columns">
             <label>Menge<input v-model.number="anzahl" type="number" min="1" :max="direction === 'issue' ? stock.anzahl : undefined" /></label>
             <label>Anmerkung<input v-model="anmerkung" type="text" placeholder="Optional" /></label>
@@ -56,7 +56,7 @@ const anzahl = ref(1);
 const anmerkung = ref('');
 const saving = ref(false);
 const error = ref('');
-const canSubmit = computed(() => mitarbeiterId.value && Number.isInteger(Number(anzahl.value)) && Number(anzahl.value) > 0 && (direction.value === 'return' || Number(anzahl.value) <= stock.value.anzahl));
+const canSubmit = computed(() => Number.isInteger(Number(anzahl.value)) && Number(anzahl.value) > 0 && (direction.value === 'return' || Number(anzahl.value) <= stock.value.anzahl));
 
 function close() { emit('update:modelValue', null); }
 
@@ -87,6 +87,6 @@ async function submit() {
 header, footer { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--border); } header p, header h3, header span { margin: 0; } header p { color: var(--primary); font-size: 0.72rem; font-weight: 700; } header h3 { font-size: 1.05rem; margin: 3px 0; } header span { color: var(--muted); font-size: 0.78rem; }
 .body { padding: 18px; display: grid; gap: 14px; } .mode-switch { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; gap: 3px; border-radius: 7px; background: var(--hover); } .mode-switch button { background: transparent; color: var(--muted); } .mode-switch button.active { background: var(--tile-bg); color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 .available { margin: 0; color: var(--muted); font-size: 0.82rem; } .available b { color: var(--text); }
-label { display: grid; gap: 5px; font-size: 0.78rem; font-weight: 600; } input { min-width: 0; border: 1px solid var(--border); border-radius: 6px; padding: 8px 9px; background: var(--surface, var(--tile-bg)); color: var(--text); font: inherit; } input:focus { border-color: var(--primary); outline: none; } .two-columns { display: grid; grid-template-columns: 100px 1fr; gap: 10px; }
+label { display: grid; gap: 5px; font-size: 0.78rem; font-weight: 600; } label span { color: var(--muted); font-size: 0.72rem; font-weight: 400; } input { min-width: 0; border: 1px solid var(--border); border-radius: 6px; padding: 8px 9px; background: var(--surface, var(--tile-bg)); color: var(--text); font: inherit; } input:focus { border-color: var(--primary); outline: none; } .two-columns { display: grid; grid-template-columns: 100px 1fr; gap: 10px; }
 footer { align-items: center; justify-content: end; border-bottom: none; border-top: 1px solid var(--border); } button { border: none; border-radius: 6px; cursor: pointer; font: inherit; font-weight: 600; padding: 8px 12px; } .icon-button, .secondary { background: transparent; border: 1px solid var(--border); color: var(--text); } .primary { background: var(--primary); color: #fff; } button:disabled { cursor: not-allowed; opacity: 0.55; } .error { margin: 0; color: #c3423f; font-size: 0.78rem; }
 </style>

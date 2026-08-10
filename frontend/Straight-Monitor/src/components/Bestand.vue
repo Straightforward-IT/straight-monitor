@@ -79,6 +79,9 @@
             <button type="button" class="item-card__edit" title="Artikel bearbeiten" @click.stop="openItemEdit(item)">
               <font-awesome-icon :icon="['fas', 'pen']" />
             </button>
+            <button v-if="isAdmin" type="button" class="item-card__edit item-card__delete" title="Artikel löschen" @click.stop="deleteItem(item)">
+              <font-awesome-icon :icon="['fas', 'trash']" />
+            </button>
             <button type="button" class="item-card__edit" :title="isItemExpanded(item.id) ? 'Details schließen' : 'Details anzeigen'" @click.stop="toggleItemDetails(item)">
               <font-awesome-icon :icon="['fas', isItemExpanded(item.id) ? 'chevron-up' : 'chevron-down']" />
             </button>
@@ -154,9 +157,10 @@
 import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faWarehouse } from '@fortawesome/free-solid-svg-icons';
+import { faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faTrash, faWarehouse } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { useDataCache } from '@/stores/dataCache';
+import { useAuth } from '@/stores/auth';
 import { useInventoryFilters } from '@/stores/inventoryFilters';
 import api from '@/utils/api';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
@@ -171,9 +175,10 @@ import InventoryTransactionModal from '@/components/InventoryTransactionModal.vu
 import ContextMenu from '@/components/ContextMenu.vue';
 import InventoryReportModal from '@/components/InventoryReportModal.vue';
 
-library.add(faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faWarehouse);
+library.add(faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faTrash, faWarehouse);
 
 const dataCache = useDataCache();
+const auth = useAuth();
 const inventoryFilters = useInventoryFilters();
 const { locationIds: selectedLocationIds } = storeToRefs(inventoryFilters);
 const stocks = computed(() => dataCache.items);
@@ -196,6 +201,7 @@ const actionMenuOptions = [
   { label: 'Bestandsupdate senden', action: 'email' },
   { label: 'Excel-Liste herunterladen', action: 'excel' },
 ];
+const isAdmin = computed(() => auth.user?.role === 'ADMIN' || auth.user?.roles?.includes('ADMIN'));
 
 const locations = computed(() => {
   const usedLocationIds = new Set(stocks.value.map((stock) => String(stock.locationId)).filter(Boolean));
@@ -246,10 +252,12 @@ const groupedItems = computed(() => {
     group.variations.set(stock.variationKey || '__standard', {
       key: stock.variationKey || '__standard',
       label: stock.variation || 'Standard',
+      order: stock.variationOrder,
     });
     group.sizes.set(stock.groesseKey || 'onesize', {
       key: stock.groesseKey || 'onesize',
       label: stock.groesse || 'onesize',
+      order: stock.groesseOrder,
     });
   }
   return [...groups.values()].map((group) => ({
@@ -263,8 +271,8 @@ const groupedItems = computed(() => {
           .reduce((total, stock) => total + Number(stock.anzahl || 0), 0),
       }))
       .sort((left, right) => left.name.localeCompare(right.name, 'de')),
-    variations: [...group.variations.values()],
-    sizes: [...group.sizes.values()],
+    variations: [...group.variations.values()].sort((left, right) => left.order - right.order || left.label.localeCompare(right.label, 'de')),
+    sizes: [...group.sizes.values()].sort((left, right) => left.order - right.order || left.label.localeCompare(right.label, 'de')),
   })).sort((left, right) => left.bezeichnung.localeCompare(right.bezeichnung, 'de'));
 });
 
@@ -315,9 +323,23 @@ function openItemCreate() {
 function openItemEdit(item) {
   editingItem.value = {
     ...item,
+    variations: item.variations,
+    sizes: item.sizes,
     stocks: stocks.value.filter((stock) => String(stock.itemId || stock._id) === item.id),
   };
   showCreateDialog.value = true;
+}
+
+async function deleteItem(item) {
+  if (!window.confirm(`Artikel „${item.bezeichnung}“ wirklich löschen?`)) return;
+  error.value = '';
+  try {
+    await api.delete(`/api/inventory/items/${item.id}`);
+    expandedItemIds.value = expandedItemIds.value.filter((itemId) => itemId !== item.id);
+    await refreshStocks();
+  } catch (requestError) {
+    error.value = requestError.response?.data?.message || 'Artikel konnte nicht gelöscht werden.';
+  }
 }
 
 function isItemExpanded(itemId) {
@@ -392,6 +414,7 @@ h2 { margin: 0; font-size: 1.55rem; display: flex; gap: 9px; align-items: center
 .item-card__total { min-width: 28px; padding: 4px 7px; border-radius: 5px; background: color-mix(in srgb, var(--location-color) 14%, var(--tile-bg)); color: var(--location-color); font-size: 0.78rem; font-weight: 700; text-align: center; white-space: nowrap; }
 .item-card__edit { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
 .item-card__edit:hover { border-color: var(--primary); color: var(--primary); }
+.item-card__delete:hover { border-color: #c3423f; color: #c3423f; }
 .shop-link { color: var(--muted); font-size: 0.72rem; text-decoration: none; }
 .shop-link:hover { color: var(--primary); }
 .item-card__details { display: grid; gap: 12px; padding: 12px 14px 14px; }

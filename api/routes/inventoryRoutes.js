@@ -76,6 +76,11 @@ async function currentUser(userId) {
   return user;
 }
 
+async function isAdmin(userId) {
+  const user = await User.findById(userId).select('role roles').lean();
+  return !!user && (user.role === 'ADMIN' || user.roles?.includes('ADMIN'));
+}
+
 router.get('/stocks', auth, asyncHandler(async (req, res) => {
   const stocks = await listFlatStocks({ locationId: req.query.locationId || null });
   res.json(stocks);
@@ -224,6 +229,20 @@ router.patch('/items/:itemId', auth, asyncHandler(async (req, res) => {
   }
 }));
 
+router.delete('/items/:itemId', auth, asyncHandler(async (req, res) => {
+  if (!await isAdmin(req.user.id)) {
+    return res.status(403).json({ message: 'Zugriff verweigert - nur für Admins' });
+  }
+
+  const item = await InventoryItem.findById(req.params.itemId);
+  if (!item) return res.status(404).json({ message: 'Artikel nicht gefunden' });
+
+  item.isActive = false;
+  item.bestaende.forEach((stock) => { stock.isActive = false; });
+  await item.save();
+  res.json({ message: 'Artikel gelöscht' });
+}));
+
 router.post('/items/:itemId/stocks', auth, asyncHandler(async (req, res) => {
   try {
     const item = await InventoryItem.findById(req.params.itemId);
@@ -293,14 +312,16 @@ router.get('/holdings/:mitarbeiterId', auth, asyncHandler(async (req, res) => {
 router.post('/transactions', auth, asyncHandler(async (req, res) => {
   const { locationId, mitarbeiterId, direction, anmerkung = '', templateId = null, lines } = req.body;
   if (!mongoose.isValidObjectId(locationId)) throw httpError(400, 'locationId ist erforderlich');
-  if (!mongoose.isValidObjectId(mitarbeiterId)) throw httpError(400, 'mitarbeiterId ist erforderlich');
+  if (mitarbeiterId && !mongoose.isValidObjectId(mitarbeiterId)) throw httpError(400, 'mitarbeiterId ist ungültig');
   if (!['issue', 'return'].includes(direction)) throw httpError(400, 'direction muss issue oder return sein');
   if (!Array.isArray(lines) || !lines.length) throw httpError(400, 'Mindestens eine Bestandszeile ist erforderlich');
 
   const location = await Location.findOne({ _id: locationId, isActive: true }).lean();
   if (!location) throw httpError(400, 'Standort nicht gefunden oder inaktiv');
-  const employee = await Mitarbeiter.findById(mitarbeiterId).select('vorname nachname personalnr').lean();
-  if (!employee) throw httpError(404, 'Mitarbeiter nicht gefunden');
+  const employee = mitarbeiterId
+    ? await Mitarbeiter.findById(mitarbeiterId).select('vorname nachname personalnr').lean()
+    : null;
+  if (mitarbeiterId && !employee) throw httpError(404, 'Mitarbeiter nicht gefunden');
   const user = await currentUser(req.user.id);
   const packageTemplate = mongoose.isValidObjectId(templateId)
     ? await PaketVorlage.findById(templateId).select('name').lean()
@@ -362,9 +383,9 @@ router.post('/transactions', auth, asyncHandler(async (req, res) => {
         packageTemplate: packageTemplate?._id || null,
         packageTemplateName: packageTemplate?.name || null,
         anmerkung: `${templateId ? `[Paketvorlage: ${templateId}] ` : ''}${anmerkung}`.trim(),
-        mitarbeiter: employee._id,
-        mitarbeiterName: `${employee.vorname} ${employee.nachname}`.trim(),
-        mitarbeiterPersonalnr: employee.personalnr || null,
+        mitarbeiter: employee?._id || null,
+        mitarbeiterName: employee ? `${employee.vorname} ${employee.nachname}`.trim() : null,
+        mitarbeiterPersonalnr: employee?.personalnr || null,
       }], { session });
       result = { updatedStocks, monitoring: monitoring[0] };
     });

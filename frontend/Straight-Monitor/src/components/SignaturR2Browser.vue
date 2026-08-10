@@ -10,9 +10,18 @@
           <button type="button" @click="selectFolder(crumb.path)">{{ crumb.label }}</button>
         </template>
       </nav>
-      <button class="icon-button" type="button" title="Ablage aktualisieren" :disabled="loading" @click="loadFiles">
-        <font-awesome-icon :icon="['fas', 'rotate']" :spin="loading" />
-      </button>
+      <div class="storage-tools">
+        <label class="storage-search">
+          <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
+          <input v-model="searchQuery" type="search" placeholder="Ablage durchsuchen" aria-label="Ablage durchsuchen" />
+          <button v-if="searchQuery" type="button" title="Suche leeren" @click="searchQuery = ''">
+            <font-awesome-icon :icon="['fas', 'xmark']" />
+          </button>
+        </label>
+        <button class="icon-button" type="button" title="Ablage aktualisieren" :disabled="loading" @click="loadFiles">
+          <font-awesome-icon :icon="['fas', 'rotate']" :spin="loading" />
+        </button>
+      </div>
     </div>
 
     <div v-if="loading && files.length === 0" class="storage-state">
@@ -25,29 +34,50 @@
     </div>
     <div v-else class="storage-layout">
       <aside class="folder-panel" aria-label="Ordnerstruktur">
-        <button
+        <div
           v-for="folder in folderTree"
           :key="folder.path"
           class="folder-row"
           :class="{ active: selectedPath === folder.path }"
           :style="{ paddingLeft: `${12 + folder.depth * 18}px` }"
-          type="button"
-          @click="selectFolder(folder.path)"
         >
-          <font-awesome-icon :icon="['fas', folder.path ? 'folder' : 'folder-open']" />
-          <span>{{ folder.label }}</span>
-        </button>
+          <button
+            class="folder-toggle"
+            type="button"
+            :class="{ invisible: !folder.hasChildren }"
+            :disabled="Boolean(searchQuery.trim())"
+            :title="isFolderExpanded(folder.path) ? 'Ordner zuklappen' : 'Ordner aufklappen'"
+            @click="toggleFolder(folder.path)"
+          >
+            <font-awesome-icon :icon="['fas', isFolderExpanded(folder.path) ? 'chevron-down' : 'chevron-right']" />
+          </button>
+          <button class="folder-select" type="button" @click="selectFolder(folder.path)">
+            <font-awesome-icon :icon="['fas', isFolderExpanded(folder.path) ? 'folder-open' : 'folder']" />
+            <span>{{ folder.label }}</span>
+          </button>
+        </div>
       </aside>
 
       <section class="file-panel">
         <div class="file-panel-head">
-          <strong>{{ currentFolderLabel }}</strong>
+          <button
+            v-if="currentEntity"
+            class="entity-link"
+            type="button"
+            :disabled="entityOpening"
+            :title="currentEntity.entityType === 'kunde' ? 'Kundenkarte öffnen' : 'Mitarbeiterkarte öffnen'"
+            @click="openCurrentEntity"
+          >
+            <strong>{{ currentFolderLabel }}</strong>
+            <font-awesome-icon :icon="['fas', entityOpening ? 'spinner' : 'arrow-up-right-from-square']" :spin="entityOpening" />
+          </button>
+          <strong v-else>{{ currentFolderLabel }}</strong>
           <span>{{ currentItems.length }} {{ currentItems.length === 1 ? 'Element' : 'Elemente' }}</span>
         </div>
 
         <div v-if="currentItems.length === 0" class="storage-state">
-          <font-awesome-icon :icon="['fas', 'folder-open']" />
-          <span>Dieser Ordner ist leer.</span>
+          <font-awesome-icon :icon="['fas', searchQuery ? 'magnifying-glass' : 'folder-open']" />
+          <span>{{ searchQuery ? 'Keine passenden Dokumente oder Ordner gefunden.' : 'Dieser Ordner ist leer.' }}</span>
         </div>
 
         <div v-else class="file-list">
@@ -81,27 +111,47 @@
         </div>
       </section>
     </div>
+
+    <EmployeeCardModal
+      :mitarbeiter-id="selectedMitarbeiterId"
+      @close="selectedMitarbeiterId = null"
+    />
+
+    <Teleport to="body">
+      <div v-if="selectedKunde" class="entity-modal-overlay" @click.self="selectedKunde = null">
+        <div class="entity-modal-content">
+          <CustomerCard :kunde="selectedKunde" @close="selectedKunde = null" />
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
-  faArrowUpRightFromSquare, faChevronRight, faDownload, faFilePdf,
-  faFolder, faFolderOpen, faRotate, faSpinner,
+  faArrowUpRightFromSquare, faChevronDown, faChevronRight, faDownload, faFilePdf,
+  faFolder, faFolderOpen, faMagnifyingGlass, faRotate, faSpinner, faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
+import CustomerCard from '@/components/CustomerCard.vue';
+import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 
 library.add(
-  faArrowUpRightFromSquare, faChevronRight, faDownload, faFilePdf,
-  faFolder, faFolderOpen, faRotate, faSpinner,
+  faArrowUpRightFromSquare, faChevronDown, faChevronRight, faDownload, faFilePdf,
+  faFolder, faFolderOpen, faMagnifyingGlass, faRotate, faSpinner, faXmark,
 );
 
 const files = ref([]);
 const loading = ref(false);
 const error = ref('');
 const selectedPath = ref('');
+const searchQuery = ref('');
+const expandedPaths = ref(new Set(['']));
+const entityOpening = ref(false);
+const selectedKunde = ref(null);
+const selectedMitarbeiterId = ref(null);
 
 function getRelativePath(file) {
   return file.displayPath || file.key.replace(/^(?:Signatures|signaturen)\//, '');
@@ -119,22 +169,42 @@ function getFolderLabel(path) {
   return parts.pop() || 'Signaturen';
 }
 
-const folderTree = computed(() => {
+const filteredFiles = computed(() => {
+  const query = searchQuery.value.trim().toLocaleLowerCase('de');
+  if (!query) return files.value;
+
+  return files.value.filter((file) => [
+    ...(file.folderLabels || []),
+    file.fileName,
+    getRelativePath(file),
+  ].filter(Boolean).join(' ').toLocaleLowerCase('de').includes(query));
+});
+
+const allFolderPaths = computed(() => {
   const paths = new Set(['']);
-  files.value.forEach((file) => {
+  filteredFiles.value.forEach((file) => {
     const parts = getRelativePath(file).split('/');
     parts.pop();
     parts.forEach((_, index) => paths.add(parts.slice(0, index + 1).join('/')));
   });
+  return paths;
+});
 
-  return [...paths]
+const folderTree = computed(() => [...allFolderPaths.value]
     .sort((a, b) => a.localeCompare(b, 'de'))
+    .filter((path) => {
+      if (!path || searchQuery.value.trim()) return true;
+      const parts = path.split('/');
+      const parentPath = parts.slice(0, -1).join('/');
+      return isFolderExpanded(parentPath) && folderAncestorsExpanded(parentPath);
+    })
     .map((path) => ({
       path,
       depth: path ? path.split('/').length : 0,
       label: path ? getFolderLabel(path) : 'Signaturen',
-    }));
-});
+      hasChildren: [...allFolderPaths.value].some((candidate) => candidate.startsWith(path ? `${path}/` : '') && candidate !== path),
+    }))
+);
 
 const breadcrumbs = computed(() => {
   const parts = selectedPath.value ? selectedPath.value.split('/') : [];
@@ -147,7 +217,7 @@ const breadcrumbs = computed(() => {
 const currentFolders = computed(() => {
   const folders = new Map();
   const prefix = selectedPath.value ? `${selectedPath.value}/` : '';
-  files.value.forEach((file) => {
+  filteredFiles.value.forEach((file) => {
     const relative = getRelativePath(file);
     if (!relative.startsWith(prefix)) return;
     const remainder = relative.slice(prefix.length);
@@ -162,7 +232,7 @@ const currentFolders = computed(() => {
 
 const currentFiles = computed(() => {
   const prefix = selectedPath.value ? `${selectedPath.value}/` : '';
-  return files.value
+  return filteredFiles.value
     .map((file) => ({ ...file, relative: getRelativePath(file) }))
     .filter((file) => file.relative.startsWith(prefix) && !file.relative.slice(prefix.length).includes('/'))
     .map((file) => ({ ...file, name: file.fileName || file.relative.slice(prefix.length) }))
@@ -174,9 +244,63 @@ const currentFiles = computed(() => {
 
 const currentItems = computed(() => [...currentFolders.value, ...currentFiles.value]);
 const currentFolderLabel = computed(() => selectedPath.value ? getFolderLabel(selectedPath.value) : 'Signaturen');
+const currentEntity = computed(() => {
+  const parts = selectedPath.value.split('/').filter(Boolean);
+  if (parts.length !== 3 || !['kunden', 'mitarbeiter'].includes(parts[1])) return null;
+
+  const matchingFile = files.value.find((file) =>
+    file.entityId && getRelativePath(file).startsWith(`${selectedPath.value}/`)
+  );
+  if (!matchingFile) return null;
+  return { entityType: matchingFile.entityType, entityId: matchingFile.entityId };
+});
 
 function selectFolder(path) {
   selectedPath.value = path;
+  const nextExpanded = new Set(expandedPaths.value);
+  const parts = path ? path.split('/') : [];
+  nextExpanded.add('');
+  parts.forEach((_, index) => nextExpanded.add(parts.slice(0, index + 1).join('/')));
+  expandedPaths.value = nextExpanded;
+}
+
+function isFolderExpanded(path) {
+  return searchQuery.value.trim() ? true : expandedPaths.value.has(path);
+}
+
+function folderAncestorsExpanded(path) {
+  if (!path) return true;
+  const parts = path.split('/');
+  return parts.every((_, index) => expandedPaths.value.has(parts.slice(0, index + 1).join('/')));
+}
+
+function toggleFolder(path) {
+  const nextExpanded = new Set(expandedPaths.value);
+  if (nextExpanded.has(path)) nextExpanded.delete(path);
+  else nextExpanded.add(path);
+  expandedPaths.value = nextExpanded;
+}
+
+async function openCurrentEntity() {
+  const entity = currentEntity.value;
+  if (!entity?.entityId || entityOpening.value) return;
+
+  if (entity.entityType === 'mitarbeiter') {
+    selectedMitarbeiterId.value = entity.entityId;
+    return;
+  }
+
+  entityOpening.value = true;
+  try {
+    const { data } = await api.get(`/api/kunden/${entity.entityId}`);
+    selectedKunde.value = data;
+  } catch (requestError) {
+    error.value = requestError?.response?.data?.message
+      || requestError?.response?.data?.msg
+      || 'Kundenkarte konnte nicht geöffnet werden.';
+  } finally {
+    entityOpening.value = false;
+  }
 }
 
 async function loadFiles() {
@@ -237,6 +361,10 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+watch(searchQuery, (query, previousQuery) => {
+  if (query.trim() && !previousQuery.trim()) selectedPath.value = '';
+});
+
 onMounted(loadFiles);
 </script>
 
@@ -256,6 +384,39 @@ onMounted(loadFiles);
   justify-content: space-between;
   gap: 12px;
   border-bottom: 1px solid var(--border);
+}
+
+.storage-tools { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.storage-search {
+  width: min(260px, 30vw);
+  height: 32px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  background: var(--surface);
+  &:focus-within { border-color: var(--primary); color: var(--primary); }
+  input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    &::-webkit-search-cancel-button { display: none; }
+  }
+  button {
+    padding: 3px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
 }
 
 .storage-breadcrumb {
@@ -293,22 +454,43 @@ onMounted(loadFiles);
 .folder-row {
   width: 100%;
   height: 34px;
-  padding-right: 10px;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  color: var(--text);
+  &:hover { background: color-mix(in srgb, var(--primary) 7%, transparent); }
+  &.active { color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); }
+  &.active svg { color: var(--primary); }
+}
+.folder-toggle {
+  width: 22px;
+  height: 100%;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.6rem;
+  &.invisible { visibility: hidden; }
+  &:disabled { cursor: default; }
+}
+.folder-select {
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  padding: 0 10px 0 2px;
   display: flex;
   align-items: center;
   gap: 8px;
   border: 0;
   background: transparent;
-  color: var(--text);
+  color: inherit;
   font: inherit;
   font-size: 0.8rem;
   text-align: left;
   cursor: pointer;
   span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   svg { color: var(--muted); flex-shrink: 0; }
-  &:hover { background: color-mix(in srgb, var(--primary) 7%, transparent); }
-  &.active { color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); }
-  &.active svg { color: var(--primary); }
 }
 
 .file-panel { min-width: 0; }
@@ -321,6 +503,23 @@ onMounted(loadFiles);
   border-bottom: 1px solid var(--border);
   strong { font-size: 0.9rem; font-weight: 600; }
   span { color: var(--muted); font-size: 0.76rem; }
+}
+
+.entity-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  svg { color: var(--muted); font-size: 0.72rem; }
+  &:hover { color: var(--primary); }
+  &:hover svg { color: var(--primary); }
+  &:disabled { cursor: wait; opacity: 0.65; }
 }
 
 .file-list { width: 100%; }
@@ -366,9 +565,35 @@ onMounted(loadFiles);
 .storage-state--error { color: #c94141; }
 
 @media (max-width: 760px) {
+  .storage-head { align-items: flex-start; }
+  .storage-tools { width: min(220px, 48%); }
+  .storage-search { width: 100%; }
   .storage-layout { grid-template-columns: 1fr; }
   .folder-panel { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--border); }
   .file-row { grid-template-columns: 30px minmax(100px, 1fr) 70px 74px; }
   .file-meta--date { display: none; }
+}
+</style>
+
+<style lang="scss">
+.entity-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.entity-modal-content {
+  width: min(1200px, 100%);
+  max-height: 90vh;
+  display: flex;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
 }
 </style>

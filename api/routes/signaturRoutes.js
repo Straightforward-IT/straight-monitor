@@ -729,6 +729,8 @@ router.get('/storage', auth, asyncHandler(async (_req, res) => {
       const entityFolder = vorgang.kunde?.signaturOrdner || sanitizeSegment(entityName) || 'ohne-zuordnung';
       pathSegments.push('kunden', entityFolder);
       folderLabels.push('Kunden', entityName);
+      responseObject.entityType = 'kunde';
+      responseObject.entityId = vorgang.kunde?._id ? String(vorgang.kunde._id) : null;
     } else if (isMitarbeiter) {
       const fullName = [vorgang.mitarbeiter?.vorname, vorgang.mitarbeiter?.nachname].filter(Boolean).join(' ')
         || vorgang.mitarbeiterName
@@ -736,6 +738,8 @@ router.get('/storage', auth, asyncHandler(async (_req, res) => {
       const entityFolder = vorgang.mitarbeiter?.signaturOrdner || sanitizeSegment(fullName) || 'ohne-zuordnung';
       pathSegments.push('mitarbeiter', entityFolder);
       folderLabels.push('Mitarbeiter', fullName);
+      responseObject.entityType = 'mitarbeiter';
+      responseObject.entityId = vorgang.mitarbeiter?._id ? String(vorgang.mitarbeiter._id) : null;
     } else {
       pathSegments.push('sonstige');
       folderLabels.push('Sonstige');

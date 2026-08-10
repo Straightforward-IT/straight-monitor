@@ -11,6 +11,8 @@ function toFlatStock(item, stock) {
   const location = stock.location;
   const locationId = location?._id || location;
   const locationName = location?.nameFull || '';
+  const variationOrder = item.variationen.findIndex((option) => option.key === stock.variationKey);
+  const groesseOrder = item.groessen.findIndex((option) => option.key === stock.groesseKey);
 
   return {
     _id: stock._id,
@@ -22,8 +24,10 @@ function toFlatStock(item, stock) {
     standortColor: location?.color || '#6b7280',
     variationKey: stock.variationKey || null,
     variation: optionLabel(item.variationen, stock.variationKey, stock.variationKey),
+    variationOrder: variationOrder < 0 ? Number.MAX_SAFE_INTEGER : variationOrder,
     groesseKey: stock.groesseKey || 'onesize',
     groesse: optionLabel(item.groessen, stock.groesseKey, stock.groesseKey || 'onesize') || 'onesize',
+    groesseOrder: groesseOrder < 0 ? Number.MAX_SAFE_INTEGER : groesseOrder,
     anzahl: stock.bestand,
     bestand: stock.bestand,
     soll: stock.soll,

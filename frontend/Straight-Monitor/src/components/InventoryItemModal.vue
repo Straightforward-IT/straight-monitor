@@ -174,12 +174,16 @@ function reset() {
 
 function populateItem(item) {
   const existingStocks = item.stocks || [];
-  const variationLabels = [...new Map(existingStocks
+  const variationLabels = (item.variations || existingStocks
     .filter((stock) => stock.variationKey)
-    .map((stock) => [stock.variationKey, stock.variation || stock.variationKey])).values()];
-  const sizeLabels = [...new Map(existingStocks
+    .map((stock) => ({ key: stock.variationKey, label: stock.variation || stock.variationKey })))
+    .map((variation) => variation.label)
+    .filter(Boolean);
+  const sizeLabels = (item.sizes || existingStocks
     .filter((stock) => stock.groesseKey && stock.groesseKey !== 'onesize')
-    .map((stock) => [stock.groesseKey, stock.groesse || stock.groesseKey])).values()];
+    .map((stock) => ({ key: stock.groesseKey, label: stock.groesse || stock.groesseKey })))
+    .map((size) => size.label)
+    .filter((label) => label && label !== 'onesize');
 
   form.value = {
     bezeichnung: item.bezeichnung || '',
