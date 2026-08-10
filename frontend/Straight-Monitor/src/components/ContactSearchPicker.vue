@@ -107,7 +107,7 @@
             </div>
             <div class="cp-result-info">
               <div class="cp-result-name">Manuell eingeben</div>
-              <div class="cp-result-sub">{{ query ? `„${query}" als Name übernehmen` : 'Name & E-Mail selbst eingeben' }}</div>
+              <div class="cp-result-sub">{{ query ? `„${query}" als E-Mail übernehmen` : 'Name & E-Mail selbst eingeben' }}</div>
             </div>
           </button>
         </div>
@@ -125,7 +125,8 @@
         type="text"
         class="cp-manual-input"
         placeholder="Name"
-        @input="syncManual"
+        @change="syncManual"
+        @keydown.enter.prevent="syncManual"
       />
       <input
         v-model="manualEmail"
@@ -249,8 +250,8 @@ function selectMitarbeiter(m) {
 
 function useManual() {
   manualMode.value = true;
-  manualName.value = query.value;
-  manualEmail.value = '';
+  manualName.value = '';
+  manualEmail.value = query.value;
   openDropdown.value = false;
 }
 

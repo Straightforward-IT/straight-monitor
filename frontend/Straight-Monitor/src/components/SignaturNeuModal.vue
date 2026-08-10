@@ -75,6 +75,23 @@
                 </button>
               </div>
 
+              <template v-if="form.typId && templatesForTyp.length">
+                <label class="sig-field-label">Vorlage</label>
+                <div class="sig-tpl-chips">
+                  <button
+                    v-for="tpl in templatesForTyp"
+                    :key="tpl.id"
+                    class="sig-tpl-chip"
+                    :class="{ active: form.templateId === tpl.id }"
+                    type="button"
+                    @click="selectTemplateChip(tpl)"
+                  >
+                    <font-awesome-icon :icon="['fas', 'file-lines']" />
+                    {{ tpl.name }}
+                  </button>
+                </div>
+              </template>
+
               <label class="sig-field-label">Location</label>
               <div class="sig-chip-row">
                 <FilterChip
@@ -197,7 +214,7 @@
                   @remove="removeSubmitter(i)"
                 />
               </div>
-              <button class="sig-add-submitter" type="button" @click="addSubmitter">
+              <button v-if="!form.templateId" class="sig-add-submitter" type="button" @click="addSubmitter">
                 <font-awesome-icon :icon="['fas', 'user-plus']" /> Unterzeichner hinzufügen
               </button>
             </section>
@@ -756,6 +773,13 @@ const canAdvance = computed(() => {
     if (linkMode.value === 'mitarbeiter') return !!form.value.mitarbeiterId;
     return true;
   }
+  if (currentStep.value === 2) {
+    const subs = form.value.submitters;
+    if (!subs.some(s => (s.name || '').trim())) return false;
+    // When a template is selected all pre-populated roles must be filled
+    if (form.value.templateId) return subs.every(s => (s.name || '').trim());
+    return true;
+  }
   return true;
 });
 
@@ -809,14 +833,34 @@ function isLinkAllowed(key) {
   return true;
 }
 
-function selectTyp(t) {
+function selectTyp(t, clearTemplate = true) {
   form.value.typId = t._id;
   form.value.typKey = t.key;
   form.value.typLinkedTo = t.linkedTo;
-  // Auto-pick link mode based on the type
+  // Only clear template when user manually picks a different type
+  if (clearTemplate) {
+    form.value.templateId = null;
+    form.value.templateName = '';
+  }
+  // Auto-pick link mode only for Kunde types; Mitarbeiter may not exist yet
   if (t.linkedTo === 'Kunde') linkMode.value = 'kunde';
-  else if (t.linkedTo === 'Mitarbeiter') linkMode.value = 'mitarbeiter';
 }
+
+function selectTemplateChip(tpl) {
+  // Toggle off if already selected
+  if (form.value.templateId === tpl.id) {
+    form.value.templateId = null;
+    form.value.templateName = '';
+    return;
+  }
+  form.value.templateId = tpl.id;
+  form.value.templateName = tpl.name;
+  applyTemplateDefaults(tpl);
+}
+
+const templatesForTyp = computed(() =>
+  templates.value.filter(t => t.defaultTypId && t.defaultTypId === form.value.typId)
+);
 
 function setLinkMode(key) {
   if (!isLinkAllowed(key)) return;
@@ -842,6 +886,38 @@ function clearMitarbeiter() { form.value.mitarbeiterId = null; }
 function onTemplateChange() {
   const t = templates.value.find(t => t.id === form.value.templateId);
   form.value.templateName = t ? t.name : '';
+  applyTemplateDefaults(t);
+}
+
+function applyTemplateDefaults(template) {
+  if (!template) return;
+  const defaultTyp = typen.value.find(typ => typ._id === template.defaultTypId);
+  if (defaultTyp) selectTyp(defaultTyp, false);
+  // Restore template — selectTyp would clear it if clearTemplate were true
+  form.value.templateId = template.id;
+  form.value.templateName = template.name;
+  if (!form.value.name.trim()) {
+    const documentTypeLabel = defaultTyp?.label || 'Dokument';
+    const now = new Date();
+    const date = [now.getDate(), now.getMonth() + 1, now.getFullYear()]
+      .map((value, index) => index < 2 ? String(value).padStart(2, '0') : value)
+      .join('-');
+    form.value.name = `${documentTypeLabel} | ${template.name} | ${date}`;
+  }
+  // Pre-fill submitter rows from template roles when user hasn't filled any in yet
+  const tplSubmitters = Array.isArray(template.submitters) ? template.submitters : [];
+  if (tplSubmitters.length) {
+    const current = form.value.submitters;
+    const untouched = current.every(s => !s.name && !s.email);
+    if (untouched) {
+      form.value.submitters = tplSubmitters.map(s => ({
+        role: s.name || 'Unterzeichner',
+        name: '',
+        email: '',
+        embedded: false,
+      }));
+    }
+  }
 }
 
 function addSubmitter() {
@@ -971,13 +1047,14 @@ watch(() => modal.open, async (open) => {
   pendingAction.value = { taskGid: '', taskName: '', type: 'complete', comment: '' };
 
   // Kick off data loads
-  loadTypen();
+  const typenRequest = loadTypen();
   loadLocations();
-  loadTemplates();
+  const templatesRequest = loadTemplates();
   loadGraphContacts();
   dataCache.loadKunden?.();
   dataCache.loadMitarbeiter?.();
 
+  await Promise.all([typenRequest, templatesRequest]);
   await hydrateFromContext();
 });
 
@@ -1074,6 +1151,7 @@ async function hydrateFromContext() {
   if (ctx.templateId) {
     form.value.templateId   = ctx.templateId;
     form.value.templateName = ctx.templateName || '';
+    applyTemplateDefaults(templates.value.find(t => t.id === ctx.templateId));
   }
 
   // If context provides a custom endpoint + typKey, jump ahead
@@ -1484,6 +1562,34 @@ const ContactSearchPlaceholder = {
   align-items: center;
   gap: 8px;
   code { background: var(--hover); padding: 2px 6px; border-radius: 5px; font-size: 0.78rem; }
+}
+
+.sig-tpl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.sig-tpl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg, var(--surface));
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  &:hover { border-color: var(--primary); color: var(--primary); }
+  &.active {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary);
+    font-weight: 600;
+  }
 }
 
 .sig-template-row { display: flex; gap: 8px; align-items: stretch; }

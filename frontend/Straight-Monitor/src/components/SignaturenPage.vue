@@ -148,6 +148,7 @@
               <div class="tc-name">{{ t.name }}</div>
             </template>
             <div class="tc-meta">{{ (t.fields && t.fields.length) || 0 }} Felder · {{ formatDate(t.created_at) }}</div>
+            <div v-if="t.defaultTyp" class="tc-typ-badge">{{ t.defaultTyp.label }}</div>
           </div>
           <!-- Context menu trigger -->
           <div class="tc-menu-wrap" @click.stop>
@@ -165,6 +166,38 @@
     </template>
 
     <SignaturTypAnlegenModal v-model="showTypModal" @created="onTypCreated" />
+
+    <Teleport to="body">
+      <Transition name="template-create-modal">
+        <div v-if="showCreateTemplateModal" class="template-create-backdrop" @mousedown.self="closeCreateTemplateModal">
+          <form class="template-create-dialog" @submit.prevent="confirmCreateTemplate">
+            <header>
+              <h2>{{ newTemplate.id ? 'Vorlage bearbeiten' : 'Neue Vorlage' }}</h2>
+            </header>
+            <div class="template-create-body">
+              <label for="template-create-name">Bezeichnung</label>
+              <input
+                id="template-create-name"
+                v-model="newTemplate.name"
+                name="name"
+                type="text"
+                placeholder="z. B. Arbeitsvertrag KZF"
+                autocomplete="off"
+              />
+              <label for="template-create-typ">Dokumenttyp</label>
+              <select id="template-create-typ" v-model="newTemplate.defaultTypId" name="defaultTypId">
+                <option value="" disabled>Dokumenttyp auswählen</option>
+                <option v-for="typ in typen" :key="typ._id" :value="typ._id">{{ typ.label }}</option>
+              </select>
+            </div>
+            <footer>
+              <button class="template-create-cancel" type="button" @click="closeCreateTemplateModal">Abbrechen</button>
+              <button class="btn-primary" type="submit">Weiter</button>
+            </footer>
+          </form>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- Template context menu — teleported to body to escape overflow clipping -->
     <Teleport to="body">
@@ -241,8 +274,6 @@ const tabs = [
 const activeTab = ref('signaturen');
 
 const statusOptions = [
-  { key: 'draft', label: 'Entwurf' },
-  { key: 'open', label: 'Offen' },
   { key: 'completed', label: 'Abgeschlossen' },
   { key: 'cancelled', label: 'Storniert' },
 ];
@@ -268,6 +299,8 @@ let eventSource = null;
 const templates = ref([]);
 const templatesLoading = ref(false);
 const templateSearch = ref('');
+const showCreateTemplateModal = ref(false);
+const newTemplate = ref({ id: null, name: '', defaultTypId: '' });
 const filteredTemplates = computed(() => {
   const q = templateSearch.value.trim().toLowerCase();
   if (!q) return templates.value;
@@ -416,10 +449,28 @@ async function confirmRename(t) {
 }
 
 function createTemplate() {
-  builder.openBuilder({}, () => loadTemplates());
+  newTemplate.value = { id: null, name: '', defaultTypId: '' };
+  showCreateTemplateModal.value = true;
+}
+function closeCreateTemplateModal() {
+  showCreateTemplateModal.value = false;
+}
+function confirmCreateTemplate(event) {
+  const formData = new FormData(event.currentTarget);
+  const name = String(formData.get('name') || '').trim();
+  const defaultTypId = String(formData.get('defaultTypId') || '');
+  if (!name || !defaultTypId) {
+    alert('Bitte Bezeichnung und Dokumenttyp ausfüllen.');
+    return;
+  }
+
+  const existingId = newTemplate.value.id;
+  closeCreateTemplateModal();
+  builder.openBuilder({ templateId: existingId || null, name, defaultTypId }, () => loadTemplates());
 }
 function editTemplate(t) {
-  builder.openBuilder({ templateId: t.id, name: t.name }, () => loadTemplates());
+  newTemplate.value = { id: t.id, name: t.name, defaultTypId: t.defaultTypId || '' };
+  showCreateTemplateModal.value = true;
 }
 function newSignatureFromTemplate(t) {
   modal.openModal({ templateId: t.id, templateName: t.name }, (vorgang) => {
@@ -630,6 +681,72 @@ onUnmounted(() => {
   color: var(--muted);
 }
 
+.template-create-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.template-create-dialog {
+  width: min(440px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+
+  header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    h2 { font-size: 1.05rem; font-weight: 600; }
+  }
+  footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+  }
+}
+.template-create-body {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 20px;
+
+  label { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+  input, select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    outline: none;
+    background: var(--bg, var(--surface));
+    color: var(--text);
+    font: inherit;
+    &:focus { border-color: var(--primary); }
+  }
+  select { margin-bottom: 8px; cursor: pointer; }
+}
+.template-create-cancel {
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+  &:hover { border-color: var(--primary); color: var(--primary); }
+}
+.template-create-modal-enter-active, .template-create-modal-leave-active { transition: opacity 0.15s; }
+.template-create-modal-enter-from, .template-create-modal-leave-to { opacity: 0; }
+
 .template-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -661,6 +778,16 @@ onUnmounted(() => {
     outline: none; padding: 0; line-height: 1.3;
   }
   .tc-meta { font-size: 0.74rem; color: var(--muted); }
+  .tc-typ-badge {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary);
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
 
   .tc-menu-wrap {
     position: relative;

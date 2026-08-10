@@ -1,6 +1,8 @@
 const express = require('express');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const DocuSealTemplateConfig = require('../models/DocuSealTemplateConfig');
+const SignaturTyp = require('../models/SignaturTyp');
 const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
@@ -125,7 +127,22 @@ router.get('/templates', auth, asyncHandler(async (req, res) => {
   if (q) params.q = q;
 
   const result = await DocuSealService.listTemplates(params);
-  res.json(result.data || result);
+  const templates = result.data || result;
+  const templateIds = templates.map((template) => Number(template.id)).filter(Boolean);
+  const configs = await DocuSealTemplateConfig.find({ docusealTemplateId: { $in: templateIds } })
+    .populate('defaultTyp', '_id key label linkedTo isActive')
+    .lean();
+  const configByTemplateId = new Map(configs.map((config) => [config.docusealTemplateId, config]));
+
+  res.json(templates.map((template) => {
+    const config = configByTemplateId.get(Number(template.id));
+    const defaultTyp = config?.defaultTyp?.isActive ? config.defaultTyp : null;
+    return {
+      ...template,
+      defaultTypId: defaultTyp?._id?.toString() || null,
+      defaultTyp,
+    };
+  }));
 }));
 
 // DELETE /api/docuseal/templates/:id — archive (soft-delete) a template (admin only)
@@ -133,17 +150,41 @@ router.delete('/templates/:id', auth, asyncHandler(async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ message: 'Ungültige Template-ID' });
   const result = await DocuSealService.archiveTemplate(id);
+  await DocuSealTemplateConfig.deleteOne({ docusealTemplateId: id });
   res.json(result);
 }));
 
-// PATCH /api/docuseal/templates/:id — update a template (e.g. rename)
+// PATCH /api/docuseal/templates/:id — update a template or its local defaults
 router.patch('/templates/:id', auth, asyncHandler(async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ message: 'Ungültige Template-ID' });
-  const { name } = req.body;
-  if (!name || !name.trim()) return res.status(400).json({ message: 'name ist erforderlich' });
-  const result = await DocuSealService.updateTemplate(id, { name: name.trim() });
-  res.json(result);
+  const { name, defaultTypId } = req.body;
+  if (name === undefined && defaultTypId === undefined) {
+    return res.status(400).json({ message: 'name oder defaultTypId ist erforderlich' });
+  }
+
+  let result = null;
+  if (name !== undefined) {
+    if (!name.trim()) return res.status(400).json({ message: 'name darf nicht leer sein' });
+    result = await DocuSealService.updateTemplate(id, { name: name.trim() });
+  }
+
+  let defaultTyp = null;
+  if (defaultTypId !== undefined) {
+    if (defaultTypId) {
+      defaultTyp = await SignaturTyp.findOne({ _id: defaultTypId, isActive: true });
+      if (!defaultTyp) return res.status(400).json({ message: 'Ungültiger oder inaktiver Dokumenttyp' });
+      await DocuSealTemplateConfig.findOneAndUpdate(
+        { docusealTemplateId: id },
+        { defaultTyp: defaultTyp._id },
+        { upsert: true, new: true }
+      );
+    } else {
+      await DocuSealTemplateConfig.deleteOne({ docusealTemplateId: id });
+    }
+  }
+
+  res.json({ result, defaultTypId: defaultTyp?._id?.toString() || null, defaultTyp });
 }));
 
 // GET /api/docuseal/submissions — list local signing requests

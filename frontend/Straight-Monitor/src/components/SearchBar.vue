@@ -38,6 +38,7 @@ const isFocused = ref(false);
 function onKeydown(e) {
   if (e.key !== 'f' && e.key !== 'F') return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (document.querySelector('[aria-modal="true"]')) return;
   const tag = document.activeElement?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
   e.preventDefault();

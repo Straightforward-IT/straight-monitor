@@ -29,6 +29,9 @@
               :host="docusealHost"
               language="de"
               :custom-css="builderCustomCss"
+              :autosave="!isNewTemplate"
+              @load="onTemplateEvent"
+              @upload="onUpload"
               @save="onSave"
             />
           </div>
@@ -92,6 +95,9 @@ const builderCustomCss = computed(() => {
 const token = ref('');
 const loading = ref(false);
 const error = ref('');
+const isNewTemplate = ref(false);
+const hasUploadedDocument = ref(false);
+const createdTemplateId = ref(null);
 
 // DocuSeal EU cloud host (the JWT is signed with the EU API key).
 const docusealHost = 'cdn.docuseal.eu';
@@ -114,19 +120,81 @@ async function loadToken() {
   }
 }
 
-function onSave(detail) {
-  // DocuSeal emits the saved template payload; surface id/name to the caller.
-  const tpl = detail?.detail || detail || {};
-  builder.notifySaved({ id: tpl.id, name: tpl.name });
+function getTemplate(detail) {
+  const payload = detail?.detail || detail || {};
+  return payload.template || payload.data?.template || payload.data || payload;
 }
 
-function close() {
+function captureTemplateId(detail) {
+  const template = getTemplate(detail);
+  const id = Number(template.id || template.template_id);
+  if (id) createdTemplateId.value = id;
+  return template;
+}
+
+function onTemplateEvent(detail) {
+  captureTemplateId(detail);
+}
+
+function onUpload(detail) {
+  hasUploadedDocument.value = true;
+  captureTemplateId(detail);
+}
+
+async function onSave(detail) {
+  // DocuSeal emits the saved template payload; surface id/name to the caller.
+  const tpl = captureTemplateId(detail);
+  if (isNewTemplate.value && !hasUploadedDocument.value) {
+    try {
+      if (createdTemplateId.value) await api.delete(`/api/docuseal/templates/${createdTemplateId.value}`);
+      window.dispatchEvent(new CustomEvent('app-toast', {
+        detail: { message: 'Leere Vorlage verworfen', type: 'info' },
+      }));
+    } catch (e) {
+      console.error('Leere Vorlage verwerfen fehlgeschlagen', e);
+      window.dispatchEvent(new CustomEvent('app-toast', {
+        detail: { message: 'Leere Vorlage konnte nicht verworfen werden', type: 'error' },
+      }));
+    } finally {
+      builder.closeBuilder();
+    }
+    return;
+  }
+  const resolvedId = createdTemplateId.value || tpl.id;
+  if (builder.defaultTypId && resolvedId) {
+    try {
+      await api.patch(`/api/docuseal/templates/${resolvedId}`, { defaultTypId: builder.defaultTypId });
+    } catch (e) {
+      console.error('Standard-Dokumenttyp speichern fehlgeschlagen', e);
+    }
+  }
+  builder.notifySaved({ id: resolvedId, name: tpl.name || builder.name });
+}
+
+async function close() {
+  if (isNewTemplate.value && !hasUploadedDocument.value && createdTemplateId.value) {
+    try {
+      await api.delete(`/api/docuseal/templates/${createdTemplateId.value}`);
+    } catch (e) {
+      console.error('Leere Vorlage verwerfen fehlgeschlagen', e);
+    }
+  }
   builder.closeBuilder();
 }
 
 watch(() => builder.open, (open) => {
-  if (open) loadToken();
-  else { token.value = ''; error.value = ''; }
+  if (open) {
+    isNewTemplate.value = !builder.templateId;
+    hasUploadedDocument.value = false;
+    createdTemplateId.value = builder.templateId || null;
+    loadToken();
+  } else {
+    token.value = '';
+    error.value = '';
+    isNewTemplate.value = false;
+    hasUploadedDocument.value = false;
+    createdTemplateId.value = null;
+  }
 });
 </script>
 

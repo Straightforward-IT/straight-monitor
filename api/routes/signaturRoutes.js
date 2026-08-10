@@ -183,8 +183,9 @@ async function resolveSignaturLocation({ locationId, entityLocationId, auftragLo
 function getEntityValidationMessage(signaturTyp, kundeDoc, mitarbeiterDoc) {
   if (!signaturTyp) return 'Der Signaturtyp wurde nicht gefunden.';
   if (kundeDoc && mitarbeiterDoc) return 'Eine Signatur kann nur einem Kunden oder Mitarbeiter zugeordnet werden.';
+  // Kunde is always required when the type is Kunde-only
   if (signaturTyp.linkedTo === 'Kunde' && !kundeDoc) return 'Dieser Dokumententyp benötigt einen Kunden.';
-  if (signaturTyp.linkedTo === 'Mitarbeiter' && !mitarbeiterDoc) return 'Dieser Dokumententyp benötigt einen Mitarbeiter.';
+  // Mitarbeiter is optional — the person may not be in the system yet (e.g. Arbeitsvertrag for a new hire)
   return null;
 }
 

@@ -88,9 +88,9 @@
                   <span class="sc-sub-name">{{ s.name || s.email || '—' }}</span>
                   <span class="sc-sub-role">{{ s.role }}</span>
                 </div>
-                <!-- Embedded in-app signing button -->
+                <!-- In-app signing button: shown for any awaiting submitter with an embedSrc -->
                 <button
-                  v-if="vorgang.status === 'open' && s.embedded && s.embedSrc && s.status !== 'completed'"
+                  v-if="vorgang.status === 'open' && s.embedSrc && s.status !== 'completed'"
                   class="sc-sub-link sc-sub-link--sign"
                   :class="{ active: activeEmbedSrc === s.embedSrc }"
                   type="button"
@@ -99,9 +99,9 @@
                 >
                   <font-awesome-icon :icon="['fas', 'pen-to-square']" />
                 </button>
-                <!-- Copy link button for non-embedded submitters -->
+                <!-- Copy link button always available alongside -->
                 <button
-                  v-else-if="vorgang.status === 'open' && s.embedSrc && !s.embedded"
+                  v-if="vorgang.status === 'open' && s.embedSrc && s.status !== 'completed'"
                   class="sc-sub-link"
                   type="button"
                   title="Signatur-Link kopieren"
@@ -418,9 +418,9 @@ function editDraft() {
 // ── In-App Signing (inline preview) ────────────────────────────────────────────────
 const activeEmbedSrc = ref('');
 
-// Auto-select the first pending embedded submitter when the card expands
+// Auto-select the first pending submitter with an embedSrc when the card expands
 const firstPendingEmbedded = computed(() =>
-  props.vorgang.submitters.find(s => s.embedded && s.embedSrc && s.status !== 'completed') || null
+  props.vorgang.submitters.find(s => s.embedSrc && s.status !== 'completed') || null
 );
 
 function selectEmbedSubmitter(submitter) {
