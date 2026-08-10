@@ -164,7 +164,7 @@ router.get(
     }
 
     const mitarbeiter = await Mitarbeiter.findOne({ $or: orConditions })
-      .select("_id vorname nachname email personalnr qualifikationen laufzettel_submitted laufzettel_received evaluierungen_submitted")
+      .select("_id vorname nachname email personalnr publicMenuOptions qualifikationen laufzettel_submitted laufzettel_received evaluierungen_submitted")
       .populate({
         path: "laufzettel_submitted",
         populate: [

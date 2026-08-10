@@ -7,6 +7,45 @@
 
     <div class="tiles">
       <!-- Tiles for ALL employees -->
+      <div v-if="hasPublicMenuOption('meine-daten')" class="tile" @click="$emit('navigate', 'meine-daten')">
+        <div class="tile-icon tile-icon--orange">
+          <font-awesome-icon icon="fa-solid fa-folder-open" />
+        </div>
+        <div class="tile-content">
+          <div class="tile-title-row">
+            <h3>Meine Daten</h3>
+            <CountBadge :count="personalDataTodoCount" color="orange" />
+          </div>
+          <p>Lohnabrechnungen, Dokumente & ToDos</p>
+        </div>
+        <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
+      </div>
+
+      <div v-if="hasPublicMenuOption('jobangebote')" class="tile" @click="$emit('navigate', 'jobangebote')">
+        <div class="tile-icon tile-icon--blue">
+          <font-awesome-icon icon="fa-solid fa-briefcase" />
+        </div>
+        <div class="tile-content">
+          <h3>Jobangebote</h3>
+          <p>Auf Jobs bewerben & Bewerbungen verwalten</p>
+        </div>
+        <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
+      </div>
+
+      <div v-if="hasPublicMenuOption('einsatzzeiten')" class="tile" @click="$emit('navigate', 'einsatzzeiten')">
+        <div class="tile-icon tile-icon--green">
+          <font-awesome-icon icon="fa-solid fa-clock" />
+        </div>
+        <div class="tile-content">
+          <div class="tile-title-row">
+            <h3>Einsatzzeiten eintragen</h3>
+            <CountBadge :count="openTimeEntryCount" color="orange" />
+          </div>
+          <p>{{ openTimeEntryCount ? `Offene Zeiten: ${openTimeEntryCount}` : 'Hier gibt es gerade nichts zu tun' }}</p>
+        </div>
+        <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
+      </div>
+
       <div v-if="isTeamleiter" class="tile" @click="$emit('navigate', 'kalender')">
         <div class="tile-icon tile-icon--blue">
           <img :src="imgCalender" class="tile-img" alt="Kalender" />
@@ -77,6 +116,18 @@
         </div>
         <font-awesome-icon :icon="debugTlActive ? 'fa-solid fa-toggle-on' : 'fa-solid fa-toggle-off'" class="tile-arrow" :style="{ color: debugTlActive ? 'var(--primary)' : undefined }" />
       </div>
+
+      <!-- Debug: Dev Modus Toggle -->
+      <div v-if="isDebugUser && hasPublicMenuOption('dev-mode')" class="tile tile--debug" @click="$emit('toggle-debug-dev')">
+        <div class="tile-icon tile-icon--debug">
+          <font-awesome-icon icon="fa-solid fa-code" />
+        </div>
+        <div class="tile-content">
+          <h3>Dev Modus</h3>
+          <p>{{ debugDevActive ? 'Aktiv — klicken zum Deaktivieren' : 'Inaktiv — klicken zum Aktivieren' }}</p>
+        </div>
+        <font-awesome-icon :icon="debugDevActive ? 'fa-solid fa-toggle-on' : 'fa-solid fa-toggle-off'" class="tile-arrow" :style="{ color: debugDevActive ? 'var(--primary)' : undefined }" />
+      </div>
     </div>
 
     <!-- Upcoming jobs (Teamleiter only) -->
@@ -116,6 +167,8 @@
 
 <script setup>
 import { computed } from 'vue';
+import { library } from '@fortawesome/fontawesome-svg-core';
+import { faBriefcase, faClock, faCode, faFolderOpen, faUserTie } from '@fortawesome/free-solid-svg-icons';
 import CountBadge from '@/components/ui-elements/CountBadge.vue';
 import calenderLight from '@/assets/calender.png';
 import calenderDark from '@/assets/calender-dark.png';
@@ -127,6 +180,9 @@ import tasksLight from '@/assets/tasks.png';
 import tasksDark from '@/assets/tasks-dark.png';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
+
+library.add(faBriefcase, faClock, faCode, faFolderOpen, faUserTie);
+
 // Tiles always use light icons (colored tile backgrounds)
 const imgCalender = calenderLight;
 const imgLaufzettel = laufzettelLight;
@@ -141,12 +197,20 @@ const props = defineProps({
   openLaufzettelCount: { type: Number, default: 0 },
   email: { type: String, default: '' },
   debugTlActive: { type: Boolean, default: false },
+  debugDevActive: { type: Boolean, default: false },
+  publicMenuOptions: { type: Array, default: () => [] },
+  personalDataTodoCount: { type: Number, default: 0 },
+  openTimeEntryCount: { type: Number, default: 0 },
 });
 
-defineEmits(['navigate', 'open-job', 'toggle-debug-tl']);
+defineEmits(['navigate', 'open-job', 'toggle-debug-tl', 'toggle-debug-dev']);
 
 const DEBUG_EMAILS = ['cedricbglx@gmail.com', 'dh@straightforward.email'];
 const isDebugUser = computed(() => DEBUG_EMAILS.includes(props.email));
+
+function hasPublicMenuOption(option) {
+  return props.publicMenuOptions.includes('*') || props.publicMenuOptions.includes(option);
+}
 
 function formatTime(val) {
   if (!val) return '';
@@ -272,6 +336,11 @@ const upcomingEinsaetze = computed(() => {
 .tile-icon--green {
   background: #dcfce7;
   color: #16a34a;
+}
+
+.tile-icon--orange {
+  background: #ffedd5;
+  color: #ea580c;
 }
 
 .tile-content {

@@ -24,10 +24,13 @@
         :current-view="currentView"
         :email="email"
         :debug-tl-active="debugTLMode"
+        :debug-dev-active="debugDevMode"
+        :public-menu-options="publicMenuOptions"
         :draft-status="draftSaveStatus"
         @navigate="navigateTo"
         @back="handleBack"
         @toggle-debug-tl="toggleDebugTL"
+        @toggle-debug-dev="toggleDebugDev"
       />
 
       <div class="page-body">
@@ -40,9 +43,12 @@
           :open-laufzettel-count="openLaufzettelCount"
           :email="email"
           :debug-tl-active="debugTLMode"
+          :debug-dev-active="debugDevMode"
+          :public-menu-options="publicMenuOptions"
           @navigate="navigateTo"
           @open-job="openJob"
           @toggle-debug-tl="toggleDebugTL"
+          @toggle-debug-dev="toggleDebugDev"
         />
 
         <!-- Kalender -->
@@ -368,6 +374,16 @@ const openLaufzettelCount = computed(() =>
 // Teamleiter detection
 const DEBUG_EMAILS = ['cedricbglx@gmail.com', 'dh@straightforward.email'];
 const debugTLMode = ref(true);
+const debugDevMode = ref(false);
+
+// Entries in this list can be granted per employee via `publicMenuOptions`.
+// Dev mode exposes every registered option through the wildcard while testing.
+const publicMenuOptions = computed(() => {
+  const options = new Set(mitarbeiter.value?.publicMenuOptions || []);
+  if (DEBUG_EMAILS.includes(email.value)) options.add('dev-mode');
+  if (debugDevMode.value && DEBUG_EMAILS.includes(email.value)) options.add('*');
+  return [...options];
+});
 
 const isTeamleiter = computed(() => {
   const ma = mitarbeiter.value;
@@ -379,6 +395,10 @@ const isTeamleiter = computed(() => {
 
 function toggleDebugTL() {
   debugTLMode.value = !debugTLMode.value;
+}
+
+function toggleDebugDev() {
+  debugDevMode.value = !debugDevMode.value;
 }
 
 function goBack() {

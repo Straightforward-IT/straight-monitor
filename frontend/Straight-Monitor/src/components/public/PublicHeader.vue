@@ -159,6 +159,14 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  debugDevActive: {
+    type: Boolean,
+    default: false
+  },
+  publicMenuOptions: {
+    type: Array,
+    default: () => []
+  },
   draftStatus: {
     type: String,
     default: 'hidden'
@@ -169,6 +177,10 @@ const emit = defineEmits(['navigate', 'back', 'toggle-debug-tl']);
 
 const DEBUG_EMAILS = ['cedricbglx@gmail.com', 'dh@straightforward.email'];
 const isDebugUser = computed(() => DEBUG_EMAILS.includes(props.email));
+
+function hasPublicMenuOption(option) {
+  return props.publicMenuOptions.includes('*') || props.publicMenuOptions.includes(option);
+}
 
 const viewTitleMap = {
   'kalender': 'Kalender',

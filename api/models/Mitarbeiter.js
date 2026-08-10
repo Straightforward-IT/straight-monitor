@@ -33,6 +33,8 @@ const MitarbeiterSchema = new mongoose.Schema({
     signaturOrdner: { type: String, default: null, trim: true },
     profilbild: { type: String, required: false, trim: true }, // R2 key for uploaded profile picture (fallback when no Flip photo)
     isActive: { type: Boolean, default: true },
+    // Optional public portal entries enabled for this employee (e.g. 'new-menu-item').
+    publicMenuOptions: [{ type: String, trim: true }],
     geburtsdatum: { type: Date, required: false },
     eintrittsdatum: { type: Date, required: false },
     austrittsdatum: { type: Date, required: false },
