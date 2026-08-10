@@ -144,7 +144,8 @@ async function save() {
       shopUrl: form.value.shopUrl,
       variationen: variationOptions.value,
       groessen: sizeOptions.value,
-      bestaende: stockRows.value.filter((row) => row.isActive).map((row) => ({
+          bestaende: stockRows.value.filter((row) => row.isActive).map((row) => ({
+            stockId: row.stockId,
         location: row.locationId,
         variationKey: row.variationKey,
         groesseKey: row.groesseKey,
@@ -202,7 +203,8 @@ function populateItem(item) {
     groesseLabel: stock.groesse || 'onesize',
     bestand: Number(stock.bestand ?? stock.anzahl ?? 0),
     soll: Number(stock.soll ?? 0),
-    shopUrl: stock.shopUrl || '',
+      stockId: stock._id,
+      shopUrl: stock.shopUrl || '',
     isActive: true,
   }));
 }

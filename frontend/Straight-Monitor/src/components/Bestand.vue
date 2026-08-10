@@ -135,6 +135,11 @@
               </table>
             </div>
           </section>
+
+          <section v-if="isAdmin && item.createdAt" class="item-creation-info">
+            <span>Erstellt am {{ formatCreationDate(item.createdAt) }}</span>
+            <span>von {{ item.createdBy?.name || item.createdBy?.email || 'Unbekannt' }}</span>
+          </section>
         </div>
       </article>
     </div>
@@ -235,6 +240,8 @@ const groupedItems = computed(() => {
         id: key,
         bezeichnung: stock.bezeichnung,
         shopUrl: stock.shopUrl,
+        createdAt: stock.itemCreatedAt,
+        createdBy: stock.itemCreatedBy,
         stocks: [],
         locations: new Map(),
         variations: new Map(),
@@ -323,7 +330,7 @@ function openItemCreate() {
 function openItemEdit(item) {
   editingItem.value = {
     ...item,
-    variations: item.variations,
+    variations: item.variations.filter((variation) => variation.key !== '__standard'),
     sizes: item.sizes,
     stocks: stocks.value.filter((stock) => String(stock.itemId || stock._id) === item.id),
   };
@@ -353,6 +360,10 @@ function toggleItemDetails(item) {
   }
   expandedItemIds.value = [...expandedItemIds.value, item.id];
   if (!selectedItemLocationIds.value[item.id]) selectItemLocation(item.id, item.locations[0]?.id);
+}
+
+function formatCreationDate(value) {
+  return new Date(value).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function selectItemLocation(itemId, locationId) {
@@ -425,6 +436,7 @@ h2 { margin: 0; font-size: 1.55rem; display: flex; gap: 9px; align-items: center
 .stock-matrix-section__header { display: flex; align-items: baseline; gap: 8px; padding: 9px 11px; border-bottom: 1px solid var(--border); }
 .stock-matrix-section__header h4 { margin: 0; font-size: 0.84rem; }
 .stock-matrix-section__header span { color: var(--muted); font-size: 0.72rem; }
+.item-creation-info { display: flex; flex-wrap: wrap; gap: 6px 12px; border-top: 1px solid var(--border); padding-top: 10px; color: var(--muted); font-size: 0.72rem; }
 .stock-matrix-scroll { overflow-x: auto; }
 .stock-matrix { width: 100%; min-width: 480px; border-collapse: collapse; font-size: 0.78rem; }
 .stock-matrix th, .stock-matrix td { height: 48px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 4px; text-align: center; }

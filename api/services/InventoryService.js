@@ -18,6 +18,11 @@ function toFlatStock(item, stock) {
     _id: stock._id,
     itemId: item._id,
     bezeichnung: item.bezeichnung,
+    itemCreatedAt: item.createdAt,
+    itemCreatedBy: item.createdBy ? {
+      name: item.createdBy.name || '',
+      email: item.createdBy.email || '',
+    } : null,
     locationId,
     standort: locationName,
     standortKurz: location?.shortName || '',
@@ -43,6 +48,7 @@ async function listFlatStocks({ since = null, locationId = null, includeInactive
 
   const items = await InventoryItem.find(query)
     .populate('bestaende.location', 'nameFull shortName color isActive')
+    .populate('createdBy', 'name email')
     .lean();
 
   return items.flatMap((item) => item.bestaende

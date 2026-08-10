@@ -203,10 +203,14 @@ router.patch('/items/:itemId', auth, asyncHandler(async (req, res) => {
 
     if (req.body.bestaende !== undefined) {
       if (!Array.isArray(req.body.bestaende)) throw httpError(400, 'bestaende muss ein Array sein');
-      const stocks = req.body.bestaende.map((stock) => normalizeStockInput(stock, payload.shopUrl ?? item.shopUrl));
+      const stocks = req.body.bestaende.map((stock) => ({
+        ...normalizeStockInput(stock, payload.shopUrl ?? item.shopUrl),
+        stockId: stock.stockId || null,
+      }));
       await validateLocationIds(stocks);
 
       const existingStocks = new Map(item.bestaende.map((stock) => [stockCombinationKey(stock), stock]));
+      const existingStocksById = new Map(item.bestaende.map((stock) => [String(stock._id), stock]));
       const submittedKeys = new Set(stocks.map(stockCombinationKey));
       if (submittedKeys.size !== stocks.length) throw httpError(400, 'Eine Bestandskombination darf nur einmal vorkommen');
 
@@ -214,9 +218,13 @@ router.patch('/items/:itemId', auth, asyncHandler(async (req, res) => {
         if (!submittedKeys.has(stockCombinationKey(stock))) stock.isActive = false;
       }
       for (const stock of stocks) {
-        const existingStock = existingStocks.get(stockCombinationKey(stock));
-        if (existingStock) Object.assign(existingStock, stock, { isActive: true });
-        else item.bestaende.push(stock);
+        const existingStock = stock.stockId
+          ? existingStocksById.get(String(stock.stockId))
+          : existingStocks.get(stockCombinationKey(stock));
+        if (stock.stockId && !existingStock) throw httpError(400, 'Bestandskombination gehört nicht zu diesem Artikel');
+        const { stockId, ...stockPayload } = stock;
+        if (existingStock) Object.assign(existingStock, stockPayload, { isActive: true });
+        else item.bestaende.push(stockPayload);
       }
     }
 
