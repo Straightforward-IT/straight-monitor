@@ -1,6 +1,6 @@
 <template>
   <article class="bewerber-card" :class="{ 'is-expanded': expanded }">
-    <div class="card-progress" :class="{ 'card-progress--expired': isExpired }" :title="statusLabel" role="progressbar" :aria-valuetext="statusLabel">
+    <div class="card-progress" :class="{ 'card-progress--expired': isExpired }" :style="{ '--seg-color': stageColor }" :title="statusLabel" role="progressbar" :aria-valuetext="statusLabel">
       <span v-for="(step, i) in progressSteps" :key="step.key" class="progress-seg" :class="{ done: !isExpired && i <= currentStepIndex, current: !isExpired && i === currentStepIndex }" :title="step.label"></span>
     </div>
     <header class="card-header" :aria-expanded="expanded" @click="toggleExpand">
@@ -72,7 +72,6 @@ export default {
       return [
         { key: 'neu', label: 'Neu' },
         { key: 'eingeladen', label: 'Eingeladen' },
-        { key: 'formular_geoeffnet', label: 'Formular geöffnet' },
         { key: 'eingereicht', label: 'Eingereicht' },
       ];
     },
@@ -80,8 +79,13 @@ export default {
       return this.bewerber.status === 'abgelaufen';
     },
     currentStepIndex() {
+      // Form opened counts as "Eingeladen" stage.
+      if (this.bewerber.status === 'formular_geoeffnet') return 1;
       const index = this.progressSteps.findIndex((step) => step.key === this.bewerber.status);
       return index === -1 ? 0 : index;
+    },
+    stageColor() {
+      return ['#3b82f6', '#f59e0b', '#22c55e'][this.currentStepIndex] || '#3b82f6';
     },
     contextMenuOptions() {
       const options = [{ label: 'Details öffnen', action: 'open' }];
@@ -131,9 +135,9 @@ h3 { color: var(--text); font-size: .95rem; }
 .card-progress .progress-seg { background: var(--border); flex: 1; height: 4px; transition: background .2s; }
 .card-progress .progress-seg:first-child { border-top-left-radius: 8px; }
 .card-progress .progress-seg:last-child { border-top-right-radius: 8px; }
-.card-progress .progress-seg.done { background: var(--primary); }
-.card-progress .progress-seg.current { background: var(--primary); box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 55%, transparent); }
-.card-progress--expired .progress-seg { background: color-mix(in srgb, var(--danger, #b91c1c) 60%, var(--border)); }
+.card-progress .progress-seg.done { background: var(--seg-color, var(--primary)); }
+.card-progress .progress-seg.current { box-shadow: 0 0 8px color-mix(in srgb, var(--seg-color, var(--primary)) 45%, transparent); }
+.card-progress--expired .progress-seg { background: color-mix(in srgb, var(--danger, #b91c1c) 60%, var(--border)) !important; }
 .status { border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: .72rem; font-weight: 700; padding: 3px 7px; white-space: nowrap; }
 .status--eingereicht { border-color: var(--success, #15803d); color: var(--success, #15803d); }
 .status--eingeladen, .status--formular_geoeffnet { border-color: var(--primary); color: var(--primary); }
