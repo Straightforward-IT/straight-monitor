@@ -214,9 +214,7 @@ router.patch('/items/:itemId', auth, asyncHandler(async (req, res) => {
       const submittedKeys = new Set(stocks.map(stockCombinationKey));
       if (submittedKeys.size !== stocks.length) throw httpError(400, 'Eine Bestandskombination darf nur einmal vorkommen');
 
-      for (const stock of item.bestaende) {
-        if (!submittedKeys.has(stockCombinationKey(stock))) stock.isActive = false;
-      }
+      // Nicht mitgesendete Zeilen bleiben unverändert; Deaktivieren nur explizit via PATCH /stocks/:stockId.
       for (const stock of stocks) {
         const existingStock = stock.stockId
           ? existingStocksById.get(String(stock.stockId))
