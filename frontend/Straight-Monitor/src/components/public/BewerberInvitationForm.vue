@@ -1,8 +1,7 @@
 <template>
   <main class="public-application">
     <header class="brand-header">
-      <div><span class="brand-mark">SF</span><strong>Straightforward</strong></div>
-      <span>Persönliche Angaben</span>
+      <div><img :src="logoSrc" alt="Straightforward" class="brand-logo" /></div>
     </header>
 
     <section v-if="state === 'loading'" class="form-shell state-panel">Einladung wird geprüft ...</section>
@@ -14,7 +13,7 @@
     </section>
 
     <section v-else-if="state === 'code'" class="form-shell code-panel">
-      <p class="eyebrow">Geschützter Zugang</p>
+      <p class="eyebrow">Stammdaten</p>
       <h1>Angaben ergänzen</h1>
       <p>Gib den sechsstelligen Zugangscode aus deiner Einladungs-E-Mail ein.</p>
       <form @submit.prevent="verifyCode">
@@ -99,6 +98,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import logoSrc from '@/assets/straightforward-logo-black.png';
 import apiPublic from '@/utils/api-public';
 
 const route = useRoute();
@@ -179,7 +179,7 @@ function formatFileSize(size) { return `${(Number(size || 0) / 1024 / 1024).toLo
 .public-application { background: #f4f3f0; color: #252525; min-height: 100vh; padding: 0 20px 60px; }
 .brand-header { align-items: center; display: flex; justify-content: space-between; margin: 0 auto; max-width: 920px; padding: 24px 0; }
 .brand-header div { align-items: center; display: flex; gap: 10px; }.brand-header > span { color: #666; font-size: .82rem; }
-.brand-mark { align-items: center; background: #e8730a; color: white; display: inline-flex; font-weight: 800; height: 34px; justify-content: center; width: 34px; }
+.brand-logo { height: 28px; width: auto; display: block; }
 .form-shell { background: #fff; border: 1px solid #d8d6d1; border-radius: 8px; margin: 0 auto; max-width: 920px; overflow: hidden; }
 .form-heading { align-items: end; background: #252525; color: #fff; display: flex; gap: 30px; justify-content: space-between; padding: 28px; }
 .form-heading h1 { font-size: 1.7rem; }.form-heading p { color: #d0d0d0; margin-top: 6px; }.form-heading > div:last-child { display: grid; gap: 5px; text-align: right; }.form-heading span { color: #ccc; font-size: .78rem; }
