@@ -33,36 +33,26 @@
         <h2>Persönliche Daten</h2>
         <div class="form-grid">
           <label>Anrede<select v-model="form.anrede"><option value="">Keine Angabe</option><option>Frau</option><option>Herr</option></select></label>
-          <span></span>
+          <label>Familienstand<select v-model="form.familienstand"><option value="">Keine Angabe</option><option>ledig</option><option>verheiratet</option><option>eingetragene Lebenspartnerschaft</option><option>getrennt lebend</option><option>geschieden</option><option>verwitwet</option></select></label>
           <label>Vorname<input v-model.trim="form.vorname" autocomplete="given-name" required /></label>
           <label>Nachname<input v-model.trim="form.nachname" autocomplete="family-name" required /></label>
           <label>E-Mail<input v-model.trim="form.email" type="email" autocomplete="email" required /></label>
           <label>Telefon<input v-model.trim="form.telefon" type="tel" autocomplete="tel" /></label>
           <label>Geburtsdatum<input v-model="form.geburtsdatum" type="date" autocomplete="bday" /></label>
-          <label>Familienstand<input v-model.trim="form.familienstand" /></label>
-          <label>Staatsangehörigkeit<input v-model.trim="form.staatsangehoerigkeit" /></label>
-          <label>Wohnsitz<input v-model.trim="form.wohnsitz" /></label>
+          <label>Staatsangehörigkeit<input v-model.trim="form.staatsangehoerigkeit" autocomplete="country-name" /></label>
         </div>
       </section>
 
       <section class="form-section">
         <h2>Adresse</h2>
         <div class="form-grid address-grid">
-          <label>Straße und Hausnummer<input v-model.trim="form.strasse" autocomplete="street-address" /></label>
-          <label>PLZ<input v-model.trim="form.plz" autocomplete="postal-code" inputmode="numeric" /></label>
-          <label>Ort<input v-model.trim="form.ort" autocomplete="address-level2" /></label>
+          <label class="address-street">Straße<input v-model.trim="form.strasse" autocomplete="address-line1" /></label>
+          <label class="address-number">Hausnummer<input v-model.trim="form.hausnummer" /></label>
+          <label class="address-plz">PLZ<input v-model.trim="form.plz" autocomplete="postal-code" inputmode="numeric" /></label>
+          <label class="address-city">Ort<input v-model.trim="form.ort" autocomplete="address-level2" /></label>
         </div>
-      </section>
-
-      <section class="form-section">
-        <h2>Einsatz und Verfügbarkeit</h2>
         <div class="form-grid">
-          <label>Bevorzugter Bereich<select v-model="form.bevorzugterBereich"><option value="">Keine Angabe</option><option value="service">Service</option><option value="logistik">Logistik</option><option value="beides">Service und Logistik</option></select></label>
-          <label>Aktuelles Anstellungsverhältnis<input v-model.trim="form.aktuellesAnstellungsverhaeltnis" /></label>
-          <label>Verfügbar ab<input v-model="form.verfuegbarAb" type="date" /></label>
-          <label>Verfügbar bis<input v-model="form.verfuegbarBis" type="date" /></label>
-          <label class="full">Verfügbarkeit<textarea v-model.trim="form.verfuegbarkeit" rows="3" placeholder="Wochentage, Schichten oder Sperrzeiten" /></label>
-          <label class="full">Erfahrung Gastronomie / Logistik<textarea v-model.trim="form.erfahrungGastronomieLogistik" rows="3" /></label>
+          <label class="full">Wohnsitz<input v-model.trim="form.wohnsitz" placeholder="z. B. Deutschland" /></label>
         </div>
       </section>
 
@@ -176,24 +166,198 @@ function formatFileSize(size) { return `${(Number(size || 0) / 1024 / 1024).toLo
 </script>
 
 <style scoped lang="scss">
-.public-application { background: #f4f3f0; color: #252525; min-height: 100vh; padding: 0 20px 60px; }
-.brand-header { align-items: center; display: flex; justify-content: space-between; margin: 0 auto; max-width: 920px; padding: 24px 0; }
-.brand-header div { align-items: center; display: flex; gap: 10px; }.brand-header > span { color: #666; font-size: .82rem; }
-.brand-logo { height: 28px; width: auto; display: block; }
-.form-shell { background: #fff; border: 1px solid #d8d6d1; border-radius: 8px; margin: 0 auto; max-width: 920px; overflow: hidden; }
-.form-heading { align-items: end; background: #252525; color: #fff; display: flex; gap: 30px; justify-content: space-between; padding: 28px; }
-.form-heading h1 { font-size: 1.7rem; }.form-heading p { color: #d0d0d0; margin-top: 6px; }.form-heading > div:last-child { display: grid; gap: 5px; text-align: right; }.form-heading span { color: #ccc; font-size: .78rem; }
-.eyebrow { color: #e8730a !important; font-size: .72rem; font-weight: 800; text-transform: uppercase; }
-h1, h2, p { margin: 0; }h2 { font-size: 1rem; margin-bottom: 18px; }
-.form-section { border-bottom: 1px solid #e5e3de; padding: 26px 28px; }.section-copy { color: #666; font-size: .8rem; margin: -10px 0 14px; }
-.form-grid { display: grid; gap: 15px; grid-template-columns: 1fr 1fr; }.address-grid { grid-template-columns: 2fr .7fr 1.3fr; }.full { grid-column: 1 / -1; }
-label, legend { color: #444; display: grid; font-size: .8rem; font-weight: 700; gap: 6px; }
-input, select, textarea { background: #fff; border: 1px solid #c9c7c2; border-radius: 5px; color: #222; font: inherit; min-height: 42px; padding: 9px 10px; }textarea { resize: vertical; }
-input:focus, select:focus, textarea:focus { border-color: #e8730a; outline: 2px solid rgba(232,115,10,.18); }
-fieldset { border: 0; margin: 0 0 18px; padding: 0; }.license-grid, .toggle-grid { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 9px; }.license-grid label, .toggle-grid label { align-items: center; background: #f4f3f0; border: 1px solid #ddd; border-radius: 4px; display: flex; padding: 8px 10px; }.license-grid input, .toggle-grid input { min-height: 0; width: auto; }.extras { margin-top: 16px; }
-.upload-row { align-items: center; display: flex; gap: 10px; }.upload-button { background: #252525; border-radius: 5px; color: white; cursor: pointer; display: inline-flex; padding: 12px 14px; }.upload-button input { display: none; }
-.documents { display: grid; gap: 8px; list-style: none; margin: 16px 0 0; padding: 0; }.documents li { align-items: center; background: #f4f3f0; display: flex; justify-content: space-between; padding: 10px 12px; }.documents span { display: grid; }.documents small { color: #666; }.documents button { background: transparent; border: 0; cursor: pointer; font-size: 1.25rem; }
-.submit-row { align-items: center; display: flex; gap: 20px; justify-content: space-between; padding: 24px 28px; }.submit-row p { color: #666; font-size: .78rem; }.submit-row button, .code-panel button { background: #e8730a; border: 1px solid #e8730a; border-radius: 5px; color: white; cursor: pointer; font: inherit; font-weight: 700; min-height: 42px; padding: 9px 15px; }.submit-row button:disabled, .code-panel button:disabled { opacity: .55; }
-.error { color: #b42318; font-size: .82rem; padding: 0 28px; }.state-panel, .code-panel { padding: 48px; text-align: center; }.state-panel p, .code-panel > p { color: #666; margin-top: 10px; }.code-panel form { display: grid; gap: 14px; margin: 28px auto 0; max-width: 320px; }.code-panel input { font-size: 1.4rem; letter-spacing: 8px; text-align: center; }.code-panel .error { padding: 0; }.success-icon { align-items: center; background: #177245; border-radius: 50%; color: white; display: inline-flex; font-size: 1.4rem; height: 48px; justify-content: center; margin-bottom: 16px; width: 48px; }
-@media (max-width: 680px) { .public-application { padding-inline: 10px; }.brand-header > span { display: none; }.form-heading, .submit-row { align-items: stretch; flex-direction: column; }.form-heading > div:last-child { text-align: left; }.form-grid, .address-grid { grid-template-columns: 1fr; }.full { grid-column: auto; }.form-section, .form-heading, .submit-row { padding: 20px; }.upload-row { align-items: stretch; flex-direction: column; } }
+.public-application {
+  --sf-bg: #f4f5f6;
+  --sf-surface: #ffffff;
+  --sf-text: #1f2124;
+  --sf-muted: #6b6f76;
+  --sf-border: #e3e4e7;
+  --sf-border-strong: #d3d5d9;
+  --sf-accent: #eeaf67;
+  --sf-accent-soft: rgba(238, 175, 103, 0.16);
+  --sf-ink: #23252a;
+  --sf-field: #f7f8f9;
+
+  background: var(--sf-bg);
+  color: var(--sf-text);
+  min-height: 100vh;
+  padding: 0 20px 72px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.brand-header { align-items: center; display: flex; justify-content: space-between; margin: 0 auto; max-width: 920px; padding: 28px 4px; }
+.brand-header div { align-items: center; display: flex; gap: 10px; }
+.brand-logo { height: 30px; width: auto; display: block; }
+
+.form-shell {
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(17, 19, 22, 0.06);
+  margin: 0 auto;
+  max-width: 920px;
+  overflow: hidden;
+}
+
+.form-heading {
+  align-items: flex-end;
+  background: var(--sf-ink);
+  color: #fff;
+  display: flex;
+  gap: 30px;
+  justify-content: space-between;
+  padding: 34px 34px 30px;
+}
+.form-heading h1 { font-size: 1.75rem; font-weight: 600; letter-spacing: -0.01em; }
+.form-heading > div:first-child > p:last-child { color: #b9bcc2; margin-top: 8px; font-size: .92rem; }
+.form-heading > div:last-child { display: grid; gap: 4px; text-align: right; }
+.form-heading > div:last-child strong { font-weight: 600; }
+.form-heading span { color: #a7abb2; font-size: .8rem; }
+
+.eyebrow { color: var(--sf-accent); font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
+
+h1, h2, p { margin: 0; }
+h2 { font-size: 1.02rem; font-weight: 600; margin-bottom: 20px; letter-spacing: -0.01em; }
+
+.form-section { border-bottom: 1px solid var(--sf-border); padding: 30px 34px; }
+.form-section:last-of-type { border-bottom: 0; }
+.section-copy { color: var(--sf-muted); font-size: .82rem; margin: -12px 0 18px; }
+
+.form-grid { display: grid; gap: 16px 18px; grid-template-columns: 1fr 1fr; }
+.form-grid + .form-grid { margin-top: 16px; }
+.address-grid { grid-template-columns: repeat(4, 1fr); }
+.address-street { grid-column: span 3; }
+.address-number { grid-column: span 1; }
+.address-plz { grid-column: span 1; }
+.address-city { grid-column: span 3; }
+.full { grid-column: 1 / -1; }
+
+label, legend { color: var(--sf-text); display: grid; font-size: .8rem; font-weight: 600; gap: 7px; }
+
+input, select, textarea {
+  background: var(--sf-field);
+  border: 1px solid var(--sf-border-strong);
+  border-radius: 10px;
+  color: var(--sf-text);
+  font: inherit;
+  font-weight: 400;
+  min-height: 44px;
+  padding: 10px 12px;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+textarea { resize: vertical; line-height: 1.5; }
+input:hover, select:hover, textarea:hover { border-color: var(--sf-muted); }
+input:focus, select:focus, textarea:focus {
+  background: var(--sf-surface);
+  border-color: var(--sf-accent);
+  box-shadow: 0 0 0 3px var(--sf-accent-soft);
+  outline: none;
+}
+
+fieldset { border: 0; margin: 0 0 20px; padding: 0; }
+.license-grid, .toggle-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.license-grid label, .toggle-grid label {
+  align-items: center;
+  background: var(--sf-field);
+  border: 1px solid var(--sf-border-strong);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  font-weight: 500;
+  gap: 8px;
+  padding: 9px 12px;
+  transition: border-color .15s, background .15s;
+}
+.license-grid label:hover, .toggle-grid label:hover { border-color: var(--sf-accent); }
+.license-grid label:has(:checked), .toggle-grid label:has(:checked) {
+  background: var(--sf-accent-soft);
+  border-color: var(--sf-accent);
+}
+.license-grid input, .toggle-grid input { accent-color: var(--sf-accent); min-height: 0; width: auto; cursor: pointer; }
+.extras { margin-top: 18px; }
+
+.upload-row { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; }
+.upload-row select { min-width: 220px; }
+.upload-button {
+  align-items: center;
+  background: var(--sf-ink);
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: .85rem;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0 18px;
+  transition: opacity .15s;
+}
+.upload-button:hover { opacity: .88; }
+.upload-button input { display: none; }
+
+.documents { display: grid; gap: 10px; list-style: none; margin: 18px 0 0; padding: 0; }
+.documents li {
+  align-items: center;
+  background: var(--sf-field);
+  border: 1px solid var(--sf-border);
+  border-radius: 10px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+.documents span { display: grid; gap: 2px; min-width: 0; }
+.documents strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.documents small { color: var(--sf-muted); }
+.documents button { background: transparent; border: 0; color: var(--sf-muted); cursor: pointer; font-size: 1.4rem; line-height: 1; padding: 0 4px; transition: color .15s; }
+.documents button:hover { color: #b42318; }
+
+.submit-row {
+  align-items: center;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  padding: 26px 34px;
+}
+.submit-row p { color: var(--sf-muted); font-size: .8rem; }
+
+.submit-row button, .code-panel button {
+  background: var(--sf-accent);
+  border: 1px solid var(--sf-accent);
+  border-radius: 10px;
+  color: var(--sf-ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 46px;
+  padding: 11px 22px;
+  transition: filter .15s, box-shadow .15s, opacity .15s;
+}
+.submit-row button:hover:not(:disabled), .code-panel button:hover:not(:disabled) {
+  box-shadow: 0 6px 18px rgba(238, 175, 103, 0.4);
+  filter: brightness(1.03);
+}
+.submit-row button:disabled, .code-panel button:disabled { opacity: .5; cursor: not-allowed; }
+
+.error { color: #b42318; font-size: .84rem; padding: 0 34px 8px; }
+
+.state-panel, .code-panel { padding: 56px 40px; text-align: center; }
+.state-panel h1, .code-panel h1 { font-size: 1.5rem; font-weight: 600; }
+.state-panel p, .code-panel > p { color: var(--sf-muted); margin-top: 12px; }
+.code-panel form { display: grid; gap: 16px; margin: 30px auto 0; max-width: 320px; }
+.code-panel input { font-size: 1.5rem; font-weight: 600; letter-spacing: 10px; text-align: center; }
+.code-panel .error { padding: 0; }
+.success-icon { align-items: center; background: #177245; border-radius: 50%; color: #fff; display: inline-flex; font-size: 1.5rem; height: 52px; justify-content: center; margin-bottom: 18px; width: 52px; }
+
+@media (max-width: 680px) {
+  .public-application { padding-inline: 12px; }
+  .brand-header { padding-inline: 0; }
+  .form-heading, .submit-row { align-items: stretch; flex-direction: column; gap: 16px; }
+  .form-heading > div:last-child { text-align: left; }
+  .form-grid, .address-grid { grid-template-columns: 1fr; }
+  .address-street, .address-number, .address-plz, .address-city { grid-column: auto; }
+  .full { grid-column: auto; }
+  .form-section, .form-heading, .submit-row { padding: 22px; }
+  .upload-row { align-items: stretch; flex-direction: column; }
+  .upload-row select { min-width: 0; }
+}
 </style>

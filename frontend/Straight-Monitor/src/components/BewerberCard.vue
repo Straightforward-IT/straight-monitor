@@ -1,6 +1,9 @@
 <template>
-  <article class="bewerber-card">
-    <header class="card-header" @click="expanded = !expanded">
+  <article class="bewerber-card" :class="{ 'is-expanded': expanded }">
+    <div class="card-progress" :class="{ 'card-progress--expired': isExpired }" :title="statusLabel" role="progressbar" :aria-valuetext="statusLabel">
+      <span v-for="(step, i) in progressSteps" :key="step.key" class="progress-seg" :class="{ done: !isExpired && i <= currentStepIndex, current: !isExpired && i === currentStepIndex }" :title="step.label"></span>
+    </div>
+    <header class="card-header" :aria-expanded="expanded" @click="toggleExpand">
       <div class="identity">
         <div class="avatar">{{ initials }}</div>
         <div>
@@ -9,7 +12,9 @@
         </div>
       </div>
       <div class="header-actions" @click.stop>
-        <span :class="['status', `status--${bewerber.status}`]">{{ statusLabel }}</span>
+        <button type="button" class="chevron" :class="{ open: expanded }" aria-label="Details" @click="toggleExpand">
+          <font-awesome-icon icon="fa-solid fa-chevron-right" />
+        </button>
         <button ref="actionButton" type="button" class="icon-button" aria-label="Aktionen" @click="openContextMenu">
           <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
         </button>
@@ -22,26 +27,18 @@
       <span v-if="bewerber.asana_id">Asana verknüpft</span>
     </div>
 
-    <div v-if="expanded" class="card-body">
-      <template v-if="editing">
-        <div class="form-grid">
-          <label>Vorname <input v-model.trim="draft.vorname" required /></label>
-          <label>Nachname <input v-model.trim="draft.nachname" required /></label>
-          <label>E-Mail <input v-model.trim="draft.email" required type="email" /></label>
-          <label>Telefon <input v-model.trim="draft.telefon" type="tel" /></label>
-        </div>
-        <div class="form-actions">
-          <button type="button" class="secondary-button" @click="cancelEdit">Abbrechen</button>
-          <button type="button" class="primary-button" :disabled="saving" @click="save">{{ saving ? 'Speichert ...' : 'Speichern' }}</button>
-        </div>
-      </template>
-      <dl v-else>
-        <div><dt>Telefon</dt><dd>{{ bewerber.telefon || '—' }}</dd></div>
-        <div><dt>Wohnort</dt><dd>{{ location || '—' }}</dd></div>
-        <div><dt>Formular</dt><dd>{{ bewerber.submittedAt ? `Eingereicht am ${formatDate(bewerber.submittedAt)}` : 'Noch nicht eingereicht' }}</dd></div>
-        <div><dt>Dokumente</dt><dd>{{ bewerber.documents?.length || 0 }} hinterlegt</dd></div>
-      </dl>
-    </div>
+    <transition name="expand">
+      <div v-show="expanded" class="card-body">
+        <BewerberDetailCard
+          v-if="hasLoaded"
+          :bewerber-id="bewerber._id"
+          embedded
+          @saved="$emit('saved', $event)"
+          @invite="$emit('invite', $event)"
+          @close="expanded = false"
+        />
+      </div>
+    </transition>
 
     <ContextMenu v-if="showContextMenu" :x="contextMenuX" :y="contextMenuY" :options="contextMenuOptions" @close="showContextMenu = false" @select="handleContextAction" />
   </article>
@@ -49,35 +46,45 @@
 
 <script>
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faEllipsisVertical } from '@fortawesome/free-solid-svg-icons';
+import { faEllipsisVertical, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import api from '@/utils/api';
 import ContextMenu from './ContextMenu.vue';
+import BewerberDetailCard from './BewerberDetailCard.vue';
 
-library.add(faEllipsisVertical);
-
-const EDIT_FIELDS = ['vorname', 'nachname', 'email', 'telefon'];
+library.add(faEllipsisVertical, faChevronRight);
 
 export default {
   name: 'BewerberCard',
-  components: { ContextMenu, FontAwesomeIcon },
+  components: { ContextMenu, FontAwesomeIcon, BewerberDetailCard },
   props: { bewerber: { type: Object, required: true } },
   emits: ['saved', 'invite'],
   data() {
-    return { expanded: false, editing: false, saving: false, draft: {}, showContextMenu: false, contextMenuX: 0, contextMenuY: 0 };
+    return { expanded: false, hasLoaded: false, showContextMenu: false, contextMenuX: 0, contextMenuY: 0 };
   },
   computed: {
     initials() {
       return `${this.bewerber.vorname?.[0] || ''}${this.bewerber.nachname?.[0] || ''}`.toUpperCase() || '?';
     },
-    location() {
-      return [this.bewerber.strasse, this.bewerber.plz, this.bewerber.ort].filter(Boolean).join(', ');
-    },
     statusLabel() {
       return { neu: 'Neu', eingeladen: 'Eingeladen', formular_geoeffnet: 'Formular geöffnet', eingereicht: 'Eingereicht', abgelaufen: 'Abgelaufen' }[this.bewerber.status] || 'Neu';
     },
+    progressSteps() {
+      return [
+        { key: 'neu', label: 'Neu' },
+        { key: 'eingeladen', label: 'Eingeladen' },
+        { key: 'formular_geoeffnet', label: 'Formular geöffnet' },
+        { key: 'eingereicht', label: 'Eingereicht' },
+      ];
+    },
+    isExpired() {
+      return this.bewerber.status === 'abgelaufen';
+    },
+    currentStepIndex() {
+      const index = this.progressSteps.findIndex((step) => step.key === this.bewerber.status);
+      return index === -1 ? 0 : index;
+    },
     contextMenuOptions() {
-      const options = [{ label: 'Informationen bearbeiten', action: 'edit' }];
+      const options = [{ label: 'Details öffnen', action: 'open' }];
       if (this.bewerber.asana_permalink) options.unshift({ label: 'Asana-Aufgabe öffnen', action: 'asana' });
       options.push({ label: 'Einladung senden', action: 'invite' });
       return options;
@@ -87,6 +94,10 @@ export default {
     formatDate(value) {
       return value ? new Date(value).toLocaleDateString('de-DE') : '—';
     },
+    toggleExpand() {
+      this.expanded = !this.expanded;
+      if (this.expanded) this.hasLoaded = true;
+    },
     openContextMenu() {
       const rect = this.$refs.actionButton.getBoundingClientRect();
       this.contextMenuX = rect.right - 160;
@@ -95,59 +106,44 @@ export default {
     },
     handleContextAction(action) {
       if (action === 'asana') window.open(this.bewerber.asana_permalink, '_blank', 'noopener,noreferrer');
-      if (action === 'edit') this.startEdit();
+      if (action === 'open') { if (!this.expanded) this.toggleExpand(); }
       if (action === 'invite') this.$emit('invite', this.bewerber);
-    },
-    startEdit() {
-      this.draft = Object.fromEntries(EDIT_FIELDS.map((field) => [field, this.bewerber[field] || '']));
-      this.expanded = true;
-      this.editing = true;
-    },
-    cancelEdit() {
-      this.editing = false;
-      this.draft = {};
-    },
-    async save() {
-      if (!this.draft.vorname || !this.draft.nachname || !this.draft.email) return;
-      this.saving = true;
-      try {
-        const response = await api.patch(`/api/bewerber/${this.bewerber._id}`, this.draft);
-        this.$emit('saved', response.data.data);
-        this.cancelEdit();
-      } finally {
-        this.saving = false;
-      }
     },
   },
 };
 </script>
 
 <style scoped lang="scss">
-.bewerber-card { background: var(--tile-bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.bewerber-card { background: var(--tile-bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; transition: border-color .15s, box-shadow .15s; }
+.bewerber-card.is-expanded { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); box-shadow: 0 8px 28px rgba(0, 0, 0, .1); grid-column: 1 / -1; }
 .card-header { align-items: center; cursor: pointer; display: flex; gap: 12px; justify-content: space-between; padding: 14px; }
-.identity, .header-actions, .card-meta, .form-actions { align-items: center; display: flex; }
+.identity, .header-actions, .card-meta { align-items: center; display: flex; }
 .identity { gap: 10px; min-width: 0; }
 .avatar { align-items: center; background: var(--primary); border-radius: 6px; color: #fff; display: flex; flex: 0 0 38px; font-weight: 700; height: 38px; justify-content: center; }
 h3, p { margin: 0; }
 h3 { color: var(--text); font-size: .95rem; }
-.identity p, .card-meta, dt { color: var(--muted); font-size: .8rem; }
-.header-actions { gap: 8px; }
-.icon-button { background: transparent; border: 0; color: var(--muted); cursor: pointer; height: 32px; width: 32px; }
+.identity p, .card-meta { color: var(--muted); font-size: .8rem; }
+.header-actions { gap: 6px; }
+.icon-button, .chevron { background: transparent; border: 0; color: var(--muted); cursor: pointer; height: 32px; width: 32px; }
+.chevron { align-items: center; display: flex; justify-content: center; transition: transform .2s, color .2s; }
+.chevron.open { color: var(--primary); transform: rotate(90deg); }
+.card-progress { display: flex; gap: 2px; padding: 0; width: 100%; }
+.card-progress .progress-seg { background: var(--border); flex: 1; height: 4px; transition: background .2s; }
+.card-progress .progress-seg:first-child { border-top-left-radius: 8px; }
+.card-progress .progress-seg:last-child { border-top-right-radius: 8px; }
+.card-progress .progress-seg.done { background: var(--primary); }
+.card-progress .progress-seg.current { background: var(--primary); box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 55%, transparent); }
+.card-progress--expired .progress-seg { background: color-mix(in srgb, var(--danger, #b91c1c) 60%, var(--border)); }
 .status { border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: .72rem; font-weight: 700; padding: 3px 7px; white-space: nowrap; }
 .status--eingereicht { border-color: var(--success, #15803d); color: var(--success, #15803d); }
 .status--eingeladen, .status--formular_geoeffnet { border-color: var(--primary); color: var(--primary); }
 .status--abgelaufen { border-color: var(--danger, #b91c1c); color: var(--danger, #b91c1c); }
 .card-meta { border-top: 1px solid var(--border); flex-wrap: wrap; gap: 8px 14px; padding: 9px 14px; }
-.card-body { background: var(--hover); border-top: 1px solid var(--border); padding: 14px; }
-dl { display: grid; gap: 8px; margin: 0; }
-dl div { display: grid; gap: 3px; grid-template-columns: 105px minmax(0, 1fr); }
-dd { color: var(--text); font-size: .85rem; margin: 0; }
-.form-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-label { color: var(--text); display: grid; font-size: .8rem; font-weight: 600; gap: 5px; }
-input { background: var(--tile-bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); min-height: 36px; padding: 6px 8px; }
-.form-actions { gap: 8px; justify-content: flex-end; margin-top: 14px; }
-.primary-button, .secondary-button { border-radius: 5px; cursor: pointer; font: inherit; padding: 7px 10px; }
-.primary-button { background: var(--primary); border: 1px solid var(--primary); color: #fff; }
-.secondary-button { background: transparent; border: 1px solid var(--border); color: var(--text); }
-@media (max-width: 520px) { .form-grid { grid-template-columns: 1fr; } }
+.card-body { background: var(--hover); border-top: 1px solid var(--border); }
+
+/* Expand animation (mirrors EmployeeCard) */
+.expand-enter-from, .expand-leave-to { max-height: 0; opacity: 0; }
+.expand-enter-active, .expand-leave-active { overflow: hidden; transition: max-height .3s ease, opacity .2s ease; }
+.expand-enter-to, .expand-leave-from { max-height: 3000px; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .expand-enter-active, .expand-leave-active { transition: none; } }
 </style>

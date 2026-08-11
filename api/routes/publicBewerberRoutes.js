@@ -13,6 +13,14 @@ const router = express.Router();
 const SESSION_COOKIE = "bewerber_invitation_session";
 const MAX_FAILED_ATTEMPTS = 5;
 const MAX_SESSION_MS = 2 * 60 * 60 * 1000;
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+// Cross-site cookie (frontend on straightmonitor.com, API on Heroku) requires SameSite=None; Secure.
+const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: IS_PRODUCTION ? "none" : "lax",
+  secure: IS_PRODUCTION,
+  path: "/",
+};
 const ALLOWED_DOCUMENT_TYPES = new Set([
   "application/pdf",
   "application/msword",
@@ -73,12 +81,7 @@ function cookieValue(req, name) {
 }
 
 function clearSession(res) {
-  res.clearCookie(SESSION_COOKIE, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-  });
+  res.clearCookie(SESSION_COOKIE, SESSION_COOKIE_OPTIONS);
 }
 
 const requireInvitationSession = asyncHandler(async (req, res, next) => {
@@ -147,10 +150,7 @@ router.post("/invitations/:accessToken/verify", asyncHandler(async (req, res) =>
     purpose: "bewerber-invitation",
   }, process.env.JWT_SECRET, { expiresIn: Math.floor(maxAge / 1000) });
   res.cookie(SESSION_COOKIE, session, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
+    ...SESSION_COOKIE_OPTIONS,
     maxAge,
   });
   res.json({ data: publicApplicant(bewerber, invitation) });

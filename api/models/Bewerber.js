@@ -75,6 +75,7 @@ const BewerberSchema = new mongoose.Schema(
     email: { type: String, required: true, lowercase: true, trim: true },
     telefon: { type: String, trim: true, default: "" },
     strasse: { type: String, trim: true, default: "" },
+    hausnummer: { type: String, trim: true, default: "" },
     plz: { type: String, trim: true, default: "" },
     ort: { type: String, trim: true, default: "" },
     wohnsitz: { type: String, trim: true, default: "" },

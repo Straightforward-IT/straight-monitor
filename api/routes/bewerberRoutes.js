@@ -325,4 +325,21 @@ router.patch("/:id", asyncHandler(async (req, res) => {
   res.json({ data: bewerber });
 }));
 
+// GET /api/bewerber/:id/documents/:documentId/download
+router.get("/:id/documents/:documentId/download", asyncHandler(async (req, res) => {
+  if (!isValidId(req.params.id) || !isValidId(req.params.documentId)) {
+    return res.status(400).json({ message: "Ungültige ID." });
+  }
+  const bewerber = await Bewerber.findOne({ _id: req.params.id, teamKey: ENABLED_TEAM_KEY })
+    .select("documents")
+    .lean();
+  if (!bewerber) return res.status(404).json({ message: "Bewerber nicht gefunden." });
+
+  const document = (bewerber.documents || []).find((entry) => String(entry._id) === req.params.documentId);
+  if (!document) return res.status(404).json({ message: "Dokument nicht gefunden." });
+
+  const url = await R2Service.getSignedDownloadUrl(document.key, 300, { filename: document.name });
+  res.json({ data: { url } });
+}));
+
 module.exports = router;

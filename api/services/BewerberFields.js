@@ -5,6 +5,7 @@ const EDITABLE_FIELDS = new Set([
   "email",
   "telefon",
   "strasse",
+  "hausnummer",
   "plz",
   "ort",
   "wohnsitz",
