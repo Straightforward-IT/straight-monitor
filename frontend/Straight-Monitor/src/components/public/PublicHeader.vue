@@ -20,6 +20,8 @@
         </template>
       </div>
 
+      <slot name="navigation" />
+
       <!-- Debug TL Toggle (dev only) -->
       <button
         v-if="isDebugUser"
@@ -31,14 +33,24 @@
         TL
       </button>
 
+      <button
+        v-if="isDebugUser && hasPublicMenuOption('dev-mode')"
+        class="debug-tl-btn"
+        :class="{ active: debugDevActive }"
+        @click="emit('toggle-debug-dev')"
+      >
+        <font-awesome-icon icon="fa-solid fa-code" />
+        DEV
+      </button>
+
       <!-- Burger Button -->
-      <button class="burger-btn" @click="showMobileMenu = !showMobileMenu">
+      <button v-if="!hideMenu" class="burger-btn" @click="showMobileMenu = !showMobileMenu">
         <font-awesome-icon :icon="showMobileMenu ? 'times' : 'bars'" />
       </button>
     </div>
 
     <!-- Mobile Menu -->
-    <div v-if="showMobileMenu" class="mobile-menu-overlay" @click="showMobileMenu = false">
+    <div v-if="!hideMenu && showMobileMenu" class="mobile-menu-overlay" @click="showMobileMenu = false">
       <nav class="mobile-menu" @click.stop>
         <div class="mobile-menu-header">
           <h3>Menu</h3>
@@ -121,6 +133,8 @@
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted, watch } from "vue";
+import { library } from '@fortawesome/fontawesome-svg-core';
+import { faCode } from '@fortawesome/free-solid-svg-icons';
 import darkLogo from "@/assets/SF_000.svg";
 import lightLogo from "@/assets/SF_002.png";
 import { useTheme } from "@/stores/theme";
@@ -137,6 +151,9 @@ import tasksLight from "@/assets/tasks.png";
 import tasksDark from "@/assets/tasks-dark.png";
 import eventreportLight from "@/assets/eventreport.png";
 import eventreportDark from "@/assets/eventreport-dark.png";
+import { isPublicDevUser } from './dev/debugAccess';
+
+library.add(faCode);
 
 const props = defineProps({
   vorname: {
@@ -170,13 +187,20 @@ const props = defineProps({
   draftStatus: {
     type: String,
     default: 'hidden'
+  },
+  hideMenu: {
+    type: Boolean,
+    default: false
+  },
+  titleOverride: {
+    type: String,
+    default: ''
   }
 });
 
-const emit = defineEmits(['navigate', 'back', 'toggle-debug-tl']);
+const emit = defineEmits(['navigate', 'back', 'toggle-debug-tl', 'toggle-debug-dev']);
 
-const DEBUG_EMAILS = ['cedricbglx@gmail.com', 'dh@straightforward.email'];
-const isDebugUser = computed(() => DEBUG_EMAILS.includes(props.email));
+const isDebugUser = computed(() => isPublicDevUser(props.email));
 
 function hasPublicMenuOption(option) {
   return props.publicMenuOptions.includes('*') || props.publicMenuOptions.includes(option);
@@ -191,7 +215,7 @@ const viewTitleMap = {
   'job-detail': 'Job Details',
   'eventreport': 'Event Report'
 };
-const viewTitle = computed(() => viewTitleMap[props.currentView] || '');
+const viewTitle = computed(() => props.titleOverride || viewTitleMap[props.currentView] || '');
 
 function navigate(view) {
   showMobileMenu.value = false;

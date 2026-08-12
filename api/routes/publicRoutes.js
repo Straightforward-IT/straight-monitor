@@ -15,7 +15,7 @@ const logger = require("../utils/logger");
 const AsanaService = require("../AsanaService");
 const { sendMail } = require("../EmailService");
 const registry = require("../config/registry");
-const { assignTeamleiter, updateLaufzettelBadge } = require("../FlipService");
+const { assignTeamleiter, getFlipProfilePicture, updateLaufzettelBadge } = require("../FlipService");
 const { flipAxios } = require("../flipAxios");
 const {
   resolveActiveLocation,
@@ -164,7 +164,7 @@ router.get(
     }
 
     const mitarbeiter = await Mitarbeiter.findOne({ $or: orConditions })
-      .select("_id vorname nachname email personalnr publicMenuOptions qualifikationen laufzettel_submitted laufzettel_received evaluierungen_submitted")
+        .select("_id vorname nachname email personalnr flip_id publicMenuOptions qualifikationen laufzettel_submitted laufzettel_received evaluierungen_submitted")
       .populate({
         path: "laufzettel_submitted",
         populate: [
@@ -236,6 +236,35 @@ router.get(
     delete mitarbeiterObj.qualifikationen;
 
     res.json(mitarbeiterObj);
+  })
+);
+
+// ──────────────────────────────────────────────
+// GET /api/public/mitarbeiter/profile-picture
+// Returns the authenticated public user's Flip profile picture.
+// ──────────────────────────────────────────────
+router.get(
+  "/mitarbeiter/profile-picture",
+  asyncHandler(async (req, res) => {
+    const conditions = [];
+    if (req.oidcFlipId) conditions.push({ flip_id: req.oidcFlipId });
+    const currentEmail = req.oidcEmail || req.query.email;
+    if (currentEmail) {
+      const email = currentEmail.toLowerCase().trim();
+      conditions.push({ email }, { additionalEmails: email });
+    }
+
+    if (!conditions.length) return res.status(204).end();
+
+    const mitarbeiter = await Mitarbeiter.findOne({ $or: conditions })
+      .select("flip_id")
+      .lean();
+    if (!mitarbeiter?.flip_id) return res.status(204).end();
+
+    const result = await getFlipProfilePicture(mitarbeiter.flip_id);
+    if (!result?.data) return res.status(204).end();
+
+    res.type(result.contentType || "image/jpeg").send(Buffer.from(result.data));
   })
 );
 

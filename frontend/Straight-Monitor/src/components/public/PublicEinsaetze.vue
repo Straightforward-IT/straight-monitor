@@ -17,6 +17,21 @@
     </div>
 
     <!-- Loaded -->
+    <PublicDevPortal
+      v-else-if="mitarbeiter && isDevPortalActive"
+      :vorname="mitarbeiter.vorname"
+      :email="email"
+      :api="api"
+      :einsaetze="einsaetze"
+      :mitarbeiter="mitarbeiter"
+      :token="activeToken"
+      :is-teamleiter="isTeamleiter"
+      :debug-tl-active="debugTLMode"
+      @exit="toggleDebugDev"
+      @write-report="openEventReportFromDev"
+      @toggle-debug-tl="toggleDebugTL"
+    />
+
     <div v-else-if="mitarbeiter" class="content">
       <PublicHeader
         :vorname="mitarbeiter.vorname"
@@ -149,6 +164,8 @@ import PublicEvaluierung from './PublicEvaluierung.vue';
 import PublicVergangeneJobs from './PublicVergangeneJobs.vue';
 import PublicJobDetail from './PublicJobDetail.vue';
 import PublicEventReport from './PublicEventReport.vue';
+import PublicDevPortal from './dev/PublicDevPortal.vue';
+import { isPublicDevUser } from './dev/debugAccess';
 
 const route = useRoute();
 
@@ -372,16 +389,32 @@ const openLaufzettelCount = computed(() =>
 );
 
 // Teamleiter detection
-const DEBUG_EMAILS = ['cedricbglx@gmail.com', 'dh@straightforward.email'];
 const debugTLMode = ref(true);
 const debugDevMode = ref(false);
+const isDevPortalActive = computed(() => debugDevMode.value && isPublicDevUser(email.value));
+
+function devModeStorageKey(emailValue) {
+  return `public_dev_mode:${String(emailValue || '').trim().toLowerCase()}`;
+}
+
+watch(email, (emailValue) => {
+  if (!isPublicDevUser(emailValue)) {
+    debugDevMode.value = false;
+    return;
+  }
+  try {
+    debugDevMode.value = localStorage.getItem(devModeStorageKey(emailValue)) === 'true';
+  } catch {
+    debugDevMode.value = false;
+  }
+}, { immediate: true });
 
 // Entries in this list can be granted per employee via `publicMenuOptions`.
 // Dev mode exposes every registered option through the wildcard while testing.
 const publicMenuOptions = computed(() => {
   const options = new Set(mitarbeiter.value?.publicMenuOptions || []);
-  if (DEBUG_EMAILS.includes(email.value)) options.add('dev-mode');
-  if (debugDevMode.value && DEBUG_EMAILS.includes(email.value)) options.add('*');
+  if (isPublicDevUser(email.value)) options.add('dev-mode');
+  if (isDevPortalActive.value) options.add('*');
   return [...options];
 });
 
@@ -389,7 +422,7 @@ const isTeamleiter = computed(() => {
   const ma = mitarbeiter.value;
   if (!ma) return false;
   // For debug users, the toggle exclusively controls TL mode (ignores real isTeamleiter)
-  if (DEBUG_EMAILS.includes(email.value)) return debugTLMode.value;
+  if (isPublicDevUser(email.value)) return debugTLMode.value;
   return ma.isTeamleiter === true;
 });
 
@@ -398,7 +431,11 @@ function toggleDebugTL() {
 }
 
 function toggleDebugDev() {
+  if (!isPublicDevUser(email.value)) return;
   debugDevMode.value = !debugDevMode.value;
+  try {
+    localStorage.setItem(devModeStorageKey(email.value), String(debugDevMode.value));
+  } catch {}
 }
 
 function goBack() {
@@ -458,6 +495,11 @@ function writeReportForJob(einsatz) {
   previousView.value = 'job-detail';
   currentView.value = 'eventreport';
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function openEventReportFromDev(einsatz) {
+  if (isDevPortalActive.value) toggleDebugDev();
+  writeReportForJob(einsatz);
 }
 
 function goBackFromReport() {

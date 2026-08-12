@@ -21,6 +21,7 @@ const dataImportRoutes = require('./routes/dataImportRoutes');
 const auftraegeRoutes = require('./routes/auftraegeRoutes');
 const kundenRoutes = require('./routes/kundenRoutes');
 const publicCapacityRoutes = require('./routes/publicCapacityRoutes');
+const publicPrototypeRoutes = require('./routes/publicPrototypeRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const publicBewerberRoutes = require('./routes/publicBewerberRoutes');
 const oidcRoutes = require('./routes/oidcRoutes');
@@ -113,6 +114,7 @@ app.use('/api/auftraege', auftraegeRoutes);
 app.use('/api/kunden', kundenRoutes);
 app.use('/api/public/capacity', publicCapacityRoutes);
 app.use('/api/public/bewerber', publicBewerberRoutes);
+app.use('/api/public/prototype', publicPrototypeRoutes);
 app.use('/api/public', publicRoutes);
 // OIDC routes are mounted separately — NOT under /api/public which requires publicAuth
 app.use('/api/oidc', oidcRoutes);

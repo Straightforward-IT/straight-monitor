@@ -180,6 +180,7 @@ import tasksLight from '@/assets/tasks.png';
 import tasksDark from '@/assets/tasks-dark.png';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
+import { isPublicDevUser } from './dev/debugAccess';
 
 library.add(faBriefcase, faClock, faCode, faFolderOpen, faUserTie);
 
@@ -205,8 +206,7 @@ const props = defineProps({
 
 defineEmits(['navigate', 'open-job', 'toggle-debug-tl', 'toggle-debug-dev']);
 
-const DEBUG_EMAILS = ['cedricbglx@gmail.com', 'dh@straightforward.email'];
-const isDebugUser = computed(() => DEBUG_EMAILS.includes(props.email));
+const isDebugUser = computed(() => isPublicDevUser(props.email));
 
 function hasPublicMenuOption(option) {
   return props.publicMenuOptions.includes('*') || props.publicMenuOptions.includes(option);

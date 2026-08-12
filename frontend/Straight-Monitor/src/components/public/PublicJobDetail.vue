@@ -201,81 +201,66 @@
     </div>
 
     <!-- MA Action Sheet -->
-    <Transition name="calmodal">
-      <div v-if="actionSheet.open" class="calmodal-overlay" @click.self="actionSheet.open = false">
-        <div class="calmodal-sheet annot-actionsheet">
-          <div class="calmodal-handle"></div>
-          <p class="annot-actionsheet-name">{{ actionSheet.ma?.vorname }} {{ actionSheet.ma?.nachname }}</p>
-          <button v-if="isTeamleiter" class="annot-action-item" @click="openVerspaetung(actionSheet.ma)">
-            <span class="annot-action-icon annot-action-icon--delay"><font-awesome-icon icon="fa-solid fa-clock" /></span>
-            Verspätung eintragen
-            <span v-if="actionSheet.ma && getAnnotation(actionSheet.ma.personalNr).verspaetung" class="annot-action-badge">
-              {{ getAnnotation(actionSheet.ma.personalNr).verspaetung }} min
-            </span>
-          </button>
-          <button v-if="isTeamleiter" class="annot-action-item" @click="toggleNichtErschienen(actionSheet.ma)">
-            <span class="annot-action-icon annot-action-icon--noshow"><font-awesome-icon icon="fa-solid fa-user-xmark" /></span>
-            {{ actionSheet.ma?.noShow ? 'Nicht Erschienen aufheben' : 'Nicht Erschienen' }}
-            <span v-if="actionSheet.ma?.noShow" class="annot-action-badge annot-action-badge--noshow">
-              <font-awesome-icon icon="fa-solid fa-check" />
-            </span>
-          </button>
-          <button class="calmodal-btn calmodal-btn--cancel annot-cancel-btn" @click="actionSheet.open = false">Abbrechen</button>
-        </div>
-      </div>
-    </Transition>
+    <PublicBottomSheet v-model="actionSheet.open" sheet-class="annot-actionsheet">
+      <p class="annot-actionsheet-name">{{ actionSheet.ma?.vorname }} {{ actionSheet.ma?.nachname }}</p>
+      <button v-if="isTeamleiter" class="annot-action-item" @click="openVerspaetung(actionSheet.ma)">
+        <span class="annot-action-icon annot-action-icon--delay"><font-awesome-icon icon="fa-solid fa-clock" /></span>
+        Verspätung eintragen
+        <span v-if="actionSheet.ma && getAnnotation(actionSheet.ma.personalNr).verspaetung" class="annot-action-badge">
+          {{ getAnnotation(actionSheet.ma.personalNr).verspaetung }} min
+        </span>
+      </button>
+      <button v-if="isTeamleiter" class="annot-action-item" @click="toggleNichtErschienen(actionSheet.ma)">
+        <span class="annot-action-icon annot-action-icon--noshow"><font-awesome-icon icon="fa-solid fa-user-xmark" /></span>
+        {{ actionSheet.ma?.noShow ? 'Nicht Erschienen aufheben' : 'Nicht Erschienen' }}
+        <span v-if="actionSheet.ma?.noShow" class="annot-action-badge annot-action-badge--noshow">
+          <font-awesome-icon icon="fa-solid fa-check" />
+        </span>
+      </button>
+      <button class="calmodal-btn calmodal-btn--cancel annot-cancel-btn" @click="actionSheet.open = false">Abbrechen</button>
+    </PublicBottomSheet>
 
     <!-- Verspätung Modal -->
-    <Transition name="calmodal">
-      <div v-if="verspaetungModal.open" class="calmodal-overlay" @click.self="verspaetungModal.open = false">
-        <div class="calmodal-sheet">
-          <div class="calmodal-handle"></div>
-          <div class="calmodal-icon" style="background: rgba(234,88,12,0.12); border-color: rgba(234,88,12,0.3); color: #ea580c;">
-            <font-awesome-icon icon="fa-solid fa-clock" />
-          </div>
-          <h3 class="calmodal-title">Verspätung eintragen</h3>
-          <p class="calmodal-hint" style="margin-bottom: 0.75rem;">{{ verspaetungModal.ma?.vorname }} {{ verspaetungModal.ma?.nachname }}</p>
-          <div class="verspaetung-input-wrap">
-            <input
-              class="verspaetung-input"
-              type="number"
-              inputmode="numeric"
-              min="0"
-              max="240"
-              placeholder="0"
-              v-model.number="verspaetungModal.value"
-            />
-            <span class="verspaetung-unit">min</span>
-          </div>
-          <p class="calmodal-hint">Wird beim Schreiben des Event Reports automatisch vorausgefüllt.</p>
-          <div class="calmodal-actions">
-            <button class="calmodal-btn calmodal-btn--cancel" @click="verspaetungModal.open = false">Abbrechen</button>
-            <button class="calmodal-btn calmodal-btn--confirm" @click="saveVerspaetung">Speichern</button>
-          </div>
-        </div>
+    <PublicBottomSheet v-model="verspaetungModal.open">
+      <div class="calmodal-icon" style="background: rgba(234,88,12,0.12); border-color: rgba(234,88,12,0.3); color: #ea580c;">
+        <font-awesome-icon icon="fa-solid fa-clock" />
       </div>
-    </Transition>
+      <h3 class="calmodal-title">Verspätung eintragen</h3>
+      <p class="calmodal-hint" style="margin-bottom: 0.75rem;">{{ verspaetungModal.ma?.vorname }} {{ verspaetungModal.ma?.nachname }}</p>
+      <div class="verspaetung-input-wrap">
+        <input
+          class="verspaetung-input"
+          type="number"
+          inputmode="numeric"
+          min="0"
+          max="240"
+          placeholder="0"
+          v-model.number="verspaetungModal.value"
+        />
+        <span class="verspaetung-unit">min</span>
+      </div>
+      <p class="calmodal-hint">Wird beim Schreiben des Event Reports automatisch vorausgefüllt.</p>
+      <div class="calmodal-actions">
+        <button class="calmodal-btn calmodal-btn--cancel" @click="verspaetungModal.open = false">Abbrechen</button>
+        <button class="calmodal-btn calmodal-btn--confirm" @click="saveVerspaetung">Speichern</button>
+      </div>
+    </PublicBottomSheet>
 
     <!-- Notiz Modal -->
-    <Transition name="calmodal">
-      <div v-if="notizModal.open" class="calmodal-overlay" @click.self="notizModal.open = false">
-        <div class="calmodal-sheet notiz-sheet">
-          <div class="calmodal-handle"></div>
-          <h3 class="calmodal-title">Notizen</h3>
-          <textarea
-            class="notiz-textarea"
-            v-model="notizModal.text"
-            placeholder="…"
-            rows="5"
-            autofocus
-          ></textarea>
-          <div class="calmodal-actions">
-            <button class="calmodal-btn calmodal-btn--cancel" @click="notizModal.open = false">Abbrechen</button>
-            <button class="calmodal-btn calmodal-btn--confirm" @click="saveNotiz">Speichern</button>
-          </div>
-        </div>
+    <PublicBottomSheet v-model="notizModal.open" sheet-class="notiz-sheet">
+      <h3 class="calmodal-title">Notizen</h3>
+      <textarea
+        class="notiz-textarea"
+        v-model="notizModal.text"
+        placeholder="…"
+        rows="5"
+        autofocus
+      ></textarea>
+      <div class="calmodal-actions">
+        <button class="calmodal-btn calmodal-btn--cancel" @click="notizModal.open = false">Abbrechen</button>
+        <button class="calmodal-btn calmodal-btn--confirm" @click="saveNotiz">Speichern</button>
       </div>
-    </Transition>
+    </PublicBottomSheet>
 
 
   </div>
@@ -283,15 +268,21 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { library } from '@fortawesome/fontawesome-svg-core';
+import { faUserClock } from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '@/stores/theme';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
+import PublicBottomSheet from './PublicBottomSheet.vue';
 import { showToast } from '@getflip/bridge';
 import pdfMake from 'pdfmake/build/pdfmake';
 import pdfFonts from 'pdfmake/build/vfs_fonts';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
+
+library.add(faUserClock);
+
 pdfMake.vfs = pdfFonts?.vfs || pdfFonts?.pdfMake?.vfs || pdfMake.vfs;
 const theme = useTheme();
 const imgEventreport = computed(() => theme.isDark ? eventreportDark : eventreportLight);
@@ -1564,36 +1555,6 @@ watch(() => props.einsatz?._id, () => {
   filter: none;
 }
 
-/* Calendar Export Modal */
-.calmodal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 100;
-  display: flex;
-  align-items: flex-end;
-}
-
-.calmodal-sheet {
-  width: 100%;
-  background: var(--panel);
-  border-radius: 20px 20px 0 0;
-  padding: 0.75rem 1.25rem 2rem;
-  padding-bottom: calc(2rem + env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.calmodal-handle {
-  width: 36px;
-  height: 4px;
-  border-radius: 4px;
-  background: var(--border);
-  margin-bottom: 0.25rem;
-}
-
 .calmodal-icon {
   width: 52px;
   height: 52px;
@@ -1677,14 +1638,6 @@ watch(() => props.einsatz?._id, () => {
   justify-content: center;
   gap: 0.4rem;
 }
-
-/* Transition */
-.calmodal-enter-active { transition: opacity 0.2s; }
-.calmodal-leave-active { transition: opacity 0.15s; }
-.calmodal-enter-from, .calmodal-leave-to { opacity: 0; }
-.calmodal-enter-active .calmodal-sheet { transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
-.calmodal-leave-active .calmodal-sheet { transition: transform 0.2s ease-in; }
-.calmodal-enter-from .calmodal-sheet, .calmodal-leave-to .calmodal-sheet { transform: translateY(100%); }
 
 .badge-label {
   font-size: 0.72rem;
