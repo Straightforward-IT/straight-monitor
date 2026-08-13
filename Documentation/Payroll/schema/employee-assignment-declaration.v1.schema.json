@@ -1,0 +1,550 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://straightmonitor.local/payroll/schema/employee-assignment-declaration.v1.schema.json",
+  "title": "StraightMonitor employee-specific assignment declaration v1",
+  "description": "Signed, versioned assignment evidence for activity, tariff classification, work site and same-customer continuity, including assignments through other staffing providers and exact interruption periods.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "declarationType",
+    "declarationId",
+    "assignmentKey",
+    "revision",
+    "status",
+    "changeReason",
+    "employer",
+    "employee",
+    "customer",
+    "order",
+    "siteDeclarationRef",
+    "activityProfile",
+    "tariffDecision",
+    "assignmentPeriod",
+    "plannedWorkingTime",
+    "continuityEvidence",
+    "statutoryPriorRelationshipChecks",
+    "payrollTreatment",
+    "evidencePackage",
+    "changeHistory"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "declarationType": { "const": "EMPLOYEE_ASSIGNMENT_DECLARATION" },
+    "declarationId": { "$ref": "#/$defs/stableId" },
+    "assignmentKey": { "$ref": "#/$defs/stableId" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "supersedesDeclarationId": {
+      "oneOf": [
+        { "$ref": "#/$defs/stableId" },
+        { "type": "null" }
+      ],
+      "default": null
+    },
+    "status": { "enum": ["DRAFT", "CONFIRMED", "ACTIVE", "COMPLETED", "CANCELLED", "VOIDED"] },
+    "changeReason": { "type": "string", "minLength": 3, "maxLength": 2000 },
+    "employer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["legalName", "internalEmployerId"],
+      "properties": {
+        "legalName": { "const": "H. & P. Straightforward GmbH" },
+        "internalEmployerId": { "$ref": "#/$defs/stableId" }
+      }
+    },
+    "employee": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["internalEmployeeId", "personnelNumberSnapshot", "displayNameSnapshot"],
+      "properties": {
+        "internalEmployeeId": { "$ref": "#/$defs/stableId" },
+        "personnelNumberSnapshot": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "paychexEmployeeId": { "type": ["string", "null"], "maxLength": 200 },
+        "displayNameSnapshot": { "type": "string", "minLength": 2, "maxLength": 300 }
+      }
+    },
+    "customer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["internalCustomerId", "customerNumberSnapshot", "legalName"],
+      "properties": {
+        "internalCustomerId": { "$ref": "#/$defs/stableId" },
+        "customerNumberSnapshot": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "string", "minLength": 1, "maxLength": 64 }
+          ]
+        },
+        "legalName": { "type": "string", "minLength": 2, "maxLength": 300 }
+      }
+    },
+    "order": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["internalOrderId", "orderNumberSnapshot", "internalDeploymentId"],
+      "properties": {
+        "internalOrderId": { "$ref": "#/$defs/stableId" },
+        "orderNumberSnapshot": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "string", "minLength": 1, "maxLength": 64 }
+          ]
+        },
+        "internalDeploymentId": {
+          "oneOf": [
+            { "$ref": "#/$defs/stableId" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "siteDeclarationRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["declarationId", "revision", "siteKey", "operationalSector", "industrySurchargeDecision", "signedPayloadHash"],
+      "properties": {
+        "declarationId": { "$ref": "#/$defs/stableId" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "siteKey": { "$ref": "#/$defs/stableId" },
+        "operationalSector": {
+          "enum": ["GASTRONOMY", "HOSPITALITY", "EVENTS", "CATERING", "EVENT_CATERING", "OTHER_VERIFIED"]
+        },
+        "industrySurchargeDecision": { "enum": ["UNKNOWN", "NONE", "APPLICABLE"] },
+        "signedPayloadHash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "activityProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "activityCode",
+        "activityLabel",
+        "declaredActivity",
+        "actualDuties",
+        "responsibilityLevel",
+        "requiredQualifications",
+        "workLocation"
+      ],
+      "properties": {
+        "activityCode": { "type": ["string", "null"], "maxLength": 100 },
+        "activityLabel": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "declaredActivity": { "type": "string", "minLength": 3, "maxLength": 2000 },
+        "actualDuties": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 2, "maxLength": 1000 },
+          "uniqueItems": true
+        },
+        "responsibilityLevel": { "type": "string", "minLength": 2, "maxLength": 1000 },
+        "requiredQualifications": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 2, "maxLength": 500 },
+          "uniqueItems": true
+        },
+        "professionCode": { "type": ["string", "null"], "maxLength": 100 },
+        "qualificationCode": { "type": ["string", "null"], "maxLength": 100 },
+        "workLocation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "postalCode", "city", "federalState", "timeZone"],
+          "properties": {
+            "name": { "type": "string", "minLength": 2, "maxLength": 300 },
+            "postalCode": { "type": "string", "pattern": "^[0-9]{5}$" },
+            "city": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "federalState": { "$ref": "#/$defs/federalState" },
+            "timeZone": { "type": "string", "pattern": "^[A-Za-z_]+(?:/[A-Za-z0-9_+.-]+)+$" }
+          }
+        }
+      }
+    },
+    "tariffDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tariffRegime",
+        "tariffVersionRef",
+        "entgeltgruppe",
+        "decisionReason",
+        "sourceClause",
+        "declaredBy",
+        "declaredAt",
+        "evidenceRefs",
+        "signatureHash",
+        "evidenceHash"
+      ],
+      "properties": {
+        "tariffRegime": { "const": "DGB_GVP" },
+        "tariffVersionRef": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "entgeltgruppe": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,15}$" },
+        "decisionReason": { "type": "string", "minLength": 10, "maxLength": 4000 },
+        "sourceClause": { "type": "string", "minLength": 2, "maxLength": 500 },
+        "declaredBy": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "declaredAt": { "$ref": "#/$defs/dateTime" },
+        "evidenceRefs": { "$ref": "#/$defs/nonEmptyEvidenceRefs" },
+        "signatureHash": { "$ref": "#/$defs/hash" },
+        "evidenceHash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "assignmentPeriod": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assignmentFrom", "assignmentTill"],
+      "properties": {
+        "assignmentFrom": { "$ref": "#/$defs/dateTime" },
+        "assignmentTill": {
+          "oneOf": [
+            { "$ref": "#/$defs/dateTime" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "plannedWorkingTime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plannedStart", "plannedEnd", "plannedBreakMinutes", "contractualGuaranteedHours"],
+      "properties": {
+        "plannedStart": {
+          "oneOf": [
+            { "$ref": "#/$defs/dateTime" },
+            { "type": "null" }
+          ]
+        },
+        "plannedEnd": {
+          "oneOf": [
+            { "$ref": "#/$defs/dateTime" },
+            { "type": "null" }
+          ]
+        },
+        "plannedBreakMinutes": { "type": ["integer", "null"], "minimum": 0 },
+        "contractualGuaranteedHours": { "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "continuityEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "continuityKey",
+        "sameCustomerDefinition",
+        "historyCompleteness",
+        "priorAssignments",
+        "exactInterruptionPeriods",
+        "declarationSource",
+        "declaredBy",
+        "declaredAt",
+        "evidenceRefs",
+        "signatureHash",
+        "evidenceHash",
+        "continuityAssessment"
+      ],
+      "properties": {
+        "continuityKey": { "$ref": "#/$defs/stableId" },
+        "sameCustomerDefinition": { "type": "string", "minLength": 3, "maxLength": 1000 },
+        "historyCompleteness": { "enum": ["UNKNOWN", "EMPLOYEE_DECLARED_COMPLETE", "PROVIDER_VERIFIED_COMPLETE"] },
+        "priorAssignments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/priorAssignment" }
+        },
+        "exactInterruptionPeriods": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/interruptionPeriod" }
+        },
+        "declarationSource": { "type": "string", "minLength": 2, "maxLength": 1000 },
+        "declaredBy": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "declaredAt": { "$ref": "#/$defs/dateTime" },
+        "evidenceRefs": { "$ref": "#/$defs/nonEmptyEvidenceRefs" },
+        "signatureHash": { "$ref": "#/$defs/hash" },
+        "evidenceHash": { "$ref": "#/$defs/hash" },
+        "continuityAssessment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "policyVersion",
+            "asOfDate",
+            "countsTowardEqualPay",
+            "countsTowardIndustryTenure",
+            "equalPayContinuityStart",
+            "equalPayThresholdDate",
+            "assessmentEvidenceRefs",
+            "assessmentHash"
+          ],
+          "properties": {
+            "policyVersion": { "type": "string", "minLength": 2, "maxLength": 200 },
+            "asOfDate": { "$ref": "#/$defs/date" },
+            "countsTowardEqualPay": { "type": "boolean" },
+            "countsTowardIndustryTenure": { "type": "boolean" },
+            "equalPayContinuityStart": {
+              "oneOf": [
+                { "$ref": "#/$defs/date" },
+                { "type": "null" }
+              ]
+            },
+            "equalPayThresholdDate": {
+              "oneOf": [
+                { "$ref": "#/$defs/date" },
+                { "type": "null" }
+              ]
+            },
+            "assessmentEvidenceRefs": { "$ref": "#/$defs/nonEmptyEvidenceRefs" },
+            "assessmentHash": { "$ref": "#/$defs/hash" }
+          }
+        }
+      }
+    },
+    "statutoryPriorRelationshipChecks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "formerCustomerEmployeeWithinSixMonths",
+        "otherProviderWithinThreeMonthsAndOneDay",
+        "checkedAt",
+        "checkedBy",
+        "evidenceRefs",
+        "evidenceHash"
+      ],
+      "properties": {
+        "formerCustomerEmployeeWithinSixMonths": { "enum": ["NO", "YES", "UNKNOWN"] },
+        "otherProviderWithinThreeMonthsAndOneDay": { "enum": ["NO", "YES", "UNKNOWN"] },
+        "checkedAt": { "$ref": "#/$defs/dateTime" },
+        "checkedBy": { "$ref": "#/$defs/stableId" },
+        "evidenceRefs": { "$ref": "#/$defs/nonEmptyEvidenceRefs" },
+        "evidenceHash": { "$ref": "#/$defs/hash" },
+        "notes": { "type": ["string", "null"], "maxLength": 2000 }
+      }
+    },
+    "payrollTreatment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "payrollEligible",
+        "commercialBillingMinimumCreatesPaidHours",
+        "commercialBillingMinimumCreatesAZKMovement"
+      ],
+      "properties": {
+        "payrollEligible": { "type": "boolean" },
+        "commercialBillingMinimumCreatesPaidHours": { "const": false },
+        "commercialBillingMinimumCreatesAZKMovement": { "const": false },
+        "nonPayrollReason": { "type": ["string", "null"], "maxLength": 1000 }
+      }
+    },
+    "evidencePackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceContractRef",
+        "sourceContractHash",
+        "activityAnnexEvidenceRefs",
+        "evidenceManifestHash",
+        "employeeHistorySignature",
+        "customerConfirmationSignature",
+        "signedPayloadHash",
+        "signedDocumentHash"
+      ],
+      "properties": {
+        "sourceContractRef": { "const": "Documentation/Payroll/AÜRV_2026.md" },
+        "sourceContractHash": { "$ref": "#/$defs/hash" },
+        "activityAnnexEvidenceRefs": { "$ref": "#/$defs/nonEmptyEvidenceRefs" },
+        "evidenceManifestHash": { "$ref": "#/$defs/hash" },
+        "employeeHistorySignature": {
+          "oneOf": [
+            { "$ref": "#/$defs/signature" },
+            { "type": "null" }
+          ]
+        },
+        "customerConfirmationSignature": {
+          "oneOf": [
+            { "$ref": "#/$defs/signature" },
+            { "type": "null" }
+          ]
+        },
+        "signedPayloadHash": {
+          "oneOf": [
+            { "$ref": "#/$defs/hash" },
+            { "type": "null" }
+          ]
+        },
+        "signedDocumentHash": {
+          "oneOf": [
+            { "$ref": "#/$defs/hash" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "internalReview": {
+      "oneOf": [
+        { "$ref": "#/$defs/internalReview" },
+        { "type": "null" }
+      ],
+      "default": null
+    },
+    "changeHistory": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/changeEntry" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "revision": { "minimum": 2 } }, "required": ["revision"] },
+      "then": {
+        "properties": { "supersedesDeclarationId": { "$ref": "#/$defs/stableId" } },
+        "required": ["supersedesDeclarationId"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "status": { "enum": ["CONFIRMED", "ACTIVE", "COMPLETED"] } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "continuityEvidence": {
+            "properties": {
+              "historyCompleteness": { "enum": ["EMPLOYEE_DECLARED_COMPLETE", "PROVIDER_VERIFIED_COMPLETE"] }
+            }
+          },
+          "siteDeclarationRef": {
+            "properties": {
+              "industrySurchargeDecision": { "enum": ["NONE", "APPLICABLE"] }
+            }
+          },
+          "statutoryPriorRelationshipChecks": {
+            "properties": {
+              "formerCustomerEmployeeWithinSixMonths": { "enum": ["NO", "YES"] },
+              "otherProviderWithinThreeMonthsAndOneDay": { "enum": ["NO", "YES"] }
+            }
+          },
+          "evidencePackage": {
+            "properties": {
+              "employeeHistorySignature": { "$ref": "#/$defs/signature" },
+              "customerConfirmationSignature": { "$ref": "#/$defs/signature" },
+              "signedPayloadHash": { "$ref": "#/$defs/hash" },
+              "signedDocumentHash": { "$ref": "#/$defs/hash" }
+            }
+          },
+          "internalReview": { "$ref": "#/$defs/internalReview" }
+        },
+        "required": ["internalReview"]
+      }
+    }
+  ],
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "date": { "type": "string", "format": "date" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "hash": { "type": "string", "pattern": "^(?:sha256:)?[A-Fa-f0-9]{64}$" },
+    "federalState": {
+      "enum": ["BW", "BY", "BE", "BB", "HB", "HH", "HE", "MV", "NI", "NW", "RP", "SL", "SN", "ST", "SH", "TH"]
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 2, "maxLength": 500 },
+      "uniqueItems": true
+    },
+    "nonEmptyEvidenceRefs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 2, "maxLength": 500 },
+      "uniqueItems": true
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signerName", "signerRole", "organization", "signedAt", "signatureMethod", "signatureEnvelopeId", "signatureHash"],
+      "properties": {
+        "signerName": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "signerRole": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "organization": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "signedAt": { "$ref": "#/$defs/dateTime" },
+        "signatureMethod": { "enum": ["QUALIFIED_ELECTRONIC", "ADVANCED_ELECTRONIC", "DOCUSEAL_ENVELOPE", "WET_INK_SCAN", "OTHER_VERIFIABLE"] },
+        "signatureEnvelopeId": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "signatureHash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "priorAssignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "priorAssignmentId",
+        "staffingProviderName",
+        "staffingProviderIdentifier",
+        "customerName",
+        "customerIdentifier",
+        "from",
+        "till",
+        "evidenceRefs",
+        "evidenceHash"
+      ],
+      "properties": {
+        "priorAssignmentId": { "$ref": "#/$defs/stableId" },
+        "staffingProviderName": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "staffingProviderIdentifier": { "type": ["string", "null"], "maxLength": 200 },
+        "customerName": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "customerIdentifier": { "type": ["string", "null"], "maxLength": 200 },
+        "from": { "$ref": "#/$defs/date" },
+        "till": { "$ref": "#/$defs/date" },
+        "evidenceRefs": { "$ref": "#/$defs/nonEmptyEvidenceRefs" },
+        "evidenceHash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "interruptionPeriod": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "interruptionId",
+        "afterAssignmentId",
+        "beforeAssignmentId",
+        "from",
+        "till",
+        "calendarDays",
+        "reason",
+        "resetsEqualPayTenure",
+        "resetsIndustryTenure",
+        "evidenceRefs"
+      ],
+      "properties": {
+        "interruptionId": { "$ref": "#/$defs/stableId" },
+        "afterAssignmentId": { "$ref": "#/$defs/stableId" },
+        "beforeAssignmentId": { "$ref": "#/$defs/stableId" },
+        "from": { "$ref": "#/$defs/date" },
+        "till": { "$ref": "#/$defs/date" },
+        "calendarDays": { "type": "integer", "minimum": 0 },
+        "reason": { "enum": ["CUSTOMER_BREAK", "EMPLOYMENT_BREAK", "SICKNESS", "VACATION", "OTHER"] },
+        "resetsEqualPayTenure": { "type": "boolean" },
+        "resetsIndustryTenure": { "type": "boolean" },
+        "evidenceRefs": { "$ref": "#/$defs/evidenceRefs" }
+      }
+    },
+    "internalReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recordedBy", "recordedAt", "confirmedBy", "confirmedAt", "reviewReason", "fourEyesConfirmed"],
+      "properties": {
+        "recordedBy": { "$ref": "#/$defs/stableId" },
+        "recordedAt": { "$ref": "#/$defs/dateTime" },
+        "confirmedBy": { "$ref": "#/$defs/stableId" },
+        "confirmedAt": { "$ref": "#/$defs/dateTime" },
+        "reviewReason": { "type": "string", "minLength": 3, "maxLength": 2000 },
+        "fourEyesConfirmed": { "const": true },
+        "reviewEvidenceRefs": { "$ref": "#/$defs/evidenceRefs" }
+      }
+    },
+    "changeEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "changedAt", "changedBy", "reason", "contentHash"],
+      "properties": {
+        "revision": { "type": "integer", "minimum": 1 },
+        "changedAt": { "$ref": "#/$defs/dateTime" },
+        "changedBy": { "$ref": "#/$defs/stableId" },
+        "reason": { "type": "string", "minLength": 3, "maxLength": 2000 },
+        "contentHash": { "$ref": "#/$defs/hash" }
+      }
+    }
+  }
+}

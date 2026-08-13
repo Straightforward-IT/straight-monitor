@@ -1,0 +1,213 @@
+{
+  "schemaVersion": "1.0.0",
+  "declarationType": "CUSTOMER_SITE_PAYROLL_DECLARATION",
+  "declarationId": "CSPD-EXAMPLE-2026-0001",
+  "revision": 1,
+  "supersedesDeclarationId": null,
+  "status": "REVIEWED",
+  "changeReason": "Initial signed site payroll declaration for the example event-catering location.",
+  "validityPeriod": {
+    "validFrom": "2026-01-01",
+    "validTill": null
+  },
+  "customer": {
+    "internalCustomerId": "customer-example-100",
+    "customerNumberSnapshot": 1042,
+    "legalName": "Beispiel Eventgastronomie GmbH",
+    "registrationIdentifier": "HRB-EXAMPLE-100"
+  },
+  "site": {
+    "siteKey": "SITE-HH-EVENT-01",
+    "siteName": "Beispiel Veranstaltungshalle Hamburg",
+    "address": {
+      "street": "Beispielweg",
+      "houseNumber": "10",
+      "postalCode": "20095",
+      "city": "Hamburg",
+      "federalState": "HH",
+      "countryCode": "DE"
+    },
+    "timeZone": "Europe/Berlin",
+    "operationalSector": "EVENT_CATERING",
+    "operationalSectorDescription": "Veranstaltungsbetrieb mit gastronomischem Service und eigenem Catering am erklärten Einsatzort.",
+    "holidayJurisdiction": "HH"
+  },
+  "industrySurchargeAgreement": {
+    "decision": "NONE",
+    "agreementCode": "NONE",
+    "agreementTitle": null,
+    "ruleVersionRef": null,
+    "sourceAgreement": null,
+    "assessment": {
+      "assessedBy": "payroll-specialist-02",
+      "assessedAt": "2025-12-15T10:30:00Z",
+      "sourcesChecked": [
+        "Customer establishment declaration",
+        "Applicable DGB/GVP Branchenzuschlag agreement catalogue as reviewed for this site"
+      ],
+      "evidenceRefs": [
+        "evidence:industry-assessment:CSPD-EXAMPLE-2026-0001"
+      ],
+      "evidenceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "unknownReason": null
+  },
+  "customerPremiumRules": {
+    "decision": "NONE",
+    "nightBasisPoints": 0,
+    "sundayBasisPoints": 0,
+    "holidayBasisPoints": 0,
+    "nightWindow": {
+      "start": "23:00",
+      "end": "06:00"
+    },
+    "overlapPolicy": "HIGHEST_ONLY",
+    "sourceAgreement": {
+      "title": "Signed customer declaration: no customer night, Sunday or holiday premium rules",
+      "identifier": "CSPD-EXAMPLE-2026-0001-PREMIUM",
+      "version": "1",
+      "validityPeriod": {
+        "validFrom": "2026-01-01",
+        "validTill": null
+      },
+      "evidenceRefs": [
+        "evidence:signed-customer-declaration:CSPD-EXAMPLE-2026-0001"
+      ],
+      "documentHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "assessment": {
+      "assessedBy": "payroll-specialist-02",
+      "assessedAt": "2025-12-15T10:45:00Z",
+      "sourcesChecked": [
+        "Customer collective and company agreements",
+        "Individual employee rules",
+        "Historical payroll components for this customer and site"
+      ],
+      "evidenceRefs": [
+        "evidence:premium-assessment:CSPD-EXAMPLE-2026-0001"
+      ],
+      "evidenceHash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "customerAgreementsChecked": true,
+      "companyRulesChecked": true,
+      "employeeRulesChecked": true,
+      "historicalPayrollChecked": true,
+      "noMoreFavorableRuleFound": true,
+      "noContradictoryHistoricalPayroll": true
+    },
+    "unknownReason": null
+  },
+  "equalPayComparator": {
+    "status": "VERIFIED",
+    "comparisonGroup": "Servicehilfe Veranstaltungsgastronomie",
+    "comparisonHourlyRateCents": 1650,
+    "comparisonMonthlyAmountCents": null,
+    "comparisonHourlyRateScope": "BASE_ONLY",
+    "conversionPolicyId": null,
+    "conversionEvidenceHash": null,
+    "regularComponents": [
+      {
+        "code": "CUSTOMER_MONTHLY_BONUS",
+        "amountCents": 5000,
+        "frequency": "MONTHLY"
+      }
+    ],
+    "source": "Signed comparable-employee remuneration declaration by the customer",
+    "evidenceRefs": [
+      "evidence:equal-pay-comparator:CSPD-EXAMPLE-2026-0001"
+    ],
+    "evidenceHash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "declarationSignature": {
+      "signerName": "Erika Beispiel",
+      "signerRole": "Personalleitung",
+      "organization": "Beispiel Eventgastronomie GmbH",
+      "signedAt": "2025-12-16T09:05:00Z",
+      "signatureMethod": "DOCUSEAL_ENVELOPE",
+      "signatureEnvelopeId": "docuseal-example-equal-pay-0001",
+      "signatureHash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    "validityPeriod": {
+      "validFrom": "2026-01-01",
+      "validTill": "2026-12-31"
+    },
+    "notApplicableReason": null
+  },
+  "holidayCalendar": {
+    "calendarId": "DE-HH-2026-V1",
+    "federalState": "HH",
+    "dates": [],
+    "source": "Authoritative holiday calendar evidence referenced by the payroll rule",
+    "sourceVersion": "2026-v1",
+    "evidenceHash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "timeEvidenceRequirements": {
+    "electronicDeliveryRequired": true,
+    "actualStartRequired": true,
+    "actualEndRequired": true,
+    "detailedBreaksRequired": true,
+    "timeZoneRequired": true,
+    "siteRequired": true,
+    "crossMidnightAllocationRequired": true,
+    "approverIdentityRequired": true,
+    "approvalTimestampRequired": true,
+    "correctionHistoryRequired": true,
+    "deliveryChannel": "STRAIGHTMONITOR_PORTAL",
+    "deliveryDeadline": "Approved evidence must reach StraightMonitor before the monthly payroll lock."
+  },
+  "billingMinimumSeparation": {
+    "frameworkClause": "AÜRV_2026 § 6.4",
+    "commercialInvoiceMinimumAcknowledged": true,
+    "createsPaidHours": false,
+    "createsAZKMovement": false,
+    "note": "The four-/six-hour minimum affects customer invoicing only; payroll uses approved actual time and independent contractual entitlements."
+  },
+  "evidencePackage": {
+    "sourceContractRef": "Documentation/Payroll/AÜRV_2026.md",
+    "sourceContractHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "evidenceRefs": [
+      "evidence:signed-annex:CSPD-EXAMPLE-2026-0001",
+      "evidence:customer-site-photo-or-register:CSPD-EXAMPLE-2026-0001",
+      "evidence:equal-pay-comparator:CSPD-EXAMPLE-2026-0001"
+    ],
+    "evidenceManifestHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    "customerSignature": {
+      "signerName": "Erika Beispiel",
+      "signerRole": "Personalleitung",
+      "organization": "Beispiel Eventgastronomie GmbH",
+      "signedAt": "2025-12-16T09:15:00Z",
+      "signatureMethod": "DOCUSEAL_ENVELOPE",
+      "signatureEnvelopeId": "docuseal-example-site-0001",
+      "signatureHash": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "providerAcknowledgementSignature": {
+      "signerName": "Max Muster",
+      "signerRole": "Payroll Operations",
+      "organization": "H. & P. Straightforward GmbH",
+      "signedAt": "2025-12-16T11:00:00Z",
+      "signatureMethod": "DOCUSEAL_ENVELOPE",
+      "signatureEnvelopeId": "docuseal-example-provider-site-0001",
+      "signatureHash": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    "signedPayloadHash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+    "signedDocumentHash": "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+  },
+  "internalReview": {
+    "preparedBy": "payroll-specialist-02",
+    "preparedAt": "2025-12-16T11:15:00Z",
+    "reviewedBy": "payroll-reviewer-07",
+    "reviewedAt": "2025-12-17T08:30:00Z",
+    "reviewReason": "Site, premium, holiday and Equal-Pay evidence reviewed against the signed annex.",
+    "fourEyesConfirmed": true,
+    "reviewEvidenceRefs": [
+      "evidence:internal-review:CSPD-EXAMPLE-2026-0001"
+    ]
+  },
+  "changeHistory": [
+    {
+      "revision": 1,
+      "changedAt": "2025-12-16T11:15:00Z",
+      "changedBy": "payroll-specialist-02",
+      "reason": "Initial declaration created from signed evidence.",
+      "contentHash": "sha256:7777777777777777777777777777777777777777777777777777777777777777"
+    }
+  ]
+}

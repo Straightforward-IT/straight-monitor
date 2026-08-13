@@ -1,0 +1,213 @@
+{
+  "schemaVersion": "1.0.0",
+  "declarationType": "EMPLOYEE_ASSIGNMENT_DECLARATION",
+  "declarationId": "EAD-EXAMPLE-2026-0001",
+  "assignmentKey": "ASSIGNMENT-EXAMPLE-2026-0001",
+  "revision": 1,
+  "supersedesDeclarationId": null,
+  "status": "CONFIRMED",
+  "changeReason": "Initial employee-specific assignment and continuity declaration.",
+  "employer": {
+    "legalName": "H. & P. Straightforward GmbH",
+    "internalEmployerId": "STRAIGHTFORWARD-DE-01"
+  },
+  "employee": {
+    "internalEmployeeId": "employee-example-200",
+    "personnelNumberSnapshot": "P-EXAMPLE-0200",
+    "paychexEmployeeId": "PAYCHEX-EXAMPLE-0200",
+    "displayNameSnapshot": "Alex Beispiel"
+  },
+  "customer": {
+    "internalCustomerId": "customer-example-100",
+    "customerNumberSnapshot": 1042,
+    "legalName": "Beispiel Eventgastronomie GmbH"
+  },
+  "order": {
+    "internalOrderId": "order-example-500",
+    "orderNumberSnapshot": 50042,
+    "internalDeploymentId": "deployment-example-900"
+  },
+  "siteDeclarationRef": {
+    "declarationId": "CSPD-EXAMPLE-2026-0001",
+    "revision": 1,
+    "siteKey": "SITE-HH-EVENT-01",
+    "operationalSector": "EVENT_CATERING",
+    "industrySurchargeDecision": "NONE",
+    "signedPayloadHash": "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+  },
+  "activityProfile": {
+    "activityCode": "SERVICEHELP_EVENT",
+    "activityLabel": "Servicehilfskraft Veranstaltungsgastronomie",
+    "declaredActivity": "Unterstützende Servicetätigkeit im Veranstaltungs- und Cateringbetrieb ohne eigenständige Schichtleitung.",
+    "actualDuties": [
+      "Vorbereitung des Servicebereichs nach Einsatzanweisung",
+      "Ausgabe und Servieren von Speisen und alkoholfreien Getränken",
+      "Abräumen und Rückführung des eingesetzten Veranstaltungsmaterials"
+    ],
+    "responsibilityLevel": "Ausführung standardisierter Tätigkeiten unter Anleitung der zuständigen Teamleitung.",
+    "requiredQualifications": [
+      "Betriebliche Hygieneunterweisung",
+      "Deutschkenntnisse für Einsatz- und Sicherheitsanweisungen"
+    ],
+    "professionCode": null,
+    "qualificationCode": "SERVICE_HELPER",
+    "workLocation": {
+      "name": "Beispiel Veranstaltungshalle Hamburg",
+      "postalCode": "20095",
+      "city": "Hamburg",
+      "federalState": "HH",
+      "timeZone": "Europe/Berlin"
+    }
+  },
+  "tariffDecision": {
+    "tariffRegime": "DGB_GVP",
+    "tariffVersionRef": "GVP-BASE-2026-V1-APPROVED",
+    "entgeltgruppe": "2A",
+    "decisionReason": "The signed actual activity profile and required responsibility level match the reviewed EG 2a classification decision for this assignment.",
+    "sourceClause": "DGB/GVP Entgeltrahmentarifvertrag, reviewed activity-classification clause",
+    "declaredBy": "Erika Beispiel, Personalleitung customer",
+    "declaredAt": "2026-01-05T10:00:00Z",
+    "evidenceRefs": [
+      "evidence:activity-profile:EAD-EXAMPLE-2026-0001",
+      "evidence:eg-decision:EAD-EXAMPLE-2026-0001"
+    ],
+    "signatureHash": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+    "evidenceHash": "sha256:9999999999999999999999999999999999999999999999999999999999999999"
+  },
+  "assignmentPeriod": {
+    "assignmentFrom": "2026-01-10T08:00:00+01:00",
+    "assignmentTill": null
+  },
+  "plannedWorkingTime": {
+    "plannedStart": "2026-01-10T08:00:00+01:00",
+    "plannedEnd": "2026-01-10T16:30:00+01:00",
+    "plannedBreakMinutes": 30,
+    "contractualGuaranteedHours": null
+  },
+  "continuityEvidence": {
+    "continuityKey": "CUSTOMER-1042-EMPLOYEE-0200",
+    "sameCustomerDefinition": "The declared customer identity is matched across direct records and all reported staffing providers using the customer legal entity and verified internal customer identifier.",
+    "historyCompleteness": "PROVIDER_VERIFIED_COMPLETE",
+    "priorAssignments": [
+      {
+        "priorAssignmentId": "PRIOR-ASSIGNMENT-EXAMPLE-001",
+        "staffingProviderName": "Beispiel Personaldienstleister GmbH",
+        "staffingProviderIdentifier": "PROVIDER-EXAMPLE-77",
+        "customerName": "Beispiel Eventgastronomie GmbH",
+        "customerIdentifier": "customer-example-100",
+        "from": "2025-09-01",
+        "till": "2025-10-31",
+        "evidenceRefs": [
+          "evidence:prior-provider-confirmation:PRIOR-ASSIGNMENT-EXAMPLE-001"
+        ],
+        "evidenceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+      }
+    ],
+    "exactInterruptionPeriods": [
+      {
+        "interruptionId": "INTERRUPTION-EXAMPLE-001",
+        "afterAssignmentId": "PRIOR-ASSIGNMENT-EXAMPLE-001",
+        "beforeAssignmentId": "ASSIGNMENT-EXAMPLE-2026-0001",
+        "from": "2025-11-01",
+        "till": "2026-01-09",
+        "calendarDays": 70,
+        "reason": "CUSTOMER_BREAK",
+        "resetsEqualPayTenure": false,
+        "resetsIndustryTenure": false,
+        "evidenceRefs": [
+          "evidence:continuity-timeline:EAD-EXAMPLE-2026-0001"
+        ]
+      }
+    ],
+    "declarationSource": "Employee declaration cross-checked against customer and prior-provider confirmation",
+    "declaredBy": "Alex Beispiel",
+    "declaredAt": "2026-01-04T12:00:00Z",
+    "evidenceRefs": [
+      "evidence:employee-history-declaration:EAD-EXAMPLE-2026-0001",
+      "evidence:customer-history-confirmation:EAD-EXAMPLE-2026-0001",
+      "evidence:prior-provider-confirmation:PRIOR-ASSIGNMENT-EXAMPLE-001"
+    ],
+    "signatureHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb1",
+    "evidenceHash": "sha256:ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc1",
+    "continuityAssessment": {
+      "policyVersion": "AUEG-EQUAL-PAY-CONTINUITY-2026-V1-APPROVED",
+      "asOfDate": "2026-01-10",
+      "countsTowardEqualPay": true,
+      "countsTowardIndustryTenure": true,
+      "equalPayContinuityStart": "2025-09-01",
+      "equalPayThresholdDate": "2026-06-01",
+      "assessmentEvidenceRefs": [
+        "evidence:continuity-timeline:EAD-EXAMPLE-2026-0001",
+        "evidence:continuity-policy:AUEG-EQUAL-PAY-CONTINUITY-2026-V1-APPROVED"
+      ],
+      "assessmentHash": "sha256:ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd1"
+    }
+  },
+  "statutoryPriorRelationshipChecks": {
+    "formerCustomerEmployeeWithinSixMonths": "NO",
+    "otherProviderWithinThreeMonthsAndOneDay": "YES",
+    "checkedAt": "2026-01-05T15:00:00Z",
+    "checkedBy": "payroll-specialist-02",
+    "evidenceRefs": [
+      "evidence:employee-history-declaration:EAD-EXAMPLE-2026-0001",
+      "evidence:customer-history-confirmation:EAD-EXAMPLE-2026-0001"
+    ],
+    "evidenceHash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee1",
+    "notes": "The prior assignment through another provider is included in the continuity timeline and has not been discarded."
+  },
+  "payrollTreatment": {
+    "payrollEligible": true,
+    "commercialBillingMinimumCreatesPaidHours": false,
+    "commercialBillingMinimumCreatesAZKMovement": false,
+    "nonPayrollReason": null
+  },
+  "evidencePackage": {
+    "sourceContractRef": "Documentation/Payroll/AÜRV_2026.md",
+    "sourceContractHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "activityAnnexEvidenceRefs": [
+      "evidence:activity-profile:EAD-EXAMPLE-2026-0001",
+      "evidence:site-declaration:CSPD-EXAMPLE-2026-0001"
+    ],
+    "evidenceManifestHash": "sha256:abababababababababababababababababababababababababababababababab",
+    "employeeHistorySignature": {
+      "signerName": "Alex Beispiel",
+      "signerRole": "Employee",
+      "organization": "H. & P. Straightforward GmbH",
+      "signedAt": "2026-01-05T08:30:00Z",
+      "signatureMethod": "DOCUSEAL_ENVELOPE",
+      "signatureEnvelopeId": "docuseal-example-employee-history-0001",
+      "signatureHash": "sha256:fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1"
+    },
+    "customerConfirmationSignature": {
+      "signerName": "Erika Beispiel",
+      "signerRole": "Personalleitung",
+      "organization": "Beispiel Eventgastronomie GmbH",
+      "signedAt": "2026-01-05T10:00:00Z",
+      "signatureMethod": "DOCUSEAL_ENVELOPE",
+      "signatureEnvelopeId": "docuseal-example-customer-assignment-0001",
+      "signatureHash": "sha256:1212121212121212121212121212121212121212121212121212121212121212"
+    },
+    "signedPayloadHash": "sha256:2323232323232323232323232323232323232323232323232323232323232323",
+    "signedDocumentHash": "sha256:3434343434343434343434343434343434343434343434343434343434343434"
+  },
+  "internalReview": {
+    "recordedBy": "payroll-specialist-02",
+    "recordedAt": "2026-01-05T11:00:00Z",
+    "confirmedBy": "payroll-reviewer-07",
+    "confirmedAt": "2026-01-06T09:30:00Z",
+    "reviewReason": "Activity, EG decision, same-customer history and exact interruption were checked against all signed evidence.",
+    "fourEyesConfirmed": true,
+    "reviewEvidenceRefs": [
+      "evidence:internal-review:EAD-EXAMPLE-2026-0001"
+    ]
+  },
+  "changeHistory": [
+    {
+      "revision": 1,
+      "changedAt": "2026-01-05T11:00:00Z",
+      "changedBy": "payroll-specialist-02",
+      "reason": "Initial employee-specific assignment declaration created.",
+      "contentHash": "sha256:4545454545454545454545454545454545454545454545454545454545454545"
+    }
+  ]
+}
