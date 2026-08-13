@@ -68,6 +68,7 @@ const JSZip = require("jszip");
 const { PDFDocument } = require("pdf-lib");
 const sharp = require("sharp");
 const r2Service = require("../R2Service");
+const stripPayrollOwnedEmployeeFields = require("../utils/sanitizeMitarbeiterUpdate");
 const progressMap = new Map();
 
 const upload = multer({
@@ -1646,6 +1647,7 @@ router.patch(
     delete updateData.eventreports;
     delete updateData.evaluierungen_received;
     delete updateData.evaluierungen_submitted;
+    stripPayrollOwnedEmployeeFields(updateData);
 
     // Email immer in Kleinbuchstaben speichern, falls sie aktualisiert wird
     if (updateData.email) {
@@ -2358,15 +2360,7 @@ router.post(
         .slice(1)
         .filter((row) =>
           row.some((cell) => cell !== null && String(cell).trim() !== "")
-        )
-        .sort((a, b) => {
-          const nachnameCompare = normalizeUmlautsForSort(a[1])?.localeCompare(
-            normalizeUmlautsForSort(b[1])
-          );
-          if (nachnameCompare !== 0) return nachnameCompare;
-          // Tiebreaker: Vorname alphabetisch (wie in der Quell-PDF)
-          return normalizeUmlautsForSort(a[2])?.localeCompare(normalizeUmlautsForSort(b[2])) ?? 0;
-        });
+        );
 
       if (pageCount !== data.length) {
         return res
