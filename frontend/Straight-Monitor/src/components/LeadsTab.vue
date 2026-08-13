@@ -3688,7 +3688,6 @@ onBeforeUnmount(() => {
 /* ── Sidebar ─────────────────────────────────────────────────────── */
 .detail-sidebar {
   position: sticky;
-  top: 88px;
   width: 440px;
   min-width: 440px;
   height: calc(100vh - 88px);
