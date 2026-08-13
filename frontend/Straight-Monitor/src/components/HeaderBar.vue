@@ -69,6 +69,12 @@
               </router-link>
             </div>
           </div>
+        <div v-if="canSeePayroll" class="nav-group nav-group--payroll">
+          <router-link
+            to="/payroll"
+            :class="{ active: isPayrollSectionActive }"
+          >Payroll</router-link>
+        </div>
         <div class="nav-group nav-group--reports">
           <router-link
             :to="reportsNavTarget"
@@ -315,6 +321,17 @@
               MA erstellen
             </router-link>
           </div>
+        </div>
+        <div v-if="canSeePayroll" class="mobile-menu-group">
+          <router-link
+            to="/payroll"
+            class="mobile-menu-btn"
+            :class="{ active: isPayrollSectionActive }"
+            @click="closeMobileMenu"
+          >
+            <font-awesome-icon :icon="['fas', 'calculator']" />
+            Payroll
+          </router-link>
         </div>
         <div class="mobile-menu-group">
           <button
@@ -730,6 +747,8 @@ const newPagesEnabled = computed(() => !!auth.user);
 
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
 const canSeeKunden = computed(() => isAdmin.value || auth.user?.roles?.includes('VERTRIEB'));
+const canSeePayroll = computed(() => isAdmin.value);
+const isPayrollSectionActive = computed(() => route.name === 'Payroll');
 const isKundenSectionActive = computed(() => route.name === 'Kunden');
 const kundenTabLabel = computed(() => {
   if (route.name !== 'Kunden') return 'Kunden';
