@@ -15,6 +15,10 @@
         <font-awesome-icon icon="fa-solid fa-envelope" />
         Bewerbermanagement
       </button>
+      <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'qualifikationen' }" @click="activeTab = 'qualifikationen'">
+        <font-awesome-icon icon="fa-solid fa-graduation-cap" />
+        Qualifikationen
+      </button>
     </nav>
 
     <template v-if="activeTab === 'locations'">
@@ -176,7 +180,7 @@
                   v-for="r in (u.roles?.length ? u.roles : [u.role || 'USER'])"
                   :key="r"
                   class="badge"
-                  :class="r === 'ADMIN' ? 'badge--admin' : r === 'VERTRIEB' ? 'badge--vertrieb' : 'badge--user'"
+                  :class="r === 'ADMIN' ? 'badge--admin' : r === 'VERTRIEB' ? 'badge--vertrieb' : r === 'PAYROLL' ? 'badge--payroll' : 'badge--user'"
                 >
                   {{ r }}
                 </span>
@@ -225,7 +229,95 @@
       </div>
     </section>
 
-    <BewerberManagementTab v-else :locations="activeLocations" />
+    <BewerberManagementTab v-else-if="activeTab === 'applicants'" :locations="activeLocations" />
+
+    <section v-else-if="activeTab === 'qualifikationen'" class="qualifikationen">
+      <div class="qualifikationen__header">
+        <ToolbarButton @click="openQualiCreate">
+          <font-awesome-icon icon="fa-solid fa-plus" />
+          Qualifikation anlegen
+        </ToolbarButton>
+      </div>
+      <p v-if="qualiError" class="um__error">{{ qualiError }}</p>
+      <p v-else-if="qualiLoading" class="qualifikationen__state">Qualifikationen werden geladen…</p>
+      <div v-else class="um__table-wrap">
+        <table class="um__table">
+          <thead>
+            <tr>
+              <th>Schlüssel</th>
+              <th>Bezeichnung</th>
+              <th class="th-actions">Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="q in qualifikationen" :key="q._id">
+              <td><span class="quali-key">#{{ q.qualificationKey }}</span></td>
+              <td>{{ q.designation }}</td>
+              <td class="td-actions">
+                <button type="button" class="btn-icon" title="Bearbeiten" @click="openQualiEdit(q)">
+                  <font-awesome-icon icon="fa-solid fa-pen" />
+                </button>
+                <button type="button" class="btn-icon btn-icon--danger" title="Löschen" @click="openQualiDelete(q)">
+                  <font-awesome-icon icon="fa-solid fa-trash" />
+                </button>
+              </td>
+            </tr>
+            <tr v-if="!qualifikationen.length">
+              <td colspan="3" style="text-align:center; opacity:0.45; padding: 24px;">Keine Qualifikationen vorhanden.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Qualifikation Create/Edit Modal -->
+    <div v-if="qualiModal.open" class="modal-backdrop" @click.self="closeQualiModal">
+      <form class="modal-content modal-content--sm" @submit.prevent="saveQualifikation">
+        <header class="modal-header">
+          <h3>{{ qualiModal.isNew ? 'Qualifikation anlegen' : 'Qualifikation bearbeiten' }}</h3>
+          <button type="button" class="close-btn" @click="closeQualiModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
+        </header>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Schlüssel <span class="required">*</span></label>
+            <input v-model.number="qualiModal.form.qualificationKey" type="number" required :disabled="!qualiModal.isNew" />
+          </div>
+          <div class="form-group">
+            <label>Bezeichnung <span class="required">*</span></label>
+            <input v-model="qualiModal.form.designation" type="text" required />
+          </div>
+          <p v-if="qualiModal.error" class="modal-error">{{ qualiModal.error }}</p>
+        </div>
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-ghost" @click="closeQualiModal">Abbrechen</button>
+          <button type="submit" class="btn btn-primary" :disabled="qualiModal.saving">
+            <font-awesome-icon :icon="qualiModal.saving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'" :spin="qualiModal.saving" />
+            {{ qualiModal.isNew ? 'Anlegen' : 'Speichern' }}
+          </button>
+        </footer>
+      </form>
+    </div>
+
+    <!-- Qualifikation Delete Modal -->
+    <div v-if="qualiDeleteModal.open" class="modal-backdrop" @click.self="closeQualiDelete">
+      <div class="modal-content modal-content--sm">
+        <header class="modal-header">
+          <h3>Qualifikation löschen</h3>
+          <button type="button" class="close-btn" @click="closeQualiDelete"><font-awesome-icon icon="fa-solid fa-times" /></button>
+        </header>
+        <div class="modal-body">
+          <p class="warning-text">Möchtest du die Qualifikation <strong>#{{ qualiDeleteModal.item?.qualificationKey }} – {{ qualiDeleteModal.item?.designation }}</strong> wirklich löschen?</p>
+          <p v-if="qualiDeleteModal.error" class="modal-error">{{ qualiDeleteModal.error }}</p>
+        </div>
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-ghost" @click="closeQualiDelete">Abbrechen</button>
+          <button type="button" class="btn btn-danger" @click="confirmQualiDelete" :disabled="qualiDeleteModal.deleting">
+            <font-awesome-icon :icon="qualiDeleteModal.deleting ? 'fa-solid fa-spinner' : 'fa-solid fa-trash'" :spin="qualiDeleteModal.deleting" />
+            Löschen
+          </button>
+        </footer>
+      </div>
+    </div>
 
     <!-- Edit / Create Modal -->
     <div v-if="editModal.open" class="modal-backdrop" @click.self="closeEdit">
@@ -477,6 +569,7 @@ const asanaUserMap = ref({});
 const AVAILABLE_ROLES = [
   { value: 'ADMIN', label: 'ADMIN' },
   { value: 'VERTRIEB', label: 'VERTRIEB' },
+  { value: 'PAYROLL', label: 'PAYROLL' },
 ];
 
 const auth = useAuth();
@@ -565,11 +658,82 @@ const linkModal = reactive({
   mitarbeiterObj: null,
 });
 
+// ─── Qualifikationen ────────────────────────────────────────────────────────
+const qualifikationen = ref([]);
+const qualiLoading = ref(false);
+const qualiError = ref('');
+const qualiModal = reactive({ open: false, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '' } });
+const qualiDeleteModal = reactive({ open: false, deleting: false, error: '', item: null });
+
+async function fetchQualifikationen() {
+  qualiLoading.value = true;
+  qualiError.value = '';
+  try {
+    const { data } = await api.get('/api/import/qualifikationen');
+    qualifikationen.value = data.data || [];
+  } catch (e) {
+    qualiError.value = e?.response?.data?.message || 'Fehler beim Laden der Qualifikationen.';
+  } finally {
+    qualiLoading.value = false;
+  }
+}
+
+function openQualiCreate() {
+  Object.assign(qualiModal, { open: true, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '' } });
+}
+
+function openQualiEdit(q) {
+  Object.assign(qualiModal, { open: true, isNew: false, id: q._id, saving: false, error: '', form: { qualificationKey: q.qualificationKey, designation: q.designation } });
+}
+
+function closeQualiModal() { qualiModal.open = false; }
+
+async function saveQualifikation() {
+  qualiModal.error = '';
+  qualiModal.saving = true;
+  try {
+    if (qualiModal.isNew) {
+      const { data } = await api.post('/api/import/qualifikationen', qualiModal.form);
+      qualifikationen.value = [...qualifikationen.value, data.data].sort((a, b) => a.qualificationKey - b.qualificationKey);
+    } else {
+      const { data } = await api.put(`/api/import/qualifikationen/${qualiModal.id}`, qualiModal.form);
+      const idx = qualifikationen.value.findIndex(q => q._id === qualiModal.id);
+      if (idx !== -1) qualifikationen.value[idx] = data.data;
+    }
+    closeQualiModal();
+  } catch (e) {
+    qualiModal.error = e?.response?.data?.message || 'Fehler beim Speichern.';
+  } finally {
+    qualiModal.saving = false;
+  }
+}
+
+function openQualiDelete(q) {
+  Object.assign(qualiDeleteModal, { open: true, deleting: false, error: '', item: q });
+}
+
+function closeQualiDelete() { qualiDeleteModal.open = false; }
+
+async function confirmQualiDelete() {
+  qualiDeleteModal.error = '';
+  qualiDeleteModal.deleting = true;
+  try {
+    await api.delete(`/api/import/qualifikationen/${qualiDeleteModal.item._id}`);
+    qualifikationen.value = qualifikationen.value.filter(q => q._id !== qualiDeleteModal.item._id);
+    closeQualiDelete();
+  } catch (e) {
+    qualiDeleteModal.error = e?.response?.data?.message || 'Fehler beim Löschen.';
+  } finally {
+    qualiDeleteModal.deleting = false;
+  }
+}
+
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
 onMounted(async () => {
   await fetchUsers();
   await loadAsanaUserMap();
   await fetchLocations();
+  await fetchQualifikationen();
 });
 
 async function fetchUsers() {
@@ -1050,6 +1214,19 @@ function formatDate(d) {
   h2 { margin: 0; font-size: 1.05rem; }
 }
 
+.qualifikationen {
+  padding-top: 22px;
+}
+.qualifikationen__header {
+  margin-bottom: 12px;
+}
+.qualifikationen__state { color: var(--muted); font-size: 0.85rem; }
+.quali-key {
+  font-family: monospace;
+  font-size: 0.82rem;
+  opacity: 0.75;
+}
+
 .locations__state { color: var(--muted); font-size: 0.85rem; }
 .locations__list { display: grid; gap: 6px; }
 .location-row {
@@ -1136,6 +1313,12 @@ function formatDate(d) {
     background: rgba(59, 130, 246, 0.12);
     color: #3b82f6;
     border: 1px solid #3b82f6;
+  }
+
+  &--payroll {
+    background: rgba(35, 122, 91, 0.12);
+    color: #237a5b;
+    border: 1px solid #237a5b;
   }
 
   &--user {

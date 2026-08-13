@@ -1440,11 +1440,57 @@ router.get('/berufe', async (req, res) => {
 // --- GET all Qualifikationen (for frontend cache) ---
 router.get('/qualifikationen', async (req, res) => {
   try {
-    const qualifikationen = await Qualifikation.find({}).lean();
+    const qualifikationen = await Qualifikation.find({}).sort({ qualificationKey: 1 }).lean();
     res.json({ success: true, data: qualifikationen });
   } catch (error) {
     logger.error('GET Qualifikationen Error:', error);
     res.status(500).json({ success: false, message: 'Fehler beim Abrufen der Qualifikationen.', error: error.message });
+  }
+});
+
+// --- POST create Qualifikation ---
+router.post('/qualifikationen', auth, async (req, res) => {
+  try {
+    const { qualificationKey, designation } = req.body;
+    if (!qualificationKey || !designation) {
+      return res.status(400).json({ success: false, message: 'qualificationKey und designation sind erforderlich.' });
+    }
+    const qual = new Qualifikation({ qualificationKey: parseInt(qualificationKey, 10), designation: designation.trim() });
+    await qual.save();
+    res.status(201).json({ success: true, data: qual });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ success: false, message: 'Ein Eintrag mit diesem Schlüssel existiert bereits.' });
+    logger.error('POST Qualifikation Error:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Erstellen der Qualifikation.', error: error.message });
+  }
+});
+
+// --- PUT update Qualifikation ---
+router.put('/qualifikationen/:id', auth, async (req, res) => {
+  try {
+    const { qualificationKey, designation } = req.body;
+    const update = {};
+    if (qualificationKey !== undefined) update.qualificationKey = parseInt(qualificationKey, 10);
+    if (designation !== undefined) update.designation = designation.trim();
+    const qual = await Qualifikation.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    if (!qual) return res.status(404).json({ success: false, message: 'Qualifikation nicht gefunden.' });
+    res.json({ success: true, data: qual });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ success: false, message: 'Ein Eintrag mit diesem Schlüssel existiert bereits.' });
+    logger.error('PUT Qualifikation Error:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Aktualisieren der Qualifikation.', error: error.message });
+  }
+});
+
+// --- DELETE Qualifikation ---
+router.delete('/qualifikationen/:id', auth, async (req, res) => {
+  try {
+    const qual = await Qualifikation.findByIdAndDelete(req.params.id);
+    if (!qual) return res.status(404).json({ success: false, message: 'Qualifikation nicht gefunden.' });
+    res.json({ success: true, message: 'Qualifikation gelöscht.' });
+  } catch (error) {
+    logger.error('DELETE Qualifikation Error:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Löschen der Qualifikation.', error: error.message });
   }
 });
 
