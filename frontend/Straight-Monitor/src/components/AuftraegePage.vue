@@ -144,6 +144,7 @@
           class="event-card-mobile"
           :class="[getEventStatusClass(event), getBedarfClass(event)]"
           @click="selectEvent(event)"
+          @contextmenu.prevent="openOrderContextMenu($event, event)"
         >
             <img
               :src="docusealLogoImg"
@@ -253,6 +254,7 @@
             class="event-card"
             :class="[getEventStatusClass(event), getBedarfClass(event)]"
             @click="selectEvent(event)"
+            @contextmenu.prevent="openOrderContextMenu($event, event)"
           >
             <img
               :src="docusealLogoImg"
@@ -290,6 +292,18 @@
       </div>
     </div>
     </div><!-- End main-content -->
+
+    <ActionMenu
+      :open="contextMenu.open"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :width="200"
+      title="Auftrag"
+      :items="orderContextMenuItems"
+      :group-by="false"
+      @close="closeOrderContextMenu"
+      @item-click="handleOrderContextMenuAction"
+    />
 
     <!-- Sidebar for Event Details -->
     <transition name="sidebar-slide">
@@ -1189,6 +1203,7 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
+import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
 import laufzettelIcon from '@/assets/laufzettel.png';
 import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
@@ -1199,7 +1214,7 @@ import docusealLogoImg from '@/assets/docuseal-logo.webp';
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge },
+  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu },
   data() {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
@@ -1228,6 +1243,12 @@ export default {
       searchExpanded: false,
       currentWeekStart: null,
       selectedEvent: null,
+      contextMenu: {
+        open: false,
+        x: 0,
+        y: 0,
+        event: null,
+      },
       loadedMonths: new Set(), // Track which months we've loaded
       debounceTimer: null,
       
@@ -1467,6 +1488,16 @@ export default {
       if (!this.selectedEvent) return this.globalLabels;
       const existing = new Set((this.selectedEvent.labels || []).map(l => l.name.toLowerCase()));
       return this.globalLabels.filter(gl => !existing.has(gl.name.toLowerCase()));
+    },
+    orderContextMenuItems() {
+      return [
+        {
+          label: 'Auftrag öffnen',
+          icon: 'fa-solid fa-arrow-up-right-from-square',
+          action: 'open',
+          variant: 'primary',
+        },
+      ];
     },
     activeFilterCount() {
       let count = 0;
@@ -1745,6 +1776,31 @@ export default {
       }
       await this.$nextTick();
       this.selectEvent(auftrag);
+    },
+    openOrderContextMenu(event, auftrag) {
+      if (!auftrag) return;
+      const menuW = 200;
+      const menuH = 80;
+      const x = event.clientX + menuW > window.innerWidth ? event.clientX - menuW : event.clientX;
+      const y = event.clientY + menuH > window.innerHeight ? event.clientY - menuH : event.clientY;
+
+      this.contextMenu = {
+        open: true,
+        x: Math.max(12, x),
+        y: Math.max(12, y),
+        event: auftrag,
+      };
+    },
+    closeOrderContextMenu() {
+      this.contextMenu.open = false;
+      this.contextMenu.event = null;
+    },
+    handleOrderContextMenuAction({ item }) {
+      if (!this.contextMenu.event) return;
+      if (item?.action === 'open') {
+        this.selectEvent(this.contextMenu.event);
+      }
+      this.closeOrderContextMenu();
     },
     onSearchFocusIn(e) {
       const rect = e.currentTarget.getBoundingClientRect();

@@ -58,7 +58,7 @@ const AbsenceLedgerSchema = new mongoose.Schema({
   isCurrent: { type: Boolean, required: true, default: true },
   supersedes: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'AbsenceLedger',
+    ref: 'AbwesenheitsBuch',
     default: null,
     immutable: true,
   },
@@ -295,4 +295,4 @@ AbsenceLedgerSchema.index({ payrollRun: 1, mitarbeiter: 1 });
 AbsenceLedgerSchema.index({ 'providerSync.remoteAbsenceId': 1 }, { sparse: true });
 AbsenceLedgerSchema.index({ source: 1, sourceRef: 1, version: 1 });
 
-module.exports = mongoose.model('AbsenceLedger', AbsenceLedgerSchema);
+module.exports = mongoose.model('AbwesenheitsBuch', AbsenceLedgerSchema);

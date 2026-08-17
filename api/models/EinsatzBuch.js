@@ -23,7 +23,7 @@ const AssignmentLedgerSchema = new mongoose.Schema({
   isCurrent: { type: Boolean, required: true, default: true },
   supersedes: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'AssignmentLedger',
+    ref: 'EinsatzBuch',
     default: null,
     immutable: true,
   },
@@ -330,4 +330,4 @@ AssignmentLedgerSchema.index(
   },
 );
 
-module.exports = mongoose.model('AssignmentLedger', AssignmentLedgerSchema);
+module.exports = mongoose.model('EinsatzBuch', AssignmentLedgerSchema);

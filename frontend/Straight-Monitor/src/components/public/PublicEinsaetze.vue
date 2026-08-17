@@ -125,6 +125,7 @@
           :email="email"
           :mitarbeiter="mitarbeiter"
           :token="activeToken"
+          :public-menu-options="publicMenuOptions"
           @back="goBackFromJob"
           @write-report="writeReportForJob"
         />

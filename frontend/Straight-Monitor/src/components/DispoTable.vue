@@ -1269,54 +1269,17 @@
     </teleport>
 
     <!-- Name Context Menu -->
-    <teleport to="body">
-      <div v-if="nameMenu.open" class="ctx-overlay" @click="closeNameMenu" @contextmenu.prevent="closeNameMenu">
-        <div
-          class="ctx-menu name-ctx-menu"
-          :style="{ top: nameMenu.y + 'px', left: nameMenu.x + 'px' }"
-          @click.stop
-        >
-          <div class="ctx-header">{{ nameMenu.ma?.vorname }} {{ nameMenu.ma?.nachname }}</div>
-          <div class="ctx-divider"></div>
-          <button class="ctx-item" @click="openKarte">
-            <font-awesome-icon icon="fa-solid fa-address-card" class="ctx-item-icon" /> Karte Öffnen
-          </button>
-          <button class="ctx-item" @click="openKwFromNameMenu">
-            <font-awesome-icon icon="fa-solid fa-handshake" class="ctx-item-icon" /> Kundenwunsch hinzufügen
-          </button>
-          <button class="ctx-item" @click="focusNotizFromNameMenu">
-            <font-awesome-icon icon="fa-solid fa-sticky-note" class="ctx-item-icon" /> Notiz bearbeiten
-          </button>
-          <button class="ctx-item ctx-item--verfuegbarkeit" @click="openVerfModal">
-            <font-awesome-icon icon="fa-solid fa-calendar-plus" class="ctx-item-icon" /> Verfügbarkeiten eintragen
-          </button>
-          <button
-            v-if="nameMenu.ma?.telefon"
-            class="ctx-item ctx-item--phone ctx-item--phone-copy"
-            type="button"
-            @click="copyPhoneFromNameMenu"
-          >
-            <font-awesome-icon icon="fa-solid fa-phone" class="ctx-item-icon" />
-            <span class="ctx-phone-text">{{ nameMenu.ma.telefon }}</span>
-            <span
-              class="ctx-phone-copy"
-              :class="{ 'is-copied': copiedPhone }"
-              :title="copiedPhone ? 'Kopiert' : 'Nummer kopieren'"
-              :aria-label="copiedPhone ? 'Kopiert' : 'Nummer kopieren'"
-            >
-              <font-awesome-icon :icon="copiedPhone ? 'fa-solid fa-check' : 'fa-solid fa-copy'" class="ctx-copy-icon" />
-            </span>
-          </button>
-          <div class="ctx-divider"></div>
-          <button v-if="!hiddenIds.has(String(nameMenu.ma?._id))" class="ctx-item ctx-item--hide" @click="hideMA(nameMenu.ma._id)">
-            <font-awesome-icon icon="fa-solid fa-eye-slash" class="ctx-item-icon" /> Ausblenden
-          </button>
-          <button v-else class="ctx-item" @click="unhideMA(nameMenu.ma._id)">
-            <font-awesome-icon icon="fa-solid fa-eye" class="ctx-item-icon" /> Einblenden
-          </button>
-        </div>
-      </div>
-    </teleport>
+    <ActionMenu
+      :open="nameMenu.open"
+      :x="nameMenu.x"
+      :y="nameMenu.y"
+      :title="nameMenu.ma ? `${nameMenu.ma.vorname} ${nameMenu.ma.nachname}` : ''"
+      :items="nameMenuItems"
+      :group-by="false"
+      :close-on-select="true"
+      @close="closeNameMenu"
+      @item-click="handleNameMenuAction"
+    />
 
     <!-- Employee Card Modal -->
     <EmployeeCardModal
@@ -1555,181 +1518,164 @@
     </teleport>
 
     <!-- Cell Context Menu (desktop only — mobile uses bottom-sheet) -->
-    <teleport to="body">
-      <div v-if="ctxMenu.open && !isMobile" class="ctx-overlay" @click="closeCtxMenu" @contextmenu.prevent="closeCtxMenu">
-        <div
-          class="ctx-menu"
-          :style="{ top: ctxMenu.y + 'px', left: ctxMenu.x + 'px' }"
-          @click.stop
-        >
-          <div class="ctx-header">
-            <template v-if="ctxMenu.isMulti">
-              <span v-if="selectionMaCount > 1">{{ selectionMaCount }} Mitarbeiter</span>
-              <span v-else>{{ ctxMenu.ma?.vorname }} {{ ctxMenu.ma?.nachname }}</span>
-              <span class="ctx-multi-label">
-                {{ selectedCells.size }} Felder
-                <template v-if="selectionDateRange && selectionDateRange.from !== selectionDateRange.to">
-                  &nbsp;·&nbsp;{{ formatIsoDate(selectionDateRange.from) }} – {{ formatIsoDate(selectionDateRange.to) }}
-                </template>
-                <template v-else-if="selectionDateRange">
-                  &nbsp;·&nbsp;{{ formatIsoDate(selectionDateRange.from) }}
-                </template>
-              </span>
-            </template>
-            <template v-else>
-              {{ ctxMenu.ma?.vorname }} {{ ctxMenu.ma?.nachname }}
-            </template>
-          </div>
+    <ActionMenu
+      :open="ctxMenu.open && !isMobile"
+      :x="ctxMenu.x"
+      :y="ctxMenu.y"
+      :width="220"
+      :close-on-select="false"
+      :title="ctxMenu.isMulti ? (selectionMaCount > 1 ? `${selectionMaCount} Mitarbeiter` : `${ctxMenu.ma?.vorname || ''} ${ctxMenu.ma?.nachname || ''}`.trim()) : `${ctxMenu.ma?.vorname || ''} ${ctxMenu.ma?.nachname || ''}`.trim()"
+      @close="closeCtxMenu"
+    >
+      <div v-if="ctxMenu.isMulti" class="ctx-multi-label">
+        {{ selectedCells.size }} Felder
+        <template v-if="selectionDateRange && selectionDateRange.from !== selectionDateRange.to">
+          &nbsp;·&nbsp;{{ formatIsoDate(selectionDateRange.from) }} – {{ formatIsoDate(selectionDateRange.to) }}
+        </template>
+        <template v-else-if="selectionDateRange">
+          &nbsp;·&nbsp;{{ formatIsoDate(selectionDateRange.from) }}
+        </template>
+      </div>
 
-          <!-- Existing entries -->
-          <template v-if="ctxMenu.entries.length">
-            <div v-for="entry in ctxMenu.entries" :key="entry._id" class="ctx-entry">
-              <span>
-                <font-awesome-icon v-if="entryIcon(entry)" :icon="entryIcon(entry)" class="ctx-entry-icon" />
-                {{ entryLabel(entry) }}
-                <span v-if="entry.createdAt" class="ctx-entry-ts">· {{ formatEntryTs(entry.createdAt) }}</span>
-              </span>
-              <button v-if="entry._source !== 'einsatz'" class="ctx-delete-btn" @click="deleteEntry(entry._id); closeCtxMenu()">
-                <font-awesome-icon icon="fa-solid fa-trash" />
-              </button>
-            </div>
-            <template v-if="ctxMenu.entries.some(e => e._source === 'einsatz' || e.typ === 'planned')">
-              <div class="ctx-divider"></div>
-              <button
-                v-for="entry in ctxMenu.entries.filter(e => e._source === 'einsatz' || e.typ === 'planned')"
-                :key="'open-' + entry._id"
-                class="ctx-item ctx-item--open"
-                @click="openEinsatz(entry)"
-              >
-                <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" class="ctx-item-icon" />
-                Einsatz öffnen
-              </button>
-            </template>
-            <div class="ctx-divider"></div>
-          </template>
-
-          <!-- Status options -->
-          <template v-for="opt in statusOptions" :key="opt.value">
-            <!-- Eingeschränkt: expandable time picker -->
-            <template v-if="opt.value === 'partially'">
-              <button
-                :class="['ctx-item', 'ctx-item--partially', { active: partiallyTime.open }]"
-                @click="togglePartiallyTime"
-              >
-                <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
-                <font-awesome-icon icon="fa-solid fa-clock" class="ctx-item-clock" />
-              </button>
-              <div v-if="partiallyTime.open" class="ctx-time-picker">
-                <div class="ctx-time-row">
-                  <label>Von</label>
-                  <input type="time" v-model="partiallyTime.zeitVon" />
-                  <label>Bis</label>
-                  <input type="time" v-model="partiallyTime.zeitBis" />
-                </div>
-                <div class="ctx-time-actions">
-                  <button class="ctx-time-confirm" @click="setStatus('partially', partiallyTime.zeitVon || null, partiallyTime.zeitBis || null)">
-                    <font-awesome-icon icon="fa-solid fa-check" /> Speichern
-                  </button>
-                  <button class="ctx-time-skip" @click="setStatus('partially')">Ohne Zeit</button>
-                </div>
-              </div>
-            </template>
-            <!-- Blocked: expandable time picker -->
-            <template v-else-if="opt.value === 'blocked'">
-              <button
-                :class="['ctx-item', 'ctx-item--blocked', { active: blockedTime.open }]"
-                @click="toggleBlockedTime"
-              >
-                <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
-                <font-awesome-icon icon="fa-solid fa-clock" class="ctx-item-clock" />
-              </button>
-              <div v-if="blockedTime.open" class="ctx-time-picker">
-                <div class="ctx-time-row">
-                  <label>Von</label>
-                  <input type="time" v-model="blockedTime.zeitVon" />
-                  <label>Bis</label>
-                  <input type="time" v-model="blockedTime.zeitBis" />
-                </div>
-                <div class="ctx-time-actions">
-                  <button class="ctx-time-confirm" @click="setStatus('blocked', blockedTime.zeitVon || null, blockedTime.zeitBis || null)">
-                    <font-awesome-icon icon="fa-solid fa-check" /> Speichern
-                  </button>
-                  <button class="ctx-time-skip" @click="setStatus('blocked')">Ohne Zeit</button>
-                </div>
-              </div>
-            </template>
-            <!-- Angefragt: composite icon (? badge + phone/flip) -->
-            <button
-              v-else-if="opt.anfragart"
-              class="ctx-item ctx-item--angefragt"
-              @click="setStatus(opt.value)"
-            >
-              <span class="ctx-icon-composite">
-                <font-awesome-icon v-if="opt.anfragart === 'tel'" :icon="opt.icon" class="ctx-icon-main" />
-                <img v-else :src="flipIconUrl" class="ctx-icon-flip" />
-              </span>
-              {{ opt.label }}
-            </button>
-            <!-- All other status options -->
-            <button
-              v-else
-              :class="['ctx-item', `ctx-item--${opt.value}`]"
-              @click="setStatus(opt.value)"
-            >
-              <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
-            </button>
-          </template>
-
-          <div class="ctx-divider"></div>
-
-          <!-- Eingeplant (manuell) -->
-          <button
-            :class="['ctx-item', 'ctx-item--eingeplant', { active: eingeplantPicker.open }]"
-            @click="toggleEingeplantPicker"
-          >
-            <font-awesome-icon icon="fa-solid fa-clipboard-list" class="ctx-item-icon" /> Eingeplant
-          </button>
-          <div v-if="eingeplantPicker.open" class="ctx-eingeplant-picker" @click.stop>
-            <KundeSearch
-              ref="ctxKundeSearchRef"
-              :location-v2="filters.locationV2"
-              placeholder="Kunde wählen…"
-              @select="onEingeplantKundeSelect"
-            />
-            <button class="ctx-time-skip" @click="onEingeplantKundeSelect(null)">Ohne Kunde</button>
-          </div>
-
-          <div class="ctx-divider"></div>
-
-          <!-- Absence options -->
-          <button
-            v-for="opt in absenceOptions"
-            :key="opt.value"
-            class="ctx-item"
-            @click="setAbsence(opt.value)"
-          >
-            <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
-          </button>
-
-          <template v-if="!ctxMenu.isMulti">
-            <div class="ctx-divider"></div>
-            <button class="ctx-item" @click="openChatModal(ctxMenu.ma, { iso: ctxMenu.day })">
-              <font-awesome-icon icon="fa-solid fa-comments" class="ctx-item-icon" />
-              Kommentare
-              <span v-if="getCellUnreadCount(ctxMenu.ma?._id, ctxMenu.day) > 0" class="ctx-unread-badge">
-                {{ getCellUnreadCount(ctxMenu.ma?._id, ctxMenu.day) }}
-              </span>
-            </button>
-          </template>
-
-          <div class="ctx-divider"></div>
-
-          <button class="ctx-item ctx-item--clear" @click="clearStatus">
-            <font-awesome-icon icon="fa-solid fa-eraser" class="ctx-item-icon" /> Löschen
+      <template v-if="ctxMenu.entries.length">
+        <div v-for="entry in ctxMenu.entries" :key="entry._id" class="ctx-entry">
+          <span>
+            <font-awesome-icon v-if="entryIcon(entry)" :icon="entryIcon(entry)" class="ctx-entry-icon" />
+            {{ entryLabel(entry) }}
+            <span v-if="entry.createdAt" class="ctx-entry-ts">· {{ formatEntryTs(entry.createdAt) }}</span>
+          </span>
+          <button v-if="entry._source !== 'einsatz'" class="ctx-delete-btn" @click="deleteEntry(entry._id); closeCtxMenu()">
+            <font-awesome-icon icon="fa-solid fa-trash" />
           </button>
         </div>
+        <template v-if="ctxMenu.entries.some(e => e._source === 'einsatz' || e.typ === 'planned')">
+          <div class="ctx-divider"></div>
+          <button
+            v-for="entry in ctxMenu.entries.filter(e => e._source === 'einsatz' || e.typ === 'planned')"
+            :key="'open-' + entry._id"
+            class="ctx-item ctx-item--open"
+            @click="openEinsatz(entry)"
+          >
+            <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" class="ctx-item-icon" />
+            Einsatz öffnen
+          </button>
+        </template>
+        <div class="ctx-divider"></div>
+      </template>
+
+      <template v-for="opt in statusOptions" :key="opt.value">
+        <template v-if="opt.value === 'partially'">
+          <button
+            :class="['ctx-item', 'ctx-item--partially', { active: partiallyTime.open }]"
+            @click="togglePartiallyTime"
+          >
+            <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
+            <font-awesome-icon icon="fa-solid fa-clock" class="ctx-item-clock" />
+          </button>
+          <div v-if="partiallyTime.open" class="ctx-time-picker">
+            <div class="ctx-time-row">
+              <label>Von</label>
+              <input type="time" v-model="partiallyTime.zeitVon" />
+              <label>Bis</label>
+              <input type="time" v-model="partiallyTime.zeitBis" />
+            </div>
+            <div class="ctx-time-actions">
+              <button class="ctx-time-confirm" @click="setStatus('partially', partiallyTime.zeitVon || null, partiallyTime.zeitBis || null)">
+                <font-awesome-icon icon="fa-solid fa-check" /> Speichern
+              </button>
+              <button class="ctx-time-skip" @click="setStatus('partially')">Ohne Zeit</button>
+            </div>
+          </div>
+        </template>
+        <template v-else-if="opt.value === 'blocked'">
+          <button
+            :class="['ctx-item', 'ctx-item--blocked', { active: blockedTime.open }]"
+            @click="toggleBlockedTime"
+          >
+            <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
+            <font-awesome-icon icon="fa-solid fa-clock" class="ctx-item-clock" />
+          </button>
+          <div v-if="blockedTime.open" class="ctx-time-picker">
+            <div class="ctx-time-row">
+              <label>Von</label>
+              <input type="time" v-model="blockedTime.zeitVon" />
+              <label>Bis</label>
+              <input type="time" v-model="blockedTime.zeitBis" />
+            </div>
+            <div class="ctx-time-actions">
+              <button class="ctx-time-confirm" @click="setStatus('blocked', blockedTime.zeitVon || null, blockedTime.zeitBis || null)">
+                <font-awesome-icon icon="fa-solid fa-check" /> Speichern
+              </button>
+              <button class="ctx-time-skip" @click="setStatus('blocked')">Ohne Zeit</button>
+            </div>
+          </div>
+        </template>
+        <button
+          v-else-if="opt.anfragart"
+          class="ctx-item ctx-item--angefragt"
+          @click="setStatus(opt.value)"
+        >
+          <span class="ctx-icon-composite">
+            <font-awesome-icon v-if="opt.anfragart === 'tel'" :icon="opt.icon" class="ctx-icon-main" />
+            <img v-else :src="flipIconUrl" class="ctx-icon-flip" />
+          </span>
+          {{ opt.label }}
+        </button>
+        <button
+          v-else
+          :class="['ctx-item', `ctx-item--${opt.value}`]"
+          @click="setStatus(opt.value)"
+        >
+          <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
+        </button>
+      </template>
+
+      <div class="ctx-divider"></div>
+
+      <button
+        :class="['ctx-item', 'ctx-item--eingeplant', { active: eingeplantPicker.open }]"
+        @click="toggleEingeplantPicker"
+      >
+        <font-awesome-icon icon="fa-solid fa-clipboard-list" class="ctx-item-icon" /> Eingeplant
+      </button>
+      <div v-if="eingeplantPicker.open" class="ctx-eingeplant-picker" @click.stop>
+        <KundeSearch
+          ref="ctxKundeSearchRef"
+          :location-v2="filters.locationV2"
+          placeholder="Kunde wählen…"
+          @select="onEingeplantKundeSelect"
+        />
+        <button class="ctx-time-skip" @click="onEingeplantKundeSelect(null)">Ohne Kunde</button>
       </div>
-    </teleport>
+
+      <div class="ctx-divider"></div>
+
+      <button
+        v-for="opt in absenceOptions"
+        :key="opt.value"
+        class="ctx-item"
+        @click="setAbsence(opt.value)"
+      >
+        <font-awesome-icon :icon="opt.icon" class="ctx-item-icon" /> {{ opt.label }}
+      </button>
+
+      <template v-if="!ctxMenu.isMulti">
+        <div class="ctx-divider"></div>
+        <button class="ctx-item" @click="openChatModal(ctxMenu.ma, { iso: ctxMenu.day })">
+          <font-awesome-icon icon="fa-solid fa-comments" class="ctx-item-icon" />
+          Kommentare
+          <span v-if="getCellUnreadCount(ctxMenu.ma?._id, ctxMenu.day) > 0" class="ctx-unread-badge">
+            {{ getCellUnreadCount(ctxMenu.ma?._id, ctxMenu.day) }}
+          </span>
+        </button>
+      </template>
+
+      <div class="ctx-divider"></div>
+
+      <button class="ctx-item ctx-item--clear" @click="clearStatus">
+        <font-awesome-icon icon="fa-solid fa-eraser" class="ctx-item-icon" /> Löschen
+      </button>
+    </ActionMenu>
   </div>
   </Transition>
 </template>
@@ -1757,6 +1703,7 @@ import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
+import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
 
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import HelpModal from '@/components/HelpModal.vue';
@@ -2250,6 +2197,66 @@ const nameMenu = reactive({
 });
 const copiedPhone = ref(false);
 let _copiedPhoneTimer = null;
+
+const nameMenuItems = computed(() => {
+  if (!nameMenu.ma) return [];
+  const isHidden = hiddenIds.has(String(nameMenu.ma?._id));
+  const phone = (nameMenu.ma?.telefon || '').trim();
+
+  return [
+    { label: 'Karte Öffnen', icon: 'fa-solid fa-address-card', action: 'karte', variant: 'primary' },
+    { label: 'Kundenwunsch hinzufügen', icon: 'fa-solid fa-handshake', action: 'kundenwunsch', variant: 'primary' },
+    { label: 'Notiz bearbeiten', icon: 'fa-solid fa-sticky-note', action: 'notiz', variant: 'primary' },
+    { label: 'Verfügbarkeiten eintragen', icon: 'fa-solid fa-calendar-plus', action: 'verf', variant: 'primary' },
+    ...(phone
+      ? [{
+          label: phone,
+          icon: 'fa-solid fa-phone',
+          action: 'copyPhone',
+          color: '#10b981',
+          iconRight: copiedPhone.value ? 'fa-solid fa-check' : 'fa-solid fa-copy',
+          badge: copiedPhone.value ? '✓' : undefined,
+        }]
+      : []),
+    { type: 'divider' },
+    {
+      label: isHidden ? 'Einblenden' : 'Ausblenden',
+      icon: isHidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash',
+      action: isHidden ? 'unhide' : 'hide',
+      variant: 'muted',
+    },
+  ];
+});
+
+function handleNameMenuAction({ item }) {
+  if (!item) return;
+
+  switch (item.action) {
+    case 'karte':
+      openKarte();
+      break;
+    case 'kundenwunsch':
+      openKwFromNameMenu();
+      break;
+    case 'notiz':
+      focusNotizFromNameMenu();
+      break;
+    case 'verf':
+      openVerfModal();
+      break;
+    case 'copyPhone':
+      copyPhoneFromNameMenu();
+      break;
+    case 'hide':
+      hideMA(nameMenu.ma?._id);
+      break;
+    case 'unhide':
+      unhideMA(nameMenu.ma?._id);
+      break;
+    default:
+      break;
+  }
+}
 
 function openNameMenu(event, ma) {
   const menuW = 240;

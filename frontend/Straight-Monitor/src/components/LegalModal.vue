@@ -1,44 +1,78 @@
 <template>
   <teleport to="body">
     <transition name="modal">
-      <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
-        <div class="modal-container" role="dialog" aria-modal="true">
+      <div
+        v-if="show"
+        class="modal-overlay"
+        @click.self="$emit('close')"
+      >
+        <div
+          class="modal-container"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="`legal-modal-title-${type}`"
+        >
           <div class="modal-header">
-            <h2>{{ title }}</h2>
-            <button class="close-btn" @click="$emit('close')" aria-label="Schließen">
+            <h2 :id="`legal-modal-title-${type}`">
+              {{ title }}
+            </h2>
+
+            <button
+              class="close-btn"
+              type="button"
+              @click="$emit('close')"
+              aria-label="Schließen"
+            >
               <font-awesome-icon :icon="['fas', 'times']" />
             </button>
           </div>
-          
+
           <div class="modal-body">
-            <!-- Datenschutz Content -->
-            <div v-if="type === 'privacy'" class="legal-content">
+            <!-- =========================================================
+                 DATENSCHUTZHINWEISE
+            ========================================================== -->
+            <div
+              v-if="type === 'privacy'"
+              class="legal-content"
+            >
               <section>
                 <h3>1. Verantwortlicher</h3>
+
+                <p>
+                  Verantwortlicher für die Verarbeitung personenbezogener Daten
+                  im Rahmen von StraightMonitor und Public Monitor ist:
+                </p>
+
                 <p>
                   <strong>H. & P. Straightforward GmbH</strong><br>
                   Straßmannstraße 6<br>
                   10249 Berlin<br>
                   Deutschland
                 </p>
+
                 <p>
-                  Telefon: +49 030 702 39 333<br>
+                  Telefon: +49 30 702 39 333<br>
                   E-Mail: it@straightforward.email
                 </p>
               </section>
 
               <section>
-                <h3>2. Datenschutzbeauftragter</h3>
+                <h3>2. Datenschutzbeauftragte</h3>
+
                 <p>
-                  Als Datenschutzbeauftragten haben wir bestellt:<br>
-                  <strong>Alexandra Gridneva</strong>
+                  Als Datenschutzbeauftragte haben wir bestellt:
                 </p>
+
                 <p>
-                  Bei Fragen zum Datenschutz erreichen Sie Frau Gridneva unter:<br>
+                  <strong>Alexandra Gridneva</strong><br>
                   E-Mail: ag@straightforward.email
                 </p>
+
                 <p>
-                  Oder per Post:<br>
+                  Postalisch erreichbar unter:
+                </p>
+
+                <p>
                   H. & P. Straightforward GmbH<br>
                   – Datenschutz –<br>
                   Straßmannstraße 6<br>
@@ -47,128 +81,577 @@
               </section>
 
               <section>
-                <h3>3. Art und Zweck der Datenverarbeitung</h3>
+                <h3>3. Zweck von StraightMonitor und Public Monitor</h3>
+
                 <p>
-                  Dieses System dient ausschließlich der internen Personalverwaltung und 
-                  Bestandsüberwachung für Mitarbeiter der H. & P. Straightforward GmbH.
+                  StraightMonitor ist ein internes System zur Organisation,
+                  Verwaltung und Durchführung von Beschäftigungs-, Personal-,
+                  Einsatz- und Verwaltungsprozessen der
+                  H. & P. Straightforward GmbH.
                 </p>
-                
-                <h4>Verarbeitete Daten:</h4>
+
+                <p>
+                  Public Monitor ist die mit StraightMonitor verbundene
+                  Mitarbeiteroberfläche. Sie kann insbesondere innerhalb der
+                  Flip-App bereitgestellt werden und ermöglicht Beschäftigten
+                  und Teamleitungen den Zugriff auf für sie bestimmte
+                  Funktionen und Informationen.
+                </p>
+
+                <p>
+                  Personenbezogene Daten werden insbesondere verarbeitet, um
+                  Beschäftigungsverhältnisse zu verwalten, Einsätze zu planen
+                  und durchzuführen, Arbeitszeiten zu dokumentieren,
+                  Personalunterlagen zu verwalten sowie Lohnabrechnung,
+                  Abrechnungsvorbereitung und betriebliche Verwaltungsprozesse
+                  durchzuführen.
+                </p>
+              </section>
+
+              <section>
+                <h3>4. Verarbeitete Daten</h3>
+
+                <p>
+                  Je nach Beschäftigungsverhältnis, Rolle und Nutzung des
+                  Systems können insbesondere folgende Daten verarbeitet werden:
+                </p>
+
+                <h4>Stamm- und Kontaktdaten</h4>
                 <ul>
-                  <li><strong>Stammdaten:</strong> Name, E-Mail-Adresse, Personalnummer</li>
-                  <li><strong>Beschäftigungsdaten:</strong> Abteilung, Position, Standort (Berlin, Hamburg, Köln)</li>
-                  <li><strong>Systemdaten:</strong> Login-Zeitpunkte, IP-Adressen (Server-Logfiles)</li>
-                  <li><strong>Arbeitsdaten:</strong> Dokumentenverwaltung, Aufgabenzuordnungen</li>
+                  <li>Name, Vorname</li>
+                  <li>E-Mail-Adresse und Telefonnummer</li>
+                  <li>Personalnummer und interne Identifikationsnummern</li>
+                  <li>Standort und organisatorische Zuordnung</li>
+                  <li>Benutzer- und Systemkennungen</li>
                 </ul>
 
-                <h4>Rechtsgrundlage:</h4>
-                <p>
-                  Die Verarbeitung erfolgt gemäß <strong>Art. 6 Abs. 1 lit. b DSGVO</strong> 
-                  (Vertragserfüllung) und <strong>Art. 88 DSGVO</strong> i.V.m. § 26 BDSG 
-                  (Beschäftigtendatenschutz) im Rahmen Ihres Arbeitsverhältnisses.
-                </p>
-              </section>
-
-              <section>
-                <h3>4. Erfassung von Daten</h3>
-                <p>
-                  Während Sie auf dieses System zugreifen, erfassen wir automatisch Daten von 
-                  allgemeiner Natur (Server-Logfiles). Diese umfassen:
-                </p>
+                <h4>Beschäftigungs- und Vertragsdaten</h4>
                 <ul>
-                  <li>IP-Adresse (anonymisiert)</li>
-                  <li>Browser-Typ und -Version</li>
-                  <li>Betriebssystem</li>
-                  <li>Zugriffszeitpunkt</li>
+                  <li>Eintritts- und Austrittsdaten</li>
+                  <li>Beschäftigungsart und Vertragsinformationen</li>
+                  <li>Tätigkeiten, Rollen und Qualifikationen</li>
+                  <li>Entgelt- und Tarifzuordnungen, soweit erforderlich</li>
+                  <li>arbeitsbezogene Zuordnungen und Statusinformationen</li>
                 </ul>
-                <p>
-                  Diese Daten werden zur Sicherstellung der Systemstabilität und -sicherheit 
-                  sowie zur technischen Administration benötigt.
-                </p>
-              </section>
 
-              <section>
-                <h3>5. Speicherdauer</h3>
-                <p>
-                  Ihre Daten werden für die Dauer Ihres Beschäftigungsverhältnisses gespeichert.
-                  Nach Beendigung des Arbeitsverhältnisses werden die Daten gemäß den gesetzlichen 
-                  Aufbewahrungsfristen (i.d.R. 10 Jahre für steuerrechtlich relevante Daten) archiviert 
-                  und anschließend gelöscht.
-                </p>
-              </section>
-
-              <section>
-                <h3>6. Empfänger der Daten</h3>
-                <p>
-                  Zugriff auf Ihre Daten haben ausschließlich:
-                </p>
+                <h4>Einsatz- und Veranstaltungsdaten</h4>
                 <ul>
-                  <li>Berechtigte Mitarbeiter der Personalabteilung</li>
-                  <li>Ihre direkten Vorgesetzten (soweit erforderlich)</li>
-                  <li>IT-Administration (für technischen Support)</li>
+                  <li>zugewiesene Aufträge, Veranstaltungen und Einsätze</li>
+                  <li>Datum, Einsatzort und Einsatzbetrieb</li>
+                  <li>geplante Arbeits- und Schichtzeiten</li>
+                  <li>Tätigkeit und Funktion im jeweiligen Einsatz</li>
+                  <li>Treffpunkte und einsatzbezogene Ansprechpartner</li>
+                  <li>Team- und Teamleitungszuordnungen</li>
                 </ul>
-                <p>
-                  Eine Weitergabe an Dritte erfolgt nicht, außer zur Erfüllung gesetzlicher Pflichten 
-                  (z.B. Sozialversicherungsträger, Finanzamt, Agentur für Arbeit).
-                </p>
-              </section>
 
-              <section>
-                <h3>7. Ihre Rechte</h3>
-                <p>Sie haben folgende Rechte gemäß DSGVO:</p>
+                <h4>Arbeitszeit- und Anwesenheitsdaten</h4>
                 <ul>
-                  <li><strong>Art. 15 DSGVO:</strong> Auskunft über Ihre gespeicherten Daten</li>
-                  <li><strong>Art. 16 DSGVO:</strong> Berichtigung unrichtiger Daten</li>
-                  <li><strong>Art. 17 DSGVO:</strong> Löschung (soweit keine Aufbewahrungspflichten bestehen)</li>
-                  <li><strong>Art. 18 DSGVO:</strong> Einschränkung der Verarbeitung / Sperrung</li>
-                  <li><strong>Art. 21 DSGVO:</strong> Widerspruch gegen die Verarbeitung</li>
-                  <li><strong>Art. 77 DSGVO:</strong> Beschwerde bei der Aufsichtsbehörde</li>
+                  <li>Arbeitsbeginn und Arbeitsende</li>
+                  <li>Check-In- und Check-Out-Zeitpunkte</li>
+                  <li>Pausenzeiten</li>
+                  <li>Ist-Arbeitszeiten</li>
+                  <li>Abweichungen von geplanten Arbeitszeiten</li>
+                  <li>Zeitkorrekturen und Korrekturanträge</li>
+                  <li>Freigaben und Änderungen durch berechtigte Personen</li>
+                  <li>Anwesenheits- und No-Show-Status</li>
                 </ul>
-                <p>
-                  Für die Ausübung Ihrer Rechte wenden Sie sich bitte an:<br>
-                  <strong>ag@straightforward.email</strong> (Datenschutzbeauftragte)
-                </p>
-                <p>
-                  Gesperrte Daten werden in einer speziellen Sperrdatei zu Kontrollzwecken verwahrt.
-                  Wenn die gesetzliche Archivierungsverpflichtung abgelaufen ist, können Sie auch 
-                  die Löschung der Daten verlangen.
-                </p>
-              </section>
 
-              <section>
-                <h3>8. Datensicherheit</h3>
-                <p>
-                  Wir setzen technische und organisatorische Sicherheitsmaßnahmen ein, um Ihre Daten 
-                  gegen zufällige oder vorsätzliche Manipulationen, Verlust, Zerstörung oder den Zugriff 
-                  unberechtigter Personen zu schützen:
-                </p>
+                <h4>Job-, Bewerbungs- und Verfügbarkeitsdaten</h4>
                 <ul>
-                  <li><strong>SSL/TLS-Verschlüsselung:</strong> Alle Datenübertragungen sind verschlüsselt</li>
-                  <li><strong>Passwort-Sicherheit:</strong> Passwörter werden mittels bcrypt-Hashing (Salt + Hash) verschlüsselt gespeichert und sind nicht im Klartext einsehbar</li>
-                  <li><strong>Zugriffskontrolle:</strong> Passwortgeschützte Zugänge mit individuellen Berechtigungen</li>
-                  <li><strong>Sicherheitsaudits:</strong> Regelmäßige Überprüfungen und Updates</li>
-                  <li><strong>Logging & Monitoring:</strong> Protokollierung aller Systemzugriffe zur Nachvollziehbarkeit</li>
-                  <li><strong>Versicherungsschutz:</strong> Berufshaftpflichtversicherung bei Allianz Versicherungs-AG, 10900 Berlin</li>
+                  <li>Bewerbungen auf interne Job- und Einsatzangebote</li>
+                  <li>Bewerbungsstatus</li>
+                  <li>Verfügbarkeiten und Nichtverfügbarkeiten</li>
+                  <li>Zu- und Absagen sowie Einsatzbestätigungen</li>
+                </ul>
+
+                <h4>Personal- und Beschäftigtendokumente</h4>
+                <ul>
+                  <li>Arbeits- und Vertragsdokumente</li>
+                  <li>Bescheinigungen und Nachweise</li>
+                  <li>Qualifikationsnachweise</li>
+                  <li>Dokumentstatus und Gültigkeitszeiträume</li>
+                  <li>von Beschäftigten hochgeladene Unterlagen</li>
+                </ul>
+
+                <h4>Abwesenheitsdaten</h4>
+                <ul>
+                  <li>Urlaub</li>
+                  <li>Krankheitszeiträume</li>
+                  <li>sonstige abrechnungs- oder beschäftigungsrelevante Abwesenheiten</li>
+                </ul>
+
+                <p>
+                  Gesundheitsdaten, insbesondere Informationen über
+                  Krankheitszeiträume, werden nur verarbeitet, soweit dies für
+                  die Durchführung des Beschäftigungsverhältnisses oder zur
+                  Erfüllung arbeits-, sozialversicherungs- oder
+                  abrechnungsrechtlicher Pflichten erforderlich ist.
+                  Diagnosen werden grundsätzlich nicht für Zwecke der
+                  Einsatzplanung gespeichert.
+                </p>
+
+                <h4>Lohn- und Abrechnungsdaten</h4>
+                <ul>
+                  <li>abrechnungsrelevante Arbeitszeiten</li>
+                  <li>Entgelt- und Tarifinformationen</li>
+                  <li>Zuschlags- und Abrechnungsinformationen</li>
+                  <li>abrechnungsrelevante Abwesenheiten</li>
+                  <li>Lohnabrechnungs- und Ergebnisdaten</li>
+                  <li>Abrechnungsdokumente</li>
+                </ul>
+
+                <h4>Teamleitungs- und Veranstaltungsdaten</h4>
+                <ul>
+                  <li>Laufzettel</li>
+                  <li>Evaluierungen</li>
+                  <li>Event Reports</li>
+                  <li>einsatzbezogene Rückmeldungen</li>
+                  <li>operative Statusinformationen</li>
+                </ul>
+
+                <h4>Technische Nutzungs- und Sicherheitsdaten</h4>
+                <ul>
+                  <li>Login- und Authentifizierungsereignisse</li>
+                  <li>Zugriffszeitpunkte</li>
+                  <li>IP-Adressen, soweit technisch protokolliert</li>
+                  <li>Browser- und Geräteinformationen</li>
+                  <li>System-, Fehler- und Sicherheitsprotokolle</li>
                 </ul>
               </section>
 
               <section>
-                <h3>9. Änderung der Datenschutzbestimmungen</h3>
+                <h3>5. Herkunft der Daten</h3>
+
                 <p>
-                  Unsere Datenschutzerklärung kann in unregelmäßigen Abständen angepasst werden, 
-                  damit sie den aktuellen rechtlichen Anforderungen entspricht oder um Änderungen 
-                  unserer Dienstleistungen umzusetzen. Für Ihren nächsten Besuch gilt dann 
-                  automatisch die neue Datenschutzerklärung.
+                  Personenbezogene Daten können insbesondere aus folgenden
+                  Quellen stammen:
+                </p>
+
+                <ul>
+                  <li>direkt von Ihnen</li>
+                  <li>von berechtigten Mitarbeitern der Personalabteilung oder Disposition</li>
+                  <li>von Teamleitungen im Rahmen eines konkreten Einsatzes</li>
+                  <li>aus bestehenden Personal- und Verwaltungssystemen</li>
+                  <li>aus angebundenen Mitarbeiter- und Kommunikationsplattformen</li>
+                  <li>aus angebundenen Lohn- und Abrechnungssystemen</li>
+                  <li>aus technischen Authentifizierungs- und Systemdiensten</li>
+                </ul>
+
+                <p>
+                  Soweit Daten aus anderen betrieblichen Systemen übernommen
+                  werden, erfolgt dies ausschließlich für die jeweils
+                  erforderlichen Beschäftigungs- und Verwaltungszwecke.
                 </p>
               </section>
 
-              <p class="last-updated">Stand: {{ new Date().toLocaleDateString('de-DE') }}</p>
+              <section>
+                <h3>6. Zwecke der Verarbeitung</h3>
+
+                <p>
+                  Die Verarbeitung erfolgt insbesondere für folgende Zwecke:
+                </p>
+
+                <ul>
+                  <li>Durchführung und Verwaltung des Beschäftigungsverhältnisses</li>
+                  <li>Personalverwaltung</li>
+                  <li>Einsatz-, Auftrags- und Veranstaltungsplanung</li>
+                  <li>Disposition und Besetzung von Einsätzen</li>
+                  <li>Verwaltung von Verfügbarkeiten</li>
+                  <li>Bereitstellung und Verwaltung interner Jobangebote</li>
+                  <li>Dokumentation und Prüfung von Arbeitszeiten</li>
+                  <li>Check-In- und Anwesenheitsmanagement</li>
+                  <li>Bearbeitung von Arbeitszeitkorrekturen</li>
+                  <li>Urlaubs- und Abwesenheitsverwaltung</li>
+                  <li>Verwaltung und Prüfung von Beschäftigtendokumenten</li>
+                  <li>Erfüllung tariflicher und arbeitsrechtlicher Pflichten</li>
+                  <li>Vorbereitung und Durchführung der Lohnabrechnung</li>
+                  <li>Erstellung abrechnungs- und buchhaltungsrelevanter Daten</li>
+                  <li>interne Qualitätssicherung und Dokumentation von Einsätzen</li>
+                  <li>IT-Sicherheit, Fehleranalyse und Missbrauchsprävention</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3>7. Rechtsgrundlagen</h3>
+
+                <p>
+                  Die Verarbeitung personenbezogener Beschäftigtendaten erfolgt
+                  insbesondere auf Grundlage von
+                  <strong>§ 26 BDSG</strong> in Verbindung mit
+                  <strong>Art. 6 Abs. 1 DSGVO</strong>, soweit die Verarbeitung
+                  für die Begründung, Durchführung oder Beendigung des
+                  Beschäftigungsverhältnisses erforderlich ist.
+                </p>
+
+                <p>
+                  Soweit gesetzliche Verpflichtungen bestehen, erfolgt die
+                  Verarbeitung insbesondere auf Grundlage von
+                  <strong>Art. 6 Abs. 1 lit. c DSGVO</strong>.
+                </p>
+
+                <p>
+                  Soweit eine Verarbeitung zur Wahrung berechtigter betrieblicher
+                  Interessen erforderlich ist und keine überwiegenden Interessen
+                  der betroffenen Person entgegenstehen, kann die Verarbeitung
+                  auf <strong>Art. 6 Abs. 1 lit. f DSGVO</strong> gestützt werden.
+                  Dies kann insbesondere Maßnahmen zur IT- und Systemsicherheit
+                  betreffen.
+                </p>
+
+                <p>
+                  Besondere Kategorien personenbezogener Daten, insbesondere
+                  Gesundheitsdaten, werden nur verarbeitet, wenn hierfür eine
+                  besondere Rechtsgrundlage besteht. Im Beschäftigungskontext
+                  erfolgt dies insbesondere nach
+                  <strong>Art. 9 Abs. 2 DSGVO</strong> in Verbindung mit
+                  <strong>§ 26 Abs. 3 BDSG</strong>.
+                </p>
+              </section>
+
+              <section>
+                <h3>8. Empfänger und Zugriff auf Daten</h3>
+
+                <p>
+                  Innerhalb der H. & P. Straightforward GmbH erhalten nur
+                  diejenigen Personen Zugriff auf personenbezogene Daten, die
+                  diese zur Erfüllung ihrer jeweiligen Aufgaben benötigen.
+                </p>
+
+                <p>
+                  Dies können insbesondere sein:
+                </p>
+
+                <ul>
+                  <li>Personalabteilung</li>
+                  <li>Disposition</li>
+                  <li>Lohn- und Finanzbuchhaltung</li>
+                  <li>berechtigte Führungskräfte</li>
+                  <li>Teamleitungen, beschränkt auf erforderliche Einsatzdaten</li>
+                  <li>IT-Administration, soweit dies technisch erforderlich ist</li>
+                </ul>
+
+                <p>
+                  Je nach Prozess können Daten außerdem an folgende Kategorien
+                  von Empfängern übermittelt oder durch diese verarbeitet werden:
+                </p>
+
+                <ul>
+                  <li>Lohn- und Abrechnungsdienstleister</li>
+                  <li>Hosting- und Cloud-Infrastrukturanbieter</li>
+                  <li>Datenbank- und Speicheranbieter</li>
+                  <li>Authentifizierungs- und Mitarbeiterplattformen</li>
+                  <li>E-Mail- und Kommunikationsdienstleister</li>
+                  <li>Dokumenten- und Signaturdienstleister</li>
+                  <li>betriebliche Integrations- und Projektmanagementsysteme</li>
+                  <li>Kunden oder Einsatzbetriebe, soweit dies für einen konkreten Einsatz erforderlich ist</li>
+                  <li>Sozialversicherungsträger</li>
+                  <li>Finanzbehörden</li>
+                  <li>Bundesagentur für Arbeit und andere zuständige Behörden</li>
+                  <li>sonstige gesetzlich berechtigte Empfänger</li>
+                </ul>
+
+                <p>
+                  Externe Dienstleister werden, soweit erforderlich, auf Grundlage
+                  entsprechender datenschutzrechtlicher Verträge eingesetzt und
+                  dürfen personenbezogene Daten nur im Rahmen des vereinbarten
+                  Zwecks verarbeiten.
+                </p>
+              </section>
+
+              <section>
+                <h3>9. Cloud-Dienste und Datenübermittlungen</h3>
+
+                <p>
+                  StraightMonitor nutzt zur Bereitstellung des Systems
+                  verschiedene Cloud-, Datenbank-, Speicher- und
+                  Integrationsdienste.
+                </p>
+
+                <p>
+                  Soweit externe Dienstleister personenbezogene Daten im Auftrag
+                  verarbeiten, werden diese als Auftragsverarbeiter entsprechend
+                  den datenschutzrechtlichen Anforderungen eingebunden.
+                </p>
+
+                <p>
+                  Wir achten bei der Auswahl und Konfiguration unserer
+                  Infrastruktur auf einen angemessenen Schutz personenbezogener
+                  Daten und nutzen, soweit technisch und organisatorisch
+                  vorgesehen, europäische Datenstandorte.
+                </p>
+
+                <p>
+                  Soweit im Rahmen einzelner Dienste eine Verarbeitung außerhalb
+                  der Europäischen Union oder des Europäischen Wirtschaftsraums
+                  stattfindet, erfolgt eine solche Übermittlung nur, wenn die
+                  gesetzlichen Voraussetzungen für internationale
+                  Datenübermittlungen erfüllt sind.
+                </p>
+              </section>
+
+              <section>
+                <h3>10. Authentifizierung und Public Monitor</h3>
+
+                <p>
+                  Public Monitor kann innerhalb der Flip-App bereitgestellt
+                  werden. Die Anmeldung erfolgt dabei über eine technische
+                  Authentifizierung, sodass Beschäftigte für den Zugriff auf
+                  Public Monitor grundsätzlich kein zusätzliches
+                  StraightMonitor-Passwort eingeben müssen.
+                </p>
+
+                <p>
+                  Die aus der Authentifizierung gewonnenen Identitätsmerkmale
+                  werden verwendet, um den jeweiligen Benutzer eindeutig
+                  zuzuordnen und sicherzustellen, dass ausschließlich die für
+                  ihn vorgesehenen Daten und Funktionen bereitgestellt werden.
+                </p>
+              </section>
+
+              <section>
+                <h3>11. Arbeitszeit- und Anwesenheitserfassung</h3>
+
+                <p>
+                  StraightMonitor und Public Monitor können zur Dokumentation
+                  von Arbeitszeiten und Anwesenheiten eingesetzt werden.
+                </p>
+
+                <p>
+                  Hierbei können insbesondere Check-In, Check-Out,
+                  Arbeitsbeginn, Arbeitsende, Pausen sowie nachträgliche
+                  Zeitkorrekturen erfasst werden.
+                </p>
+
+                <p>
+                  Zeitdaten können durch berechtigte Teamleitungen oder
+                  Verwaltungsmitarbeiter geprüft und freigegeben werden.
+                  Änderungen und Freigaben können zur Nachvollziehbarkeit
+                  protokolliert werden.
+                </p>
+
+                <p>
+                  Eine dauerhafte Überwachung oder Erstellung von
+                  Bewegungsprofilen ist nicht Zweck der Arbeitszeiterfassung.
+                </p>
+              </section>
+
+              <section>
+                <h3>12. Dokumentenmanagement</h3>
+
+                <p>
+                  Beschäftigte können über StraightMonitor oder Public Monitor
+                  Dokumente bereitgestellt bekommen oder selbst Dokumente
+                  hochladen.
+                </p>
+
+                <p>
+                  Dokumente werden nur für die jeweils erforderlichen Personal-,
+                  Beschäftigungs-, Nachweis- oder Abrechnungszwecke verarbeitet.
+                  Der Zugriff wird auf berechtigte Personen und den jeweiligen
+                  Beschäftigten beschränkt.
+                </p>
+              </section>
+
+              <section>
+                <h3>13. Lohn- und Gehaltsabrechnung</h3>
+
+                <p>
+                  Für die Vorbereitung und Durchführung der Lohn- und
+                  Gehaltsabrechnung können abrechnungsrelevante Daten aus
+                  StraightMonitor an ein angebundenes Lohnabrechnungssystem oder
+                  einen beauftragten Abrechnungsdienstleister übermittelt werden.
+                </p>
+
+                <p>
+                  Dies betrifft insbesondere Mitarbeiterstammdaten,
+                  Beschäftigungsdaten, freigegebene Arbeitszeiten,
+                  Abwesenheiten, Entgeltinformationen und sonstige für die
+                  Abrechnung erforderliche Angaben.
+                </p>
+
+                <p>
+                  Ergebnisse und Dokumente aus der Lohnabrechnung können
+                  anschließend wieder in StraightMonitor übernommen und dem
+                  jeweils berechtigten Beschäftigten zur Verfügung gestellt
+                  werden.
+                </p>
+              </section>
+
+              <section>
+                <h3>14. Speicherdauer und Löschung</h3>
+
+                <p>
+                  Personenbezogene Daten werden nur so lange gespeichert, wie
+                  dies für den jeweiligen Verarbeitungszweck erforderlich ist
+                  oder gesetzliche, tarifliche, vertragliche beziehungsweise
+                  sonstige rechtliche Aufbewahrungspflichten bestehen.
+                </p>
+
+                <p>
+                  Die Speicherdauer kann daher je nach Datenkategorie
+                  unterschiedlich sein. Dies betrifft insbesondere:
+                </p>
+
+                <ul>
+                  <li>Personal- und Beschäftigungsstammdaten</li>
+                  <li>Arbeitszeitnachweise</li>
+                  <li>Lohn- und Abrechnungsdaten</li>
+                  <li>steuer- und sozialversicherungsrechtliche Unterlagen</li>
+                  <li>Einsatz- und Vertragsunterlagen</li>
+                  <li>Bewerbungs- und Verfügbarkeitsdaten</li>
+                  <li>technische Sicherheitsprotokolle</li>
+                </ul>
+
+                <p>
+                  Nach Wegfall des Verarbeitungszwecks und Ablauf der
+                  einschlägigen Aufbewahrungsfristen werden personenbezogene
+                  Daten gelöscht oder, soweit erforderlich, für die weitere
+                  Verarbeitung gesperrt.
+                </p>
+              </section>
+
+              <section>
+                <h3>15. Datensicherheit</h3>
+
+                <p>
+                  Zum Schutz personenbezogener Daten setzen wir angemessene
+                  technische und organisatorische Maßnahmen ein.
+                </p>
+
+                <p>
+                  Hierzu gehören insbesondere:
+                </p>
+
+                <ul>
+                  <li>verschlüsselte Datenübertragung mittels TLS</li>
+                  <li>rollen- und berechtigungsbasierte Zugriffskontrollen</li>
+                  <li>individuelle Benutzeridentitäten</li>
+                  <li>Beschränkung des Zugriffs auf erforderliche Daten</li>
+                  <li>Protokollierung sicherheits- und systemrelevanter Vorgänge</li>
+                  <li>regelmäßige Software- und Sicherheitsupdates</li>
+                  <li>technische Maßnahmen zur Sicherung von Daten und Systemverfügbarkeit</li>
+                  <li>Schutz von Datenbanken und Dokumentenspeichern vor unberechtigtem Zugriff</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3>16. Automatisierte Entscheidungen</h3>
+
+                <p>
+                  StraightMonitor trifft derzeit keine ausschließlich auf einer
+                  automatisierten Verarbeitung beruhenden Entscheidungen mit
+                  rechtlicher oder vergleichbar erheblicher Wirkung gegenüber
+                  Beschäftigten.
+                </p>
+
+                <p>
+                  Automatisierte Prüfungen und Hinweise können eingesetzt werden,
+                  um Mitarbeiter bei Verwaltungs-, Einsatz- oder
+                  Abrechnungsprozessen zu unterstützen. Entscheidungen mit
+                  wesentlicher Auswirkung werden durch berechtigte Personen
+                  getroffen oder überprüft.
+                </p>
+              </section>
+
+              <section>
+                <h3>17. Ihre Datenschutzrechte</h3>
+
+                <p>
+                  Im Rahmen der gesetzlichen Voraussetzungen haben Sie
+                  insbesondere folgende Rechte:
+                </p>
+
+                <ul>
+                  <li>
+                    <strong>Art. 15 DSGVO:</strong>
+                    Recht auf Auskunft
+                  </li>
+
+                  <li>
+                    <strong>Art. 16 DSGVO:</strong>
+                    Recht auf Berichtigung unrichtiger Daten
+                  </li>
+
+                  <li>
+                    <strong>Art. 17 DSGVO:</strong>
+                    Recht auf Löschung, soweit keine vorrangigen gesetzlichen
+                    oder sonstigen Gründe für eine weitere Verarbeitung bestehen
+                  </li>
+
+                  <li>
+                    <strong>Art. 18 DSGVO:</strong>
+                    Recht auf Einschränkung der Verarbeitung
+                  </li>
+
+                  <li>
+                    <strong>Art. 20 DSGVO:</strong>
+                    Recht auf Datenübertragbarkeit, soweit die gesetzlichen
+                    Voraussetzungen erfüllt sind
+                  </li>
+
+                  <li>
+                    <strong>Art. 21 DSGVO:</strong>
+                    Widerspruchsrecht, soweit eine Verarbeitung auf einer
+                    entsprechenden Rechtsgrundlage erfolgt
+                  </li>
+
+                  <li>
+                    <strong>Art. 77 DSGVO:</strong>
+                    Recht auf Beschwerde bei einer Datenschutzaufsichtsbehörde
+                  </li>
+                </ul>
+
+                <p>
+                  Zur Ausübung Ihrer Datenschutzrechte können Sie sich wenden an:
+                </p>
+
+                <p>
+                  <strong>ag@straightforward.email</strong>
+                </p>
+              </section>
+
+              <section>
+                <h3>18. Beschwerderecht</h3>
+
+                <p>
+                  Sie haben das Recht, sich bei einer zuständigen
+                  Datenschutzaufsichtsbehörde über die Verarbeitung Ihrer
+                  personenbezogenen Daten zu beschweren.
+                </p>
+              </section>
+
+              <section>
+                <h3>19. Änderungen dieser Datenschutzhinweise</h3>
+
+                <p>
+                  Diese Datenschutzhinweise werden angepasst, wenn sich
+                  Funktionen von StraightMonitor oder Public Monitor,
+                  Verarbeitungsvorgänge, eingesetzte Dienstleister oder
+                  rechtliche Anforderungen wesentlich ändern.
+                </p>
+
+                <p>
+                  Das nachfolgend angegebene Datum bezeichnet den Stand der
+                  inhaltlichen Fassung und wird nicht automatisch täglich
+                  aktualisiert.
+                </p>
+              </section>
+
+              <p class="last-updated">
+                Stand: 14. August 2026
+              </p>
             </div>
 
-            <!-- Impressum Content -->
-            <div v-else-if="type === 'imprint'" class="legal-content">
+            <!-- =========================================================
+                 IMPRESSUM
+            ========================================================== -->
+            <div
+              v-else-if="type === 'imprint'"
+              class="legal-content"
+            >
               <section>
-                <h3>Angaben gemäß § 5 TMG</h3>
+                <h3>Angaben gemäß § 5 DDG</h3>
+
                 <p>
                   <strong>H. & P. Straightforward GmbH</strong><br>
                   Straßmannstraße 6<br>
@@ -178,31 +661,35 @@
               </section>
 
               <section>
-                <h3>Vertreten durch</h3>
+                <h3>Vertretungsberechtigte Geschäftsführer</h3>
+
                 <p>
-                  Geschäftsführung: Daniel Hansen, Christian Peßler
+                  Daniel Hansen<br>
+                  Christian Peßler
                 </p>
               </section>
 
               <section>
                 <h3>Kontakt</h3>
+
                 <p>
-                  Telefon: +49 030 702 39 333<br>
+                  Telefon: +49 30 702 39 333<br>
                   E-Mail: info@straightforward.email
                 </p>
               </section>
 
               <section>
-                <h3>Registereintrag</h3>
+                <h3>Handelsregister</h3>
+
                 <p>
-                  Eintragung im Handelsregister<br>
                   Registergericht: Amtsgericht Charlottenburg<br>
-                  Registernummer: HRB 180342 B
+                  Handelsregisternummer: HRB 180342 B
                 </p>
               </section>
 
               <section>
-                <h3>Umsatzsteuer-ID</h3>
+                <h3>Umsatzsteuer-Identifikationsnummer</h3>
+
                 <p>
                   Umsatzsteuer-Identifikationsnummer gemäß § 27a UStG:<br>
                   DE308384616
@@ -211,15 +698,26 @@
 
               <section>
                 <h3>Zuständige Aufsichtsbehörde</h3>
+
                 <p>
                   Agentur für Arbeit Kiel<br>
-                  24131 Kiel<br>
-                  <a href="https://www.arbeitsagentur.de" target="_blank" rel="noopener noreferrer">www.arbeitsagentur.de</a>
+                  24131 Kiel
+                </p>
+
+                <p>
+                  <a
+                    href="https://www.arbeitsagentur.de"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    www.arbeitsagentur.de
+                  </a>
                 </p>
               </section>
 
               <section>
                 <h3>Berufshaftpflichtversicherung</h3>
+
                 <p>
                   Allianz Versicherungs-AG<br>
                   10900 Berlin
@@ -228,33 +726,37 @@
 
               <section>
                 <h3>Standorte</h3>
+
                 <div class="locations">
                   <div class="location">
-                    <h4>Berlin (Hauptsitz)</h4>
+                    <h4>Berlin – Hauptsitz</h4>
+
                     <p>
                       Straßmannstraße 6<br>
                       10249 Berlin<br>
-                      Tel: +49 30 702 393 33<br>
+                      Telefon: +49 30 702 393 33<br>
                       E-Mail: teamberlin@straightforward.email
                     </p>
                   </div>
-                  
+
                   <div class="location">
                     <h4>Hamburg</h4>
+
                     <p>
                       Gaußstraße 124<br>
                       22765 Hamburg<br>
-                      Tel: +49 40 700 101 90<br>
+                      Telefon: +49 40 700 101 90<br>
                       E-Mail: teamhamburg@straightforward.email
                     </p>
                   </div>
-                  
+
                   <div class="location">
                     <h4>Köln</h4>
+
                     <p>
                       Zülpicher Str. 85<br>
                       50937 Köln<br>
-                      Tel: +49 221 777 100 22<br>
+                      Telefon: +49 221 777 100 22<br>
                       E-Mail: teamkoeln@straightforward.email
                     </p>
                   </div>
@@ -262,45 +764,50 @@
               </section>
 
               <section>
-                <h3>Hinweis zum internen System</h3>
-                <p>
-                  Dieses System ist ein internes Werkzeug der H. & P. Straightforward GmbH 
-                  ausschließlich für Mitarbeiter. Es erfolgt keine öffentliche Bereitstellung 
-                  von Inhalten oder Dienstleistungen über dieses System.
-                </p>
-              </section>
+                <h3>Hinweis zu StraightMonitor</h3>
 
-              <section>
-                <h3>Haftungsbeschränkung</h3>
                 <p>
-                  <strong>Haftung für Inhalte:</strong><br>
-                  Die Inhalte dieses internen Systems werden mit größtmöglicher Sorgfalt erstellt. 
-                  Der Anbieter übernimmt jedoch keine Gewähr für die Richtigkeit, Vollständigkeit 
-                  und Aktualität der bereitgestellten Inhalte.
+                  StraightMonitor ist ein internes Verwaltungs- und
+                  Mitarbeitersystem der H. & P. Straightforward GmbH.
                 </p>
+
                 <p>
-                  <strong>Haftung für Schäden:</strong><br>
-                  Der Anbieter haftet für Vorsatz und grobe Fahrlässigkeit sowie bei Verletzung 
-                  einer wesentlichen Vertragspflicht. Bei leicht fahrlässiger Verletzung von 
-                  Nebenpflichten, die keine Kardinalpflichten sind, haftet der Anbieter nicht.
+                  Teile des Systems können Beschäftigten über angebundene
+                  Mitarbeiterplattformen als Public Monitor zur Verfügung
+                  gestellt werden. Das System richtet sich nicht als öffentliches
+                  Leistungsangebot an Verbraucher.
                 </p>
               </section>
 
               <section>
                 <h3>Urheberrecht</h3>
+
                 <p>
-                  Die in diesem System veröffentlichten Inhalte und Werke sind urheberrechtlich 
-                  geschützt. Jede vom deutschen Urheberrecht nicht zugelassene Verwertung bedarf 
-                  der vorherigen schriftlichen Zustimmung der H. & P. Straightforward GmbH.
+                  Die innerhalb von StraightMonitor bereitgestellten Inhalte,
+                  Softwarebestandteile und Werke unterliegen, soweit anwendbar,
+                  dem deutschen Urheberrecht.
+                </p>
+
+                <p>
+                  Eine Nutzung außerhalb der vorgesehenen betrieblichen Zwecke
+                  bedarf der vorherigen Zustimmung der
+                  H. & P. Straightforward GmbH, soweit keine gesetzliche
+                  Berechtigung besteht.
                 </p>
               </section>
 
-              <p class="last-updated">Stand: {{ new Date().toLocaleDateString('de-DE') }}</p>
+              <p class="last-updated">
+                Stand: 14. August 2026
+              </p>
             </div>
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-primary" @click="$emit('close')">
+            <button
+              class="btn btn-primary"
+              type="button"
+              @click="$emit('close')"
+            >
               Verstanden
             </button>
           </div>
@@ -309,7 +816,6 @@
     </transition>
   </teleport>
 </template>
-
 <script>
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 

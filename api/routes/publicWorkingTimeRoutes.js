@@ -42,6 +42,20 @@ router.post('/start', asyncHandler(async (req, res) => {
   res.status(201).json({ entry });
 }));
 
+router.post('/record', asyncHandler(async (req, res) => {
+  const employee = await employeeFromRequest(req);
+  const entry = await WorkingTimeService.recordCompletedEntry({
+    employee,
+    assignmentId: req.body.assignmentLedgerId,
+    actualStart: req.body.actualStart,
+    actualEnd: req.body.actualEnd,
+    breaks: req.body.breaks,
+    clientTimeZone: req.body.clientTimeZone,
+    deviceId: req.body.deviceId,
+  });
+  res.status(201).json({ entry });
+}));
+
 router.post('/:entryId/submit', asyncHandler(async (req, res) => {
   const employee = await employeeFromRequest(req);
   const entry = await WorkingTimeService.submitTimer({

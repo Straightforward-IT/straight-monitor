@@ -159,7 +159,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faTrash, faWarehouse } from '@fortawesome/free-solid-svg-icons';
@@ -318,8 +318,8 @@ async function refreshStocks() {
   }
 }
 
-async function handleCreated(response) {
-  for (const stock of response.stocks || []) await dataCache.updateCachedItem(stock);
+async function handleCreated() {
+  await refreshStocks();
 }
 
 function openItemCreate() {
@@ -397,9 +397,16 @@ async function handleItemUpdated() {
   await refreshStocks();
 }
 
-async function handleStockUpdated(stock) {
-  await dataCache.updateCachedItem(stock);
+async function handleStockUpdated() {
+  await refreshStocks();
 }
+
+let filterRefreshTimeout;
+watch([search, selectedLocationIds, stockState, variationOnly, sizeOnly], (_values, _previousValues, onCleanup) => {
+  clearTimeout(filterRefreshTimeout);
+  filterRefreshTimeout = setTimeout(refreshStocks, 250);
+  onCleanup(() => clearTimeout(filterRefreshTimeout));
+});
 
 onMounted(refreshStocks);
 </script>

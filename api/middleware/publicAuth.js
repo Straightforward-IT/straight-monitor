@@ -13,9 +13,7 @@ const jwt = require('jsonwebtoken');
  * 2. Static FLIP_PUBLIC_JWT — legacy shared secret (WPForms flow). Kept for
  *    backwards compatibility while OIDC is being rolled out.
  */
-module.exports = function publicAuth(req, res, next) {
-  const token = req.query.token || req.headers['x-public-token'];
-
+function verifyToken(token, req, res, next) {
   if (!token) {
     return res.status(401).json({ msg: 'Kein Zugangstoken vorhanden' });
   }
@@ -47,4 +45,18 @@ module.exports = function publicAuth(req, res, next) {
   }
 
   next();
+}
+
+function publicAuth(req, res, next) {
+  const token = req.query.token || req.headers['x-public-token'];
+  return verifyToken(token, req, res, next);
+}
+
+// Header-only variant: never reads the token from the query string (where
+// browsers and proxies commonly retain credentials). Used by sensitive routes.
+publicAuth.headerOnly = function publicAuthHeaderOnly(req, res, next) {
+  const token = req.headers['x-public-token'];
+  return verifyToken(token, req, res, next);
 };
+
+module.exports = publicAuth;

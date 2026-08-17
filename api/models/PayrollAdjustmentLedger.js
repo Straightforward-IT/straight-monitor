@@ -61,7 +61,7 @@ const PayrollAdjustmentLedgerSchema = new mongoose.Schema({
   },
   assignmentLedger: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'AssignmentLedger',
+    ref: 'EinsatzBuch',
     default: null,
     immutable: true,
   },

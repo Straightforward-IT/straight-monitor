@@ -5,8 +5,8 @@ const path = require("path");
 const msal = require("@azure/msal-node");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
-const Item = require("./models/Item");
 const registry = require("./config/registry");
+const { buildInventoryRoutineContent } = require('./services/InventoryService');
 const {
   renderTemplate,
   resolveTemplate,
@@ -115,32 +115,26 @@ async function sendConfirmationEmail(user) {
   await sendMail(user.email, subject, content, "it");
 }
 
-// 📦 Send inventory update email for a specific location
-async function sendInventoryUpdateEmail(location, recipients) {
+// 📦 Send inventory update email for a specific team location
+async function sendInventoryUpdateEmail(teamKey, recipients) {
   try {
-    const items = await getItems(location);
-    console.log(
-      `[sendInventoryUpdate] location=${location} recipients=${recipients.join(
-        ","
-      )} items=${items.length}`
-    );
-    const content = createRoutineContent({ name: location, items });
-    console.log(`[sendInventoryUpdate] location=${location} contentLen=${content.length}`);
-
+    const standort = registry.getInventoryStandort(teamKey);
+    const content = await buildInventoryRoutineContent(standort);
+    if (!content) {
+      console.warn(`[sendInventoryUpdate] Kein Standort gefunden für teamKey=${teamKey} standort=${standort}`);
+      return { success: false, reason: 'location-not-found' };
+    }
+    console.log(`[sendInventoryUpdate] teamKey=${teamKey} standort=${standort} rows=${content.rows.length}`);
     await sendMail(
       recipients,
-      `Bestands-Update vom ${new Date().toLocaleDateString(
-        "de-DE"
-      )} für Team ${location}`,
-      content,
-      location
+      `Bestands-Update vom ${new Date().toLocaleDateString('de-DE')} für Team ${content.location.nameFull}`,
+      content.html,
+      teamKey,
+      [content.attachment]
     );
     return { success: true };
   } catch (error) {
-    console.error(
-      `❌ Error sending inventory update email for ${location}:`,
-      error?.response?.data || error.message
-    );
+    console.error(`❌ Error sending inventory update email for ${teamKey}:`, error?.response?.data || error.message);
     throw error;
   }
 }
@@ -161,98 +155,7 @@ async function sollRoutine() {
   }
 }
 
-// 📄 HTML-Content für Routinemails (unverändert, nur location.name -> { name })
-function createRoutineContent(location) {
-  const today = new Date().toLocaleDateString("de-DE");
-  let content = `
-    <div style="font-family: Arial, sans-serif; color: #333;">
-      <h2>Bestands Update vom ${today} für Team ${location.name}</h2>
-  `;
-  const items = location.items || [];
- if (items.length === 0) {
-    content += `<p><em>Keine Artikel gefunden für diesen Standort.</em></p></div>`;
-    return content;
-  }
-  const itemsWithSoll = location.items.filter((item) => item.soll > 0);
-  const itemsWithZeroSoll = location.items.filter((item) => item.soll === 0);
 
-  const sortedItems = itemsWithSoll.sort(
-    (a, b) => b.anzahl / b.soll - a.anzahl / a.soll
-  );
-
-  if (sortedItems.length > 0) {
-    content += `
-      <h3>Items mit Soll</h3>
-      <table style="width: 100%; border-collapse: collapse;">
-        <thead>
-          <tr>
-            <th style="text-align: left;">BEZEICHNUNG</th>
-            <th style="text-align: right;">IST</th>
-            <th style="text-align: right;">SOLL</th>
-            <th style="text-align: right;">PROZENT</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
-    sortedItems.forEach((item) => {
-      const percentage = Math.round((item.anzahl / item.soll) * 100);
-      const color = getPercentageColor(percentage);
-      content += `
-        <tr>
-          <td>${item.bezeichnung}${
-        item.groesse !== "onesize" ? ` ${item.groesse}` : ""
-      }</td>
-          <td style="text-align: right;">${item.anzahl}</td>
-          <td style="text-align: right;">${item.soll}</td>
-          <td style="text-align: right; background-color: ${color};">${percentage}%</td>
-        </tr>
-      `;
-    });
-    content += `</tbody></table>`;
-  }
-
-  if (itemsWithZeroSoll.length > 0) {
-    content += `
-      <h3>Items ohne Soll</h3>
-      <ul>
-        ${itemsWithZeroSoll
-          .map(
-            (item) =>
-              `<li>${item.bezeichnung}${
-                item.groesse !== "onesize" ? ` ${item.groesse}` : ""
-              }: ${item.anzahl}</li>`
-          )
-          .join("")}
-      </ul>
-    `;
-  }
-
-  content += `</div>`;
-  return content;
-}
-
-// 🔢 Farbe für Prozentwert
-function getPercentageColor(percentage) {
-  if (percentage >= 75) return "#02b504";
-  if (percentage >= 50) return "#47ff49";
-  if (percentage >= 25) return "#ffd647";
-  return "#fb2a2a";
-}
-
-// 📥 Artikel laden
-async function getItems(locationKey) {
-  try {
-      const standort = registry.getInventoryStandort(locationKey); 
-    return await Item.find({ standort });
-  } catch (err) {
-    console.error(
-      "Error fetching items for location:",
-      locationKey,
-      err.message
-    );
-    return [];
-  }
-}
 
 // 📱 Flip Welcome Mail (nach erfolgreicher Flip-User-Erstellung)
 async function sendFlipWelcomeEmail(email, vorname, senderKey = "it") {

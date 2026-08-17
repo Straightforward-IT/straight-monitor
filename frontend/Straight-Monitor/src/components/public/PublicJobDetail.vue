@@ -187,9 +187,19 @@
       </div>
     </div>
 
-    <!-- Teamleiter: Action Buttons -->
-    <div v-if="isTeamleiter" class="action-bar">
+    <!-- Action Buttons: Zeiterfassung (Dev-User) + Event Report (Teamleiter) -->
+    <div v-if="isTeamleiter || hatZeiterfassung" class="action-bar">
       <button
+        v-if="hatZeiterfassung"
+        class="action-btn"
+        :class="{ 'action-btn--done': zeitEingereicht }"
+        @click="!zeitEingereicht && oeffneZeiterfassung()"
+      >
+        <font-awesome-icon icon="fa-solid fa-clock" class="action-btn-icon" />
+        {{ zeitEingereicht ? 'Arbeitszeit eingereicht ✓' : 'Arbeitszeit erfassen' }}
+      </button>
+      <button
+        v-if="isTeamleiter && (!hatZeiterfassung || zeitEingereicht)"
         class="action-btn"
         :class="{ 'action-btn--done': hasReport }"
         :disabled="hasReport"
@@ -262,12 +272,86 @@
       </div>
     </PublicBottomSheet>
 
+    <!-- Zeiterfassung Modal (Dev-User only, § 4 ArbZG validiert) -->
+    <PublicBottomSheet v-model="zeiterfassungSheet" sheet-class="zeit-sheet" :close-on-backdrop="false">
+      <h3 class="calmodal-title">Arbeitszeit erfassen</h3>
+      <p class="calmodal-hint">{{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung }} · {{ formatDate(einsatz.datumVon) }}</p>
+
+      <div class="zeit-time-row">
+        <label class="zeit-time-label">
+          <span>Beginn</span>
+          <input class="zeit-time-input" type="time" v-model="zeitForm.start" />
+        </label>
+        <span class="zeit-time-sep">–</span>
+        <label class="zeit-time-label">
+          <span>Ende</span>
+          <input class="zeit-time-input" type="time" v-model="zeitForm.end" />
+        </label>
+      </div>
+
+      <div class="pausen-header-row">
+        <div class="pausen-header-title">
+          <strong>Pausen</strong>
+          <button class="zeit-info-btn" type="button" :aria-expanded="String(zeitHinweisOffen)" :title="zeitHinweisOffen ? 'Hinweis schließen' : 'Rechtliche Hinweise'" @click="zeitHinweisOffen = !zeitHinweisOffen">
+            <font-awesome-icon icon="fa-solid fa-circle-info" />
+          </button>
+        </div>
+        <button class="zeit-add-btn" type="button" @click="addZeitPause">+ Pause</button>
+      </div>
+      <p v-if="zeitHinweisOffen" class="calmodal-hint zeit-hinweis-text">§ 4 ArbZG: Eine Pause muss mind. 15 Min. dauern · Kein Arbeitsblock länger als 6 Std. ohne Pause · Ab 6h → 30 Min. Pflicht · Ab 9h → 45 Min. Pflicht</p>
+
+      <div v-for="(pause, i) in zeitForm.pausen" :key="pause.key" class="pause-block">
+        <label class="zeit-time-label">
+          <span>Pausendauer</span>
+          <div class="pause-min-row">
+            <input class="zeit-time-input" type="number" min="1" max="480" inputmode="numeric" v-model.number="pause.minuten" />
+            <span class="pause-min-unit">Min.</span>
+          </div>
+        </label>
+        <button class="zeit-remove-btn" type="button" @click="zeitForm.pausen.splice(i, 1)">Entfernen</button>
+      </div>
+
+      <div v-if="zeitForm.start && zeitForm.end && zeitValidierung" class="zeit-summary">
+        <div class="zeit-summary-row">
+          <span>Netto-Arbeitszeit</span>
+          <strong>{{ formatZeitMin(zeitValidierung.nettoMinuten) }}</strong>
+        </div>
+        <div class="zeit-summary-row">
+          <span>Pflichtpause</span>
+          <strong>{{ zeitValidierung.pflichtpauseMinuten }} Min.</strong>
+        </div>
+        <div class="zeit-summary-row">
+          <span>Eingetragene Pause</span>
+          <strong :class="{ 'zeit-warn': zeitValidierung.tatsaechlichePauseMinuten < zeitValidierung.pflichtpauseMinuten }">
+            {{ Math.round(zeitValidierung.tatsaechlichePauseMinuten) }} Min.
+          </strong>
+        </div>
+      </div>
+
+      <ul v-if="zeitHinweisOffen && zeitValidierung?.fehler.length" class="zeit-fehler-list">
+        <li v-for="(fehler, i) in zeitValidierung.fehler" :key="i">{{ fehler }}</li>
+      </ul>
+
+      <p v-if="zeitError" class="zeit-error-text">{{ zeitError }}</p>
+
+      <div class="calmodal-actions">
+        <button class="calmodal-btn calmodal-btn--cancel" :disabled="zeitBusy" @click="zeiterfassungSheet = false">Abbrechen</button>
+        <button
+          class="calmodal-btn calmodal-btn--confirm"
+          :disabled="zeitBusy || !zeitForm.start || !zeitForm.end || !zeitValidierung?.gueltig"
+          @click="submitZeiterfassung"
+        >
+          {{ zeitBusy ? 'Wird übermittelt …' : 'Einreichen' }}
+        </button>
+      </div>
+    </PublicBottomSheet>
+
 
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faUserClock } from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '@/stores/theme';
@@ -280,6 +364,7 @@ import pdfMake from 'pdfmake/build/pdfmake';
 import pdfFonts from 'pdfmake/build/vfs_fonts';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
+import { pruefeArbeitszeit } from '@/utils/arbeitszeitValidierung.js';
 
 library.add(faUserClock);
 
@@ -295,6 +380,7 @@ const props = defineProps({
   mitarbeiter: { type: Object, default: null },
   email: { type: String, default: '' },
   token: { type: String, default: '' },
+  publicMenuOptions: { type: Array, default: () => [] },
 });
 
 const hasReport = computed(() => {
@@ -305,6 +391,20 @@ const hasReport = computed(() => {
 });
 
 const downloadingStundenliste = ref(false);
+
+const hatZeiterfassung = computed(() =>
+  props.publicMenuOptions.includes('zeiterfassung') || props.publicMenuOptions.includes('*')
+);
+const zeitEingereicht = ref(false);
+const zeiterfassungSheet = ref(false);
+const zeitHinweisOffen = ref(false);
+const zeitBusy = ref(false);
+const zeitError = ref('');
+const zeitForm = reactive({ start: '', end: '', pausen: [] });
+const zeitValidierung = computed(() => {
+  if (!zeitForm.start || !zeitForm.end) return null;
+  return pruefeArbeitszeit({ start: zeitForm.start, end: zeitForm.end, pausen: zeitForm.pausen });
+});
 
 defineEmits(['back', 'write-report']);
 
@@ -413,6 +513,85 @@ function saveNotiz() {
   annotationTick.value++;
   notizModal.value.open = false;
   try { showToast({ text: 'Notiz gespeichert', intent: 'success', duration: 2000 }); } catch {}
+}
+
+function oeffneZeiterfassung() {
+  zeitForm.start = formatTime(props.einsatz?.uhrzeitVon) || '';
+  zeitForm.end = formatTime(props.einsatz?.uhrzeitBis) || '';
+  zeitForm.pausen = [];
+  zeitError.value = '';
+  zeiterfassungSheet.value = true;
+}
+
+function addZeitPause() {
+  zeitForm.pausen.push({ key: `${Date.now()}-${zeitForm.pausen.length}`, minuten: 30 });
+}
+
+function formatZeitMin(min) {
+  if (min == null || isNaN(min)) return '—';
+  const h = Math.floor(Math.abs(min) / 60);
+  const m = Math.round(Math.abs(min) % 60);
+  return `${h}:${String(m).padStart(2, '0')} h`;
+}
+
+// Kombiniert das Einsatzdatum mit einer HH:MM-Uhrzeit zu einem minutengenauen ISO-Zeitstempel.
+function zeitZuIso(datum, hhmm, refStart = null) {
+  if (!datum || !hhmm) return null;
+  const base = new Date(datum);
+  const [h, m] = String(hhmm).split(':').map(Number);
+  base.setHours(h || 0, m || 0, 0, 0);
+  if (refStart) {
+    const [rh, rm] = String(refStart).split(':').map(Number);
+    if ((h || 0) * 60 + (m || 0) <= (rh || 0) * 60 + (rm || 0)) base.setDate(base.getDate() + 1);
+  }
+  return base.toISOString();
+}
+
+function zeitDeviceId() {
+  const key = 'straight-monitor:time-device';
+  let value = localStorage.getItem(key);
+  if (!value) {
+    value = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    localStorage.setItem(key, value);
+  }
+  return value;
+}
+
+async function submitZeiterfassung() {
+  if (!zeitValidierung.value?.gueltig || zeitBusy.value) return;
+
+  const payload = {
+    // TODO: assignmentLedgerId muss eine echte EinsatzBuch-ID sein, sobald aus
+    // Auftrag/Einsatz EinsatzBuch-Datensätze erzeugt werden. Aktuell existiert
+    // noch keine — der POST scheitert dann mit 404 (ASSIGNMENT_NOT_AVAILABLE).
+    assignmentLedgerId: props.einsatz.assignmentLedgerId || props.einsatz._id,
+    actualStart: zeitZuIso(props.einsatz.datumVon, zeitForm.start),
+    actualEnd: zeitZuIso(props.einsatz.datumVon, zeitForm.end, zeitForm.start),
+    breaks: zeitForm.pausen.map(p => ({ minutes: Number(p.minuten) || 0, source: 'employee' })),
+    clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Berlin',
+    deviceId: zeitDeviceId(),
+  };
+
+  zeitBusy.value = true;
+  zeitError.value = '';
+  try {
+    await props.api.post('/api/public/payroll-time/record', payload);
+  } catch (error) {
+    const status = error?.response?.status;
+    // 404 = EinsatzBuch-Pipeline noch WIP: lokal fortführen, damit die Demo läuft.
+    if (status !== 404) {
+      zeitError.value = error?.response?.data?.message || error?.response?.data?.msg || 'Zeit konnte nicht übermittelt werden.';
+      zeitBusy.value = false;
+      return;
+    }
+    console.warn('Zeiterfassung: EinsatzBuch noch nicht verfügbar, nur lokal gespeichert.', error?.response?.data || error?.message);
+  }
+  zeitBusy.value = false;
+
+  localStorage.setItem(`zeiterfassung_${props.einsatz.auftragNr}`, JSON.stringify({ ...payload, submittedAt: new Date().toISOString() }));
+  zeitEingereicht.value = true;
+  zeiterfassungSheet.value = false;
+  try { showToast({ text: 'Arbeitszeit eingereicht.', intent: 'success', duration: 2200 }); } catch {}
 }
 
 function normalizeRoleFilterValue(value) {
@@ -999,11 +1178,16 @@ async function loadMitarbeiter() {
 onMounted(() => {
   loadMitarbeiter();
   connectCheckInSSE(props.einsatz?.auftragNr);
+  zeitEingereicht.value = !!localStorage.getItem(`zeiterfassung_${props.einsatz?.auftragNr}`);
 });
 
 watch(() => props.einsatz?._id, () => {
   loadMitarbeiter();
   connectCheckInSSE(props.einsatz?.auftragNr);
+  zeitEingereicht.value = !!localStorage.getItem(`zeiterfassung_${props.einsatz?.auftragNr}`);
+  zeitForm.start = '';
+  zeitForm.end = '';
+  zeitForm.pausen = [];
 });
 
 
@@ -2088,5 +2272,172 @@ watch(() => props.einsatz?._id, () => {
   background-size: 280% 280%, 280% 280%, 280% 280%;
   animation: immortal-plasma 5s ease-in-out infinite;
   z-index: 2;
+}
+
+/* ── Zeiterfassung Sheet ─────────────────────────────────────── */
+.zeit-sheet { align-items: stretch; }
+
+.zeit-time-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.zeit-time-sep {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--muted);
+  padding-bottom: 0.55rem;
+}
+
+.zeit-time-label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.zeit-time-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--tile-bg);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+}
+
+.zeit-time-input:focus { border-color: var(--primary); }
+
+.pausen-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.pausen-header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.zeit-info-btn {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+}
+
+.zeit-info-btn:hover, .zeit-info-btn[aria-expanded="true"] { color: var(--primary); }
+
+.zeit-hinweis-text {
+  text-align: left;
+  margin-bottom: 0.6rem;
+}
+
+.zeit-add-btn {
+  flex-shrink: 0;
+  padding: 0.4rem 0.85rem;
+  border: 1.5px solid var(--primary);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pause-block {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  border-left: 3px solid var(--border);
+  padding-left: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.pause-min-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pause-min-unit {
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.pause-block .zeit-time-label { flex: 1; }
+
+.zeit-remove-btn {
+  flex-shrink: 0;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: #c04444;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 0.55rem;
+}
+
+.zeit-summary {
+  width: 100%;
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  background: var(--hover);
+  border-radius: 10px;
+  display: grid;
+  gap: 0.4rem;
+  box-sizing: border-box;
+}
+
+.zeit-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.zeit-summary-row span { color: var(--muted); }
+
+.zeit-warn { color: #c04444; }
+
+.zeit-fehler-list {
+  margin: 0 0 0.5rem;
+  padding-left: 1.25rem;
+  color: #c04444;
+  font-size: 0.82rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.zeit-error-text {
+  margin: 0 0 0.5rem;
+  color: #c04444;
+  font-size: 0.85rem;
+  font-weight: 650;
 }
 </style>

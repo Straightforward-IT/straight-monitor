@@ -3,8 +3,8 @@
 const mongoose = require('mongoose');
 const Mitarbeiter = require('./models/Mitarbeiter');
 const User = require('./models/User');
-const AssignmentLedger = require('./models/AssignmentLedger');
-const WorkingTimeLedger = require('./models/WorkingTimeLedger');
+const AssignmentLedger = require('./models/EinsatzBuch');
+const WorkingTimeLedger = require('./models/ArbeitszeitBuch');
 const PayrollRun = require('./models/PayrollRun');
 const PayrollAuditLog = require('./models/PayrollAuditLog');
 const PayrollError = require('./utils/PayrollError');
@@ -32,6 +32,14 @@ function floorToMinute(value = new Date()) {
   return date;
 }
 
+function wholeMinuteCount(value, field) {
+  const minutes = Number(value);
+  if (!Number.isInteger(minutes) || minutes < 0) {
+    throw new PayrollError('WORKING_TIME_BREAK_MINUTES_INVALID', `${field} muss eine ganze, nicht-negative Minutenzahl sein.`, 400);
+  }
+  return minutes;
+}
+
 function localDate(value, timeZone) {
   let formatter;
   try {
@@ -50,27 +58,19 @@ function localDate(value, timeZone) {
 
 function normalizeBreaks(breaks, start, end, source = 'employee') {
   if (!Array.isArray(breaks)) {
-    throw new PayrollError('WORKING_TIME_BREAKS_REQUIRED', 'Pausen müssen als detaillierte Liste angegeben werden; eine leere Liste ist zulässig.', 400);
+    throw new PayrollError('WORKING_TIME_BREAKS_REQUIRED', 'Pausen müssen als Liste angegeben werden; eine leere Liste ist zulässig.', 400);
   }
-  const normalized = breaks.map((entry, index) => {
-    const startedAt = wholeMinute(entry.startedAt, `breaks[${index}].startedAt`);
-    const endedAt = wholeMinute(entry.endedAt, `breaks[${index}].endedAt`);
-    if (endedAt <= startedAt || startedAt < start || endedAt > end) {
-      throw new PayrollError('WORKING_TIME_BREAK_INVALID', 'Pausen müssen vollständig innerhalb der Arbeitszeit liegen.', 400, { index });
+  // Pausen werden als reine Minutenzahl erfasst — keine Von-/Bis-Zeitpunkte.
+  return breaks.map((entry, index) => {
+    const minutes = wholeMinuteCount(entry.minutes, `breaks[${index}].minutes`);
+    if (minutes <= 0) {
+      throw new PayrollError('WORKING_TIME_BREAK_INVALID', 'Pausen müssen eine positive Minutenzahl haben.', 400, { index });
     }
     return {
-      startedAt,
-      endedAt,
-      minutes: (endedAt - startedAt) / 60000,
+      minutes,
       source: entry.source || source,
     };
-  }).sort((left, right) => left.startedAt - right.startedAt);
-  for (let index = 1; index < normalized.length; index += 1) {
-    if (normalized[index].startedAt < normalized[index - 1].endedAt) {
-      throw new PayrollError('WORKING_TIME_BREAK_OVERLAP', 'Pausenzeiten dürfen sich nicht überschneiden.', 400);
-    }
-  }
-  return normalized;
+  });
 }
 
 function calculatedActual({ start, end, breaks, source }) {
@@ -315,10 +315,99 @@ async function submitTimer({ employee, entryId, actualStart, actualEnd, breaks =
   return submitted;
 }
 
+// Einschrittige, nachträgliche Erfassung: Beginn/Ende/Pausen kommen gemeinsam an
+// und erzeugen direkt eine SUBMITTED-Buchung (ohne vorheriges OPEN-Timer-Dokument).
+async function recordCompletedEntry({ employee, assignmentId, actualStart, actualEnd, breaks = [], clientTimeZone, deviceId }) {
+  if (!mongoose.isValidObjectId(assignmentId)) throw new PayrollError('ASSIGNMENT_ID_INVALID', 'Einsatz-ID ist ungültig.', 400);
+  if (!employee.personalnr) throw new PayrollError('PERSONAL_NUMBER_REQUIRED', 'Vor Zeiterfassung muss eine Personalnummer vorliegen.', 409);
+
+  const start = wholeMinute(actualStart, 'actualStart');
+  const end = wholeMinute(actualEnd, 'actualEnd');
+
+  const assignment = await AssignmentLedger.findOne({
+    _id: assignmentId,
+    mitarbeiter: employee._id,
+    isCurrent: true,
+    status: { $in: ['CONFIRMED', 'ACTIVE'] },
+  }).lean();
+  if (!assignment) throw new PayrollError('ASSIGNMENT_NOT_AVAILABLE', 'Der Einsatz gehört nicht zum Mitarbeiter oder ist nicht aktiv.', 404);
+
+  const actual = calculatedActual({ start, end, breaks, source: 'employee' });
+  const timeZone = assignment.workLocation?.timeZone || 'Europe/Berlin';
+  const workDate = localDate(start, timeZone);
+
+  const duplicate = await WorkingTimeLedger.findOne({
+    mitarbeiter: employee._id,
+    assignmentLedger: assignment._id,
+    workDate,
+    isCurrent: true,
+    status: { $nin: ['VOIDED', 'REJECTED'] },
+  }).lean();
+  if (duplicate) throw new PayrollError('WORKING_TIME_ALREADY_RECORDED', 'Für diesen Einsatz wurde an diesem Tag bereits eine Zeit erfasst.', 409, { workingTimeId: duplicate._id });
+
+  const user = await linkedUser(employee._id);
+  const received = new Date();
+  const sourceRef = `oidc-record:${sha256({ employeeId: employee._id, assignmentId: assignment._id, start, end }).slice(0, 24)}`;
+  const contentHash = sha256({ employeeId: employee._id, assignmentId: assignment._id, start, end, breaks: actual.breaks });
+
+  const entry = await WorkingTimeLedger.create({
+    mitarbeiter: employee._id,
+    assignmentLedger: assignment._id,
+    auftrag: assignment.auftrag,
+    einsatz: assignment.einsatz || null,
+    kunde: assignment.kunde,
+    personalNrSnapshot: employee.personalnr,
+    workDate,
+    timeZone,
+    planned: {
+      start: assignment.plannedStart,
+      end: assignment.plannedEnd,
+      breakMinutes: assignment.plannedBreakHours == null ? null : String(Number(assignment.plannedBreakHours.toString()) * 60),
+      hours: assignment.guaranteedHours,
+    },
+    actual: {
+      start,
+      end,
+      breaks: actual.breaks,
+      breakMinutes: String(actual.breakMinutes),
+      workedHours: actual.workedHours,
+    },
+    capture: {
+      rawStart: start,
+      rawEnd: end,
+      startReceivedAt: received,
+      endReceivedAt: received,
+      clientTimeZone: clientTimeZone || null,
+      siteKey: assignment.siteKey,
+      deviceIdHash: deviceId ? sha256(String(deviceId)) : null,
+    },
+    roundingRule: 'EXPLICIT_MINUTE',
+    status: 'SUBMITTED',
+    statusHistory: [{ from: null, to: 'SUBMITTED', at: new Date(), by: user?._id || null, reason: 'Nachträgliche Zeiterfassung im Public Monitor' }],
+    source: 'public-monitor',
+    sourceRef,
+    sourceRecordedAt: received,
+    submittedBy: user?._id || null,
+    submittedAt: new Date(),
+    recordedBy: user?._id || null,
+    contentHash,
+  });
+
+  await auditInput({
+    actor: user,
+    entry,
+    action: 'SUBMIT_INPUT',
+    previousStatus: null,
+    newStatus: 'SUBMITTED',
+    reasonCode: 'EMPLOYEE_TIME_RECORD',
+    summary: 'Mitarbeiter hat eine abgeschlossene Ist-Zeit nachträglich erfasst.',
+  });
+  return entry;
+}
+
 async function approve(entryId, actor) {
   const entry = await WorkingTimeLedger.findOne({ _id: entryId, isCurrent: true, status: 'SUBMITTED' });
-  if (!entry) throw new PayrollError('WORKING_TIME_SUBMITTED_NOT_FOUND', 'Keine eingereichte aktuelle Zeitbuchung gefunden.', 404);
-  if (entry.submittedBy && idString(entry.submittedBy) === idString(actor)) {
+  if (!entry) throw new PayrollError('WORKING_TIME_SUBMITTED_NOT_FOUND', 'Keine eingereichte aktuelle Zeitbuchung gefunden.', 404);  if (entry.submittedBy && idString(entry.submittedBy) === idString(actor)) {
     throw new PayrollError('FOUR_EYES_REQUIRED', 'Einreicher und Freigeber müssen unterschiedliche Benutzer sein.', 409);
   }
   entry.status = 'APPROVED';
@@ -433,9 +522,10 @@ module.exports = {
   listEmployeeEntries,
   startTimer,
   submitTimer,
+  recordCompletedEntry,
   approve,
   reject,
   correct,
   listForPayroll,
-  _private: { wholeMinute, floorToMinute, localDate, normalizeBreaks, calculatedActual },
+  _private: { wholeMinute, wholeMinuteCount, floorToMinute, localDate, normalizeBreaks, calculatedActual },
 };

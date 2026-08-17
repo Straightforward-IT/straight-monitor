@@ -34,6 +34,7 @@
           :email="email"
           :mitarbeiter="mitarbeiter"
           :token="token"
+          :public-menu-options="['*', 'dev-mode']"
           @write-report="$emit('write-report', $event)"
         />
       </template>
@@ -192,6 +193,8 @@
       </template>
     </main>
 
+    <PublicFooter />
+
     <nav v-if="!detailView" class="bottom-nav" aria-label="Hauptnavigation"><button v-for="item in navigation" :key="item.id" type="button" :class="{ active: activeTab === item.id }" @click="selectTab(item.id)"><span class="nav-icon"><img v-if="item.id === 'profile' && profileImageUrl" :src="profileImageUrl" class="profile-avatar profile-avatar--nav" alt="" /><span v-else-if="item.id === 'profile'" class="profile-avatar profile-avatar--nav">{{ initials }}</span><font-awesome-icon v-else :icon="item.icon" /><i v-if="item.badge">{{ item.badge }}</i></span><span>{{ item.label }}</span></button></nav>
   </div>
 </template>
@@ -225,6 +228,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '@/stores/theme';
 import PublicHeader from '../PublicHeader.vue';
+import PublicFooter from '../PublicFooter.vue';
 import PublicJobDetail from '../PublicJobDetail.vue';
 import PublicKalender from '../PublicKalender.vue';
 import PublicUpcomingJobs from '../PublicUpcomingJobs.vue';

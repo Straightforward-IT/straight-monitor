@@ -138,7 +138,7 @@ const AZKLedgerSchema = new mongoose.Schema({
   },
   sourceAbsence: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'AbsenceLedger',
+    ref: 'AbwesenheitsBuch',
     default: null,
     immutable: true,
   },
@@ -154,11 +154,11 @@ const AZKLedgerSchema = new mongoose.Schema({
   },
   reversalOf: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'AZKLedger',
+    ref: 'AZKBuch',
     default: null,
     immutable: true,
   },
-  reversedByEntry: { type: mongoose.Schema.Types.ObjectId, ref: 'AZKLedger', default: null },
+  reversedByEntry: { type: mongoose.Schema.Types.ObjectId, ref: 'AZKBuch', default: null },
 
   status: {
     type: String,
@@ -265,4 +265,4 @@ AZKLedgerSchema.index({ mitarbeiter: 1, payrollMonth: 1, status: 1 });
 AZKLedgerSchema.index({ payrollRun: 1, mitarbeiter: 1 });
 AZKLedgerSchema.index({ reversalOf: 1 }, { sparse: true });
 
-module.exports = mongoose.model('AZKLedger', AZKLedgerSchema);
+module.exports = mongoose.model('AZKBuch', AZKLedgerSchema);

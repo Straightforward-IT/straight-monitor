@@ -8,9 +8,8 @@ function decimalIsNonNegative(value) {
   return Number.isFinite(number) && number >= 0;
 }
 
+// Pausen werden als reine Minutenzahl erfasst — keine Von-/Bis-Zeitpunkte.
 const BreakSchema = new mongoose.Schema({
-  startedAt: { type: Date, default: null, immutable: true },
-  endedAt: { type: Date, default: null, immutable: true },
   minutes: {
     type: mongoose.Schema.Types.Decimal128,
     required: true,
@@ -27,13 +26,6 @@ const BreakSchema = new mongoose.Schema({
     immutable: true,
   },
 }, { _id: true });
-
-BreakSchema.pre('validate', function validateBreak(next) {
-  if (this.startedAt && this.endedAt && this.endedAt <= this.startedAt) {
-    this.invalidate('endedAt', 'Das Pausenende muss nach dem Pausenbeginn liegen.');
-  }
-  next();
-});
 
 const StatusHistorySchema = new mongoose.Schema({
   from: { type: String, enum: WORKING_TIME_STATUSES, default: null },
@@ -55,7 +47,7 @@ const WorkingTimeLedgerSchema = new mongoose.Schema({
   isCurrent: { type: Boolean, required: true, default: true },
   supersedes: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'WorkingTimeLedger',
+    ref: 'ArbeitszeitBuch',
     default: null,
     immutable: true,
   },
@@ -68,7 +60,7 @@ const WorkingTimeLedgerSchema = new mongoose.Schema({
   },
   assignmentLedger: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'AssignmentLedger',
+    ref: 'EinsatzBuch',
     required: true,
     immutable: true,
   },
@@ -210,4 +202,4 @@ WorkingTimeLedgerSchema.index(
   },
 );
 
-module.exports = mongoose.model('WorkingTimeLedger', WorkingTimeLedgerSchema);
+module.exports = mongoose.model('ArbeitszeitBuch', WorkingTimeLedgerSchema);
