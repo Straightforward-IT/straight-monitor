@@ -523,7 +523,7 @@ router.post("/webhook", (req, res) => {
                 );
               } catch (e) {
                 console.error(
-                  "❌ Asana create failed:",
+                  `❌ Asana delivery failed for message ${messageId} (${upn}); mail remains in the source folder:`,
                   e?.response?.data || e.message
                 );
               }

@@ -104,20 +104,32 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
+function percentageColor(percentage) {
+  if (percentage >= 75) return '#02b504';
+  if (percentage >= 50) return '#47ff49';
+  if (percentage >= 25) return '#ffd647';
+  return '#fb2a2a';
+}
+
 function buildInventoryMailHtml(location, rows) {
   const today = new Date().toLocaleDateString('de-DE');
   if (!rows.length) {
     return `<div style="font-family:Arial,sans-serif;color:#222"><h2>Bestandsupdate ${escapeHtml(location.nameFull)}</h2><p>Stand: ${today}</p><p><em>Keine Artikel gefunden.</em></p></div>`;
   }
-  const tableRows = rows.map((row) => `
+  const tableRows = rows.map((row) => {
+    const percentageCellStyle = row.percentage === null
+      ? 'text-align:right'
+      : `text-align:right;background-color:${percentageColor(row.percentage)}`;
+    return `
     <tr>
       <td>${escapeHtml(row.bezeichnung)}</td>
       <td>${escapeHtml(row.variation || 'Standard')}</td>
       <td>${escapeHtml(row.groesse || 'Onesize')}</td>
       <td style="text-align:right">${row.bestand}</td>
       <td style="text-align:right">${row.soll}</td>
-      <td style="text-align:right">${row.percentage === null ? '-' : `${row.percentage}%`}</td>
-    </tr>`).join('');
+      <td style="${percentageCellStyle}">${row.percentage === null ? '-' : `${row.percentage}%`}</td>
+    </tr>`;
+  }).join('');
   return `<div style="font-family:Arial,sans-serif;color:#222">
     <h2>Bestandsupdate ${escapeHtml(location.nameFull)}</h2>
     <p>Stand: ${today}</p>

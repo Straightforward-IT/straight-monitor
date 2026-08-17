@@ -41,6 +41,72 @@ function initSectionsApi() {
 const updateQueue = [];
 const maxConcurrentRequests = 15;
 let activeRequests = 0;
+const asanaWriteQueue = [];
+const maxConcurrentAsanaWrites = 3;
+let activeAsanaWrites = 0;
+
+function getAsanaErrorStatus(error) {
+  return error?.response?.status || error?.cause?.response?.status || null;
+}
+
+function getAsanaRetryDelayMs(error, attempt) {
+  const retryAfter = Number(
+    error?.response?.headers?.["retry-after"] ||
+    error?.cause?.response?.headers?.["retry-after"]
+  );
+  if (Number.isFinite(retryAfter) && retryAfter >= 0) {
+    return retryAfter * 1000;
+  }
+  return Math.min(1000 * 2 ** attempt, 30000);
+}
+
+function isRetryableAsanaError(error) {
+  const status = getAsanaErrorStatus(error);
+  return (
+    status === 429 ||
+    (status >= 500 && status < 600) ||
+    ["ECONNABORTED", "ECONNRESET", "ETIMEDOUT", "EAI_AGAIN", "ENOTFOUND"].includes(error?.code)
+  );
+}
+
+async function runAsanaWrite(label, operation, attempts = 4) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isRetryableAsanaError(error) || attempt === attempts - 1) {
+        throw error;
+      }
+
+      const delayMs = getAsanaRetryDelayMs(error, attempt);
+      console.warn(
+        `⏳ Asana write retry ${attempt + 1}/${attempts - 1} for ${label} in ${delayMs}ms ` +
+        `(status=${getAsanaErrorStatus(error) || error?.code || "unknown"})`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
+function processAsanaWriteQueue() {
+  while (activeAsanaWrites < maxConcurrentAsanaWrites && asanaWriteQueue.length) {
+    const { label, operation, resolve, reject } = asanaWriteQueue.shift();
+    activeAsanaWrites += 1;
+    runAsanaWrite(label, operation)
+      .then(resolve, reject)
+      .finally(() => {
+        activeAsanaWrites -= 1;
+        processAsanaWriteQueue();
+      });
+  }
+}
+
+function queueAsanaWrite(label, operation) {
+  return new Promise((resolve, reject) => {
+    asanaWriteQueue.push({ label, operation, resolve, reject });
+    processAsanaWriteQueue();
+  });
+}
 
 function queueTaskUpdate(task_gid, newHtmlNotes) {
   updateQueue.push({ task_gid, newHtmlNotes });
@@ -53,7 +119,10 @@ async function processQueue() {
   const { task_gid, newHtmlNotes } = updateQueue.shift();
   activeRequests++;
   try {
-    await updateTask(task_gid, { html_notes: newHtmlNotes });
+    await queueAsanaWrite(
+      `update HTML notes for task ${task_gid}`,
+      () => updateTask(task_gid, { html_notes: newHtmlNotes })
+    );
   } catch (error) {
     console.error(`❌ Failed to update task ${task_gid}:`, error.message);
     if (error.response?.status === 429) {
@@ -373,7 +442,10 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
         ...(email.meta?.due_date ? { due_on: email.meta.due_date } : {}),
       },
     };
-    const resp = await tasksApi.createTask(body, { opt_fields: "gid,name,permalink_url" });
+    const resp = await queueAsanaWrite(
+      `create task \"${name}\"`,
+      () => tasksApi.createTask(body, { opt_fields: "gid,name,permalink_url" })
+    );
     createdTask = resp?.data || resp;
     console.log(`🆕 Asana task created: ${createdTask?.gid} (${createdTask?.name})`);
   } catch (e) {
@@ -404,22 +476,17 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
   }
 
   // 3) Parser-Kommentar als Story (wie gehabt)
-  try {
-    const comment = email.meta?.asana_comment || email.bodyText || "";
-    if (comment && comment.trim()) {
-      const safe = comment.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      await createStoryOnTask(createdTask.gid, { html_text: `<body><pre>${safe}</pre></body>` });
-    }
-  } catch (e) {
-    console.warn("⚠️ createStoryOnTask failed:", e.message);
+  const comment = email.meta?.asana_comment || email.bodyText || "";
+  if (comment && comment.trim()) {
+    const safe = comment.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    await queueAsanaWrite(
+      `create email comment for task ${createdTask.gid}`,
+      () => createStoryOnTask(createdTask.gid, { html_text: `<body><pre>${safe}</pre></body>` })
+    );
   }
 
   // 4) Attachments
-  try {
-    await uploadAttachmentsToTask(createdTask.gid, files);
-  } catch (e) {
-    console.error("❌ Attachment upload error:", e.response?.data || e.message);
-  }
+  await uploadAttachmentsToTask(createdTask.gid, files);
 
   // 5) Bewerber-Link oben einfügen
   try {
@@ -495,7 +562,7 @@ async function createStoryOnTask(task_gid, data) {
       return response;
     } catch (error) {
       console.error(`❌ Error creating Comment on task ${task_gid}:`, error.response?.body || error.message);
-      throw new Error("Failed to create comment in Asana");
+      throw error;
     }
   }
 
@@ -573,31 +640,30 @@ async function _mergeIntoExistingTask(existingTask, email, files = [], hint = {}
   }
 
   // 2) Neue Bewerbung als Story (Kommentar) an bestehenden Task anhängen
-  try {
-    const fromInfo = `${(email.fromName || email.fromAddr || "unbekannt").replace(/</g, "&lt;").replace(/>/g, "&gt;")} &lt;${email.fromAddr || ""}&gt;`;
-    const dateInfo = email.receivedDateTime
-      ? new Date(email.receivedDateTime).toLocaleString("de-DE")
-      : "-";
-    const providerInfo = (hint.provider || "-").replace(/</g, "&lt;");
+  const fromInfo = `${(email.fromName || email.fromAddr || "unbekannt").replace(/</g, "&lt;").replace(/>/g, "&gt;")} &lt;${email.fromAddr || ""}&gt;`;
+  const dateInfo = email.receivedDateTime
+    ? new Date(email.receivedDateTime).toLocaleString("de-DE")
+    : "-";
+  const providerInfo = (hint.provider || "-").replace(/</g, "&lt;");
 
-    const contactLines = [];
-    if (email.meta?.telefon) contactLines.push(`Telefon: ${email.meta.telefon}`);
-    if (email.meta?.email) contactLines.push(`E-Mail: ${email.meta.email}`);
-    const contactHtml = contactLines.length
-      ? `<br>${contactLines.map((l) => l.replace(/</g, "&lt;")).join("<br>")}`
-      : "";
+  const contactLines = [];
+  if (email.meta?.telefon) contactLines.push(`Telefon: ${email.meta.telefon}`);
+  if (email.meta?.email) contactLines.push(`E-Mail: ${email.meta.email}`);
+  const contactHtml = contactLines.length
+    ? `<br>${contactLines.map((line) => line.replace(/</g, "&lt;")).join("<br>")}`
+    : "";
 
-    const commentText = email.meta?.asana_comment || email.bodyText || "";
-    const commentHtml = commentText.trim()
-      ? `<br><pre>${commentText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`
-      : "";
+  const commentText = email.meta?.asana_comment || email.bodyText || "";
+  const commentHtml = commentText.trim()
+    ? `<br><pre>${commentText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`
+    : "";
 
-    const storyHtml = `<body><strong>🔄 Erneute Bewerbung eingegangen</strong><br>📥 <b>Eingang:</b> ${dateInfo}<br>👤 <b>Von:</b> ${fromInfo}<br>🔍 <b>Quelle:</b> ${providerInfo}${contactHtml}${commentHtml}</body>`;
-    await createStoryOnTask(gid, { html_text: storyHtml });
-    console.log(`💬 Story zur erneuten Bewerbung an Task ${gid} angefügt`);
-  } catch (e) {
-    console.warn("⚠️ Story on existing task failed:", e.message);
-  }
+  const storyHtml = `<body><strong>🔄 Erneute Bewerbung eingegangen</strong><br>📥 <b>Eingang:</b> ${dateInfo}<br>👤 <b>Von:</b> ${fromInfo}<br>🔍 <b>Quelle:</b> ${providerInfo}${contactHtml}${commentHtml}</body>`;
+  await queueAsanaWrite(
+    `create duplicate-email comment for task ${gid}`,
+    () => createStoryOnTask(gid, { html_text: storyHtml })
+  );
+  console.log(`💬 Story zur erneuten Bewerbung an Task ${gid} angefügt`);
 
   // 3) Nur neue Anhänge hochladen (Namen-Vergleich)
   if (files && files.length > 0) {
@@ -612,6 +678,7 @@ async function _mergeIntoExistingTask(existingTask, email, files = [], hint = {}
       }
     } catch (e) {
       console.error("❌ Attachment-Merge fehlgeschlagen:", e.message);
+      throw e;
     }
   }
 
@@ -846,8 +913,7 @@ async function uploadAttachmentsToTask(task_gid, files = []) {async function cre
     }
 
     if (!buf) {
-      console.warn(`⚠️ Skip attachment (no data): ${f.name}`);
-      continue;
+      throw new Error(`Attachment has no downloadable data: ${f.name || "(unnamed)"}`);
     }
 
     const FormData = require("form-data");
@@ -858,19 +924,19 @@ async function uploadAttachmentsToTask(task_gid, files = []) {async function cre
       knownLength: buf.length,
     });
 
-    try {
-      await axios.post(url, form, {
+    await queueAsanaWrite(
+      `upload attachment \"${f.name || "(unnamed)"}\" to task ${task_gid}`,
+      () => axios.post(url, form, {
         headers: {
           Authorization: `Bearer ${process.env.ASANA_PAT}`,
           ...form.getHeaders(),
         },
+        timeout: 60000,
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
-      });
-      console.log(`📎 Uploaded attachment → ${f.name || "(unnamed)"} to ${task_gid}`);
-    } catch (e) {
-      console.error(`❌ Upload failed for ${f.name || "(unnamed)"}:`, e.response?.data || e.message);
-    }
+      })
+    );
+    console.log(`📎 Uploaded attachment → ${f.name || "(unnamed)"} to ${task_gid}`);
   }
 }
 
