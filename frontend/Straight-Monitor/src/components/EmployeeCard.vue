@@ -1693,6 +1693,7 @@ export default {
       dataCache,
       selfLoadedMa,
       selfLoading,
+      flip,
     };
   },
 
@@ -2007,26 +2008,9 @@ export default {
     }
 
     // When opened with initiallyExpanded=true, toggle() is never called,
-    // so we must trigger lazy-loading manually.
+    // so we must trigger the reload manually.
     if (this.expanded) {
-      if (this.eventreportFeedback.length === 0 && !this.loadingFeedback) {
-        this.loadEventReportFeedback();
-      }
-      if (this.view === 'flip' && this.resolvedMa?.flip?.id && !this.tasksLoaded) {
-        this.loadFlipTasks();
-      }
-      if (this.view === 'inventar' && this.inventarLogs.length === 0 && !this.inventarLoading) {
-        this.fetchInventar();
-      }
-      if (!this.einsatzContext.last && !this.einsatzContext.next && !this.loadingEinsatzContext) {
-        this.loadEinsatzContext();
-      }
-      if (this.chronik.length === 0 && !this.loadingChronik) {
-        this.loadChronik();
-      }
-      if (this.calendarEinsaetze.length === 0 && !this.calendarLoading) {
-        this._loadCalMonth();
-      }
+      this.reloadAllData();
     }
   },
 
@@ -2045,33 +2029,12 @@ export default {
       try {
         const response = await api.get(`/api/personal/mitarbeiter/${id}`);
         const data = response.data?.data || response.data;
-        if (data.flip_id) {
-          try {
-            const flipRes = await api.get(`/api/personal/flip/by-id/${data.flip_id}`);
-            data.flip = flipRes.data;
-          } catch { /* flip profile will show on next load */ }
-        }
+        await this.enrichWithFlip(data);
         this.selfLoadedMa = data;
-        // Trigger lazy-loads that depend on expanded state
+        // loadSelf already refetched the Mitarbeiter + Flip user, so only
+        // reload the related datasets (inventory, feedback, dispo, ...).
         if (this.expanded) {
-          if (this.eventreportFeedback.length === 0 && !this.loadingFeedback) {
-            this.loadEventReportFeedback();
-          }
-          if (this.view === 'flip' && this.resolvedMa?.flip?.id && !this.tasksLoaded) {
-            this.loadFlipTasks();
-          }
-          if (this.view === 'inventar' && this.inventarLogs.length === 0 && !this.inventarLoading) {
-            this.fetchInventar();
-          }
-          if (!this.einsatzContext.last && !this.einsatzContext.next && !this.loadingEinsatzContext) {
-            this.loadEinsatzContext();
-          }
-          if (this.chronik.length === 0 && !this.loadingChronik) {
-            this.loadChronik();
-          }
-          if (this.calendarEinsaetze.length === 0 && !this.calendarLoading) {
-            this._loadCalMonth();
-          }
+          this.reloadRelatedData();
         }
       } catch (err) {
         console.error('[EmployeeCard] loadSelf failed:', err);
@@ -2084,27 +2047,63 @@ export default {
 
       if (this.expanded) {
         this.$emit("open", this.resolvedMa);
+        this.reloadAllData();
+      }
+    },
 
-        // Lazy-load EventReport feedback
-        if (this.eventreportFeedback.length === 0 && !this.loadingFeedback) {
-          this.loadEventReportFeedback();
-        }
+    // Full reload on card open: refetch the Mitarbeiter + Flip user, then
+    // all related datasets. Always reloads (no cache guards).
+    async reloadAllData() {
+      await this.refreshMitarbeiterAndFlip();
+      this.reloadRelatedData();
+    },
 
-        // Auto-load tasks if flip view and not loaded yet
-        if (this.view === 'flip' && this.resolvedMa?.flip?.id && !this.tasksLoaded) {
-          this.loadFlipTasks();
+    // Refetch the Mitarbeiter document (Asana, Personalnr, flip_id, ...) and
+    // the linked Flip user via flip_id, updating the resolved Mitarbeiter.
+    async refreshMitarbeiterAndFlip() {
+      const id = this.resolvedMa?._id;
+      if (!id) return;
+      try {
+        const response = await api.get(`/api/personal/mitarbeiter/${id}`);
+        const data = response.data?.data || response.data;
+        await this.enrichWithFlip(data);
+        if (this.ma) {
+          Object.assign(this.ma, data);
+        } else {
+          this.selfLoadedMa = data;
         }
+      } catch (err) {
+        console.error('[EmployeeCard] refreshMitarbeiterAndFlip failed:', err);
+      }
+    },
 
-        // Dispo lazy-loads
-        if (!this.einsatzContext.last && !this.einsatzContext.next && !this.loadingEinsatzContext) {
-          this.loadEinsatzContext();
-        }
-        if (this.chronik.length === 0 && !this.loadingChronik) {
-          this.loadChronik();
-        }
-        if (this.calendarEinsaetze.length === 0 && !this.calendarLoading) {
-          this._loadCalMonth();
-        }
+    // Attach the full, normalized Flip context (incl. groups, username, role)
+    // to a Mitarbeiter object via the flipAll store rather than the raw endpoint.
+    async enrichWithFlip(data) {
+      if (!data?.flip_id) return;
+      try {
+        // Ensure the group data is available in the store, then refresh this
+        // single user (fetchFlipById preserves groups from the store).
+        await this.flip.fetchAll();
+        const flipUser = await this.flip.fetchFlipById(data.flip_id);
+        if (flipUser) data.flip = flipUser;
+      } catch { /* flip profile will show on next load */ }
+    },
+
+    // Reload every Mitarbeiter-related dataset (inventory, feedback, dispo,
+    // chronik, calendar, Flip tasks). Resets caches so data is always fresh.
+    reloadRelatedData() {
+      if (!this.resolvedMa?._id) return;
+      this._calFetchedMonths = new Set();
+      this.calendarEinsaetze = [];
+      this.tasksLoaded = false;
+      this.loadEventReportFeedback();
+      this.loadEinsatzContext();
+      this.loadChronik();
+      this._loadCalMonth();
+      this.fetchInventar();
+      if (this.resolvedMa?.flip?.id) {
+        this.loadFlipTasks();
       }
     },
     async loadEventReportFeedback() {
