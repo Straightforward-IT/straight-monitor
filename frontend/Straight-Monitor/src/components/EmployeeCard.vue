@@ -1315,15 +1315,6 @@
           <teleport to="body">
             <div v-if="showQuickActionsMenu" class="qa-overlay" @click="_closeQuickActions()">
               <div class="qa-menu" :style="quickActionsMenuStyle" @click.stop>
-                <div v-if="getPhoneNumber() || resolvedMa?.email" class="qa-group">
-                  <div class="qa-group-label">Kontakt</div>
-                  <button v-if="getPhoneNumber()" class="qa-item" @click="executeQuickAction('sipgate')">
-                    <font-awesome-icon icon="fa-solid fa-phone" /> {{ getPhoneNumber() }}
-                  </button>
-                  <button v-if="resolvedMa.email" class="qa-item" @click="executeQuickAction('outlook')">
-                    <font-awesome-icon icon="fa-solid fa-envelope" /> {{ resolvedMa.email }}
-                  </button>
-                </div>
                 <div class="qa-group">
                   <div class="qa-group-label">Aktionen</div>
                   <button class="qa-item" @click="executeQuickAction('share-link')">
@@ -1343,7 +1334,7 @@
                     <font-awesome-icon :icon="resolvedMa.isActive ? 'fa-regular fa-circle' : 'fa-solid fa-circle-check'" />
                     {{ resolvedMa.isActive ? 'Deaktivieren' : 'Reaktivieren' }}
                   </button>
-                  <button class="qa-item qa-item--danger" @click="executeQuickAction('delete')">
+                  <button v-if="auth.user?.roles?.includes('ADMIN')" class="qa-item qa-item--danger" @click="executeQuickAction('delete')">
                     <font-awesome-icon icon="fa-solid fa-trash" /> Löschen
                   </button>
                 </div>
@@ -1544,6 +1535,7 @@ import ImageCropModal from "./ImageCropModal.vue";
 import TlBadge from "./ui-elements/TlBadge.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
+import { useAuth } from "@/stores/auth";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
 import api from "@/utils/api";
@@ -1571,6 +1563,7 @@ export default {
 
   setup(props) {
     const theme = useTheme();
+    const auth = useAuth();
     const router = useRouter();
 
     // Self-loading state (used when only mitarbeiterId prop is passed)
@@ -1678,6 +1671,7 @@ export default {
     // Logos via imports (Vite preloaded) – kein src-Swap → kein Flackern
     return {
       theme,
+      auth,
       effectiveTheme,
       showTooltips,
       tooltipPosition,
