@@ -9,7 +9,11 @@ const BerufSchema = new mongoose.Schema({
   designation: {
     type: String,
     required: true,
-  }
+  },  
+    taetigkeitsschluessel: {
+      type: String,
+      required: false,
+    }
 });
 
 module.exports = mongoose.model("Beruf", BerufSchema);

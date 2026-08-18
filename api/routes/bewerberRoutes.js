@@ -127,7 +127,7 @@ router.post("/email-documents", documentUpload.single("file"), asyncHandler(asyn
     });
     res.status(201).json({ data: document });
   } catch (error) {
-    await R2Service.deleteObject(key).catch((cleanupError) => {
+    await R2Service.deleteFile(key).catch((cleanupError) => {
       logger.error(`Bewerber-E-Mail-Dokument konnte nicht aus R2 bereinigt werden: ${key}`, cleanupError);
     });
     throw error;
@@ -163,7 +163,7 @@ router.delete("/email-documents/:id", asyncHandler(async (req, res) => {
   });
   if (!document) return res.status(404).json({ message: "Dokument nicht gefunden." });
 
-  await R2Service.deleteObject(document.key);
+  await R2Service.deleteFile(document.key);
   await document.deleteOne();
   res.status(204).end();
 }));

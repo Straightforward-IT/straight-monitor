@@ -232,42 +232,78 @@
     <BewerberManagementTab v-else-if="activeTab === 'applicants'" :locations="activeLocations" />
 
     <section v-else-if="activeTab === 'qualifikationen'" class="qualifikationen">
-      <div class="qualifikationen__header">
-        <ToolbarButton @click="openQualiCreate">
-          <font-awesome-icon icon="fa-solid fa-plus" />
-          Qualifikation anlegen
-        </ToolbarButton>
-      </div>
+      <Toolbar>
+        <SearchBar class="toolbar-search" v-model="qualiSearch" placeholder="Qualifikation suchen…" aria-label="Qualifikation suchen" />
+        <ToolbarLabel>{{ filteredQualifikationen.length }} Qualifikationen</ToolbarLabel>
+        <ToolbarGroup push-right>
+          <ToolbarButton @click="openQualiCreate">
+            <font-awesome-icon icon="fa-solid fa-plus" />
+            Qualifikation anlegen
+          </ToolbarButton>
+        </ToolbarGroup>
+      </Toolbar>
       <p v-if="qualiError" class="um__error">{{ qualiError }}</p>
       <p v-else-if="qualiLoading" class="qualifikationen__state">Qualifikationen werden geladen…</p>
-      <div v-else class="um__table-wrap">
-        <table class="um__table">
-          <thead>
-            <tr>
-              <th>Schlüssel</th>
-              <th>Bezeichnung</th>
-              <th class="th-actions">Aktionen</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="q in qualifikationen" :key="q._id">
-              <td><span class="quali-key">#{{ q.qualificationKey }}</span></td>
-              <td>{{ q.designation }}</td>
-              <td class="td-actions">
-                <button type="button" class="btn-icon" title="Bearbeiten" @click="openQualiEdit(q)">
-                  <font-awesome-icon icon="fa-solid fa-pen" />
-                </button>
-                <button type="button" class="btn-icon btn-icon--danger" title="Löschen" @click="openQualiDelete(q)">
-                  <font-awesome-icon icon="fa-solid fa-trash" />
-                </button>
-              </td>
-            </tr>
-            <tr v-if="!qualifikationen.length">
-              <td colspan="3" style="text-align:center; opacity:0.45; padding: 24px;">Keine Qualifikationen vorhanden.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <template v-else>
+        <nav class="quali-beruf-tabs" aria-label="Berufsgruppe">
+          <button
+            type="button"
+            :class="{ 'quali-beruf-tabs__tab--active': selectedBerufFilter === null }"
+            @click="selectedBerufFilter = null"
+          >
+            Alle
+            <span class="tab-count">{{ qualifikationen.length }}</span>
+          </button>
+          <button
+            v-for="b in qualiBerufTabs"
+            :key="b.id"
+            type="button"
+            :class="{ 'quali-beruf-tabs__tab--active': selectedBerufFilter === b.id }"
+            @click="selectedBerufFilter = b.id"
+          >
+            {{ b.label }}
+            <span class="tab-count">{{ b.count }}</span>
+          </button>
+        </nav>
+        <div class="um__table-wrap">
+          <table class="um__table">
+            <thead>
+              <tr>
+                <th>Schlüssel</th>
+                <th>Bezeichnung</th>
+                <th v-if="selectedBerufFilter === null">Beruf</th>
+                <th>Mitarbeiter</th>
+                <th class="th-actions">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="q in filteredQualifikationen" :key="q._id">
+                <td><span class="quali-key">#{{ q.qualificationKey }}</span></td>
+                <td>{{ q.designation }}</td>
+                <td v-if="selectedBerufFilter === null">
+                  <span v-if="q.beruf" class="beruf-tag">#{{ q.beruf.jobKey }} {{ q.beruf.designation }}</span>
+                  <span v-else class="ma-unlinked">—</span>
+                </td>
+                <td>
+                  <span v-if="q.mitarbeiterCount" class="quali-ma-count">{{ q.mitarbeiterCount }}</span>
+                  <span v-else class="ma-unlinked">0</span>
+                </td>
+                <td class="td-actions">
+                  <button type="button" class="btn-icon" title="Bearbeiten" @click="openQualiEdit(q)">
+                    <font-awesome-icon icon="fa-solid fa-pen" />
+                  </button>
+                  <button type="button" class="btn-icon btn-icon--danger" title="Löschen" @click="openQualiDelete(q)">
+                    <font-awesome-icon icon="fa-solid fa-trash" />
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="!filteredQualifikationen.length">
+                <td :colspan="selectedBerufFilter === null ? 5 : 4" style="text-align:center; opacity:0.45; padding: 24px;">Keine Qualifikationen vorhanden.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </section>
 
     <!-- Qualifikation Create/Edit Modal -->
@@ -285,6 +321,13 @@
           <div class="form-group">
             <label>Bezeichnung <span class="required">*</span></label>
             <input v-model="qualiModal.form.designation" type="text" required />
+          </div>
+          <div class="form-group">
+            <label>Beruf</label>
+            <select v-model="qualiModal.form.beruf">
+              <option :value="null">— Kein Beruf —</option>
+              <option v-for="b in berufe" :key="b._id" :value="b._id">#{{ b.jobKey }} {{ b.designation }}</option>
+            </select>
           </div>
           <p v-if="qualiModal.error" class="modal-error">{{ qualiModal.error }}</p>
         </div>
@@ -660,17 +703,50 @@ const linkModal = reactive({
 
 // ─── Qualifikationen ────────────────────────────────────────────────────────
 const qualifikationen = ref([]);
+const berufe = ref([]);
 const qualiLoading = ref(false);
 const qualiError = ref('');
-const qualiModal = reactive({ open: false, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '' } });
+const qualiSearch = ref('');
+const selectedBerufFilter = ref(null); // null = all, 'none' = no beruf, beruf._id = specific beruf
+const qualiModal = reactive({ open: false, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '', beruf: null } });
 const qualiDeleteModal = reactive({ open: false, deleting: false, error: '', item: null });
+
+const qualiBerufTabs = computed(() => {
+  const map = new Map();
+  for (const q of qualifikationen.value) {
+    const key = q.beruf?._id ?? 'none';
+    const label = q.beruf ? `#${q.beruf.jobKey} ${q.beruf.designation}` : 'Ohne Beruf';
+    if (!map.has(key)) map.set(key, { id: key, label, jobKey: q.beruf?.jobKey ?? Infinity, count: 0 });
+    map.get(key).count++;
+  }
+  return [...map.values()].sort((a, b) => a.jobKey - b.jobKey);
+});
+
+const filteredQualifikationen = computed(() => {
+  let list = qualifikationen.value;
+  if (selectedBerufFilter.value !== null) {
+    if (selectedBerufFilter.value === 'none') list = list.filter(q => !q.beruf);
+    else list = list.filter(q => q.beruf?._id === selectedBerufFilter.value);
+  }
+  const q = qualiSearch.value.trim().toLowerCase();
+  if (!q) return list;
+  return list.filter(r =>
+    String(r.qualificationKey).includes(q) ||
+    r.designation.toLowerCase().includes(q) ||
+    r.beruf?.designation.toLowerCase().includes(q)
+  );
+});
 
 async function fetchQualifikationen() {
   qualiLoading.value = true;
   qualiError.value = '';
   try {
-    const { data } = await api.get('/api/import/qualifikationen');
-    qualifikationen.value = data.data || [];
+    const [qualiRes, berufRes] = await Promise.all([
+      api.get('/api/import/qualifikationen'),
+      api.get('/api/import/berufe'),
+    ]);
+    qualifikationen.value = qualiRes.data.data || [];
+    berufe.value = (berufRes.data.data || []).sort((a, b) => a.jobKey - b.jobKey);
   } catch (e) {
     qualiError.value = e?.response?.data?.message || 'Fehler beim Laden der Qualifikationen.';
   } finally {
@@ -679,11 +755,11 @@ async function fetchQualifikationen() {
 }
 
 function openQualiCreate() {
-  Object.assign(qualiModal, { open: true, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '' } });
+  Object.assign(qualiModal, { open: true, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '', beruf: null } });
 }
 
 function openQualiEdit(q) {
-  Object.assign(qualiModal, { open: true, isNew: false, id: q._id, saving: false, error: '', form: { qualificationKey: q.qualificationKey, designation: q.designation } });
+  Object.assign(qualiModal, { open: true, isNew: false, id: q._id, saving: false, error: '', form: { qualificationKey: q.qualificationKey, designation: q.designation, beruf: q.beruf?._id || null } });
 }
 
 function closeQualiModal() { qualiModal.open = false; }
@@ -692,11 +768,12 @@ async function saveQualifikation() {
   qualiModal.error = '';
   qualiModal.saving = true;
   try {
+    const payload = { ...qualiModal.form, beruf: qualiModal.form.beruf || null };
     if (qualiModal.isNew) {
-      const { data } = await api.post('/api/import/qualifikationen', qualiModal.form);
+      const { data } = await api.post('/api/import/qualifikationen', payload);
       qualifikationen.value = [...qualifikationen.value, data.data].sort((a, b) => a.qualificationKey - b.qualificationKey);
     } else {
-      const { data } = await api.put(`/api/import/qualifikationen/${qualiModal.id}`, qualiModal.form);
+      const { data } = await api.put(`/api/import/qualifikationen/${qualiModal.id}`, payload);
       const idx = qualifikationen.value.findIndex(q => q._id === qualiModal.id);
       if (idx !== -1) qualifikationen.value[idx] = data.data;
     }
@@ -1217,14 +1294,80 @@ function formatDate(d) {
 .qualifikationen {
   padding-top: 22px;
 }
-.qualifikationen__header {
-  margin-bottom: 12px;
-}
 .qualifikationen__state { color: var(--muted); font-size: 0.85rem; }
+
+.quali-beruf-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 0 12px;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.78rem;
+    transition: border-color 0.12s, color 0.12s, background 0.12s;
+
+    &:hover { border-color: var(--primary); color: var(--text); }
+  }
+
+  .quali-beruf-tabs__tab--active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(var(--primary-rgb, 255, 120, 0), 0.08);
+    font-weight: 600;
+  }
+}
+
+.tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: var(--border);
+  color: var(--text);
+
+  .quali-beruf-tabs__tab--active & {
+    background: rgba(var(--primary-rgb, 255, 120, 0), 0.2);
+    color: var(--primary);
+  }
+}
 .quali-key {
   font-family: monospace;
   font-size: 0.82rem;
   opacity: 0.75;
+}
+
+.beruf-tag {
+  font-size: 0.8rem;
+  color: var(--primary);
+  font-family: monospace;
+}
+
+.quali-ma-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  padding: 2px 7px;
+  border-radius: 100px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(var(--primary-rgb, 255, 120, 0), 0.12);
+  color: var(--primary);
 }
 
 .locations__state { color: var(--muted); font-size: 0.85rem; }

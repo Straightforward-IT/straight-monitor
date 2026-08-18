@@ -480,7 +480,7 @@ router.delete('/:auftragNr/stundenliste', auth, asyncHandler(async (req, res) =>
 
   const r2Key = `stundenlisten/${auftragNr}.pdf`;
   try {
-    await R2Service.deleteObject(r2Key);
+    await R2Service.deleteFile(r2Key);
   } catch (err) {
     logger.warn(`Stundenliste R2-Löschen fehlgeschlagen (${r2Key}): ${err.message}`);
   }
@@ -833,7 +833,7 @@ router.delete('/:auftragNr/einsatzdokumente', auth, asyncHandler(async (req, res
   if (!key.startsWith(EINSATZ_DOK_PREFIX(auftragNr))) {
     return res.status(403).json({ success: false, message: 'Ungültiger Pfad' });
   }
-  await R2Service.deleteObject(key);
+  await R2Service.deleteFile(key);
   res.json({ success: true });
 }));
 

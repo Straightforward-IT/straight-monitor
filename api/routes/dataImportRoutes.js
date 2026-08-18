@@ -1194,8 +1194,10 @@ router.post('/beruf', auth, extendTimeout, upload.single('file'), async (req, re
       
       // Column A (Index 0): Key
       // Column C (Index 2): Designation
+      // Column D (Index 3): Tätigkeitsschlüssel (optional)
       const keyVal = row[0];
       const designationVal = row[2];
+      const taetigkeitsschluesselVal = row[3];
 
       const jobKey = parseInt(keyVal, 10);
       if (isNaN(jobKey)) continue; // Skip header or invalid rows
@@ -1203,10 +1205,15 @@ router.post('/beruf', auth, extendTimeout, upload.single('file'), async (req, re
       const designation = designationVal ? String(designationVal).trim() : '';
       if (!designation) continue;
 
+      const update = { designation };
+      if (taetigkeitsschluesselVal !== undefined && taetigkeitsschluesselVal !== '') {
+        update.taetigkeitsschluessel = String(taetigkeitsschluesselVal).trim();
+      }
+
       operations.push({
         updateOne: {
           filter: { jobKey: jobKey },
-          update: { $set: { designation: designation } },
+          update: { $set: update },
           upsert: true
         }
       });
@@ -1252,13 +1259,18 @@ router.post('/qualifikation', auth, extendTimeout, upload.single('file'), async 
 
     const operations = [];
 
+    const allBerufeForQuali = await Beruf.find({}).select('_id jobKey').lean();
+    const berufByJobKey = new Map(allBerufeForQuali.map(b => [b.jobKey, b._id]));
+
     for (const row of rawData) {
       if (!row || row.length < 1) continue;
       
       // Column A (Index 0): Key
       // Column B (Index 1): Designation
+      // Column C (Index 2): Beruf jobKey (optional, clears assignment if empty)
       const keyVal = row[0];
       const designationVal = row[1];
+      const berufKeyVal = row[2];
 
       const qualificationKey = parseInt(keyVal, 10);
       if (isNaN(qualificationKey)) continue;
@@ -1266,10 +1278,13 @@ router.post('/qualifikation', auth, extendTimeout, upload.single('file'), async 
       const designation = designationVal ? String(designationVal).trim() : '';
       if (!designation) continue;
 
+      const berufJobKey = berufKeyVal !== undefined && berufKeyVal !== '' ? parseInt(berufKeyVal, 10) : null;
+      const berufId = (!isNaN(berufJobKey) && berufJobKey !== null) ? (berufByJobKey.get(berufJobKey) || null) : null;
+
       operations.push({
         updateOne: {
           filter: { qualificationKey: qualificationKey },
-          update: { $set: { designation: designation } },
+          update: { $set: { designation: designation, beruf: berufId } },
           upsert: true
         }
       });
@@ -1440,8 +1455,13 @@ router.get('/berufe', async (req, res) => {
 // --- GET all Qualifikationen (for frontend cache) ---
 router.get('/qualifikationen', async (req, res) => {
   try {
-    const qualifikationen = await Qualifikation.find({}).sort({ qualificationKey: 1 }).lean();
-    res.json({ success: true, data: qualifikationen });
+    const [qualifikationen, counts] = await Promise.all([
+      Qualifikation.find({}).sort({ qualificationKey: 1 }).populate('beruf', 'jobKey designation').lean(),
+      Mitarbeiter.aggregate([{ $unwind: '$qualifikationen' }, { $group: { _id: '$qualifikationen', count: { $sum: 1 } } }]),
+    ]);
+    const countMap = new Map(counts.map(c => [String(c._id), c.count]));
+    const data = qualifikationen.map(q => ({ ...q, mitarbeiterCount: countMap.get(String(q._id)) || 0 }));
+    res.json({ success: true, data });
   } catch (error) {
     logger.error('GET Qualifikationen Error:', error);
     res.status(500).json({ success: false, message: 'Fehler beim Abrufen der Qualifikationen.', error: error.message });
@@ -1451,12 +1471,17 @@ router.get('/qualifikationen', async (req, res) => {
 // --- POST create Qualifikation ---
 router.post('/qualifikationen', auth, async (req, res) => {
   try {
-    const { qualificationKey, designation } = req.body;
+    const { qualificationKey, designation, beruf } = req.body;
     if (!qualificationKey || !designation) {
       return res.status(400).json({ success: false, message: 'qualificationKey und designation sind erforderlich.' });
     }
-    const qual = new Qualifikation({ qualificationKey: parseInt(qualificationKey, 10), designation: designation.trim() });
+    const qual = new Qualifikation({
+      qualificationKey: parseInt(qualificationKey, 10),
+      designation: designation.trim(),
+      beruf: beruf || null,
+    });
     await qual.save();
+    await qual.populate('beruf', 'jobKey designation');
     res.status(201).json({ success: true, data: qual });
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ success: false, message: 'Ein Eintrag mit diesem Schlüssel existiert bereits.' });
@@ -1468,11 +1493,12 @@ router.post('/qualifikationen', auth, async (req, res) => {
 // --- PUT update Qualifikation ---
 router.put('/qualifikationen/:id', auth, async (req, res) => {
   try {
-    const { qualificationKey, designation } = req.body;
+    const { qualificationKey, designation, beruf } = req.body;
     const update = {};
     if (qualificationKey !== undefined) update.qualificationKey = parseInt(qualificationKey, 10);
     if (designation !== undefined) update.designation = designation.trim();
-    const qual = await Qualifikation.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    if (beruf !== undefined) update.beruf = beruf || null;
+    const qual = await Qualifikation.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true }).populate('beruf', 'jobKey designation');
     if (!qual) return res.status(404).json({ success: false, message: 'Qualifikation nicht gefunden.' });
     res.json({ success: true, data: qual });
   } catch (error) {

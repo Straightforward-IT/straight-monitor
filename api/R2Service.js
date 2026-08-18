@@ -154,17 +154,8 @@ class R2Service {
     return results;
   }
 
-  /**
-   * Delete a single object from R2.
-   * @param {string} key - The R2 object key to delete.
-   */
-  async deleteObject(key) {
-    const command = new DeleteObjectCommand({ Bucket: this.bucketName, Key: key });
-    await this.client.send(command);
-    logger.info(`Deleted R2 object: ${key}`);
-  }
-
 }
+
 
 // Export as an instantiated singleton
 module.exports = new R2Service();
