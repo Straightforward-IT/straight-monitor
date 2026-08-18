@@ -2200,7 +2200,7 @@ let _copiedPhoneTimer = null;
 
 const nameMenuItems = computed(() => {
   if (!nameMenu.ma) return [];
-  const isHidden = hiddenIds.has(String(nameMenu.ma?._id));
+  const isHidden = hiddenIds.value.has(String(nameMenu.ma?._id));
   const phone = (nameMenu.ma?.telefon || '').trim();
 
   return [
@@ -2259,12 +2259,8 @@ function handleNameMenuAction({ item }) {
 }
 
 function openNameMenu(event, ma) {
-  const menuW = 240;
-  const menuH = 260;
-  const x = event.clientX + menuW > window.innerWidth ? event.clientX - menuW : event.clientX;
-  const y = event.clientY + menuH > window.innerHeight ? event.clientY - menuH : event.clientY;
-  nameMenu.x = x;
-  nameMenu.y = y;
+  nameMenu.x = event.clientX;
+  nameMenu.y = event.clientY;
   nameMenu.ma = ma;
   nameMenu.open = true;
 }
@@ -3772,12 +3768,8 @@ function onCellRightClick(event, ma, day) {
   }
   // If clicked cell is in selection → open multi-selection context menu
   if (selectedCells.value.size > 0 && selectedCells.value.has(`${ma._id}_${day.iso}`)) {
-    const menuW = 220;
-    const menuH = 350;
-    const x = event.clientX + menuW > window.innerWidth ? event.clientX - menuW : event.clientX;
-    const y = event.clientY + menuH > window.innerHeight ? event.clientY - menuH : event.clientY;
-    ctxMenu.x = x;
-    ctxMenu.y = y;
+    ctxMenu.x = event.clientX;
+    ctxMenu.y = event.clientY;
     ctxMenu.ma = ma;
     ctxMenu.day = null;
     ctxMenu.entries = [];
@@ -3790,13 +3782,8 @@ function onCellRightClick(event, ma, day) {
   clearSelection();
   const entries = getEntriesForCell(ma._id, day.iso);
 
-  const menuW = 220;
-  const menuH = 320;
-  const x = event.clientX + menuW > window.innerWidth ? event.clientX - menuW : event.clientX;
-  const y = event.clientY + menuH > window.innerHeight ? event.clientY - menuH : event.clientY;
-
-  ctxMenu.x = x;
-  ctxMenu.y = y;
+  ctxMenu.x = event.clientX;
+  ctxMenu.y = event.clientY;
   ctxMenu.ma = ma;
   ctxMenu.day = day.iso;
   ctxMenu.entries = entries;

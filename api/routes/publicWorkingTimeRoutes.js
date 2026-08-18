@@ -13,9 +13,11 @@ const router = express.Router();
 router.use(sensitiveRoute, publicAuth.headerOnly);
 
 async function employeeFromRequest(req) {
+  // OIDC-Identität hat Vorrang; im Legacy-Token-Flow kommt die E-Mail (kein Secret)
+  // aus Query/Body — konsistent mit den übrigen Public-Endpunkten.
   return WorkingTimeService.resolvePublicEmployee({
-    flipId: req.oidcFlipId,
-    email: req.oidcEmail,
+    flipId: req.oidcFlipId || req.body?.flipId || null,
+    email: req.oidcEmail || req.query.email || req.body?.email || null,
   });
 }
 

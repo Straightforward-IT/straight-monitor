@@ -570,6 +570,7 @@ async function submitZeiterfassung() {
     breaks: zeitForm.pausen.map(p => ({ minutes: Number(p.minuten) || 0, source: 'employee' })),
     clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Berlin',
     deviceId: zeitDeviceId(),
+    email: props.email || undefined,
   };
 
   zeitBusy.value = true;

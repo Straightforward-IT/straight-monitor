@@ -3,14 +3,12 @@
     <div
       v-if="open"
       class="action-menu-overlay"
-      @click="closeMenu"
-      @contextmenu.prevent="closeMenu"
     >
       <div
+        ref="menuElement"
         class="action-menu"
         :class="[`action-menu--${variant}`]"
         :style="menuStyle"
-        @click.stop
       >
         <slot name="header">
           <div v-if="title" class="action-menu__header">{{ title }}</div>
@@ -58,7 +56,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 const props = defineProps({
   open: {
@@ -101,10 +99,17 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'item-click']);
 
+const menuElement = ref(null);
+const position = ref({ x: 0, y: 0 });
+const isPositioned = ref(false);
+const viewportInset = 8;
+let resizeObserver;
+
 const menuStyle = computed(() => ({
-  top: `${props.y}px`,
-  left: `${props.x}px`,
+  top: `${position.value.y}px`,
+  left: `${position.value.x}px`,
   minWidth: typeof props.width === 'number' ? `${props.width}px` : props.width,
+  visibility: isPositioned.value ? 'visible' : 'hidden',
 }));
 
 const normalizedGroups = computed(() => {
@@ -143,8 +148,64 @@ const normalizedGroups = computed(() => {
   return [...groups.values()];
 });
 
+function updatePosition() {
+  const menu = menuElement.value;
+  if (!menu) return;
+
+  const { width, height } = menu.getBoundingClientRect();
+  position.value = {
+    x: Math.min(Math.max(props.x, viewportInset), window.innerWidth - width - viewportInset),
+    y: Math.min(Math.max(props.y, viewportInset), window.innerHeight - height - viewportInset),
+  };
+  isPositioned.value = true;
+}
+
+async function positionMenu() {
+  isPositioned.value = false;
+  position.value = { x: props.x, y: props.y };
+  await nextTick();
+  updatePosition();
+}
+
+watch(
+  () => [props.open, props.x, props.y, props.width, props.items],
+  ([open]) => {
+    if (open) {
+      positionMenu();
+    } else {
+      isPositioned.value = false;
+    }
+  },
+  { deep: true, flush: 'post', immediate: true },
+);
+
+if (typeof ResizeObserver !== 'undefined') {
+  resizeObserver = new ResizeObserver(updatePosition);
+  watch(menuElement, (menu) => {
+    resizeObserver.disconnect();
+    if (menu) resizeObserver.observe(menu);
+  });
+}
+
+window.addEventListener('resize', updatePosition);
+document.addEventListener('click', closeOnOutsideInteraction);
+document.addEventListener('contextmenu', closeOnOutsideInteraction, true);
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  window.removeEventListener('resize', updatePosition);
+  document.removeEventListener('click', closeOnOutsideInteraction);
+  document.removeEventListener('contextmenu', closeOnOutsideInteraction, true);
+});
+
 function closeMenu() {
   emit('close');
+}
+
+function closeOnOutsideInteraction(event) {
+  if (props.open && !menuElement.value?.contains(event.target)) {
+    closeMenu();
+  }
 }
 
 function onItemClick(item, event) {
@@ -161,6 +222,7 @@ function onItemClick(item, event) {
   position: fixed;
   inset: 0;
   z-index: 1000;
+  pointer-events: none;
 }
 
 .action-menu {
@@ -172,6 +234,10 @@ function onItemClick(item, event) {
   z-index: 1001;
   padding: 4px 0;
   overflow: hidden;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  pointer-events: auto;
 }
 
 .action-menu__header {
