@@ -173,7 +173,7 @@ class ReisekostenService {
     }
     // Event-Adresse des Auftrags als Vorschlag.
     if (auftrag) {
-      pushAddr([auftrag.eventLocation, auftrag.eventStrasse, [auftrag.eventPlz, auftrag.eventOrt].filter(Boolean).join(' ')].filter(Boolean).join(', '));
+      pushAddr(Auftrag.formatEventAddress(auftrag));
     }
     // Mitarbeiter-Adressen (Haupt- + Zweitadresse) als Vorschlag.
     if (mitarbeiter) {

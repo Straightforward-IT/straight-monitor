@@ -84,4 +84,11 @@ const AuftragSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
+// Build a single-line event address string from the event fields.
+AuftragSchema.statics.formatEventAddress = function formatEventAddress(a = {}) {
+  const strasse = a.eventStrasse || '';
+  const plzOrt = [a.eventPlz, a.eventOrt].filter(Boolean).join(' ');
+  return [a.eventLocation, strasse, plzOrt].filter(Boolean).join(', ');
+};
+
 module.exports = mongoose.model('Auftrag', AuftragSchema);

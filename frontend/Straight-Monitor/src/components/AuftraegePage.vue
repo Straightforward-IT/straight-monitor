@@ -1570,6 +1570,8 @@ export default {
   watch: {
     currentWeekStart() {
       this.$nextTick(() => this.scrollKwToActive('smooth'));
+      // Remember the viewed week so a page refresh returns to it.
+      try { if (this.currentWeekStart) sessionStorage.setItem('auftraege_week', this.currentWeekStart.toISOString()); } catch (e) { /* storage unavailable */ }
     },
     searchQuery() {
       this.debouncedSearch();
@@ -1588,6 +1590,11 @@ export default {
         URL.revokeObjectURL(this.generatedStundenlisteUrl);
       }
       this.generatedStundenlisteUrl = null;
+      // Remember the open sidebar so a page refresh reopens it.
+      try {
+        if (event && event.auftragNr) sessionStorage.setItem('auftraege_selected', String(event.auftragNr));
+        else sessionStorage.removeItem('auftraege_selected');
+      } catch (e) { /* storage unavailable */ }
       if (event && event.auftragNr) {
         this.loadStundenlisteStatus(event.auftragNr);
         this.loadEinsatzDoks(event.auftragNr);
@@ -3014,6 +3021,22 @@ export default {
 
     if (auftragnr) {
         await this.loadOrderDirectly(auftragnr, focusDate);
+    } else {
+        // Restore previous view state on refresh: same week + reopen sidebar.
+        let savedAuftrag = null, savedWeek = null;
+        try {
+          savedAuftrag = sessionStorage.getItem('auftraege_selected');
+          savedWeek = sessionStorage.getItem('auftraege_week');
+        } catch (e) { /* storage unavailable */ }
+        if (savedAuftrag) {
+          await this.loadOrderDirectly(savedAuftrag, savedWeek || undefined);
+        } else if (savedWeek) {
+          const d = new Date(savedWeek);
+          if (!isNaN(d.getTime())) {
+            this.currentWeekStart = d;
+            await this.ensureMonthLoaded(d);
+          }
+        }
     }
 
     this.handlePseudoRouteQuery();

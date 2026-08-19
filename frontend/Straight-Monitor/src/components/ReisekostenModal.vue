@@ -619,7 +619,7 @@ watch(() => props.modelValue, async (open) => {
 .base-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .base-grid .span-2 { grid-column: 1 / -1; }
 label { display: grid; gap: 5px; color: var(--text); font-size: 0.8rem; font-weight: 600; }
-input, select, textarea { min-width: 0; border: 1px solid var(--border); border-radius: 6px; padding: 8px 9px; background: var(--surface, var(--tile-bg)); color: var(--text); font: inherit; font-weight: 400; }
+input, select, textarea { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 6px; padding: 8px 9px; background: var(--surface, var(--tile-bg)); color: var(--text); font: inherit; font-weight: 400; }
 input:focus, select:focus, textarea:focus { border-color: var(--primary); outline: none; }
 input:disabled { opacity: 0.7; }
 .betrag-row { display: grid; grid-template-columns: minmax(0, 1.6fr) 0.9fr 0.9fr 0.6fr auto; gap: 8px; align-items: end; }

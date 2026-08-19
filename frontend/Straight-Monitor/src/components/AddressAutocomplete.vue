@@ -7,32 +7,34 @@
       :placeholder="placeholder"
       autocomplete="off"
       @input="onInput"
-      @focus="open = true"
+      @focus="onFocus"
       @keydown.down.prevent="move(1)"
       @keydown.up.prevent="move(-1)"
       @keydown.enter.prevent="choose(active)"
       @keydown.esc="open = false"
     />
-    <ul v-if="open && list.length" class="addr-ac-list">
-      <li
-        v-for="(s, i) in list"
-        :key="s"
-        class="addr-ac-item"
-        :class="{ active: i === active }"
-        @mousedown.prevent="choose(i)"
-        @mouseenter="active = i"
-      >
-        <font-awesome-icon :icon="['fas', 'location-dot']" /> {{ s }}
-      </li>
-      <li v-if="loading" class="addr-ac-item addr-ac-item--muted">
-        <font-awesome-icon :icon="['fas', 'spinner']" spin /> Suche…
-      </li>
-    </ul>
+    <Teleport to="body">
+      <ul v-if="open && list.length" class="addr-ac-list" :style="dropStyle">
+        <li
+          v-for="(s, i) in list"
+          :key="s"
+          class="addr-ac-item"
+          :class="{ active: i === active }"
+          @mousedown.prevent="choose(i)"
+          @mouseenter="active = i"
+        >
+          <font-awesome-icon :icon="['fas', 'location-dot']" /> {{ s }}
+        </li>
+        <li v-if="loading" class="addr-ac-item addr-ac-item--muted">
+          <font-awesome-icon :icon="['fas', 'spinner']" spin /> Suche…
+        </li>
+      </ul>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { faLocationDot, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
@@ -48,10 +50,12 @@ const props = defineProps({
 });
 const emit = defineEmits(['update:modelValue']);
 
+const inputEl = ref(null);
 const open = ref(false);
 const active = ref(-1);
 const loading = ref(false);
 const remote = ref([]);
+const dropStyle = ref({});
 let debounceTimer = null;
 let reqSeq = 0;
 
@@ -74,7 +78,31 @@ function onInput(e) {
   emit('update:modelValue', e.target.value);
   open.value = true;
   active.value = -1;
+  nextTick(updatePosition);
   scheduleSearch(e.target.value);
+}
+
+// Position the teleported dropdown right under the input (viewport-fixed).
+function updatePosition() {
+  const el = inputEl.value;
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  dropStyle.value = {
+    position: 'fixed',
+    top: `${r.bottom + 2}px`,
+    left: `${r.left}px`,
+    width: `${r.width}px`,
+    right: 'auto',
+  };
+}
+
+function onFocus() {
+  open.value = true;
+  nextTick(updatePosition);
+}
+
+function onScrollResize() {
+  if (open.value) updatePosition();
 }
 
 function scheduleSearch(q) {
@@ -95,6 +123,7 @@ async function runSearch(query) {
     remote.value = [];
   } finally {
     if (seq === reqSeq) loading.value = false;
+    nextTick(updatePosition);
   }
 }
 
@@ -112,7 +141,7 @@ function choose(i) {
 }
 
 function onFocusOut(e) {
-  // Close only when focus leaves the whole component.
+  // Close only when focus leaves the input (list is teleported, so it's not a child).
   if (!e.currentTarget.contains(e.relatedTarget)) open.value = false;
 }
 
@@ -120,11 +149,22 @@ watch(() => props.modelValue, (v) => {
   // Reset remote list when cleared externally.
   if (!v) remote.value = [];
 });
+
+onMounted(() => {
+  window.addEventListener('scroll', onScrollResize, true);
+  window.addEventListener('resize', onScrollResize);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', onScrollResize, true);
+  window.removeEventListener('resize', onScrollResize);
+  clearTimeout(debounceTimer);
+});
 </script>
 
 <style scoped lang="scss">
 .addr-ac { position: relative; }
 .addr-ac > input {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   border: 1px solid var(--border);
@@ -136,12 +176,12 @@ watch(() => props.modelValue, (v) => {
   font-weight: 400;
 }
 .addr-ac > input:focus { border-color: var(--primary); outline: none; }
+</style>
+
+<style lang="scss">
+/* Unscoped — the list is teleported to <body>, outside the component's scope. */
 .addr-ac-list {
-  position: absolute;
-  z-index: 30;
-  top: calc(100% + 2px);
-  left: 0;
-  right: 0;
+  z-index: 3000;
   margin: 0;
   padding: 4px;
   list-style: none;
@@ -150,7 +190,7 @@ watch(() => props.modelValue, (v) => {
   background: var(--tile-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
 }
 .addr-ac-item {
   display: flex;
