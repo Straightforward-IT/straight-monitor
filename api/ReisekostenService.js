@@ -21,7 +21,6 @@ const Location = require('./models/Location');
 const logger = require('./utils/logger');
 const {
   computeSummen,
-  kmGesamtCent,
   pauschalGesamtCent,
   rowVorsteuerCent,
 } = require('./utils/reisekostenCalc');
@@ -391,11 +390,12 @@ class ReisekostenService {
     const fahrt = doc.fahrtkosten && doc.fahrtkosten.length ? doc.fahrtkosten : [{}, {}];
     for (const r of fahrt) this._betragRow(ctx, r);
 
-    // Kilometerpauschale (km | €/km | Gesamt).
+    // Kilometerpauschale (Kilometer | €/km im Betrag | Gesamt als eigene Zeile).
     this._sectionHeader(ctx, 'Kilometerpauschale');
     this._kmSubHeader(ctx);
     const km = doc.kilometerpauschale && doc.kilometerpauschale.length ? doc.kilometerpauschale : [{}];
     for (const r of km) this._kmRow(ctx, r);
+    this._kmGesamtRow(ctx, summen.kmSum);
 
     // Übernachtungskosten (Einzelnachweis) mit Zwischensumme.
     this._sectionHeader(ctx, 'Übernachtungskosten ( ohne Frühstück )');
@@ -511,7 +511,6 @@ class ReisekostenService {
     });
     this._centerText(ctx, 'Kilometer', X.bemEur, X.betEur, top - 9, 6.5, ctx.fontBold);
     this._centerText(ctx, 'EUR / km', X.betEur, X.proz, top - 9, 6.5, ctx.fontBold);
-    this._centerText(ctx, 'Gesamt', X.vsEur, X.end, top - 9, 6.5, ctx.fontBold);
     this._rowBorders(ctx, top, h);
     ctx.y -= h;
   }
@@ -528,9 +527,20 @@ class ReisekostenService {
       ctx.page.drawText(String(label), { x: X.x0 + 4, y: top - 10, size: 8, font: ctx.font, color: COLOR_TEXT });
     }
     if (row.kilometer) this._centerText(ctx, String(row.kilometer), X.bemEur, X.betEur, top - 10, 8, ctx.font);
-    if (row.satzCent) this._centerText(ctx, this._eurStr(row.satzCent), X.betEur, X.proz, top - 10, 8, ctx.font);
-    const gesamt = kmGesamtCent(row);
-    if (gesamt) this._rightText(ctx, this._eurStr(gesamt), X.end - 4, top - 10, 8, ctx.font);
+    // Preis €/km im Betrag-Feld als EUR | CT.
+    this._eurCt(ctx, row.satzCent, X.betEur, X.betCt, X.proz, top);
+    this._rowBorders(ctx, top, h);
+    ctx.y -= h;
+  }
+
+  /** Gesamt-Zeile der Kilometerpauschale: Summe im Betrag-Feld (EUR | CT). */
+  _kmGesamtRow(ctx, cent) {
+    const X = this._colX();
+    const h = 15;
+    this._ensureSpace(ctx, h, () => this._tabellenKopf(ctx));
+    const top = ctx.y;
+    ctx.page.drawText('Gesamt', { x: X.x0 + 4, y: top - 10, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
+    this._eurCt(ctx, cent, X.betEur, X.betCt, X.proz, top, ctx.fontBold);
     this._rowBorders(ctx, top, h);
     ctx.y -= h;
   }
@@ -584,8 +594,6 @@ class ReisekostenService {
     const h = 15;
     this._ensureSpace(ctx, h);
     const top = ctx.y;
-    // gefülltes Dreieck (▶) als SVG-Pfad — WinAnsi kann das Unicode-Zeichen nicht kodieren
-    ctx.page.drawSvgPath('M 0 0 L 7 3.5 L 0 7 Z', { x: X.betEur - 13, y: top - 7, color: COLOR_TEXT, borderWidth: 0 });
     this._eurCt(ctx, cent, X.betEur, X.betCt, X.proz, top, ctx.fontBold);
     this._rowBorders(ctx, top, h);
     ctx.y -= h;
@@ -624,7 +632,7 @@ class ReisekostenService {
 
     // Ort/Datum: im Signaturmodus nur der Ort (DocuSeal füllt das Datum), sonst Ort + Datum.
     if (ctx.signatureTags) {
-      if (doc.ort) ctx.page.drawText(`${doc.ort},`, { x: MARGIN + 2, y: lineY + 2, size: 9, font: ctx.font, color: COLOR_TEXT });
+      if (doc.ort) ctx.page.drawText(`${doc.ort},`, { x: MARGIN + 2, y: lineY + 3, size: 9, font: ctx.font, color: COLOR_TEXT });
     } else {
       const ortDatum = [doc.ort, this._date(new Date())].filter(Boolean).join(', ');
       if (ortDatum) ctx.page.drawText(ortDatum, { x: MARGIN + 2, y: lineY + 2, size: 9, font: ctx.font, color: COLOR_TEXT });
@@ -742,7 +750,7 @@ class ReisekostenService {
 
   _drawDateTag(ctx, x, lineY, role, fieldW) {
     const w = Math.round(Math.min(fieldW, 90));
-    const h = 18;
+    const h = 12; // kleinere Box zentriert das Datum auf Höhe des Orts
     const tag = `{{${role} Datum;role=${role};type=date;required=true;readonly=true;format=DD.MM.YYYY;width=${w};height=${h}}}`;
     ctx.page.drawText(tag, { x, y: lineY + h, size: 5, font: ctx.font, color: rgb(1, 1, 1) });
   }

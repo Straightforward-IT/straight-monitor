@@ -96,10 +96,8 @@
 
           <!-- ───────── STEP 3: Kostendaten ───────── -->
           <section v-show="currentStep === 2" class="rk-section">
-            <!-- Kilometerpauschale (Standard – je Fahrt eine Zeile) -->
             <div class="rk-block rk-block--highlight">
               <div class="section-heading">
-                <h4>Kilometerpauschale <span class="rk-badge">Standard</span> <span>je Fahrt eine Zeile</span></h4>
                 <button type="button" class="add-btn" @click="addKmRow"><font-awesome-icon :icon="['fas','plus']" /> Zeile</button>
               </div>
               <p v-if="!form.kilometerpauschale.length" class="rk-hint">Fahrten unter „Reisedaten“ erzeugen hier automatisch je eine Zeile.</p>
@@ -111,7 +109,6 @@
                   <label class="mini">Kilometer<input v-model.number="row.kilometer" type="number" step="1" min="0" disabled /></label>
                   <label class="mini">€ / km<input v-model.number="row.satzEur" type="number" step="0.01" min="0" /></label>
                   <span class="row-total">{{ centToStr(kmGesamt(row)) }} €</span>
-                  <span class="linked-badge" title="Automatisch aus Reisedaten"><font-awesome-icon :icon="['fas','link']" /></span>
                 </div>
                 <!-- Manually added row -->
                 <div v-else class="betrag-row">
