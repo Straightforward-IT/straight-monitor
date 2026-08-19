@@ -52,6 +52,7 @@ const MitarbeiterSchema = new mongoose.Schema({
     // Optional public portal entries enabled for this employee (e.g. 'new-menu-item').
     publicMenuOptions: [{ type: String, trim: true }],
     geburtsdatum: { type: Date, required: false },
+    geburtsname: { type: String, required: false, trim: true },
     geburtsort: { type: String, required: false, trim: true },
     eintrittsdatum: { type: Date, required: false },
     austrittsdatum: { type: Date, required: false },

@@ -20,7 +20,6 @@ const Mitarbeiter = require('./models/Mitarbeiter');
 const Location = require('./models/Location');
 const logger = require('./utils/logger');
 const {
-  KM_SATZ_DEFAULT_CENT,
   computeSummen,
   kmGesamtCent,
   pauschalGesamtCent,
@@ -205,7 +204,7 @@ class ReisekostenService {
         kostenstelle,
       },
       fahrtkosten: [],
-      kilometerpauschale: [{ bezeichnung: 'Kilometerpauschale', kilometer: 0, satzCent: KM_SATZ_DEFAULT_CENT }],
+      kilometerpauschale: [],
       uebernachtung: [],
       pauschalen: {
         uebernachtungen: [],
@@ -522,8 +521,11 @@ class ReisekostenService {
     const h = 15;
     this._ensureSpace(ctx, h, () => this._tabellenKopf(ctx));
     const top = ctx.y;
-    if (row.bezeichnung) {
-      ctx.page.drawText(String(row.bezeichnung), { x: X.x0 + 4, y: top - 10, size: 8, font: ctx.font, color: COLOR_TEXT });
+    const label = (row.start || row.ziel)
+      ? [row.start, row.ziel].filter(Boolean).join(' - ')
+      : (row.bezeichnung || '');
+    if (label) {
+      ctx.page.drawText(String(label), { x: X.x0 + 4, y: top - 10, size: 8, font: ctx.font, color: COLOR_TEXT });
     }
     if (row.kilometer) this._centerText(ctx, String(row.kilometer), X.bemEur, X.betEur, top - 10, 8, ctx.font);
     if (row.satzCent) this._centerText(ctx, this._eurStr(row.satzCent), X.betEur, X.proz, top - 10, 8, ctx.font);

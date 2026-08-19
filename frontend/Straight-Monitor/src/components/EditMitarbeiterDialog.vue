@@ -45,6 +45,10 @@
         </div>
 
         <div class="form-group">
+          <label>Geburtsname</label>
+          <input v-model="form.geburtsname" type="text" class="form-input" />
+        </div>
+        <div class="form-group">
           <label>Geburtsort</label>
           <input v-model="form.geburtsort" type="text" class="form-input" />
         </div>
@@ -240,6 +244,7 @@ const form = ref({
   email: "",
   telefon: "",
   geburtsdatum: "",
+  geburtsname: "",
   geburtsort: "",
   erstellt_von: "",
   additionalEmails: [],
@@ -269,6 +274,7 @@ watch(
         email: newVal.email || "",
         telefon: newVal.telefon || "",
         geburtsdatum: toDateInput(newVal.geburtsdatum),
+        geburtsname: newVal.geburtsname || "",
         geburtsort: newVal.geburtsort || "",
         erstellt_von: newVal.erstellt_von || "",
         additionalEmails: [...(newVal.additionalEmails || [])],

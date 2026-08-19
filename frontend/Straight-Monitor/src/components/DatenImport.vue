@@ -112,13 +112,13 @@
                 <div class="table-scroll">
                   <table class="req-table"><tbody>
                     <tr><td>A – Prüffeld (7002)</td><td>B – Personalnr</td><td>C – Persstatus (6=Ausgetreten)</td></tr>
-                    <tr><td>D – Geburtsdatum (GEBDATUM)</td><td>E – Geburtsort (GEBORT)</td><td>F – Eintritt (EINTRITT1)</td></tr>
-                    <tr><td>G – Austrittsdatum (AUSTRITT1)</td><td>H – Berufsschlüssel (kommasep.)</td><td>I – Qualischlüssel (kommasep.)</td></tr>
-                    <tr><td>J – Personengruppe (PERSGR)</td><td>K – Strasse</td><td>L – PLZ</td></tr>
-                    <tr><td>M – Ort</td><td>N – Land</td><td>O – Telefon (TEL)</td></tr>
-                    <tr><td>P – E-Mail (EMAIL)</td><td>Q – Strasse2</td><td>R – PLZ2</td></tr>
-                    <tr><td>S – Ort2</td><td>T – Land2</td><td>U – Telefon2 (TEL2)</td></tr>
-                    <tr><td>V – E-Mail2 (EMAIL2)</td><td></td><td></td></tr>
+                    <tr><td>D – Geburtsdatum (GEBDATUM)</td><td>E – Geburtsname (GEBNAME)</td><td>F – Geburtsort (GEBORT)</td></tr>
+                    <tr><td>G – Eintritt (EINTRITT1)</td><td>H – Austrittsdatum (AUSTRITT1)</td><td>I – Berufsschlüssel (kommasep.)</td></tr>
+                    <tr><td>J – Qualischlüssel (kommasep.)</td><td>K – Personengruppe (PERSGR)</td><td>L – Strasse</td></tr>
+                    <tr><td>M – PLZ</td><td>N – Ort</td><td>O – Land</td></tr>
+                    <tr><td>P – Telefon (TEL)</td><td>Q – E-Mail (EMAIL)</td><td>R – Strasse2</td></tr>
+                    <tr><td>S – PLZ2</td><td>T – Ort2</td><td>U – Land2</td></tr>
+                    <tr><td>V – Telefon2 (TEL2)</td><td>W – E-Mail2 (EMAIL2)</td><td></td></tr>
                   </tbody></table>
                 </div>
               </details>

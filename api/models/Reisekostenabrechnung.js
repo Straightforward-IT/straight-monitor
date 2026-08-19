@@ -21,6 +21,8 @@ const BetragRowSchema = new mongoose.Schema({
 // Kilometergeldpauschale line: km × Satz (Cent/km).
 const KmRowSchema = new mongoose.Schema({
   bezeichnung: { type: String, default: '' },
+  start:       { type: String, default: '' },
+  ziel:        { type: String, default: '' },
   kilometer:   { type: Number, default: 0 },
   satzCent:    { type: Number, default: 0 },
 }, { _id: false });

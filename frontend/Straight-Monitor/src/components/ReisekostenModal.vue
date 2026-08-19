@@ -90,13 +90,40 @@
               </div>
               <div v-if="form.reisedaten.length" class="reise-total">
                 <span>Gesamt</span><b>{{ reiseKmTotal.toLocaleString('de-DE', { maximumFractionDigits: 1 }) }} km</b>
-                <button type="button" class="add-btn" title="Gesamtkilometer in die Kilometerpauschale übernehmen" @click="kmInPauschale"><font-awesome-icon :icon="['fas','arrow-right']" /> In Pauschale</button>
               </div>
             </div>
           </section>
 
           <!-- ───────── STEP 3: Kostendaten ───────── -->
           <section v-show="currentStep === 2" class="rk-section">
+            <!-- Kilometerpauschale (Standard – je Fahrt eine Zeile) -->
+            <div class="rk-block rk-block--highlight">
+              <div class="section-heading">
+                <h4>Kilometerpauschale <span class="rk-badge">Standard</span> <span>je Fahrt eine Zeile</span></h4>
+                <button type="button" class="add-btn" @click="addKmRow"><font-awesome-icon :icon="['fas','plus']" /> Zeile</button>
+              </div>
+              <p v-if="!form.kilometerpauschale.length" class="rk-hint">Fahrten unter „Reisedaten“ erzeugen hier automatisch je eine Zeile.</p>
+              <template v-for="(row, i) in form.kilometerpauschale" :key="row._reiseId ? 'auto'+row._reiseId : 'km'+i">
+                <!-- Trip-linked row: Start & Ziel come from the Fahrt -->
+                <div v-if="row._reiseId" class="betrag-row betrag-row--linked km-linked">
+                  <label class="mini">Start<input :value="row.start" type="text" placeholder="Startadresse" disabled /></label>
+                  <label class="mini">Ziel<input :value="row.ziel" type="text" placeholder="Zieladresse" disabled /></label>
+                  <label class="mini">Kilometer<input v-model.number="row.kilometer" type="number" step="1" min="0" disabled /></label>
+                  <label class="mini">€ / km<input v-model.number="row.satzEur" type="number" step="0.01" min="0" /></label>
+                  <span class="row-total">{{ centToStr(kmGesamt(row)) }} €</span>
+                  <span class="linked-badge" title="Automatisch aus Reisedaten"><font-awesome-icon :icon="['fas','link']" /></span>
+                </div>
+                <!-- Manually added row -->
+                <div v-else class="betrag-row">
+                  <input v-model="row.bezeichnung" type="text" placeholder="Bezeichnung" />
+                  <label class="mini">Kilometer<input v-model.number="row.kilometer" type="number" step="1" min="0" /></label>
+                  <label class="mini">€ / km<input v-model.number="row.satzEur" type="number" step="0.01" min="0" /></label>
+                  <span class="row-total">{{ centToStr(kmGesamt(row)) }} €</span>
+                  <button type="button" class="del-btn" @click="form.kilometerpauschale.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
+                </div>
+              </template>
+            </div>
+
             <!-- Fahrtkosten -->
             <div class="rk-block">
               <div class="section-heading">
@@ -109,21 +136,6 @@
                 <label class="mini">Betrag €<input v-model.number="row.betragEur" type="number" step="0.01" min="0" /></label>
                 <label class="mini">%<input v-model.number="row.prozent" type="number" step="1" min="0" /></label>
                 <button type="button" class="del-btn" @click="form.fahrtkosten.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
-              </div>
-            </div>
-
-            <!-- Kilometerpauschale -->
-            <div class="rk-block">
-              <div class="section-heading">
-                <h4>Kilometerpauschale</h4>
-                <button type="button" class="add-btn" @click="addKmRow"><font-awesome-icon :icon="['fas','plus']" /> Zeile</button>
-              </div>
-              <div v-for="(row, i) in form.kilometerpauschale" :key="'km'+i" class="betrag-row">
-                <input v-model="row.bezeichnung" type="text" placeholder="Bezeichnung" />
-                <label class="mini">Kilometer<input v-model.number="row.kilometer" type="number" step="1" min="0" /></label>
-                <label class="mini">€ / km<input v-model.number="row.satzEur" type="number" step="0.01" min="0" /></label>
-                <span class="row-total">{{ centToStr(kmGesamt(row)) }} €</span>
-                <button type="button" class="del-btn" @click="form.kilometerpauschale.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
               </div>
             </div>
 
@@ -239,13 +251,13 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faCheck, faSpinner, faXmark, faPlus, faEye, faFloppyDisk, faFileSignature, faUpload, faFilePdf, faFileImage, faArrowLeft, faArrowRight } from '@fortawesome/free-solid-svg-icons';
+import { faCheck, faSpinner, faXmark, faPlus, faEye, faFloppyDisk, faFileSignature, faUpload, faFilePdf, faFileImage, faArrowLeft, faArrowRight, faLink } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import api from '@/utils/api';
 import { computeSummen, centToStr, kmGesamtCent, pauschalGesamtCent, eurToCent, centToEur } from '@/utils/reisekostenCalc';
 import AddressAutocomplete from '@/components/AddressAutocomplete.vue';
 
-library.add(faCheck, faSpinner, faXmark, faPlus, faEye, faFloppyDisk, faFileSignature, faUpload, faFilePdf, faFileImage, faArrowLeft, faArrowRight);
+library.add(faCheck, faSpinner, faXmark, faPlus, faEye, faFloppyDisk, faFileSignature, faUpload, faFilePdf, faFileImage, faArrowLeft, faArrowRight, faLink);
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -327,7 +339,7 @@ function betragRowToCents(r) {
   return { bezeichnung: r.bezeichnung || '', bemessungCent: eurToCent(r.bemessungEur), betragCent: eurToCent(r.betragEur), prozent: Number(r.prozent) || 0 };
 }
 function kmRowToCents(r) {
-  return { bezeichnung: r.bezeichnung || '', kilometer: Number(r.kilometer) || 0, satzCent: eurToCent(r.satzEur) };
+  return { bezeichnung: r.bezeichnung || '', start: r.start || '', ziel: r.ziel || '', kilometer: Number(r.kilometer) || 0, satzCent: eurToCent(r.satzEur) };
 }
 function pauschRowToCents(r) {
   return { anzahl: Number(r.anzahl) || 0, tage: Number(r.tage) || 0, satzCent: eurToCent(r.satzEur) };
@@ -385,16 +397,41 @@ function addReiseRow() {
   const datum = form.reisedaten.length === 0
     ? (form.kopf.reisebeginn || '')
     : (form.kopf.reiseende || form.kopf.reisebeginn || '');
-  form.reisedaten.push({ datum, start: '', ziel: '', kilometer: 0 });
+  form.reisedaten.push({ _id: uid(), datum, start: '', ziel: '', kilometer: 0 });
 }
-/** Copy the reisedaten km total into a Kilometerpauschale row. */
-function kmInPauschale() {
-  const km = Math.round(reiseKmTotal.value * 10) / 10;
-  if (form.kilometerpauschale.length) {
-    form.kilometerpauschale[0].kilometer = km;
-  } else {
-    form.kilometerpauschale.push({ bezeichnung: 'Kilometerpauschale', kilometer: km, satzEur: 0.30 });
+
+// ── Kilometerpauschale ↔ Reisedaten sync ────────────────────────────────────
+// Each Fahrt yields exactly one (linked) Kilometerpauschale row — the default
+// for 99% of cases. Manually added rows (no _reiseId) are kept as extras.
+let uidCounter = 0;
+const uid = () => `r${Date.now().toString(36)}${(uidCounter++).toString(36)}`;
+/** Rebuild linked km-rows from reisedaten, preserving satz and manual rows. */
+function syncKmPauschale() {
+  const byReise = new Map();
+  const manual = [];
+  for (const row of form.kilometerpauschale) {
+    if (row._reiseId != null) byReise.set(row._reiseId, row);
+    else manual.push(row);
   }
+  const auto = form.reisedaten.map((t) => {
+    if (!t._id) t._id = uid();
+    const existing = byReise.get(t._id);
+    const satzEur = existing ? existing.satzEur : 0.30;
+    return { _reiseId: t._id, start: t.start || '', ziel: t.ziel || '', kilometer: Number(t.kilometer) || 0, satzEur };
+  });
+  form.kilometerpauschale = [...auto, ...manual];
+}
+/** After loading a saved doc: adopt the first N km-rows as the trip-linked rows. */
+function linkKmToTrips() {
+  const trips = form.reisedaten;
+  const rows = form.kilometerpauschale;
+  const auto = trips.map((t, idx) => {
+    if (!t._id) t._id = uid();
+    const src = rows[idx];
+    return { _reiseId: t._id, start: t.start || '', ziel: t.ziel || '', kilometer: Number(t.kilometer) || 0, satzEur: src ? (src.satzEur ?? 0.30) : 0.30 };
+  });
+  const manual = rows.slice(trips.length).map((r) => ({ ...r, _reiseId: undefined }));
+  form.kilometerpauschale = [...auto, ...manual];
 }
 
 // ── Populate from defaults / existing doc ─────────────────────────────────────
@@ -420,7 +457,7 @@ function applyDefaults(d) {
   form.kopf.tage = d.kopf?.tage || 0;
   form.kopf.stunden = d.kopf?.stunden || '';
   form.kopf.nummernschild = d.kopf?.nummernschild || '';
-  form.kilometerpauschale = (d.kilometerpauschale || []).map((r) => ({ bezeichnung: r.bezeichnung || '', kilometer: r.kilometer || 0, satzEur: centToEur(r.satzCent) }));
+  form.kilometerpauschale = (d.kilometerpauschale || []).map((r) => ({ bezeichnung: r.bezeichnung || '', start: r.start || '', ziel: r.ziel || '', kilometer: r.kilometer || 0, satzEur: centToEur(r.satzCent) }));
   if (d.ort != null) form.ort = d.ort;
   if (Array.isArray(d.addressSuggestions)) serverAddressSuggestions.value = d.addressSuggestions;
 }
@@ -440,6 +477,7 @@ function applyExisting(d) {
     const r = d.pauschalen?.[t] || {};
     form.pauschalen[t] = { tage: r.tage || 0, satzEur: centToEur(r.satzCent) };
   }
+  linkKmToTrips();
 }
 
 async function onMitarbeiterChange() {
@@ -586,6 +624,9 @@ watch(() => props.modelValue, async (open) => {
     await onMitarbeiterChange();
   }
 });
+
+// Keep one linked Kilometerpauschale row per Fahrt in sync.
+watch(() => form.reisedaten, syncKmPauschale, { deep: true });
 </script>
 
 <style scoped lang="scss">
@@ -613,6 +654,11 @@ watch(() => props.modelValue, async (open) => {
 .dialog__body--center { place-items: center; color: var(--muted); }
 .rk-section { display: grid; gap: 18px; }
 .rk-block { display: grid; gap: 8px; }
+.rk-block--highlight { border: 1px solid var(--primary); border-radius: 8px; padding: 12px 14px; background: color-mix(in srgb, var(--primary) 6%, transparent); }
+.rk-badge { display: inline-block; background: var(--primary); color: #fff; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 999px; margin-left: 6px; }
+.betrag-row--linked .row-total { color: var(--primary); }
+.km-linked { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 0.8fr 0.8fr auto auto; }
+.linked-badge { align-self: center; display: flex; justify-content: center; color: var(--primary); font-size: 0.78rem; }
 .section-heading { display: flex; align-items: baseline; justify-content: space-between; }
 .section-heading h4 { margin: 0; font-size: 0.9rem; }
 .section-heading h4 span { color: var(--muted); font-size: 0.72rem; font-weight: 400; margin-left: 6px; }

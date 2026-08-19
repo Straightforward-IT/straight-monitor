@@ -1381,6 +1381,10 @@
           <span class="steckbrief-label">Geburtstag</span>
           <span class="steckbrief-value">{{ formatDate(resolvedMa.geburtsdatum) }}</span>
         </div>
+        <div v-if="resolvedMa.geburtsname" class="steckbrief-row">
+          <span class="steckbrief-label">Geburtsname</span>
+          <span class="steckbrief-value">{{ resolvedMa.geburtsname }}</span>
+        </div>
         <div v-if="resolvedMa.geburtsort" class="steckbrief-row">
           <span class="steckbrief-label">Geburtsort</span>
           <span class="steckbrief-value">{{ resolvedMa.geburtsort }}</span>
@@ -3210,6 +3214,7 @@ export default {
           email: formData.email,
           telefon: formData.telefon,
           geburtsdatum: formData.geburtsdatum || null,
+          geburtsname: formData.geburtsname,
           geburtsort: formData.geburtsort,
           erstellt_von: formData.erstellt_von,
           additionalEmails: formData.additionalEmails,
@@ -3253,6 +3258,7 @@ export default {
           email: formData.email,
           telefon: formData.telefon,
           geburtsdatum: formData.geburtsdatum || null,
+          geburtsname: formData.geburtsname,
           geburtsort: formData.geburtsort,
           erstellt_von: formData.erstellt_von,
           additionalEmails: formData.additionalEmails,
