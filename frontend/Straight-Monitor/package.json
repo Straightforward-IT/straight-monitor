@@ -9,7 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@bleck-it/vue-modal-dock": "file:../../../../../../../Documents/Codex/2026-08-18/chec/outputs/vue-modal-dock/bleck-it-vue-modal-dock-0.1.0.tgz",
     "@docuseal/vue": "^1.0.54",
+    "@fortawesome/fontawesome-svg-core": "6.6.0",
     "@fortawesome/free-regular-svg-icons": "^7.1.0",
     "@fortawesome/free-solid-svg-icons": "^6.6.0",
     "@fortawesome/vue-fontawesome": "^3.0.8",
@@ -18,6 +20,7 @@
     "axios": "^1.7.7",
     "chart.js": "^4.5.1",
     "chartjs-adapter-date-fns": "^3.0.0",
+    "date-fns": "4.1.0",
     "file-saver": "^2.0.5",
     "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",

@@ -15,9 +15,13 @@
         <font-awesome-icon icon="fa-solid fa-envelope" />
         Bewerbermanagement
       </button>
+      <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'emailTemplates' }" @click="activeTab = 'emailTemplates'">
+        <font-awesome-icon icon="fa-solid fa-envelope-open-text" />
+        E-Mail-Vorlagen
+      </button>
       <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'qualifikationen' }" @click="activeTab = 'qualifikationen'">
         <font-awesome-icon icon="fa-solid fa-graduation-cap" />
-        Qualifikationen
+        Qualif. &amp; Berufe
       </button>
     </nav>
 
@@ -231,7 +235,19 @@
 
     <BewerberManagementTab v-else-if="activeTab === 'applicants'" :locations="activeLocations" />
 
+    <EmployeeEmailTemplateTab v-else-if="activeTab === 'emailTemplates'" :locations="activeLocations" />
+
     <section v-else-if="activeTab === 'qualifikationen'" class="qualifikationen">
+      <nav class="subtabs" aria-label="Qualifikationen und Berufe">
+        <button type="button" :class="{ active: qualiSubTab === 'qualifikation' }" @click="qualiSubTab = 'qualifikation'">
+          <font-awesome-icon icon="fa-solid fa-graduation-cap" /> Qualifikationen
+        </button>
+        <button type="button" :class="{ active: qualiSubTab === 'berufe' }" @click="qualiSubTab = 'berufe'">
+          <font-awesome-icon icon="fa-solid fa-briefcase" /> Berufe
+        </button>
+      </nav>
+
+      <template v-if="qualiSubTab === 'qualifikation'">
       <Toolbar>
         <SearchBar class="toolbar-search" v-model="qualiSearch" placeholder="Qualifikation suchen…" aria-label="Qualifikation suchen" />
         <ToolbarLabel>{{ filteredQualifikationen.length }} Qualifikationen</ToolbarLabel>
@@ -304,7 +320,115 @@
           </table>
         </div>
       </template>
+      </template>
+
+      <template v-else>
+      <Toolbar>
+        <SearchBar class="toolbar-search" v-model="berufSearch" placeholder="Beruf suchen…" aria-label="Beruf suchen" />
+        <ToolbarLabel>{{ filteredBerufe.length }} Berufe</ToolbarLabel>
+        <ToolbarGroup push-right>
+          <ToolbarButton @click="openBerufCreate">
+            <font-awesome-icon icon="fa-solid fa-plus" />
+            Beruf anlegen
+          </ToolbarButton>
+        </ToolbarGroup>
+      </Toolbar>
+      <p v-if="qualiError" class="um__error">{{ qualiError }}</p>
+      <p v-else-if="qualiLoading" class="qualifikationen__state">Berufe werden geladen…</p>
+      <div v-else class="um__table-wrap">
+        <table class="um__table">
+          <thead>
+            <tr>
+              <th>Schlüssel</th>
+              <th>Bezeichnung</th>
+              <th>Tätigkeitsschlüssel</th>
+              <th>Qualifikationen</th>
+              <th class="th-actions">Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="b in filteredBerufe" :key="b._id">
+              <td><span class="quali-key">#{{ b.jobKey }}</span></td>
+              <td>{{ b.designation }}</td>
+              <td>
+                <span v-if="b.taetigkeitsschluessel" class="beruf-tag">{{ b.taetigkeitsschluessel }}</span>
+                <span v-else class="ma-unlinked">—</span>
+              </td>
+              <td>
+                <span v-if="b.qualifikationCount" class="quali-ma-count">{{ b.qualifikationCount }}</span>
+                <span v-else class="ma-unlinked">0</span>
+              </td>
+              <td class="td-actions">
+                <button type="button" class="btn-icon" title="Bearbeiten" @click="openBerufEdit(b)">
+                  <font-awesome-icon icon="fa-solid fa-pen" />
+                </button>
+                <button type="button" class="btn-icon btn-icon--danger" title="Löschen" @click="openBerufDelete(b)">
+                  <font-awesome-icon icon="fa-solid fa-trash" />
+                </button>
+              </td>
+            </tr>
+            <tr v-if="!filteredBerufe.length">
+              <td colspan="5" style="text-align:center; opacity:0.45; padding: 24px;">Keine Berufe vorhanden.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      </template>
     </section>
+
+    <!-- Beruf Create/Edit Modal -->
+    <div v-if="berufModal.open" class="modal-backdrop" @click.self="closeBerufModal">
+      <form class="modal-content modal-content--sm" @submit.prevent="saveBeruf">
+        <header class="modal-header">
+          <h3>{{ berufModal.isNew ? 'Beruf anlegen' : 'Beruf bearbeiten' }}</h3>
+          <button type="button" class="close-btn" @click="closeBerufModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
+        </header>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Schlüssel <span class="required">*</span></label>
+            <input v-model.number="berufModal.form.jobKey" type="number" required :disabled="!berufModal.isNew" />
+          </div>
+          <div class="form-group">
+            <label>Bezeichnung <span class="required">*</span></label>
+            <input v-model="berufModal.form.designation" type="text" required />
+          </div>
+          <div class="form-group">
+            <label>Tätigkeitsschlüssel</label>
+            <input v-model="berufModal.form.taetigkeitsschluessel" type="text" />
+          </div>
+          <p v-if="berufModal.error" class="modal-error">{{ berufModal.error }}</p>
+        </div>
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-ghost" @click="closeBerufModal">Abbrechen</button>
+          <button type="submit" class="btn btn-primary" :disabled="berufModal.saving">
+            <font-awesome-icon :icon="berufModal.saving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'" :spin="berufModal.saving" />
+            {{ berufModal.isNew ? 'Anlegen' : 'Speichern' }}
+          </button>
+        </footer>
+      </form>
+    </div>
+
+    <!-- Beruf Delete Modal -->
+    <div v-if="berufDeleteModal.open" class="modal-backdrop" @click.self="closeBerufDelete">
+      <div class="modal-content modal-content--sm">
+        <header class="modal-header">
+          <h3>Beruf löschen</h3>
+          <button type="button" class="close-btn" @click="closeBerufDelete"><font-awesome-icon icon="fa-solid fa-times" /></button>
+        </header>
+        <div class="modal-body">
+          <p class="warning-text">Möchtest du den Beruf <strong>#{{ berufDeleteModal.item?.jobKey }} – {{ berufDeleteModal.item?.designation }}</strong> wirklich löschen?</p>
+          <p v-if="berufDeleteModal.item?.qualifikationCount" class="modal-error">Achtung: {{ berufDeleteModal.item.qualifikationCount }} Qualifikation(en) verlieren dadurch ihre Beruf-Zuordnung.</p>
+          <p v-if="berufDeleteModal.error" class="modal-error">{{ berufDeleteModal.error }}</p>
+        </div>
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-ghost" @click="closeBerufDelete">Abbrechen</button>
+          <button type="button" class="btn btn-danger" @click="confirmBerufDelete" :disabled="berufDeleteModal.deleting">
+            <font-awesome-icon :icon="berufDeleteModal.deleting ? 'fa-solid fa-spinner' : 'fa-solid fa-trash'" :spin="berufDeleteModal.deleting" />
+            Löschen
+          </button>
+        </footer>
+      </div>
+    </div>
 
     <!-- Qualifikation Create/Edit Modal -->
     <div v-if="qualiModal.open" class="modal-backdrop" @click.self="closeQualiModal">
@@ -605,6 +729,7 @@ import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import BewerberManagementTab from '@/components/BewerberManagementTab.vue';
+import EmployeeEmailTemplateTab from '@/components/EmployeeEmailTemplateTab.vue';
 
 // Map of asana_gid -> { name, email } for display in the table
 const asanaUserMap = ref({});
@@ -707,6 +832,8 @@ const berufe = ref([]);
 const qualiLoading = ref(false);
 const qualiError = ref('');
 const qualiSearch = ref('');
+const qualiSubTab = ref('qualifikation');
+const berufSearch = ref('');
 const selectedBerufFilter = ref(null); // null = all, 'none' = no beruf, beruf._id = specific beruf
 const qualiModal = reactive({ open: false, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '', beruf: null } });
 const qualiDeleteModal = reactive({ open: false, deleting: false, error: '', item: null });
@@ -802,6 +929,72 @@ async function confirmQualiDelete() {
     qualiDeleteModal.error = e?.response?.data?.message || 'Fehler beim Löschen.';
   } finally {
     qualiDeleteModal.deleting = false;
+  }
+}
+
+// ─── Berufe ─────────────────────────────────────────────────────────────────
+const berufModal = reactive({ open: false, isNew: true, id: null, saving: false, error: '', form: { jobKey: '', designation: '', taetigkeitsschluessel: '' } });
+const berufDeleteModal = reactive({ open: false, deleting: false, error: '', item: null });
+
+const filteredBerufe = computed(() => {
+  const q = berufSearch.value.trim().toLowerCase();
+  if (!q) return berufe.value;
+  return berufe.value.filter(b =>
+    String(b.jobKey).includes(q) ||
+    b.designation.toLowerCase().includes(q) ||
+    (b.taetigkeitsschluessel || '').toLowerCase().includes(q)
+  );
+});
+
+function openBerufCreate() {
+  Object.assign(berufModal, { open: true, isNew: true, id: null, saving: false, error: '', form: { jobKey: '', designation: '', taetigkeitsschluessel: '' } });
+}
+
+function openBerufEdit(b) {
+  Object.assign(berufModal, { open: true, isNew: false, id: b._id, saving: false, error: '', form: { jobKey: b.jobKey, designation: b.designation, taetigkeitsschluessel: b.taetigkeitsschluessel || '' } });
+}
+
+function closeBerufModal() { berufModal.open = false; }
+
+async function saveBeruf() {
+  berufModal.error = '';
+  berufModal.saving = true;
+  try {
+    if (berufModal.isNew) {
+      const { data } = await api.post('/api/import/berufe', berufModal.form);
+      berufe.value = [...berufe.value, { ...data.data, qualifikationCount: 0 }].sort((a, b) => a.jobKey - b.jobKey);
+    } else {
+      const { data } = await api.put(`/api/import/berufe/${berufModal.id}`, berufModal.form);
+      const idx = berufe.value.findIndex(b => b._id === berufModal.id);
+      if (idx !== -1) berufe.value[idx] = { ...data.data, qualifikationCount: berufe.value[idx].qualifikationCount };
+    }
+    closeBerufModal();
+  } catch (e) {
+    berufModal.error = e?.response?.data?.message || 'Fehler beim Speichern.';
+  } finally {
+    berufModal.saving = false;
+  }
+}
+
+function openBerufDelete(b) {
+  Object.assign(berufDeleteModal, { open: true, deleting: false, error: '', item: b });
+}
+
+function closeBerufDelete() { berufDeleteModal.open = false; }
+
+async function confirmBerufDelete() {
+  berufDeleteModal.error = '';
+  berufDeleteModal.deleting = true;
+  try {
+    await api.delete(`/api/import/berufe/${berufDeleteModal.item._id}`);
+    berufe.value = berufe.value.filter(b => b._id !== berufDeleteModal.item._id);
+    // Refresh qualifications since their beruf reference may have been cleared
+    await fetchQualifikationen();
+    closeBerufDelete();
+  } catch (e) {
+    berufDeleteModal.error = e?.response?.data?.message || 'Fehler beim Löschen.';
+  } finally {
+    berufDeleteModal.deleting = false;
   }
 }
 
@@ -1295,6 +1488,35 @@ function formatDate(d) {
   padding-top: 22px;
 }
 .qualifikationen__state { color: var(--muted); font-size: 0.85rem; }
+
+.subtabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 14px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.85rem;
+
+    &:hover { color: var(--text); }
+
+    &.active {
+      border-bottom-color: var(--primary);
+      color: var(--primary);
+      font-weight: 700;
+    }
+  }
+}
 
 .quali-beruf-tabs {
   display: flex;

@@ -518,6 +518,26 @@
           <div class="einsatzdoks-section">
             <div class="section-header">
               <h3><font-awesome-icon icon="fa-solid fa-folder-open" /> Einsatzdokumente</h3>
+              <div v-if="canSignaturen" class="neu-dok-wrap">
+                <button class="neu-dok-btn" type="button" @click.stop="showNeuMenu = !showNeuMenu">
+                  <font-awesome-icon icon="fa-solid fa-plus" /> Neu
+                  <font-awesome-icon icon="fa-solid fa-chevron-down" class="neu-dok-caret" />
+                </button>
+                <div v-if="showNeuMenu" class="neu-dok-menu" @click.stop>
+                  <button
+                    class="neu-dok-item"
+                    type="button"
+                    :disabled="hasStundenliste || isGeneratingHoursList"
+                    title="Stundenliste mit aktuellen Einsatzdaten erzeugen"
+                    @click="createStundenliste"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-file-contract" /> Stundenliste
+                  </button>
+                  <button class="neu-dok-item" type="button" @click="openReisekostenModal()">
+                    <font-awesome-icon icon="fa-solid fa-plane" /> Reisekostenabrechnung
+                  </button>
+                </div>
+              </div>
             </div>
 
             <!-- Stundenliste row -->
@@ -526,6 +546,7 @@
             </div>
             <template v-else>
               <div
+                v-if="hasStundenliste"
                 class="einsatz-dok-row"
                 :class="[
                   sidebarStundenliste
@@ -635,21 +656,6 @@
                     </button>
                   </div>
                 </template>
-                <template v-else>
-                  <!-- Not yet generated -->
-                  <button
-                    v-if="canSignaturen"
-                    class="einsatz-dok-gen-btn"
-                    type="button"
-                    :disabled="isGeneratingHoursList"
-                    title="Stundenliste mit aktuellen Einsatzdaten erzeugen"
-                    @click="generateAndPreview"
-                  >
-                    <font-awesome-icon :icon="isGeneratingHoursList ? 'fa-solid fa-spinner' : 'fa-solid fa-wand-magic-sparkles'" :spin="isGeneratingHoursList" />
-                    {{ isGeneratingHoursList ? 'Wird erstellt…' : 'Generieren' }}
-                  </button>
-                  <span v-else class="einsatz-dok-badge badge-none">–</span>
-                </template>
               </div>
 
               <!-- Outdated bar — shown when Auftrag/Einsatz/Mitarbeiter changed after Stundenliste was generated -->
@@ -674,6 +680,57 @@
                 </button>
               </div>
             </template>
+
+            <!-- Reisekostenabrechnungen -->
+            <div
+              v-for="rk in reisekostenListe"
+              :key="rk._id"
+              class="einsatz-dok-row"
+              :class="`einsatz-dok--${rk.status}`"
+            >
+              <font-awesome-icon icon="fa-solid fa-plane" class="einsatz-dok-icon" />
+              <div class="einsatz-dok-info">
+                <div class="einsatz-dok-name">Reisekostenabrechnung</div>
+                <div class="einsatz-dok-meta">
+                  {{ reisekostenName(rk) }}
+                  <template v-if="rk.status === 'signature_pending'"> &middot; Signatur ausstehend</template>
+                  <template v-else-if="rk.status === 'completed'"> &middot; Unterschrieben</template>
+                  <template v-else> &middot; Entwurf</template>
+                </div>
+              </div>
+              <div class="einsatz-dok-actions">
+                <button class="einsatz-dok-action" type="button" title="PDF öffnen" @click="openReisekostenPdf(rk)">
+                  <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
+                </button>
+                <button
+                  v-if="rk.status === 'draft'"
+                  class="einsatz-dok-action"
+                  type="button"
+                  title="Bearbeiten"
+                  @click="openReisekostenModal(rk._id)"
+                >
+                  <font-awesome-icon icon="fa-solid fa-pencil" />
+                </button>
+                <button
+                  v-if="rk.status === 'draft' && canSignaturen"
+                  class="einsatz-dok-gen-btn"
+                  type="button"
+                  title="Zur Signatur senden"
+                  @click="openReisekostenSignatur(rk)"
+                >
+                  <font-awesome-icon icon="fa-solid fa-file-signature" /> Signieren
+                </button>
+                <button
+                  v-if="rk.status !== 'signature_pending'"
+                  class="einsatz-dok-action einsatz-dok-action--del"
+                  type="button"
+                  title="Löschen"
+                  @click="deleteReisekosten(rk)"
+                >
+                  <font-awesome-icon icon="fa-solid fa-trash" />
+                </button>
+              </div>
+            </div>
 
             <!-- Uploaded docs -->
             <div v-if="einsatzDoksLoading" class="einsatz-dok-loading">
@@ -1168,19 +1225,29 @@
         <span class="sdrop-title">{{ a.eventTitel || '(kein Titel)' }}</span>
         <span class="sdrop-date">{{ formatDropdownDate(a.vonDatum) }}</span>
       </button>
-      <div v-if="searchDropdownResults.length === 0" class="sdrop-empty">Keine Ergebnisse</div>
+      <div v-if="searchLoading && searchDropdownResults.length === 0" class="sdrop-empty">Suche…</div>
+      <div v-else-if="searchDropdownResults.length === 0" class="sdrop-empty">Keine Ergebnisse</div>
     </div>
   </Teleport>
+
+  <!-- Reisekostenabrechnung bearbeiten / anlegen -->
+  <ReisekostenModal
+    v-model="reisekostenModalOpen"
+    :auftrag-nr="selectedEvent?.auftragNr"
+    :doc-id="reisekostenEditId"
+    :einsaetze="selectedEventEinsaetze"
+    @saved="onReisekostenSaved"
+  />
 </template>
 
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faPlane, faPencil, faEye } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 import { DocusealForm } from '@docuseal/vue';
 
-library.add(faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload);
+library.add(faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faPlane, faPencil, faEye);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
@@ -1204,6 +1271,7 @@ import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
+import ReisekostenModal from '@/components/ReisekostenModal.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
 import laufzettelIcon from '@/assets/laufzettel.png';
 import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
@@ -1214,7 +1282,7 @@ import docusealLogoImg from '@/assets/docuseal-logo.webp';
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu },
+  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu, ReisekostenModal },
   data() {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
@@ -1241,6 +1309,8 @@ export default {
       searchFocused: false,
       searchWrapperRect: null,
       searchExpanded: false,
+      searchDropdownResults: [],
+      searchLoading: false,
       currentWeekStart: null,
       selectedEvent: null,
       contextMenu: {
@@ -1315,6 +1385,12 @@ export default {
       einsatzDoks: [],
       einsatzDoksLoading: false,
       einsatzDokUploading: false,
+      // ── Reisekostenabrechnungen (Einsatzdokumente) ───────────────────────
+      reisekostenListe: [],
+      reisekostenListeLoading: false,
+      reisekostenModalOpen: false,
+      reisekostenEditId: null,
+      showNeuMenu: false,
       // Document icons
       auftragDocs: [],
       selectedDoc: null,
@@ -1345,6 +1421,12 @@ export default {
     },
     sidebarStundenliste() {
       return this.stundenlisteStatus?.vorgang || null;
+    },
+    hasStundenliste() {
+      return !!(this.sidebarStundenliste || this.generatedStundenlisteUrl);
+    },
+    selectedEventEinsaetze() {
+      return this.selectedEvent?.einsaetze || [];
     },
     stundenlisteIsOutdated() {
       return this.stundenlisteStatus?.isOutdated || false;
@@ -1397,34 +1479,6 @@ export default {
     },
     mobileDayDate() {
       return this.weekDays[this.mobileDayIndex]?.date || null;
-    },
-    searchDropdownResults() {
-      const q = this.searchQuery.trim().toLowerCase();
-      if (!q) return [];
-      const words = q.split(/\s+/).filter(Boolean);
-      const now = Date.now();
-      const MS_PER_DAY = 86400000;
-      return this.auftraege
-        .filter(a => {
-          const haystack = [
-            a.eventTitel,
-            a.kundeData?.kuerzel,
-            a.kundeData?.kundName,
-            String(a.auftragNr || ''),
-          ].filter(Boolean).join(' ').toLowerCase();
-          return words.every(w => haystack.includes(w));
-        })
-        .map(a => {
-          let score = 0;
-          if (a.vonDatum) {
-            const daysDiff = (new Date(a.vonDatum).getTime() - now) / MS_PER_DAY;
-            const effectiveDist = daysDiff >= 0 ? daysDiff / 4 : Math.abs(daysDiff);
-            score = 1 / (effectiveDist + 1);
-          }
-          return { ...a, _score: score };
-        })
-        .sort((a, b) => b._score - a._score)
-        .slice(0, 8);
     },
     showSearchDropdown() {
       return this.searchFocused && this.searchQuery.trim().length > 0;
@@ -1517,6 +1571,9 @@ export default {
     currentWeekStart() {
       this.$nextTick(() => this.scrollKwToActive('smooth'));
     },
+    searchQuery() {
+      this.debouncedSearch();
+    },
     '$route.query.openPseudo'(value) {
       if (!value) return;
       this.handlePseudoRouteQuery();
@@ -1534,9 +1591,11 @@ export default {
       if (event && event.auftragNr) {
         this.loadStundenlisteStatus(event.auftragNr);
         this.loadEinsatzDoks(event.auftragNr);
+        this.loadReisekosten(event.auftragNr);
       } else {
         this.stundenlisteStatus = null;
         this.einsatzDoks = [];
+        this.reisekostenListe = [];
       }
     },
   },
@@ -1814,7 +1873,10 @@ export default {
     },
     formatDropdownDate(dateStr) {
       if (!dateStr) return '';
-      return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const d = new Date(dateStr);
+      const weekday = d.toLocaleDateString('de-DE', { weekday: 'short' }).replace(/\.$/, '');
+      const date = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      return `${weekday}. ${date}`;
     },
     async prevDay() {
       if (this.mobileDayIndex > 0) {
@@ -2315,8 +2377,43 @@ export default {
     debouncedSearch() {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = setTimeout(() => {
-        // Search is reactive via computed, no action needed
+        this.runOrderSearch();
       }, 300);
+    },
+    async runOrderSearch() {
+      const q = this.searchQuery.trim();
+      if (!q) {
+        this.searchDropdownResults = [];
+        this.searchLoading = false;
+        return;
+      }
+      this.searchLoading = true;
+      try {
+        const params = { q };
+        if (this.filters.locationV2) params.locationV2 = this.filters.locationV2;
+        const res = await api.get('/api/auftraege/search', { params });
+        // Ignore stale responses (query changed while request was in flight)
+        if (this.searchQuery.trim() !== q) return;
+        const now = Date.now();
+        const MS_PER_DAY = 86400000;
+        this.searchDropdownResults = (res.data || [])
+          .map(a => {
+            let score = 0;
+            if (a.vonDatum) {
+              const daysDiff = (new Date(a.vonDatum).getTime() - now) / MS_PER_DAY;
+              const effectiveDist = daysDiff >= 0 ? daysDiff / 4 : Math.abs(daysDiff);
+              score = 1 / (effectiveDist + 1);
+            }
+            return { ...a, _score: score };
+          })
+          .sort((a, b) => b._score - a._score)
+          .slice(0, 8);
+      } catch (e) {
+        console.error('Auftrag-Suche fehlgeschlagen:', e);
+        if (this.searchQuery.trim() === q) this.searchDropdownResults = [];
+      } finally {
+        if (this.searchQuery.trim() === q) this.searchLoading = false;
+      }
     },
     async openKundeCard(kundeBasic) {
       this.selectedKunde = kundeBasic;
@@ -2589,6 +2686,82 @@ export default {
         console.error('Löschen fehlgeschlagen', e);
       }
     },
+    // ── Reisekostenabrechnungen ───────────────────────────────────────────────
+    async loadReisekosten(auftragNr) {
+      this.reisekostenListeLoading = true;
+      try {
+        const { data } = await api.get('/api/reisekosten', { params: { auftragNr } });
+        this.reisekostenListe = data.data || [];
+      } catch (e) {
+        console.error('Reisekostenabrechnungen laden fehlgeschlagen', e);
+        this.reisekostenListe = [];
+      } finally {
+        this.reisekostenListeLoading = false;
+      }
+    },
+    createStundenliste() {
+      this.showNeuMenu = false;
+      if (this.hasStundenliste) return;
+      this.generateAndPreview();
+    },
+    openReisekostenModal(id = null) {
+      this.showNeuMenu = false;
+      this.reisekostenEditId = id;
+      this.reisekostenModalOpen = true;
+    },
+    async onReisekostenSaved({ doc, sign }) {
+      if (this.selectedEvent?.auftragNr) await this.loadReisekosten(this.selectedEvent.auftragNr);
+      if (sign && doc?._id) this.openReisekostenSignatur(doc);
+    },
+    reisekostenName(doc) {
+      const k = doc.kopf || {};
+      const name = [k.vorname, k.name].filter(Boolean).join(' ');
+      return name || (doc.mitarbeiter ? `${doc.mitarbeiter.vorname || ''} ${doc.mitarbeiter.nachname || ''}`.trim() : 'Reisekostenabrechnung');
+    },
+    async openReisekostenPdf(doc) {
+      try {
+        const { data } = await api.get(`/api/reisekosten/${doc._id}/pdf`);
+        if (data.url) window.open(data.url, '_blank');
+      } catch (e) {
+        alert(e.response?.data?.message || 'PDF konnte nicht geöffnet werden');
+      }
+    },
+    async deleteReisekosten(doc) {
+      if (!confirm('Reisekostenabrechnung wirklich löschen?')) return;
+      try {
+        await api.delete(`/api/reisekosten/${doc._id}`);
+        this.reisekostenListe = this.reisekostenListe.filter(d => d._id !== doc._id);
+      } catch (e) {
+        alert(e.response?.data?.message || 'Löschen fehlgeschlagen');
+      }
+    },
+    openReisekostenSignatur(doc) {
+      const mitarbeiter = doc.mitarbeiter || {};
+      const modal = useSignaturModal();
+      modal.openModal(
+        {
+          auftragNr: doc.auftragNr,
+          typKey: 'reisekostenabrechnung',
+          name: `Reisekostenabrechnung ${this.reisekostenName(doc)}`,
+          locationId: typeof this.selectedEvent?.locationV2 === 'object'
+            ? this.selectedEvent.locationV2?._id
+            : this.selectedEvent?.locationV2,
+          mitarbeiterId: mitarbeiter._id || null,
+          customEndpoint: `/api/signaturen/reisekostenabrechnung/${doc._id}`,
+          submitters: [
+            {
+              role: 'Mitarbeiter',
+              name: this.reisekostenName(doc),
+              email: mitarbeiter.email || '',
+              embedded: false,
+            },
+          ],
+        },
+        () => {
+          if (this.selectedEvent?.auftragNr) this.loadReisekosten(this.selectedEvent.auftragNr);
+        }
+      );
+    },
     formatFileSize(bytes) {
       if (!bytes) return '0 B';
       if (bytes < 1024) return `${bytes} B`;
@@ -2803,6 +2976,7 @@ export default {
   },
     handleDocumentClick() {
       this.showQuickActions = false;
+      this.showNeuMenu = false;
     },
     async mounted() {
     this.checkMobile();
@@ -4979,6 +5153,64 @@ export default {
   padding-top: 14px;
 }
 
+.einsatzdoks-section .section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.neu-dok-wrap {
+  position: relative;
+}
+.neu-dok-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  &:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+}
+.neu-dok-caret { font-size: 0.62rem; }
+.neu-dok-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  min-width: 210px;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.neu-dok-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  text-align: left;
+  &:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+  &:disabled { color: var(--muted); cursor: not-allowed; opacity: 0.6; }
+  svg { color: var(--primary); width: 15px; }
+}
+
 .section-action-btn {
   background: none;
   border: 1px solid var(--border);
@@ -5064,6 +5296,7 @@ export default {
   &.einsatz-dok--completed { border-left-color: #10b981; }
   &.einsatz-dok--open      { border-left-color: #f59e0b; }
   &.einsatz-dok--draft     { border-left-color: var(--muted); }
+  &.einsatz-dok--signature_pending { border-left-color: #f59e0b; }
   &.einsatz-dok--cancelled { border-left-color: #ef4444; opacity: 0.7; }
   &.einsatz-dok--none      { border-left-color: var(--border); }
   &.einsatz-dok--generated  { border-left-color: var(--muted); }

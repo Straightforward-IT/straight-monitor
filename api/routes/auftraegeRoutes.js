@@ -22,6 +22,78 @@ const uploadMem = multer({
 });
 
 const EINSATZ_DOK_PREFIX = (auftragNr) => `Auftraege/${auftragNr}/docs/`;
+
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// GET /api/auftraege/search - Full-database search across all orders (ignores date range)
+// Query params: q (string), locationV2 (optional ObjectId), limit (default 25)
+router.get('/search', async (req, res) => {
+  try {
+    const { q, locationV2, limit } = req.query;
+    const words = String(q || '').trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return res.json([]);
+
+    const maxResults = Math.min(parseInt(limit, 10) || 25, 50);
+
+    const baseQuery = { aktiv: { $ne: 0 } };
+
+    // Respect active Standort filter
+    if (locationV2) {
+      const location = await resolveActiveLocation(locationV2);
+      if (!location) {
+        return res.status(400).json({ success: false, message: 'Der gewählte Standort ist nicht aktiv oder existiert nicht.' });
+      }
+      baseQuery.locationV2 = location._id;
+    }
+
+    // Each word must match at least one field (AND across words, OR across fields)
+    const andClauses = await Promise.all(words.map(async (word) => {
+      const rx = new RegExp(escapeRegex(word), 'i');
+      const matchedKundenNrs = await Kunde
+        .find({ $or: [{ kundName: rx }, { kuerzel: rx }] })
+        .distinct('kundenNr');
+
+      const or = [
+        { eventTitel: rx },
+        { eventLocation: rx },
+        { eventOrt: rx },
+        { referenz: rx },
+      ];
+      if (matchedKundenNrs.length > 0) or.push({ kundenNr: { $in: matchedKundenNrs } });
+      const asNumber = Number(word);
+      if (Number.isInteger(asNumber)) or.push({ auftragNr: asNumber });
+
+      return { $or: or };
+    }));
+
+    const query = { ...baseQuery, $and: andClauses };
+
+    const auftraege = await Auftrag.find(query)
+      .select('auftragNr eventTitel vonDatum bisDatum eventOrt eventLocation referenz kundenNr isPseudo labels')
+      .sort({ vonDatum: -1 })
+      .limit(maxResults)
+      .lean();
+
+    // Attach lightweight Kunde data for display
+    const kundenNrs = [...new Set(auftraege.map(a => a.kundenNr).filter(Boolean))];
+    const kundenData = kundenNrs.length
+      ? await Kunde.find({ kundenNr: { $in: kundenNrs } }).select('kundenNr kundName kuerzel').lean()
+      : [];
+    const kundenMap = {};
+    kundenData.forEach(k => { kundenMap[k.kundenNr] = k; });
+
+    const result = auftraege.map(a => ({
+      ...a,
+      kundeData: kundenMap[a.kundenNr] || null,
+    }));
+
+    res.json(result);
+  } catch (error) {
+    logger.error('Error searching Aufträge:', error);
+    res.status(500).json({ success: false, message: 'Fehler bei der Suche', error: error.message });
+  }
+});
+
 // GET /api/auftraege/filters - Get available filter options (bediener, kunden, etc)
 router.get('/filters', async (req, res) => {
   try {

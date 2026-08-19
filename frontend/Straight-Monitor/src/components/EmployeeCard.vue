@@ -1381,6 +1381,10 @@
           <span class="steckbrief-label">Geburtstag</span>
           <span class="steckbrief-value">{{ formatDate(resolvedMa.geburtsdatum) }}</span>
         </div>
+        <div v-if="resolvedMa.geburtsort" class="steckbrief-row">
+          <span class="steckbrief-label">Geburtsort</span>
+          <span class="steckbrief-value">{{ resolvedMa.geburtsort }}</span>
+        </div>
         <div v-if="resolvedMa.eintrittsdatum" class="steckbrief-row">
           <span class="steckbrief-label">Eintritt</span>
           <span class="steckbrief-value">{{ formatDate(resolvedMa.eintrittsdatum) }}</span>
@@ -1388,6 +1392,20 @@
         <div v-if="resolvedMa.austrittsdatum" class="steckbrief-row">
           <span class="steckbrief-label">Austritt</span>
           <span class="steckbrief-value">{{ formatDate(resolvedMa.austrittsdatum) }}</span>
+        </div>
+        <div v-if="addressLines(resolvedMa.adresse).length" class="steckbrief-row steckbrief-row--block">
+          <span class="steckbrief-label">Adresse</span>
+          <span class="steckbrief-value steckbrief-value--lines">
+            <span v-for="(line, idx) in addressLines(resolvedMa.adresse)" :key="idx">{{ line }}</span>
+          </span>
+        </div>
+        <div v-if="addressLines(resolvedMa.adresse2).length || resolvedMa.adresse2?.telefon || resolvedMa.adresse2?.email" class="steckbrief-row steckbrief-row--block">
+          <span class="steckbrief-label">Adresse 2</span>
+          <span class="steckbrief-value steckbrief-value--lines">
+            <span v-for="(line, idx) in addressLines(resolvedMa.adresse2)" :key="idx">{{ line }}</span>
+            <span v-if="resolvedMa.adresse2?.telefon" class="steckbrief-value--muted">{{ resolvedMa.adresse2.telefon }}</span>
+            <span v-if="resolvedMa.adresse2?.email" class="steckbrief-value--muted">{{ resolvedMa.adresse2.email }}</span>
+          </span>
         </div>
         <div v-if="resolvedMa.additionalEmails && resolvedMa.additionalEmails.length > 0" class="steckbrief-row steckbrief-row--block">
           <span class="steckbrief-label">Alt. Mails</span>
@@ -2185,6 +2203,16 @@ export default {
       } catch {
         return '—';
       }
+    },
+    // Builds display lines for an address object: street, then "PLZ Ort", then country.
+    addressLines(adr) {
+      if (!adr) return [];
+      const lines = [];
+      if (adr.strasse) lines.push(adr.strasse);
+      const cityLine = [adr.plz, adr.ort].filter(Boolean).join(' ').trim();
+      if (cityLine) lines.push(cityLine);
+      if (adr.land) lines.push(adr.land);
+      return lines;
     },
     sortByDateDesc(list, dateKey = 'datum') {
       if (!Array.isArray(list)) return [];
@@ -3180,9 +3208,14 @@ export default {
           nachname: formData.nachname,
           personalnr: formData.personalnr,
           email: formData.email,
+          telefon: formData.telefon,
+          geburtsdatum: formData.geburtsdatum || null,
+          geburtsort: formData.geburtsort,
           erstellt_von: formData.erstellt_von,
           additionalEmails: formData.additionalEmails,
-          personalnrHistory: formData.personalnrHistory
+          personalnrHistory: formData.personalnrHistory,
+          adresse: formData.adresse,
+          adresse2: formData.adresse2
         };
 
         const response = await api.patch(
@@ -3218,9 +3251,14 @@ export default {
           nachname: formData.nachname,
           personalnr: formData.personalnr,
           email: formData.email,
+          telefon: formData.telefon,
+          geburtsdatum: formData.geburtsdatum || null,
+          geburtsort: formData.geburtsort,
           erstellt_von: formData.erstellt_von,
           additionalEmails: formData.additionalEmails,
           personalnrHistory: formData.personalnrHistory,
+          adresse: formData.adresse,
+          adresse2: formData.adresse2,
           forcePersonalnr: true
         };
 
@@ -3362,6 +3400,13 @@ export default {
   display: flex;
   align-items: center;
   gap: 4px;
+
+  &.steckbrief-value--lines {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    line-height: 1.35;
+  }
 
   &.steckbrief-value--muted {
     color: var(--muted);

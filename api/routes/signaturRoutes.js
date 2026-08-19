@@ -14,7 +14,9 @@ const Location = require('../models/Location');
 const R2Service = require('../R2Service');
 const User = require('../models/User');
 const Auftrag = require('../models/Auftrag');
+const Reisekostenabrechnung = require('../models/Reisekostenabrechnung');
 const StundenlisteService = require('../StundenlisteService');
+const ReisekostenService = require('../ReisekostenService');
 const { sendMail } = require('../EmailService');
 const { buildSignaturR2Prefix, sanitizeSegment } = require('../utils/signaturR2Path');
 const AsanaService = require('../AsanaService');
@@ -141,10 +143,26 @@ function verifyDocuSealWebhook(req, res, next) {
 }
 
 /**
+ * Keep a linked Reisekostenabrechnung's status in sync with its signature process.
+ * Completed → completed; cancelled → back to draft (re-editable). No-op otherwise.
+ */
+async function syncLinkedReisekosten(vorgang) {
+  if (!vorgang || vorgang.typKey !== 'reisekostenabrechnung') return;
+  const rkStatus = vorgang.status === 'completed'
+    ? 'completed'
+    : (vorgang.status === 'cancelled' ? 'draft' : null);
+  if (!rkStatus) return;
+  try {
+    await Reisekostenabrechnung.updateOne({ signaturVorgang: vorgang._id }, { $set: { status: rkStatus } });
+  } catch (err) {
+    logger.warn(`Reisekosten-Status-Sync fehlgeschlagen für ${vorgang._id}: ${err.message}`);
+  }
+}
+
+/**
  * Map a DocuSeal API submitter onto our stored SubmitterSchema shape.
  */
-function mapSubmitter(apiSubmitter, requested = {}) {
-  return {
+function mapSubmitter(apiSubmitter, requested = {}) {  return {
     role:        apiSubmitter.role      || requested.role      || '',
     name:        apiSubmitter.name      || requested.name      || '',
     email:       apiSubmitter.email     || requested.email     || '',
@@ -529,8 +547,184 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   });
 }));
 
-// ─── FOLGE-DEFAULTS ───────────────────────────────────────────────────────────
+// ─── REISEKOSTENABRECHNUNG (PDF-generation flow) ─────────────────────────────
 
+// POST /api/signaturen/reisekostenabrechnung/:id
+// Renders the stored Reisekostenabrechnung as a signature PDF (single Mitarbeiter
+// signer), creates a DocuSeal submission, and saves a SignaturVorgang linked to the
+// Mitarbeiter. Called from the modal's customEndpoint.
+// Body: { locationId, standort, submitters:[{role:'Mitarbeiter',name,email,embedded}], folgeaktionen }
+router.post('/reisekostenabrechnung/:id', auth, asyncHandler(async (req, res) => {
+  const adminUser = await requireSignaturAccess(req, res);
+  if (!adminUser) return;
+
+  const { locationId, standort, submitters, folgeaktionen: folgeaktionenRaw } = req.body || {};
+  const folgeaktionen = parseFolgeaktionen(folgeaktionenRaw);
+
+  const rk = await Reisekostenabrechnung.findById(req.params.id);
+  if (!rk) return res.status(404).json({ message: 'Reisekostenabrechnung nicht gefunden' });
+
+  const signerReq = Array.isArray(submitters)
+    ? (submitters.find((s) => s.role === 'Mitarbeiter') || submitters[0])
+    : null;
+  if (!signerReq || !signerReq.email) {
+    return res.status(400).json({ message: 'Unterzeichner (E-Mail) ist erforderlich' });
+  }
+
+  const signaturTyp = await SignaturTyp.findOne({ key: 'reisekostenabrechnung', isActive: true });
+  if (!signaturTyp) {
+    return res.status(400).json({ message: 'Signaturtyp "reisekostenabrechnung" nicht gefunden – bitte Seed-Skript ausführen.' });
+  }
+
+  const mitarbeiter = rk.mitarbeiter
+    ? await Mitarbeiter.findById(rk.mitarbeiter).select('_id vorname nachname personalnr signaturOrdner locationV2')
+    : null;
+
+  const location = await resolveSignaturLocation({
+    locationId,
+    entityLocationId: mitarbeiter?.locationV2 || rk.locationV2,
+    standort,
+  });
+  if (!location) {
+    return res.status(400).json({ message: 'Bitte eine gültige Location auswählen.' });
+  }
+
+  // Auto-cancel any existing non-cancelled Vorgang for this document.
+  if (rk.signaturVorgang) {
+    const existing = await SignaturVorgang.findById(rk.signaturVorgang);
+    if (existing && existing.status !== 'cancelled') {
+      if (existing.submissionId) {
+        try {
+          await DocuSealService.archiveSubmission(existing.submissionId);
+        } catch (e) {
+          logger.warn(`[Reisekosten redo] DocuSeal archive failed for ${existing.submissionId}:`, e.message);
+        }
+      }
+      existing.status = 'cancelled';
+      existing.cancelledAt = new Date();
+      await existing.save();
+    }
+  }
+
+  const { buffer } = await ReisekostenService.buildPdf(rk.toObject(), { signatureTags: true });
+
+  // Belege (Screenshots/PDFs) ans Signatur-Dokument anhängen.
+  let signBuffer = buffer;
+  if (Array.isArray(rk.anlagen) && rk.anlagen.length) {
+    const anlagenBuffers = [];
+    for (const a of rk.anlagen) {
+      try {
+        anlagenBuffers.push({ buffer: await R2Service.downloadFile(a.key), contentType: a.contentType, filename: a.filename });
+      } catch (e) {
+        logger.warn(`[Reisekosten Signatur] Anlage konnte nicht geladen werden (${a.key}): ${e.message}`);
+      }
+    }
+    signBuffer = await ReisekostenService.mergeAttachments(buffer, anlagenBuffers);
+  }
+
+  const docName = `Reisekostenabrechnung ${[rk.kopf?.vorname, rk.kopf?.name].filter(Boolean).join(' ')}`.trim() || `Reisekostenabrechnung ${rk._id}`;
+  const today = new Date().toISOString().split('T')[0];
+  const emailOn = !folgeaktionen || folgeaktionen.emailBenachrichtigung !== false;
+
+  const requestedSubmitters = [
+    { role: 'Mitarbeiter', name: signerReq.name || [rk.kopf?.vorname, rk.kopf?.name].filter(Boolean).join(' '), email: signerReq.email, embedded: !!signerReq.embedded },
+  ];
+
+  const result = await DocuSealService.createSubmissionFromPdf({
+    name: docName,
+    fileBuffer: signBuffer,
+    submitters: requestedSubmitters.map((s) => ({
+      role: s.role,
+      name: s.name,
+      email: s.email,
+      send_email: s.embedded ? false : emailOn,
+      values: { [`${s.role} Datum`]: today },
+    })),
+    order: 'preserved',
+  });
+
+  const resultArr = Array.isArray(result)
+    ? result
+    : (result?.submitters || (result?.id ? [result] : []));
+  const submissionId = resultArr.length ? (resultArr[0].submission_id ?? result?.id) : undefined;
+  const storedSubmitters = resultArr.map((apiSub) => {
+    const reqSub = requestedSubmitters.find((s) => (s.email && s.email === apiSub.email) || s.role === apiSub.role) || {};
+    return mapSubmitter(apiSub, reqSub);
+  });
+
+  const entityFolder = mitarbeiter
+    ? await ensureSignaturOrdner('Mitarbeiter', mitarbeiter)
+    : rk.mitarbeiterName;
+  const r2Prefix = buildSignaturR2Prefix({
+    locationIdentifier: location.shortName || location.nameFull,
+    entityType: 'Mitarbeiter',
+    entityIdentifier: entityFolder,
+    typKey: 'reisekostenabrechnung',
+  });
+
+  const vorgang = new SignaturVorgang({
+    name: docName,
+    typ: signaturTyp._id,
+    typKey: 'reisekostenabrechnung',
+    standort: standort || location.shortNameKey || null,
+    locationV2: location._id,
+    status: 'open',
+    auftragNr: rk.auftragNr,
+    mitarbeiter: mitarbeiter ? mitarbeiter._id : null,
+    mitarbeiterName: mitarbeiter ? [mitarbeiter.vorname, mitarbeiter.nachname].filter(Boolean).join('-') : rk.mitarbeiterName,
+    docusealTemplateName: 'Reisekostenabrechnung (PDF)',
+    submissionId,
+    submitters: storedSubmitters,
+    r2Prefix,
+    folgeaktionen: folgeaktionen || undefined,
+    createdBy: req.user.id,
+  });
+  await vorgang.save();
+  await vorgang.populate([
+    { path: 'typ', select: 'key label linkedTo' },
+    { path: 'locationV2', select: 'nameFull shortName color' },
+  ]);
+
+  rk.status = 'signature_pending';
+  rk.signaturVorgang = vorgang._id;
+  await rk.save();
+
+  // Notify the non-embedded signer by email.
+  if (emailOn) {
+    for (const apiSub of storedSubmitters) {
+      if (!apiSub.embedded && apiSub.slug) {
+        const signingLink = apiSub.embedSrc || `https://docuseal.eu/s/${apiSub.slug}`;
+        const recipientEmail = requestedSubmitters.find((s) => s.role === apiSub.role)?.email || apiSub.email;
+        const emailContent = `
+          <div style="font-family:Arial,sans-serif;color:#333;">
+            <h2 style="color:#000;">Ihre Reisekostenabrechnung ist bereit zur Unterschrift</h2>
+            <p>Bitte klicken Sie auf den untenstehenden Link, um die Reisekostenabrechnung zu überprüfen und zu unterschreiben.</p>
+            <a href="${signingLink}" style="display:inline-block;padding:10px 15px;color:#fff;background-color:#E36125;text-decoration:none;border-radius:4px;margin-top:20px;">
+              Dokument unterschreiben
+            </a>
+          </div>
+        `;
+        try {
+          await sendMail(recipientEmail, 'Ihre Reisekostenabrechnung zur Unterschrift', emailContent, 'it');
+        } catch (err) {
+          logger.error(`[SignaturenRoute Reisekosten ${rk._id}] E-Mail fehlgeschlagen:`, err);
+        }
+      }
+    }
+  }
+
+  broadcastSignaturEvent('vorgang.created', vorgang.toObject());
+
+  const signerSub = storedSubmitters.find((s) => s.role === 'Mitarbeiter');
+  res.status(201).json({
+    vorgang,
+    embed: signerSub && signerSub.embedded
+      ? { role: 'Mitarbeiter', slug: signerSub.slug, src: signerSub.embedSrc }
+      : null,
+  });
+}));
+
+// ─── FOLGE-DEFAULTS ───────────────────────────────────────────────────────────
 // GET /api/signaturen/folge-defaults?kundeId=X&typId=Y
 // Returns the shared default ausliefernAn recipients for a Kunde+Typ combo.
 router.get('/folge-defaults', auth, asyncHandler(async (req, res) => {
@@ -611,6 +805,7 @@ router.get('/', auth, asyncHandler(async (req, res) => {
           changed = true;
         }
         if (changed) await vorgang.save();
+        await syncLinkedReisekosten(vorgang);
       } catch (err) {
         logger.warn(`Bulk status refresh failed for vorgang ${vorgang._id}:`, err.message);
       }
@@ -974,6 +1169,7 @@ router.get('/:id', auth, asyncHandler(async (req, res) => {
           vorgang.status = 'completed';
         }
         await vorgang.save();
+        await syncLinkedReisekosten(vorgang);
       }
     } catch (err) {
       logger.warn(`SignaturVorgang refresh failed for submission ${vorgang.submissionId}:`, err.message);
@@ -1295,6 +1491,10 @@ router.post('/webhook', verifyDocuSealWebhook, asyncHandler(async (req, res) => 
   }
 
   await vorgang.save();
+
+  // Keep a linked Reisekostenabrechnung's status in sync with its signature process.
+  await syncLinkedReisekosten(vorgang);
+
   logger.info(`SignaturRoutes webhook: processed ${eventType} for submission ${submissionId}.`);
   broadcastSignaturEvent('vorgang.updated', vorgang.toObject());
 

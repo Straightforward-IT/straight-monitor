@@ -35,12 +35,14 @@ const pdfTemplateRoutes = require('./routes/pdfTemplateRoutes');
 const pdfVorgangRoutes = require('./routes/pdfVorgangRoutes');
 const signaturRoutes = require('./routes/signaturRoutes');
 const signaturTypRoutes = require('./routes/signaturTypRoutes');
+const reisekostenRoutes = require('./routes/reisekostenRoutes');
 const dispoRoutes = require('./routes/dispoRoutes');
 const dispoKommentarRoutes = require('./routes/dispoKommentarRoutes');
 const commentRoutes = require('./routes/commentRoutes');
 const leadRoutes = require('./routes/leadRoutes');
 const bewerberRoutes = require('./routes/bewerberRoutes');
 const bewerberManagementRoutes = require('./routes/bewerberManagementRoutes');
+const employeeEmailTemplateRoutes = require('./routes/employeeEmailTemplateRoutes');
 const ErrorHandler = require('./middleware/ErrorHandler');
 const logger = require('./utils/logger');
 require('dotenv').config();
@@ -129,11 +131,13 @@ app.use('/api/pdf-templates', pdfTemplateRoutes);
 app.use('/api/pdf-vorgaenge', pdfVorgangRoutes);
 app.use('/api/signaturen', signaturRoutes);
 app.use('/api/signatur-typen', signaturTypRoutes);
+app.use('/api/reisekosten', reisekostenRoutes);
 app.use('/api/dispo', dispoRoutes);
 app.use('/api/dispo-kommentare', dispoKommentarRoutes); // legacy — kept for backwards compat
 app.use('/api/comments', commentRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/bewerber/admin', bewerberManagementRoutes);
+app.use('/api/employee-email-templates', employeeEmailTemplateRoutes);
 app.use('/api/bewerber', bewerberRoutes);
 
 // Debug endpoint (moved to specific path instead of catch-all)

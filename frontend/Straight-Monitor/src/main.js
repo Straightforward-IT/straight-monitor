@@ -3,6 +3,8 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import { useTheme } from '@/stores/theme';
 import router from './router';
+import { createModalDock } from '@bleck-it/vue-modal-dock';
+import '@bleck-it/vue-modal-dock/style.css';
 
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
@@ -50,6 +52,7 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faClockRotateLeft,
   faCheckDouble,
   faScissors,
+  faGear, faRotate, faEnvelopeOpenText, faCode, faVial,
 } from '@fortawesome/free-solid-svg-icons';
 import { faChartBar, faCircleXmark, faCircle, faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 library.add(
@@ -68,6 +71,8 @@ library.add(
   faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faThLarge, faFileImport, faBookmark, faGripVertical,
   // Merge Icon
   faObjectGroup, faAddressCard, faBinoculars, faTableCells, faCheckDouble, faMousePointer, faScissors,
+  faGear, faRotate, faEnvelopeOpenText,
+  faCode, faVial,
   // Pie Chart Icon
   faChartPie, faPalette, faChartLine, faCommentDots, faComment, faToggleOn, faToggleOff, faArrowUpFromBracket, faCalendarWeek, faBell,
   // Mobile Menu Icons
@@ -108,7 +113,36 @@ library.add(
 const app = createApp(App);
 const pinia = createPinia();
 
-app.use(pinia).use(router).component('font-awesome-icon', FontAwesomeIcon);
+app
+  .use(pinia)
+  .use(router)
+  .use(createModalDock({
+    maxModals: 12,
+    theme: {
+      accent: 'var(--primary)',
+      accentContrast: '#ffffff',
+      surface: 'var(--surface)',
+      surfaceMuted: 'var(--hover)',
+      text: 'var(--text)',
+      textMuted: 'var(--muted)',
+      border: 'var(--border)',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "San Francisco", Helvetica, Arial, sans-serif',
+      fontSize: '14px',
+      titleFontWeight: 400,
+      dockRadius: '10px',
+      itemRadius: '7px',
+      controlRadius: '6px',
+      dockBottom: '12px',
+      dockBackground: 'color-mix(in srgb, var(--surface) 90%, transparent)',
+      itemBackground: 'color-mix(in srgb, var(--tile-bg) 94%, transparent)',
+      controlBackground: 'color-mix(in srgb, var(--tile-bg) 88%, transparent)',
+      focusRing: 'color-mix(in srgb, var(--primary) 48%, transparent)',
+      dockShadow: '0 8px 24px rgba(0, 0, 0, 0.16)',
+      controlShadow: 'none',
+      backdropFilter: 'blur(14px) saturate(115%)',
+    },
+  }))
+  .component('font-awesome-icon', FontAwesomeIcon);
 
 // Theme initialisieren (nachdem Pinia hängt!)
 useTheme(pinia).init();

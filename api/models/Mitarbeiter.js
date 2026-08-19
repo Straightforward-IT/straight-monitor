@@ -23,6 +23,22 @@ const MitarbeiterSchema = new mongoose.Schema({
     email: { type: String, unique: true, lowercase: true, trim: true },
     additionalEmails: [{ type: String, lowercase: true, trim: true }],
     telefon: { type: String, required: false, trim: true },
+    // Hauptadresse (Adresse 1) aus Zvoove — Tel/Email der Hauptadresse fließen in telefon/email.
+    adresse: {
+        strasse: { type: String, trim: true },
+        plz: { type: String, trim: true },
+        ort: { type: String, trim: true },
+        land: { type: String, trim: true },
+    },
+    // Zweitadresse (Adresse 2) inkl. eigener Kontaktdaten.
+    adresse2: {
+        strasse: { type: String, trim: true },
+        plz: { type: String, trim: true },
+        ort: { type: String, trim: true },
+        land: { type: String, trim: true },
+        telefon: { type: String, trim: true },
+        email: { type: String, lowercase: true, trim: true },
+    },
     locationV2: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Location',
@@ -36,6 +52,7 @@ const MitarbeiterSchema = new mongoose.Schema({
     // Optional public portal entries enabled for this employee (e.g. 'new-menu-item').
     publicMenuOptions: [{ type: String, trim: true }],
     geburtsdatum: { type: Date, required: false },
+    geburtsort: { type: String, required: false, trim: true },
     eintrittsdatum: { type: Date, required: false },
     austrittsdatum: { type: Date, required: false },
     persgruppe: {

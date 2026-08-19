@@ -238,25 +238,35 @@
       </div>
     </div>
 
-    <!-- Detail Modal -->
-    <div v-if="selectedDoc" class="modal-overlay" @click.self="closeDoc">
-      <div class="modal document-modal">
-        <div class="modal-body modal-document-body">
-          <DocumentCard
-            :doc="selectedDoc"
-            :personDetails="personDetails"
-            :filteredTeamleiter="filteredTeamleiter"
-            :filteredMitarbeiter="filteredMitarbeiter"
-            @close="closeDoc"
-            @assign="openAssignDialog"
-            @filter-teamleiter="filterByTeamleiter"
-            @filter-mitarbeiter="filterByMitarbeiter"
-            @open-employee="openMitarbeiterCard"
-            @open-kunde="openKundeCard"
-          />
+    <!-- DocumentCard keeps its original modal; the package only controls minimization. -->
+    <MinimizableRegion
+      v-if="selectedDoc"
+      :id="documentModalId(selectedDoc)"
+      :title="documentModalTitle(selectedDoc)"
+      :restore-request="() => restoreDocumentModal(selectedDoc)"
+      persist-on-unmount
+      @remove="closeDoc"
+    >
+      <div class="modal-overlay" @click.self="closeDoc">
+        <div class="modal document-modal">
+          <MinimizeButton class="document-modal-minimize" />
+          <div class="modal-body modal-document-body">
+            <DocumentCard
+              :doc="selectedDoc"
+              :personDetails="personDetails"
+              :filteredTeamleiter="filteredTeamleiter"
+              :filteredMitarbeiter="filteredMitarbeiter"
+              @close="closeDoc"
+              @assign="openAssignDialog"
+              @filter-teamleiter="filterByTeamleiter"
+              @filter-mitarbeiter="filterByMitarbeiter"
+              @open-employee="openMitarbeiterCard"
+              @open-kunde="openKundeCard"
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </MinimizableRegion>
 
     <!-- Employee Modal -->
     <EmployeeCardModal
@@ -353,6 +363,7 @@
 import api from "@/utils/api";
 import logger from "@/utils/logger";
 import { useDataCache } from "@/stores/dataCache";
+import router from '@/router';
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import FilterPanel from '@/components/FilterPanel.vue';
@@ -947,7 +958,7 @@ export default {
         )
       );
       if (ev) {
-        this.selectedDoc = ev;
+        await this.openDoc(ev);
         if (ev.details?.name_teamleiter) await this.fetchPersonDetails(ev.details.name_teamleiter);
         if (ev.details?.name_mitarbeiter) await this.fetchPersonDetails(ev.details.name_mitarbeiter);
       }
@@ -964,7 +975,7 @@ export default {
         )
       );
       if (lz) {
-        this.selectedDoc = lz;
+        await this.openDoc(lz);
         if (lz.details?.name_teamleiter) {
           await this.fetchPersonDetails(lz.details.name_teamleiter);
         }
@@ -976,7 +987,7 @@ export default {
         try {
           const res = await api.get(`/api/docs/laufzettel/${laufzettelId}`);
           if (res.data) {
-            this.selectedDoc = res.data;
+            await this.openDoc(res.data);
           }
         } catch (e) {
           console.error('Laufzettel nicht gefunden:', e);
@@ -1132,6 +1143,20 @@ export default {
       if (doc.details?.name_mitarbeiter) {
         await this.fetchPersonDetails(doc.details.name_mitarbeiter);
       }
+    },
+
+    documentModalId(doc) {
+      return `document-${doc?._id || doc?.id || 'active'}`;
+    },
+
+    documentModalTitle(doc) {
+      return [doc?.docType, doc?.bezeichnung].filter(Boolean).join(' · ') || 'Dokument';
+    },
+
+    restoreDocumentModal(doc) {
+      const docId = doc?._id || doc?.id;
+      if (!docId) return;
+      void router.push({ path: '/dokumente', query: { docId: String(docId) } });
     },
 
     closeDoc() {
@@ -1910,8 +1935,28 @@ export default {
 
 /* Document Modal */
 .document-modal {
+  position: relative;
   max-width: 700px;
   width: 95%;
+}
+
+.document-modal-minimize {
+  position: absolute;
+  top: 24px;
+  right: 62px;
+  z-index: 2;
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: var(--vmd-text-muted, var(--muted));
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.document-modal-minimize:hover {
+  color: var(--vmd-accent, var(--primary));
+  background: color-mix(in srgb, var(--vmd-accent, var(--primary)) 10%, transparent);
+  border-color: color-mix(in srgb, var(--vmd-accent, var(--primary)) 30%, transparent);
 }
 
 .modal-document-body {

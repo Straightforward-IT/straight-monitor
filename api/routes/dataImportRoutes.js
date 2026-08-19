@@ -759,8 +759,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
   }
 });
 
-// --- Personal Import (kombiniert: Personalnr, Persstatus, Geburtsdatum, Eintritt, Austrittsdatum, Beruf/Quali, Persgruppe, Email, Telefon) ---
-// Spalten (mit Prüffeld, neu): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Eintritt1, F=Austritt1, G=Berufsschlüssel(komma), H=Qualischlüssel(komma), I=Persgruppe, J=Email, K=Telefon
+// --- Personal Import (kombiniert: Personalnr, Persstatus, Geburtsdatum, Geburtsort, Eintritt, Austrittsdatum, Beruf/Quali, Persgruppe, Adresse(n), Email, Telefon) ---
+// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Geburtsort(GEBORT), F=Eintritt1, G=Austritt1, H=Berufsschlüssel(komma), I=Qualischlüssel(komma), J=Persgruppe, K=Strasse, L=PLZ, M=Ort, N=Land, O=Telefon, P=Email, Q=Strasse2, R=PLZ2, S=Ort2, T=Land2, U=Telefon2, V=Email2
 // Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 router.post('/personal', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
@@ -809,62 +809,79 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       const row = rawData[i];
       if (!row || row.length < 1) continue;
 
-      const personalnr = row[0 + colOffset] != null ? String(row[0 + colOffset]).trim() : null;
-      if (!personalnr) continue;
-
-      // Col C (index 1): Persstatus — 6 = Ausgetreten (nur bei 7002-Format mit colOffset=1 relevant)
-      const persstatus = colOffset === 1 && row[1 + colOffset] != null ? parseInt(row[1 + colOffset], 10) : null;
-
-      // New 7002 format has EINTRITT1 at index 2+colOffset, shifting all subsequent cols by 1
       const hasNewFormat = colOffset === 1;
-      const extraOffset = hasNewFormat ? 1 : 0;
-      // Neues 7002-Format enthält zusätzlich GEBDATUM (Spalte D), wodurch Eintritt und alle
-      // nachfolgenden Spalten um eine weitere Position nach rechts rücken.
-      const gebOffset = hasNewFormat ? 1 : 0;
 
-      // Col D (index 2, new format): Geburtsdatum (nur bei 7002-Format)
-      let geburtsdatum = null;
-      if (hasNewFormat && row[2 + colOffset]) {
-        const d = row[2 + colOffset] instanceof Date ? row[2 + colOffset] : new Date(row[2 + colOffset]);
-        if (!isNaN(d.getTime())) geburtsdatum = d;
+      // Helper: parse a cell into a Date (or null)
+      const parseDate = (val) => {
+        if (!val) return null;
+        const d = val instanceof Date ? val : new Date(val);
+        return isNaN(d.getTime()) ? null : d;
+      };
+      const parseStr = (val) => (val != null && String(val).trim() !== '' ? String(val).trim() : null);
+      const parseKeys = (val) => (val
+        ? String(val).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
+        : []);
+
+      // Fixed column indices per format.
+      // New 7002 (colOffset=1): A=Prüffeld, B=Personalnr, C=Persstatus, D=Geburtsdatum,
+      //   E=Geburtsort, F=Eintritt1, G=Austritt1, H=Berufsschl, I=Qualschl, J=Persgruppe,
+      //   K=Strasse, L=PLZ, M=Ort, N=Land, O=Tel, P=Email,
+      //   Q=Strasse2, R=PLZ2, S=Ort2, T=Land2, U=Tel2, V=Email2
+      // Legacy (colOffset=0): A=Personalnr, B=ignoriert, C=Austritt, D=Berufsschl,
+      //   E=Qualschl, F=Persgruppe, G=Email, H=Telefon
+      let personalnr, persstatus, geburtsdatum, geburtsort, eintrittsdatum, austrittsdatum;
+      let berufKeys, qualiKeys, persgruppRaw, email, telefon;
+      let adresse = null, adresse2 = null;
+
+      if (hasNewFormat) {
+        personalnr = parseStr(row[1]);
+        if (!personalnr) continue;
+        persstatus = row[2] != null ? parseInt(row[2], 10) : null;
+        geburtsdatum = parseDate(row[3]);
+        geburtsort = parseStr(row[4]);
+        eintrittsdatum = parseDate(row[5]);
+        austrittsdatum = parseDate(row[6]);
+        berufKeys = parseKeys(row[7]);
+        qualiKeys = parseKeys(row[8]);
+        persgruppRaw = row[9] != null ? parseInt(row[9], 10) : null;
+        // Adresse 1 (Hauptadresse) — Tel/Email fließen in die Primärfelder
+        const strasse = parseStr(row[10]);
+        const plz = parseStr(row[11]);
+        const ort = parseStr(row[12]);
+        const land = parseStr(row[13]);
+        telefon = parseStr(row[14]);
+        email = parseStr(row[15]) ? String(row[15]).trim().toLowerCase() : null;
+        if (strasse || plz || ort || land) {
+          adresse = { strasse, plz, ort, land };
+        }
+        // Adresse 2 (Zweitadresse) inkl. eigener Tel/Email
+        const strasse2 = parseStr(row[16]);
+        const plz2 = parseStr(row[17]);
+        const ort2 = parseStr(row[18]);
+        const land2 = parseStr(row[19]);
+        const tel2 = parseStr(row[20]);
+        const email2 = parseStr(row[21]) ? String(row[21]).trim().toLowerCase() : null;
+        if (strasse2 || plz2 || ort2 || land2 || tel2 || email2) {
+          adresse2 = { strasse: strasse2, plz: plz2, ort: ort2, land: land2, telefon: tel2, email: email2 };
+        }
+      } else {
+        personalnr = parseStr(row[0]);
+        if (!personalnr) continue;
+        persstatus = null;
+        geburtsdatum = null;
+        geburtsort = null;
+        eintrittsdatum = null;
+        austrittsdatum = parseDate(row[2]);
+        berufKeys = parseKeys(row[3]);
+        qualiKeys = parseKeys(row[4]);
+        persgruppRaw = row[5] != null ? parseInt(row[5], 10) : null;
+        email = parseStr(row[6]) ? String(row[6]).trim().toLowerCase() : null;
+        telefon = parseStr(row[7]);
       }
 
-      // Col E (index 2+colOffset+gebOffset, new format): Eintrittsdatum (nur bei 7002-Format)
-      let eintrittsdatum = null;
-      if (hasNewFormat && row[2 + colOffset + gebOffset]) {
-        const d = row[2 + colOffset + gebOffset] instanceof Date ? row[2 + colOffset + gebOffset] : new Date(row[2 + colOffset + gebOffset]);
-        if (!isNaN(d.getTime())) eintrittsdatum = d;
-      }
-
-      // Col F/C (index 2+extraOffset+gebOffset): Austrittsdatum
-      let austrittsdatum = null;
-      if (row[2 + colOffset + extraOffset + gebOffset]) {
-        const d = row[2 + colOffset + extraOffset + gebOffset] instanceof Date ? row[2 + colOffset + extraOffset + gebOffset] : new Date(row[2 + colOffset + extraOffset + gebOffset]);
-        if (!isNaN(d.getTime())) austrittsdatum = d;
-      }
-
-      // Col G/D (index 3+extraOffset+gebOffset): Berufsschlüssel kommagetrennt
-      // Normalize keys: "00040" → "40" so leading zeros in the Excel don't break the lookup
-      const berufKeys = row[3 + colOffset + extraOffset + gebOffset]
-        ? String(row[3 + colOffset + extraOffset + gebOffset]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
-        : [];
       const berufIds = berufKeys.map(k => berufMap.get(k)).filter(Boolean);
-
-      // Col H/E (index 4+extraOffset+gebOffset): Qualifikationsschlüssel kommagetrennt
-      const qualiKeys = row[4 + colOffset + extraOffset + gebOffset]
-        ? String(row[4 + colOffset + extraOffset + gebOffset]).split(',').map(k => String(parseInt(k.trim(), 10))).filter(k => k !== 'NaN')
-        : [];
       const qualiIds = qualiKeys.map(k => qualiMap.get(k)).filter(Boolean);
-
-      // Col I/F (index 5+extraOffset+gebOffset): Personengruppe
-      const persgruppRaw = row[5 + colOffset + extraOffset + gebOffset] != null ? parseInt(row[5 + colOffset + extraOffset + gebOffset], 10) : null;
       const persgruppe = persgruppRaw != null && VALID_PERSGRUPPEN.has(persgruppRaw) ? persgruppRaw : null;
-
-      // Col J/G (index 6+extraOffset+gebOffset): Email
-      const email = row[6 + colOffset + extraOffset + gebOffset] ? String(row[6 + colOffset + extraOffset + gebOffset]).trim().toLowerCase() : null;
-
-      // Col K/H (index 7+extraOffset+gebOffset): Telefon
-      const telefon = row[7 + colOffset + extraOffset + gebOffset] ? String(row[7 + colOffset + extraOffset + gebOffset]).trim() : null;
 
       // Build $set payload — only include fields that have a value
       const setFields = {
@@ -872,12 +889,15 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         qualifikationen: qualiIds,
       };
       if (geburtsdatum) setFields.geburtsdatum = geburtsdatum;
+      if (geburtsort) setFields.geburtsort = geburtsort;
       if (eintrittsdatum) setFields.eintrittsdatum = eintrittsdatum;
       // Immer setzen: leeres Feld soll einen bestehenden Wert in der DB explizit löschen
       setFields.austrittsdatum = austrittsdatum ?? null;
       if (persgruppe != null) setFields.persgruppe = persgruppe;
       if (email) setFields.email = email;
       if (telefon) setFields.telefon = telefon;
+      if (adresse) setFields.adresse = adresse;
+      if (adresse2) setFields.adresse2 = adresse2;
       // Persstatus 1 = Bewerber (noch kein vollständiger MA), 2 = Mitarbeiter
       if (persstatus != null) setFields.isBewerberstatus = persstatus === 1;
 
@@ -1444,11 +1464,69 @@ router.post('/personal_quali', auth, upload.single('file'), async (req, res) => 
 // --- GET all Berufe (for frontend cache) ---
 router.get('/berufe', async (req, res) => {
   try {
-    const berufe = await Beruf.find({}).lean();
-    res.json({ success: true, data: berufe });
+    const [berufe, counts] = await Promise.all([
+      Beruf.find({}).sort({ jobKey: 1 }).lean(),
+      Qualifikation.aggregate([{ $match: { beruf: { $ne: null } } }, { $group: { _id: '$beruf', count: { $sum: 1 } } }]),
+    ]);
+    const countMap = new Map(counts.map(c => [String(c._id), c.count]));
+    const data = berufe.map(b => ({ ...b, qualifikationCount: countMap.get(String(b._id)) || 0 }));
+    res.json({ success: true, data });
   } catch (error) {
     logger.error('GET Berufe Error:', error);
     res.status(500).json({ success: false, message: 'Fehler beim Abrufen der Berufe.', error: error.message });
+  }
+});
+
+// --- POST create Beruf ---
+router.post('/berufe', auth, async (req, res) => {
+  try {
+    const { jobKey, designation, taetigkeitsschluessel } = req.body;
+    if (!jobKey || !designation) {
+      return res.status(400).json({ success: false, message: 'jobKey und designation sind erforderlich.' });
+    }
+    const beruf = new Beruf({
+      jobKey: parseInt(jobKey, 10),
+      designation: designation.trim(),
+      taetigkeitsschluessel: taetigkeitsschluessel ? String(taetigkeitsschluessel).trim() : undefined,
+    });
+    await beruf.save();
+    res.status(201).json({ success: true, data: beruf });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ success: false, message: 'Ein Eintrag mit diesem Schlüssel existiert bereits.' });
+    logger.error('POST Beruf Error:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Erstellen des Berufs.', error: error.message });
+  }
+});
+
+// --- PUT update Beruf ---
+router.put('/berufe/:id', auth, async (req, res) => {
+  try {
+    const { jobKey, designation, taetigkeitsschluessel } = req.body;
+    const update = {};
+    if (jobKey !== undefined) update.jobKey = parseInt(jobKey, 10);
+    if (designation !== undefined) update.designation = designation.trim();
+    if (taetigkeitsschluessel !== undefined) update.taetigkeitsschluessel = taetigkeitsschluessel ? String(taetigkeitsschluessel).trim() : '';
+    const beruf = await Beruf.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    if (!beruf) return res.status(404).json({ success: false, message: 'Beruf nicht gefunden.' });
+    res.json({ success: true, data: beruf });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ success: false, message: 'Ein Eintrag mit diesem Schlüssel existiert bereits.' });
+    logger.error('PUT Beruf Error:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Aktualisieren des Berufs.', error: error.message });
+  }
+});
+
+// --- DELETE Beruf ---
+router.delete('/berufe/:id', auth, async (req, res) => {
+  try {
+    const beruf = await Beruf.findByIdAndDelete(req.params.id);
+    if (!beruf) return res.status(404).json({ success: false, message: 'Beruf nicht gefunden.' });
+    // Remove dangling references from qualifikationen
+    await Qualifikation.updateMany({ beruf: beruf._id }, { $set: { beruf: null } });
+    res.json({ success: true, message: 'Beruf gelöscht.' });
+  } catch (error) {
+    logger.error('DELETE Beruf Error:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Löschen des Berufs.', error: error.message });
   }
 });
 

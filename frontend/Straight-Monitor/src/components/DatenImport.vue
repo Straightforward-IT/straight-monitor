@@ -86,7 +86,7 @@
           <div class="card-header">
             <div class="header-content">
               <h2>Personal Import (Liste 7002)</h2>
-              <p class="subtitle">Personalnr., Geburtsdatum, Eintritt, Austrittsdatum, Berufe, Qualifikationen, Persgruppe, E-Mail, Telefon</p>
+              <p class="subtitle">Personalnr., Geburtsdatum, Geburtsort, Eintritt, Austrittsdatum, Berufe, Qualifikationen, Persgruppe, Adressen, E-Mail, Telefon</p>
             </div>
             <span v-if="personalFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
@@ -112,9 +112,13 @@
                 <div class="table-scroll">
                   <table class="req-table"><tbody>
                     <tr><td>A – Prüffeld (7002)</td><td>B – Personalnr</td><td>C – Persstatus (6=Ausgetreten)</td></tr>
-                    <tr><td>D – Geburtsdatum (GEBDATUM)</td><td>E – Eintritt (EINTRITT1)</td><td>F – Austrittsdatum</td></tr>
-                    <tr><td>G – Berufsschlüssel (kommasep.)</td><td>H – Qualischlüssel (kommasep.)</td><td>I – Personengruppe</td></tr>
-                    <tr><td>J – E-Mail</td><td>K – Telefon</td><td></td></tr>
+                    <tr><td>D – Geburtsdatum (GEBDATUM)</td><td>E – Geburtsort (GEBORT)</td><td>F – Eintritt (EINTRITT1)</td></tr>
+                    <tr><td>G – Austrittsdatum (AUSTRITT1)</td><td>H – Berufsschlüssel (kommasep.)</td><td>I – Qualischlüssel (kommasep.)</td></tr>
+                    <tr><td>J – Personengruppe (PERSGR)</td><td>K – Strasse</td><td>L – PLZ</td></tr>
+                    <tr><td>M – Ort</td><td>N – Land</td><td>O – Telefon (TEL)</td></tr>
+                    <tr><td>P – E-Mail (EMAIL)</td><td>Q – Strasse2</td><td>R – PLZ2</td></tr>
+                    <tr><td>S – Ort2</td><td>T – Land2</td><td>U – Telefon2 (TEL2)</td></tr>
+                    <tr><td>V – E-Mail2 (EMAIL2)</td><td></td><td></td></tr>
                   </tbody></table>
                 </div>
               </details>

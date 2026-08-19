@@ -33,6 +33,22 @@
           <input v-model="form.email" type="email" class="form-input" />
         </div>
 
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Telefon</label>
+            <input v-model="form.telefon" type="tel" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label>Geburtsdatum</label>
+            <input v-model="form.geburtsdatum" type="date" class="form-input" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Geburtsort</label>
+          <input v-model="form.geburtsort" type="text" class="form-input" />
+        </div>
+
         <div class="form-group">
           <label>Erstellt von</label>
           <input v-model="form.erstellt_von" type="text" class="form-input" />
@@ -51,6 +67,62 @@
             <input type="checkbox" v-model="form.persgruppe_set_explicitly" />
             Manuell gesetzt – nicht vom Import überschreiben
           </label>
+        </div>
+
+        <!-- Adresse -->
+        <div class="form-section">
+          <h4>Adresse</h4>
+          <div class="form-group">
+            <label>Straße</label>
+            <input v-model="form.adresse.strasse" type="text" class="form-input" />
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>PLZ</label>
+              <input v-model="form.adresse.plz" type="text" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label>Ort</label>
+              <input v-model="form.adresse.ort" type="text" class="form-input" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Land</label>
+            <input v-model="form.adresse.land" type="text" class="form-input" />
+          </div>
+        </div>
+
+        <!-- Adresse 2 -->
+        <div class="form-section">
+          <h4>Adresse 2 (Zweitadresse)</h4>
+          <div class="form-group">
+            <label>Straße</label>
+            <input v-model="form.adresse2.strasse" type="text" class="form-input" />
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>PLZ</label>
+              <input v-model="form.adresse2.plz" type="text" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label>Ort</label>
+              <input v-model="form.adresse2.ort" type="text" class="form-input" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Land</label>
+            <input v-model="form.adresse2.land" type="text" class="form-input" />
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Telefon</label>
+              <input v-model="form.adresse2.telefon" type="tel" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label>E-Mail</label>
+              <input v-model="form.adresse2.email" type="email" class="form-input" />
+            </div>
+          </div>
         </div>
 
         <!-- Additional Emails -->
@@ -166,12 +238,24 @@ const form = ref({
   nachname: "",
   personalnr: "",
   email: "",
+  telefon: "",
+  geburtsdatum: "",
+  geburtsort: "",
   erstellt_von: "",
   additionalEmails: [],
   personalnrHistory: [],
   persgruppe: null,
   persgruppe_set_explicitly: false,
+  adresse: { strasse: "", plz: "", ort: "", land: "" },
+  adresse2: { strasse: "", plz: "", ort: "", land: "", telefon: "", email: "" },
 });
+
+// yyyy-MM-dd for <input type="date">
+function toDateInput(val) {
+  if (!val) return "";
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? "" : format(d, "yyyy-MM-dd");
+}
 
 // Initialize form from props
 watch(
@@ -183,11 +267,28 @@ watch(
         nachname: newVal.nachname || "",
         personalnr: newVal.personalnr || "",
         email: newVal.email || "",
+        telefon: newVal.telefon || "",
+        geburtsdatum: toDateInput(newVal.geburtsdatum),
+        geburtsort: newVal.geburtsort || "",
         erstellt_von: newVal.erstellt_von || "",
         additionalEmails: [...(newVal.additionalEmails || [])],
         personalnrHistory: [...(newVal.personalnrHistory || [])],
         persgruppe: newVal.persgruppe ?? null,
         persgruppe_set_explicitly: !!newVal.persgruppe_set_explicitly,
+        adresse: {
+          strasse: newVal.adresse?.strasse || "",
+          plz: newVal.adresse?.plz || "",
+          ort: newVal.adresse?.ort || "",
+          land: newVal.adresse?.land || "",
+        },
+        adresse2: {
+          strasse: newVal.adresse2?.strasse || "",
+          plz: newVal.adresse2?.plz || "",
+          ort: newVal.adresse2?.ort || "",
+          land: newVal.adresse2?.land || "",
+          telefon: newVal.adresse2?.telefon || "",
+          email: newVal.adresse2?.email || "",
+        },
       };
     }
   },

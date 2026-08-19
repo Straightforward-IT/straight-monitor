@@ -28,6 +28,8 @@
       </div>
     </Transition>
   </main>
+
+  <MinimizedDock />
 </template>
 
 <script setup>
@@ -168,10 +170,6 @@ onBeforeUnmount(() => {
   if (appDiv) appDiv.style.margin = ""; // Reset margin when unmounting
 });
 </script>
-
-<style>
-/* No need to modify body styles */
-</style>
 
 <style scoped>
 .notif-banner {

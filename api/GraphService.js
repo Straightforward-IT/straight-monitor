@@ -789,9 +789,115 @@ async function downloadAttachment(token, upn, messageId, attachment, folderId = 
   }
 }
 
+/* ---------------------- Mail Templates (Suggestions) --------------------- */
+/**
+ * Listet die neuesten Nachrichten eines Mailordners für die Vorlagen-Vorschläge.
+ * Gibt kompakte Metadaten inkl. Vorschautext zurück (kein Volltext-Body).
+ */
+async function listTemplateFolderMessages({ userPrincipalName, folderId, top = 50 } = {}) {
+  if (!TENANT || !CLIENT_ID || !CLIENT_SECRET) throw new Error("GRAPH client env missing");
+  if (!userPrincipalName) throw new Error("userPrincipalName required");
+  if (!folderId) throw new Error("folderId required");
+
+  const token = await getAppToken();
+  const params = new URLSearchParams({
+    $select: "id,subject,from,sender,receivedDateTime,bodyPreview,hasAttachments",
+    $orderby: "receivedDateTime desc",
+    $top: String(Math.min(Math.max(Number(top) || 50, 1), 100)),
+  });
+  const url =
+    `${GRAPH}/users/${encodeURIComponent(userPrincipalName)}/mailFolders/${encodeURIComponent(folderId)}/messages?` +
+    params.toString();
+  const { data } = await axios.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return (data.value || []).map((message) => ({
+    id: message.id,
+    subject: message.subject || "(ohne Betreff)",
+    from: formatSenderAddress(message),
+    receivedDateTime: message.receivedDateTime || null,
+    bodyPreview: message.bodyPreview || "",
+    hasAttachments: Boolean(message.hasAttachments),
+  }));
+}
+
+/**
+ * Lädt eine einzelne Nachricht inkl. HTML-Body, um daraus eine Vorlage zu erzeugen.
+ * Inline-Bilder (cid:) werden als data:-URIs eingebettet, damit sie außerhalb von
+ * Outlook angezeigt werden können.
+ */
+async function getTemplateMessage({ userPrincipalName, messageId, folderId = null } = {}) {
+  if (!TENANT || !CLIENT_ID || !CLIENT_SECRET) throw new Error("GRAPH client env missing");
+  if (!userPrincipalName) throw new Error("userPrincipalName required");
+  if (!messageId) throw new Error("messageId required");
+
+  const token = await getAppToken();
+  const message = await getMessageById(token, userPrincipalName, messageId, folderId);
+  let html = message.body?.content || "";
+  if (/cid:/i.test(html)) {
+    try {
+      const attachments = await listInlineImageAttachments(token, userPrincipalName, messageId, folderId);
+      html = embedInlineImages(html, attachments);
+    } catch (error) {
+      logGraphError("⚠️ Inline-Bilder konnten nicht eingebettet werden", error);
+    }
+    html = stripUnresolvedCidImages(html);
+  }
+  return {
+    id: message.id,
+    subject: message.subject || "",
+    from: formatSenderAddress(message),
+    receivedDateTime: message.receivedDateTime || null,
+    hasAttachments: Boolean(message.hasAttachments),
+    bodyType: message.body?.contentType || "html",
+    html,
+  };
+}
+
+/** Holt alle Datei-Attachments einer Nachricht inkl. contentBytes (für Inline-Bilder). */
+async function listInlineImageAttachments(token, upn, messageId, folderId = null) {
+  const url = folderId
+    ? `${GRAPH}/users/${encodeURIComponent(upn)}/mailFolders/${encodeURIComponent(folderId)}/messages/${messageId}/attachments`
+    : `${GRAPH}/users/${encodeURIComponent(upn)}/messages/${messageId}/attachments`;
+  const { data } = await axios.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return (data.value || []).filter(
+    (attachment) => attachment["@odata.type"] === "#microsoft.graph.fileAttachment"
+  );
+}
+
+/** Ersetzt cid:-Referenzen im HTML durch eingebettete data:-URIs. */
+function embedInlineImages(html, attachments = []) {
+  if (!html) return html;
+  let result = String(html);
+  for (const attachment of attachments) {
+    if (!attachment.contentBytes) continue;
+    const dataUri = `data:${attachment.contentType || "application/octet-stream"};base64,${attachment.contentBytes}`;
+    const tokens = new Set();
+    if (attachment.contentId) tokens.add(String(attachment.contentId).replace(/^<|>$/g, ""));
+    if (attachment.name) tokens.add(String(attachment.name));
+    for (const token of tokens) {
+      if (!token) continue;
+      const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // cid kann exakt der contentId oder (bei manchen Clients) dem Dateinamen mit @-Suffix entsprechen
+      result = result.replace(new RegExp(`cid:${escaped}(@[^"'\\s>]*)?`, "gi"), dataUri);
+    }
+  }
+  return result;
+}
+
+/** Entfernt src von Bildern mit nicht auflösbaren cid:-Referenzen (verhindert Ladefehler). */
+function stripUnresolvedCidImages(html) {
+  if (!html) return html;
+  return String(html).replace(
+    /(<img\b[^>]*?\bsrc=)(["'])cid:[^"']*\2([^>]*>)/gi,
+    "$1$2data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==$2$3"
+  );
+}
+
 /* ------------------------------ Subs Admin ------------------------------- */
-async function listAllSubscriptions(token) {
-  const { data } = await axios.get(`${GRAPH}/subscriptions`, {
+async function listAllSubscriptions(token) {  const { data } = await axios.get(`${GRAPH}/subscriptions`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return data.value || [];
@@ -1147,6 +1253,9 @@ module.exports = {
   deleteMessagesInFolder,
   getMailboxFolderTree,
   getMailFolderInsights,
+  // mail templates
+  listTemplateFolderMessages,
+  getTemplateMessage,
   // store access for webhook
   getStoredSubscriptionById,
   rememberSubscription,
