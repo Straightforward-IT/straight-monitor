@@ -9,6 +9,9 @@ const KundeSchema = new mongoose.Schema({
   kundName: {
     type: String, // KUNDNAME
     required: false
+  },kundBez: {
+    type: String, // KUNDBEZ
+    required: false
   },
   kundeSeit: {
     type: Date, // KUNDESEIT

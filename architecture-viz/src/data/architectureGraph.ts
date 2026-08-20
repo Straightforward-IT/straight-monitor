@@ -153,17 +153,6 @@ export const architectureGraph: ArchitectureGraph = {
       tags: ['App', 'Mitarbeiter'],
       sources: [{ path: 'api/serverRoutines.js' }],
     },
-    {
-      id: 'yousign',
-      label: 'YouSign',
-      kind: 'external',
-      groupId: 'partners',
-      summary: 'Digitale Unterschriften.',
-      description:
-        'Wenn Dokumente rechtssicher unterschrieben werden sollen, übernimmt YouSign den letzten Schritt.',
-      tags: ['Signatur', 'Verträge'],
-      sources: [{ path: 'api/models/YousignEvent.js' }],
-    },
   ],
   edges: [
     {
@@ -273,15 +262,6 @@ export const architectureGraph: ArchitectureGraph = {
       label: 'erreicht Mitarbeitende',
       summary: 'Flip hilft, die Belegschaft außerhalb des Büros zu erreichen.',
       sources: [{ path: 'api/serverRoutines.js' }],
-    },
-    {
-      id: 'monitor-to-yousign',
-      source: 'straight-monitor',
-      target: 'yousign',
-      kind: 'workflow',
-      label: 'holt Unterschriften',
-      summary: 'Rechtssichere Abschlüsse werden an YouSign übergeben.',
-      sources: [{ path: 'api/models/YousignEvent.js' }],
     },
   ],
   views: [
