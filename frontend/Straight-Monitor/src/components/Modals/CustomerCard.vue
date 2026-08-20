@@ -432,7 +432,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import KundenAnalyticsEmbed from '@/components/KundenAnalyticsEmbed.vue';
 import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
 import ContactCard from '@/components/ContactCard.vue';
-import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
+import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import api from '@/utils/api';
 

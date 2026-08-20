@@ -37,6 +37,7 @@ export function useDocumentModals() {
         minimizable: true,
         minimizeId: id,
         minimizeTitle: title,
+        layer: options.layer ?? 'base',
         closeOnEscape: false,
         onClose: () => dockedModals.remove(id),
       },

@@ -1248,7 +1248,7 @@ import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
-import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
+import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import { useCustomerModals } from '@/composables/useCustomerModals';
 import { useDocumentModals } from '@/composables/useDocumentModals';
 import SearchBar from '@/components/SearchBar.vue';

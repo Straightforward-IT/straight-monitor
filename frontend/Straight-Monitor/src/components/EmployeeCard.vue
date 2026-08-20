@@ -100,11 +100,11 @@
 
     <!-- Expandable body -->
     <transition name="expand">
-      <div v-show="expanded" class="card-body">
+      <div v-show="expanded" class="card-body" :class="{ 'card-body--links': view === 'links' }">
         <!-- Straight View -->
-        <section v-if="view === 'straight'" class="straight-view">
+        <section v-if="view === 'straight' || view === 'disposition'" class="straight-view">
           <!-- Dispo Section -->
-          <div class="dispo-section">
+          <div v-if="view === 'disposition'" class="dispo-section">
             <h4 class="section-title">
               <font-awesome-icon icon="fa-solid fa-calendar-days" class="section-icon" />
               Disposition
@@ -314,6 +314,7 @@
             </div>
           </div>
 
+          <template v-if="view === 'straight'">
           <!-- Einsatz-Verlauf Chart -->
           <MitarbeiterEinsatzChart
             v-if="expanded && resolvedMa?._id"
@@ -566,10 +567,11 @@
               <p>Keine Dokumente verknüpft</p>
             </div>
           </div>
+          </template>
         </section>
 
-        <!-- Flip View -->
-        <section v-else-if="view === 'flip'" class="flip-view">
+        <!-- Links View: Flip renders after Asana via CSS order. -->
+        <section v-else-if="view === 'links'" class="flip-view links-section links-section--flip">
           <div v-if="resolvedMa.flip" class="flip-content">
             <!-- Flip Profile -->
             <div class="flip-profile-section">
@@ -980,8 +982,8 @@
           </div>
         </section>
 
-        <!-- Asana View -->
-        <section v-else-if="view === 'asana'" class="asana-view">
+        <!-- Asana is the first section of the combined Links view. -->
+        <section v-if="view === 'links'" class="asana-view links-section links-section--asana">
           <!-- Asana Verknüpfung vorhanden -->
           <div v-if="resolvedMa.asana_id" class="asana-linked">
             <div class="asana-info">
@@ -1180,7 +1182,7 @@
         </section>
 
         <!-- Inventar View -->
-        <section v-else-if="view === 'inventar'" class="inventar-view">
+        <section v-if="view === 'inventar'" class="inventar-view">
           <div v-if="inventarLoading" class="inventar-loading">
             <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" />
             Inventar wird geladen...
@@ -1238,63 +1240,101 @@
       </div>
     </transition>
 
-    <!-- Hero Panel (right column, flush top-right corner) -->
-    <aside v-show="expanded" class="hero-panel" @click.stop>
-      <!-- Card Actions (view switcher + quick actions) -->
-      <div class="card-actions">
+    <!-- Full-width tabs + optional profile content. CSS places this row
+         between the employee header and the active view. -->
+    <section v-show="expanded" class="employee-tabs-shell" @click.stop>
+      <div class="card-actions" role="tablist" aria-label="Mitarbeiteransicht">
         <!-- Straight Button -->
         <template v-if="showTooltips">
           <custom-tooltip text="Monitor-Profil" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-pressed="view === 'straight'">
-              <img :src="effectiveTheme === 'dark' ? straightDark : straightLight" class="logo" alt="Straight Logo" />
+            <button class="icon-btn" role="tab" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-selected="view === 'straight'">
+              <span
+                class="tab-brand tab-brand--sf"
+                :style="{ '--tab-brand-image': `url(${effectiveTheme === 'dark' ? straightDark : straightLight})` }"
+                aria-hidden="true"
+              />
+              <span>Übersicht</span>
             </button>
           </custom-tooltip>
         </template>
         <template v-else>
-          <button class="icon-btn" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-pressed="view === 'straight'">
-            <img :src="effectiveTheme === 'dark' ? straightDark : straightLight" class="logo" alt="Straight Logo" />
+          <button class="icon-btn" role="tab" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-selected="view === 'straight'">
+            <span
+              class="tab-brand tab-brand--sf"
+              :style="{ '--tab-brand-image': `url(${effectiveTheme === 'dark' ? straightDark : straightLight})` }"
+              aria-hidden="true"
+            />
+            <span>Übersicht</span>
           </button>
         </template>
 
-        <!-- Flip Button -->
+        <!-- Disposition -->
         <template v-if="showTooltips">
-          <custom-tooltip text="Flip-Profil" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" :class="{ active: view === 'flip' }" @click="view = 'flip'" :aria-pressed="view === 'flip'">
-              <img :src="flipLogo" alt="Flip Logo" class="logo" />
+          <custom-tooltip text="Disposition" :position="tooltipPosition" :delay-in="150">
+            <button class="icon-btn" role="tab" :class="{ active: view === 'disposition' }" @click="view = 'disposition'" :aria-selected="view === 'disposition'">
+              <font-awesome-icon icon="fa-solid fa-calendar-days" />
+              <span>Disposition</span>
             </button>
           </custom-tooltip>
         </template>
         <template v-else>
-          <button class="icon-btn" :class="{ active: view === 'flip' }" @click="view = 'flip'" :aria-pressed="view === 'flip'">
-            <img :src="flipLogo" alt="Flip Logo" class="logo" />
+          <button class="icon-btn" role="tab" :class="{ active: view === 'disposition' }" @click="view = 'disposition'" :aria-selected="view === 'disposition'">
+            <font-awesome-icon icon="fa-solid fa-calendar-days" />
+            <span>Disposition</span>
           </button>
         </template>
 
-        <!-- Asana Button -->
+        <!-- Profile / master data -->
         <template v-if="showTooltips">
-          <custom-tooltip text="Asana-Task" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" :class="{ active: view === 'asana' }" @click="view = 'asana'" :aria-pressed="view === 'asana'">
-              <img :src="asanaLogo" alt="Asana Logo" class="logo" />
+          <custom-tooltip text="Stammdaten" :position="tooltipPosition" :delay-in="150">
+            <button class="icon-btn" role="tab" :class="{ active: view === 'profile' }" @click="view = 'profile'" :aria-selected="view === 'profile'">
+              <font-awesome-icon icon="fa-solid fa-user" />
+              <span>Stammdaten</span>
             </button>
           </custom-tooltip>
         </template>
         <template v-else>
-          <button class="icon-btn" :class="{ active: view === 'asana' }" @click="view = 'asana'" :aria-pressed="view === 'asana'">
-            <img :src="asanaLogo" alt="Asana Logo" class="logo" />
+          <button class="icon-btn" role="tab" :class="{ active: view === 'profile' }" @click="view = 'profile'" :aria-selected="view === 'profile'">
+            <font-awesome-icon icon="fa-solid fa-user" />
+            <span>Stammdaten</span>
+          </button>
+        </template>
+
+        <!-- Combined Links Button -->
+        <template v-if="showTooltips">
+          <custom-tooltip text="Asana und Flip" :position="tooltipPosition" :delay-in="150">
+            <button class="icon-btn" role="tab" :class="{ active: view === 'links' }" @click="view = 'links'" :aria-selected="view === 'links'">
+              <span class="tab-logo-pair" aria-hidden="true">
+                <span class="tab-brand tab-brand--asana" :style="{ '--tab-brand-image': `url(${asanaLogo})` }" />
+                <span class="tab-brand tab-brand--flip" :style="{ '--tab-brand-image': `url(${flipLogo})` }" />
+              </span>
+              <span>Links</span>
+            </button>
+          </custom-tooltip>
+        </template>
+        <template v-else>
+          <button class="icon-btn" role="tab" :class="{ active: view === 'links' }" @click="view = 'links'" :aria-selected="view === 'links'">
+            <span class="tab-logo-pair" aria-hidden="true">
+              <span class="tab-brand tab-brand--asana" :style="{ '--tab-brand-image': `url(${asanaLogo})` }" />
+              <span class="tab-brand tab-brand--flip" :style="{ '--tab-brand-image': `url(${flipLogo})` }" />
+            </span>
+            <span>Links</span>
           </button>
         </template>
 
         <!-- Inventar Button -->
         <template v-if="showTooltips">
           <custom-tooltip text="Inventar" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" :class="{ active: view === 'inventar' }" @click="view = 'inventar'" :aria-pressed="view === 'inventar'">
+            <button class="icon-btn" role="tab" :class="{ active: view === 'inventar' }" @click="view = 'inventar'" :aria-selected="view === 'inventar'">
               <font-awesome-icon icon="fa-solid fa-box-open" />
+              <span>Inventar</span>
             </button>
           </custom-tooltip>
         </template>
         <template v-else>
-          <button class="icon-btn" :class="{ active: view === 'inventar' }" @click="view = 'inventar'" :aria-pressed="view === 'inventar'">
+          <button class="icon-btn" role="tab" :class="{ active: view === 'inventar' }" @click="view = 'inventar'" :aria-selected="view === 'inventar'">
             <font-awesome-icon icon="fa-solid fa-box-open" />
+            <span>Inventar</span>
           </button>
         </template>
 
@@ -1302,14 +1342,16 @@
         <div class="quick-actions-wrapper" @click.stop>
           <template v-if="showTooltips">
             <custom-tooltip text="Aktionen" :position="tooltipPosition" :delay-in="150">
-              <button class="icon-btn" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
+              <button class="icon-btn icon-btn--actions" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
                 <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
+                <span>Aktionen</span>
               </button>
             </custom-tooltip>
           </template>
           <template v-else>
-            <button class="icon-btn" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
+            <button class="icon-btn icon-btn--actions" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
               <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
+              <span>Aktionen</span>
             </button>
           </template>
           <teleport to="body">
@@ -1344,7 +1386,7 @@
         </div>
       </div>
 
-      <div class="hero-right">
+      <div v-if="view === 'profile'" class="hero-right" role="tabpanel">
       <div class="hero-media" :class="{ 'hero-media--clickable': !photoUrl }" @click="!photoUrl && (showImageCropModal = true)" :title="!photoUrl ? 'Bild hochladen' : undefined">
         <img v-if="photoUrl" :src="photoUrl" :alt="`${resolvedMa.vorname} ${resolvedMa.nachname}`" class="hero-img" />
         <div v-else class="hero-initials" :style="{ '--hue': avatarHue(resolvedMa) }">
@@ -1423,7 +1465,7 @@
         </div>
       </div>
       </div>
-    </aside>
+    </section>
 
     <teleport to="body">
       <ContextMenu
@@ -1988,7 +2030,7 @@ export default {
     },
     view(newView) {
       // Load tasks when switching to flip view
-      if (newView === 'flip' && this.expanded && this.resolvedMa?.flip?.id && !this.tasksLoaded) {
+      if (newView === 'links' && this.expanded && this.resolvedMa?.flip?.id && !this.tasksLoaded) {
         this.loadFlipTasks();
       }
       // Load inventar when switching to inventar view
@@ -2937,7 +2979,10 @@ export default {
         status: doc.assigned ? 'Zugewiesen' : 'Offen',
         details: doc
       };
-      this.openDocumentModal(document);
+      // Reports launched from a real EmployeeCard modal must sit above it.
+      // Embedded cards (PeopleDocsModern) use the same safe layer without
+      // changing their card behavior.
+      this.openDocumentModal(document, { layer: 'elevated' });
     },
 
     getDocumentTitle(doc, docType) {
@@ -3107,7 +3152,7 @@ export default {
       if (!hasFlip) {
         // Karte expandieren und zur Flip-Ansicht wechseln
         if (!this.expanded) this.toggle();
-        this.$nextTick(() => { this.view = 'flip'; });
+        this.$nextTick(() => { this.view = 'links'; });
       }
     },
 
@@ -6379,5 +6424,262 @@ export default {
   justify-content: flex-end;
   padding: 14px 20px 18px;
   border-top: 1px solid var(--border);
+}
+
+/* ── Expanded employee layout: full-width tabs, no permanent aside ───────── */
+.card[data-expanded="true"] {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+}
+
+.card[data-expanded="true"] .card-header {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+}
+
+.employee-tabs-shell {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  background: var(--surface);
+  border-top: 0;
+  position: relative;
+  z-index: 2;
+  box-shadow: none;
+}
+
+.card[data-expanded="true"] .card-body {
+  grid-column: 1 !important;
+  grid-row: 3 !important;
+}
+
+.employee-tabs-shell .card-actions {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 12px 2px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.employee-tabs-shell .card-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.employee-tabs-shell .card-actions .icon-btn {
+  width: auto;
+  min-width: max-content;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.employee-tabs-shell .card-actions .icon-btn:hover {
+  color: var(--text);
+  background: var(--hover);
+  border-radius: 6px 6px 0 0;
+}
+
+.employee-tabs-shell .card-actions .icon-btn.active {
+  color: var(--accent, var(--primary));
+  background: transparent;
+  border-bottom-color: var(--accent, var(--primary));
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.employee-tabs-shell .card-actions .icon-btn .logo {
+  width: 18px;
+  height: 18px;
+}
+
+.employee-tabs-shell .tab-brand {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  background-image: var(--tab-brand-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.employee-tabs-shell .card-actions .icon-btn.active .tab-brand {
+  background-color: var(--accent, var(--primary));
+  background-image: none;
+  -webkit-mask-image: var(--tab-brand-image);
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-image: var(--tab-brand-image);
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+}
+
+.employee-tabs-shell .tab-logo-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.card-body--links {
+  display: flex !important;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.links-section--asana {
+  order: 1;
+}
+
+.links-section--flip {
+  order: 2;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.employee-tabs-shell .quick-actions-wrapper {
+  margin-left: auto;
+}
+
+.employee-tabs-shell .hero-right {
+  display: grid;
+  grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 22px;
+  padding: 20px;
+  overflow: visible;
+}
+
+.employee-tabs-shell .hero-media {
+  width: 100%;
+  height: min(300px, 34vw);
+  min-height: 220px;
+  border-radius: 12px;
+}
+
+.employee-tabs-shell .steckbrief {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 10px 24px;
+  padding: 14px 0;
+  overflow: visible;
+  border-top: 0;
+  font-size: 13px;
+}
+
+.employee-tabs-shell .steckbrief-row {
+  min-height: 26px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+.employee-tabs-shell .steckbrief-label {
+  flex-basis: 88px;
+  font-size: 11px;
+}
+
+.employee-tabs-shell .steckbrief-value,
+.employee-tabs-shell .steckbrief-value.steckbrief-value--muted {
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .card[data-expanded="true"] {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .card[data-expanded="true"] .card-header {
+    min-height: 0;
+    padding-right: 12px;
+  }
+
+  .employee-tabs-shell {
+    position: static;
+    grid-column: 1;
+    grid-row: 2;
+    display: block;
+    overflow: hidden;
+    background: var(--surface);
+    z-index: auto;
+  }
+
+  .employee-tabs-shell .card-actions {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    padding: 0 8px 2px;
+    gap: 4px;
+    background: var(--surface);
+  }
+
+  .employee-tabs-shell .card-actions .icon-btn {
+    width: auto;
+    height: auto;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .employee-tabs-shell .hero-right {
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .employee-tabs-shell .hero-media,
+  .employee-tabs-shell .steckbrief {
+    display: grid;
+  }
+
+  .employee-tabs-shell .hero-media {
+    height: 220px;
+    min-height: 0;
+  }
+
+  .employee-tabs-shell .steckbrief {
+    grid-template-columns: 1fr;
+    padding: 0;
+  }
+
+  .card[data-expanded="true"] .card-body {
+    grid-row: 3;
+  }
+}
+
+@media (max-width: 620px) {
+  .employee-tabs-shell .card-actions .icon-btn span {
+    display: none;
+  }
+
+  .employee-tabs-shell .card-actions .icon-btn {
+    min-width: 42px;
+    padding: 0 11px;
+  }
+
+  .employee-tabs-shell .hero-right {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-tabs-shell .hero-media {
+    width: min(100%, 320px);
+    height: 240px;
+    justify-self: center;
+  }
 }
 </style>

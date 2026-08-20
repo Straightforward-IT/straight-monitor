@@ -324,7 +324,7 @@ import api from "@/utils/api";
 import debounce from "lodash.debounce";
 import AsanaMappings from "@/assets/AsanaMappings.json";
 import FlipMappings from "@/assets/FlipMappings.json";
-import EmployeeCardModal from "@/components/EmployeeCardModal.vue";
+import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
 export default {
   name: "Erstellen",
   emits: [],
@@ -1721,4 +1721,3 @@ export default {
   }
 }
 </style>
-

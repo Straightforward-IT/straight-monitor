@@ -103,7 +103,7 @@
 <script>
 import api from "@/utils/api";
 import VerlaufGroup from "./VerlaufGroup.vue";
-import EmployeeCardModal from "./EmployeeCardModal.vue";
+import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
 import FilterChip from "./ui-elements/FilterChip.vue";
 import FilterGroup from "./FilterGroup.vue";
 import FilterPanel from "./FilterPanel.vue";

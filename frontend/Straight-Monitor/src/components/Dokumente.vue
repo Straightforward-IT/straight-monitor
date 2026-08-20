@@ -256,7 +256,7 @@ import { useDocumentModals } from "@/composables/useDocumentModals";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import FilterPanel from '@/components/FilterPanel.vue';
-import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
+import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';

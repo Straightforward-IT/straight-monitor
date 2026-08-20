@@ -8,6 +8,7 @@
     :minimizable="Boolean(dockedModal) || minimizable"
     :minimize-id="minimizeId"
     :minimize-title="minimizeTitle"
+    :layer="layer"
     :close-on-escape="dockedModal ? false : closeOnEscape"
     @close="closeDoc"
   >
@@ -440,7 +441,7 @@ library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipbo
 
 // EmployeeCard also embeds DocumentCard. Load its modal lazily to avoid a
 // DocumentCard -> EmployeeCardModal -> EmployeeCard -> DocumentCard cycle.
-const EmployeeCardModal = defineAsyncComponent(() => import("@/components/EmployeeCardModal.vue"));
+const EmployeeCardModal = defineAsyncComponent(() => import("@/components/Modals/EmployeeCardModal.vue"));
 
 export default {
   name: "DocumentCard",
@@ -455,6 +456,11 @@ export default {
     minimizable: { type: Boolean, default: false },
     minimizeId: { type: String, default: '' },
     minimizeTitle: { type: String, default: '' },
+    layer: {
+      type: String,
+      default: 'base',
+      validator: (value) => ['base', 'elevated'].includes(value),
+    },
   },
   emits: ["close"],
 

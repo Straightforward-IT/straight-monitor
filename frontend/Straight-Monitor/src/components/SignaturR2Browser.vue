@@ -129,7 +129,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useCustomerModals } from '@/composables/useCustomerModals';
-import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
+import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 
 library.add(
   faArrowUpRightFromSquare, faChevronDown, faChevronRight, faDownload, faFilePdf,
