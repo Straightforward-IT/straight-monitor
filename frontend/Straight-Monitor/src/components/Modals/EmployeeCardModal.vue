@@ -3,13 +3,15 @@
     v-if="mitarbeiterId"
     class="employee-card-modal"
     size="lg"
-    title="Mitarbeiterprofil"
+    aria-label="Mitarbeiterprofil"
+    :show-close="false"
     style="--mf-max-height: 92dvh; --mf-body-padding: 0"
     @close="$emit('close')"
   >
     <EmployeeCard
       :mitarbeiterId="mitarbeiterId"
       :initiallyExpanded="true"
+      :showClose="true"
       style="border: 0; border-radius: 0; box-shadow: none"
       @close="$emit('close')"
     />

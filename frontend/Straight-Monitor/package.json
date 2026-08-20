@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm --prefix ../../packages/vue-modal-dock ci && npm --prefix ../../packages/vue-modal-dock run build && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

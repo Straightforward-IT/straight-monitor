@@ -96,6 +96,16 @@
         </div>
       </div>
 
+      <button
+        v-if="showClose"
+        type="button"
+        class="employee-card-close"
+        aria-label="Schließen"
+        @click.stop="$emit('close')"
+      >
+        <font-awesome-icon icon="fa-solid fa-xmark" />
+      </button>
+
     </header>
 
     <!-- Expandable body -->
@@ -1605,6 +1615,7 @@ export default {
     ma: { type: Object, required: false, default: null },
     mitarbeiterId: { type: String, default: null },
     initiallyExpanded: { type: Boolean, default: false },
+    showClose: { type: Boolean, default: false },
     showCheckbox: { type: Boolean, default: false },
     isSelected: { type: Boolean, default: false },
   },
@@ -3799,6 +3810,28 @@ export default {
   padding: 12px 12px 12px 14px;
   background: var(--surface);
   cursor: pointer;
+}
+
+.employee-card-close {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+
+  &:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--primary) 35%, transparent);
+    outline-offset: 2px;
+  }
 }
 
 /* Linke Seite (Avatar + Titel) füllt, damit Actions rechts andocken */
