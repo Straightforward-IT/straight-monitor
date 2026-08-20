@@ -3,13 +3,13 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
-const DispoEintrag = require('../models/DispoEintrag');
+const DispoEintrag = require('../models/System/DispoEintrag');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const Einsatz = require('../models/Event/Einsatz');
 const Auftrag = require('../models/Event/Auftrag');
-const Kunde = require('../models/Kunde');
-const ZvooveVerfuegbarkeit = require('../models/ZvooveVerfuegbarkeit');
-const Location = require('../models/Location');
+const Kunde = require('../models/Customer/Kunde');
+const ZvooveVerfuegbarkeit = require('../models/System/ZvooveVerfuegbarkeit');
+const Location = require('../models/System/Location');
 
 // ─── GET /api/dispo?von=&bis=&locationV2=&mitarbeiterId= ───
 // Liefert DispoEinträge + Einsätze (gemerged) für den Zeitraum

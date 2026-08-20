@@ -1,8 +1,8 @@
 const express = require('express');
 const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
-const SignaturTyp = require('../models/SignaturTyp');
-const User = require('../models/User');
+const SignaturTyp = require('../models/System/SignaturTyp');
+const User = require('../models/System/User');
 
 const router = express.Router();
 

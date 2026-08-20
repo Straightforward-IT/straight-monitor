@@ -1,6 +1,6 @@
 const axios = require("axios");
 require("dotenv").config();
-const Kunde = require("./models/Kunde");
+const Kunde = require("./models/Customer/Kunde");
 // We use the root URL because different endpoints require different version paths (e.g. /v3 vs /v5)
 const BASE_URL = "https://api.zvoove.cloud/temp-staffing-de";
 

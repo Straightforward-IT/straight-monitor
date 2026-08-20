@@ -10,8 +10,8 @@ const {
   resolveLocationFromTeamKey,
 } = require("../services/LocationResolutionService");
 const Mitarbeiter = require("../models/Employee/Mitarbeiter");
-const BewerberEmailDocument = require("../models/BewerberEmailDocument");
-const User = require("../models/User");
+const BewerberEmailDocument = require("../models/System/BewerberEmailDocument");
+const User = require("../models/System/User");
 const { INVITATION_TYPES, sendInvitation } = require("../BewerberInvitationService");
 const { findAllTasks } = require("../AsanaService");
 const R2Service = require("../R2Service");

@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const Location = require('../models/Location');
+const Location = require('../models/System/Location');
 
 function normalizeTeamKey(value) {
   return String(value || '')

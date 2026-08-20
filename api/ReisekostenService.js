@@ -17,7 +17,7 @@ const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const Auftrag = require('./models/Event/Auftrag');
 const Einsatz = require('./models/Event/Einsatz');
 const Mitarbeiter = require('./models/Employee/Mitarbeiter');
-const Location = require('./models/Location');
+const Location = require('./models/System/Location');
 const logger = require('./utils/logger');
 const {
   computeSummen,

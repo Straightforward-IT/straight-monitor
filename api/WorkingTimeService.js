@@ -2,7 +2,7 @@
 
 const mongoose = require('mongoose');
 const Mitarbeiter = require('./models/Employee/Mitarbeiter');
-const User = require('./models/User');
+const User = require('./models/System/User');
 const AssignmentLedger = require('./models/Payroll/EinsatzBuch');
 const WorkingTimeLedger = require('./models/Payroll/ArbeitszeitBuch');
 const PayrollRun = require('./models/Payroll/PayrollRun');

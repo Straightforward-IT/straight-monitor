@@ -4,10 +4,10 @@ const mongoose = require("mongoose");
 const multer = require("multer");
 const asyncHandler = require("../middleware/AsyncHandler");
 const auth = require("../middleware/auth");
-const BewerberEmailDocument = require("../models/BewerberEmailDocument");
-const BewerberEmailTemplate = require("../models/BewerberEmailTemplate");
-const Location = require("../models/Location");
-const User = require("../models/User");
+const BewerberEmailDocument = require("../models/System/BewerberEmailDocument");
+const BewerberEmailTemplate = require("../models/System/BewerberEmailTemplate");
+const Location = require("../models/System/Location");
+const User = require("../models/System/User");
 const R2Service = require("../R2Service");
 const {
   PLACEHOLDERS,

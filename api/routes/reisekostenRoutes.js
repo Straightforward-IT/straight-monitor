@@ -4,10 +4,10 @@ const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
 
-const Reisekostenabrechnung = require('../models/Reisekostenabrechnung');
+const Reisekostenabrechnung = require('../models/Signature/Reisekostenabrechnung');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
-const Location = require('../models/Location');
-const SignaturVorgang = require('../models/SignaturVorgang');
+const Location = require('../models/System/Location');
+const SignaturVorgang = require('../models/Signature/SignaturVorgang');
 const ReisekostenService = require('../ReisekostenService');
 const R2Service = require('../R2Service');
 const { computeSummen } = require('../utils/reisekostenCalc');

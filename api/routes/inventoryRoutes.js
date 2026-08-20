@@ -3,11 +3,11 @@ const mongoose = require('mongoose');
 const asyncHandler = require('../middleware/AsyncHandler');
 const auth = require('../middleware/auth');
 const InventoryItem = require('../models/Item_New');
-const Location = require('../models/Location');
+const Location = require('../models/System/Location');
 const Monitoring = require('../models/Monitoring');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
-const PaketVorlage = require('../models/PaketVorlage');
-const User = require('../models/User');
+const PaketVorlage = require('../models/System/PaketVorlage');
+const User = require('../models/System/User');
 const { sendMail } = require('../EmailService');
 const {
   findInventoryStock,

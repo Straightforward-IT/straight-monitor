@@ -1,5 +1,5 @@
 const sanitizeHtml = require("sanitize-html");
-const BewerberEmailTemplate = require("../models/BewerberEmailTemplate");
+const BewerberEmailTemplate = require("../models/System/BewerberEmailTemplate");
 
 const PLACEHOLDERS = Object.freeze({
   "bewerber.vorname": "Vorname des Bewerbers",

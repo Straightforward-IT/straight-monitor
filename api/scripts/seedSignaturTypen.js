@@ -10,7 +10,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
 const mongoose  = require('mongoose');
-const SignaturTyp = require('../models/SignaturTyp');
+const SignaturTyp = require('../models/System/SignaturTyp');
 const logger    = require('../utils/logger');
 
 const INITIAL_TYPES = [

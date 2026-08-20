@@ -23,7 +23,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
-const User = require('../models/User');
+const User = require('../models/System/User');
 
 const ISSUER = 'https://straightforward.flip-app.com/auth/realms/hpstraightforward';
 const TOKEN_ENDPOINT = `${ISSUER}/protocol/openid-connect/token`;

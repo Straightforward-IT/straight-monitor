@@ -3,9 +3,9 @@ const mongoose = require("mongoose");
 const asyncHandler = require("../middleware/AsyncHandler");
 const auth = require("../middleware/auth");
 const EmployeeEmailTemplate = require("../models/EmployeeEmailTemplate");
-const BewerberEmailDocument = require("../models/BewerberEmailDocument");
-const Location = require("../models/Location");
-const User = require("../models/User");
+const BewerberEmailDocument = require("../models/System/BewerberEmailDocument");
+const Location = require("../models/System/Location");
+const User = require("../models/System/User");
 const {
   PLACEHOLDERS,
   prepareTemplate,

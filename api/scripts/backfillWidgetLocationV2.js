@@ -2,11 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const Location = require('../models/Location');
+const Location = require('../models/System/Location');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const Monitoring = require('../models/Monitoring');
-const Comment = require('../models/Comment');
-const DispoKommentar = require('../models/DispoKommentar');
+const Comment = require('../models/System/Comment');
+const DispoKommentar = require('../models/System/DispoKommentar');
 const Lead = require('../models/Lead');
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });

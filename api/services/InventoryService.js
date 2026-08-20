@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const XLSX = require('xlsx');
 const InventoryItem = require('../models/Item_New');
-const Location = require('../models/Location');
+const Location = require('../models/System/Location');
 
 function optionLabel(options, key, fallback) {
   if (!key) return null;

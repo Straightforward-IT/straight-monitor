@@ -8,10 +8,10 @@ const Einsatz = require('../models/Event/Einsatz');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const Beruf = require('../models/Event/Beruf');
 const Qualifikation = require('../models/Event/Qualifikation');
-const GuestCapacityCounter = require('../models/GuestCapacityCounter');
-const GuestCapacityMeta = require('../models/GuestCapacityMeta');
-const GuestCapacityChatMessage = require('../models/GuestCapacityChatMessage');
-const User = require('../models/User');
+const GuestCapacityCounter = require('../models/System/GuestCapacityCounter');
+const GuestCapacityMeta = require('../models/System/GuestCapacityMeta');
+const GuestCapacityChatMessage = require('../models/System/GuestCapacityChatMessage');
+const User = require('../models/System/User');
 const logger = require('../utils/logger');
 
 router.use(publicAuth);

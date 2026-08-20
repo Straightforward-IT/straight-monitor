@@ -178,7 +178,7 @@ mongoose.connect(process.env.MONGO_URI)
     logger.dbConnect();
     // ─── Roles Migration (idempotent) ────────────────────────────────────────
     // Migrate users that still have an empty `roles` array by deriving it from the legacy `role` field.
-    const User = require('./models/User');
+    const User = require('./models/System/User');
     const unmigrated = await User.find({ $or: [{ roles: { $exists: false } }, { roles: { $size: 0 } }] });
     if (unmigrated.length > 0) {
       logger.info(`Roles migration: migrating ${unmigrated.length} user(s)...`);

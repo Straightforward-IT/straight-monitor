@@ -1,8 +1,8 @@
 const express = require('express');
 const asyncHandler = require('../middleware/AsyncHandler');
 const auth = require('../middleware/auth');
-const PaketVorlage = require('../models/PaketVorlage');
-const User = require('../models/User');
+const PaketVorlage = require('../models/System/PaketVorlage');
+const User = require('../models/System/User');
 
 const router = express.Router();
 

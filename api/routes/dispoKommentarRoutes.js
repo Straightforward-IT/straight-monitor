@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
-const DispoKommentar = require('../models/DispoKommentar');
-const User = require('../models/User');
+const DispoKommentar = require('../models/System/DispoKommentar');
+const User = require('../models/System/User');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const mongoose = require('mongoose');
 

@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const path = require('path');
-const Location = require('../models/Location');
+const Location = require('../models/System/Location');
 const Auftrag = require('../models/Event/Auftrag');
-const Kunde = require('../models/Kunde');
+const Kunde = require('../models/Customer/Kunde');
 const Schicht = require('../models/Event/Schicht');
 const Einsatz = require('../models/Event/Einsatz');
 

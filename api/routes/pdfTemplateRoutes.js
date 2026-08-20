@@ -5,7 +5,7 @@ const { PDFDocument } = require('pdf-lib');
 const asyncHandler = require('../middleware/AsyncHandler');
 const auth = require('../middleware/auth');
 const logger = require('../utils/logger');
-const PdfTemplate = require('../models/PdfTemplate');
+const PdfTemplate = require('../models/Deprecated/PdfTemplate');
 const { sortedPdfs, buildFilledPdf } = require('../utils/pdfRender');
 const R2Service = require('../R2Service');
 

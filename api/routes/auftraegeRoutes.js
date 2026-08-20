@@ -5,7 +5,7 @@ const auth = require('../middleware/auth');
 const Auftrag = require('../models/Event/Auftrag');
 const Einsatz = require('../models/Event/Einsatz');
 const Schicht = require('../models/Event/Schicht');
-const Kunde = require('../models/Kunde');
+const Kunde = require('../models/Customer/Kunde');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const Beruf = require('../models/Event/Beruf');
 const Qualifikation = require('../models/Event/Qualifikation');
@@ -15,7 +15,7 @@ const { resolveActiveLocation } = require('../services/LocationResolutionService
 const StundenlisteService = require('../StundenlisteService');
 const TelefonlisteService = require('../TelefonlisteService');
 const R2Service = require('../R2Service');
-const SignaturVorgang = require('../models/SignaturVorgang');
+const SignaturVorgang = require('../models/Signature/SignaturVorgang');
 
 const uploadMem = multer({
   storage: multer.memoryStorage(),

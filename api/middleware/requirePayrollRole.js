@@ -1,4 +1,4 @@
-const User = require('../models/User');
+const User = require('../models/System/User');
 
 const PAYROLL_ROLES = new Set(['ADMIN', 'PAYROLL']);
 

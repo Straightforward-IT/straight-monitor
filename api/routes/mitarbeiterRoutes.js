@@ -15,7 +15,7 @@ const {
   resolveLocationFromPersonalnr,
   resolveLocationFromStandortName,
 } = require("../services/LocationResolutionService");
-const User = require("../models/User");
+const User = require("../models/System/User");
 const Einsatz = require("../models/Event/Einsatz");
 const Auftrag = require("../models/Event/Auftrag");
 const Qualifikation = require("../models/Event/Qualifikation");
@@ -63,7 +63,7 @@ const {
   completeTaskById,
 } = require("../AsanaService");
 const asyncHandler = require("../middleware/AsyncHandler");
-const Kunde = require("../models/Kunde");
+const Kunde = require("../models/Customer/Kunde");
 const JSZip = require("jszip");
 const { PDFDocument } = require("pdf-lib");
 const sharp = require("sharp");

@@ -1,8 +1,8 @@
 const express = require('express');
 const asyncHandler = require('../middleware/AsyncHandler');
 const auth = require('../middleware/auth');
-const Location = require('../models/Location');
-const User = require('../models/User');
+const Location = require('../models/System/Location');
+const User = require('../models/System/User');
 
 const router = express.Router();
 

@@ -1,5 +1,5 @@
-const User = require('./models/User');
-const Kunde = require('./models/Kunde');
+const User = require('./models/System/User');
+const Kunde = require('./models/Customer/Kunde');
 const Auftrag = require('./models/Event/Auftrag');
 const Einsatz = require('./models/Event/Einsatz');
 const Schicht = require('./models/Event/Schicht');

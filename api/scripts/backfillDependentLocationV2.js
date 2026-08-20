@@ -1,12 +1,12 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const path = require('path');
-const Location = require('../models/Location');
+const Location = require('../models/System/Location');
 const Auftrag = require('../models/Event/Auftrag');
-const Kunde = require('../models/Kunde');
+const Kunde = require('../models/Customer/Kunde');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const Rechnung = require('../models/Rechnung');
-const ZvooveVerfuegbarkeit = require('../models/ZvooveVerfuegbarkeit');
+const ZvooveVerfuegbarkeit = require('../models/System/ZvooveVerfuegbarkeit');
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 

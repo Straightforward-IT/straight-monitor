@@ -53,7 +53,7 @@ router.post(
     }
 
     // Load full user data from database
-    const User = require('../models/User');
+    const User = require('../models/System/User');
     let userData = null;
     try {
       userData = await User.findById(req.user.id).select('-password');

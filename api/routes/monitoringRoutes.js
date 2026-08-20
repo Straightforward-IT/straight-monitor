@@ -1,9 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const Monitoring = require("../models/Monitoring");
-const PaketVorlage = require("../models/PaketVorlage");
+const PaketVorlage = require("../models/System/PaketVorlage");
 const auth = require("../middleware/auth");
-const Item = require("../models/Item");
+const Item = require("../models/Deprecated/Item");
 const asyncHandler = require("../middleware/AsyncHandler");
 const {
   resolveActiveLocation,

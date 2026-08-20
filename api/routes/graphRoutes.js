@@ -42,7 +42,7 @@ const { runApplicantMailRetentionCleanup } = require("../ApplicantMailRetentionS
 
 const registry = require("../config/registry");
 const { createTaskFromEmail } = require("../AsanaService");
-const User = require("../models/User");
+const User = require("../models/System/User");
 const asyncHandler = require("../middleware/AsyncHandler");
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
