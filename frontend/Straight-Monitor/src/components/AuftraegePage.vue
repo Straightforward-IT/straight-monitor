@@ -519,11 +519,17 @@
             <div class="section-header">
               <h3><font-awesome-icon icon="fa-solid fa-folder-open" /> Einsatzdokumente</h3>
               <div class="neu-dok-wrap">
-                <button class="neu-dok-btn" type="button" @click.stop="showNeuMenu = !showNeuMenu">
+                <button ref="neuDokButton" class="neu-dok-btn" type="button" @click.stop="toggleNeuMenu">
                   <font-awesome-icon icon="fa-solid fa-plus" /> Neu
                   <font-awesome-icon icon="fa-solid fa-chevron-down" class="neu-dok-caret" />
                 </button>
-                <div v-if="showNeuMenu" class="neu-dok-menu" @click.stop>
+                <div
+                  v-if="showNeuMenu"
+                  ref="neuDokMenu"
+                  class="neu-dok-menu"
+                  :class="{ 'neu-dok-menu--up': neuMenuOpensUp }"
+                  @click.stop
+                >
                   <button
                     class="neu-dok-item"
                     type="button"
@@ -796,27 +802,6 @@
 
     <!-- Sidebar Overlay for mobile only -->
     <div v-if="selectedEvent && isMobile" class="sidebar-overlay" @click="selectedEvent = null"></div>
-
-    <!-- Kunden Card Modal -->
-    <div v-if="selectedKunde" class="modal-overlay" @click.self="selectedKunde = null">
-      <div class="modal-content modal-customer">
-        <div class="modal-header">
-          <h2>Kunden Details</h2>
-          <button class="close-btn" @click="selectedKunde = null">×</button>
-        </div>
-        <div class="modal-body modal-customer-body">
-          <CustomerCard
-            v-if="fullKundeData"
-            :kunde="fullKundeData"
-            @close="selectedKunde = null"
-          />
-          <div v-else class="loading-employee">
-            <font-awesome-icon icon="fa-solid fa-spinner" spin />
-            <span>Lade Kunden...</span>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Mitarbeiter Card Modal -->
     <EmployeeCardModal
@@ -1209,17 +1194,13 @@
       </div>
     </div>
 
-    <!-- Document Card Modal -->
-    <div v-if="selectedDoc" class="modal-overlay" @click.self="selectedDoc = null">
-      <div class="modal-content modal-customer">
-        <div class="modal-body modal-document-body">
-          <DocumentCard
-            :doc="selectedDoc"
-            @close="selectedDoc = null"
-          />
-        </div>
-      </div>
-    </div>
+    <!-- Document Card Modal (self-contained ModalFrame; page ESC handler keeps priority) -->
+    <DocumentCard
+      v-if="selectedDoc"
+      :doc="selectedDoc"
+      :close-on-escape="false"
+      @close="selectedDoc = null"
+    />
   </div>
 
   <!-- Search dropdown — teleported to body to escape toolbar overflow clipping -->
@@ -1273,8 +1254,8 @@ import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
-import CustomerCard from '@/components/CustomerCard.vue';
 import DocumentCard from '@/components/DocumentCard.vue';
+import { useCustomerModals } from '@/composables/useCustomerModals';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
@@ -1292,7 +1273,11 @@ import docusealLogoImg from '@/assets/docuseal-logo.webp';
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, CustomerCard, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu, ReisekostenModal },
+  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu, ReisekostenModal },
+  setup() {
+    const { openCustomer } = useCustomerModals();
+    return { openCustomer };
+  },
   data() {
     // Load filter settings from sessionStorage or use defaults
     const savedFilters = sessionStorage.getItem('auftraege_filters');
@@ -1344,8 +1329,6 @@ export default {
       isMobile: false,
       mobileDayIndex: 0,
       selectedMitarbeiter: null,
-      selectedKunde: null,
-      fullKundeData: null,
       preparedSchichten: [], // Lazy loaded schichten data
       dataStatus: null, // Last import timestamp
       // ── Quick Actions ──────────────────────────────────────────────────────
@@ -1402,6 +1385,7 @@ export default {
       reisekostenModalOpen: false,
       reisekostenEditId: null,
       showNeuMenu: false,
+      neuMenuOpensUp: false,
       // Document icons
       auftragDocs: [],
       selectedDoc: null,
@@ -2434,16 +2418,13 @@ export default {
       }
     },
     async openKundeCard(kundeBasic) {
-      this.selectedKunde = kundeBasic;
-      this.fullKundeData = null;
-
       try {
         const response = await api.get(`/api/kunden/${kundeBasic._id}`);
-        this.fullKundeData = response.data;
+        this.openCustomer(response.data);
       } catch (error) {
         console.error('Error loading Kunden details:', error);
         // Fallback to basic data
-        this.fullKundeData = kundeBasic;
+        this.openCustomer(kundeBasic);
       }
     },
     async openMitarbeiterCard(mitarbeiterBasic) {
@@ -2988,11 +2969,36 @@ export default {
       }
     },
 
+    async toggleNeuMenu() {
+      this.showNeuMenu = !this.showNeuMenu;
+      if (!this.showNeuMenu) {
+        this.neuMenuOpensUp = false;
+        return;
+      }
+
+      await this.$nextTick();
+      const button = this.$refs.neuDokButton;
+      const menu = this.$refs.neuDokMenu;
+      const scrollBoundary = menu?.closest('.sidebar-body');
+      if (!button || !menu || !scrollBoundary) return;
+
+      const buttonRect = button.getBoundingClientRect();
+      const boundaryRect = scrollBoundary.getBoundingClientRect();
+      const menuHeight = menu.offsetHeight;
+      const spaceBelow = boundaryRect.bottom - buttonRect.bottom - 4;
+      const spaceAbove = buttonRect.top - boundaryRect.top - 4;
+
+      this.neuMenuOpensUp = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+    },
+
     handleEscapeKey(event) {
       if (event.key !== 'Escape') return;
 
       // Close modals in order of priority (topmost = last opened)
-      if (this.showQuickActions) {
+      if (this.showNeuMenu) {
+        this.showNeuMenu = false;
+        this.neuMenuOpensUp = false;
+      } else if (this.showQuickActions) {
         this.showQuickActions = false;
       } else if (this.selectedDoc) {
         this.selectedDoc = null;
@@ -3002,9 +3008,6 @@ export default {
         this.showNewAuftragDialog = false;
       } else if (this.showPseudoDialog) {
         this.showPseudoDialog = false;
-      } else if (this.selectedKunde) {
-        this.selectedKunde = null;
-        this.fullKundeData = null;
       } else if (this.selectedMitarbeiter) {
         this.selectedMitarbeiter = null;
         this.fullMitarbeiterData = null;
@@ -3016,6 +3019,7 @@ export default {
     handleDocumentClick() {
       this.showQuickActions = false;
       this.showNeuMenu = false;
+      this.neuMenuOpensUp = false;
     },
     async mounted() {
     this.checkMobile();
@@ -4698,31 +4702,6 @@ export default {
   max-height: 80vh;
 }
 
-/* Customer Modal */
-.modal-customer {
-  max-width: 800px;
-  width: 95%;
-}
-
-.modal-customer-body {
-  padding: 0;
-  flex: 1;
-  min-height: 0;
-  max-height: 80vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-document-body {
-  padding: 0;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
 .loading-employee {
   display: flex;
   flex-direction: column;
@@ -5238,7 +5217,7 @@ export default {
   position: absolute;
   right: 0;
   top: calc(100% + 4px);
-  z-index: 20;
+  z-index: 300;
   min-width: 210px;
   background: var(--tile-bg);
   border: 1px solid var(--border);
@@ -5248,6 +5227,10 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.neu-dok-menu--up {
+  top: auto;
+  bottom: calc(100% + 4px);
 }
 .neu-dok-item {
   display: flex;

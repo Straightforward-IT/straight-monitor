@@ -1425,20 +1425,17 @@
       </div>
     </aside>
 
-    <!-- Document Modal -->
-    <teleport to="body">
-      <div v-if="selectedDocument" class="modal-overlay" @click.self="selectedDocument = null">
-        <div class="modal-content modal-document">
-          <DocumentCard
-            :doc="selectedDocument"
-            @close="selectedDocument = null"
-            @open-employee="handleOpenEmployee"
-            @filter-teamleiter="handleFilterTeamleiter"
-            @filter-mitarbeiter="handleFilterMitarbeiter"
-          />
-        </div>
-      </div>
-    </teleport>
+    <!-- Document Modal (self-contained ModalFrame; elevated to stack above the employee modal) -->
+    <DocumentCard
+      v-if="selectedDocument"
+      :doc="selectedDocument"
+      layer="elevated"
+      :close-on-escape="false"
+      @close="selectedDocument = null"
+      @open-employee="handleOpenEmployee"
+      @filter-teamleiter="handleFilterTeamleiter"
+      @filter-mitarbeiter="handleFilterMitarbeiter"
+    />
 
     <teleport to="body">
       <ContextMenu
@@ -5874,10 +5871,6 @@ export default {
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-.modal-document {
-  max-width: 900px;
 }
 
 .section-header-row {

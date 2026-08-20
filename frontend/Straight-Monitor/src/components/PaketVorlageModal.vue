@@ -1,13 +1,12 @@
 <template>
-  <Teleport to="body">
-    <div class="backdrop" @mousedown.self="close">
-      <section class="dialog" role="dialog" aria-modal="true" :aria-label="template.name">
-        <header class="dialog__header">
-          <div><p>{{ template.name }}</p></div>
-          <button type="button" class="icon-button" title="Schließen" @click="close"><font-awesome-icon :icon="['fas', 'xmark']" /></button>
-        </header>
-
-        <div class="dialog__body">
+  <ModalFrame
+    minimizable
+    size="lg"
+    :title="template.name"
+    style="--mf-max-width: 660px; --mf-max-height: 88dvh; --mf-body-padding: 0; --mf-body-overflow: hidden"
+    @close="close"
+  >
+    <div class="dialog__body">
           <div class="controls">
             <label>Standort
               <select v-model="locationId"><option v-for="location in availableLocations" :key="location._id" :value="location._id">{{ location.nameFull }} ({{ location.shortName }})</option></select>
@@ -62,31 +61,30 @@
 
           <label>Anmerkung<input v-model="anmerkung" type="text" placeholder="Optional" /></label>
           <p v-if="error" class="error">{{ error }}</p>
-        </div>
-
-        <footer class="dialog__footer">
-          <button type="button" class="secondary" @click="close">Abbrechen</button>
-          <button type="button" class="primary" :disabled="saving || !canBook" @click="book">
-            <font-awesome-icon :icon="['fas', saving ? 'spinner' : 'check']" :spin="saving" />
-            {{ direction === 'issue' ? 'Entnehmen' : 'Einlagern' }}
-          </button>
-        </footer>
-      </section>
     </div>
-  </Teleport>
+
+    <template #footer>
+      <button type="button" class="secondary" @click="close">Abbrechen</button>
+      <button type="button" class="primary" :disabled="saving || !canBook" @click="book">
+        <font-awesome-icon :icon="['fas', saving ? 'spinner' : 'check']" :spin="saving" />
+        {{ direction === 'issue' ? 'Entnehmen' : 'Einlagern' }}
+      </button>
+    </template>
+  </ModalFrame>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faCheck, faPlus, faSpinner, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faCheck, faPlus, faSpinner, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import api from '@/utils/api';
 import { useDataCache } from '@/stores/dataCache';
 import { useAuth } from '@/stores/auth';
 import MitarbeiterSearch from '@/components/ui-elements/MitarbeiterSearch.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 
-library.add(faCheck, faPlus, faSpinner, faTrash, faXmark);
+library.add(faCheck, faPlus, faSpinner, faTrash);
 
 const props = defineProps({ modelValue: { type: Object, required: true } });
 const emit = defineEmits(['update:modelValue', 'booked']);
@@ -209,10 +207,10 @@ async function loadLocations() {
   locationId.value = defaultLocationId();
   setIssueDefaults();
 }
-async function setDirection(nextDirection) {
+function setDirection(nextDirection) {
+  if (direction.value === nextDirection) return;
   direction.value = nextDirection;
   error.value = '';
-  try { if (nextDirection === 'return') await setReturnDefaults(); else setIssueDefaults(); } catch { error.value = 'Mitarbeiterbestand konnte nicht geladen werden.'; }
 }
 async function book() {
   saving.value = true;
@@ -237,12 +235,11 @@ function close() { emit('update:modelValue', null); }
 
 watch(locationId, () => { if (direction.value === 'issue') setIssueDefaults(); else setReturnDefaults().catch(() => {}); syncAdditionalLines(); });
 watch(mitarbeiterId, () => { if (direction.value === 'return') setReturnDefaults().catch(() => {}); });
-watch(direction, syncAdditionalLines);
 loadLocations().catch(() => { error.value = 'Standorte konnten nicht geladen werden.'; });
 </script>
 
 <style scoped lang="scss">
-.backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 18px; background: var(--overlay); }.dialog { width: min(660px, 100%); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--tile-bg); color: var(--text); box-shadow: 0 20px 50px rgba(0,0,0,.2); }.dialog__header, .dialog__footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--border); }.dialog__header p, .dialog__header h3 { margin: 0; }.dialog__header p { color: var(--primary); font-size: .72rem; font-weight: 700; text-transform: uppercase; }.dialog__header h3 { font-size: 1.08rem; }.dialog__body { display: grid; gap: 15px; overflow: auto; padding: 18px; }.controls { display: grid; grid-template-columns: 170px 1fr; gap: 12px; }.mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border-radius: 7px; background: var(--hover); }.mode-switch button { background: transparent; color: var(--muted); }.mode-switch button.active { background: var(--tile-bg); color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,.1); }.package-section { border-top: 1px solid var(--border); padding-top: 12px; }.package-section h4 { margin: 0 0 6px; font-size: .88rem; }.select-all { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: .72rem; color: var(--muted); }.entry-list { display: grid; gap: 6px; }.entry-row { display: grid; grid-template-columns: 18px minmax(110px, 1fr) minmax(130px, 1.2fr) 70px; align-items: center; gap: 8px; padding: 7px; border: 1px solid var(--border); border-radius: 6px; }.entry-row.unavailable { opacity: .5; }.entry-row__name { display: grid; gap: 2px; font-size: .78rem; }.entry-row__name small { color: #c3423f; font-size: .67rem; }label { display: grid; gap: 5px; font-size: .76rem; font-weight: 600; }input, select { min-width: 0; border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: var(--surface, var(--tile-bg)); color: var(--text); font: inherit; }input:focus, select:focus { outline: none; border-color: var(--primary); }.dialog__footer { justify-content: end; border-bottom: 0; border-top: 1px solid var(--border); }button { border: none; border-radius: 6px; cursor: pointer; padding: 8px 12px; font: inherit; font-weight: 600; }.icon-button, .secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }.primary { background: var(--primary); color: #fff; }button:disabled { cursor: not-allowed; opacity: .55; }.error { margin: 0; color: #c3423f; font-size: .78rem; }@media (max-width: 560px) { .controls, .entry-row { grid-template-columns: 1fr; }.entry-row > input { justify-self: start; } }
+.dialog__body { display: grid; gap: 15px; min-height: 0; overflow: auto; padding: 18px; }.controls { display: grid; grid-template-columns: 170px 1fr; gap: 12px; }.mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border-radius: 7px; background: var(--hover); }.mode-switch button { background: transparent; color: var(--muted); }.mode-switch button.active { background: var(--tile-bg); color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,.1); }.package-section { border-top: 1px solid var(--border); padding-top: 12px; }.package-section h4 { margin: 0 0 6px; font-size: .88rem; }.select-all { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: .72rem; color: var(--muted); }.entry-list { display: grid; gap: 6px; }.entry-row { display: grid; grid-template-columns: 18px minmax(110px, 1fr) minmax(130px, 1.2fr) 70px; align-items: center; gap: 8px; padding: 7px; border: 1px solid var(--border); border-radius: 6px; }.entry-row.unavailable { opacity: .5; }.entry-row__name { display: grid; gap: 2px; font-size: .78rem; }.entry-row__name small { color: #c3423f; font-size: .67rem; }label { display: grid; gap: 5px; font-size: .76rem; font-weight: 600; }input, select { min-width: 0; border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: var(--surface, var(--tile-bg)); color: var(--text); font: inherit; }input:focus, select:focus { outline: none; border-color: var(--primary); }button { border: none; border-radius: 6px; cursor: pointer; padding: 8px 12px; font: inherit; font-weight: 600; }.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }.primary { background: var(--primary); color: #fff; }button:disabled { cursor: not-allowed; opacity: .55; }.error { margin: 0; color: #c3423f; font-size: .78rem; }@media (max-width: 560px) { .controls, .entry-row { grid-template-columns: 1fr; }.entry-row > input { justify-self: start; } }
 .dialog__body { gap: 11px; padding: 14px 16px; }
 .controls { gap: 9px; }
 .package-section { padding-top: 9px; }

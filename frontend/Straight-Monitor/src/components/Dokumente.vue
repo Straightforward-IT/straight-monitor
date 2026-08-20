@@ -238,138 +238,27 @@
       </div>
     </div>
 
-    <!-- DocumentCard keeps its original modal; the package only controls minimization. -->
-    <MinimizableRegion
-      v-if="selectedDoc"
-      :id="documentModalId(selectedDoc)"
-      :title="documentModalTitle(selectedDoc)"
-      :restore-request="() => restoreDocumentModal(selectedDoc)"
-      persist-on-unmount
-      @remove="closeDoc"
-    >
-      <div class="modal-overlay" @click.self="closeDoc">
-        <div class="modal document-modal">
-          <MinimizeButton class="document-modal-minimize" />
-          <div class="modal-body modal-document-body">
-            <DocumentCard
-              :doc="selectedDoc"
-              :personDetails="personDetails"
-              :filteredTeamleiter="filteredTeamleiter"
-              :filteredMitarbeiter="filteredMitarbeiter"
-              @close="closeDoc"
-              @assign="openAssignDialog"
-              @filter-teamleiter="filterByTeamleiter"
-              @filter-mitarbeiter="filterByMitarbeiter"
-              @open-employee="openMitarbeiterCard"
-              @open-kunde="openKundeCard"
-            />
-          </div>
-        </div>
-      </div>
-    </MinimizableRegion>
+    <!-- Document modals are hosted by DockedModalHost in App.vue. -->
 
-    <!-- Employee Modal -->
+    <!-- Employee Modal (table row clicks) -->
     <EmployeeCardModal
       :mitarbeiterId="selectedMitarbeiter"
       @close="closeMitarbeiterCard"
     />
-
-    <!-- Customer Modal -->
-    <div v-if="selectedKunde" class="modal-overlay" @click.self="closeKundeCard">
-      <div class="modal large">
-        <div class="modal-header">
-          <h3>Kunden Details</h3>
-          <button class="close-btn" @click="closeKundeCard">
-            <font-awesome-icon icon="fa-solid fa-xmark" />
-          </button>
-        </div>
-        <div class="modal-body no-padding">
-          <div v-if="loadingKunde" class="loading-state">
-            <font-awesome-icon icon="fa-solid fa-spinner" spin />
-            Lade Kundendaten...
-          </div>
-          <CustomerCard
-            v-else-if="fullKundeData"
-            :kunde="fullKundeData"
-            @close="closeKundeCard"
-          />
-        </div>
-      </div>
-    </div>
-
-    <!-- Assignment Modal -->
-    <div v-if="showAssignModal" class="modal-overlay" @click.self="closeAssignModal">
-      <div class="modal assign-modal">
-        <div class="modal-header">
-          <h3>{{ assignRole === 'teamleiter' ? 'Teamleiter' : 'Mitarbeiter' }} zuweisen</h3>
-          <button class="close-btn" @click="closeAssignModal">
-            <font-awesome-icon icon="fa-solid fa-xmark" />
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="assign-info">
-            <div class="info-row">
-              <span class="label">Dokument:</span>
-              <span class="value">{{ selectedDoc?.bezeichnung }}</span>
-            </div>
-            <div class="info-row">
-              <span class="label">Name im Formular:</span>
-              <span class="value unassigned-name">{{ selectedDoc?.details?.[`name_${assignRole}`] }}</span>
-            </div>
-          </div>
-
-          <div class="search">
-            <font-awesome-icon icon="fa-solid fa-magnifying-glass" class="search-ic" />
-            <input
-              v-model="assignSearchQuery"
-              type="text"
-              placeholder="Mitarbeiter suchen…"
-              aria-label="Mitarbeiter suchen"
-              ref="assignSearchInput"
-            />
-          </div>
-
-          <div v-if="loading.employees" class="loading-state">
-            <font-awesome-icon icon="fa-solid fa-spinner" spin />
-            Lade Mitarbeiter…
-          </div>
-
-          <div v-else-if="filteredEmployees.length === 0" class="empty-state">
-            <font-awesome-icon icon="fa-solid fa-user-slash" />
-            <p>Keine Mitarbeiter gefunden</p>
-          </div>
-
-          <div v-else class="employee-list">
-            <button
-              v-for="employee in filteredEmployees"
-              :key="employee._id"
-              class="employee-item"
-              @click="selectEmployee(employee)"
-            >
-              <div class="employee-info">
-                <span class="employee-name">{{ employee.vorname }} {{ employee.nachname }}</span>
-                <span v-if="employee.email" class="employee-email">{{ employee.email }}</span>
-              </div>
-              <font-awesome-icon icon="fa-solid fa-chevron-right" class="chevron" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script>
 import api from "@/utils/api";
 import logger from "@/utils/logger";
+import { getDocumentModalTitle } from "@/utils/documentModalTitle";
 import { useDataCache } from "@/stores/dataCache";
-import router from '@/router';
+import { useDockedModals } from "@bleck-it/vue-modal-dock";
+import DocumentModal from "@/components/DocumentModal.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import FilterPanel from '@/components/FilterPanel.vue';
-import DocumentCard from '@/components/DocumentCard.vue';
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
-import CustomerCard from '@/components/CustomerCard.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
@@ -439,11 +328,12 @@ library.add(
 
 export default {
   name: "Dokumente",
-  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, DocumentCard, EmployeeCardModal, CustomerCard, SearchBar, Toolbar, ToolbarFilter, FilterGroup, FilterChip, FilterDivider },
+  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, EmployeeCardModal, SearchBar, Toolbar, ToolbarFilter, FilterGroup, FilterChip, FilterDivider },
 
   setup() {
     const dataCache = useDataCache();
-    return { dataCache };
+    const dockedModals = useDockedModals();
+    return { dataCache, dockedModals };
   },
 
   data() {
@@ -480,7 +370,7 @@ export default {
       userLocation: "",
 
       // state
-      loading: { documents: true, employees: false },
+      loading: { documents: true },
       error: { documents: null },
 
       // data sets
@@ -508,19 +398,11 @@ export default {
       pageOptions: [25, 50, 100],
 
       // ui
-      selectedDoc: null,
       activeQuickActionId: null,
-      showAssignModal: false,
-      assignRole: null, // 'teamleiter' or 'mitarbeiter'
-      assignSearchQuery: '',
       selectedMitarbeiter: null,
-      selectedKunde: null,
-      fullKundeData: null,
-      loadingKunde: false,
-      
+
       // person details cache (for Asana links)
       personDetails: {},
-      employees: [],
     };
   },
 
@@ -646,18 +528,6 @@ export default {
         total: this.filteredDocumentsSorted.length
       };
     },
-
-    filteredEmployees() {
-      if (!this.assignSearchQuery.trim()) {
-        return this.employees;
-      }
-      const query = this.assignSearchQuery.toLowerCase();
-      return this.employees.filter(emp => {
-        const fullName = `${emp.vorname} ${emp.nachname}`.toLowerCase();
-        const email = (emp.email || '').toLowerCase();
-        return fullName.includes(query) || email.includes(query);
-      });
-    },
   },
 
   watch: {
@@ -694,6 +564,23 @@ export default {
     },
     '$route.query.docId'(docId) {
       if (docId) this.handleDocIdParam(docId);
+    },
+    // Person filters pushed by the global document modal (works while already mounted)
+    '$route.query.filterTeamleiter'(name) {
+      if (!name) return;
+      this.filterByTeamleiter(name);
+      const { filterTeamleiter, ...rest } = this.$route.query;
+      this.$router.replace({ query: rest });
+    },
+    '$route.query.filterMitarbeiter'(name) {
+      if (!name) return;
+      this.filterByMitarbeiter(name);
+      const { filterMitarbeiter, ...rest } = this.$route.query;
+      this.$router.replace({ query: rest });
+    },
+    // Keep local copy in sync when the cache is refreshed elsewhere (e.g. after assign)
+    'dataCache.documents'(docs) {
+      this.documents = docs;
     },
   },
 
@@ -928,27 +815,6 @@ export default {
       this.selectedMitarbeiter = null;
     },
 
-    async openKundeCard(kundeId) {
-      this.selectedKunde = { _id: kundeId };
-      this.loadingKunde = true;
-      this.fullKundeData = null;
-
-      try {
-        const response = await api.get(`/api/kunden/${kundeId}`);
-        this.fullKundeData = response.data;
-      } catch (error) {
-        console.error('Error loading Kunde:', error);
-        this.selectedKunde = null;
-      } finally {
-        this.loadingKunde = false;
-      }
-    },
-
-    closeKundeCard() {
-      this.selectedKunde = null;
-      this.fullKundeData = null;
-    },
-
     async openLinkedEvaluierung(evaluierungId) {
       if (!evaluierungId) return;
       const ev = this.documents.find(
@@ -1007,84 +873,6 @@ export default {
       this.saveFilters();
     },
 
-    async openAssignDialog(role) {
-      this.assignRole = role;
-      this.assignSearchQuery = '';
-      this.showAssignModal = true;
-      
-      // Fetch employees if not already loaded
-      if (this.employees.length === 0) {
-        await this.fetchEmployees();
-      }
-      
-      // Focus search input after modal opens
-      this.$nextTick(() => {
-        this.$refs.assignSearchInput?.focus();
-      });
-    },
-
-    closeAssignModal() {
-      this.showAssignModal = false;
-      this.assignRole = null;
-      this.assignSearchQuery = '';
-    },
-
-    async selectEmployee(employee) {
-      // Bestätigung anfordern
-      const roleName = this.assignRole === 'teamleiter' ? 'Teamleiter' : 'Mitarbeiter';
-      const formularName = this.selectedDoc.details?.[`name_${this.assignRole}`] || '(nicht angegeben)';
-      
-      const confirmed = confirm(
-        `${employee.vorname} ${employee.nachname} als ${roleName} zuweisen?\n\n` +
-        `Dokument: ${this.selectedDoc.bezeichnung}\n` +
-        `Name im Formular: ${formularName}\n\n` +
-        `Bitte bestätigen Sie die Zuweisung.`
-      );
-      
-      if (!confirmed) {
-        logger.debug('Assignment cancelled by user');
-        return;
-      }
-      
-      try {
-        const documentId = this.selectedDoc._id || this.selectedDoc.id;
-        const payload = {
-          documentId,
-        };
-        
-        // Set the appropriate ID field based on role
-        if (this.assignRole === 'teamleiter') {
-          payload.teamleiterId = employee._id;
-          payload.name_teamleiter = this.selectedDoc.details?.name_teamleiter;
-        } else {
-          payload.mitarbeiterId = employee._id;
-          payload.name_mitarbeiter = this.selectedDoc.details?.name_mitarbeiter;
-        }
-        
-        logger.debug('Assigning employee to document:', payload);
-        
-        const response = await api.post('/api/reports/assign', payload);
-        
-        if (response.data?.success) {
-          logger.info(`✅ ${employee.vorname} ${employee.nachname} assigned as ${this.assignRole}`);
-          
-          this.closeAssignModal();
-          this.closeDoc();
-          
-          // Refresh documents to show updated status
-          await this.fetchDocuments();
-          
-          // Show success message
-          alert(`✅ ${employee.vorname} ${employee.nachname} wurde erfolgreich als ${roleName} zugewiesen.`);
-        } else {
-          throw new Error(response.data?.error || 'Unbekannter Fehler');
-        }
-      } catch (error) {
-        logger.error('Assignment error:', error);
-        alert('❌ Fehler beim Zuweisen: ' + (error.response?.data?.error || error.message));
-      }
-    },
-
     nextPage() {
       if (this.currentPage < this.totalPages) {
         this.currentPage++;
@@ -1127,7 +915,27 @@ export default {
     },
 
     async openDoc(doc) {
-      this.selectedDoc = doc;
+      const documentId = doc?._id || doc?.id;
+      const modalId = `document-${documentId || 'active'}`;
+      const assignmentTitle = this.auftragTitelMap.get(
+        String(doc?.details?.auftragnummer || '')
+      );
+      const modalTitle = getDocumentModalTitle(doc, assignmentTitle);
+      const dockedModals = this.dockedModals;
+
+      // The package owns the instance above RouterView. Different document IDs
+      // therefore coexist; opening the same document restores that one record.
+      dockedModals.open({
+        id: modalId,
+        title: modalTitle,
+        component: DocumentModal,
+        props: {
+          doc,
+          filteredTeamleiter: this.filteredTeamleiter,
+          filteredMitarbeiter: this.filteredMitarbeiter,
+          onClose: () => dockedModals.remove(modalId),
+        },
+      });
       this.activeQuickActionId = null;
 
       // Reflect the open document in the URL so it can be linked/shared
@@ -1136,7 +944,7 @@ export default {
         this.$router.replace({ query: { ...this.$route.query, docId: String(docId) } });
       }
       
-      // Fetch person details when opening document
+      // Fetch person details for the quick-actions menu
       if (doc.details?.name_teamleiter) {
         await this.fetchPersonDetails(doc.details.name_teamleiter);
       }
@@ -1145,22 +953,9 @@ export default {
       }
     },
 
-    documentModalId(doc) {
-      return `document-${doc?._id || doc?.id || 'active'}`;
-    },
-
-    documentModalTitle(doc) {
-      return [doc?.docType, doc?.bezeichnung].filter(Boolean).join(' · ') || 'Dokument';
-    },
-
-    restoreDocumentModal(doc) {
-      const docId = doc?._id || doc?.id;
-      if (!docId) return;
-      void router.push({ path: '/dokumente', query: { docId: String(docId) } });
-    },
-
     closeDoc() {
-      this.selectedDoc = null;
+      const documentId = this.$route.query.docId;
+      if (documentId) this.dockedModals.remove(`document-${documentId}`);
       // Remove docId from URL when closing
       if (this.$route.query.docId) {
         const { docId, ...rest } = this.$route.query;
@@ -1210,19 +1005,10 @@ export default {
         return;
       }
 
-      // Close modals in order of priority (topmost = last opened)
-      // Priority: Assign Modal > Employee Modal > Document Modal
-      if (this.showAssignModal) {
-        this.closeAssignModal();
-      } else if (this.selectedMitarbeiter) {
+      // Document/assign/customer modals are handled by the persistent host.
+      if (this.selectedMitarbeiter) {
         this.closeMitarbeiterCard();
-      } else if (this.selectedDoc) {
-        this.closeDoc();
       }
-    },
-    
-    demoAssign(role) {
-      alert(`Demo: Zuweisen Dialog für ${role} würde sich öffnen.`);
     },
 
     /* -------------------- API wiring -------------------- */
@@ -1287,26 +1073,6 @@ export default {
       } catch (error) {
         console.error('Fehler beim Laden der Standorte:', error);
         this.locations = [];
-      }
-    },
-
-    async fetchEmployees() {
-      this.loading.employees = true;
-      try {
-        const res = await api.get("/api/personal/mitarbeiter");
-        // Filter active employees and sort by name
-        this.employees = (res.data?.data || [])
-          .filter(emp => emp.isActive !== false)
-          .sort((a, b) => {
-            const nameA = `${a.vorname} ${a.nachname}`.toLowerCase();
-            const nameB = `${b.vorname} ${b.nachname}`.toLowerCase();
-            return nameA.localeCompare(nameB, 'de');
-          });
-      } catch (e) {
-        console.error("Fehler beim Laden der Mitarbeiter:", e);
-        this.employees = [];
-      } finally {
-        this.loading.employees = false;
       }
     },
   },
@@ -1870,188 +1636,6 @@ export default {
   background: color-mix(in srgb, var(--bad) 85%, black);
 }
 
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-}
-
-.modal {
-  background: var(--surface);
-  border-radius: 16px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.35), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--border);
-}
-
-.modal-header {
-  padding: 20px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.close-btn {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 1.25rem;
-  padding: 4px;
-  border-radius: 4px;
-  transition: 0.2s;
-}
-
-.close-btn:hover {
-  background: var(--soft);
-  color: var(--text);
-}
-
-.modal-body {
-  padding: 20px;
-  overflow-y: auto;
-}
-
-/* Document Modal */
-.document-modal {
-  position: relative;
-  max-width: 700px;
-  width: 95%;
-}
-
-.document-modal-minimize {
-  position: absolute;
-  top: 24px;
-  right: 62px;
-  z-index: 2;
-  background: none;
-  border-color: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
-  color: var(--vmd-text-muted, var(--muted));
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-}
-
-.document-modal-minimize:hover {
-  color: var(--vmd-accent, var(--primary));
-  background: color-mix(in srgb, var(--vmd-accent, var(--primary)) 10%, transparent);
-  border-color: color-mix(in srgb, var(--vmd-accent, var(--primary)) 30%, transparent);
-}
-
-.modal-document-body {
-  padding: 0;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 24px;
-}
-
-.detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.detail-item.full-width {
-  grid-column: 1 / -1;
-}
-
-.detail-item label {
-  font-size: 0.875rem;
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.detail-item p {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--text);
-}
-
-.raw-data {
-  background: var(--bg);
-  padding: 16px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-
-.raw-data h4 {
-  margin: 0 0 12px 0;
-  font-size: 0.875rem;
-  color: var(--muted);
-}
-
-.key-value-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.kv-item {
-  display: grid;
-  grid-template-columns: 180px 1fr;
-  gap: 12px;
-  font-size: 0.9rem;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 4px;
-}
-
-.kv-item:last-child {
-  border-bottom: none;
-}
-
-.kv-item .key {
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.kv-item .value {
-  color: var(--text);
-  word-break: break-word;
-}
-
-.modal-footer {
-  padding: 20px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.actions-left {
-  display: flex;
-  gap: 10px;
-}
-
 /* Compact Pagination Styles */
 .pagination-compact {
   display: flex;
@@ -2292,141 +1876,6 @@ export default {
   height: 14px;
   object-fit: contain;
   vertical-align: middle;
-}
-
-/* Assignment Modal */
-.assign-modal {
-  max-width: 500px;
-  height: 600px;
-  max-height: 85vh;
-}
-
-.assign-modal .modal-body {
-  padding: 24px;
-}
-
-.assign-info {
-  background: var(--bg);
-  padding: 16px 20px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  margin-bottom: 20px;
-  flex-shrink: 0;
-}
-
-.info-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: 0.9rem;
-}
-
-.info-row:last-child {
-  margin-bottom: 0;
-}
-
-.info-row .label {
-  font-weight: 600;
-  color: var(--muted);
-  min-width: 140px;
-}
-
-.info-row .value {
-  color: var(--text);
-  flex: 1;
-}
-
-.employee-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-  overflow-y: auto;
-  margin-top: 12px;
-  padding: 2px;
-  min-height: 0;
-}
-
-.employee-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: left;
-}
-
-.employee-item:hover {
-  background: var(--soft);
-  border-color: var(--brand);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 10%, transparent);
-}
-
-.employee-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.employee-name {
-  font-weight: 600;
-  color: var(--text);
-  font-size: 0.95rem;
-}
-
-.employee-email {
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.chevron {
-  color: var(--muted);
-  font-size: 0.9rem;
-  transition: transform 0.15s ease;
-}
-
-.employee-item:hover .chevron {
-  transform: translateX(3px);
-  color: var(--brand);
-}
-
-.loading-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  color: var(--muted);
-  gap: 12px;
-}
-
-.loading-state svg,
-.empty-state svg {
-  font-size: 32px;
-  opacity: 0.5;
-}
-
-.empty-state p {
-  margin: 0;
-  font-size: 0.95rem;
-}
-
-.modal-contaner { /* Deprecated, using modal-content now */
-  display: none;
-}
-
-.modal.large {
-  max-width: 900px;
-  height: 90vh; /* Force height so inner scroll works */
-}
-
-.modal-body.no-padding {
-  padding: 0;
 }
 
 /* ── Responsive table ─────────────────────────────────────────────── */

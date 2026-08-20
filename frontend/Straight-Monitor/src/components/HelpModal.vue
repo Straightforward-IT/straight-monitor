@@ -1,26 +1,25 @@
 <template>
-  <teleport to="body">
-    <div v-if="modelValue" class="modal-overlay" @click="$emit('update:modelValue', false)">
-      <div class="help-modal" @click.stop>
-        <div class="help-modal-header">
-          <h3><slot name="title">Hilfe</slot></h3>
-          <button class="close-btn" @click="$emit('update:modelValue', false)">
-            <font-awesome-icon icon="fa-solid fa-times" />
-          </button>
-        </div>
-        <div v-if="$slots.toc" ref="tocRef" class="help-modal-toc">
-          <slot name="toc" />
-        </div>
-        <div ref="bodyRef" class="help-modal-body">
-          <slot />
-        </div>
-      </div>
+  <ModalFrame
+    :model-value="modelValue"
+    style="--mf-max-width: 520px; --mf-max-height: 85vh; --mf-body-padding: 0; --mf-body-overflow: hidden"
+    @update:model-value="$emit('update:modelValue', $event)"
+  >
+    <template #header>
+      <h3 class="help-title"><slot name="title">Hilfe</slot></h3>
+    </template>
+
+    <div v-if="$slots.toc" ref="tocRef" class="help-modal-toc">
+      <slot name="toc" />
     </div>
-  </teleport>
+    <div ref="bodyRef" class="help-modal-body">
+      <slot />
+    </div>
+  </ModalFrame>
 </template>
 
 <script setup>
 import { ref, watch, onUnmounted, nextTick } from 'vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 
 const props = defineProps({ modelValue: { type: Boolean, required: true } });
 defineEmits(['update:modelValue']);
@@ -98,54 +97,13 @@ onUnmounted(teardown);
 </script>
 
 <style scoped lang="scss">
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: var(--overlay);
+.help-title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text);
   display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 4px;
-
-  &:hover { color: var(--text); }
-}
-
-.help-modal {
-  background: var(--modal-bg);
-  border-radius: 12px;
-  width: 520px;
-  max-width: 92vw;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
-}
-
-.help-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-
-  h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+  gap: 8px;
 }
 
 .help-modal-toc {
@@ -203,6 +161,8 @@ onUnmounted(teardown);
 
 .help-modal-body {
   padding: 20px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   scroll-behavior: smooth;
   display: flex;

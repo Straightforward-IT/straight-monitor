@@ -14,6 +14,10 @@
   --scrollbar-track: rgba(0, 0, 0, 0.04);
   --scrollbar-thumb: rgba(0, 0, 0, 0.25);
   --scrollbar-thumb-hover: rgba(0, 0, 0, 0.4);
+
+  /* z-index scale for ModalFrame layers */
+  --z-modal:          1000;
+  --z-modal-elevated: 1500;
 }
 
 /* Dark */

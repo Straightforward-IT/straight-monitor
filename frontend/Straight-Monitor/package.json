@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@bleck-it/vue-modal-dock": "file:../../../../../../../Documents/Codex/2026-08-18/chec/outputs/vue-modal-dock/bleck-it-vue-modal-dock-0.1.0.tgz",
+    "@bleck-it/vue-modal-dock": "file:../../packages/vue-modal-dock",
     "@docuseal/vue": "^1.0.54",
     "@fortawesome/fontawesome-svg-core": "6.6.0",
     "@fortawesome/free-regular-svg-icons": "^7.1.0",

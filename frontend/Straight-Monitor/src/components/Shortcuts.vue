@@ -13,7 +13,7 @@
 
     <div class="actions">
       <div v-for="template in templates" :key="template._id" class="package-shortcut">
-        <button type="button" class="s-btn" @click="selectedTemplate = template">
+        <button type="button" class="s-btn" @click="openPackageTemplate(template)">
           <font-awesome-icon :icon="['fas', 'box-open']" />
           <span>{{ template.name }}</span>
         </button>
@@ -47,8 +47,6 @@
       </ol>
     </section>
 
-    <PaketVorlageModal v-if="selectedTemplate" v-model="selectedTemplate" @booked="refreshTemplates" />
-    <PaketVorlageEditorModal v-model="showEditor" :template="editingTemplate" @created="handleTemplateCreated" @updated="handleTemplateUpdated" />
   </div>
 </template>
 
@@ -60,20 +58,17 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { faArrowDown, faArrowUp, faBan, faBoxOpen, faPen, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import api from '@/utils/api';
+import { usePackageModals } from '@/composables/usePackageModals';
 import { useUi } from '@/stores/ui';
 import { useInventoryFilters } from '@/stores/inventoryFilters';
-import PaketVorlageModal from '@/components/PaketVorlageModal.vue';
-import PaketVorlageEditorModal from '@/components/PaketVorlageEditorModal.vue';
 
 library.add(faArrowDown, faArrowUp, faBan, faBoxOpen, faPen, faPlus, faXmark);
 
 const ui = useUi();
 const router = useRouter();
+const { openPackage, openPackageEditor } = usePackageModals();
 const { locationIds: selectedLocationIds } = storeToRefs(useInventoryFilters());
 const templates = ref([]);
-const selectedTemplate = ref(null);
-const showEditor = ref(false);
-const editingTemplate = ref(null);
 const loading = ref(false);
 const error = ref('');
 const activity = ref([]);
@@ -139,13 +134,21 @@ function handleTemplateUpdated(template) {
 }
 
 function openCreate() {
-  editingTemplate.value = null;
-  showEditor.value = true;
+  openPackageEditor(null, {
+    onCreated: handleTemplateCreated,
+  });
 }
 
 function openEdit(template) {
-  editingTemplate.value = template;
-  showEditor.value = true;
+  openPackageEditor(template, {
+    onUpdated: handleTemplateUpdated,
+  });
+}
+
+function openPackageTemplate(template) {
+  openPackage(template, {
+    onBooked: refreshTemplates,
+  });
 }
 
 watch(selectedLocationIds, refreshActivity, { deep: true });

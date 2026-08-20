@@ -1,7 +1,14 @@
 <template>
-  <article class="customer-card" :data-theme="effectiveTheme">
-    <!-- Header -->
-    <header class="card-header">
+  <ModalFrame
+    minimizable
+    size="xl"
+    style="--mf-max-width: min(1120px, 94vw); --mf-max-height: 92dvh; --mf-body-padding: 0; --mf-body-overflow: hidden"
+    :data-theme="effectiveTheme"
+    :close-on-escape="false"
+    @close="emit('close')"
+  >
+    <template #header>
+      <div class="card-header">
       <div class="left">
         <div class="icon-box">
           <font-awesome-icon :icon="['fas', 'building']" class="header-icon" />
@@ -37,12 +44,16 @@
           </div>
         </div>
       </div>
-      <div class="right">
-        <span class="status-badge" :class="getStatusClass(kunde.kundStatus)">
-          {{ getStatusText(kunde.kundStatus) }}
-        </span>
       </div>
-    </header>
+    </template>
+
+    <template #actions>
+      <span class="status-badge" :class="getStatusClass(kunde.kundStatus)">
+        {{ getStatusText(kunde.kundStatus) }}
+      </span>
+    </template>
+
+    <article class="customer-card" :data-theme="effectiveTheme">
 
     <!-- Body -->
     <div class="card-body">
@@ -381,11 +392,6 @@
 
     </div>
 
-    <!-- Footer -->
-    <footer class="card-footer">
-      <button class="btn btn-secondary" @click="$emit('close')">Schließen</button>
-    </footer>
-
     <!-- Employee Card Modal -->
     <EmployeeCardModal
       :mitarbeiterId="selectedEmployeeId"
@@ -393,7 +399,7 @@
     />
 
     <!-- Contact Card Modal -->
-    <teleport to="body">
+    <teleport to="body" :disabled="Boolean(dockedModal)">
       <div v-if="selectedContactCard" class="contact-card-overlay" @click.self="selectedContactCard = null">
         <ContactCard
           :contact="selectedContactCard"
@@ -411,12 +417,14 @@
       @close="showKontaktAnlegenModal = false"
       @created="onKontaktAngelegt"
     />
-  </article>
+    </article>
+  </ModalFrame>
 </template>
 
 <script setup>
-import { computed, ref, nextTick, watch, onMounted } from 'vue';
+import { computed, ref, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
+import { useCurrentDockedModal } from '@bleck-it/vue-modal-dock';
 import { useAuth } from '@/stores/auth';
 import { useTheme } from '@/stores/theme';
 import { useDataCache } from '@/stores/dataCache';
@@ -425,6 +433,7 @@ import KundenAnalyticsEmbed from './KundenAnalyticsEmbed.vue';
 import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
 import ContactCard from './ContactCard.vue';
 import EmployeeCardModal from './EmployeeCardModal.vue';
+import ModalFrame from './frames/ModalFrame.vue';
 import api from '@/utils/api';
 
 const props = defineProps({
@@ -436,6 +445,9 @@ const emit = defineEmits(['close']);
 const auth = useAuth();
 const dataCache = useDataCache();
 const router = useRouter();
+const dockedModal = useCurrentDockedModal();
+const isMinimized = dockedModal?.minimized ?? computed(() => false);
+const isTopmost = dockedModal?.topmost ?? computed(() => true);
 
 // ── Employee Modal ────────────────────────────────────────────────────────────
 const selectedEmployeeId = ref(null);
@@ -711,14 +723,59 @@ function formatUrl(url) {
   if (!url) return '#';
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
+
+function closeSatelliteDialogs() {
+  selectedEmployeeId.value = null;
+  selectedContactCard.value = null;
+  showKontaktAnlegenModal.value = false;
+  editingKuerzel.value = false;
+}
+
+function handleEscape(event) {
+  if (event.key !== 'Escape' || isMinimized.value || !isTopmost.value) return;
+
+  // CustomerCard owns the Escape order while it is the active hosted modal.
+  // Capture mode prevents page-level handlers from closing UI underneath it.
+  event.preventDefault();
+  event.stopImmediatePropagation();
+
+  if (showKontaktAnlegenModal.value) {
+    showKontaktAnlegenModal.value = false;
+    return;
+  }
+  if (selectedContactCard.value) {
+    selectedContactCard.value = null;
+    return;
+  }
+  if (selectedEmployeeId.value) {
+    selectedEmployeeId.value = null;
+    return;
+  }
+  if (editingKuerzel.value) {
+    cancelEditKuerzel();
+    return;
+  }
+
+  emit('close');
+}
+
+watch(isMinimized, (minimized) => {
+  // Nested Teleports must not remain visible after the host deactivates this
+  // component. The customer card itself keeps all of its primary form state.
+  if (minimized) closeSatelliteDialogs();
+});
+
+onMounted(() => document.addEventListener('keydown', handleEscape, true));
+onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true));
 </script>
 
 <style scoped>
 .customer-card {
   display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
   flex-direction: column;
   background: var(--tile-bg);
-  border-radius: 12px;
   overflow: hidden;
   max-height: 100%;
   width: 100%;
@@ -726,21 +783,16 @@ function formatUrl(url) {
 
 /* Header */
 .card-header {
-  position: sticky;
-  top: 0;
-  z-index: 3;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  background: var(--tile-bg);
-  border-bottom: 1px solid var(--border);
+  min-width: 0;
 }
 
 .left {
   display: flex;
   align-items: center;
   gap: 16px;
+  min-width: 0;
 }
 
 .icon-box {
@@ -758,6 +810,7 @@ function formatUrl(url) {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .name-row {
@@ -862,6 +915,9 @@ function formatUrl(url) {
   font-size: 18px;
   font-weight: 700;
   color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-badge {
@@ -1346,42 +1402,6 @@ function formatUrl(url) {
 .comment-footer {
   font-size: 10px;
   color: var(--muted);
-}
-
-/* Footer */
-.card-footer {
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-  background: var(--tile-bg);
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.btn {
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.2s;
-}
-
-.btn-secondary {
-  background: var(--tile-bg);
-  border-color: var(--border);
-  color: var(--text);
-}
-.btn-secondary:hover {
-  background: var(--hover);
-}
-
-.btn-primary {
-  background: var(--primary);
-  color: white;
-}
-.btn-primary:hover {
-  filter: brightness(1.1);
 }
 
 /* ── KPI Section ─────────────────────────────────────────────────────────── */

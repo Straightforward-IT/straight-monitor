@@ -1,25 +1,25 @@
 <template>
-  <teleport to="body">
-    <div class="modal-overlay" @click.self="$emit('close')">
-      <div class="kontakt-anlegen-modal" @click.stop>
-        <div class="modal-header">
-          <h3>
-            <div class="ms-logo-grid" aria-hidden="true">
-              <span style="background:#f25022"></span>
-              <span style="background:#7fba00"></span>
-              <span style="background:#00a4ef"></span>
-              <span style="background:#ffb900"></span>
-            </div>
-            Kontakt anlegen
-          </h3>
-          <button class="btn-icon" @click="$emit('close')">
-            <font-awesome-icon :icon="['fas', 'xmark']" />
-          </button>
+  <ModalFrame
+    class="kontakt-anlegen-modal"
+    layer="elevated"
+    style="--mf-max-width: 520px; --mf-body-padding: 20px"
+    @close="$emit('close')"
+  >
+    <template #header>
+      <h3 class="kontakt-title">
+        <div class="ms-logo-grid" aria-hidden="true">
+          <span style="background:#f25022"></span>
+          <span style="background:#7fba00"></span>
+          <span style="background:#00a4ef"></span>
+          <span style="background:#ffb900"></span>
         </div>
+        Kontakt anlegen
+      </h3>
+    </template>
 
-        <div class="modal-body">
-          <!-- Mailbox selection -->
-          <div class="form-row form-row--full">
+    <div class="modal-body">
+      <!-- Mailbox selection -->
+      <div class="form-row form-row--full">
             <label>Mailbox (Team) <span class="req">*</span></label>
             <select v-model="form.team" class="form-input">
               <option value="berlin">Berlin</option>
@@ -71,27 +71,26 @@
             Der Kontakt wird in der Microsoft-Mailbox des gewählten Teams gespeichert.
           </p>
 
-          <div v-if="errorMsg" class="error-msg">
-            <font-awesome-icon :icon="['fas', 'triangle-exclamation']" />
-            {{ errorMsg }}
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button class="btn-secondary" @click="$emit('close')" :disabled="saving">Abbrechen</button>
-          <button class="btn-primary" @click="save" :disabled="!canSave || saving">
-            <font-awesome-icon v-if="saving" :icon="['fas', 'spinner']" spin />
-            Kontakt anlegen
-          </button>
-        </div>
+      <div v-if="errorMsg" class="error-msg">
+        <font-awesome-icon :icon="['fas', 'triangle-exclamation']" />
+        {{ errorMsg }}
       </div>
     </div>
-  </teleport>
+
+    <template #footer>
+      <button class="btn-secondary" @click="$emit('close')" :disabled="saving">Abbrechen</button>
+      <button class="btn-primary" @click="save" :disabled="!canSave || saving">
+        <font-awesome-icon v-if="saving" :icon="['fas', 'spinner']" spin />
+        Kontakt anlegen
+      </button>
+    </template>
+  </ModalFrame>
 </template>
 
 <script setup>
 import { ref, reactive, computed, nextTick, onMounted } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 import api from '@/utils/api';
 
 const props = defineProps({
@@ -166,38 +165,7 @@ async function save() {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 20000;
-  padding: 16px;
-}
-
-.kontakt-anlegen-modal {
-  background: var(--tile-bg);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-  width: 100%;
-  max-width: 520px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-  gap: 12px;
-}
-
-.modal-header h3 {
+.kontakt-title {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -223,8 +191,6 @@ async function save() {
 }
 
 .modal-body {
-  padding: 20px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -294,14 +260,6 @@ async function save() {
   padding: 8px 12px;
 }
 
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 14px 20px;
-  border-top: 1px solid var(--border);
-}
-
 .btn-primary {
   display: flex;
   align-items: center;
@@ -340,23 +298,5 @@ async function save() {
 .btn-secondary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.btn-icon {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s, background 0.15s;
-}
-
-.btn-icon:hover {
-  color: var(--text);
-  background: var(--hover);
 }
 </style>

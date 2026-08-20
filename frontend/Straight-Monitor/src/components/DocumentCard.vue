@@ -1,8 +1,13 @@
 <template>
-  <article class="document-card" :data-theme="effectiveTheme">
-    <!-- Header -->
-    <header class="card-header">
-      <div class="left">
+  <!-- Minimize props (minimizable, minimize-id, …) fall through to ModalFrame via $attrs -->
+  <ModalFrame
+    ref="modalFrame"
+    style="--mf-max-width: 720px"
+    :data-theme="effectiveTheme"
+    @close="$emit('close')"
+  >
+    <template #header>
+      <div class="doc-header">
         <div class="doc-icon">
           <img :src="docTypeImage" :alt="doc.docType" class="doc-icon-img" />
         </div>
@@ -11,10 +16,25 @@
           <span class="bezeichnung">{{ doc.bezeichnung || 'Kein Titel' }}</span>
         </div>
       </div>
+    </template>
+    <template #actions>
       <button class="copy-link-btn" :class="{ 'copy-link-btn--copied': linkCopied }" :title="linkCopied ? 'Link kopiert!' : 'Link kopieren'" @click="copyLink">
         <font-awesome-icon :icon="linkCopied ? 'fa-solid fa-check' : 'fa-solid fa-link'" />
       </button>
-    </header>
+      <div class="context-menu-wrapper">
+        <button class="copy-link-btn" :class="{ 'copy-link-btn--active': menuOpen }" title="Weitere Aktionen" @click.stop="menuOpen = !menuOpen">
+          <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
+        </button>
+        <Transition name="ctx">
+          <div v-if="menuOpen" class="context-menu" @click.stop>
+            <button class="context-menu-item" @click="exportPdf">
+              <font-awesome-icon icon="fa-solid fa-file-pdf" />
+              Als PDF exportieren
+            </button>
+          </div>
+        </Transition>
+      </div>
+    </template>
 
     <!-- Body -->
     <div class="card-body">
@@ -288,30 +308,23 @@
       </section>
     </div>
 
-    <!-- Footer -->
-    <footer class="card-footer">
-      <div class="actions-left">
-      </div>
-      <div class="footer-right">
-        <template v-if="doc.docType === 'Event-Bericht'">
-          <button
-            class="btn btn-primary"
-            :disabled="!newCommentText.trim() || commentLoading"
-            @click="postComment(true)"
-          >
-            <font-awesome-icon icon="fa-solid fa-envelope" />
-            An alle ausliefern
-          </button>
-        </template>
-        <button class="btn" @click="$emit('close')">Schließen</button>
-      </div>
-    </footer>
-  </article>
+    <template v-if="doc.docType === 'Event-Bericht'" #footer>
+      <button
+        class="btn btn-primary"
+        :disabled="!newCommentText.trim() || commentLoading"
+        @click="postComment(true)"
+      >
+        <font-awesome-icon icon="fa-solid fa-envelope" />
+        An alle ausliefern
+      </button>
+    </template>
+  </ModalFrame>
 </template>
 
 <script>
 import { computed, onMounted } from "vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import ModalFrame from "@/components/frames/ModalFrame.vue";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
 import { useDataCache } from "@/stores/dataCache";
@@ -340,14 +353,16 @@ import {
   faCheck,
   faPen,
   faTrash,
+  faEllipsisVertical,
+  faFilePdf,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope, faBriefcase, faBuilding, faCheck, faPen, faTrash);
+library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope, faBriefcase, faBuilding, faCheck, faPen, faTrash, faEllipsisVertical, faFilePdf);
 
 export default {
   name: "DocumentCard",
-  components: { FontAwesomeIcon },
+  components: { FontAwesomeIcon, ModalFrame },
   props: {
     doc: { type: Object, required: true },
     personDetails: { type: Object, default: () => ({}) },
@@ -366,6 +381,7 @@ export default {
       editingFeedbackText: '',
       savingFeedbackId: null,
       linkCopied: false,
+      menuOpen: false,
     };
   },
 
@@ -412,10 +428,15 @@ export default {
   },
 
   mounted() {
+    document.addEventListener('click', this.closeMenu);
     // If opened with partial data (e.g. from feedback list), lazy-fetch the full EventReport
     if (this.doc.docType === 'Event-Bericht' && !Array.isArray(this.doc.details?.comments)) {
       this.fetchFullReport();
     }
+  },
+
+  beforeUnmount() {
+    document.removeEventListener('click', this.closeMenu);
   },
 
   watch: {
@@ -474,6 +495,16 @@ export default {
   },
 
   methods: {
+    closeMenu() {
+      this.menuOpen = false;
+    },
+
+    async exportPdf() {
+      this.menuOpen = false;
+      const title = [this.doc.docType, this.doc.bezeichnung].filter(Boolean).join(' – ') || 'Dokument';
+      await this.$refs.modalFrame.exportToPdf({ title });
+    },
+
     getEmployeeId(role) {
       const employee = this.doc.details?.[role];
       if (!employee) return null;
@@ -640,38 +671,28 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.document-card {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface, var(--panel));
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  overflow: hidden;
-  flex: 1;
-  min-height: 0;
-}
-
-/* Header */
-.card-header {
+/* Header slot content */
+.doc-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px 20px;
-  background: var(--surface, var(--panel));
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
 }
 
 .copy-link-btn {
+  /* Matches ModalFrame's mf-close / mf-minimize control sizing */
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   background: none;
   border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 6px 8px;
+  border-radius: 6px;
   cursor: pointer;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 1rem;
   flex-shrink: 0;
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 
@@ -686,14 +707,70 @@ export default {
     background: color-mix(in srgb, var(--ok, #21a26a) 10%, transparent) !important;
     border-color: color-mix(in srgb, var(--ok, #21a26a) 30%, transparent) !important;
   }
+
+  &--active {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  }
 }
 
-.left {
+/* Three-dot context menu */
+.context-menu-wrapper {
+  position: relative;
+}
+
+.context-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  min-width: 200px;
+  padding: 4px;
+  background: var(--modal-bg, var(--surface, #fff));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.context-menu-item {
   display: flex;
   align-items: center;
-  gap: 14px;
-  flex: 1;
-  min-width: 0;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: 140ms ease;
+
+  svg {
+    color: var(--muted);
+    width: 14px;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary);
+
+    svg { color: var(--primary); }
+  }
+}
+
+.ctx-enter-active,
+.ctx-leave-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.ctx-enter-from,
+.ctx-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .doc-icon {
@@ -757,15 +834,11 @@ export default {
   }
 }
 
-/* Body */
+/* Body (padding/scroll handled by ModalFrame's mf-body) */
 .card-body {
-  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
 }
 
 .details-section {
@@ -934,28 +1007,6 @@ export default {
     word-break: break-word;
     white-space: pre-wrap;
   }
-}
-
-.card-footer {
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-top: 1px solid var(--border);
-  background: var(--surface, var(--panel));
-  flex-shrink: 0;
-}
-
-.actions-left {
-  display: flex;
-  gap: 10px;
-}
-
-.footer-right {
-  display: flex;
-  gap: 10px;
-  align-items: center;
 }
 
 /* Comments */
@@ -1273,16 +1324,6 @@ export default {
 
 /* Responsive */
 @media (max-width: 640px) {
-  .card-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  
-  .card-actions {
-    align-self: flex-end;
-  }
-  
   .details-section .kv > div {
     grid-template-columns: 1fr;
     gap: 4px;
@@ -1291,16 +1332,6 @@ export default {
   .kv-item {
     grid-template-columns: 1fr;
     gap: 4px;
-  }
-  
-  .card-footer {
-    flex-direction: column;
-    gap: 12px;
-  }
-  
-  .actions-left {
-    width: 100%;
-    justify-content: flex-start;
   }
 }
 </style>

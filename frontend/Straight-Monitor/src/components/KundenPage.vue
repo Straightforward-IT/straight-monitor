@@ -307,33 +307,21 @@
       </div>
     </teleport>
 
-    <!-- Customer Detail Modal -->
-    <teleport to="body">
-      <div v-if="selectedKunde" class="modal-overlay" @click="selectedKunde = null">
-        <div class="modal-content-wrapper" @click.stop>
-          <CustomerCard 
-            :kunde="selectedKunde"
-            @close="selectedKunde = null"
-          />
-        </div>
-      </div>
-    </teleport>
-
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useDataCache } from '@/stores/dataCache';
 import { useAuth } from '@/stores/auth'; // Import Auth Store
+import { useCustomerModals } from '@/composables/useCustomerModals';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import FilterPanel from './FilterPanel.vue';
 import FilterGroup from './FilterGroup.vue';
 import FilterChip from './ui-elements/FilterChip.vue';
 import FilterDivider from './ui-elements/FilterDivider.vue';
 import FilterDropdown from './FilterDropdown.vue';
-import CustomerCard from './CustomerCard.vue';
 import CustomTooltip from './CustomTooltip.vue';
 import KundenAnalytics from './KundenAnalytics.vue';
 import LeadsTab from './LeadsTab.vue';
@@ -352,6 +340,7 @@ const dataCache = useDataCache();
 const auth = useAuth(); // Init Auth Store
 const route = useRoute();
 const router = useRouter();
+const { openCustomer } = useCustomerModals();
 
 const baseTabs = [
   { id: 'overview', label: 'Übersicht', icon: ['fas', 'list'] },
@@ -400,8 +389,6 @@ function resetContactFilters() {
   contactFilters.value.team = null;
   contactFilters.value.linked = null;
 }
-const selectedKunde = ref(null);
-
 // Context Menu
 const contextMenu = ref({ visible: false, x: 0, y: 0 });
 const contextMenuKunde = ref(null);
@@ -490,22 +477,7 @@ onMounted(async () => {
   } finally {
     isLoading.value = false;
   }
-  document.addEventListener('keydown', handleEscape);
 });
-
-onBeforeUnmount(() => {
-  document.removeEventListener('keydown', handleEscape);
-});
-
-function handleEscape(e) {
-  if (e.key === 'Escape' && selectedKunde.value) {
-    selectedKunde.value = null;
-  }
-}
-
-function openCustomer(kunde) {
-  selectedKunde.value = kunde;
-}
 
 const allKunden = computed(() => dataCache.kunden || []);
 
@@ -1142,15 +1114,6 @@ watch(currentTab, (tab) => {
   justify-content: center;
   z-index: 9999;
   padding: 20px;
-}
-
-.modal-content-wrapper {
-  width: 100%;
-  max-width: 1200px;
-  max-height: 90vh;
-  display: flex;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-  border-radius: 12px;
 }
 
 /* Contacts Table */

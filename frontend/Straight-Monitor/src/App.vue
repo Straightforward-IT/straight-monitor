@@ -29,6 +29,8 @@
     </Transition>
   </main>
 
+  <!-- Package-owned, visually headless host: modal instances survive route changes. -->
+  <DockedModalHost />
   <MinimizedDock />
 </template>
 

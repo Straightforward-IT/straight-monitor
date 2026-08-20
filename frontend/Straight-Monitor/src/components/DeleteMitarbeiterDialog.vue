@@ -1,60 +1,54 @@
 <template>
-  <div class="modal-backdrop" @click.self="$emit('close')">
-    <div class="modal-content">
-      <header class="modal-header">
-        <h3>Mitarbeiter löschen</h3>
-        <button class="close-btn" @click="$emit('close')">
-          <font-awesome-icon icon="fa-solid fa-times" />
-        </button>
-      </header>
+  <ModalFrame size="sm" layer="elevated" @close="$emit('close')">
+    <template #header>
+      <h3 class="danger-title">Mitarbeiter löschen</h3>
+    </template>
 
-      <div class="modal-body">
-        <p class="warning-text">
-          Möchten Sie den Mitarbeiter <strong>{{ name }}</strong> wirklich
-          löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-        </p>
+    <p class="warning-text">
+      Möchten Sie den Mitarbeiter <strong>{{ name }}</strong> wirklich
+      löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+    </p>
 
-        <div class="options-group">
-          <label class="checkbox-container">
-            <input type="checkbox" v-model="deleteFlip" />
-            <span class="checkmark"></span>
-            <div class="label-content">
-              <span>Flip Profil löschen</span>
-              <small class="description"
-                >Entfernt den Benutzer auch aus der Flip-App.</small
-              >
-            </div>
-          </label>
-
-          <label class="checkbox-container">
-            <input type="checkbox" v-model="completeAsana" />
-            <span class="checkmark"></span>
-            <div class="label-content">
-              <span>Asana Task erledigen</span>
-              <small class="description"
-                >Markiert den verknüpften Asana-Task als abgeschlossen.</small
-              >
-            </div>
-          </label>
+    <div class="options-group">
+      <label class="checkbox-container">
+        <input type="checkbox" v-model="deleteFlip" />
+        <span class="checkmark"></span>
+        <div class="label-content">
+          <span>Flip Profil löschen</span>
+          <small class="description"
+            >Entfernt den Benutzer auch aus der Flip-App.</small
+          >
         </div>
-      </div>
+      </label>
 
-      <footer class="modal-footer">
-        <button class="btn btn-ghost" @click="$emit('close')">Abbrechen</button>
-        <button class="btn btn-danger" @click="confirm" :disabled="loading">
-          <font-awesome-icon
-            :icon="loading ? 'fa-solid fa-spinner' : 'fa-solid fa-trash'"
-            :class="{ 'fa-spin': loading }"
-          />
-          Löschen
-        </button>
-      </footer>
+      <label class="checkbox-container">
+        <input type="checkbox" v-model="completeAsana" />
+        <span class="checkmark"></span>
+        <div class="label-content">
+          <span>Asana Task erledigen</span>
+          <small class="description"
+            >Markiert den verknüpften Asana-Task als abgeschlossen.</small
+          >
+        </div>
+      </label>
     </div>
-  </div>
+
+    <template #footer>
+      <button class="btn btn-ghost" @click="$emit('close')">Abbrechen</button>
+      <button class="btn btn-danger" @click="confirm" :disabled="loading">
+        <font-awesome-icon
+          :icon="loading ? 'fa-solid fa-spinner' : 'fa-solid fa-trash'"
+          :class="{ 'fa-spin': loading }"
+        />
+        Löschen
+      </button>
+    </template>
+  </ModalFrame>
 </template>
 
 <script setup>
 import { ref } from "vue";
+import ModalFrame from "@/components/frames/ModalFrame.vue";
 
 const props = defineProps({
   name: {
@@ -81,52 +75,16 @@ function confirm() {
 </script>
 
 <style scoped lang="scss">
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-}
-
-.modal-content {
-  background: var(--bg-card);
-  border-radius: 12px;
-  width: 90%;
-  max-width: 500px;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--border-color);
-}
-
-.modal-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  h3 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #dc3545;
-  }
-}
-
-.modal-body {
-  padding: 1.5rem;
+.danger-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #dc3545;
 }
 
 .warning-text {
   margin-bottom: 1.5rem;
-  color: var(--text-color);
+  color: var(--text);
   line-height: 1.5;
 }
 
@@ -143,7 +101,7 @@ function confirm() {
   cursor: pointer;
   user-select: none;
   padding: 0.75rem;
-  background: var(--bg-hover);
+  background: var(--hover);
   border-radius: 8px;
 
   input {
@@ -163,18 +121,10 @@ function confirm() {
   }
 
   .description {
-    color: var(--text-muted);
+    color: var(--muted);
     font-size: 0.85rem;
     margin-top: 0.25rem;
   }
-}
-
-.modal-footer {
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
 }
 
 .btn {
@@ -190,10 +140,10 @@ function confirm() {
 
   &.btn-ghost {
     background: transparent;
-    color: var(--text-muted);
+    color: var(--muted);
     &:hover {
-      color: var(--text-color);
-      background: var(--bg-hover);
+      color: var(--text);
+      background: var(--hover);
     }
   }
 
@@ -208,19 +158,6 @@ function confirm() {
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-  }
-}
-
-.close-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1.25rem;
-  cursor: pointer;
-  padding: 0.25rem;
-
-  &:hover {
-    color: var(--text-color);
   }
 }
 </style>

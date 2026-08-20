@@ -117,13 +117,6 @@
       @close="selectedMitarbeiterId = null"
     />
 
-    <Teleport to="body">
-      <div v-if="selectedKunde" class="entity-modal-overlay" @click.self="selectedKunde = null">
-        <div class="entity-modal-content">
-          <CustomerCard :kunde="selectedKunde" @close="selectedKunde = null" />
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -135,7 +128,7 @@ import {
   faFolder, faFolderOpen, faMagnifyingGlass, faRotate, faSpinner, faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
-import CustomerCard from '@/components/CustomerCard.vue';
+import { useCustomerModals } from '@/composables/useCustomerModals';
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 
 library.add(
@@ -150,8 +143,8 @@ const selectedPath = ref('');
 const searchQuery = ref('');
 const expandedPaths = ref(new Set(['']));
 const entityOpening = ref(false);
-const selectedKunde = ref(null);
 const selectedMitarbeiterId = ref(null);
+const { openCustomer } = useCustomerModals();
 
 function getRelativePath(file) {
   return file.displayPath || file.key.replace(/^(?:Signatures|signaturen)\//, '');
@@ -293,7 +286,7 @@ async function openCurrentEntity() {
   entityOpening.value = true;
   try {
     const { data } = await api.get(`/api/kunden/${entity.entityId}`);
-    selectedKunde.value = data;
+    openCustomer(data);
   } catch (requestError) {
     error.value = requestError?.response?.data?.message
       || requestError?.response?.data?.msg
@@ -572,28 +565,5 @@ onMounted(loadFiles);
   .folder-panel { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--border); }
   .file-row { grid-template-columns: 30px minmax(100px, 1fr) 70px 74px; }
   .file-meta--date { display: none; }
-}
-</style>
-
-<style lang="scss">
-.entity-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  padding: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-}
-
-.entity-modal-content {
-  width: min(1200px, 100%);
-  max-height: 90vh;
-  display: flex;
-  overflow: hidden;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
 }
 </style>

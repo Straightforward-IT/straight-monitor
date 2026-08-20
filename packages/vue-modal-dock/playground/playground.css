@@ -1,0 +1,142 @@
+:root {
+  color: #172033;
+  background: #f3f5fa;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  padding: 10px 14px;
+  color: #fff;
+  background: #4f6df5;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #3e5bdf;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+a {
+  color: #3854d6;
+}
+
+.playground {
+  width: min(760px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 48px 0 120px;
+}
+
+.playground nav,
+.route-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.playground nav {
+  margin: 20px 0 30px;
+}
+
+.playground nav a {
+  padding: 8px 12px;
+  text-decoration: none;
+  background: #fff;
+  border: 1px solid #dfe3ed;
+  border-radius: 8px;
+}
+
+.route-card,
+.foundation-state {
+  padding: 22px;
+  background: #fff;
+  border: 1px solid #dfe3ed;
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgb(31 42 68 / 8%);
+}
+
+.foundation-state {
+  margin-top: 18px;
+  color: #5e677c;
+}
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(23 32 51 / 35%);
+}
+
+.demo-modal {
+  width: min(520px, 100%);
+  padding: 22px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgb(23 27 41 / 22%);
+}
+
+.demo-modal__header,
+.demo-modal__controls {
+  display: flex;
+  align-items: center;
+}
+
+.demo-modal__header {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.demo-modal__controls {
+  gap: 6px;
+}
+
+.demo-modal__controls button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.demo-modal label {
+  display: grid;
+  gap: 7px;
+  font-weight: 700;
+}
+
+.demo-modal input {
+  width: 100%;
+  padding: 11px 12px;
+  color: #172033;
+  background: #fff;
+  border: 1px solid #cbd1de;
+  border-radius: 8px;
+}
+
+.demo-modal__hint {
+  margin-bottom: 0;
+  color: #687086;
+  font-size: 0.9rem;
+}

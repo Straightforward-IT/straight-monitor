@@ -42,16 +42,13 @@
 
       <div v-else class="table-container">
         
-        <!-- Document Modal -->
-        <div v-if="selectedDoc" class="modal-overlay" @click.self="selectedDoc = null">
-           <div class="modal-content">
-             <DocumentCard 
-               :doc="selectedDoc" 
-               @close="selectedDoc = null"
-               @open-employee="handleOpenEmployee"
-             />
-           </div>
-        </div>
+        <!-- Document Modal (self-contained ModalFrame) -->
+        <DocumentCard
+          v-if="selectedDoc"
+          :doc="selectedDoc"
+          @close="selectedDoc = null"
+          @open-employee="handleOpenEmployee"
+        />
 
         <!-- Employee Modal -->
         <div v-if="selectedEmployee" class="modal-overlay z-high" @click.self="selectedEmployee = null">

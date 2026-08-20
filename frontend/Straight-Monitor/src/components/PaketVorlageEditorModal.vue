@@ -1,9 +1,14 @@
 <template>
-  <Teleport to="body">
-    <div v-if="modelValue" class="backdrop" @mousedown.self="close">
-      <section class="dialog" role="dialog" aria-modal="true" :aria-label="isEditing ? 'Paketvorlage bearbeiten' : 'Paket anlegen'">
-        <header><div><p>Paketvorlage</p><h3>{{ isEditing ? 'Vorlage bearbeiten' : 'Neue Vorlage' }}</h3></div><button type="button" class="icon-button" title="Schließen" @click="close"><font-awesome-icon :icon="['fas', 'xmark']" /></button></header>
-        <div class="body">
+  <ModalFrame
+    v-if="modelValue"
+    minimizable
+    size="xl"
+    subtitle="Paketvorlage"
+    :title="isEditing ? 'Vorlage bearbeiten' : 'Neue Vorlage'"
+    style="--mf-max-width: 820px; --mf-max-height: 88dvh; --mf-body-padding: 0; --mf-body-overflow: hidden"
+    @close="close"
+  >
+    <div class="body">
           <label>Name<input v-model="name" type="text" placeholder="z. B. Service-Paket" /></label>
           <section><div class="section-heading"><h4>Standorte</h4></div><div class="location-chips"><label v-for="location in locations" :key="location._id"><input v-model="allowedLocations" type="checkbox" :value="location._id" /> {{ location.shortName }} · {{ location.nameFull }}</label></div></section>
           <section v-for="(section, sectionIndex) in sections" :key="section.id" class="section-editor">
@@ -22,21 +27,23 @@
           </section>
           <button type="button" class="secondary" @click="sections.push(newSection())"><font-awesome-icon :icon="['fas', 'plus']" /> Kategorie hinzufügen</button>
           <p v-if="error" class="error">{{ error }}</p>
-        </div>
-        <footer><button type="button" class="secondary" @click="close">Abbrechen</button><button type="button" class="primary" :disabled="saving || !canSave" @click="save"><font-awesome-icon :icon="['fas', saving ? 'spinner' : 'check']" :spin="saving" /> {{ isEditing ? 'Speichern' : 'Anlegen' }}</button></footer>
-      </section>
     </div>
-  </Teleport>
+    <template #footer>
+      <button type="button" class="secondary" @click="close">Abbrechen</button>
+      <button type="button" class="primary" :disabled="saving || !canSave" @click="save"><font-awesome-icon :icon="['fas', saving ? 'spinner' : 'check']" :spin="saving" /> {{ isEditing ? 'Speichern' : 'Anlegen' }}</button>
+    </template>
+  </ModalFrame>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faCheck, faPlus, faSpinner, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faCheck, faPlus, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import api from '@/utils/api';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 
-library.add(faCheck, faPlus, faSpinner, faXmark);
+library.add(faCheck, faPlus, faSpinner);
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   template: { type: Object, default: null },
@@ -84,9 +91,9 @@ async function save() {
     emit(isEditing.value ? 'updated' : 'created', data); close();
   } catch (requestError) { error.value = requestError.response?.data?.message || `Paketvorlage konnte nicht ${isEditing.value ? 'gespeichert' : 'angelegt'} werden.`; } finally { saving.value = false; }
 }
-watch(() => props.modelValue, async (open) => { if (!open) return; reset(); try { await loadData(); if (props.template) populateTemplate(props.template); } catch { error.value = 'Artikel oder Standorte konnten nicht geladen werden.'; } });
+watch(() => props.modelValue, async (open) => { if (!open) return; reset(); try { await loadData(); if (props.template) populateTemplate(props.template); } catch { error.value = 'Artikel oder Standorte konnten nicht geladen werden.'; } }, { immediate: true });
 </script>
 
 <style scoped lang="scss">
-.backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 18px; background: var(--overlay); }.dialog { width: min(820px, 100%); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--tile-bg); color: var(--text); box-shadow: 0 20px 50px rgba(0,0,0,.2); }header, footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--border); }header p, header h3 { margin: 0; }header p { color: var(--primary); font-size: .72rem; font-weight: 700; text-transform: uppercase; }header h3 { font-size: 1.08rem; }.body { display: grid; gap: 16px; overflow: auto; padding: 18px; }label { display: grid; gap: 5px; font-size: .76rem; font-weight: 600; }input, select { min-width: 0; border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: var(--surface, var(--tile-bg)); color: var(--text); font: inherit; }input:focus, select:focus { outline: none; border-color: var(--primary); }.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }.section-heading h4 { margin: 0; font-size: .88rem; }.section-heading input { flex: 1; font-weight: 700; }.location-chips { display: flex; flex-wrap: wrap; gap: 7px; }.location-chips label { display: inline-flex; grid-auto-flow: column; align-items: center; gap: 5px; padding: 7px; border: 1px solid var(--border); border-radius: 6px; font-weight: 400; }.section-editor { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 7px; }.entry-editor { display: grid; grid-template-columns: minmax(150px, 1.3fr) auto 70px 110px minmax(100px, 1fr) 110px minmax(100px, 1fr) auto; align-items: end; gap: 7px; }.entry-editor label { font-size: .66rem; }.entry-editor .inline { display: flex; align-items: center; gap: 5px; padding-bottom: 8px; white-space: nowrap; }.entry-editor .inline input { padding: 0; }.text-button { border: 0; background: transparent; color: #c3423f; cursor: pointer; font: inherit; font-size: .72rem; }.secondary, .primary, .icon-button { border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; padding: 8px 11px; font: inherit; font-weight: 600; }.primary { border-color: var(--primary); background: var(--primary); color: #fff; }.error { margin: 0; color: #c3423f; font-size: .78rem; }footer { justify-content: end; border-bottom: 0; border-top: 1px solid var(--border); }button:disabled { cursor: not-allowed; opacity: .55; }@media (max-width: 760px) { .entry-editor { grid-template-columns: 1fr 1fr; } .entry-editor > select:first-child { grid-column: 1 / -1; } }
+.body { display: grid; gap: 16px; min-height: 0; overflow: auto; padding: 18px; }label { display: grid; gap: 5px; font-size: .76rem; font-weight: 600; }input, select { min-width: 0; border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: var(--surface, var(--tile-bg)); color: var(--text); font: inherit; }input:focus, select:focus { outline: none; border-color: var(--primary); }.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }.section-heading h4 { margin: 0; font-size: .88rem; }.section-heading input { flex: 1; font-weight: 700; }.location-chips { display: flex; flex-wrap: wrap; gap: 7px; }.location-chips label { display: inline-flex; grid-auto-flow: column; align-items: center; gap: 5px; padding: 7px; border: 1px solid var(--border); border-radius: 6px; font-weight: 400; }.section-editor { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 7px; }.entry-editor { display: grid; grid-template-columns: minmax(150px, 1.3fr) auto 70px 110px minmax(100px, 1fr) 110px minmax(100px, 1fr) auto; align-items: end; gap: 7px; }.entry-editor label { font-size: .66rem; }.entry-editor .inline { display: flex; align-items: center; gap: 5px; padding-bottom: 8px; white-space: nowrap; }.entry-editor .inline input { padding: 0; }.text-button { border: 0; background: transparent; color: #c3423f; cursor: pointer; font: inherit; font-size: .72rem; }.secondary, .primary { border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; padding: 8px 11px; font: inherit; font-weight: 600; }.primary { border-color: var(--primary); background: var(--primary); color: #fff; }.error { margin: 0; color: #c3423f; font-size: .78rem; }button:disabled { cursor: not-allowed; opacity: .55; }@media (max-width: 760px) { .entry-editor { grid-template-columns: 1fr 1fr; } .entry-editor > select:first-child { grid-column: 1 / -1; } }
 </style>
