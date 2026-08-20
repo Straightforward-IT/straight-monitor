@@ -3,7 +3,7 @@ const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const Auftrag = require('./models/Auftrag');
 const Einsatz = require('./models/Einsatz');
 const Schicht = require('./models/Schicht');
-const Mitarbeiter = require('./models/Mitarbeiter');
+const Mitarbeiter = require('./models/Employee/Mitarbeiter');
 const Beruf = require('./models/Beruf');
 const CheckIn = require('./models/CheckIn');
 

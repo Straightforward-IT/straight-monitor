@@ -1,7 +1,7 @@
 'use strict';
 
 const mongoose = require('mongoose');
-const Mitarbeiter = require('./models/Mitarbeiter');
+const Mitarbeiter = require('./models/Employee/Mitarbeiter');
 const PayrollEmployment = require('./models/PayrollEmployment');
 const PayrollProviderProfile = require('./models/PayrollProviderProfile');
 const PayrollAuditLog = require('./models/PayrollAuditLog');

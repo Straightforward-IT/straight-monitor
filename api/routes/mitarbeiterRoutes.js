@@ -9,7 +9,7 @@ const auth = require("../middleware/auth");
 const xlsx = require("xlsx");
 const multer = require("multer");
 const path = require("path");
-const Mitarbeiter = require("../models/Mitarbeiter");
+const Mitarbeiter = require("../models/Employee/Mitarbeiter");
 const {
   resolveActiveLocation,
   resolveLocationFromPersonalnr,

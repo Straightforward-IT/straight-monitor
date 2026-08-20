@@ -4,7 +4,7 @@ const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
 const Comment = require('../models/Comment');
 const User = require('../models/User');
-const Mitarbeiter = require('../models/Mitarbeiter');
+const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const mongoose = require('mongoose');
 
 /**

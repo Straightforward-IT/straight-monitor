@@ -12,7 +12,7 @@ const {
 } = require("../FlipService");
 const Einsatz = require("../models/Einsatz");
 const Auftrag = require("../models/Auftrag");
-const Mitarbeiter = require("../models/Mitarbeiter");
+const Mitarbeiter = require("../models/Employee/Mitarbeiter");
 const logger = require("../utils/logger");
 
 /**

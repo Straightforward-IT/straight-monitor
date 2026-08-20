@@ -11,7 +11,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const mongoose = require('mongoose');
 const Comment = require('../models/Comment');
 const DispoKommentar = require('../models/DispoKommentar');
-const Mitarbeiter = require('../models/Mitarbeiter');
+const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 
 async function main() {
   await mongoose.connect(process.env.MONGO_URI);

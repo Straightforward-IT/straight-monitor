@@ -63,7 +63,7 @@ export const architectureGraph: ArchitectureGraph = {
       description:
         'Sie sind auf den Events im Einsatz, bestätigen Arbeit, geben Feedback und liefern die Sicht aus der Praxis zurück.',
       tags: ['Einsatz', 'Rückmeldung', 'Teamleitung'],
-      sources: [{ path: 'api/models/Mitarbeiter.js' }],
+      sources: [{ path: 'api/models/Employee/Mitarbeiter.js' }],
     },
     {
       id: 'straight-monitor',

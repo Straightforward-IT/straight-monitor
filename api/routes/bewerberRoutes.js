@@ -4,12 +4,12 @@ const multer = require("multer");
 const crypto = require("crypto");
 const asyncHandler = require("../middleware/AsyncHandler");
 const auth = require("../middleware/auth");
-const Bewerber = require("../models/Bewerber");
+const Bewerber = require("../models/Employee/Bewerber");
 const {
   resolveActiveLocation,
   resolveLocationFromTeamKey,
 } = require("../services/LocationResolutionService");
-const Mitarbeiter = require("../models/Mitarbeiter");
+const Mitarbeiter = require("../models/Employee/Mitarbeiter");
 const BewerberEmailDocument = require("../models/BewerberEmailDocument");
 const User = require("../models/User");
 const { INVITATION_TYPES, sendInvitation } = require("../BewerberInvitationService");

@@ -2,8 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const Mitarbeiter = require('../models/Mitarbeiter');
-const Bewerber = require('../models/Bewerber');
+const Mitarbeiter = require('../models/Employee/Mitarbeiter');
+const Bewerber = require('../models/Employee/Bewerber');
 const {
   resolveLocationFromPersonalnr,
   resolveLocationFromTeamKey,

@@ -229,7 +229,7 @@ router.post(
     }
 
     // Chain: flip_id → Mitarbeiter → User
-    const Mitarbeiter = require('../models/Mitarbeiter');
+    const Mitarbeiter = require('../models/Employee/Mitarbeiter');
     const mitarbeiter = await Mitarbeiter.findOne({ flip_id: flipId }).select('_id').lean();
     if (!mitarbeiter) {
       return res.status(404).json({ msg: 'Kein Mitarbeiter für diesen Flip-Account gefunden.' });

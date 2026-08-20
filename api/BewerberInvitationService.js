@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 const BewerberEmailDocument = require("./models/BewerberEmailDocument");
-const Bewerber = require("./models/Bewerber");
+const Bewerber = require("./models/Employee/Bewerber");
 const R2Service = require("./R2Service");
 const { sendBewerberInvitationEmail } = require("./EmailService");
 

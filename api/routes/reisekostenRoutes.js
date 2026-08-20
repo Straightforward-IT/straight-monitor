@@ -5,7 +5,7 @@ const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
 
 const Reisekostenabrechnung = require('../models/Reisekostenabrechnung');
-const Mitarbeiter = require('../models/Mitarbeiter');
+const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const Location = require('../models/Location');
 const SignaturVorgang = require('../models/SignaturVorgang');
 const ReisekostenService = require('../ReisekostenService');

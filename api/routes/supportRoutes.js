@@ -4,7 +4,7 @@ const multer = require("multer");
 const auth = require("../middleware/auth");
 const asyncHandler = require("../middleware/AsyncHandler");
 const { sendMail } = require("../EmailService");
-const Mitarbeiter = require("../models/Mitarbeiter");
+const Mitarbeiter = require("../models/Employee/Mitarbeiter");
 const Qualifikation = require("../models/Qualifikation");const Auftrag = require('../models/Auftrag');const { Laufzettel } = require("../models/Classes/FlipDocs");
 const { flipAxios } = require("../flipAxios");
 const logger = require("../utils/logger");

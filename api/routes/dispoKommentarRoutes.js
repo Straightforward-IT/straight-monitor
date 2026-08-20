@@ -4,7 +4,7 @@ const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
 const DispoKommentar = require('../models/DispoKommentar');
 const User = require('../models/User');
-const Mitarbeiter = require('../models/Mitarbeiter');
+const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const mongoose = require('mongoose');
 
 // ─── GET /api/dispo-kommentare?von=YYYY-MM-DD&bis=YYYY-MM-DD ───

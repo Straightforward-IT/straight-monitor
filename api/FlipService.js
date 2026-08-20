@@ -11,7 +11,7 @@ const {
   EvaluierungMA,
   VerlosungEintrag,
 } = require("./models/Classes/FlipDocs");
-const Mitarbeiter = require("./models/Mitarbeiter");
+const Mitarbeiter = require("./models/Employee/Mitarbeiter");
 const Einsatz = require("./models/Einsatz");
 const Auftrag = require("./models/Auftrag");
 const Qualifikation = require("./models/Qualifikation");
@@ -1414,7 +1414,7 @@ const TRACKED_ATTRS = ['isService', 'isLogistik', 'isOffice', 'isTeamLead', 'isF
  *   Pass `Object.fromEntries(allFlipUsers.map(u => [u.id, u]))` from flipUserRoutine.
  */
 async function syncFlipAttributes(flipUsersById = {}) {
-  const Mitarbeiter = require('./models/Mitarbeiter');
+  const Mitarbeiter = require('./models/Employee/Mitarbeiter');
 
   // 1. Alle Mitarbeiter mit flip_id holen (populated berufe/qualifikationen)
   const mitarbeiter = await Mitarbeiter.find({

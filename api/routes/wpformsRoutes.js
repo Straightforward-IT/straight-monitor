@@ -20,7 +20,7 @@ const {
 
 const { sendMail } = require("../EmailService"); // Ensure sendMail is properly imported
 
-const Mitarbeiter = require("../models/Mitarbeiter");
+const Mitarbeiter = require("../models/Employee/Mitarbeiter");
 const Auftrag = require("../models/Auftrag");
 const { resolveLocationFromStandortName } = require("../services/LocationResolutionService");
 

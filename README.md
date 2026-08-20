@@ -17,7 +17,7 @@ API läuft auf `http://localhost:5050`, Frontend auf `http://localhost:5173`.
 **Geplante Funktion:** Im Dispo-Bereich der `EmployeeCard` soll für den laufenden Monat angezeigt werden,
 wieviele Stunden ein Mitarbeiter arbeiten darf und wieviele davon bereits eingeplant sind.
 
-**Benötigte Modell-Änderung in `api/models/Mitarbeiter.js`:**
+**Benötigte Modell-Änderung in `api/models/Employee/Mitarbeiter.js`:**
 ```js
 stundenkontoMonatlich: [{
   monat: { type: String, required: true }, // Format: "YYYY-MM"

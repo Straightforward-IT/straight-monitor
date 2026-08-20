@@ -4,7 +4,7 @@ const path = require('path');
 const Location = require('../models/Location');
 const Auftrag = require('../models/Auftrag');
 const Kunde = require('../models/Kunde');
-const Mitarbeiter = require('../models/Mitarbeiter');
+const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const Rechnung = require('../models/Rechnung');
 const ZvooveVerfuegbarkeit = require('../models/ZvooveVerfuegbarkeit');
 

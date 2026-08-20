@@ -16,7 +16,7 @@ const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 
 const Auftrag = require('./models/Auftrag');
 const Einsatz = require('./models/Einsatz');
-const Mitarbeiter = require('./models/Mitarbeiter');
+const Mitarbeiter = require('./models/Employee/Mitarbeiter');
 const Location = require('./models/Location');
 const logger = require('./utils/logger');
 const {

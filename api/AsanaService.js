@@ -5,8 +5,8 @@ require("dotenv").config();
 
 const { sendMail } = require("./EmailService");
 const registry = require("./config/registry");
-const Mitarbeiter = require("./models/Mitarbeiter");
-const Bewerber = require("./models/Bewerber");
+const Mitarbeiter = require("./models/Employee/Mitarbeiter");
+const Bewerber = require("./models/Employee/Bewerber");
 
 /* ------------------------------- Asana inits ------------------------------- */
 function initTasksApi() {

@@ -3,7 +3,7 @@ const asyncHandler = require('../middleware/AsyncHandler');
 const publicAuth = require('../middleware/publicAuth');
 const Auftrag = require('../models/Auftrag');
 const Schicht = require('../models/Schicht');
-const Mitarbeiter = require('../models/Mitarbeiter');
+const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 
 const router = express.Router();
 

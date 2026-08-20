@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-require('../models/Mitarbeiter');
+require('../models/Employee/Mitarbeiter');
 const { EventReport, Laufzettel } = require('../models/Classes/FlipDocs');
 const { resolveLocationFromStandortName } = require('../services/LocationResolutionService');
 
