@@ -1550,7 +1550,7 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import ToolbarIconButton from '@/components/ui-elements/ToolbarIconButton.vue';
-import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
+import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
 import LeadBoard from './leads/LeadBoard.vue';
 import LeadCard from './leads/LeadCard.vue';
 import LeadChronikDrawer from './leads/LeadChronikDrawer.vue';

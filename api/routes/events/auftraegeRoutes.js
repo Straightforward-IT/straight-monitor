@@ -16,6 +16,7 @@ const StundenlisteService = require('../../services/operations/StundenlisteServi
 const TelefonlisteService = require('../../services/operations/TelefonlisteService');
 const R2Service = require('../../services/integrations/R2Service');
 const SignaturVorgang = require('../../models/Signature/SignaturVorgang');
+const { buildStundenlistePdfFilename, contentDisposition } = require('../../utils/stundenlisteFilename');
 
 const uploadMem = multer({
   storage: multer.memoryStorage(),
@@ -520,7 +521,8 @@ router.get('/:auftragNr/stundenliste', asyncHandler(async (req, res) => {
   const { auftragNr } = req.params;
   const excludePseudo = req.query.excludePseudo === 'true';
 
-  const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, { excludePseudo });
+  const { buffer, auftrag } = await StundenlisteService.buildStundenliste(auftragNr, { excludePseudo });
+  const pdfFilename = buildStundenlistePdfFilename(auftrag);
 
   // Im Hintergrund nach R2 sichern (ein Dokument pro Auftrag, wird überschrieben)
   const r2Key = `stundenlisten/${auftragNr}.pdf`;
@@ -529,7 +531,7 @@ router.get('/:auftragNr/stundenliste', asyncHandler(async (req, res) => {
 
   res.set({
     'Content-Type': 'application/pdf',
-    'Content-Disposition': `attachment; filename="Stundenliste-${auftragNr}.pdf"`,
+    'Content-Disposition': contentDisposition(pdfFilename),
     'Content-Length': buffer.length,
   });
   res.send(buffer);
@@ -922,4 +924,3 @@ router.delete('/:auftragNr/einsatzdokumente', auth, asyncHandler(async (req, res
 }));
 
 module.exports = router;
-

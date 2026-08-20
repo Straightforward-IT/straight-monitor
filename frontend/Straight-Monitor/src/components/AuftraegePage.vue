@@ -563,7 +563,7 @@
             <template v-else>
               <div
                 v-if="hasStundenliste"
-                class="einsatz-dok-row"
+                class="einsatz-dok-row einsatz-dok-row--stundenliste"
                 :class="[
                   sidebarStundenliste
                     ? `einsatz-dok--${sidebarStundenliste.status}`
@@ -572,18 +572,19 @@
                 ]"
                 @click="sidebarStundenliste?.status === 'open' ? $router.push('/signaturen') : null"
               >
-                <font-awesome-icon
-                  icon="fa-solid fa-file-contract"
-                  class="einsatz-dok-icon"
-                  :class="{ 'einsatz-dok-icon--muted': !sidebarStundenliste && !generatedStundenlisteUrl }"
-                />
-                <div class="einsatz-dok-info">
+                <div class="einsatz-dok-heading">
                   <div class="einsatz-dok-name">Stundenliste</div>
+                  <span v-if="!sidebarStundenliste && generatedStundenlisteUrl" class="einsatz-dok-heading-status">
+                    Nicht unterschrieben
+                  </span>
+                </div>
+                <div class="einsatz-dok-info">
                   <div v-if="sidebarStundenliste" class="einsatz-dok-meta">
-                    {{ sidebarStundenliste.submitters.filter(s => s.status === 'completed').length }}/{{ sidebarStundenliste.submitters.length }} unterschrieben
+                    <span class="einsatz-dok-filename">{{ sidebarStundenliste.fileName || `${sidebarStundenliste.name}.pdf` }}</span>
+                    <span>{{ sidebarStundenliste.submitters.filter(s => s.status === 'completed').length }}/{{ sidebarStundenliste.submitters.length }} unterschrieben</span>
                   </div>
                   <div v-else-if="generatedStundenlisteUrl" class="einsatz-dok-meta">
-                    Stundenliste-{{ selectedEvent?.auftragNr }}.pdf &middot; Nicht unterschrieben
+                    <span class="einsatz-dok-filename">{{ stundenlistePdfFilename() }}</span>
                   </div>
                   <div v-else class="einsatz-dok-meta">Noch nicht erstellt</div>
                 </div>
@@ -606,7 +607,7 @@
                       class="einsatz-dok-action"
                       type="button"
                       title="Unterzeichnete Stundenliste herunterladen"
-                      @click="downloadFile(stundenlisteStatus.signedPdfUrl, `Stundenliste-${selectedEvent?.auftragNr}-unterschrieben.pdf`)"
+                      @click="downloadFile(stundenlisteStatus.signedPdfUrl, stundenlistePdfFilename(true))"
                     >
                       <font-awesome-icon icon="fa-solid fa-download" />
                     </button>
@@ -649,7 +650,7 @@
                       class="einsatz-dok-action"
                       type="button"
                       title="Stundenliste herunterladen"
-                      @click="downloadFile(generatedStundenlisteUrl, `Stundenliste-${selectedEvent?.auftragNr}.pdf`)"
+                      @click="downloadFile(generatedStundenlisteUrl, stundenlistePdfFilename())"
                     >
                       <font-awesome-icon icon="fa-solid fa-download" />
                     </button>
@@ -1247,6 +1248,7 @@ import { useFlipAll } from '../stores/flipAll';
 import { useUi } from '../stores/ui';
 import { useTheme } from '../stores/theme';
 import { useSignaturModal } from '../stores/signaturModal';
+import { useMinimizeDock } from '@bleck-it/vue-modal-dock';
 import FilterPanel from '@/components/FilterPanel.vue';
 import ThinScrollContainer from '@/components/ThinScrollContainer.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
@@ -1254,7 +1256,7 @@ import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
-import DocumentCard from '@/components/DocumentCard.vue';
+import DocumentCard from '@/components/Modals/DocumentCard.vue';
 import { useCustomerModals } from '@/composables/useCustomerModals';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
@@ -1276,7 +1278,21 @@ export default {
   components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu, ReisekostenModal },
   setup() {
     const { openCustomer } = useCustomerModals();
-    return { openCustomer };
+    const minimizeDock = useMinimizeDock();
+
+    const restoreMinimizedStundenliste = (auftragNr) => {
+      const modal = useSignaturModal();
+      const dockItem = minimizeDock.get('signature-new');
+      const isSameStundenliste = modal.open
+        && modal.context.typKey === 'stundenliste'
+        && String(modal.context.auftragNr) === String(auftragNr);
+
+      return isSameStundenliste && dockItem?.status === 'minimized'
+        ? minimizeDock.restore('signature-new')
+        : false;
+    };
+
+    return { openCustomer, restoreMinimizedStundenliste };
   },
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -1879,6 +1895,22 @@ export default {
       const weekday = d.toLocaleDateString('de-DE', { weekday: 'short' }).replace(/\.$/, '');
       const date = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
       return `${weekday}. ${date}`;
+    },
+    stundenlistePdfFilename(signed = false) {
+      const event = this.selectedEvent || {};
+      const safeTitle = String(event.eventTitel || `Auftrag ${event.auftragNr || ''}`)
+        .trim()
+        .replace(/[<>:"/\\|?*\u0000-\u001F]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/-{2,}/g, '-')
+        .replace(/^[.\s-]+|[.\s-]+$/g, '');
+      const date = event.vonDatum ? new Date(event.vonDatum) : null;
+      const dateText = date && !Number.isNaN(date.getTime())
+        ? `${String(date.getUTCDate()).padStart(2, '0')}.${String(date.getUTCMonth() + 1).padStart(2, '0')}.${date.getUTCFullYear()}`
+        : '';
+      const parts = ['Stundenliste', safeTitle || 'Auftrag', dateText].filter(Boolean);
+      if (signed) parts.push('unterschrieben');
+      return `${parts.join(' - ')}.pdf`;
     },
     async prevDay() {
       if (this.mobileDayIndex > 0) {
@@ -2584,7 +2616,7 @@ export default {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Stundenliste-${auftragNr}.pdf`;
+        a.download = this.stundenlistePdfFilename();
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -2792,6 +2824,11 @@ export default {
       this.showQuickActions = false;
       if (!this.selectedEvent) return;
       const auftragNr = this.selectedEvent.auftragNr;
+      const eventTitle = String(this.selectedEvent.eventTitel || '').trim();
+
+      // Restore only the minimized Stundenliste modal belonging to this Auftrag.
+      // Other signature flows and all other modal types retain their normal behavior.
+      if (this.restoreMinimizedStundenliste(auftragNr)) return;
 
       // Pre-fill signers (Verleiher by location + Entleiher from Kunde) before
       // opening the universal signature modal.
@@ -2813,7 +2850,7 @@ export default {
         {
           auftragNr,
           typKey: 'stundenliste',
-          name: `Stundenliste ${auftragNr}`,
+          name: `Stundenliste ${eventTitle || auftragNr}`,
           locationId: typeof this.selectedEvent.locationV2 === 'object'
             ? this.selectedEvent.locationV2?._id
             : this.selectedEvent.locationV2,
@@ -5294,6 +5331,7 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  box-sizing: border-box;
   width: 100%;
   margin-top: 7px;
   padding: 9px 12px;
@@ -5340,6 +5378,57 @@ export default {
   &.einsatz-dok--generated  { border-left-color: var(--muted); }
   &.einsatz-dok--upload    { border-left-color: #6366f1; }
   &.einsatz-dok--uploading { border-left-color: var(--muted); opacity: 0.7; }
+}
+
+.einsatz-dok-row--stundenliste {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+  padding: 10px 12px;
+
+  .einsatz-dok-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .einsatz-dok-heading-status {
+    margin-left: 4px;
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .einsatz-dok-info {
+    width: 100%;
+  }
+
+  .einsatz-dok-meta {
+    display: grid;
+    gap: 2px;
+    margin-top: 0;
+    line-height: 1.35;
+  }
+
+  .einsatz-dok-filename {
+    color: var(--text);
+    overflow-wrap: anywhere;
+  }
+
+  .einsatz-dok-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+
+  .einsatz-dok-badge {
+    order: -1;
+    margin-right: auto;
+  }
 }
 
 .einsatz-dok-icon {

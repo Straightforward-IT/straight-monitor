@@ -28,6 +28,7 @@ const SubmitterSchema = new mongoose.Schema({
  */
 const SignaturVorgangSchema = new mongoose.Schema({
   name:    { type: String, required: true },
+  fileName: { type: String, default: '' },
 
   // Document type — references SignaturTyp collection
   typ:     { type: mongoose.Schema.Types.ObjectId, ref: 'SignaturTyp', required: true },

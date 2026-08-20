@@ -429,11 +429,11 @@ import { useAuth } from '@/stores/auth';
 import { useTheme } from '@/stores/theme';
 import { useDataCache } from '@/stores/dataCache';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import KundenAnalyticsEmbed from './KundenAnalyticsEmbed.vue';
-import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
-import ContactCard from './ContactCard.vue';
-import EmployeeCardModal from './EmployeeCardModal.vue';
-import ModalFrame from './frames/ModalFrame.vue';
+import KundenAnalyticsEmbed from '@/components/KundenAnalyticsEmbed.vue';
+import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
+import ContactCard from '@/components/ContactCard.vue';
+import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 import api from '@/utils/api';
 
 const props = defineProps({

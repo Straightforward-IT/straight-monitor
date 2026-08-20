@@ -228,7 +228,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import CustomTooltip from './CustomTooltip.vue';
-import DocumentCard from './DocumentCard.vue';
+import DocumentCard from '@/components/Modals/DocumentCard.vue';
 import EmployeeCard from './EmployeeCard.vue';
 import { useTheme } from '@/stores/theme';
 import eventReportLightIcon from '@/assets/eventreport.png';

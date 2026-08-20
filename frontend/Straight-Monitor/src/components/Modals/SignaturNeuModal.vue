@@ -1,18 +1,22 @@
 <template>
-  <Teleport to="body">
-    <Transition name="sig-modal">
-      <div v-if="modal.open" class="sig-backdrop" @mousedown.self="onBackdrop">
-        <div class="sig-dialog" role="dialog" aria-modal="true">
-          <!-- Header -->
-          <header class="sig-header">
-            <div class="sig-header-title">
-              <font-awesome-icon :icon="['fas', modal.context.draftId ? 'pen-nib' : 'file-signature']" />
-              <h2>{{ modal.context.draftId ? 'Entwurf bearbeiten' : 'Neue Signatur' }}</h2>
-            </div>
-            <button class="sig-close" type="button" title="Schließen" @click="close">
-              <font-awesome-icon :icon="['fas', 'xmark']" />
-            </button>
-          </header>
+  <ModalFrame
+    v-if="modal.open"
+    minimizable
+    minimize-id="signature-new"
+    :minimize-title="signatureDockTitle"
+    size="xl"
+    :close-on-backdrop="!submitting"
+    style="--mf-max-width: 860px; --mf-max-height: 92dvh; --mf-body-padding: 0; --mf-body-overflow: hidden; --mf-footer-padding: 0; --mf-footer-border: none"
+    @close="close"
+  >
+    <template #header>
+      <div class="sig-header-title">
+        <font-awesome-icon :icon="['fas', modal.context.draftId ? 'pen-nib' : 'file-signature']" />
+        <h2>{{ modalTitle }}</h2>
+      </div>
+    </template>
+
+    <div class="sig-content">
 
           <!-- Step breadcrumb -->
           <nav class="sig-steps">
@@ -385,9 +389,10 @@
               <button class="sig-btn sig-btn--ghost" type="button" @click="showCloseConfirm = false">Weiter bearbeiten</button>
             </div>
           </div>
+    </div>
 
-          <!-- Footer -->
-          <footer class="sig-footer">
+    <template #footer>
+      <div class="sig-footer">
             <p v-if="error" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ error }}</p>
             <p v-else-if="currentStep === 2 && submitBlockReason" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ submitBlockReason }}</p>            <div class="sig-footer-actions">
               <button v-if="currentStep > 0" class="sig-btn sig-btn--ghost" type="button" @click="currentStep--">
@@ -426,13 +431,11 @@
                 {{ submitting ? 'Erstelle…' : 'Signatur erstellen' }}
               </button>
             </div>
-          </footer>
-        </div>
       </div>
-    </Transition>
+    </template>
+  </ModalFrame>
 
-    <SignaturTypAnlegenModal v-model="showTypModal" @created="onTypCreated" />
-  </Teleport>
+  <SignaturTypAnlegenModal v-model="showTypModal" @created="onTypCreated" />
 </template>
 
 <script setup>
@@ -440,7 +443,7 @@ import { ref, computed, watch, onBeforeUnmount, h } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
-  faFileSignature, faXmark, faCheck, faPlus, faArrowLeft, faArrowRight, faPaperPlane,
+  faFileSignature, faCheck, faPlus, faArrowLeft, faArrowRight, faPaperPlane,
   faMagnifyingGlass, faSpinner, faTriangleExclamation, faUserPlus,
   faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
   faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
@@ -455,9 +458,10 @@ import { useDataCache } from '@/stores/dataCache';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import ContactSearchPicker from '@/components/ContactSearchPicker.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 
 library.add(
-  faFileSignature, faXmark, faCheck, faPlus, faArrowLeft, faArrowRight, faPaperPlane,
+  faFileSignature, faCheck, faPlus, faArrowLeft, faArrowRight, faPaperPlane,
   faMagnifyingGlass, faSpinner, faTriangleExclamation, faUserPlus,
   faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
   faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
@@ -469,6 +473,7 @@ const modal = useSignaturModal();
 const builder = useSignaturBuilder();
 const auth = useAuth();
 const dataCache = useDataCache();
+const modalTitle = computed(() => modal.context.draftId ? 'Entwurf bearbeiten' : 'Neue Signatur');
 
 const showTypModal = ref(false);
 
@@ -581,6 +586,7 @@ const locations = ref([]);
 const linkMode = ref('keine');
 
 const form = ref(emptyForm());
+const signatureDockTitle = computed(() => form.value.name.trim() || modalTitle.value);
 
 function emptyForm() {
   const userLocation = auth.user?.locationV2;
@@ -1186,6 +1192,7 @@ async function submit() {
     } else if (ctx.customEndpoint) {
       // Server-side document generation flow (e.g. Stundenliste)
       const payload = {
+        name: form.value.name.trim(),
         locationId: form.value.locationId,
         submitters: form.value.submitters.filter(s => (s.name || '').trim()),
         folgeaktionen: folgeaktionen.value,
@@ -1269,10 +1276,6 @@ function closeWithoutPrompt() {
   modal.closeModal();
 }
 
-function onBackdrop() {
-  if (!submitting.value) close();
-}
-
 // Close typeahead dropdowns on outside click
 function onDocClick(e) {
   if (kundeBox.value && !kundeBox.value.contains(e.target)) kundeOpen.value = false;
@@ -1298,56 +1301,19 @@ const ContactSearchPlaceholder = {
 </script>
 
 <style scoped lang="scss">
-.sig-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(2px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.sig-dialog {
-  width: 100%;
-  max-width: 860px;
-  max-height: 92vh;
-  background: var(--surface);
-  border-radius: 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+.sig-content {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  height: 100%;
+  min-height: 0;
 }
 
-.sig-header {
+.sig-header-title {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 18px 22px;
-  border-bottom: 1px solid var(--border);
-
-  .sig-header-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--primary);
-    h2 { font-size: 1.15rem; font-weight: 700; color: var(--text); margin: 0; }
-  }
-}
-
-.sig-close {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 1.1rem;
-  cursor: pointer;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  &:hover { background: var(--hover); color: var(--text); }
+  gap: 10px;
+  color: var(--primary);
+  h2 { font-size: 1.15rem; font-weight: 700; color: var(--text); margin: 0; }
 }
 
 /* Steps */
@@ -1674,12 +1640,6 @@ const ContactSearchPlaceholder = {
     &:hover { background: var(--hover); }
   }
 }
-
-/* Transition */
-.sig-modal-enter-active, .sig-modal-leave-active { transition: opacity 0.2s; }
-.sig-modal-enter-from, .sig-modal-leave-to { opacity: 0; }
-.sig-modal-enter-active .sig-dialog { transition: transform 0.2s; }
-.sig-modal-enter-from .sig-dialog { transform: translateY(12px) scale(0.98); }
 
 /* Close confirm overlay */
 .sig-close-confirm {

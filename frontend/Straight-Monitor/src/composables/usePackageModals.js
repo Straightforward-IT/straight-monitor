@@ -1,6 +1,6 @@
 import { useDockedModals } from '@bleck-it/vue-modal-dock';
-import PaketVorlageModal from '@/components/PaketVorlageModal.vue';
-import PaketVorlageEditorModal from '@/components/PaketVorlageEditorModal.vue';
+import PaketVorlageModal from '@/components/Modals/PaketVorlageModal.vue';
+import PaketVorlageEditorModal from '@/components/Modals/PaketVorlageEditorModal.vue';
 
 function templateIdentity(template) {
   return template?._id ?? template?.id;

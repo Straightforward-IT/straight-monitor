@@ -1,5 +1,5 @@
 import { useDockedModals } from '@bleck-it/vue-modal-dock';
-import CustomerCard from '@/components/CustomerCard.vue';
+import CustomerCard from '@/components/Modals/CustomerCard.vue';
 
 function customerIdentity(customer) {
   return customer?._id ?? customer?.id ?? customer?.kundenNr;

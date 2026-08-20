@@ -1706,7 +1706,7 @@ import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
 
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
-import HelpModal from '@/components/HelpModal.vue';
+import HelpModal from '@/components/Modals/HelpModal.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import CommentBubbleBadge from '@/components/CommentBubbleBadge.vue';
 import KommentarFeed from '@/components/KommentarFeed.vue';

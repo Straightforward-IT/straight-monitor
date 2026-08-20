@@ -93,7 +93,7 @@ class DocuSealService {
    * @param {object} [opts.message]   - Optional { subject, body }.
    * @returns {Promise<Array<object>>} Array of submitter objects (slug, embed_src, submission_id).
    */
-  async createSubmissionFromPdf({ name, fileBuffer, submitters, order = 'preserved', message }) {
+  async createSubmissionFromPdf({ name, documentName, fileBuffer, submitters, order = 'preserved', message }) {
     this._ensureConfigured();
     if (!Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) {
       throw new Error('createSubmissionFromPdf: fileBuffer (PDF) is required.');
@@ -103,9 +103,10 @@ class DocuSealService {
     }
 
     const docName = name || 'Document';
+    const pdfName = documentName || `${docName}.pdf`;
     const payload = {
       name: docName,
-      documents: [{ name: `${docName}.pdf`, file: fileBuffer.toString('base64') }],
+      documents: [{ name: pdfName, file: fileBuffer.toString('base64') }],
       submitters,
       order,
     };

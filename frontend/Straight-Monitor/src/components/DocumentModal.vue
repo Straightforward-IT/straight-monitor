@@ -92,7 +92,7 @@ import { computed } from 'vue';
 import { useCurrentDockedModal } from '@bleck-it/vue-modal-dock';
 import { useDataCache } from '@/stores/dataCache';
 import { useCustomerModals } from '@/composables/useCustomerModals';
-import DocumentCard from '@/components/DocumentCard.vue';
+import DocumentCard from '@/components/Modals/DocumentCard.vue';
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
 import api from '@/utils/api';
 import logger from '@/utils/logger';

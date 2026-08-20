@@ -56,12 +56,12 @@ class StundenlisteService {
    * @param {object} [options]
    * @param {boolean} [options.signatureTags=false] - Bettet unsichtbare DocuSeal-Texttags
    *   ({{...;type=signature}}) an den Unterschriftslinien ein (für digitale Signatur).
-   * @returns {Promise<{ buffer: Buffer, auftragNr: number }>}
+   * @returns {Promise<{ buffer: Buffer, auftragNr: number, auftrag: object }>}
    */
   async buildStundenliste(auftragNr, options = {}) {
     const data = await this._loadData(auftragNr, { excludePseudo: !!options.excludePseudo });
     const buffer = await this._renderPdf(data, { signatureTags: !!options.signatureTags });
-    return { buffer, auftragNr: data.auftrag.auftragNr };
+    return { buffer, auftragNr: data.auftrag.auftragNr, auftrag: data.auftrag };
   }
 
   /**

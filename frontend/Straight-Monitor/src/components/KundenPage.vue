@@ -333,7 +333,7 @@ import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
-import KontaktAnlegenModal from './KontaktAnlegenModal.vue';
+import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
 import api from '@/utils/api';
 
 const dataCache = useDataCache();

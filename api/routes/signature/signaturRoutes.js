@@ -19,6 +19,7 @@ const StundenlisteService = require('../../services/operations/StundenlisteServi
 const ReisekostenService = require('../../services/operations/ReisekostenService');
 const { sendMail } = require('../../services/integrations/EmailService');
 const { buildSignaturR2Prefix, sanitizeSegment } = require('../../utils/signaturR2Path');
+const { buildStundenlistePdfFilename } = require('../../utils/stundenlisteFilename');
 const AsanaService = require('../../services/integrations/AsanaService');
 
 const router = express.Router();
@@ -61,7 +62,7 @@ async function executeFolgeaktionen(vorgang) {
     try {
       const pdfBuffer = await R2Service.downloadFile(vorgang.r2KeySigned);
       const base64Pdf = pdfBuffer.toString('base64');
-      const pdfName   = `${vorgang.name || 'Signatur'}.pdf`;
+      const pdfName   = vorgang.fileName || `${vorgang.name || 'Signatur'}.pdf`;
       const attachment = {
         '@odata.type': '#microsoft.graph.fileAttachment',
         name: pdfName,
@@ -357,7 +358,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Ungültige Auftragsnummer' });
   }
 
-  const { locationId, standort, submitters, folgeaktionen: folgeaktionenRaw } = req.body || {};
+  const { name, locationId, standort, submitters, folgeaktionen: folgeaktionenRaw } = req.body || {};
   const folgeaktionen = parseFolgeaktionen(folgeaktionenRaw);
 
   // Resolve submitters: the modal sends a generic submitters array.
@@ -436,7 +437,10 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
 
   const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, { signatureTags: true });
 
-  const docName = `Stundenliste ${auftragNr}`;
+  const requestedName = typeof name === 'string' ? name.trim() : '';
+  const eventTitle = String(auftrag.eventTitel || '').trim();
+  const docName = requestedName || `Stundenliste ${eventTitle || auftragNr}`;
+  const pdfFilename = buildStundenlistePdfFilename(auftrag);
   const today = new Date().toISOString().split('T')[0];
 
   const requestedSubmitters = [
@@ -448,6 +452,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   // Create DocuSeal submission from the generated PDF
   const result = await DocuSealService.createSubmissionFromPdf({
     name: docName,
+    documentName: pdfFilename,
     fileBuffer: buffer,
     submitters: requestedSubmitters.map((s) => ({
       role:       s.role,
@@ -485,6 +490,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   // Save as a SignaturVorgang
   const vorgang = new SignaturVorgang({
     name:     docName,
+    fileName: pdfFilename,
     typ:      signaturTyp._id,
     typKey:   'stundenliste',
     standort: standort || location.shortNameKey || null,
@@ -857,7 +863,7 @@ router.get('/storage', auth, asyncHandler(async (_req, res) => {
           { r2KeyAudit: { $in: objectKeys } },
         ],
       })
-        .select('_id name typ typKey standort locationV2 kunde kundenKuerzel mitarbeiter mitarbeiterName auftragNr r2KeySigned r2KeyAudit')
+        .select('_id name fileName typ typKey standort locationV2 kunde kundenKuerzel mitarbeiter mitarbeiterName auftragNr r2KeySigned r2KeyAudit')
         .populate([
           { path: 'typ', select: 'key label linkedTo' },
           { path: 'locationV2', select: 'nameFull shortName' },
@@ -951,7 +957,9 @@ router.get('/storage', auth, asyncHandler(async (_req, res) => {
       ...responseObject,
       displayPath: [...pathSegments, storedFileName].join('/'),
       folderLabels,
-      fileName: `${vorgang.name}${isAudit ? ' - Audit' : ''}.pdf`,
+      fileName: isAudit
+        ? `${(vorgang.fileName || `${vorgang.name}.pdf`).replace(/\.pdf$/i, '')} - Audit.pdf`
+        : (vorgang.fileName || `${vorgang.name}.pdf`),
     };
   }));
 }));
@@ -1207,7 +1215,7 @@ router.get('/:id/signed-url', auth, asyncHandler(async (req, res) => {
   if (!vorgang.r2KeySigned) {
     return res.status(409).json({ message: 'Noch kein unterschriebenes Dokument vorhanden' });
   }
-  const safeName = vorgang.name.replace(/[^a-z0-9_\- ]/gi, '_') + '.pdf';
+  const safeName = vorgang.fileName || (vorgang.name.replace(/[^a-z0-9_\- ]/gi, '_') + '.pdf');
   const url = await R2Service.getSignedDownloadUrl(vorgang.r2KeySigned, 3600, {
     inline:   true,
     filename: safeName,

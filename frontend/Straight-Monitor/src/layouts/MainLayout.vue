@@ -26,7 +26,7 @@ import AppFooter from '@/components/AppFooter.vue';
 import Shortcuts from '@/components/Shortcuts.vue';
 import Tools from '@/components/Tools.vue';
 import KommentarFeed from '@/components/KommentarFeed.vue';
-import SignaturNeuModal from '@/components/SignaturNeuModal.vue';
+import SignaturNeuModal from '@/components/Modals/SignaturNeuModal.vue';
 import SignaturTemplateBuilderModal from '@/components/SignaturTemplateBuilderModal.vue';
 
 const route = useRoute();
@@ -235,4 +235,3 @@ onBeforeUnmount(() => {
   .right.open{ width: min(320px, 90vw); }
 }
 </style>
-
