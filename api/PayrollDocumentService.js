@@ -1,9 +1,9 @@
 'use strict';
 
-const PayrollDocument = require('./models/PayrollDocument');
-const PayrollRun = require('./models/PayrollRun');
-const PayrollEmployeeSnapshot = require('./models/PayrollEmployeeSnapshot');
-const PayrollAuditLog = require('./models/PayrollAuditLog');
+const PayrollDocument = require('./models/Payroll/PayrollDocument');
+const PayrollRun = require('./models/Payroll/PayrollRun');
+const PayrollEmployeeSnapshot = require('./models/Payroll/PayrollEmployeeSnapshot');
+const PayrollAuditLog = require('./models/Payroll/PayrollAuditLog');
 const PaychexService = require('./PaychexService');
 const R2Service = require('./R2Service');
 const payrollConfig = require('./config/payroll');

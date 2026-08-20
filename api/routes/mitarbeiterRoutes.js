@@ -16,9 +16,9 @@ const {
   resolveLocationFromStandortName,
 } = require("../services/LocationResolutionService");
 const User = require("../models/User");
-const Einsatz = require("../models/Einsatz");
-const Auftrag = require("../models/Auftrag");
-const Qualifikation = require("../models/Qualifikation");
+const Einsatz = require("../models/Event/Einsatz");
+const Auftrag = require("../models/Event/Auftrag");
+const Qualifikation = require("../models/Event/Qualifikation");
 const { EventReport, EvaluierungMA, Laufzettel, LAUFZETTEL_STATUS } = require("../models/Classes/FlipDocs");
 const FlipUser = require("../models/Classes/FlipUser");
 const { sendMail } = require("../EmailService");

@@ -15,13 +15,13 @@ const fs = require('fs');
 const path = require('path');
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 
-const Auftrag = require('./models/Auftrag');
-const Einsatz = require('./models/Einsatz');
-const Schicht = require('./models/Schicht');
+const Auftrag = require('./models/Event/Auftrag');
+const Einsatz = require('./models/Event/Einsatz');
+const Schicht = require('./models/Event/Schicht');
 const Kunde = require('./models/Kunde');
 const Mitarbeiter = require('./models/Employee/Mitarbeiter');
-const Beruf = require('./models/Beruf');
-const Qualifikation = require('./models/Qualifikation');
+const Beruf = require('./models/Event/Beruf');
+const Qualifikation = require('./models/Event/Qualifikation');
 const registry = require('./config/registry');
 const logger = require('./utils/logger');
 

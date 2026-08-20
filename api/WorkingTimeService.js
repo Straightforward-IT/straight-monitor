@@ -3,10 +3,10 @@
 const mongoose = require('mongoose');
 const Mitarbeiter = require('./models/Employee/Mitarbeiter');
 const User = require('./models/User');
-const AssignmentLedger = require('./models/EinsatzBuch');
-const WorkingTimeLedger = require('./models/ArbeitszeitBuch');
-const PayrollRun = require('./models/PayrollRun');
-const PayrollAuditLog = require('./models/PayrollAuditLog');
+const AssignmentLedger = require('./models/Payroll/EinsatzBuch');
+const WorkingTimeLedger = require('./models/Payroll/ArbeitszeitBuch');
+const PayrollRun = require('./models/Payroll/PayrollRun');
+const PayrollAuditLog = require('./models/Payroll/PayrollAuditLog');
 const PayrollError = require('./utils/PayrollError');
 const { sha256 } = require('./payroll-core/hash');
 const { markRunRevisionRequired, invalidateEmployeeRuns } = require('./PayrollRunInvalidationService');

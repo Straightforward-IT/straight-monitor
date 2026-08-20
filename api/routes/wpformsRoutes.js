@@ -21,7 +21,7 @@ const {
 const { sendMail } = require("../EmailService"); // Ensure sendMail is properly imported
 
 const Mitarbeiter = require("../models/Employee/Mitarbeiter");
-const Auftrag = require("../models/Auftrag");
+const Auftrag = require("../models/Event/Auftrag");
 const { resolveLocationFromStandortName } = require("../services/LocationResolutionService");
 
 const {

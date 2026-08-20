@@ -2,9 +2,9 @@
 
 const mongoose = require('mongoose');
 const Mitarbeiter = require('./models/Employee/Mitarbeiter');
-const PayrollEmployment = require('./models/PayrollEmployment');
-const PayrollProviderProfile = require('./models/PayrollProviderProfile');
-const PayrollAuditLog = require('./models/PayrollAuditLog');
+const PayrollEmployment = require('./models/Payroll/PayrollEmployment');
+const PayrollProviderProfile = require('./models/Payroll/PayrollProviderProfile');
+const PayrollAuditLog = require('./models/Payroll/PayrollAuditLog');
 const PayrollError = require('./utils/PayrollError');
 const { sha256 } = require('./payroll-core/hash');
 const { invalidateEmployeeRuns } = require('./PayrollRunInvalidationService');

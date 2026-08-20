@@ -96,7 +96,7 @@ export const architectureGraph: ArchitectureGraph = {
       description:
         'Hier werden Aufträge, Schichten und Personal so zusammengebracht, dass aus Planung echte Leistung vor Ort wird.',
       tags: ['Aufträge', 'Schichten', 'Zuordnung'],
-      sources: [{ path: 'api/models/Auftrag.js' }],
+      sources: [{ path: 'api/models/Event/Auftrag.js' }],
     },
     {
       id: 'documents',
@@ -140,7 +140,7 @@ export const architectureGraph: ArchitectureGraph = {
       description:
         'Zvoove liefert wichtige Daten aus der Personaldienstleistung, die im Monitor weiterverarbeitet werden.',
       tags: ['Stammdaten', 'Disposition'],
-      sources: [{ path: 'api/models/Einsatz.js' }],
+      sources: [{ path: 'api/models/Event/Einsatz.js' }],
     },
     {
       id: 'flip',
@@ -180,7 +180,7 @@ export const architectureGraph: ArchitectureGraph = {
       kind: 'workflow',
       label: 'ordnet Arbeit',
       summary: 'Im Monitor wird aus Bedarf ein planbarer Einsatz.',
-      sources: [{ path: 'api/models/Auftrag.js' }],
+      sources: [{ path: 'api/models/Event/Auftrag.js' }],
     },
     {
       id: 'planning-to-field',
@@ -189,7 +189,7 @@ export const architectureGraph: ArchitectureGraph = {
       kind: 'workflow',
       label: 'schickt Einsätze',
       summary: 'Aus der Planung werden konkrete Einsätze für Mitarbeitende.',
-      sources: [{ path: 'api/models/Einsatz.js' }],
+      sources: [{ path: 'api/models/Event/Einsatz.js' }],
     },
     {
       id: 'monitor-to-public',
@@ -252,7 +252,7 @@ export const architectureGraph: ArchitectureGraph = {
       kind: 'sync',
       label: 'übernimmt Grunddaten',
       summary: 'Operative Grundlagen kommen aus Zvoove in den Firmenalltag.',
-      sources: [{ path: 'api/models/Einsatz.js' }],
+      sources: [{ path: 'api/models/Event/Einsatz.js' }],
     },
     {
       id: 'monitor-to-flip',

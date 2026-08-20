@@ -1,6 +1,6 @@
 'use strict';
 
-const PayrollProviderOperation = require('./models/PayrollProviderOperation');
+const PayrollProviderOperation = require('./models/Payroll/PayrollProviderOperation');
 const PayrollError = require('./utils/PayrollError');
 const mongoose = require('mongoose');
 

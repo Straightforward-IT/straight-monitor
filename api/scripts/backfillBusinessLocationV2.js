@@ -2,10 +2,10 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const path = require('path');
 const Location = require('../models/Location');
-const Auftrag = require('../models/Auftrag');
+const Auftrag = require('../models/Event/Auftrag');
 const Kunde = require('../models/Kunde');
-const Schicht = require('../models/Schicht');
-const Einsatz = require('../models/Einsatz');
+const Schicht = require('../models/Event/Schicht');
+const Einsatz = require('../models/Event/Einsatz');
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 

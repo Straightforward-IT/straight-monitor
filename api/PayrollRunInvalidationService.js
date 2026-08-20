@@ -1,9 +1,9 @@
 'use strict';
 
 const mongoose = require('mongoose');
-const PayrollRun = require('./models/PayrollRun');
-const PayrollEmployeeSnapshot = require('./models/PayrollEmployeeSnapshot');
-const PayrollAuditLog = require('./models/PayrollAuditLog');
+const PayrollRun = require('./models/Payroll/PayrollRun');
+const PayrollEmployeeSnapshot = require('./models/Payroll/PayrollEmployeeSnapshot');
+const PayrollAuditLog = require('./models/Payroll/PayrollAuditLog');
 
 const INVALIDATABLE_STATUSES = [
   'CALCULATING',

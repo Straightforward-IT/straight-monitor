@@ -1,8 +1,8 @@
 const User = require('./models/User');
 const Kunde = require('./models/Kunde');
-const Auftrag = require('./models/Auftrag');
-const Einsatz = require('./models/Einsatz');
-const Schicht = require('./models/Schicht');
+const Auftrag = require('./models/Event/Auftrag');
+const Einsatz = require('./models/Event/Einsatz');
+const Schicht = require('./models/Event/Schicht');
 const { sendMail } = require('./EmailService');
 const logger = require('./utils/logger');
 

@@ -10,8 +10,8 @@ const {
   getFlipCalendarEvent,
   updateFlipCalendarEvent,
 } = require("../FlipService");
-const Einsatz = require("../models/Einsatz");
-const Auftrag = require("../models/Auftrag");
+const Einsatz = require("../models/Event/Einsatz");
+const Auftrag = require("../models/Event/Auftrag");
 const Mitarbeiter = require("../models/Employee/Mitarbeiter");
 const logger = require("../utils/logger");
 

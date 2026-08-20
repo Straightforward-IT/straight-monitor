@@ -12,9 +12,9 @@ const {
   VerlosungEintrag,
 } = require("./models/Classes/FlipDocs");
 const Mitarbeiter = require("./models/Employee/Mitarbeiter");
-const Einsatz = require("./models/Einsatz");
-const Auftrag = require("./models/Auftrag");
-const Qualifikation = require("./models/Qualifikation");
+const Einsatz = require("./models/Event/Einsatz");
+const Auftrag = require("./models/Event/Auftrag");
+const Qualifikation = require("./models/Event/Qualifikation");
 const { RANKS, getRankTier, RANK_GROUP_IDS } = require("./config/flipRanks");
 const { sendMail } = require("./EmailService");
 const logger = require("./utils/logger");

@@ -1,9 +1,9 @@
 'use strict';
 
 const mongoose = require('mongoose');
-const PayrollReferenceMonth = require('./models/PayrollReferenceMonth');
-const PayrollEmployeeSnapshot = require('./models/PayrollEmployeeSnapshot');
-const PayrollAuditLog = require('./models/PayrollAuditLog');
+const PayrollReferenceMonth = require('./models/Payroll/PayrollReferenceMonth');
+const PayrollEmployeeSnapshot = require('./models/Payroll/PayrollEmployeeSnapshot');
+const PayrollAuditLog = require('./models/Payroll/PayrollAuditLog');
 const PayrollError = require('./utils/PayrollError');
 const { normalize, sha256 } = require('./payroll-core/hash');
 

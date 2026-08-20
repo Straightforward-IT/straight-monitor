@@ -10,7 +10,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
 const mongoose = require('mongoose');
-const TariffVersion = require('../models/TariffVersion');
+const TariffVersion = require('../models/Payroll/TariffVersion');
 const {
   RATE_PERIODS,
   CALCULATION_VERSION,

@@ -10,7 +10,7 @@ const DocuSealService = require('../DocuSealService');
 const DocuSealVorgang = require('../models/DocuSealVorgang');
 const R2Service = require('../R2Service');
 const User = require('../models/User');
-const Auftrag = require('../models/Auftrag');
+const Auftrag = require('../models/Event/Auftrag');
 const Kunde = require('../models/Kunde');
 const StundenlisteService = require('../StundenlisteService');
 
