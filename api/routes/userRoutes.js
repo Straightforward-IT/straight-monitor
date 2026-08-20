@@ -6,7 +6,7 @@ const User = require("../models/System/User");
 const Location = require("../models/System/Location");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { sollRoutine, sendConfirmationEmail } = require("../EmailService");
+const { sollRoutine, sendConfirmationEmail } = require("../services/integrations/EmailService");
 require("dotenv").config(); // Load environment variables from .env
 const asyncHandler = require("../middleware/AsyncHandler");
 const {
@@ -14,7 +14,7 @@ const {
   buildWatchlistReportForUser,
   sendWatchlistReportToUser,
   sendMonthlyWatchlistReports
-} = require("../KundenWatchlistReportService");
+} = require("../services/operations/KundenWatchlistReportService");
 
 // GET /api/users/me
 router.get(

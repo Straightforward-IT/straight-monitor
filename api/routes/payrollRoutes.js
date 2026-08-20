@@ -5,13 +5,13 @@ const auth = require('../middleware/auth');
 const requirePayrollRole = require('../middleware/requirePayrollRole');
 const sensitiveRoute = require('../middleware/sensitiveRoute');
 const asyncHandler = require('../middleware/AsyncHandler');
-const PayrollService = require('../PayrollService');
-const PaychexService = require('../PaychexService');
-const PayrollDocumentService = require('../PayrollDocumentService');
-const WorkingTimeService = require('../WorkingTimeService');
-const PayrollDataService = require('../PayrollDataService');
-const PayrollDeclarationImportService = require('../PayrollDeclarationImportService');
-const PayrollProviderProfileService = require('../PayrollProviderProfileService');
+const PayrollService = require('../services/payroll/PayrollService');
+const PaychexService = require('../services/integrations/PaychexService');
+const PayrollDocumentService = require('../services/payroll/PayrollDocumentService');
+const WorkingTimeService = require('../services/payroll/WorkingTimeService');
+const PayrollDataService = require('../services/payroll/PayrollDataService');
+const PayrollDeclarationImportService = require('../services/payroll/PayrollDeclarationImportService');
+const PayrollProviderProfileService = require('../services/payroll/PayrollProviderProfileService');
 
 const router = express.Router();
 

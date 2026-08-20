@@ -1,0 +1,1074 @@
+// AsanaService.js
+const Asana = require("asana");
+const axios = require("axios");
+require("dotenv").config();
+
+const { sendMail } = require("./EmailService");
+const registry = require("../../config/registry");
+const Mitarbeiter = require("../../models/Employee/Mitarbeiter");
+const Bewerber = require("../../models/Employee/Bewerber");
+
+/* ------------------------------- Asana inits ------------------------------- */
+function initTasksApi() {
+  const client = Asana.ApiClient.instance;
+  const token = client.authentications["token"];
+  token.accessToken = process.env.ASANA_PAT;
+  return new Asana.TasksApi();
+}
+
+function initStoriesApi() {
+  const client = Asana.ApiClient.instance;
+  const token = client.authentications["token"];
+  token.accessToken = process.env.ASANA_PAT;
+  return new Asana.StoriesApi();
+}
+
+function initUsersApi() {
+  const client = Asana.ApiClient.instance;
+  const token = client.authentications["token"];
+  token.accessToken = process.env.ASANA_PAT;
+  return new Asana.UsersApi();
+}
+
+function initSectionsApi() {
+  const client = Asana.ApiClient.instance;
+  const token = client.authentications["token"];
+  token.accessToken = process.env.ASANA_PAT;
+  return new Asana.SectionsApi();
+}
+
+/* --------------------------- Queue for html updates ------------------------ */
+const updateQueue = [];
+const maxConcurrentRequests = 15;
+let activeRequests = 0;
+const asanaWriteQueue = [];
+const maxConcurrentAsanaWrites = 3;
+let activeAsanaWrites = 0;
+
+function getAsanaErrorStatus(error) {
+  return error?.response?.status || error?.cause?.response?.status || null;
+}
+
+function getAsanaRetryDelayMs(error, attempt) {
+  const retryAfter = Number(
+    error?.response?.headers?.["retry-after"] ||
+    error?.cause?.response?.headers?.["retry-after"]
+  );
+  if (Number.isFinite(retryAfter) && retryAfter >= 0) {
+    return retryAfter * 1000;
+  }
+  return Math.min(1000 * 2 ** attempt, 30000);
+}
+
+function isRetryableAsanaError(error) {
+  const status = getAsanaErrorStatus(error);
+  return (
+    status === 429 ||
+    (status >= 500 && status < 600) ||
+    ["ECONNABORTED", "ECONNRESET", "ETIMEDOUT", "EAI_AGAIN", "ENOTFOUND"].includes(error?.code)
+  );
+}
+
+async function runAsanaWrite(label, operation, attempts = 4) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isRetryableAsanaError(error) || attempt === attempts - 1) {
+        throw error;
+      }
+
+      const delayMs = getAsanaRetryDelayMs(error, attempt);
+      console.warn(
+        `⏳ Asana write retry ${attempt + 1}/${attempts - 1} for ${label} in ${delayMs}ms ` +
+        `(status=${getAsanaErrorStatus(error) || error?.code || "unknown"})`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
+function processAsanaWriteQueue() {
+  while (activeAsanaWrites < maxConcurrentAsanaWrites && asanaWriteQueue.length) {
+    const { label, operation, resolve, reject } = asanaWriteQueue.shift();
+    activeAsanaWrites += 1;
+    runAsanaWrite(label, operation)
+      .then(resolve, reject)
+      .finally(() => {
+        activeAsanaWrites -= 1;
+        processAsanaWriteQueue();
+      });
+  }
+}
+
+function queueAsanaWrite(label, operation) {
+  return new Promise((resolve, reject) => {
+    asanaWriteQueue.push({ label, operation, resolve, reject });
+    processAsanaWriteQueue();
+  });
+}
+
+function queueTaskUpdate(task_gid, newHtmlNotes) {
+  updateQueue.push({ task_gid, newHtmlNotes });
+}
+setInterval(processQueue, 500);
+
+async function processQueue() {
+  if (activeRequests >= maxConcurrentRequests || updateQueue.length === 0) return;
+
+  const { task_gid, newHtmlNotes } = updateQueue.shift();
+  activeRequests++;
+  try {
+    await queueAsanaWrite(
+      `update HTML notes for task ${task_gid}`,
+      () => updateTask(task_gid, { html_notes: newHtmlNotes })
+    );
+  } catch (error) {
+    console.error(`❌ Failed to update task ${task_gid}:`, error.message);
+    if (error.response?.status === 429) {
+      console.warn(`⏳ Rate limit exceeded for ${task_gid}. Re-queuing.`);
+      queueTaskUpdate(task_gid, newHtmlNotes);
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  } finally {
+    activeRequests--;
+  }
+}
+
+
+/* --------------------------------- Utils ---------------------------------- */
+function pickProjectId({ teamKey, upn }) {
+  // 1) explicit teamKey
+  if (teamKey) {
+    const id = registry.getAsanaProjectId(teamKey);
+    if (id) return id;
+  }
+  // 2) match by UPN from registry
+  if (upn) {
+    const team = registry.getTeamByUpn(upn);
+    if (team?.asana?.projectId) return team.asana.projectId;
+  }
+  // 3) single-project fallback (if exactly one is configured)
+  const all = registry.getAsanaProjectIds();
+  if (all.length === 1) return all[0];
+
+  return null; // caller handles error
+}
+
+function _extractPersonName(email = {}) {
+  // Parser liefert full_name unter email.meta?.full_name (wir reichen das aus applicantParser als meta mit)
+  const metaName = email?.meta?.full_name && String(email.meta.full_name).trim();
+  if (metaName) return metaName;
+
+  // Fallback: aus dem Betreff "Vorname Nachname - S|L|?" den Namen ziehen
+  const subj = String(email.subject || "").trim();
+  const m = subj.match(/^(.*?)(?:\s*-\s*[SL?])?$/i);
+  return (m && m[1] && m[1].trim()) || subj || "Unbekannt";
+}
+
+function buildEmailHtml({ subject, fromName, fromAddr, bodyText, receivedDateTime, provider, teamKey }) {
+  const safeText =
+    String(bodyText || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      // don't overdo formatting; just keep line-breaks readable:
+      .replace(/\n/g, "<br>") || "(kein Inhalt)";
+
+  const meta = [
+    receivedDateTime ? `📥 <b>Eingang:</b> ${new Date(receivedDateTime).toLocaleString("de-DE")}` : "",
+    fromName || fromAddr ? `👤 <b>Von:</b> ${fromName || fromAddr} &lt;${fromAddr || "unbekannt"}&gt;` : "",
+  ].filter(Boolean).join("<br>");
+
+  return `
+  <body>
+    <h2>${subject ? String(subject).replace(/</g,"&lt;").replace(/>/g,"&gt;") : "(kein Betreff)"}</h2>
+    <div style="margin:6px 0 14px 0;font-size:12px;color:#555;">
+      ${meta}
+    </div>
+    <div style="white-space:normal;line-height:1.4">${safeText}</div>
+  </body>`;
+}
+
+/**
+ * Fetch all tasks for a given project, handling pagination.
+ * @param {Object} opts - The query parameters (must include project ID).
+ * @returns {Array} - A list of all tasks.
+ */
+async function findAllTasks(opts) {
+    const api = initTasksApi();
+    let allTasks = [];
+    let nextPageOffset = null;
+
+    if (!opts.project) {
+        throw new Error("Project ID is required to fetch tasks.");
+    }
+
+    try {
+        do {
+            const queryOpts = { ...opts, limit: 100 };
+            if (nextPageOffset) queryOpts.offset = nextPageOffset;
+
+            console.log("Fetching tasks with opts:", queryOpts);
+
+            const response = await api.getTasks(queryOpts);
+            if (response?.data) {
+                allTasks.push(...response.data);
+            }
+
+            nextPageOffset = response?.next_page?.offset || null;
+        } while (nextPageOffset);
+
+        console.log(`✅ Retrieved ${allTasks.length} tasks.`);
+        return allTasks;
+    } catch (error) {
+        console.error("❌ Error fetching tasks:", error.response?.body || error.message);
+        throw new Error("Failed to fetch tasks from Asana");
+    }
+}
+
+/**
+ * Fetch tasks based on given options
+ */
+async function findTasks(opts) {
+    const api = initTasksApi();
+    try {
+        const result = await api.getTasks(opts);
+        return result?.data || [];
+    } catch (error) {
+        console.error("❌ Error fetching tasks:", error.response?.body || error.message);
+        throw new Error("Failed to fetch tasks from Asana");
+    }
+}
+
+/**
+ * Generic function to update any field of a task
+ */
+async function updateTask(task_gid, updateData, opts = {}) {
+    const api = initTasksApi();
+
+    try {
+        // Validate input parameters
+        if (!task_gid || !updateData || Object.keys(updateData).length === 0) {
+            throw new Error("Task GID and a non-empty updateData object are required.");
+        }
+
+        console.log(`🔄 Updating task ${task_gid} with new data...`);
+
+        // The Asana API expects the payload to be wrapped in a 'data' object.
+        const body = {
+            data: updateData
+        };
+
+        console.log("Request Body:", JSON.stringify(body, null, 2));
+        
+        const response = await api.updateTask(body, task_gid, opts);
+        
+        console.log(`✅ Task ${task_gid} updated successfully.`);
+        return response;
+
+    } catch (error) {
+        // This generic function will not use the specific requeueing logic.
+        // It will throw the error to let the caller decide how to handle retries.
+        console.error(`❌ Failed to update task ${task_gid}:`, error.response?.data || error.message);
+        throw error; // Re-throw the error to be handled by the calling function
+    }
+}
+
+
+
+
+/**
+ * Adds either "Im Monitor anzeigen" (if a Mitarbeiter with this asana_id exists)
+ * or "Bewerber erstellen" link to a task if not already present.
+ */
+async function addLinkToTask(taskOrGid, { projectId = null } = {}) {
+  // taskOrGid kann { gid, html_notes } oder nur "gid" sein
+  const gid = typeof taskOrGid === "string" ? taskOrGid : taskOrGid?.gid;
+  if (!gid) return;
+
+  // 1) Aktuelle html_notes holen, falls nicht mitgegeben
+  let currentHtml = (typeof taskOrGid === "object" && taskOrGid?.html_notes) || "";
+  if (!currentHtml) {
+    try {
+      const t = await getTaskById(gid);
+      currentHtml = t?.html_notes || "";
+    } catch (e) {
+      console.warn("⚠️ addLinkToTask: konnte html_notes nicht laden, verwende leer", e.message);
+      currentHtml = "";
+    }
+  }
+
+  const isHamburgApplicantProject = projectId === registry.getAsanaProjectId("hamburg");
+  let header;
+
+  if (isHamburgApplicantProject) {
+    const bewerber = await Bewerber.findOne({ asana_id: gid }).select("_id").lean();
+    header = bewerber
+      ? `<h1><a href="https://straightmonitor.com/personal?tab=bewerber&bewerber_id=${bewerber._id}">Bewerber im Monitor anzeigen</a></h1>\n`
+      : `<h1><a href="https://straightmonitor.com/bewerber/erstellen/${gid}">Bewerber erstellen</a></h1>\n`;
+  } else {
+    const ma = await Mitarbeiter.findOne({ asana_id: gid }).select("_id").lean();
+    header = ma
+      ? `<h1><a href="https://straightmonitor.com/personal?asana_id=${gid}">Im Monitor anzeigen</a></h1>\n`
+      : `<h1><a href="https://straightmonitor.com/flip/benutzer-erstellen/${gid}">Bewerber erstellen</a></h1>\n`;
+  }
+
+  if (currentHtml.includes(header.trim())) return;
+
+  // Remove only links maintained by this routine before replacing them.
+  currentHtml = currentHtml.replace(
+    /<h1><a href="https:\/\/straightmonitor\.com\/(?:flip\/benutzer-erstellen\/[^"<]+|bewerber\/erstellen\/[^"<]+|personal\?(?:asana_id|tab=bewerber&bewerber_id)=[^"<]+)">(?:Bewerber erstellen|Im Monitor anzeigen|Bewerber im Monitor anzeigen)<\/a><\/h1>\n?/g,
+    ""
+  );
+
+  // 4) Link-Header vor den existierenden Body setzen
+  let updatedHtml;
+  if (currentHtml.includes("<body>")) {
+    updatedHtml = currentHtml.replace("<body>", `<body>${header}`);
+  } else if (currentHtml.trim()) {
+    updatedHtml = `<body>${header}${currentHtml}</body>`;
+  } else {
+    updatedHtml = `<body>${header}</body>`;
+  }
+
+  queueTaskUpdate(gid, updatedHtml);
+}
+
+
+/**
+ * Routine to check tasks and append the appropriate link if missing.
+ * Covers Bewerber-, Disposition- and Schulungs-Projekte.
+ */
+async function bewerberRoutine(teamKeys = null) {
+  // Alle Projekttypen einbeziehen: Bewerber + Disposition + Schulung
+  const project_ids = registry.getAllAsanaProjectIds(teamKeys);
+  if (project_ids.length === 0) {
+    console.warn("⚠️ bewerberRoutine: keine Asana-Projekt-IDs in registry gefunden.");
+    return;
+  }
+
+  try {
+    for (const id of project_ids) {
+      const opts = {
+        project: id,
+        completed_since: "now",
+        opt_fields: "gid,html_notes",
+      };
+
+      const tasks = await findTasks(opts);
+      // Verarbeite alle Tasks die noch kein aktuelles Link haben
+      // ("Im Monitor anzeigen" hat Priorität; "Bewerber erstellen" wird ggf. in addLinkToTask geprüft)
+      const tasksToUpdate = tasks.filter(
+        (t) => !t.html_notes?.includes("Im Monitor anzeigen</a>")
+      );
+
+      tasksToUpdate.forEach((task) => addLinkToTask(task, { projectId: id }));
+      console.log(`✅ ${tasksToUpdate.length} tasks queued for project ${id}`);
+    }
+  } catch (error) {
+    console.error("❌ Error in Bewerber Routine:", error.message);
+    await sendMail(
+      "it@straightforward.email",
+      "❌ Asana API Task Routine Failed",
+      `
+        <h3>Error in Bewerber Routine</h3>
+        <p><strong>Error:</strong> ${error.message}</p>
+        <pre>${error.stack}</pre>
+      `
+    );
+  }
+}
+async function createTaskFromEmail(email, files = [], hint = {}) {
+  const tasksApi = initTasksApi();
+
+  // 0) Projektwahl
+  const projectId = pickProjectId({ teamKey: hint.teamKey, upn: hint.upn });
+  if (!projectId) {
+    throw new Error(
+      `Kein passendes Asana-Projekt gefunden (teamKey='${hint.teamKey || "-"}', upn='${hint.upn || "-"}').`
+    );
+  }
+
+  // 0a) Person-Name für Duplicate-Suche (rein Name, ohne S/L)
+  const personName = _extractPersonName(email);
+
+  // 0b) Duplikate prüfen (auch abgeschlossene) – mit Personennamen
+  let duplicateTask = null;
+  try {
+    duplicateTask = await findExistingTaskByName(projectId, personName);
+    if (duplicateTask) {
+      console.log(`🔎 Bestehender Person-Task gefunden: ${duplicateTask.gid} (${duplicateTask.name})`);
+    }
+  } catch (e) {
+    console.warn("⚠️ Duplicate check (by name) failed:", e.message);
+  }
+
+  // Bestehenden Task ergänzen statt neuen erstellen
+  if (duplicateTask) {
+    return await _mergeIntoExistingTask(duplicateTask, email, files, hint);
+  }
+
+  // 1) Task minimal anlegen (Name/Notes/Due)
+  //    Name bleibt wie bisher (Parser-Titel), damit S/L im Titel sichtbar bleibt
+  const name = email.subject || "(kein Betreff)";
+
+  // Beschreibung (notes): Telefon & E-Mail & Message
+  const contacts = [];
+  const tel = email.meta?.telefon;
+  const mail = email.meta?.email;
+
+  if (tel) contacts.push(`Telefon: ${tel}`);
+  if (mail) contacts.push(`E-Mail: ${mail}`);
+
+  // Wenn Parser nichts liefern konnte: versuche Fallbacks aus bodyPreview
+  if (!contacts.length && email.bodyPreview) {
+    // Minimaler Fallback-Extractor (hält’s simpel)
+    const em = (email.bodyPreview.match(/\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b/) || [])[0];
+    const ph = (email.bodyPreview.match(/(\+?\d[\d\s\/\-\(\)]{5,}\d)/) || [])[0];
+    if (ph) contacts.push(`Telefon: ${ph}`);
+    if (em) contacts.push(`E-Mail: ${em}`);
+  }
+
+  const plainNotes = contacts.join("\n");
+
+  let createdTask;
+  try {
+    const body = {
+      data: {
+        name,
+        projects: [projectId],
+        notes: plainNotes,                            // <- nur Tel/E-Mail (+ evtl. Link)
+        ...(email.meta?.due_date ? { due_on: email.meta.due_date } : {}),
+      },
+    };
+    const resp = await queueAsanaWrite(
+      `create task \"${name}\"`,
+      () => tasksApi.createTask(body, { opt_fields: "gid,name,permalink_url" })
+    );
+    createdTask = resp?.data || resp;
+    console.log(`🆕 Asana task created: ${createdTask?.gid} (${createdTask?.name})`);
+  } catch (e) {
+    console.error("❌ Asana task create failed:", e.response?.data || e.message);
+    throw e;
+  }
+
+  // 2) Rich HTML-Notes (darfs weiterhin hübsch+voll sein)
+  try {
+    const contactBlock = contacts.filter(Boolean).join("\n"); // gleiche Contacts wie oben
+    // Kommentartext (strukturierter Rest) – bleibt wie gehabt
+    const commentBlock = (email.bodyText && email.bodyText.trim()) || "";
+    const combinedText = [contactBlock, commentBlock].filter(Boolean).join("\n\n");
+
+    let html = buildEmailHtml({
+      subject: email.subject,
+      fromName: email.fromName,
+      fromAddr: email.fromAddr,
+      bodyText: combinedText,
+      receivedDateTime: email.receivedDateTime,
+      provider: hint.provider,
+      teamKey: hint.teamKey,
+    });
+
+    queueTaskUpdate(createdTask.gid, html);
+  } catch (e) {
+    console.warn("⚠️ Failed to queue html_notes update:", e.message);
+  }
+
+  // 3) Parser-Kommentar als Story (wie gehabt)
+  const comment = email.meta?.asana_comment || email.bodyText || "";
+  if (comment && comment.trim()) {
+    const safe = comment.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    await queueAsanaWrite(
+      `create email comment for task ${createdTask.gid}`,
+      () => createStoryOnTask(createdTask.gid, { html_text: `<body><pre>${safe}</pre></body>` })
+    );
+  }
+
+  // 4) Attachments
+  await uploadAttachmentsToTask(createdTask.gid, files);
+
+  // 5) Bewerber-Link oben einfügen
+  try {
+    await addLinkToTask(createdTask.gid, { projectId });
+  } catch (e) {
+    console.warn("⚠️ addLinkToTask failed:", e.message);
+  }
+
+  return createdTask;
+}
+
+
+/**
+ * Fetch a single task by its GID.
+ * @param {string} task_gid - The task GID from Asana.
+ * @returns {Object} - The task data from Asana.
+ */
+async function getTaskById(task_gid) {
+    const api = initTasksApi();
+    
+    let opts = { 
+        'opt_fields': "gid,name,assignee,assignee.name,completed,completed_at, completed_by, created_at,custom_fields,custom_fields.name,custom_fields.text_value,due_on,html_notes,memberships,memberships.project,memberships.project.name, memberships.section, memberships.section.gid, memberships.section.name, notes,permalink_url"
+    };
+
+    try {
+        const result = await api.getTask(task_gid, opts);
+        return result?.data || null;
+    } catch (error) {
+        console.error(`❌ Error fetching task ${task_gid}:`, error.response?.body || error.message);
+        throw new Error("Failed to fetch task from Asana");
+    }
+}
+
+async function getStoryById(story_gid) {
+    const storiesApiInstance = initStoriesApi();
+    let opts = { 
+        'opt_fields': "assignee,assignee.name,created_at,created_by,created_by.name,custom_field,custom_field.date_value,custom_field.date_value.date,custom_field.date_value.date_time,custom_field.display_value,custom_field.enabled,custom_field.enum_options,custom_field.enum_options.color,custom_field.enum_options.enabled,custom_field.enum_options.name,custom_field.enum_value,custom_field.enum_value.color,custom_field.enum_value.enabled,custom_field.enum_value.name,custom_field.id_prefix,custom_field.is_formula_field,custom_field.multi_enum_values,custom_field.multi_enum_values.color,custom_field.multi_enum_values.enabled,custom_field.multi_enum_values.name,custom_field.name,custom_field.number_value,custom_field.representation_type,custom_field.text_value,custom_field.type,dependency,dependency.created_by,dependency.name,dependency.resource_subtype,duplicate_of,duplicate_of.created_by,duplicate_of.name,duplicate_of.resource_subtype,duplicated_from,duplicated_from.created_by,duplicated_from.name,duplicated_from.resource_subtype,follower,follower.name,hearted,hearts,hearts.user,hearts.user.name,html_text,is_editable,is_edited,is_pinned,liked,likes,likes.user,likes.user.name,new_approval_status,new_date_value,new_dates,new_dates.due_at,new_dates.due_on,new_dates.start_on,new_enum_value,new_enum_value.color,new_enum_value.enabled,new_enum_value.name,new_multi_enum_values,new_multi_enum_values.color,new_multi_enum_values.enabled,new_multi_enum_values.name,new_name,new_number_value,new_people_value,new_people_value.name,new_resource_subtype,new_section,new_section.name,new_text_value,num_hearts,num_likes,old_approval_status,old_date_value,old_dates,old_dates.due_at,old_dates.due_on,old_dates.start_on,old_enum_value,old_enum_value.color,old_enum_value.enabled,old_enum_value.name,old_multi_enum_values,old_multi_enum_values.color,old_multi_enum_values.enabled,old_multi_enum_values.name,old_name,old_number_value,old_people_value,old_people_value.name,old_resource_subtype,old_section,old_section.name,old_text_value,previews,previews.fallback,previews.footer,previews.header,previews.header_link,previews.html_text,previews.text,previews.title,previews.title_link,project,project.name,resource_subtype,source,sticker_name,story,story.created_at,story.created_by,story.created_by.name,story.resource_subtype,story.text,tag,tag.name,target,target.created_by,target.name,target.resource_subtype,task,task.created_by,task.name,task.resource_subtype,text,type"
+    };
+    try{
+        const result = await storiesApiInstance.getStory(story_gid, opts);
+        return result;
+    } catch (error) {
+        console.error(`❌ Error fetching Story ${story_gid}:`, error.response?.body || error.message);
+        throw new Error("Failed to fetch story from Asana");
+    }
+}
+
+async function getStoriesByTask(task_gid) {
+    const storiesApiInstance = initStoriesApi();
+    let opts = { 
+        'opt_fields': "assignee,assignee.name,created_at,created_by,created_by.name,custom_field,custom_field.date_value,custom_field.date_value.date,custom_field.date_value.date_time,custom_field.display_value,custom_field.enabled,custom_field.enum_options,custom_field.enum_options.color,custom_field.enum_options.enabled,custom_field.enum_options.name,custom_field.enum_value,custom_field.enum_value.color,custom_field.enum_value.enabled,custom_field.enum_value.name,custom_field.id_prefix,custom_field.is_formula_field,custom_field.multi_enum_values,custom_field.multi_enum_values.color,custom_field.multi_enum_values.enabled,custom_field.multi_enum_values.name,custom_field.name,custom_field.number_value,custom_field.representation_type,custom_field.text_value,custom_field.type,dependency,dependency.created_by,dependency.name,dependency.resource_subtype,duplicate_of,duplicate_of.created_by,duplicate_of.name,duplicate_of.resource_subtype,duplicated_from,duplicated_from.created_by,duplicated_from.name,duplicated_from.resource_subtype,follower,follower.name,hearted,hearts,hearts.user,hearts.user.name,html_text,is_editable,is_edited,is_pinned,liked,likes,likes.user,likes.user.name,new_approval_status,new_date_value,new_dates,new_dates.due_at,new_dates.due_on,new_dates.start_on,new_enum_value,new_enum_value.color,new_enum_value.enabled,new_enum_value.name,new_multi_enum_values,new_multi_enum_values.color,new_multi_enum_values.enabled,new_multi_enum_values.name,new_name,new_number_value,new_people_value,new_people_value.name,new_resource_subtype,new_section,new_section.name,new_text_value,num_hearts,num_likes,old_approval_status,old_date_value,old_dates,old_dates.due_at,old_dates.due_on,old_dates.start_on,old_enum_value,old_enum_value.color,old_enum_value.enabled,old_enum_value.name,old_multi_enum_values,old_multi_enum_values.color,old_multi_enum_values.enabled,old_multi_enum_values.name,old_name,old_number_value,old_people_value,old_people_value.name,old_resource_subtype,old_section,old_section.name,old_text_value,previews,previews.fallback,previews.footer,previews.header,previews.header_link,previews.html_text,previews.text,previews.title,previews.title_link,project,project.name,resource_subtype,source,sticker_name,story,story.created_at,story.created_by,story.created_by.name,story.resource_subtype,story.text,tag,tag.name,target,target.created_by,target.name,target.resource_subtype,task,task.created_by,task.name,task.resource_subtype,text,type"
+    };
+    try{
+        const result = await storiesApiInstance.getStoriesForTask(task_gid, opts);
+        return result;
+    } catch (error) {
+        console.error(`❌ Error fetching Stories from task ${task_gid}:`, error.response?.body || error.message);
+        throw new Error("Failed to fetch stories from Asana");
+    }
+}
+
+async function createStoryOnTask(task_gid, data) {
+    const storiesApiInstance = initStoriesApi();
+  
+    const body = {data};
+  
+    const opts = {
+      opt_fields: "gid,html_text,created_at,created_by.name"
+    };
+  
+    try {
+      const response = await storiesApiInstance.createStoryForTask(body, task_gid, opts);
+      return response;
+    } catch (error) {
+      console.error(`❌ Error creating Comment on task ${task_gid}:`, error.response?.body || error.message);
+      throw error;
+    }
+  }
+
+async function deleteStory(story_gid) {
+  const storiesApiInstance = initStoriesApi();
+  try {
+    await storiesApiInstance.deleteStory(story_gid);
+  } catch (error) {
+    console.error(`❌ Error deleting story ${story_gid}:`, error.response?.body || error.message);
+    throw new Error("Failed to delete story in Asana");
+  }
+}
+
+async function getSubtaskByTask(task_gid) {
+    const api = initTasksApi();
+    let opts = {
+        'opt_fields': "approval_status,completed,completed_at,completed_by,completed_by.name,created_at,created_by, html_notes,name,parent.name,projects,projects.name,resource_subtype"
+    };
+    try{
+        const subtasks = await api.getSubtasksForTask(task_gid, opts);
+        return subtasks;
+    } catch (error) {
+        console.error(`❌ Error fetching Subtasks from task ${task_gid}:`, error.response?.body || error.message);
+        throw new Error("Failed to fetch subtasks from Asana");
+    }
+}
+
+// --- Merge helpers for re-applications (Doppelbewerbung) ---
+
+function _extractSuffix(taskName = "") {
+  // Extracts "S", "L", "S+L", "?" etc. from "Vorname Nachname - S"
+  const m = String(taskName).match(/\s*-\s*([SL?][+SL?]*)\s*$/i);
+  return m ? m[1].toUpperCase() : null;
+}
+
+function _mergeTaskTitle(oldName = "", newTaskName = "") {
+  const baseName = oldName.replace(/\s*-\s*[SL?][+SL?]*\s*$/i, "").trim();
+  const oldSuffix = _extractSuffix(oldName);
+  const newSuffix = _extractSuffix(newTaskName);
+
+  if (!newSuffix) return oldName;
+  if (!oldSuffix) return `${baseName} - ${newSuffix}`;
+
+  const merged = [...new Set([...oldSuffix.split("+"), ...newSuffix.split("+")])].join("+");
+  return merged === oldSuffix ? oldName : `${baseName} - ${merged}`;
+}
+
+async function _getExistingAttachmentNames(task_gid) {
+  try {
+    const client = Asana.ApiClient.instance;
+    const token = client.authentications["token"];
+    token.accessToken = process.env.ASANA_PAT;
+    const attsApi = new Asana.AttachmentsApi();
+    const resp = await attsApi.getAttachmentsForObject(task_gid, { opt_fields: "name" });
+    return new Set((resp?.data || []).map((a) => a.name));
+  } catch (e) {
+    console.warn("⚠️ _getExistingAttachmentNames failed:", e.message);
+    return new Set();
+  }
+}
+
+async function _mergeIntoExistingTask(existingTask, email, files = [], hint = {}) {
+  const gid = existingTask.gid;
+  const api = initTasksApi();
+
+  // 1) Titel aktualisieren: S/L-Suffix mergen (z.B. "- S" + "- L" → "- S+L")
+  const mergedTitle = _mergeTaskTitle(existingTask.name, email.subject || "");
+  if (mergedTitle !== existingTask.name) {
+    try {
+      await api.updateTask({ data: { name: mergedTitle } }, gid, {});
+      console.log(`✏️ Task-Titel aktualisiert: "${existingTask.name}" → "${mergedTitle}"`);
+    } catch (e) {
+      console.warn("⚠️ Titel-Update fehlgeschlagen:", e.message);
+    }
+  }
+
+  // 2) Neue Bewerbung als Story (Kommentar) an bestehenden Task anhängen
+  const fromInfo = `${(email.fromName || email.fromAddr || "unbekannt").replace(/</g, "&lt;").replace(/>/g, "&gt;")} &lt;${email.fromAddr || ""}&gt;`;
+  const dateInfo = email.receivedDateTime
+    ? new Date(email.receivedDateTime).toLocaleString("de-DE")
+    : "-";
+  const providerInfo = (hint.provider || "-").replace(/</g, "&lt;");
+
+  const contactLines = [];
+  if (email.meta?.telefon) contactLines.push(`Telefon: ${email.meta.telefon}`);
+  if (email.meta?.email) contactLines.push(`E-Mail: ${email.meta.email}`);
+  const contactHtml = contactLines.length
+    ? `<br>${contactLines.map((line) => line.replace(/</g, "&lt;")).join("<br>")}`
+    : "";
+
+  const commentText = email.meta?.asana_comment || email.bodyText || "";
+  const commentHtml = commentText.trim()
+    ? `<br><pre>${commentText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`
+    : "";
+
+  const storyHtml = `<body><strong>🔄 Erneute Bewerbung eingegangen</strong><br>📥 <b>Eingang:</b> ${dateInfo}<br>👤 <b>Von:</b> ${fromInfo}<br>🔍 <b>Quelle:</b> ${providerInfo}${contactHtml}${commentHtml}</body>`;
+  await queueAsanaWrite(
+    `create duplicate-email comment for task ${gid}`,
+    () => createStoryOnTask(gid, { html_text: storyHtml })
+  );
+  console.log(`💬 Story zur erneuten Bewerbung an Task ${gid} angefügt`);
+
+  // 3) Nur neue Anhänge hochladen (Namen-Vergleich)
+  if (files && files.length > 0) {
+    try {
+      const existingNames = await _getExistingAttachmentNames(gid);
+      const newFiles = files.filter((f) => !existingNames.has(f.name));
+      if (newFiles.length > 0) {
+        await uploadAttachmentsToTask(gid, newFiles);
+        console.log(`📎 ${newFiles.length} neuer Anhang/Anhänge zu bestehendem Task hinzugefügt`);
+      } else {
+        console.log(`📎 Keine neuen Anhänge — alle bereits vorhanden`);
+      }
+    } catch (e) {
+      console.error("❌ Attachment-Merge fehlgeschlagen:", e.message);
+      throw e;
+    }
+  }
+
+  return existingTask;
+}
+
+// --- Duplicate finder (by exact normalized name) ---
+function _normalizeTitle(s = "") {
+  return String(s)
+    .replace(/\s*-\s*(S|L)\s*$/i, "")     // S/L-Suffix abwerfen
+    .replace(/\s+/g, " ")                 // Mehrfachspaces
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Sucht in einem Projekt nach einem Task mit identischem (normalisiertem) Namen.
+ * Bezieht auch abgeschlossene Tasks ein (completed_since=all).
+ */
+async function findExistingTaskByName(projectId, name, { maxPages = 50 } = {}) {
+  const api = initTasksApi();
+  if (!projectId || !name) return null;
+
+  const target = _normalizeTitle(name);
+  let offset = null;
+  let page = 0;
+
+  // „Alle“ Tasks → mit sehr altem Timestamp
+  const COMPLETED_SINCE_ALL = "1970-01-01T00:00:00Z";
+
+  try {
+    do {
+      const opts = {
+        project: projectId,
+        limit: 100,
+        opt_fields: "gid,name,permalink_url,completed,modified_at",
+        completed_since: COMPLETED_SINCE_ALL, // <<< Trick
+        ...(offset ? { offset } : {}),
+      };
+
+      const resp = await api.getTasks(opts);
+      const data = resp?.data || [];
+
+      const match = data.find(t => _normalizeTitle(t.name) === target);
+      if (match) return match;
+
+      offset = resp?.next_page?.offset || null;
+      page += 1;
+    } while (offset && page < maxPages);
+  } catch (e) {
+    console.warn("⚠️ findExistingTaskByName failed:", e?.response?.data || e.message);
+  }
+
+  return null;
+}
+
+
+
+async function createSubtasksOnTask(task_gid, data) {
+    const api = initTasksApi();
+    let body = {"data": data};
+    let opts = {
+        'opt_fields': "approval_status,completed,completed_at,completed_by,completed_by.name,created_at,created_by, html_notes,parent.name,projects,projects.name,resource_subtype"
+    };
+    try{
+        const response = await api.createSubtaskForTask(body, task_gid, opts);
+        return response;
+    } catch (error) {
+        const detail = error.response?.body || error.message;
+        console.error(`❌ Error creating Subtask on task ${task_gid}:`, detail);
+        throw new Error(`Failed to create Subtask in Asana: ${typeof detail === 'object' ? JSON.stringify(detail) : detail}`);
+    }
+}
+
+async function completeTaskById(task_gid) {
+    const api = initTasksApi();
+    let body = {"data": {
+        "completed": "true"
+    }}
+    let opts = {
+        'opt_fields': "approval_status,completed,completed_at,completed_by,completed_by.name,created_at,created_by, html_notes,parent.name,projects,projects.name,resource_subtype, name, permalink_url"
+    };
+    try{
+        const response = await api.updateTask(body, task_gid, opts)
+        return response;
+    } catch(error) {
+        console.error(`❌ Error Completing task ${task_gid}:`, error.response?.body || error.message);
+        throw new Error("Failed to complete Task in Asana");
+    }
+}
+
+async function deleteTask(task_gid) {
+  const api = initTasksApi();
+  try {
+    await api.deleteTask(task_gid);
+  } catch (error) {
+    console.error(`❌ Error deleting task ${task_gid}:`, error.response?.body || error.message);
+    throw new Error('Failed to delete Task in Asana');
+  }
+}
+
+/* ------------------------- Attachment upload helper ------------------------ */
+/**
+ * Uses raw axios to hit:
+ * POST https://app.asana.com/api/1.0/tasks/{task_gid}/attachments
+ * multipart/form-data with `file`
+ */
+async function uploadAttachmentsToTask(task_gid, files = []) {async function createTaskFromEmail(email, files = [], hint = {}) {
+  const tasksApi = initTasksApi();
+
+  // 0) Projektwahl
+  const projectId = pickProjectId({ teamKey: hint.teamKey, upn: hint.upn });
+  if (!projectId) {
+    throw new Error(
+      `Kein passendes Asana-Projekt gefunden (teamKey='${hint.teamKey || "-"}', upn='${hint.upn || "-"}').`
+    );
+  }
+
+  // 1) Task minimal anlegen (Name, Notes, Due Date)
+  const name = email.subject || "(kein Betreff)"; // <- parsed.asana_title kommt hier rein
+  const bodyLines = [];
+  if (email.bodyPreview) bodyLines.push(email.bodyPreview); // <- parsed.asana_body (nur Tel/E-Mail)
+  bodyLines.push(`Von: ${email.fromName || email.fromAddr || "unbekannt"} <${email.fromAddr || ""}>`);
+  if (email.receivedDateTime) {
+    bodyLines.push(`Eingang: ${new Date(email.receivedDateTime).toLocaleString("de-DE")}`);
+  }
+  if (hint.provider) {
+    bodyLines.push(`Quelle: ${hint.provider}`);
+  }
+  const plainNotes = bodyLines.filter(Boolean).join("\n");
+
+  let createdTask;
+  try {
+    const body = {
+      data: {
+        name,
+        projects: [projectId],
+        notes: plainNotes,
+        // Fälligkeitsdatum aus Parser übernehmen (YYYY-MM-DD)
+        ...(email.meta?.due_date ? { due_on: email.meta.due_date } : {}),
+      },
+    };
+    const resp = await tasksApi.createTask(body, { opt_fields: "gid,name,permalink_url" });
+    createdTask = resp?.data || resp;
+    console.log(`🆕 Asana task created: ${createdTask?.gid} (${createdTask?.name})`);
+  } catch (e) {
+    console.error("❌ Asana task create failed:", e.response?.data || e.message);
+    throw e;
+  }
+
+  // 2) Rich HTML-Notes setzen (Beschreibung hübsch)
+  try {
+    const html = buildEmailHtml({
+      subject: email.subject,            // schon der Parser-Titel
+      fromName: email.fromName,
+      fromAddr: email.fromAddr,
+      bodyText: email.bodyText || email.bodyPreview, // beim Kontaktformular: strukturierter Kommentar kommt separat
+      receivedDateTime: email.receivedDateTime,
+      provider: hint.provider,
+      teamKey: hint.teamKey,
+    });
+    queueTaskUpdate(createdTask.gid, html);
+  } catch (e) {
+    console.warn("⚠️ Failed to queue html_notes update:", e.message);
+  }
+
+  // 3) Parser-Kommentar als erste Story anhängen (falls vorhanden)
+  try {
+    const comment = email.meta?.asana_comment || email.bodyText || "";
+    if (comment && comment.trim()) {
+      // Plaintext → in <pre> kapseln, damit Formatierung erhalten bleibt
+      const safe = comment
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      await createStoryOnTask(createdTask.gid, {
+        html_text: `<body><pre>${safe}</pre></body>`,
+      });
+    }
+  } catch (e) {
+    console.warn("⚠️ createStoryOnTask failed:", e.message);
+  }
+
+  // 4) Attachments hochladen
+  try {
+    await uploadAttachmentsToTask(createdTask.gid, files);
+  } catch (e) {
+    console.error("❌ Attachment upload error:", e.response?.data || e.message);
+  }
+
+  // 5) Bewerber-Link-Header ergänzen
+  try {
+    await addLinkToTask({ gid: createdTask.gid, html_notes: "<body></body>" });
+  } catch (e) {
+    console.warn("⚠️ addLinkToTask failed:", e.message);
+  }
+
+  // 6) (Debug/Logging) komplettes Raw-HTML an IT schicken
+  try {
+    if (email.bodyHtml) {
+      await sendMail(
+        "it@straightforward.email",
+        `RAW Mail-HTML (${hint.teamKey || hint.upn || "unknown"}) – ${name}`,
+        `<h3>Provider: ${hint.provider || "-"}</h3>
+         <h4>UPN: ${hint.upn || "-"}</h4>
+         <h4>Team: ${hint.teamKey || "-"}</h4>
+         <pre style="white-space:pre-wrap;word-wrap:break-word;">${(
+           email.bodyHtml || ""
+         )
+           .replace(/&/g, "&amp;")
+           .replace(/</g, "&lt;")
+           .replace(/>/g, "&gt;")}</pre>`
+      );
+    }
+  } catch (e) {
+    console.warn("⚠️ sending RAW HTML to IT failed:", e.message);
+  }
+
+  return createdTask;
+}
+  const url = `https://app.asana.com/api/1.0/tasks/${task_gid}/attachments`;
+
+  for (const f of files) {
+    // normalize buffer
+    let buf = null;
+    if (f.arrayBuffer) {
+      buf = Buffer.from(f.arrayBuffer);
+    } else if (f.contentBytes) {
+      buf = Buffer.from(f.contentBytes, "base64");
+    } else if (f.content) {
+      buf = Buffer.from(f.content, "base64");
+    }
+
+    if (!buf) {
+      throw new Error(`Attachment has no downloadable data: ${f.name || "(unnamed)"}`);
+    }
+
+    const FormData = require("form-data");
+    const form = new FormData();
+    form.append("file", buf, {
+      filename: f.name || "attachment.bin",
+      contentType: f.contentType || "application/octet-stream",
+      knownLength: buf.length,
+    });
+
+    await queueAsanaWrite(
+      `upload attachment \"${f.name || "(unnamed)"}\" to task ${task_gid}`,
+      () => axios.post(url, form, {
+        headers: {
+          Authorization: `Bearer ${process.env.ASANA_PAT}`,
+          ...form.getHeaders(),
+        },
+        timeout: 60000,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      })
+    );
+    console.log(`📎 Uploaded attachment → ${f.name || "(unnamed)"} to ${task_gid}`);
+  }
+}
+
+/* ----------------------------- User functions ----------------------------- */
+
+/**
+ * Get a single Asana user by GID, email address, or the special string "me".
+ * @param {string} user_gid - GID, email, or "me"
+ * @param {Object} [opts] - Optional Asana opt_fields / workspace overrides
+ * @returns {Object|null} Asana user record
+ */
+async function getAsanaUser(user_gid, opts = {}) {
+  const api = initUsersApi();
+  try {
+    const response = await api.getUser(user_gid, {
+      opt_fields: "gid,name,email,photo,workspaces",
+      ...opts,
+    });
+    return response?.data || null;
+  } catch (error) {
+    console.error(`❌ Error fetching Asana user ${user_gid}:`, error.response?.body || error.message);
+    throw new Error(`Failed to fetch Asana user: ${error.message}`);
+  }
+}
+
+/**
+ * Get all Asana users accessible to the authenticated PAT.
+ * Uses getUsersForWorkspace under the hood (getUsers requires pagination workspace param).
+ * Falls back to ASANA_WORKSPACE_ID env var, then to the authenticated user's first workspace.
+ * @param {Object} [opts] - Optional filters: workspace, limit, offset
+ * @returns {Array} List of user compact objects
+ */
+async function getAsanaUsers(opts = {}) {
+  const workspace_gid = opts.workspace || process.env.ASANA_WORKSPACE_ID;
+
+  if (workspace_gid) {
+    return getAsanaWorkspaceUsers(workspace_gid, opts);
+  }
+
+  // Last resort: resolve workspace from the authenticated user
+  const me = await getAsanaUser("me");
+  const firstWorkspace = me?.workspaces?.[0]?.gid;
+  if (!firstWorkspace) throw new Error("No Asana workspace found for the configured PAT.");
+  return getAsanaWorkspaceUsers(firstWorkspace, opts);
+}
+
+/**
+ * Get all users in a specific Asana workspace or organization.
+ * @param {string} workspace_gid - Workspace GID
+ * @param {Object} [opts] - Optional opt_fields / offset overrides
+ * @returns {Array} List of user compact objects
+ */
+async function getAsanaWorkspaceUsers(workspace_gid, opts = {}) {
+  const api = initUsersApi();
+  try {
+    const response = await api.getUsersForWorkspace(workspace_gid, {
+      opt_fields: "gid,name,email,photo",
+      ...opts,
+    });
+    return response?.data || [];
+  } catch (error) {
+    console.error(`❌ Error fetching users for workspace ${workspace_gid}:`, error.response?.body || error.message);
+    throw new Error(`Failed to fetch workspace users: ${error.message}`);
+  }
+}
+
+/**
+ * Create a simple task in any Asana project.
+ * @param {object} opts
+ * @param {string}  opts.projectId  - Asana project GID
+ * @param {string}  opts.name       - Task title
+ * @param {string}  [opts.due_on]   - ISO date string (YYYY-MM-DD), mutually exclusive with due_at
+ * @param {string}  [opts.due_at]   - ISO datetime string, mutually exclusive with due_on
+ * @param {string}  [opts.notes]    - Plain-text description
+ * @param {string}  [opts.assignee] - Asana user GID
+ * @param {string}  [opts.sectionId] - Asana section GID to place the task in
+ * @returns {Promise<{gid:string, name:string, permalink_url:string}>}
+ */
+async function createSalesTask({ projectId, name, due_on, due_at, notes, assignee, sectionId }) {
+  const tasksApi = initTasksApi();
+  const body = {
+    data: {
+      name: (name || '(kein Titel)').trim(),
+      projects: [projectId],
+      notes: notes || '',
+      ...(due_at   ? { due_at }   : due_on ? { due_on } : {}),
+      ...(assignee ? { assignee } : {}),
+    },
+  };
+  const resp = await tasksApi.createTask(body, { opt_fields: 'gid,name,permalink_url' });
+  const created = resp?.data || resp;
+
+  if (sectionId && created?.gid) {
+    try {
+      const sectionsApi = initSectionsApi();
+      await sectionsApi.addTaskForSection(sectionId, { body: { data: { task: created.gid } } });
+    } catch (e) {
+      console.warn(`⚠️ createSalesTask: could not move task ${created.gid} to section ${sectionId}:`, e.message);
+    }
+  }
+
+  return created;
+}
+
+module.exports = {  // find/update
+  findTasks,
+  findAllTasks,
+  updateTask,
+
+  // Bewerber link + routine
+  addLinkToTask,
+  bewerberRoutine,
+
+  // create task from email (+ attachments)
+  createTaskFromEmail,
+
+  // create simple sales task
+  createSalesTask,
+
+  // misc
+  getTaskById,
+  getStoryById,
+  getStoriesByTask,
+  getSubtaskByTask,
+  createSubtasksOnTask,
+  createStoryOnTask,
+  deleteStory,
+  completeTaskById,
+  deleteTask,
+
+  // users
+  getAsanaUser,
+  getAsanaUsers,
+  getAsanaWorkspaceUsers,
+};

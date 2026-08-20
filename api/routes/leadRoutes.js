@@ -10,10 +10,10 @@ const LeadLabel = require('../models/System/LeadLabel');
 const LeadConfig = require('../models/System/LeadConfig');
 const User = require('../models/System/User');
 const Comment = require('../models/System/Comment');
-const R2Service = require('../R2Service');
+const R2Service = require('../services/integrations/R2Service');
 const registry = require('../config/registry');
-const { createSalesTask, updateTask } = require('../AsanaService');
-const { resolveLocationFromStandortName } = require('../services/LocationResolutionService');
+const { createSalesTask, updateTask } = require('../services/integrations/AsanaService');
+const { resolveLocationFromStandortName } = require('../services/operations/LocationResolutionService');
 
 // Multer — memory storage, max 25 MB per file, up to 20 files per request
 const upload = multer({

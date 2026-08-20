@@ -18,11 +18,11 @@ const {
   VERLOSUNG_STATUS,
 } = require("../models/Classes/FlipDocs");
 
-const { sendMail } = require("../EmailService"); // Ensure sendMail is properly imported
+const { sendMail } = require("../services/integrations/EmailService"); // Ensure sendMail is properly imported
 
 const Mitarbeiter = require("../models/Employee/Mitarbeiter");
 const Auftrag = require("../models/Event/Auftrag");
-const { resolveLocationFromStandortName } = require("../services/LocationResolutionService");
+const { resolveLocationFromStandortName } = require("../services/operations/LocationResolutionService");
 
 const {
   findMitarbeiterByName,
@@ -38,7 +38,7 @@ const {
   markAssignmentAsCompleted,
 
   assignVerlosungEintrag,
-} = require("../FlipService");
+} = require("../services/integrations/FlipService");
 
 const {
   getTaskById,
@@ -54,7 +54,7 @@ const {
   createSubtasksOnTask,
 
   completeTaskById,
-} = require("../AsanaService");
+} = require("../services/integrations/AsanaService");
 
 const asyncHandler = require("../middleware/AsyncHandler");
 
@@ -1447,7 +1447,7 @@ router.post(
     let flipUserData = null;
     if (mitarbeiter.flip_id) {
       try {
-        const { findFlipUserById } = require('../FlipService');
+        const { findFlipUserById } = require('../services/integrations/FlipService');
         flipUserData = await findFlipUserById(mitarbeiter.flip_id);
         logger.debug(`FlipUser data fetched for ${mitarbeiter.flip_id}:`, flipUserData);
       } catch (error) {

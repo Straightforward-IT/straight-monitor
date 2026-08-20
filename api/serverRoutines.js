@@ -1,16 +1,16 @@
 // routines.js
 const cron = require("node-cron");
-const { getFlipAuthToken } = require("./flipAxios");
-const { flipUserRoutine, updateTeamleitungWikiPages } = require("./FlipService");
-const { sollRoutine, sendMail } = require("./EmailService");
-const { bewerberRoutine } = require("./AsanaService");
-const { syncCompanies } = require("./ZvooveService");
+const { getFlipAuthToken } = require("./services/integrations/flipAxios");
+const { flipUserRoutine, updateTeamleitungWikiPages } = require("./services/integrations/FlipService");
+const { sollRoutine, sendMail } = require("./services/integrations/EmailService");
+const { bewerberRoutine } = require("./services/integrations/AsanaService");
+const { syncCompanies } = require("./services/integrations/ZvooveService");
 const {
   ensureMultipleGraphSubscriptions,
   deleteMessagesInFolder,
-} = require("./GraphService");
-const { runApplicantMailRetentionCleanup } = require("./ApplicantMailRetentionService");
-const { sendMonthlyWatchlistReports } = require("./KundenWatchlistReportService");
+} = require("./services/integrations/GraphService");
+const { runApplicantMailRetentionCleanup } = require("./services/employee/ApplicantMailRetentionService");
+const { sendMonthlyWatchlistReports } = require("./services/operations/KundenWatchlistReportService");
 const registry = require("./config/registry");
 const logger = require("./utils/logger");
 

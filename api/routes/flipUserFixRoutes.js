@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
-const { flipAxios } = require('../flipAxios');
+const { flipAxios } = require('../services/integrations/flipAxios');
 const logger = require('../utils/logger');
 
 // GET /api/flip-user-fix/attribute-definitions

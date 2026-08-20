@@ -16,11 +16,11 @@ const DispoEintrag = require('../models/System/DispoEintrag');
 const ZvooveVerfuegbarkeit = require('../models/System/ZvooveVerfuegbarkeit');
 const User = require('../models/System/User');
 const logger = require('../utils/logger');
-const { sendMail } = require('../EmailService');
+const { sendMail } = require('../services/integrations/EmailService');
 const auth = require('../middleware/auth');
 const { encryptField } = require('../utils/encryption');
-const { deleteManyFlipUsers } = require('../FlipService');
-const { completeTaskById } = require('../AsanaService');
+const { deleteManyFlipUsers } = require('../services/integrations/FlipService');
+const { completeTaskById } = require('../services/integrations/AsanaService');
 
 const upload = multer({ storage: multer.memoryStorage() });
 

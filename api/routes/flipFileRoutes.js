@@ -3,13 +3,13 @@ const multer = require("multer");
 const router = express.Router();
 const auth = require("../middleware/auth");
 const asyncHandler = require("../middleware/AsyncHandler");
-const { flipAxios } = require("../flipAxios");
+const { flipAxios } = require("../services/integrations/flipAxios");
 const {
   createFlipFile,
   uploadToFlipSignedUrl,
   pollFlipFileStatus,
   uploadFileToFlip,
-} = require("../FlipService");
+} = require("../services/integrations/FlipService");
 const logger = require("../utils/logger");
 
 // Memory storage — no files written to disk

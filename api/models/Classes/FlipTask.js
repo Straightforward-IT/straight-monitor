@@ -1,4 +1,4 @@
-const { flipAxios } = require("../../flipAxios");
+const { flipAxios } = require("../../services/integrations/flipAxios");
 
 class FlipTask {
   constructor(data) {

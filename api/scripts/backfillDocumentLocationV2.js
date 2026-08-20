@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 require('../models/Employee/Mitarbeiter');
 const { EventReport, Laufzettel } = require('../models/Classes/FlipDocs');
-const { resolveLocationFromStandortName } = require('../services/LocationResolutionService');
+const { resolveLocationFromStandortName } = require('../services/operations/LocationResolutionService');
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 

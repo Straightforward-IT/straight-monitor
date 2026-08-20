@@ -2,7 +2,7 @@
  * Shared PDF rendering utilities used by both template and Vorgang routes.
  */
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
-const R2Service = require('../R2Service');
+const R2Service = require('../services/integrations/R2Service');
 
 /**
  * Returns template.pdfs sorted by their `order` field.

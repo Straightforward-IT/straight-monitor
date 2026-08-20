@@ -5,8 +5,8 @@ const logger = require('../utils/logger');
 const PdfVorgang = require('../models/Deprecated/PdfVorgang');
 const PdfTemplate = require('../models/Deprecated/PdfTemplate');
 const { buildFilledPdf } = require('../utils/pdfRender');
-const R2Service = require('../R2Service');
-const { sendMail } = require('../EmailService');
+const R2Service = require('../services/integrations/R2Service');
+const { sendMail } = require('../services/integrations/EmailService');
 
 const router = express.Router();
 

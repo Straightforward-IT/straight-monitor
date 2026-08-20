@@ -3,10 +3,10 @@ const router = express.Router();
 const multer = require("multer");
 const auth = require("../middleware/auth");
 const asyncHandler = require("../middleware/AsyncHandler");
-const { sendMail } = require("../EmailService");
+const { sendMail } = require("../services/integrations/EmailService");
 const Mitarbeiter = require("../models/Employee/Mitarbeiter");
 const Qualifikation = require("../models/Event/Qualifikation");const Auftrag = require('../models/Event/Auftrag');const { Laufzettel } = require("../models/Classes/FlipDocs");
-const { flipAxios } = require("../flipAxios");
+const { flipAxios } = require("../services/integrations/flipAxios");
 const logger = require("../utils/logger");
 
 // Multer setup for file uploads

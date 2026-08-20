@@ -5,7 +5,7 @@ const auth = require('../middleware/auth');
 const requirePayrollRole = require('../middleware/requirePayrollRole');
 const sensitiveRoute = require('../middleware/sensitiveRoute');
 const asyncHandler = require('../middleware/AsyncHandler');
-const PayrollReferenceMonthService = require('../PayrollReferenceMonthService');
+const PayrollReferenceMonthService = require('../services/payroll/PayrollReferenceMonthService');
 
 const router = express.Router();
 

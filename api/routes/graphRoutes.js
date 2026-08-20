@@ -36,12 +36,12 @@ const {
   uploadDriveItem,
   getOneDriveFolderTree,
   mapToFolderNodes,
-} = require("../GraphService");
-const { parseApplicantEmail } = require("../applicantParser");
-const { runApplicantMailRetentionCleanup } = require("../ApplicantMailRetentionService");
+} = require("../services/integrations/GraphService");
+const { parseApplicantEmail } = require("../services/employee/applicantParser");
+const { runApplicantMailRetentionCleanup } = require("../services/employee/ApplicantMailRetentionService");
 
 const registry = require("../config/registry");
-const { createTaskFromEmail } = require("../AsanaService");
+const { createTaskFromEmail } = require("../services/integrations/AsanaService");
 const User = require("../models/System/User");
 const asyncHandler = require("../middleware/AsyncHandler");
 

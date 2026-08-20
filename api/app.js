@@ -190,7 +190,7 @@ mongoose.connect(process.env.MONGO_URI)
     }
     // ─────────────────────────────────────────────────────────────────────────
     // Verify R2 connection on startup
-    const R2Service = require('./R2Service');
+    const R2Service = require('./services/integrations/R2Service');
     await R2Service.testConnection();
   })
   .catch(async (err) => {

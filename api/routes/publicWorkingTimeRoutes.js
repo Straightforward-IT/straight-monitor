@@ -4,7 +4,7 @@ const express = require('express');
 const publicAuth = require('../middleware/publicAuth');
 const asyncHandler = require('../middleware/AsyncHandler');
 const sensitiveRoute = require('../middleware/sensitiveRoute');
-const WorkingTimeService = require('../WorkingTimeService');
+const WorkingTimeService = require('../services/payroll/WorkingTimeService');
 
 const router = express.Router();
 

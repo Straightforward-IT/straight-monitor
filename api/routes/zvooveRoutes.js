@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/AsyncHandler");
-const { getEmployees, getEmployeesWithDetails, getCompanies, getOrders, getOrderPositions, getOrderPosition, updateOrderPosition, getOrderPositionsChangelog, getAssignments, getOrdersChangelog } = require("../ZvooveService");
+const { getEmployees, getEmployeesWithDetails, getCompanies, getOrders, getOrderPositions, getOrderPosition, updateOrderPosition, getOrderPositionsChangelog, getAssignments, getOrdersChangelog } = require("../services/integrations/ZvooveService");
 
 /**
  * Route: Get all employees overview from Zvoove

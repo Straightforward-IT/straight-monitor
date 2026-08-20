@@ -9,7 +9,7 @@ const {
   getFlipCalendarOverview,
   getFlipCalendarEvent,
   updateFlipCalendarEvent,
-} = require("../FlipService");
+} = require("../services/integrations/FlipService");
 const Einsatz = require("../models/Event/Einsatz");
 const Auftrag = require("../models/Event/Auftrag");
 const Mitarbeiter = require("../models/Employee/Mitarbeiter");

@@ -7,7 +7,7 @@ const auth = require('../middleware/auth');
 const logger = require('../utils/logger');
 const PdfTemplate = require('../models/Deprecated/PdfTemplate');
 const { sortedPdfs, buildFilledPdf } = require('../utils/pdfRender');
-const R2Service = require('../R2Service');
+const R2Service = require('../services/integrations/R2Service');
 
 const router = express.Router();
 const upload = multer({

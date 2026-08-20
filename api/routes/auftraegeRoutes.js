@@ -11,10 +11,10 @@ const Beruf = require('../models/Event/Beruf');
 const Qualifikation = require('../models/Event/Qualifikation');
 const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
-const { resolveActiveLocation } = require('../services/LocationResolutionService');
-const StundenlisteService = require('../StundenlisteService');
-const TelefonlisteService = require('../TelefonlisteService');
-const R2Service = require('../R2Service');
+const { resolveActiveLocation } = require('../services/operations/LocationResolutionService');
+const StundenlisteService = require('../services/operations/StundenlisteService');
+const TelefonlisteService = require('../services/operations/TelefonlisteService');
+const R2Service = require('../services/integrations/R2Service');
 const SignaturVorgang = require('../models/Signature/SignaturVorgang');
 
 const uploadMem = multer({

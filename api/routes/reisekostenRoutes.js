@@ -8,8 +8,8 @@ const Reisekostenabrechnung = require('../models/Signature/Reisekostenabrechnung
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const Location = require('../models/System/Location');
 const SignaturVorgang = require('../models/Signature/SignaturVorgang');
-const ReisekostenService = require('../ReisekostenService');
-const R2Service = require('../R2Service');
+const ReisekostenService = require('../services/operations/ReisekostenService');
+const R2Service = require('../services/integrations/R2Service');
 const { computeSummen } = require('../utils/reisekostenCalc');
 
 const router = express.Router();

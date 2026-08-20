@@ -8,13 +8,13 @@ const BewerberEmailDocument = require("../models/System/BewerberEmailDocument");
 const BewerberEmailTemplate = require("../models/System/BewerberEmailTemplate");
 const Location = require("../models/System/Location");
 const User = require("../models/System/User");
-const R2Service = require("../R2Service");
+const R2Service = require("../services/integrations/R2Service");
 const {
   PLACEHOLDERS,
   prepareTemplate,
   renderTemplate,
   resolveTemplate,
-} = require("../services/BewerberEmailTemplateService");
+} = require("../services/employee/BewerberEmailTemplateService");
 const logger = require("../utils/logger");
 
 const router = express.Router();

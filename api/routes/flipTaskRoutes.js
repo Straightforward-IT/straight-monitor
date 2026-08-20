@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const auth = require("../middleware/auth");
 const asyncHandler = require("../middleware/AsyncHandler");
-const { flipAxios } = require("../flipAxios");
+const { flipAxios } = require("../services/integrations/flipAxios");
 const FlipTask = require("../models/Classes/FlipTask");
 const logger = require("../utils/logger");
 

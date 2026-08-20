@@ -10,11 +10,11 @@ const {
   PLACEHOLDERS,
   prepareTemplate,
   renderPreview,
-} = require("../services/EmployeeEmailTemplateService");
+} = require("../services/employee/EmployeeEmailTemplateService");
 const {
   listTemplateFolderMessages,
   getTemplateMessage,
-} = require("../GraphService");
+} = require("../services/integrations/GraphService");
 const logger = require("../utils/logger");
 
 const router = express.Router();

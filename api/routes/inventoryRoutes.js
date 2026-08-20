@@ -8,14 +8,14 @@ const Monitoring = require('../models/Monitoring');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const PaketVorlage = require('../models/System/PaketVorlage');
 const User = require('../models/System/User');
-const { sendMail } = require('../EmailService');
+const { sendMail } = require('../services/integrations/EmailService');
 const {
   findInventoryStock,
   listFlatStocks,
   normalizeStockInput,
   toFlatStock,
   validateLocationIds,
-} = require('../services/InventoryService');
+} = require('../services/operations/InventoryService');
 
 const router = express.Router();
 

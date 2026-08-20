@@ -8,7 +8,7 @@ const asyncHandler = require("../middleware/AsyncHandler");
 const {
   resolveActiveLocation,
   resolveLocationFromStandortName,
-} = require('../services/LocationResolutionService');
+} = require('../services/operations/LocationResolutionService');
 
 async function resolveMonitoringLocation(locationId, standort) {
   return (locationId ? await resolveActiveLocation(locationId) : null)

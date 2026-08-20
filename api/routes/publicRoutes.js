@@ -9,20 +9,20 @@ const Location = require("../models/System/Location");
 const Schicht = require("../models/Event/Schicht");
 const Beruf = require("../models/Event/Beruf");
 const Qualifikation = require("../models/Event/Qualifikation");
-const TelefonlisteService = require("../TelefonlisteService");
+const TelefonlisteService = require("../services/operations/TelefonlisteService");
 const { EventReport, Laufzettel, EvaluierungMA } = require("../models/Classes/FlipDocs");
 const CheckIn = require("../models/CheckIn");
 const logger = require("../utils/logger");
-const AsanaService = require("../AsanaService");
-const { sendMail } = require("../EmailService");
+const AsanaService = require("../services/integrations/AsanaService");
+const { sendMail } = require("../services/integrations/EmailService");
 const registry = require("../config/registry");
-const { assignTeamleiter, getFlipProfilePicture, updateLaufzettelBadge } = require("../FlipService");
-const { flipAxios } = require("../flipAxios");
+const { assignTeamleiter, getFlipProfilePicture, updateLaufzettelBadge } = require("../services/integrations/FlipService");
+const { flipAxios } = require("../services/integrations/flipAxios");
 const {
   resolveActiveLocation,
   resolveLocationFromExternalId,
   resolveLocationFromStandortName,
-} = require("../services/LocationResolutionService");
+} = require("../services/operations/LocationResolutionService");
 
 // All routes in this file require FLIP_PUBLIC_JWT
 router.use(publicAuth);

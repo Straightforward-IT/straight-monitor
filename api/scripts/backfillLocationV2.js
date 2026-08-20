@@ -7,7 +7,7 @@ const Bewerber = require('../models/Employee/Bewerber');
 const {
   resolveLocationFromPersonalnr,
   resolveLocationFromTeamKey,
-} = require('../services/LocationResolutionService');
+} = require('../services/operations/LocationResolutionService');
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 

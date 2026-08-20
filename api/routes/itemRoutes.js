@@ -7,9 +7,9 @@ const Monitoring = require("../models/Monitoring");
 const Mitarbeiter = require("../models/Employee/Mitarbeiter");
 const xlsx = require("xlsx");
 const asyncHandler = require("../middleware/AsyncHandler");
-const { sollRoutine, sendInventoryUpdateEmail} = require("../EmailService");
+const { sollRoutine, sendInventoryUpdateEmail} = require("../services/integrations/EmailService");
 const registry = require("../config/registry");
-const { resolveLocationFromStandortName } = require('../services/LocationResolutionService');
+const { resolveLocationFromStandortName } = require('../services/operations/LocationResolutionService');
 
 // Variables
 const cities = registry.listInventoryStandorte();

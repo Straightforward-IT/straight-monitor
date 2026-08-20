@@ -1,4 +1,4 @@
-const { runApplicantMailRetentionCleanup } = require('../ApplicantMailRetentionService');
+const { runApplicantMailRetentionCleanup } = require('../services/employee/ApplicantMailRetentionService');
 
 function normalizeStringList(value) {
   if (!value) return null;

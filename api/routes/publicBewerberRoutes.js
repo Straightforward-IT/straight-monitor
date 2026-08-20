@@ -3,11 +3,11 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const asyncHandler = require("../middleware/AsyncHandler");
-const { findInvitationByToken, secretsMatch } = require("../BewerberInvitationService");
-const { sendBewerberSubmittedEmail } = require("../EmailService");
-const R2Service = require("../R2Service");
+const { findInvitationByToken, secretsMatch } = require("../services/employee/BewerberInvitationService");
+const { sendBewerberSubmittedEmail } = require("../services/integrations/EmailService");
+const R2Service = require("../services/integrations/R2Service");
 const logger = require("../utils/logger");
-const { pickEditableFields: pickAllowedFields } = require("../services/BewerberFields");
+const { pickEditableFields: pickAllowedFields } = require("../services/employee/BewerberFields");
 
 const router = express.Router();
 const SESSION_COOKIE = "bewerber_invitation_session";

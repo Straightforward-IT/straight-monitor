@@ -8,16 +8,16 @@ const Bewerber = require("../models/Employee/Bewerber");
 const {
   resolveActiveLocation,
   resolveLocationFromTeamKey,
-} = require("../services/LocationResolutionService");
+} = require("../services/operations/LocationResolutionService");
 const Mitarbeiter = require("../models/Employee/Mitarbeiter");
 const BewerberEmailDocument = require("../models/System/BewerberEmailDocument");
 const User = require("../models/System/User");
-const { INVITATION_TYPES, sendInvitation } = require("../BewerberInvitationService");
-const { findAllTasks } = require("../AsanaService");
-const R2Service = require("../R2Service");
+const { INVITATION_TYPES, sendInvitation } = require("../services/employee/BewerberInvitationService");
+const { findAllTasks } = require("../services/integrations/AsanaService");
+const R2Service = require("../services/integrations/R2Service");
 const registry = require("../config/registry");
 const logger = require("../utils/logger");
-const { pickEditableFields } = require("../services/BewerberFields");
+const { pickEditableFields } = require("../services/employee/BewerberFields");
 
 const router = express.Router();
 const ENABLED_TEAM_KEY = "hamburg";

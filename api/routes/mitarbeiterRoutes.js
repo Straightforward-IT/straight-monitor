@@ -14,17 +14,17 @@ const {
   resolveActiveLocation,
   resolveLocationFromPersonalnr,
   resolveLocationFromStandortName,
-} = require("../services/LocationResolutionService");
+} = require("../services/operations/LocationResolutionService");
 const User = require("../models/System/User");
 const Einsatz = require("../models/Event/Einsatz");
 const Auftrag = require("../models/Event/Auftrag");
 const Qualifikation = require("../models/Event/Qualifikation");
 const { EventReport, EvaluierungMA, Laufzettel, LAUFZETTEL_STATUS } = require("../models/Classes/FlipDocs");
 const FlipUser = require("../models/Classes/FlipUser");
-const { sendMail } = require("../EmailService");
+const { sendMail } = require("../services/integrations/EmailService");
 const logger = require("../utils/logger");
 const storage = multer.memoryStorage();
-const { flipAxios } = require("../flipAxios");
+const { flipAxios } = require("../services/integrations/flipAxios");
 const {
   assignFlipTask,
   assignFlipUserGroups,
@@ -46,7 +46,7 @@ const {
   assignTeamleiter,
   updateLaufzettelBadge,
   restoreFlipUser,
-} = require("../FlipService");
+} = require("../services/integrations/FlipService");
 const {
   findTasks,
   findAllTasks,
@@ -61,13 +61,13 @@ const {
   getSubtaskByTask,
   createSubtasksOnTask,
   completeTaskById,
-} = require("../AsanaService");
+} = require("../services/integrations/AsanaService");
 const asyncHandler = require("../middleware/AsyncHandler");
 const Kunde = require("../models/Customer/Kunde");
 const JSZip = require("jszip");
 const { PDFDocument } = require("pdf-lib");
 const sharp = require("sharp");
-const r2Service = require("../R2Service");
+const r2Service = require("../services/integrations/R2Service");
 const stripPayrollOwnedEmployeeFields = require("../utils/sanitizeMitarbeiterUpdate");
 const progressMap = new Map();
 

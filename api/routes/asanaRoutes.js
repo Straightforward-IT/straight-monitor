@@ -3,7 +3,7 @@ const router = express.Router();
 const asyncHandler = require("../middleware/AsyncHandler");
 const auth = require("../middleware/auth");
 const User = require("../models/System/User");
-const { findTasks, getTaskById, getStoryById, getStoriesByTask, findAllTasks, updateTask, addLinkToTask, bewerberRoutine, createStoryOnTask, getAsanaUser, getAsanaUsers, getAsanaWorkspaceUsers, createSalesTask } = require("../AsanaService");
+const { findTasks, getTaskById, getStoryById, getStoriesByTask, findAllTasks, updateTask, addLinkToTask, bewerberRoutine, createStoryOnTask, getAsanaUser, getAsanaUsers, getAsanaWorkspaceUsers, createSalesTask } = require("../services/integrations/AsanaService");
 
 
 

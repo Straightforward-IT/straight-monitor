@@ -1,4 +1,4 @@
-const { flipAxios } = require("../../flipAxios");
+const { flipAxios } = require("../../services/integrations/flipAxios");
 const USER_ROLE_ID = "53267279-ffb8-4cb9-aced-e5d92ed9be05";
 
 class FlipUser {

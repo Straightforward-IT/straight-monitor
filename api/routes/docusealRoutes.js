@@ -6,13 +6,13 @@ const SignaturTyp = require('../models/System/SignaturTyp');
 const auth = require('../middleware/auth');
 const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
-const DocuSealService = require('../DocuSealService');
+const DocuSealService = require('../services/integrations/DocuSealService');
 const DocuSealVorgang = require('../models/Signature/DocuSealVorgang');
-const R2Service = require('../R2Service');
+const R2Service = require('../services/integrations/R2Service');
 const User = require('../models/System/User');
 const Auftrag = require('../models/Event/Auftrag');
 const Kunde = require('../models/Customer/Kunde');
-const StundenlisteService = require('../StundenlisteService');
+const StundenlisteService = require('../services/operations/StundenlisteService');
 
 const router = express.Router();
 
@@ -243,7 +243,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   await vorgang.save();
 
   // Send branded signature-request emails for non-embedded signers.
-  const { sendSignaturEmail } = require('../EmailService');
+  const { sendSignaturEmail } = require('../services/integrations/EmailService');
   for (const apiSub of storedSubmitters) {
     if (!apiSub.embedded && apiSub.slug) {
       const signingLink = apiSub.embedSrc || `https://docuseal.eu/s/${apiSub.slug}`;
@@ -399,7 +399,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
 
   // Custom Graph Email Dispatching
   // Find external submitters (like Entleiher) that are not embedded in the UI
-  const { sendSignaturEmail } = require('../EmailService');
+  const { sendSignaturEmail } = require('../services/integrations/EmailService');
   logger.info(`[Stundenliste ${auftragNr}] storedSubmitters after DocuSeal response:`, JSON.stringify(storedSubmitters, null, 2));
   for (const apiSub of storedSubmitters) {
     logger.info(`[Stundenliste ${auftragNr}] Checking submitter for email: role=${apiSub.role}, email=${apiSub.email}, embedded=${apiSub.embedded}, slug=${apiSub.slug || '(empty)'}`);
