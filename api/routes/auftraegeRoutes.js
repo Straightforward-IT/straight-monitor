@@ -13,6 +13,7 @@ const asyncHandler = require('../middleware/AsyncHandler');
 const logger = require('../utils/logger');
 const { resolveActiveLocation } = require('../services/LocationResolutionService');
 const StundenlisteService = require('../StundenlisteService');
+const TelefonlisteService = require('../TelefonlisteService');
 const R2Service = require('../R2Service');
 const SignaturVorgang = require('../models/SignaturVorgang');
 
@@ -529,6 +530,17 @@ router.get('/:auftragNr/stundenliste', asyncHandler(async (req, res) => {
   res.set({
     'Content-Type': 'application/pdf',
     'Content-Disposition': `attachment; filename="Stundenliste-${auftragNr}.pdf"`,
+    'Content-Length': buffer.length,
+  });
+  res.send(buffer);
+}));
+
+// GET /api/auftraege/:auftragNr/telefonliste — Telefonliste als PDF
+router.get('/:auftragNr/telefonliste', auth, asyncHandler(async (req, res) => {
+  const { buffer, auftragNr } = await TelefonlisteService.buildTelefonliste(req.params.auftragNr);
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `attachment; filename="Telefonliste-${auftragNr}.pdf"`,
     'Content-Length': buffer.length,
   });
   res.send(buffer);

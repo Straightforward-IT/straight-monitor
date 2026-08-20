@@ -518,12 +518,22 @@
           <div class="einsatzdoks-section">
             <div class="section-header">
               <h3><font-awesome-icon icon="fa-solid fa-folder-open" /> Einsatzdokumente</h3>
-              <div v-if="canSignaturen" class="neu-dok-wrap">
+              <div class="neu-dok-wrap">
                 <button class="neu-dok-btn" type="button" @click.stop="showNeuMenu = !showNeuMenu">
                   <font-awesome-icon icon="fa-solid fa-plus" /> Neu
                   <font-awesome-icon icon="fa-solid fa-chevron-down" class="neu-dok-caret" />
                 </button>
                 <div v-if="showNeuMenu" class="neu-dok-menu" @click.stop>
+                  <button
+                    class="neu-dok-item"
+                    type="button"
+                    :disabled="isGeneratingTelefonliste"
+                    title="Telefonliste mit aktuellen Einsatzdaten erzeugen"
+                    @click="downloadTelefonliste"
+                  >
+                    <font-awesome-icon :icon="isGeneratingTelefonliste ? 'fa-solid fa-spinner' : 'fa-solid fa-file'" :spin="isGeneratingTelefonliste" />
+                    {{ isGeneratingTelefonliste ? 'Wird erstellt…' : 'Telefonliste' }}
+                  </button>
                   <button
                     class="neu-dok-item"
                     type="button"
@@ -1364,6 +1374,7 @@ export default {
       // Three-dots dropdown
       showQuickActions: false,
       isGeneratingHoursList: false,
+      isGeneratingTelefonliste: false,
       // ── Stundenliste-Signatur (DocuSeal) ───────────────────────────────────
       showSignatureDialog: false,
       sigLoading: false,
@@ -2601,6 +2612,27 @@ export default {
         alert(err.response?.data?.message || 'Fehler beim Erstellen der Stundenliste');
       } finally {
         this.isGeneratingHoursList = false;
+      }
+    },
+    async downloadTelefonliste() {
+      if (!this.selectedEvent?.auftragNr || this.isGeneratingTelefonliste) return;
+      this.showNeuMenu = false;
+      this.isGeneratingTelefonliste = true;
+      try {
+        const auftragNr = this.selectedEvent.auftragNr;
+        const { data } = await api.get(`/api/auftraege/${auftragNr}/telefonliste`, { responseType: 'blob' });
+        const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `Telefonliste-${auftragNr}.pdf`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Fehler beim Erstellen der Telefonliste');
+      } finally {
+        this.isGeneratingTelefonliste = false;
       }
     },
     // ── Stundenliste-Signatur (DocuSeal) ─────────────────────────────────────

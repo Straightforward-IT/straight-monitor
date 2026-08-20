@@ -9,6 +9,7 @@ const Location = require("../models/Location");
 const Schicht = require("../models/Schicht");
 const Beruf = require("../models/Beruf");
 const Qualifikation = require("../models/Qualifikation");
+const TelefonlisteService = require("../TelefonlisteService");
 const { EventReport, Laufzettel, EvaluierungMA } = require("../models/Classes/FlipDocs");
 const CheckIn = require("../models/CheckIn");
 const logger = require("../utils/logger");
@@ -477,6 +478,23 @@ router.get(
 
     const result = Object.values(schichtMap).sort((a, b) => a.id - b.id);
     res.json(result);
+  })
+);
+
+// GET /api/public/telefonliste?auftragNr=... — Telefonliste for the public portal
+router.get(
+  "/telefonliste",
+  asyncHandler(async (req, res) => {
+    const { auftragNr } = req.query;
+    if (!auftragNr) return res.status(400).json({ msg: "auftragNr parameter is required" });
+
+    const { buffer, auftragNr: resolvedAuftragNr } = await TelefonlisteService.buildTelefonliste(auftragNr);
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="Telefonliste-${resolvedAuftragNr}.pdf"`,
+      "Content-Length": buffer.length,
+    });
+    res.send(buffer);
   })
 );
 

@@ -105,8 +105,8 @@
           v-if="isTeamleiter"
           class="download-icon-btn"
           :disabled="downloadingStundenliste || totalMitarbeiter === 0"
-          :title="downloadingStundenliste ? 'Stundenliste wird erstellt' : 'Stundenliste herunterladen'"
-          aria-label="Stundenliste herunterladen"
+          :title="downloadingStundenliste ? 'Telefonliste wird erstellt' : 'Telefonliste herunterladen'"
+          aria-label="Telefonliste herunterladen"
           @click="downloadStundenliste"
         >
           <font-awesome-icon :icon="downloadingStundenliste ? 'fa-solid fa-spinner' : 'fa-solid fa-download'" :spin="downloadingStundenliste" />
@@ -360,15 +360,12 @@ import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import PublicBottomSheet from './PublicBottomSheet.vue';
 import { showToast } from '@getflip/bridge';
-import pdfMake from 'pdfmake/build/pdfmake';
-import pdfFonts from 'pdfmake/build/vfs_fonts';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 import { pruefeArbeitszeit } from '@/utils/arbeitszeitValidierung.js';
 
 library.add(faUserClock);
 
-pdfMake.vfs = pdfFonts?.vfs || pdfFonts?.pdfMake?.vfs || pdfMake.vfs;
 const theme = useTheme();
 const imgEventreport = computed(() => theme.isDark ? eventreportDark : eventreportLight);
 
@@ -993,34 +990,12 @@ async function downloadStundenliste() {
 
   downloadingStundenliste.value = true;
   try {
-    const docDefinition = buildStundenlisteDefinition();
-    const fileName = getStundenlisteFilename();
-    const pdfDoc = pdfMake.createPdf(docDefinition);
-
-    const blob = await new Promise((resolve, reject) => {
-      try {
-        pdfDoc.getBlob((b) => {
-          if (!b) return reject(new Error('PDF leer'));
-          resolve(b);
-        });
-      } catch (err) { reject(err); }
+    const { data } = await props.api.get('/api/public/telefonliste', {
+      params: { auftragNr: props.einsatz.auftragNr },
+      responseType: 'blob',
     });
-
-    const file = new File([blob], fileName, { type: 'application/pdf' });
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: getStundenlisteTitle(),
-          text: `Stundenliste ${getStundenlisteTitle()}`,
-        });
-        return;
-      } catch (err) {
-        if (err?.name === 'AbortError') return;
-      }
-    }
-
+    const fileName = `Telefonliste-${props.einsatz.auftragNr}.pdf`;
+    const blob = new Blob([data], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1029,10 +1004,10 @@ async function downloadStundenliste() {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    try { showToast({ text: 'Stundenliste wird heruntergeladen.', intent: 'success', duration: 2200 }); } catch {}
+    try { showToast({ text: 'Telefonliste wird heruntergeladen.', intent: 'success', duration: 2200 }); } catch {}
   } catch (error) {
-    console.error('Fehler beim Erstellen der Stundenliste:', error);
-    try { showToast({ text: 'Stundenliste konnte nicht erstellt werden.', intent: 'error', duration: 2500 }); } catch {}
+    console.error('Fehler beim Erstellen der Telefonliste:', error);
+    try { showToast({ text: 'Telefonliste konnte nicht erstellt werden.', intent: 'error', duration: 2500 }); } catch {}
   } finally {
     downloadingStundenliste.value = false;
   }
