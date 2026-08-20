@@ -1,0 +1,270 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const router = express.Router();
+const auth = require('../../middleware/auth');
+const asyncHandler = require('../../middleware/AsyncHandler');
+const DispoEintrag = require('../../models/System/DispoEintrag');
+const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
+const Einsatz = require('../../models/Event/Einsatz');
+const Auftrag = require('../../models/Event/Auftrag');
+const Kunde = require('../../models/Customer/Kunde');
+const ZvooveVerfuegbarkeit = require('../../models/System/ZvooveVerfuegbarkeit');
+const Location = require('../../models/System/Location');
+
+// ─── GET /api/dispo?von=&bis=&locationV2=&mitarbeiterId= ───
+// Liefert DispoEinträge + Einsätze (gemerged) für den Zeitraum
+router.get('/', auth, asyncHandler(async (req, res) => {
+  const { von, bis, locationV2, mitarbeiterId } = req.query;
+
+  if (!von || !bis) {
+    return res.status(400).json({ message: 'Query-Parameter "von" und "bis" sind erforderlich.' });
+  }
+
+  const dateVon = new Date(von);
+  const dateBis = new Date(bis);
+
+  if (isNaN(dateVon.getTime()) || isNaN(dateBis.getTime())) {
+    return res.status(400).json({ message: 'Ungültige Datumswerte.' });
+  }
+
+  // The dispo view works on calendar days, not the caller's current clock time.
+  // Normalize the requested range so entries on the current day are not excluded.
+  dateVon.setHours(0, 0, 0, 0);
+  dateBis.setHours(23, 59, 59, 999);
+
+  // ── 1. Mitarbeiter laden (gefiltert nach Standort) ──
+  const maFilter = { isActive: true };
+  let selectedLocationId = null;
+  if (mitarbeiterId) {
+    maFilter._id = mitarbeiterId;
+  }
+  if (locationV2) {
+    if (!mongoose.isValidObjectId(locationV2)) {
+      return res.status(400).json({ message: 'Ungültige locationV2.' });
+    }
+
+    const location = await Location.findOne({ _id: locationV2, isActive: true })
+      .select('_id')
+      .lean();
+
+    if (location) {
+      selectedLocationId = location._id;
+      maFilter.locationV2 = selectedLocationId;
+    } else {
+      maFilter._id = null;
+    }
+  }
+
+  const mitarbeiter = await Mitarbeiter.find(maFilter)
+    .select('_id vorname nachname personalnr telefon qualifikationen berufe profilbild dispoNotiz kundenwuensche austrittsdatum isBewerberstatus')
+    .populate('qualifikationen', 'qualificationKey designation')
+    .populate('berufe', 'jobKey designation')
+    .populate('kundenwuensche.kunde', 'kundenNr kundName kuerzel')
+    .populate('kundenwuensche.angelegtVon', 'vorname nachname')
+    .lean();
+
+  const maIds = mitarbeiter.map(m => m._id);
+  const personalNrs = mitarbeiter
+    .filter(m => m.personalnr)
+    .map(m => parseInt(m.personalnr, 10))
+    .filter(n => !isNaN(n));
+
+  // ── 2. DispoEinträge im Zeitraum laden ──
+  const eintraege = await DispoEintrag.find({
+    mitarbeiter: { $in: maIds },
+    datumVon: { $lte: dateBis },
+    datumBis: { $gte: dateVon },
+  }).lean();
+
+  // ── 3. Einsätze im Zeitraum laden (für planned-Status) ──
+  const einsatzFilter = {
+    personalNr: { $in: personalNrs },
+    datumVon: { $lte: dateBis },
+    datumBis: { $gte: dateVon },
+  };
+  if (selectedLocationId) einsatzFilter.locationV2 = selectedLocationId;
+  const einsaetze = await Einsatz.find(einsatzFilter)
+    .select('personalNr datumVon datumBis auftragNr bezeichnung schichtBezeichnung uhrzeitVon uhrzeitBis isPseudo')
+    .lean();
+
+  // PersonalNr → Mitarbeiter._id Mapping
+  const pnrToMaId = {};
+  for (const ma of mitarbeiter) {
+    if (ma.personalnr) {
+      pnrToMaId[parseInt(ma.personalnr, 10)] = ma._id;
+    }
+  }
+
+  // Kuerzel-Lookup: auftragNr → kuerzel
+  const auftragNrs = [...new Set(einsaetze.map(e => e.auftragNr).filter(Boolean))];
+  let auftragNrToKuerzel = {};
+  if (auftragNrs.length) {
+    const auftraege = await Auftrag.find({ auftragNr: { $in: auftragNrs } }).select('auftragNr kundenNr').lean();
+    const kundenNrs = [...new Set(auftraege.map(a => a.kundenNr).filter(Boolean))];
+    const kunden = kundenNrs.length
+      ? await Kunde.find({ kundenNr: { $in: kundenNrs } }).select('kundenNr kuerzel').lean()
+      : [];
+    const kundenNrToKuerzel = {};
+    for (const k of kunden) kundenNrToKuerzel[k.kundenNr] = k.kuerzel || null;
+    for (const a of auftraege) auftragNrToKuerzel[a.auftragNr] = kundenNrToKuerzel[a.kundenNr] || null;
+  }
+
+  // Einsätze als pseudo-DispoEinträge konvertieren
+  const einsatzEintraege = einsaetze.map(e => ({
+    _id: e._id,
+    _source: 'einsatz',
+    mitarbeiter: pnrToMaId[e.personalNr] || null,
+    datumVon: e.datumVon,
+    datumBis: e.datumBis,
+    typ: 'planned',
+    auftragNr: e.auftragNr,
+    bezeichnung: e.bezeichnung,
+    schichtBezeichnung: e.schichtBezeichnung,
+    uhrzeitVon: e.uhrzeitVon,
+    uhrzeitBis: e.uhrzeitBis,
+    isPseudo: e.isPseudo,
+    kuerzel: auftragNrToKuerzel[e.auftragNr] || null,
+  })).filter(e => e.mitarbeiter != null);
+
+  // ── 4. ZvooveVerfuegbarkeit im Zeitraum laden ──
+  const zvooveEintraege = [];
+  const zvooveKommentare = [];
+
+  if (personalNrs.length > 0) {
+    // Build a Set of "maId_YYYY-MM-DD" keys covered by real (user-created) DispoEinträge
+    // so we can suppress Zvoove entries that overlap with them.
+    const userCoveredDays = new Set();
+    for (const e of eintraege) {
+      const maIdStr = String(e.mitarbeiter);
+      // Walk every calendar day between datumVon and datumBis (inclusive)
+      const start = new Date(e.datumVon);
+      const end   = new Date(e.datumBis || e.datumVon);
+      start.setUTCHours(0, 0, 0, 0);
+      end.setUTCHours(0, 0, 0, 0);
+      for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        userCoveredDays.add(`${maIdStr}_${d.toISOString().slice(0, 10)}`);
+      }
+    }
+
+    const zvooveFilter = {
+      personalnr: { $in: personalNrs },
+      datum: { $gte: dateVon, $lte: dateBis },
+    };
+    if (selectedLocationId) zvooveFilter.locationV2 = selectedLocationId;
+    const zvooveVerfuegbarkeiten = await ZvooveVerfuegbarkeit.find(zvooveFilter).lean();
+
+    for (const v of zvooveVerfuegbarkeiten) {
+      const maId = pnrToMaId[v.personalnr];
+      if (!maId) continue;
+      // Skip if a user-created entry already covers this day
+      const dayKey = `${String(maId)}_${new Date(v.datum).toISOString().slice(0, 10)}`;
+      if (userCoveredDays.has(dayKey)) continue;
+      const { eintrag, comment } = ZvooveVerfuegbarkeit.toDispoDisplay(v, maId);
+      zvooveEintraege.push(eintrag);
+      if (comment) zvooveKommentare.push(comment);
+    }
+  }
+
+  res.json({
+    mitarbeiter,
+    eintraege: [...eintraege, ...einsatzEintraege, ...zvooveEintraege],
+    zvooveKommentare,
+  });
+}));
+
+// ─── POST /api/dispo ───
+router.post('/', auth, asyncHandler(async (req, res) => {
+  const { mitarbeiter, datumVon, datumBis, typ, verfuegbarkeit, abwesenheitsKategorie, text, zeitVon, zeitBis, farbe, kundeRef, kundeKuerzel } = req.body;
+
+  if (!mitarbeiter || !datumVon || !typ) {
+    return res.status(400).json({ message: 'mitarbeiter, datumVon und typ sind erforderlich.' });
+  }
+
+  const VALID_TYPEN = ['verfuegbarkeit', 'abwesenheit', 'notiz', 'hinweis'];
+  if (!VALID_TYPEN.includes(typ)) {
+    return res.status(400).json({ message: `Ungültiger Typ. Erlaubt: ${VALID_TYPEN.join(', ')}` });
+  }
+
+  if (typ === 'verfuegbarkeit' && !['available', 'partially', 'blocked', 'angefragt_tel', 'angefragt_flip', 'eingeplant'].includes(verfuegbarkeit)) {
+    return res.status(400).json({ message: 'Bei typ=verfuegbarkeit muss verfuegbarkeit gesetzt sein (available/partially/blocked/angefragt_tel/angefragt_flip/eingeplant).' });
+  }
+
+  if (typ === 'abwesenheit' && !['urlaub', 'krank', 'feiertag', 'ueberstunden', 'sonstiges'].includes(abwesenheitsKategorie)) {
+    return res.status(400).json({ message: 'Bei typ=abwesenheit muss abwesenheitsKategorie gesetzt sein.' });
+  }
+
+  const eintrag = new DispoEintrag({
+    mitarbeiter,
+    datumVon: new Date(datumVon),
+    datumBis: datumBis ? new Date(datumBis) : new Date(datumVon),
+    typ,
+    verfuegbarkeit: typ === 'verfuegbarkeit' ? verfuegbarkeit : undefined,
+    abwesenheitsKategorie: typ === 'abwesenheit' ? abwesenheitsKategorie : undefined,
+    kundeRef: verfuegbarkeit === 'eingeplant' && kundeRef ? kundeRef : undefined,
+    kundeKuerzel: verfuegbarkeit === 'eingeplant' && kundeKuerzel ? kundeKuerzel : undefined,
+    text,
+    zeitVon,
+    zeitBis,
+    farbe,
+    erstellt_von: req.user.id,
+  });
+
+  await eintrag.save();
+  res.status(201).json(eintrag);
+}));
+
+// ─── PUT /api/dispo/:id ───
+router.put('/:id', auth, asyncHandler(async (req, res) => {
+  const { typ, verfuegbarkeit, abwesenheitsKategorie, text, datumVon, datumBis, zeitVon, zeitBis, farbe } = req.body;
+
+  const update = {};
+  if (typ !== undefined) update.typ = typ;
+  if (verfuegbarkeit !== undefined) update.verfuegbarkeit = verfuegbarkeit;
+  if (abwesenheitsKategorie !== undefined) update.abwesenheitsKategorie = abwesenheitsKategorie;
+  if (text !== undefined) update.text = text;
+  if (datumVon !== undefined) update.datumVon = new Date(datumVon);
+  if (datumBis !== undefined) update.datumBis = new Date(datumBis);
+  if (zeitVon !== undefined) update.zeitVon = zeitVon;
+  if (zeitBis !== undefined) update.zeitBis = zeitBis;
+  if (farbe !== undefined) update.farbe = farbe;
+
+  const eintrag = await DispoEintrag.findByIdAndUpdate(
+    req.params.id,
+    { $set: update },
+    { new: true, runValidators: true }
+  );
+
+  if (!eintrag) {
+    return res.status(404).json({ message: 'Eintrag nicht gefunden.' });
+  }
+
+  res.json(eintrag);
+}));
+
+// ─── DELETE /api/dispo/:id ───
+router.delete('/:id', auth, asyncHandler(async (req, res) => {
+  const eintrag = await DispoEintrag.findByIdAndDelete(req.params.id);
+
+  if (!eintrag) {
+    return res.status(404).json({ message: 'Eintrag nicht gefunden.' });
+  }
+
+  res.json({ message: 'Eintrag gelöscht.' });
+}));
+
+// ─── PATCH /api/dispo/notiz/:mitarbeiterId ───
+router.patch('/notiz/:mitarbeiterId', auth, asyncHandler(async (req, res) => {
+  const { text } = req.body;
+  if (typeof text !== 'string') {
+    return res.status(400).json({ message: '"text" ist erforderlich.' });
+  }
+  const ma = await Mitarbeiter.findByIdAndUpdate(
+    req.params.mitarbeiterId,
+    { dispoNotiz: text },
+    { new: true, select: '_id dispoNotiz' }
+  );
+  if (!ma) return res.status(404).json({ message: 'Mitarbeiter nicht gefunden.' });
+  res.json({ _id: ma._id, dispoNotiz: ma.dispoNotiz });
+}));
+
+module.exports = router;

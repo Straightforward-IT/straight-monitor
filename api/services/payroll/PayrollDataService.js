@@ -15,7 +15,7 @@ const TariffVersion = require('../../models/Payroll/TariffVersion');
 const PayrollAuditLog = require('../../models/Payroll/PayrollAuditLog');
 const PayrollError = require('../../utils/PayrollError');
 const { sha256 } = require('../../payroll-core/hash');
-const { CALCULATION_VERSION, validateGvpTariffApproval } = require('./payroll-core');
+const { CALCULATION_VERSION, validateGvpTariffApproval } = require('../../payroll-core');
 const {
   markRunRevisionRequired,
   invalidateEmployeeRuns,

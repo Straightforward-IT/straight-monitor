@@ -46,7 +46,7 @@ const {
   selectTariffRate,
   allocateWorkingTimeToPayrollMonth,
   allocateApprovedAbsenceToPayrollMonth,
-} = require('./payroll-core');
+} = require('../../payroll-core');
 const { normalize, sha256 } = require('../../payroll-core/hash');
 const { hourlyRateTimesMinutesAndBps, roundRational } = require('../../payroll-core/rounding');
 

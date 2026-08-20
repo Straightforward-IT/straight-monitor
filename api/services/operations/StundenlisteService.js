@@ -174,7 +174,7 @@ class StundenlisteService {
     // Logo einbetten (optional)
     let logoImg = null;
     try {
-      const logoPath = path.join(__dirname, 'assets', 'straightforward-logo-black.png');
+      const logoPath = path.join(__dirname, '../../assets', 'straightforward-logo-black.png');
       if (fs.existsSync(logoPath)) {
         logoImg = await doc.embedPng(fs.readFileSync(logoPath));
       }
@@ -186,7 +186,7 @@ class StundenlisteService {
     let docusealLogoImg = null;
     if (options.signatureTags) {
       try {
-        const dsPath = path.join(__dirname, 'assets', 'docuseal-logo.png');
+        const dsPath = path.join(__dirname, '../../assets', 'docuseal-logo.png');
         if (fs.existsSync(dsPath)) {
           docusealLogoImg = await doc.embedPng(fs.readFileSync(dsPath));
         }

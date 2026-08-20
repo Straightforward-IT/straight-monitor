@@ -7,8 +7,8 @@ const Ajv2020 = require('ajv/dist/2020');
 const addFormats = require('ajv-formats');
 const PayrollError = require('../../utils/PayrollError');
 
-const SCHEMA_DIRECTORY = path.resolve(__dirname, '../Documentation/Payroll/schema');
-const SOURCE_CONTRACT_PATH = path.resolve(__dirname, '../Documentation/Payroll/AÜRV_2026.md');
+const SCHEMA_DIRECTORY = path.resolve(__dirname, '../../../Documentation/Payroll/schema');
+const SOURCE_CONTRACT_PATH = path.resolve(__dirname, '../../../Documentation/Payroll/AÜRV_2026.md');
 const HASH_PATTERN = /^(?:sha256:)?([a-fA-F0-9]{64})$/;
 
 const schemaFiles = {
