@@ -26,7 +26,7 @@
     <template v-if="activeTab === 'signaturen'">
       <!-- Search + inline filter + count -->
       <Toolbar class="sig-toolbar">
-        <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount">
+        <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
           <FilterGroup label="Location">
             <FilterChip
               v-for="location in locations"
@@ -40,8 +40,8 @@
             <FilterChip
               v-for="s in statusOptions"
               :key="s.key"
-              :active="filters.status === s.key"
-              @click="toggleFilter('status', s.key)"
+              :active="filters.statuses.includes(s.key)"
+              @click="toggleStatus(s.key)"
             >{{ s.label }}</FilterChip>
           </FilterGroup>
           <FilterDivider />
@@ -274,9 +274,12 @@ const tabs = [
 const activeTab = ref('signaturen');
 
 const statusOptions = [
+  { key: 'draft', label: 'Entwurf' },
+  { key: 'open', label: 'Offen' },
   { key: 'completed', label: 'Abgeschlossen' },
   { key: 'cancelled', label: 'Storniert' },
 ];
+const defaultStatuses = statusOptions.filter(({ key }) => key !== 'cancelled').map(({ key }) => key);
 
 const vorgaenge = ref([]);
 const typen = ref([]);
@@ -287,10 +290,11 @@ const filterExpanded = ref(false);
 const showTypModal = ref(false);
 const starred = ref(loadStarred());
 
-const filters = ref({ locationId: null, status: null, entity: null, typKey: null });
+const filters = ref({ locationId: null, statuses: [...defaultStatuses], entity: null, typKey: null });
 
 const activeFilterCount = computed(() =>
-  ['locationId', 'status', 'entity', 'typKey'].filter(k => filters.value[k] !== null).length
+  ['locationId', 'entity', 'typKey'].filter(k => filters.value[k] !== null).length
+    + (hasDefaultStatuses() ? 0 : 1)
 );
 
 let eventSource = null;
@@ -320,7 +324,7 @@ const filteredVorgaenge = computed(() => {
       if (String(vorgangLocationId || '') !== filters.value.locationId
         && !legacyLocationKeys.includes(normalizeLocationKey(v.standort))) return false;
     }
-    if (filters.value.status && v.status !== filters.value.status) return false;
+    if (!filters.value.statuses.includes(v.status)) return false;
     if (filters.value.typKey && v.typKey !== filters.value.typKey) return false;
     if (filters.value.entity === 'kunde' && !v.kunde) return false;
     if (filters.value.entity === 'mitarbeiter' && !v.mitarbeiter) return false;
@@ -345,6 +349,21 @@ const filteredVorgaenge = computed(() => {
 // ── Actions ──────────────────────────────────────────────────────────────────
 function toggleFilter(key, value) {
   filters.value[key] = filters.value[key] === value ? null : value;
+}
+
+function toggleStatus(status) {
+  const index = filters.value.statuses.indexOf(status);
+  if (index === -1) filters.value.statuses.push(status);
+  else filters.value.statuses.splice(index, 1);
+}
+
+function hasDefaultStatuses() {
+  return defaultStatuses.length === filters.value.statuses.length
+    && defaultStatuses.every(status => filters.value.statuses.includes(status));
+}
+
+function resetFilters() {
+  filters.value = { locationId: null, statuses: [...defaultStatuses], entity: null, typKey: null };
 }
 
 function normalizeLocationKey(value) {
@@ -549,6 +568,10 @@ function connectSSE() {
 
 watch(activeTab, (tab) => {
   if (tab === 'templates' && templates.value.length === 0) loadTemplates();
+});
+
+watch(() => modal.open, (isOpen, wasOpen) => {
+  if (wasOpen && !isOpen) loadVorgaenge();
 });
 
 onMounted(() => {

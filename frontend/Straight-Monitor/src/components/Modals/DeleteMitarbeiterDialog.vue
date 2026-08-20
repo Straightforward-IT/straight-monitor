@@ -5,7 +5,7 @@
     </template>
 
     <p class="warning-text">
-      Möchten Sie den Mitarbeiter <strong>{{ name }}</strong> wirklich
+      Mitarbeiter <strong>{{ name }}</strong> wirklich
       löschen? Diese Aktion kann nicht rückgängig gemacht werden.
     </p>
 

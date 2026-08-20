@@ -1212,14 +1212,22 @@
         <template v-if="showTooltips">
           <custom-tooltip text="Stammdaten" :position="tooltipPosition" :delay-in="150">
             <button class="icon-btn" role="tab" :class="{ active: view === 'profile' }" @click="view = 'profile'" :aria-selected="view === 'profile'">
-              <font-awesome-icon icon="fa-solid fa-user" />
+              <span
+                class="tab-brand tab-brand--sf"
+                :style="{ '--tab-brand-image': `url(${effectiveTheme === 'dark' ? straightDark : straightLight})` }"
+                aria-hidden="true"
+              />
               <span>Stammdaten</span>
             </button>
           </custom-tooltip>
         </template>
         <template v-else>
           <button class="icon-btn" role="tab" :class="{ active: view === 'profile' }" @click="view = 'profile'" :aria-selected="view === 'profile'">
-            <font-awesome-icon icon="fa-solid fa-user" />
+            <span
+              class="tab-brand tab-brand--sf"
+              :style="{ '--tab-brand-image': `url(${effectiveTheme === 'dark' ? straightDark : straightLight})` }"
+              aria-hidden="true"
+            />
             <span>Stammdaten</span>
           </button>
         </template>
@@ -1421,6 +1429,10 @@
           <span class="steckbrief-label">Erstellt</span>
           <span class="steckbrief-value steckbrief-value--muted">{{ resolvedMa.erstellt_von }}</span>
         </div>
+        <button class="steckbrief-edit-button" type="button" @click.stop="executeQuickAction('edit')">
+          <font-awesome-icon icon="fa-solid fa-pen-to-square" />
+          Bearbeiten
+        </button>
       </div>
 
       <div class="skills-section">
@@ -1939,8 +1951,7 @@ export default {
       return (this.dataCache.qualifikationen || [])
         .filter((qualification) => !assignedIds.has(String(qualification._id)))
         .filter((qualification) => !query || qualification.designation.toLowerCase().includes(query) || String(qualification.qualificationKey).includes(query))
-        .sort((first, second) => first.qualificationKey - second.qualificationKey)
-        .slice(0, 8);
+        .sort((first, second) => first.qualificationKey - second.qualificationKey);
     },
     filteredUnlinkedUsers() {
       const q = this.flipLinkSearch.toLowerCase().trim();
@@ -5503,22 +5514,12 @@ export default {
 
 @media (max-width: 900px) {
   .card[data-expanded="true"] {
-    --mobile-action-size: 34px;
-    --mobile-action-gap: 6px;
-    --mobile-action-strip-width: 194px;
-    --mobile-close-space: 8px;
-    --mobile-header-action-space: calc(
-      var(--mobile-action-strip-width) + var(--mobile-close-space) + 16px
-    );
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
   }
 
   .card[data-expanded="true"] .card-header {
     grid-row: 1;
-    position: relative;
-    min-height: calc(var(--mobile-action-size) + 24px);
-    padding-right: var(--mobile-header-action-space);
   }
 
   .card[data-expanded="true"] .title .meta {
@@ -5533,15 +5534,7 @@ export default {
   }
 
   .hero-panel {
-    position: absolute;
-    top: 8px;
-    right: var(--mobile-close-space);
-    grid-column: unset;
-    grid-row: unset;
-    display: flex;
-    overflow: visible;
-    background: none;
-    z-index: 12;
+    display: none;
   }
 
   .hero-media {
@@ -5552,42 +5545,12 @@ export default {
     display: none;
   }
 
-  .hero-panel .card-actions {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    border-right: none;
-    border-bottom: none;
-    padding: 0;
-    gap: var(--mobile-action-gap);
-    background: none;
-  }
-
-  .hero-panel .card-actions .icon-btn {
-    width: var(--mobile-action-size);
-    height: var(--mobile-action-size);
-    font-size: 12px;
-  }
-
   .card[data-expanded="true"] .card-body {
     grid-row: 2;
   }
 }
 
 @media (max-width: 520px) {
-  .card[data-expanded="true"] {
-    --mobile-action-size: 30px;
-    --mobile-action-gap: 4px;
-    --mobile-action-strip-width: 166px;
-    --mobile-close-space: 8px;
-    --mobile-header-action-space: calc(
-      var(--mobile-action-strip-width) + var(--mobile-close-space) + 10px
-    );
-  }
-
-  .hero-panel {
-    top: 9px;
-  }
 }
 
 /* Expand animation */
@@ -6772,6 +6735,27 @@ export default {
   font-size: 12px;
 }
 
+.employee-tabs-shell .steckbrief-edit-button {
+  grid-column: 1 / -1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+  }
+}
+
 .employee-tabs-shell .skills-section {
   grid-column: 1 / -1;
 }
@@ -6838,7 +6822,11 @@ export default {
 }
 
 @media (max-width: 620px) {
-  .employee-tabs-shell .card-actions .icon-btn span {
+  .card-header .title .meta {
+    display: none !important;
+  }
+
+  .employee-tabs-shell .card-actions .icon-btn > span:not(.tab-logo-pair) {
     display: none;
   }
 

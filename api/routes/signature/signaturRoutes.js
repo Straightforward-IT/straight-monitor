@@ -995,13 +995,14 @@ router.get('/storage/url', auth, asyncHandler(async (req, res) => {
 //   templateName?  string
 //   order?         'preserved' | 'random' (default: 'preserved')
 //   submitters?    [{ role, name, email, embedded }]
+//   draft?         boolean — defer submission and entity requirements
 // }
 router.post('/', auth, asyncHandler(async (req, res) => {
   const {
     name, typId, locationId, standort,
     mitarbeiterId, kundeId, graphContact,
     templateId, templateName, order,
-    submitters, folgeaktionen: folgeaktionenRaw,
+    submitters, folgeaktionen: folgeaktionenRaw, draft = false,
   } = req.body;
 
   const folgeaktionen = parseFolgeaktionen(folgeaktionenRaw);
@@ -1034,8 +1035,10 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     }
   }
 
-  const entityValidationMessage = getEntityValidationMessage(signaturTyp, kundeDoc, mitarbeiterDoc);
-  if (entityValidationMessage) return res.status(400).json({ message: entityValidationMessage });
+  if (!draft) {
+    const entityValidationMessage = getEntityValidationMessage(signaturTyp, kundeDoc, mitarbeiterDoc);
+    if (entityValidationMessage) return res.status(400).json({ message: entityValidationMessage });
+  }
 
   const location = await resolveSignaturLocation({
     locationId,
@@ -1070,7 +1073,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   let submissionId     = null;
   let initialStatus    = 'draft';
 
-  if (templateId && Array.isArray(submitters) && submitters.length > 0) {
+  if (!draft && templateId && Array.isArray(submitters) && submitters.length > 0) {
     const emailOn = !folgeaktionen || folgeaktionen.emailBenachrichtigung !== false;
     const apiSubmitters = submitters.map((s) => ({
       role:       s.role,

@@ -374,7 +374,7 @@
 
           <!-- Close confirm overlay -->
           <div v-if="showCloseConfirm" class="sig-close-confirm">
-            <p class="sig-close-confirm-msg">Möchten Sie den Entwurf speichern?</p>
+            <p class="sig-close-confirm-msg">Entwurf speichern?</p>
             <div class="sig-close-confirm-actions">
               <button
                 class="sig-btn sig-btn--primary"
@@ -1234,12 +1234,13 @@ async function saveAsDraft() {
     const payload = {
       name: form.value.name.trim(),
       locationId: form.value.locationId,
-      kundeId: linkMode.value === 'kunde' ? form.value.kundeId : undefined,
-      mitarbeiterId: linkMode.value === 'mitarbeiter' ? form.value.mitarbeiterId : undefined,
+      kundeId: linkMode.value === 'kunde' ? form.value.kundeId : null,
+      mitarbeiterId: linkMode.value === 'mitarbeiter' ? form.value.mitarbeiterId : null,
       templateId: form.value.templateId || undefined,
       templateName: form.value.templateName || undefined,
       submitters: form.value.submitters.filter(s => (s.name || '').trim()),
       folgeaktionen: folgeaktionen.value,
+      draft: true,
     };
     if (ctx.draftId) {
       await api.patch(`/api/signaturen/${ctx.draftId}`, payload);
