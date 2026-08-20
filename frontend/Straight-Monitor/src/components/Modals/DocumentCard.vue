@@ -1,10 +1,15 @@
 <template>
   <!-- Minimize props (minimizable, minimize-id, …) fall through to ModalFrame via $attrs -->
   <ModalFrame
+    v-bind="$attrs"
     ref="modalFrame"
     style="--mf-max-width: 720px"
     :data-theme="effectiveTheme"
-    @close="$emit('close')"
+    :minimizable="Boolean(dockedModal) || minimizable"
+    :minimize-id="minimizeId"
+    :minimize-title="minimizeTitle"
+    :close-on-escape="dockedModal ? false : closeOnEscape"
+    @close="closeDoc"
   >
     <template #header>
       <div class="doc-header">
@@ -72,12 +77,12 @@
                 <template v-if="doc.details?.teamleiter">
                   <button 
                     :class="['btn-icon-tiny', { 'filter-active': isTeamleiterFiltered }]" 
-                    @click="$emit('filter-teamleiter', doc.details.name_teamleiter)"
+                    @click="filterByPerson('filterTeamleiter', doc.details.name_teamleiter)"
                     :title="isTeamleiterFiltered ? 'Filter aktiv - klicken zum Zurücksetzen' : 'Nach diesem Teamleiter filtern'"
                   >
                     <font-awesome-icon icon="fa-solid fa-filter" />
                   </button>
-                  <button class="link-btn" @click="$emit('open-employee', 'teamleiter', getEmployeeId('teamleiter'))">
+                  <button class="link-btn" @click="openEmployee('teamleiter', getEmployeeId('teamleiter'))">
                     {{ doc.details.name_teamleiter }}
                   </button>
                   <button 
@@ -94,7 +99,7 @@
                     {{ doc.details.name_teamleiter }}
                     <font-awesome-icon icon="fa-solid fa-circle-exclamation" class="warn-icon" />
                   </span>
-                  <button class="btn btn-sm btn-primary" @click="$emit('assign', 'teamleiter')">
+                  <button class="btn btn-sm btn-primary" @click="openAssignDialog('teamleiter')">
                     <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
                   </button>
                 </template>
@@ -104,7 +109,7 @@
           <div v-else>
             <dt>Teamleiter</dt>
             <dd>
-              <button class="btn btn-sm btn-primary" @click="$emit('assign', 'teamleiter')">
+              <button class="btn btn-sm btn-primary" @click="openAssignDialog('teamleiter')">
                 <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
               </button>
             </dd>
@@ -116,12 +121,12 @@
                 <template v-if="doc.details?.mitarbeiter">
                   <button 
                     :class="['btn-icon-tiny', { 'filter-active': isMitarbeiterFiltered }]" 
-                    @click="$emit('filter-mitarbeiter', doc.details.name_mitarbeiter)"
+                    @click="filterByPerson('filterMitarbeiter', doc.details.name_mitarbeiter)"
                     :title="isMitarbeiterFiltered ? 'Filter aktiv - klicken zum Zurücksetzen' : 'Nach diesem Mitarbeiter filtern'"
                   >
                     <font-awesome-icon icon="fa-solid fa-filter" />
                   </button>
-                  <button class="link-btn" @click="$emit('open-employee', 'mitarbeiter', getEmployeeId('mitarbeiter'))">
+                  <button class="link-btn" @click="openEmployee('mitarbeiter', getEmployeeId('mitarbeiter'))">
                     {{ doc.details.name_mitarbeiter }}
                   </button>
                   <button 
@@ -138,14 +143,14 @@
                     {{ doc.details.name_mitarbeiter }}
                     <font-awesome-icon icon="fa-solid fa-circle-exclamation" class="warn-icon" />
                   </span>
-                  <button class="btn btn-sm btn-primary" @click="$emit('assign', 'mitarbeiter')">
+                  <button class="btn btn-sm btn-primary" @click="openAssignDialog('mitarbeiter')">
                     <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
                   </button>
                 </template>
               </div>
             </dd>
             <dd v-else>
-              <button class="btn btn-sm btn-primary" @click="$emit('assign', 'mitarbeiter')">
+              <button class="btn btn-sm btn-primary" @click="openAssignDialog('mitarbeiter')">
                 <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
               </button>
             </dd>
@@ -164,7 +169,7 @@
         <div class="feedback-list">
           <div v-for="(fb, idx) in feedbackEntries" :key="fb._id || idx" class="feedback-item feedback-item--hoverable" :class="{ 'feedback-item--editing': editingFeedbackId === fb._id }">
             <div class="feedback-header">
-              <button v-if="fb.mitarbeiter?._id" class="link-btn" @click="$emit('open-employee', 'mitarbeiter', fb.mitarbeiter._id)">
+              <button v-if="fb.mitarbeiter?._id" class="link-btn" @click="openEmployee('mitarbeiter', fb.mitarbeiter._id)">
                 {{ fb.mitarbeiter.vorname }} {{ fb.mitarbeiter.nachname }}
               </button>
               <span v-else class="unassigned-name">Unbekannter MA</span>
@@ -319,16 +324,86 @@
       </button>
     </template>
   </ModalFrame>
+
+  <EmployeeCardModal
+    :mitarbeiterId="selectedMitarbeiter"
+    @close="selectedMitarbeiter = null"
+  />
+
+  <ModalFrame
+    v-if="showAssignModal"
+    title="Mitarbeiter zuweisen"
+    size="sm"
+    layer="elevated"
+    :close-on-escape="false"
+    style="--mf-max-width: 500px; --mf-max-height: 85dvh"
+    @close="closeAssignModal"
+  >
+    <div class="assign-info">
+      <div class="info-row">
+        <span class="label">Rolle:</span>
+        <span class="value">{{ assignRole === 'teamleiter' ? 'Teamleiter' : 'Mitarbeiter' }}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Dokument:</span>
+        <span class="value">{{ doc.bezeichnung }}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Name im Formular:</span>
+        <span class="value unassigned-name">{{ doc.details?.[`name_${assignRole}`] }}</span>
+      </div>
+    </div>
+
+    <div class="assign-search">
+      <font-awesome-icon icon="fa-solid fa-magnifying-glass" class="search-ic" />
+      <input
+        ref="assignSearchInput"
+        v-model="assignSearchQuery"
+        type="text"
+        placeholder="Mitarbeiter suchen…"
+        aria-label="Mitarbeiter suchen"
+      />
+    </div>
+
+    <div v-if="loadingEmployees" class="assign-loading">
+      <font-awesome-icon icon="fa-solid fa-spinner" spin />
+      Lade Mitarbeiter…
+    </div>
+
+    <div v-else-if="filteredEmployees.length === 0" class="assign-empty">
+      <font-awesome-icon icon="fa-solid fa-user-slash" />
+      <p>Keine Mitarbeiter gefunden</p>
+    </div>
+
+    <div v-else class="employee-list">
+      <button
+        v-for="employee in filteredEmployees"
+        :key="employee._id"
+        class="employee-item"
+        type="button"
+        @click="selectEmployee(employee)"
+      >
+        <span class="employee-info">
+          <span class="employee-name">{{ employee.vorname }} {{ employee.nachname }}</span>
+          <span v-if="employee.email" class="employee-email">{{ employee.email }}</span>
+        </span>
+        <font-awesome-icon icon="fa-solid fa-chevron-right" class="chevron" />
+      </button>
+    </div>
+  </ModalFrame>
 </template>
 
 <script>
-import { computed, onMounted } from "vue";
+import { computed, defineAsyncComponent, onMounted } from "vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import { useCurrentDockedModal } from "@bleck-it/vue-modal-dock";
 import ModalFrame from "@/components/frames/ModalFrame.vue";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
 import { useDataCache } from "@/stores/dataCache";
+import { useCustomerModals } from "@/composables/useCustomerModals";
 import api from "@/utils/api";
+import logger from "@/utils/logger";
 import asanaLogo from "@/assets/asana.png";
 import laufzettelIcon from "@/assets/laufzettel.png";
 import laufzettelDarkIcon from "@/assets/laufzettel-dark.png";
@@ -355,21 +430,33 @@ import {
   faTrash,
   faEllipsisVertical,
   faFilePdf,
+  faMagnifyingGlass,
+  faUserSlash,
+  faChevronRight,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope, faBriefcase, faBuilding, faCheck, faPen, faTrash, faEllipsisVertical, faFilePdf);
+library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope, faBriefcase, faBuilding, faCheck, faPen, faTrash, faEllipsisVertical, faFilePdf, faMagnifyingGlass, faUserSlash, faChevronRight);
+
+// EmployeeCard also embeds DocumentCard. Load its modal lazily to avoid a
+// DocumentCard -> EmployeeCardModal -> EmployeeCard -> DocumentCard cycle.
+const EmployeeCardModal = defineAsyncComponent(() => import("@/components/EmployeeCardModal.vue"));
 
 export default {
   name: "DocumentCard",
-  components: { FontAwesomeIcon, ModalFrame },
+  inheritAttrs: false,
+  components: { FontAwesomeIcon, ModalFrame, EmployeeCardModal },
   props: {
     doc: { type: Object, required: true },
     personDetails: { type: Object, default: () => ({}) },
     filteredTeamleiter: { type: String, default: null },
     filteredMitarbeiter: { type: String, default: null },
+    closeOnEscape: { type: Boolean, default: true },
+    minimizable: { type: Boolean, default: false },
+    minimizeId: { type: String, default: '' },
+    minimizeTitle: { type: String, default: '' },
   },
-  emits: ["close", "assign", "filter-teamleiter", "filter-mitarbeiter", "open-employee", "open-kunde"],
+  emits: ["close"],
 
   data() {
     return {
@@ -382,6 +469,13 @@ export default {
       savingFeedbackId: null,
       linkCopied: false,
       menuOpen: false,
+      localPersonDetails: {},
+      selectedMitarbeiter: null,
+      showAssignModal: false,
+      assignRole: null,
+      assignSearchQuery: '',
+      employees: [],
+      loadingEmployees: false,
     };
   },
 
@@ -389,6 +483,10 @@ export default {
     const theme = useTheme();
     const auth = useAuth();
     const dataCache = useDataCache();
+    const dockedModal = useCurrentDockedModal();
+    const { openCustomer } = useCustomerModals();
+    const isMinimized = dockedModal?.minimized ?? computed(() => false);
+    const isTopmost = dockedModal?.topmost ?? computed(() => true);
 
     const isDark = computed(() => theme.isDark);
     const laufzettelImg = computed(() => isDark.value ? laufzettelDarkIcon : laufzettelIcon);
@@ -424,11 +522,27 @@ export default {
       }
     });
 
-    return { asanaLogo, laufzettelImg, evaluierungImg, eventreportImg, currentUser, effectiveTheme, auftragTitel, kundeName, kundeId };
+    return {
+      asanaLogo,
+      laufzettelImg,
+      evaluierungImg,
+      eventreportImg,
+      currentUser,
+      effectiveTheme,
+      auftragTitel,
+      kundeName,
+      kundeId,
+      dataCache,
+      dockedModal,
+      isMinimized,
+      isTopmost,
+      openCustomer,
+    };
   },
 
   mounted() {
     document.addEventListener('click', this.closeMenu);
+    document.addEventListener('keydown', this.handleEscape);
     // If opened with partial data (e.g. from feedback list), lazy-fetch the full EventReport
     if (this.doc.docType === 'Event-Bericht' && !Array.isArray(this.doc.details?.comments)) {
       this.fetchFullReport();
@@ -437,9 +551,19 @@ export default {
 
   beforeUnmount() {
     document.removeEventListener('click', this.closeMenu);
+    document.removeEventListener('keydown', this.handleEscape);
   },
 
   watch: {
+    doc: {
+      immediate: true,
+      handler(doc, oldDoc) {
+        if (oldDoc && doc !== oldDoc) this.resetSatellites();
+        if (!doc) return;
+        if (doc.details?.name_teamleiter) this.fetchPersonDetails(doc.details.name_teamleiter);
+        if (doc.details?.name_mitarbeiter) this.fetchPersonDetails(doc.details.name_mitarbeiter);
+      },
+    },
     'doc._id'(newId, oldId) {
       if (newId !== oldId && this.doc.docType === 'Event-Bericht' && !Array.isArray(this.doc.details?.comments)) {
         this.localComments = null;
@@ -492,11 +616,143 @@ export default {
       const location = this.doc.details?.locationV2;
       return location?.nameFull || location?.shortName || this.doc.details?.location || '';
     },
+    resolvedPersonDetails() {
+      return { ...this.personDetails, ...this.localPersonDetails };
+    },
+    filteredEmployees() {
+      const query = this.assignSearchQuery.trim().toLowerCase();
+      if (!query) return this.employees;
+      return this.employees.filter(employee =>
+        `${employee.vorname} ${employee.nachname}`.toLowerCase().includes(query)
+        || String(employee.email || '').toLowerCase().includes(query)
+      );
+    },
   },
 
   methods: {
     closeMenu() {
       this.menuOpen = false;
+    },
+
+    resetSatellites() {
+      this.selectedMitarbeiter = null;
+      this.showAssignModal = false;
+      this.assignRole = null;
+      this.assignSearchQuery = '';
+    },
+
+    closeDoc() {
+      this.$emit('close');
+      if (this.$route.query.docId) {
+        const { docId, ...rest } = this.$route.query;
+        this.$router.replace({ query: rest });
+      }
+    },
+
+    handleEscape(event) {
+      if (event.key !== 'Escape' || !this.dockedModal || this.isMinimized || !this.isTopmost) return;
+      if (this.showAssignModal) this.closeAssignModal();
+      else if (this.selectedMitarbeiter) this.selectedMitarbeiter = null;
+      else this.closeDoc();
+    },
+
+    openEmployee(role, employeeId) {
+      if (!employeeId) return;
+      this.selectedMitarbeiter = employeeId;
+    },
+
+    filterByPerson(queryKey, name) {
+      this.closeDoc();
+      this.$router.push({ path: '/dokumente', query: { [queryKey]: name } });
+    },
+
+    async fetchPersonDetails(name) {
+      if (!name || this.resolvedPersonDetails[name]) return this.resolvedPersonDetails[name];
+      try {
+        const response = await api.get(`/api/personal/mitarbeiter/by-name/${encodeURIComponent(name)}`);
+        if (response.data?.success && response.data?.data) {
+          this.localPersonDetails = {
+            ...this.localPersonDetails,
+            [name]: response.data.data,
+          };
+          return response.data.data;
+        }
+      } catch (error) {
+        console.warn(`Could not fetch details for ${name}:`, error.message);
+      }
+      return null;
+    },
+
+    async openAssignDialog(role) {
+      this.assignRole = role;
+      this.assignSearchQuery = '';
+      this.showAssignModal = true;
+      if (this.employees.length === 0) await this.fetchEmployees();
+      this.$nextTick(() => this.$refs.assignSearchInput?.focus());
+    },
+
+    closeAssignModal() {
+      this.showAssignModal = false;
+      this.assignRole = null;
+      this.assignSearchQuery = '';
+    },
+
+    async fetchEmployees() {
+      this.loadingEmployees = true;
+      try {
+        const response = await api.get('/api/personal/mitarbeiter');
+        this.employees = (response.data?.data || [])
+          .filter(employee => employee.isActive !== false)
+          .sort((a, b) =>
+            `${a.vorname} ${a.nachname}`.localeCompare(
+              `${b.vorname} ${b.nachname}`,
+              'de',
+              { sensitivity: 'base' },
+            )
+          );
+      } catch (error) {
+        console.error('Fehler beim Laden der Mitarbeiter:', error);
+        this.employees = [];
+      } finally {
+        this.loadingEmployees = false;
+      }
+    },
+
+    async selectEmployee(employee) {
+      const roleName = this.assignRole === 'teamleiter' ? 'Teamleiter' : 'Mitarbeiter';
+      const formularName = this.doc.details?.[`name_${this.assignRole}`] || '(nicht angegeben)';
+      const confirmed = confirm(
+        `${employee.vorname} ${employee.nachname} als ${roleName} zuweisen?\n\n`
+        + `Dokument: ${this.doc.bezeichnung}\n`
+        + `Name im Formular: ${formularName}\n\n`
+        + 'Bitte bestätigen Sie die Zuweisung.'
+      );
+      if (!confirmed) return;
+
+      try {
+        const payload = { documentId: this.doc._id || this.doc.id };
+        if (this.assignRole === 'teamleiter') {
+          payload.teamleiterId = employee._id;
+          payload.name_teamleiter = this.doc.details?.name_teamleiter;
+        } else {
+          payload.mitarbeiterId = employee._id;
+          payload.name_mitarbeiter = this.doc.details?.name_mitarbeiter;
+        }
+
+        const response = await api.post('/api/reports/assign', payload);
+        if (!response.data?.success) {
+          throw new Error(response.data?.error || 'Unbekannter Fehler');
+        }
+
+        logger.info(`Assigned ${employee.vorname} ${employee.nachname} as ${this.assignRole}`);
+        this.closeAssignModal();
+        this.closeDoc();
+        await this.dataCache.loadDocuments(true);
+        alert(`✅ ${employee.vorname} ${employee.nachname} wurde erfolgreich als ${roleName} zugewiesen.`);
+      } catch (error) {
+        logger.error('Assignment error:', error);
+        alert('❌ Fehler beim Zuweisen: ' + (error.response?.data?.error || error.message));
+      }
     },
 
     async exportPdf() {
@@ -539,11 +795,11 @@ export default {
     },
     getPersonAsanaId(role) {
       const name = this.doc.details?.[`name_${role}`];
-      return name && this.personDetails[name]?.asana_id;
+      return name && this.resolvedPersonDetails[name]?.asana_id;
     },
     openAsanaTask(role) {
       const name = this.doc.details?.[`name_${role}`];
-      const asanaId = this.personDetails[name]?.asana_id;
+      const asanaId = this.resolvedPersonDetails[name]?.asana_id;
       if (asanaId) {
         const asanaWebUrl = `https://app.asana.com/0/0/${asanaId}`;
         window.open(asanaWebUrl, '_blank');
@@ -558,9 +814,13 @@ export default {
       this.$router.push({ path: '/auftraege', query });
     },
 
-    goToKunde() {
-      if (this.kundeId) {
-        this.$emit('open-kunde', this.kundeId);
+    async goToKunde() {
+      if (!this.kundeId) return;
+      try {
+        const response = await api.get(`/api/kunden/${this.kundeId}`);
+        this.openCustomer(response.data);
+      } catch (error) {
+        console.error('Error loading Kunde:', error);
       }
     },
 
@@ -1320,6 +1580,124 @@ export default {
   &:hover {
     background: color-mix(in srgb, var(--primary) 85%, black);
   }
+}
+
+.assign-info {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+}
+
+.info-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 0.88rem;
+
+  .label {
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .value {
+    min-width: 0;
+    color: var(--text);
+  }
+}
+
+.assign-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  .search-ic {
+    position: absolute;
+    left: 12px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 10px 12px 10px 36px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface, var(--panel));
+    color: var(--text);
+    font: inherit;
+
+    &:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+    }
+  }
+}
+
+.assign-loading,
+.assign-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 120px;
+  color: var(--muted);
+}
+
+.employee-list {
+  display: grid;
+  gap: 6px;
+  max-height: min(430px, 55dvh);
+  margin-top: 12px;
+  padding: 2px;
+  overflow-y: auto;
+}
+
+.employee-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface, var(--panel));
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    border-color: var(--primary);
+    background: var(--hover);
+
+    .chevron {
+      color: var(--primary);
+      transform: translateX(2px);
+    }
+  }
+}
+
+.employee-info {
+  display: grid;
+  gap: 3px;
+}
+
+.employee-name {
+  font-weight: 600;
+}
+
+.employee-email {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.chevron {
+  color: var(--muted);
+  transition: 0.15s ease;
 }
 
 /* Responsive */

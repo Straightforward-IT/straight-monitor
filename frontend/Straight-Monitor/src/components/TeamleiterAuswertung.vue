@@ -42,31 +42,6 @@
 
       <div v-else class="table-container">
         
-        <!-- Document Modal (self-contained ModalFrame) -->
-        <DocumentCard
-          v-if="selectedDoc"
-          :doc="selectedDoc"
-          @close="selectedDoc = null"
-          @open-employee="handleOpenEmployee"
-        />
-
-        <!-- Employee Modal -->
-        <div v-if="selectedEmployee" class="modal-overlay z-high" @click.self="selectedEmployee = null">
-           <div class="modal-content large">
-             <div class="modal-header">
-               <h2>Mitarbeiter Details</h2>
-               <button class="close-btn" @click="selectedEmployee = null">×</button>
-             </div>
-             <div class="modal-body no-padding">
-                <EmployeeCard 
-                  :ma="selectedEmployee"
-                  :initiallyExpanded="true"
-                  @close="selectedEmployee = null"
-                />
-             </div>
-           </div>
-        </div>
-
         <div class="stats-cards">
           <div class="card">
             <span class="label">Anzahl Teamleiter</span>
@@ -228,8 +203,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import CustomTooltip from './CustomTooltip.vue';
-import DocumentCard from '@/components/Modals/DocumentCard.vue';
-import EmployeeCard from './EmployeeCard.vue';
+import { useDocumentModals } from '@/composables/useDocumentModals';
 import { useTheme } from '@/stores/theme';
 import eventReportLightIcon from '@/assets/eventreport.png';
 import eventReportDarkIcon from '@/assets/eventreport-dark.png';
@@ -244,14 +218,13 @@ library.add(faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle
 
 const router = useRouter();
 const route = useRoute();
+const { openDocument } = useDocumentModals();
 const teamleiterList = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const sortKey = ref('einsatzCount');
 const sortAsc = ref(false); 
 const expandedRows = ref([]); // Array of expanded IDs
-const selectedDoc = ref(null);
-const selectedEmployee = ref(null);
 
 // Default current month YYYY-MM
 const today = new Date();
@@ -388,7 +361,7 @@ const openOrder = (nr, geschSt, date) => {
 };
 
 const openReport = (doc) => {
-  if (doc) selectedDoc.value = doc;
+  if (doc) openDocument(doc);
 };
 
 const getEffectiveStatus = (einsatz) => {
@@ -426,29 +399,6 @@ const toggleExclude = async (tl, einsatz) => {
     recalcCounts(tl);
   } catch (err) {
     console.error('Exclude toggle failed:', err);
-  }
-};
-
-const handleOpenEmployee = async (role, id) => {
-  if (!id) return;
-  try {
-    const response = await api.get(`/api/personal/mitarbeiter/${id}`);
-    const employeeData = response.data.data;
-    
-    // Load Flip profile if flip_id exists
-    if (employeeData.flip_id) {
-      try {
-        const flipResponse = await api.get(`/api/personal/flip/by-id/${employeeData.flip_id}`);
-        employeeData.flip = flipResponse.data;
-      } catch (flipError) {
-        console.error('Error loading Flip profile:', flipError);
-      }
-    }
-    
-    selectedEmployee.value = employeeData;
-  } catch (err) {
-    console.error("Fehler beim Laden des Mitarbeiters:", err);
-    // Optional warning notification
   }
 };
 

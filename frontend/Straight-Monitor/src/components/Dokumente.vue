@@ -251,10 +251,8 @@
 <script>
 import api from "@/utils/api";
 import logger from "@/utils/logger";
-import { getDocumentModalTitle } from "@/utils/documentModalTitle";
 import { useDataCache } from "@/stores/dataCache";
-import { useDockedModals } from "@bleck-it/vue-modal-dock";
-import DocumentModal from "@/components/DocumentModal.vue";
+import { useDocumentModals } from "@/composables/useDocumentModals";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
 import FilterPanel from '@/components/FilterPanel.vue';
@@ -332,8 +330,8 @@ export default {
 
   setup() {
     const dataCache = useDataCache();
-    const dockedModals = useDockedModals();
-    return { dataCache, dockedModals };
+    const { dockedModals, openDocument } = useDocumentModals();
+    return { dataCache, dockedModals, openDocumentModal: openDocument };
   },
 
   data() {
@@ -915,26 +913,13 @@ export default {
     },
 
     async openDoc(doc) {
-      const documentId = doc?._id || doc?.id;
-      const modalId = `document-${documentId || 'active'}`;
       const assignmentTitle = this.auftragTitelMap.get(
         String(doc?.details?.auftragnummer || '')
       );
-      const modalTitle = getDocumentModalTitle(doc, assignmentTitle);
-      const dockedModals = this.dockedModals;
-
-      // The package owns the instance above RouterView. Different document IDs
-      // therefore coexist; opening the same document restores that one record.
-      dockedModals.open({
-        id: modalId,
-        title: modalTitle,
-        component: DocumentModal,
-        props: {
-          doc,
-          filteredTeamleiter: this.filteredTeamleiter,
-          filteredMitarbeiter: this.filteredMitarbeiter,
-          onClose: () => dockedModals.remove(modalId),
-        },
+      this.openDocumentModal(doc, {
+        eventTitle: assignmentTitle,
+        filteredTeamleiter: this.filteredTeamleiter,
+        filteredMitarbeiter: this.filteredMitarbeiter,
       });
       this.activeQuickActionId = null;
 

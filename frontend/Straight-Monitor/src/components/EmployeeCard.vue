@@ -1425,18 +1425,6 @@
       </div>
     </aside>
 
-    <!-- Document Modal (self-contained ModalFrame; elevated to stack above the employee modal) -->
-    <DocumentCard
-      v-if="selectedDocument"
-      :doc="selectedDocument"
-      layer="elevated"
-      :close-on-escape="false"
-      @close="selectedDocument = null"
-      @open-employee="handleOpenEmployee"
-      @filter-teamleiter="handleFilterTeamleiter"
-      @filter-mitarbeiter="handleFilterMitarbeiter"
-    />
-
     <teleport to="body">
       <ContextMenu
         v-if="showContextMenu"
@@ -1546,7 +1534,7 @@ import { computed, ref, onMounted, onBeforeUnmount, watchEffect } from "vue";
 import { useRouter } from "vue-router";
 import CustomTooltip from "./CustomTooltip.vue";
 import FlipProfile from "./FlipProfile.vue";
-import DocumentCard from "@/components/Modals/DocumentCard.vue";
+import { useDocumentModals } from "@/composables/useDocumentModals";
 import ContextMenu from "./ContextMenu.vue";
 import EditMitarbeiterDialog from "./EditMitarbeiterDialog.vue";
 import DeleteMitarbeiterDialog from "@/components/Modals/DeleteMitarbeiterDialog.vue";
@@ -1570,7 +1558,7 @@ import MitarbeiterEinsatzChart from "./MitarbeiterEinsatzChart.vue";
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DocumentCard, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart },
   props: {
     ma: { type: Object, required: false, default: null },
     mitarbeiterId: { type: String, default: null },
@@ -1584,6 +1572,7 @@ export default {
     const theme = useTheme();
     const auth = useAuth();
     const router = useRouter();
+    const { openDocument: openDocumentModal } = useDocumentModals();
 
     // Self-loading state (used when only mitarbeiterId prop is passed)
     const selfLoadedMa = ref(null);
@@ -1707,6 +1696,7 @@ export default {
       selfLoadedMa,
       selfLoading,
       flip,
+      openDocumentModal,
     };
   },
 
@@ -1737,9 +1727,6 @@ export default {
       loadingTasks: false,
       tasksLoaded: false,
       showFinishedTasks: false, // Toggle für erledigte Tasks
-      // Document modal
-      selectedDocument: null,
-      
       // Edit Dialog
       showEditModal: false,
       savingEdit: false,
@@ -2012,7 +1999,6 @@ export default {
   },
 
   mounted() {
-    document.addEventListener('keydown', this.handleEscapeKey);
 
     // Self-load if only mitarbeiterId was passed
     if (this.mitarbeiterId && !this.ma) {
@@ -2028,7 +2014,6 @@ export default {
   },
 
   beforeUnmount() {
-    document.removeEventListener('keydown', this.handleEscapeKey);
     if (this._qaScrollHandler) {
       window.removeEventListener('scroll', this._qaScrollHandler, true);
     }
@@ -2944,7 +2929,7 @@ export default {
 
     openDocument(doc, docType) {
       // Transform document to match DocumentCard expected format
-      this.selectedDocument = {
+      const document = {
         _id: doc._id,
         docType: docType,
         bezeichnung: this.getDocumentTitle(doc, docType),
@@ -2952,6 +2937,7 @@ export default {
         status: doc.assigned ? 'Zugewiesen' : 'Offen',
         details: doc
       };
+      this.openDocumentModal(document);
     },
 
     getDocumentTitle(doc, docType) {
@@ -2964,54 +2950,6 @@ export default {
       }
       return 'Dokument';
     },
-
-    handleEscapeKey(event) {
-      if (event.key === 'Escape') {
-        if (this.selectedDocument) {
-          this.selectedDocument = null;
-        }
-      }
-    },
-
-    async handleOpenEmployee(role, employeeId) {
-      if (!employeeId) return;
-      
-      try {
-        // Schließe aktuelles DocumentCard Modal
-        this.selectedDocument = null;
-        
-        // Emitte Event zum Öffnen des neuen Mitarbeiters
-        // role und employeeId werden weitergegeben
-        this.$emit('open-employee', role, employeeId);
-      } catch (error) {
-        console.error('Fehler beim Öffnen des Mitarbeiters:', error);
-      }
-    },
-
-    handleFilterTeamleiter(name) {
-      // Schließe aktuelles Modal
-      this.selectedDocument = null;
-      this.$emit('close');
-      
-      // Navigiere zu Dokumente.vue mit Filter
-      this.$router.push({
-        name: 'Dokumente',
-        query: { filterTeamleiter: name }
-      });
-    },
-
-    handleFilterMitarbeiter(name) {
-      // Schließe aktuelles Modal
-      this.selectedDocument = null;
-      this.$emit('close');
-      
-      // Navigiere zu Dokumente.vue mit Filter
-      this.$router.push({
-        name: 'Dokumente',
-        query: { filterMitarbeiter: name }
-      });
-    },
-
 
     // --- Context Menu ---
     openContextMenu(event) {

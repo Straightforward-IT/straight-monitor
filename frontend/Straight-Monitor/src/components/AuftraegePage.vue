@@ -1195,13 +1195,6 @@
       </div>
     </div>
 
-    <!-- Document Card Modal (self-contained ModalFrame; page ESC handler keeps priority) -->
-    <DocumentCard
-      v-if="selectedDoc"
-      :doc="selectedDoc"
-      :close-on-escape="false"
-      @close="selectedDoc = null"
-    />
   </div>
 
   <!-- Search dropdown — teleported to body to escape toolbar overflow clipping -->
@@ -1256,8 +1249,8 @@ import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import EmployeeCardModal from '@/components/EmployeeCardModal.vue';
-import DocumentCard from '@/components/Modals/DocumentCard.vue';
 import { useCustomerModals } from '@/composables/useCustomerModals';
+import { useDocumentModals } from '@/composables/useDocumentModals';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
@@ -1275,9 +1268,10 @@ import docusealLogoImg from '@/assets/docuseal-logo.webp';
 
 export default {
   name: "AuftraegePage",
-  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, DocumentCard, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu, ReisekostenModal },
+  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu, ReisekostenModal },
   setup() {
     const { openCustomer } = useCustomerModals();
+    const { openDocument } = useDocumentModals();
     const minimizeDock = useMinimizeDock();
 
     const restoreMinimizedStundenliste = (auftragNr) => {
@@ -1292,7 +1286,7 @@ export default {
         : false;
     };
 
-    return { openCustomer, restoreMinimizedStundenliste };
+    return { openCustomer, openDocumentModal: openDocument, restoreMinimizedStundenliste };
   },
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -1404,7 +1398,6 @@ export default {
       neuMenuOpensUp: false,
       // Document icons
       auftragDocs: [],
-      selectedDoc: null,
       // ── Feiertage ────────────────────────────────────────────────────────────
       holidayMap: {}, // 'YYYY-MM-DD' → { name, states, isNational, hinweis }
       loadedHolidayYears: new Set(),
@@ -2300,7 +2293,7 @@ export default {
       });
     },
     openDocCard(doc) {
-      this.selectedDoc = doc;
+      this.openDocumentModal(doc, { eventTitle: this.selectedEvent?.eventTitel });
     },
     formatDayDateFull(dateStr) {
       if (!dateStr) return '';
@@ -3037,8 +3030,6 @@ export default {
         this.neuMenuOpensUp = false;
       } else if (this.showQuickActions) {
         this.showQuickActions = false;
-      } else if (this.selectedDoc) {
-        this.selectedDoc = null;
       } else if (this.showLabelDialog) {
         this.showLabelDialog = false;
       } else if (this.showNewAuftragDialog) {
