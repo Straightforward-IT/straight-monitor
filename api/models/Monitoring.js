@@ -79,6 +79,10 @@ const MonitoringSchema = new mongoose.Schema({
         type: Number,
         required: false,
       },
+      storniert: {
+        type: Boolean,
+        default: false,
+      },
     },
   ],
   anmerkung: {
@@ -108,6 +112,21 @@ const MonitoringSchema = new mongoose.Schema({
   mitarbeiterPersonalnr: {
     type: String,
     required: false,
+  },
+  // Storno-Verfolgung: gesamter Eintrag zurückgesetzt
+  storniert: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  storniertAt: {
+    type: Date,
+    default: null,
+  },
+  storniertBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null,
   },
 });
 

@@ -75,6 +75,8 @@
         :level="0"
         :highlight-id="highlightedLogId"
         @open-mitarbeiter="openMitarbeiterCard"
+        @revert-log="revertLog"
+        @revert-item="revertItem"
       />
     </div>
 
@@ -284,6 +286,28 @@ export default {
     },
     closeMitarbeiterModal() {
       this.selectedMitarbeiterId = null;
+    },
+    async revertLog(log) {
+      if (!log?._id || log.storniert) return;
+      if (!window.confirm('Gesamten Eintrag zurücksetzen? Die Bestandsänderungen werden rückgängig gemacht.')) return;
+      try {
+        await api.post(`/api/monitoring/${log._id}/revert`);
+        await this.fetchLogs();
+      } catch (e) {
+        window.alert(e.response?.data?.message || 'Zurücksetzen fehlgeschlagen.');
+      }
+    },
+    async revertItem({ log, index }) {
+      if (!log?._id) return;
+      const item = log.items?.[index];
+      if (!item || item.storniert) return;
+      if (!window.confirm(`Item „${item.bezeichnung}“ zurücksetzen?`)) return;
+      try {
+        await api.post(`/api/monitoring/${log._id}/items/${index}/revert`);
+        await this.fetchLogs();
+      } catch (e) {
+        window.alert(e.response?.data?.message || 'Zurücksetzen fehlgeschlagen.');
+      }
     },
     handleKeydown(e) {
       if (e.key === 'Escape' && this.selectedMitarbeiterId) this.closeMitarbeiterModal();

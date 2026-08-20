@@ -12,8 +12,8 @@
         <div v-if="!isGroup(groupedData[key])" class="group-actions">
           <custom-tooltip
             :text="areLogsExpanded(group) ? 'Alle Details ausblenden' : 'Alle Details anzeigen'"
-            position="left"
-            :delay="500"
+            position="top"
+            :delay-in="400"
           >
             <button class="action-btn" @click.stop="toggleAllLogs(group)">
               <font-awesome-icon :icon="['fas', areLogsExpanded(group) ? 'eye-slash' : 'eye']" />
@@ -30,31 +30,55 @@
           :level="level + 1"
           :highlight-id="highlightId"
           @open-mitarbeiter="$emit('open-mitarbeiter', $event)"
+          @revert-log="$emit('revert-log', $event)"
+          @revert-item="$emit('revert-item', $event)"
         />
         <div v-else class="log-list">
           <div 
             v-for="log in group"
             :key="log._id"
             :id="highlightId && log._id === highlightId ? `highlight-${log._id}` : undefined"
-            :class="['log-card', { 'log-card--highlighted': highlightId && log._id === highlightId }]"
+            :class="['log-card', { 'log-card--highlighted': highlightId && log._id === highlightId, 'log-card--storniert': log.storniert }]"
           >
             <div class="log-card-header" @click="toggleExpandLog(log)">
               <div class="log-meta">
                 <span><strong>Benutzer:</strong> {{ log.benutzerMail }}</span>
                 <span><strong>Art:</strong> {{ log.art }}</span>
                 <span><strong>Timestamp:</strong> {{ formatTimestamp(log.timestamp) }}</span>
-                <span
+                <custom-tooltip
                   v-if="log.mitarbeiterName"
-                  class="ma-badge"
-                  :class="{ 'ma-badge--clickable': log.mitarbeiter }"
-                  @click.stop="log.mitarbeiter && $emit('open-mitarbeiter', log.mitarbeiter)"
+                  text="Mitarbeiter öffnen"
+                  position="top"
+                  :delay-in="400"
+                  :disabled="!log.mitarbeiter"
                 >
-                  <font-awesome-icon :icon="['fas', 'user']" class="ma-badge__icon" />
-                  <span v-if="log.mitarbeiterPersonalnr" class="ma-badge__nr">{{ log.mitarbeiterPersonalnr }}</span>
-                  {{ log.mitarbeiterName }}
+                  <span
+                    class="ma-badge"
+                    :class="{ 'ma-badge--clickable': log.mitarbeiter }"
+                    @click.stop="log.mitarbeiter && $emit('open-mitarbeiter', log.mitarbeiter)"
+                  >
+                    <font-awesome-icon :icon="['fas', 'user']" class="ma-badge__icon" />
+                    <span v-if="log.mitarbeiterPersonalnr" class="ma-badge__nr">{{ log.mitarbeiterPersonalnr }}</span>
+                    {{ log.mitarbeiterName }}
+                  </span>
+                </custom-tooltip>
+                <span v-if="log.storniert" class="storniert-badge">
+                  <font-awesome-icon :icon="['fas', 'ban']" /> Storniert
                 </span>
               </div>
-              <font-awesome-icon class="expand-icon small" :icon="['fas', log.isExpanded ? 'eye-slash' : 'eye']" />
+              <div class="log-card-actions">
+                <custom-tooltip
+                  v-if="!log.storniert"
+                  text="Gesamten Eintrag zurücksetzen"
+                  position="top"
+                  :delay-in="400"
+                >
+                  <button class="action-btn action-btn--revert" @click.stop="$emit('revert-log', log)">
+                    <font-awesome-icon :icon="['fas', 'rotate-left']" />
+                  </button>
+                </custom-tooltip>
+                <font-awesome-icon class="expand-icon small" :icon="['fas', log.isExpanded ? 'eye-slash' : 'eye']" />
+              </div>
             </div>
 
             <p v-if="log.packageTemplateName || annotationText(log)" class="log-annotation">
@@ -64,11 +88,29 @@
             </p>
 
             <div v-if="log.isExpanded" class="log-details">
-              <div v-for="(item, index) in log.items" :key="item.itemId || index" class="item-detail">
+              <div
+                v-for="(item, index) in log.items"
+                :key="item.itemId || index"
+                class="item-detail"
+                :class="{ 'item-detail--storniert': item.storniert }"
+              >
                 <span class="item-number">#{{ index + 1 }}</span>
                 <span class="item-name">{{ item.bezeichnung }}</span>
                 <span class="item-info">Größe: {{ item.groesse }}</span>
                 <span class="item-info">Anzahl: {{ item.anzahl }}</span>
+                <span v-if="item.storniert" class="storniert-badge storniert-badge--sm">
+                  <font-awesome-icon :icon="['fas', 'ban']" /> Storniert
+                </span>
+                <custom-tooltip
+                  v-else
+                  text="Dieses Item zurücksetzen"
+                  position="top"
+                  :delay-in="400"
+                >
+                  <button class="action-btn action-btn--revert item-revert-btn" @click.stop="$emit('revert-item', { log, index })">
+                    <font-awesome-icon :icon="['fas', 'rotate-left']" />
+                  </button>
+                </custom-tooltip>
               </div>
               <p v-if="log.items.length === 0" class="item-info">Keine Items in diesem Log-Eintrag.</p>
             </div>
@@ -82,14 +124,14 @@
 <script>
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { library } from "@fortawesome/fontawesome-svg-core";
-import { faChevronRight, faChevronDown, faEye, faEyeSlash, faUser } from "@fortawesome/free-solid-svg-icons";
+import { faChevronRight, faChevronDown, faEye, faEyeSlash, faUser, faRotateLeft, faBan } from "@fortawesome/free-solid-svg-icons";
 import CustomTooltip from './CustomTooltip.vue';
-library.add(faChevronRight, faChevronDown, faEye, faEyeSlash, faUser);
+library.add(faChevronRight, faChevronDown, faEye, faEyeSlash, faUser, faRotateLeft, faBan);
 
 export default {
   name: "VerlaufGroup",
   components: { FontAwesomeIcon, CustomTooltip },
-  emits: ['open-mitarbeiter'],
+  emits: ['open-mitarbeiter', 'revert-log', 'revert-item'],
   props: {
     groupedData: { type: Object, required: true },
     activeGroups: { type: Array, required: true },
@@ -239,6 +281,44 @@ export default {
   }
 }
 
+.action-btn--revert:hover {
+  border-color: #c3423f;
+  color: #c3423f;
+  background: color-mix(in oklab, #c3423f 10%, var(--c-bg));
+}
+
+.log-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.storniert-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: color-mix(in oklab, #c3423f 14%, var(--c-surface));
+  border: 1px solid color-mix(in oklab, #c3423f 35%, transparent);
+  color: #c3423f;
+  font-size: .82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.storniert-badge--sm {
+  font-size: .74rem;
+  padding: 1px 6px;
+}
+
+.item-revert-btn {
+  margin-left: auto;
+}
+.item-detail > :deep(.tooltip-container) {
+  margin-left: auto;
+}
+
+
 /* Level-Schattierung über data-level, Theme-aware */
 .group-header[data-level="0"]{ background: var(--c-surface); }
 .group-header[data-level="1"]{ background: color-mix(in oklab, var(--c-tertiary-bg) 55%, var(--c-surface)); }
@@ -271,6 +351,11 @@ export default {
   border-left: 4px solid var(--c-primary);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--c-primary) 20%, var(--c-bg)), 0 6px 16px -3px rgba(0,0,0,.12);
   transform: translateY(-2px);
+}
+
+.log-card--storniert {
+  border-left: 4px solid #c3423f;
+  opacity: .8;
 }
 
 .log-card-header{
@@ -329,6 +414,15 @@ export default {
   border-bottom:1px dashed color-mix(in oklab, var(--c-border) 70%, transparent);
 }
 .item-detail:last-child{ border-bottom: none; }
+.item-detail--storniert{
+  opacity: .55;
+  text-decoration: line-through;
+  text-decoration-color: #c3423f;
+}
+.item-detail--storniert .storniert-badge{
+  text-decoration: none;
+  margin-left: auto;
+}
 
 .item-number{
   font-weight:700; color: var(--c-primary);

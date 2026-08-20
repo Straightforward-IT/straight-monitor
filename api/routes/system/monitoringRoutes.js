@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 const Monitoring = require("../../models/Monitoring");
 const PaketVorlage = require("../../models/System/PaketVorlage");
@@ -9,6 +10,21 @@ const {
   resolveActiveLocation,
   resolveLocationFromStandortName,
 } = require('../../services/operations/LocationResolutionService');
+const { findInventoryStock } = require('../../services/operations/InventoryService');
+
+// Reverses the stock effect of a single monitoring item.
+// entnahme removed stock -> add it back; zugabe added stock -> remove it again.
+async function revertItemStock(art, item, session) {
+  if (!item?.stockId || art === 'änderung') return;
+  const found = await findInventoryStock(item.stockId, session);
+  if (!found) {
+    throw Object.assign(new Error(`Bestandskombination für „${item.bezeichnung}“ nicht gefunden`), { statusCode: 409 });
+  }
+  const quantity = Number(item.anzahl || 0);
+  const delta = art === 'entnahme' ? quantity : -quantity;
+  found.stock.bestand = Math.max(0, found.stock.bestand + delta);
+  await found.item.save({ session });
+}
 
 async function resolveMonitoringLocation(locationId, standort) {
   return (locationId ? await resolveActiveLocation(locationId) : null)
@@ -145,6 +161,72 @@ router.put("/:id", auth, asyncHandler( async (req, res) => {
     await monitoringLog.save();
     res.status(200).json(monitoringLog);
  
+}));
+
+// POST revert an entire monitoring entry (undo all not-yet-reverted items)
+router.post("/:id/revert", auth, asyncHandler(async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    let updated;
+    await session.withTransaction(async () => {
+      const monitoringLog = await Monitoring.findById(req.params.id).session(session);
+      if (!monitoringLog) {
+        throw Object.assign(new Error("Monitoring log not found"), { statusCode: 404 });
+      }
+      if (monitoringLog.storniert) {
+        throw Object.assign(new Error("Eintrag ist bereits storniert"), { statusCode: 409 });
+      }
+
+      for (const item of monitoringLog.items) {
+        if (item.storniert) continue;
+        await revertItemStock(monitoringLog.art, item, session);
+        item.storniert = true;
+      }
+
+      monitoringLog.storniert = true;
+      monitoringLog.storniertAt = new Date();
+      monitoringLog.storniertBy = req.user.id;
+      updated = await monitoringLog.save({ session });
+    });
+    res.status(200).json(updated);
+  } finally {
+    await session.endSession();
+  }
+}));
+
+// POST revert a single item within a monitoring entry
+router.post("/:id/items/:index/revert", auth, asyncHandler(async (req, res) => {
+  const index = Number(req.params.index);
+  const session = await mongoose.startSession();
+  try {
+    let updated;
+    await session.withTransaction(async () => {
+      const monitoringLog = await Monitoring.findById(req.params.id).session(session);
+      if (!monitoringLog) {
+        throw Object.assign(new Error("Monitoring log not found"), { statusCode: 404 });
+      }
+      if (!Number.isInteger(index) || index < 0 || index >= monitoringLog.items.length) {
+        throw Object.assign(new Error("Item-Index ungültig"), { statusCode: 400 });
+      }
+      const item = monitoringLog.items[index];
+      if (item.storniert) {
+        throw Object.assign(new Error("Item ist bereits storniert"), { statusCode: 409 });
+      }
+
+      await revertItemStock(monitoringLog.art, item, session);
+      item.storniert = true;
+
+      if (monitoringLog.items.every((entry) => entry.storniert)) {
+        monitoringLog.storniert = true;
+        monitoringLog.storniertAt = new Date();
+        monitoringLog.storniertBy = req.user.id;
+      }
+      updated = await monitoringLog.save({ session });
+    });
+    res.status(200).json(updated);
+  } finally {
+    await session.endSession();
+  }
 }));
 
 // DELETE a specific monitoring log by ID
