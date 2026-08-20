@@ -111,7 +111,7 @@ router.get('/activity', auth, asyncHandler(async (req, res) => {
   }
 
   const activity = await Monitoring.find(filter)
-    .select('locationV2 locationId standort art timestamp items benutzer benutzerName benutzerMail packageTemplate packageTemplateName anmerkung')
+    .select('locationV2 locationId standort art timestamp items benutzer benutzerName benutzerMail packageTemplate packageTemplateName anmerkung storniert')
     .populate('locationV2', 'shortName')
     .populate('locationId', 'shortName')
     .populate('benutzer', 'name')

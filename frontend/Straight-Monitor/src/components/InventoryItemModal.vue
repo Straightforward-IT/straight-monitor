@@ -86,17 +86,18 @@ function toKey(value) {
   return String(value).trim().replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
-function parseOptions(value) {
+function parseOptions(value, uppercase = false) {
   const known = new Set();
   return String(value || '').split(',').map((label) => label.trim()).filter(Boolean).reduce((options, label) => {
     const key = toKey(label);
-    if (key && !known.has(key)) { known.add(key); options.push({ key, label }); }
+    const finalLabel = uppercase ? label.toUpperCase() : label;
+    if (key && !known.has(key)) { known.add(key); options.push({ key, label: finalLabel }); }
     return options;
   }, []);
 }
 
 const variationOptions = computed(() => parseOptions(form.value.variationen));
-const sizeOptions = computed(() => parseOptions(form.value.groessen));
+const sizeOptions = computed(() => parseOptions(form.value.groessen, true));
 const canSave = computed(() => form.value.bezeichnung.trim() && stockRows.value.some((row) => row.isActive));
 
 async function loadLocations() {

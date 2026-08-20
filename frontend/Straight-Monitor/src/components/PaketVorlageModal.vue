@@ -83,6 +83,7 @@ import { faCheck, faPlus, faSpinner, faTrash, faXmark } from '@fortawesome/free-
 import { library } from '@fortawesome/fontawesome-svg-core';
 import api from '@/utils/api';
 import { useDataCache } from '@/stores/dataCache';
+import { useAuth } from '@/stores/auth';
 import MitarbeiterSearch from '@/components/ui-elements/MitarbeiterSearch.vue';
 
 library.add(faCheck, faPlus, faSpinner, faTrash, faXmark);
@@ -91,6 +92,7 @@ const props = defineProps({ modelValue: { type: Object, required: true } });
 const emit = defineEmits(['update:modelValue', 'booked']);
 const template = computed(() => props.modelValue);
 const dataCache = useDataCache();
+const auth = useAuth();
 const locations = ref([]);
 const locationId = ref('');
 const mitarbeiterId = ref(null);
@@ -160,8 +162,7 @@ function syncAdditionalLines() {
     if (direction.value === 'issue' && line.stockId) line.anzahl = Math.min(line.anzahl, additionalMaxQuantity(line)) || 1;
   });
 }
-function canChoose(entry) { return entry.variationMode === 'choose' || entry.groesseMode === 'choose'; }
-function maxQuantity(entry) {
+function canChoose(entry) { return entry.variationMode === 'choose' || entry.groesseMode === 'choose'; }function maxQuantity(entry) {
   const selected = lineFor(entry).options.find((stock) => String(stock._id) === String(lineFor(entry).stockId));
   return direction.value === 'issue' ? selected?.bestand || 0 : undefined;
 }
@@ -190,11 +191,21 @@ async function setReturnDefaults() {
   lines.value = next;
 }
 
+// Prefer the logged-in user's own location, fall back to the first allowed one.
+function defaultLocationId() {
+  const userLocation = auth.user?.locationV2;
+  const userLocationId = userLocation && (userLocation._id || userLocation);
+  const match = userLocationId
+    && availableLocations.value.find((location) => String(location._id) === String(userLocationId));
+  return (match || availableLocations.value[0])?._id || '';
+}
+
 async function loadLocations() {
+  if (!auth.user) await auth.fetchMe().catch(() => {});
   const [locationsResponse, itemsResponse] = await Promise.all([api.get('/api/locations'), api.get('/api/inventory/items')]);
   locations.value = locationsResponse.data;
   catalogue.value = itemsResponse.data.filter((item) => item.isActive);
-  locationId.value = availableLocations.value[0]?._id || '';
+  locationId.value = defaultLocationId();
   setIssueDefaults();
 }
 async function setDirection(nextDirection) {

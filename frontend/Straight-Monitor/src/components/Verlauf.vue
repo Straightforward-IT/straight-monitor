@@ -291,8 +291,16 @@ export default {
       if (!log?._id || log.storniert) return;
       if (!window.confirm('Gesamten Eintrag zurücksetzen? Die Bestandsänderungen werden rückgängig gemacht.')) return;
       try {
-        await api.post(`/api/monitoring/${log._id}/revert`);
-        await this.fetchLogs();
+        const { data } = await api.post(`/api/monitoring/${log._id}/revert`);
+        const target = this.logs.find(l => String(l._id) === String(data._id));
+        if (target) {
+          target.storniert = data.storniert;
+          target.storniertAt = data.storniertAt;
+          data.items?.forEach((item, i) => { if (target.items[i]) target.items[i].storniert = item.storniert; });
+          this.groupLogs();
+        } else {
+          await this.fetchLogs();
+        }
       } catch (e) {
         window.alert(e.response?.data?.message || 'Zurücksetzen fehlgeschlagen.');
       }
@@ -303,8 +311,15 @@ export default {
       if (!item || item.storniert) return;
       if (!window.confirm(`Item „${item.bezeichnung}“ zurücksetzen?`)) return;
       try {
-        await api.post(`/api/monitoring/${log._id}/items/${index}/revert`);
-        await this.fetchLogs();
+        const { data } = await api.post(`/api/monitoring/${log._id}/items/${index}/revert`);
+        const target = this.logs.find(l => String(l._id) === String(data._id));
+        if (target) {
+          target.storniert = data.storniert;
+          data.items?.forEach((updatedItem, i) => { if (target.items[i]) target.items[i].storniert = updatedItem.storniert; });
+          this.groupLogs();
+        } else {
+          await this.fetchLogs();
+        }
       } catch (e) {
         window.alert(e.response?.data?.message || 'Zurücksetzen fehlgeschlagen.');
       }

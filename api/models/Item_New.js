@@ -6,6 +6,13 @@ const optionSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
 }, { _id: false });
 
+// Groessen labels are always stored uppercase (e.g. "xl" → "XL").
+const groesseOptionSchema = new mongoose.Schema({
+  key: { type: String, required: true, trim: true },
+  label: { type: String, required: true, trim: true, uppercase: true },
+  isActive: { type: Boolean, default: true },
+}, { _id: false });
+
 const stockSchema = new mongoose.Schema({
   location: {
     type: mongoose.Schema.Types.ObjectId,
@@ -29,7 +36,7 @@ const inventoryItemSchema = new mongoose.Schema({
   bezeichnung: { type: String, required: true, trim: true },
   shopUrl: { type: String, default: '', trim: true },
   variationen: { type: [optionSchema], default: [] },
-  groessen: { type: [optionSchema], default: [] },
+  groessen: { type: [groesseOptionSchema], default: [] },
   bestaende: { type: [stockSchema], default: [] },
   isActive: { type: Boolean, default: true },
   createdBy: {

@@ -35,9 +35,9 @@
       <p v-if="activityLoading" class="activity-state">Wird geladen…</p>
       <p v-else-if="!activity.length" class="activity-state">Keine letzten Bestandsänderungen.</p>
       <ol v-else class="activity-list">
-        <li v-for="entry in activity" :key="entry._id" class="activity-entry">
-          <span class="activity-entry__type" :class="`activity-entry__type--${entry.art}`">
-            <font-awesome-icon :icon="['fas', entry.art === 'entnahme' ? 'arrow-up' : 'arrow-down']" />
+        <li v-for="entry in activity" :key="entry._id" class="activity-entry" :class="{ 'activity-entry--storniert': entry.storniert }" @click="openInVerlauf(entry)">
+          <span class="activity-entry__type" :class="entry.storniert ? 'activity-entry__type--storniert' : `activity-entry__type--${entry.art}`">
+            <font-awesome-icon :icon="['fas', entry.storniert ? 'ban' : entry.art === 'entnahme' ? 'arrow-up' : 'arrow-down']" />
           </span>
           <div>
             <b>{{ activitySummary(entry) }}</b>
@@ -55,8 +55,9 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
+import { useRouter } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faArrowDown, faArrowUp, faBoxOpen, faPen, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faArrowDown, faArrowUp, faBan, faBoxOpen, faPen, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import api from '@/utils/api';
 import { useUi } from '@/stores/ui';
@@ -64,9 +65,10 @@ import { useInventoryFilters } from '@/stores/inventoryFilters';
 import PaketVorlageModal from '@/components/PaketVorlageModal.vue';
 import PaketVorlageEditorModal from '@/components/PaketVorlageEditorModal.vue';
 
-library.add(faArrowDown, faArrowUp, faBoxOpen, faPen, faPlus, faXmark);
+library.add(faArrowDown, faArrowUp, faBan, faBoxOpen, faPen, faPlus, faXmark);
 
 const ui = useUi();
+const router = useRouter();
 const { locationIds: selectedLocationIds } = storeToRefs(useInventoryFilters());
 const templates = ref([]);
 const selectedTemplate = ref(null);
@@ -102,6 +104,10 @@ async function refreshActivity() {
   } finally {
     activityLoading.value = false;
   }
+}
+
+function openInVerlauf(entry) {
+  router.push({ path: '/verlauf', query: { highlight: String(entry._id) } });
 }
 
 function activitySummary(entry) {
@@ -154,6 +160,6 @@ onMounted(() => {
 .shortcuts-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; } h4 { margin: 0; font-size: 0.94rem; } .close-btn { display: none; border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 4px; }
 .actions { display: grid; gap: 6px; } .package-shortcut { display: grid; grid-template-columns: 1fr 30px; gap: 4px; align-items: stretch; } .s-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--tile-bg); color: var(--text); cursor: pointer; font: inherit; font-size: 0.8rem; text-align: left; } .s-btn:hover { border-color: var(--primary); color: var(--primary); } .package-edit { display: grid; place-items: center; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; } .package-edit:hover { border-color: var(--primary); color: var(--primary); } .s-btn--create { border-style: dashed; color: var(--primary); }
 .state { margin: 4px 0; color: var(--muted); font-size: 0.78rem; line-height: 1.4; }.state--error { color: #c3423f; }
-.activity-section { display: grid; gap: 7px; margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--border); }.activity-section__header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }.activity-section__header h4 { font-size: 0.84rem; }.activity-section__header span, .activity-state { color: var(--muted); font-size: 0.7rem; }.activity-state { margin: 0; }.activity-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }.activity-entry { display: grid; grid-template-columns: 22px 1fr; gap: 7px; align-items: start; }.activity-entry__type { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 5px; font-size: 0.65rem; }.activity-entry__type--entnahme { background: color-mix(in srgb, #c3423f 10%, var(--tile-bg)); color: #c3423f; }.activity-entry__type--zugabe { background: color-mix(in srgb, #368a5c 11%, var(--tile-bg)); color: #368a5c; }.activity-entry b { display: block; overflow: hidden; color: var(--text); font-size: 0.72rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }.activity-entry small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.67rem; }
+.activity-section { display: grid; gap: 7px; margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--border); }.activity-section__header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }.activity-section__header h4 { font-size: 0.84rem; }.activity-section__header span, .activity-state { color: var(--muted); font-size: 0.7rem; }.activity-state { margin: 0; }.activity-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }.activity-entry { display: grid; grid-template-columns: 22px 1fr; gap: 7px; align-items: start; cursor: pointer; border-radius: 6px; padding: 3px 4px; margin: -3px -4px; transition: background 0.15s; }.activity-entry:hover { background: var(--hover); }.activity-entry:hover b { color: var(--primary); }.activity-entry__type { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 5px; font-size: 0.65rem; }.activity-entry__type--entnahme { background: color-mix(in srgb, #c3423f 10%, var(--tile-bg)); color: #c3423f; }.activity-entry__type--zugabe { background: color-mix(in srgb, #368a5c 11%, var(--tile-bg)); color: #368a5c; }.activity-entry__type--storniert { background: color-mix(in srgb, #888 10%, var(--tile-bg)); color: var(--muted); }.activity-entry--storniert b { opacity: .55; text-decoration: line-through; }.activity-entry--storniert small::after { content: ' · Storniert'; color: #c3423f; }.activity-entry b { display: block; overflow: hidden; color: var(--text); font-size: 0.72rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }.activity-entry small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.67rem; }
 @media (max-width: 768px) { .close-btn { display: block; } }
 </style>
