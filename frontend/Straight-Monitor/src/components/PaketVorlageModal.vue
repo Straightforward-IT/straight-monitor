@@ -122,8 +122,9 @@ const canBook = computed(() => mitarbeiterId.value && bookableLines.value.length
 function entryKey(entry) { return String(entry._id); }
 function stockLabel(stock, item = null) {
   const variation = item?.variationen?.find((option) => option.key === stock.variationKey)?.label || stock.variationKey;
-  const size = item?.groessen?.find((option) => option.key === stock.groesseKey)?.label || stock.groesseKey;
-  return [variation, size !== 'onesize' ? size : ''].filter(Boolean).join(' · ') || 'onesize';
+  const rawSize = item?.groessen?.find((option) => option.key === stock.groesseKey)?.label || stock.groesseKey;
+  const size = rawSize?.toUpperCase?.() ?? rawSize;
+  return [variation, size !== 'ONESIZE' && size !== 'onesize' ? size : ''].filter(Boolean).join(' · ') || 'onesize';
 }
 function matchingStocks(entry) {
   return (entry.item?.bestaende || []).filter((stock) => {
