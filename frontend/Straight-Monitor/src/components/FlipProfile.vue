@@ -164,13 +164,16 @@ export default {
 }
 
 .data-grid {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 
   > div {
     display: grid;
     gap: 4px;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
   }
 
   dt {
@@ -180,6 +183,7 @@ export default {
 
   dd {
     margin: 0;
+    overflow-wrap: anywhere;
   }
 }
 

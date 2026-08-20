@@ -112,9 +112,9 @@
     <transition name="expand">
       <div v-show="expanded" class="card-body" :class="{ 'card-body--links': view === 'links' }">
         <!-- Straight View -->
-        <section v-if="view === 'straight' || view === 'disposition'" class="straight-view">
+        <section v-if="view === 'straight' || view === 'reports'" class="straight-view">
           <!-- Dispo Section -->
-          <div v-if="view === 'disposition'" class="dispo-section">
+          <div v-if="view === 'straight'" class="dispo-section">
             <h4 class="section-title">
               <font-awesome-icon icon="fa-solid fa-calendar-days" class="section-icon" />
               Disposition
@@ -331,55 +331,10 @@
             :mitarbeiterId="resolvedMa._id.toString()"
             :eintrittsdatum="resolvedMa.eintrittsdatum"
           />
-
-          <!-- Skills Section (Berufe & Qualifikationen) -->
-          <div v-if="resolvedMa.berufe?.length || resolvedMa.qualifikationen?.length" class="skills-section">
-            <h4 class="section-title">
-              <font-awesome-icon icon="fa-solid fa-star" class="section-icon" />
-              Kompetenzen
-            </h4>
-
-            <div v-if="resolvedMa.berufe?.length" class="skill-group">
-              <h5 class="skill-group-title">
-                <font-awesome-icon icon="fa-solid fa-briefcase" class="skill-icon-sm" />
-                Berufe
-              </h5>
-              <ul class="skill-list">
-                <li 
-                  v-for="beruf in resolvedMa.berufe" 
-                  :key="beruf.jobKey || beruf._id" 
-                  class="skill-item skill-clickable"
-                  @click.stop="$emit('filter-beruf', beruf._id)"
-                  title="Klicken um nach diesem Beruf zu filtern"
-                >
-                  <span class="skill-name">{{ beruf.designation }}</span>
-                  <span class="skill-badge">{{ beruf.jobKey }}</span>
-                </li>
-              </ul>
-            </div>
-
-            <div v-if="resolvedMa.qualifikationen?.length" class="skill-group">
-              <h5 class="skill-group-title">
-                <font-awesome-icon icon="fa-solid fa-graduation-cap" class="skill-icon-sm" />
-                Qualifikationen
-              </h5>
-              <ul class="skill-list">
-                <li 
-                  v-for="quali in resolvedMa.qualifikationen" 
-                  :key="quali.qualificationKey || quali._id" 
-                  class="skill-item skill-clickable"
-                  @click.stop="$emit('filter-qualifikation', quali._id)"
-                  title="Klicken um nach dieser Qualifikation zu filtern"
-                >
-                  <span class="skill-name">{{ quali.designation }}</span>
-                  <span class="skill-badge">{{ quali.qualificationKey }}</span>
-                </li>
-              </ul>
-            </div>
-          </div>
+          </template>
 
           <!-- Dokumente Section -->
-          <div class="documents-section">
+          <div v-if="view === 'reports'" class="documents-section">
             <h4 class="section-title">
               <font-awesome-icon icon="fa-solid fa-file-lines" class="section-icon" />
               Dokumente
@@ -577,7 +532,6 @@
               <p>Keine Dokumente verknüpft</p>
             </div>
           </div>
-          </template>
         </section>
 
         <!-- Links View: Flip renders after Asana via CSS order. -->
@@ -1254,47 +1208,7 @@
          between the employee header and the active view. -->
     <section v-show="expanded" class="employee-tabs-shell" @click.stop>
       <div class="card-actions" role="tablist" aria-label="Mitarbeiteransicht">
-        <!-- Straight Button -->
-        <template v-if="showTooltips">
-          <custom-tooltip text="Monitor-Profil" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" role="tab" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-selected="view === 'straight'">
-              <span
-                class="tab-brand tab-brand--sf"
-                :style="{ '--tab-brand-image': `url(${effectiveTheme === 'dark' ? straightDark : straightLight})` }"
-                aria-hidden="true"
-              />
-              <span>Übersicht</span>
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button class="icon-btn" role="tab" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-selected="view === 'straight'">
-            <span
-              class="tab-brand tab-brand--sf"
-              :style="{ '--tab-brand-image': `url(${effectiveTheme === 'dark' ? straightDark : straightLight})` }"
-              aria-hidden="true"
-            />
-            <span>Übersicht</span>
-          </button>
-        </template>
-
-        <!-- Disposition -->
-        <template v-if="showTooltips">
-          <custom-tooltip text="Disposition" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" role="tab" :class="{ active: view === 'disposition' }" @click="view = 'disposition'" :aria-selected="view === 'disposition'">
-              <font-awesome-icon icon="fa-solid fa-calendar-days" />
-              <span>Disposition</span>
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button class="icon-btn" role="tab" :class="{ active: view === 'disposition' }" @click="view = 'disposition'" :aria-selected="view === 'disposition'">
-            <font-awesome-icon icon="fa-solid fa-calendar-days" />
-            <span>Disposition</span>
-          </button>
-        </template>
-
-        <!-- Profile / master data -->
+        <!-- Stammdaten -->
         <template v-if="showTooltips">
           <custom-tooltip text="Stammdaten" :position="tooltipPosition" :delay-in="150">
             <button class="icon-btn" role="tab" :class="{ active: view === 'profile' }" @click="view = 'profile'" :aria-selected="view === 'profile'">
@@ -1307,6 +1221,38 @@
           <button class="icon-btn" role="tab" :class="{ active: view === 'profile' }" @click="view = 'profile'" :aria-selected="view === 'profile'">
             <font-awesome-icon icon="fa-solid fa-user" />
             <span>Stammdaten</span>
+          </button>
+        </template>
+
+        <!-- Einsätze -->
+        <template v-if="showTooltips">
+          <custom-tooltip text="Einsätze" :position="tooltipPosition" :delay-in="150">
+            <button class="icon-btn" role="tab" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-selected="view === 'straight'">
+              <font-awesome-icon icon="fa-solid fa-calendar-days" />
+              <span>Einsätze</span>
+            </button>
+          </custom-tooltip>
+        </template>
+        <template v-else>
+          <button class="icon-btn" role="tab" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-selected="view === 'straight'">
+            <font-awesome-icon icon="fa-solid fa-calendar-days" />
+            <span>Einsätze</span>
+          </button>
+        </template>
+
+        <!-- Reports -->
+        <template v-if="showTooltips">
+          <custom-tooltip text="Reports" :position="tooltipPosition" :delay-in="150">
+            <button class="icon-btn" role="tab" :class="{ active: view === 'reports' }" @click="view = 'reports'" :aria-selected="view === 'reports'">
+              <font-awesome-icon icon="fa-solid fa-file-lines" />
+              <span>Reports</span>
+            </button>
+          </custom-tooltip>
+        </template>
+        <template v-else>
+          <button class="icon-btn" role="tab" :class="{ active: view === 'reports' }" @click="view = 'reports'" :aria-selected="view === 'reports'">
+            <font-awesome-icon icon="fa-solid fa-file-lines" />
+            <span>Reports</span>
           </button>
         </template>
 
@@ -1379,6 +1325,8 @@
                   <button v-if="resolvedMa?.isActive !== false" class="qa-item" @click="executeQuickAction('open-dispo')">
                     <font-awesome-icon icon="fa-solid fa-table-columns" /> In Dispo öffnen
                   </button>
+                </div>
+                <div class="qa-group">
                   <button class="qa-item" @click="executeQuickAction('edit')">
                     <font-awesome-icon icon="fa-solid fa-edit" /> Bearbeiten
                   </button>
@@ -1472,6 +1420,79 @@
         <div v-if="resolvedMa.erstellt_von" class="steckbrief-row">
           <span class="steckbrief-label">Erstellt</span>
           <span class="steckbrief-value steckbrief-value--muted">{{ resolvedMa.erstellt_von }}</span>
+        </div>
+      </div>
+
+      <div class="skills-section">
+        <h4 class="section-title">
+          <font-awesome-icon icon="fa-solid fa-star" class="section-icon" />
+          Kompetenzen
+        </h4>
+
+        <div v-if="resolvedMa.berufe?.length" class="skill-group">
+          <h5 class="skill-group-title">
+            <font-awesome-icon icon="fa-solid fa-briefcase" class="skill-icon-sm" />
+            Berufe
+          </h5>
+          <ul class="skill-list">
+            <li
+              v-for="beruf in resolvedMa.berufe"
+              :key="beruf.jobKey || beruf._id"
+              class="skill-item skill-clickable"
+              @click.stop="$emit('filter-beruf', beruf._id)"
+              title="Klicken um nach diesem Beruf zu filtern"
+            >
+              <span class="skill-name">{{ beruf.designation }}</span>
+              <span class="skill-badge">{{ beruf.jobKey }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="skill-group">
+          <h5 class="skill-group-title">
+            <font-awesome-icon icon="fa-solid fa-graduation-cap" class="skill-icon-sm" />
+            Qualifikationen
+          </h5>
+          <ul class="skill-list">
+            <li class="skill-item skill-add-item">
+              <button class="skill-add-button" type="button" @click.stop="openQualificationPicker">
+                <font-awesome-icon icon="fa-solid fa-plus" />
+                Neu
+              </button>
+            </li>
+            <li
+              v-for="quali in resolvedMa.qualifikationen"
+              :key="quali.qualificationKey || quali._id"
+              class="skill-item skill-clickable"
+              @click.stop="$emit('filter-qualifikation', quali._id)"
+              title="Klicken um nach dieser Qualifikation zu filtern"
+            >
+              <span class="skill-name">{{ quali.designation }}</span>
+              <span class="skill-badge">{{ quali.qualificationKey }}</span>
+            </li>
+          </ul>
+          <div v-if="showQualificationPicker" class="qualification-picker">
+            <SearchBar
+              v-model="qualificationSearch"
+              placeholder="Qualifikation suchen..."
+              aria-label="Qualifikation suchen"
+              class="qualification-search"
+            />
+            <div v-if="qualificationOptions.length" class="qualification-options">
+              <button
+                v-for="qualification in qualificationOptions"
+                :key="qualification._id"
+                type="button"
+                class="qualification-option"
+                :disabled="qualificationSaving"
+                @click.stop="addQualification(qualification)"
+              >
+                <span>{{ qualification.designation }}</span>
+                <span class="skill-badge">{{ qualification.qualificationKey }}</span>
+              </button>
+            </div>
+            <p v-else class="qualification-empty">Keine weiteren Qualifikationen gefunden.</p>
+          </div>
         </div>
       </div>
       </div>
@@ -1592,6 +1613,7 @@ import EditMitarbeiterDialog from "./EditMitarbeiterDialog.vue";
 import DeleteMitarbeiterDialog from "@/components/Modals/DeleteMitarbeiterDialog.vue";
 import ImageCropModal from "./ImageCropModal.vue";
 import TlBadge from "./ui-elements/TlBadge.vue";
+import SearchBar from "./SearchBar.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
@@ -1610,7 +1632,7 @@ import MitarbeiterEinsatzChart from "./MitarbeiterEinsatzChart.vue";
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar },
   props: {
     ma: { type: Object, required: false, default: null },
     mitarbeiterId: { type: String, default: null },
@@ -1756,7 +1778,7 @@ export default {
   data() {
     return {
       expanded: this.initiallyExpanded,
-      view: "straight",
+      view: "profile",
       // Personalnr editing
       editingPersonalnr: false,
       personalnrInput: "",
@@ -1858,6 +1880,9 @@ export default {
       calendarYear: new Date().getFullYear(),
       calendarMonth: new Date().getMonth(),
       calendarSelectedDay: null,
+      showQualificationPicker: false,
+      qualificationSearch: '',
+      qualificationSaving: false,
     };
   },
 
@@ -1907,6 +1932,15 @@ export default {
         (this.resolvedMa?.evaluierungen_submitted && this.resolvedMa.evaluierungen_submitted.length > 0) ||
         this.eventreportFeedback.length > 0
       );
+    },
+    qualificationOptions() {
+      const assignedIds = new Set((this.resolvedMa?.qualifikationen || []).map((qualification) => String(qualification._id || qualification)));
+      const query = this.qualificationSearch.trim().toLowerCase();
+      return (this.dataCache.qualifikationen || [])
+        .filter((qualification) => !assignedIds.has(String(qualification._id)))
+        .filter((qualification) => !query || qualification.designation.toLowerCase().includes(query) || String(qualification.qualificationKey).includes(query))
+        .sort((first, second) => first.qualificationKey - second.qualificationKey)
+        .slice(0, 8);
     },
     filteredUnlinkedUsers() {
       const q = this.flipLinkSearch.toLowerCase().trim();
@@ -3181,6 +3215,43 @@ export default {
       } catch (error) {
         console.error("❌ Fehler beim Ändern des Status:", error);
         alert("Fehler beim Ändern des Status.");
+      }
+    },
+
+    async openQualificationPicker() {
+      this.showQualificationPicker = !this.showQualificationPicker;
+      this.qualificationSearch = '';
+      if (this.showQualificationPicker) {
+        await this.dataCache.loadQualifikationen();
+      }
+    },
+
+    async addQualification(qualification) {
+      if (this.qualificationSaving || !this.resolvedMa?._id) return;
+      this.qualificationSaving = true;
+      try {
+        const currentQualifications = this.resolvedMa.qualifikationen || [];
+        const qualificationIds = [...currentQualifications.map((item) => item._id || item), qualification._id];
+        const response = await api.patch(`/api/personal/mitarbeiter/${this.resolvedMa._id}`, {
+          qualifikationen: qualificationIds,
+        });
+        if (!response.data?.success) {
+          throw new Error(response.data?.message || 'Qualifikation konnte nicht gespeichert werden.');
+        }
+
+        const updatedEmployee = {
+          ...response.data.data,
+          qualifikationen: [...currentQualifications, qualification],
+        };
+        Object.assign(this.resolvedMa, updatedEmployee);
+        this.dataCache.updateOneMitarbeiter(updatedEmployee);
+        this.showQualificationPicker = false;
+        this.qualificationSearch = '';
+      } catch (error) {
+        console.error('Qualifikation hinzufügen fehlgeschlagen:', error);
+        alert(`Qualifikation konnte nicht hinzugefügt werden: ${error.response?.data?.message || error.message}`);
+      } finally {
+        this.qualificationSaving = false;
       }
     },
 
@@ -4552,6 +4623,69 @@ export default {
     border-radius: 4px;
     font-family: monospace;
   }
+
+  .skill-add-item {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .skill-add-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 0;
+    background: transparent;
+    color: var(--primary);
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .qualification-picker {
+    width: min(420px, 100%);
+    margin-top: 10px;
+  }
+
+  .qualification-options {
+    display: grid;
+    gap: 2px;
+    max-height: 220px;
+    margin-top: 6px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px;
+    background: var(--surface);
+  }
+
+  .qualification-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 7px 8px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+
+    &:hover:not(:disabled) {
+      background: var(--soft);
+      color: var(--primary);
+    }
+  }
+
+  .qualification-empty {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 13px;
+  }
 }
 
 .flip-view {
@@ -5187,6 +5321,8 @@ export default {
   grid-row: 2;
   display: block;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* ---------- Hero Photo Panel ---------- */
@@ -6484,6 +6620,8 @@ export default {
 .card[data-expanded="true"] .card-body {
   grid-column: 1 !important;
   grid-row: 3 !important;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .employee-tabs-shell .card-actions {
@@ -6632,6 +6770,10 @@ export default {
 .employee-tabs-shell .steckbrief-value,
 .employee-tabs-shell .steckbrief-value.steckbrief-value--muted {
   font-size: 12px;
+}
+
+.employee-tabs-shell .skills-section {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 900px) {
