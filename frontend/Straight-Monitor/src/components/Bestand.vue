@@ -59,7 +59,15 @@
         <header class="item-card__header" @click="toggleItemDetails(item)">
           <div class="item-card__summary">
             <button type="button" class="item-card__details-trigger" :aria-expanded="isItemExpanded(item.id)" @click.stop="toggleItemDetails(item)">
-              <h3>{{ item.bezeichnung }}</h3>
+              <span class="item-card__title-row">
+                <FavoriteStarButton
+                  :active="isItemHighlighted(item)"
+                  active-title="Favorit entfernen"
+                  inactive-title="Als Favorit markieren"
+                  @toggle="toggleItemHighlight(item)"
+                />
+                <h3>{{ item.bezeichnung }}</h3>
+              </span>
               <span class="item-card__meta">{{ item.locations.length }} {{ item.locations.length === 1 ? 'Standort' : 'Standorte' }} · {{ item.stocks.length }} Kombinationen</span>
             </button>
             <a v-if="item.shopUrl" :href="item.shopUrl" target="_blank" rel="noopener noreferrer" class="shop-link" @click.stop>
@@ -179,6 +187,7 @@ import InventoryItemModal from '@/components/InventoryItemModal.vue';
 import InventoryTransactionModal from '@/components/InventoryTransactionModal.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import InventoryReportModal from '@/components/InventoryReportModal.vue';
+import FavoriteStarButton from '@/components/ui-elements/FavoriteStarButton.vue';
 
 library.add(faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faTrash, faWarehouse);
 
@@ -280,8 +289,23 @@ const groupedItems = computed(() => {
       .sort((left, right) => left.name.localeCompare(right.name, 'de')),
     variations: [...group.variations.values()].sort((left, right) => left.order - right.order || left.label.localeCompare(right.label, 'de')),
     sizes: [...group.sizes.values()].sort((left, right) => left.order - right.order || left.label.localeCompare(right.label, 'de')),
-  })).sort((left, right) => left.bezeichnung.localeCompare(right.bezeichnung, 'de'));
+  })).sort((left, right) => {
+    if (isItemHighlighted(left) !== isItemHighlighted(right)) return isItemHighlighted(left) ? -1 : 1;
+    return left.bezeichnung.localeCompare(right.bezeichnung, 'de');
+  });
 });
+
+function isItemHighlighted(item) {
+  return auth.highlightedInventoryItems.some((id) => id.toString() === String(item.id));
+}
+
+async function toggleItemHighlight(item) {
+  try {
+    await auth.toggleHighlightedInventoryItem(item.id);
+  } catch (requestError) {
+    error.value = requestError.response?.data?.message || 'Favorit konnte nicht aktualisiert werden.';
+  }
+}
 
 function toggleLocationFilter(locationId) {
   inventoryFilters.toggleLocation(locationId);
@@ -425,6 +449,7 @@ h2 { margin: 0; font-size: 1.55rem; display: flex; gap: 9px; align-items: center
 .item-card__header { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 14px 14px 11px; border-bottom: 1px solid var(--border); cursor: pointer; }
 .item-card__summary { min-width: 0; display: grid; justify-items: start; gap: 5px; }
 .item-card__details-trigger { min-width: 0; display: grid; justify-items: start; gap: 5px; border: 0; padding: 0; background: transparent; color: var(--text); cursor: pointer; font: inherit; text-align: left; }
+.item-card__title-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .item-card h3 { font-size: 0.98rem; margin: 0; }
 .item-card__meta { color: var(--muted); font-size: 0.74rem; }
 .item-card__actions { display: flex; align-items: center; gap: 7px; }

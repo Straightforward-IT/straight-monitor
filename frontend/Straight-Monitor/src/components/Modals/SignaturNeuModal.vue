@@ -446,7 +446,7 @@ import {
   faFileSignature, faCheck, faPlus, faArrowLeft, faArrowRight, faPaperPlane,
   faMagnifyingGlass, faSpinner, faTriangleExclamation, faUserPlus,
   faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
-  faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
+  faClock, faTags, faFileContract, faMoneyBillWave, faCar,
   faBolt, faTrash, faCommentDots, faEnvelope, faAt, faRobot,
   faFloppyDisk, faPenNib, faCircleCheck, faCircle,
 } from '@fortawesome/free-solid-svg-icons';
@@ -464,7 +464,7 @@ library.add(
   faFileSignature, faCheck, faPlus, faArrowLeft, faArrowRight, faPaperPlane,
   faMagnifyingGlass, faSpinner, faTriangleExclamation, faUserPlus,
   faPenRuler, faWandMagicSparkles, faBuilding, faIdBadge, faBan,
-  faClock, faTags, faFileContract, faMoneyBillWave, faPlane,
+  faClock, faTags, faFileContract, faMoneyBillWave, faCar,
   faBolt, faTrash, faCommentDots, faEnvelope, faAt, faRobot,
   faFloppyDisk, faPenNib, faCircleCheck, faCircle,
 );
@@ -822,7 +822,7 @@ function typIcon(key) {
     auerv:                 ['fas', 'file-contract'],
     arbeitsvertrag:        ['fas', 'file-contract'],
     lohnvorschuss:         ['fas', 'money-bill-wave'],
-    reisekostenabrechnung: ['fas', 'plane'],
+    reisekostenabrechnung: ['fas', 'car'],
   }[key] || ['fas', 'file-signature'];
 }
 

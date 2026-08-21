@@ -57,6 +57,14 @@ const UserSchema = new mongoose.Schema({
     type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Kunde' }],
     default: []
   },
+  highlightedKunden: {
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Kunde' }],
+    default: []
+  },
+  highlightedInventoryItems: {
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Item_New' }],
+    default: []
+  },
   asana_id: {
     type: String,
     default: null

@@ -15,6 +15,7 @@ const ImportLog = require('../../models/System/ImportLog');
 const Rechnung = require('../../models/Rechnung');
 const DispoEintrag = require('../../models/System/DispoEintrag');
 const ZvooveVerfuegbarkeit = require('../../models/System/ZvooveVerfuegbarkeit');
+const Adresse = require('../../models/System/Adresse');
 const User = require('../../models/System/User');
 const logger = require('../../utils/logger');
 const { sendMail } = require('../../services/integrations/EmailService');
@@ -117,6 +118,11 @@ const cleanKeys = (obj) => {
   return newObj;
 };
 
+const optionalText = (value) => {
+  const text = String(value ?? '').trim();
+  return text || null;
+};
+
 const parseExcelDate = (value) => {
   if (value == null || value === '') return null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -148,6 +154,86 @@ const parseEuroCents = (value) => {
   const amount = Number(normalized);
   return Number.isFinite(amount) ? Math.round(amount * 100) : null;
 };
+
+// --- Adressen Import (Zvoove Liste 7034) ---
+router.post('/adressen', auth, extendTimeout, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawCheck = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    const checkStart = rawCheck.length > 0 && Number.isNaN(Number(rawCheck[0][0])) ? 1 : 0;
+    if (rawCheck.length > checkStart && Number(rawCheck[checkStart][0]) !== 7034) {
+      return res.status(400).json({ success: false, message: 'Falsche Liste: Für den Adressen-Import wird Prüffeld 7034 erwartet.' });
+    }
+
+    const operations = [];
+    let skipped = 0;
+    for (const rawRow of XLSX.utils.sheet_to_json(sheet, { defval: '' })) {
+      const row = cleanKeys(rawRow);
+      const nummer = optionalText(row.NUMMER);
+      const art = optionalText(row.ART)?.toUpperCase();
+      if (!nummer || !['K', 'A', 'P'].includes(art)) {
+        skipped += 1;
+        continue;
+      }
+
+      const name1 = optionalText(row.NAME1);
+      const name2 = optionalText(row.NAME2);
+      const telefone = [optionalText(row.TELEFON1), optionalText(row.TELEFON2)].filter(Boolean);
+      operations.push({
+        updateOne: {
+          filter: { nummer },
+          update: {
+            $set: {
+              art,
+              name1,
+              name2,
+              name: [name1, name2].filter(Boolean).join(' ') || null,
+              branche: optionalText(row.BRANCHE),
+              strasse: optionalText(row.STRASSE),
+              nat: optionalText(row.NAT),
+              plz: optionalText(row.PLZ),
+              ort: optionalText(row.ORT),
+              telefone,
+              land: optionalText(row.LAND),
+              anrede: optionalText(row.ANREDE),
+              knr: optionalText(row.KNR),
+              trans: optionalText(row.TRANS),
+              email: optionalText(row.EMAIL)?.toLowerCase() || null,
+              homepage: optionalText(row.HOMEPAGE),
+              importiertAm: new Date(),
+            },
+          },
+          upsert: true,
+        },
+      });
+    }
+
+    if (!operations.length) {
+      await logImport('adressen', req.file.originalname, 'warning', 0, { skipped });
+      return res.json({ success: true, message: 'Keine gültigen Adressen zum Verarbeiten gefunden.', details: { total: 0, inserted: 0, updated: 0, unchanged: 0, skipped } });
+    }
+
+    const result = await Adresse.bulkWrite(operations);
+    const inserted = result.upsertedCount || 0;
+    const updated = result.modifiedCount || 0;
+    const unchanged = operations.length - inserted - updated;
+    const details = { total: operations.length, inserted, updated, unchanged, skipped };
+    await logImport('adressen', req.file.originalname, 'success', operations.length, details, req.user?.id);
+    res.json({
+      success: true,
+      message: `${operations.length} Adressen verarbeitet: ${inserted} neu, ${updated} aktualisiert, ${unchanged} unverändert${skipped ? `, ${skipped} übersprungen` : ''}.`,
+      details,
+    });
+  } catch (error) {
+    logger.error('Import Adressen Error:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Adressen.', error: error.message });
+  }
+});
 
 // Helper to filter valid rows (e.g., rows with essential IDs)
 const isValidRow = (row, idField) => {

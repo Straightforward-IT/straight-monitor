@@ -9,6 +9,7 @@ const Rechnung = require('../../models/Rechnung');
 const Qualifikation = require('../../models/Event/Qualifikation');
 const Kundenpreis = require('../../models/Customer/Kundenpreis');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
+const Adresse = require('../../models/System/Adresse');
 const { decryptField } = require('../../utils/encryption');
 const asyncHandler = require('../../middleware/AsyncHandler');
 const auth = require('../../middleware/auth');
@@ -1136,6 +1137,81 @@ router.get('/analytics/rechnungen/daily', auth, asyncHandler(async (req, res) =>
   res.json({ data, kundenBreakdown });
 }));
 // ─────────────────────────────────────────────────────────────────────────────
+
+// @route   GET /api/kunden/:kundenNr/adressen
+// @desc    Importierte Zvoove-Adressen für einen Kunden abrufen
+// @access  Private
+router.get('/:kundenNr/adressen', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  if (!Number.isInteger(kundenNr)) {
+    return res.status(400).json({ message: 'Ungültige Kunden-Nr.' });
+  }
+
+  const adressen = await Adresse.find({ knr: String(kundenNr), isActive: { $ne: false } })
+    .sort({ art: 1, name: 1 })
+    .lean();
+
+  res.json(adressen);
+}));
+
+// @route   DELETE /api/kunden/:kundenNr/adressen/:nummer
+// @desc    Zvoove-Adresse deaktivieren, damit sie bei späteren Imports verborgen bleibt
+// @access  Private
+router.delete('/:kundenNr/adressen/:nummer', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  const nummer = String(req.params.nummer || '').trim();
+  if (!Number.isInteger(kundenNr) || !nummer) {
+    return res.status(400).json({ message: 'Ungültige Kunden- oder Adressnummer.' });
+  }
+
+  const adresse = await Adresse.findOneAndUpdate(
+    { nummer, knr: String(kundenNr), isActive: { $ne: false } },
+    { $set: { isActive: false } },
+    { new: true },
+  ).lean();
+  if (!adresse) return res.status(404).json({ message: 'Adresse nicht gefunden oder bereits deaktiviert.' });
+
+  res.json({ success: true });
+}));
+
+// @route   PATCH /api/kunden/:kundenNr/adressen/:nummer
+// @desc    Importierte Zvoove-Adresse manuell ergänzen oder korrigieren
+// @access  Private
+router.patch('/:kundenNr/adressen/:nummer', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  const nummer = String(req.params.nummer || '').trim();
+  if (!Number.isInteger(kundenNr) || !nummer) {
+    return res.status(400).json({ message: 'Ungültige Kunden- oder Adressnummer.' });
+  }
+
+  const toNullableText = (value) => {
+    const text = String(value ?? '').trim();
+    return text || null;
+  };
+  const update = {
+    name: toNullableText(req.body.name),
+    branche: toNullableText(req.body.branche),
+    strasse: toNullableText(req.body.strasse),
+    plz: toNullableText(req.body.plz),
+    ort: toNullableText(req.body.ort),
+    land: toNullableText(req.body.land),
+    anrede: toNullableText(req.body.anrede),
+    telefone: Array.isArray(req.body.telefone)
+      ? req.body.telefone.map(toNullableText).filter(Boolean)
+      : [],
+    email: toNullableText(req.body.email)?.toLowerCase() || null,
+    homepage: toNullableText(req.body.homepage),
+  };
+
+  const adresse = await Adresse.findOneAndUpdate(
+    { nummer, knr: String(kundenNr), isActive: { $ne: false } },
+    { $set: update },
+    { new: true, runValidators: true },
+  ).lean();
+  if (!adresse) return res.status(404).json({ message: 'Adresse nicht gefunden oder deaktiviert.' });
+
+  res.json({ adresse });
+}));
 
 // @route   GET /api/kunden/:kundenNr/preise
 // @desc    Kundenpreise inklusive Historie, Qualifikation und zugeordnetem Beruf

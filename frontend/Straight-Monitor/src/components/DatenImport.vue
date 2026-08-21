@@ -10,7 +10,7 @@
     <div class="last-import-section">
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'beruf', 'qualifikation', 'rechnung', 'kundenpreis', 'personalnr-history'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
+        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'adressen', 'beruf', 'qualifikation', 'rechnung', 'kundenpreis', 'personalnr-history'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -178,6 +178,46 @@
         <h2>System</h2>
       </div>
       <div class="imports-layout">
+
+        <!-- Adressen -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Adressen (Liste 7034)</h2>
+              <p class="subtitle">Kunden, Ansprechpartner und Mitarbeiteradressen aus Zvoove</p>
+            </div>
+            <span v-if="adressenFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area"
+              :class="{ 'has-file': adressenFile }"
+              @dragover.prevent
+              @drop="(e) => handleDragAndDrop(e, 'adressen')"
+              @click="triggerFileInput('adressen-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="adressenFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!adressenFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ adressenFile.name }}</span>
+                </div>
+              </div>
+              <input id="adressen-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'adressen')" accept=".xlsx, .xls" />
+            </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Erwartete SQL-Export Struktur</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody>
+                    <tr><td>A - Prüffeld (7034)</td><td>B - NUMMER</td><td>C - ART (K, A, P)</td></tr>
+                    <tr><td>NAME1, NAME2, BRANCHE</td><td>STRASSE, NAT, PLZ, ORT</td><td>TELEFON1, TELEFON2, LAND</td></tr>
+                    <tr><td>ANREDE, KNR, TRANS</td><td>EMAIL</td><td>HOMEPAGE</td></tr>
+                  </tbody></table>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
 
         <!-- Berufe -->
         <div class="import-card">
@@ -636,6 +676,7 @@ export default {
       rechnungFile: null,
       kundenpreisFile: null,
       personalnrHistoryFile: null,
+      adressenFile: null,
       loading: false,
       // Modal state
       showResultModal: false,
@@ -670,6 +711,7 @@ export default {
         einsatz: 'Einsätze (Legacy)',
         'einsatz-komplett': 'Zvoove Komplett Import',
         personal: 'Personal',
+        adressen: 'Adressen',
         verfuegbarkeit: 'Verfügbarkeiten',
         beruf: 'Berufe',
         qualifikation: 'Qualifikationen',
@@ -705,7 +747,7 @@ export default {
     },
     async setFile(file, type) {
       // Validate Prüffeld for einsatz/personal imports
-      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : type === 'verfuegbarkeit' ? 7003 : type === 'rechnung' ? 6001 : type === 'kundenpreis' ? 3202 : type === 'personalnr-history' ? 3201 : null;
+      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : type === 'verfuegbarkeit' ? 7003 : type === 'adressen' ? 7034 : type === 'rechnung' ? 6001 : type === 'kundenpreis' ? 3202 : type === 'personalnr-history' ? 3201 : null;
       if (expectedCode) {
         const valid = await this.validatePrueffeld(file, expectedCode);
         if (!valid) return;
@@ -718,6 +760,7 @@ export default {
       if (type === 'rechnung') this.rechnungFile = file;
       if (type === 'kundenpreis') this.kundenpreisFile = file;
       if (type === 'personalnr-history') this.personalnrHistoryFile = file;
+      if (type === 'adressen') this.adressenFile = file;
     },
     validatePrueffeld(file, expectedCode) {
       return new Promise((resolve) => {
@@ -736,7 +779,7 @@ export default {
             }
             const prueffeld = parseInt(rows[startRow][0], 10);
             if (prueffeld !== expectedCode) {
-              const labels = { 7001: 'Einsatz-Komplett (Liste 7001)', 7002: 'Personal (Liste 7002)', 7003: 'Verfügbarkeiten (Liste 7003)', 6001: 'Rechnungen (Liste 6001)', 3201: 'Personalnr-Historien (Liste 3201)', 3202: 'Kundenpreise (Liste 3202)' };
+              const labels = { 7001: 'Einsatz-Komplett (Liste 7001)', 7002: 'Personal (Liste 7002)', 7003: 'Verfügbarkeiten (Liste 7003)', 7034: 'Adressen (Liste 7034)', 6001: 'Rechnungen (Liste 6001)', 3201: 'Personalnr-Historien (Liste 3201)', 3202: 'Kundenpreise (Liste 3202)' };
               alert(`⚠️ Prüffeld-Fehler: Spalte A enthält "${rows[startRow][0] ?? '(leer)'}" – erwartet wird ${expectedCode} (${labels[expectedCode]}).`);
               resolve(false);
               return;
@@ -757,7 +800,7 @@ export default {
         return;
       }
 
-      const adminFiles = this.isAdmin ? [this.berufFile, this.qualifikationFile, this.rechnungFile, this.kundenpreisFile, this.personalnrHistoryFile] : [];
+      const adminFiles = this.isAdmin ? [this.adressenFile, this.berufFile, this.qualifikationFile, this.rechnungFile, this.kundenpreisFile, this.personalnrHistoryFile] : [];
       const fileCount = [this.einsatzFile, this.personalFile, this.verfuegbarkeitFile, ...adminFiles].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
@@ -782,6 +825,12 @@ export default {
         if (this.verfuegbarkeitFile) {
           const response = await this.uploadFile(this.verfuegbarkeitFile, 'verfuegbarkeit');
           results.push({ type: 'Verfügbarkeiten', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.adressenFile && this.isAdmin) {
+          const response = await this.uploadFile(this.adressenFile, 'adressen');
+          results.push({ type: 'Adressen', ...response });
           if (!response.success) hasErrors = true;
         }
 
@@ -1016,10 +1065,11 @@ export default {
       this.rechnungFile = null;
       this.kundenpreisFile = null;
       this.personalnrHistoryFile = null;
+      this.adressenFile = null;
       this.fetchLastUploads();
     },
     hasAnyFile() {
-      const adminFiles = this.isAdmin ? (this.berufFile || this.qualifikationFile || this.rechnungFile || this.kundenpreisFile || this.personalnrHistoryFile) : false;
+      const adminFiles = this.isAdmin ? (this.adressenFile || this.berufFile || this.qualifikationFile || this.rechnungFile || this.kundenpreisFile || this.personalnrHistoryFile) : false;
       return this.einsatzFile || this.personalFile || this.verfuegbarkeitFile || adminFiles;
     },
 

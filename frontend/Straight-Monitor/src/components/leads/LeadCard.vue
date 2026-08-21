@@ -5,14 +5,10 @@
     @click="$emit('open', lead)"
   >
     <header class="lc-header">
-      <button
-        class="lc-fav"
-        :class="{ active: lead.isFavorite }"
-        :title="lead.isFavorite ? 'Favorit entfernen' : 'Als Favorit markieren'"
-        @click.stop="$emit('toggle-favorite', lead)"
-      >
-        <font-awesome-icon :icon="lead.isFavorite ? ['fas','star'] : ['far','star']" />
-      </button>
+      <FavoriteStarButton
+        :active="lead.isFavorite"
+        @toggle="$emit('toggle-favorite', lead)"
+      />
       <h4 class="lc-title">{{ lead.title }}</h4>
       <button
         class="lc-menu-btn"
@@ -52,6 +48,7 @@
 <script setup>
 import { computed } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import FavoriteStarButton from '@/components/ui-elements/FavoriteStarButton.vue';
 
 const props = defineProps({
   lead: { type: Object, required: true },
@@ -183,17 +180,6 @@ function formatCreated(d) {
   line-height: 1.3;
   color: var(--text);
   word-break: break-word;
-}
-.lc-fav {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 13px;
-  padding: 0;
-  line-height: 1;
-  &:hover { color: #f59e0b; }
-  &.active { color: #f59e0b; }
 }
 .lc-menu-btn {
   background: none;

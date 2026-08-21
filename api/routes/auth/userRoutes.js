@@ -72,6 +72,40 @@ router.put(
   })
 );
 
+// PUT /api/users/me/highlighted-kunden/toggle
+router.put(
+  "/me/highlighted-kunden/toggle",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { kundeId } = req.body;
+    if (!kundeId) return res.status(400).json({ msg: "kundeId is required" });
+    const user = await User.findById(req.user.id).select("highlightedKunden");
+    if (!user) return res.status(404).json({ msg: "User not found" });
+    const index = user.highlightedKunden.findIndex((id) => id.toString() === kundeId);
+    if (index === -1) user.highlightedKunden.push(kundeId);
+    else user.highlightedKunden.splice(index, 1);
+    await user.save();
+    res.status(200).json({ highlightedKunden: user.highlightedKunden });
+  })
+);
+
+// PUT /api/users/me/highlighted-inventory-items/toggle
+router.put(
+  "/me/highlighted-inventory-items/toggle",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { itemId } = req.body;
+    if (!itemId) return res.status(400).json({ msg: "itemId is required" });
+    const user = await User.findById(req.user.id).select("highlightedInventoryItems");
+    if (!user) return res.status(404).json({ msg: "User not found" });
+    const index = user.highlightedInventoryItems.findIndex((id) => id.toString() === itemId);
+    if (index === -1) user.highlightedInventoryItems.push(itemId);
+    else user.highlightedInventoryItems.splice(index, 1);
+    await user.save();
+    res.status(200).json({ highlightedInventoryItems: user.highlightedInventoryItems });
+  })
+);
+
 // GET /api/users/:id
 router.get(
   "/:id",

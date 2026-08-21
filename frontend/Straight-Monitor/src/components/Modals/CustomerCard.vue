@@ -179,6 +179,14 @@
           <font-awesome-icon :icon="['fas', 'address-book']" /> Kontakte
           <span class="badge">{{ linkedContacts.length }}</span>
           <button
+            v-if="inactiveContacts.length"
+            class="btn-add-contact"
+            @click="showInactiveContacts = !showInactiveContacts"
+          >
+            <font-awesome-icon :icon="['fas', showInactiveContacts ? 'eye-slash' : 'eye']" />
+            {{ showInactiveContacts ? 'Inaktive ausblenden' : `Inaktive (${inactiveContacts.length})` }}
+          </button>
+          <button
             v-if="kunde.kuerzel"
             class="btn-add-contact"
             @click="showKontaktAnlegenModal = true"
@@ -197,7 +205,7 @@
           <font-awesome-icon :icon="['fas', 'spinner']" spin /> Kontakte werden geladen…
         </div>
 
-        <div v-else-if="linkedContacts.length === 0" class="empty-contacts">
+        <div v-else-if="visibleContacts.length === 0" class="empty-contacts">
           Keine Microsoft-Kontakte mit Kürzel „{{ kunde.kuerzel }}" gefunden.
         </div>
 
@@ -206,11 +214,12 @@
           Noch kein Signatur-Standard gesetzt – wähle einen Kontakt als Standard für Signaturen.
         </div>
 
-        <div v-if="linkedContacts.length > 0" class="contacts-list">
+        <div v-if="visibleContacts.length > 0" class="contacts-list">
           <div
-            v-for="contact in linkedContacts"
+            v-for="contact in visibleContacts"
             :key="contact.id"
             class="contact-card"
+            :class="{ 'contact-card--inactive': isMicrosoftContactInactive(contact) }"
             @click="openContactCard(contact)"
           >
             <div class="contact-header">
@@ -221,6 +230,13 @@
               <div class="contact-meta">
                 <span v-if="contact.jobTitle" class="creator">{{ contact.jobTitle }}</span>
               </div>
+              <button
+                class="contact-menu-btn"
+                title="Kontaktoptionen"
+                @click.stop="openContactMenu(contact, $event)"
+              >
+                <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
+              </button>
             </div>
             <div class="contact-details">
               <div v-if="contact.emailAddresses && contact.emailAddresses.length" class="detail-row">
@@ -236,47 +252,28 @@
                 <a :href="`tel:${contact.mobilePhone}`" @click.stop>{{ contact.mobilePhone }}</a>
               </div>
             </div>
-            <div class="contact-sig-row">
-              <button
-                v-if="signaturKontaktId !== contact.id"
-                class="sig-set-btn"
-                :disabled="signaturKontaktSaving"
-                @click.stop="toggleSignaturKontakt(contact)"
-              >
-                <font-awesome-icon :icon="['fas', 'file-signature']" />
-                Als Signatur-Standard setzen
-              </button>
-              <span v-else class="sig-active-badge">
-                <font-awesome-icon :icon="['fas', 'circle-check']" />
-                Signatur-Standard
-                <button
-                  class="sig-remove-btn"
-                  :disabled="signaturKontaktSaving"
-                  @click.stop="toggleSignaturKontakt(contact)"
-                  title="Standard entfernen"
-                >
-                  <font-awesome-icon :icon="['fas', 'xmark']" />
-                </button>
-              </span>
-            </div>
-            <div class="contact-open-hint">
-              <font-awesome-icon :icon="['fas', 'pen']" /> Bearbeiten
-            </div>
           </div>
         </div>
       </section>
 
       <!-- Adressen -->
-      <section v-if="activeTab === 'allgemein' && kunde.adressen && kunde.adressen.length > 0" class="section addresses-section">
+      <section v-if="activeTab === 'allgemein' && kundenAdressen.length > 0" class="section addresses-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'location-dot']" /> Adressen
-          <span class="badge">{{ kunde.adressen.length }}</span>
+          <span class="badge">{{ kundenAdressen.length }}</span>
         </h4>
         <div class="addresses-list">
-          <div v-for="(adr, index) in kunde.adressen" :key="adr.nummer || index" class="address-card">
+          <div v-for="(adr, index) in kundenAdressen" :key="adr.nummer || index" class="address-card">
             <div class="address-header">
               <span class="address-name">{{ adr.name || 'Adresse ' + (index + 1) }}</span>
-              <span v-if="adr.branche || adr.lbranche" class="address-branche">{{ adr.lbranche || adr.branche }}</span>
+              <span v-if="adr.branche" class="address-branche">{{ adr.branche }}</span>
+              <button
+                class="address-menu-btn"
+                title="Adressoptionen"
+                @click.stop="openAdresseMenu(adr, $event)"
+              >
+                <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
+              </button>
             </div>
             <div class="address-body">
               <div v-if="adr.strasse || adr.plz || adr.ort" class="address-row">
@@ -286,13 +283,53 @@
                   {{ [adr.plz, adr.ort].filter(Boolean).join(' ') }}<template v-if="adr.land">, {{ adr.land }}</template>
                 </span>
               </div>
-              <div v-if="adr.telefon1" class="address-row">
+              <div v-for="telefon in adr.telefone" :key="telefon" class="address-row">
                 <font-awesome-icon :icon="['fas', 'phone']" />
-                <a :href="`tel:${adr.telefon1}`">{{ adr.telefon1 }}</a>
+                <a :href="`tel:${telefon}`">{{ telefon }}</a>
               </div>
-              <div v-if="adr.telefon2" class="address-row">
+              <div v-if="adr.email" class="address-row">
+                <font-awesome-icon :icon="['fas', 'envelope']" />
+                <a :href="`mailto:${adr.email}`">{{ adr.email }}</a>
+              </div>
+              <div v-if="adr.homepage" class="address-row">
+                <font-awesome-icon :icon="['fas', 'globe']" />
+                <a :href="formatUrl(adr.homepage)" target="_blank" rel="noopener noreferrer">{{ adr.homepage }}</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Ansprechpartner aus Zvoove -->
+      <section v-if="activeTab === 'allgemein' && ansprechpartner.length > 0" class="section addresses-section">
+        <h4 class="section-title">
+          <font-awesome-icon :icon="['fas', 'user-tie']" /> Ansprechpartner
+          <span class="badge">{{ ansprechpartner.length }}</span>
+        </h4>
+        <div class="addresses-list">
+          <div v-for="(adr, index) in ansprechpartner" :key="adr.nummer || index" class="address-card">
+            <div class="address-header">
+              <span class="address-name">{{ formatAnsprechpartnerName(adr.name) || 'Ansprechpartner ' + (index + 1) }}</span>
+              <span v-if="adr.branche" class="address-branche">{{ adr.branche }}</span>
+              <button
+                class="address-menu-btn"
+                title="Ansprechpartneroptionen"
+                @click.stop="openAdresseMenu(adr, $event)"
+              >
+                <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
+              </button>
+            </div>
+            <div class="address-body">
+              <div v-if="adr.strasse || adr.plz || adr.ort" class="address-row">
+                <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
+                <span>
+                  <template v-if="adr.strasse">{{ adr.strasse }}<br /></template>
+                  {{ [adr.plz, adr.ort].filter(Boolean).join(' ') }}<template v-if="adr.land">, {{ adr.land }}</template>
+                </span>
+              </div>
+              <div v-for="telefon in adr.telefone" :key="telefon" class="address-row">
                 <font-awesome-icon :icon="['fas', 'phone']" />
-                <a :href="`tel:${adr.telefon2}`">{{ adr.telefon2 }}</a>
+                <a :href="`tel:${telefon}`">{{ telefon }}</a>
               </div>
               <div v-if="adr.email" class="address-row">
                 <font-awesome-icon :icon="['fas', 'envelope']" />
@@ -643,6 +680,26 @@
       @close="showKontaktAnlegenModal = false"
       @created="onKontaktAngelegt"
     />
+    <ActionMenu
+      :open="Boolean(adresseMenuAdresse)"
+      :x="adresseMenuPosition.x"
+      :y="adresseMenuPosition.y"
+      :items="adresseMenuItems"
+      :width="190"
+      group-by="false"
+      @close="closeAdresseMenu"
+      @item-click="handleAdresseMenuAction"
+    />
+    <ActionMenu
+      :open="Boolean(contactMenuContact)"
+      :x="contactMenuPosition.x"
+      :y="contactMenuPosition.y"
+      :items="contactMenuItems"
+      :width="220"
+      group-by="false"
+      @close="closeContactMenu"
+      @item-click="handleContactMenuAction"
+    />
     </article>
   </ModalFrame>
 </template>
@@ -654,6 +711,7 @@ import { useCurrentDockedModal } from '@bleck-it/vue-modal-dock';
 import { useAuth } from '@/stores/auth';
 import { useTheme } from '@/stores/theme';
 import { useDataCache } from '@/stores/dataCache';
+import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import KundenAnalyticsEmbed from '@/components/KundenAnalyticsEmbed.vue';
 import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
@@ -679,6 +737,66 @@ const tabs = [
 ];
 const activeTab = ref('allgemein');
 
+const adressen = ref([]);
+const adresseDeletingId = ref(null);
+const adresseMenuAdresse = ref(null);
+const adresseMenuPosition = ref({ x: 0, y: 0 });
+const adresseMenuItems = [
+  { value: 'deactivate', label: 'Ausblenden', icon: ['fas', 'trash'], variant: 'danger' },
+];
+const kundenAdressen = computed(() => adressen.value.filter((adresse) => adresse.art !== 'A'));
+const ansprechpartner = computed(() => adressen.value.filter((adresse) => adresse.art === 'A'));
+
+async function loadAdressen() {
+  if (!props.kunde.kundenNr) {
+    adressen.value = [];
+    return;
+  }
+
+  try {
+    const { data } = await api.get(`/api/kunden/${props.kunde.kundenNr}/adressen`);
+    adressen.value = Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('Fehler beim Laden der Kundenadressen:', error);
+    adressen.value = [];
+  }
+
+}
+
+onMounted(loadAdressen);
+watch(() => props.kunde.kundenNr, loadAdressen);
+
+function openAdresseMenu(adresse, event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  adresseMenuAdresse.value = adresse;
+  adresseMenuPosition.value = { x: rect.right - 190, y: rect.bottom + 4 };
+}
+
+function closeAdresseMenu() {
+  adresseMenuAdresse.value = null;
+}
+
+function handleAdresseMenuAction({ item }) {
+  const adresse = adresseMenuAdresse.value;
+  closeAdresseMenu();
+  if (item.value === 'deactivate' && adresse) deactivateAdresse(adresse);
+}
+
+async function deactivateAdresse(adresse) {
+  const nummer = String(adresse.nummer || '').trim();
+  if (!nummer || !confirm(`„${adresse.name || 'Diese Adresse'}“ wirklich ausblenden?`)) return;
+
+  adresseDeletingId.value = nummer;
+  try {
+    await api.delete(`/api/kunden/${props.kunde.kundenNr}/adressen/${encodeURIComponent(nummer)}`);
+    adressen.value = adressen.value.filter((entry) => entry.nummer !== adresse.nummer);
+  } catch (error) {
+    console.error('Fehler beim Ausblenden der Kundenadresse:', error);
+    alert(error.response?.data?.message || 'Die Adresse konnte nicht ausgeblendet werden.');
+  } finally {
+    adresseDeletingId.value = null;
+  }
+}
 // ── Kundenpreise ─────────────────────────────────────────────────────────────
 const kundenpreise = ref([]);
 const preiseLoading = ref(false);
@@ -990,6 +1108,7 @@ const canSeeSensitiveKpi = computed(() => {
 // MS Graph contacts linked via kuerzel
 const msContacts = ref([]);
 const contactsLoading = ref(false);
+const showInactiveContacts = ref(false);
 
 async function loadContacts() {
   if (!props.kunde.kuerzel) return;
@@ -1012,16 +1131,101 @@ const linkedContacts = computed(() => {
   );
 });
 
+const inactiveMicrosoftContactIds = computed(() => new Set(
+  (props.kunde.inactiveMicrosoftContactIds || []).map((id) => String(id))
+));
+const inactiveContacts = computed(() => linkedContacts.value.filter(isMicrosoftContactInactive));
+const visibleContacts = computed(() => linkedContacts.value.filter((contact) =>
+  showInactiveContacts.value || !isMicrosoftContactInactive(contact)
+));
+
+function isMicrosoftContactInactive(contact) {
+  return Boolean(contact?.id) && inactiveMicrosoftContactIds.value.has(String(contact.id));
+}
+
 onMounted(loadContacts);
 watch(() => props.kunde.kuerzel, loadContacts);
 
 // Standard-Signatur-Kontakt
 const signaturKontaktId     = ref(props.kunde.signaturKontaktId || '');
 const signaturKontaktSaving = ref(false);
+const contactMenuContact = ref(null);
+const contactMenuPosition = ref({ x: 0, y: 0 });
+const contactMenuItems = computed(() => {
+  const contact = contactMenuContact.value;
+  const isSignatureStandard = contact?.id === signaturKontaktId.value;
+  return [
+    { value: 'edit', label: 'Bearbeiten', icon: ['fas', 'pen'] },
+    {
+      value: 'signature',
+      label: isSignatureStandard ? 'Signatur-Standard entfernen' : 'Als Signatur-Standard setzen',
+      icon: ['fas', isSignatureStandard ? 'xmark' : 'file-signature'],
+      disabled: signaturKontaktSaving.value,
+    },
+    {
+      value: 'inactive',
+      label: isMicrosoftContactInactive(contact) ? 'Wieder anzeigen' : 'Ausblenden',
+      icon: ['fas', isMicrosoftContactInactive(contact) ? 'eye' : 'eye-slash'],
+      variant: isMicrosoftContactInactive(contact) ? 'primary' : 'danger',
+    },
+  ];
+});
 
 watch(() => props.kunde.signaturKontaktId, (val) => {
   signaturKontaktId.value = val || '';
 });
+
+function openContactMenu(contact, event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  contactMenuContact.value = contact;
+  contactMenuPosition.value = { x: rect.right - 220, y: rect.bottom + 4 };
+}
+
+function closeContactMenu() {
+  contactMenuContact.value = null;
+}
+
+function handleContactMenuAction({ item }) {
+  const contact = contactMenuContact.value;
+  closeContactMenu();
+  if (!contact) return;
+  if (item.value === 'edit') openContactCard(contact);
+  if (item.value === 'signature') toggleSignaturKontakt(contact);
+  if (item.value === 'inactive') toggleMicrosoftContactInactive(contact);
+}
+
+async function toggleMicrosoftContactInactive(contact) {
+  const contactId = String(contact.id || '').trim();
+  if (!contactId) return;
+
+  const wasInactive = isMicrosoftContactInactive(contact);
+  if (!wasInactive && !confirm(`„${contact.displayName || 'Dieser Kontakt'}“ wirklich ausblenden?`)) return;
+
+  const nextIds = new Set(inactiveMicrosoftContactIds.value);
+  if (wasInactive) nextIds.delete(contactId);
+  else nextIds.add(contactId);
+
+  const update = { inactiveMicrosoftContactIds: [...nextIds] };
+  if (!wasInactive && contactId === signaturKontaktId.value) {
+    update.signaturKontaktId = null;
+    update.signaturKontaktEmail = null;
+  }
+
+  try {
+    await api.put(`/api/kunden/${props.kunde._id}`, update);
+    props.kunde.inactiveMicrosoftContactIds = update.inactiveMicrosoftContactIds;
+    if (update.signaturKontaktId === null) {
+      signaturKontaktId.value = '';
+      props.kunde.signaturKontaktId = null;
+      props.kunde.signaturKontaktEmail = null;
+    }
+    const cached = dataCache.kunden?.find((kunde) => kunde._id === props.kunde._id);
+    if (cached) Object.assign(cached, update);
+  } catch (error) {
+    console.error('Fehler beim Ausblenden des Microsoft-Kontakts:', error);
+    alert(error.response?.data?.message || 'Der Kontaktstatus konnte nicht gespeichert werden.');
+  }
+}
 
 async function toggleSignaturKontakt(contact) {
   // clicking the active contact deselects it; otherwise select the new one
@@ -1204,6 +1408,11 @@ function formatEuro(value) {
 function formatUrl(url) {
   if (!url) return '#';
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+function formatAnsprechpartnerName(name) {
+  const parts = String(name || '').split(',').map((part) => part.trim()).filter(Boolean);
+  return parts.length > 1 ? [...parts.slice(1), parts[0]].join(' ') : parts[0] || '';
 }
 
 function closeSatelliteDialogs() {
@@ -2081,6 +2290,27 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   text-align: right;
 }
 
+.address-menu-btn {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  transform: translate(4px, -5px);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.address-menu-btn:hover {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--primary);
+}
+
 .address-body {
   display: flex;
   flex-direction: column;
@@ -2217,6 +2447,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   }
 }
 
+.contact-card--inactive {
+  opacity: 0.62;
+}
+
 .contact-open-hint {
   display: flex;
   align-items: center;
@@ -2243,6 +2477,27 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   align-items: flex-start;
   border-bottom: 1px solid var(--border);
   padding-bottom: 8px;
+}
+
+.contact-menu-btn {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: -5px -5px 0 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.contact-menu-btn:hover {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--primary);
 }
 
 .contact-name {

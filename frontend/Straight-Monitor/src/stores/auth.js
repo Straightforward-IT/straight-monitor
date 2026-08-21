@@ -7,6 +7,8 @@ export const useAuth = defineStore('auth', {
   getters: {
     isLoggedIn: s => !!s.token,
     kundenWatchlist: s => s.user?.kundenWatchlist ?? [],
+    highlightedKunden: s => s.user?.highlightedKunden ?? [],
+    highlightedInventoryItems: s => s.user?.highlightedInventoryItems ?? [],
   },
   actions: {
     setToken(t){ this.token = t; t ? localStorage.setItem('token', t) : localStorage.removeItem('token'); },
@@ -14,6 +16,14 @@ export const useAuth = defineStore('auth', {
     async toggleKundeWatchlist(kundeId) {
       const { data } = await api.put('/api/users/me/kunden-watchlist/toggle', { kundeId });
       if (this.user) this.user.kundenWatchlist = data.kundenWatchlist;
+    },
+    async toggleHighlightedKunde(kundeId) {
+      const { data } = await api.put('/api/users/me/highlighted-kunden/toggle', { kundeId });
+      if (this.user) this.user.highlightedKunden = data.highlightedKunden;
+    },
+    async toggleHighlightedInventoryItem(itemId) {
+      const { data } = await api.put('/api/users/me/highlighted-inventory-items/toggle', { itemId });
+      if (this.user) this.user.highlightedInventoryItems = data.highlightedInventoryItems;
     },
     async logout() {
       // Clear IndexedDB cache so stale data is not shown after re-login

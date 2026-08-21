@@ -70,6 +70,12 @@
                   <span class="status-badge" :class="getStatusClass(kunde.kundStatus)">
                     {{ getStatusText(kunde.kundStatus) }}
                   </span>
+                  <FavoriteStarButton
+                    :active="isHighlighted(kunde)"
+                    active-title="Hervorhebung entfernen"
+                    inactive-title="Kunde hervorheben"
+                    @toggle="toggleHighlight(kunde)"
+                  />
                   <button class="ctx-menu-btn" @click.stop="openContextMenu(kunde, $event)" title="Aktionen">
                     <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
                   </button>
@@ -333,6 +339,7 @@ import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
+import FavoriteStarButton from '@/components/ui-elements/FavoriteStarButton.vue';
 import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
 import api from '@/utils/api';
 
@@ -503,6 +510,18 @@ function isOnWatchlist(kunde) {
   return (auth.kundenWatchlist || []).some(id => id.toString() === kunde._id.toString());
 }
 
+async function toggleHighlight(kunde) {
+  try {
+    await auth.toggleHighlightedKunde(kunde._id);
+  } catch (error) {
+    console.error('Failed to update customer highlight:', error);
+  }
+}
+
+function isHighlighted(kunde) {
+  return auth.highlightedKunden.some((id) => id.toString() === kunde._id.toString());
+}
+
 async function loadLocations() {
   const { data } = await api.get('/api/locations');
   locations.value = data;
@@ -547,6 +566,10 @@ function processData(list) {
 
   // Sort
   result = [...result].sort((a, b) => {
+    if (isHighlighted(a) !== isHighlighted(b)) {
+      return isHighlighted(a) ? -1 : 1;
+    }
+
     let valA, valB;
     
     if (filters.value.sortBy === 'date') {

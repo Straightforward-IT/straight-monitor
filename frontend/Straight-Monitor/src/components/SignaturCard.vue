@@ -2,9 +2,12 @@
   <div class="sig-card" :class="[`status-${vorgang.status}`, { expanded }]">
     <!-- Collapsed header -->
     <div class="sc-head" @click="toggleExpand">
-      <button class="sc-star" :class="{ active: starred }" type="button" :title="starred ? 'Markierung entfernen' : 'Markieren'" @click.stop="$emit('toggle-star', vorgang._id)">
-        <font-awesome-icon :icon="[starred ? 'fas' : 'far', 'star']" />
-      </button>
+      <FavoriteStarButton
+        :active="starred"
+        active-title="Markierung entfernen"
+        inactive-title="Markieren"
+        @toggle="$emit('toggle-star', vorgang._id)"
+      />
 
       <div class="sc-main">
         <!-- Row 1: name + status -->
@@ -246,12 +249,12 @@ import { ref, computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faStar as fasStar, faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotateRight, faBan, faLink, faFileCircleQuestion, faSpinner, faCircleCheck, faClock, faCircleXmark, faHourglassHalf, faPenNib, faFileSignature, faTags, faFileContract, faMoneyBillWave, faPlane, faPenToSquare, faBuilding, faEnvelope, faCalendarDays, faListCheck, faAddressCard, faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons';
-import { faStar as farStar } from '@fortawesome/free-regular-svg-icons';
+import { faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotateRight, faBan, faLink, faFileCircleQuestion, faSpinner, faCircleCheck, faClock, faCircleXmark, faHourglassHalf, faPenNib, faFileSignature, faTags, faFileContract, faMoneyBillWave, faCar, faPenToSquare, faBuilding, faEnvelope, faCalendarDays, faListCheck, faAddressCard, faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons';
 import { DocusealForm } from '@docuseal/vue';
+import FavoriteStarButton from '@/components/ui-elements/FavoriteStarButton.vue';
 import api from '@/utils/api';
 
-library.add(fasStar, farStar, faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotateRight, faBan, faLink, faFileCircleQuestion, faSpinner, faCircleCheck, faClock, faCircleXmark, faHourglassHalf, faPenNib, faFileSignature, faTags, faFileContract, faMoneyBillWave, faPlane, faPenToSquare, faBuilding, faEnvelope, faCalendarDays, faListCheck, faAddressCard, faArrowUpRightFromSquare);
+library.add(faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotateRight, faBan, faLink, faFileCircleQuestion, faSpinner, faCircleCheck, faClock, faCircleXmark, faHourglassHalf, faPenNib, faFileSignature, faTags, faFileContract, faMoneyBillWave, faCar, faPenToSquare, faBuilding, faEnvelope, faCalendarDays, faListCheck, faAddressCard, faArrowUpRightFromSquare);
 
 const props = defineProps({
   vorgang: { type: Object, required: true },
@@ -285,7 +288,7 @@ const typIcon = computed(() => ({
   auerv: ['fas', 'file-contract'],
   arbeitsvertrag: ['fas', 'file-contract'],
   lohnvorschuss: ['fas', 'money-bill-wave'],
-  reisekostenabrechnung: ['fas', 'plane'],
+  reisekostenabrechnung: ['fas', 'car'],
 }[props.vorgang.typKey] || ['fas', 'file-signature']));
 
 const statusLabel = computed(() => ({ draft: 'Entwurf', open: 'Offen', completed: 'Abgeschlossen', cancelled: 'Storniert' }[props.vorgang.status] || props.vorgang.status));
@@ -337,7 +340,7 @@ async function loadPreview() {
   previewLoading.value = true;
   try {
     const { data } = await api.get(`/api/signaturen/${props.vorgang._id}/signed-url`);
-    previewUrl.value = data.url || '';
+    previewUrl.value = data.url ? `${data.url}#page=1&view=Fit` : '';
     previewLoaded.value = true;
   } catch (e) {
     console.error('Vorschau laden fehlgeschlagen', e);
@@ -452,12 +455,11 @@ function onEmbedComplete() {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   cursor: pointer;
 }
 
 .sc-main {
-  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -480,17 +482,6 @@ function onEmbedComplete() {
   min-width: 0;
   overflow: hidden;
   flex-wrap: nowrap;
-}
-
-.sc-star {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 0.95rem;
-  flex-shrink: 0;
-  &.active { color: #f59e0b; }
-  &:hover { color: #f59e0b; }
 }
 
 .sc-type-pill {
@@ -623,15 +614,13 @@ function onEmbedComplete() {
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: 16px;
 }
-@media (max-width: 720px) {
-  .sc-body-grid { grid-template-columns: 1fr; }
-}
 
 .sc-preview {
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
-  min-height: 280px;
+  min-height: 760px;
+  aspect-ratio: 210 / 315;
   background: var(--bg, var(--surface));
   display: flex;
 }
@@ -645,8 +634,14 @@ function onEmbedComplete() {
   color: var(--muted);
   font-size: 0.82rem;
 }
-.sc-preview-frame { width: 100%; height: 100%; min-height: 280px; border: none; }
+.sc-preview-frame { width: 100%; height: 100%; min-height: 760px; border: none; }
 .sc-preview-form { width: 100%; min-height: 400px; }
+
+@media (max-width: 720px) {
+  .sc-body-grid { grid-template-columns: 1fr; }
+  .sc-preview,
+  .sc-preview-frame { min-height: 560px; }
+}
 
 .sc-detail-block { margin-bottom: 14px; }
 .sc-detail-block h4 {

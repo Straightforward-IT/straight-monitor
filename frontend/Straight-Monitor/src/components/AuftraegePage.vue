@@ -550,7 +550,7 @@
                     <font-awesome-icon icon="fa-solid fa-file-contract" /> Stundenliste
                   </button>
                   <button class="neu-dok-item" type="button" @click="openReisekostenModal()">
-                    <font-awesome-icon icon="fa-solid fa-plane" /> Reisekostenabrechnung
+                    <font-awesome-icon icon="fa-solid fa-car" /> Reisekostenabrechnung
                   </button>
                 </div>
               </div>
@@ -705,7 +705,7 @@
               class="einsatz-dok-row"
               :class="`einsatz-dok--${rk.status}`"
             >
-              <font-awesome-icon icon="fa-solid fa-plane" class="einsatz-dok-icon" />
+              <font-awesome-icon icon="fa-solid fa-car" class="einsatz-dok-icon" />
               <div class="einsatz-dok-info">
                 <div class="einsatz-dok-name">Reisekostenabrechnung</div>
                 <div class="einsatz-dok-meta">
@@ -1228,11 +1228,11 @@
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faPlane, faPencil, faEye } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faCar, faPencil, faEye } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 import { DocusealForm } from '@docuseal/vue';
 
-library.add(faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faPlane, faPencil, faEye);
+library.add(faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faCar, faPencil, faEye);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
