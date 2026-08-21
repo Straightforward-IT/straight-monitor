@@ -7,6 +7,7 @@ const Einsatz = require('../../models/Event/Einsatz');
 const Schicht = require('../../models/Event/Schicht');
 const Rechnung = require('../../models/Rechnung');
 const Qualifikation = require('../../models/Event/Qualifikation');
+const Kundenpreis = require('../../models/Customer/Kundenpreis');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const { decryptField } = require('../../utils/encryption');
 const asyncHandler = require('../../middleware/AsyncHandler');
@@ -1135,6 +1136,90 @@ router.get('/analytics/rechnungen/daily', auth, asyncHandler(async (req, res) =>
   res.json({ data, kundenBreakdown });
 }));
 // ─────────────────────────────────────────────────────────────────────────────
+
+// @route   GET /api/kunden/:kundenNr/preise
+// @desc    Kundenpreise inklusive Historie, Qualifikation und zugeordnetem Beruf
+// @access  Private
+router.get('/:kundenNr/preise', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  if (!Number.isInteger(kundenNr)) {
+    return res.status(400).json({ message: 'Ungültige Kunden-Nr.' });
+  }
+
+  const kunde = await Kunde.findOne({ kundenNr }).select('_id').lean();
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+
+  const prices = await Kundenpreis.find({ kunde: kunde._id })
+    .populate({
+      path: 'qualifikation',
+      select: 'qualificationKey designation beruf',
+      populate: { path: 'beruf', select: 'jobKey designation' },
+    })
+    .sort({ validFrom: -1 })
+    .lean();
+
+  res.json(prices.filter((price) => price.qualifikation?.beruf));
+}));
+
+// @route   POST /api/kunden/:kundenNr/preise
+// @desc    Neue Preisversion für eine Qualifikation anlegen
+// @access  Private
+router.post('/:kundenNr/preise', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  const qualificationId = String(req.body.qualifikation || '').trim();
+  const hourlyRateCents = Number(req.body.hourlyRateCents);
+  const validFrom = new Date(req.body.validFrom);
+
+  if (!Number.isInteger(kundenNr) || !mongoose.isValidObjectId(qualificationId)
+    || !Number.isInteger(hourlyRateCents) || hourlyRateCents < 0
+    || Number.isNaN(validFrom.getTime())) {
+    return res.status(400).json({ message: 'Qualifikation, Preis und DatumVon sind erforderlich.' });
+  }
+
+  const [kunde, qualifikation] = await Promise.all([
+    Kunde.findOne({ kundenNr }).select('_id').lean(),
+    Qualifikation.findById(qualificationId).select('_id qualificationKey beruf').lean(),
+  ]);
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  if (!qualifikation?.beruf) {
+    return res.status(400).json({ message: 'Qualifikation ist keinem Beruf zugeordnet.' });
+  }
+
+  const dayStart = new Date(validFrom);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+  const existing = await Kundenpreis.exists({
+    kunde: kunde._id,
+    qualifikation: qualifikation._id,
+    validFrom: { $gte: dayStart, $lt: dayEnd },
+  });
+  if (existing) {
+    return res.status(409).json({ message: 'Für diese Qualifikation existiert an diesem Datum bereits ein Preis.' });
+  }
+
+  const price = await Kundenpreis.create({
+    kunde: kunde._id,
+    kundenNrSnapshot: kundenNr,
+    qualifikation: qualifikation._id,
+    qualSchluessel: qualifikation.qualificationKey,
+    hourlyRateCents,
+    validFrom: dayStart,
+    validTill: null,
+    sourceId: `monitor-${new mongoose.Types.ObjectId()}`,
+    source: 'monitor',
+    createdBy: req.user?.id || null,
+  });
+
+  const populated = await Kundenpreis.findById(price._id)
+    .populate({
+      path: 'qualifikation',
+      select: 'qualificationKey designation beruf',
+      populate: { path: 'beruf', select: 'jobKey designation' },
+    })
+    .lean();
+  res.status(201).json(populated);
+}));
 
 // @route   GET /api/kunden/:kundenNr/top-mitarbeiter
 // @desc    Top-Mitarbeiter eines Kunden (nach Einsatz-Anzahl), nur aktive MA

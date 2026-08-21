@@ -10,6 +10,7 @@ const Location = require('../../models/System/Location');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Beruf = require('../../models/Event/Beruf');
 const Qualifikation = require('../../models/Event/Qualifikation');
+const Kundenpreis = require('../../models/Customer/Kundenpreis');
 const ImportLog = require('../../models/System/ImportLog');
 const Rechnung = require('../../models/Rechnung');
 const DispoEintrag = require('../../models/System/DispoEintrag');
@@ -114,6 +115,38 @@ const cleanKeys = (obj) => {
     newObj[key.trim().toUpperCase()] = obj[key];
   });
   return newObj;
+};
+
+const parseExcelDate = (value) => {
+  if (value == null || value === '') return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+  }
+  if (typeof value === 'number') {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed) return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+  }
+
+  const match = String(value).trim().match(/^(?:(\d{4})-(\d{1,2})-(\d{1,2})|(\d{1,2})\.(\d{1,2})\.(\d{4}))$/);
+  if (!match) return null;
+  const year = Number(match[1] || match[6]);
+  const month = Number(match[2] || match[5]);
+  const day = Number(match[3] || match[4]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day
+    ? parsed
+    : null;
+};
+
+const parseEuroCents = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value * 100);
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/[^\d,.-]/g, '')
+    .replace(/\.(?=\d{3}(?:[,\.]|$))/g, '')
+    .replace(',', '.');
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? Math.round(amount * 100) : null;
 };
 
 // Helper to filter valid rows (e.g., rows with essential IDs)
@@ -1336,6 +1369,105 @@ router.post('/qualifikation', auth, extendTimeout, upload.single('file'), async 
     logger.error('Import Qualifikation Error:', error);
     await logImport('qualifikation', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
     res.status(500).json({ success: false, message: 'Fehler beim Importieren der Qualifikationen.', error: error.message });
+  }
+});
+
+// --- Kundenpreis Import (Liste 3202) ---
+router.post('/kundenpreis', auth, extendTimeout, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true }).map(cleanKeys);
+    const [kunden, qualifikationen] = await Promise.all([
+      Kunde.find({}).select('_id kundenNr').lean(),
+      Qualifikation.find({}).select('_id qualificationKey beruf').lean(),
+    ]);
+    const kundeByNr = new Map(kunden.map((kunde) => [kunde.kundenNr, kunde]));
+    const qualiByKey = new Map(qualifikationen.map((quali) => [quali.qualificationKey, quali]));
+    const operations = [];
+    const versionKeys = new Set();
+    let invalid = 0;
+    let unresolved = 0;
+    let duplicates = 0;
+
+    for (const row of rows) {
+      if (Number(row.CODE) !== 3202) {
+        invalid += 1;
+        continue;
+      }
+
+      const sourceId = row.ID == null ? '' : String(row.ID).trim();
+      const kundenNr = Number(row.KUNDENNR);
+      const qualSchluessel = Number(row.QUALSCHL);
+      const validFrom = parseExcelDate(row.DATUMVON);
+      const validTill = parseExcelDate(row.DATUMBIS);
+      const hourlyRateCents = parseEuroCents(row.PREIS1);
+      const kunde = kundeByNr.get(kundenNr);
+      const qualifikation = qualiByKey.get(qualSchluessel);
+
+      if (!sourceId || !Number.isInteger(kundenNr) || !Number.isInteger(qualSchluessel)
+        || !validFrom || hourlyRateCents == null || hourlyRateCents < 0
+        || (validTill && validTill < validFrom)) {
+        invalid += 1;
+        continue;
+      }
+      if (!kunde || !qualifikation || !qualifikation.beruf) {
+        unresolved += 1;
+        continue;
+      }
+
+      const versionKey = `${kundenNr}:${qualSchluessel}:${validFrom.toISOString()}`;
+      if (versionKeys.has(versionKey)) {
+        duplicates += 1;
+        continue;
+      }
+      versionKeys.add(versionKey);
+
+      operations.push({
+        updateOne: {
+          filter: { sourceId },
+          update: {
+            $set: { validTill, hourlyRateCents },
+            $setOnInsert: {
+              kunde: kunde._id,
+              kundenNrSnapshot: kundenNr,
+              qualifikation: qualifikation._id,
+              qualSchluessel,
+              validFrom,
+              sourceId,
+              source: 'zvoove-import',
+            },
+          },
+          upsert: true,
+        },
+      });
+    }
+
+    const result = operations.length ? await Kundenpreis.bulkWrite(operations) : null;
+    const inserted = result?.upsertedCount || 0;
+    const updated = result?.modifiedCount || 0;
+    const details = {
+      total: rows.length,
+      inserted,
+      updated,
+      unchanged: operations.length - inserted - updated,
+      invalid,
+      notFound: unresolved,
+      duplicates,
+    };
+    const hasWarnings = invalid || unresolved || duplicates;
+    const message = `${operations.length} Kundenpreise verarbeitet: ${inserted} neu, ${updated} aktualisiert.${hasWarnings ? ` ${invalid + unresolved + duplicates} Zeilen übersprungen.` : ''}`;
+
+    await logImport('kundenpreis', req.file.originalname, hasWarnings ? 'warning' : 'success', operations.length, details, req.user?.id);
+    res.json({ success: true, message, details });
+  } catch (error) {
+    logger.error('Import Kundenpreis Error:', error);
+    await logImport('kundenpreis', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Kundenpreise.', error: error.message });
   }
 });
 

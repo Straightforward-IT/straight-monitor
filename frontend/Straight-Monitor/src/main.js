@@ -50,7 +50,7 @@ import { faCartShopping, faWarehouse, faShirt, faTimeline, faPlus, faTimes, faDo
   faBoxArchive, faPalette,
   faShieldHalved,
   faClockRotateLeft,
-  faCheckDouble,
+  faCheckDouble, faCoins,
   faScissors,
   faGear, faRotate, faEnvelopeOpenText, faCode, faVial,
 } from '@fortawesome/free-solid-svg-icons';
@@ -68,7 +68,7 @@ library.add(
   // Customer & Sort Icons
   faBuilding, faBullseye, faSortAlphaDown, faSortAlphaUp, faSortNumericDown, faSortNumericUp, faPaperclip, faCalendarPlus,
   // Customer Card Icons
-  faInfoCircle, faClipboard, faAddressBook, faPhone, faPen, faHandPointer, faTrash, faThLarge, faFileImport, faBookmark, faGripVertical,
+  faInfoCircle, faClipboard, faAddressBook, faCoins, faPhone, faPen, faHandPointer, faTrash, faThLarge, faFileImport, faBookmark, faGripVertical,
   // Merge Icon
   faObjectGroup, faAddressCard, faBinoculars, faTableCells, faCheckDouble, faMousePointer, faScissors,
   faGear, faRotate, faEnvelopeOpenText,

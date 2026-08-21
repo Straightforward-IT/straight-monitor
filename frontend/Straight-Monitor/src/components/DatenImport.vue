@@ -10,7 +10,7 @@
     <div class="last-import-section">
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'beruf', 'qualifikation', 'rechnung', 'personalnr-history'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
+        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'beruf', 'qualifikation', 'rechnung', 'kundenpreis', 'personalnr-history'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -344,6 +344,46 @@
           </div>
         </div>
 
+        <!-- Kundenpreise Import -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Kundenpreise (Liste 3202)</h2>
+              <p class="subtitle">Stundenverrechnungspreise pro Kunde und Qualifikation</p>
+            </div>
+            <span v-if="kundenpreisFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area"
+              :class="{ 'has-file': kundenpreisFile }"
+              @dragover.prevent
+              @drop="(e) => handleDragAndDrop(e, 'kundenpreis')"
+              @click="triggerFileInput('kundenpreis-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="kundenpreisFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!kundenpreisFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ kundenpreisFile.name }}</span>
+                </div>
+              </div>
+              <input id="kundenpreis-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'kundenpreis')" accept=".xlsx, .xls" />
+            </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Erwartete SQL-Export Struktur</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody>
+                    <tr><td>A – Prüffeld (3202)</td><td>B – ID</td><td>C – KUNDENNR</td></tr>
+                    <tr><td>D – BERUFSCHL</td><td>E – QUALSCHL</td><td>F – DATUMVON</td></tr>
+                    <tr><td>G – DATUMBIS</td><td>H – PREIS1 (EUR/Stunde)</td><td></td></tr>
+                  </tbody></table>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div><!-- End Finanzen -->
 
@@ -594,6 +634,7 @@ export default {
       berufFile: null,
       qualifikationFile: null,
       rechnungFile: null,
+      kundenpreisFile: null,
       personalnrHistoryFile: null,
       loading: false,
       // Modal state
@@ -633,6 +674,7 @@ export default {
         beruf: 'Berufe',
         qualifikation: 'Qualifikationen',
         rechnung: 'Rechnungen',
+        kundenpreis: 'Kundenpreise',
         'personalnr-history': 'Personalnr. Historien',
       };
       return labels[type] || type;
@@ -663,7 +705,7 @@ export default {
     },
     async setFile(file, type) {
       // Validate Prüffeld for einsatz/personal imports
-      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : type === 'verfuegbarkeit' ? 7003 : type === 'rechnung' ? 6001 : type === 'personalnr-history' ? 3201 : null;
+      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : type === 'verfuegbarkeit' ? 7003 : type === 'rechnung' ? 6001 : type === 'kundenpreis' ? 3202 : type === 'personalnr-history' ? 3201 : null;
       if (expectedCode) {
         const valid = await this.validatePrueffeld(file, expectedCode);
         if (!valid) return;
@@ -674,6 +716,7 @@ export default {
       if (type === 'beruf') this.berufFile = file;
       if (type === 'qualifikation') this.qualifikationFile = file;
       if (type === 'rechnung') this.rechnungFile = file;
+      if (type === 'kundenpreis') this.kundenpreisFile = file;
       if (type === 'personalnr-history') this.personalnrHistoryFile = file;
     },
     validatePrueffeld(file, expectedCode) {
@@ -693,7 +736,7 @@ export default {
             }
             const prueffeld = parseInt(rows[startRow][0], 10);
             if (prueffeld !== expectedCode) {
-              const labels = { 7001: 'Einsatz-Komplett (Liste 7001)', 7002: 'Personal (Liste 7002)', 7003: 'Verfügbarkeiten (Liste 7003)', 6001: 'Rechnungen (Liste 6001)', 3201: 'Personalnr-Historien (Liste 3201)' };
+              const labels = { 7001: 'Einsatz-Komplett (Liste 7001)', 7002: 'Personal (Liste 7002)', 7003: 'Verfügbarkeiten (Liste 7003)', 6001: 'Rechnungen (Liste 6001)', 3201: 'Personalnr-Historien (Liste 3201)', 3202: 'Kundenpreise (Liste 3202)' };
               alert(`⚠️ Prüffeld-Fehler: Spalte A enthält "${rows[startRow][0] ?? '(leer)'}" – erwartet wird ${expectedCode} (${labels[expectedCode]}).`);
               resolve(false);
               return;
@@ -714,7 +757,7 @@ export default {
         return;
       }
 
-      const adminFiles = this.isAdmin ? [this.berufFile, this.qualifikationFile, this.rechnungFile, this.personalnrHistoryFile] : [];
+      const adminFiles = this.isAdmin ? [this.berufFile, this.qualifikationFile, this.rechnungFile, this.kundenpreisFile, this.personalnrHistoryFile] : [];
       const fileCount = [this.einsatzFile, this.personalFile, this.verfuegbarkeitFile, ...adminFiles].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
@@ -757,6 +800,12 @@ export default {
         if (this.rechnungFile && this.isAdmin) {
           const response = await this.uploadFile(this.rechnungFile, 'rechnung');
           results.push({ type: 'Rechnungen', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.kundenpreisFile && this.isAdmin) {
+          const response = await this.uploadFile(this.kundenpreisFile, 'kundenpreis');
+          results.push({ type: 'Kundenpreise', ...response });
           if (!response.success) hasErrors = true;
         }
 
@@ -965,11 +1014,12 @@ export default {
       this.berufFile = null;
       this.qualifikationFile = null;
       this.rechnungFile = null;
+      this.kundenpreisFile = null;
       this.personalnrHistoryFile = null;
       this.fetchLastUploads();
     },
     hasAnyFile() {
-      const adminFiles = this.isAdmin ? (this.berufFile || this.qualifikationFile || this.rechnungFile || this.personalnrHistoryFile) : false;
+      const adminFiles = this.isAdmin ? (this.berufFile || this.qualifikationFile || this.rechnungFile || this.kundenpreisFile || this.personalnrHistoryFile) : false;
       return this.einsatzFile || this.personalFile || this.verfuegbarkeitFile || adminFiles;
     },
 

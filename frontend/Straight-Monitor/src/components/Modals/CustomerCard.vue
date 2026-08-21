@@ -54,12 +54,26 @@
     </template>
 
     <article class="customer-card" :data-theme="effectiveTheme">
+      <nav class="customer-tabs" aria-label="Kundendetails">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          type="button"
+          class="customer-tab"
+          :class="{ active: activeTab === tab.id }"
+          :aria-selected="activeTab === tab.id"
+          @click="activeTab = tab.id"
+        >
+          <font-awesome-icon :icon="['fas', tab.icon]" />
+          <span>{{ tab.label }}</span>
+        </button>
+      </nav>
 
     <!-- Body -->
     <div class="card-body">
       
       <!-- General Info -->
-      <section class="section info-section">
+      <section v-if="activeTab === 'allgemein'" class="section info-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'info-circle']" /> Allgemeine Daten
         </h4>
@@ -79,7 +93,7 @@
         </div>
       </section>
 
-      <section class="section remarks-section" v-if="kunde.bemerkung && kunde.bemerkung.length > 0">
+      <section v-if="activeTab === 'allgemein' && kunde.bemerkung && kunde.bemerkung.length > 0" class="section remarks-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'clipboard']" /> Bemerkungen
         </h4>
@@ -90,8 +104,8 @@
         </ul>
       </section>
 
-      <!-- Top Mitarbeiter -->
-      <section class="section top-ma-section" v-if="kunde.kundenNr">
+      <!-- Einsätze -->
+      <section v-if="activeTab === 'einsaetze' && kunde.kundenNr" class="section top-ma-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'users']" /> Häufigste Mitarbeiter
           <span class="badge">{{ topMaAll.length }}</span>
@@ -159,8 +173,8 @@
         </div>
       </section>
 
-      <!-- Contacts -->
-      <section class="section contacts-section">
+      <!-- Kontakte -->
+      <section v-if="activeTab === 'kontakte'" class="section contacts-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'address-book']" /> Kontakte
           <span class="badge">{{ linkedContacts.length }}</span>
@@ -253,7 +267,7 @@
       </section>
 
       <!-- Adressen -->
-      <section class="section addresses-section" v-if="kunde.adressen && kunde.adressen.length > 0">
+      <section v-if="activeTab === 'allgemein' && kunde.adressen && kunde.adressen.length > 0" class="section addresses-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'location-dot']" /> Adressen
           <span class="badge">{{ kunde.adressen.length }}</span>
@@ -293,8 +307,8 @@
         </div>
       </section>
 
-      <!-- Analytics -->
-      <section class="section analytics-section" v-if="kunde.kundenNr">
+      <!-- Statistik -->
+      <section v-if="activeTab === 'statistik' && kunde.kundenNr" class="section analytics-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'chart-bar']" /> Einsatz-Analytics
         </h4>
@@ -302,7 +316,7 @@
       </section>
 
       <!-- Kennzahlen -->
-      <section class="section kpi-section" v-if="kunde.kundenNr && canSeeSensitiveKpi">
+      <section v-if="activeTab === 'statistik' && kunde.kundenNr && canSeeSensitiveKpi" class="section kpi-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'chart-line']" /> Kennzahlen
         </h4>
@@ -390,6 +404,218 @@
         </div>
       </section>
 
+      <section v-if="activeTab === 'rechnung'" class="empty-tab-state">
+        <font-awesome-icon :icon="['fas', 'file-invoice']" />
+        <p>Für diesen Kunden sind noch keine Rechnungsdaten hinterlegt.</p>
+      </section>
+
+      <section v-if="activeTab === 'lohn'" class="section kundenpreise-section">
+        <h4 class="section-title">
+          <font-awesome-icon :icon="['fas', 'coins']" /> Kundenpreise
+        </h4>
+
+        <div v-if="preiseLoading" class="empty-contacts">
+          <font-awesome-icon :icon="['fas', 'spinner']" spin /> Preise werden geladen…
+        </div>
+        <div v-else-if="preiseError" class="preise-message preise-message--error">
+          {{ preiseError }}
+        </div>
+        <div v-else-if="preisBerufe.length === 0" class="empty-tab-state">
+          <font-awesome-icon :icon="['fas', 'coins']" />
+          <p>Für diesen Kunden sind noch keine Qualifikationspreise hinterlegt.</p>
+          <button class="preise-add-btn" type="button" @click="openAddQualifikationDialog">
+            <font-awesome-icon :icon="['fas', 'plus']" /> Qualifikation Hinzufügen
+          </button>
+        </div>
+        <template v-else>
+          <div class="preise-selector">
+            <span class="preise-selector-label">Beruf</span>
+            <div class="preise-chip-row">
+              <FilterChip
+                v-for="beruf in preisBerufe"
+                :key="beruf._id"
+                :active="selectedPreisBerufId === beruf._id"
+                @click="selectPreisBeruf(beruf._id)"
+              >
+                {{ beruf.designation }}
+              </FilterChip>
+            </div>
+          </div>
+
+          <div class="preise-add-btn-row">
+            <button
+              class="preise-add-btn"
+              type="button"
+              @click="openAddQualifikationDialog"
+            >
+              <font-awesome-icon :icon="['fas', 'plus']" /> Qualifikation Hinzufügen
+            </button>
+          </div>
+
+          <div class="preise-table-wrap">
+            <table class="preise-table">
+              <thead>
+                <tr>
+                  <th>Qualifikation</th>
+                  <th>Aktueller Preis</th>
+                  <th>Gültig seit</th>
+                  <th>Nächste Änderung</th>
+                  <th><span class="sr-only">Aktionen</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template v-for="entry in filteredPreisQualifikationen" :key="entry.qualifikation._id">
+                  <tr>
+                    <td>
+                      <span class="preise-quali-name">{{ entry.qualifikation.designation }}</span>
+                      <span class="preise-quali-key">{{ entry.qualifikation.qualificationKey }}</span>
+                    </td>
+                    <td class="preise-current">
+                      {{ entry.current ? formatPriceCents(entry.current.hourlyRateCents) : '—' }}
+                    </td>
+                    <td>{{ entry.current ? formatDate(entry.current.validFrom) : '—' }}</td>
+                    <td>
+                      <span v-if="entry.next" class="preise-scheduled">
+                        {{ formatPriceCents(entry.next.hourlyRateCents) }} ab {{ formatDate(entry.next.validFrom) }}
+                      </span>
+                      <span v-else class="muted-cell">—</span>
+                    </td>
+                    <td class="preise-actions-cell">
+                      <button class="preise-new-btn" type="button" @click="openNewPrice(entry)">
+                        <font-awesome-icon :icon="['fas', 'plus']" /> Neuer Preis
+                      </button>
+                    </td>
+                  </tr>
+                  <tr v-if="newPriceQualificationId === entry.qualifikation._id" class="preise-form-row">
+                    <td colspan="5">
+                      <form class="preise-new-form" @submit.prevent="saveNewPrice(entry)">
+                        <label>
+                          Preis pro Stunde
+                          <div class="preise-input-unit">
+                            <input v-model.trim="newPriceAmount" inputmode="decimal" placeholder="0,00" required />
+                            <span>€</span>
+                          </div>
+                        </label>
+                        <label>
+                          Gültig ab
+                          <input v-model="newPriceValidFrom" type="date" required />
+                        </label>
+                        <div class="preise-form-actions">
+                          <button type="button" class="preise-cancel-btn" @click="closeNewPrice">Abbrechen</button>
+                          <button type="submit" class="preise-save-btn" :disabled="preiseSaving">
+                            <font-awesome-icon :icon="['fas', preiseSaving ? 'spinner' : 'check']" :spin="preiseSaving" />
+                            Speichern
+                          </button>
+                        </div>
+                        <p v-if="newPriceError" class="preise-form-error">{{ newPriceError }}</p>
+                      </form>
+                    </td>
+                  </tr>
+                  <tr v-if="entry.versions.length > 1" class="preise-history-row">
+                    <td colspan="5">
+                      <details>
+                        <summary>{{ entry.versions.length }} Preisstände anzeigen</summary>
+                        <div class="preise-history-list">
+                          <span v-for="version in entry.versions" :key="version._id">
+                            {{ formatPriceCents(version.hourlyRateCents) }} ab {{ formatDate(version.validFrom) }}
+                          </span>
+                        </div>
+                      </details>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
+
+        <!-- Add Qualification Dialog -->
+        <div v-if="showAddQualifikationDialog" class="modal-overlay" @click.self="closeAddQualifikationDialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3>Neue Qualifikation hinzufügen</h3>
+              <button class="close-btn" type="button" @click="closeAddQualifikationDialog">
+                <font-awesome-icon :icon="['fas', 'xmark']" />
+              </button>
+            </div>
+            <div class="modal-body">
+              <form class="add-quali-form" @submit.prevent="saveNewQualifikation">
+                <div class="search-select">
+                  <label for="add-price-beruf">Beruf</label>
+                  <input
+                    id="add-price-beruf"
+                    v-model="berufSearchQuery"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="Beruf oder Schlüssel suchen"
+                    @focus="showBerufResults = true"
+                    @input="showBerufResults = true"
+                  />
+                  <div v-if="showBerufResults" class="search-select-results">
+                    <button
+                      v-for="beruf in matchingBerufe"
+                      :key="beruf._id"
+                      type="button"
+                      class="search-select-option"
+                      @click="selectAddBeruf(beruf)"
+                    >
+                      <span>{{ beruf.designation }}</span><small>{{ beruf.jobKey }}</small>
+                    </button>
+                    <p v-if="matchingBerufe.length === 0" class="search-select-empty">Keine Berufe gefunden.</p>
+                  </div>
+                </div>
+                <div class="search-select">
+                  <label for="add-price-qualifikation">Qualifikation</label>
+                  <input
+                    id="add-price-qualifikation"
+                    v-model="qualifikationSearchQuery"
+                    type="search"
+                    autocomplete="off"
+                    :disabled="!addQualifikationBerufId"
+                    placeholder="Qualifikation oder Schlüssel suchen"
+                    @focus="showQualifikationResults = true"
+                    @input="showQualifikationResults = true"
+                  />
+                  <div v-if="showQualifikationResults && addQualifikationBerufId" class="search-select-results">
+                    <button
+                      v-for="qualifikation in matchingQualifikationen"
+                      :key="qualifikation._id"
+                      type="button"
+                      class="search-select-option"
+                      @click="selectAddQualifikation(qualifikation)"
+                    >
+                      <span>{{ qualifikation.designation }}</span><small>{{ qualifikation.qualificationKey }}</small>
+                    </button>
+                    <p v-if="matchingQualifikationen.length === 0" class="search-select-empty">Keine verfügbaren Qualifikationen gefunden.</p>
+                  </div>
+                </div>
+                <label>
+                  Preis pro Stunde (€)
+                  <div class="preise-input-unit">
+                    <input v-model.trim="addPriceAmount" inputmode="decimal" placeholder="0,00" required />
+                    <span>€</span>
+                  </div>
+                </label>
+                <label>
+                  Gültig ab
+                  <input v-model="addPriceValidFrom" type="date" required />
+                </label>
+                <p v-if="addPriceError" class="preise-form-error">{{ addPriceError }}</p>
+                <div class="preise-form-actions">
+                  <button type="button" class="preise-cancel-btn" @click="closeAddQualifikationDialog">
+                    Abbrechen
+                  </button>
+                  <button type="submit" class="preise-save-btn" :disabled="addPriceSaving">
+                    <font-awesome-icon :icon="['fas', addPriceSaving ? 'spinner' : 'check']" :spin="addPriceSaving" />
+                    Speichern
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </div>
 
     <!-- Employee Card Modal -->
@@ -434,6 +660,7 @@ import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
 import ContactCard from '@/components/ContactCard.vue';
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
+import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import api from '@/utils/api';
 
 const props = defineProps({
@@ -441,6 +668,261 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
+
+const tabs = [
+  { id: 'allgemein', label: 'Allgemein', icon: 'circle-info' },
+  { id: 'rechnung', label: 'Rechnung', icon: 'file-invoice' },
+  { id: 'kontakte', label: 'Kontakte', icon: 'address-book' },
+  { id: 'einsaetze', label: 'Einsätze', icon: 'calendar-days' },
+  { id: 'lohn', label: 'Lohn', icon: 'coins' },
+  { id: 'statistik', label: 'Statistik', icon: 'chart-bar' },
+];
+const activeTab = ref('allgemein');
+
+// ── Kundenpreise ─────────────────────────────────────────────────────────────
+const kundenpreise = ref([]);
+const preiseLoading = ref(false);
+const preiseLoaded = ref(false);
+const preiseError = ref('');
+const preiseSaving = ref(false);
+const selectedPreisBerufId = ref('');
+const newPriceQualificationId = ref('');
+const newPriceAmount = ref('');
+const newPriceValidFrom = ref('');
+const newPriceError = ref('');
+
+// Add Qualifikation Dialog
+const showAddQualifikationDialog = ref(false);
+const addQualifikationBerufId = ref('');
+const addQualifikationId = ref('');
+const berufSearchQuery = ref('');
+const qualifikationSearchQuery = ref('');
+const showBerufResults = ref(false);
+const showQualifikationResults = ref(false);
+const addPriceAmount = ref('');
+const addPriceValidFrom = ref('');
+const addPriceError = ref('');
+const addPriceSaving = ref(false);
+
+const preisBerufe = computed(() => {
+  const berufe = new Map();
+  for (const price of kundenpreise.value) {
+    const beruf = price.qualifikation?.beruf;
+    if (beruf?._id) berufe.set(String(beruf._id), { ...beruf, _id: String(beruf._id) });
+  }
+  return [...berufe.values()].sort((first, second) =>
+    first.designation.localeCompare(second.designation, 'de')
+  );
+});
+
+const filteredPreisQualifikationen = computed(() => {
+  const grouped = new Map();
+  for (const price of kundenpreise.value) {
+    const qualifikation = price.qualifikation;
+    if (!qualifikation?._id || String(qualifikation.beruf?._id) !== selectedPreisBerufId.value) continue;
+    const id = String(qualifikation._id);
+    if (!grouped.has(id)) grouped.set(id, { qualifikation, versions: [] });
+    grouped.get(id).versions.push(price);
+  }
+
+  const now = Date.now();
+  return [...grouped.values()]
+    .map((entry) => {
+      entry.versions.sort((first, second) => new Date(second.validFrom) - new Date(first.validFrom));
+      const reached = entry.versions.filter((version) => new Date(version.validFrom).getTime() <= now);
+      const future = entry.versions
+        .filter((version) => new Date(version.validFrom).getTime() > now)
+        .sort((first, second) => new Date(first.validFrom) - new Date(second.validFrom));
+      return { ...entry, current: reached[0] || null, next: future[0] || null };
+    })
+    .sort((first, second) => first.qualifikation.qualificationKey - second.qualifikation.qualificationKey);
+});
+
+const availableQualifikationen = computed(() => {
+  if (!dataCache.qualifikationen || dataCache.qualifikationen.length === 0) return [];
+  const assignedIds = new Set(kundenpreise.value.map((p) => String(p.qualifikation._id)));
+  return dataCache.qualifikationen
+    .filter((q) => !assignedIds.has(String(q._id)) && String(q.beruf?._id) === selectedPreisBerufId.value)
+    .sort((first, second) => first.qualificationKey - second.qualificationKey);
+});
+
+const allBerufeForDialog = computed(() => {
+  return [...dataCache.berufe].sort((a, b) => a.jobKey - b.jobKey);
+});
+
+const availableQualifikationenForDialog = computed(() => {
+  if (!dataCache.qualifikationen || dataCache.qualifikationen.length === 0 || !addQualifikationBerufId.value) return [];
+  const assignedIds = new Set(kundenpreise.value.map((p) => String(p.qualifikation._id)));
+  return dataCache.qualifikationen
+    .filter((q) => !assignedIds.has(String(q._id)) && String(q.beruf?._id) === addQualifikationBerufId.value)
+    .sort((first, second) => first.qualificationKey - second.qualificationKey);
+});
+
+const matchingBerufe = computed(() => {
+  const query = berufSearchQuery.value.trim().toLocaleLowerCase('de');
+  if (!query) return allBerufeForDialog.value;
+  return allBerufeForDialog.value.filter((beruf) =>
+    `${beruf.jobKey} ${beruf.designation}`.toLocaleLowerCase('de').includes(query)
+  );
+});
+
+const matchingQualifikationen = computed(() => {
+  const query = qualifikationSearchQuery.value.trim().toLocaleLowerCase('de');
+  if (!query) return availableQualifikationenForDialog.value;
+  return availableQualifikationenForDialog.value.filter((qualifikation) =>
+    `${qualifikation.qualificationKey} ${qualifikation.designation}`.toLocaleLowerCase('de').includes(query)
+  );
+});
+
+async function loadKundenpreise(force = false) {
+  if (!props.kunde.kundenNr || (preiseLoaded.value && !force)) return;
+  preiseLoading.value = true;
+  preiseError.value = '';
+  try {
+    const { data } = await api.get(`/api/kunden/${props.kunde.kundenNr}/preise`);
+    kundenpreise.value = data || [];
+    preiseLoaded.value = true;
+    if (!preisBerufe.value.some((beruf) => beruf._id === selectedPreisBerufId.value)) {
+      selectedPreisBerufId.value = preisBerufe.value[0]?._id || '';
+    }
+  } catch (error) {
+    preiseError.value = error.response?.data?.message || 'Kundenpreise konnten nicht geladen werden.';
+  } finally {
+    preiseLoading.value = false;
+  }
+}
+
+function selectPreisBeruf(berufId) {
+  selectedPreisBerufId.value = berufId;
+  closeNewPrice();
+}
+
+function openNewPrice(entry) {
+  newPriceQualificationId.value = String(entry.qualifikation._id);
+  newPriceAmount.value = entry.next?.hourlyRateCents != null
+    ? (entry.next.hourlyRateCents / 100).toFixed(2).replace('.', ',')
+    : entry.current?.hourlyRateCents != null
+      ? (entry.current.hourlyRateCents / 100).toFixed(2).replace('.', ',')
+      : '';
+  newPriceValidFrom.value = new Date().toISOString().slice(0, 10);
+  newPriceError.value = '';
+}
+
+function closeNewPrice() {
+  newPriceQualificationId.value = '';
+  newPriceAmount.value = '';
+  newPriceValidFrom.value = '';
+  newPriceError.value = '';
+}
+
+async function saveNewPrice(entry) {
+  const normalizedAmount = newPriceAmount.value.replace(/\s/g, '').replace(',', '.');
+  const amount = Number(normalizedAmount);
+  if (!Number.isFinite(amount) || amount < 0 || !newPriceValidFrom.value) {
+    newPriceError.value = 'Bitte einen gültigen Preis und ein Datum angeben.';
+    return;
+  }
+
+  preiseSaving.value = true;
+  newPriceError.value = '';
+  try {
+    await api.post(`/api/kunden/${props.kunde.kundenNr}/preise`, {
+      qualifikation: entry.qualifikation._id,
+      hourlyRateCents: Math.round(amount * 100),
+      validFrom: newPriceValidFrom.value,
+    });
+    closeNewPrice();
+    await loadKundenpreise(true);
+  } catch (error) {
+    newPriceError.value = error.response?.data?.message || 'Der neue Preis konnte nicht gespeichert werden.';
+  } finally {
+    preiseSaving.value = false;
+  }
+}
+
+function formatPriceCents(value) {
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value / 100);
+}
+
+async function openAddQualifikationDialog() {
+  showAddQualifikationDialog.value = true;
+  addPriceError.value = '';
+  try {
+    await Promise.all([dataCache.loadBerufe(), dataCache.loadQualifikationen()]);
+  } catch (error) {
+    addPriceError.value = 'Berufe und Qualifikationen konnten nicht geladen werden.';
+    return;
+  }
+  addQualifikationBerufId.value = '';
+  addQualifikationId.value = '';
+  berufSearchQuery.value = '';
+  qualifikationSearchQuery.value = '';
+  showBerufResults.value = true;
+  showQualifikationResults.value = false;
+  addPriceAmount.value = '';
+  addPriceValidFrom.value = new Date().toISOString().slice(0, 10);
+}
+
+function closeAddQualifikationDialog() {
+  showAddQualifikationDialog.value = false;
+  addQualifikationBerufId.value = '';
+  addQualifikationId.value = '';
+  berufSearchQuery.value = '';
+  qualifikationSearchQuery.value = '';
+  showBerufResults.value = false;
+  showQualifikationResults.value = false;
+  addPriceAmount.value = '';
+  addPriceValidFrom.value = '';
+  addPriceError.value = '';
+}
+
+function selectAddBeruf(beruf) {
+  addQualifikationBerufId.value = String(beruf._id);
+  berufSearchQuery.value = `${beruf.jobKey} - ${beruf.designation}`;
+  addQualifikationId.value = '';
+  qualifikationSearchQuery.value = '';
+  showBerufResults.value = false;
+  showQualifikationResults.value = true;
+}
+
+function selectAddQualifikation(qualifikation) {
+  addQualifikationId.value = String(qualifikation._id);
+  qualifikationSearchQuery.value = `${qualifikation.qualificationKey} - ${qualifikation.designation}`;
+  showQualifikationResults.value = false;
+}
+
+async function saveNewQualifikation() {
+  if (!addQualifikationId.value) {
+    addPriceError.value = 'Bitte eine Qualifikation wählen.';
+    return;
+  }
+  const normalizedAmount = addPriceAmount.value.replace(/\s/g, '').replace(',', '.');
+  const amount = Number(normalizedAmount);
+  if (!Number.isFinite(amount) || amount < 0 || !addPriceValidFrom.value) {
+    addPriceError.value = 'Bitte einen gültigen Preis und ein Datum angeben.';
+    return;
+  }
+
+  addPriceSaving.value = true;
+  addPriceError.value = '';
+  try {
+    await api.post(`/api/kunden/${props.kunde.kundenNr}/preise`, {
+      qualifikation: addQualifikationId.value,
+      hourlyRateCents: Math.round(amount * 100),
+      validFrom: addPriceValidFrom.value,
+    });
+    closeAddQualifikationDialog();
+    await loadKundenpreise(true);
+  } catch (error) {
+    addPriceError.value = error.response?.data?.message || 'Die Qualifikation konnte nicht hinzugefügt werden.';
+  } finally {
+    addPriceSaving.value = false;
+  }
+}
+
+watch(activeTab, (tab) => {
+  if (tab === 'lohn') loadKundenpreise();
+});
 
 const auth = useAuth();
 const dataCache = useDataCache();
@@ -781,6 +1263,55 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   width: 100%;
 }
 
+.customer-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 20px;
+  background: var(--surface);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.customer-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.customer-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: max-content;
+  padding: 10px 12px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.customer-tab:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.customer-tab.active {
+  color: var(--accent, var(--primary));
+  border-bottom-color: var(--accent, var(--primary));
+}
+
+.customer-tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
 /* Header */
 .card-header {
   display: flex;
@@ -940,6 +1471,484 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+.empty-tab-state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 220px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-tab-state svg {
+  color: var(--primary);
+  font-size: 24px;
+}
+
+.empty-tab-state p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Customer qualification prices */
+.kundenpreise-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.preise-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.preise-selector-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.preise-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preise-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.preise-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.preise-table th,
+.preise-table td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+
+.preise-table th {
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.preise-table tbody > tr:last-child td {
+  border-bottom: 0;
+}
+
+.preise-quali-name,
+.preise-quali-key {
+  display: block;
+}
+
+.preise-quali-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.preise-quali-key {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.preise-current {
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.preise-scheduled {
+  display: inline-flex;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.preise-actions-cell {
+  text-align: right !important;
+}
+
+.preise-new-btn,
+.preise-cancel-btn,
+.preise-save-btn {
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.preise-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.preise-new-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
+}
+
+.preise-add-btn-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.preise-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.preise-add-btn:hover {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.preise-form-row td {
+  padding: 0;
+  background: var(--soft);
+}
+
+.preise-new-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 14px;
+}
+
+.preise-new-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.preise-new-form input {
+  height: 34px;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.preise-new-form input:focus {
+  outline: 2px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  border-color: var(--primary);
+}
+
+.preise-input-unit {
+  position: relative;
+}
+
+.preise-input-unit input {
+  width: 120px;
+  padding-right: 28px;
+}
+
+.preise-input-unit span {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.preise-form-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.preise-cancel-btn,
+.preise-save-btn {
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+.preise-cancel-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.preise-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.preise-save-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.preise-form-error {
+  align-self: center;
+  margin: 0;
+  color: #dc3545;
+  font-size: 12px;
+}
+
+.preise-history-row td {
+  padding: 6px 12px 10px;
+  background: var(--surface);
+}
+
+.preise-history-row summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.preise-history-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 8px 0 2px 16px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.preise-message {
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.preise-message--error {
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  background: rgba(220, 53, 69, 0.08);
+  color: #dc3545;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Modal Dialog */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-content {
+  background: var(--tile-bg);
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 18px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-btn:hover {
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.add-quali-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.search-select {
+  position: relative;
+}
+
+.add-quali-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.add-quali-form select,
+.add-quali-form input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.add-quali-form select:focus,
+.add-quali-form input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.search-select-results {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+}
+
+.search-select-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+.search-select-option:last-child {
+  border-bottom: 0;
+}
+
+.search-select-option:hover {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.search-select-option small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.search-select-empty {
+  padding: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .preise-new-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .preise-input-unit input {
+    width: 100%;
+  }
+
+  .preise-form-actions {
+    justify-content: flex-end;
+  }
 }
 
 .section-title {
