@@ -257,16 +257,25 @@
       </section>
 
       <!-- Adressen -->
-      <section v-if="activeTab === 'allgemein' && kundenAdressen.length > 0" class="section addresses-section">
+      <section v-if="activeTab === 'allgemein'" class="section addresses-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'location-dot']" /> Adressen
           <span class="badge">{{ kundenAdressen.length }}</span>
+          <button class="btn-add-contact" type="button" @click="openCreateAdresse">
+            <font-awesome-icon :icon="['fas', 'plus']" /> Adresse anlegen
+          </button>
         </h4>
-        <div class="addresses-list">
+        <div v-if="kundenAdressen.length" class="addresses-list">
           <div v-for="(adr, index) in kundenAdressen" :key="adr.nummer || index" class="address-card">
             <div class="address-header">
-              <span class="address-name">{{ adr.name || 'Adresse ' + (index + 1) }}</span>
-              <span v-if="adr.branche" class="address-branche">{{ adr.branche }}</span>
+              <div class="address-header-content">
+                <span class="address-name">{{ adr.name || 'Adresse ' + (index + 1) }}</span>
+                <div v-if="adr.isRechnAdr || adr.isPostAdr || adr.branche" class="address-tags">
+                  <span v-if="adr.isRechnAdr" class="address-billing-badge">Rechnungsanschrift</span>
+                  <span v-if="adr.isPostAdr" class="address-postal-badge">Postanschrift</span>
+                  <span v-if="adr.branche" class="address-branche">{{ adr.branche }}</span>
+                </div>
+              </div>
               <button
                 class="address-menu-btn"
                 title="Adressoptionen"
@@ -298,6 +307,7 @@
             </div>
           </div>
         </div>
+        <div v-else class="empty-contacts">Keine Adressen vorhanden.</div>
       </section>
 
       <!-- Ansprechpartner aus Zvoove -->
@@ -309,8 +319,12 @@
         <div class="addresses-list">
           <div v-for="(adr, index) in ansprechpartner" :key="adr.nummer || index" class="address-card">
             <div class="address-header">
-              <span class="address-name">{{ formatAnsprechpartnerName(adr.name) || 'Ansprechpartner ' + (index + 1) }}</span>
-              <span v-if="adr.branche" class="address-branche">{{ adr.branche }}</span>
+              <div class="address-header-content">
+                <span class="address-name">{{ formatAnsprechpartnerName(adr.name) || 'Ansprechpartner ' + (index + 1) }}</span>
+                <div v-if="adr.branche" class="address-tags">
+                  <span class="address-branche">{{ adr.branche }}</span>
+                </div>
+              </div>
               <button
                 class="address-menu-btn"
                 title="Ansprechpartneroptionen"
@@ -441,9 +455,58 @@
         </div>
       </section>
 
-      <section v-if="activeTab === 'rechnung'" class="empty-tab-state">
-        <font-awesome-icon :icon="['fas', 'file-invoice']" />
-        <p>Für diesen Kunden sind noch keine Rechnungsdaten hinterlegt.</p>
+      <section v-if="activeTab === 'rechnung'" class="section addresses-section">
+        <h4 class="section-title">
+          <font-awesome-icon :icon="['fas', 'file-invoice']" /> Rechnungsanschrift
+        </h4>
+
+        <div v-if="rechnungsanschrift" class="addresses-list">
+          <div class="address-card">
+            <div class="address-header">
+              <div class="address-header-content">
+                <span class="address-name">{{ rechnungsanschrift.name || 'Rechnungsanschrift' }}</span>
+                <div class="address-tags">
+                  <span class="address-billing-badge">Rechnungsanschrift</span>
+                  <span v-if="rechnungsanschrift.isPostAdr" class="address-postal-badge">Postanschrift</span>
+                  <span v-if="rechnungsanschrift.branche" class="address-branche">{{ rechnungsanschrift.branche }}</span>
+                </div>
+              </div>
+              <button
+                class="address-menu-btn"
+                title="Adressoptionen"
+                @click.stop="openAdresseMenu(rechnungsanschrift, $event)"
+              >
+                <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
+              </button>
+            </div>
+            <div class="address-body">
+              <div v-if="rechnungsanschrift.strasse || rechnungsanschrift.plz || rechnungsanschrift.ort" class="address-row">
+                <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
+                <span>
+                  <template v-if="rechnungsanschrift.strasse">{{ rechnungsanschrift.strasse }}<br /></template>
+                  {{ [rechnungsanschrift.plz, rechnungsanschrift.ort].filter(Boolean).join(' ') }}<template v-if="rechnungsanschrift.land">, {{ rechnungsanschrift.land }}</template>
+                </span>
+              </div>
+              <div v-for="telefon in rechnungsanschrift.telefone" :key="telefon" class="address-row">
+                <font-awesome-icon :icon="['fas', 'phone']" />
+                <a :href="`tel:${telefon}`">{{ telefon }}</a>
+              </div>
+              <div v-if="rechnungsanschrift.email" class="address-row">
+                <font-awesome-icon :icon="['fas', 'envelope']" />
+                <a :href="`mailto:${rechnungsanschrift.email}`">{{ rechnungsanschrift.email }}</a>
+              </div>
+              <div v-if="rechnungsanschrift.homepage" class="address-row">
+                <font-awesome-icon :icon="['fas', 'globe']" />
+                <a :href="formatUrl(rechnungsanschrift.homepage)" target="_blank" rel="noopener noreferrer">{{ rechnungsanschrift.homepage }}</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="empty-tab-state">
+          <font-awesome-icon :icon="['fas', 'file-invoice']" />
+          <p>Keine Rechnungsanschrift festgelegt.</p>
+        </div>
       </section>
 
       <section v-if="activeTab === 'lohn'" class="section kundenpreise-section">
@@ -680,12 +743,19 @@
       @close="showKontaktAnlegenModal = false"
       @created="onKontaktAngelegt"
     />
+    <AdresseFormModal
+      v-if="showAdresseFormModal"
+      :kunden-nr="kunde.kundenNr"
+      :adresse="adresseFormAdresse"
+      @close="closeAdresseForm"
+      @saved="onAdresseSaved"
+    />
     <ActionMenu
       :open="Boolean(adresseMenuAdresse)"
       :x="adresseMenuPosition.x"
       :y="adresseMenuPosition.y"
       :items="adresseMenuItems"
-      :width="190"
+      :width="240"
       group-by="false"
       @close="closeAdresseMenu"
       @item-click="handleAdresseMenuAction"
@@ -714,6 +784,7 @@ import { useDataCache } from '@/stores/dataCache';
 import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import KundenAnalyticsEmbed from '@/components/KundenAnalyticsEmbed.vue';
+import AdresseFormModal from '@/components/Modals/AdresseFormModal.vue';
 import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
 import ContactCard from '@/components/ContactCard.vue';
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
@@ -741,11 +812,29 @@ const adressen = ref([]);
 const adresseDeletingId = ref(null);
 const adresseMenuAdresse = ref(null);
 const adresseMenuPosition = ref({ x: 0, y: 0 });
-const adresseMenuItems = [
-  { value: 'deactivate', label: 'Ausblenden', icon: ['fas', 'trash'], variant: 'danger' },
-];
+const showAdresseFormModal = ref(false);
+const adresseFormAdresse = ref(null);
+const adresseMenuItems = computed(() => {
+  const adresse = adresseMenuAdresse.value;
+  const items = [{ value: 'edit', label: 'Bearbeiten', icon: ['fas', 'pen'] }];
+  if (adresse && adresse.art !== 'A') {
+    items.push({
+      value: 'billing',
+      label: adresse.isRechnAdr ? 'Rechnungsanschrift entfernen' : 'Als Rechnungsanschrift festlegen',
+      icon: ['fas', 'file-invoice'],
+    });
+    items.push({
+      value: 'postal',
+      label: adresse.isPostAdr ? 'Postanschrift entfernen' : 'Als Postanschrift festlegen',
+      icon: ['fas', 'envelope'],
+    });
+  }
+  items.push({ value: 'deactivate', label: 'Ausblenden', icon: ['fas', 'trash'], variant: 'danger' });
+  return items;
+});
 const kundenAdressen = computed(() => adressen.value.filter((adresse) => adresse.art !== 'A'));
 const ansprechpartner = computed(() => adressen.value.filter((adresse) => adresse.art === 'A'));
+const rechnungsanschrift = computed(() => kundenAdressen.value.find((adresse) => adresse.isRechnAdr) || null);
 
 async function loadAdressen() {
   if (!props.kunde.kundenNr) {
@@ -779,7 +868,84 @@ function closeAdresseMenu() {
 function handleAdresseMenuAction({ item }) {
   const adresse = adresseMenuAdresse.value;
   closeAdresseMenu();
+  if (item.value === 'edit' && adresse) openEditAdresse(adresse);
+  if (item.value === 'billing' && adresse) toggleRechnungsanschrift(adresse);
+  if (item.value === 'postal' && adresse) togglePostanschrift(adresse);
   if (item.value === 'deactivate' && adresse) deactivateAdresse(adresse);
+}
+
+function openCreateAdresse() {
+  adresseFormAdresse.value = null;
+  showAdresseFormModal.value = true;
+}
+
+function openEditAdresse(adresse) {
+  adresseFormAdresse.value = { ...adresse };
+  showAdresseFormModal.value = true;
+}
+
+function closeAdresseForm() {
+  showAdresseFormModal.value = false;
+  adresseFormAdresse.value = null;
+}
+
+function onAdresseSaved(adresse) {
+  const index = adressen.value.findIndex((entry) => entry.nummer === adresse.nummer);
+  if (index === -1) adressen.value = [...adressen.value, adresse];
+  else adressen.value[index] = adresse;
+  closeAdresseForm();
+}
+
+async function toggleRechnungsanschrift(adresse) {
+  const nummer = String(adresse.nummer || '').trim();
+  if (!nummer) return;
+
+  const isRechnAdr = !adresse.isRechnAdr;
+  try {
+    const { data } = await api.patch(
+      `/api/kunden/${props.kunde.kundenNr}/adressen/${encodeURIComponent(nummer)}/rechnungsanschrift`,
+      { isRechnAdr },
+    );
+    adressen.value = adressen.value.map((entry) => ({
+      ...entry,
+      isRechnAdr: isRechnAdr
+        ? entry.nummer === adresse.nummer
+        : entry.nummer === adresse.nummer ? false : entry.isRechnAdr,
+    }));
+    if (data?.adresse) {
+      const index = adressen.value.findIndex((entry) => entry.nummer === data.adresse.nummer);
+      if (index !== -1) adressen.value[index] = data.adresse;
+    }
+  } catch (error) {
+    console.error('Fehler beim Festlegen der Rechnungsanschrift:', error);
+    alert(error.response?.data?.message || 'Die Rechnungsanschrift konnte nicht gespeichert werden.');
+  }
+}
+
+async function togglePostanschrift(adresse) {
+  const nummer = String(adresse.nummer || '').trim();
+  if (!nummer) return;
+
+  const isPostAdr = !adresse.isPostAdr;
+  try {
+    const { data } = await api.patch(
+      `/api/kunden/${props.kunde.kundenNr}/adressen/${encodeURIComponent(nummer)}/postanschrift`,
+      { isPostAdr },
+    );
+    adressen.value = adressen.value.map((entry) => ({
+      ...entry,
+      isPostAdr: isPostAdr
+        ? entry.nummer === adresse.nummer
+        : entry.nummer === adresse.nummer ? false : entry.isPostAdr,
+    }));
+    if (data?.adresse) {
+      const index = adressen.value.findIndex((entry) => entry.nummer === data.adresse.nummer);
+      if (index !== -1) adressen.value[index] = data.adresse;
+    }
+  } catch (error) {
+    console.error('Fehler beim Festlegen der Postanschrift:', error);
+    alert(error.response?.data?.message || 'Die Postanschrift konnte nicht gespeichert werden.');
+  }
 }
 
 async function deactivateAdresse(adresse) {
@@ -1419,6 +1585,7 @@ function closeSatelliteDialogs() {
   selectedEmployeeId.value = null;
   selectedContactCard.value = null;
   showKontaktAnlegenModal.value = false;
+  closeAdresseForm();
   editingKuerzel.value = false;
 }
 
@@ -1430,6 +1597,10 @@ function handleEscape(event) {
   event.preventDefault();
   event.stopImmediatePropagation();
 
+  if (showAdresseFormModal.value) {
+    closeAdresseForm();
+    return;
+  }
   if (showKontaktAnlegenModal.value) {
     showKontaktAnlegenModal.value = false;
     return;
@@ -2279,15 +2450,55 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   padding-bottom: 8px;
 }
 
+.address-header-content {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.address-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 18px;
+}
+
 .address-name {
+  display: block;
   font-weight: 600;
   color: var(--text);
+}
+
+.address-billing-badge {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.address-postal-badge {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, #3b82f6 35%, var(--border));
+  border-radius: 5px;
+  background: color-mix(in srgb, #3b82f6 10%, transparent);
+  color: #3b82f6;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .address-branche {
   font-size: 11px;
   color: var(--muted);
-  text-align: right;
 }
 
 .address-menu-btn {

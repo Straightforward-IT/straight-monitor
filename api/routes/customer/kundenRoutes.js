@@ -1154,6 +1154,49 @@ router.get('/:kundenNr/adressen', auth, asyncHandler(async (req, res) => {
   res.json(adressen);
 }));
 
+// @route   POST /api/kunden/:kundenNr/adressen
+// @desc    Manuelle Adresse für einen Kunden anlegen
+// @access  Private
+router.post('/:kundenNr/adressen', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  if (!Number.isInteger(kundenNr)) {
+    return res.status(400).json({ message: 'Ungültige Kunden-Nr.' });
+  }
+
+  const kundeExists = await Kunde.exists({ kundenNr });
+  if (!kundeExists) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+
+  const toNullableText = (value) => {
+    const text = String(value ?? '').trim();
+    return text || null;
+  };
+  const art = ['K', 'A', 'P'].includes(req.body.art) ? req.body.art : 'K';
+  const name = toNullableText(req.body.name);
+  if (!name) return res.status(400).json({ message: 'Bitte einen Namen angeben.' });
+
+  const adresse = await Adresse.create({
+    nummer: `MANUAL-${new mongoose.Types.ObjectId()}`,
+    art,
+    name,
+    name1: name,
+    branche: toNullableText(req.body.branche),
+    strasse: toNullableText(req.body.strasse),
+    plz: toNullableText(req.body.plz),
+    ort: toNullableText(req.body.ort),
+    land: toNullableText(req.body.land),
+    anrede: toNullableText(req.body.anrede),
+    telefone: Array.isArray(req.body.telefone)
+      ? req.body.telefone.map(toNullableText).filter(Boolean)
+      : [],
+    email: toNullableText(req.body.email)?.toLowerCase() || null,
+    homepage: toNullableText(req.body.homepage),
+    knr: String(kundenNr),
+    isActive: true,
+  });
+
+  res.status(201).json({ adresse: adresse.toObject() });
+}));
+
 // @route   DELETE /api/kunden/:kundenNr/adressen/:nummer
 // @desc    Zvoove-Adresse deaktivieren, damit sie bei späteren Imports verborgen bleibt
 // @access  Private
@@ -1172,6 +1215,76 @@ router.delete('/:kundenNr/adressen/:nummer', auth, asyncHandler(async (req, res)
   if (!adresse) return res.status(404).json({ message: 'Adresse nicht gefunden oder bereits deaktiviert.' });
 
   res.json({ success: true });
+}));
+
+// @route   PATCH /api/kunden/:kundenNr/adressen/:nummer/rechnungsanschrift
+// @desc    Rechnungsanschrift eines Kunden festlegen oder entfernen
+// @access  Private
+router.patch('/:kundenNr/adressen/:nummer/rechnungsanschrift', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  const nummer = String(req.params.nummer || '').trim();
+  if (!Number.isInteger(kundenNr) || !nummer || typeof req.body.isRechnAdr !== 'boolean') {
+    return res.status(400).json({ message: 'Ungültige Kunden-, Adressnummer oder Auswahl.' });
+  }
+
+  const filter = {
+    nummer,
+    knr: String(kundenNr),
+    art: { $ne: 'A' },
+    isActive: { $ne: false },
+  };
+  const existing = await Adresse.findOne(filter).select('_id').lean();
+  if (!existing) return res.status(404).json({ message: 'Adresse nicht gefunden oder nicht als Rechnungsanschrift geeignet.' });
+
+  if (req.body.isRechnAdr) {
+    await Adresse.updateMany(
+      { knr: String(kundenNr), isRechnAdr: true },
+      { $set: { isRechnAdr: false } },
+    );
+  }
+
+  const adresse = await Adresse.findOneAndUpdate(
+    filter,
+    { $set: { isRechnAdr: req.body.isRechnAdr } },
+    { new: true, runValidators: true },
+  ).lean();
+
+  res.json({ adresse });
+}));
+
+// @route   PATCH /api/kunden/:kundenNr/adressen/:nummer/postanschrift
+// @desc    Postanschrift eines Kunden festlegen oder entfernen
+// @access  Private
+router.patch('/:kundenNr/adressen/:nummer/postanschrift', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  const nummer = String(req.params.nummer || '').trim();
+  if (!Number.isInteger(kundenNr) || !nummer || typeof req.body.isPostAdr !== 'boolean') {
+    return res.status(400).json({ message: 'Ungültige Kunden-, Adressnummer oder Auswahl.' });
+  }
+
+  const filter = {
+    nummer,
+    knr: String(kundenNr),
+    art: { $ne: 'A' },
+    isActive: { $ne: false },
+  };
+  const existing = await Adresse.findOne(filter).select('_id').lean();
+  if (!existing) return res.status(404).json({ message: 'Adresse nicht gefunden oder nicht als Postanschrift geeignet.' });
+
+  if (req.body.isPostAdr) {
+    await Adresse.updateMany(
+      { knr: String(kundenNr), isPostAdr: true },
+      { $set: { isPostAdr: false } },
+    );
+  }
+
+  const adresse = await Adresse.findOneAndUpdate(
+    filter,
+    { $set: { isPostAdr: req.body.isPostAdr } },
+    { new: true, runValidators: true },
+  ).lean();
+
+  res.json({ adresse });
 }));
 
 // @route   PATCH /api/kunden/:kundenNr/adressen/:nummer
@@ -1202,6 +1315,7 @@ router.patch('/:kundenNr/adressen/:nummer', auth, asyncHandler(async (req, res) 
     email: toNullableText(req.body.email)?.toLowerCase() || null,
     homepage: toNullableText(req.body.homepage),
   };
+  if (['K', 'A', 'P'].includes(req.body.art)) update.art = req.body.art;
 
   const adresse = await Adresse.findOneAndUpdate(
     { nummer, knr: String(kundenNr), isActive: { $ne: false } },

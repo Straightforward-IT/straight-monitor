@@ -29,6 +29,8 @@ const AdresseSchema = new mongoose.Schema({
 	trans: { type: String, default: null, trim: true },
 	email: { type: String, default: null, trim: true, lowercase: true },
 	homepage: { type: String, default: null, trim: true },
+	isRechnAdr: { type: Boolean, default: false, index: true },
+	isPostAdr: { type: Boolean, default: false, index: true },
 	isActive: { type: Boolean, default: true, index: true },
 	importiertAm: { type: Date, default: Date.now },
 }, { timestamps: true });
