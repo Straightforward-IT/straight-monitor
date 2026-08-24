@@ -45,6 +45,14 @@
         </FilterGroup>
       </ToolbarFilter>
       <div class="nav-inner">
+        <div v-if="!isMobile" class="search-wrapper desktop-search" @focusin="onSearchFocusIn" @focusout="onSearchFocusOut">
+          <SearchBar
+            class="nav-search"
+            v-model="searchQuery"
+            placeholder="Mitarbeiter, Events, Kunden..."
+            aria-label="Aufträge suchen"
+          />
+        </div>
         <button v-if="!isMobile" class="nav-btn nav-btn--icon" @click="previousWeek" title="Vorherige Woche">
           <font-awesome-icon icon="fa-solid fa-chevron-left" />
         </button>
@@ -62,15 +70,6 @@
             </button>
           </template>
         </DatePicker>
-        <!-- Desktop Search -->
-        <div v-if="!isMobile" class="search-wrapper" @focusin="onSearchFocusIn" @focusout="onSearchFocusOut">
-          <SearchBar
-            class="nav-search"
-            v-model="searchQuery"
-            placeholder="Mitarbeiter, Events, Kunden..."
-            aria-label="Aufträge suchen"
-          />
-        </div>
         <div v-if="dataStatus && !isMobile" class="data-status-badge" :title="'Stand der Daten: ' + formatDataStatus(dataStatus)">
           <font-awesome-icon icon="fa-solid fa-clock" />
           <span>{{ formatDataStatus(dataStatus) }}</span>
@@ -107,10 +106,6 @@
           </div>
         </template>
 
-        <button class="btn-create-pseudo" @click="openPseudoDialog">
-          <font-awesome-icon :icon="['fas', 'plus']" />
-          <span class="btn-pseudo-text">Pseudo-Auftrag</span>
-        </button>
       </div>
     </Toolbar>
 
@@ -146,12 +141,6 @@
           @click="selectEvent(event)"
           @contextmenu.prevent="openOrderContextMenu($event, event)"
         >
-            <img
-              :src="docusealLogoImg"
-              class="sig-status-icon"
-              :style="{ filter: getSignaturIconFilter(event) }"
-              :title="getSignaturIconTitle(event)"
-            />
             <div class="event-header">
               <span v-if="event.auftStatus !== 2" class="event-status">{{ getStatusText(event.auftStatus) }}</span>
               <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
@@ -256,12 +245,6 @@
             @click="selectEvent(event)"
             @contextmenu.prevent="openOrderContextMenu($event, event)"
           >
-            <img
-              :src="docusealLogoImg"
-              class="sig-status-icon"
-              :style="{ filter: getSignaturIconFilter(event) }"
-              :title="getSignaturIconTitle(event)"
-            />
             <div class="event-header" v-if="event.auftStatus !== 2 || event.isPseudo">
               <span class="event-status">{{ getStatusText(event.auftStatus) }}</span>
               <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
@@ -312,6 +295,9 @@
           <div class="sidebar-title-area">
             <span v-if="selectedEvent.auftStatus !== 2" class="sidebar-status" :class="getEventStatusClass(selectedEvent)">{{ getStatusText(selectedEvent.auftStatus) }}</span>
             <h2>{{ selectedEvent.eventTitel || 'Auftrag Details' }}</h2>
+            <span class="sidebar-date">
+              {{ formatDateRange(new Date(selectedEvent.vonDatum), new Date(selectedEvent.bisDatum)) }}
+            </span>
           </div>
           <div class="sidebar-header-actions">
             <!-- Three-dots quick-actions menu -->
@@ -362,10 +348,6 @@
                 <template v-else>-</template>
               </span>
             </div>
-            <div class="info-item">
-              <span class="info-label">Zeitraum</span>
-              <span class="info-value">{{ formatDateRange(new Date(selectedEvent.vonDatum), new Date(selectedEvent.bisDatum)) }}</span>
-            </div>
             <div class="info-item full-width">
               <span class="info-label">Adresse</span>
               <span class="info-value">
@@ -405,22 +387,23 @@
                 v-for="schichtData in preparedSchichten" 
                 :key="schichtData.key"
                 class="schicht-card"
+                :class="{ 'schicht-card--drag-over': schichtDragOverKey === schichtData.key }"
+                @dragenter.prevent="handleSchichtDragEnter($event, schichtData)"
+                @dragover.prevent="handleSchichtDragOver($event, schichtData)"
+                @dragleave="handleSchichtDragLeave($event, schichtData)"
+                @drop.prevent="handleMitarbeiterDrop($event, schichtData)"
               >
-                <!-- Schicht Header with Times & Bedarf -->
                 <div class="schicht-header-compact">
-                  <div class="schicht-time-info">
-                    <span class="schicht-time" v-if="schichtData.meta.uhrzeitVon">
-                      <font-awesome-icon icon="fa-solid fa-clock" />
-                      {{ formatTime(schichtData.meta.uhrzeitVon) }}<template v-if="schichtData.meta.uhrzeitBis"> - {{ formatTime(schichtData.meta.uhrzeitBis) }}</template>
-                    </span>
-                    <span class="schicht-name" v-if="schichtData.meta.schichtBezeichnung">{{ schichtData.meta.schichtBezeichnung }}</span>
-                  </div>
-                  <div 
-                    class="bedarf-badge" 
-                    :class="schichtData.meta.bedarfMet ? 'met' : 'unmet'"
-                    :title="`${schichtData.einsaetze.length} von ${schichtData.meta.bedarf || '?'} Mitarbeitern geplant`"
-                  >
-                    {{ schichtData.einsaetze.length }}/{{ schichtData.meta.bedarf || '?' }}
+                  <div class="schicht-summary">
+                    <div class="schicht-title-line">
+                      <span class="schicht-name">{{ schichtData.meta.schichtBezeichnung || 'Schicht' }}</span>
+                    </div>
+                    <div class="schicht-detail-line">
+                      <span v-if="getCommonQualifikation(schichtData.einsaetze)" class="schicht-quali">
+                        <font-awesome-icon icon="fa-solid fa-graduation-cap" />
+                        {{ getCommonQualifikation(schichtData.einsaetze).designation }}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -442,16 +425,19 @@
                   </span>
                 </div>
 
-                <!-- Badges Row (Quali wenn gemeinsam) -->
-                <div class="schicht-badges" v-if="getCommonQualifikation(schichtData.einsaetze)">
-                  <span v-if="getCommonQualifikation(schichtData.einsaetze)" class="badge quali">
-                    <font-awesome-icon icon="fa-solid fa-graduation-cap" />
-                    {{ getCommonQualifikation(schichtData.einsaetze).designation }}
-                  </span>
-                </div>
-
-                <!-- Mitarbeiter List (Compact) -->
                 <div class="mitarbeiter-list">
+                  <div class="mitarbeiter-list-head">
+                    <div class="team-head-label">
+                      <span>Team</span>
+                      <span class="team-time" v-if="schichtData.meta.uhrzeitVon">
+                        <font-awesome-icon icon="fa-solid fa-clock" />
+                        {{ formatTime(schichtData.meta.uhrzeitVon) }}<template v-if="schichtData.meta.uhrzeitBis"> - {{ formatTime(schichtData.meta.uhrzeitBis) }}</template>
+                      </span>
+                    </div>
+                    <span class="team-coverage" :class="schichtData.meta.bedarfMet ? 'met' : 'unmet'">
+                      {{ schichtData.einsaetze.length }}/{{ schichtData.meta.bedarf || '?' }} besetzt
+                    </span>
+                  </div>
                   <div 
                     v-for="einsatz in schichtData.einsaetze" 
                     :key="einsatz._id"
@@ -499,10 +485,14 @@
                     </div>
                   </div>
                   
-                  <!-- Empty State if no Mitarbeiter -->
                   <div v-if="schichtData.einsaetze.length === 0" class="no-mitarbeiter">
-                    Keine Mitarbeiter geplant
+                    <font-awesome-icon icon="fa-solid fa-user-plus" />
+                    <span>Keine Mitarbeiter geplant</span>
                   </div>
+                </div>
+                <div class="schicht-drop-hint" :class="{ 'is-visible': schichtDragOverKey === schichtData.key }">
+                  <font-awesome-icon icon="fa-solid fa-arrow-down" />
+                  Mitarbeiter dieser Schicht zuordnen
                 </div>
               </div>
             </div>
@@ -1263,11 +1253,11 @@ import laufzettelIcon from '@/assets/laufzettel.png';
 import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
 import eventreportIcon from '@/assets/eventreport.png';
 import eventreportDarkIcon from '@/assets/eventreport-dark.png';
-import docusealLogoImg from '@/assets/docuseal-logo.webp';
 
 
 export default {
   name: "AuftraegePage",
+  emits: ['mitarbeiter-drop'],
   components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu, ReisekostenModal },
   setup() {
     const { openCustomer } = useCustomerModals();
@@ -1340,6 +1330,7 @@ export default {
       mobileDayIndex: 0,
       selectedMitarbeiter: null,
       preparedSchichten: [], // Lazy loaded schichten data
+      schichtDragOverKey: null,
       dataStatus: null, // Last import timestamp
       // ── Quick Actions ──────────────────────────────────────────────────────
       // Label dialog
@@ -1440,7 +1431,6 @@ export default {
     },
     laufzettelImg() { return this.isDark ? laufzettelDarkIcon : laufzettelIcon; },
     eventreportImg() { return this.isDark ? eventreportDarkIcon : eventreportIcon; },
-    docusealLogoImg() { return docusealLogoImg; },
     currentWeekEnd() {
       if (!this.currentWeekStart) return null;
       const end = new Date(this.currentWeekStart);
@@ -1708,6 +1698,9 @@ export default {
               einsaetze: [],
               meta: {
                 schichtBezeichnung: s.bezeichnung || null,
+                schichtId: s._id || null,
+                idAuftragArbeitsschichten: s.idAuftragArbeitsschichten || null,
+                datumVon: s.datumVon || null,
                 treffpunkt: s.treffpunkt || null,
                 treffpunktOrt: s.treffpunktOrt || null,
                 ansprechpartnerName: s.ansprechpartnerName || null,
@@ -1732,6 +1725,9 @@ export default {
               einsaetze: [],
               meta: {
                 schichtBezeichnung: e.schichtBezeichnung || null,
+                schichtId: null,
+                idAuftragArbeitsschichten: e.idAuftragArbeitsschichten || null,
+                datumVon: e.datumVon || null,
                 treffpunkt: e.treffpunkt || null,
                 treffpunktOrt: e.treffpunktOrt || null,
                 ansprechpartnerName: e.ansprechpartnerName || null,
@@ -1772,6 +1768,43 @@ export default {
       });
 
       return sortedEntries.map(([key, schicht]) => ({ key, ...schicht }));
+    },
+
+    hasMitarbeiterDragPayload(event) {
+      const types = Array.from(event.dataTransfer?.types || []);
+      return types.includes('application/x-straight-monitor-mitarbeiter') || types.includes('application/json');
+    },
+    handleSchichtDragEnter(event, schichtData) {
+      if (this.hasMitarbeiterDragPayload(event)) this.schichtDragOverKey = schichtData.key;
+    },
+    handleSchichtDragOver(event, schichtData) {
+      if (!this.hasMitarbeiterDragPayload(event)) return;
+      event.dataTransfer.dropEffect = 'move';
+      this.schichtDragOverKey = schichtData.key;
+    },
+    handleSchichtDragLeave(event, schichtData) {
+      if (event.currentTarget.contains(event.relatedTarget)) return;
+      if (this.schichtDragOverKey === schichtData.key) this.schichtDragOverKey = null;
+    },
+    handleMitarbeiterDrop(event, schichtData) {
+      this.schichtDragOverKey = null;
+      const rawPayload = event.dataTransfer?.getData('application/x-straight-monitor-mitarbeiter')
+        || event.dataTransfer?.getData('application/json');
+      if (!rawPayload) return;
+
+      try {
+        const mitarbeiter = JSON.parse(rawPayload);
+        if (!mitarbeiter?._id && !mitarbeiter?.mitarbeiterId) return;
+        this.$emit('mitarbeiter-drop', {
+          mitarbeiter,
+          auftragNr: this.selectedEvent?.auftragNr || null,
+          schichtId: schichtData.meta.schichtId,
+          idAuftragArbeitsschichten: schichtData.meta.idAuftragArbeitsschichten || schichtData.key,
+          datumVon: schichtData.meta.datumVon,
+        });
+      } catch (error) {
+        console.warn('Ungültiger Mitarbeiter-Drag-Payload:', error);
+      }
     },
 
     // Check if all einsaetze in a schicht have the same beruf
@@ -2304,20 +2337,6 @@ export default {
       if (!s || s === 'none') return 'bedarf-none';
       return `bedarf-${s}`;
     },
-    getSignaturIconFilter(event) {
-      const s = event.stundenlisteSignaturStatus;
-      if (s === 'open')      return 'hue-rotate(50deg) saturate(1.5) brightness(0.85)';
-      if (s === 'completed') return 'hue-rotate(110deg) saturate(1.3) brightness(0.9)';
-      // null, draft, or cancelled → red (not signed yet)
-      return 'hue-rotate(0deg) saturate(1.8) brightness(0.9)';
-    },
-    getSignaturIconTitle(event) {
-      const s = event.stundenlisteSignaturStatus;
-      if (s === 'completed') return 'Stundenliste signiert';
-      if (s === 'open')      return 'Signatur ausstehend';
-      if (s === 'draft')     return 'Signatur gestartet (Entwurf)';
-      return 'Keine Signatur';
-    },
     getSchichtenForDay(event, date) {
       if (!event.schichten?.length || !date) return [];
       const d = new Date(date);
@@ -2356,7 +2375,9 @@ export default {
     formatDateRange(start, end) {
       if (!start || !end) return '';
       const opts = { day: 'numeric', month: 'short', year: 'numeric' };
-      return `${start.toLocaleDateString('de-DE', opts)} - ${end.toLocaleDateString('de-DE', opts)}`;
+      const startDate = start.toLocaleDateString('de-DE', opts);
+      const endDate = end.toLocaleDateString('de-DE', opts);
+      return startDate === endDate ? startDate : `${startDate} - ${endDate}`;
     },
     formatDayDate(date) {
       const today = new Date();
@@ -3207,6 +3228,13 @@ export default {
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
+    .sidebar-date {
+      display: block;
+      margin-top: 3px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
   }
   
   .sidebar-status {
@@ -3359,63 +3387,71 @@ export default {
 .schicht-card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.schicht-card--drag-over {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 5%, var(--panel));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
 .schicht-header-compact {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
-  background: var(--hover);
+  padding: 11px 12px;
+  background: color-mix(in srgb, var(--surface) 70%, var(--panel));
   border-bottom: 1px solid var(--border);
   gap: 10px;
   
-  .schicht-time-info {
+  .schicht-summary {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 4px;
     min-width: 0;
-    
-    .schicht-time {
+
+    .schicht-title-line {
+      min-width: 0;
+    }
+
+    .schicht-detail-line {
       display: flex;
       align-items: center;
-      gap: 5px;
-      font-weight: 600;
-      font-size: 0.85rem;
-      color: var(--text);
-      
-      svg { color: var(--primary); font-size: 0.75rem; }
+      gap: 8px;
+      flex-wrap: wrap;
+      min-width: 0;
     }
     
     .schicht-name {
-      font-size: 0.8rem;
-      color: var(--muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      display: block;
+      font-size: 0.86rem;
+      font-weight: 650;
+      color: var(--text);
+      line-height: 1.3;
+      overflow-wrap: anywhere;
     }
   }
 }
 
-.bedarf-badge {
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 6px;
-  white-space: nowrap;
-  
-  &.met {
-    background: #d1fae5;
-    color: #065f46;
-  }
-  
-  &.unmet {
-    background: #fef3c7;
-    color: #92400e;
-  }
+.schicht-quali {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, #10b981 35%, var(--border));
+  border-radius: 4px;
+  background: color-mix(in srgb, #10b981 10%, transparent);
+  color: #0f8a62;
+  font-size: 0.62rem;
+  font-weight: 650;
+  line-height: 1.25;
+
+  svg { flex: 0 0 auto; font-size: 0.56rem; }
 }
 
 .schicht-meta {
@@ -3447,14 +3483,6 @@ export default {
   }
 }
 
-.schicht-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-}
-
 .badge {
   font-size: 0.7rem;
   font-weight: 500;
@@ -3483,7 +3511,52 @@ export default {
 }
 
 .mitarbeiter-list {
-  padding: 6px 0;
+  padding: 0 0 4px;
+}
+
+.mitarbeiter-list-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 12px 5px;
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+.team-head-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.team-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 650;
+  white-space: nowrap;
+
+  svg { color: var(--primary); font-size: 0.58rem; }
+}
+
+.team-coverage {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+
+  &.met {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  &.unmet {
+    background: #fef3c7;
+    color: #92400e;
+  }
 }
 
 .mitarbeiter-row {
@@ -3566,6 +3639,44 @@ export default {
     font-size: 1.5rem;
     opacity: 0.5;
   }
+}
+
+.no-mitarbeiter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 14px 12px;
+
+  svg {
+    display: inline;
+    margin: 0;
+    font-size: 0.8rem;
+  }
+}
+
+.schicht-drop-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  max-height: 0;
+  overflow: hidden;
+  border-top: 0 solid transparent;
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 650;
+  opacity: 0;
+  transition: max-height 0.15s, padding 0.15s, opacity 0.15s;
+}
+
+.schicht-drop-hint.is-visible {
+  max-height: 40px;
+  padding: 9px 12px;
+  border-top-width: 1px;
+  border-top-color: color-mix(in srgb, var(--primary) 24%, transparent);
+  opacity: 1;
 }
 
 .page-header {
@@ -3734,32 +3845,6 @@ export default {
   &::-webkit-scrollbar { display: none; }
 }
 
-.btn-create-pseudo {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  margin-left: auto;
-  padding: 6px 14px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  white-space: nowrap;
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: border-color 0.15s, color 0.15s;
-  &:hover { border-color: var(--primary); color: var(--primary); }
-
-  @media (max-width: 768px) {
-    margin-left: 0;
-    padding: 6px 10px;
-    .btn-pseudo-text { display: none; }
-  }
-}
-
 .nav-btn {
   display: flex;
   align-items: center;
@@ -3818,8 +3903,10 @@ export default {
   font-size: 0.88rem;
   font-weight: 700;
   color: var(--text);
-  flex: 1 1 auto;
-  padding: 4px 14px;
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: 100%;
+  padding: 4px 10px;
   white-space: nowrap;
   background: var(--tile-bg);
   border: 1px solid var(--border);
@@ -4494,6 +4581,16 @@ export default {
   :deep(.search-bar-root) { width: 100%; }
 }
 
+.desktop-search {
+  flex: 1 1 320px;
+  max-width: 520px;
+
+  :deep(input) {
+    width: auto;
+    flex: 1 1 auto;
+  }
+}
+
 .mdn-search {
   max-width: 140px;
   flex: 0 1 140px;
@@ -4636,17 +4733,6 @@ export default {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-}
-
-.sig-status-icon {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
-  border-radius: 3px;
-  pointer-events: none;
 }
 
 .event-title {
