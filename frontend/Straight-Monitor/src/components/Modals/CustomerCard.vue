@@ -90,6 +90,22 @@
             <span class="label">Kunde seit</span>
             <span class="value">{{ formatDate(kunde.kundeSeit) }}</span>
           </div>
+          <div class="kv-item">
+            <span class="label">Debitorenkonto</span>
+            <span class="value">{{ kunde.zvoove_debitorkonto || '—' }}</span>
+          </div>
+          <div class="kv-item">
+            <span class="label">USt-IdNr.</span>
+            <span class="value">{{ kunde.ustId || '—' }}</span>
+          </div>
+          <div class="kv-item">
+            <span class="label">Steuernummer</span>
+            <span class="value">{{ kunde.steuerNummer || '—' }}</span>
+          </div>
+          <div class="kv-item">
+            <span class="label">Handelsregister-Nr.</span>
+            <span class="value">{{ kunde.handelsregisterNr || '—' }}</span>
+          </div>
         </div>
       </section>
 
@@ -269,11 +285,10 @@
           <div v-for="(adr, index) in kundenAdressen" :key="adr.nummer || index" class="address-card">
             <div class="address-header">
               <div class="address-header-content">
-                <span class="address-name">{{ adr.name || 'Adresse ' + (index + 1) }}</span>
-                <div v-if="adr.isRechnAdr || adr.isPostAdr || adr.branche" class="address-tags">
+                <span class="address-name">{{ formatAddressName(adr, 'Adresse ' + (index + 1)) }}</span>
+                <div v-if="adr.isRechnAdr || adr.isPostAdr" class="address-tags">
                   <span v-if="adr.isRechnAdr" class="address-billing-badge">Rechnungsanschrift</span>
                   <span v-if="adr.isPostAdr" class="address-postal-badge">Postanschrift</span>
-                  <span v-if="adr.branche" class="address-branche">{{ adr.branche }}</span>
                 </div>
               </div>
               <button
@@ -510,15 +525,25 @@
           <font-awesome-icon :icon="['fas', 'file-invoice']" /> Rechnungsanschrift
         </h4>
 
+        <div class="kv-grid">
+          <div class="kv-item">
+            <span class="label">Sammelrechnung</span>
+            <span class="value">{{ kunde.sammelrechnung ? 'Ja' : 'Nein' }}</span>
+          </div>
+          <div class="kv-item">
+            <span class="label">L1-Rechnungsgruppe</span>
+            <span class="value">{{ kunde.l1RechGruppe || '—' }}</span>
+          </div>
+        </div>
+
         <div v-if="rechnungsanschrift" class="addresses-list">
           <div class="address-card">
             <div class="address-header">
               <div class="address-header-content">
-                <span class="address-name">{{ rechnungsanschrift.name || 'Rechnungsanschrift' }}</span>
+                <span class="address-name">{{ formatAddressName(rechnungsanschrift, 'Rechnungsanschrift') }}</span>
                 <div class="address-tags">
                   <span class="address-billing-badge">Rechnungsanschrift</span>
                   <span v-if="rechnungsanschrift.isPostAdr" class="address-postal-badge">Postanschrift</span>
-                  <span v-if="rechnungsanschrift.branche" class="address-branche">{{ rechnungsanschrift.branche }}</span>
                 </div>
               </div>
               <button
@@ -1753,6 +1778,10 @@ function getGoogleMapsUrl(address = {}) {
 function formatAnsprechpartnerName(name) {
   const parts = String(name || '').split(',').map((part) => part.trim()).filter(Boolean);
   return parts.length > 1 ? [...parts.slice(1), parts[0]].join(' ') : parts[0] || '';
+}
+
+function formatAddressName(address, fallback) {
+  return [address?.name, address?.branche].filter(Boolean).join(' ') || fallback;
 }
 
 function closeSatelliteDialogs() {

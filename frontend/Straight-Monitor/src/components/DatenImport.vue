@@ -10,7 +10,7 @@
     <div class="last-import-section">
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'adressen', 'einsatzort', 'beruf', 'qualifikation', 'rechnung', 'kundenpreis', 'personalnr-history'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
+        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'adressen', 'kunden', 'einsatzort', 'beruf', 'qualifikation', 'rechnung', 'kundenpreis', 'personalnr-history'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -251,6 +251,45 @@
                   <table class="req-table"><tbody>
                     <tr><td>A - Prüffeld (3202)</td><td>B - AUFTRAGNR</td><td>C - BEZEICHN</td></tr>
                     <tr><td>ADRESSE, ADRESSE_PLZ, ADRESSE_ORT</td><td>ADRESSNAME, BUNDESLAND</td><td>ADRNR</td></tr>
+                  </tbody></table>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kundenstammdaten -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Kunden (Liste 3203)</h2>
+              <p class="subtitle">Kundenstammdaten sowie Post- und Rechnungsanschrift</p>
+            </div>
+            <span v-if="kundenFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area"
+              :class="{ 'has-file': kundenFile }"
+              @dragover.prevent
+              @drop="(e) => handleDragAndDrop(e, 'kunden')"
+              @click="triggerFileInput('kunden-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="kundenFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!kundenFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ kundenFile.name }}</span>
+                </div>
+              </div>
+              <input id="kunden-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'kunden')" accept=".xlsx, .xls" />
+            </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Erwartete SQL-Export Struktur</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody>
+                    <tr><td>A - Prüffeld (3203)</td><td>KUNDENNR, KUNDNAME</td><td>ADRNR1, ADRNR2</td></tr>
+                    <tr><td>DEBITORKTO, KUNDESEIT, KUNDSTATUS</td><td>SAMMELRECH, USTID</td><td>STEUERNUMMER, HANDELSREGISTERNR</td></tr>
                   </tbody></table>
                 </div>
               </details>
@@ -717,6 +756,7 @@ export default {
       personalnrHistoryFile: null,
       adressenFile: null,
       einsatzortFile: null,
+      kundenFile: null,
       loading: false,
       // Modal state
       showResultModal: false,
@@ -748,6 +788,7 @@ export default {
     getLabel(type) {
       const labels = {
         kunde: 'Kunden',
+        kunden: 'Kunden',
         einsatz: 'Einsätze (Legacy)',
         'einsatz-komplett': 'Zvoove Komplett Import',
         personal: 'Personal',
@@ -788,7 +829,7 @@ export default {
     },
     async setFile(file, type) {
       // Validate Prüffeld for einsatz/personal imports
-      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : type === 'verfuegbarkeit' ? 7003 : type === 'adressen' ? 7034 : type === 'einsatzort' ? 3202 : type === 'rechnung' ? 6001 : type === 'kundenpreis' ? 3202 : type === 'personalnr-history' ? 3201 : null;
+      const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : type === 'verfuegbarkeit' ? 7003 : type === 'adressen' ? 7034 : type === 'einsatzort' ? 3202 : type === 'kunden' ? 3203 : type === 'rechnung' ? 6001 : type === 'kundenpreis' ? 3202 : type === 'personalnr-history' ? 3201 : null;
       if (expectedCode) {
         const valid = await this.validatePrueffeld(file, expectedCode);
         if (!valid) return;
@@ -803,6 +844,7 @@ export default {
       if (type === 'personalnr-history') this.personalnrHistoryFile = file;
       if (type === 'adressen') this.adressenFile = file;
       if (type === 'einsatzort') this.einsatzortFile = file;
+      if (type === 'kunden') this.kundenFile = file;
     },
     validatePrueffeld(file, expectedCode) {
       return new Promise((resolve) => {
@@ -821,7 +863,7 @@ export default {
             }
             const prueffeld = parseInt(rows[startRow][0], 10);
             if (prueffeld !== expectedCode) {
-              const labels = { 7001: 'Einsatz-Komplett (Liste 7001)', 7002: 'Personal (Liste 7002)', 7003: 'Verfügbarkeiten (Liste 7003)', 7034: 'Adressen (Liste 7034)', 6001: 'Rechnungen (Liste 6001)', 3201: 'Personalnr-Historien (Liste 3201)', 3202: 'Einsatzorte / Kundenpreise' };
+              const labels = { 7001: 'Einsatz-Komplett (Liste 7001)', 7002: 'Personal (Liste 7002)', 7003: 'Verfügbarkeiten (Liste 7003)', 7034: 'Adressen (Liste 7034)', 6001: 'Rechnungen (Liste 6001)', 3201: 'Personalnr-Historien (Liste 3201)', 3202: 'Einsatzorte / Kundenpreise', 3203: 'Kunden' };
               alert(`⚠️ Prüffeld-Fehler: Spalte A enthält "${rows[startRow][0] ?? '(leer)'}" – erwartet wird ${expectedCode} (${labels[expectedCode]}).`);
               resolve(false);
               return;
@@ -842,7 +884,7 @@ export default {
         return;
       }
 
-      const adminFiles = this.isAdmin ? [this.adressenFile, this.einsatzortFile, this.berufFile, this.qualifikationFile, this.rechnungFile, this.kundenpreisFile, this.personalnrHistoryFile] : [];
+      const adminFiles = this.isAdmin ? [this.adressenFile, this.einsatzortFile, this.kundenFile, this.berufFile, this.qualifikationFile, this.rechnungFile, this.kundenpreisFile, this.personalnrHistoryFile] : [];
       const fileCount = [this.einsatzFile, this.personalFile, this.verfuegbarkeitFile, ...adminFiles].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
@@ -879,6 +921,12 @@ export default {
         if (this.einsatzortFile && this.isAdmin) {
           const response = await this.uploadFile(this.einsatzortFile, 'einsatzorte');
           results.push({ type: 'Einsatzorte', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.kundenFile && this.isAdmin) {
+          const response = await this.uploadFile(this.kundenFile, 'kunden');
+          results.push({ type: 'Kunden', ...response });
           if (!response.success) hasErrors = true;
         }
 
@@ -1115,10 +1163,11 @@ export default {
       this.personalnrHistoryFile = null;
       this.adressenFile = null;
       this.einsatzortFile = null;
+      this.kundenFile = null;
       this.fetchLastUploads();
     },
     hasAnyFile() {
-      const adminFiles = this.isAdmin ? (this.adressenFile || this.einsatzortFile || this.berufFile || this.qualifikationFile || this.rechnungFile || this.kundenpreisFile || this.personalnrHistoryFile) : false;
+      const adminFiles = this.isAdmin ? (this.adressenFile || this.einsatzortFile || this.kundenFile || this.berufFile || this.qualifikationFile || this.rechnungFile || this.kundenpreisFile || this.personalnrHistoryFile) : false;
       return this.einsatzFile || this.personalFile || this.verfuegbarkeitFile || adminFiles;
     },
 

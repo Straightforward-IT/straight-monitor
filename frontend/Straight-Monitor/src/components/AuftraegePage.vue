@@ -1545,6 +1545,12 @@ export default {
           action: 'open',
           variant: 'primary',
         },
+        {
+          label: 'Pseudo-MA einplanen',
+          icon: 'fa-solid fa-user-plus',
+          action: 'plan-pseudo',
+          variant: 'primary',
+        },
       ];
     },
     activeFilterCount() {
@@ -1883,7 +1889,7 @@ export default {
     openOrderContextMenu(event, auftrag) {
       if (!auftrag) return;
       const menuW = 200;
-      const menuH = 80;
+      const menuH = 120;
       const x = event.clientX + menuW > window.innerWidth ? event.clientX - menuW : event.clientX;
       const y = event.clientY + menuH > window.innerHeight ? event.clientY - menuH : event.clientY;
 
@@ -1898,12 +1904,17 @@ export default {
       this.contextMenu.open = false;
       this.contextMenu.event = null;
     },
-    handleOrderContextMenuAction({ item }) {
-      if (!this.contextMenu.event) return;
-      if (item?.action === 'open') {
-        this.selectEvent(this.contextMenu.event);
-      }
+    async handleOrderContextMenuAction({ item }) {
+      const auftrag = this.contextMenu.event;
+      if (!auftrag) return;
       this.closeOrderContextMenu();
+
+      if (item?.action === 'open') {
+        await this.selectEvent(auftrag);
+      } else if (item?.action === 'plan-pseudo') {
+        await this.selectEvent(auftrag);
+        this.openPseudoDialog();
+      }
     },
     onSearchFocusIn(e) {
       const rect = e.currentTarget.getBoundingClientRect();

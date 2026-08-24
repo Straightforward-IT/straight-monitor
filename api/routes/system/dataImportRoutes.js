@@ -1719,6 +1719,114 @@ router.post('/kundenpreis', auth, extendTimeout, upload.single('file'), async (r
   }
 });
 
+// --- Kundenstammdaten Import (Liste 3203) ---
+router.post('/kunden', auth, extendTimeout, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true }).map(cleanKeys);
+    const customerOperations = [];
+    const addressOperations = [];
+    const referencedAddressNumbers = new Set();
+    let invalid = 0;
+
+    for (const row of rows) {
+      if (Number(row.CODE) !== 3203 || !Number.isInteger(Number(row.KUNDENNR))) {
+        invalid += 1;
+        continue;
+      }
+
+      const kundenNr = Number(row.KUNDENNR);
+      const bemerkung = [row.BEMERKUNG2, row.CHEFANW, row.BONUSTEXT]
+        .map(optionalText)
+        .filter(Boolean);
+      const postAdresseNr = optionalText(row.ADRNR1);
+      const rechnungsAdresseNr = optionalText(row.ADRNR2);
+      if (postAdresseNr) referencedAddressNumbers.add(postAdresseNr);
+      if (rechnungsAdresseNr) referencedAddressNumbers.add(rechnungsAdresseNr);
+
+      customerOperations.push({
+        updateOne: {
+          filter: { kundenNr },
+          update: {
+            $set: {
+              kundName: optionalText(row.KUNDNAME),
+              kundeSeit: parseExcelDate(row.KUNDESEIT),
+              kundStatus: Number.isInteger(Number(row.KUNDSTATUS)) ? Number(row.KUNDSTATUS) : null,
+              geschSt: optionalText(row.GESCHST),
+              kostenSt: optionalText(row.KOSTENST),
+              zvoove_debitorkonto: optionalText(row.DEBITORKTO),
+              sammelrechnung: String(row.SAMMELRECH || '').trim().toUpperCase() === 'A',
+              ustId: optionalText(row.USTID),
+              steuerNummer: optionalText(row.STEUERNUMMER),
+              handelsregisterNr: optionalText(row.HANDELSREGISTERNR),
+              l1RechGruppe: optionalText(row.L1RECHGRUPPE),
+              bemerkung,
+            },
+          },
+          upsert: true,
+        },
+      });
+
+      addressOperations.push({
+        updateMany: {
+          filter: { knr: String(kundenNr) },
+          update: { $set: { isPostAdr: false, isRechnAdr: false } },
+        },
+      });
+      if (postAdresseNr) {
+        addressOperations.push({
+          updateOne: {
+            filter: { nummer: postAdresseNr },
+            update: { $set: { knr: String(kundenNr), isPostAdr: true } },
+          },
+        });
+      }
+      if (rechnungsAdresseNr) {
+        addressOperations.push({
+          updateOne: {
+            filter: { nummer: rechnungsAdresseNr },
+            update: { $set: { knr: String(kundenNr), isRechnAdr: true } },
+          },
+        });
+      }
+    }
+
+    const existingAddressNumbers = new Set((await Adresse.find({
+      nummer: { $in: [...referencedAddressNumbers] },
+    }).select('nummer').lean()).map((adresse) => adresse.nummer));
+    const missingAddresses = [...referencedAddressNumbers]
+      .filter((nummer) => !existingAddressNumbers.has(nummer)).length;
+
+    const [customerResult, addressResult] = await Promise.all([
+      customerOperations.length ? Kunde.bulkWrite(customerOperations) : null,
+      addressOperations.length ? Adresse.bulkWrite(addressOperations, { ordered: false }) : null,
+    ]);
+    const details = {
+      total: rows.length,
+      inserted: customerResult?.upsertedCount || 0,
+      updated: customerResult?.modifiedCount || 0,
+      unchanged: customerOperations.length - (customerResult?.upsertedCount || 0) - (customerResult?.modifiedCount || 0),
+      invalid,
+      addressUpdated: addressResult?.modifiedCount || 0,
+      missingAddresses,
+    };
+    const hasWarnings = invalid || missingAddresses;
+    const message = `${customerOperations.length} Kunden verarbeitet: ${details.inserted} neu, ${details.updated} aktualisiert.${hasWarnings ? ` ${invalid + missingAddresses} Zeilen mit Warnungen.` : ''}`;
+
+    await logImport('kunden', req.file.originalname, hasWarnings ? 'warning' : 'success', customerOperations.length, details, req.user?.id);
+    res.json({ success: true, message, details });
+  } catch (error) {
+    logger.error('Import Kundenstammdaten Error:', error);
+    await logImport('kunden', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Kundenstammdaten.', error: error.message });
+  }
+});
+
 // --- Personal Qualifikation/Beruf Import ---
 router.post('/personal_quali', auth, upload.single('file'), async (req, res) => {
   try {

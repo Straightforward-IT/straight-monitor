@@ -36,6 +36,36 @@ const KundeSchema = new mongoose.Schema({
     type: String, // KOSTENST
     required: false
   },
+  zvoove_debitorkonto: {
+    type: String, // DEBITORKTO
+    required: false,
+    default: null
+  },
+  sammelrechnung: {
+    type: Boolean, // SAMMELRECH: A = true
+    required: false,
+    default: false
+  },
+  ustId: {
+    type: String, // USTID
+    required: false,
+    default: null
+  },
+  steuerNummer: {
+    type: String, // STEUERNUMMER
+    required: false,
+    default: null
+  },
+  handelsregisterNr: {
+    type: String, // HANDELSREGISTERNR
+    required: false,
+    default: null
+  },
+  l1RechGruppe: {
+    type: String, // L1RECHGRUPPE
+    required: false,
+    default: null
+  },
   kuerzel: {
     type: String,
     required: false,
