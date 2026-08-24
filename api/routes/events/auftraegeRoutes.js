@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const mongoose = require('mongoose');
 const auth = require('../../middleware/auth');
 const Auftrag = require('../../models/Event/Auftrag');
 const Einsatz = require('../../models/Event/Einsatz');
@@ -26,6 +27,79 @@ const uploadMem = multer({
 const EINSATZ_DOK_PREFIX = (auftragNr) => `Auftraege/${auftragNr}/docs/`;
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const AUFTRAG_EDITABLE_FIELDS = new Set([
+  'geschSt', 'locationV2', 'kundenNr', 'eventTitel', 'bediener',
+  'dtAngelegtAm', 'bestDatum', 'vonDatum', 'bisDatum',
+  'eventStrasse', 'eventPlz', 'eventOrt', 'eventLocation',
+  'aktiv', 'auftStatus', 'referenz', 'excludedTeamleiter',
+  'statusOverrideTeamleiter', 'labels',
+]);
+const SCHICHT_EDITABLE_FIELDS = new Set([
+  'bezeichnung', 'treffpunkt', 'treffpunktOrt', 'ansprechpartnerName',
+  'ansprechpartnerTelefon', 'ansprechpartnerEmail', 'letzteAusschreibung',
+  'datumVon', 'datumBis', 'uhrzeitVon', 'uhrzeitBis', 'typ', 'bedarf',
+  'garantiestundenLohn', 'endeOffen',
+]);
+const EINSATZ_EDITABLE_FIELDS = new Set([
+  'mitarbeiterId', 'personalNr', 'berufSchl', 'qualSchl', 'bezeichnung', 'datumVon',
+  'datumBis', 'cProtBediener', 'dtProtDatum', 'idAuftragArbeitsschichten',
+  'schichtBezeichnung', 'treffpunkt', 'treffpunktOrt',
+  'ansprechpartnerName', 'ansprechpartnerTelefon', 'ansprechpartnerEmail',
+  'letzteAusschreibung', 'detailDatumVon', 'detailDatumBis', 'uhrzeitVon',
+  'uhrzeitBis', 'typ', 'bedarf', 'garantiestundenLohn', 'endeOffen',
+]);
+const DATE_FIELDS = new Set([
+  'dtAngelegtAm', 'bestDatum', 'vonDatum', 'bisDatum', 'letzteAusschreibung',
+  'datumVon', 'datumBis', 'dtProtDatum', 'detailDatumVon', 'detailDatumBis',
+]);
+const NUMBER_FIELDS = new Set([
+  'kundenNr', 'aktiv', 'auftStatus', 'bedarf', 'garantiestundenLohn',
+  'endeOffen', 'personalNr', 'idAuftragArbeitsschichten',
+]);
+const TIME_FIELDS = new Set(['uhrzeitVon', 'uhrzeitBis']);
+
+function validationError(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+}
+
+function normalizeEditablePatch(body, allowedFields) {
+  const input = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+  const unknownFields = Object.keys(input).filter(key => !allowedFields.has(key));
+  if (unknownFields.length) {
+    throw validationError(`Nicht editierbare Felder: ${unknownFields.join(', ')}`);
+  }
+  if (!Object.keys(input).length) throw validationError('Keine Änderungen übermittelt');
+
+  return Object.fromEntries(Object.entries(input).map(([key, value]) => {
+    if (value === null) return [key, null];
+    if (DATE_FIELDS.has(key)) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) throw validationError(`${key} ist kein gültiges Datum`);
+      return [key, date];
+    }
+    if (NUMBER_FIELDS.has(key)) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) throw validationError(`${key} muss eine Zahl sein`);
+      return [key, number];
+    }
+    if (TIME_FIELDS.has(key) && value !== '') {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value))) {
+        throw validationError(`${key} muss das Format HH:MM haben`);
+      }
+      return [key, String(value)];
+    }
+    return [key, value];
+  }));
+}
+
+function parseAuftragNr(value) {
+  const auftragNr = Number.parseInt(value, 10);
+  if (!Number.isInteger(auftragNr)) throw validationError('Ungültige Auftragsnummer');
+  return auftragNr;
+}
 
 // GET /api/auftraege/search - Full-database search across all orders (ignores date range)
 // Query params: q (string), locationV2 (optional ObjectId), limit (default 25)
@@ -381,7 +455,7 @@ router.get('/:auftragNr/details', async (req, res) => {
 
     const [mitarbeiterList, berufList, qualiList] = await Promise.all([
       personalNrs.length ? Mitarbeiter.find({ $or: [{ personalnr: { $in: personalNrs } }, { personalnummern: { $in: personalNrs } }] })
-        .select('vorname nachname email personalnr personalnummern qualifikationen flip_id isBewerberstatus')
+        .select('vorname nachname email personalnr personalnummern qualifikationen flip_id profilbild persgruppe isActive isBewerberstatus')
         .populate('qualifikationen')
         .lean() : [],
       berufKeys.length ? Beruf.find({ jobKey: { $in: berufKeys } }).lean() : [],
@@ -857,6 +931,224 @@ router.post('/:auftragNr/pseudo-einsatz', asyncHandler(async (req, res) => {
       personalnr: mitarbeiter.personalnr,
     }
   });
+}));
+
+// ─────────────────────────────────────────────────────────────
+// EDITABLE EVENT RESOURCES
+// ─────────────────────────────────────────────────────────────
+
+router.patch('/:auftragNr', auth, asyncHandler(async (req, res) => {
+  const auftragNr = parseAuftragNr(req.params.auftragNr);
+  const patch = normalizeEditablePatch(req.body, AUFTRAG_EDITABLE_FIELDS);
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'locationV2') && patch.locationV2) {
+    const location = await resolveActiveLocation(patch.locationV2);
+    if (!location) throw validationError('Der gewählte Standort ist nicht aktiv oder existiert nicht');
+    patch.locationV2 = location._id;
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'kundenNr') && patch.kundenNr !== null) {
+    const customerExists = await Kunde.exists({ kundenNr: patch.kundenNr });
+    if (!customerExists) throw validationError('Kunde nicht gefunden');
+  }
+  for (const key of ['excludedTeamleiter', 'statusOverrideTeamleiter']) {
+    if (!Object.prototype.hasOwnProperty.call(patch, key)) continue;
+    if (!Array.isArray(patch[key]) || patch[key].some(id => !mongoose.isValidObjectId(id))) {
+      throw validationError(`${key} muss gültige Mitarbeiter-IDs enthalten`);
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'labels')) {
+    if (!Array.isArray(patch.labels) || patch.labels.some(label => (
+      !label?.name || String(label.name).trim().length > 20
+    ))) {
+      throw validationError('Labels benötigen einen Namen mit maximal 20 Zeichen');
+    }
+    patch.labels = patch.labels.map(label => ({
+      name: String(label.name).trim(),
+      color: String(label.color || '#4f46e5').trim(),
+    }));
+  }
+
+  const auftrag = await Auftrag.findOneAndUpdate(
+    { auftragNr },
+    { $set: patch },
+    { new: true, runValidators: true }
+  ).populate('locationV2', 'nameFull shortName color externalId');
+  if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
+
+  logger.info(`Auftrag ${auftragNr} edited by user ${req.user?.id || 'unknown'}: ${Object.keys(patch).join(', ')}`);
+  res.json(auftrag);
+}));
+
+router.patch('/:auftragNr/schichten/:schichtId', auth, asyncHandler(async (req, res) => {
+  const auftragNr = parseAuftragNr(req.params.auftragNr);
+  if (!mongoose.isValidObjectId(req.params.schichtId)) throw validationError('Ungültige Schicht-ID');
+  const patch = normalizeEditablePatch(req.body, SCHICHT_EDITABLE_FIELDS);
+
+  const schicht = await Schicht.findOneAndUpdate(
+    { _id: req.params.schichtId, auftragNr },
+    { $set: patch },
+    { new: true, runValidators: true }
+  );
+  if (!schicht) return res.status(404).json({ message: 'Schicht nicht gefunden' });
+
+  const einsatzPatch = {};
+  const copiedFields = [
+    'treffpunkt', 'treffpunktOrt', 'ansprechpartnerName',
+    'ansprechpartnerTelefon', 'ansprechpartnerEmail', 'letzteAusschreibung',
+    'uhrzeitVon', 'uhrzeitBis', 'typ', 'bedarf', 'garantiestundenLohn', 'endeOffen',
+  ];
+  copiedFields.forEach(key => {
+    if (Object.prototype.hasOwnProperty.call(patch, key)) einsatzPatch[key] = patch[key];
+  });
+  if (Object.prototype.hasOwnProperty.call(patch, 'bezeichnung')) {
+    einsatzPatch.schichtBezeichnung = patch.bezeichnung;
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'datumVon')) {
+    einsatzPatch.datumVon = patch.datumVon;
+    einsatzPatch.detailDatumVon = patch.datumVon;
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'datumBis')) {
+    einsatzPatch.datumBis = patch.datumBis;
+    einsatzPatch.detailDatumBis = patch.datumBis;
+  }
+  if (Object.keys(einsatzPatch).length) {
+    await Einsatz.updateMany(
+      { auftragNr, idAuftragArbeitsschichten: schicht.idAuftragArbeitsschichten },
+      { $set: einsatzPatch },
+      { runValidators: true }
+    );
+  }
+
+  logger.info(`Schicht ${schicht._id} in Auftrag ${auftragNr} edited by user ${req.user?.id || 'unknown'}: ${Object.keys(patch).join(', ')}`);
+  res.json(schicht);
+}));
+
+router.post('/:auftragNr/einsaetze', auth, asyncHandler(async (req, res) => {
+  const auftragNr = parseAuftragNr(req.params.auftragNr);
+  const { mitarbeiterId, schichtId } = req.body || {};
+  if (!mongoose.isValidObjectId(mitarbeiterId)) throw validationError('Ungültige Mitarbeiter-ID');
+  if (!mongoose.isValidObjectId(schichtId)) throw validationError('Ungültige Schicht-ID');
+
+  const [auftrag, mitarbeiter, schicht] = await Promise.all([
+    Auftrag.findOne({ auftragNr }).lean(),
+    Mitarbeiter.findById(mitarbeiterId).lean(),
+    Schicht.findOne({ _id: schichtId, auftragNr }).lean(),
+  ]);
+  if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
+  if (!mitarbeiter) return res.status(404).json({ message: 'Mitarbeiter nicht gefunden' });
+  if (!schicht) return res.status(404).json({ message: 'Schicht nicht gefunden' });
+
+  const personalNr = Number.parseInt(mitarbeiter.personalnr, 10);
+  if (!Number.isInteger(personalNr)) throw validationError('Mitarbeiter hat keine gültige Personalnummer');
+  const duplicate = await Einsatz.exists({
+    auftragNr,
+    personalNr,
+    idAuftragArbeitsschichten: schicht.idAuftragArbeitsschichten,
+  });
+  if (duplicate) return res.status(409).json({ message: 'Mitarbeiter ist bereits in dieser Schicht eingeplant' });
+
+  const einsatz = await Einsatz.create({
+    auftragNr,
+    locationV2: auftrag.locationV2 || null,
+    personalNr,
+    idAuftragArbeitsschichten: schicht.idAuftragArbeitsschichten,
+    schichtBezeichnung: schicht.bezeichnung,
+    datumVon: schicht.datumVon || auftrag.vonDatum,
+    datumBis: schicht.datumBis || auftrag.bisDatum,
+    detailDatumVon: schicht.datumVon,
+    detailDatumBis: schicht.datumBis,
+    uhrzeitVon: schicht.uhrzeitVon,
+    uhrzeitBis: schicht.uhrzeitBis,
+    treffpunkt: schicht.treffpunkt,
+    treffpunktOrt: schicht.treffpunktOrt,
+    ansprechpartnerName: schicht.ansprechpartnerName,
+    ansprechpartnerTelefon: schicht.ansprechpartnerTelefon,
+    ansprechpartnerEmail: schicht.ansprechpartnerEmail,
+    typ: schicht.typ,
+    bedarf: schicht.bedarf,
+    garantiestundenLohn: schicht.garantiestundenLohn,
+    endeOffen: schicht.endeOffen,
+    isPseudo: false,
+  });
+
+  logger.info(`Einsatz ${einsatz._id} created in Auftrag ${auftragNr} by user ${req.user?.id || 'unknown'}`);
+  res.status(201).json(einsatz);
+}));
+
+router.patch('/:auftragNr/einsaetze/:einsatzId', auth, asyncHandler(async (req, res) => {
+  const auftragNr = parseAuftragNr(req.params.auftragNr);
+  if (!mongoose.isValidObjectId(req.params.einsatzId)) throw validationError('Ungültige Einsatz-ID');
+  const patch = normalizeEditablePatch(req.body, EINSATZ_EDITABLE_FIELDS);
+  const mitarbeiterId = patch.mitarbeiterId;
+  delete patch.mitarbeiterId;
+
+  if (mitarbeiterId !== undefined) {
+    if (!mongoose.isValidObjectId(mitarbeiterId)) throw validationError('Ungültige Mitarbeiter-ID');
+    const mitarbeiter = await Mitarbeiter.findById(mitarbeiterId).lean();
+    if (!mitarbeiter) return res.status(404).json({ message: 'Mitarbeiter nicht gefunden' });
+    patch.personalNr = Number.parseInt(mitarbeiter.personalnr, 10);
+    if (!Number.isInteger(patch.personalNr)) throw validationError('Mitarbeiter hat keine gültige Personalnummer');
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'idAuftragArbeitsschichten')) {
+    const targetShift = await Schicht.findOne({
+      auftragNr,
+      idAuftragArbeitsschichten: patch.idAuftragArbeitsschichten,
+    }).lean();
+    if (!targetShift) throw validationError('Zielschicht nicht gefunden');
+
+    const targetShiftFields = {
+      locationV2: targetShift.locationV2,
+      schichtBezeichnung: targetShift.bezeichnung,
+      datumVon: targetShift.datumVon,
+      datumBis: targetShift.datumBis,
+      detailDatumVon: targetShift.datumVon,
+      detailDatumBis: targetShift.datumBis,
+      uhrzeitVon: targetShift.uhrzeitVon,
+      uhrzeitBis: targetShift.uhrzeitBis,
+      treffpunkt: targetShift.treffpunkt,
+      treffpunktOrt: targetShift.treffpunktOrt,
+      ansprechpartnerName: targetShift.ansprechpartnerName,
+      ansprechpartnerTelefon: targetShift.ansprechpartnerTelefon,
+      ansprechpartnerEmail: targetShift.ansprechpartnerEmail,
+      typ: targetShift.typ,
+      bedarf: targetShift.bedarf,
+      garantiestundenLohn: targetShift.garantiestundenLohn,
+      endeOffen: targetShift.endeOffen,
+    };
+    Object.entries(targetShiftFields).forEach(([key, value]) => {
+      if (!Object.prototype.hasOwnProperty.call(patch, key) && value !== undefined) patch[key] = value;
+    });
+  }
+
+  const current = await Einsatz.findOne({ _id: req.params.einsatzId, auftragNr }).lean();
+  if (!current) return res.status(404).json({ message: 'Einsatz nicht gefunden' });
+  const personalNr = patch.personalNr ?? current.personalNr;
+  const shiftKey = patch.idAuftragArbeitsschichten ?? current.idAuftragArbeitsschichten;
+  const duplicate = await Einsatz.exists({
+    _id: { $ne: current._id },
+    auftragNr,
+    personalNr,
+    idAuftragArbeitsschichten: shiftKey,
+  });
+  if (duplicate) return res.status(409).json({ message: 'Mitarbeiter ist bereits in dieser Schicht eingeplant' });
+
+  const einsatz = await Einsatz.findByIdAndUpdate(
+    current._id,
+    { $set: patch },
+    { new: true, runValidators: true }
+  );
+  logger.info(`Einsatz ${einsatz._id} in Auftrag ${auftragNr} edited by user ${req.user?.id || 'unknown'}: ${Object.keys(patch).join(', ')}`);
+  res.json(einsatz);
+}));
+
+router.delete('/:auftragNr/einsaetze/:einsatzId', auth, asyncHandler(async (req, res) => {
+  const auftragNr = parseAuftragNr(req.params.auftragNr);
+  if (!mongoose.isValidObjectId(req.params.einsatzId)) throw validationError('Ungültige Einsatz-ID');
+  const einsatz = await Einsatz.findOneAndDelete({ _id: req.params.einsatzId, auftragNr });
+  if (!einsatz) return res.status(404).json({ message: 'Einsatz nicht gefunden' });
+
+  logger.info(`Einsatz ${einsatz._id} deleted from Auftrag ${auftragNr} by user ${req.user?.id || 'unknown'}`);
+  res.json({ ok: true });
 }));
 
 // DELETE /api/auftraege/:auftragNr/pseudo-einsatz/:einsatzId – Remove a pseudo-Einsatz

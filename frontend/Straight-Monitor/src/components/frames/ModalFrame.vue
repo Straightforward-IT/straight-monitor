@@ -134,6 +134,8 @@ const props = defineProps({
   lockScroll: { type: Boolean, default: true },
   /** Opt-in integration with @bleck-it/vue-modal-dock. */
   minimizable: { type: Boolean, default: false },
+  /** Give a nested modal its own dock region instead of targeting its host. */
+  isolateMinimize: { type: Boolean, default: false },
   minimizeId: { type: String, default: '' },
   minimizeTitle: { type: String, default: '' },
   restoreRequest: { type: Function, default: undefined },
@@ -152,13 +154,12 @@ const titleId = `${uid}-title`;
 const overlayRef = ref(null);
 const dialogRef = ref(null);
 const open = computed(() => props.modelValue !== false);
-// A DockedModalHost already owns lifetime and visibility. MinimizableRegion is
-// retained only for page-local content that is not globally hosted.
-// Dock context is inherited by every descendant, including nested dialogs.
-// Only an explicitly minimizable frame may control the hosted record, so a
-// satellite dialog cannot accidentally minimize its parent modal.
+// A DockedModalHost already owns lifetime and visibility. A nested dialog can
+// explicitly create its own page-local region so it does not target its host.
 const canMinimize = computed(() => props.minimizable);
-const localMinimizable = computed(() => props.minimizable && !dockedModal);
+const localMinimizable = computed(() =>
+  props.minimizable && (!dockedModal || props.isolateMinimize)
+);
 
 /** Export the whole modal content as a readable, text-selectable PDF. */
 async function exportToPdf(options = {}) {

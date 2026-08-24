@@ -307,6 +307,10 @@
               </button>
               <transition name="qa-dropdown-fade">
                 <div v-if="showQuickActions" class="qa-dropdown" @click.stop>
+                  <button class="qa-dropdown-item" @click="openEventEditor">
+                    <font-awesome-icon icon="fa-solid fa-pencil" />
+                    Im Event-Editor öffnen
+                  </button>
                   <button class="qa-dropdown-item" @click="openLabelDialog">
                     <font-awesome-icon icon="fa-solid fa-tag" />
                     Label verwalten
@@ -1241,6 +1245,7 @@ import FilterDropdown from '@/components/FilterDropdown.vue';
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import { useCustomerModals } from '@/composables/useCustomerModals';
 import { useDocumentModals } from '@/composables/useDocumentModals';
+import { useEventModals } from '@/composables/useEventModals';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
@@ -1249,6 +1254,7 @@ import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
 import ReisekostenModal from '@/components/ReisekostenModal.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
+import { buildEventSchichten } from '@/utils/eventSchichten';
 import laufzettelIcon from '@/assets/laufzettel.png';
 import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
 import eventreportIcon from '@/assets/eventreport.png';
@@ -1262,6 +1268,7 @@ export default {
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
+    const { openEvent } = useEventModals();
     const minimizeDock = useMinimizeDock();
 
     const restoreMinimizedStundenliste = (auftragNr) => {
@@ -1276,7 +1283,7 @@ export default {
         : false;
     };
 
-    return { openCustomer, openDocumentModal: openDocument, restoreMinimizedStundenliste };
+    return { openCustomer, openDocumentModal: openDocument, openEvent, restoreMinimizedStundenliste };
   },
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -1692,88 +1699,7 @@ export default {
     },
     // Determine shifts and metadata from event details (Lazy Load)
     calculateSchichten(event) {
-      if (!event?.einsaetze && !event?.schichten) return [];
-      const grouped = {};
-
-      // 1. Seed from Schicht records (7011 import — includes empty shifts with bedarf)
-      if (event.schichten) {
-        event.schichten.forEach(s => {
-          const key = s.idAuftragArbeitsschichten || 'none';
-          if (!grouped[key]) {
-            grouped[key] = {
-              einsaetze: [],
-              meta: {
-                schichtBezeichnung: s.bezeichnung || null,
-                schichtId: s._id || null,
-                idAuftragArbeitsschichten: s.idAuftragArbeitsschichten || null,
-                datumVon: s.datumVon || null,
-                treffpunkt: s.treffpunkt || null,
-                treffpunktOrt: s.treffpunktOrt || null,
-                ansprechpartnerName: s.ansprechpartnerName || null,
-                ansprechpartnerTelefon: s.ansprechpartnerTelefon || null,
-                ansprechpartnerEmail: s.ansprechpartnerEmail || null,
-                uhrzeitVon: s.uhrzeitVon || null,
-                uhrzeitBis: s.uhrzeitBis || null,
-                bedarf: s.bedarf || null,
-                bedarfMet: false
-              }
-            };
-          }
-        });
-      }
-
-      // 2. Add Einsätze (assigned employees) to their shifts
-      if (event.einsaetze) {
-        event.einsaetze.forEach(e => {
-          const key = e.idAuftragArbeitsschichten || 'none';
-          if (!grouped[key]) {
-            grouped[key] = {
-              einsaetze: [],
-              meta: {
-                schichtBezeichnung: e.schichtBezeichnung || null,
-                schichtId: null,
-                idAuftragArbeitsschichten: e.idAuftragArbeitsschichten || null,
-                datumVon: e.datumVon || null,
-                treffpunkt: e.treffpunkt || null,
-                treffpunktOrt: e.treffpunktOrt || null,
-                ansprechpartnerName: e.ansprechpartnerName || null,
-                ansprechpartnerTelefon: e.ansprechpartnerTelefon || null,
-                ansprechpartnerEmail: e.ansprechpartnerEmail || null,
-                uhrzeitVon: e.uhrzeitVon || null,
-                uhrzeitBis: e.uhrzeitBis || null,
-                bedarf: e.bedarf || null,
-                bedarfMet: false
-              }
-            };
-          }
-          grouped[key].einsaetze.push(e);
-        });
-      }
-      
-      // Calculate bedarfMet for each schicht and sort einsaetze by nachname
-      Object.values(grouped).forEach(schicht => {
-        const bedarf = schicht.meta.bedarf;
-        const actual = schicht.einsaetze.length;
-        schicht.meta.bedarfMet = bedarf ? actual >= bedarf : true;
-
-        schicht.einsaetze.sort((a, b) => {
-          const nameA = (a.mitarbeiterData?.nachname || '').toLowerCase();
-          const nameB = (b.mitarbeiterData?.nachname || '').toLowerCase();
-          return nameA.localeCompare(nameB);
-        });
-      });
-
-      // Sort schichten: 1. by beruf jobKey, 2. by uhrzeitVon
-      const sortedEntries = Object.entries(grouped).sort(([, a], [, b]) => {
-        const jkA = a.einsaetze[0]?.berufData?.jobKey ?? Infinity;
-        const jkB = b.einsaetze[0]?.berufData?.jobKey ?? Infinity;
-        if (jkA !== jkB) return jkA - jkB;
-        const vonA = a.meta.uhrzeitVon || '';
-        const vonB = b.meta.uhrzeitVon || '';
-        return vonA.localeCompare(vonB);
-      });
-
-      return sortedEntries.map(([key, schicht]) => ({ key, ...schicht }));
+      return buildEventSchichten(event);
     },
 
     hasMitarbeiterDragPayload(event) {
@@ -2309,6 +2235,27 @@ export default {
         this.selectedEvent = event; // fallback to basic data
         this.preparedSchichten = this.calculateSchichten(event);
       }
+    },
+    openEventEditor() {
+      if (!this.selectedEvent) return;
+      this.showQuickActions = false;
+      this.openEvent(this.selectedEvent, {
+        onUpdated: updatedEvent => {
+          const eventIndex = this.auftraege.findIndex(item => (
+            String(item.auftragNr) === String(updatedEvent.auftragNr)
+          ));
+          if (eventIndex !== -1) {
+            this.auftraege.splice(eventIndex, 1, {
+              ...this.auftraege[eventIndex],
+              ...updatedEvent,
+            });
+          }
+          if (String(this.selectedEvent?.auftragNr) === String(updatedEvent.auftragNr)) {
+            this.selectedEvent = updatedEvent;
+            this.preparedSchichten = this.calculateSchichten(updatedEvent);
+          }
+        },
+      });
     },
     async fetchAuftragDocs(auftragNr) {
       try {

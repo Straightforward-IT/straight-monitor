@@ -109,15 +109,64 @@
         </div>
       </section>
 
-      <section v-if="activeTab === 'allgemein' && kunde.bemerkung && kunde.bemerkung.length > 0" class="section remarks-section">
+      <section v-if="activeTab === 'allgemein'" class="section remarks-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'clipboard']" /> Bemerkungen
+          <button class="btn-add-contact remarks-add-btn" type="button" title="Bemerkung hinzufügen" @click="startAddRemark">
+            <font-awesome-icon :icon="['fas', 'plus']" /> Bemerkung hinzufügen
+          </button>
         </h4>
-        <ul class="remarks-list">
-          <li v-for="(rem, index) in kunde.bemerkung" :key="index" class="remark-item">
-            {{ rem }}
+        <div v-if="remarkDraft !== null" class="remark-editor">
+          <input
+            ref="remarkInputRef"
+            v-model="remarkDraft"
+            type="text"
+            maxlength="1000"
+            placeholder="Bemerkung eingeben"
+            @keyup.enter="saveRemark"
+            @keyup.escape="cancelRemarkEdit"
+          />
+          <button type="button" class="remark-action remark-action--save" title="Speichern" :disabled="remarksSaving" @click="saveRemark">
+            <font-awesome-icon :icon="['fas', 'check']" />
+          </button>
+          <button type="button" class="remark-action" title="Abbrechen" :disabled="remarksSaving" @click="cancelRemarkEdit">
+            <font-awesome-icon :icon="['fas', 'xmark']" />
+          </button>
+        </div>
+        <ul v-if="remarks.length" class="remarks-list">
+          <li v-for="(rem, index) in remarks" :key="`${index}-${rem}`" class="remark-item">
+            <template v-if="editingRemarkIndex === index">
+              <div class="remark-editor">
+                <input
+                  ref="remarkInputRef"
+                  v-model="remarkDraft"
+                  type="text"
+                  maxlength="1000"
+                  @keyup.enter="saveRemark"
+                  @keyup.escape="cancelRemarkEdit"
+                />
+                <button type="button" class="remark-action remark-action--save" title="Speichern" :disabled="remarksSaving" @click="saveRemark">
+                  <font-awesome-icon :icon="['fas', 'check']" />
+                </button>
+                <button type="button" class="remark-action" title="Abbrechen" :disabled="remarksSaving" @click="cancelRemarkEdit">
+                  <font-awesome-icon :icon="['fas', 'xmark']" />
+                </button>
+              </div>
+            </template>
+            <template v-else>
+              <span>{{ rem }}</span>
+              <span class="remark-actions">
+                <button type="button" class="remark-action" title="Bemerkung bearbeiten" @click="startEditRemark(index)">
+                  <font-awesome-icon :icon="['fas', 'pen']" />
+                </button>
+                <button type="button" class="remark-action remark-action--delete" title="Bemerkung löschen" @click="deleteRemark(index)">
+                  <font-awesome-icon :icon="['fas', 'trash']" />
+                </button>
+              </span>
+            </template>
           </li>
         </ul>
+        <p v-else-if="remarkDraft === null" class="remarks-empty">Keine Bemerkungen vorhanden.</p>
       </section>
 
       <!-- Einsätze -->
@@ -240,7 +289,12 @@
           >
             <div class="contact-header">
               <div class="contact-name">
-                <font-awesome-icon :icon="['fas', 'user']" />
+                <div class="ms-logo-grid" aria-hidden="true">
+                  <span style="background:#f25022"></span>
+                  <span style="background:#7fba00"></span>
+                  <span style="background:#00a4ef"></span>
+                  <span style="background:#ffb900"></span>
+                </div>
                 {{ contact.displayName }}
               </div>
               <div class="contact-meta">
@@ -387,15 +441,25 @@
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'map-location-dot']" /> Einsatzorte
           <span class="badge">{{ visibleEinsatzorte.length }}</span>
-          <FilterChip :active="showInactiveEinsatzorte" @click="showInactiveEinsatzorte = !showInactiveEinsatzorte">
+          <div class="address-sort" aria-label="Einsatzortsortierung">
+            <button type="button" :class="{ active: einsatzortSort === 'name' }" @click="einsatzortSort = 'name'">Name</button>
+            <button type="button" :class="{ active: einsatzortSort === 'address' }" @click="einsatzortSort = 'address'">Adresse</button>
+          </div>
+          <FilterChip
+            class="einsatzorte-inactive-toggle"
+            :active="showInactiveEinsatzorte"
+            :hide-mode="true"
+            @click="showInactiveEinsatzorte = !showInactiveEinsatzorte"
+          >
+            <font-awesome-icon :icon="['fas', showInactiveEinsatzorte ? 'eye' : 'eye-slash']" />
             Inaktive{{ inactiveEinsatzorte.length ? ` (${inactiveEinsatzorte.length})` : '' }}
           </FilterChip>
           <button class="btn-add-contact" type="button" @click="openCreateEinsatzort">
             <font-awesome-icon :icon="['fas', 'plus']" /> Einsatzort anlegen
           </button>
         </h4>
-        <div v-if="visibleEinsatzorte.length" class="addresses-list">
-          <div v-for="einsatzort in visibleEinsatzorte" :key="einsatzort._id" class="address-card" :class="{ 'address-card--inactive': einsatzort.isActive === false }">
+        <div v-if="sortedEinsatzorte.length" class="addresses-list">
+          <div v-for="einsatzort in sortedEinsatzorte" :key="einsatzort._id" class="address-card" :class="{ 'address-card--inactive': einsatzort.isActive === false }">
             <div class="address-header">
               <div class="address-header-content">
                 <span class="address-name">{{ einsatzort.bezeichnung }}</span>
@@ -520,7 +584,7 @@
         </div>
       </section>
 
-      <section v-if="activeTab === 'rechnung'" class="section addresses-section">
+      <section v-if="activeTab === 'rechnung'" class="section addresses-section rechnung-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'file-invoice']" /> Rechnungsanschrift
         </h4>
@@ -935,14 +999,87 @@ const kundenAdressen = computed(() => adressen.value.filter((adresse) => adresse
 const ansprechpartner = computed(() => adressen.value.filter((adresse) => adresse.art === 'A'));
 const rechnungsanschrift = computed(() => kundenAdressen.value.find((adresse) => adresse.isRechnAdr) || null);
 
+const remarks = computed(() => (Array.isArray(props.kunde.bemerkung) ? props.kunde.bemerkung.filter(Boolean) : []));
+const editingRemarkIndex = ref(null);
+const remarkDraft = ref(null);
+const remarksSaving = ref(false);
+const remarkInputRef = ref(null);
+
+function startAddRemark() {
+  editingRemarkIndex.value = null;
+  remarkDraft.value = '';
+  nextTick(() => remarkInputRef.value?.focus());
+}
+
+function startEditRemark(index) {
+  editingRemarkIndex.value = index;
+  remarkDraft.value = remarks.value[index];
+  nextTick(() => remarkInputRef.value?.focus());
+}
+
+function cancelRemarkEdit() {
+  editingRemarkIndex.value = null;
+  remarkDraft.value = null;
+}
+
+async function persistRemarks(nextRemarks) {
+  const bemerkung = nextRemarks.map((remark) => String(remark || '').trim()).filter(Boolean);
+  remarksSaving.value = true;
+  try {
+    await api.put(`/api/kunden/${props.kunde._id}`, { bemerkung });
+    props.kunde.bemerkung = bemerkung;
+    const cached = dataCache.kunden?.find((kunde) => kunde._id === props.kunde._id);
+    if (cached) cached.bemerkung = bemerkung;
+  } catch (error) {
+    console.error('Fehler beim Speichern der Bemerkungen:', error);
+    alert(error.response?.data?.message || 'Die Bemerkungen konnten nicht gespeichert werden.');
+    throw error;
+  } finally {
+    remarksSaving.value = false;
+  }
+}
+
+async function saveRemark() {
+  const text = String(remarkDraft.value || '').trim();
+  if (!text) return;
+  const nextRemarks = [...remarks.value];
+  if (editingRemarkIndex.value === null) nextRemarks.push(text);
+  else nextRemarks[editingRemarkIndex.value] = text;
+
+  try {
+    await persistRemarks(nextRemarks);
+    cancelRemarkEdit();
+  } catch {}
+}
+
+async function deleteRemark(index) {
+  if (!confirm('Bemerkung wirklich löschen?')) return;
+  try {
+    await persistRemarks(remarks.value.filter((_, remarkIndex) => remarkIndex !== index));
+  } catch {}
+}
+
 const einsatzorte = ref([]);
+const einsatzortSort = ref('name');
 const showInactiveEinsatzorte = ref(false);
 const einsatzortMenuEinsatzort = ref(null);
 const einsatzortMenuPosition = ref({ x: 0, y: 0 });
 const showEinsatzortFormModal = ref(false);
 const einsatzortFormEinsatzort = ref(null);
 const inactiveEinsatzorte = computed(() => einsatzorte.value.filter((einsatzort) => einsatzort.isActive === false));
-const visibleEinsatzorte = computed(() => einsatzorte.value.filter((einsatzort) => einsatzort.isActive !== false || showInactiveEinsatzorte.value));
+const visibleEinsatzorte = computed(() => einsatzorte.value.filter((einsatzort) =>
+  showInactiveEinsatzorte.value ? einsatzort.isActive === false : einsatzort.isActive !== false
+));
+const sortedEinsatzorte = computed(() => [...visibleEinsatzorte.value].sort((first, second) => {
+  const name = (einsatzort) => String(einsatzort.bezeichnung || '').toLocaleLowerCase('de');
+  const address = (einsatzort) => [einsatzort.adresse?.plz, einsatzort.adresse?.ort, einsatzort.adresse?.strasse]
+    .filter(Boolean)
+    .join(' ')
+    .toLocaleLowerCase('de');
+  const firstValue = einsatzortSort.value === 'address' ? address(first) : name(first);
+  const secondValue = einsatzortSort.value === 'address' ? address(second) : name(second);
+  return firstValue.localeCompare(secondValue, 'de');
+}));
 const einsatzortMenuItems = computed(() => {
   const einsatzort = einsatzortMenuEinsatzort.value;
   return [
@@ -2567,6 +2704,44 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   }
 }
 
+.address-sort {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+
+  button {
+    padding: 3px 8px;
+    border: 0;
+    border-right: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+
+    &:last-child { border-right: 0; }
+
+    &:hover { background: var(--soft); color: var(--text); }
+
+    &.active {
+      background: color-mix(in srgb, var(--primary) 12%, transparent);
+      color: var(--primary);
+      font-weight: 600;
+    }
+  }
+}
+
+:deep(.einsatzorte-inactive-toggle.filter-chip) {
+  height: 24px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+
+  svg { font-size: 10px; }
+}
+
 .badge {
   background: var(--soft);
   color: var(--text);
@@ -2584,6 +2759,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   background: var(--soft);
   border-radius: 8px;
   border: 1px solid var(--border);
+}
+
+.rechnung-section .kv-grid {
+  margin-bottom: 16px;
 }
 
 .kv-item {
@@ -2611,12 +2790,25 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   list-style: none;
 }
 
+.remarks-add-btn {
+  margin-left: auto;
+}
+
 .remark-item {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
   padding-left: 16px;
   margin-bottom: 8px;
-  color: var(--text);
+  color: #b42318;
   font-size: 14px;
+
+  > span:first-child {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 .remark-item::before {
@@ -2625,6 +2817,79 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   left: 0;
   color: var(--accent);
   font-weight: bold;
+}
+
+.remark-editor {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 8px;
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--tile-bg);
+    color: var(--text);
+    font-size: 13px;
+
+    &:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+  }
+}
+
+.remark-item .remark-editor {
+  margin: 0;
+}
+
+.remark-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.remark-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--border);
+    background: var(--soft);
+    color: var(--text);
+  }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.55;
+  }
+}
+
+.remark-action--save {
+  color: var(--success, #10b981);
+}
+
+.remark-action--delete:hover:not(:disabled) {
+  color: #dc3545;
+}
+
+.remarks-empty {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 /* Addresses */
@@ -2944,6 +3209,21 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   gap: 8px;
   
   svg { color: var(--muted); }
+}
+
+.ms-logo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+
+  span {
+    display: block;
+    border-radius: 1px;
+  }
 }
 
 .contact-meta {
