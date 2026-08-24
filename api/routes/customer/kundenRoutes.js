@@ -10,6 +10,7 @@ const Qualifikation = require('../../models/Event/Qualifikation');
 const Kundenpreis = require('../../models/Customer/Kundenpreis');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Adresse = require('../../models/System/Adresse');
+const Einsatzort = require('../../models/Event/Einsatzort');
 const { decryptField } = require('../../utils/encryption');
 const asyncHandler = require('../../middleware/AsyncHandler');
 const auth = require('../../middleware/auth');
@@ -1325,6 +1326,132 @@ router.patch('/:kundenNr/adressen/:nummer', auth, asyncHandler(async (req, res) 
   if (!adresse) return res.status(404).json({ message: 'Adresse nicht gefunden oder deaktiviert.' });
 
   res.json({ adresse });
+}));
+
+function einsatzortText(value) {
+  const text = String(value ?? '').trim();
+  return text || null;
+}
+
+function einsatzortAddressUpdate(body) {
+  return {
+    name: einsatzortText(body.adressName),
+    name1: einsatzortText(body.adressName),
+    strasse: einsatzortText(body.strasse),
+    plz: einsatzortText(body.plz),
+    ort: einsatzortText(body.ort),
+    land: einsatzortText(body.land) || 'Deutschland',
+  };
+}
+
+// @route   GET /api/kunden/:kundenNr/einsatzorte
+// @desc    Einsatzorte eines Kunden mit Adresse und Standort abrufen
+// @access  Private
+router.get('/:kundenNr/einsatzorte', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  if (!Number.isInteger(kundenNr)) return res.status(400).json({ message: 'Ungültige Kunden-Nr.' });
+
+  const kunde = await Kunde.findOne({ kundenNr }).select('_id').lean();
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+
+  const einsatzorte = await Einsatzort.find({ kunde: kunde._id })
+    .populate('adresse', 'name strasse plz ort land')
+    .sort({ isActive: -1, bezeichnung: 1 })
+    .lean();
+  res.json(einsatzorte);
+}));
+
+// @route   POST /api/kunden/:kundenNr/einsatzorte
+// @desc    Einsatzort samt zugehöriger Adresse anlegen
+// @access  Private
+router.post('/:kundenNr/einsatzorte', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  const bezeichnung = einsatzortText(req.body.bezeichnung);
+  if (!Number.isInteger(kundenNr) || !bezeichnung) {
+    return res.status(400).json({ message: 'Kunden-Nr. und Bezeichnung sind erforderlich.' });
+  }
+
+  const kunde = await Kunde.findOne({ kundenNr }).select('_id').lean();
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+
+  const adresse = await Adresse.create({
+    nummer: `MANUAL-EINSATZORT-${new mongoose.Types.ObjectId()}`,
+    art: 'K',
+    ...einsatzortAddressUpdate(req.body),
+    isActive: true,
+  });
+  const einsatzort = await Einsatzort.create({
+    bezeichnung,
+    adresse: adresse._id,
+    kunde: kunde._id,
+    bundesland: einsatzortText(req.body.bundesland) || '',
+    isActive: true,
+  });
+  await einsatzort.populate([
+    { path: 'adresse', select: 'name strasse plz ort land' },
+  ]);
+  res.status(201).json({ einsatzort });
+}));
+
+// @route   PATCH /api/kunden/:kundenNr/einsatzorte/:id
+// @desc    Einsatzort und seine Adresse bearbeiten
+// @access  Private
+router.patch('/:kundenNr/einsatzorte/:id', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  const bezeichnung = einsatzortText(req.body.bezeichnung);
+  if (!Number.isInteger(kundenNr) || !mongoose.isValidObjectId(req.params.id) || !bezeichnung) {
+    return res.status(400).json({ message: 'Ungültige Angaben zum Einsatzort.' });
+  }
+
+  const kunde = await Kunde.findOne({ kundenNr }).select('_id').lean();
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  const einsatzort = await Einsatzort.findOne({ _id: req.params.id, kunde: kunde._id });
+  if (!einsatzort) return res.status(404).json({ message: 'Einsatzort nicht gefunden.' });
+
+  if (einsatzort.adresse) {
+    await Adresse.findByIdAndUpdate(einsatzort.adresse, { $set: einsatzortAddressUpdate(req.body) }, { runValidators: true });
+  }
+  einsatzort.bezeichnung = bezeichnung;
+  einsatzort.bundesland = einsatzortText(req.body.bundesland) || '';
+  await einsatzort.save();
+  await einsatzort.populate([
+    { path: 'adresse', select: 'name strasse plz ort land' },
+  ]);
+  res.json({ einsatzort });
+}));
+
+// @route   PATCH /api/kunden/:kundenNr/einsatzorte/:id/status
+// @desc    Einsatzort aktivieren oder deaktivieren
+// @access  Private
+router.patch('/:kundenNr/einsatzorte/:id/status', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  if (!Number.isInteger(kundenNr) || !mongoose.isValidObjectId(req.params.id) || typeof req.body.isActive !== 'boolean') {
+    return res.status(400).json({ message: 'Ungültige Angaben zum Einsatzortstatus.' });
+  }
+  const kunde = await Kunde.findOne({ kundenNr }).select('_id').lean();
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  const einsatzort = await Einsatzort.findOneAndUpdate(
+    { _id: req.params.id, kunde: kunde._id },
+    { $set: { isActive: req.body.isActive } },
+    { new: true },
+  ).populate('adresse', 'name strasse plz ort land').lean();
+  if (!einsatzort) return res.status(404).json({ message: 'Einsatzort nicht gefunden.' });
+  res.json({ einsatzort });
+}));
+
+// @route   DELETE /api/kunden/:kundenNr/einsatzorte/:id
+// @desc    Einsatzort entfernen; die verknüpfte Adresse bleibt als Historie erhalten
+// @access  Private
+router.delete('/:kundenNr/einsatzorte/:id', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  if (!Number.isInteger(kundenNr) || !mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ message: 'Ungültige Angaben zum Einsatzort.' });
+  }
+  const kunde = await Kunde.findOne({ kundenNr }).select('_id').lean();
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  const einsatzort = await Einsatzort.findOneAndDelete({ _id: req.params.id, kunde: kunde._id }).lean();
+  if (!einsatzort) return res.status(404).json({ message: 'Einsatzort nicht gefunden.' });
+  res.json({ success: true });
 }));
 
 // @route   GET /api/kunden/:kundenNr/preise

@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const multer = require('multer');
 const XLSX = require('xlsx');
@@ -16,6 +17,7 @@ const Rechnung = require('../../models/Rechnung');
 const DispoEintrag = require('../../models/System/DispoEintrag');
 const ZvooveVerfuegbarkeit = require('../../models/System/ZvooveVerfuegbarkeit');
 const Adresse = require('../../models/System/Adresse');
+const Einsatzort = require('../../models/Event/Einsatzort');
 const User = require('../../models/System/User');
 const logger = require('../../utils/logger');
 const { sendMail } = require('../../services/integrations/EmailService');
@@ -155,6 +157,42 @@ const parseEuroCents = (value) => {
   return Number.isFinite(amount) ? Math.round(amount * 100) : null;
 };
 
+async function migrateEinsatzortImportKey() {
+  const indexes = await Einsatzort.collection.indexes();
+  for (const indexName of ['einsortNr_1', 'adresseNummer_1']) {
+    if (indexes.some((index) => index.name === indexName)) {
+      await Einsatzort.collection.dropIndex(indexName);
+    }
+  }
+
+  const [legacySites, keyedSites] = await Promise.all([
+    Einsatzort.find({
+    adresse: { $ne: null },
+    $or: [{ addressKey: { $exists: false } }, { addressKey: '' }],
+    }).select('_id adresse').lean(),
+    Einsatzort.find({ addressKey: { $exists: true, $ne: '' } }).select('addressKey').lean(),
+  ]);
+  if (legacySites.length) {
+    const addresses = await Adresse.find({ _id: { $in: legacySites.map((site) => site.adresse) } })
+      .select('_id strasse').lean();
+    const addressKeyById = new Map(addresses.map((address) => [String(address._id), optionalText(address.strasse)]));
+    const usedAddressKeys = new Set(keyedSites.map((site) => site.addressKey));
+    const operations = legacySites
+      .map((site) => ({ site, addressKey: addressKeyById.get(String(site.adresse)) }))
+      .filter(({ addressKey }) => addressKey)
+      .map(({ site, addressKey }) => {
+        if (usedAddressKeys.has(addressKey)) {
+          return { updateOne: { filter: { _id: site._id }, update: { $set: { isActive: false } } } };
+        }
+        usedAddressKeys.add(addressKey);
+        return { updateOne: { filter: { _id: site._id }, update: { $set: { addressKey } } } };
+      });
+    if (operations.length) await Einsatzort.bulkWrite(operations);
+  }
+
+  await Einsatzort.collection.createIndex({ addressKey: 1 }, { unique: true, sparse: true });
+}
+
 // --- Adressen Import (Zvoove Liste 7034) ---
 router.post('/adressen', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
@@ -232,6 +270,130 @@ router.post('/adressen', auth, extendTimeout, upload.single('file'), async (req,
   } catch (error) {
     logger.error('Import Adressen Error:', error);
     res.status(500).json({ success: false, message: 'Fehler beim Importieren der Adressen.', error: error.message });
+  }
+});
+
+// --- Einsatzorte Import (Zvoove Liste 3202) ---
+router.post('/einsatzorte', auth, extendTimeout, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawCheck = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    const checkStart = rawCheck.length > 0 && Number.isNaN(Number(rawCheck[0][0])) ? 1 : 0;
+    if (rawCheck.length > checkStart && Number(rawCheck[checkStart][0]) !== 3202) {
+      return res.status(400).json({ success: false, message: 'Falsche Liste: Für den Einsatzorte-Import wird Prüffeld 3202 erwartet.' });
+    }
+
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }).map(cleanKeys);
+    const customerAddressNumbers = new Set();
+    const validRows = [];
+    let skipped = 0;
+
+    for (const row of rows) {
+      const addressKey = optionalText(row.ADRESSE);
+      if (!addressKey) {
+        skipped += 1;
+        continue;
+      }
+
+      const customerAddressNumber = optionalText(row.ADRNR);
+      validRows.push({ row, addressKey, customerAddressNumber });
+      if (customerAddressNumber) customerAddressNumbers.add(customerAddressNumber);
+    }
+
+    if (!validRows.length) {
+      const details = { total: 0, inserted: 0, updated: 0, unchanged: 0, skipped };
+      await logImport('einsatzort', req.file.originalname, 'warning', 0, details, req.user?.id);
+      return res.json({ success: true, message: 'Keine gültigen Einsatzorte zum Verarbeiten gefunden.', details });
+    }
+
+    await migrateEinsatzortImportKey();
+
+    const addressOperations = [];
+    for (const { row, addressKey } of validRows) {
+      const name = optionalText(row.ADRESSNAME);
+      addressOperations.push({
+        updateOne: {
+          filter: { nummer: `EINSATZORT-${crypto.createHash('sha256').update(addressKey).digest('hex').slice(0, 24)}` },
+          update: {
+            $set: {
+              art: 'K',
+              name1: name,
+              name2: null,
+              name,
+              strasse: optionalText(row.ADRESSE),
+              plz: optionalText(row.ADRESSE_PLZ),
+              ort: optionalText(row.ADRESSE_ORT),
+              land: 'Deutschland',
+              importiertAm: new Date(),
+            },
+          },
+          upsert: true,
+        },
+      });
+    }
+    await Adresse.bulkWrite(addressOperations);
+
+    const [addresses, customers] = await Promise.all([
+      Adresse.find({ nummer: { $in: validRows.map(({ addressKey }) => `EINSATZORT-${crypto.createHash('sha256').update(addressKey).digest('hex').slice(0, 24)}`) } }).select('_id nummer').lean(),
+      Kunde.find({ 'adressen.nummer': { $in: [...customerAddressNumbers] } }).select('_id adressen.nummer').lean(),
+    ]);
+    const addressesByKey = new Map(addresses.map((address) => [String(address.nummer).replace('EINSATZORT-', ''), address]));
+    const customersByAddressNumber = new Map();
+    for (const customer of customers) {
+      for (const address of customer.adressen || []) {
+        const addressNumber = optionalText(address.nummer);
+        if (addressNumber && customerAddressNumbers.has(addressNumber) && !customersByAddressNumber.has(addressNumber)) {
+          customersByAddressNumber.set(addressNumber, customer);
+        }
+      }
+    }
+    const operations = [];
+    const resolution = { adresse: 0, kunde: 0, kundenUnaufgeloest: 0 };
+    for (const { row, addressKey, customerAddressNumber } of validRows) {
+      const addressHash = crypto.createHash('sha256').update(addressKey).digest('hex').slice(0, 24);
+      const address = addressesByKey.get(addressHash);
+      const customer = customerAddressNumber ? customersByAddressNumber.get(customerAddressNumber) : null;
+      if (address) resolution.adresse += 1;
+      if (customer) resolution.kunde += 1;
+      else if (customerAddressNumber) resolution.kundenUnaufgeloest += 1;
+
+      operations.push({
+        updateOne: {
+          filter: { addressKey },
+          update: {
+            $set: {
+              bezeichnung: optionalText(row.BEZEICHN) || '',
+              addressKey,
+              adresse: address?._id || null,
+              kunde: customer?._id || null,
+              kundenAdresseNr: customerAddressNumber || '',
+              bundesland: optionalText(row.BUNDESLAND) || '',
+            },
+          },
+          upsert: true,
+        },
+      });
+    }
+
+    const result = await Einsatzort.bulkWrite(operations);
+    const inserted = result.upsertedCount || 0;
+    const updated = result.modifiedCount || 0;
+    const unchanged = operations.length - inserted - updated;
+    const details = { total: operations.length, inserted, updated, unchanged, skipped, resolution };
+    await logImport('einsatzort', req.file.originalname, 'success', operations.length, details, req.user?.id);
+    res.json({
+      success: true,
+      message: `${operations.length} Einsatzorte verarbeitet: ${inserted} neu, ${updated} aktualisiert, ${unchanged} unverändert${skipped ? `, ${skipped} übersprungen` : ''}.`,
+      details,
+    });
+  } catch (error) {
+    logger.error('Import Einsatzorte Error:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Einsatzorte.', error: error.message });
   }
 });
 

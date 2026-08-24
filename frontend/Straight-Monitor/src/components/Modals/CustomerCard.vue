@@ -291,6 +291,11 @@
                   <template v-if="adr.strasse">{{ adr.strasse }}<br /></template>
                   {{ [adr.plz, adr.ort].filter(Boolean).join(' ') }}<template v-if="adr.land">, {{ adr.land }}</template>
                 </span>
+                <CustomTooltip text="In Google Maps öffnen" position="top">
+                  <a class="address-map-link" :href="getGoogleMapsUrl(adr)" target="_blank" rel="noopener noreferrer" aria-label="In Google Maps öffnen" @click.stop>
+                    <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
+                  </a>
+                </CustomTooltip>
               </div>
               <div v-for="telefon in adr.telefone" :key="telefon" class="address-row">
                 <font-awesome-icon :icon="['fas', 'phone']" />
@@ -311,7 +316,7 @@
       </section>
 
       <!-- Ansprechpartner aus Zvoove -->
-      <section v-if="activeTab === 'allgemein' && ansprechpartner.length > 0" class="section addresses-section">
+      <section v-if="activeTab === 'kontakte' && ansprechpartner.length > 0" class="section addresses-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'user-tie']" /> Ansprechpartner
           <span class="badge">{{ ansprechpartner.length }}</span>
@@ -340,6 +345,11 @@
                   <template v-if="adr.strasse">{{ adr.strasse }}<br /></template>
                   {{ [adr.plz, adr.ort].filter(Boolean).join(' ') }}<template v-if="adr.land">, {{ adr.land }}</template>
                 </span>
+                <CustomTooltip text="In Google Maps öffnen" position="top">
+                  <a class="address-map-link" :href="getGoogleMapsUrl(adr)" target="_blank" rel="noopener noreferrer" aria-label="In Google Maps öffnen" @click.stop>
+                    <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
+                  </a>
+                </CustomTooltip>
               </div>
               <div v-for="telefon in adr.telefone" :key="telefon" class="address-row">
                 <font-awesome-icon :icon="['fas', 'phone']" />
@@ -356,6 +366,46 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <section v-if="activeTab === 'allgemein'" class="section addresses-section">
+        <h4 class="section-title">
+          <font-awesome-icon :icon="['fas', 'map-location-dot']" /> Einsatzorte
+          <span class="badge">{{ visibleEinsatzorte.length }}</span>
+          <FilterChip :active="showInactiveEinsatzorte" @click="showInactiveEinsatzorte = !showInactiveEinsatzorte">
+            Inaktive{{ inactiveEinsatzorte.length ? ` (${inactiveEinsatzorte.length})` : '' }}
+          </FilterChip>
+          <button class="btn-add-contact" type="button" @click="openCreateEinsatzort">
+            <font-awesome-icon :icon="['fas', 'plus']" /> Einsatzort anlegen
+          </button>
+        </h4>
+        <div v-if="visibleEinsatzorte.length" class="addresses-list">
+          <div v-for="einsatzort in visibleEinsatzorte" :key="einsatzort._id" class="address-card" :class="{ 'address-card--inactive': einsatzort.isActive === false }">
+            <div class="address-header">
+              <div class="address-header-content">
+                <span class="address-name">{{ einsatzort.bezeichnung }}</span>
+                <div class="address-tags">
+                  <span v-if="einsatzort.isActive === false" class="address-postal-badge">Inaktiv</span>
+                </div>
+              </div>
+              <button class="address-menu-btn" title="Einsatzortoptionen" @click.stop="openEinsatzortMenu(einsatzort, $event)">
+                <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
+              </button>
+            </div>
+            <div class="address-body">
+              <div v-if="einsatzort.adresse?.strasse || einsatzort.adresse?.plz || einsatzort.adresse?.ort" class="address-row">
+                <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
+                <span><template v-if="einsatzort.adresse?.strasse">{{ einsatzort.adresse.strasse }}<br /></template>{{ [einsatzort.adresse?.plz, einsatzort.adresse?.ort].filter(Boolean).join(' ') }}<template v-if="einsatzort.adresse?.land">, {{ einsatzort.adresse.land }}</template></span>
+                <CustomTooltip text="In Google Maps öffnen" position="top">
+                  <a class="address-map-link" :href="getGoogleMapsUrl(einsatzort.adresse)" target="_blank" rel="noopener noreferrer" aria-label="In Google Maps öffnen" @click.stop>
+                    <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
+                  </a>
+                </CustomTooltip>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty-contacts">Keine Einsatzorte vorhanden.</div>
       </section>
 
       <!-- Statistik -->
@@ -486,6 +536,11 @@
                   <template v-if="rechnungsanschrift.strasse">{{ rechnungsanschrift.strasse }}<br /></template>
                   {{ [rechnungsanschrift.plz, rechnungsanschrift.ort].filter(Boolean).join(' ') }}<template v-if="rechnungsanschrift.land">, {{ rechnungsanschrift.land }}</template>
                 </span>
+                <CustomTooltip text="In Google Maps öffnen" position="top">
+                  <a class="address-map-link" :href="getGoogleMapsUrl(rechnungsanschrift)" target="_blank" rel="noopener noreferrer" aria-label="In Google Maps öffnen" @click.stop>
+                    <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
+                  </a>
+                </CustomTooltip>
               </div>
               <div v-for="telefon in rechnungsanschrift.telefone" :key="telefon" class="address-row">
                 <font-awesome-icon :icon="['fas', 'phone']" />
@@ -750,6 +805,13 @@
       @close="closeAdresseForm"
       @saved="onAdresseSaved"
     />
+    <EinsatzortFormModal
+      v-if="showEinsatzortFormModal"
+      :kunden-nr="kunde.kundenNr"
+      :einsatzort="einsatzortFormEinsatzort"
+      @close="closeEinsatzortForm"
+      @saved="onEinsatzortSaved"
+    />
     <ActionMenu
       :open="Boolean(adresseMenuAdresse)"
       :x="adresseMenuPosition.x"
@@ -759,6 +821,16 @@
       group-by="false"
       @close="closeAdresseMenu"
       @item-click="handleAdresseMenuAction"
+    />
+    <ActionMenu
+      :open="Boolean(einsatzortMenuEinsatzort)"
+      :x="einsatzortMenuPosition.x"
+      :y="einsatzortMenuPosition.y"
+      :items="einsatzortMenuItems"
+      :width="220"
+      group-by="false"
+      @close="closeEinsatzortMenu"
+      @item-click="handleEinsatzortMenuAction"
     />
     <ActionMenu
       :open="Boolean(contactMenuContact)"
@@ -784,7 +856,9 @@ import { useDataCache } from '@/stores/dataCache';
 import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import KundenAnalyticsEmbed from '@/components/KundenAnalyticsEmbed.vue';
+import CustomTooltip from '@/components/CustomTooltip.vue';
 import AdresseFormModal from '@/components/Modals/AdresseFormModal.vue';
+import EinsatzortFormModal from '@/components/Modals/EinsatzortFormModal.vue';
 import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
 import ContactCard from '@/components/ContactCard.vue';
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
@@ -836,6 +910,23 @@ const kundenAdressen = computed(() => adressen.value.filter((adresse) => adresse
 const ansprechpartner = computed(() => adressen.value.filter((adresse) => adresse.art === 'A'));
 const rechnungsanschrift = computed(() => kundenAdressen.value.find((adresse) => adresse.isRechnAdr) || null);
 
+const einsatzorte = ref([]);
+const showInactiveEinsatzorte = ref(false);
+const einsatzortMenuEinsatzort = ref(null);
+const einsatzortMenuPosition = ref({ x: 0, y: 0 });
+const showEinsatzortFormModal = ref(false);
+const einsatzortFormEinsatzort = ref(null);
+const inactiveEinsatzorte = computed(() => einsatzorte.value.filter((einsatzort) => einsatzort.isActive === false));
+const visibleEinsatzorte = computed(() => einsatzorte.value.filter((einsatzort) => einsatzort.isActive !== false || showInactiveEinsatzorte.value));
+const einsatzortMenuItems = computed(() => {
+  const einsatzort = einsatzortMenuEinsatzort.value;
+  return [
+    { value: 'edit', label: 'Bearbeiten', icon: ['fas', 'pen'] },
+    { value: 'status', label: einsatzort?.isActive !== false ? 'Deaktivieren' : 'Aktivieren', icon: ['fas', einsatzort?.isActive !== false ? 'eye-slash' : 'eye'] },
+    { value: 'delete', label: 'Löschen', icon: ['fas', 'trash'], variant: 'danger' },
+  ];
+});
+
 async function loadAdressen() {
   if (!props.kunde.kundenNr) {
     adressen.value = [];
@@ -854,6 +945,81 @@ async function loadAdressen() {
 
 onMounted(loadAdressen);
 watch(() => props.kunde.kundenNr, loadAdressen);
+
+async function loadEinsatzorte() {
+  if (!props.kunde.kundenNr) {
+    einsatzorte.value = [];
+    return;
+  }
+  try {
+    const { data } = await api.get(`/api/kunden/${props.kunde.kundenNr}/einsatzorte`);
+    einsatzorte.value = Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('Fehler beim Laden der Einsatzorte:', error);
+    einsatzorte.value = [];
+  }
+}
+
+onMounted(() => {
+  loadEinsatzorte();
+});
+watch(() => props.kunde.kundenNr, loadEinsatzorte);
+
+function openEinsatzortMenu(einsatzort, event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  einsatzortMenuEinsatzort.value = einsatzort;
+  einsatzortMenuPosition.value = { x: rect.right - 190, y: rect.bottom + 4 };
+}
+
+function closeEinsatzortMenu() {
+  einsatzortMenuEinsatzort.value = null;
+}
+
+function openCreateEinsatzort() {
+  einsatzortFormEinsatzort.value = null;
+  showEinsatzortFormModal.value = true;
+}
+
+function closeEinsatzortForm() {
+  showEinsatzortFormModal.value = false;
+  einsatzortFormEinsatzort.value = null;
+}
+
+function onEinsatzortSaved(einsatzort) {
+  const index = einsatzorte.value.findIndex((entry) => entry._id === einsatzort._id);
+  if (index === -1) einsatzorte.value = [...einsatzorte.value, einsatzort];
+  else einsatzorte.value[index] = einsatzort;
+  closeEinsatzortForm();
+}
+
+async function handleEinsatzortMenuAction({ item }) {
+  const einsatzort = einsatzortMenuEinsatzort.value;
+  closeEinsatzortMenu();
+  if (!einsatzort) return;
+  if (item.value === 'edit') {
+    einsatzortFormEinsatzort.value = { ...einsatzort };
+    showEinsatzortFormModal.value = true;
+    return;
+  }
+  if (item.value === 'status') {
+    try {
+      const { data } = await api.patch(`/api/kunden/${props.kunde.kundenNr}/einsatzorte/${einsatzort._id}/status`, { isActive: einsatzort.isActive === false });
+      const index = einsatzorte.value.findIndex((entry) => entry._id === einsatzort._id);
+      if (index !== -1) einsatzorte.value[index] = data.einsatzort;
+    } catch (error) {
+      alert(error.response?.data?.message || 'Der Einsatzortstatus konnte nicht gespeichert werden.');
+    }
+    return;
+  }
+  if (item.value === 'delete' && confirm(`„${einsatzort.bezeichnung}“ wirklich löschen?`)) {
+    try {
+      await api.delete(`/api/kunden/${props.kunde.kundenNr}/einsatzorte/${einsatzort._id}`);
+      einsatzorte.value = einsatzorte.value.filter((entry) => entry._id !== einsatzort._id);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Der Einsatzort konnte nicht gelöscht werden.');
+    }
+  }
+}
 
 function openAdresseMenu(adresse, event) {
   const rect = event.currentTarget.getBoundingClientRect();
@@ -894,6 +1060,7 @@ function onAdresseSaved(adresse) {
   if (index === -1) adressen.value = [...adressen.value, adresse];
   else adressen.value[index] = adresse;
   closeAdresseForm();
+  closeEinsatzortForm();
 }
 
 async function toggleRechnungsanschrift(adresse) {
@@ -1574,6 +1741,13 @@ function formatEuro(value) {
 function formatUrl(url) {
   if (!url) return '#';
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+function getGoogleMapsUrl(address = {}) {
+  const query = [address.strasse, [address.plz, address.ort].filter(Boolean).join(' '), address.land]
+    .filter(Boolean)
+    .join(', ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
 function formatAnsprechpartnerName(name) {
@@ -2539,6 +2713,28 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 
   a { color: var(--primary); text-decoration: none; }
   a:hover { text-decoration: underline; }
+}
+
+.address-map-link {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--muted) !important;
+}
+
+.address-row :deep(.tooltip-container) {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.address-map-link:hover {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary) !important;
+  text-decoration: none !important;
 }
 
 /* Signatur-Standard hint (shown when none is set) */
