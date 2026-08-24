@@ -3178,7 +3178,7 @@ export default {
   width: 420px;
   min-width: 420px; /* Ensure it keeps size during flex resize of siblings */
   height: 100vh;
-  overflow-y: auto;
+  overflow: hidden;
   background: var(--tile-bg);
   border-left: 1px solid var(--border);
   display: flex;
@@ -3252,21 +3252,33 @@ export default {
   }
   
   .close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
     background: none;
-    border: none;
-    font-size: 1.6rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: 1.25rem;
+    font-weight: 500;
     color: var(--muted);
     cursor: pointer;
     padding: 0;
     line-height: 1;
-    margin-left: 12px;
-    
-    &:hover { color: var(--text); }
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+
+    &:hover {
+      background: var(--hover);
+      border-color: var(--border);
+      color: var(--text);
+    }
   }
 }
 
 .sidebar-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px;
 }
