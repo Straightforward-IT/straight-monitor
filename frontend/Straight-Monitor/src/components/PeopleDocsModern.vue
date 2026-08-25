@@ -15,7 +15,12 @@
           <div class="controls">
           <!-- Toolbar with ToolbarFilter -->
           <Toolbar class="people-search-toolbar">
-            <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetAllFilters">
+            <ToolbarFilter
+              v-model="filterExpanded"
+              :active-count="activeFilterCount"
+              :active-filter-labels="activeFilterLabels"
+              @reset="resetAllFilters"
+            >
               <FilterGroup label="Status">
                 <FilterChip :active="filters.status === 'Aktiv'" @click="setFilter('status', filters.status === 'Aktiv' ? 'Alle' : 'Aktiv')">Aktiv</FilterChip>
                 <FilterChip :active="filters.status === 'Inaktiv'" @click="setFilter('status', filters.status === 'Inaktiv' ? 'Alle' : 'Inaktiv')">Inaktiv</FilterChip>
@@ -157,6 +162,7 @@
             :initiallyExpanded="isEmployeeExpanded(ma)"
             :showCheckbox="true"
             :isSelected="selectedMitarbeiterIds.has(ma._id)"
+            :enableHeaderContextMenu="true"
             @open="openProfile"
             @edit="editMitarbeiter"
             @toggle-selection="toggleSelection(ma._id)"
@@ -701,6 +707,7 @@ export default {
         { value: 'nachname', label: 'Nachname' },
         { value: 'standort', label: 'Standort' },
         { value: 'abteilung', label: 'Bereich' },
+        { value: 'einsatzCount', label: 'Jobs (Einsätze)' },
         { value: 'createdAt', label: 'Zuletzt erstellt' },
         { value: 'eintrittsdatum', label: 'Eintrittsdatum' },
         { value: 'austrittsdatum', label: 'Austrittsdatum' },
@@ -728,6 +735,26 @@ export default {
       if (this.filters.qualifikationen.length > 0) count++;
       if (this.filters.persgruppe !== 'Alle') count++;
       return count;
+    },
+    activeFilterLabels() {
+      const labels = [];
+      const location = this.locations.find(item => String(item._id) === this.filters.location);
+      const persgruppeLabels = { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' };
+
+      if (this.filters.status !== 'Aktiv') labels.push(`Status: ${this.filters.status}`);
+      if (location) labels.push(`Standort: ${location.shortName || location.nameFull}`);
+      if (this.filters.department !== 'Alle') labels.push(`Bereich: ${this.filters.department}`);
+      if (this.filters.teamleiter !== 'Alle') labels.push(`Rolle: ${this.filters.teamleiter}`);
+      if (this.filters.asanaStatus !== 'Alle') labels.push(`Asana: ${this.filters.asanaStatus.replace('_', ' ')}`);
+      if (this.filters.personalnrStatus !== 'Alle') labels.push(`P-Nr.: ${this.filters.personalnrStatus}`);
+      if (this.filters.profilbildStatus !== 'Alle') labels.push(`Profilbild: ${this.filters.profilbildStatus}`);
+      if (this.filters.persgruppe !== 'Alle') {
+        labels.push(`Persgruppe: ${persgruppeLabels[this.filters.persgruppe] || this.filters.persgruppe}`);
+      }
+      if (this.filters.berufe.length > 0) labels.push(`Berufe: ${this.filters.berufe.length}`);
+      if (this.filters.qualifikationen.length > 0) labels.push(`Qualifikationen: ${this.filters.qualifikationen.length}`);
+
+      return labels;
     },
     // Verfügbare Berufe aus dem Cache
     availableBerufe() {
@@ -987,6 +1014,9 @@ export default {
         if (key === 'createdAt' || key === 'eintrittsdatum' || key === 'austrittsdatum') {
           av = a?.[key] ? new Date(a[key]).getTime() : 0;
           bv = b?.[key] ? new Date(b[key]).getTime() : 0;
+        } else if (key === 'einsatzCount') {
+          av = a?.einsatzCount ?? -1;
+          bv = b?.einsatzCount ?? -1;
         } else {
           av = (a?.[key] ?? "").toString().toLowerCase();
           bv = (b?.[key] ?? "").toString().toLowerCase();

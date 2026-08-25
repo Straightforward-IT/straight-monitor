@@ -5,7 +5,9 @@
     size="lg"
     aria-label="Mitarbeiterprofil"
     :show-close="false"
-    style="--mf-max-height: 92dvh; --mf-body-padding: 0"
+    minimizable
+    :minimize-title="minimizeTitle"
+    style="--mf-max-height: 92dvh; --mf-body-padding: 0; --mf-minimize-right: 56px"
     @close="$emit('close')"
   >
     <EmployeeCard
@@ -14,6 +16,7 @@
       :showClose="true"
       style="border: 0; border-radius: 0; box-shadow: none"
       @close="$emit('close')"
+      @profile-loaded="setMinimizeTitle"
     />
   </ModalFrame>
 </template>
@@ -29,5 +32,16 @@ export default {
     mitarbeiterId: { type: String, default: null },
   },
   emits: ["close"],
+  data() {
+    return { minimizeTitle: "Mitarbeiterprofil" };
+  },
+  methods: {
+    setMinimizeTitle(employee) {
+      const fullName = [employee?.vorname, employee?.nachname]
+        .filter(Boolean)
+        .join(" ");
+      this.minimizeTitle = fullName || "Mitarbeiterprofil";
+    },
+  },
 };
 </script>

@@ -1,16 +1,32 @@
 <template>
   <div class="toolbar-filter">
     <!-- Collapsed toggle (always in flow, holds the left slot) -->
-    <button
-      class="tf-toggle"
-      :class="{ 'tf-toggle--active': modelValue }"
-      type="button"
-      :title="modelValue ? 'Filter schließen' : 'Filter'"
-      @click="toggle"
+    <CustomTooltip
+      class="tf-tooltip"
+      position="bottom"
+      :disabled="modelValue || isMobile"
     >
-      <span v-if="activeCount > 0" class="tf-count">{{ activeCount }}</span>
-      <font-awesome-icon icon="fa-solid fa-filter" />
-    </button>
+      <button
+        class="tf-toggle"
+        :class="{ 'tf-toggle--active': modelValue }"
+        type="button"
+        :aria-label="modelValue ? 'Filter schließen' : 'Filter öffnen'"
+        @click="toggle"
+      >
+        <span v-if="activeCount > 0" class="tf-count">{{ activeCount }}</span>
+        <font-awesome-icon icon="fa-solid fa-filter" />
+      </button>
+      <template #content>
+        <div class="tf-tooltip-content">
+          <strong>Aktive Filter</strong>
+          <span v-if="activeCount === 0">Keine</span>
+          <span v-for="label in activeFilterLabels" :key="label">{{ label }}</span>
+          <span v-if="activeFilterLabels.length === 0 && activeCount > 0">
+            {{ activeCount }} Filter aktiv
+          </span>
+        </div>
+      </template>
+    </CustomTooltip>
 
     <!-- Desktop: expanded panel — overlays the whole toolbar -->
     <transition name="tf-expand">
@@ -71,12 +87,14 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faFilter, faXmark, faRotateLeft } from '@fortawesome/free-solid-svg-icons';
+import CustomTooltip from '@/components/CustomTooltip.vue';
 
 library.add(faFilter, faXmark, faRotateLeft);
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   activeCount: { type: Number, default: 0 },
+  activeFilterLabels: { type: Array, default: () => [] },
 });
 const emit = defineEmits(['update:modelValue', 'reset']);
 
@@ -99,6 +117,27 @@ function toggle() {
   align-self: stretch;
   display: flex;
   flex-shrink: 0;
+}
+
+.tf-tooltip {
+  align-self: stretch;
+  display: flex;
+
+  :deep(.tooltip-trigger) {
+    display: flex;
+    height: 100%;
+  }
+}
+
+.tf-tooltip-content {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+
+  strong {
+    margin-bottom: 2px;
+    color: var(--primary);
+  }
 }
 
 // ── Toggle button (collapsed state + close button in expanded state) ─────────

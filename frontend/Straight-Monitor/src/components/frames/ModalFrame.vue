@@ -284,6 +284,7 @@ onBeforeUnmount(deactivateFrame);
   border-radius: var(--mf-radius, 12px);
   box-shadow: var(--mf-shadow, 0 20px 60px rgba(0, 0, 0, 0.3));
   overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .mf-dialog--sm   { --mf-max-width: 440px; }

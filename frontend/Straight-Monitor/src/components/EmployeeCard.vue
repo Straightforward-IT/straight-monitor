@@ -23,6 +23,7 @@
       tabindex="0"
       :aria-expanded="expanded"
       @click="toggle"
+      @contextmenu="openHeaderQuickActions"
       @keydown.enter.prevent="toggle"
       @keydown.space.prevent="toggle"
     >
@@ -119,7 +120,7 @@
 
     <!-- Expandable body -->
     <transition name="expand">
-      <div v-show="expanded" class="card-body" :class="{ 'card-body--links': view === 'links' }">
+      <div v-show="expanded && view !== 'profile'" class="card-body" :class="{ 'card-body--links': view === 'links' }">
         <!-- Straight View -->
         <section v-if="view === 'straight' || view === 'reports'" class="straight-view">
           <!-- Dispo Section -->
@@ -1663,8 +1664,9 @@ export default {
     showClose: { type: Boolean, default: false },
     showCheckbox: { type: Boolean, default: false },
     isSelected: { type: Boolean, default: false },
+    enableHeaderContextMenu: { type: Boolean, default: false },
   },
-  emits: ["open", "edit", "toggle-selection", "quick-actions", "close", "open-employee", "filter-beruf", "filter-qualifikation", "reactivated"],
+  emits: ["open", "edit", "toggle-selection", "quick-actions", "close", "open-employee", "filter-beruf", "filter-qualifikation", "reactivated", "profile-loaded"],
 
   setup(props) {
     const theme = useTheme();
@@ -2082,6 +2084,12 @@ export default {
   },
 
   watch: {
+    resolvedMa: {
+      handler(employee) {
+        if (employee) this.$emit("profile-loaded", employee);
+      },
+      immediate: true,
+    },
     mitarbeiterId(newId) {
       if (newId && !this.ma) this.loadSelf();
     },
@@ -3110,6 +3118,19 @@ export default {
       this.showQuickActionsMenu = true;
     },
 
+    openHeaderQuickActions(event) {
+      if (!this.enableHeaderContextMenu) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this._closeQuickActions();
+      this.quickActionsMenuStyle = {
+        position: 'fixed',
+        top: Math.min(event.clientY, window.innerHeight - 260) + 'px',
+        left: Math.min(event.clientX, window.innerWidth - 220) + 'px',
+      };
+      this.showQuickActionsMenu = true;
+    },
+
     _updateQaMenuStyle() {
       if (!this._qaBtn) return;
       const rect = this._qaBtn.getBoundingClientRect();
@@ -3926,16 +3947,19 @@ export default {
   width: 32px;
   height: 32px;
   flex: 0 0 auto;
-  border: 0;
+  padding: 0;
+  border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   font-size: 16px;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 
   &:hover {
-    background: var(--hover);
-    color: var(--text);
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
   }
 
   &:focus-visible {
@@ -4790,8 +4814,8 @@ export default {
 }
 
 .flip-view {
-  height: 100%;
-  overflow: auto;
+  height: auto;
+  overflow: visible;
 
   &::-webkit-scrollbar {
     width: 8px;
@@ -6651,7 +6675,7 @@ export default {
 /* ── Expanded employee layout: full-width tabs, no permanent aside ───────── */
 .card[data-expanded="true"] {
   grid-template-columns: minmax(0, 1fr) !important;
-  grid-template-rows: auto auto minmax(0, 1fr) !important;
+  grid-template-rows: auto auto auto !important;
 }
 
 .card[data-expanded="true"] .card-header {
@@ -6673,8 +6697,8 @@ export default {
 .card[data-expanded="true"] .card-body {
   grid-column: 1 !important;
   grid-row: 3 !important;
-  min-height: 0;
-  overflow-y: auto;
+  min-height: auto;
+  overflow: visible;
 }
 
 .employee-tabs-shell .card-actions {
@@ -6789,13 +6813,29 @@ export default {
   margin-left: auto;
 }
 
+/* Stammdaten (profile) tab: the card is clipped to the modal body height,
+   so the profile panel must scroll internally like the other tabs instead
+   of being cut off. Keep the tab bar fixed and scroll the content below it. */
+.card[data-expanded="true"] .employee-tabs-shell:has(.hero-right) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.card[data-expanded="true"] .employee-tabs-shell:has(.hero-right) .card-actions {
+  flex: 0 0 auto;
+}
+
 .employee-tabs-shell .hero-right {
   display: grid;
   grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
   align-items: stretch;
   gap: 22px;
   padding: 20px;
-  overflow: visible;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .employee-tabs-shell .hero-media {
