@@ -6593,7 +6593,7 @@ export default {
   justify-content: flex-start;
   gap: 8px;
   min-width: 0;
-  padding: 0 12px 2px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
   scrollbar-width: none;
@@ -6622,6 +6622,13 @@ export default {
   font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.employee-tabs-shell .card-actions .icon-btn > svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
 }
 
 .employee-tabs-shell .card-actions .icon-btn:hover {
@@ -6783,7 +6790,7 @@ export default {
   .employee-tabs-shell .card-actions {
     flex-direction: row;
     flex-wrap: nowrap;
-    padding: 0 8px 2px;
+    padding: 0 8px;
     gap: 4px;
     background: var(--surface);
   }

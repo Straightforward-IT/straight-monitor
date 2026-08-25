@@ -23,6 +23,10 @@
         <font-awesome-icon icon="fa-solid fa-graduation-cap" />
         Qualif. &amp; Berufe
       </button>
+      <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'lohn' }" @click="activeTab = 'lohn'">
+        <font-awesome-icon icon="fa-solid fa-money-bill-wave" />
+        Lohn
+      </button>
     </nav>
 
     <template v-if="activeTab === 'locations'">
@@ -236,6 +240,46 @@
     <BewerberManagementTab v-else-if="activeTab === 'applicants'" :locations="activeLocations" />
 
     <EmployeeEmailTemplateTab v-else-if="activeTab === 'emailTemplates'" :locations="activeLocations" />
+
+    <section v-else-if="activeTab === 'lohn'" class="lohn">
+      <Toolbar>
+        <SearchBar class="toolbar-search" v-model="lohnartSearch" placeholder="Lohnart suchen..." aria-label="Lohnart suchen" />
+        <ToolbarLabel>{{ filteredLohnarten.length }} Lohnarten</ToolbarLabel>
+      </Toolbar>
+      <p v-if="lohnartError" class="um__error">{{ lohnartError }}</p>
+      <p v-else-if="lohnartenLoading" class="lohn__state">Lohnarten werden geladen...</p>
+      <div v-else class="um__table-wrap">
+        <table class="um__table">
+          <thead>
+            <tr>
+              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('lohnartNummer')">Nr.<font-awesome-icon v-if="lohnartSortField === 'lohnartNummer'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
+              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('lohnartKurzzeichen')">Kürzel<font-awesome-icon v-if="lohnartSortField === 'lohnartKurzzeichen'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
+              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('lohnartBezeichnung')">Bezeichnung<font-awesome-icon v-if="lohnartSortField === 'lohnartBezeichnung'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
+              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('rechnungstext')">Rechnungstext<font-awesome-icon v-if="lohnartSortField === 'rechnungstext'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
+              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('kostenart')">Kostenart<font-awesome-icon v-if="lohnartSortField === 'kostenart'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
+              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('berechnungsartCode')">Berechnungsart<font-awesome-icon v-if="lohnartSortField === 'berechnungsartCode'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
+              <th class="lohn__th--zuschlag"><button type="button" class="lohn__sort-button" @click="sortLohnarten('zuschlagsProzent')">Zuschlag<font-awesome-icon v-if="lohnartSortField === 'zuschlagsProzent'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
+              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('equalPayRelevanz')">Equal Pay<font-awesome-icon v-if="lohnartSortField === 'equalPayRelevanz'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="lohnart in filteredLohnarten" :key="lohnart._id">
+              <td><span class="quali-key">{{ lohnart.lohnartNummer }}</span></td>
+              <td><span v-if="lohnart.lohnartKurzzeichen" class="beruf-tag">{{ lohnart.lohnartKurzzeichen }}</span><span v-else class="ma-unlinked">-</span></td>
+              <td>{{ lohnart.lohnartBezeichnung || '-' }}</td>
+              <td>{{ lohnart.rechnungstext || '-' }}</td>
+              <td>{{ lohnart.kostenart || '-' }}</td>
+              <td>{{ lohnart.berechnungsartCode || '-' }}</td>
+              <td class="lohn__zuschlag">{{ lohnart.zuschlagsProzent || '-' }}</td>
+              <td>{{ lohnart.equalPayRelevanz || '-' }}</td>
+            </tr>
+            <tr v-if="!filteredLohnarten.length">
+              <td colspan="8" style="text-align:center; opacity:0.45; padding: 24px;">Keine Lohnarten vorhanden.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
     <section v-else-if="activeTab === 'qualifikationen'" class="qualifikationen">
       <nav class="subtabs" aria-label="Qualifikationen und Berufe">
@@ -838,6 +882,56 @@ const selectedBerufFilter = ref(null); // null = all, 'none' = no beruf, beruf._
 const qualiModal = reactive({ open: false, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '', beruf: null } });
 const qualiDeleteModal = reactive({ open: false, deleting: false, error: '', item: null });
 
+// ─── Lohnarten ──────────────────────────────────────────────────────────────
+const lohnarten = ref([]);
+const lohnartenLoading = ref(false);
+const lohnartError = ref('');
+const lohnartSearch = ref('');
+const lohnartSortField = ref('lohnartNummer');
+const lohnartSortDirection = ref('asc');
+
+const filteredLohnarten = computed(() => {
+  const query = lohnartSearch.value.trim().toLowerCase();
+  const filtered = !query ? lohnarten.value : lohnarten.value.filter((lohnart) => [
+    lohnart.lohnartNummer,
+    lohnart.lohnartKurzzeichen,
+    lohnart.lohnartBezeichnung,
+    lohnart.rechnungstext,
+    lohnart.kostenart,
+  ].some((value) => String(value || '').toLowerCase().includes(query)));
+
+  return [...filtered].sort((left, right) => {
+    const leftValue = String(left[lohnartSortField.value] || '');
+    const rightValue = String(right[lohnartSortField.value] || '');
+    if (!leftValue) return 1;
+    if (!rightValue) return -1;
+    const comparison = leftValue.localeCompare(rightValue, 'de', { numeric: true, sensitivity: 'base' });
+    return lohnartSortDirection.value === 'asc' ? comparison : -comparison;
+  });
+});
+
+function sortLohnarten(field) {
+  if (lohnartSortField.value === field) {
+    lohnartSortDirection.value = lohnartSortDirection.value === 'asc' ? 'desc' : 'asc';
+    return;
+  }
+  lohnartSortField.value = field;
+  lohnartSortDirection.value = 'asc';
+}
+
+async function fetchLohnarten() {
+  lohnartenLoading.value = true;
+  lohnartError.value = '';
+  try {
+    const { data } = await api.get('/api/import/lohnarten');
+    lohnarten.value = data.data || [];
+  } catch (e) {
+    lohnartError.value = e?.response?.data?.message || 'Fehler beim Laden der Lohnarten.';
+  } finally {
+    lohnartenLoading.value = false;
+  }
+}
+
 const qualiBerufTabs = computed(() => {
   const map = new Map();
   for (const q of qualifikationen.value) {
@@ -1004,6 +1098,7 @@ onMounted(async () => {
   await loadAsanaUserMap();
   await fetchLocations();
   await fetchQualifikationen();
+  await fetchLohnarten();
 });
 
 async function fetchUsers() {
@@ -1487,6 +1582,29 @@ function formatDate(d) {
 .qualifikationen {
   padding-top: 22px;
 }
+.lohn {
+  padding-top: 22px;
+}
+.lohn__state { color: var(--muted); font-size: 0.85rem; }
+.lohn__sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: inherit;
+  text-align: left;
+
+  &:hover { color: var(--primary); }
+  svg { font-size: 0.7rem; color: var(--primary); }
+}
+.lohn__th--zuschlag { background: rgba(var(--primary-rgb, 255, 120, 0), 0.12); color: var(--primary) !important; }
+.lohn__zuschlag { background: rgba(var(--primary-rgb, 255, 120, 0), 0.08); color: var(--primary); font-weight: 700; }
 .qualifikationen__state { color: var(--muted); font-size: 0.85rem; }
 
 .subtabs {

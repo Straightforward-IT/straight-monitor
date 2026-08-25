@@ -1,13 +1,14 @@
 <template>
   <div class="people-page">
+    <div class="people-tab-controls">
+      <nav class="people-tabs" aria-label="Personalansicht">
+        <button type="button" :class="{ active: activeTab === 'mitarbeiter' }" @click="activeTab = 'mitarbeiter'">Mitarbeiter</button>
+        <button type="button" :class="{ active: activeTab === 'bewerber' }" @click="activeTab = 'bewerber'">Bewerber</button>
+      </nav>
+    </div>
+
     <main class="main">
       <section class="panel">
-        <div class="controls people-tab-controls">
-          <nav class="people-tabs" aria-label="Personalansicht">
-            <button type="button" :class="{ active: activeTab === 'mitarbeiter' }" @click="activeTab = 'mitarbeiter'">Mitarbeiter</button>
-            <button type="button" :class="{ active: activeTab === 'bewerber' }" @click="activeTab = 'bewerber'">Bewerber</button>
-          </nav>
-        </div>
         <!-- ============== EMPLOYEE VIEW ============== -->
         <template v-if="activeTab === 'mitarbeiter'">
           <!-- Minimierbare Filter-Sektion -->
@@ -87,49 +88,14 @@
                 </button>
               </div>
             </div>
-          </Toolbar>
 
-        <!-- Controls: Sort + Pagination -->
-        <div class="view-controls-right">
-            <!-- Sort -->
-            <div class="sort">
-              <button class="btn-ghost" @click="toggleMitarbeiterSort">
-                <font-awesome-icon icon="fa-solid fa-arrow-up-wide-short" />
-                Sortieren
-              </button>
-              <div
-                v-if="showMitarbeiterSort"
-                class="menu"
-                @click.outside="showMitarbeiterSort = false"
-              >
-                <button @click="setMitarbeiterSort('vorname')">Vorname</button>
-                <button @click="setMitarbeiterSort('nachname')">
-                  Nachname
-                </button>
-                <button @click="setMitarbeiterSort('standort')">
-                  Standort
-                </button>
-                <button @click="setMitarbeiterSort('abteilung')">
-                  Bereich
-                </button>
-                <button @click="setMitarbeiterSort('createdAt')">
-                  Zuletzt erstellt
-                </button>
-                <button @click="setMitarbeiterSort('eintrittsdatum')">
-                  Eintrittsdatum
-                </button>
-                <button @click="setMitarbeiterSort('austrittsdatum')">
-                  Austrittsdatum
-                </button>
-                <button class="sep" disabled />
-                <button
-                  @click="mitarbeitersIsAscending = !mitarbeitersIsAscending"
-                >
-                  Richtung:
-                  {{ mitarbeitersIsAscending ? "Aufsteigend" : "Absteigend" }}
-                </button>
-              </div>
-            </div>
+            <!-- Controls: Sort + Pagination -->
+            <div class="view-controls-right">
+            <SortMenu
+              v-model="mitarbeitersSortBy"
+              v-model:ascending="mitarbeitersIsAscending"
+              :options="mitarbeiterSortOptions"
+            />
 
             <!-- Pagination Info (compact version) -->
             <div v-if="!loading.mitarbeiter && filteredMitarbeitersSorted.length > 0" class="pagination-compact">
@@ -171,7 +137,8 @@
                 </custom-tooltip>
               </div>
             </div>
-        </div>
+            </div>
+          </Toolbar>
         </div> <!-- end controls -->
 
         <!-- Loading State -->
@@ -557,6 +524,7 @@ import ExportMitarbeiterModal from "@/components/ExportMitarbeiterModal.vue";
 import ImageCropModal from "@/components/ImageCropModal.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
+import SortMenu from "@/components/ui-elements/SortMenu.vue";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
 
@@ -649,7 +617,7 @@ library.add(
 
 export default {
   name: "Personal",
-  components: { FontAwesomeIcon, EmployeeCard, BewerberTab, CustomTooltip, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar },
+  components: { FontAwesomeIcon, EmployeeCard, BewerberTab, CustomTooltip, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar, SortMenu },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -728,10 +696,17 @@ export default {
       qualFocusedPillIdx: -1,
       mitarbeitersSortBy: "nachname",
       mitarbeitersIsAscending: true,
+      mitarbeiterSortOptions: [
+        { value: 'vorname', label: 'Vorname' },
+        { value: 'nachname', label: 'Nachname' },
+        { value: 'standort', label: 'Standort' },
+        { value: 'abteilung', label: 'Bereich' },
+        { value: 'createdAt', label: 'Zuletzt erstellt' },
+        { value: 'eintrittsdatum', label: 'Eintrittsdatum' },
+        { value: 'austrittsdatum', label: 'Austrittsdatum' },
+      ],
 
       // ui
-      showMitarbeiterSort: false,
-
       // Profilbild Upload
       showImageCropModal: false,
       imageCropMa: null,
@@ -1077,15 +1052,6 @@ export default {
         year: "numeric",
       });
     },
-
-    toggleMitarbeiterSort() {
-      this.showMitarbeiterSort = !this.showMitarbeiterSort;
-    },
-    setMitarbeiterSort(key) {
-      this.mitarbeitersSortBy = key;
-      this.showMitarbeiterSort = false;
-    },
-
 
     // Cookie Management
     saveFiltersToCookie() {
@@ -1704,6 +1670,18 @@ export default {
     initiallyExpanded(newValue) {
       this.expanded = newValue;
     },
+    '$route.query.tab'(tab) {
+      this.activeTab = tab === 'bewerber' ? 'bewerber' : 'mitarbeiter';
+    },
+    activeTab(tab) {
+      const routeTab = this.$route.query.tab;
+      if (tab === 'bewerber' && routeTab !== 'bewerber') {
+        this.$router.replace({ query: { ...this.$route.query, tab: 'bewerber' } });
+      } else if (tab === 'mitarbeiter' && routeTab) {
+        const { tab: _tab, ...query } = this.$route.query;
+        this.$router.replace({ query });
+      }
+    },
     'loading.mitarbeiter'(newValue) {
       // Wenn das Laden abgeschlossen ist und wir einen expandierten Mitarbeiter haben
       if (!newValue && this.expandedEmployeeId) {
@@ -1756,22 +1734,22 @@ export default {
 <style scoped lang="scss">
 /* Tokens an globale Variablen anbinden */
 .people-page {
-  --bg: var(--bg);
   --surface: var(--panel);
   --soft: var(--hover);
-  --border: var(--border);
-  --muted: var(--muted);
-  --text: var(--text);
   --brand: var(--primary);
   --brand-ink: var(--primary);
   --ok: #21a26a;
   --warn: #f6a019;
   --bad: #e25555;
-  --shadow: var(
-    --shadow,
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    0 8px 24px rgba(0, 0, 0, 0.06)
-  );
+  width: 100%;
+  max-width: 1600px;
+  height: 100%;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
 }
 
 .people-page :deep(.location-filter-chip) {
@@ -1787,13 +1765,15 @@ export default {
 }
 
 .main {
-  background: var(--surface);
+  flex: 1;
+  min-height: 0;
+  background: var(--tile-bg);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: var(--shadow);
+  border-radius: 12px;
+  overflow-y: auto;
 }
 .panel {
-  padding: 20px;
+  padding: 24px;
 }
 
 /* Controls */
@@ -1804,40 +1784,57 @@ export default {
 }
 
 .people-tab-controls {
-  margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .people-tabs {
-  align-items: center;
   display: flex;
-  gap: 4px;
-  width: fit-content;
-  padding: 4px;
-  background: var(--soft);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  gap: 8px;
+  width: 100%;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.people-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .people-tabs button {
-  border: 0;
-  border-radius: 5px;
   background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 8px 16px;
   color: var(--muted);
-  cursor: pointer;
   font: inherit;
-  font-size: 0.875rem;
-  padding: 7px 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s;
 }
 
 .people-tabs button:hover {
   color: var(--text);
+  background: var(--hover);
+  border-radius: 6px 6px 0 0;
 }
 
 .people-tabs button.active {
-  background: var(--tile-bg);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   color: var(--primary);
-  font-weight: 600;
+  border-bottom-color: var(--primary);
+  background: transparent;
+}
+
+@media (max-width: 768px) {
+  .people-page {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .panel {
+    padding: 12px;
+  }
 }
 
 /* View Controls */
@@ -2060,57 +2057,6 @@ export default {
     padding: 4px 8px;
     font-size: 12px;
   }
-}
-
-.sort {
-  position: relative;
-  z-index: 1;
-}
-.btn-ghost {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 12px;
-  padding: 10px 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  transition: 140ms ease;
-}
-.btn-ghost:hover {
-  box-shadow: var(--shadow);
-}
-
-.menu {
-  position: absolute;
-  right: 0;
-  margin-top: 6px;
-  min-width: 220px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  padding: 6px;
-  z-index: 10;
-  display: grid;
-}
-.menu button {
-  text-align: left;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  padding: 10px;
-  border-radius: 10px;
-  color: var(--text);
-}
-.menu button:hover {
-  background: var(--soft);
-}
-.menu .sep {
-  border-top: 1px dashed var(--border);
-  margin: 4px 8px;
-  height: 0;
 }
 
 /* Grid View */
@@ -3157,9 +3103,11 @@ html {
 .view-controls-right {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* View Controls */
@@ -3457,14 +3405,14 @@ html {
 .pagination-compact {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .pagination-info-compact {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .pagination-text {
@@ -3474,17 +3422,22 @@ html {
 }
 
 .pagination-select-compact {
-  padding: 0.125rem 0.25rem;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 8px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--surface);
   color: var(--text);
   font-size: 0.8rem;
   cursor: pointer;
   min-width: 50px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   
   &:hover {
+    background: var(--soft);
     border-color: var(--brand);
+    color: var(--brand);
   }
   
   &:focus {
@@ -3497,18 +3450,18 @@ html {
 .pagination-controls-compact {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .pagination-btn-compact {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3517,6 +3470,7 @@ html {
   &:hover:not(:disabled) {
     background: var(--soft);
     border-color: var(--brand);
+    color: var(--brand);
   }
   
   &:disabled {
@@ -3561,7 +3515,7 @@ html {
   }
   
   .view-controls-right {
-    width: 100%;
+    width: auto;
     justify-content: space-between;
     gap: 8px;
     flex-wrap: nowrap;
@@ -3577,8 +3531,7 @@ html {
   }
 
   .pagination-info-compact,
-  .pagination-controls-compact,
-  .btn-ghost {
+  .pagination-controls-compact {
     flex-wrap: nowrap;
     white-space: nowrap;
   }
@@ -3586,13 +3539,6 @@ html {
   .pagination-info-compact,
   .pagination-controls-compact {
     min-width: 0;
-  }
-
-  .btn-ghost {
-    padding: 8px 10px;
-    gap: 6px;
-    font-size: 0.9rem;
-    flex-shrink: 0;
   }
 
   .pagination-text,
@@ -3674,12 +3620,6 @@ html {
   .pagination-btn-compact {
     width: 24px;
     height: 24px;
-  }
-
-  .btn-ghost {
-    padding: 7px 8px;
-    font-size: 0.85rem;
-    gap: 4px;
   }
 
   .pagination-compact {

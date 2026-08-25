@@ -8,6 +8,7 @@ const Schicht = require('../../models/Event/Schicht');
 const Rechnung = require('../../models/Rechnung');
 const Qualifikation = require('../../models/Event/Qualifikation');
 const Kundenpreis = require('../../models/Customer/Kundenpreis');
+const KundenKondition = require('../../models/Customer/KundenKondition');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Adresse = require('../../models/System/Adresse');
 const Einsatzort = require('../../models/Event/Einsatzort');
@@ -1452,6 +1453,26 @@ router.delete('/:kundenNr/einsatzorte/:id', auth, asyncHandler(async (req, res) 
   const einsatzort = await Einsatzort.findOneAndDelete({ _id: req.params.id, kunde: kunde._id }).lean();
   if (!einsatzort) return res.status(404).json({ message: 'Einsatzort nicht gefunden.' });
   res.json({ success: true });
+}));
+
+// @route   GET /api/kunden/:kundenNr/preise
+// @route   GET /api/kunden/:kundenNr/konditionen
+// @desc    Aus Zvoove importierte Zuschlags- und Konditionsregeln
+// @access  Private
+router.get('/:kundenNr/konditionen', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number.parseInt(req.params.kundenNr, 10);
+  if (!Number.isInteger(kundenNr)) {
+    return res.status(400).json({ message: 'Ungültige Kunden-Nr.' });
+  }
+
+  const kunde = await Kunde.findOne({ kundenNr }).select('_id').lean();
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+
+  const konditionen = await KundenKondition.find({ kunde: kunde._id })
+    .populate('lohnart', 'lohnartNummer lohnartKurzzeichen lohnartBezeichnung')
+    .sort({ tabellenNr: 1, laufendeNummer: 1 })
+    .lean();
+  res.json(konditionen);
 }));
 
 // @route   GET /api/kunden/:kundenNr/preise

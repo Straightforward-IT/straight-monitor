@@ -11,7 +11,9 @@ const Location = require('../../models/System/Location');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Beruf = require('../../models/Event/Beruf');
 const Qualifikation = require('../../models/Event/Qualifikation');
+const Lohnart = require('../../models/Payroll/Lohnart');
 const Kundenpreis = require('../../models/Customer/Kundenpreis');
+const KundenKondition = require('../../models/Customer/KundenKondition');
 const ImportLog = require('../../models/System/ImportLog');
 const Rechnung = require('../../models/Rechnung');
 const DispoEintrag = require('../../models/System/DispoEintrag');
@@ -125,6 +127,14 @@ const optionalText = (value) => {
   return text || null;
 };
 
+const normalizeNumericIdentifier = (value) => {
+  const text = optionalText(value);
+  if (!text) return null;
+  return /^\d+(?:[.,]0+)?$/.test(text)
+    ? String(Number.parseInt(text, 10))
+    : text;
+};
+
 const parseExcelDate = (value) => {
   if (value == null || value === '') return null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -155,6 +165,14 @@ const parseEuroCents = (value) => {
     .replace(',', '.');
   const amount = Number(normalized);
   return Number.isFinite(amount) ? Math.round(amount * 100) : null;
+};
+
+const parseDecimal = (value) => {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const normalized = String(value).trim().replace(/\s/g, '').replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
 async function migrateEinsatzortImportKey() {
@@ -1617,6 +1635,198 @@ router.post('/qualifikation', auth, extendTimeout, upload.single('file'), async 
     logger.error('Import Qualifikation Error:', error);
     await logImport('qualifikation', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
     res.status(500).json({ success: false, message: 'Fehler beim Importieren der Qualifikationen.', error: error.message });
+  }
+});
+
+// --- Lohnarten Import (LOHNART) ---
+router.get('/lohnarten', auth, async (req, res) => {
+  try {
+    const lohnarten = await Lohnart.find({}).sort({ lohnartNummer: 1 }).lean();
+    res.json({ success: true, data: lohnarten });
+  } catch (error) {
+    logger.error('GET Lohnarten Error:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Abrufen der Lohnarten.', error: error.message });
+  }
+});
+
+router.post('/lohnart', auth, extendTimeout, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+    const columns = [
+      ['LOHNARTNR', 'lohnartNummer'], ['LOHNARTKUR', 'lohnartKurzzeichen'], ['LOHNARTTXT', 'lohnartBezeichnung'],
+      ['RECHNUNGST', 'rechnungstext'], ['KOSTENART', 'kostenart'], ['FREMDLOHNA', 'fremdLohnartNummer'],
+      ['CBERECHNUN', 'berechnungsartCode'], ['CDURCHSPEI', 'durchschnittsspeicherCode'], ['CZUSCHLAG', 'zuschlagsProzent'], ['ZUSCHAUEGR', 'zuschlagsgruppeWert'],
+      ['CSTEUERKRA', 'steuerartCode'], ['CSTEUERSPE', 'steuerSpezialCode'], ['CSOZIAL', 'sozialversicherungCode'], ['CPFAENDUNG', 'pfaendungCode'],
+      ['AUSWERT', 'auswerten'], ['AUSWERTSTD', 'inStundenauswertung'], ['CGLEITZEIT', 'gleitzeitCode'],
+      ['RECHSPALTE', 'rechnungsspalte'], ['BGSPALTE', 'berechnungsgrundlageSpalte'], ['ILOHNFAKTUR', 'fakturierungCode'],
+      ['IBRANCHENZUSCHLAG', 'branchenzuschlagCode'], ['ILOHNARTBRANCHENZ', 'branchenzuschlagLohnartNummer'], ['PRIORITAETBZ', 'branchenzuschlagPrioritaet'], ['EQUALPAY', 'equalPayRelevanz'],
+    ];
+    const header = rawData[0]?.map((value) => String(value).trim().toUpperCase()) || [];
+    const hasHeader = header.includes('LOHNARTNR');
+    const indexByColumn = new Map(columns.map(([source], index) => [source, hasHeader ? header.indexOf(source) : index]));
+    const operations = [];
+
+    for (const row of rawData.slice(hasHeader ? 1 : 0)) {
+      const lohnartNummer = String(row[indexByColumn.get('LOHNARTNR')] ?? '').trim();
+      if (!lohnartNummer) continue;
+
+      const fields = {};
+      for (const [source, target] of columns) {
+        fields[target] = String(row[indexByColumn.get(source)] ?? '').trim();
+      }
+      operations.push({
+        updateOne: {
+          filter: { lohnartNummer },
+          update: { $set: fields },
+          upsert: true,
+        },
+      });
+    }
+
+    if (!operations.length) {
+      await logImport('lohnart', req.file.originalname, 'warning', 0, { message: 'Keine gültigen Lohnarten gefunden' }, req.user?.id);
+      return res.json({ success: true, message: 'Keine gültigen Lohnarten gefunden. (Erwarte LOHNARTNR als erste Spalte oder Spaltenüberschrift.)' });
+    }
+
+    const result = await Lohnart.bulkWrite(operations);
+    const inserted = result.upsertedCount || 0;
+    const updated = result.modifiedCount || 0;
+    const unchanged = operations.length - inserted - updated;
+    const response = {
+      success: true,
+      message: `${operations.length} Lohnarten verarbeitet: ${inserted} neu, ${updated} aktualisiert.`,
+      details: { total: operations.length, inserted, updated, unchanged },
+    };
+    await logImport('lohnart', req.file.originalname, 'success', operations.length, response.details, req.user?.id);
+    res.json(response);
+  } catch (error) {
+    logger.error('Import Lohnart Error:', error);
+    await logImport('lohnart', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Lohnarten.', error: error.message });
+  }
+});
+
+// --- Kundenkonditionen Import (KUNDEN_KOND) ---
+router.post('/kundenkondition', auth, extendTimeout, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true }).map(cleanKeys);
+    const [kunden, lohnarten] = await Promise.all([
+      Kunde.find({}).select('_id kundenNr').lean(),
+      Lohnart.find({}).select('_id lohnartNummer').lean(),
+    ]);
+    const kundeByNr = new Map(kunden.map((kunde) => [kunde.kundenNr, kunde]));
+    const lohnartByNr = new Map();
+    for (const lohnart of lohnarten) {
+      lohnartByNr.set(String(lohnart.lohnartNummer), lohnart);
+      lohnartByNr.set(normalizeNumericIdentifier(lohnart.lohnartNummer), lohnart);
+    }
+    const operations = [];
+    const sourceKeys = new Set();
+    let invalid = 0;
+    let unresolvedCustomers = 0;
+    let unresolvedLohnarten = 0;
+    let duplicates = 0;
+
+    for (const row of rows) {
+      const kundenNr = Number.parseInt(row.KUNDENNR, 10);
+      const lohnartNummer = optionalText(row.LOHNART);
+      const tabellenNr = optionalText(row.TABNR);
+      const laufendeNummer = optionalText(row.LFDNR);
+      if (!Number.isInteger(kundenNr) || !lohnartNummer || !tabellenNr || !laufendeNummer) {
+        invalid += 1;
+        continue;
+      }
+
+      const kunde = kundeByNr.get(kundenNr);
+      const lohnart = lohnartByNr.get(lohnartNummer) || lohnartByNr.get(normalizeNumericIdentifier(lohnartNummer));
+      if (!kunde) {
+        unresolvedCustomers += 1;
+        continue;
+      }
+      if (!lohnart) {
+        unresolvedLohnarten += 1;
+        continue;
+      }
+
+      const preisNr = optionalText(row.PREISNR);
+      const sourceKey = [kundenNr, tabellenNr, laufendeNummer, preisNr || '', lohnartNummer].join(':');
+      if (sourceKeys.has(sourceKey)) {
+        duplicates += 1;
+        continue;
+      }
+      sourceKeys.add(sourceKey);
+
+      const regelCode = optionalText(row.STD_UHR)?.toUpperCase();
+      const einheitCode = optionalText(row.JE)?.toUpperCase();
+      operations.push({
+        updateOne: {
+          filter: { sourceKey },
+          update: { $set: {
+            kunde: kunde._id,
+            kundenNrSnapshot: kundenNr,
+            lohnart: lohnart._id,
+            lohnartNummer,
+            tabellenNr,
+            tabellenBezeichnung: optionalText(row.TABBEZ) || '',
+            laufendeNummer,
+            regelArt: regelCode === 'S' ? 'stunden' : regelCode === 'U' ? 'uhrzeit' : null,
+            jeEinheit: einheitCode === 'T' ? 'tag' : einheitCode === 'W' ? 'woche' : null,
+            abWert: optionalText(row.AB),
+            bisWert: optionalText(row.BIS),
+            tage: {
+              montag: optionalText(row.MONTAG)?.toUpperCase() === 'J',
+              dienstag: optionalText(row.DIENSTAG)?.toUpperCase() === 'J',
+              mittwoch: optionalText(row.MITTWOCH)?.toUpperCase() === 'J',
+              donnerstag: optionalText(row.DONNERSTAG)?.toUpperCase() === 'J',
+              freitag: optionalText(row.FREITAG)?.toUpperCase() === 'J',
+              samstag: optionalText(row.SAMSTAG)?.toUpperCase() === 'J',
+              sonntag: optionalText(row.SONNTAG)?.toUpperCase() === 'J',
+              feiertag: optionalText(row.FEIERTAG)?.toUpperCase() === 'J',
+            },
+            preisNr,
+            zuschlagsProzent: parseDecimal(row.PROZENT) || 0,
+            verwendung: optionalText(row.VERWENDUNG),
+            preisBetrag: parseDecimal(row.PREIS) || null,
+            abStundenGrenze: parseDecimal(row.ABSTUNDENGRENZE) || null,
+            nichtAutomatisch: optionalText(row.NICHTAUTOM) === '*',
+            branchenzuschlagAddieren: Number(row.BRANCHENZUSCHLAGADDIEREN) === 1,
+            berufsSchluessel: optionalText(row.BERUFSCHL),
+            zvooveKonditionsId: optionalText(row.FID),
+          }, $setOnInsert: { sourceKey } },
+          upsert: true,
+        },
+      });
+    }
+
+    if (!operations.length) {
+      const details = { total: rows.length, invalid, unresolvedCustomers, unresolvedLohnarten, duplicates };
+      await logImport('kundenkondition', req.file.originalname, 'warning', 0, details, req.user?.id);
+      return res.json({ success: true, message: 'Keine verknüpfbaren Kundenkonditionen gefunden.', details });
+    }
+
+    const result = await KundenKondition.bulkWrite(operations);
+    const inserted = result.upsertedCount || 0;
+    const updated = result.modifiedCount || 0;
+    const unchanged = operations.length - inserted - updated;
+    const details = { total: rows.length, processed: operations.length, inserted, updated, unchanged, invalid, unresolvedCustomers, unresolvedLohnarten, duplicates };
+    await logImport('kundenkondition', req.file.originalname, 'success', operations.length, details, req.user?.id);
+    res.json({ success: true, message: `${operations.length} Kundenkonditionen verarbeitet: ${inserted} neu, ${updated} aktualisiert.`, details });
+  } catch (error) {
+    logger.error('Import Kundenkondition Error:', error);
+    await logImport('kundenkondition', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Kundenkonditionen.', error: error.message });
   }
 });
 

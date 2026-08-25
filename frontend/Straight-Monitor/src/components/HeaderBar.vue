@@ -20,17 +20,25 @@
         </router-link>
         <div class="nav-group nav-group--auftraege">
           <router-link
-            :to="newPagesEnabled ? '/auftraege' : '#'"
+            :to="newPagesEnabled ? auftraegeNavTarget : '#'"
             :class="{ active: isAuftraegeSectionActive, disabled: !newPagesEnabled }"
-            @click="handleNewPageClick($event, '/auftraege')"
+            @click="handleNewPageClick($event, auftraegeNavTarget)"
           >
-            Aufträge
+            {{ auftraegeNavLabel }}
           </router-link>
           <div class="nav-submenu" aria-label="Auftraege Untermenue">
             <router-link
+              v-if="auftraegeNavLabel !== 'Aufträge'"
+              to="/auftraege"
+              class="nav-submenu__link"
+              @click="handleNewPageClick($event, '/auftraege')"
+            >
+              Aufträge
+            </router-link>
+            <router-link
+              v-if="auftraegeNavLabel !== 'Pseudo-Auftrag'"
               :to="{ path: '/auftraege', query: { openPseudo: '1' } }"
               class="nav-submenu__link"
-              :class="{ active: $route.name === 'Auftraege' && $route.query.openPseudo }"
               @click="handleNewPageClick($event, '/auftraege')"
             >
               Pseudo-Auftrag
@@ -47,25 +55,33 @@
         </div>
           <div class="nav-group nav-group--personal">
             <router-link
-              :to="newPagesEnabled ? '/personal' : '#'"
+              :to="newPagesEnabled ? personalNavTarget : '#'"
               :class="{ active: isPersonalSectionActive, disabled: !newPagesEnabled }"
-              @click="handleNewPageClick($event, '/personal')"
+              @click="handleNewPageClick($event, personalNavTarget)"
             >{{ personalNavLabel }}</router-link>
             <div class="nav-submenu" aria-label="Personal Untermenue">
               <router-link
-                v-if="$route.name !== 'BenutzerErstellen'"
-                to="/flip/benutzer-erstellen"
-                class="nav-submenu__link"
-              >
-                MA erstellen
-              </router-link>
-              <router-link
-                v-else
-                :to="newPagesEnabled ? '/personal' : '#'"
+                v-if="personalNavLabel !== 'Personal'"
+                to="/personal"
                 class="nav-submenu__link"
                 @click="handleNewPageClick($event, '/personal')"
               >
                 Personal
+              </router-link>
+              <router-link
+                v-if="personalNavLabel !== 'Bewerber'"
+                :to="{ path: '/personal', query: { tab: 'bewerber' } }"
+                class="nav-submenu__link"
+                @click="handleNewPageClick($event, '/personal')"
+              >
+                Bewerber
+              </router-link>
+              <router-link
+                v-if="personalNavLabel !== 'MA erstellen'"
+                to="/flip/benutzer-erstellen"
+                class="nav-submenu__link"
+              >
+                MA erstellen
               </router-link>
             </div>
           </div>
@@ -82,21 +98,21 @@
           >{{ reportsNavLabel }}</router-link>
           <div class="nav-submenu" aria-label="Reports Untermenue">
             <router-link
-              v-if="$route.name !== 'Dokumente'"
+              v-if="reportsNavLabel !== 'Reports'"
               to="/dokumente"
               class="nav-submenu__link"
             >
               Reports
             </router-link>
             <router-link
-              v-if="$route.name !== 'DokumenteNachpflegen'"
+              v-if="reportsNavLabel !== 'Nachpflege'"
               to="/dokumente-nachpflegen"
               class="nav-submenu__link"
             >
               Nachpflege
             </router-link>
             <router-link
-              v-if="$route.name !== 'TeamleiterAuswertung'"
+              v-if="reportsNavLabel !== 'Auswertung'"
               to="/teamleiter-auswertung"
               class="nav-submenu__link"
             >
@@ -127,43 +143,43 @@
           </div>
         </div>
         <div v-if="canSeeKunden" class="nav-group nav-group--kunden">
-          <router-link to="/kunden" :class="{ active: isKundenSectionActive, 'dev-role--vertrieb': isDev }"
-            @click="handleNewPageClick($event, '/kunden')"
-            >{{ kundenTabLabel }}</router-link
+          <router-link :to="kundenNavTarget" :class="{ active: isKundenSectionActive, 'dev-role--vertrieb': isDev }"
+            @click="handleNewPageClick($event, kundenNavTarget)"
+            >{{ kundenNavLabel }}</router-link
           >
           <div class="nav-submenu" aria-label="Kunden Untermenue">
             <router-link
+              v-if="kundenNavLabel !== 'Kunden'"
               to="/kunden"
               class="nav-submenu__link"
-              :class="{ active: $route.name === 'Kunden' && !$route.query.tab }"
             >
-              Übersicht
+              Kunden
             </router-link>
             <router-link
+              v-if="kundenNavLabel !== 'Analytics'"
               :to="{ path: '/kunden', query: { tab: 'analytics' } }"
               class="nav-submenu__link"
-              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'analytics' }"
             >
               Analytics
             </router-link>
             <router-link
+              v-if="kundenNavLabel !== 'Leads'"
               :to="{ path: '/kunden', query: { tab: 'leads' } }"
               class="nav-submenu__link"
-              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'leads' }"
             >
               Leads
             </router-link>
             <router-link
+              v-if="kundenNavLabel !== 'Watchlist'"
               :to="{ path: '/kunden', query: { tab: 'watchlist' } }"
               class="nav-submenu__link"
-              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'watchlist' }"
             >
               Watchlist
             </router-link>
             <router-link
+              v-if="kundenNavLabel !== 'Kontakte'"
               :to="{ path: '/kunden', query: { tab: 'kontakte' } }"
               class="nav-submenu__link"
-              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'kontakte' }"
             >
               Kontakte
             </router-link>
@@ -271,7 +287,7 @@
               @click="handleMobileNavClick($event, '/auftraege')"
             >
               <font-awesome-icon :icon="['fas', 'layer-group']" />
-              Übersicht
+              Kunden
             </router-link>
             <router-link
               :to="{ path: '/auftraege', query: { openPseudo: '1' } }"
@@ -750,12 +766,20 @@ const canSeeKunden = computed(() => isAdmin.value || auth.user?.roles?.includes(
 const canSeePayroll = computed(() => isAdmin.value);
 const isPayrollSectionActive = computed(() => route.name === 'Payroll');
 const isKundenSectionActive = computed(() => route.name === 'Kunden');
-const kundenTabLabel = computed(() => {
+const kundenNavLabel = computed(() => {
   if (route.name !== 'Kunden') return 'Kunden';
-  const tabMap = { analytics: 'Analytics', leads: 'Leads', watchlist: 'Watchlist', kontakte: 'Kontakte' };
-  return tabMap[route.query.tab] || 'Übersicht';
+  const labels = { analytics: 'Analytics', leads: 'Leads', watchlist: 'Watchlist', kontakte: 'Kontakte' };
+  return labels[route.query.tab] || 'Kunden';
+});
+const kundenNavTarget = computed(() => {
+  const tab = route.name === 'Kunden' ? route.query.tab : null;
+  return tab ? { path: '/kunden', query: { tab } } : '/kunden';
 });
 const isAuftraegeSectionActive = computed(() => route.name === 'Auftraege');
+const auftraegeNavLabel = computed(() => route.name === 'Auftraege' && route.query.openPseudo ? 'Pseudo-Auftrag' : 'Aufträge');
+const auftraegeNavTarget = computed(() => auftraegeNavLabel.value === 'Pseudo-Auftrag'
+  ? { path: '/auftraege', query: { openPseudo: '1' } }
+  : '/auftraege');
 const isBestandSectionActive = computed(() => ['Bestand', 'Verlauf'].includes(route.name));
 const isReportsSectionActive = computed(() => ['Dokumente', 'DokumenteNachpflegen', 'TeamleiterAuswertung'].includes(route.name));
 const reportsNavLabel = computed(() => {
@@ -768,7 +792,16 @@ const reportsNavTarget = computed(() => {
   return '/dokumente';
 });
 const isPersonalSectionActive = computed(() => ['Personal', 'BenutzerErstellen'].includes(route.name));
-const personalNavLabel = computed(() => route.name === 'BenutzerErstellen' ? 'MA erstellen' : 'Personal');
+const personalNavLabel = computed(() => {
+  if (route.name === 'BenutzerErstellen') return 'MA erstellen';
+  if (route.name === 'Personal' && route.query.tab === 'bewerber') return 'Bewerber';
+  return 'Personal';
+});
+const personalNavTarget = computed(() => {
+  if (personalNavLabel.value === 'MA erstellen') return '/flip/benutzer-erstellen';
+  if (personalNavLabel.value === 'Bewerber') return { path: '/personal', query: { tab: 'bewerber' } };
+  return '/personal';
+});
 const isSignSectionActive = computed(() => route.name === 'SignaturenPage');
 
 // Handler für deaktivierte neue Pages
@@ -970,6 +1003,12 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+@media (min-width: 1101px) {
+  .left {
+    align-items: flex-end;
+  }
 }
 
 .nav-group {

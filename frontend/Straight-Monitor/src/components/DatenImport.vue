@@ -10,7 +10,7 @@
     <div class="last-import-section">
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'adressen', 'kunden', 'einsatzort', 'beruf', 'qualifikation', 'rechnung', 'kundenpreis', 'personalnr-history'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
+        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'adressen', 'kunden', 'einsatzort', 'beruf', 'qualifikation', 'lohnart', 'kundenkondition', 'rechnung', 'kundenpreis', 'personalnr-history'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -370,6 +370,43 @@
         </div>
 
         <!-- Personalnr. Historien -->
+        <!-- Lohnarten -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Lohnarten</h2>
+              <p class="subtitle">Lohnartenstammdaten aus der Zvoove-Tabelle LOHNART</p>
+            </div>
+            <span v-if="lohnartFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area"
+              :class="{ 'has-file': lohnartFile }"
+              @dragover.prevent
+              @drop="(e) => handleDragAndDrop(e, 'lohnart')"
+              @click="triggerFileInput('lohnart-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="lohnartFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!lohnartFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ lohnartFile.name }}</span>
+                </div>
+              </div>
+              <input id="lohnart-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'lohnart')" accept=".xlsx, .xls" />
+            </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Benötigte Spalten anzeigen</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody><tr><td>LOHNARTNR</td><td>LOHNARTKUR</td><td>LOHNARTTXT</td><td>Weitere LOHNART-Felder gemäß Export</td></tr></tbody></table>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+
+        <!-- Personalnr. Historien -->
         <div class="import-card">
           <div class="card-header">
             <div class="header-content">
@@ -455,6 +492,46 @@
                     <tr><td>P – NETTO</td><td>Q – MWST</td><td>R – BRUTTO</td></tr>
                     <tr><td>S – DEBITORKTO</td><td>T – RECHALTNR</td><td>U – RECHTEXT</td></tr>
                     <tr><td>V – LFDLEISTNR</td><td>W – RECHNUNGNR</td><td></td></tr>
+                  </tbody></table>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kundenpreise Import -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Kundenkonditionen</h2>
+              <p class="subtitle">Kundenspezifische Zuschlagsregeln aus KUNDEN_KOND</p>
+            </div>
+            <span v-if="kundenkonditionFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area"
+              :class="{ 'has-file': kundenkonditionFile }"
+              @dragover.prevent
+              @drop="(e) => handleDragAndDrop(e, 'kundenkondition')"
+              @click="triggerFileInput('kundenkondition-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="kundenkonditionFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!kundenkonditionFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ kundenkonditionFile.name }}</span>
+                </div>
+              </div>
+              <input id="kundenkondition-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'kundenkondition')" accept=".xlsx, .xls" />
+            </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Erwartete SQL-Export Struktur</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody>
+                    <tr><td>KUNDENNR, TABNR, TABBEZ, LFDNR</td><td>LOHNART, AB, BIS, STD_UHR, JE</td></tr>
+                    <tr><td>MONTAG bis FEIERTAG</td><td>PREISNR, PROZENT, VERWENDUNG, PREIS</td></tr>
+                    <tr><td>ABSTUNDENGRENZE, NICHTAUTOM</td><td>BRANCHENZUSCHLAGADDIEREN, BERUFSCHL, FID</td></tr>
                   </tbody></table>
                 </div>
               </details>
@@ -751,8 +828,10 @@ export default {
       verfuegbarkeitFile: null,
       berufFile: null,
       qualifikationFile: null,
+      lohnartFile: null,
       rechnungFile: null,
       kundenpreisFile: null,
+      kundenkonditionFile: null,
       personalnrHistoryFile: null,
       adressenFile: null,
       einsatzortFile: null,
@@ -797,8 +876,10 @@ export default {
         verfuegbarkeit: 'Verfügbarkeiten',
         beruf: 'Berufe',
         qualifikation: 'Qualifikationen',
+        lohnart: 'Lohnarten',
         rechnung: 'Rechnungen',
         kundenpreis: 'Kundenpreise',
+        kundenkondition: 'Kundenkonditionen',
         'personalnr-history': 'Personalnr. Historien',
       };
       return labels[type] || type;
@@ -839,8 +920,10 @@ export default {
       if (type === 'verfuegbarkeit') this.verfuegbarkeitFile = file;
       if (type === 'beruf') this.berufFile = file;
       if (type === 'qualifikation') this.qualifikationFile = file;
+      if (type === 'lohnart') this.lohnartFile = file;
       if (type === 'rechnung') this.rechnungFile = file;
       if (type === 'kundenpreis') this.kundenpreisFile = file;
+      if (type === 'kundenkondition') this.kundenkonditionFile = file;
       if (type === 'personalnr-history') this.personalnrHistoryFile = file;
       if (type === 'adressen') this.adressenFile = file;
       if (type === 'einsatzort') this.einsatzortFile = file;
@@ -884,7 +967,7 @@ export default {
         return;
       }
 
-      const adminFiles = this.isAdmin ? [this.adressenFile, this.einsatzortFile, this.kundenFile, this.berufFile, this.qualifikationFile, this.rechnungFile, this.kundenpreisFile, this.personalnrHistoryFile] : [];
+      const adminFiles = this.isAdmin ? [this.adressenFile, this.einsatzortFile, this.kundenFile, this.berufFile, this.qualifikationFile, this.lohnartFile, this.rechnungFile, this.kundenpreisFile, this.kundenkonditionFile, this.personalnrHistoryFile] : [];
       const fileCount = [this.einsatzFile, this.personalFile, this.verfuegbarkeitFile, ...adminFiles].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
@@ -942,6 +1025,12 @@ export default {
           if (!response.success) hasErrors = true;
         }
 
+        if (this.lohnartFile && this.isAdmin) {
+          const response = await this.uploadFile(this.lohnartFile, 'lohnart');
+          results.push({ type: 'Lohnarten', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
         if (this.rechnungFile && this.isAdmin) {
           const response = await this.uploadFile(this.rechnungFile, 'rechnung');
           results.push({ type: 'Rechnungen', ...response });
@@ -951,6 +1040,12 @@ export default {
         if (this.kundenpreisFile && this.isAdmin) {
           const response = await this.uploadFile(this.kundenpreisFile, 'kundenpreis');
           results.push({ type: 'Kundenpreise', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.kundenkonditionFile && this.isAdmin) {
+          const response = await this.uploadFile(this.kundenkonditionFile, 'kundenkondition');
+          results.push({ type: 'Kundenkonditionen', ...response });
           if (!response.success) hasErrors = true;
         }
 
@@ -1158,8 +1253,10 @@ export default {
       this.verfuegbarkeitFile = null;
       this.berufFile = null;
       this.qualifikationFile = null;
+      this.lohnartFile = null;
       this.rechnungFile = null;
       this.kundenpreisFile = null;
+      this.kundenkonditionFile = null;
       this.personalnrHistoryFile = null;
       this.adressenFile = null;
       this.einsatzortFile = null;
@@ -1167,7 +1264,7 @@ export default {
       this.fetchLastUploads();
     },
     hasAnyFile() {
-      const adminFiles = this.isAdmin ? (this.adressenFile || this.einsatzortFile || this.kundenFile || this.berufFile || this.qualifikationFile || this.rechnungFile || this.kundenpreisFile || this.personalnrHistoryFile) : false;
+      const adminFiles = this.isAdmin ? (this.adressenFile || this.einsatzortFile || this.kundenFile || this.berufFile || this.qualifikationFile || this.lohnartFile || this.rechnungFile || this.kundenpreisFile || this.kundenkonditionFile || this.personalnrHistoryFile) : false;
       return this.einsatzFile || this.personalFile || this.verfuegbarkeitFile || adminFiles;
     },
 

@@ -886,7 +886,6 @@ watch(currentTab, (tab) => {
 .tabs {
   display: flex;
   gap: 8px;
-  border-bottom: 1px solid var(--border);
   padding-bottom: 2px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -921,8 +920,8 @@ watch(currentTab, (tab) => {
 }
 
 .tab-btn.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+  color: var(--primary);
+  border-bottom-color: var(--primary);
   background: transparent;
 }
 

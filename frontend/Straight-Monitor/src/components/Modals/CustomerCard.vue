@@ -655,6 +655,58 @@
 
       <section v-if="activeTab === 'lohn'" class="section kundenpreise-section">
         <h4 class="section-title">
+          <font-awesome-icon :icon="['fas', 'percent']" /> Zuschlagskonditionen
+        </h4>
+
+        <div v-if="konditionenLoading" class="empty-contacts">
+          <font-awesome-icon :icon="['fas', 'spinner']" spin /> Konditionen werden geladen…
+        </div>
+        <div v-else-if="konditionenError" class="preise-message preise-message--error">
+          {{ konditionenError }}
+        </div>
+        <div v-else-if="kundenkonditionen.length === 0" class="konditionen-empty">
+          Keine Zuschlagskonditionen aus Zvoove hinterlegt.
+        </div>
+        <div v-else class="preise-table-wrap konditionen-table-wrap">
+          <table class="preise-table konditionen-table">
+            <thead>
+              <tr>
+                <th>Lohnart</th>
+                <th>Regel</th>
+                <th>Tage</th>
+                <th>Zuschlag</th>
+                <th>Verwendung</th>
+                <th>Hinweise</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="kondition in kundenkonditionen" :key="kondition._id">
+                <td>
+                  <span class="preise-quali-name">{{ kondition.lohnart?.lohnartKurzzeichen || kondition.lohnartNummer }}</span>
+                  <span class="preise-quali-key">{{ kondition.lohnart?.lohnartBezeichnung || kondition.lohnartNummer }}</span>
+                </td>
+                <td>{{ formatKonditionsRegel(kondition) }}</td>
+                <td><span class="konditionen-days">{{ formatKonditionsTage(kondition.tage) }}</span></td>
+                <td class="konditionen-zuschlag">{{ formatKonditionsZuschlag(kondition) }}</td>
+                <td>{{ formatKonditionsVerwendung(kondition.verwendung) }}</td>
+                <td>
+                  <div class="konditionen-flags">
+                    <span v-if="kondition.abStundenGrenze != null">ab {{ formatNumber(kondition.abStundenGrenze) }} Std.</span>
+                    <span v-if="kondition.branchenzuschlagAddieren">Branchenzuschlag addieren</span>
+                    <span v-if="kondition.nichtAutomatisch">Nicht automatisch</span>
+                    <span v-if="kondition.berufsSchluessel">Beruf {{ kondition.berufsSchluessel }}</span>
+                    <span v-if="kondition.jeEinheit">Je {{ kondition.jeEinheit === 'tag' ? 'Tag' : 'Woche' }}</span>
+                    <span v-if="kondition.preisNr">Preisnr. {{ kondition.preisNr }}</span>
+                    <span v-if="kondition.zvooveKonditionsId">FID {{ kondition.zvooveKonditionsId }}</span>
+                    <span v-if="!hasKonditionsHinweis(kondition)" class="muted-cell">—</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'coins']" /> Kundenpreise
         </h4>
 
@@ -1294,6 +1346,10 @@ async function deactivateAdresse(adresse) {
 }
 // ── Kundenpreise ─────────────────────────────────────────────────────────────
 const kundenpreise = ref([]);
+const kundenkonditionen = ref([]);
+const konditionenLoading = ref(false);
+const konditionenLoaded = ref(false);
+const konditionenError = ref('');
 const preiseLoading = ref(false);
 const preiseLoaded = ref(false);
 const preiseError = ref('');
@@ -1403,6 +1459,58 @@ async function loadKundenpreise(force = false) {
   } finally {
     preiseLoading.value = false;
   }
+}
+
+async function loadKundenkonditionen(force = false) {
+  if (!props.kunde.kundenNr || (konditionenLoaded.value && !force)) return;
+  konditionenLoading.value = true;
+  konditionenError.value = '';
+  try {
+    const { data } = await api.get(`/api/kunden/${props.kunde.kundenNr}/konditionen`);
+    kundenkonditionen.value = Array.isArray(data) ? data : [];
+    konditionenLoaded.value = true;
+  } catch (error) {
+    konditionenError.value = error.response?.data?.message || 'Kundenkonditionen konnten nicht geladen werden.';
+  } finally {
+    konditionenLoading.value = false;
+  }
+}
+
+function formatKonditionsRegel(kondition) {
+  const range = [kondition.abWert, kondition.bisWert].filter((value) => value != null && value !== '').join(' – ');
+  const type = kondition.regelArt === 'uhrzeit' ? 'Uhrzeit' : kondition.regelArt === 'stunden' ? 'Stunden' : '';
+  return [type, range].filter(Boolean).join(': ') || '—';
+}
+
+function formatKonditionsTage(tage = {}) {
+  const labels = [
+    ['montag', 'Mo'], ['dienstag', 'Di'], ['mittwoch', 'Mi'], ['donnerstag', 'Do'],
+    ['freitag', 'Fr'], ['samstag', 'Sa'], ['sonntag', 'So'], ['feiertag', 'Feiertag'],
+  ];
+  const active = labels.filter(([key]) => tage[key]).map(([, label]) => label);
+  return active.length === 7 && !tage.feiertag ? 'Mo–So' : active.join(', ') || '—';
+}
+
+function formatKonditionsZuschlag(kondition) {
+  if (Number(kondition.zuschlagsProzent)) return `${formatNumber(kondition.zuschlagsProzent)} %`;
+  if (kondition.preisBetrag != null) return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(kondition.preisBetrag);
+  return '—';
+}
+
+function formatKonditionsVerwendung(value) {
+  if (value === 'F') return 'Faktur';
+  if (value === 'L') return 'Lohn';
+  return value || '—';
+}
+
+function hasKonditionsHinweis(kondition) {
+  return kondition.abStundenGrenze != null || kondition.branchenzuschlagAddieren
+    || kondition.nichtAutomatisch || kondition.berufsSchluessel || kondition.jeEinheit
+    || kondition.preisNr || kondition.zvooveKonditionsId;
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 4 }).format(value);
 }
 
 function selectPreisBeruf(berufId) {
@@ -1534,7 +1642,10 @@ async function saveNewQualifikation() {
 }
 
 watch(activeTab, (tab) => {
-  if (tab === 'lohn') loadKundenpreise();
+  if (tab === 'lohn') {
+    loadKundenpreise();
+    loadKundenkonditionen();
+  }
 });
 
 const auth = useAuth();
@@ -2220,6 +2331,54 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.kundenpreise-section > .section-title:not(:first-child) {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.konditionen-table-wrap {
+  margin-bottom: 4px;
+}
+
+.konditionen-table {
+  min-width: 980px;
+}
+
+.konditionen-zuschlag {
+  color: var(--primary);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.konditionen-days {
+  white-space: nowrap;
+}
+
+.konditionen-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.konditionen-flags > span:not(.muted-cell) {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.konditionen-empty {
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .preise-selector {
