@@ -43,6 +43,7 @@ import NotFound from '@/components/NotFound.vue';
 
 const routes = [
   { path: '/', name: 'Home', component: HomeLogin, meta: { requiresAuth: false } },
+  { path: '/login-test', redirect: '/' },
   { path: '/confirm-email', name: 'EmailConfirmation', component: EmailConfirmation, meta: { requiresAuth: false } },
   { path: '/integration/mitarbeiter/einsaetze', name: 'PublicEinsaetze', component: PublicEinsaetze, meta: { requiresAuth: false } },
   { path: '/integration/mitarbeiter/einsaetze/localhost', name: 'PublicEinsaetzesLocalhost', beforeEnter: () => { window.location.href = 'http://localhost:5173/integration/mitarbeiter/einsaetze'; return false; }, component: PublicEinsaetze, meta: { requiresAuth: false } },

@@ -1,15 +1,13 @@
 <template>
-  <div class="modal-backdrop" @click.self="$emit('close')">
-    <div class="modal-content">
-      <header class="modal-header">
-        <h3>Mitarbeiter Daten bearbeiten</h3>
-        <button class="close-btn" @click="$emit('close')">
-          <font-awesome-icon icon="fa-solid fa-times" />
-        </button>
-      </header>
-
-      <div class="modal-body">
-        <div class="form-grid">
+  <ModalFrame
+    title="Mitarbeiter Daten bearbeiten"
+    size="lg"
+    layer="elevated"
+    class="edit-mitarbeiter-dialog"
+    @close="emit('close')"
+  >
+      <div class="edit-form">
+        <div class="form-grid form-grid--three">
           <div class="form-group">
             <label>Vorname</label>
             <input v-model="form.vorname" type="text" class="form-input" />
@@ -18,22 +16,20 @@
             <label>Nachname</label>
             <input v-model="form.nachname" type="text" class="form-input" />
           </div>
+          <div class="form-group">
+            <label>Personalnr</label>
+            <input v-model="form.personalnr" type="text" class="form-input" />
+            <p class="help-text">
+              Änderungen hier aktualisieren die aktuelle Personalnummer.
+            </p>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label>Personalnr</label>
-          <input v-model="form.personalnr" type="text" class="form-input" />
-          <p class="help-text">
-            Änderungen hier aktualisieren die aktuelle Personalnummer.
-          </p>
-        </div>
-
-        <div class="form-group">
-          <label>E-Mail</label>
-          <input v-model="form.email" type="email" class="form-input" />
-        </div>
-
-        <div class="form-grid">
+        <div class="form-grid form-grid--three">
+          <div class="form-group">
+            <label>E-Mail</label>
+            <input v-model="form.email" type="email" class="form-input" />
+          </div>
           <div class="form-group">
             <label>Telefon</label>
             <input v-model="form.telefon" type="tel" class="form-input" />
@@ -44,18 +40,19 @@
           </div>
         </div>
 
-        <div class="form-group">
-          <label>Geburtsname</label>
-          <input v-model="form.geburtsname" type="text" class="form-input" />
-        </div>
-        <div class="form-group">
-          <label>Geburtsort</label>
-          <input v-model="form.geburtsort" type="text" class="form-input" />
-        </div>
-
-        <div class="form-group">
-          <label>Erstellt von</label>
-          <input v-model="form.erstellt_von" type="text" class="form-input" />
+        <div class="form-grid form-grid--three">
+          <div class="form-group">
+            <label>Geburtsname</label>
+            <input v-model="form.geburtsname" type="text" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label>Geburtsort</label>
+            <input v-model="form.geburtsort" type="text" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label>Erstellt von</label>
+            <input v-model="form.erstellt_von" type="text" class="form-input" />
+          </div>
         </div>
 
         <div class="form-group">
@@ -76,11 +73,11 @@
         <!-- Adresse -->
         <div class="form-section">
           <h4>Adresse</h4>
-          <div class="form-group">
-            <label>Straße</label>
-            <input v-model="form.adresse.strasse" type="text" class="form-input" />
-          </div>
-          <div class="form-grid">
+          <div class="form-grid form-grid--address">
+            <div class="form-group form-group--street">
+              <label>Straße</label>
+              <input v-model="form.adresse.strasse" type="text" class="form-input" />
+            </div>
             <div class="form-group">
               <label>PLZ</label>
               <input v-model="form.adresse.plz" type="text" class="form-input" />
@@ -89,21 +86,21 @@
               <label>Ort</label>
               <input v-model="form.adresse.ort" type="text" class="form-input" />
             </div>
-          </div>
-          <div class="form-group">
-            <label>Land</label>
-            <input v-model="form.adresse.land" type="text" class="form-input" />
+            <div class="form-group">
+              <label>Land</label>
+              <input v-model="form.adresse.land" type="text" class="form-input" />
+            </div>
           </div>
         </div>
 
         <!-- Adresse 2 -->
         <div class="form-section">
           <h4>Adresse 2 (Zweitadresse)</h4>
-          <div class="form-group">
-            <label>Straße</label>
-            <input v-model="form.adresse2.strasse" type="text" class="form-input" />
-          </div>
-          <div class="form-grid">
+          <div class="form-grid form-grid--address">
+            <div class="form-group form-group--street">
+              <label>Straße</label>
+              <input v-model="form.adresse2.strasse" type="text" class="form-input" />
+            </div>
             <div class="form-group">
               <label>PLZ</label>
               <input v-model="form.adresse2.plz" type="text" class="form-input" />
@@ -112,12 +109,12 @@
               <label>Ort</label>
               <input v-model="form.adresse2.ort" type="text" class="form-input" />
             </div>
+            <div class="form-group">
+              <label>Land</label>
+              <input v-model="form.adresse2.land" type="text" class="form-input" />
+            </div>
           </div>
-          <div class="form-group">
-            <label>Land</label>
-            <input v-model="form.adresse2.land" type="text" class="form-input" />
-          </div>
-          <div class="form-grid">
+          <div class="form-grid form-grid--two">
             <div class="form-group">
               <label>Telefon</label>
               <input v-model="form.adresse2.telefon" type="tel" class="form-input" />
@@ -182,9 +179,9 @@
         </div>
       </div>
 
-      <footer class="modal-footer">
+      <template #footer>
         <!-- Conflict confirmation -->
-        <template v-if="conflictInfo">
+        <div v-if="conflictInfo" class="edit-footer edit-footer--conflict">
           <div class="conflict-warning">
             <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
             Personalnr <strong>{{ form.personalnr }}</strong> wird verwendet von <strong>{{ conflictInfo.name }}</strong>.
@@ -197,10 +194,10 @@
               Trotzdem zuweisen
             </button>
           </div>
-        </template>
-        <template v-else>
+        </div>
+        <div v-else class="edit-footer">
           <div class="modal-footer-actions">
-            <button class="btn btn-ghost" @click="$emit('close')">Abbrechen</button>
+            <button class="btn btn-ghost" @click="emit('close')">Abbrechen</button>
             <button class="btn btn-primary" @click="save" :disabled="saving">
               <font-awesome-icon
                 :icon="saving ? 'fa-solid fa-spinner' : 'fa-solid fa-save'"
@@ -209,16 +206,16 @@
               Speichern
             </button>
           </div>
-        </template>
-      </footer>
-    </div>
-  </div>
+        </div>
+      </template>
+  </ModalFrame>
 </template>
 
 <script setup>
 import { ref, watch } from "vue";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import ModalFrame from "@/components/frames/ModalFrame.vue";
 
 const props = defineProps({
   mitarbeiter: {
@@ -356,67 +353,28 @@ function saveForce() {
 </script>
 
 <style scoped lang="scss">
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
+.edit-mitarbeiter-dialog {
+  --mf-max-width: min(960px, 94vw);
+  --mf-body-padding: 24px;
+  --mf-footer-padding: 16px 24px;
 }
 
-.modal-content {
-  background: var(--panel, var(--surface, #ffffff));
-  border-radius: 12px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--border, #e5e7eb);
-  color: var(--text, #111827);
-}
-
-.modal-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: var(--panel, var(--surface, #ffffff));
-
-  h3 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-  }
-}
-
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-  flex: 1;
-  background: var(--panel, var(--surface, #ffffff));
-}
-
-.modal-footer {
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--border, #e5e7eb);
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  background: var(--panel, var(--surface, #ffffff));
+.edit-form {
+  min-width: 0;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+}
+
+.form-grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.form-grid--address {
+  grid-template-columns: minmax(0, 2fr) minmax(90px, 0.65fr) minmax(0, 1.25fr) minmax(0, 1fr);
 }
 
 .form-group {
@@ -583,22 +541,42 @@ function saveForce() {
   justify-content: flex-end;
 }
 
+.edit-footer {
+  width: 100%;
+}
+
+.edit-footer--conflict {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
 .modal-footer-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
 }
 
-.close-btn {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-size: 1.25rem;
-  cursor: pointer;
-  padding: 0.25rem;
+@media (max-width: 620px) {
+  .edit-mitarbeiter-dialog {
+    --mf-body-padding: 18px;
+    --mf-footer-padding: 14px 18px;
+  }
 
-  &:hover {
-    color: var(--text);
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+@media (min-width: 621px) and (max-width: 820px) {
+  .form-grid--three,
+  .form-grid--address {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .form-group--street {
+    grid-column: 1 / -1;
   }
 }
 </style>

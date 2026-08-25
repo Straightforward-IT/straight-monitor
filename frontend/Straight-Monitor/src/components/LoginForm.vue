@@ -33,9 +33,6 @@
       <button type="submit" :disabled="loading">
         {{ loading ? "Anmelden…" : "Log in" }}
       </button>
-      <button type="button" class="ghost" @click="$emit('switch-to-register')">
-        Register
-      </button>
     </div>
 
     <!-- Login Footer -->

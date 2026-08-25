@@ -1633,7 +1633,7 @@ import CustomTooltip from "./CustomTooltip.vue";
 import FlipProfile from "./FlipProfile.vue";
 import { useDocumentModals } from "@/composables/useDocumentModals";
 import ContextMenu from "./ContextMenu.vue";
-import EditMitarbeiterDialog from "./EditMitarbeiterDialog.vue";
+import EditMitarbeiterDialog from "@/components/Modals/EditMitarbeiterDialog.vue";
 import DeleteMitarbeiterDialog from "@/components/Modals/DeleteMitarbeiterDialog.vue";
 import ImageCropModal from "./ImageCropModal.vue";
 import TlBadge from "./ui-elements/TlBadge.vue";

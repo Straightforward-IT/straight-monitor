@@ -48,7 +48,6 @@
 
     <div class="actions">
       <button type="submit" :disabled="loading">{{ loading ? 'Sende…' : 'Register' }}</button>
-      <button type="button" class="ghost" @click="$emit('switch-to-login')">Login</button>
     </div>
 
     <teleport to="body">
