@@ -29,7 +29,7 @@ export function getCustomerModalTitle(customer) {
 export function useCustomerModals() {
   const dockedModals = useDockedModals();
 
-  function openCustomer(customer) {
+  function openCustomer(customer, { initialTab } = {}) {
     const id = getCustomerModalId(customer);
     const title = getCustomerModalTitle(customer);
 
@@ -39,6 +39,7 @@ export function useCustomerModals() {
       component: CustomerCard,
       props: {
         kunde: customer,
+        initialTab,
         minimizeId: id,
         minimizeTitle: title,
         onClose: () => dockedModals.remove(id),

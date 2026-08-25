@@ -260,10 +260,11 @@
               <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('berechnungsartCode')">Berechnungsart<font-awesome-icon v-if="lohnartSortField === 'berechnungsartCode'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
               <th class="lohn__th--zuschlag"><button type="button" class="lohn__sort-button" @click="sortLohnarten('zuschlagsProzent')">Zuschlag<font-awesome-icon v-if="lohnartSortField === 'zuschlagsProzent'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
               <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('equalPayRelevanz')">Equal Pay<font-awesome-icon v-if="lohnartSortField === 'equalPayRelevanz'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
+              <th>Kundenkonditionen</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="lohnart in filteredLohnarten" :key="lohnart._id">
+            <tr v-for="lohnart in filteredLohnarten" :key="lohnart._id" :class="{ 'lohn__row--normalstunden': lohnart.lohnartNummer === '100' }">
               <td><span class="quali-key">{{ lohnart.lohnartNummer }}</span></td>
               <td><span v-if="lohnart.lohnartKurzzeichen" class="beruf-tag">{{ lohnart.lohnartKurzzeichen }}</span><span v-else class="ma-unlinked">-</span></td>
               <td>{{ lohnart.lohnartBezeichnung || '-' }}</td>
@@ -272,9 +273,17 @@
               <td>{{ lohnart.berechnungsartCode || '-' }}</td>
               <td class="lohn__zuschlag">{{ lohnart.zuschlagsProzent || '-' }}</td>
               <td>{{ lohnart.equalPayRelevanz || '-' }}</td>
+              <td class="lohn__kunden">
+                <div v-if="lohnart.lohnartNummer !== '100' && lohnart.kunden?.length" class="lohn__kunden-list">
+                  <button v-for="kunde in lohnart.kunden" :key="kunde._id" type="button" class="lohn__kunde-link" @click="openKundenLohn(kunde)">
+                    {{ kunde.kuerzel || kunde.kundName || kunde.kundenNr }}
+                  </button>
+                </div>
+                <span v-else-if="lohnart.lohnartNummer !== '100'" class="ma-unlinked">-</span>
+              </td>
             </tr>
             <tr v-if="!filteredLohnarten.length">
-              <td colspan="8" style="text-align:center; opacity:0.45; padding: 24px;">Keine Lohnarten vorhanden.</td>
+              <td colspan="9" style="text-align:center; opacity:0.45; padding: 24px;">Keine Lohnarten vorhanden.</td>
             </tr>
           </tbody>
         </table>
@@ -774,6 +783,7 @@ import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import BewerberManagementTab from '@/components/BewerberManagementTab.vue';
 import EmployeeEmailTemplateTab from '@/components/EmployeeEmailTemplateTab.vue';
+import { useCustomerModals } from '@/composables/useCustomerModals';
 
 // Map of asana_gid -> { name, email } for display in the table
 const asanaUserMap = ref({});
@@ -785,6 +795,7 @@ const AVAILABLE_ROLES = [
 ];
 
 const auth = useAuth();
+const { openCustomer } = useCustomerModals();
 const currentUserId = computed(() => auth.user?._id || auth.user?.id);
 
 const users = ref([]);
@@ -917,6 +928,10 @@ function sortLohnarten(field) {
   }
   lohnartSortField.value = field;
   lohnartSortDirection.value = 'asc';
+}
+
+function openKundenLohn(kunde) {
+  openCustomer(kunde, { initialTab: 'lohn' });
 }
 
 async function fetchLohnarten() {
@@ -1605,6 +1620,11 @@ function formatDate(d) {
 }
 .lohn__th--zuschlag { background: rgba(var(--primary-rgb, 255, 120, 0), 0.12); color: var(--primary) !important; }
 .lohn__zuschlag { background: rgba(var(--primary-rgb, 255, 120, 0), 0.08); color: var(--primary); font-weight: 700; }
+.lohn__row--normalstunden { opacity: 0.58; }
+.lohn__kunden { min-width: 180px; }
+.lohn__kunden-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.lohn__kunde-link { padding: 0; border: 0; background: transparent; color: var(--primary); cursor: pointer; font: inherit; text-align: left; }
+.lohn__kunde-link:hover { text-decoration: underline; }
 .qualifikationen__state { color: var(--muted); font-size: 0.85rem; }
 
 .subtabs {

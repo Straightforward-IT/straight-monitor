@@ -1008,7 +1008,8 @@ import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import api from '@/utils/api';
 
 const props = defineProps({
-  kunde: { type: Object, required: true }
+  kunde: { type: Object, required: true },
+  initialTab: { type: String, default: 'allgemein' },
 });
 
 const emit = defineEmits(['close']);
@@ -1021,7 +1022,11 @@ const tabs = [
   { id: 'lohn', label: 'Lohn', icon: 'coins' },
   { id: 'statistik', label: 'Statistik', icon: 'chart-bar' },
 ];
-const activeTab = ref('allgemein');
+const activeTab = ref(tabs.some((tab) => tab.id === props.initialTab) ? props.initialTab : 'allgemein');
+
+watch(() => props.initialTab, (tab) => {
+  if (tabs.some((item) => item.id === tab)) activeTab.value = tab;
+});
 
 const adressen = ref([]);
 const adresseDeletingId = ref(null);
@@ -2341,10 +2346,15 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 
 .konditionen-table-wrap {
   margin-bottom: 4px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .konditionen-table {
-  min-width: 980px;
+  min-width: 0;
+  table-layout: fixed;
 }
 
 .konditionen-zuschlag {
@@ -2354,7 +2364,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 .konditionen-days {
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .konditionen-flags {
@@ -2404,7 +2414,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 
 .preise-table-wrap {
   min-width: 0;
-  overflow-x: auto;
+  overflow: visible;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
@@ -2412,8 +2422,9 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 
 .preise-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 0;
   border-collapse: collapse;
+  table-layout: fixed;
   font-size: 13px;
 }
 

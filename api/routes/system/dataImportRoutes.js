@@ -1641,8 +1641,32 @@ router.post('/qualifikation', auth, extendTimeout, upload.single('file'), async 
 // --- Lohnarten Import (LOHNART) ---
 router.get('/lohnarten', auth, async (req, res) => {
   try {
-    const lohnarten = await Lohnart.find({}).sort({ lohnartNummer: 1 }).lean();
-    res.json({ success: true, data: lohnarten });
+    const [lohnarten, kundenKonditionen] = await Promise.all([
+      Lohnart.find({}).sort({ lohnartNummer: 1 }).lean(),
+      KundenKondition.find({})
+        .select('lohnart kunde')
+        .populate({
+          path: 'kunde',
+          select: 'kundenNr kundName kuerzel kundStatus geschSt',
+          match: { kundStatus: 2 },
+        })
+        .lean(),
+    ]);
+    const kundenByLohnart = new Map();
+    for (const kondition of kundenKonditionen) {
+      if (!kondition.lohnart || !kondition.kunde) continue;
+
+      const lohnartId = String(kondition.lohnart);
+      const kunden = kundenByLohnart.get(lohnartId) || new Map();
+      kunden.set(String(kondition.kunde._id), kondition.kunde);
+      kundenByLohnart.set(lohnartId, kunden);
+    }
+    const data = lohnarten.map((lohnart) => ({
+      ...lohnart,
+      kunden: [...(kundenByLohnart.get(String(lohnart._id))?.values() || [])]
+        .sort((left, right) => String(left.kundName || '').localeCompare(String(right.kundName || ''), 'de')),
+    }));
+    res.json({ success: true, data });
   } catch (error) {
     logger.error('GET Lohnarten Error:', error);
     res.status(500).json({ success: false, message: 'Fehler beim Abrufen der Lohnarten.', error: error.message });

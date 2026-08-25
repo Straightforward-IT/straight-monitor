@@ -6,6 +6,9 @@
       <h4 class="chart-section-title">
         <font-awesome-icon icon="fa-solid fa-chart-bar" class="chart-section-icon" />
         Einsatz-Verlauf
+        <span class="chart-job-count">
+          {{ einsatzCount }} {{ einsatzCount === 1 ? 'Job' : 'Jobs' }}
+        </span>
       </h4>
     </div>
 
@@ -137,6 +140,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 const props = defineProps({
   mitarbeiterId: { type: String, default: null },
   eintrittsdatum: { type: String, default: null },
+  einsatzCount: { type: Number, default: 0 },
 });
 const theme = useTheme();
 
@@ -573,6 +577,18 @@ const drillChartOptions = computed(() => {
 }
 
 .chart-section-icon { font-size: 14px; color: var(--primary); flex-shrink: 0; }
+
+.chart-job-count {
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--job-tier-accent, var(--border)) 60%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--job-tier-accent, var(--text)) 10%, transparent);
+  color: var(--job-tier-accent, var(--muted));
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
 
 .chart-controls { margin-bottom: 10px; }
 

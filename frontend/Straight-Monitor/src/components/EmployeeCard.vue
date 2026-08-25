@@ -30,13 +30,22 @@
       <div class="left">
         <!-- Initialen-Avatar als Fallback -->
         <div
-          class="avatar"
           v-if="!photoUrl"
+          class="avatar"
+          :class="resolvedMa.einsatzCount > 0 ? ['avatar--job-tier', jobTierClass(resolvedMa.einsatzCount)] : null"
           :style="{ '--hue': avatarHue(resolvedMa) }"
+          :title="jobCountTitle(resolvedMa.einsatzCount || 0)"
         >
           {{ initials(resolvedMa) }}
         </div>
-        <img v-else class="avatar-img" :src="photoUrl" alt="" />
+        <img
+          v-else
+          class="avatar-img"
+          :class="resolvedMa.einsatzCount > 0 ? ['avatar--job-tier', jobTierClass(resolvedMa.einsatzCount)] : null"
+          :src="photoUrl"
+          :title="jobCountTitle(resolvedMa.einsatzCount || 0)"
+          alt=""
+        />
 
         <div class="title">
           <div class="name">{{ resolvedMa.vorname }} {{ resolvedMa.nachname }}</div>
@@ -57,7 +66,7 @@
               <font-awesome-icon icon="fa-solid fa-id-badge" />
               {{ resolvedMa.personalnr || "Personalnr fehlt" }}
             </span>
-            
+
             <!-- Teamleiter Badge -->
             <TlBadge v-if="isTeamleiter" />
 
@@ -328,8 +337,10 @@
           <!-- Einsatz-Verlauf Chart -->
           <MitarbeiterEinsatzChart
             v-if="expanded && resolvedMa?._id"
+            :class="resolvedMa.einsatzCount > 0 ? jobTierClass(resolvedMa.einsatzCount) : null"
             :mitarbeiterId="resolvedMa._id.toString()"
             :eintrittsdatum="resolvedMa.eintrittsdatum"
+            :einsatzCount="resolvedMa.einsatzCount || 0"
           />
           </template>
 
@@ -2274,6 +2285,19 @@ export default {
         .reduce((s, c) => s + c.charCodeAt(0), 0);
       return seed % 360;
     },
+    jobTierClass(count) {
+      if (count >= 1000) return 'job-tier-immortal';
+      if (count >= 500) return 'job-tier-legend';
+      if (count >= 201) return 'job-tier-rainbow';
+      if (count >= 101) return 'job-tier-onyx';
+      if (count >= 51) return 'job-tier-diamond';
+      if (count >= 21) return 'job-tier-gold';
+      if (count >= 6) return 'job-tier-silver';
+      return 'job-tier-bronze';
+    },
+    jobCountTitle(count) {
+      return count === 1 ? '1 absolvierter Job' : `${count} absolvierte Jobs`;
+    },
     formatDate(dateString) {
       if (!dateString) return '—';
       try {
@@ -3851,6 +3875,10 @@ export default {
   border-radius: 14px;
   z-index: 10;
   pointer-events: none;
+  /* Cache as a stable layer so scrolling doesn't repaint the dark stripe
+     out of sync with the avatar layer above it. */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .card--has-user[data-theme="dark"]::after {
@@ -3923,6 +3951,7 @@ export default {
   gap: 14px;
   flex: 1;
   min-width: 0;
+  position: relative;
 }
 
 .avatar {
@@ -3937,6 +3966,8 @@ export default {
   flex: 0 0 auto;
   position: relative;
   z-index: 11;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 .avatar-img {
   width: 44px;
@@ -3946,6 +3977,8 @@ export default {
   flex: 0 0 auto;
   position: relative;
   z-index: 11;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .title {
@@ -4012,6 +4045,63 @@ export default {
   height: 14px;
   object-fit: contain;
   filter: brightness(0) saturate(100%) invert(72%) sepia(46%) saturate(500%) hue-rotate(340deg) brightness(101%) contrast(92%);
+}
+
+.avatar--job-tier {
+  box-shadow: 0 0 0 3px var(--job-tier-accent);
+}
+.avatar.avatar--job-tier {
+  color: var(--job-tier-accent);
+}
+.job-tier-bronze {
+  --job-tier-accent: #b66f32;
+}
+.job-tier-silver {
+  --job-tier-accent: #a8a8a8;
+}
+.job-tier-gold {
+  --job-tier-accent: #daa520;
+}
+.job-tier-diamond {
+  --job-tier-accent: #55c8ee;
+}
+.job-tier-onyx {
+  --job-tier-accent: #6d3bd1;
+}
+.job-tier-rainbow {
+  --job-tier-accent: transparent;
+}
+.avatar.avatar--job-tier.job-tier-rainbow {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+.left:has(> .job-tier-rainbow)::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
+  background: conic-gradient(
+    from 20deg,
+    #ff1744,
+    #ff9100,
+    #ffeb3b,
+    #00c853,
+    #00b0ff,
+    #7c4dff,
+    #e040fb,
+    #ff1744
+  );
+  z-index: 10;
+  pointer-events: none;
+}
+.job-tier-legend {
+  --job-tier-accent: #f0c800;
+}
+.job-tier-immortal {
+  --job-tier-accent: #16a6c9;
 }
 
 /* ---------- Actions ---------- */
