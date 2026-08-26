@@ -57,17 +57,29 @@ async function executeFolgeaktionen(vorgang) {
   if (!fa) return;
 
   // ── Ausliefern an: send signed PDF to each recipient ───────────────────────
-  const recipients = (fa.ausliefernAn || []).filter(r => r.email);
+  const recipientsByEmail = new Map();
+  for (const recipient of (fa.ausliefernAn || [])) {
+    const email = String(recipient.email || '').trim().toLowerCase();
+    if (email) recipientsByEmail.set(email, { displayName: recipient.displayName || '', email });
+  }
+  if (fa.ausliefernAnSignierer !== false) {
+    for (const submitter of (vorgang.submitters || [])) {
+      const email = String(submitter.email || '').trim().toLowerCase();
+      if (email && !recipientsByEmail.has(email)) {
+        recipientsByEmail.set(email, { displayName: submitter.name || '', email });
+      }
+    }
+  }
+  const recipients = [...recipientsByEmail.values()];
   if (recipients.length > 0 && vorgang.r2KeySigned) {
     try {
       const pdfBuffer = await R2Service.downloadFile(vorgang.r2KeySigned);
       const base64Pdf = pdfBuffer.toString('base64');
       const pdfName   = vorgang.fileName || `${vorgang.name || 'Signatur'}.pdf`;
       const attachment = {
-        '@odata.type': '#microsoft.graph.fileAttachment',
         name: pdfName,
         contentType: 'application/pdf',
-        contentBytes: base64Pdf,
+        content: base64Pdf,
       };
       const subject = `Unterzeichnetes Dokument: ${vorgang.name || 'Signatur'}`;
       const body    = `<p>Das Dokument <strong>${vorgang.name || 'Signatur'}</strong> wurde vollständig unterzeichnet und ist als Anhang beigefügt.</p>`;
@@ -116,11 +128,12 @@ function parseFolgeaktionen(raw) {
     ? raw.ausliefernAn.filter(r => r && r.email).map(r => ({ displayName: r.displayName || '', email: r.email }))
     : [];
   const emailBenachrichtigung = raw.emailBenachrichtigung !== false;
+  const ausliefernAnSignierer = raw.ausliefernAnSignierer !== false;
   const asanaActions = Array.isArray(raw.asanaActions)
     ? raw.asanaActions.filter(a => a && a.taskGid && ['complete', 'comment', 'delete'].includes(a.type))
         .map(a => ({ type: a.type, taskGid: a.taskGid, taskName: a.taskName || '', comment: a.comment || '' }))
     : [];
-  return { ausliefernAn, emailBenachrichtigung, asanaActions };
+  return { ausliefernAn, ausliefernAnSignierer, emailBenachrichtigung, asanaActions };
 }
 
 /**
@@ -448,7 +461,6 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     { role: 'Entleiher', name: entleiherReq.name || (kunde && kunde.kundName) || '', email: entleiherReq.email, embedded: false },
   ];
 
-  const entleiherEmailOn = !folgeaktionen || folgeaktionen.emailBenachrichtigung !== false;
   // Create DocuSeal submission from the generated PDF
   const result = await DocuSealService.createSubmissionFromPdf({
     name: docName,
@@ -458,7 +470,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
       role:       s.role,
       name:       s.name,
       email:      s.email,
-      send_email: s.embedded ? false : entleiherEmailOn,
+      send_email: !s.embedded,
       values:     { [`${s.role} Datum`]: today },
     })),
     order: 'preserved',
@@ -517,10 +529,9 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     { path: 'locationV2', select: 'nameFull shortName color' },
   ]);
 
-  // Send Graph email to the non-embedded Entleiher (only if email notification is enabled)
-  if (entleiherEmailOn) {
-    for (const apiSub of storedSubmitters) {
-      if (!apiSub.embedded && apiSub.slug) {
+  // Send Graph email to the non-embedded Entleiher.
+  for (const apiSub of storedSubmitters) {
+    if (!apiSub.embedded && apiSub.slug) {
         const signingLink = apiSub.embedSrc || `https://docuseal.eu/s/${apiSub.slug}`;
         const recipientEmail = requestedSubmitters.find((s) => s.role === apiSub.role)?.email || apiSub.email;
         const emailContent = `
@@ -538,7 +549,6 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
         } catch (err) {
           logger.error(`[SignaturenRoute Stundenliste ${auftragNr}] E-Mail fehlgeschlagen:`, err);
         }
-      }
     }
   }
 
@@ -565,7 +575,12 @@ router.post('/reisekostenabrechnung/:id', auth, asyncHandler(async (req, res) =>
   if (!adminUser) return;
 
   const { locationId, standort, submitters, folgeaktionen: folgeaktionenRaw } = req.body || {};
-  const folgeaktionen = parseFolgeaktionen(folgeaktionenRaw);
+  const folgeaktionen = parseFolgeaktionen(folgeaktionenRaw) || {
+    ausliefernAn: [],
+    ausliefernAnSignierer: true,
+    emailBenachrichtigung: true,
+    asanaActions: [],
+  };
 
   const rk = await Reisekostenabrechnung.findById(req.params.id);
   if (!rk) return res.status(404).json({ message: 'Reisekostenabrechnung nicht gefunden' });
@@ -630,8 +645,6 @@ router.post('/reisekostenabrechnung/:id', auth, asyncHandler(async (req, res) =>
 
   const docName = `Reisekostenabrechnung ${[rk.kopf?.vorname, rk.kopf?.name].filter(Boolean).join(' ')}`.trim() || `Reisekostenabrechnung ${rk._id}`;
   const today = new Date().toISOString().split('T')[0];
-  const emailOn = !folgeaktionen || folgeaktionen.emailBenachrichtigung !== false;
-
   const requestedSubmitters = [
     { role: 'Mitarbeiter', name: signerReq.name || [rk.kopf?.vorname, rk.kopf?.name].filter(Boolean).join(' '), email: signerReq.email, embedded: !!signerReq.embedded },
   ];
@@ -643,7 +656,7 @@ router.post('/reisekostenabrechnung/:id', auth, asyncHandler(async (req, res) =>
       role: s.role,
       name: s.name,
       email: s.email,
-      send_email: s.embedded ? false : emailOn,
+      send_email: !s.embedded,
       values: { [`${s.role} Datum`]: today },
     })),
     order: 'preserved',
@@ -696,9 +709,8 @@ router.post('/reisekostenabrechnung/:id', auth, asyncHandler(async (req, res) =>
   await rk.save();
 
   // Notify the non-embedded signer by email.
-  if (emailOn) {
-    for (const apiSub of storedSubmitters) {
-      if (!apiSub.embedded && apiSub.slug) {
+  for (const apiSub of storedSubmitters) {
+    if (!apiSub.embedded && apiSub.slug) {
         const signingLink = apiSub.embedSrc || `https://docuseal.eu/s/${apiSub.slug}`;
         const recipientEmail = requestedSubmitters.find((s) => s.role === apiSub.role)?.email || apiSub.email;
         const emailContent = `
@@ -715,7 +727,6 @@ router.post('/reisekostenabrechnung/:id', auth, asyncHandler(async (req, res) =>
         } catch (err) {
           logger.error(`[SignaturenRoute Reisekosten ${rk._id}] E-Mail fehlgeschlagen:`, err);
         }
-      }
     }
   }
 
@@ -1074,12 +1085,11 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   let initialStatus    = 'draft';
 
   if (!draft && templateId && Array.isArray(submitters) && submitters.length > 0) {
-    const emailOn = !folgeaktionen || folgeaktionen.emailBenachrichtigung !== false;
     const apiSubmitters = submitters.map((s) => ({
       role:       s.role,
       name:       s.name,
       email:      s.email,
-      send_email: s.embedded ? false : emailOn,
+      send_email: !s.embedded,
     }));
 
     const result = await DocuSealService.createSubmission({
@@ -1352,13 +1362,11 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
     vorgang.standort = resolvedLocation.shortNameKey || vorgang.standort;
 
     if (vorgang.docusealTemplateId && Array.isArray(vorgang.submitters) && vorgang.submitters.length > 0) {
-      const fa = folgeaktionen || vorgang.folgeaktionen;
-      const emailOn = !fa || fa.emailBenachrichtigung !== false;
       const apiSubmitters = vorgang.submitters.map((s) => ({
         role:       s.role,
         name:       s.name,
         email:      s.email,
-        send_email: s.embedded ? false : emailOn,
+        send_email: !s.embedded,
       }));
 
       const result = await DocuSealService.createSubmission({

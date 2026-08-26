@@ -170,7 +170,7 @@ router.get('/', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'auftragNr erforderlich' });
   }
   const docs = await Reisekostenabrechnung.find({ auftragNr })
-    .populate('mitarbeiter', 'vorname nachname personalnr')
+    .populate('mitarbeiter', 'vorname nachname personalnr email')
     .populate('signaturVorgang', 'status submitters')
     .sort({ createdAt: -1 })
     .lean();
@@ -233,14 +233,14 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   created.r2Key = await renderAndUpload(created.toObject(), created._id);
   await created.save();
 
-  await created.populate('mitarbeiter', 'vorname nachname personalnr');
+  await created.populate('mitarbeiter', 'vorname nachname personalnr email');
   res.status(201).json({ data: created });
 }));
 
 // GET /api/reisekosten/:id
 router.get('/:id', auth, asyncHandler(async (req, res) => {
   const doc = await Reisekostenabrechnung.findById(req.params.id)
-    .populate('mitarbeiter', 'vorname nachname personalnr')
+    .populate('mitarbeiter', 'vorname nachname personalnr email')
     .populate('signaturVorgang', 'status submitters')
     .lean();
   if (!doc) return res.status(404).json({ message: 'Reisekostenabrechnung nicht gefunden' });

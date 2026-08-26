@@ -1,16 +1,15 @@
 <template>
-  <Teleport to="body">
-    <div v-if="modelValue" class="backdrop" @mousedown.self="close">
-      <section class="dialog" role="dialog" aria-modal="true" aria-label="Reisekostenabrechnung">
-        <header class="dialog__header">
-          <div>
-            <p>Einsatzdokument</p>
-            <h3>{{ isEditing ? 'Reisekostenabrechnung bearbeiten' : 'Reisekostenabrechnung' }}</h3>
-          </div>
-          <button type="button" class="icon-button" title="Schließen" @click="close">
-            <font-awesome-icon :icon="['fas', 'xmark']" />
-          </button>
-        </header>
+  <ModalFrame
+    :model-value="modelValue"
+    :title="isEditing ? 'Reisekostenabrechnung bearbeiten' : 'Reisekostenabrechnung'"
+    subtitle="Einsatzdokument"
+    size="lg"
+    minimizable
+    :minimize-id="minimizeId"
+    :minimize-title="minimizeTitle || defaultMinimizeTitle"
+    class="reisekosten-modal"
+    @close="close"
+  >
 
         <!-- Step breadcrumb -->
         <nav class="rk-steps">
@@ -217,7 +216,8 @@
           </section>
         </div>
 
-        <footer class="dialog__footer">
+        <template #footer>
+          <div class="dialog__footer">
           <p v-if="error" class="error">{{ error }}</p>
           <button v-if="currentStep > 0" type="button" class="secondary" @click="currentStep--">
             <font-awesome-icon :icon="['fas','arrow-left']" /> Zurück
@@ -228,21 +228,21 @@
             <font-awesome-icon :icon="['fas','eye']" /> Vorschau
           </button>
 
+          <button type="button" class="secondary" :disabled="busy || !canSave" @click="save(false)">
+            <font-awesome-icon :icon="['fas', busy ? 'spinner' : 'floppy-disk']" :spin="busy" /> Speichern
+          </button>
+
           <button v-if="currentStep < steps.length - 1" type="button" class="primary" :disabled="!canAdvance" @click="currentStep++">
             Weiter <font-awesome-icon :icon="['fas','arrow-right']" />
           </button>
           <template v-else>
-            <button type="button" class="secondary" :disabled="busy || !canSave" @click="save(false)">
-              <font-awesome-icon :icon="['fas', busy ? 'spinner' : 'floppy-disk']" :spin="busy" /> Speichern
-            </button>
             <button type="button" class="primary" :disabled="busy || !canSave" @click="save(true)">
               <font-awesome-icon :icon="['fas','file-signature']" /> Speichern & signieren
             </button>
           </template>
-        </footer>
-      </section>
-    </div>
-  </Teleport>
+          </div>
+        </template>
+  </ModalFrame>
 </template>
 
 <script setup>
@@ -253,6 +253,7 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import api from '@/utils/api';
 import { computeSummen, centToStr, kmGesamtCent, pauschalGesamtCent, eurToCent, centToEur } from '@/utils/reisekostenCalc';
 import AddressAutocomplete from '@/components/AddressAutocomplete.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 
 library.add(faCheck, faSpinner, faXmark, faPlus, faEye, faFloppyDisk, faFileSignature, faUpload, faFilePdf, faFileImage, faArrowLeft, faArrowRight, faLink);
 
@@ -261,6 +262,8 @@ const props = defineProps({
   auftragNr: { type: [Number, String], default: null },
   docId: { type: String, default: null },
   einsaetze: { type: Array, default: () => [] },
+  minimizeId: { type: String, default: 'reisekosten' },
+  minimizeTitle: { type: String, default: '' },
 });
 const emit = defineEmits(['update:modelValue', 'saved']);
 
@@ -289,6 +292,11 @@ const tagKeys = [
 ];
 
 const isEditing = computed(() => !!localDocId.value);
+const defaultMinimizeTitle = computed(() =>
+  props.auftragNr != null
+    ? `Reisekosten · Auftrag ${props.auftragNr}`
+    : 'Reisekostenabrechnung'
+);
 const canSave = computed(() => !!form.kopf.name || !!selectedPersonalNr.value);
 // Step 1 requires a chosen Mitarbeiter; later steps are always reachable afterwards.
 const canAdvance = computed(() => currentStep.value !== 0 || canSave.value);
@@ -620,20 +628,21 @@ watch(() => props.modelValue, async (open) => {
     selectedPersonalNr.value = mitarbeiterOptions.value[0].personalNr;
     await onMitarbeiterChange();
   }
-});
+}, { immediate: true });
 
 // Keep one linked Kilometerpauschale row per Fahrt in sync.
 watch(() => form.reisedaten, syncKmPauschale, { deep: true });
 </script>
 
 <style scoped lang="scss">
-.backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 18px; background: var(--overlay); }
-.dialog { width: min(760px, 100%); max-height: min(94vh, 1040px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--tile-bg); color: var(--text); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2); }
-.dialog__header, .dialog__footer { display: flex; align-items: center; gap: 10px; padding: 15px 18px; }
-.dialog__header { justify-content: space-between; border-bottom: 1px solid var(--border); }
-.dialog__header p, .dialog__header h3 { margin: 0; }
-.dialog__header p { color: var(--primary); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; }
-.dialog__header h3 { font-size: 1.08rem; }
+.reisekosten-modal {
+  --mf-max-width: min(960px, 94vw);
+  --mf-max-height: 94dvh;
+  --mf-body-padding: 0;
+  --mf-body-overflow: hidden;
+  --mf-footer-padding: 0;
+  --mf-footer-border: none;
+}
 
 /* Steps */
 .rk-steps { display: flex; gap: 4px; padding: 12px 18px; border-bottom: 1px solid var(--border); }
@@ -688,7 +697,7 @@ label.mini { font-size: 0.68rem; font-weight: 600; color: var(--muted); }
 .summen-row .mini input { width: 100px; text-align: right; }
 .summen-row--total { border-top: 1px solid var(--border); padding-top: 6px; font-size: 0.95rem; }
 .summen-row--total b { color: var(--primary); }
-.dialog__footer { justify-content: end; flex-wrap: wrap; border-top: 1px solid var(--border); }
+.dialog__footer { width: 100%; display: flex; align-items: center; justify-content: end; gap: 10px; padding: 15px 18px; flex-wrap: wrap; border-top: 1px solid var(--border); }
 .error { margin: 0 auto 0 0; color: #c3423f; font-size: 0.78rem; }
 button { border: none; border-radius: 6px; cursor: pointer; font: inherit; font-weight: 600; padding: 8px 12px; }
 .icon-button, .secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }

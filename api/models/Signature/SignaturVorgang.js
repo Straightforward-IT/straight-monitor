@@ -98,7 +98,9 @@ const SignaturVorgangSchema = new mongoose.Schema({
       type: [{ displayName: { type: String, default: '' }, email: { type: String, default: '' } }],
       default: [],
     },
-    // If false → send_email:false is passed to DocuSeal (no signing-request emails)
+    // Also deliver the completed PDF to every signer with an email address
+    ausliefernAnSignierer: { type: Boolean, default: true },
+    // Legacy field retained for existing records
     emailBenachrichtigung: { type: Boolean, default: true },
     // Asana tasks to act on after completion
     asanaActions: {

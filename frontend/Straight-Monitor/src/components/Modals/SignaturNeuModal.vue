@@ -41,6 +41,20 @@
           <div class="sig-body">
             <!-- ───────── STEP 1: Dokument & Typ ───────── -->
             <section v-show="currentStep === 0" class="sig-section">
+              <template v-if="!isReisekostenFlow">
+                <label class="sig-field-label">Location</label>
+                <div class="sig-chip-row">
+                <FilterChip
+                  v-for="location in locations"
+                  :key="location._id"
+                  :active="form.locationId === location._id"
+                  @click="form.locationId = form.locationId === location._id ? null : location._id"
+                >
+                  {{ location.nameFull }}
+                </FilterChip>
+                </div>
+              </template>
+
               <label class="sig-field-label" for="sig-name">Bezeichnung</label>
               <input
                 id="sig-name"
@@ -53,6 +67,14 @@
               <label class="sig-field-label">Dokumenttyp</label>
               <div v-if="typenLoading" class="sig-loading-inline">
                 <font-awesome-icon :icon="['fas', 'spinner']" spin /> Typen laden…
+              </div>
+              <div v-else-if="isReisekostenFlow" class="sig-fixed-type">
+                <font-awesome-icon :icon="typIcon('reisekostenabrechnung')" />
+                <span>
+                  <strong>{{ selectedTyp?.label || 'Reisekostenabrechnung' }}</strong>
+                  <small>Das Signierte Dokument wird an Invoice ausgeliefert</small>
+                </span>
+                <font-awesome-icon :icon="['fas', 'lock']" class="sig-fixed-type-lock" />
               </div>
               <div v-else class="sig-type-grid">
                 <button
@@ -96,17 +118,6 @@
                 </div>
               </template>
 
-              <label class="sig-field-label">Location</label>
-              <div class="sig-chip-row">
-                <FilterChip
-                  v-for="location in locations"
-                  :key="location._id"
-                  :active="form.locationId === location._id"
-                  @click="form.locationId = form.locationId === location._id ? null : location._id"
-                >
-                  {{ location.nameFull }}
-                </FilterChip>
-              </div>
             </section>
 
             <!-- ───────── STEP 2: Verknüpfung ───────── -->
@@ -213,12 +224,14 @@
                   :role-name="sub.role || `Unterzeichner ${i + 1}`"
                   :contacts="graphContacts"
                   :mitarbeiter="mitarbeiterList"
+                  :mitarbeiter-id="sub.role === 'Mitarbeiter' ? form.mitarbeiterId : null"
                   :kuerzel="selectedKunde?.kuerzel"
-                  :removable="form.submitters.length > 1"
+                  :locked="isReisekostenFlow"
+                  :removable="!isReisekostenFlow && form.submitters.length > 1"
                   @remove="removeSubmitter(i)"
                 />
               </div>
-              <button v-if="!form.templateId" class="sig-add-submitter" type="button" @click="addSubmitter">
+              <button v-if="!form.templateId && !isReisekostenFlow" class="sig-add-submitter" type="button" @click="addSubmitter">
                 <font-awesome-icon :icon="['fas', 'user-plus']" /> Unterzeichner hinzufügen
               </button>
             </section>
@@ -293,18 +306,13 @@
               </div>
               <p v-if="newEmailError" class="sig-error" style="margin-top:6px;">{{ newEmailError }}</p>
 
-              <!-- E-Mail-Benachrichtigung toggle -->
-              <label class="sig-field-label" style="margin-top:20px;">
-                <font-awesome-icon :icon="['fas', 'envelope']" /> Signaturanfrage per E-Mail
+              <label class="sig-email-checkbox">
+                <input v-model="folgeaktionen.ausliefernAnSignierer" type="checkbox" />
+                <span>
+                  <strong>Signiertes Dokument an Alle ausliefern</strong>
+                  <small>Nach Abschluss erhalten alle beteiligten Signierer das fertige PDF per E-Mail.</small>
+                </span>
               </label>
-              <div class="sig-chip-row">
-                <FilterChip
-                  :active="folgeaktionen.emailBenachrichtigung"
-                  @click="folgeaktionen.emailBenachrichtigung = !folgeaktionen.emailBenachrichtigung"
-                >
-                  {{ folgeaktionen.emailBenachrichtigung ? 'Aktiviert – Unterzeichner erhalten eine E-Mail' : 'Deaktiviert – Keine Signatur-E-Mails' }}
-                </FilterChip>
-              </div>
 
               <!-- Asana Aktionen -->
               <label class="sig-field-label" style="margin-top:20px;">
@@ -513,6 +521,7 @@ const canSaveDraft = computed(() => !!(form.value.typId && form.value.locationId
 // ── Folgeaktionen state ──────────────────────────────────────────────────────
 const folgeaktionen = ref({
   ausliefernAn: [],
+  ausliefernAnSignierer: true,
   emailBenachrichtigung: true,
   asanaActions: [],
 });
@@ -731,6 +740,23 @@ watch([() => form.value.kundeId, () => form.value.typId], () => {
 });
 
 const usesCustomEndpoint = computed(() => !!modal.context.customEndpoint);
+const isReisekostenFlow = computed(() =>
+  (form.value.typKey || modal.context.typKey) === 'reisekostenabrechnung'
+);
+const selectedTyp = computed(() => typen.value.find(type => type._id === form.value.typId) || null);
+const REISEKOSTEN_DELIVERY_EMAIL = 'invoice@straightforward.email';
+
+function addReisekostenDefaultDeliveryEmail() {
+  if (!isReisekostenFlow.value) return;
+  if (!folgeaktionen.value.ausliefernAn.some(recipient =>
+    String(recipient.email || '').trim().toLowerCase() === REISEKOSTEN_DELIVERY_EMAIL
+  )) {
+    folgeaktionen.value.ausliefernAn.push({
+      displayName: 'Straightforward Invoice',
+      email: REISEKOSTEN_DELIVERY_EMAIL,
+    });
+  }
+}
 
 // ── Straightforward own-company contacts per Location ───────────────────────
 const SF_KUNDENNR = { hamburg: 2100003, berlin: 11000024, koeln: 31000001 };
@@ -1043,7 +1069,7 @@ watch(() => modal.open, async (open) => {
   showCloseConfirm.value = false;
   form.value = emptyForm();
   linkMode.value = 'keine';
-  folgeaktionen.value = { ausliefernAn: [], emailBenachrichtigung: true, asanaActions: [] };
+  folgeaktionen.value = { ausliefernAn: [], ausliefernAnSignierer: true, emailBenachrichtigung: true, asanaActions: [] };
   newEmailInput.value = '';
   newEmailError.value = '';
   followerDefaultsLoaded.value = false;
@@ -1111,6 +1137,7 @@ async function hydrateFromContext() {
     if (d.folgeaktionen) {
       folgeaktionen.value = {
         ausliefernAn:          Array.isArray(d.folgeaktionen.ausliefernAn) ? d.folgeaktionen.ausliefernAn : [],
+        ausliefernAnSignierer: d.folgeaktionen.ausliefernAnSignierer !== false,
         emailBenachrichtigung: d.folgeaktionen.emailBenachrichtigung !== false,
         asanaActions:          Array.isArray(d.folgeaktionen.asanaActions) ? d.folgeaktionen.asanaActions : [],
       };
@@ -1153,6 +1180,22 @@ async function hydrateFromContext() {
     }));
   }
 
+  if (ctx.typKey === 'reisekostenabrechnung' && ctx.mitarbeiterId) {
+    await dataCache.loadMitarbeiter?.();
+    const linkedMitarbeiter = (dataCache.mitarbeiter || []).find(m => m._id === ctx.mitarbeiterId);
+    if (linkedMitarbeiter) {
+      form.value.submitters = form.value.submitters.map(submitter =>
+        submitter.role === 'Mitarbeiter'
+          ? {
+              ...submitter,
+              name: submitter.name || `${linkedMitarbeiter.vorname || ''} ${linkedMitarbeiter.nachname || ''}`.trim(),
+              email: submitter.email || linkedMitarbeiter.email || '',
+            }
+          : submitter
+      );
+    }
+  }
+
   // Pre-select DocuSeal template
   if (ctx.templateId) {
     form.value.templateId   = ctx.templateId;
@@ -1164,6 +1207,7 @@ async function hydrateFromContext() {
   if (ctx.customEndpoint && form.value.typId) {
     currentStep.value = form.value.kundeId || form.value.mitarbeiterId ? 2 : 1;
   }
+  addReisekostenDefaultDeliveryEmail();
 }
 
 // ── Submit ───────────────────────────────────────────────────────────────────
@@ -1385,6 +1429,47 @@ const ContactSearchPlaceholder = {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 10px;
+}
+
+.sig-fixed-type {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 55%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  color: var(--primary);
+
+  > svg:first-child { width: 20px; font-size: 1.05rem; }
+  > span { flex: 1; min-width: 0; }
+  strong, small { display: block; }
+  strong { color: var(--text); font-size: 0.88rem; }
+  small { margin-top: 2px; color: var(--muted); font-size: 0.7rem; }
+  .sig-fixed-type-lock { color: var(--muted); font-size: 0.75rem; }
+}
+
+.sig-email-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+
+  input {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    accent-color: var(--primary);
+  }
+  span { min-width: 0; }
+  strong, small { display: block; }
+  strong { color: var(--text); font-size: 0.82rem; }
+  small { margin-top: 2px; color: var(--muted); font-size: 0.72rem; }
 }
 
 .sig-type-card {

@@ -1209,14 +1209,6 @@
     </div>
   </Teleport>
 
-  <!-- Reisekostenabrechnung bearbeiten / anlegen -->
-  <ReisekostenModal
-    v-model="reisekostenModalOpen"
-    :auftrag-nr="selectedEvent?.auftragNr"
-    :doc-id="reisekostenEditId"
-    :einsaetze="selectedEventEinsaetze"
-    @saved="onReisekostenSaved"
-  />
 </template>
 
 <script>
@@ -1246,13 +1238,13 @@ import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import { useCustomerModals } from '@/composables/useCustomerModals';
 import { useDocumentModals } from '@/composables/useDocumentModals';
 import { useEventModals } from '@/composables/useEventModals';
+import { useReisekostenModals } from '@/composables/useReisekostenModals';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
-import ReisekostenModal from '@/components/ReisekostenModal.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
 import { buildEventSchichten } from '@/utils/eventSchichten';
 import laufzettelIcon from '@/assets/laufzettel.png';
@@ -1264,11 +1256,12 @@ import eventreportDarkIcon from '@/assets/eventreport-dark.png';
 export default {
   name: "AuftraegePage",
   emits: ['mitarbeiter-drop'],
-  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu, ReisekostenModal },
+  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu },
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
     const { openEvent } = useEventModals();
+    const { openReisekosten } = useReisekostenModals();
     const minimizeDock = useMinimizeDock();
 
     const restoreMinimizedStundenliste = (auftragNr) => {
@@ -1283,7 +1276,7 @@ export default {
         : false;
     };
 
-    return { openCustomer, openDocumentModal: openDocument, openEvent, restoreMinimizedStundenliste };
+    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, restoreMinimizedStundenliste };
   },
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -1390,8 +1383,6 @@ export default {
       // ── Reisekostenabrechnungen (Einsatzdokumente) ───────────────────────
       reisekostenListe: [],
       reisekostenListeLoading: false,
-      reisekostenModalOpen: false,
-      reisekostenEditId: null,
       showNeuMenu: false,
       neuMenuOpensUp: false,
       // Document icons
@@ -2730,8 +2721,13 @@ export default {
     },
     openReisekostenModal(id = null) {
       this.showNeuMenu = false;
-      this.reisekostenEditId = id;
-      this.reisekostenModalOpen = true;
+      if (!this.selectedEvent?.auftragNr) return;
+      this.openReisekosten({
+        auftragNr: this.selectedEvent.auftragNr,
+        docId: id,
+        einsaetze: this.selectedEventEinsaetze,
+        onSaved: (payload) => this.onReisekostenSaved(payload),
+      });
     },
     async onReisekostenSaved({ doc, sign }) {
       if (this.selectedEvent?.auftragNr) await this.loadReisekosten(this.selectedEvent.auftragNr);
@@ -2761,12 +2757,18 @@ export default {
     },
     openReisekostenSignatur(doc) {
       const mitarbeiter = doc.mitarbeiter || {};
+      const auftragBezeichnung = String(this.selectedEvent?.eventTitel || '').trim();
+      const dokumentName = [
+        'Reisekostenabrechnung',
+        auftragBezeichnung,
+        this.reisekostenName(doc),
+      ].filter(Boolean).join(' | ');
       const modal = useSignaturModal();
       modal.openModal(
         {
           auftragNr: doc.auftragNr,
           typKey: 'reisekostenabrechnung',
-          name: `Reisekostenabrechnung ${this.reisekostenName(doc)}`,
+          name: dokumentName,
           locationId: typeof this.selectedEvent?.locationV2 === 'object'
             ? this.selectedEvent.locationV2?._id
             : this.selectedEvent?.locationV2,

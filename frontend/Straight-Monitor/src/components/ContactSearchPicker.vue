@@ -13,9 +13,13 @@
 
     <!-- Selected state -->
     <div v-if="hasValue" class="cp-selected">
-      <div class="cp-avatar" :style="avatarStyle">{{ initials }}</div>
+      <img v-if="profilePhotoUrl" class="cp-avatar cp-avatar--image" :src="profilePhotoUrl" alt="" />
+      <div v-else class="cp-avatar" :style="avatarStyle">{{ initials }}</div>
       <div class="cp-selected-info">
-        <div class="cp-name">{{ modelValue.name || '—' }}</div>
+        <button v-if="selectedEmployeeId" class="cp-name cp-name-link" type="button" @click="profileEmployeeId = selectedEmployeeId">
+          {{ modelValue.name || '—' }}
+        </button>
+        <div v-else class="cp-name">{{ modelValue.name || '—' }}</div>
         <div class="cp-email">{{ modelValue.email || 'Keine E-Mail' }}</div>
       </div>
       <div class="cp-selected-actions">
@@ -34,14 +38,20 @@
             E-Mail
           </span>
         </button>
-        <button class="cp-change" type="button" title="Ändern" @click="clearSelection">
+        <button v-if="!locked" class="cp-change" type="button" title="Ändern" @click="clearSelection">
           <font-awesome-icon :icon="['fas', 'pen']" />
         </button>
       </div>
     </div>
 
+    <EmployeeCardModal
+      v-if="profileEmployeeId"
+      :mitarbeiter-id="profileEmployeeId"
+      @close="profileEmployeeId = null"
+    />
+
     <!-- Search state -->
-    <div v-else class="cp-search-wrap" ref="rootEl">
+    <div v-if="!hasValue && !locked" class="cp-search-wrap" ref="rootEl">
       <div class="cp-search-input">
         <font-awesome-icon :icon="['fas', 'magnifying-glass']" class="cp-search-icon" />
         <input
@@ -49,12 +59,13 @@
           v-model="query"
           type="text"
           :placeholder="`${roleName} suchen oder eingeben…`"
-          @focus="openDropdown = true"
-          @input="openDropdown = true"
+          @focus="openSearch"
+          @input="openSearch"
         />
       </div>
 
-      <div v-if="openDropdown" class="cp-dropdown">
+      <Teleport to="body">
+      <div v-if="openDropdown" ref="dropdownEl" class="cp-dropdown" :style="dropdownStyle">
         <!-- Externe Kontakte (Graph) -->
         <div v-if="filteredContacts.length" class="cp-group">
           <div class="cp-group-label">
@@ -116,6 +127,7 @@
           Tippe, um Kontakte zu durchsuchen…
         </div>
       </div>
+      </Teleport>
     </div>
 
     <!-- Manual entry fields (shown when manual mode active but not yet filled) -->
@@ -140,10 +152,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, defineAsyncComponent, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { faUserPen, faXmark, faMagnifyingGlass, faAddressBook, faIdBadge, faKeyboard, faPen, faMobileScreen, faEnvelope } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
+import { useFlipAll } from '@/stores/flipAll';
+
+const EmployeeCardModal = defineAsyncComponent(() => import('@/components/Modals/EmployeeCardModal.vue'));
 
 library.add(faUserPen, faXmark, faMagnifyingGlass, faAddressBook, faIdBadge, faKeyboard, faPen, faMobileScreen, faEnvelope);
 
@@ -153,21 +168,67 @@ const props = defineProps({
   roleName:   { type: String, default: 'Unterzeichner' },
   contacts:   { type: Array, default: () => [] },   // MS Graph contacts
   mitarbeiter:{ type: Array, default: () => [] },   // internal employees
+  mitarbeiterId: { type: String, default: null },
   kuerzel:    { type: String, default: null },      // Kunde-Kürzel → prioritise matching contacts
   removable:  { type: Boolean, default: true },
+  locked:     { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue', 'remove']);
+const flip = useFlipAll();
 
 const rootEl = ref(null);
+const dropdownEl = ref(null);
 const inputEl = ref(null);
+const dropdownStyle = ref({});
 const query = ref('');
 const openDropdown = ref(false);
 const manualMode = ref(false);
 const manualName = ref('');
 const manualEmail = ref('');
+const profileEmployeeId = ref(null);
+const profilePhotoUrl = ref('');
 
 const hasValue = computed(() => !!(props.modelValue.name || props.modelValue.email));
+const selectedMitarbeiter = computed(() => {
+  const id = props.modelValue.mitarbeiterId || props.mitarbeiterId;
+  if (id) return props.mitarbeiter.find(employee => employee._id === id) || null;
+  const email = String(props.modelValue.email || '').trim().toLowerCase();
+  return email
+    ? props.mitarbeiter.find(employee => String(employee.email || '').trim().toLowerCase() === email) || null
+    : null;
+});
+const selectedEmployeeId = computed(() => selectedMitarbeiter.value?._id || null);
+
+watch(selectedMitarbeiter, async employee => {
+  profilePhotoUrl.value = '';
+  if (!employee?.flip_id || !flip.enablePhotos) return;
+  await flip.fetchAll();
+  const flipUser = flip.getById(employee.flip_id) || await flip.fetchFlipById(employee.flip_id);
+  if (!flipUser?.profilbild) return;
+  profilePhotoUrl.value = await flip.ensurePhoto(flipUser);
+}, { immediate: true });
+
+function updateDropdownPosition() {
+  if (!rootEl.value) return;
+  const rect = rootEl.value.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const opensUp = spaceBelow < 220 && rect.top > spaceBelow;
+  dropdownStyle.value = {
+    position: 'fixed',
+    top: opensUp ? 'auto' : `${rect.bottom + 4}px`,
+    bottom: opensUp ? `${window.innerHeight - rect.top + 4}px` : 'auto',
+    left: `${rect.left}px`,
+    right: 'auto',
+    width: `${rect.width}px`,
+  };
+}
+
+async function openSearch() {
+  openDropdown.value = true;
+  await nextTick();
+  updateDropdownPosition();
+}
 
 const initials = computed(() => initialsOf(props.modelValue.name || props.modelValue.email || '?'));
 
@@ -234,6 +295,7 @@ function selectContact(c) {
     name: c.displayName || '',
     email: contactEmail(c),
     embedded: false,
+    mitarbeiterId: null,
   });
   reset();
 }
@@ -243,6 +305,7 @@ function selectMitarbeiter(m) {
     ...props.modelValue,
     name: `${m.vorname} ${m.nachname}`.trim(),
     email: m.email || '',
+    mitarbeiterId: m._id,
     // preserve embedded state set by the role default; don't force true
   });
   reset();
@@ -264,7 +327,7 @@ function syncManual() {
 }
 
 function clearSelection() {
-  emit('update:modelValue', { ...props.modelValue, name: '', email: '' });
+  emit('update:modelValue', { ...props.modelValue, name: '', email: '', mitarbeiterId: null });
   reset();
   manualMode.value = false;
 }
@@ -276,13 +339,21 @@ function reset() {
 }
 
 function onClickOutside(e) {
-  if (rootEl.value && !rootEl.value.contains(e.target)) {
+  if (rootEl.value && !rootEl.value.contains(e.target) && !dropdownEl.value?.contains(e.target)) {
     openDropdown.value = false;
   }
 }
 
-onMounted(() => document.addEventListener('click', onClickOutside));
-onBeforeUnmount(() => document.removeEventListener('click', onClickOutside));
+onMounted(() => {
+  document.addEventListener('click', onClickOutside);
+  window.addEventListener('scroll', updateDropdownPosition, true);
+  window.addEventListener('resize', updateDropdownPosition);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onClickOutside);
+  window.removeEventListener('scroll', updateDropdownPosition, true);
+  window.removeEventListener('resize', updateDropdownPosition);
+});
 </script>
 
 <style scoped lang="scss">
@@ -348,6 +419,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside));
 
   &--sm { width: 30px; height: 30px; border-radius: 7px; font-size: 0.7rem; }
   &--ghost { background: var(--hover) !important; color: var(--muted); }
+  &--image { object-fit: cover; }
 }
 
 .cp-selected-info {
@@ -362,6 +434,19 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.cp-name-link {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover { color: var(--primary); text-decoration: underline; }
 }
 
 .cp-email {
@@ -455,11 +540,8 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside));
 }
 
 .cp-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 50;
+  position: fixed;
+  z-index: 10050;
   background: var(--tile-bg, var(--surface));
   border: 1px solid var(--border);
   border-radius: 10px;
