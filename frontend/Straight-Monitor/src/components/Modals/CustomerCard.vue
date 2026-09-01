@@ -586,7 +586,7 @@
 
       <section v-if="activeTab === 'rechnung'" class="section addresses-section rechnung-section">
         <h4 class="section-title">
-          <font-awesome-icon :icon="['fas', 'file-invoice']" /> Rechnungsanschrift
+          <font-awesome-icon :icon="['fas', 'file-invoice']" /> E-Rechnung
         </h4>
 
         <div class="kv-grid">
@@ -601,7 +601,6 @@
         </div>
 
         <form class="erechnung-settings" @submit.prevent="saveERechnungSettings">
-          <h5>E-Rechnung</h5>
           <label>
             <span>Leitweg-ID</span>
             <input v-model.trim="eRechnungForm.leitwegId" type="text" autocomplete="off" placeholder="z. B. 991-..." />
