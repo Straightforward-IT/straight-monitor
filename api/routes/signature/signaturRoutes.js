@@ -212,6 +212,20 @@ async function resolveSignaturLocation({ locationId, entityLocationId, auftragLo
   }).select('_id nameFull shortName nameKey shortNameKey').lean();
 }
 
+async function getStundenlisteDefaultSigner(location, auftrag) {
+  const resolvedLocation = await Location.findById(location._id)
+    .populate('locationManager', 'name email')
+    .lean();
+  const manager = resolvedLocation?.locationManager;
+  if (manager) {
+    return {
+      name: manager.name || manager.email,
+      email: manager.email || null,
+    };
+  }
+  return StundenlisteService.getVerleiherSigner(auftrag);
+}
+
 function getEntityValidationMessage(signaturTyp, kundeDoc, mitarbeiterDoc) {
   if (!signaturTyp) return 'Der Signaturtyp wurde nicht gefunden.';
   if (kundeDoc && mitarbeiterDoc) return 'Eine Signatur kann nur einem Kunden oder Mitarbeiter zugeordnet werden.';
@@ -357,6 +371,69 @@ router.get('/builder-token', auth, asyncHandler(async (req, res) => {
 
 // ─── STUNDENLISTE (PDF-generation flow) ──────────────────────────────────────
 
+// POST /api/signaturen/stundenliste/:auftragNr/draft — create the local record
+// before the generated PDF is sent to DocuSeal.
+router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res) => {
+  const adminUser = await requireSignaturAccess(req, res);
+  if (!adminUser) return;
+
+  const auftragNr = parseInt(req.params.auftragNr, 10);
+  if (!Number.isFinite(auftragNr)) return res.status(400).json({ message: 'Ungültige Auftragsnummer' });
+
+  const existingDraft = await SignaturVorgang.findOne({ typKey: 'stundenliste', auftragNr, status: 'draft' })
+    .populate([{ path: 'typ', select: 'key label linkedTo' }, { path: 'locationV2', select: 'nameFull shortName color' }]);
+  if (existingDraft) return res.json(existingDraft);
+
+  const auftrag = await Auftrag.findOne({ auftragNr }).lean();
+  if (!auftrag) return res.status(404).json({ message: `Auftrag ${auftragNr} nicht gefunden` });
+  const kunde = auftrag.kundenNr
+    ? await Kunde.findOne({ kundenNr: auftrag.kundenNr }).select('_id kundenNr kundName kuerzel locationV2 signaturOrdner signaturKontaktEmail')
+    : null;
+  if (!kunde) return res.status(400).json({ message: 'Für die Stundenliste wurde kein Kunde gefunden.' });
+
+  const signaturTyp = await SignaturTyp.findOne({ key: 'stundenliste', isActive: true });
+  if (!signaturTyp) return res.status(400).json({ message: 'Signaturtyp "stundenliste" nicht gefunden – bitte Seed-Skript ausführen.' });
+
+  const location = await resolveSignaturLocation({
+    locationId: req.body?.locationId,
+    entityLocationId: kunde.locationV2,
+    auftragLocationId: auftrag.locationV2,
+  });
+  if (!location) return res.status(400).json({ message: 'Bitte eine gültige Location auswählen.' });
+
+  const verleiher = await getStundenlisteDefaultSigner(location, auftrag);
+  const eventTitle = String(auftrag.eventTitel || '').trim();
+  const vorgang = new SignaturVorgang({
+    name: String(req.body?.name || '').trim() || `Stundenliste ${eventTitle || auftragNr}`,
+    fileName: buildStundenlistePdfFilename(auftrag),
+    typ: signaturTyp._id,
+    typKey: 'stundenliste',
+    standort: location.shortNameKey || null,
+    locationV2: location._id,
+    status: 'draft',
+    auftragNr,
+    kunde: kunde._id,
+    kundenNr: kunde.kundenNr,
+    kundenKuerzel: kunde.kuerzel,
+    docusealTemplateName: 'Stundenliste (PDF)',
+    submitters: [
+      { role: 'Verleiher', name: verleiher.name || '', email: verleiher.email || '', embedded: true },
+      { role: 'Entleiher', name: kunde.kundName || '', email: kunde.signaturKontaktEmail || '', embedded: false },
+    ],
+    r2Prefix: buildSignaturR2Prefix({
+      locationIdentifier: location.shortName || location.nameFull,
+      entityType: 'Kunde',
+      entityIdentifier: await ensureSignaturOrdner('Kunde', kunde),
+      typKey: 'stundenliste',
+    }),
+    createdBy: req.user.id,
+  });
+  await vorgang.save();
+  await vorgang.populate([{ path: 'typ', select: 'key label linkedTo' }, { path: 'locationV2', select: 'nameFull shortName color' }]);
+  broadcastSignaturEvent('vorgang.created', vorgang.toObject());
+  res.status(201).json(vorgang);
+}));
+
 // POST /api/signaturen/stundenliste/:auftragNr
 // Generates the Stundenliste PDF server-side, creates a DocuSeal submission from
 // the PDF, and saves the result as a SignaturVorgang (the new hub model).
@@ -371,8 +448,16 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Ungültige Auftragsnummer' });
   }
 
-  const { name, locationId, standort, submitters, folgeaktionen: folgeaktionenRaw } = req.body || {};
+  const { name, locationId, standort, submitters, draftId, folgeaktionen: folgeaktionenRaw } = req.body || {};
   const folgeaktionen = parseFolgeaktionen(folgeaktionenRaw);
+
+  let draftVorgang = null;
+  if (draftId) {
+    draftVorgang = await SignaturVorgang.findById(draftId);
+    if (!draftVorgang || draftVorgang.status !== 'draft' || draftVorgang.typKey !== 'stundenliste' || draftVorgang.auftragNr !== auftragNr) {
+      return res.status(409).json({ message: 'Der Stundenlisten-Entwurf ist nicht mehr verfügbar.' });
+    }
+  }
 
   // Resolve submitters: the modal sends a generic submitters array.
   if (!Array.isArray(submitters) || !submitters.length) {
@@ -415,7 +500,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   }
 
   // Verleiher: use request override or derive from Auftrag location
-  const verleiherDefault = StundenlisteService.getVerleiherSigner(auftrag);
+  const verleiherDefault = await getStundenlisteDefaultSigner(location, auftrag);
   const verleiherSigner = {
     name:  (verleiherReq && verleiherReq.name)  || verleiherDefault.name,
     email: (verleiherReq && verleiherReq.email) || verleiherDefault.email,
@@ -433,6 +518,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     typKey: 'stundenliste',
     auftragNr,
     status: { $nin: ['cancelled'] },
+    ...(draftVorgang ? { _id: { $ne: draftVorgang._id } } : {}),
   });
   if (existingVorgang) {
     if (existingVorgang.submissionId) {
@@ -500,7 +586,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   });
 
   // Save as a SignaturVorgang
-  const vorgang = new SignaturVorgang({
+  const vorgangData = {
     name:     docName,
     fileName: pdfFilename,
     typ:      signaturTyp._id,
@@ -522,7 +608,8 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     folgeaktionen: folgeaktionen || undefined,
 
     createdBy: req.user.id,
-  });
+  };
+  const vorgang = draftVorgang ? Object.assign(draftVorgang, vorgangData) : new SignaturVorgang(vorgangData);
   await vorgang.save();
   await vorgang.populate([
     { path: 'typ', select: 'key label linkedTo' },

@@ -1142,6 +1142,7 @@ async function hydrateFromContext() {
         asanaActions:          Array.isArray(d.folgeaktionen.asanaActions) ? d.folgeaktionen.asanaActions : [],
       };
     }
+    if (ctx.customEndpoint && form.value.typId) currentStep.value = 2;
     return;
   }
 
@@ -1218,7 +1219,19 @@ async function submit() {
     const ctx = modal.context;
     let vorgang;
 
-    if (ctx.draftId) {
+    if (ctx.customEndpoint) {
+      // Generated-document flows promote their pre-created draft through their
+      // specialised endpoint so the same SignaturVorgang remains the record.
+      const payload = {
+        name: form.value.name.trim(),
+        locationId: form.value.locationId,
+        submitters: form.value.submitters.filter(s => (s.name || '').trim()),
+        folgeaktionen: folgeaktionen.value,
+        draftId: ctx.draftId || undefined,
+      };
+      const { data } = await api.post(ctx.customEndpoint, payload);
+      vorgang = data;
+    } else if (ctx.draftId) {
       // Editing an existing draft → PATCH with submit: true
       const payload = {
         name: form.value.name.trim(),
@@ -1232,16 +1245,6 @@ async function submit() {
         submit: true,
       };
       const { data } = await api.patch(`/api/signaturen/${ctx.draftId}`, payload);
-      vorgang = data;
-    } else if (ctx.customEndpoint) {
-      // Server-side document generation flow (e.g. Stundenliste)
-      const payload = {
-        name: form.value.name.trim(),
-        locationId: form.value.locationId,
-        submitters: form.value.submitters.filter(s => (s.name || '').trim()),
-        folgeaktionen: folgeaktionen.value,
-      };
-      const { data } = await api.post(ctx.customEndpoint, payload);
       vorgang = data;
     } else {
       const payload = {

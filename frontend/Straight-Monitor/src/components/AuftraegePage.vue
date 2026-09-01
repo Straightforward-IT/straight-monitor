@@ -2817,6 +2817,20 @@ export default {
       // Other signature flows and all other modal types retain their normal behavior.
       if (this.restoreMinimizedStundenliste(auftragNr)) return;
 
+      let draft;
+      try {
+        const { data } = await api.post(`/api/signaturen/stundenliste/${auftragNr}/draft`, {
+          name: `Stundenliste ${eventTitle || auftragNr}`,
+          locationId: typeof this.selectedEvent.locationV2 === 'object'
+            ? this.selectedEvent.locationV2?._id
+            : this.selectedEvent.locationV2,
+        });
+        draft = data;
+      } catch (err) {
+        alert(err.response?.data?.message || 'Stundenlisten-Entwurf konnte nicht erstellt werden');
+        return;
+      }
+
       // Pre-fill signers (Verleiher by location + Entleiher from Kunde) before
       // opening the universal signature modal.
       let prefill = { verleiher: {}, kuerzel: '', kundName: '', kundeId: null };
@@ -2835,6 +2849,8 @@ export default {
       const modal = useSignaturModal();
       modal.openModal(
         {
+          draftId: draft._id,
+          draftData: draft,
           auftragNr,
           typKey: 'stundenliste',
           name: `Stundenliste ${eventTitle || auftragNr}`,
