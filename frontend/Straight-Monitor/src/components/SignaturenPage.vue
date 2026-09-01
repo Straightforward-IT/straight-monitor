@@ -218,6 +218,9 @@
               <button type="button" @click="startRename(t); openMenuId = null">
                 <font-awesome-icon :icon="['fas', 'pencil']" /> Umbenennen
               </button>
+              <button type="button" @click="duplicateTemplate(t); openMenuId = null">
+                <font-awesome-icon :icon="['fas', 'clone']" /> Duplizieren
+              </button>
               <button type="button" @click="newSignatureFromTemplate(t); openMenuId = null">
                 <font-awesome-icon :icon="['fas', 'file-signature']" /> Neue Signatur
               </button>
@@ -238,7 +241,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil, faFolderOpen } from '@fortawesome/free-solid-svg-icons';
+import { faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil, faFolderOpen, faClone } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useSignaturModal } from '@/stores/signaturModal';
 import { useSignaturBuilder } from '@/stores/signaturBuilder';
@@ -256,7 +259,7 @@ import SignaturCard from '@/components/SignaturCard.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
 import SignaturR2Browser from '@/components/SignaturR2Browser.vue';
 
-library.add(faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil, faFolderOpen);
+library.add(faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil, faFolderOpen, faClone);
 
 const modal = useSignaturModal();
 const builder = useSignaturBuilder();
@@ -501,6 +504,25 @@ function newSignatureFromTemplate(t) {
     upsertVorgang(vorgang);
     activeTab.value = 'signaturen';
   });
+}
+async function duplicateTemplate(t) {
+  try {
+    const { data: duplicate } = await api.post(`/api/docuseal/templates/${t.id}/clone`, {
+      name: `${t.name} (Kopie)`,
+    });
+    templates.value.unshift({
+      ...duplicate,
+      defaultTypId: t.defaultTypId || null,
+      defaultTyp: t.defaultTyp || null,
+    });
+    builder.openBuilder({
+      templateId: duplicate.id,
+      name: duplicate.name,
+      defaultTypId: t.defaultTypId || null,
+    }, () => loadTemplates());
+  } catch (e) {
+    alert('Duplizieren fehlgeschlagen: ' + (e?.response?.data?.message || e.message));
+  }
 }
 async function archiveTemplate(t) {
   if (!confirm(`Vorlage "${t.name}" archivieren? Sie wird aus der Liste entfernt.`)) return;

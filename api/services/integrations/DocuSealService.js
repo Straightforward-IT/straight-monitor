@@ -149,6 +149,17 @@ class DocuSealService {
   }
 
   /**
+   * Clone a template including its documents and fields in DocuSeal.
+   * @param {number} templateId
+   * @param {object} data - e.g. { name }
+   * @returns {Promise<object>}
+   */
+  async cloneTemplate(templateId, data = {}) {
+    this._ensureConfigured();
+    return docuseal.cloneTemplate(templateId, data);
+  }
+
+  /**
    * Archive (soft-delete) a submission in DocuSeal.
    * @param {number} submissionId
    * @returns {Promise<object>}

@@ -154,6 +154,25 @@ router.delete('/templates/:id', auth, asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
+// POST /api/docuseal/templates/:id/clone — duplicate a template, including its PDF and fields
+router.post('/templates/:id/clone', auth, asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ message: 'Ungültige Template-ID' });
+
+  const sourceConfig = await DocuSealTemplateConfig.findOne({ docusealTemplateId: id }).lean();
+  const template = await DocuSealService.cloneTemplate(id, { name: req.body?.name });
+
+  if (sourceConfig?.defaultTyp && template?.id) {
+    await DocuSealTemplateConfig.findOneAndUpdate(
+      { docusealTemplateId: Number(template.id) },
+      { defaultTyp: sourceConfig.defaultTyp },
+      { upsert: true }
+    );
+  }
+
+  res.status(201).json(template);
+}));
+
 // PATCH /api/docuseal/templates/:id — update a template or its local defaults
 router.patch('/templates/:id', auth, asyncHandler(async (req, res) => {
   const id = Number(req.params.id);
