@@ -24,6 +24,7 @@
       </div>
       <div class="cp-selected-actions">
         <button
+          v-if="showDeliveryMethod"
           class="cp-embed-toggle"
           type="button"
           :title="modelValue.embedded ? 'Klicken: Per E-Mail senden' : 'Klicken: In der App unterschreiben'"
@@ -146,6 +147,8 @@
         class="cp-manual-input"
         placeholder="E-Mail"
         @input="syncManual"
+        @change="confirmManual"
+        @keydown.enter.prevent="confirmManual"
       />
     </div>
   </div>
@@ -172,9 +175,11 @@ const props = defineProps({
   kuerzel:    { type: String, default: null },      // Kunde-Kürzel → prioritise matching contacts
   removable:  { type: Boolean, default: true },
   locked:     { type: Boolean, default: false },
+  showDeliveryMethod: { type: Boolean, default: true },
+  excludedEmails: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(['update:modelValue', 'remove']);
+const emit = defineEmits(['update:modelValue', 'remove', 'selected']);
 const flip = useFlipAll();
 
 const rootEl = ref(null);
@@ -233,6 +238,9 @@ async function openSearch() {
 const initials = computed(() => initialsOf(props.modelValue.name || props.modelValue.email || '?'));
 
 const avatarStyle = computed(() => colorFor(props.modelValue.name || props.modelValue.email || ''));
+const excludedEmailSet = computed(() => new Set(
+  props.excludedEmails.map(email => String(email || '').trim().toLowerCase()).filter(Boolean)
+));
 
 function contactEmail(c) {
   return (c.emailAddresses && c.emailAddresses[0] && c.emailAddresses[0].address) || '';
@@ -271,7 +279,9 @@ const filteredContacts = computed(() => {
       contactEmail(c).toLowerCase().includes(q)
     );
   }
-  return list.slice(0, 6);
+  return list
+    .filter(c => !excludedEmailSet.value.has(contactEmail(c).trim().toLowerCase()))
+    .slice(0, 6);
 });
 
 const filteredMitarbeiter = computed(() => {
@@ -282,6 +292,7 @@ const filteredMitarbeiter = computed(() => {
       `${m.vorname} ${m.nachname}`.toLowerCase().includes(q) ||
       (m.email || '').toLowerCase().includes(q)
     )
+    .filter(m => !excludedEmailSet.value.has(String(m.email || '').trim().toLowerCase()))
     .slice(0, 6);
 });
 
@@ -290,24 +301,28 @@ function updateField(field, value) {
 }
 
 function selectContact(c) {
-  emit('update:modelValue', {
+  const selected = {
     ...props.modelValue,
     name: c.displayName || '',
     email: contactEmail(c),
     embedded: false,
     mitarbeiterId: null,
-  });
+  };
+  emit('update:modelValue', selected);
+  emit('selected', selected);
   reset();
 }
 
 function selectMitarbeiter(m) {
-  emit('update:modelValue', {
+  const selected = {
     ...props.modelValue,
     name: `${m.vorname} ${m.nachname}`.trim(),
     email: m.email || '',
     mitarbeiterId: m._id,
     // preserve embedded state set by the role default; don't force true
-  });
+  };
+  emit('update:modelValue', selected);
+  emit('selected', selected);
   reset();
 }
 
@@ -324,6 +339,16 @@ function syncManual() {
     name: manualName.value,
     email: manualEmail.value,
   });
+}
+
+function confirmManual() {
+  const selected = {
+    ...props.modelValue,
+    name: manualName.value,
+    email: manualEmail.value,
+  };
+  emit('update:modelValue', selected);
+  if (/\S+@\S+\.\S+/.test(manualEmail.value.trim())) emit('selected', selected);
 }
 
 function clearSelection() {

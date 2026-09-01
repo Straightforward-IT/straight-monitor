@@ -2803,7 +2803,6 @@ export default {
           this.sigEntleiher = { name: ent?.name || '', email: ent?.email || '' };
           this.verleiherSigned = false;
           this.sigError = '';
-          this.showSignatureDialog = true;
           // Refresh sidebar
           if (this.selectedEvent?.auftragNr) this.loadStundenlisteStatus(this.selectedEvent.auftragNr);
         }

@@ -181,7 +181,7 @@ function mapSubmitter(apiSubmitter, requested = {}) {  return {
     name:        apiSubmitter.name      || requested.name      || '',
     email:       apiSubmitter.email     || requested.email     || '',
     slug:        apiSubmitter.slug      || '',
-    embedSrc:    apiSubmitter.embed_src || '',
+  embedSrc:    apiSubmitter.embed_src || (apiSubmitter.slug ? `https://docuseal.eu/s/${apiSubmitter.slug}` : ''),
     embedded:    !!requested.embedded,
     status:      apiSubmitter.status    || 'awaiting',
     completedAt: apiSubmitter.completed_at ? new Date(apiSubmitter.completed_at) : null,
@@ -1352,7 +1352,7 @@ router.get('/:id/audit-url', auth, asyncHandler(async (req, res) => {
 // ─── UPDATE DRAFT ────────────────────────────────────────────────────────────
 
 // PATCH /api/signaturen/:id — update a draft's fields, optionally submit it
-// Body: { name?, locationId?, standort?, kundeId?, mitarbeiterId?, templateId?, templateName?,
+// Body: { name?, typId?, locationId?, standort?, kundeId?, mitarbeiterId?, templateId?, templateName?,
 //         submitters?, folgeaktionen?, submit? }
 // Only allowed when status === 'draft'.
 // If submit: true, creates the DocuSeal submission and transitions to 'open'.
@@ -1367,7 +1367,7 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   }
 
   const {
-    name, locationId, standort, kundeId, mitarbeiterId,
+    name, typId, locationId, standort, kundeId, mitarbeiterId,
     templateId, templateName, submitters,
     folgeaktionen: folgeaktionenRaw,
     submit,
@@ -1377,6 +1377,13 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
 
   if (name !== undefined) vorgang.name = name;
   if (standort !== undefined) vorgang.standort = standort || null;
+
+  if (typId !== undefined) {
+    const signaturTyp = await SignaturTyp.findOne({ _id: typId, isActive: true });
+    if (!signaturTyp) return res.status(400).json({ message: 'Ungültiger oder inaktiver Signaturtyp' });
+    vorgang.typ = signaturTyp._id;
+    vorgang.typKey = signaturTyp.key;
+  }
 
   let resolvedLocation = null;
   if (locationId !== undefined) {
@@ -1550,6 +1557,9 @@ router.post('/webhook', verifyDocuSealWebhook, asyncHandler(async (req, res) => 
   res.sendStatus(200);
 
   const { event_type: eventType, data } = req.body || {};
+  logger.info(
+    `DocuSeal webhook received: event=${eventType || 'missing'}, formId=${data?.id || 'missing'}, submissionId=${data?.submission_id || data?.submission?.id || 'missing'}`
+  );
   if (!eventType || !data) return;
 
   const submissionId = data.submission_id || data.id;

@@ -93,9 +93,9 @@
                 </div>
                 <!-- In-app signing button: shown for any awaiting submitter with an embedSrc -->
                 <button
-                  v-if="vorgang.status === 'open' && s.embedSrc && s.status !== 'completed'"
+                  v-if="vorgang.status === 'open' && submitterSigningSrc(s) && s.status !== 'completed'"
                   class="sc-sub-link sc-sub-link--sign"
-                  :class="{ active: activeEmbedSrc === s.embedSrc }"
+                  :class="{ active: activeEmbedSrc === submitterSigningSrc(s) }"
                   type="button"
                   title="In-App signieren"
                   @click="selectEmbedSubmitter(s)"
@@ -104,11 +104,11 @@
                 </button>
                 <!-- Copy link button always available alongside -->
                 <button
-                  v-if="vorgang.status === 'open' && s.embedSrc && s.status !== 'completed'"
+                  v-if="vorgang.status === 'open' && submitterSigningSrc(s) && s.status !== 'completed'"
                   class="sc-sub-link"
                   type="button"
                   title="Signatur-Link kopieren"
-                  @click="copyText(s.embedSrc, 'Signatur-Link kopiert')"
+                  @click="copyText(submitterSigningSrc(s), 'Signatur-Link kopiert')"
                 >
                   <font-awesome-icon :icon="['fas', 'link']" />
                 </button>
@@ -422,13 +422,18 @@ function editDraft() {
 // ── In-App Signing (inline preview) ────────────────────────────────────────────────
 const activeEmbedSrc = ref('');
 
+function submitterSigningSrc(submitter) {
+  return submitter.embedSrc || (submitter.slug ? `https://docuseal.eu/s/${submitter.slug}` : '');
+}
+
 // Auto-select the first pending submitter with an embedSrc when the card expands
 const firstPendingEmbedded = computed(() =>
-  props.vorgang.submitters.find(s => s.embedSrc && s.status !== 'completed') || null
+  props.vorgang.submitters.find(s => submitterSigningSrc(s) && s.status !== 'completed') || null
 );
 
 function selectEmbedSubmitter(submitter) {
-  activeEmbedSrc.value = activeEmbedSrc.value === submitter.embedSrc ? '' : submitter.embedSrc;
+  const src = submitterSigningSrc(submitter);
+  activeEmbedSrc.value = activeEmbedSrc.value === src ? '' : src;
 }
 
 function onEmbedComplete() {

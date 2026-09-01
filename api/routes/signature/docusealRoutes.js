@@ -77,7 +77,7 @@ function mapSubmitter(apiSubmitter, requested) {
     name:     apiSubmitter.name || requested.name || '',
     email:    apiSubmitter.email || requested.email || '',
     slug:     apiSubmitter.slug || '',
-    embedSrc: apiSubmitter.embed_src || '',
+    embedSrc: apiSubmitter.embed_src || (apiSubmitter.slug ? `https://docuseal.eu/s/${apiSubmitter.slug}` : ''),
     embedded: !!requested.embedded,
     status:   apiSubmitter.status || 'awaiting',
     completedAt: apiSubmitter.completed_at ? new Date(apiSubmitter.completed_at) : null,

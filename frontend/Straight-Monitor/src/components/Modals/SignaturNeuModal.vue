@@ -291,18 +291,18 @@
                 </span>
               </div>
               <div class="sig-email-add-row">
-                <div class="sig-search-input">
-                  <font-awesome-icon :icon="['fas', 'at']" />
-                  <input
-                    v-model="newEmailInput"
-                    type="email"
-                    placeholder="E-Mail-Adresse eingeben…"
-                    @keydown.enter.prevent="addAusliefernEmail"
-                  />
-                </div>
-                <button class="sig-btn sig-btn--ghost" type="button" @click="addAusliefernEmail">
-                  <font-awesome-icon :icon="['fas', 'plus']" /> Hinzufügen
-                </button>
+                <ContactSearchPicker
+                  :key="deliveryPickerKey"
+                  v-model="deliveryRecipient"
+                  role-name="Empfänger"
+                  :contacts="graphContacts"
+                  :mitarbeiter="mitarbeiterList"
+                  :kuerzel="selectedKunde?.kuerzel"
+                  :removable="false"
+                  :show-delivery-method="false"
+                  :excluded-emails="folgeaktionen.ausliefernAn.map(recipient => recipient.email)"
+                  @selected="addAusliefernEmail"
+                />
               </div>
               <p v-if="newEmailError" class="sig-error" style="margin-top:6px;">{{ newEmailError }}</p>
 
@@ -444,6 +444,12 @@
   </ModalFrame>
 
   <SignaturTypAnlegenModal v-model="showTypModal" @created="onTypCreated" />
+  <DocuSealSigningModal
+    v-if="inAppSigning"
+    :title="inAppSigning.title"
+    :signers="inAppSigning.signers"
+    @close="inAppSigning = null"
+  />
 </template>
 
 <script setup>
@@ -466,6 +472,7 @@ import { useDataCache } from '@/stores/dataCache';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import ContactSearchPicker from '@/components/ContactSearchPicker.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
+import DocuSealSigningModal from '@/components/Modals/DocuSealSigningModal.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 
 library.add(
@@ -484,6 +491,7 @@ const dataCache = useDataCache();
 const modalTitle = computed(() => modal.context.draftId ? 'Entwurf bearbeiten' : 'Neue Signatur');
 
 const showTypModal = ref(false);
+const inAppSigning = ref(null);
 
 function onTypCreated(typ) {
   typen.value = [...typen.value, typ].sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -526,17 +534,27 @@ const folgeaktionen = ref({
   asanaActions: [],
 });
 
-// "Ausliefern an" input
-const newEmailInput = ref('');
+// "Ausliefern an" contact picker
+const deliveryRecipient = ref({ name: '', email: '', embedded: false });
+const deliveryPickerKey = ref(0);
 const newEmailError = ref('');
 
-function addAusliefernEmail() {
-  const val = newEmailInput.value.trim();
-  if (!val) return;
-  if (!/\S+@\S+\.\S+/.test(val)) { newEmailError.value = 'Ungültige E-Mail-Adresse'; return; }
-  if (folgeaktionen.value.ausliefernAn.some(r => r.email === val)) { newEmailError.value = 'Bereits hinzugefügt'; return; }
-  folgeaktionen.value.ausliefernAn.push({ displayName: '', email: val });
-  newEmailInput.value = '';
+function addAusliefernEmail(recipient = deliveryRecipient.value) {
+  const email = String(recipient.email || '').trim().toLowerCase();
+  if (!email) return;
+  if (!/\S+@\S+\.\S+/.test(email)) { newEmailError.value = 'Ungültige E-Mail-Adresse'; return; }
+  if (folgeaktionen.value.ausliefernAn.some(r => String(r.email || '').trim().toLowerCase() === email)) {
+    deliveryRecipient.value = { name: '', email: '', embedded: false };
+    deliveryPickerKey.value += 1;
+    newEmailError.value = '';
+    return;
+  }
+  folgeaktionen.value.ausliefernAn.push({
+    displayName: recipient.name || '',
+    email,
+  });
+  deliveryRecipient.value = { name: '', email: '', embedded: false };
+  deliveryPickerKey.value += 1;
   newEmailError.value = '';
 }
 
@@ -1070,7 +1088,8 @@ watch(() => modal.open, async (open) => {
   form.value = emptyForm();
   linkMode.value = 'keine';
   folgeaktionen.value = { ausliefernAn: [], ausliefernAnSignierer: true, emailBenachrichtigung: true, asanaActions: [] };
-  newEmailInput.value = '';
+  deliveryRecipient.value = { name: '', email: '', embedded: false };
+  deliveryPickerKey.value += 1;
   newEmailError.value = '';
   followerDefaultsLoaded.value = false;
   showAsanaBuilder.value = false;
@@ -1235,11 +1254,12 @@ async function submit() {
       // Editing an existing draft → PATCH with submit: true
       const payload = {
         name: form.value.name.trim(),
+        typId: form.value.typId,
         locationId: form.value.locationId,
         kundeId: linkMode.value === 'kunde' ? form.value.kundeId : undefined,
         mitarbeiterId: linkMode.value === 'mitarbeiter' ? form.value.mitarbeiterId : undefined,
-        templateId: form.value.templateId || undefined,
-        templateName: form.value.templateName || undefined,
+        templateId: form.value.templateId ?? null,
+        templateName: form.value.templateName || '',
         submitters: form.value.submitters.filter(s => (s.name || '').trim()),
         folgeaktionen: folgeaktionen.value,
         submit: true,
@@ -1262,8 +1282,34 @@ async function submit() {
       vorgang = data;
     }
 
+    const signingRecord = vorgang?.vorgang || vorgang;
+    const signersBySrc = new Map();
+    for (const submitter of (signingRecord?.submitters || [])) {
+      const signingSrc = submitter.embedSrc || (submitter.slug ? `https://docuseal.eu/s/${submitter.slug}` : '');
+      if (submitter.embedded && signingSrc && submitter.status !== 'completed') {
+        signersBySrc.set(signingSrc, {
+          src: signingSrc,
+          role: submitter.role || '',
+          name: submitter.name || '',
+          email: submitter.email || '',
+        });
+      }
+    }
+    if (vorgang?.embed?.src && !signersBySrc.has(vorgang.embed.src)) {
+      signersBySrc.set(vorgang.embed.src, {
+        src: vorgang.embed.src,
+        role: vorgang.embed.role || '',
+        name: '',
+        email: '',
+      });
+    }
+    const signingSession = signersBySrc.size
+      ? { title: signingRecord?.name || form.value.name.trim(), signers: [...signersBySrc.values()] }
+      : null;
+
     modal.notifyCreated(vorgang);
     closeWithoutPrompt();
+    if (signingSession) inAppSigning.value = signingSession;
   } catch (e) {
     console.error('Signatur erstellen fehlgeschlagen', e);
     error.value = e?.response?.data?.message || 'Die Signatur konnte nicht erstellt werden.';
@@ -1280,19 +1326,21 @@ async function saveAsDraft() {
     const ctx = modal.context;
     const payload = {
       name: form.value.name.trim(),
+      typId: form.value.typId,
       locationId: form.value.locationId,
       kundeId: linkMode.value === 'kunde' ? form.value.kundeId : null,
       mitarbeiterId: linkMode.value === 'mitarbeiter' ? form.value.mitarbeiterId : null,
-      templateId: form.value.templateId || undefined,
-      templateName: form.value.templateName || undefined,
+      templateId: form.value.templateId ?? null,
+      templateName: form.value.templateName || '',
       submitters: form.value.submitters.filter(s => (s.name || '').trim()),
       folgeaktionen: folgeaktionen.value,
       draft: true,
     };
     if (ctx.draftId) {
-      await api.patch(`/api/signaturen/${ctx.draftId}`, payload);
+      const { data: updatedDraft } = await api.patch(`/api/signaturen/${ctx.draftId}`, payload);
+      if (ctx.draftData && updatedDraft) Object.assign(ctx.draftData, updatedDraft);
     } else {
-      await api.post('/api/signaturen', { ...payload, typId: form.value.typId });
+      await api.post('/api/signaturen', payload);
     }
     // Do NOT call notifyCreated — callers like AuftraegePage expect a full submission
     // response (with embed.src), not a draft. The SignaturenPage list updates via SSE.
@@ -1787,7 +1835,7 @@ const ContactSearchPlaceholder = {
   display: flex;
   gap: 8px;
   align-items: stretch;
-  .sig-search-input { flex: 1; }
+  .contact-picker { flex: 1; }
 }
 
 /* ── Folgeaktionen — Asana ──────────────────────────────────── */
