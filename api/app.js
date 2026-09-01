@@ -42,6 +42,7 @@ const leadRoutes = require('./routes/customer/leadRoutes');
 const bewerberRoutes = require('./routes/employee/bewerberRoutes');
 const bewerberManagementRoutes = require('./routes/employee/bewerberManagementRoutes');
 const employeeEmailTemplateRoutes = require('./routes/employee/employeeEmailTemplateRoutes');
+const eRechnungRoutes = require('./routes/finance/eRechnungRoutes');
 const ErrorHandler = require('./middleware/ErrorHandler');
 const logger = require('./utils/logger');
 require('dotenv').config();
@@ -136,6 +137,7 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/bewerber/admin', bewerberManagementRoutes);
 app.use('/api/employee-email-templates', employeeEmailTemplateRoutes);
+app.use('/api/e-rechnungen', eRechnungRoutes);
 app.use('/api/bewerber', bewerberRoutes);
 
 // Debug endpoint (moved to specific path instead of catch-all)

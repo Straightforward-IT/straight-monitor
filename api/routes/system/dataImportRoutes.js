@@ -1999,6 +1999,7 @@ router.post('/kunden', auth, extendTimeout, upload.single('file'), async (req, r
               steuerNummer: optionalText(row.STEUERNUMMER),
               handelsregisterNr: optionalText(row.HANDELSREGISTERNR),
               l1RechGruppe: optionalText(row.L1RECHGRUPPE),
+              mwst: [0, 1, 2, 3].includes(Number(row.MWST)) ? Number(row.MWST) : null,
               bemerkung,
             },
           },
@@ -2312,14 +2313,10 @@ router.put('/qualifikationen/:id', auth, async (req, res) => {
 
 // --- DELETE Qualifikation ---
 router.delete('/qualifikationen/:id', auth, async (req, res) => {
-  try {
-    const qual = await Qualifikation.findByIdAndDelete(req.params.id);
-    if (!qual) return res.status(404).json({ success: false, message: 'Qualifikation nicht gefunden.' });
-    res.json({ success: true, message: 'Qualifikation gelöscht.' });
-  } catch (error) {
-    logger.error('DELETE Qualifikation Error:', error);
-    res.status(500).json({ success: false, message: 'Fehler beim Löschen der Qualifikation.', error: error.message });
-  }
+  res.status(405).json({
+    success: false,
+    message: 'Qualifikationen können nicht gelöscht werden.',
+  });
 });
 
 // --- Rechnung Import (Liste 6001) — Admin only ---

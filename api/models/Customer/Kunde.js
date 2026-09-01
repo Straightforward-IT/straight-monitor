@@ -66,6 +66,24 @@ const KundeSchema = new mongoose.Schema({
     required: false,
     default: null
   },
+  leitwegId: {
+    type: String,
+    required: false,
+    default: null,
+    trim: true,
+  },
+  eRechnungFormat: {
+    type: String,
+    enum: ['ZUGFERD', 'XRECHNUNG'],
+    required: false,
+    default: null,
+  },
+  mwst: {
+    type: Number,
+    enum: [0, 1, 2, 3],
+    required: false,
+    default: null,
+  },
   kuerzel: {
     type: String,
     required: false,

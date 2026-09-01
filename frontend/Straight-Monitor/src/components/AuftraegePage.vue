@@ -710,6 +710,15 @@
                 </div>
               </div>
               <div class="einsatz-dok-actions">
+                <button
+                  v-if="rk.signaturVorgang?._id"
+                  class="einsatz-dok-action"
+                  type="button"
+                  title="Signaturvorgang öffnen"
+                  @click="openSignaturVorgang(rk.signaturVorgang._id)"
+                >
+                  <font-awesome-icon icon="fa-solid fa-file-signature" />
+                </button>
                 <button class="einsatz-dok-action" type="button" title="PDF öffnen" @click="openReisekostenPdf(rk)">
                   <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
                 </button>
@@ -2754,6 +2763,10 @@ export default {
       } catch (e) {
         alert(e.response?.data?.message || 'Löschen fehlgeschlagen');
       }
+    },
+    openSignaturVorgang(vorgangId) {
+      if (!vorgangId) return;
+      this.$router.push({ name: 'SignaturenPage', query: { vorgangId: String(vorgangId) } });
     },
     openReisekostenSignatur(doc) {
       const mitarbeiter = doc.mitarbeiter || {};

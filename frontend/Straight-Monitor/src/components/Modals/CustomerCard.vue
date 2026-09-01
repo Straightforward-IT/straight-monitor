@@ -600,6 +600,37 @@
           </div>
         </div>
 
+        <form class="erechnung-settings" @submit.prevent="saveERechnungSettings">
+          <h5>E-Rechnung</h5>
+          <label>
+            <span>Leitweg-ID</span>
+            <input v-model.trim="eRechnungForm.leitwegId" type="text" autocomplete="off" placeholder="z. B. 991-..." />
+          </label>
+          <label>
+            <span>Bevorzugtes Format</span>
+            <select v-model="eRechnungForm.eRechnungFormat">
+              <option value="">Nicht festgelegt</option>
+              <option value="ZUGFERD">ZUGFeRD</option>
+              <option value="XRECHNUNG">XRechnung</option>
+            </select>
+          </label>
+          <label>
+            <span>Mehrwertsteuer</span>
+            <select v-model.number="eRechnungForm.mwst">
+              <option :value="null">Nicht festgelegt</option>
+              <option :value="0">MWST-frei</option>
+              <option :value="1">MWST-pflichtig</option>
+              <option :value="2">Steuerfreie EG-Umsätze</option>
+              <option :value="3">MWST-frei gem. § 13b UStG</option>
+            </select>
+          </label>
+          <button class="erechnung-save-btn" type="submit" :disabled="eRechnungSaving">
+            <font-awesome-icon :icon="['fas', eRechnungSaving ? 'spinner' : 'floppy-disk']" :spin="eRechnungSaving" />
+            Speichern
+          </button>
+          <p v-if="eRechnungError" class="erechnung-error">{{ eRechnungError }}</p>
+        </form>
+
         <div v-if="rechnungsanschrift" class="addresses-list">
           <div class="address-card">
             <div class="address-header">
@@ -1055,6 +1086,38 @@ const adresseMenuItems = computed(() => {
 const kundenAdressen = computed(() => adressen.value.filter((adresse) => adresse.art !== 'A'));
 const ansprechpartner = computed(() => adressen.value.filter((adresse) => adresse.art === 'A'));
 const rechnungsanschrift = computed(() => kundenAdressen.value.find((adresse) => adresse.isRechnAdr) || null);
+const eRechnungForm = ref({
+  leitwegId: props.kunde.leitwegId || '',
+  eRechnungFormat: props.kunde.eRechnungFormat || '',
+  mwst: props.kunde.mwst ?? null,
+});
+const eRechnungSaving = ref(false);
+const eRechnungError = ref('');
+
+watch(() => [props.kunde.leitwegId, props.kunde.eRechnungFormat, props.kunde.mwst], ([leitwegId, eRechnungFormat, mwst]) => {
+  if (eRechnungSaving.value) return;
+  eRechnungForm.value = { leitwegId: leitwegId || '', eRechnungFormat: eRechnungFormat || '', mwst: mwst ?? null };
+});
+
+async function saveERechnungSettings() {
+  eRechnungSaving.value = true;
+  eRechnungError.value = '';
+  const update = {
+    leitwegId: eRechnungForm.value.leitwegId || null,
+    eRechnungFormat: eRechnungForm.value.eRechnungFormat || null,
+    mwst: eRechnungForm.value.mwst ?? null,
+  };
+  try {
+    await api.put(`/api/kunden/${props.kunde._id}`, update);
+    Object.assign(props.kunde, update);
+    const cached = dataCache.kunden?.find((kunde) => kunde._id === props.kunde._id);
+    if (cached) Object.assign(cached, update);
+  } catch (error) {
+    eRechnungError.value = error.response?.data?.message || 'Die E-Rechnungseinstellungen konnten nicht gespeichert werden.';
+  } finally {
+    eRechnungSaving.value = false;
+  }
+}
 
 const remarks = computed(() => (Array.isArray(props.kunde.bemerkung) ? props.kunde.bemerkung.filter(Boolean) : []));
 const editingRemarkIndex = ref(null);
@@ -2827,6 +2890,14 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 @media (max-width: 720px) {
+  .erechnung-settings {
+    grid-template-columns: 1fr;
+  }
+
+  .erechnung-save-btn {
+    width: 100%;
+  }
+
   .preise-new-form {
     align-items: stretch;
     flex-direction: column;
@@ -2933,6 +3004,88 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 
 .rechnung-section .kv-grid {
   margin-bottom: 16px;
+}
+
+.erechnung-settings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.erechnung-settings h5,
+.erechnung-settings label,
+.erechnung-error {
+  margin: 0;
+}
+
+.erechnung-settings h5,
+.erechnung-error {
+  grid-column: 1 / -1;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.erechnung-settings label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.erechnung-settings input,
+.erechnung-settings select {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.erechnung-settings input:focus,
+.erechnung-settings select:focus {
+  outline: 2px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  border-color: var(--primary);
+}
+
+.erechnung-save-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.erechnung-save-btn:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.erechnung-error {
+  color: #dc3545;
 }
 
 .kv-item {

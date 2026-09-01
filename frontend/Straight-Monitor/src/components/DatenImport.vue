@@ -289,7 +289,8 @@
                 <div class="table-scroll">
                   <table class="req-table"><tbody>
                     <tr><td>A - Prüffeld (3203)</td><td>KUNDENNR, KUNDNAME</td><td>ADRNR1, ADRNR2</td></tr>
-                    <tr><td>DEBITORKTO, KUNDESEIT, KUNDSTATUS</td><td>SAMMELRECH, USTID</td><td>STEUERNUMMER, HANDELSREGISTERNR</td></tr>
+                    <tr><td>DEBITORKTO, KUNDESEIT, KUNDSTATUS</td><td>SAMMELRECH, USTID</td><td>STEUERNUMMER, HANDELSREGISTERNR, L1RECHGRUPPE</td></tr>
+                    <tr><td colspan="3">MWST als letzte Spalte: 0 = MWST-frei, 1 = MWST-pflichtig, 2 = steuerfreie EG-Umsätze, 3 = MWST-frei gem. § 13b UStG</td></tr>
                   </tbody></table>
                 </div>
               </details>

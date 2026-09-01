@@ -259,10 +259,11 @@ library.add(faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRo
 const props = defineProps({
   vorgang: { type: Object, required: true },
   starred: { type: Boolean, default: false },
+  initiallyExpanded: { type: Boolean, default: false },
 });
 const emit = defineEmits(['toggle-star', 'cancelled', 'refreshed', 'edit-draft']);
 
-const expanded = ref(false);
+const expanded = ref(props.initiallyExpanded);
 const previewUrl = ref('');
 const previewLoading = ref(false);
 const previewLoaded = ref(false);

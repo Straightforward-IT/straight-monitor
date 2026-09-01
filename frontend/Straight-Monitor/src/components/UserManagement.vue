@@ -361,9 +361,6 @@
                   <button type="button" class="btn-icon" title="Bearbeiten" @click="openQualiEdit(q)">
                     <font-awesome-icon icon="fa-solid fa-pen" />
                   </button>
-                  <button type="button" class="btn-icon btn-icon--danger" title="Löschen" @click="openQualiDelete(q)">
-                    <font-awesome-icon icon="fa-solid fa-trash" />
-                  </button>
                 </td>
               </tr>
               <tr v-if="!filteredQualifikationen.length">
@@ -516,27 +513,6 @@
           </button>
         </footer>
       </form>
-    </div>
-
-    <!-- Qualifikation Delete Modal -->
-    <div v-if="qualiDeleteModal.open" class="modal-backdrop" @click.self="closeQualiDelete">
-      <div class="modal-content modal-content--sm">
-        <header class="modal-header">
-          <h3>Qualifikation löschen</h3>
-          <button type="button" class="close-btn" @click="closeQualiDelete"><font-awesome-icon icon="fa-solid fa-times" /></button>
-        </header>
-        <div class="modal-body">
-          <p class="warning-text">Möchtest du die Qualifikation <strong>#{{ qualiDeleteModal.item?.qualificationKey }} – {{ qualiDeleteModal.item?.designation }}</strong> wirklich löschen?</p>
-          <p v-if="qualiDeleteModal.error" class="modal-error">{{ qualiDeleteModal.error }}</p>
-        </div>
-        <footer class="modal-footer">
-          <button type="button" class="btn btn-ghost" @click="closeQualiDelete">Abbrechen</button>
-          <button type="button" class="btn btn-danger" @click="confirmQualiDelete" :disabled="qualiDeleteModal.deleting">
-            <font-awesome-icon :icon="qualiDeleteModal.deleting ? 'fa-solid fa-spinner' : 'fa-solid fa-trash'" :spin="qualiDeleteModal.deleting" />
-            Löschen
-          </button>
-        </footer>
-      </div>
     </div>
 
     <!-- Edit / Create Modal -->
@@ -891,7 +867,6 @@ const qualiSubTab = ref('qualifikation');
 const berufSearch = ref('');
 const selectedBerufFilter = ref(null); // null = all, 'none' = no beruf, beruf._id = specific beruf
 const qualiModal = reactive({ open: false, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '', beruf: null } });
-const qualiDeleteModal = reactive({ open: false, deleting: false, error: '', item: null });
 
 // ─── Lohnarten ──────────────────────────────────────────────────────────────
 const lohnarten = ref([]);
@@ -1018,26 +993,6 @@ async function saveQualifikation() {
     qualiModal.error = e?.response?.data?.message || 'Fehler beim Speichern.';
   } finally {
     qualiModal.saving = false;
-  }
-}
-
-function openQualiDelete(q) {
-  Object.assign(qualiDeleteModal, { open: true, deleting: false, error: '', item: q });
-}
-
-function closeQualiDelete() { qualiDeleteModal.open = false; }
-
-async function confirmQualiDelete() {
-  qualiDeleteModal.error = '';
-  qualiDeleteModal.deleting = true;
-  try {
-    await api.delete(`/api/import/qualifikationen/${qualiDeleteModal.item._id}`);
-    qualifikationen.value = qualifikationen.value.filter(q => q._id !== qualiDeleteModal.item._id);
-    closeQualiDelete();
-  } catch (e) {
-    qualiDeleteModal.error = e?.response?.data?.message || 'Fehler beim Löschen.';
-  } finally {
-    qualiDeleteModal.deleting = false;
   }
 }
 

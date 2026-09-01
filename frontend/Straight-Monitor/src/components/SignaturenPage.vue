@@ -91,8 +91,10 @@
         <SignaturCard
           v-for="v in filteredVorgaenge"
           :key="v._id"
+          :id="`signatur-${v._id}`"
           :vorgang="v"
           :starred="starred.includes(v._id)"
+          :initially-expanded="targetVorgangId === String(v._id)"
           @toggle-star="toggleStar"
           @cancelled="onCancelled"
           @refreshed="onRefreshed"
@@ -233,6 +235,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil, faFolderOpen } from '@fortawesome/free-solid-svg-icons';
@@ -258,6 +261,8 @@ library.add(faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListC
 const modal = useSignaturModal();
 const builder = useSignaturBuilder();
 const auth = useAuth();
+const route = useRoute();
+const targetVorgangId = computed(() => String(route.query.vorgangId || ''));
 
 const isAdmin = computed(() => {
   const u = auth.user || {};
@@ -525,6 +530,17 @@ async function loadVorgaenge() {
   try {
     const { data } = await api.get('/api/signaturen?refresh=true');
     vorgaenge.value = Array.isArray(data) ? data : [];
+    if (targetVorgangId.value) {
+      const target = vorgaenge.value.find(v => String(v._id) === targetVorgangId.value);
+      if (target) {
+        activeTab.value = 'signaturen';
+        search.value = '';
+        filters.value = { locationId: null, statuses: [...defaultStatuses], entity: null, typKey: null };
+        if (!filters.value.statuses.includes(target.status)) filters.value.statuses.push(target.status);
+        await nextTick();
+        document.getElementById(`signatur-${targetVorgangId.value}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
   } catch (e) {
     console.error('Signaturen laden fehlgeschlagen', e);
     vorgaenge.value = [];
