@@ -319,8 +319,8 @@
                     <font-awesome-icon icon="fa-solid fa-user-plus" />
                     Pseudo-MA einplanen
                   </button>
-                  <button class="qa-dropdown-item" @click="generateHoursList" :disabled="isGeneratingHoursList">
-                    <font-awesome-icon :icon="isGeneratingHoursList ? 'fa-solid fa-spinner' : 'fa-solid fa-clock'" :spin="isGeneratingHoursList" />
+                  <button class="qa-dropdown-item" @click="createStundenliste" :disabled="hasStundenliste || isGeneratingHoursList">
+                    <font-awesome-icon :icon="isGeneratingHoursList ? 'fa-solid fa-spinner' : 'fa-solid fa-file-contract'" :spin="isGeneratingHoursList" />
                     {{ isGeneratingHoursList ? 'Wird erstellt…' : 'Stundenliste generieren' }}
                   </button>
                   <button v-if="canSignaturen" :class="{ 'dev-role--admin': isDev }" class="qa-dropdown-item" @click="openSignatureDialog">
@@ -556,36 +556,26 @@
             </div>
             <template v-else>
               <div
-                v-if="hasStundenliste"
+                v-if="sidebarStundenliste"
                 class="einsatz-dok-row einsatz-dok-row--stundenliste"
                 :class="[
-                  sidebarStundenliste
-                    ? `einsatz-dok--${sidebarStundenliste.status}`
-                    : (generatedStundenlisteUrl ? 'einsatz-dok--generated' : 'einsatz-dok--none'),
-                  sidebarStundenliste?.status === 'open' ? 'einsatz-dok-row--clickable' : ''
+                  `einsatz-dok--${sidebarStundenliste.status}`,
+                  'einsatz-dok-row--clickable'
                 ]"
-                @click="sidebarStundenliste?.status === 'open' ? $router.push('/signaturen') : null"
+                @click="openSignaturVorgang(sidebarStundenliste._id)"
               >
                 <div class="einsatz-dok-heading">
                   <div class="einsatz-dok-name">Stundenliste</div>
-                  <span v-if="!sidebarStundenliste && generatedStundenlisteUrl" class="einsatz-dok-heading-status">
-                    Nicht unterschrieben
-                  </span>
                 </div>
                 <div class="einsatz-dok-info">
-                  <div v-if="sidebarStundenliste" class="einsatz-dok-meta">
+                  <div class="einsatz-dok-meta">
                     <span class="einsatz-dok-filename">{{ sidebarStundenliste.fileName || `${sidebarStundenliste.name}.pdf` }}</span>
                     <span>{{ sidebarStundenliste.submitters.filter(s => s.status === 'completed').length }}/{{ sidebarStundenliste.submitters.length }} unterschrieben</span>
                   </div>
-                  <div v-else-if="generatedStundenlisteUrl" class="einsatz-dok-meta">
-                    <span class="einsatz-dok-filename">{{ stundenlistePdfFilename() }}</span>
-                  </div>
-                  <div v-else class="einsatz-dok-meta">Noch nicht erstellt</div>
                 </div>
 
                 <!-- Right-side actions -->
-                <template v-if="sidebarStundenliste">
-                  <div class="einsatz-dok-actions">
+                <div class="einsatz-dok-actions">
                     <a
                       v-if="stundenlisteStatus?.signedPdfUrl"
                       :href="stundenlisteStatus.signedPdfUrl"
@@ -593,6 +583,7 @@
                       rel="noopener"
                       class="einsatz-dok-action"
                       title="Unterzeichnete Stundenliste öffnen"
+                      @click.stop
                     >
                       <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
                     </a>
@@ -601,7 +592,7 @@
                       class="einsatz-dok-action"
                       type="button"
                       title="Unterzeichnete Stundenliste herunterladen"
-                      @click="downloadFile(stundenlisteStatus.signedPdfUrl, stundenlistePdfFilename(true))"
+                      @click.stop="downloadFile(stundenlisteStatus.signedPdfUrl, stundenlistePdfFilename(true))"
                     >
                       <font-awesome-icon icon="fa-solid fa-download" />
                     </button>
@@ -610,7 +601,7 @@
                       class="einsatz-dok-action"
                       type="button"
                       title="Signaturprozess öffnen"
-                      @click="$router.push('/signaturen')"
+                      @click.stop="openSignaturVorgang(sidebarStundenliste._id)"
                     >
                       <font-awesome-icon icon="fa-solid fa-file-signature" />
                     </button>
@@ -619,54 +610,54 @@
                       class="einsatz-dok-action einsatz-dok-action--open-sig"
                       type="button"
                       title="Signaturprozess anzeigen"
-                      @click.stop="$router.push('/signaturen')"
+                      @click.stop="openSignaturVorgang(sidebarStundenliste._id)"
                     >
                       <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
                     </button>
+                    <template v-if="sidebarStundenliste.status === 'draft'">
+                      <a
+                        v-if="stundenlisteStatus?.unsignedPdfUrl"
+                        :href="stundenlisteStatus.unsignedPdfUrl"
+                        class="einsatz-dok-action"
+                        target="_blank"
+                        rel="noopener"
+                        title="Stundenliste öffnen"
+                        @click.stop
+                      >
+                        <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
+                      </a>
+                      <button
+                        v-if="stundenlisteStatus?.unsignedPdfUrl"
+                        class="einsatz-dok-action"
+                        type="button"
+                        title="Stundenliste herunterladen"
+                        @click.stop="downloadFile(stundenlisteStatus.unsignedPdfUrl, stundenlistePdfFilename())"
+                      >
+                        <font-awesome-icon icon="fa-solid fa-download" />
+                      </button>
+                      <button
+                        v-if="canSignaturen"
+                        class="einsatz-dok-action einsatz-dok-action--del"
+                        type="button"
+                        title="Signaturentwurf löschen"
+                        @click.stop="deleteStundenlisteDraft"
+                      >
+                        <font-awesome-icon icon="fa-solid fa-trash" />
+                      </button>
+                      <button
+                        v-if="canSignaturen"
+                        class="einsatz-dok-gen-btn"
+                        type="button"
+                        title="Signaturentwurf bearbeiten"
+                        @click.stop="openSignatureDialog"
+                      >
+                        <font-awesome-icon icon="fa-solid fa-file-signature" /> Signieren
+                      </button>
+                    </template>
                     <span class="einsatz-dok-badge" :class="`badge-${sidebarStundenliste.status}`">
                       {{ { open: 'Ausstehend', completed: 'Unterschrieben', draft: 'Entwurf', cancelled: 'Storniert' }[sidebarStundenliste.status] || sidebarStundenliste.status }}
                     </span>
-                  </div>
-                </template>
-                <template v-else-if="generatedStundenlisteUrl">
-                  <!-- PDF ready: view + download + sign actions -->
-                  <div class="einsatz-dok-actions">
-                    <a
-                      :href="generatedStundenlisteUrl"
-                      target="_blank"
-                      rel="noopener"
-                      class="einsatz-dok-action"
-                      title="Stundenliste öffnen"
-                    >
-                      <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
-                    </a>
-                    <button
-                      class="einsatz-dok-action"
-                      type="button"
-                      title="Stundenliste herunterladen"
-                      @click="downloadFile(generatedStundenlisteUrl, stundenlistePdfFilename())"
-                    >
-                      <font-awesome-icon icon="fa-solid fa-download" />
-                    </button>
-                    <button
-                      class="einsatz-dok-action einsatz-dok-action--del"
-                      type="button"
-                      title="Stundenliste löschen"
-                      @click="deleteUnsignedStundenliste"
-                    >
-                      <font-awesome-icon icon="fa-solid fa-trash" />
-                    </button>
-                    <button
-                      v-if="canSignaturen"
-                      class="einsatz-dok-gen-btn"
-                      type="button"
-                      title="Stundenliste zur Signatur senden"
-                      @click="openSignatureDialog"
-                    >
-                      <font-awesome-icon icon="fa-solid fa-file-signature" /> Signieren
-                    </button>
-                  </div>
-                </template>
+                </div>
               </div>
 
               <!-- Outdated bar — shown when Auftrag/Einsatz/Mitarbeiter changed after Stundenliste was generated -->
@@ -1384,7 +1375,6 @@ export default {
       // ── Stundenliste status (Einsatzdokumente sidebar) ───────────────────────────
       stundenlisteStatus: null,        // { vorgang, isOutdated, outdatedReasons }
       stundenlisteStatusLoading: false,
-      generatedStundenlisteUrl: null,   // blob URL for unsigned PDF preview (ephemeral)
       // ── Einsatzdokumente (R2 uploads) ────────────────────────────────────
       einsatzDoks: [],
       einsatzDoksLoading: false,
@@ -1425,7 +1415,7 @@ export default {
       return this.stundenlisteStatus?.vorgang || null;
     },
     hasStundenliste() {
-      return !!(this.sidebarStundenliste || this.generatedStundenlisteUrl);
+      return !!this.sidebarStundenliste;
     },
     selectedEventEinsaetze() {
       return this.selectedEvent?.einsaetze || [];
@@ -1592,11 +1582,6 @@ export default {
       await this.loadOrderDirectly(auftragNr, this.$route.query.focusDate);
     },
     selectedEvent(event) {
-      // Revoke blob URLs to avoid memory leaks (R2 signed URLs are plain https — revokeObjectURL is a no-op for them)
-      if (this.generatedStundenlisteUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(this.generatedStundenlisteUrl);
-      }
-      this.generatedStundenlisteUrl = null;
       // Remember the open sidebar so a page refresh reopens it.
       try {
         if (event && event.auftragNr) sessionStorage.setItem('auftraege_selected', String(event.auftragNr));
@@ -2558,43 +2543,29 @@ export default {
         'Sollen diese aus der Stundenliste ausgeschlossen werden?'
       );
     },
-    async generateAndPreview() {
-      if (!this.selectedEvent?.auftragNr || this.isGeneratingHoursList) return;
+    async ensureStundenlisteDraft({ allowReplacement = false } = {}) {
+      if (!this.selectedEvent?.auftragNr || this.isGeneratingHoursList) return null;
+      if (this.sidebarStundenliste?.status === 'draft') return this.sidebarStundenliste;
+      if (this.sidebarStundenliste && !allowReplacement) return null;
+
       const auftragNr = this.selectedEvent.auftragNr;
       const excludePseudo = await this._askExcludePseudo();
+      const eventTitle = String(this.selectedEvent.eventTitel || '').trim();
       this.isGeneratingHoursList = true;
       try {
-        const params = excludePseudo ? { excludePseudo: 'true' } : {};
-        const { data } = await api.get(`/api/auftraege/${auftragNr}/stundenliste`, { responseType: 'blob', params });
-        if (this.generatedStundenlisteUrl) URL.revokeObjectURL(this.generatedStundenlisteUrl);
-        const blob = new Blob([data], { type: 'application/pdf' });
-        this.generatedStundenlisteUrl = URL.createObjectURL(blob);
+        const { data } = await api.post(`/api/signaturen/stundenliste/${auftragNr}/draft`, {
+          name: `Stundenliste ${eventTitle || auftragNr}`,
+          locationId: typeof this.selectedEvent.locationV2 === 'object'
+            ? this.selectedEvent.locationV2?._id
+            : this.selectedEvent.locationV2,
+          excludePseudo,
+        });
+        await this.loadStundenlisteStatus(auftragNr);
+        return data;
       } catch (err) {
-        console.error('Stundenliste generieren fehlgeschlagen', err);
-      } finally {
-        this.isGeneratingHoursList = false;
-      }
-    },
-    async generateHoursList() {
-      this.showQuickActions = false;
-      if (!this.selectedEvent || this.isGeneratingHoursList) return;
-      const auftragNr = this.selectedEvent.auftragNr;
-      const excludePseudo = await this._askExcludePseudo();
-      this.isGeneratingHoursList = true;
-      try {
-        const params = excludePseudo ? { excludePseudo: 'true' } : {};
-        const { data } = await api.get(`/api/auftraege/${auftragNr}/stundenliste`, { responseType: 'blob', params });
-        const blob = new Blob([data], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = this.stundenlistePdfFilename();
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      } catch (err) {
-        alert(err.response?.data?.message || 'Fehler beim Erstellen der Stundenliste');
+        console.error('Stundenlisten-Entwurf erstellen fehlgeschlagen', err);
+        alert(err.response?.data?.message || 'Stundenlisten-Entwurf konnte nicht erstellt werden');
+        return null;
       } finally {
         this.isGeneratingHoursList = false;
       }
@@ -2631,10 +2602,6 @@ export default {
       try {
         const { data } = await api.get(`/api/auftraege/${auftragNr}/stundenliste-status`);
         this.stundenlisteStatus = data;
-        // Restore unsigned PDF preview from R2 if no active signature vorgang exists
-        if (data.unsignedPdfUrl && !data.vorgang) {
-          this.generatedStundenlisteUrl = data.unsignedPdfUrl;
-        }
       } catch (e) {
         console.error('Stundenliste-Status laden fehlgeschlagen', e);
         this.stundenlisteStatus = null;
@@ -2689,14 +2656,14 @@ export default {
         this.einsatzDokUploading = false;
       }
     },
-    async deleteUnsignedStundenliste() {
-      if (!this.selectedEvent?.auftragNr) return;
-      if (!confirm('Unsignierte Stundenliste wirklich löschen?')) return;
+    async deleteStundenlisteDraft() {
+      const vorgang = this.sidebarStundenliste;
+      if (!vorgang?._id || !confirm('Signaturentwurf wirklich löschen?')) return;
       try {
-        await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}/stundenliste`);
-        this.generatedStundenlisteUrl = null;
+        await api.delete(`/api/signaturen/${vorgang._id}`);
+        await this.loadStundenlisteStatus(this.selectedEvent.auftragNr);
       } catch (err) {
-        alert(err.response?.data?.message || 'Fehler beim Löschen der Stundenliste');
+        alert(err.response?.data?.message || 'Fehler beim Löschen des Signaturentwurfs');
       }
     },
     async deleteEinsatzDok(dok) {
@@ -2723,10 +2690,9 @@ export default {
         this.reisekostenListeLoading = false;
       }
     },
-    createStundenliste() {
+    async createStundenliste() {
       this.showNeuMenu = false;
-      if (this.hasStundenliste) return;
-      this.generateAndPreview();
+      await this.ensureStundenlisteDraft();
     },
     openReisekostenModal(id = null) {
       this.showNeuMenu = false;
@@ -2811,40 +2777,15 @@ export default {
       this.showQuickActions = false;
       if (!this.selectedEvent) return;
       const auftragNr = this.selectedEvent.auftragNr;
-      const eventTitle = String(this.selectedEvent.eventTitel || '').trim();
 
       // Restore only the minimized Stundenliste modal belonging to this Auftrag.
       // Other signature flows and all other modal types retain their normal behavior.
       if (this.restoreMinimizedStundenliste(auftragNr)) return;
 
-      let draft;
-      try {
-        const { data } = await api.post(`/api/signaturen/stundenliste/${auftragNr}/draft`, {
-          name: `Stundenliste ${eventTitle || auftragNr}`,
-          locationId: typeof this.selectedEvent.locationV2 === 'object'
-            ? this.selectedEvent.locationV2?._id
-            : this.selectedEvent.locationV2,
-        });
-        draft = data;
-      } catch (err) {
-        alert(err.response?.data?.message || 'Stundenlisten-Entwurf konnte nicht erstellt werden');
-        return;
-      }
-
-      // Pre-fill signers (Verleiher by location + Entleiher from Kunde) before
-      // opening the universal signature modal.
-      let prefill = { verleiher: {}, kuerzel: '', kundName: '', kundeId: null };
-      try {
-        const { data } = await api.get(`/api/docuseal/stundenliste/${auftragNr}/signers`);
-        prefill.verleiher = data.verleiher || {};
-        prefill.kuerzel = data.kunde?.kuerzel || '';
-        prefill.kundName = data.kunde?.kundName || '';
-        prefill.kundeId = data.kunde?._id || null;
-        prefill.entleiherEmail = data.entleiherEmail || '';
-      } catch (err) {
-        // Non-fatal: the modal can still be filled in manually.
-        console.error('Signer-Vorbelegung fehlgeschlagen', err);
-      }
+      const draft = await this.ensureStundenlisteDraft({
+        allowReplacement: this.stundenlisteIsOutdated,
+      });
+      if (!draft) return;
 
       const modal = useSignaturModal();
       modal.openModal(
@@ -2853,17 +2794,7 @@ export default {
           draftData: draft,
           auftragNr,
           typKey: 'stundenliste',
-          name: `Stundenliste ${eventTitle || auftragNr}`,
-          locationId: typeof this.selectedEvent.locationV2 === 'object'
-            ? this.selectedEvent.locationV2?._id
-            : this.selectedEvent.locationV2,
-          kundeId: prefill.kundeId,
-          kundenKuerzel: prefill.kuerzel,
           customEndpoint: `/api/signaturen/stundenliste/${auftragNr}`,
-          submitters: [
-            { role: 'Verleiher', name: prefill.verleiher.name || '', email: prefill.verleiher.email || '', embedded: true },
-            { role: 'Entleiher', name: prefill.kundName || '', email: prefill.entleiherEmail || '', embedded: false },
-          ],
         },
         // After creation: surface the embedded Verleiher signing form.
         (resp) => {
@@ -3116,7 +3047,6 @@ export default {
     this.handlePseudoRouteQuery();
   },
   beforeUnmount() {
-    if (this.generatedStundenlisteUrl?.startsWith('blob:')) URL.revokeObjectURL(this.generatedStundenlisteUrl);
     window.removeEventListener('resize', this.checkMobile);
     document.removeEventListener('keydown', this.handleEscapeKey);
     document.removeEventListener('click', this.handleDocumentClick);

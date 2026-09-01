@@ -64,6 +64,8 @@ const SignaturVorgangSchema = new mongoose.Schema({
 
   // Linked Auftrag — set for Stundenliste and similar event-based signatures
   auftragNr:   { type: Number, default: null },
+  // Keeps the generated Stundenliste consistent when its draft is later sent.
+  stundenlisteExcludePseudo: { type: Boolean, default: false },
 
   // Microsoft Graph contact (not a DB record — embedded for historical reference)
   graphContact: {
@@ -85,6 +87,8 @@ const SignaturVorgangSchema = new mongoose.Schema({
   // Prefix stored at creation time (immutable) so webhooks can place files correctly.
   // e.g. 'Signatures/hh/kunden/sfhh/stundenliste'
   r2Prefix:    { type: String, default: '' },
+  // Unsinged source PDF retained while a generated-document signature is a draft.
+  r2KeyUnsigned: { type: String, default: '' },
   // Full R2 key of the signed document (set when DocuSeal webhook fires)
   r2KeySigned: { type: String, default: '' },
   // Full R2 key of the DocuSeal audit trail PDF

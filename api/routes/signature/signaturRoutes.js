@@ -371,8 +371,8 @@ router.get('/builder-token', auth, asyncHandler(async (req, res) => {
 
 // ─── STUNDENLISTE (PDF-generation flow) ──────────────────────────────────────
 
-// POST /api/signaturen/stundenliste/:auftragNr/draft — create the local record
-// before the generated PDF is sent to DocuSeal.
+// POST /api/signaturen/stundenliste/:auftragNr/draft — generate and persist the
+// unsigned PDF, then create the local record that owns the signing workflow.
 router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res) => {
   const adminUser = await requireSignaturAccess(req, res);
   if (!adminUser) return;
@@ -403,19 +403,27 @@ router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res
 
   const verleiher = await getStundenlisteDefaultSigner(location, auftrag);
   const eventTitle = String(auftrag.eventTitel || '').trim();
+  const excludePseudo = req.body?.excludePseudo === true;
+  const pdfFilename = buildStundenlistePdfFilename(auftrag);
+  const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, { excludePseudo });
+  const unsignedPdfKey = `stundenlisten/${auftragNr}.pdf`;
+  await R2Service.uploadFile(unsignedPdfKey, buffer, 'application/pdf');
+
   const vorgang = new SignaturVorgang({
     name: String(req.body?.name || '').trim() || `Stundenliste ${eventTitle || auftragNr}`,
-    fileName: buildStundenlistePdfFilename(auftrag),
+    fileName: pdfFilename,
     typ: signaturTyp._id,
     typKey: 'stundenliste',
     standort: location.shortNameKey || null,
     locationV2: location._id,
     status: 'draft',
     auftragNr,
+    stundenlisteExcludePseudo: excludePseudo,
     kunde: kunde._id,
     kundenNr: kunde.kundenNr,
     kundenKuerzel: kunde.kuerzel,
     docusealTemplateName: 'Stundenliste (PDF)',
+    r2KeyUnsigned: unsignedPdfKey,
     submitters: [
       { role: 'Verleiher', name: verleiher.name || '', email: verleiher.email || '', embedded: true },
       { role: 'Entleiher', name: kunde.kundName || '', email: kunde.signaturKontaktEmail || '', embedded: false },
@@ -534,7 +542,10 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     logger.info(`[Stundenliste redo] Existing vorgang ${existingVorgang._id} cancelled for Auftrag ${auftragNr}`);
   }
 
-  const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, { signatureTags: true });
+  const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, {
+    signatureTags: true,
+    excludePseudo: !!draftVorgang?.stundenlisteExcludePseudo,
+  });
 
   const requestedName = typeof name === 'string' ? name.trim() : '';
   const eventTitle = String(auftrag.eventTitel || '').trim();
@@ -1510,10 +1521,23 @@ router.delete('/:id', auth, asyncHandler(async (req, res) => {
     }
   }
 
+  const unsignedPdfKey = vorgang.status === 'draft' && vorgang.typKey === 'stundenliste'
+    ? vorgang.r2KeyUnsigned
+    : '';
+
   vorgang.status      = 'cancelled';
   vorgang.cancelledAt = new Date();
   await vorgang.save();
 
+  if (unsignedPdfKey) {
+    try {
+      await R2Service.deleteFile(unsignedPdfKey);
+    } catch (err) {
+      logger.warn(`SignaturVorgang: unsigned Stundenliste delete failed for ${vorgang._id}:`, err.message);
+    }
+  }
+
+  broadcastSignaturEvent('vorgang.updated', vorgang.toObject());
   res.json({ message: 'Vorgang storniert', vorgang });
 }));
 

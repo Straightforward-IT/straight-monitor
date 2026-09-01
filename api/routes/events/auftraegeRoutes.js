@@ -505,10 +505,8 @@ router.get('/:auftragNr/details', async (req, res) => {
     res.status(500).json({ success: false, message: 'Fehler beim Laden der Auftragsdetails', error: error.message });
   }
 });
-// Helper — returns a signed inline URL for the unsigned Stundenliste PDF if it exists in R2,
-// or null otherwise.  Non-blocking: errors are swallowed so a missing file never breaks the response.
-async function getUnsignedStundenlisteUrl(auftragNr) {
-  const r2Key = `stundenlisten/${auftragNr}.pdf`;
+// Helper — returns a signed inline URL for an unsigned Stundenliste PDF if it exists in R2.
+async function getUnsignedStundenlisteUrl(r2Key) {
   try {
     const objects = await R2Service.listObjects(r2Key);
     if (objects.some(o => o.Key === r2Key)) {
@@ -536,8 +534,7 @@ router.get('/:auftragNr/stundenliste-status', auth, asyncHandler(async (req, res
   ]);
 
   if (!vorgang) {
-    const unsignedPdfUrl = await getUnsignedStundenlisteUrl(auftragNr);
-    return res.json({ vorgang: null, isOutdated: false, outdatedReasons: [], unsignedPdfUrl });
+    return res.json({ vorgang: null, isOutdated: false, outdatedReasons: [], unsignedPdfUrl: null });
   }
 
   // The PDF is generated at vorgang.createdAt — compare everything against that.
@@ -588,7 +585,14 @@ router.get('/:auftragNr/stundenliste-status', auth, asyncHandler(async (req, res
     } catch (_) { /* key may not exist yet */ }
   }
 
-  res.json({ vorgang, isOutdated: outdatedReasons.length > 0, outdatedReasons, unsignedPdfUrl: null, signedPdfUrl });
+  let unsignedPdfUrl = null;
+  if (vorgang.status === 'draft') {
+    unsignedPdfUrl = await getUnsignedStundenlisteUrl(
+      vorgang.r2KeyUnsigned || `stundenlisten/${auftragNr}.pdf`
+    );
+  }
+
+  res.json({ vorgang, isOutdated: outdatedReasons.length > 0, outdatedReasons, unsignedPdfUrl, signedPdfUrl });
 }));
 // GET /api/auftraege/:auftragNr/stundenliste — Stundenliste (Überlassungsvertrag) als PDF
 router.get('/:auftragNr/stundenliste', asyncHandler(async (req, res) => {

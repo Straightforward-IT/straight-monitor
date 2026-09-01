@@ -280,26 +280,27 @@
         </div>
 
         <div v-if="visibleContacts.length > 0" class="contacts-list">
-          <div
+          <InformationCard
             v-for="contact in visibleContacts"
             :key="contact.id"
-            class="contact-card"
-            :class="{ 'contact-card--inactive': isMicrosoftContactInactive(contact) }"
+            interactive
+            :inactive="isMicrosoftContactInactive(contact)"
+            :highlighted="contact.id === signaturKontaktId"
             @click="openContactCard(contact)"
           >
-            <div class="contact-header">
-              <div class="contact-name">
-                <div class="ms-logo-grid" aria-hidden="true">
-                  <span style="background:#f25022"></span>
-                  <span style="background:#7fba00"></span>
-                  <span style="background:#00a4ef"></span>
-                  <span style="background:#ffb900"></span>
-                </div>
-                {{ contact.displayName }}
+            <template v-if="contact.id === signaturKontaktId" #legend>
+              <font-awesome-icon :icon="['fas', 'file-signature']" /> Signatur-Standard
+            </template>
+            <template #icon>
+              <div class="ms-logo-grid" aria-hidden="true">
+                <span style="background:#f25022"></span>
+                <span style="background:#7fba00"></span>
+                <span style="background:#00a4ef"></span>
+                <span style="background:#ffb900"></span>
               </div>
-              <div class="contact-meta">
-                <span v-if="contact.jobTitle" class="creator">{{ contact.jobTitle }}</span>
-              </div>
+            </template>
+            <template #title>{{ contact.displayName }}</template>
+            <template #actions>
               <button
                 class="contact-menu-btn"
                 title="Kontaktoptionen"
@@ -307,22 +308,24 @@
               >
                 <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
               </button>
+            </template>
+            <div v-if="contact.jobTitle" class="detail-row contact-position">
+              <font-awesome-icon :icon="['fas', 'briefcase']" />
+              <span>{{ contact.jobTitle }}</span>
             </div>
-            <div class="contact-details">
-              <div v-if="contact.emailAddresses && contact.emailAddresses.length" class="detail-row">
-                <font-awesome-icon :icon="['fas', 'envelope']" />
-                <a :href="`mailto:${contact.emailAddresses[0].address}`" @click.stop>{{ contact.emailAddresses[0].address }}</a>
-              </div>
-              <div v-if="contact.businessPhones && contact.businessPhones.length" class="detail-row">
-                <font-awesome-icon :icon="['fas', 'phone']" />
-                <a :href="`tel:${contact.businessPhones[0]}`" @click.stop>{{ contact.businessPhones[0] }}</a>
-              </div>
-              <div v-else-if="contact.mobilePhone" class="detail-row">
-                <font-awesome-icon :icon="['fas', 'mobile-screen']" />
-                <a :href="`tel:${contact.mobilePhone}`" @click.stop>{{ contact.mobilePhone }}</a>
-              </div>
+            <div v-if="contact.emailAddresses && contact.emailAddresses.length" class="detail-row">
+              <font-awesome-icon :icon="['fas', 'envelope']" />
+              <a :href="`mailto:${contact.emailAddresses[0].address}`" @click.stop>{{ contact.emailAddresses[0].address }}</a>
             </div>
-          </div>
+            <div v-if="contact.businessPhones && contact.businessPhones.length" class="detail-row">
+              <font-awesome-icon :icon="['fas', 'phone']" />
+              <a :href="`tel:${contact.businessPhones[0]}`" @click.stop>{{ contact.businessPhones[0] }}</a>
+            </div>
+            <div v-else-if="contact.mobilePhone" class="detail-row">
+              <font-awesome-icon :icon="['fas', 'mobile-screen']" />
+              <a :href="`tel:${contact.mobilePhone}`" @click.stop>{{ contact.mobilePhone }}</a>
+            </div>
+          </InformationCard>
         </div>
       </section>
 
@@ -336,15 +339,11 @@
           </button>
         </h4>
         <div v-if="kundenAdressen.length" class="addresses-list">
-          <div v-for="(adr, index) in kundenAdressen" :key="adr.nummer || index" class="address-card">
-            <div class="address-header">
-              <div class="address-header-content">
-                <span class="address-name">{{ formatAddressName(adr, 'Adresse ' + (index + 1)) }}</span>
-                <div v-if="adr.isRechnAdr || adr.isPostAdr" class="address-tags">
-                  <span v-if="adr.isRechnAdr" class="address-billing-badge">Rechnungsanschrift</span>
-                  <span v-if="adr.isPostAdr" class="address-postal-badge">Postanschrift</span>
-                </div>
-              </div>
+          <InformationCard v-for="(adr, index) in kundenAdressen" :key="adr.nummer || index">
+            <template v-if="adr.isRechnAdr || adr.isPostAdr" #legend>{{ adr.isRechnAdr ? 'Rechnungsanschrift' : 'Postanschrift' }}</template>
+            <template #icon><font-awesome-icon :icon="['fas', 'location-dot']" /></template>
+            <template #title>{{ formatAddressName(adr, 'Adresse ' + (index + 1)) }}</template>
+            <template #actions>
               <button
                 class="address-menu-btn"
                 title="Adressoptionen"
@@ -352,34 +351,21 @@
               >
                 <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
               </button>
+            </template>
+            <div v-if="adr.strasse || adr.plz || adr.ort" class="address-row">
+              <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
+              <span>
+                <template v-if="adr.strasse">{{ adr.strasse }}<br /></template>
+                {{ [adr.plz, adr.ort].filter(Boolean).join(' ') }}<template v-if="adr.land">, {{ adr.land }}</template>
+              </span>
+              <CustomTooltip text="In Google Maps öffnen" position="top">
+                <a class="address-map-link" :href="getGoogleMapsUrl(adr)" target="_blank" rel="noopener noreferrer" aria-label="In Google Maps öffnen" @click.stop><font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" /></a>
+              </CustomTooltip>
             </div>
-            <div class="address-body">
-              <div v-if="adr.strasse || adr.plz || adr.ort" class="address-row">
-                <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
-                <span>
-                  <template v-if="adr.strasse">{{ adr.strasse }}<br /></template>
-                  {{ [adr.plz, adr.ort].filter(Boolean).join(' ') }}<template v-if="adr.land">, {{ adr.land }}</template>
-                </span>
-                <CustomTooltip text="In Google Maps öffnen" position="top">
-                  <a class="address-map-link" :href="getGoogleMapsUrl(adr)" target="_blank" rel="noopener noreferrer" aria-label="In Google Maps öffnen" @click.stop>
-                    <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
-                  </a>
-                </CustomTooltip>
-              </div>
-              <div v-for="telefon in adr.telefone" :key="telefon" class="address-row">
-                <font-awesome-icon :icon="['fas', 'phone']" />
-                <a :href="`tel:${telefon}`">{{ telefon }}</a>
-              </div>
-              <div v-if="adr.email" class="address-row">
-                <font-awesome-icon :icon="['fas', 'envelope']" />
-                <a :href="`mailto:${adr.email}`">{{ adr.email }}</a>
-              </div>
-              <div v-if="adr.homepage" class="address-row">
-                <font-awesome-icon :icon="['fas', 'globe']" />
-                <a :href="formatUrl(adr.homepage)" target="_blank" rel="noopener noreferrer">{{ adr.homepage }}</a>
-              </div>
-            </div>
-          </div>
+            <div v-for="telefon in adr.telefone" :key="telefon" class="address-row"><font-awesome-icon :icon="['fas', 'phone']" /><a :href="`tel:${telefon}`">{{ telefon }}</a></div>
+            <div v-if="adr.email" class="address-row"><font-awesome-icon :icon="['fas', 'envelope']" /><a :href="`mailto:${adr.email}`">{{ adr.email }}</a></div>
+            <div v-if="adr.homepage" class="address-row"><font-awesome-icon :icon="['fas', 'globe']" /><a :href="formatUrl(adr.homepage)" target="_blank" rel="noopener noreferrer">{{ adr.homepage }}</a></div>
+          </InformationCard>
         </div>
         <div v-else class="empty-contacts">Keine Adressen vorhanden.</div>
       </section>
@@ -391,14 +377,10 @@
           <span class="badge">{{ ansprechpartner.length }}</span>
         </h4>
         <div class="addresses-list">
-          <div v-for="(adr, index) in ansprechpartner" :key="adr.nummer || index" class="address-card">
-            <div class="address-header">
-              <div class="address-header-content">
-                <span class="address-name">{{ formatAnsprechpartnerName(adr.name) || 'Ansprechpartner ' + (index + 1) }}</span>
-                <div v-if="adr.branche" class="address-tags">
-                  <span class="address-branche">{{ adr.branche }}</span>
-                </div>
-              </div>
+          <InformationCard v-for="(adr, index) in ansprechpartner" :key="adr.nummer || index">
+            <template #icon><font-awesome-icon :icon="['fas', 'user-tie']" /></template>
+            <template #title>{{ formatAnsprechpartnerName(adr.name) || 'Ansprechpartner ' + (index + 1) }}</template>
+            <template #actions>
               <button
                 class="address-menu-btn"
                 title="Ansprechpartneroptionen"
@@ -406,34 +388,17 @@
               >
                 <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
               </button>
+            </template>
+            <span v-if="adr.branche" class="address-branche">{{ adr.branche }}</span>
+            <div v-if="adr.strasse || adr.plz || adr.ort" class="address-row">
+              <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
+              <span><template v-if="adr.strasse">{{ adr.strasse }}<br /></template>{{ [adr.plz, adr.ort].filter(Boolean).join(' ') }}<template v-if="adr.land">, {{ adr.land }}</template></span>
+              <CustomTooltip text="In Google Maps öffnen" position="top"><a class="address-map-link" :href="getGoogleMapsUrl(adr)" target="_blank" rel="noopener noreferrer" aria-label="In Google Maps öffnen" @click.stop><font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" /></a></CustomTooltip>
             </div>
-            <div class="address-body">
-              <div v-if="adr.strasse || adr.plz || adr.ort" class="address-row">
-                <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
-                <span>
-                  <template v-if="adr.strasse">{{ adr.strasse }}<br /></template>
-                  {{ [adr.plz, adr.ort].filter(Boolean).join(' ') }}<template v-if="adr.land">, {{ adr.land }}</template>
-                </span>
-                <CustomTooltip text="In Google Maps öffnen" position="top">
-                  <a class="address-map-link" :href="getGoogleMapsUrl(adr)" target="_blank" rel="noopener noreferrer" aria-label="In Google Maps öffnen" @click.stop>
-                    <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
-                  </a>
-                </CustomTooltip>
-              </div>
-              <div v-for="telefon in adr.telefone" :key="telefon" class="address-row">
-                <font-awesome-icon :icon="['fas', 'phone']" />
-                <a :href="`tel:${telefon}`">{{ telefon }}</a>
-              </div>
-              <div v-if="adr.email" class="address-row">
-                <font-awesome-icon :icon="['fas', 'envelope']" />
-                <a :href="`mailto:${adr.email}`">{{ adr.email }}</a>
-              </div>
-              <div v-if="adr.homepage" class="address-row">
-                <font-awesome-icon :icon="['fas', 'globe']" />
-                <a :href="formatUrl(adr.homepage)" target="_blank" rel="noopener noreferrer">{{ adr.homepage }}</a>
-              </div>
-            </div>
-          </div>
+            <div v-for="telefon in adr.telefone" :key="telefon" class="address-row"><font-awesome-icon :icon="['fas', 'phone']" /><a :href="`tel:${telefon}`">{{ telefon }}</a></div>
+            <div v-if="adr.email" class="address-row"><font-awesome-icon :icon="['fas', 'envelope']" /><a :href="`mailto:${adr.email}`">{{ adr.email }}</a></div>
+            <div v-if="adr.homepage" class="address-row"><font-awesome-icon :icon="['fas', 'globe']" /><a :href="formatUrl(adr.homepage)" target="_blank" rel="noopener noreferrer">{{ adr.homepage }}</a></div>
+          </InformationCard>
         </div>
       </section>
 
@@ -631,15 +596,11 @@
         </form>
 
         <div v-if="rechnungsanschrift" class="addresses-list">
-          <div class="address-card">
-            <div class="address-header">
-              <div class="address-header-content">
-                <span class="address-name">{{ formatAddressName(rechnungsanschrift, 'Rechnungsanschrift') }}</span>
-                <div class="address-tags">
-                  <span class="address-billing-badge">Rechnungsanschrift</span>
-                  <span v-if="rechnungsanschrift.isPostAdr" class="address-postal-badge">Postanschrift</span>
-                </div>
-              </div>
+          <InformationCard>
+            <template #legend>Rechnungsanschrift</template>
+            <template #icon><font-awesome-icon :icon="['fas', 'location-dot']" /></template>
+            <template #title>{{ formatAddressName(rechnungsanschrift, 'Rechnungsanschrift') }}</template>
+            <template #actions>
               <button
                 class="address-menu-btn"
                 title="Adressoptionen"
@@ -647,34 +608,21 @@
               >
                 <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
               </button>
+            </template>
+            <div v-if="rechnungsanschrift.strasse || rechnungsanschrift.plz || rechnungsanschrift.ort" class="address-row">
+              <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
+              <span>
+                <template v-if="rechnungsanschrift.strasse">{{ rechnungsanschrift.strasse }}<br /></template>
+                {{ [rechnungsanschrift.plz, rechnungsanschrift.ort].filter(Boolean).join(' ') }}<template v-if="rechnungsanschrift.land">, {{ rechnungsanschrift.land }}</template>
+              </span>
+              <CustomTooltip text="In Google Maps öffnen" position="top">
+                <a class="address-map-link" :href="getGoogleMapsUrl(rechnungsanschrift)" target="_blank" rel="noopener noreferrer" aria-label="In Google Maps öffnen" @click.stop><font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" /></a>
+              </CustomTooltip>
             </div>
-            <div class="address-body">
-              <div v-if="rechnungsanschrift.strasse || rechnungsanschrift.plz || rechnungsanschrift.ort" class="address-row">
-                <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
-                <span>
-                  <template v-if="rechnungsanschrift.strasse">{{ rechnungsanschrift.strasse }}<br /></template>
-                  {{ [rechnungsanschrift.plz, rechnungsanschrift.ort].filter(Boolean).join(' ') }}<template v-if="rechnungsanschrift.land">, {{ rechnungsanschrift.land }}</template>
-                </span>
-                <CustomTooltip text="In Google Maps öffnen" position="top">
-                  <a class="address-map-link" :href="getGoogleMapsUrl(rechnungsanschrift)" target="_blank" rel="noopener noreferrer" aria-label="In Google Maps öffnen" @click.stop>
-                    <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
-                  </a>
-                </CustomTooltip>
-              </div>
-              <div v-for="telefon in rechnungsanschrift.telefone" :key="telefon" class="address-row">
-                <font-awesome-icon :icon="['fas', 'phone']" />
-                <a :href="`tel:${telefon}`">{{ telefon }}</a>
-              </div>
-              <div v-if="rechnungsanschrift.email" class="address-row">
-                <font-awesome-icon :icon="['fas', 'envelope']" />
-                <a :href="`mailto:${rechnungsanschrift.email}`">{{ rechnungsanschrift.email }}</a>
-              </div>
-              <div v-if="rechnungsanschrift.homepage" class="address-row">
-                <font-awesome-icon :icon="['fas', 'globe']" />
-                <a :href="formatUrl(rechnungsanschrift.homepage)" target="_blank" rel="noopener noreferrer">{{ rechnungsanschrift.homepage }}</a>
-              </div>
-            </div>
-          </div>
+            <div v-for="telefon in rechnungsanschrift.telefone" :key="telefon" class="address-row"><font-awesome-icon :icon="['fas', 'phone']" /><a :href="`tel:${telefon}`">{{ telefon }}</a></div>
+            <div v-if="rechnungsanschrift.email" class="address-row"><font-awesome-icon :icon="['fas', 'envelope']" /><a :href="`mailto:${rechnungsanschrift.email}`">{{ rechnungsanschrift.email }}</a></div>
+            <div v-if="rechnungsanschrift.homepage" class="address-row"><font-awesome-icon :icon="['fas', 'globe']" /><a :href="formatUrl(rechnungsanschrift.homepage)" target="_blank" rel="noopener noreferrer">{{ rechnungsanschrift.homepage }}</a></div>
+          </InformationCard>
         </div>
 
         <div v-else class="empty-tab-state">
@@ -1035,6 +983,7 @@ import ContactCard from '@/components/ContactCard.vue';
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import InformationCard from '@/components/ui-elements/InformationCard.vue';
 import api from '@/utils/api';
 
 const props = defineProps({
@@ -1082,7 +1031,13 @@ const adresseMenuItems = computed(() => {
   items.push({ value: 'deactivate', label: 'Ausblenden', icon: ['fas', 'trash'], variant: 'danger' });
   return items;
 });
-const kundenAdressen = computed(() => adressen.value.filter((adresse) => adresse.art !== 'A'));
+const kundenAdressen = computed(() => adressen.value
+  .filter((adresse) => adresse.art !== 'A')
+  .sort((first, second) => {
+    const relevance = (adresse) => (adresse.isRechnAdr ? 0 : adresse.isPostAdr ? 1 : 2);
+    return relevance(first) - relevance(second);
+  })
+);
 const ansprechpartner = computed(() => adressen.value.filter((adresse) => adresse.art === 'A'));
 const rechnungsanschrift = computed(() => kundenAdressen.value.find((adresse) => adresse.isRechnAdr) || null);
 const eRechnungForm = ref({
@@ -1808,9 +1763,13 @@ const inactiveMicrosoftContactIds = computed(() => new Set(
   (props.kunde.inactiveMicrosoftContactIds || []).map((id) => String(id))
 ));
 const inactiveContacts = computed(() => linkedContacts.value.filter(isMicrosoftContactInactive));
-const visibleContacts = computed(() => linkedContacts.value.filter((contact) =>
-  showInactiveContacts.value || !isMicrosoftContactInactive(contact)
-));
+const visibleContacts = computed(() => linkedContacts.value
+  .filter((contact) => showInactiveContacts.value || !isMicrosoftContactInactive(contact))
+  .sort((first, second) => {
+    const relevance = (contact) => String(contact.id) === String(signaturKontaktId.value) ? 0 : 1;
+    return relevance(first) - relevance(second);
+  })
+);
 
 function isMicrosoftContactInactive(contact) {
   return Boolean(contact?.id) && inactiveMicrosoftContactIds.value.has(String(contact.id));
@@ -3455,6 +3414,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 .contact-card {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -3472,6 +3432,27 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 
 .contact-card--inactive {
   opacity: 0.62;
+}
+
+.contact-card--signature-standard {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+.sig-standard-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  position: absolute;
+  top: -11px;
+  right: 12px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .contact-open-hint {
