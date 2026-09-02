@@ -17,14 +17,16 @@ export const useSignaturBuilder = defineStore('signaturBuilder', {
     templateId: null,   // null → create new template
     name: null,         // suggested name for a new template
     defaultTypId: null,
+    closeAfterSave: false,
     _onSaved: null,
   }),
 
   actions: {
-    openBuilder({ templateId = null, name = null, defaultTypId = null } = {}, onSaved = null) {
+    openBuilder({ templateId = null, name = null, defaultTypId = null, closeAfterSave = false } = {}, onSaved = null) {
       this.templateId = templateId;
       this.name = name;
       this.defaultTypId = defaultTypId;
+      this.closeAfterSave = closeAfterSave;
       this._onSaved = typeof onSaved === 'function' ? onSaved : null;
       this.open = true;
     },
@@ -34,6 +36,7 @@ export const useSignaturBuilder = defineStore('signaturBuilder', {
       this.templateId = null;
       this.name = null;
       this.defaultTypId = null;
+      this.closeAfterSave = false;
       this._onSaved = null;
     },
 

@@ -3,6 +3,7 @@
     v-model="activeTab"
     :tabs="dashboardTabs"
     aria-label="Dashboardbereiche"
+    persistence-key="dashboard-tab"
     width="full"
     content-variant="surface"
   >

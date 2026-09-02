@@ -169,6 +169,7 @@ async function onSave(detail) {
     }
   }
   builder.notifySaved({ id: resolvedId, name: tpl.name || builder.name });
+  if (builder.closeAfterSave) builder.closeBuilder();
 }
 
 async function close() {

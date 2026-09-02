@@ -139,6 +139,28 @@ class DocuSealService {
     return result;
   }
 
+  async createTemplateFromPdf({ name, documentName, fileBuffer }) {
+    this._ensureConfigured();
+    if (!Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) {
+      throw new Error('createTemplateFromPdf: fileBuffer (PDF) is required.');
+    }
+    return docuseal.createTemplateFromPdf({
+      name: name || 'Document',
+      documents: [{ name: documentName || `${name || 'Document'}.pdf`, file: fileBuffer.toString('base64'), fields: [] }],
+    });
+  }
+
+  async createTemplateFromDocx({ name, documentName, fileBuffer }) {
+    this._ensureConfigured();
+    if (!Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) {
+      throw new Error('createTemplateFromDocx: fileBuffer (DOCX) is required.');
+    }
+    return docuseal.createTemplateFromDocx({
+      name: name || 'Document',
+      documents: [{ name: documentName || `${name || 'Document'}.docx`, file: fileBuffer.toString('base64'), fields: [] }],
+    });
+  }
+
   /**
    * Fetch a submission with its current status and submitters.
    * @param {number} submissionId

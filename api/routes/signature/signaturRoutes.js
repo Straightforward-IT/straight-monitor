@@ -1124,6 +1124,26 @@ router.get('/storage/url', auth, asyncHandler(async (req, res) => {
 
 // ─── CREATE ───────────────────────────────────────────────────────────────────
 
+router.post('/spaces/:locationId/items/:itemId/template', auth, asyncHandler(async (req, res) => {
+  if (!await requireSignaturAccess(req, res)) return;
+  const source = await resolveSpaceSignatureSource(req, req.params.locationId, req.params.itemId);
+  if (!source) return res.status(403).json({ message: 'Kein Zugriff auf diese Datei im Standort-Space.' });
+  if (!source.item?.file) return res.status(400).json({ message: 'Nur Dateien können als Vorlage verwendet werden.' });
+
+  const fileName = String(source.item.name || '');
+  const isPdf = /\.pdf$/i.test(fileName);
+  const isDocx = /\.docx$/i.test(fileName);
+  if (!isPdf && !isDocx) return res.status(400).json({ message: 'Vorlagen aus Spaces unterstützen nur PDF- und DOCX-Dateien.' });
+
+  const name = String(req.body?.name || fileName.replace(/\.(pdf|docx)$/i, '')).trim();
+  if (!name) return res.status(400).json({ message: 'Eine Vorlagenbezeichnung ist erforderlich.' });
+  const { buffer } = await downloadDriveItemBuffer(source.token, source.userPrincipalName, req.params.itemId);
+  const template = isPdf
+    ? await DocuSealService.createTemplateFromPdf({ name, documentName: fileName, fileBuffer: buffer })
+    : await DocuSealService.createTemplateFromDocx({ name, documentName: fileName, fileBuffer: buffer });
+  res.status(201).json({ id: Number(template.id), name: template.name || name });
+}));
+
 router.post('/spaces/:locationId/items/:itemId', auth, asyncHandler(async (req, res) => {
   if (!await requireSignaturAccess(req, res)) return;
   const source = await resolveSpaceSignatureSource(req, req.params.locationId, req.params.itemId);

@@ -148,6 +148,7 @@ import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import PageLayout from '@/components/layout/PageLayout.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import { useSignaturModal } from '@/stores/signaturModal';
+import { useSignaturBuilder } from '@/stores/signaturBuilder';
 
 const spaces = ref([]);
 const selectedSpaceId = ref('');
@@ -172,7 +173,9 @@ const selectedItemIds = ref([]);
 const selectionAnchorId = ref('');
 const fileOpenNotice = ref('');
 const signaturModal = useSignaturModal();
+const signaturBuilder = useSignaturBuilder();
 let fileOpenNoticeTimer;
+const SPACE_NAVIGATION_STORAGE_KEY = 'straight-monitor:dashboard-spaces-navigation';
 
 const selectedSpace = computed(() => spaces.value.find((space) => space._id === selectedSpaceId.value) || null);
 const currentFolderId = computed(() => path.value[path.value.length - 1]?.id || selectedSpace.value?.spaceFolder?.folderId || '');
@@ -188,7 +191,8 @@ const contextMenuOptions = computed(() => contextMenuItem.value ? [
   { label: 'Löschen', action: 'delete' },
 ] : []);
 const appActionsMenuOptions = computed(() => isSignatureFile(appActionsMenuItem.value) ? [
-  { label: 'Signatur erstellen', action: 'create-signature' },
+  { label: 'Vorlage erstellen', action: 'create-template' },
+  { label: 'Einmalige Signatur erstellen', action: 'create-one-off-signature' },
 ] : [
   { label: 'Keine App-Aktionen verfügbar', action: 'none' },
 ]);
@@ -220,15 +224,17 @@ function formatDate(value) {
 }
 
 async function loadItems(itemId) {
-  if (!selectedSpaceId.value) return;
+  if (!selectedSpaceId.value) return false;
   loading.value = true;
   error.value = '';
   try {
     const { data } = await api.get(`/api/graph/spaces/${selectedSpaceId.value}/children`, { params: itemId ? { itemId } : {} });
     items.value = data.items || [];
     selectedItemIds.value = selectedItemIds.value.filter((id) => items.value.some((item) => item.id === id));
+    return true;
   } catch (requestError) {
     error.value = requestError.response?.data?.error || 'Der Space konnte nicht geladen werden.';
+    return false;
   } finally {
     loading.value = false;
   }
@@ -240,6 +246,7 @@ async function selectSpace(spaceId) {
   searchQuery.value = '';
   clearSelection();
   await loadItems();
+  persistNavigation();
 }
 
 async function openFolder(folder) {
@@ -247,12 +254,31 @@ async function openFolder(folder) {
   path.value = existingIndex === -1 ? [...path.value, folder] : path.value.slice(0, existingIndex + 1);
   clearSelection();
   await loadItems(folder.id);
+  persistNavigation();
 }
 
 async function openRoot() {
   path.value = [];
   clearSelection();
   await loadItems();
+  persistNavigation();
+}
+
+function persistNavigation() {
+  if (!selectedSpaceId.value) return;
+  localStorage.setItem(SPACE_NAVIGATION_STORAGE_KEY, JSON.stringify({
+    locationId: selectedSpaceId.value,
+    path: path.value.map((folder) => ({ id: folder.id, name: folder.name })),
+  }));
+}
+
+function readPersistedNavigation() {
+  try {
+    const value = JSON.parse(localStorage.getItem(SPACE_NAVIGATION_STORAGE_KEY) || 'null');
+    return value?.locationId && Array.isArray(value.path) ? value : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 function openContextMenu(item, event, atPointer = false) {
@@ -315,20 +341,34 @@ async function handleSelectionContextMenuAction(action) {
 function handleAppActionsMenuAction(action) {
   const item = appActionsMenuItem.value;
   closeAppActionsMenu();
-  if (action === 'create-signature' && item) openSignatureWorkflow(item);
+  if (action === 'create-template' && item) openSpaceTemplateBuilder(item);
+  if (action === 'create-one-off-signature' && item) openSpaceTemplateBuilder(item, { oneOff: true });
 }
 
 function isSignatureFile(item) {
   return /\.(pdf|docx)$/i.test(item?.name || '');
 }
 
-function openSignatureWorkflow(item) {
-  signaturModal.openModal({
-    name: item.name.replace(/\.(pdf|docx)$/i, ''),
-    locationId: selectedSpaceId.value,
-    sourceDocumentName: item.name,
-    customEndpoint: `/api/signaturen/spaces/${selectedSpaceId.value}/items/${encodeURIComponent(item.id)}`,
-  });
+async function openSpaceTemplateBuilder(item, { oneOff = false } = {}) {
+  const name = item.name.replace(/\.(pdf|docx)$/i, '');
+  error.value = '';
+  try {
+    const { data: template } = await api.post(
+      `/api/signaturen/spaces/${selectedSpaceId.value}/items/${encodeURIComponent(item.id)}/template`,
+      { name }
+    );
+    signaturBuilder.openBuilder({ templateId: template.id, name: template.name || name, closeAfterSave: oneOff }, (savedTemplate) => {
+      if (!oneOff || !savedTemplate?.id) return;
+      signaturModal.openModal({
+        name,
+        locationId: selectedSpaceId.value,
+        templateId: savedTemplate.id,
+        templateName: savedTemplate.name || template.name || name,
+      });
+    });
+  } catch (requestError) {
+    error.value = requestError.response?.data?.message || 'Die Vorlage konnte nicht erstellt werden.';
+  }
 }
 
 function isSelected(itemId) {
@@ -663,7 +703,19 @@ onMounted(async () => {
   try {
     const { data } = await api.get('/api/graph/spaces');
     spaces.value = data.spaces || [];
-    if (spaces.value[0]) await selectSpace(spaces.value[0]._id);
+    const savedNavigation = readPersistedNavigation();
+    const savedSpace = spaces.value.find((space) => space._id === savedNavigation?.locationId);
+    if (savedSpace) {
+      selectedSpaceId.value = savedSpace._id;
+      path.value = savedNavigation.path;
+      const lastFolderId = path.value[path.value.length - 1]?.id;
+      if (await loadItems(lastFolderId)) return;
+      path.value = [];
+      await loadItems();
+      persistNavigation();
+    } else if (spaces.value[0]) {
+      await selectSpace(spaces.value[0]._id);
+    }
   } catch (requestError) {
     error.value = requestError.response?.data?.error || 'Die Spaces konnten nicht geladen werden.';
   } finally {
