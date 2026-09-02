@@ -1,9 +1,8 @@
 <template>
-  <PageLayout
-    v-model="activeTab"
+  <RouterPageLayout
     :tabs="dashboardTabs"
+    default-tab="widgets"
     aria-label="Dashboardbereiche"
-    persistence-key="dashboard-tab"
     width="full"
     content-variant="surface"
   >
@@ -13,59 +12,25 @@
       </div>
     </template>
 
-    <section v-if="activeTab === 'widgets'" class="dash">
-    <!-- Widget Grid -->
-    <TransitionGroup
-      name="widget-anim"
-      tag="div"
-      class="widget-grid"
-    >
-      <component
-        v-for="w in activeWidgets"
-        :key="w.id"
-        :is="w.component"
-      />
-
-      <!-- Add / Configure tile – always last -->
-      <button
-        key="__add__"
-        class="add-widget-tile"
-        @click="showConfigurator = true"
-        title="Dashboard anpassen"
-      >
-        <font-awesome-icon :icon="['fas', 'plus']" />
-        <span>Anpassen</span>
-      </button>
-    </TransitionGroup>
-
-    <!-- Widget Configurator -->
-    <WidgetConfigurator
-      :visible="showConfigurator"
-      @close="showConfigurator = false"
-    />
-    </section>
-    <DashboardSpaces v-else />
-  </PageLayout>
+    <template #default="{ activeTab }">
+      <DashboardOverviewTab v-if="activeTab === 'widgets'" :active-widgets="activeWidgets" />
+      <DashboardSpaces v-else />
+    </template>
+  </RouterPageLayout>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
 import { useDashboardPrefs } from "@/stores/dashboardPrefs";
-import WidgetConfigurator from "@/components/widgets/WidgetConfigurator.vue";
-import PageLayout from "@/components/layout/PageLayout.vue";
+import RouterPageLayout from "@/components/layout/RouterPageLayout.vue";
+import { dashboardTabs } from '@/components/layout/pageTabDefinitions';
+import DashboardOverviewTab from '@/components/DashboardOverviewTab.vue';
 import DashboardSpaces from "@/components/DashboardSpaces.vue";
 
 const router = useRouter();
 const prefs = useDashboardPrefs();
-const showConfigurator = ref(false);
-const activeTab = ref('widgets');
-const dashboardTabs = [
-  { id: 'widgets', label: 'Übersicht', icon: ['fas', 'table-cells-large'] },
-  { id: 'spaces', label: 'Spaces', icon: ['fas', 'folder-open'] },
-];
 
 const activeWidgets = computed(() => prefs.activeWidgets);
 
@@ -227,4 +192,3 @@ onMounted(async () => {
 
 
 </style>
-

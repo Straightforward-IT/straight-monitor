@@ -47,7 +47,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
 const props = defineProps({
@@ -55,7 +55,6 @@ const props = defineProps({
   tabs: { type: Array, default: () => [] },
   modelValue: { type: String, default: '' },
   ariaLabel: { type: String, default: 'Seitenbereiche' },
-  persistenceKey: { type: String, default: '' },
   width: {
     type: String,
     default: 'standard',
@@ -72,24 +71,6 @@ const emit = defineEmits(['update:modelValue']);
 const tabButtons = ref([]);
 const hasTabs = computed(() => props.tabs.length > 0);
 const enabledTabs = computed(() => props.tabs.filter((tab) => !tab.disabled));
-
-function storedTabKey() {
-  return props.persistenceKey ? `straight-monitor:page-layout:${props.persistenceKey}` : '';
-}
-
-onMounted(() => {
-  const key = storedTabKey();
-  if (!key) return;
-  const tabId = localStorage.getItem(key);
-  if (tabId && enabledTabs.value.some((tab) => String(tab.id) === tabId) && tabId !== props.modelValue) {
-    emit('update:modelValue', tabId);
-  }
-});
-
-watch(() => props.modelValue, (tabId) => {
-  const key = storedTabKey();
-  if (key && tabId) localStorage.setItem(key, String(tabId));
-});
 
 function selectTab(tab) {
   if (!tab.disabled && tab.id !== props.modelValue) emit('update:modelValue', tab.id);

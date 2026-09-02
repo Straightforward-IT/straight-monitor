@@ -1221,22 +1221,14 @@
         <template v-if="showTooltips">
           <custom-tooltip text="Stammdaten" :position="tooltipPosition" :delay-in="150">
             <button class="icon-btn" role="tab" :class="{ active: view === 'profile' }" @click="view = 'profile'" :aria-selected="view === 'profile'">
-              <span
-                class="tab-brand tab-brand--sf"
-                :style="{ '--tab-brand-image': `url(${effectiveTheme === 'dark' ? straightDark : straightLight})` }"
-                aria-hidden="true"
-              />
+              <font-awesome-icon icon="fa-solid fa-user" />
               <span>Stammdaten</span>
             </button>
           </custom-tooltip>
         </template>
         <template v-else>
           <button class="icon-btn" role="tab" :class="{ active: view === 'profile' }" @click="view = 'profile'" :aria-selected="view === 'profile'">
-            <span
-              class="tab-brand tab-brand--sf"
-              :style="{ '--tab-brand-image': `url(${effectiveTheme === 'dark' ? straightDark : straightLight})` }"
-              aria-hidden="true"
-            />
+            <font-awesome-icon icon="fa-solid fa-user" />
             <span>Stammdaten</span>
           </button>
         </template>

@@ -39,9 +39,9 @@
             >Offen</FilterChip>
           </FilterGroup>
         </ToolbarFilter>
-        <ToolbarGroup>
-          <SearchBar v-model="searchQuery" class="toolbar-search" placeholder="Leads durchsuchen…" aria-label="Leads suchen" />
-          <template v-if="!isMobile">
+        <SearchBar v-model="searchQuery" class="toolbar-search" placeholder="Leads durchsuchen…" aria-label="Leads suchen" />
+        <template #actions>
+          <ToolbarGroup>
             <ToolbarIconButton title="Spalten / Eigene Felder verwalten" @click="showFieldManager = true">
               <font-awesome-icon :icon="['fas', 'sliders']" />
             </ToolbarIconButton>
@@ -52,28 +52,11 @@
             >
               <font-awesome-icon :icon="['fas', 'table-columns']" />
             </ToolbarIconButton>
-          </template>
-        </ToolbarGroup>
-
-        <ToolbarGroup push-right>
-          <template v-if="!isMobile">
             <ToolbarButton variant="secondary" @click="openCreateModal">
               <font-awesome-icon :icon="['fas', 'plus']" /> Lead
             </ToolbarButton>
-          </template>
-          <!-- Mobile overflow menu (kebab) -->
-          <div v-else class="mobile-toolbar-overflow">
-            <ToolbarIconButton title="Weitere Aktionen" @click="mobileToolbarMenuOpen = !mobileToolbarMenuOpen">
-              <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-            </ToolbarIconButton>
-            <div v-if="mobileToolbarMenuOpen" class="mobile-overflow-backdrop" @click="mobileToolbarMenuOpen = false"></div>
-            <div v-if="mobileToolbarMenuOpen" class="mobile-overflow-menu" @click.stop>
-              <button class="mobile-overflow-item" @click="mobileToolbarMenuOpen = false; showFieldManager = true">
-                <font-awesome-icon :icon="['fas', 'sliders']" /> Eigene Felder
-              </button>
-            </div>
-          </div>
-        </ToolbarGroup>
+          </ToolbarGroup>
+        </template>
       </Toolbar>
 
       <!-- Mobile stage filter chips -->
@@ -1584,7 +1567,6 @@ function onResizeMobile() { isMobile.value = window.innerWidth <= MOBILE_BP; }
 
 // Mobile state
 const mobileStageFilter = ref('all'); // 'all' or one of stufeSteps values
-const mobileToolbarMenuOpen = ref(false);
 const mobileSidebarMenuOpen = ref(false);
 // Per-session collapsed/expanded state of sidebar sections on mobile.
 // Key: section id, value: true=expanded, false=collapsed.
@@ -5873,17 +5855,6 @@ onBeforeUnmount(() => {
    Mobile (≤768px) — Leads Tab
    ───────────────────────────────────────────────────────────── */
 
-/* Toolbar overflow */
-.mobile-toolbar-overflow {
-  position: relative;
-  display: inline-flex;
-}
-.mobile-overflow-backdrop {
-  position: fixed;
-  inset: 0;
-  background: transparent;
-  z-index: 1099;
-}
 .mobile-overflow-menu {
   position: absolute;
   top: calc(100% + 6px);

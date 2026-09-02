@@ -21,12 +21,14 @@
       <Toolbar wrap>
         <SearchBar v-model="searchQuery" class="toolbar-search" placeholder="In diesem Space suchen" aria-label="Space durchsuchen" />
         <ToolbarLabel>{{ uploadingCount ? `${uploadingCount} ${uploadingCount === 1 ? 'Datei wird' : 'Dateien werden'} hochgeladen...` : `${filteredItems.length} ${filteredItems.length === 1 ? 'Eintrag' : 'Einträge'}` }}</ToolbarLabel>
+        <template #actions>
         <ToolbarGroup push-right>
           <ToolbarButton variant="secondary" :disabled="loading" @click="loadItems">
             <font-awesome-icon :icon="['fas', loading ? 'spinner' : 'rotate']" :spin="loading" />
             Aktualisieren
           </ToolbarButton>
         </ToolbarGroup>
+        </template>
       </Toolbar>
 
       <div

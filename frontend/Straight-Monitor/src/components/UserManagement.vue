@@ -121,12 +121,14 @@
       <Toolbar>
       <SearchBar class="toolbar-search" v-model="searchQuery" placeholder="Benutzer suchen…" aria-label="Benutzer suchen" />
       <ToolbarLabel>{{ filteredUsers.length }} Benutzer</ToolbarLabel>
+      <template #actions>
       <ToolbarGroup push-right>
         <ToolbarButton variant="secondary" @click="openCreate">
           <font-awesome-icon icon="fa-solid fa-plus" />
           Neuer Benutzer
         </ToolbarButton>
       </ToolbarGroup>
+      </template>
       </Toolbar>
 
       <!-- Fehlermeldung -->
@@ -290,12 +292,14 @@
       <Toolbar>
         <SearchBar class="toolbar-search" v-model="qualiSearch" placeholder="Qualifikation suchen…" aria-label="Qualifikation suchen" />
         <ToolbarLabel>{{ filteredQualifikationen.length }} Qualifikationen</ToolbarLabel>
+        <template #actions>
         <ToolbarGroup push-right>
           <ToolbarButton @click="openQualiCreate">
             <font-awesome-icon icon="fa-solid fa-plus" />
             Qualifikation anlegen
           </ToolbarButton>
         </ToolbarGroup>
+        </template>
       </Toolbar>
       <p v-if="qualiError" class="um__error">{{ qualiError }}</p>
       <p v-else-if="qualiLoading" class="qualifikationen__state">Qualifikationen werden geladen…</p>
@@ -362,12 +366,14 @@
       <Toolbar>
         <SearchBar class="toolbar-search" v-model="berufSearch" placeholder="Beruf suchen…" aria-label="Beruf suchen" />
         <ToolbarLabel>{{ filteredBerufe.length }} Berufe</ToolbarLabel>
+        <template #actions>
         <ToolbarGroup push-right>
           <ToolbarButton @click="openBerufCreate">
             <font-awesome-icon icon="fa-solid fa-plus" />
             Beruf anlegen
           </ToolbarButton>
         </ToolbarGroup>
+        </template>
       </Toolbar>
       <p v-if="qualiError" class="um__error">{{ qualiError }}</p>
       <p v-else-if="qualiLoading" class="qualifikationen__state">Berufe werden geladen…</p>

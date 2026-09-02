@@ -1,0 +1,912 @@
+<template>
+  <div class="tl-page reports-evaluation-tab">
+      <Toolbar>
+      <div class="filter-section">
+        <label>Zeitraum:</label>
+        <input 
+          type="month" 
+          v-model="selectedMonth" 
+          @change="fetchData" 
+          @click="$event.target.showPicker && $event.target.showPicker()"
+          class="month-picker" 
+        />
+
+        <div class="filter-divider"></div>
+
+        <label>Standort:</label>
+        <select 
+          v-model="selectedStandort" 
+          @change="fetchData"
+          class="standort-select"
+        >
+          <option v-for="opt in standortOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
+        </select>
+      </div>
+      <SearchBar
+        v-model="searchQuery"
+        class="toolbar-search"
+        placeholder="Teamleiter suchen..."
+        aria-label="Teamleiter suchen"
+      />
+      </Toolbar>
+
+      <div class="content">
+      <div v-if="loading" class="loading">
+        <font-awesome-icon icon="spinner" spin size="2x" />
+        <p>Lade Daten...</p>
+      </div>
+
+      <div v-else-if="error" class="error">
+        {{ error }}
+      </div>
+
+      <div v-else class="table-container">
+        
+        <div class="stats-cards">
+          <div class="card">
+            <span class="label">Anzahl Teamleiter</span>
+            <span class="value">{{ filteredTeamleiter.length }}</span>
+          </div>
+          <div class="card">
+            <span class="label">Gesamt Einsätze</span>
+            <span class="value">{{ totalEinsaetze }}</span>
+          </div>
+          <div class="card">
+            <span class="label">Gesamt Quote</span>
+            <span class="value">{{ gesamtQuote }}%</span>
+          </div>
+        </div>
+
+        <table class="tl-table">
+          <thead>
+            <tr>
+              <th @click="sortBy('nachname')">Name 
+                <span v-if="sortKey === 'nachname'">{{ sortAsc ? '▲' : '▼' }}</span>
+              </th>
+              <th @click="sortBy('personalnr')">Personal-Nr.
+                <span v-if="sortKey === 'personalnr'">{{ sortAsc ? '▲' : '▼' }}</span>
+              </th>
+              <th @click="sortBy('einsatzCount')">Anzahl Einsätze
+                <span v-if="sortKey === 'einsatzCount'">{{ sortAsc ? '▲' : '▼' }}</span>
+              </th>
+              <th @click="sortBy('reportCount')">Anzahl Berichte
+                <span v-if="sortKey === 'reportCount'">{{ sortAsc ? '▲' : '▼' }}</span>
+              </th>
+              <th @click="sortBy('quote')">Quote
+                <span v-if="sortKey === 'quote'">{{ sortAsc ? '▲' : '▼' }}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="tl in sortedTeamleiter" :key="tl._id">
+              <tr @click="toggleExpand(tl._id)" class="main-row" :class="{ expanded: expandedRows.includes(tl._id) }">
+                <td>
+                  <font-awesome-icon :icon="expandedRows.includes(tl._id) ? 'chevron-down' : 'chevron-right'" class="chevron" />
+                  {{ tl.vorname }} {{ tl.nachname }}
+                </td>
+                <td>{{ tl.personalnr }}</td>
+                <td class="text-right">{{ tl.einsatzCount }}</td>
+                <td class="text-right">{{ tl.reportCount }} / {{ tl.einsatzCount }}</td>
+                <td class="text-right">{{ tl.quote }}%</td>
+              </tr>
+              <tr v-if="expandedRows.includes(tl._id)" class="detail-row">
+                <td colspan="6">
+                  <div class="detail-content">
+                    <table class="inner-table">
+                      <thead>
+                        <tr>
+                          <th class="w-date">Datum</th>
+                          <th>Bezeichnung</th>
+                          <th>Auftrag / Event</th>
+                          <th class="w-status">Status</th>
+                          <th class="w-action">Bericht</th>
+                          <th class="w-action">Evaluierung</th>
+                          <th class="w-action"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr 
+                          v-for="(einsatz, idx) in tl.einsaetze" 
+                          :key="idx"
+                          class="clickable-row"
+                          :class="{ 'excluded-row': einsatz.excluded }"
+                        >
+                          <td @click="openOrder(einsatz.auftragNr, einsatz.geschSt, einsatz.datumVon)">
+                            <CustomTooltip text="Job anzeigen" position="mouse">
+                              {{ formatDate(einsatz.datumVon) }}
+                            </CustomTooltip>
+                          </td>
+                          <td @click="openOrder(einsatz.auftragNr, einsatz.geschSt, einsatz.datumVon)">
+                            <CustomTooltip text="Job anzeigen" position="mouse">
+                              {{ einsatz.bezeichnung }}
+                            </CustomTooltip>
+                          </td>
+                          <td @click="openOrder(einsatz.auftragNr, einsatz.geschSt, einsatz.datumVon)">
+                            <CustomTooltip text="Job anzeigen" position="mouse">
+                                <div class="cell-content">
+                                    <div v-if="einsatz.eventTitel" style="font-weight:500;">{{ einsatz.eventTitel }}</div>
+                                    <div class="small-sub">{{ einsatz.auftragNr }}</div>
+                                </div>
+                            </CustomTooltip>
+                          </td>
+                          <td style="text-align: center;" @click.stop="toggleStatus(tl, einsatz)">
+                            <CustomTooltip :text="einsatz.statusOverride ? 'Status zurücksetzen' : 'Status umschalten'" position="mouse">
+                              <font-awesome-icon 
+                                v-if="getEffectiveStatus(einsatz)" 
+                                icon="check-circle" 
+                                class="status-icon success"
+                                :class="{ 'overridden': einsatz.statusOverride }"
+                              />
+                              <font-awesome-icon 
+                                v-else 
+                                icon="times-circle" 
+                                class="status-icon missing"
+                                :class="{ 'overridden': einsatz.statusOverride }"
+                              />
+                            </CustomTooltip>
+                          </td>
+                          <td style="text-align: center;">
+                            <CustomTooltip text="Event Report Öffnen" position="mouse" v-if="einsatz.eventReport">
+                                <img 
+                                  :src="eventReportIconUrl" 
+                                  class="action-icon" 
+                                  @click.stop="openReport(einsatz.eventReport)"
+                                  alt="Report"
+                                />
+                            </CustomTooltip>
+                          </td>
+                          <td style="text-align: center;">                           
+                             <CustomTooltip text="Evaluierung Öffnen" position="mouse" v-if="einsatz.evaluierung">
+                                <img 
+                                  :src="evaluierungIconUrl" 
+                                  class="action-icon" 
+                                  @click.stop="openReport(einsatz.evaluierung)"
+                                  alt="Report"
+                                />
+                            </CustomTooltip>
+                          </td>
+                          <td style="text-align: center;">
+                            <CustomTooltip :text="einsatz.excluded ? 'Wieder einschließen' : 'Von Quote ausschließen'" position="mouse">
+                              <font-awesome-icon 
+                                :icon="einsatz.excluded ? 'eye' : 'eye-slash'"
+                                class="exclude-toggle"
+                                :class="{ active: einsatz.excluded }"
+                                @click.stop="toggleExclude(tl, einsatz)"
+                              />
+                            </CustomTooltip>
+                          </td>
+                        </tr>
+                         <tr v-if="!tl.einsaetze || tl.einsaetze.length === 0">
+                          <td colspan="7" class="muted">Keine Details verfügbar</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            </template>
+            <tr v-if="teamleiterList.length === 0">
+              <td colspan="5" class="no-data">Keine Teamleiter gefunden hab den Key 50055 geprüft.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, computed } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import api from '../utils/api'; 
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import { library } from '@fortawesome/fontawesome-svg-core';
+import { faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle, faEye, faEyeSlash, faFileLines, faPenClip, faChartColumn } from '@fortawesome/free-solid-svg-icons';
+import CustomTooltip from './CustomTooltip.vue';
+import { useDocumentModals } from '@/composables/useDocumentModals';
+import { useTheme } from '@/stores/theme';
+import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import SearchBar from '@/components/SearchBar.vue';
+import eventReportLightIcon from '@/assets/eventreport.png';
+import eventReportDarkIcon from '@/assets/eventreport-dark.png';
+import evaluierungLightIcon from '@/assets/evaluierung.png';
+import evaluierungDarkIcon from '@/assets/evaluierung-dark.png';
+
+const theme = useTheme();
+const eventReportIconUrl = computed(() => theme.isDark ? eventReportDarkIcon : eventReportLightIcon);
+const evaluierungIconUrl = computed(() => theme.isDark ? evaluierungDarkIcon : evaluierungLightIcon);
+
+library.add(faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle, faEye, faEyeSlash, faFileLines, faPenClip, faChartColumn);
+
+const router = useRouter();
+const route = useRoute();
+const { openDocument } = useDocumentModals();
+const teamleiterList = ref([]);
+const loading = ref(true);
+const error = ref(null);
+const searchQuery = ref('');
+const sortKey = ref('einsatzCount');
+const sortAsc = ref(false); 
+const expandedRows = ref([]); // Array of expanded IDs
+
+// Default current month YYYY-MM
+const today = new Date();
+const yyyy = today.getFullYear();
+const mm = String(today.getMonth() + 1).padStart(2, '0');
+const selectedMonth = ref(`${yyyy}-${mm}`);
+const selectedStandort = ref(null); // null = Alle
+const locations = ref([]);
+
+const standortOptions = computed(() => [
+  { value: null, label: 'Alle' },
+  ...locations.value.map((location) => ({
+    value: location._id,
+    label: location.nameFull,
+  })),
+]);
+
+function normalizeLocationName(value) {
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function resolveLocationId(value) {
+  if (!value) return null;
+  const existingLocation = locations.value.find(
+    (location) => String(location._id) === String(value)
+  );
+  if (existingLocation) return existingLocation._id;
+
+  const legacyNames = { 1: 'Berlin', 2: 'Hamburg', 3: 'Köln' };
+  const legacyName = legacyNames[value] || value;
+  const legacyLocation = locations.value.find((location) => (
+    normalizeLocationName(location.nameFull) === normalizeLocationName(legacyName)
+    || normalizeLocationName(location.shortName) === normalizeLocationName(legacyName)
+  ));
+  return legacyLocation?._id || null;
+}
+
+const updateUrl = () => {
+  // Save to storage
+  localStorage.setItem('tl_stats_period', selectedMonth.value);
+  if (selectedStandort.value) {
+    localStorage.setItem('tl_stats_locationV2', selectedStandort.value);
+    localStorage.removeItem('tl_stats_standort');
+  } else {
+    localStorage.removeItem('tl_stats_locationV2');
+    localStorage.removeItem('tl_stats_standort');
+  }
+
+  const [year, month] = selectedMonth.value.split('-');
+  const query = {
+    year,
+    month
+  };
+  
+  if (selectedStandort.value) {
+    query.locationV2 = selectedStandort.value;
+  }
+  
+  if (expandedRows.value.length > 0) {
+    query.expanded = expandedRows.value.join(',');
+  }
+  
+  router.replace({ query }); 
+};
+
+const toggleExpand = (id) => {
+  if (expandedRows.value.includes(id)) {
+    expandedRows.value = expandedRows.value.filter(rowId => rowId !== id);
+  } else {
+    expandedRows.value.push(id);
+  }
+  updateUrl();
+};
+
+const formatDate = (val) => {
+  if (!val) return '-';
+  return new Date(val).toLocaleDateString('de-DE', {
+    day: '2-digit', month: '2-digit', year: 'numeric'
+  });
+};
+
+const filteredTeamleiter = computed(() => {
+  const query = searchQuery.value.trim().toLocaleLowerCase('de');
+  if (!query) return teamleiterList.value;
+
+  return teamleiterList.value.filter((teamleiter) => [
+    teamleiter.vorname,
+    teamleiter.nachname,
+    teamleiter.personalnr,
+  ].filter(Boolean).join(' ').toLocaleLowerCase('de').includes(query));
+});
+
+const totalEinsaetze = computed(() => {
+  return filteredTeamleiter.value.reduce((acc, curr) => acc + curr.einsatzCount, 0);
+});
+
+const totalReportCount = computed(() => {
+  return filteredTeamleiter.value.reduce((acc, curr) => acc + curr.reportCount, 0);
+});
+
+const gesamtQuote = computed(() => {
+  if (!totalEinsaetze.value) return 0;
+  return Math.round((totalReportCount.value / totalEinsaetze.value) * 100);
+});
+
+const sortedTeamleiter = computed(() => {
+  return [...filteredTeamleiter.value].sort((a, b) => {
+    let valA = a[sortKey.value];
+    let valB = b[sortKey.value];
+
+    if (typeof valA === 'string') valA = valA.toLowerCase();
+    if (typeof valB === 'string') valB = valB.toLowerCase();
+
+    if (valA < valB) return sortAsc.value ? -1 : 1;
+    if (valA > valB) return sortAsc.value ? 1 : -1;
+    return 0;
+  });
+});
+
+const sortBy = (key) => {
+  if (sortKey.value === key) {
+    sortAsc.value = !sortAsc.value;
+  } else {
+    sortKey.value = key;
+    sortAsc.value = true; // Default asc for new text columns
+    // If switching to number column, maybe desc default is better?
+    if (key === 'einsatzCount') sortAsc.value = false;
+  }
+};
+
+const openOrder = (nr, geschSt, date) => {
+  if(!nr) return;
+  const query = { auftragnr: nr };
+  if(geschSt) query.geschSt = geschSt;
+  if(date) query.focusDate = date;
+  router.push({ path: '/auftraege', query });
+};
+
+const openReport = (doc) => {
+  if (doc) openDocument(doc);
+};
+
+const getEffectiveStatus = (einsatz) => {
+  const originalPresent = einsatz.reportStatus === 'present' || einsatz.evalStatus === 'present';
+  return einsatz.statusOverride ? !originalPresent : originalPresent;
+};
+
+const recalcCounts = (tl) => {
+  const active = tl.einsaetze.filter(e => !e.excluded);
+  tl.einsatzCount = active.length;
+  tl.reportCount = active.filter(e => getEffectiveStatus(e)).length;
+  tl.quote = tl.einsatzCount ? Math.round((tl.reportCount / tl.einsatzCount) * 100) : 0;
+};
+
+const toggleStatus = async (tl, einsatz) => {
+  try {
+    const { data } = await api.post('/api/personal/teamleiter-stats/toggle-status', {
+      teamleiterId: tl._id,
+      auftragNr: einsatz.auftragNr
+    });
+    einsatz.statusOverride = data.overridden;
+    recalcCounts(tl);
+  } catch (err) {
+    console.error('Status toggle failed:', err);
+  }
+};
+
+const toggleExclude = async (tl, einsatz) => {
+  try {
+    const { data } = await api.post('/api/personal/teamleiter-stats/exclude', {
+      teamleiterId: tl._id,
+      auftragNr: einsatz.auftragNr
+    });
+    einsatz.excluded = data.excluded;
+    recalcCounts(tl);
+  } catch (err) {
+    console.error('Exclude toggle failed:', err);
+  }
+};
+
+const fetchData = async (keepExpanded) => {
+  try {
+    loading.value = true;
+    // Check if keepExpanded is explicitly true (ignore Events from @change)
+    if (keepExpanded !== true) {
+      expandedRows.value = []; 
+    }
+    
+    updateUrl();
+    
+    // Parse selectedMonth (YYYY-MM)
+    const [year, month] = selectedMonth.value.split('-');
+
+    const response = await api.get('/api/personal/teamleiter-stats', {
+      params: {
+        month,
+        year,
+        ...(selectedStandort.value ? { locationV2: selectedStandort.value } : {}),
+      }
+    }); 
+    teamleiterList.value = response.data.map(tl => ({
+      ...tl,
+      quote: tl.einsatzCount ? Math.round((tl.reportCount / tl.einsatzCount) * 100) : 0
+    }));
+    loading.value = false;
+  } catch (err) {
+    console.error(err);
+    error.value = "Fehler beim Laden der Daten.";
+    loading.value = false;
+  }
+};
+
+async function fetchLocations() {
+  const { data } = await api.get('/api/locations');
+  locations.value = data || [];
+}
+
+onMounted(async () => {
+  const { month, year, expanded, locationV2, standort } = route.query;
+  let keep = false;
+
+  try {
+    await fetchLocations();
+  } catch (err) {
+    console.error('Fehler beim Laden der Standorte:', err);
+  }
+  
+  // Priority 1: URL Params
+  if (month && year) {
+      selectedMonth.value = `${year}-${month.padStart(2, '0')}`;
+  } 
+  // Priority 2: LocalStorage
+  else {
+      const stored = localStorage.getItem('tl_stats_period');
+      if (stored) {
+          selectedMonth.value = stored;
+      }
+  }
+  
+    // Standort: URL > locationV2-Speicher > bisheriger Standortwert
+    if (locationV2) {
+      selectedStandort.value = resolveLocationId(locationV2);
+  } else {
+      const storedLocationV2 = localStorage.getItem('tl_stats_locationV2');
+      const legacyStandort = standort || localStorage.getItem('tl_stats_standort');
+      selectedStandort.value = resolveLocationId(storedLocationV2 || legacyStandort);
+  }
+  
+  if (expanded) {
+      expandedRows.value = expanded.split(',');
+      keep = true;
+  }
+  
+  fetchData(keep);
+});
+</script>
+
+<style scoped lang="scss">
+@import "@/assets/styles/global.scss";
+
+.tl-page {
+  min-width: 0;
+  color: var(--text);
+  /* Provide surface color for child components like EmployeeCard */
+  --surface: var(--tile-bg);
+}
+
+.filter-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  
+  label {
+    font-weight: 500;
+    font-size: 14px;
+  }
+}
+
+.filter-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 8px;
+}
+
+.standort-select {
+  padding: 8px 32px 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-body);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+}
+
+.month-picker {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-body);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  position: relative; /* Position context for full click area */
+
+  /* Make calendar icon cover entire input */
+  &::-webkit-calendar-picker-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+  
+  &:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+}
+
+.back-btn {
+  background: var(--tile-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  &:hover {
+    background: var(--hover);
+  }
+}
+
+.stats-cards {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px;
+
+  .card {
+    background: transparent;
+    padding: 14px 18px;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    min-width: 140px;
+    flex: 1;
+
+    .label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+  }
+}
+
+.table-container {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.tl-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th, td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    background: rgba(0,0,0,0.02);
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+      color: var(--text);
+    }
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  tr:hover td {
+    background: var(--hover);
+  }
+
+  .text-right {
+    text-align: right;
+  }
+  
+  .no-data {
+    text-align: center;
+    padding: 30px;
+    color: var(--muted);
+  }
+}
+
+.loading, .error {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  color: var(--muted);
+}
+
+.error {
+  color: #ef4444;
+}
+
+.main-row {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.chevron {
+  margin-right: 8px;
+  width: 12px;
+  color: var(--muted);
+}
+
+.detail-row {
+  background: rgba(0,0,0,0.02);
+  
+  td {
+    padding: 0 !important;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.detail-content {
+  padding: 16px;
+  background: var(--bg-body); 
+  /* leicht abgedunkelt oder aufgehellt je nach Theme, 
+     var(--bg-body) ist oft der Hintergrund, var(--tile-bg) die Karte. 
+     Hier wollen wir einen Kontras. Im Code ist tile-bg der Container. */
+  background: rgba(128,128,128, 0.05);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.clickable-row {
+  cursor: pointer;
+
+  td {
+    transition: background-color 0.2s ease;
+  }
+  
+  &:hover td {
+    background-color: rgba(0,0,0,0.08) !important;
+  }
+}
+
+.inner-table {
+  width: 100%;
+  font-size: 13px;
+  table-layout: fixed; /* Ensures columns respect widths strictly */
+  
+  th {
+    text-transform: none;
+    font-size: 11px; /* Slightly smaller font for headers */
+    padding: 6px 4px;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  
+  .w-date {
+    width: 75px;
+  }
+
+  .w-status {
+    width: 45px;
+    text-align: center;
+  }
+  
+  .w-action {
+    width: 65px; /* Enough for title but compact */
+    text-align: center;
+  }
+
+  td {
+    padding: 6px 4px;
+    border-bottom: 1px solid rgba(128,128,128, 0.2);
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.muted {
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+}
+
+.status-icon {
+  font-size: 16px;
+}
+
+.status-icon.success {
+  color: #10b981; /* Green */
+}
+
+.status-icon.missing {
+  color: #ef4444; /* Red */
+  opacity: 0.5;
+}
+
+.status-icon.overridden {
+  outline: 2px dashed var(--primary);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+.status-icon {
+  cursor: pointer;
+  transition: transform 0.15s;
+
+  &:hover {
+    transform: scale(1.2);
+  }
+}
+
+.small-sub {
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.exclude-toggle {
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--muted);
+  opacity: 0.4;
+  transition: color 0.15s, opacity 0.15s;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &.active {
+    color: var(--primary);
+    opacity: 1;
+  }
+}
+
+.inner-table tr.excluded-row td {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.action-icon {
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    transition: transform 0.2s;
+    object-fit: contain;
+
+    &:hover {
+        transform: scale(1.1);
+    }
+}
+
+.ml-2 {
+    margin-left: 8px;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  
+  &.z-high {
+    z-index: 1100;
+  }
+}
+
+.modal-content {
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  background: var(--tile-bg); /* Ensure modal container has background */
+  display: flex;
+  flex-direction: column;
+  
+  &.large {
+    max-width: 900px;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+
+  h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .close-btn {
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 0 8px;
+    
+    &:hover {
+      color: var(--text);
+    }
+  }
+}
+
+.modal-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: 20px;
+  
+  &.no-padding {
+    padding: 0;
+  }
+}
+</style>
