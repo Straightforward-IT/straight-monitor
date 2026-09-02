@@ -36,6 +36,7 @@
         @dragleave="handleDirectoryDragLeave"
         @drop.prevent="handleDirectoryDrop"
       >
+        <div v-if="fileOpenNotice" class="spaces__notice" role="status">{{ fileOpenNotice }}</div>
         <header class="spaces__head">
           <nav class="spaces__breadcrumb" aria-label="Space-Pfad">
             <button type="button" @click="openRoot">{{ selectedSpace?.nameFull || 'Space' }}</button>
@@ -44,6 +45,15 @@
               <button type="button" @click="openFolder(folder)">{{ folder.name }}</button>
             </template>
           </nav>
+          <div v-if="showSelectionHeader" class="spaces__selection" aria-live="polite">
+            <span>{{ selectedItems.length }} {{ selectedItems.length === 1 ? 'Eintrag ausgewählt' : 'Einträge ausgewählt' }}</span>
+            <button type="button" title="Ausgewählte Einträge" aria-label="Ausgewählte Einträge" @click="openSelectionContextMenu">
+              <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
+            </button>
+            <button type="button" title="Auswahl aufheben" aria-label="Auswahl aufheben" @click="clearSelection">
+              <font-awesome-icon :icon="['fas', 'xmark']" />
+            </button>
+          </div>
           <span v-if="loading" class="spaces__loading">Lädt...</span>
         </header>
 
@@ -52,12 +62,6 @@
           {{ searchQuery ? 'Keine passenden Einträge gefunden.' : 'Dieser Space ist leer.' }}
         </div>
         <div v-else class="spaces__list">
-          <div v-if="selectedItems.length" class="spaces__selection" aria-live="polite">
-            <span>{{ selectedItems.length }} {{ selectedItems.length === 1 ? 'Eintrag ausgewählt' : 'Einträge ausgewählt' }}</span>
-            <button type="button" title="Auswahl aufheben" aria-label="Auswahl aufheben" @click="clearSelection">
-              <font-awesome-icon :icon="['fas', 'xmark']" />
-            </button>
-          </div>
           <button
             v-for="item in filteredFolders"
             :key="item.id"
@@ -121,11 +125,19 @@
       @select="handleAppActionsMenuAction"
       @close="closeAppActionsMenu"
     />
+    <ContextMenu
+      v-if="selectionContextMenu.visible"
+      :x="selectionContextMenu.x"
+      :y="selectionContextMenu.y"
+      :options="selectionContextMenuOptions"
+      @select="handleSelectionContextMenuAction"
+      @close="closeSelectionContextMenu"
+    />
   </section>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import api from '@/utils/api';
 import SearchBar from '@/components/SearchBar.vue';
@@ -151,13 +163,16 @@ const contextMenu = ref({ visible: false, x: 0, y: 0 });
 const contextMenuItem = ref(null);
 const appActionsMenu = ref({ visible: false, x: 0, y: 0 });
 const appActionsMenuItem = ref(null);
+const selectionContextMenu = ref({ visible: false, x: 0, y: 0 });
 const draggedItems = ref([]);
 const dropTargetId = ref('');
 const uploadingCount = ref(0);
 const movingItemIds = ref([]);
 const selectedItemIds = ref([]);
 const selectionAnchorId = ref('');
+const fileOpenNotice = ref('');
 const signaturModal = useSignaturModal();
+let fileOpenNoticeTimer;
 
 const selectedSpace = computed(() => spaces.value.find((space) => space._id === selectedSpaceId.value) || null);
 const currentFolderId = computed(() => path.value[path.value.length - 1]?.id || selectedSpace.value?.spaceFolder?.folderId || '');
@@ -177,6 +192,10 @@ const appActionsMenuOptions = computed(() => isSignatureFile(appActionsMenuItem.
 ] : [
   { label: 'Keine App-Aktionen verfügbar', action: 'none' },
 ]);
+const selectionContextMenuOptions = computed(() => selectedItems.value.length ? [
+  { label: 'Als ZIP herunterladen', action: 'download-zip' },
+  ...(selectedItemsAreFiles.value ? [{ label: 'Löschen', action: 'delete' }] : []),
+] : []);
 const filteredItems = computed(() => {
   const query = searchQuery.value.trim().toLocaleLowerCase('de');
   return query ? items.value.filter((item) => item.name?.toLocaleLowerCase('de').includes(query)) : items.value;
@@ -185,6 +204,8 @@ const filteredFolders = computed(() => filteredItems.value.filter((item) => item
 const filteredFiles = computed(() => filteredItems.value.filter((item) => !item.isFolder));
 const visibleItems = computed(() => [...filteredFolders.value, ...filteredFiles.value]);
 const selectedItems = computed(() => items.value.filter((item) => selectedItemIds.value.includes(item.id)));
+const showSelectionHeader = computed(() => selectedItems.value.length > 1 || selectedItems.value[0]?.isFolder);
+const selectedItemsAreFiles = computed(() => selectedItems.value.length > 0 && selectedItems.value.every((item) => !item.isFolder));
 
 function formatSize(bytes) {
   const value = Number(bytes);
@@ -272,6 +293,25 @@ function closeAppActionsMenu() {
   appActionsMenuItem.value = null;
 }
 
+function openSelectionContextMenu(event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  selectionContextMenu.value = {
+    visible: true,
+    x: Math.max(8, Math.min(rect.right, window.innerWidth - 190)),
+    y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 52)),
+  };
+}
+
+function closeSelectionContextMenu() {
+  selectionContextMenu.value.visible = false;
+}
+
+async function handleSelectionContextMenuAction(action) {
+  closeSelectionContextMenu();
+  if (action === 'download-zip') await downloadSelectedZip();
+  if (action === 'delete') await deleteSelectedFiles();
+}
+
 function handleAppActionsMenuAction(action) {
   const item = appActionsMenuItem.value;
   closeAppActionsMenu();
@@ -304,6 +344,10 @@ function clearSelection() {
   selectionAnchorId.value = '';
 }
 
+function handleKeydown(event) {
+  if (event.key === 'Escape' && selectedItems.value.length) clearSelection();
+}
+
 function handleItemClick(item, event) {
   const itemIds = visibleItems.value.map((entry) => entry.id);
   if (event.shiftKey && selectionAnchorId.value && itemIds.includes(selectionAnchorId.value)) {
@@ -319,8 +363,46 @@ function handleItemClick(item, event) {
     selectionAnchorId.value = item.id;
     return;
   }
-  selectedItemIds.value = [item.id];
-  selectionAnchorId.value = item.id;
+  openFile(item);
+}
+
+function canOpenInBrowser(item) {
+  return /\.(pdf|png|jpe?g|gif|webp|avif|txt|md|csv|json|xml|mp3|wav|ogg|mp4|webm)$/i.test(item.name || '');
+}
+
+function showFileOpenNotice(message) {
+  fileOpenNotice.value = message;
+  clearTimeout(fileOpenNoticeTimer);
+  fileOpenNoticeTimer = setTimeout(() => { fileOpenNotice.value = ''; }, 3200);
+}
+
+async function openFile(item) {
+  if (!canOpenInBrowser(item)) {
+    showFileOpenNotice('Dieses Dateiformat kann nicht im Browser geöffnet werden.');
+    return;
+  }
+  const fileTab = window.open('', '_blank');
+  if (!fileTab) {
+    showFileOpenNotice('Der Browser hat das Öffnen eines neuen Tabs blockiert.');
+    return;
+  }
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(
+      `${import.meta.env.VITE_API_BASE_URL || ''}/api/graph/spaces/${selectedSpaceId.value}/download/${encodeURIComponent(item.id)}`,
+      { credentials: 'include', headers: token ? { 'x-auth-token': token } : {} }
+    );
+    if (!response.ok) {
+      const responseError = await response.json().catch(() => null);
+      throw new Error(responseError?.error || 'Die Datei konnte nicht geöffnet werden.');
+    }
+    const fileUrl = URL.createObjectURL(await response.blob());
+    fileTab.location.replace(fileUrl);
+    setTimeout(() => URL.revokeObjectURL(fileUrl), 60_000);
+  } catch (requestError) {
+    fileTab.close();
+    showFileOpenNotice(requestError.message || 'Die Datei konnte nicht geöffnet werden.');
+  }
 }
 
 function handleFolderClick(folder, event) {
@@ -485,6 +567,57 @@ async function downloadFile(item) {
   }
 }
 
+async function downloadSelectedZip() {
+  if (!selectedItems.value.length || !selectedSpaceId.value) return;
+  error.value = '';
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/graph/spaces/${selectedSpaceId.value}/download-zip`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'x-auth-token': token } : {}),
+      },
+      body: JSON.stringify({ itemIds: selectedItems.value.map((item) => item.id) }),
+    });
+    if (!response.ok) {
+      const responseError = await response.json().catch(() => null);
+      throw new Error(responseError?.error || 'Die ZIP-Datei konnte nicht erstellt werden.');
+    }
+    const downloadUrl = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `${selectedSpace.value?.shortName || selectedSpace.value?.nameFull || 'Space'}-Auswahl.zip`;
+    link.click();
+    URL.revokeObjectURL(downloadUrl);
+  } catch (requestError) {
+    error.value = requestError.message || 'Die ZIP-Datei konnte nicht heruntergeladen werden.';
+  }
+}
+
+async function deleteSelectedFiles() {
+  const files = selectedItems.value;
+  if (!selectedItemsAreFiles.value || !selectedSpaceId.value || deletingId.value) return;
+  const message = files.length === 1
+    ? `„${files[0].name}“ wird in den OneDrive-Papierkorb verschoben. Fortfahren?`
+    : `${files.length} Dateien werden in den OneDrive-Papierkorb verschoben. Fortfahren?`;
+  if (!window.confirm(message)) return;
+  deletingId.value = 'bulk';
+  error.value = '';
+  try {
+    for (const file of files) {
+      await api.delete(`/api/graph/spaces/${selectedSpaceId.value}/items/${encodeURIComponent(file.id)}`);
+    }
+    clearSelection();
+    await loadItems(currentFolderId.value);
+  } catch (requestError) {
+    error.value = requestError.response?.data?.error || 'Dateien konnten nicht gelöscht werden.';
+  } finally {
+    deletingId.value = '';
+  }
+}
+
 function isDownloading(itemId) {
   return Object.hasOwn(downloading.value, itemId);
 }
@@ -525,6 +658,7 @@ async function deleteFile(item) {
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', handleKeydown);
   loading.value = true;
   try {
     const { data } = await api.get('/api/graph/spaces');
@@ -536,19 +670,24 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown);
+});
 </script>
 
 <style scoped lang="scss">
 .spaces { display: grid; gap: 16px; color: var(--text); }
-.spaces__browser { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--tile-bg); }
+.spaces__browser { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--tile-bg); }
 .spaces__browser--drop-target { box-shadow: inset 0 0 0 2px var(--primary); }
+.spaces__notice { position: absolute; z-index: 2; top: 52px; right: 14px; max-width: min(360px, calc(100% - 28px)); padding: 8px 12px; border: 1px solid color-mix(in srgb, #c3423f 35%, var(--border)); border-radius: 5px; background: var(--tile-bg); box-shadow: 0 8px 18px rgba(0, 0, 0, .14); color: #a23330; font-size: .82rem; }
 .spaces__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--hover) 60%, var(--tile-bg)); }
 .spaces__breadcrumb { display: flex; align-items: center; min-width: 0; gap: 8px; overflow-x: auto; }
 .spaces__breadcrumb button { border: 0; padding: 0; background: transparent; color: var(--primary); cursor: pointer; font: inherit; white-space: nowrap; }
 .spaces__breadcrumb svg { color: var(--muted); font-size: .7rem; }
 .spaces__loading { color: var(--muted); font-size: .8rem; }
 .spaces__list { display: grid; }
-.spaces__selection { display: flex; align-items: center; justify-content: space-between; min-height: 40px; padding: 0 14px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--primary) 10%, var(--tile-bg)); color: var(--primary); font-size: .85rem; font-weight: 500; }
+.spaces__selection { display: flex; align-items: center; gap: 8px; color: var(--primary); font-size: .85rem; font-weight: 500; white-space: nowrap; }
 .spaces__selection button { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
 .spaces__selection button:hover { background: color-mix(in srgb, var(--primary) 12%, transparent); }
 .spaces__row { position: relative; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 32px; align-items: center; gap: 10px; min-height: 48px; padding: 9px 14px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; font: inherit; text-align: left; text-decoration: none; overflow: hidden; }

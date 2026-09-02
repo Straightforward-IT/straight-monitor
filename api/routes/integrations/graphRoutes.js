@@ -3,6 +3,7 @@ const express = require("express");
 const axios = require("axios");
 const he = require("he");
 const multer = require("multer");
+const JSZip = require("jszip");
 const router = express.Router();
 const driveUpload = multer({
   storage: multer.memoryStorage(),
@@ -37,6 +38,7 @@ const {
   getDriveItemChildren,
   getDriveItemById,
   getDriveItemChildrenDirect,
+  downloadDriveItemBuffer,
   deleteDriveItem,
   renameDriveItem,
   moveDriveItem,
@@ -691,6 +693,25 @@ async function isSpaceDescendant(token, userPrincipalName, itemId, rootFolderId)
   return false;
 }
 
+async function addSpaceItemToZip(zip, token, userPrincipalName, item, zipPath) {
+  if (item.file) {
+    const { buffer } = await downloadDriveItemBuffer(token, userPrincipalName, item.id);
+    zip.file(zipPath, buffer);
+    return;
+  }
+  if (!item.folder) return;
+
+  const folder = zip.folder(zipPath);
+  const children = await getDriveItemChildrenDirect(token, userPrincipalName, item.id);
+  await Promise.all(children.map((child) => addSpaceItemToZip(
+    folder,
+    token,
+    userPrincipalName,
+    child,
+    `${zipPath}/${child.name}`
+  )));
+}
+
 router.get('/spaces', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('role roles locationV2 locationAccess').lean();
@@ -751,6 +772,36 @@ router.get('/spaces/:locationId/download/:itemId', auth, async (req, res) => {
     file.data.pipe(res);
   } catch (error) {
     logGraphError('GET /spaces/:locationId/download/:itemId failed', error);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: error?.response?.data || error.message });
+  }
+});
+
+router.post('/spaces/:locationId/download-zip', auth, async (req, res) => {
+  try {
+    const itemIds = [...new Set(Array.isArray(req.body?.itemIds) ? req.body.itemIds.map(String).filter(Boolean) : [])];
+    if (!itemIds.length) return res.status(400).json({ ok: false, error: 'Mindestens ein Eintrag ist erforderlich.' });
+    const location = await resolveSpaceLocation(req, req.params.locationId);
+    if (!location) return res.status(403).json({ ok: false, error: 'Kein Zugriff auf diesen Standort-Space.' });
+    const team = registry.getTeam(location.spaceFolder.teamKey);
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) return res.status(400).json({ ok: false, error: 'Für diesen Standort ist kein OneDrive eingerichtet.' });
+    const token = await getAppToken();
+    const allowed = await Promise.all(itemIds.map((itemId) => isSpaceDescendant(token, userPrincipalName, itemId, location.spaceFolder.folderId)));
+    if (allowed.some((isAllowed) => !isAllowed)) return res.status(403).json({ ok: false, error: 'Ein Eintrag liegt außerhalb dieses Standort-Spaces.' });
+
+    const items = await Promise.all(itemIds.map((itemId) => getDriveItemById(token, userPrincipalName, itemId)));
+    const selectedIds = new Set(itemIds);
+    const topLevelItems = items.filter((item) => !selectedIds.has(String(item.parentReference?.id)));
+    const zip = new JSZip();
+    await Promise.all(topLevelItems.map((item) => addSpaceItemToZip(zip, token, userPrincipalName, item, item.name)));
+    const archive = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    const fileName = `${location.shortName || location.nameFull || 'Space'}-Auswahl.zip`.replace(/[^a-zA-Z0-9._-]/g, '_');
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Length', archive.length);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+    res.send(archive);
+  } catch (error) {
+    logGraphError('POST /spaces/:locationId/download-zip failed', error);
     if (!res.headersSent) res.status(500).json({ ok: false, error: error?.response?.data || error.message });
   }
 });
