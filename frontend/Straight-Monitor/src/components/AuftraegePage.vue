@@ -15,6 +15,13 @@
           >{{ location.shortName || location.nameFull }}</FilterChip>
         </FilterGroup>
         <FilterDivider />
+        <FilterGroup label="Anzeige">
+          <FilterChip :active="filters.displayLevels.kunde" @click="toggleDisplayLevel('kunde')">Kunde</FilterChip>
+          <FilterChip :active="filters.displayLevels.auftrag" @click="toggleDisplayLevel('auftrag')">Auftrag</FilterChip>
+          <FilterChip :active="filters.displayLevels.schicht" @click="toggleDisplayLevel('schicht')">Schicht</FilterChip>
+          <FilterChip :active="filters.displayLevels.einsatz" @click="toggleDisplayLevel('einsatz')">Einsatz</FilterChip>
+        </FilterGroup>
+        <FilterDivider />
         <FilterGroup label="Einsätze">
           <FilterChip
             :active="filters.bedarfStatus.includes('voll')"
@@ -133,29 +140,44 @@
             Keine Aufträge heute
         </div>
         
-        <div 
-          v-for="event in getEventsForDay(weekDays[mobileDayIndex].date)" 
-          :key="event._id"
-          class="event-card-mobile"
-          :class="[getEventStatusClass(event), getBedarfClass(event)]"
-          @click="selectEvent(event)"
-          @contextmenu.prevent="openOrderContextMenu($event, event)"
+        <div
+          v-for="customerGroup in getEventGroupsForDay(weekDays[mobileDayIndex].date)"
+          :key="customerGroup.key"
+          class="customer-event-group"
         >
+          <div
+            class="customer-event-group__header"
+            role="button"
+            tabindex="0"
+            @click="toggleCustomerGroup(weekDays[mobileDayIndex].date, customerGroup.key)"
+            @keydown.enter.prevent="toggleCustomerGroup(weekDays[mobileDayIndex].date, customerGroup.key)"
+            @keydown.space.prevent="toggleCustomerGroup(weekDays[mobileDayIndex].date, customerGroup.key)"
+          v-if="filters.displayLevels.kunde"
+          >{{ customerGroup.label }}</div>
+          <div
+            v-for="event in customerGroup.events"
+            :key="event._id"
+            v-if="shouldDisplayEventCards()"
+            class="event-card-mobile"
+            :class="[getEventStatusClass(event), getBedarfClass(event), { 'event-card--compact': isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key) }]"
+            @click="selectEvent(event)"
+            @contextmenu.prevent="openOrderContextMenu($event, event)"
+          >
             <img
-              v-if="event.stundenlisteSignaturStatus === 'completed'"
+              v-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key) && event.stundenlisteSignaturStatus === 'completed'"
               :src="docusealLogo"
               class="event-signature-complete"
               alt="Stundenliste vollständig signiert"
               title="Stundenliste vollständig signiert"
             >
-            <div class="event-header">
+            <div v-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key)" class="event-header">
               <span v-if="event.auftStatus !== 2" class="event-status">{{ getStatusText(event.auftStatus) }}</span>
               <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
             </div>
             
             <div class="event-title-row">
-              <div class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
-              <div v-if="event.labels && event.labels.length" class="event-labels">
+              <div v-if="filters.displayLevels.auftrag" class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
+              <div v-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key) && event.labels && event.labels.length" class="event-labels">
                 <span
                   v-for="label in event.labels"
                   :key="label._id"
@@ -165,7 +187,7 @@
               </div>
             </div>
 
-            <div class="event-shifts" v-if="getSchichtenForDay(event, weekDays[mobileDayIndex].date).length">
+            <div class="event-shifts" v-if="filters.displayLevels.schicht && !isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key) && getSchichtenForDay(event, weekDays[mobileDayIndex].date).length">
               <div
                 v-for="s in getSchichtenForDay(event, weekDays[mobileDayIndex].date)"
                 :key="s.id"
@@ -173,9 +195,13 @@
               >
                 <span class="shift-time">{{ s.uhrzeitVon || '?' }}{{ s.uhrzeitBis ? '–' + s.uhrzeitBis : '' }}</span>
                 <span class="shift-name" v-if="s.bezeichnung">{{ s.bezeichnung }}</span>
-                <span class="shift-pos">{{ s.besetzt }}/{{ s.bedarf }}</span>
+                <span v-if="filters.displayLevels.einsatz" class="shift-pos">{{ s.besetzt }}/{{ s.bedarf }}</span>
+                <ul v-if="filters.displayLevels.einsatz && s.einsaetze?.length" class="shift-einsaetze">
+                  <li v-for="name in s.einsaetze" :key="name">{{ name }}</li>
+                </ul>
               </div>
             </div>
+          </div>
         </div>
       </div>
     </div>
@@ -195,11 +221,17 @@
           v-for="day in weekDays" 
           :key="day.key" 
           class="day-header"
+          role="button"
+          tabindex="0"
           :class="{
             'is-today': isToday(day.date),
             'is-holiday': !!getHolidayForDate(day.date),
             'is-holiday-relevant': getHolidayForDate(day.date) && isHolidayRelevant(getHolidayForDate(day.date))
           }"
+          @click="toggleCustomerGroupsForDay(day.date)"
+          @keydown.enter.prevent="toggleCustomerGroupsForDay(day.date)"
+          @keydown.space.prevent="toggleCustomerGroupsForDay(day.date)"
+          @contextmenu.prevent="openDayContextMenu($event, day)"
         >
           <div class="day-name">{{ day.name }}</div>
           <div class="day-date">{{ formatDayDate(day.date) }}</div>
@@ -244,28 +276,43 @@
           <div class="day-stats">
             {{ getEventsForDay(day.date).length }} Aufträge • {{ getTotalPositionsForDay(day.date) }} Pos.
           </div>
-          <div 
-            v-for="event in getEventsForDay(day.date)" 
-            :key="event._id"
-            class="event-card"
-            :class="[getEventStatusClass(event), getBedarfClass(event)]"
-            @click="selectEvent(event)"
-            @contextmenu.prevent="openOrderContextMenu($event, event)"
+          <div
+            v-for="customerGroup in getEventGroupsForDay(day.date)"
+            :key="customerGroup.key"
+            class="customer-event-group"
           >
+            <div
+              class="customer-event-group__header"
+              role="button"
+              tabindex="0"
+              @click="toggleCustomerGroup(day.date, customerGroup.key)"
+              @keydown.enter.prevent="toggleCustomerGroup(day.date, customerGroup.key)"
+              @keydown.space.prevent="toggleCustomerGroup(day.date, customerGroup.key)"
+            v-if="filters.displayLevels.kunde"
+            >{{ customerGroup.label }}</div>
+            <div
+              v-for="event in customerGroup.events"
+              :key="event._id"
+              v-if="shouldDisplayEventCards()"
+              class="event-card"
+              :class="[getEventStatusClass(event), getBedarfClass(event), { 'event-card--compact': isCustomerGroupCollapsed(day.date, customerGroup.key) }]"
+              @click="selectEvent(event)"
+              @contextmenu.prevent="openOrderContextMenu($event, event)"
+            >
             <img
-              v-if="event.stundenlisteSignaturStatus === 'completed'"
+              v-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && event.stundenlisteSignaturStatus === 'completed'"
               :src="docusealLogo"
               class="event-signature-complete"
               alt="Stundenliste vollständig signiert"
               title="Stundenliste vollständig signiert"
             >
-            <div class="event-header" v-if="event.auftStatus !== 2 || event.isPseudo">
+            <div class="event-header" v-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && (event.auftStatus !== 2 || event.isPseudo)">
               <span class="event-status">{{ getStatusText(event.auftStatus) }}</span>
               <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
             </div>
             <div class="event-title-row">
-              <div class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
-              <div v-if="event.labels && event.labels.length" class="event-labels">
+              <div v-if="filters.displayLevels.auftrag" class="event-title">{{ event.eventTitel || 'Kein Titel' }}</div>
+              <div v-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && event.labels && event.labels.length" class="event-labels">
                 <span
                   v-for="label in event.labels"
                   :key="label._id"
@@ -274,7 +321,7 @@
                 >{{ label.name }}</span>
               </div>
             </div>
-            <div class="event-shifts" v-if="getSchichtenForDay(event, day.date).length">
+            <div class="event-shifts" v-if="filters.displayLevels.schicht && !isCustomerGroupCollapsed(day.date, customerGroup.key) && getSchichtenForDay(event, day.date).length">
               <div
                 v-for="s in getSchichtenForDay(event, day.date)"
                 :key="s.id"
@@ -284,8 +331,12 @@
                   <span class="shift-time">{{ s.uhrzeitVon || '?' }}{{ s.uhrzeitBis ? '–' + s.uhrzeitBis : '' }}</span>
                   <span class="shift-name">{{ s.bezeichnung || 'Schicht' }}</span>
                 </div>
-                <span class="shift-pos">{{ s.besetzt }}/{{ s.bedarf }}</span>
+                <span v-if="filters.displayLevels.einsatz" class="shift-pos">{{ s.besetzt }}/{{ s.bedarf }}</span>
+                <ul v-if="filters.displayLevels.einsatz && s.einsaetze?.length" class="shift-einsaetze">
+                  <li v-for="name in s.einsaetze" :key="name">{{ name }}</li>
+                </ul>
               </div>
+            </div>
             </div>
           </div>
         </div>
@@ -298,8 +349,8 @@
       :x="contextMenu.x"
       :y="contextMenu.y"
       :width="200"
-      title="Auftrag"
-      :items="orderContextMenuItems"
+      :title="contextMenu.day ? contextMenu.day.name : 'Auftrag'"
+      :items="contextMenu.day ? dayContextMenuItems : orderContextMenuItems"
       :group-by="false"
       @close="closeOrderContextMenu"
       @item-click="handleOrderContextMenuAction"
@@ -1297,13 +1348,23 @@ export default {
       bediener: [],
       kunden: [],
       bedarfStatus: [],
-      pseudoEinsatz: false
+      pseudoEinsatz: false,
+      displayLevels: {
+        kunde: true,
+        auftrag: true,
+        schicht: true,
+        einsatz: false,
+      }
     };
 
     if (savedFilters) {
       try {
         const parsed = JSON.parse(savedFilters);
-        filterDefaults = { ...filterDefaults, ...parsed };
+        filterDefaults = {
+          ...filterDefaults,
+          ...parsed,
+          displayLevels: { ...filterDefaults.displayLevels, ...parsed.displayLevels }
+        };
       } catch (e) {
         console.warn('Could not parse saved auftraege filters:', e);
       }
@@ -1326,6 +1387,7 @@ export default {
         x: 0,
         y: 0,
         event: null,
+        day: null,
       },
       loadedMonths: new Set(), // Track which months we've loaded
       debounceTimer: null,
@@ -1338,6 +1400,7 @@ export default {
         kunden: []
       },
       filters: filterDefaults,
+      collapsedCustomerGroups: {},
       locations: [],
       isMobile: false,
       mobileDayIndex: 0,
@@ -1562,6 +1625,14 @@ export default {
           variant: 'primary',
         },
       ];
+    },
+    dayContextMenuItems() {
+      return [{
+        label: 'Alle minimieren',
+        icon: 'fa-solid fa-angles-left',
+        action: 'collapse-all',
+        variant: 'primary',
+      }];
     },
     activeFilterCount() {
       let count = 0;
@@ -1824,14 +1895,37 @@ export default {
         x: Math.max(12, x),
         y: Math.max(12, y),
         event: auftrag,
+        day: null,
+      };
+    },
+    openDayContextMenu(event, day) {
+      if (!day) return;
+      const menuW = 200;
+      const menuH = 80;
+      const x = event.clientX + menuW > window.innerWidth ? event.clientX - menuW : event.clientX;
+      const y = event.clientY + menuH > window.innerHeight ? event.clientY - menuH : event.clientY;
+
+      this.contextMenu = {
+        open: true,
+        x: Math.max(12, x),
+        y: Math.max(12, y),
+        event: null,
+        day,
       };
     },
     closeOrderContextMenu() {
       this.contextMenu.open = false;
       this.contextMenu.event = null;
+      this.contextMenu.day = null;
     },
     async handleOrderContextMenuAction({ item }) {
       const auftrag = this.contextMenu.event;
+      const day = this.contextMenu.day;
+      if (item?.action === 'collapse-all' && day) {
+        this.collapseCustomerGroupsForDay(day.date);
+        this.closeOrderContextMenu();
+        return;
+      }
       if (!auftrag) return;
       this.closeOrderContextMenu();
 
@@ -2017,7 +2111,8 @@ export default {
         bediener: this.filters.bediener,
         kunden: this.filters.kunden,
         bedarfStatus: this.filters.bedarfStatus,
-        pseudoEinsatz: this.filters.pseudoEinsatz
+        pseudoEinsatz: this.filters.pseudoEinsatz,
+        displayLevels: this.filters.displayLevels
       };
       sessionStorage.setItem('auftraege_filters', JSON.stringify(filters));
     },
@@ -2069,12 +2164,20 @@ export default {
       this.saveFiltersToStorage();
       this.resetAndReload();
     },
+    toggleDisplayLevel(level) {
+      this.filters.displayLevels[level] = !this.filters.displayLevels[level];
+      this.saveFiltersToStorage();
+    },
+    shouldDisplayEventCards() {
+      return this.filters.displayLevels.auftrag || this.filters.displayLevels.schicht;
+    },
     resetAllFilters() {
       this.filters.locationV2 = null;
       this.filters.bediener = [];
       this.filters.kunden = [];
       this.filters.bedarfStatus = [];
       this.filters.pseudoEinsatz = false;
+      this.filters.displayLevels = { kunde: true, auftrag: true, schicht: true, einsatz: false };
       // Clear storage on reset, then apply user defaults
       sessionStorage.removeItem('auftraege_filters');
       this.filters.locationV2 = this.getUserLocationId();
@@ -2244,6 +2347,46 @@ export default {
         if (aTime) return -1;
         if (bTime) return 1;
         return new Date(a.vonDatum) - new Date(b.vonDatum);
+      });
+    },
+    getEventGroupsForDay(date) {
+      const groups = new Map();
+
+      this.getEventsForDay(date).forEach(event => {
+        const key = event.kundenNr ?? 'without-customer';
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            label: event.kundeData?.kuerzel || event.kundeData?.kundName || 'Ohne Kunde',
+            events: []
+          });
+        }
+        groups.get(key).events.push(event);
+      });
+
+      return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label, 'de'));
+    },
+    getCustomerGroupStateKey(date, customerKey) {
+      return `${new Date(date).toISOString().slice(0, 10)}:${customerKey}`;
+    },
+    isCustomerGroupCollapsed(date, customerKey) {
+      return Boolean(this.collapsedCustomerGroups[this.getCustomerGroupStateKey(date, customerKey)]);
+    },
+    toggleCustomerGroup(date, customerKey) {
+      const key = this.getCustomerGroupStateKey(date, customerKey);
+      this.collapsedCustomerGroups[key] = !this.collapsedCustomerGroups[key];
+    },
+    collapseCustomerGroupsForDay(date) {
+      this.getEventGroupsForDay(date).forEach(({ key }) => {
+        this.collapsedCustomerGroups[this.getCustomerGroupStateKey(date, key)] = true;
+      });
+    },
+    toggleCustomerGroupsForDay(date) {
+      const groups = this.getEventGroupsForDay(date);
+      const allCollapsed = groups.length > 0 && groups.every(({ key }) => this.isCustomerGroupCollapsed(date, key));
+
+      groups.forEach(({ key }) => {
+        this.collapsedCustomerGroups[this.getCustomerGroupStateKey(date, key)] = !allCollapsed;
       });
     },
     async selectEvent(event) {
@@ -3139,14 +3282,16 @@ export default {
   top: 0;
   width: 420px;
   min-width: 420px; /* Ensure it keeps size during flex resize of siblings */
-  height: 100vh;
+  height: calc(100vh - 48px);
+  margin-left: 14px;
+  box-sizing: border-box;
   overflow: hidden;
   background: var(--tile-bg);
-  border-left: 1px solid var(--border);
+  border: 1px solid color-mix(in oklab, var(--border) 88%, var(--text));
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.55);
   display: flex;
   flex-direction: column;
-  /* z-index removed as it is no longer an overlay */
-  /* box-shadow removed for flat layout, border is sufficient */
   
   @media (max-width: 1200px) {
     /* On smaller screens, fall back to overlay or full width behavior if needed, 
@@ -3166,6 +3311,8 @@ export default {
     height: 100%;
     width: 100%;
     min-width: 100%;
+    margin-left: 0;
+    border-radius: 0;
     z-index: 1000;
   }
 }
@@ -3914,7 +4061,6 @@ export default {
   grid-template-columns: 58px repeat(7, minmax(0, 1fr));
   background: var(--panel);
   border-bottom: 1px solid var(--border);
-  border-top: 1px solid var(--border);
 }
 
 .kw-cell {
@@ -4029,6 +4175,17 @@ export default {
   padding: 10px 4px;
   text-align: center;
   border-right: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover {
+    background: color-mix(in oklab, var(--primary) 8%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
 
   &:last-child {
     border-right: none;
@@ -4088,6 +4245,29 @@ export default {
   margin-bottom: 4px;
 }
 
+.customer-event-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.customer-event-group__header {
+  padding: 2px 1px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--primary);
+    outline: none;
+  }
+}
+
 .event-card {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -4118,6 +4298,14 @@ export default {
   &.bedarf-underbooked { border-left: 3px solid #eab308; }
   &.bedarf-full        { border-left: 3px solid #22c55e; }
   &.bedarf-overbooked  { border-left: 3px solid #15803d; }
+}
+
+.event-card--compact {
+  padding-block: 2px;
+
+  .event-title {
+    margin-bottom: 0;
+  }
 }
 
 .event-signature-complete {
@@ -4748,6 +4936,7 @@ export default {
 }
 
 .shift-row--stacked {
+  flex-wrap: wrap;
   padding: 3px 0;
 }
 
@@ -4768,7 +4957,8 @@ export default {
 }
 
 .shift-time {
-  color: var(--muted);
+  color: var(--text);
+  font-weight: 650;
   font-variant-numeric: tabular-nums;
   min-width: 80px;
   flex-shrink: 0;
@@ -4776,6 +4966,8 @@ export default {
 
 .shift-name {
   color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 400;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4786,6 +4978,27 @@ export default {
   font-weight: 600;
   color: var(--text);
   flex-shrink: 0;
+}
+
+.shift-einsaetze {
+  width: 100%;
+  color: var(--muted);
+  font-size: 0.64rem;
+  line-height: 1.3;
+  list-style: none;
+  padding: 0;
+
+  li {
+    position: relative;
+    padding-left: 9px;
+
+    &::before {
+      content: '•';
+      position: absolute;
+      left: 1px;
+      color: var(--primary);
+    }
+  }
 }
 
 .event-details {

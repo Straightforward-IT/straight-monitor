@@ -306,7 +306,7 @@ router.get('/', async (req, res) => {
     // Fetch mitarbeiter names per Auftrag for search
     const allEinsaetze = await Einsatz.find(
       { auftragNr: { $in: auftragNrs }, personalNr: { $ne: null } },
-      { auftragNr: 1, personalNr: 1 }
+      { auftragNr: 1, idAuftragArbeitsschichten: 1, personalNr: 1 }
     ).lean();
     const allPersonalNrs = [...new Set(allEinsaetze.map(e => String(e.personalNr)).filter(Boolean))];
     const maList = allPersonalNrs.length
@@ -324,11 +324,17 @@ router.get('/', async (req, res) => {
       nrs.forEach(nr => maNameMap.set(nr, name));
     });
     const mitarbeiterNamesMap = {};
+    const mitarbeiterBySchichtMap = {};
     allEinsaetze.forEach(e => {
       const name = maNameMap.get(String(e.personalNr));
       if (name) {
         if (!mitarbeiterNamesMap[e.auftragNr]) mitarbeiterNamesMap[e.auftragNr] = [];
         if (!mitarbeiterNamesMap[e.auftragNr].includes(name)) mitarbeiterNamesMap[e.auftragNr].push(name);
+        if (e.idAuftragArbeitsschichten) {
+          const key = `${e.auftragNr}_${e.idAuftragArbeitsschichten}`;
+          if (!mitarbeiterBySchichtMap[key]) mitarbeiterBySchichtMap[key] = [];
+          if (!mitarbeiterBySchichtMap[key].includes(name)) mitarbeiterBySchichtMap[key].push(name);
+        }
       }
     });
     
@@ -399,7 +405,8 @@ router.get('/', async (req, res) => {
         uhrzeitBis: s.uhrzeitBis || null,
         datumVon: s.datumVon || null,
         bedarf: s.bedarf,
-        besetzt
+        besetzt,
+        einsaetze: mitarbeiterBySchichtMap[`${s.auftragNr}_${s.idAuftragArbeitsschichten}`] || []
       });
     });
 
