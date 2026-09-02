@@ -2205,12 +2205,14 @@ router.get('/berufe', async (req, res) => {
 // --- POST create Beruf ---
 router.post('/berufe', auth, async (req, res) => {
   try {
-    const { jobKey, designation, taetigkeitsschluessel } = req.body;
-    if (!jobKey || !designation) {
-      return res.status(400).json({ success: false, message: 'jobKey und designation sind erforderlich.' });
+    const { designation, taetigkeitsschluessel } = req.body;
+    if (!designation) {
+      return res.status(400).json({ success: false, message: 'designation ist erforderlich.' });
     }
+    const latestBeruf = await Beruf.findOne().sort({ jobKey: -1 }).select('jobKey').lean();
+    const jobKey = Math.max(Number(latestBeruf?.jobKey) || 10000, 10000) + 1;
     const beruf = new Beruf({
-      jobKey: parseInt(jobKey, 10),
+      jobKey,
       designation: designation.trim(),
       taetigkeitsschluessel: taetigkeitsschluessel ? String(taetigkeitsschluessel).trim() : undefined,
     });
@@ -2227,12 +2229,16 @@ router.post('/berufe', auth, async (req, res) => {
 router.put('/berufe/:id', auth, async (req, res) => {
   try {
     const { jobKey, designation, taetigkeitsschluessel } = req.body;
+    const beruf = await Beruf.findById(req.params.id);
+    if (!beruf) return res.status(404).json({ success: false, message: 'Beruf nicht gefunden.' });
+    if (jobKey !== undefined && parseInt(jobKey, 10) !== beruf.jobKey) {
+      return res.status(400).json({ success: false, message: 'Der Berufsschlüssel kann nicht geändert werden.' });
+    }
     const update = {};
-    if (jobKey !== undefined) update.jobKey = parseInt(jobKey, 10);
     if (designation !== undefined) update.designation = designation.trim();
     if (taetigkeitsschluessel !== undefined) update.taetigkeitsschluessel = taetigkeitsschluessel ? String(taetigkeitsschluessel).trim() : '';
-    const beruf = await Beruf.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
-    if (!beruf) return res.status(404).json({ success: false, message: 'Beruf nicht gefunden.' });
+    Object.assign(beruf, update);
+    await beruf.save();
     res.json({ success: true, data: beruf });
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ success: false, message: 'Ein Eintrag mit diesem Schlüssel existiert bereits.' });
@@ -2243,16 +2249,10 @@ router.put('/berufe/:id', auth, async (req, res) => {
 
 // --- DELETE Beruf ---
 router.delete('/berufe/:id', auth, async (req, res) => {
-  try {
-    const beruf = await Beruf.findByIdAndDelete(req.params.id);
-    if (!beruf) return res.status(404).json({ success: false, message: 'Beruf nicht gefunden.' });
-    // Remove dangling references from qualifikationen
-    await Qualifikation.updateMany({ beruf: beruf._id }, { $set: { beruf: null } });
-    res.json({ success: true, message: 'Beruf gelöscht.' });
-  } catch (error) {
-    logger.error('DELETE Beruf Error:', error);
-    res.status(500).json({ success: false, message: 'Fehler beim Löschen des Berufs.', error: error.message });
-  }
+  res.status(405).json({
+    success: false,
+    message: 'Berufe können nicht gelöscht werden.',
+  });
 });
 
 // --- GET all Qualifikationen (for frontend cache) ---
@@ -2274,12 +2274,14 @@ router.get('/qualifikationen', async (req, res) => {
 // --- POST create Qualifikation ---
 router.post('/qualifikationen', auth, async (req, res) => {
   try {
-    const { qualificationKey, designation, beruf } = req.body;
-    if (!qualificationKey || !designation) {
-      return res.status(400).json({ success: false, message: 'qualificationKey und designation sind erforderlich.' });
+    const { designation, beruf } = req.body;
+    if (!designation) {
+      return res.status(400).json({ success: false, message: 'designation ist erforderlich.' });
     }
+    const latestQualifikation = await Qualifikation.findOne().sort({ qualificationKey: -1 }).select('qualificationKey').lean();
+    const qualificationKey = Math.max(Number(latestQualifikation?.qualificationKey) || 0, 0) + 1;
     const qual = new Qualifikation({
-      qualificationKey: parseInt(qualificationKey, 10),
+      qualificationKey,
       designation: designation.trim(),
       beruf: beruf || null,
     });
@@ -2297,12 +2299,17 @@ router.post('/qualifikationen', auth, async (req, res) => {
 router.put('/qualifikationen/:id', auth, async (req, res) => {
   try {
     const { qualificationKey, designation, beruf } = req.body;
+    const qual = await Qualifikation.findById(req.params.id);
+    if (!qual) return res.status(404).json({ success: false, message: 'Qualifikation nicht gefunden.' });
+    if (qualificationKey !== undefined && parseInt(qualificationKey, 10) !== qual.qualificationKey) {
+      return res.status(400).json({ success: false, message: 'Der Qualifikationsschlüssel kann nicht geändert werden.' });
+    }
     const update = {};
-    if (qualificationKey !== undefined) update.qualificationKey = parseInt(qualificationKey, 10);
     if (designation !== undefined) update.designation = designation.trim();
     if (beruf !== undefined) update.beruf = beruf || null;
-    const qual = await Qualifikation.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true }).populate('beruf', 'jobKey designation');
-    if (!qual) return res.status(404).json({ success: false, message: 'Qualifikation nicht gefunden.' });
+    Object.assign(qual, update);
+    await qual.save();
+    await qual.populate('beruf', 'jobKey designation');
     res.json({ success: true, data: qual });
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ success: false, message: 'Ein Eintrag mit diesem Schlüssel existiert bereits.' });

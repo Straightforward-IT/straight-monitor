@@ -1,33 +1,13 @@
 <template>
+  <PageLayout
+    v-model="activeTab"
+    title="Monitorverwaltung"
+    :tabs="managementTabs"
+    aria-label="Monitorverwaltung"
+    width="full"
+    content-variant="surface"
+  >
   <section class="um">
-    <h1 class="um__title">Monitor<span>verwaltung</span></h1>
-
-    <nav class="management-tabs" aria-label="Monitorverwaltung">
-      <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'locations' }" @click="activeTab = 'locations'">
-        <font-awesome-icon icon="fa-solid fa-location-dot" />
-        Standorte
-      </button>
-      <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'users' }" @click="activeTab = 'users'">
-        <font-awesome-icon icon="fa-solid fa-users" />
-        Benutzer
-      </button>
-      <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'applicants' }" @click="activeTab = 'applicants'">
-        <font-awesome-icon icon="fa-solid fa-envelope" />
-        Bewerbermanagement
-      </button>
-      <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'emailTemplates' }" @click="activeTab = 'emailTemplates'">
-        <font-awesome-icon icon="fa-solid fa-envelope-open-text" />
-        E-Mail-Vorlagen
-      </button>
-      <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'qualifikationen' }" @click="activeTab = 'qualifikationen'">
-        <font-awesome-icon icon="fa-solid fa-graduation-cap" />
-        Qualif. &amp; Berufe
-      </button>
-      <button type="button" :class="{ 'management-tabs__tab--active': activeTab === 'lohn' }" @click="activeTab = 'lohn'">
-        <font-awesome-icon icon="fa-solid fa-money-bill-wave" />
-        Lohn
-      </button>
-    </nav>
 
     <template v-if="activeTab === 'locations'">
     <section class="locations">
@@ -412,9 +392,6 @@
                 <button type="button" class="btn-icon" title="Bearbeiten" @click="openBerufEdit(b)">
                   <font-awesome-icon icon="fa-solid fa-pen" />
                 </button>
-                <button type="button" class="btn-icon btn-icon--danger" title="Löschen" @click="openBerufDelete(b)">
-                  <font-awesome-icon icon="fa-solid fa-trash" />
-                </button>
               </td>
             </tr>
             <tr v-if="!filteredBerufe.length">
@@ -436,7 +413,7 @@
         <div class="modal-body">
           <div class="form-group">
             <label>Schlüssel <span class="required">*</span></label>
-            <input v-model.number="berufModal.form.jobKey" type="number" required :disabled="!berufModal.isNew" />
+            <input v-model.number="berufModal.form.jobKey" type="number" required disabled />
           </div>
           <div class="form-group">
             <label>Bezeichnung <span class="required">*</span></label>
@@ -458,28 +435,6 @@
       </form>
     </div>
 
-    <!-- Beruf Delete Modal -->
-    <div v-if="berufDeleteModal.open" class="modal-backdrop" @click.self="closeBerufDelete">
-      <div class="modal-content modal-content--sm">
-        <header class="modal-header">
-          <h3>Beruf löschen</h3>
-          <button type="button" class="close-btn" @click="closeBerufDelete"><font-awesome-icon icon="fa-solid fa-times" /></button>
-        </header>
-        <div class="modal-body">
-          <p class="warning-text">Möchtest du den Beruf <strong>#{{ berufDeleteModal.item?.jobKey }} – {{ berufDeleteModal.item?.designation }}</strong> wirklich löschen?</p>
-          <p v-if="berufDeleteModal.item?.qualifikationCount" class="modal-error">Achtung: {{ berufDeleteModal.item.qualifikationCount }} Qualifikation(en) verlieren dadurch ihre Beruf-Zuordnung.</p>
-          <p v-if="berufDeleteModal.error" class="modal-error">{{ berufDeleteModal.error }}</p>
-        </div>
-        <footer class="modal-footer">
-          <button type="button" class="btn btn-ghost" @click="closeBerufDelete">Abbrechen</button>
-          <button type="button" class="btn btn-danger" @click="confirmBerufDelete" :disabled="berufDeleteModal.deleting">
-            <font-awesome-icon :icon="berufDeleteModal.deleting ? 'fa-solid fa-spinner' : 'fa-solid fa-trash'" :spin="berufDeleteModal.deleting" />
-            Löschen
-          </button>
-        </footer>
-      </div>
-    </div>
-
     <!-- Qualifikation Create/Edit Modal -->
     <div v-if="qualiModal.open" class="modal-backdrop" @click.self="closeQualiModal">
       <form class="modal-content modal-content--sm" @submit.prevent="saveQualifikation">
@@ -490,7 +445,7 @@
         <div class="modal-body">
           <div class="form-group">
             <label>Schlüssel <span class="required">*</span></label>
-            <input v-model.number="qualiModal.form.qualificationKey" type="number" required :disabled="!qualiModal.isNew" />
+            <input v-model.number="qualiModal.form.qualificationKey" type="number" required disabled />
           </div>
           <div class="form-group">
             <label>Bezeichnung <span class="required">*</span></label>
@@ -744,6 +699,7 @@
       </div>
     </div>
   </section>
+  </PageLayout>
 </template>
 
 <script setup>
@@ -757,6 +713,7 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
+import PageLayout from '@/components/layout/PageLayout.vue';
 import BewerberManagementTab from '@/components/BewerberManagementTab.vue';
 import EmployeeEmailTemplateTab from '@/components/EmployeeEmailTemplateTab.vue';
 import { useCustomerModals } from '@/composables/useCustomerModals';
@@ -768,6 +725,15 @@ const AVAILABLE_ROLES = [
   { value: 'ADMIN', label: 'ADMIN' },
   { value: 'VERTRIEB', label: 'VERTRIEB' },
   { value: 'PAYROLL', label: 'PAYROLL' },
+];
+
+const managementTabs = [
+  { id: 'locations', label: 'Standorte', icon: ['fas', 'location-dot'] },
+  { id: 'users', label: 'Benutzer', icon: ['fas', 'users'] },
+  { id: 'applicants', label: 'Bewerbermanagement', icon: ['fas', 'envelope'] },
+  { id: 'emailTemplates', label: 'E-Mail-Vorlagen', icon: ['fas', 'envelope-open-text'] },
+  { id: 'qualifikationen', label: 'Qualif. & Berufe', icon: ['fas', 'graduation-cap'] },
+  { id: 'lohn', label: 'Lohn', icon: ['fas', 'money-bill-wave'] },
 ];
 
 const auth = useAuth();
@@ -966,7 +932,7 @@ async function fetchQualifikationen() {
 }
 
 function openQualiCreate() {
-  Object.assign(qualiModal, { open: true, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '', beruf: null } });
+  Object.assign(qualiModal, { open: true, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: nextAvailableKey(qualifikationen.value, 'qualificationKey', 1), designation: '', beruf: null } });
 }
 
 function openQualiEdit(q) {
@@ -998,7 +964,6 @@ async function saveQualifikation() {
 
 // ─── Berufe ─────────────────────────────────────────────────────────────────
 const berufModal = reactive({ open: false, isNew: true, id: null, saving: false, error: '', form: { jobKey: '', designation: '', taetigkeitsschluessel: '' } });
-const berufDeleteModal = reactive({ open: false, deleting: false, error: '', item: null });
 
 const filteredBerufe = computed(() => {
   const q = berufSearch.value.trim().toLowerCase();
@@ -1010,8 +975,13 @@ const filteredBerufe = computed(() => {
   );
 });
 
+function nextAvailableKey(items, key, start) {
+  const highestKey = items.reduce((highest, item) => Math.max(highest, Number(item[key]) || 0), start - 1);
+  return highestKey + 1;
+}
+
 function openBerufCreate() {
-  Object.assign(berufModal, { open: true, isNew: true, id: null, saving: false, error: '', form: { jobKey: '', designation: '', taetigkeitsschluessel: '' } });
+  Object.assign(berufModal, { open: true, isNew: true, id: null, saving: false, error: '', form: { jobKey: nextAvailableKey(berufe.value, 'jobKey', 10001), designation: '', taetigkeitsschluessel: '' } });
 }
 
 function openBerufEdit(b) {
@@ -1037,28 +1007,6 @@ async function saveBeruf() {
     berufModal.error = e?.response?.data?.message || 'Fehler beim Speichern.';
   } finally {
     berufModal.saving = false;
-  }
-}
-
-function openBerufDelete(b) {
-  Object.assign(berufDeleteModal, { open: true, deleting: false, error: '', item: b });
-}
-
-function closeBerufDelete() { berufDeleteModal.open = false; }
-
-async function confirmBerufDelete() {
-  berufDeleteModal.error = '';
-  berufDeleteModal.deleting = true;
-  try {
-    await api.delete(`/api/import/berufe/${berufDeleteModal.item._id}`);
-    berufe.value = berufe.value.filter(b => b._id !== berufDeleteModal.item._id);
-    // Refresh qualifications since their beruf reference may have been cleared
-    await fetchQualifikationen();
-    closeBerufDelete();
-  } catch (e) {
-    berufDeleteModal.error = e?.response?.data?.message || 'Fehler beim Löschen.';
-  } finally {
-    berufDeleteModal.deleting = false;
   }
 }
 
@@ -1465,45 +1413,7 @@ function formatDate(d) {
 @import "@/assets/styles/global.scss";
 
 .um {
-  padding: 24px;
-  max-width: 1600px;
-  margin: 0 auto;
   color: var(--text);
-}
-
-.um__title {
-  font-size: 1.7rem;
-  font-weight: 700;
-  margin: 0 0 16px;
-  span { color: var(--primary); }
-}
-
-.management-tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
-
-  button {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 10px 14px;
-    border: 0;
-    border-bottom: 2px solid transparent;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.85rem;
-
-    &:hover { color: var(--text); }
-  }
-
-  .management-tabs__tab--active {
-    border-bottom-color: var(--primary);
-    color: var(--primary);
-    font-weight: 700;
-  }
 }
 
 .um__error {
@@ -1550,7 +1460,7 @@ function formatDate(d) {
 }
 
 .qualifikationen {
-  padding-top: 22px;
+  padding-top: 0;
 }
 .lohn {
   padding-top: 22px;

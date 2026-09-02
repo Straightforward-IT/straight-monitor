@@ -3,7 +3,7 @@
     v-model="currentTab"
     :tabs="tabs"
     aria-label="Kundenbereiche"
-    width="wide"
+    width="full"
     content-variant="surface"
   >
       

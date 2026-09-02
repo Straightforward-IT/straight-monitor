@@ -8,66 +8,39 @@
     content-variant="surface"
   >
     <template v-if="activeTab === 'history'">
-      <FilterPanel v-model:expanded="filtersExpanded">
-      <template #title>Filter &amp; Gruppierung</template>
-
-      <FilterGroup class="verlauf-filter-group grouping-group" label="Gruppieren">
-        <div class="verlauf-chip-row">
-          <FilterChip :active="groupBy.standort" @click="toggleGroupBy('standort')">
-            Standort
-          </FilterChip>
-          <FilterChip :active="groupBy.monat" @click="toggleGroupBy('monat')">
-            Monat
-          </FilterChip>
-          <FilterChip :active="groupBy.tag" @click="toggleGroupBy('tag')">
-            Tag
-          </FilterChip>
-          <FilterChip :active="groupBy.benutzer" @click="toggleGroupBy('benutzer')">
-            Benutzer
-          </FilterChip>
-          <FilterChip :active="groupBy.art" @click="toggleGroupBy('art')">
-            Art
-          </FilterChip>
-        </div>
-      </FilterGroup>
-
-      <FilterGroup class="verlauf-filter-group date-group" label="Datum">
-        <div class="date-filter-container">
-          <input
-            id="date-filter"
-            type="date"
-            v-model="dateFilter"
-            @change="groupLogs"
-            class="date-input"
-            aria-label="Datum filtern"
-          />
-          <button
-            v-if="dateFilter"
-            @click="clearDateFilter"
-            class="clear-date-btn"
-            type="button"
-            title="Datums-Filter löschen"
-          >
-            <font-awesome-icon :icon="['fas', 'times']" />
-          </button>
-        </div>
-      </FilterGroup>
-
-      <FilterGroup class="verlauf-filter-group sort-group" label="Sortieren">
-        <select
-          id="sort-select"
-          v-model="sortBy"
-          @change="groupLogs"
-          class="panel-select"
-          aria-label="Sortierung auswählen"
+      <Toolbar wrap>
+        <ToolbarFilter
+          v-model="filtersExpanded"
+          :active-count="activeFilterCount"
+          :active-filter-labels="activeFilterLabels"
+          @reset="resetFilters"
         >
-          <option value="timestamp_desc">Neueste zuerst</option>
-          <option value="timestamp_asc">Älteste zuerst</option>
-        </select>
-      </FilterGroup>
-      </FilterPanel>
+          <FilterGroup class="verlauf-filter-group grouping-group" label="Gruppieren">
+            <div class="verlauf-chip-row">
+              <FilterChip :active="groupBy.standort" @click="toggleGroupBy('standort')">Standort</FilterChip>
+              <FilterChip :active="groupBy.monat" @click="toggleGroupBy('monat')">Monat</FilterChip>
+              <FilterChip :active="groupBy.tag" @click="toggleGroupBy('tag')">Tag</FilterChip>
+              <FilterChip :active="groupBy.benutzer" @click="toggleGroupBy('benutzer')">Benutzer</FilterChip>
+              <FilterChip :active="groupBy.art" @click="toggleGroupBy('art')">Art</FilterChip>
+            </div>
+          </FilterGroup>
 
-      <Toolbar class="verlauf-search-toolbar">
+          <FilterGroup class="verlauf-filter-group date-group" label="Datum">
+            <div class="date-filter-container">
+              <input id="date-filter" v-model="dateFilter" type="date" class="date-input" aria-label="Datum filtern" @change="groupLogs" />
+              <button v-if="dateFilter" type="button" class="clear-date-btn" title="Datums-Filter löschen" @click="clearDateFilter">
+                <font-awesome-icon :icon="['fas', 'times']" />
+              </button>
+            </div>
+          </FilterGroup>
+
+          <FilterGroup class="verlauf-filter-group sort-group" label="Sortieren">
+            <select id="sort-select" v-model="sortBy" class="panel-select" aria-label="Sortierung auswählen" @change="groupLogs">
+              <option value="timestamp_desc">Neueste zuerst</option>
+              <option value="timestamp_asc">Älteste zuerst</option>
+            </select>
+          </FilterGroup>
+        </ToolbarFilter>
         <SearchBar
           class="toolbar-search"
           v-model="searchQuery"
@@ -119,9 +92,9 @@ import VerlaufGroup from "./VerlaufGroup.vue";
 import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
 import FilterChip from "./ui-elements/FilterChip.vue";
 import FilterGroup from "./FilterGroup.vue";
-import FilterPanel from "./FilterPanel.vue";
 import SearchBar from "./SearchBar.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
+import ToolbarFilter from "@/components/ui-elements/ToolbarFilter.vue";
 import PageLayout from "@/components/layout/PageLayout.vue";
 import { inventoryPageTabs } from "@/components/layout/inventoryPageTabs";
 import InventoryHistoryGraph from "@/components/InventoryHistoryGraph.vue";
@@ -135,9 +108,9 @@ export default {
     EmployeeCardModal,
     FilterChip,
     FilterGroup,
-    FilterPanel,
     SearchBar,
     Toolbar,
+    ToolbarFilter,
     PageLayout,
     InventoryHistoryGraph,
   },
@@ -151,7 +124,7 @@ export default {
       logsLoading: false,
       // EmployeeCard modal
       selectedMitarbeiterId: null,
-      filtersExpanded: true,
+      filtersExpanded: false,
       groupBy: { standort: true, monat: true, tag: false, benutzer: false, art: false },
       sortBy: "timestamp_desc",
       searchQuery: "",
@@ -212,6 +185,19 @@ export default {
       return Object.keys(this.groupBy)
         .filter((key) => this.groupBy[key])
         .map((key) => (key === "benutzer" ? "benutzerMail" : key));
+    },
+    activeFilterCount() {
+      const defaultGroupBy = { standort: true, monat: true, tag: false, benutzer: false, art: false };
+      return Object.keys(defaultGroupBy).filter((key) => this.groupBy[key] !== defaultGroupBy[key]).length
+        + Number(Boolean(this.dateFilter))
+        + Number(this.sortBy !== "timestamp_desc");
+    },
+    activeFilterLabels() {
+      const labels = [];
+      if (this.dateFilter) labels.push("Datum");
+      if (this.sortBy !== "timestamp_desc") labels.push("Älteste zuerst");
+      if (this.activeFilterCount > labels.length) labels.push("Gruppierung");
+      return labels;
     },
   },
   watch: {
@@ -304,6 +290,12 @@ export default {
       }
     },
     clearDateFilter() {
+      this.dateFilter = "";
+      this.groupLogs();
+    },
+    resetFilters() {
+      this.groupBy = { standort: true, monat: true, tag: false, benutzer: false, art: false };
+      this.sortBy = "timestamp_desc";
       this.dateFilter = "";
       this.groupLogs();
     },
@@ -430,27 +422,6 @@ export default {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-:deep(.filter-panel) {
-  --surface: var(--panel);
-  border-color: transparent;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-
-  .filter-content {
-    border-top-color: transparent;
-  }
-
-  .filter-group {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-  }
-}
-
-.verlauf-search-toolbar {
-  :deep(.toolbar-search) {
-    max-width: none;
-  }
 }
 
 .panel-select{
