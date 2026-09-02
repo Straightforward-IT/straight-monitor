@@ -1,38 +1,24 @@
 <template>
   <div v-bind="$attrs" class="toolbar" :class="{ 'toolbar--wrap': wrap, 'toolbar--actions-open': actionsOpen }">
-    <slot />
+    <slot name="filter" />
+    <div class="toolbar-main-content" :class="{ 'toolbar-main-content--hidden': actionsOpen }">
+      <slot />
+    </div>
     <button
       v-if="$slots.actions"
       class="toolbar-mobile-actions-toggle"
       type="button"
       :aria-expanded="actionsOpen"
-      aria-controls="toolbar-mobile-actions"
-      aria-label="Weitere Aktionen"
+      aria-controls="toolbar-inline-actions"
+      :aria-label="actionsOpen ? 'Suche anzeigen' : 'Weitere Aktionen'"
       @click="actionsOpen = !actionsOpen"
     >
       <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
     </button>
 
-    <teleport to="body" :disabled="!isMobile">
-      <div
-        class="toolbar-mobile-actions"
-        :class="{ 'toolbar-mobile-actions--open': actionsOpen }"
-        @click.self="actionsOpen = false"
-      >
-        <section id="toolbar-mobile-actions" class="toolbar-mobile-sheet" aria-label="Weitere Aktionen">
-          <div class="toolbar-mobile-handle" aria-hidden="true"></div>
-          <header class="toolbar-mobile-header">
-            <h3>Aktionen</h3>
-            <button type="button" aria-label="Aktionen schließen" @click="actionsOpen = false">
-              <font-awesome-icon :icon="['fas', 'xmark']" />
-            </button>
-          </header>
-          <div class="toolbar-mobile-action-list">
-            <slot name="actions" />
-          </div>
-        </section>
-      </div>
-    </teleport>
+    <div id="toolbar-inline-actions" class="toolbar-inline-actions" :class="{ 'toolbar-inline-actions--open': actionsOpen }">
+      <slot name="actions" />
+    </div>
   </div>
 </template>
 
@@ -40,9 +26,9 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faEllipsisVertical, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faEllipsisVertical } from '@fortawesome/free-solid-svg-icons';
 
-library.add(faEllipsisVertical, faXmark);
+library.add(faEllipsisVertical);
 
 defineOptions({ inheritAttrs: false });
 
@@ -101,6 +87,10 @@ onUnmounted(() => {
   }
 }
 
+.toolbar-main-content {
+  display: contents;
+}
+
 .toolbar-mobile-actions-toggle {
   display: none;
 }
@@ -111,11 +101,23 @@ onUnmounted(() => {
     padding-right: 7px;
     overflow: visible;
 
+    &--actions-open { gap: 0; }
+  }
+
+  .toolbar-main-content {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-self: stretch;
+    align-items: center;
+    gap: 8px;
+
     :deep(.toolbar-search) {
       min-width: 0;
       max-width: none;
     }
 
+    &--hidden { display: none; }
   }
 
   .toolbar-mobile-actions-toggle {
@@ -140,92 +142,19 @@ onUnmounted(() => {
   }
 }
 
-.toolbar-mobile-actions {
-  display: contents;
-}
-
-.toolbar-mobile-sheet {
-  display: contents;
-}
-
-.toolbar-mobile-handle {
-  width: 36px;
-  height: 4px;
-  margin: 0 auto 12px;
-  border-radius: 4px;
-  background: var(--border);
-}
-
-.toolbar-mobile-header {
-  display: none;
-
-  h3 { margin: 0; font-size: 1rem; }
-
-  button {
-    display: inline-flex;
-    width: 36px;
-    height: 36px;
-    align-items: center;
-    justify-content: center;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-  }
-}
-
 @media (max-width: 768px) {
-  .toolbar-mobile-actions {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
+  .toolbar-inline-actions {
     display: none;
-    align-items: flex-end;
-    background: rgba(0, 0, 0, 0.45);
+    width: 0;
+    min-width: 0;
+    flex: 1;
 
-    &--open { display: flex; }
-  }
-
-  .toolbar-mobile-sheet {
-    display: block;
-    width: 100%;
-    padding: 12px 20px calc(24px + env(safe-area-inset-bottom));
-    border-radius: 20px 20px 0 0;
-    background: var(--tile-bg);
-    color: var(--text);
-    animation: toolbar-sheet-in 0.25s cubic-bezier(0.32, 0.72, 0, 1);
-  }
-
-  .toolbar-mobile-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    h3 { margin: 0; font-size: 1rem; }
-
-    button {
-      display: inline-flex;
-      width: 36px;
-      height: 36px;
-      align-items: center;
-      justify-content: center;
-      border: 0;
-      border-radius: 6px;
-      background: transparent;
-      color: var(--muted);
-      cursor: pointer;
-    }
-  }
-
-  .toolbar-mobile-action-list {
-    display: grid;
-    gap: 8px;
-    margin-top: 12px;
+    &--open { display: block; }
 
     :deep(.toolbar-group) {
-      display: grid;
+      display: flex;
       gap: 8px;
+      width: 100%;
 
       :deep(.toolbar-button),
       :deep(.toolbar-icon-button) {
@@ -233,11 +162,41 @@ onUnmounted(() => {
         justify-content: flex-start;
       }
     }
-  }
-}
 
-@keyframes toolbar-sheet-in {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+    :deep(.view-controls-right) {
+      display: grid;
+      width: 100%;
+      min-width: 0;
+      align-items: center;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+    }
+
+    :deep(.sort-menu),
+    :deep(.sort-menu__trigger) {
+      width: 100%;
+    }
+
+    :deep(.pagination-compact) {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-width: 0;
+      gap: 8px;
+    }
+
+    :deep(.pagination-info-compact),
+    :deep(.pagination-controls-compact) {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    :deep(.pagination-text) {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
 }
 </style>

@@ -6,6 +6,7 @@
           <div class="controls">
           <!-- Toolbar with ToolbarFilter -->
           <Toolbar class="people-search-toolbar">
+            <template #filter>
             <ToolbarFilter
               v-model="filterExpanded"
               :active-count="activeFilterCount"
@@ -57,6 +58,7 @@
                 <FilterChip v-for="pg in [{val: 101, label: 'Festi'}, {val: 110, label: 'KZF'}, {val: 109, label: 'Mini'}, {val: 106, label: 'Werkst.'}]" :key="pg.val" :active="filters.persgruppe === pg.val" @click="setFilter('persgruppe', filters.persgruppe === pg.val ? 'Alle' : pg.val)">{{ pg.label }}</FilterChip>
               </FilterGroup>
             </ToolbarFilter>
+            </template>
             <div class="toolbar-inner">
               <SearchBar
                 class="toolbar-search"
@@ -85,6 +87,7 @@
               </div>
             </div>
 
+            <template #actions>
             <!-- Controls: Sort + Pagination -->
             <div class="view-controls-right">
             <SortMenu
@@ -134,6 +137,7 @@
               </div>
             </div>
             </div>
+            </template>
           </Toolbar>
         </div> <!-- end controls -->
 

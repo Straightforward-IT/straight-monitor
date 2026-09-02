@@ -15,36 +15,6 @@
           >{{ location.shortName || location.nameFull }}</FilterChip>
         </FilterGroup>
         <FilterDivider />
-        <!-- Bediener -->
-        <FilterGroup label="Bediener">
-          <FilterDropdown :has-value="filters.bediener.length > 0">
-            <template #label>
-              <span v-if="filters.bediener.length === 0">Alle Bediener</span>
-              <span v-else>{{ filters.bediener.length }} ausgewählt</span>
-            </template>
-            <div v-if="filterOptions.bediener.length === 0" class="no-options">Keine Bediener gefunden</div>
-            <label v-for="bed in filterOptions.bediener" :key="bed" class="dropdown-item">
-              <input type="checkbox" :checked="filters.bediener.includes(bed)" @change="toggleBedienerFilter(bed)">
-              <span class="label-text">{{ bed }}</span>
-            </label>
-          </FilterDropdown>
-        </FilterGroup>
-        <FilterDivider />
-        <!-- Kunden -->
-        <FilterGroup label="Kunden">
-          <FilterDropdown :has-value="filters.kunden.length > 0">
-            <template #label>
-              <span v-if="filters.kunden.length === 0">Alle Kunden</span>
-              <span v-else>{{ filters.kunden.length }} ausgewählt</span>
-            </template>
-            <div v-if="filterOptions.kunden.length === 0" class="no-options">Keine Kunden gefunden</div>
-            <label v-for="kunde in filterOptions.kunden" :key="kunde.kundenNr" class="dropdown-item">
-              <input type="checkbox" :checked="filters.kunden.includes(kunde.kundenNr)" @change="toggleKundeFilter(kunde.kundenNr)">
-              <span class="label-text">{{ kunde.kundName }}</span>
-            </label>
-          </FilterDropdown>
-        </FilterGroup>
-        <FilterDivider />
         <FilterGroup label="Einsätze">
           <FilterChip
             :active="filters.bedarfStatus.includes('voll')"
@@ -58,6 +28,20 @@
             :active="filters.pseudoEinsatz"
             @click="togglePseudoEinsatzFilter"
           >Pseudo</FilterChip>
+        </FilterGroup>
+        <FilterDivider />
+        <FilterGroup label="Kunden">
+          <FilterDropdown :has-value="filters.kunden.length > 0">
+            <template #label>
+              <span v-if="filters.kunden.length === 0">Alle Kunden</span>
+              <span v-else>{{ filters.kunden.length }} ausgewählt</span>
+            </template>
+            <div v-if="filterOptions.kunden.length === 0" class="no-options">Keine Kunden gefunden</div>
+            <label v-for="kunde in filterOptions.kunden" :key="kunde.kundenNr" class="dropdown-item">
+              <input type="checkbox" :checked="filters.kunden.includes(kunde.kundenNr)" @change="toggleKundeFilter(kunde.kundenNr)">
+              <span class="label-text">{{ kunde.kundName }}</span>
+            </label>
+          </FilterDropdown>
         </FilterGroup>
       </ToolbarFilter>
       <div class="nav-inner">
@@ -294,9 +278,12 @@
               <div
                 v-for="s in getSchichtenForDay(event, day.date)"
                 :key="s.id"
-                class="shift-row"
+                class="shift-row shift-row--stacked"
               >
-                <span class="shift-name">{{ s.bezeichnung || 'Schicht' }}</span>
+                <div class="shift-details">
+                  <span class="shift-time">{{ s.uhrzeitVon || '?' }}{{ s.uhrzeitBis ? '–' + s.uhrzeitBis : '' }}</span>
+                  <span class="shift-name">{{ s.bezeichnung || 'Schicht' }}</span>
+                </div>
                 <span class="shift-pos">{{ s.besetzt }}/{{ s.bedarf }}</span>
               </div>
             </div>
@@ -4758,6 +4745,26 @@ export default {
   align-items: center;
   gap: 6px;
   font-size: 0.75rem;
+}
+
+.shift-row--stacked {
+  padding: 3px 0;
+}
+
+.shift-row--stacked + .shift-row--stacked {
+  border-top: 1px solid var(--border);
+}
+
+.shift-details {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shift-details .shift-time,
+.shift-details .shift-name {
+  min-width: 0;
 }
 
 .shift-time {
