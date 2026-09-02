@@ -134,8 +134,9 @@ router.get('/activity', auth, asyncHandler(async (req, res) => {
   })));
 }));
 
-router.get('/items', auth, asyncHandler(async (_req, res) => {
-  const items = await InventoryItem.find({ isActive: true })
+router.get('/items', auth, asyncHandler(async (req, res) => {
+  const filter = req.query.includeInactive === 'true' ? {} : { isActive: true };
+  const items = await InventoryItem.find(filter)
     .populate('bestaende.location', 'nameFull shortName isActive')
     .sort({ bezeichnung: 1 })
     .lean();

@@ -16,6 +16,7 @@ const Einsatz = require("../../models/Event/Einsatz");
 const Auftrag = require("../../models/Event/Auftrag");
 const Qualifikation = require("../../models/Event/Qualifikation");
 const { RANKS, getRankTier, RANK_GROUP_IDS } = require("../../config/flipRanks");
+const { countsForEmployees } = require("../operations/EinsatzCountingService");
 const { sendMail } = require("./EmailService");
 const logger = require("../../utils/logger");
 const {
@@ -1638,7 +1639,11 @@ async function syncRankGroups(mitarbeiterList) {
   let errors = 0;
 
   const eligible = mitarbeiterList.filter(
-    ma => ma.flip_id && ma.isActive !== false && (ma.personalnr || (ma.personalnrHistory && ma.personalnrHistory.length > 0))
+    ma => ma.flip_id && ma.isActive !== false && (
+      ma.personalnr
+      || (ma.personalnummern && ma.personalnummern.length > 0)
+      || (ma.personalnrHistory && ma.personalnrHistory.length > 0)
+    )
   );
 
   logs.push(`🏅 Rank sync: ${eligible.length} Mitarbeiter mit Flip-Account und Personalnr`);
@@ -1647,23 +1652,16 @@ async function syncRankGroups(mitarbeiterList) {
   const CHUNK_SIZE = 20;
   for (let i = 0; i < eligible.length; i += CHUNK_SIZE) {
     const chunk = eligible.slice(i, i + CHUNK_SIZE);
+    const countMap = await countsForEmployees(chunk, { through: now });
     await Promise.all(chunk.map(async (ma) => {
       try {
-        // Collect all personalnr values (current + history)
-        const allNrs = new Set();
-        if (ma.personalnr) allNrs.add(Number(ma.personalnr));
-        if (Array.isArray(ma.personalnrHistory)) {
-          ma.personalnrHistory.forEach(h => {
-            if (h.value) allNrs.add(Number(h.value));
-          });
-        }
-        const nrArray = [...allNrs].filter(n => !isNaN(n) && n > 0);
-        if (nrArray.length === 0) return;
-
-        const count = await Einsatz.countDocuments({
-          personalNr: { $in: nrArray },
-          datumBis: { $lt: now },
-        });
+        const count = countMap.get(String(ma._id)) || 0;
+        ma.einsatzCount = count;
+        ma.einsatzCountUpdatedAt = now;
+        await Mitarbeiter.updateOne(
+          { _id: ma._id },
+          { $set: { einsatzCount: count, einsatzCountUpdatedAt: now } }
+        );
 
         const tier = getRankTier(count);
         if (!tier) return; // Keine Einsätze → kein Rang
@@ -1735,8 +1733,7 @@ async function syncRankGroups(mitarbeiterList) {
         // DB: Rang cachen
         const prevRank = ma.rank;
         ma.rank = tier.key;
-        ma.einsatzCount = count;
-        await Mitarbeiter.updateOne({ _id: ma._id }, { rank: tier.key, einsatzCount: count });
+        await Mitarbeiter.updateOne({ _id: ma._id }, { $set: { rank: tier.key } });
 
         promoted++;
         const arrow = prevRank ? `${prevRank} → ${tier.key}` : `neu: ${tier.key}`;

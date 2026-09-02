@@ -23,6 +23,10 @@ const {
   resolveLocationFromExternalId,
   resolveLocationFromStandortName,
 } = require("../../services/operations/LocationResolutionService");
+const {
+  ordinalsForEmployees,
+  resolvePersonalNumbers,
+} = require("../../services/operations/EinsatzCountingService");
 
 // All routes in this file require FLIP_PUBLIC_JWT
 router.use(publicAuth);
@@ -387,34 +391,18 @@ router.get(
 
     // Collect all personalNrs to fetch Mitarbeiter in one query
     const personalNrs = [...new Set(einsaetze.map((e) => e.personalNr).filter(Boolean))];
-    const mitarbeiterList = await Mitarbeiter.find({ personalnr: { $in: personalNrs } })
-      .select("personalnr vorname nachname telefon qualifikationen flip_id personalnrHistory")
+    const personalNrStrings = personalNrs.map(String);
+    const mitarbeiterList = await Mitarbeiter.find({
+      $or: [
+        { personalnr: { $in: personalNrStrings } },
+        { personalnummern: { $in: personalNrStrings } },
+        { "personalnrHistory.value": { $in: personalNrStrings } },
+      ],
+    })
+      .select("personalnr personalnummern personalnrHistory vorname nachname telefon qualifikationen flip_id")
       .lean();
 
-    // Build alias map: current personalnr (as Number, matching Einsatz.personalNr type) → all alias Numbers
-    const pnrAliasMap = {};
-    mitarbeiterList.forEach((ma) => {
-      const currentNum = parseInt(ma.personalnr, 10);
-      if (isNaN(currentNum)) return;
-      const histNums = (ma.personalnrHistory || [])
-        .map((h) => parseInt(h.value, 10))
-        .filter((n) => !isNaN(n));
-      pnrAliasMap[currentNum] = [...new Set([currentNum, ...histNums])];
-    });
-    const allPnrsNum = [...new Set(Object.values(pnrAliasMap).flat())];
-
-    // Count einsätze across current and all historical personalNrs
-    // allPnrsNum must be Numbers because Einsatz.personalNr is type Number (no auto-cast in aggregation)
-    const einsatzCounts = await Einsatz.aggregate([
-      { $match: { personalNr: { $in: allPnrsNum } } },
-      { $group: { _id: "$personalNr", count: { $sum: 1 } } }
-    ]);
-    const rawCountMap = Object.fromEntries(einsatzCounts.map((c) => [c._id, c.count]));
-    // Sum counts across all aliases so the badge reflects the true total
-    const einsatzCountMap = {};
-    Object.entries(pnrAliasMap).forEach(([currentPnr, aliasPnrs]) => {
-      einsatzCountMap[currentPnr] = aliasPnrs.reduce((sum, pnr) => sum + (rawCountMap[pnr] || 0), 0);
-    });
+    const ordinalMaps = await ordinalsForEmployees(mitarbeiterList);
 
     // Resolve Teamleiter qualification (key 50055) to mark TL MAs
     const teamleiterQual = await Qualifikation.findOne({ qualificationKey: 50055 }).lean();
@@ -425,7 +413,9 @@ router.get(
       ma._isTeamleiter = tlQualId
         ? (ma.qualifikationen || []).some((q) => String(q) === tlQualId)
         : false;
-      maMap[ma.personalnr] = ma;
+      resolvePersonalNumbers(ma).forEach((personalNumber) => {
+        if (!maMap[personalNumber]) maMap[personalNumber] = ma;
+      });
     });
 
     // Group by schicht (idAuftragArbeitsschichten)
@@ -450,6 +440,9 @@ router.get(
       schichtMap[key].treffpunkt ||= schichtMeta?.treffpunkt || e.treffpunkt || null;
       schichtMap[key].treffpunktOrt ||= schichtMeta?.treffpunktOrt || e.treffpunktOrt || null;
       const ma = maMap[e.personalNr];
+      const einsatzOrdinal = ma
+        ? ordinalMaps.get(String(ma._id))?.get(String(e._id)) || 0
+        : 0;
       const berufKey = parseInt(e.berufSchl, 10);
       const berufData = !isNaN(berufKey) ? berufByKey.get(berufKey) || null : null;
       const bereiche = detectBereiche({
@@ -472,7 +465,8 @@ router.get(
         isLogistik: bereiche.isLogistik,
         checkedIn: false,
         isPseudo: e.isPseudo || false,
-        einsatzNr: einsatzCountMap[e.personalNr] || 0,
+        einsatzOrdinal,
+        einsatzNr: einsatzOrdinal,
       });
     });
 

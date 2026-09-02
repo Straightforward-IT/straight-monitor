@@ -1,10 +1,13 @@
 <template>
-  <div class="tl-page">
-    <div class="header">
-      <div class="title-section">
-        <h1>Teamleiter Auswertung</h1>
-      </div>
-      
+  <PageLayout
+    v-model="activeReportTab"
+    :tabs="reportTabs"
+    aria-label="Dokumentenansicht"
+    width="full"
+    content-variant="surface"
+  >
+    <div class="tl-page">
+      <Toolbar>
       <div class="filter-section">
         <label>Zeitraum:</label>
         <input 
@@ -28,9 +31,15 @@
           </option>
         </select>
       </div>
-    </div>
+      <SearchBar
+        v-model="searchQuery"
+        class="toolbar-search"
+        placeholder="Teamleiter suchen..."
+        aria-label="Teamleiter suchen"
+      />
+      </Toolbar>
 
-    <div class="content">
+      <div class="content">
       <div v-if="loading" class="loading">
         <font-awesome-icon icon="spinner" spin size="2x" />
         <p>Lade Daten...</p>
@@ -191,8 +200,9 @@
           </tbody>
         </table>
       </div>
+      </div>
     </div>
-  </div>
+  </PageLayout>
 </template>
 
 <script setup>
@@ -201,10 +211,13 @@ import { useRouter, useRoute } from 'vue-router';
 import api from '../utils/api'; 
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
+import { faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle, faEye, faEyeSlash, faFileLines, faPenClip, faChartColumn } from '@fortawesome/free-solid-svg-icons';
 import CustomTooltip from './CustomTooltip.vue';
 import { useDocumentModals } from '@/composables/useDocumentModals';
 import { useTheme } from '@/stores/theme';
+import PageLayout from '@/components/layout/PageLayout.vue';
+import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import SearchBar from '@/components/SearchBar.vue';
 import eventReportLightIcon from '@/assets/eventreport.png';
 import eventReportDarkIcon from '@/assets/eventreport-dark.png';
 import evaluierungLightIcon from '@/assets/evaluierung.png';
@@ -214,14 +227,27 @@ const theme = useTheme();
 const eventReportIconUrl = computed(() => theme.isDark ? eventReportDarkIcon : eventReportLightIcon);
 const evaluierungIconUrl = computed(() => theme.isDark ? evaluierungDarkIcon : evaluierungLightIcon);
 
-library.add(faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle, faEye, faEyeSlash);
+library.add(faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle, faEye, faEyeSlash, faFileLines, faPenClip, faChartColumn);
 
 const router = useRouter();
 const route = useRoute();
+const reportTabs = [
+  { id: 'dokumente', label: 'Dokumente', icon: ['fas', 'file-lines'], path: '/dokumente' },
+  { id: 'auswertung', label: 'Auswertung', icon: ['fas', 'chart-column'], path: '/teamleiter-auswertung' },
+  { id: 'nachpflege', label: 'Nachpflege', icon: ['fas', 'pen-clip'], path: '/dokumente-nachpflegen' },
+];
+const activeReportTab = computed({
+  get: () => 'auswertung',
+  set: (tabId) => {
+    const tab = reportTabs.find((entry) => entry.id === tabId);
+    if (tab?.path && route.path !== tab.path) router.push(tab.path);
+  },
+});
 const { openDocument } = useDocumentModals();
 const teamleiterList = ref([]);
 const loading = ref(true);
 const error = ref(null);
+const searchQuery = ref('');
 const sortKey = ref('einsatzCount');
 const sortAsc = ref(false); 
 const expandedRows = ref([]); // Array of expanded IDs
@@ -311,7 +337,14 @@ const formatDate = (val) => {
 };
 
 const filteredTeamleiter = computed(() => {
-  return teamleiterList.value;
+  const query = searchQuery.value.trim().toLocaleLowerCase('de');
+  if (!query) return teamleiterList.value;
+
+  return teamleiterList.value.filter((teamleiter) => [
+    teamleiter.vorname,
+    teamleiter.nachname,
+    teamleiter.personalnr,
+  ].filter(Boolean).join(' ').toLocaleLowerCase('de').includes(query));
 });
 
 const totalEinsaetze = computed(() => {
@@ -483,33 +516,10 @@ onMounted(async () => {
 @import "@/assets/styles/global.scss";
 
 .tl-page {
-  padding: 20px;
-  max-width: 1000px;
-  margin: 0 auto;
+  min-width: 0;
   color: var(--text);
   /* Provide surface color for child components like EmployeeCard */
   --surface: var(--tile-bg);
-}
-
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.title-section {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  
-  h1 {
-    font-size: 24px;
-    font-weight: 700;
-    margin: 0;
-  }
 }
 
 .filter-section {
@@ -603,7 +613,7 @@ onMounted(async () => {
   padding: 16px;
 
   .card {
-    background: var(--bg-body, var(--bg));
+    background: transparent;
     padding: 14px 18px;
     border-radius: 10px;
     display: flex;
@@ -627,7 +637,7 @@ onMounted(async () => {
 }
 
 .table-container {
-  background: var(--tile-bg);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;

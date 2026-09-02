@@ -1,13 +1,12 @@
 <template>
-  <section class="inventory-page">
-    <header class="page-header">
-      <div>
-        <h2 data-page-title="Bestand">
-          <font-awesome-icon :icon="['fas', 'warehouse']" /> Bestand
-        </h2>
-      </div>
-      <span class="stock-count">{{ filteredStocks.length }} Kombinationen</span>
-    </header>
+  <PageLayout
+    v-model="activePageTab"
+    :tabs="inventoryPageTabs"
+    aria-label="Bestandsbereiche"
+    width="full"
+    content-variant="surface"
+  >
+    <section class="inventory-page">
 
     <Toolbar wrap>
       <ToolbarFilter v-model="filterOpen" :active-count="activeFilterCount" @reset="resetFilters">
@@ -33,6 +32,8 @@
       </ToolbarFilter>
 
       <SearchBar v-model="search" class="toolbar-search" placeholder="Bezeichnung, Variante, Größe oder Standort" />
+
+      <ToolbarLabel>{{ filteredStocks.length }} Kombinationen</ToolbarLabel>
 
       <ToolbarGroup push-right>
         <ToolbarButton variant="secondary" title="Bestandsaktionen" @click="openActionMenu">
@@ -163,11 +164,13 @@
       @close="reportMode = null"
     />
     <ContextMenu v-if="actionMenu.visible" :x="actionMenu.x" :y="actionMenu.y" :options="actionMenuOptions" @close="actionMenu.visible = false" @select="handleActionMenu" />
-  </section>
+    </section>
+  </PageLayout>
 </template>
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faTrash, faWarehouse } from '@fortawesome/free-solid-svg-icons';
@@ -180,6 +183,7 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
+import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import SearchBar from '@/components/ui-elements/SearchBar.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
@@ -188,11 +192,14 @@ import InventoryTransactionModal from '@/components/InventoryTransactionModal.vu
 import ContextMenu from '@/components/ContextMenu.vue';
 import InventoryReportModal from '@/components/InventoryReportModal.vue';
 import FavoriteStarButton from '@/components/ui-elements/FavoriteStarButton.vue';
+import PageLayout from '@/components/layout/PageLayout.vue';
+import { inventoryPageTabs } from '@/components/layout/inventoryPageTabs';
 
 library.add(faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faTrash, faWarehouse);
 
 const dataCache = useDataCache();
 const auth = useAuth();
+const router = useRouter();
 const inventoryFilters = useInventoryFilters();
 const { locationIds: selectedLocationIds } = storeToRefs(inventoryFilters);
 const stocks = computed(() => dataCache.items);
@@ -216,6 +223,13 @@ const actionMenuOptions = [
   { label: 'Excel-Liste herunterladen', action: 'excel' },
 ];
 const isAdmin = computed(() => auth.user?.role === 'ADMIN' || auth.user?.roles?.includes('ADMIN'));
+const activePageTab = computed({
+  get: () => 'inventory',
+  set: (tab) => {
+    if (tab === 'history') router.push('/verlauf');
+    if (tab === 'graph') router.push({ path: '/verlauf', query: { tab: 'graph' } });
+  },
+});
 
 const locations = computed(() => {
   const usedLocationIds = new Set(stocks.value.map((stock) => String(stock.locationId)).filter(Boolean));
@@ -439,9 +453,6 @@ onMounted(refreshStocks);
 .inventory-page { color: var(--text); }
 .inventory-page :deep(.filter-chip) { border-color: color-mix(in srgb, var(--location-color) 45%, var(--border)); color: var(--location-color); }
 .inventory-page :deep(.filter-chip.active) { border-color: var(--location-color); color: var(--location-color); background: color-mix(in srgb, var(--location-color) 12%, transparent); }
-.page-header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-h2 { margin: 0; font-size: 1.55rem; display: flex; gap: 9px; align-items: center; }
-.stock-count { color: var(--muted); font-size: 0.82rem; padding-bottom: 3px; }
 .state { margin: 24px 0; color: var(--muted); }
 .state--error { color: #c3423f; }
 .inventory-list { display: grid; gap: 10px; }

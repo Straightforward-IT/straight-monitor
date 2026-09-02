@@ -1,5 +1,24 @@
 <template>
   <section class="bewerber-tab">
+    <Toolbar class="tab-toolbar">
+      <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
+        <FilterGroup label="Standort">
+          <FilterChip
+            v-for="location in applicantLocations"
+            :key="location.key"
+            class="location-filter-chip"
+            :active="locationFilter === location.key"
+            :style="{ '--location-color': location.color || '#6b7280' }"
+            @click="locationFilter = locationFilter === location.key ? '' : location.key"
+          >
+            {{ location.label }}
+          </FilterChip>
+        </FilterGroup>
+      </ToolbarFilter>
+      <SearchBar class="toolbar-search" v-model="search" placeholder="Bewerber suchen..." aria-label="Bewerber suchen" />
+      <button type="button" class="refresh-button" @click="loadApplicants">Aktualisieren</button>
+    </Toolbar>
+
     <section v-if="suggestions.length || loadingSuggestions || suggestionsError" class="suggestions-bar" aria-label="Asana-Vorschläge">
       <div class="suggestions-heading">
         <span>Vorschläge aus Asana</span>
@@ -21,24 +40,6 @@
       </div>
     </section>
 
-    <Toolbar class="tab-toolbar">
-      <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
-        <FilterGroup label="Standort">
-          <FilterChip
-            v-for="location in applicantLocations"
-            :key="location.key"
-            class="location-filter-chip"
-            :active="locationFilter === location.key"
-            :style="{ '--location-color': location.color || '#6b7280' }"
-            @click="locationFilter = locationFilter === location.key ? '' : location.key"
-          >
-            {{ location.label }}
-          </FilterChip>
-        </FilterGroup>
-      </ToolbarFilter>
-      <SearchBar class="toolbar-search" v-model="search" placeholder="Bewerber suchen..." aria-label="Bewerber suchen" />
-      <button type="button" class="refresh-button" @click="loadApplicants">Aktualisieren</button>
-    </Toolbar>
     <p v-if="error" class="state state--error">{{ error }}</p>
     <p v-else-if="loading" class="state">Bewerber werden geladen ...</p>
     <div v-else-if="filteredApplicants.length" class="bewerber-grid">
@@ -270,7 +271,6 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.bewerber-tab { padding: 20px; }
 .bewerber-tab :deep(.location-filter-chip) { border-color: color-mix(in srgb, var(--location-color) 45%, var(--border)); color: var(--location-color); }
 .bewerber-tab :deep(.location-filter-chip.active) { background: color-mix(in srgb, var(--location-color) 12%, transparent); border-color: var(--location-color); box-shadow: inset 0 0 0 1px var(--location-color); color: var(--location-color); }
 .suggestions-bar { border-bottom: 1px solid var(--border); display: grid; gap: 10px; margin: -4px 0 18px; padding: 0 0 18px; }

@@ -1,4 +1,16 @@
 <template>
+  <Toolbar>
+    <SearchBar
+      v-model="searchQuery"
+      class="toolbar-search"
+      placeholder="Ablage durchsuchen"
+      aria-label="Ablage durchsuchen"
+    />
+    <button class="icon-button" type="button" title="Ablage aktualisieren" :disabled="loading" @click="loadFiles">
+      <font-awesome-icon :icon="['fas', 'rotate']" :spin="loading" />
+    </button>
+  </Toolbar>
+
   <div class="storage-browser">
     <div class="storage-head">
       <nav class="storage-breadcrumb" aria-label="Ablagepfad">
@@ -10,18 +22,6 @@
           <button type="button" @click="selectFolder(crumb.path)">{{ crumb.label }}</button>
         </template>
       </nav>
-      <div class="storage-tools">
-        <label class="storage-search">
-          <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
-          <input v-model="searchQuery" type="search" placeholder="Ablage durchsuchen" aria-label="Ablage durchsuchen" />
-          <button v-if="searchQuery" type="button" title="Suche leeren" @click="searchQuery = ''">
-            <font-awesome-icon :icon="['fas', 'xmark']" />
-          </button>
-        </label>
-        <button class="icon-button" type="button" title="Ablage aktualisieren" :disabled="loading" @click="loadFiles">
-          <font-awesome-icon :icon="['fas', 'rotate']" :spin="loading" />
-        </button>
-      </div>
     </div>
 
     <div v-if="loading && files.length === 0" class="storage-state">
@@ -130,6 +130,8 @@ import {
 import api from '@/utils/api';
 import { useCustomerModals } from '@/composables/useCustomerModals';
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
+import SearchBar from '@/components/SearchBar.vue';
+import Toolbar from '@/components/ui-elements/Toolbar.vue';
 
 library.add(
   faArrowUpRightFromSquare, faChevronDown, faChevronRight, faDownload, faFilePdf,
@@ -374,42 +376,7 @@ onMounted(loadFiles);
   padding: 8px 12px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   border-bottom: 1px solid var(--border);
-}
-
-.storage-tools { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.storage-search {
-  width: min(260px, 30vw);
-  height: 32px;
-  padding: 0 8px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--muted);
-  background: var(--surface);
-  &:focus-within { border-color: var(--primary); color: var(--primary); }
-  input {
-    width: 100%;
-    min-width: 0;
-    border: 0;
-    outline: 0;
-    background: transparent;
-    color: var(--text);
-    font: inherit;
-    font-size: 0.8rem;
-    &::-webkit-search-cancel-button { display: none; }
-  }
-  button {
-    padding: 3px;
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-  }
 }
 
 .storage-breadcrumb {
@@ -558,9 +525,6 @@ onMounted(loadFiles);
 .storage-state--error { color: #c94141; }
 
 @media (max-width: 760px) {
-  .storage-head { align-items: flex-start; }
-  .storage-tools { width: min(220px, 48%); }
-  .storage-search { width: 100%; }
   .storage-layout { grid-template-columns: 1fr; }
   .folder-panel { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--border); }
   .file-row { grid-template-columns: 30px minmax(100px, 1fr) 70px 74px; }

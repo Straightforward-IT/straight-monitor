@@ -4,6 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "mocha",
+    "backfill:einsatz-counts": "node scripts/backfillEinsatzCounts.js",
     "start": "node app.js"
   },
   "engines": {

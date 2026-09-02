@@ -1,10 +1,13 @@
 <template>
-  <section class="dash">
-    <header class="dash__head">
-      <h2 data-page-title="Dashboard">Straight <span>Dashboard</span></h2>
+  <PageLayout width="full" content-variant="surface">
+    <template #header>
+      <div class="dash__head">
+      <h1 data-page-title="Dashboard">Straight <span>Dashboard</span></h1>
       <p class="dash__user">Benutzer: {{ userName }}</p>
-    </header>
+      </div>
+    </template>
 
+    <section class="dash">
     <!-- Widget Grid -->
     <TransitionGroup
       name="widget-anim"
@@ -34,7 +37,8 @@
       :visible="showConfigurator"
       @close="showConfigurator = false"
     />
-  </section>
+    </section>
+  </PageLayout>
 </template>
 
 <script setup>
@@ -44,6 +48,7 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
 import { useDashboardPrefs } from "@/stores/dashboardPrefs";
 import WidgetConfigurator from "@/components/widgets/WidgetConfigurator.vue";
+import PageLayout from "@/components/layout/PageLayout.vue";
 
 const router = useRouter();
 const prefs = useDashboardPrefs();
@@ -123,12 +128,12 @@ onMounted(async () => {
   gap: 16px;
 }
 
-.dash__head h2 {
+.dash__head h1 {
   font-size: 24px;
   font-weight: 600;
   opacity: 0.9;
 }
-.dash__head h2 span {
+.dash__head h1 span {
   font-weight: 700;
 }
 .dash__user {

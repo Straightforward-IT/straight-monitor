@@ -1,21 +1,11 @@
 <template>
-  <div class="kunden-page" :class="{ 'kunden-page--wide': currentTab === 'leads' }">
-    
-    <!-- Tabs Navigation -->
-    <div class="tabs">
-      <button 
-        v-for="tab in tabs" 
-        :key="tab.id"
-        class="tab-btn" 
-        :class="{ active: currentTab === tab.id }"
-        @click="currentTab = tab.id"
-      >
-        <font-awesome-icon :icon="tab.icon" />
-        {{ tab.label }}
-      </button>
-    </div>
-
-    <div class="content-section" :class="{ 'content-section--flush': currentTab === 'leads' }">
+  <PageLayout
+    v-model="currentTab"
+    :tabs="tabs"
+    aria-label="Kundenbereiche"
+    width="wide"
+    content-variant="surface"
+  >
       
       <!-- Übersicht Tab (Alle außer Status 1) -->
       <div v-if="currentTab === 'overview'" class="tab-content">
@@ -147,7 +137,7 @@
       </div>
 
        <!-- Leads Tab (Pipedrive-style sales leads) -->
-      <div v-if="currentTab === 'leads'" class="tab-content tab-content--full">
+      <div v-if="currentTab === 'leads'" class="tab-content">
           <LeadsTab :initial-lead-id="route.query.lead || null" />
       </div>
 
@@ -236,8 +226,6 @@
         </div>
       </div>
 
-    </div>
-
     <KundenWatchlistReportModal
       v-if="showReportModal"
       @close="showReportModal = false"
@@ -313,7 +301,7 @@
       </div>
     </teleport>
 
-  </div>
+  </PageLayout>
 </template>
 
 <script setup>
@@ -323,6 +311,7 @@ import { useDataCache } from '@/stores/dataCache';
 import { useAuth } from '@/stores/auth'; // Import Auth Store
 import { useCustomerModals } from '@/composables/useCustomerModals';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import PageLayout from '@/components/layout/PageLayout.vue';
 import FilterPanel from './FilterPanel.vue';
 import FilterGroup from './FilterGroup.vue';
 import FilterChip from './ui-elements/FilterChip.vue';
@@ -853,22 +842,6 @@ watch(currentTab, (tab) => {
 </script>
 
 <style scoped>
-.kunden-page {
-  padding: 24px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  max-width: 1600px;
-  margin: 0 auto;
-  width: 100%;
-}
-
-.kunden-page--wide {
-  max-width: 100%;
-  padding: 16px 24px;
-}
-
 .header-section h1 {
   font-size: 24px;
   font-weight: 600;
@@ -880,64 +853,6 @@ watch(currentTab, (tab) => {
   color: var(--muted);
   font-size: 14px;
   margin-top: 4px;
-}
-
-/* Tabs */
-.tabs {
-  display: flex;
-  gap: 8px;
-  padding-bottom: 2px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  flex-shrink: 0;
-}
-
-.tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.tab-btn {
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 8px 16px;
-  color: var(--muted);
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.tab-btn:hover {
-  color: var(--text);
-  background: var(--hover);
-  border-radius: 6px 6px 0 0;
-}
-
-.tab-btn.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
-  background: transparent;
-}
-
-/* Content */
-.content-section {
-  flex: 1;
-  background: var(--tile-bg);
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  padding: 24px;
-  overflow-y: auto;
-}
-
-.content-section--flush {
-  padding: 0;
-  overflow: clip;
 }
 
 .kunden-toolbar {
@@ -1374,15 +1289,6 @@ watch(currentTab, (tab) => {
 
 /* ---- Mobile Responsive ---- */
 @media (max-width: 768px) {
-  .kunden-page {
-    padding: 12px;
-    gap: 10px;
-  }
-
-  .content-section {
-    padding: 12px;
-  }
-
   .kunden-grid {
     grid-template-columns: 1fr;
   }

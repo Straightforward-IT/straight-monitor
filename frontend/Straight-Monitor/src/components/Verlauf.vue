@@ -1,6 +1,14 @@
 <template>
-  <div class="window">
-    <FilterPanel v-model:expanded="filtersExpanded">
+  <PageLayout
+    v-model="activeTab"
+    class="verlauf-page"
+    :tabs="pageTabs"
+    aria-label="Verlaufsbereiche"
+    width="full"
+    content-variant="surface"
+  >
+    <template v-if="activeTab === 'history'">
+      <FilterPanel v-model:expanded="filtersExpanded">
       <template #title>Filter &amp; Gruppierung</template>
 
       <FilterGroup class="verlauf-filter-group grouping-group" label="Gruppieren">
@@ -57,42 +65,47 @@
           <option value="timestamp_asc">Älteste zuerst</option>
         </select>
       </FilterGroup>
-    </FilterPanel>
+      </FilterPanel>
 
-    <Toolbar class="verlauf-search-toolbar">
-      <SearchBar
-        class="toolbar-search"
-        v-model="searchQuery"
-        placeholder="in Anmerkungen, Items, Mitarbeiter..."
-        aria-label="Verlauf durchsuchen"
-      />
-    </Toolbar>
+      <Toolbar class="verlauf-search-toolbar">
+        <SearchBar
+          class="toolbar-search"
+          v-model="searchQuery"
+          placeholder="in Anmerkungen, Items, Mitarbeiter..."
+          aria-label="Verlauf durchsuchen"
+        />
+      </Toolbar>
 
-    <div v-if="Object.keys(groupedLogs).length > 0">
-      <verlauf-group
-        :grouped-data="groupedLogs"
-        :active-groups="activeGroupsArray"
-        :level="0"
-        :highlight-id="highlightedLogId"
-        @open-mitarbeiter="openMitarbeiterCard"
-        @revert-log="revertLog"
-        @revert-item="revertItem"
-      />
-    </div>
+      <div v-if="Object.keys(groupedLogs).length > 0">
+        <verlauf-group
+          :grouped-data="groupedLogs"
+          :active-groups="activeGroupsArray"
+          :level="0"
+          :highlight-id="highlightedLogId"
+          @open-mitarbeiter="openMitarbeiterCard"
+          @revert-log="revertLog"
+          @revert-item="revertItem"
+        />
+      </div>
 
-    <div v-else class="no-logs-message">
-      <p v-if="searchQuery && dateFilter">
-        Keine Einträge für die Suche nach "{{ searchQuery }}" am {{ formatDisplayDate(dateFilter) }} gefunden.
-      </p>
-      <p v-else-if="searchQuery">
-        Keine Einträge für die Suche nach "{{ searchQuery }}" gefunden.
-      </p>
-      <p v-else-if="dateFilter">
-        Keine Einträge am {{ formatDisplayDate(dateFilter) }} gefunden.
-      </p>
-      <p v-else>Keine Log-Einträge vorhanden.</p>
-    </div>
-  </div>
+      <div v-else class="no-logs-message">
+        <p v-if="searchQuery && dateFilter">
+          Keine Einträge für die Suche nach "{{ searchQuery }}" am {{ formatDisplayDate(dateFilter) }} gefunden.
+        </p>
+        <p v-else-if="searchQuery">
+          Keine Einträge für die Suche nach "{{ searchQuery }}" gefunden.
+        </p>
+        <p v-else-if="dateFilter">
+          Keine Einträge am {{ formatDisplayDate(dateFilter) }} gefunden.
+        </p>
+        <p v-else>Keine Log-Einträge vorhanden.</p>
+      </div>
+    </template>
+
+    <KeepAlive v-else>
+      <InventoryHistoryGraph />
+    </KeepAlive>
+  </PageLayout>
 
   <EmployeeCardModal
     :mitarbeiterId="selectedMitarbeiterId"
@@ -109,6 +122,9 @@ import FilterGroup from "./FilterGroup.vue";
 import FilterPanel from "./FilterPanel.vue";
 import SearchBar from "./SearchBar.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
+import PageLayout from "@/components/layout/PageLayout.vue";
+import { inventoryPageTabs } from "@/components/layout/inventoryPageTabs";
+import InventoryHistoryGraph from "@/components/InventoryHistoryGraph.vue";
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
 export default {
@@ -122,11 +138,17 @@ export default {
     FilterPanel,
     SearchBar,
     Toolbar,
+    PageLayout,
+    InventoryHistoryGraph,
   },
   data() {
     return {
       token: localStorage.getItem("token") || null,
+      activeTab: "history",
+      pageTabs: inventoryPageTabs,
       logs: [],
+      logsLoaded: false,
+      logsLoading: false,
       // EmployeeCard modal
       selectedMitarbeiterId: null,
       filtersExpanded: true,
@@ -196,13 +218,34 @@ export default {
     searchQuery() {
       this.groupLogs();
     },
+    activeTab(newTab) {
+      if (newTab === "inventory") {
+        this.$router.push("/bestand");
+        return;
+      }
+
+      const nextQuery = { ...this.$route.query };
+      if (newTab === "history") delete nextQuery.tab;
+      else nextQuery.tab = "graph";
+
+      const currentTabQuery = this.$route.query.tab || "history";
+      if (currentTabQuery !== newTab) this.$router.replace({ query: nextQuery });
+      if (newTab === "history" && !this.logsLoaded) this.fetchLogs();
+    },
+    "$route.query.tab"(newTab) {
+      const resolved = newTab === "graph" ? "graph" : "history";
+      if (this.activeTab !== resolved) this.activeTab = resolved;
+    },
   },
   methods: {
     setAxiosAuthToken() { api.defaults.headers.common["x-auth-token"] = this.token; },
     async fetchLogs() {
+      if (this.logsLoading) return;
+      this.logsLoading = true;
       try {
         const { data } = await api.get("/api/monitoring");
         this.logs = (data || []).map((log) => ({ ...log, isExpanded: false }));
+        this.logsLoaded = true;
         this.groupLogs();
         // After render, scroll to highlighted log if present
         if (this.highlightedLogId) {
@@ -217,6 +260,8 @@ export default {
         }
       } catch (e) {
         console.error("Fehler beim Abrufen der Logs:", e);
+      } finally {
+        this.logsLoading = false;
       }
     },
     activeGroups() {
@@ -330,12 +375,13 @@ export default {
   },
   mounted() {
     this.setAxiosAuthToken();
+    this.activeTab = this.$route.query.tab === "graph" ? "graph" : "history";
     // Check for highlight parameter in URL
     const highlightId = this.$route.query.highlight;
     if (highlightId) {
       this.highlightedLogId = highlightId;
     }
-    this.fetchLogs();
+    if (this.activeTab === "history") this.fetchLogs();
     window.addEventListener('keydown', this.handleKeydown);
   },
   beforeUnmount() {
@@ -348,7 +394,7 @@ export default {
 @import "@/assets/styles/global.scss";
 
 /* Mappe auf globale Theme-Variablen für echtes Runtime-Theming */
-.window{
+.verlauf-page {
   --c-bg:            var(--bg);
   --c-surface:       var(--tile-bg);
   --c-tertiary-bg:   var(--hover);
@@ -358,16 +404,7 @@ export default {
   --c-text-secondary:var(--muted);
 
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-  background: var(--c-surface);
   color: var(--c-text-primary);
-  min-height: 100vh;
-  max-width: 1200px;
-  margin: 30px auto;
-  padding: 30px;
-  box-sizing: border-box;
-  border-radius: 12px;
-  border: 1px solid var(--c-border);
-  box-shadow: 0 6px 14px rgba(0,0,0,.06);
 }
 
 .discrete{
@@ -528,12 +565,6 @@ export default {
 
 /* Mobile Optimierungen */
 @media (max-width: 768px) {
-  .window {
-    margin: 12px 8px;
-    padding: 16px 12px;
-    border-radius: 8px;
-  }
-
   .verlauf-filter-group {
     width: 100%;
     flex-wrap: wrap;

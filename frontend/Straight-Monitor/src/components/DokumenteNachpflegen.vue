@@ -1,25 +1,18 @@
 <template>
-  <div class="page-wrapper">
-    <div class="page-header">
-      <h1 class="page-title">
-        Dokumente nachpflegen
-      </h1>
-      <p class="page-subtitle">Laufzettel, Evaluierungen und Event Reports manuell erstellen</p>
-    </div>
-
-    <!-- ── TABS ──────────────────────────────────────────── -->
-    <div class="tabs">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        class="tab-btn"
-        :class="{ active: activeTab === tab.id }"
-        @click="switchTab(tab.id)"
-      >
-        <img :src="tabIcon(tab.id)" class="tab-icon" />
-        {{ tab.label }}
-      </button>
-    </div>
+  <PageLayout
+    v-model="activeReportTab"
+    :tabs="reportTabs"
+    aria-label="Dokumentenbereich"
+    width="full"
+    content-variant="surface"
+  >
+    <PageLayout
+    v-model="activeTab"
+    :tabs="tabs"
+    aria-label="Dokumenttyp auswählen"
+    width="standard"
+    content-variant="flush"
+  >
 
     <div class="content-grid">
       <!-- ── LAUFZETTEL FORM ─────────────────────────────── -->
@@ -348,14 +341,17 @@
         </div>
       </div>
     </div>
-  </div>
+    </PageLayout>
+  </PageLayout>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, defineComponent, h } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import api from '@/utils/api';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useTheme } from '@/stores/theme';
+import PageLayout from '@/components/layout/PageLayout.vue';
 import laufzettelImg from '@/assets/laufzettel.png';
 import laufzettelDarkImg from '@/assets/laufzettel-dark.png';
 import evaluierungImg from '@/assets/evaluierung.png';
@@ -571,26 +567,33 @@ const SubmitBtn = defineComponent({
 // ─────────────────────────────────────────────────────────
 
 const tabs = [
-  { id: 'laufzettel',  label: 'Laufzettel' },
-  { id: 'evaluierung', label: 'Evaluierung' },
-  { id: 'eventreport', label: 'Event Report' },
+  { id: 'laufzettel',  label: 'Laufzettel', icon: ['fas', 'file-lines'] },
+  { id: 'evaluierung', label: 'Evaluierung', icon: ['fas', 'star-half-stroke'] },
+  { id: 'eventreport', label: 'Event Report', icon: ['fas', 'clipboard-list'] },
 ];
+
+const route = useRoute();
+const router = useRouter();
+const reportTabs = [
+  { id: 'dokumente', label: 'Dokumente', icon: ['fas', 'file-lines'], path: '/dokumente' },
+  { id: 'auswertung', label: 'Auswertung', icon: ['fas', 'chart-column'], path: '/teamleiter-auswertung' },
+  { id: 'nachpflege', label: 'Nachpflege', icon: ['fas', 'pen-clip'], path: '/dokumente-nachpflegen' },
+];
+const activeReportTab = computed({
+  get: () => 'nachpflege',
+  set: (tabId) => {
+    const tab = reportTabs.find((entry) => entry.id === tabId);
+    if (tab?.path && route.path !== tab.path) router.push(tab.path);
+  },
+});
 
 const theme = useTheme();
 const isDark = computed(() => theme.isDark);
 const iconLaufzettel  = computed(() => isDark.value ? laufzettelDarkImg  : laufzettelImg);
 const iconEvaluierung = computed(() => isDark.value ? evaluierungDarkImg : evaluierungImg);
 const iconEventreport = computed(() => isDark.value ? eventreportDarkImg : eventreportImg);
-function tabIcon(id) {
-  if (id === 'laufzettel')  return iconLaufzettel.value;
-  if (id === 'evaluierung') return iconEvaluierung.value;
-  return iconEventreport.value;
-}
 
 const activeTab = ref('laufzettel');
-function switchTab(id) {
-  activeTab.value = id;
-}
 
 // Shared
 const todayStr = computed(() => new Date().toISOString().slice(0, 10));
@@ -824,74 +827,10 @@ function formatDate(d) {
 </script>
 
 <style scoped lang="scss">
-.page-wrapper {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
-}
-
-.page-header {
-  margin-bottom: 1.5rem;
-}
-
-.page-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0 0 0.3rem;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  svg { color: var(--primary); }
-}
-
 .page-subtitle {
   font-size: 0.875rem;
   color: var(--muted);
   margin: 0;
-}
-
-/* ── Tabs ── */
-.tabs {
-  display: flex;
-  gap: 0.35rem;
-  margin-bottom: 1.25rem;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 0;
-}
-
-.tab-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  background: none;
-  border: none;
-  border-bottom: 2.5px solid transparent;
-  padding: 0.55rem 1rem 0.65rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-  margin-bottom: -1px;
-
-  &:hover { color: var(--text); }
-  &.active {
-    color: var(--primary);
-    border-bottom-color: var(--primary);
-  }
-}
-
-.tab-icon {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
-  flex-shrink: 0;
-  opacity: 0.6;
-  transition: opacity 0.15s;
-
-  .tab-btn:hover & { opacity: 0.85; }
-  .tab-btn.active & { opacity: 1; }
 }
 
 /* ── Content ── */

@@ -1,5 +1,5 @@
 <template>
-  <div class="ma-einsatz-chart">
+  <div class="ma-einsatz-chart" :class="countAsOf > 0 ? jobTierClass(countAsOf) : null">
     <div class="chart-section-divider"></div>
 
     <div class="chart-section-header">
@@ -7,7 +7,7 @@
         <font-awesome-icon icon="fa-solid fa-chart-bar" class="chart-section-icon" />
         Einsatz-Verlauf
         <span class="chart-job-count">
-          {{ einsatzCount }} {{ einsatzCount === 1 ? 'Job' : 'Jobs' }}
+          {{ countAsOf }} {{ countAsOf === 1 ? 'Job' : 'Jobs' }}
         </span>
       </h4>
     </div>
@@ -139,8 +139,6 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 const props = defineProps({
   mitarbeiterId: { type: String, default: null },
-  eintrittsdatum: { type: String, default: null },
-  einsatzCount: { type: Number, default: 0 },
 });
 const theme = useTheme();
 
@@ -149,14 +147,8 @@ const FALLBACK_START = new Date(2022, 0, 1);
 const now = new Date();
 const FUTURE_MONTHS = 6;
 
-// Derived from eintrittsdatum prop; falls back to Jan 2022
-const startDate = computed(() => {
-  if (props.eintrittsdatum) {
-    const d = new Date(props.eintrittsdatum);
-    if (!isNaN(d)) return new Date(d.getFullYear(), d.getMonth(), 1);
-  }
-  return FALLBACK_START;
-});
+const historyStartDate = ref(FALLBACK_START);
+const startDate = computed(() => historyStartDate.value);
 
 const currentMonthIdx = computed(() =>
   (now.getFullYear() - startDate.value.getFullYear()) * 12 +
@@ -169,6 +161,7 @@ const monthNamesFull = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'J
 const loading      = ref(false);
 const istData      = ref([]);
 const forecastData = ref([]);
+const countAsOf = ref(0);
 const viewMode     = ref('monat');
 const metric       = ref('tage');
 const showForecast = ref(true);
@@ -364,11 +357,17 @@ async function fetchData() {
   if (!props.mitarbeiterId) return;
   loading.value = true;
   try {
-    const von = startDate.value.toISOString();
     const bis = new Date(now.getFullYear() + 1, now.getMonth() + FUTURE_MONTHS, 0, 23, 59, 59).toISOString();
-    const { data } = await api.get(`/api/personal/${props.mitarbeiterId}/analytics/einsaetze`, { params: { von, bis } });
+    const { data } = await api.get(`/api/personal/${props.mitarbeiterId}/analytics/einsaetze`, { params: { bis } });
     istData.value = data.ist || [];
     forecastData.value = data.forecast || [];
+    countAsOf.value = data.countAsOf || 0;
+    const firstBucket = [...istData.value, ...forecastData.value]
+      .sort((left, right) => left.year - right.year || left.month - right.month)[0];
+    historyStartDate.value = firstBucket
+      ? new Date(firstBucket.year, firstBucket.month - 1, 1)
+      : FALLBACK_START;
+    sliderRange.value = [0, currentMonthIdx.value + FUTURE_MONTHS];
     chartKey.value++;
   } catch (err) {
     console.error('Einsatz analytics fetch error:', err);
@@ -378,23 +377,39 @@ async function fetchData() {
 }
 
 watch(() => props.mitarbeiterId, id => { if (id) fetchData(); }, { immediate: true });
-watch(startDate, () => {
-  sliderRange.value = [0, currentMonthIdx.value + FUTURE_MONTHS];
-  fetchData();
-});
 watch([metric, viewMode, sliderRange, showForecast], () => { chartKey.value++; });
 
 // ─── Computed stats ───────────────────────────────────────────────────────────
 const hasData = computed(() => istData.value.length > 0 || (showForecast.value && forecastData.value.length > 0));
-const totalCount = computed(() => istData.value.reduce((s, d) => s + d.count, 0));
-const totalHours = computed(() => Math.round(istData.value.reduce((s, d) => s + (d.hours || 0), 0)));
-const avgPerMonth = computed(() => !istData.value.length ? 0 : Math.round(totalCount.value / istData.value.length));
+const visibleIstData = computed(() => {
+  const from = indexToDate(sliderRange.value[0]);
+  const through = indexToDate(sliderRange.value[1]);
+  return istData.value.filter((item) => {
+    const date = new Date(item.year, item.month - 1, 1);
+    return date >= from && date <= through;
+  });
+});
+const totalCount = computed(() => visibleIstData.value.reduce((sum, item) => sum + item.count, 0));
+const totalHours = computed(() => Math.round(visibleIstData.value.reduce((sum, item) => sum + (item.hours || 0), 0)));
+const selectedMonthCount = computed(() => sliderRange.value[1] - sliderRange.value[0] + 1);
+const avgPerMonth = computed(() => Math.round(totalCount.value / selectedMonthCount.value));
 const peakMonthLabel = computed(() => {
-  if (!istData.value.length) return '';
+  if (!visibleIstData.value.length) return '';
   const key = metric.value === 'stunden' ? 'hours' : 'count';
-  const peak = istData.value.reduce((max, d) => (d[key] > max[key] ? d : max), istData.value[0]);
+  const peak = visibleIstData.value.reduce((max, item) => (item[key] > max[key] ? item : max), visibleIstData.value[0]);
   return `${monthNames[peak.month - 1]} ${peak.year}`;
 });
+
+function jobTierClass(count) {
+  if (count >= 1000) return 'job-tier-immortal';
+  if (count >= 500) return 'job-tier-legend';
+  if (count >= 201) return 'job-tier-rainbow';
+  if (count >= 101) return 'job-tier-onyx';
+  if (count >= 51) return 'job-tier-diamond';
+  if (count >= 21) return 'job-tier-gold';
+  if (count >= 6) return 'job-tier-silver';
+  return 'job-tier-bronze';
+}
 const activePlugins = computed(() => viewMode.value === 'monat' ? [sameMonthPlugin] : []);
 const drillPlugins = [todayLinePlugin];
 

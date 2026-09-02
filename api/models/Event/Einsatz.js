@@ -70,5 +70,6 @@ const EinsatzSchema = new mongoose.Schema({
 
 EinsatzSchema.index({ auftragNr: 1, datumVon: 1 });
 EinsatzSchema.index({ auftragNr: 1, idAuftragArbeitsschichten: 1, datumVon: 1 });
+EinsatzSchema.index({ personalNr: 1, datumVon: 1 });
 
 module.exports = mongoose.model('Einsatz', EinsatzSchema);

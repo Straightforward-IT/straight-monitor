@@ -1,27 +1,11 @@
 <template>
-  <div class="window">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="header-left">
-        <h1 data-page-title><font-awesome-icon :icon="['fas', 'file-signature']" /> Signaturen</h1>
-      </div>
-    </div>
-
-    <!-- Tabs -->
-    <div class="tab-bar">
-      <button
-        v-for="tab in tabs"
-        :key="tab.key"
-        class="tab"
-        :class="{ active: activeTab === tab.key }"
-        type="button"
-        @click="activeTab = tab.key"
-      >
-        <font-awesome-icon :icon="tab.icon" />
-        {{ tab.label }}
-      </button>
-    </div>
-
+  <PageLayout
+    v-model="activeTab"
+    :tabs="tabs"
+    aria-label="Signaturansicht"
+    width="full"
+    content-variant="surface"
+  >
     <!-- ───────────── TAB: SIGNATUREN ───────────── -->
     <template v-if="activeTab === 'signaturen'">
       <!-- Search + inline filter + count -->
@@ -233,7 +217,7 @@
         </div>
       </transition>
     </Teleport>
-  </div>
+  </PageLayout>
 </template>
 
 <script setup>
@@ -255,6 +239,7 @@ import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
+import PageLayout from '@/components/layout/PageLayout.vue';
 import SignaturCard from '@/components/SignaturCard.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
 import SignaturR2Browser from '@/components/SignaturR2Browser.vue';
@@ -275,9 +260,9 @@ const isAdmin = computed(() => {
 const STAR_KEY = 'signatur_starred';
 
 const tabs = [
-  { key: 'signaturen', label: 'Signaturen', icon: ['fas', 'list-check'] },
-  { key: 'templates',  label: 'Templates',  icon: ['fas', 'file-lines'] },
-  { key: 'ablage',     label: 'Ablage',     icon: ['fas', 'folder-open'] },
+  { id: 'signaturen', label: 'Signaturen', icon: ['fas', 'list-check'] },
+  { id: 'templates',  label: 'Templates',  icon: ['fas', 'file-lines'] },
+  { id: 'ablage',     label: 'Ablage',     icon: ['fas', 'folder-open'] },
 ];
 const activeTab = ref('signaturen');
 
@@ -628,28 +613,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.window {
-  padding: 24px;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-
-  h1 {
-    font-size: 1.4rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-}
-
 .btn-primary {
   display: inline-flex;
   align-items: center;
@@ -665,31 +628,6 @@ onUnmounted(() => {
   font-family: inherit;
   &:hover { background: color-mix(in srgb, var(--primary) 88%, #000); }
 }
-
-.tab-bar {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 18px;
-}
-.tab {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  margin-bottom: -1px;
-  &:hover { color: var(--text); }
-  &.active { color: var(--primary); border-bottom-color: var(--primary); }
-}
-
 
 .type-pills {
   display: flex;

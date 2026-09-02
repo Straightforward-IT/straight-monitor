@@ -1,5 +1,12 @@
 <template>
-  <div class="dokumente-page">
+  <PageLayout
+    v-model="activeReportTab"
+    :tabs="reportTabs"
+    aria-label="Dokumentenansicht"
+    width="full"
+    content-variant="surface"
+  >
+    <div class="dokumente-page">
     <!-- Document Management Section -->
     <div class="panel">
       <div class="controls">
@@ -62,10 +69,8 @@
               Nachpflege
             </button>
           </div>
-        </Toolbar>
-
-        <div v-if="!loading.documents && filteredDocumentsSorted.length > 0" class="search-sort">
-          <div class="pagination-compact">
+          <div v-if="!loading.documents && filteredDocumentsSorted.length > 0" class="view-controls-right">
+            <div class="pagination-compact">
             <div class="pagination-info-compact">
               <span class="pagination-text">{{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}</span>
               
@@ -101,8 +106,9 @@
                 <font-awesome-icon icon="fa-solid fa-chevron-right" />
               </button>
             </div>
+            </div>
           </div>
-        </div>
+        </Toolbar>
       </div>
 
       <div v-if="loading.documents" class="table skeleton">
@@ -205,29 +211,9 @@
             <font-awesome-icon :icon="statusIcon(doc.status)" :class="['status-icon', (doc.status || '').toLowerCase()]" />
           </div>
           <div class="actions-col" @click.stop>
-            <button class="btn-icon" @click="toggleQuickActions(doc.id || doc._id)">
+            <button class="btn-icon" @click="toggleQuickActions(doc, $event)">
               <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
             </button>
-            <div v-if="activeQuickActionId === (doc.id || doc._id)" class="quick-actions-menu">
-              <button @click="openDoc(doc)">
-                <font-awesome-icon icon="fa-solid fa-magnifying-glass" /> Details
-              </button>
-              <button @click="copyDocLink(doc)">
-                <font-awesome-icon icon="fa-solid fa-link" /> Link kopieren
-              </button>
-              <button 
-                v-if="doc.details?.name_teamleiter && personDetails[doc.details.name_teamleiter]?.asana_id" 
-                @click="openAsanaTask(doc.details.name_teamleiter, $event)"
-              >
-                <img :src="asanaLogo" alt="Asana" class="asana-icon" /> Teamleiter Task
-              </button>
-              <button 
-                v-if="doc.details?.name_mitarbeiter && doc.docType !== 'Event-Bericht' && personDetails[doc.details.name_mitarbeiter]?.asana_id" 
-                @click="openAsanaTask(doc.details.name_mitarbeiter, $event)"
-              >
-                <img :src="asanaLogo" alt="Asana" class="asana-icon" /> Mitarbeiter Task
-              </button>
-            </div>
           </div>
         </div>
 
@@ -245,7 +231,16 @@
       :mitarbeiterId="selectedMitarbeiter"
       @close="closeMitarbeiterCard"
     />
-  </div>
+    <ContextMenu
+      v-if="quickActionMenu.visible"
+      :x="quickActionMenu.x"
+      :y="quickActionMenu.y"
+      :options="quickActionOptions"
+      @close="closeQuickActionMenu"
+      @select="handleQuickAction"
+    />
+    </div>
+  </PageLayout>
 </template>
 
 <script>
@@ -263,7 +258,8 @@ import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
-import asanaLogo from '@/assets/asana.png';
+import PageLayout from '@/components/layout/PageLayout.vue';
+import ContextMenu from '@/components/ContextMenu.vue';
 
 import {
   faMagnifyingGlass,
@@ -274,6 +270,8 @@ import {
   faListCheck,
   faClipboard,
   faPenClip,
+  faFileLines,
+  faChartColumn,
   faFaceMehBlank,
   faXmark,
   faChevronUp,
@@ -304,6 +302,8 @@ library.add(
   faListCheck,
   faClipboard,
   faPenClip,
+  faFileLines,
+  faChartColumn,
   faFaceMehBlank,
   faCircleRegular,
   faXmark,
@@ -326,7 +326,7 @@ library.add(
 
 export default {
   name: "Dokumente",
-  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, EmployeeCardModal, SearchBar, Toolbar, ToolbarFilter, FilterGroup, FilterChip, FilterDivider },
+  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, EmployeeCardModal, SearchBar, Toolbar, ToolbarFilter, FilterGroup, FilterChip, FilterDivider, PageLayout, ContextMenu },
 
   setup() {
     const dataCache = useDataCache();
@@ -360,9 +360,11 @@ export default {
     }
 
     return {
-      // assets
-      asanaLogo,
-      
+      reportTabs: [
+        { id: 'dokumente', label: 'Dokumente', icon: ['fas', 'file-lines'], path: '/dokumente' },
+        { id: 'auswertung', label: 'Auswertung', icon: ['fas', 'chart-column'], path: '/teamleiter-auswertung' },
+        { id: 'nachpflege', label: 'Nachpflege', icon: ['fas', 'pen-clip'], path: '/dokumente-nachpflegen' },
+      ],
       // auth/user
       token: localStorage.getItem("token") || null,
       userLocation: "",
@@ -396,7 +398,7 @@ export default {
       pageOptions: [25, 50, 100],
 
       // ui
-      activeQuickActionId: null,
+      quickActionMenu: { visible: false, x: 0, y: 0, document: null },
       selectedMitarbeiter: null,
 
       // person details cache (for Asana links)
@@ -405,6 +407,33 @@ export default {
   },
 
   computed: {
+    quickActionOptions() {
+      const document = this.quickActionMenu.document;
+      if (!document) return [];
+
+      const options = [
+        { label: 'Details', action: 'details' },
+        { label: 'Link kopieren', action: 'copy-link' },
+      ];
+      if (document.details?.name_teamleiter && this.personDetails[document.details.name_teamleiter]?.asana_id) {
+        options.push({ label: 'Teamleiter Task', action: 'teamleiter-asana' });
+      }
+      if (document.details?.name_mitarbeiter
+        && document.docType !== 'Event-Bericht'
+        && this.personDetails[document.details.name_mitarbeiter]?.asana_id) {
+        options.push({ label: 'Mitarbeiter Task', action: 'mitarbeiter-asana' });
+      }
+      return options;
+    },
+    activeReportTab: {
+      get() {
+        return 'dokumente';
+      },
+      set(tabId) {
+        const tab = this.reportTabs.find((entry) => entry.id === tabId);
+        if (tab?.path && this.$route.path !== tab.path) this.$router.push(tab.path);
+      },
+    },
     activeFilterCount() {
       let count = 0;
       if (this.activeDocLocationFilter !== 'Alle') count++;
@@ -773,8 +802,8 @@ export default {
     },
 
     async openAsanaTask(name, event) {
-      event.stopPropagation();
-      event.preventDefault();
+      event?.stopPropagation();
+      event?.preventDefault();
       
       const person = await this.fetchPersonDetails(name);
       if (person?.asana_id) {
@@ -921,7 +950,7 @@ export default {
         filteredTeamleiter: this.filteredTeamleiter,
         filteredMitarbeiter: this.filteredMitarbeiter,
       });
-      this.activeQuickActionId = null;
+      this.closeQuickActionMenu();
 
       // Reflect the open document in the URL so it can be linked/shared
       const docId = doc._id || doc.id;
@@ -948,12 +977,31 @@ export default {
       }
     },
     
-    toggleQuickActions(id) {
-      if (this.activeQuickActionId === id) {
-        this.activeQuickActionId = null;
-      } else {
-        this.activeQuickActionId = id;
+    toggleQuickActions(document, event) {
+      if (this.quickActionMenu.document === document && this.quickActionMenu.visible) {
+        this.closeQuickActionMenu();
+        return;
       }
+      this.quickActionMenu = {
+        visible: true,
+        x: event.clientX,
+        y: event.clientY,
+        document,
+      };
+    },
+
+    closeQuickActionMenu() {
+      this.quickActionMenu = { visible: false, x: 0, y: 0, document: null };
+    },
+
+    handleQuickAction(action) {
+      const document = this.quickActionMenu.document;
+      if (!document) return;
+
+      if (action === 'details') this.openDoc(document);
+      else if (action === 'copy-link') this.copyDocLink(document);
+      else if (action === 'teamleiter-asana') this.openAsanaTask(document.details?.name_teamleiter);
+      else if (action === 'mitarbeiter-asana') this.openAsanaTask(document.details?.name_mitarbeiter);
     },
 
     copyDocLink(doc) {
@@ -968,15 +1016,10 @@ export default {
         document.execCommand('copy');
         document.body.removeChild(el);
       });
-      this.activeQuickActionId = null;
+      this.closeQuickActionMenu();
     },
 
     handleClickOutside(event) {
-      // Close menu if clicking outside
-      if (this.activeQuickActionId && !event.target.closest('.actions-col')) {
-        this.activeQuickActionId = null;
-      }
-
       if (this.searchExpanded && !event.target.closest('.filter-search-box') && !this.documentsSearchQuery) {
         this.searchExpanded = false;
       }
@@ -1150,7 +1193,7 @@ export default {
 }
 
 .panel {
-  background: var(--surface);
+  background: transparent;
   border-radius: 16px;
   padding: 20px;
 }
@@ -1266,19 +1309,11 @@ export default {
   margin: 0 2px;
 }
 
-.search-sort {
+.view-controls-right {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
   align-items: center;
-  justify-content: flex-end;
-}
-
-@media (max-width: 640px) {
-  .search-sort {
-    flex-direction: column;
-    align-items: stretch;
-  }
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 // Docs search toolbar (hidden on mobile)
@@ -1445,12 +1480,12 @@ export default {
   grid-template-columns: 40px 90px minmax(0, 1.8fr) minmax(0, 1.4fr) minmax(0, 1.2fr) 32px 32px;
   gap: 10px;
   align-items: center;
-  background: var(--surface);
+  background: transparent;
   border-top: 1px solid var(--border);
 }
 
 .table .thead {
-  background: var(--soft);
+  background: transparent;
   padding: 10px 14px;
   font-weight: 700;
   color: var(--text);
@@ -1477,11 +1512,11 @@ export default {
 .table .row {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: transparent;
 }
 
 .table .row:nth-child(odd) {
-  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+  background: transparent;
 }
 
 .truncate {
@@ -1743,42 +1778,6 @@ export default {
   color: var(--text);
 }
 
-.quick-actions-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  padding: 6px;
-  z-index: 100;
-  min-width: 160px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 4px;
-}
-
-.quick-actions-menu button {
-  text-align: left;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  padding: 10px 12px;
-  border-radius: 8px;
-  color: var(--text);
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  transition: background 0.15s;
-}
-
-.quick-actions-menu button:hover {
-  background: var(--soft);
-}
-
 /* Clickable Link Buttons */
 .link-btn {
   background: transparent;
@@ -1853,14 +1852,6 @@ export default {
       background: color-mix(in srgb, var(--brand) 25%, transparent);
     }
   }
-}
-
-/* Asana Icon in Menus */
-.asana-icon {
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-  vertical-align: middle;
 }
 
 /* ── Responsive table ─────────────────────────────────────────────── */

@@ -338,10 +338,7 @@
           <!-- Einsatz-Verlauf Chart -->
           <MitarbeiterEinsatzChart
             v-if="expanded && resolvedMa?._id"
-            :class="resolvedMa.einsatzCount > 0 ? jobTierClass(resolvedMa.einsatzCount) : null"
             :mitarbeiterId="resolvedMa._id.toString()"
-            :eintrittsdatum="resolvedMa.eintrittsdatum"
-            :einsatzCount="resolvedMa.einsatzCount || 0"
           />
           </template>
 

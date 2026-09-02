@@ -17,6 +17,11 @@ const {
 } = require("../../services/operations/LocationResolutionService");
 const User = require("../../models/System/User");
 const Einsatz = require("../../models/Event/Einsatz");
+const {
+  countForEmployee,
+  effectiveStart,
+  findForEmployee,
+} = require("../../services/operations/EinsatzCountingService");
 const Auftrag = require("../../models/Event/Auftrag");
 const Qualifikation = require("../../models/Event/Qualifikation");
 const { EventReport, EvaluierungMA, Laufzettel, LAUFZETTEL_STATUS } = require("../../models/Classes/FlipDocs");
@@ -3906,30 +3911,15 @@ router.get(
   auth,
   asyncHandler(async (req, res) => {
     const ma = await Mitarbeiter.findById(req.params.id)
-      .select("personalnr personalnummern")
+      .select("personalnr personalnummern personalnrHistory")
       .lean();
     if (!ma) return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
 
-    // Build set of all known personalNr values (Numbers, matching Einsatz.personalNr)
-    const pNrSet = new Set();
-    if (ma.personalnr) {
-      const n = Number(ma.personalnr);
-      if (!isNaN(n) && n > 0) pNrSet.add(n);
-    }
-    (ma.personalnummern || []).forEach(p => {
-      const n = Number(p);
-      if (!isNaN(n) && n > 0) pNrSet.add(n);
-    });
-    const pNrs = [...pNrSet];
-
-    if (!pNrs.length) return res.json({ ist: [], forecast: [] });
-
     const now = new Date();
-    const vonDate = req.query.von ? new Date(req.query.von) : new Date(2022, 0, 1);
+    const vonDate = req.query.von ? new Date(req.query.von) : null;
     const bisDate = req.query.bis
       ? new Date(req.query.bis)
       : new Date(now.getFullYear() + 1, 5, 30, 23, 59, 59);
-    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
     function parseHours(uhrzeitVon, uhrzeitBis, bedarf, endeOffen) {
       if (endeOffen === 1) return typeof bedarf === "number" ? bedarf : 0;
@@ -3961,22 +3951,23 @@ router.get(
         .sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
     }
 
-    const [istRaw, forecastRaw] = await Promise.all([
-      Einsatz.find({
-        personalNr: { $in: pNrs },
-        datumVon: { $gte: vonDate, $lte: endOfToday }
-      })
-        .select("datumVon uhrzeitVon uhrzeitBis bedarf endeOffen")
-        .lean(),
-      Einsatz.find({
-        personalNr: { $in: pNrs },
-        datumVon: { $gt: endOfToday, $lte: bisDate }
-      })
-        .select("datumVon uhrzeitVon uhrzeitBis bedarf endeOffen")
-        .lean()
+    const [rangeRecords, countAsOf] = await Promise.all([
+      findForEmployee(ma, {
+        ...(vonDate ? { from: vonDate } : {}),
+        through: bisDate,
+        select: "datumVon uhrzeitVon uhrzeitBis bedarf endeOffen isPseudo",
+      }),
+      countForEmployee(ma, { through: now }),
     ]);
+    const istRaw = rangeRecords.filter((record) => effectiveStart(record) <= now);
+    const forecastRaw = rangeRecords.filter((record) => effectiveStart(record) > now);
 
-    res.json({ ist: groupByMonth(istRaw), forecast: groupByMonth(forecastRaw) });
+    res.json({
+      ist: groupByMonth(istRaw),
+      forecast: groupByMonth(forecastRaw),
+      countAsOf,
+      countAsOfAt: now.toISOString(),
+    });
   })
 );
 

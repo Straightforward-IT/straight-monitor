@@ -1,7 +1,7 @@
 /**
  * Flip Rank Group Definitions
  *
- * Tiers sind nach Anzahl vergangener Einsätze gestaffelt.
+ * Tiers sind nach Anzahl gestarteter Einsätze gestaffelt.
  * Die Reihenfolge ist entscheidend: höchster Rang zuerst.
  */
 

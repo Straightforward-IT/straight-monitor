@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const router = express.Router();
 const Monitoring = require("../../models/Monitoring");
+const InventoryItem = require("../../models/Item_New");
 const PaketVorlage = require("../../models/System/PaketVorlage");
 const auth = require("../../middleware/auth");
 const Item = require("../../models/Deprecated/Item");
@@ -11,6 +12,10 @@ const {
   resolveLocationFromStandortName,
 } = require('../../services/operations/LocationResolutionService');
 const { findInventoryStock } = require('../../services/operations/InventoryService');
+const {
+  buildInventoryHistoryEvents,
+  buildInventoryHistoryFilter,
+} = require('../../services/operations/InventoryHistoryService');
 
 // Reverses the stock effect of a single monitoring item.
 // entnahme removed stock -> add it back; zugabe added stock -> remove it again.
@@ -84,6 +89,40 @@ router.get("/mitarbeiter/:mitarbeiterId", auth, asyncHandler(async (req, res) =>
     .sort({ timestamp: -1 })
     .lean();
   res.status(200).json(logs);
+}));
+
+// GET normalized monitoring history for an Item_New record
+router.get("/inventory-item/:itemId", auth, asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.itemId)) {
+    return res.status(400).json({ message: "Artikel-ID ist ungültig" });
+  }
+
+  const item = await InventoryItem.findById(req.params.itemId).lean();
+  if (!item) return res.status(404).json({ message: "Artikel nicht gefunden" });
+
+  const createdAt = item.createdAt || item._id.getTimestamp?.() || new Date(0);
+  const logs = await Monitoring.find(buildInventoryHistoryFilter({ ...item, createdAt }))
+    .sort({ timestamp: 1 })
+    .lean();
+
+  const enrichedLogs = await enrichPackageTemplateNames(logs);
+  const currentBestand = (item.bestaende || [])
+    .filter((stock) => stock.isActive !== false)
+    .reduce((total, stock) => total + Number(stock.bestand || 0), 0);
+
+  res.json({
+    item: {
+      _id: item._id,
+      bezeichnung: item.bezeichnung,
+      createdAt,
+      updatedAt: item.updatedAt,
+      isActive: item.isActive,
+      currentBestand,
+      variationen: item.variationen || [],
+      groessen: item.groessen || [],
+    },
+    events: buildInventoryHistoryEvents(item, enrichedLogs),
+  });
 }));
 
 // GET a specific monitoring log by ID

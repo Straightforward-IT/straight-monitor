@@ -1,5 +1,6 @@
 <template>
-  <div class="auftraege-page" :class="{ 'sidebar-open': selectedEvent }">
+  <PageLayout width="full" content-variant="surface">
+    <div class="auftraege-page" :class="{ 'sidebar-open': selectedEvent }">
     <div class="main-content">
     <Toolbar class="calendar-navigation">
       <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetAllFilters">
@@ -42,6 +43,21 @@
               <span class="label-text">{{ kunde.kundName }}</span>
             </label>
           </FilterDropdown>
+        </FilterGroup>
+        <FilterDivider />
+        <FilterGroup label="Einsätze">
+          <FilterChip
+            :active="filters.bedarfStatus.includes('voll')"
+            @click="toggleBedarfStatusFilter('voll')"
+          >Voll</FilterChip>
+          <FilterChip
+            :active="filters.bedarfStatus.includes('offen')"
+            @click="toggleBedarfStatusFilter('offen')"
+          >Offen</FilterChip>
+          <FilterChip
+            :active="filters.pseudoEinsatz"
+            @click="togglePseudoEinsatzFilter"
+          >Pseudo</FilterChip>
         </FilterGroup>
       </ToolbarFilter>
       <div class="nav-inner">
@@ -141,6 +157,13 @@
           @click="selectEvent(event)"
           @contextmenu.prevent="openOrderContextMenu($event, event)"
         >
+            <img
+              v-if="event.stundenlisteSignaturStatus === 'completed'"
+              :src="docusealLogo"
+              class="event-signature-complete"
+              alt="Stundenliste vollständig signiert"
+              title="Stundenliste vollständig signiert"
+            >
             <div class="event-header">
               <span v-if="event.auftStatus !== 2" class="event-status">{{ getStatusText(event.auftStatus) }}</span>
               <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
@@ -245,6 +268,13 @@
             @click="selectEvent(event)"
             @contextmenu.prevent="openOrderContextMenu($event, event)"
           >
+            <img
+              v-if="event.stundenlisteSignaturStatus === 'completed'"
+              :src="docusealLogo"
+              class="event-signature-complete"
+              alt="Stundenliste vollständig signiert"
+              title="Stundenliste vollständig signiert"
+            >
             <div class="event-header" v-if="event.auftStatus !== 2 || event.isPseudo">
               <span class="event-status">{{ getStatusText(event.auftStatus) }}</span>
               <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
@@ -595,15 +625,6 @@
                       @click.stop="downloadFile(stundenlisteStatus.signedPdfUrl, stundenlistePdfFilename(true))"
                     >
                       <font-awesome-icon icon="fa-solid fa-download" />
-                    </button>
-                    <button
-                      v-if="sidebarStundenliste.status === 'completed' && canSignaturen"
-                      class="einsatz-dok-action"
-                      type="button"
-                      title="Signaturprozess öffnen"
-                      @click.stop="openSignaturVorgang(sidebarStundenliste._id)"
-                    >
-                      <font-awesome-icon icon="fa-solid fa-file-signature" />
                     </button>
                     <button
                       v-if="sidebarStundenliste.status === 'open' && canSignaturen"
@@ -1189,7 +1210,8 @@
       </div>
     </div>
 
-  </div>
+    </div>
+  </PageLayout>
 
   <!-- Search dropdown — teleported to body to escape toolbar overflow clipping -->
   <Teleport to="body">
@@ -1239,6 +1261,7 @@ import { useCustomerModals } from '@/composables/useCustomerModals';
 import { useDocumentModals } from '@/composables/useDocumentModals';
 import { useEventModals } from '@/composables/useEventModals';
 import { useReisekostenModals } from '@/composables/useReisekostenModals';
+import PageLayout from '@/components/layout/PageLayout.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
@@ -1251,12 +1274,13 @@ import laufzettelIcon from '@/assets/laufzettel.png';
 import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
 import eventreportIcon from '@/assets/eventreport.png';
 import eventreportDarkIcon from '@/assets/eventreport-dark.png';
+import docusealLogo from '@/assets/docuseal-logo.webp';
 
 
 export default {
   name: "AuftraegePage",
   emits: ['mitarbeiter-drop'],
-  components: { FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu },
+  components: { PageLayout, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu },
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
@@ -1276,7 +1300,7 @@ export default {
         : false;
     };
 
-    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, restoreMinimizedStundenliste };
+    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, restoreMinimizedStundenliste, docusealLogo };
   },
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -1284,7 +1308,9 @@ export default {
     let filterDefaults = {
       locationV2: null,
       bediener: [],
-      kunden: []
+      kunden: [],
+      bedarfStatus: [],
+      pseudoEinsatz: false
     };
 
     if (savedFilters) {
@@ -1555,6 +1581,8 @@ export default {
       if (this.filters.locationV2) count++;
       if (this.filters.bediener.length > 0) count++;
       if (this.filters.kunden.length > 0) count++;
+      if (this.filters.bedarfStatus.length > 0) count++;
+      if (this.filters.pseudoEinsatz) count++;
       return count;
     },
     // Maps the active Location v2 filter to its Bundesland code.
@@ -1953,6 +1981,12 @@ export default {
         if (this.filters.kunden && this.filters.kunden.length > 0) {
           params.append('kunden', this.filters.kunden.join(','));
         }
+        if (this.filters.bedarfStatus.length > 0) {
+          params.append('bedarfStatus', this.filters.bedarfStatus.join(','));
+        }
+        if (this.filters.pseudoEinsatz) {
+          params.append('pseudoEinsatz', 'true');
+        }
         
         const response = await api.get(`/api/auftraege?${params.toString()}`);
         
@@ -1994,7 +2028,9 @@ export default {
       const filters = {
         locationV2: this.filters.locationV2,
         bediener: this.filters.bediener,
-        kunden: this.filters.kunden
+        kunden: this.filters.kunden,
+        bedarfStatus: this.filters.bedarfStatus,
+        pseudoEinsatz: this.filters.pseudoEinsatz
       };
       sessionStorage.setItem('auftraege_filters', JSON.stringify(filters));
     },
@@ -2031,10 +2067,27 @@ export default {
       this.saveFiltersToStorage();
       this.resetAndReload();
     },
+    togglePseudoEinsatzFilter() {
+      this.filters.pseudoEinsatz = !this.filters.pseudoEinsatz;
+      this.saveFiltersToStorage();
+      this.resetAndReload();
+    },
+    toggleBedarfStatusFilter(status) {
+      const idx = this.filters.bedarfStatus.indexOf(status);
+      if (idx === -1) {
+        this.filters.bedarfStatus.push(status);
+      } else {
+        this.filters.bedarfStatus.splice(idx, 1);
+      }
+      this.saveFiltersToStorage();
+      this.resetAndReload();
+    },
     resetAllFilters() {
       this.filters.locationV2 = null;
       this.filters.bediener = [];
       this.filters.kunden = [];
+      this.filters.bedarfStatus = [];
+      this.filters.pseudoEinsatz = false;
       // Clear storage on reset, then apply user defaults
       sessionStorage.removeItem('auftraege_filters');
       this.filters.locationV2 = this.getUserLocationId();
@@ -3064,6 +3117,10 @@ export default {
   
   display: flex;
   align-items: flex-start;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 .auftraege-page :deep(.location-filter-chip) {
@@ -3081,11 +3138,11 @@ export default {
 .main-content {
   flex: 1;
   min-width: 0;
-  padding: 0px 20px 20px;
+  padding: 0;
   /* Removed transition on margin-right as layout is now flex-driven */
 
   @media (max-width: 768px) {
-    padding: 8px;
+    padding: 0;
   }
 }
 
@@ -4074,6 +4131,23 @@ export default {
   &.bedarf-underbooked { border-left: 3px solid #eab308; }
   &.bedarf-full        { border-left: 3px solid #22c55e; }
   &.bedarf-overbooked  { border-left: 3px solid #15803d; }
+}
+
+.event-signature-complete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  filter: hue-rotate(135deg) saturate(0.9);
+  z-index: 1;
+}
+
+.event-card:has(.event-signature-complete) .event-title-row,
+.event-card-mobile:has(.event-signature-complete) .event-header,
+.event-card-mobile:has(.event-signature-complete) .event-title-row {
+  padding-right: 21px;
 }
 
 .event-title {

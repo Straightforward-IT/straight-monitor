@@ -122,23 +122,30 @@
         </div>
         <div class="nav-group nav-group--bestand">
           <router-link
-            :to="$route.name === 'Verlauf' ? '/verlauf' : '/bestand'"
+            :to="bestandNavTarget"
             :class="{ active: isBestandSectionActive }"
-          >{{ $route.name === 'Verlauf' ? 'Verlauf' : 'Bestand' }}</router-link>
+          >{{ bestandNavLabel }}</router-link>
           <div class="nav-submenu" aria-label="Bestand Untermenue">
             <router-link
-              v-if="$route.name !== 'Verlauf'"
+              v-if="bestandNavLabel !== 'Bestand'"
+              to="/bestand"
+              class="nav-submenu__link"
+            >
+              Bestand
+            </router-link>
+            <router-link
+              v-if="bestandNavLabel !== 'Verlauf'"
               to="/verlauf"
               class="nav-submenu__link"
             >
               Verlauf
             </router-link>
             <router-link
-              v-else
-              to="/bestand"
+              v-if="bestandNavLabel !== 'Graph'"
+              :to="{ path: '/verlauf', query: { tab: 'graph' } }"
               class="nav-submenu__link"
             >
-              Bestand
+              Graph
             </router-link>
           </div>
         </div>
@@ -418,16 +425,25 @@
               @click="closeMobileMenu"
             >
               <font-awesome-icon :icon="['fas', 'layer-group']" />
-              Übersicht
+              Bestand
             </router-link>
             <router-link
               to="/verlauf"
               class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Verlauf' }"
+              :class="{ active: $route.name === 'Verlauf' && $route.query.tab !== 'graph' }"
               @click="closeMobileMenu"
             >
               <font-awesome-icon :icon="['fas', 'history']" />
               Verlauf
+            </router-link>
+            <router-link
+              :to="{ path: '/verlauf', query: { tab: 'graph' } }"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Verlauf' && $route.query.tab === 'graph' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'chart-line']" />
+              Graph
             </router-link>
           </div>
         </div>
@@ -781,6 +797,15 @@ const auftraegeNavTarget = computed(() => auftraegeNavLabel.value === 'Pseudo-Au
   ? { path: '/auftraege', query: { openPseudo: '1' } }
   : '/auftraege');
 const isBestandSectionActive = computed(() => ['Bestand', 'Verlauf'].includes(route.name));
+const bestandNavLabel = computed(() => {
+  if (route.name === 'Verlauf') return route.query.tab === 'graph' ? 'Graph' : 'Verlauf';
+  return 'Bestand';
+});
+const bestandNavTarget = computed(() => {
+  if (bestandNavLabel.value === 'Graph') return { path: '/verlauf', query: { tab: 'graph' } };
+  if (bestandNavLabel.value === 'Verlauf') return '/verlauf';
+  return '/bestand';
+});
 const isReportsSectionActive = computed(() => ['Dokumente', 'DokumenteNachpflegen', 'TeamleiterAuswertung'].includes(route.name));
 const reportsNavLabel = computed(() => {
   const m = { Dokumente: 'Reports', DokumenteNachpflegen: 'Nachpflege', TeamleiterAuswertung: 'Auswertung' };

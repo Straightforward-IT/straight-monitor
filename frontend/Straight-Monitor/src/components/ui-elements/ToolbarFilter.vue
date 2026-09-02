@@ -42,7 +42,9 @@
         </button>
         <div class="tf-content">
           <div class="tf-scroll">
+            <FilterDivider class="tf-edge-divider" aria-hidden="true" />
             <slot />
+            <FilterDivider class="tf-edge-divider" aria-hidden="true" />
           </div>
         </div>
         <button
@@ -88,6 +90,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faFilter, faXmark, faRotateLeft } from '@fortawesome/free-solid-svg-icons';
 import CustomTooltip from '@/components/CustomTooltip.vue';
+import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 
 library.add(faFilter, faXmark, faRotateLeft);
 
@@ -270,6 +273,10 @@ function toggle() {
       border-color: transparent;
       box-shadow: none;
     }
+
+    &::before {
+      display: none;
+    }
   }
 
   :deep(.filter-group-label) {
@@ -291,6 +298,19 @@ function toggle() {
   // Shorter divider
   :deep(.filter-divider) {
     height: 20px;
+    flex-shrink: 0;
+    transition: background 0.15s ease;
+  }
+
+  :deep(.filter-divider:has(+ .filter-group:hover)),
+  :deep(.filter-group:hover + .filter-divider) {
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      var(--primary) 20%,
+      var(--primary) 80%,
+      transparent 100%
+    );
   }
 }
 

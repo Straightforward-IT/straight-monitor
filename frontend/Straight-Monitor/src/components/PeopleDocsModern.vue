@@ -1,14 +1,12 @@
 <template>
-  <div class="people-page">
-    <div class="people-tab-controls">
-      <nav class="people-tabs" aria-label="Personalansicht">
-        <button type="button" :class="{ active: activeTab === 'mitarbeiter' }" @click="activeTab = 'mitarbeiter'">Mitarbeiter</button>
-        <button type="button" :class="{ active: activeTab === 'bewerber' }" @click="activeTab = 'bewerber'">Bewerber</button>
-      </nav>
-    </div>
-
-    <main class="main">
-      <section class="panel">
+  <PageLayout
+    v-model="activeTab"
+    :tabs="tabs"
+    aria-label="Personalansicht"
+    width="full"
+    content-variant="surface"
+  >
+    <div class="people-page">
         <!-- ============== EMPLOYEE VIEW ============== -->
         <template v-if="activeTab === 'mitarbeiter'">
           <!-- Minimierbare Filter-Sektion -->
@@ -446,8 +444,7 @@
         </div>
         </template>
         <BewerberTab v-else :initial-applicant-id="$route.query.bewerber_id || ''" />
-      </section>
-    </main>
+    </div>
     
     <!-- Export Modal -->
     <ExportMitarbeiterModal
@@ -455,54 +452,6 @@
       :mitarbeiter-list="selectedMitarbeiterData"
       @close="showExportModal = false"
     />
-
-    <!-- Teleported Quick Actions Menu (List View) -->
-    <teleport to="body">
-      <div v-if="activeQuickActionId && activeQuickActionMa" class="list-qa-overlay" @click="activeQuickActionId = null">
-        <div 
-          class="list-qa-menu"
-          :style="quickActionMenuStyle"
-          @click.stop
-        >
-          <!-- Kontakt Actions -->
-          <div v-if="getPhoneNumber(activeQuickActionMa) || activeQuickActionMa.email" class="list-qa-group">
-            <div class="list-qa-group-label">Kontakt</div>
-            <button 
-              v-if="getPhoneNumber(activeQuickActionMa)"
-              class="list-qa-item"
-              @click="executeQuickAction(activeQuickActionMa, 'sipgate')"
-            >
-              <font-awesome-icon icon="fa-solid fa-phone" />
-              {{ getPhoneNumber(activeQuickActionMa) }}
-            </button>
-            <button 
-              v-if="activeQuickActionMa.email"
-              class="list-qa-item"
-              @click="executeQuickAction(activeQuickActionMa, 'outlook')"
-            >
-              <font-awesome-icon icon="fa-solid fa-envelope" />
-              {{ activeQuickActionMa.email }}
-            </button>
-          </div>
-          <!-- Aktionen -->
-          <div class="list-qa-group">
-            <div class="list-qa-group-label">Aktionen</div>
-            <button class="list-qa-item" @click="executeQuickAction(activeQuickActionMa, 'profile')">
-              <font-awesome-icon icon="fa-solid fa-user" />
-              Profil
-            </button>
-            <button class="list-qa-item" @click="executeQuickAction(activeQuickActionMa, 'upload-photo')">
-              <font-awesome-icon icon="fa-solid fa-camera" />
-              Bild hochladen
-            </button>
-            <button class="list-qa-item" @click="executeQuickAction(activeQuickActionMa, 'edit')">
-              <font-awesome-icon icon="fa-solid fa-edit" />
-              Bearbeiten
-            </button>
-          </div>
-        </div>
-      </div>
-    </teleport>
 
     <!-- Profilbild Upload Modal -->
     <teleport to="body">
@@ -513,12 +462,13 @@
         @uploaded="onProfilbildUploaded"
       />
     </teleport>
-  </div>
+  </PageLayout>
 </template>
 
 <script>
 import api from "@/utils/api";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import PageLayout from "@/components/layout/PageLayout.vue";
 import CustomTooltip from './CustomTooltip.vue';
 import EmployeeCard from "@/components/EmployeeCard.vue";
 import BewerberTab from "@/components/BewerberTab.vue";
@@ -623,7 +573,7 @@ library.add(
 
 export default {
   name: "Personal",
-  components: { FontAwesomeIcon, EmployeeCard, BewerberTab, CustomTooltip, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar, SortMenu },
+  components: { FontAwesomeIcon, PageLayout, EmployeeCard, BewerberTab, CustomTooltip, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar, SortMenu },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -643,6 +593,10 @@ export default {
   data() {
     return {
       activeTab: this.$route.query.tab === 'bewerber' ? 'bewerber' : 'mitarbeiter',
+      tabs: [
+        { id: 'mitarbeiter', label: 'Mitarbeiter', icon: ['fas', 'users'] },
+        { id: 'bewerber', label: 'Bewerber', icon: ['fas', 'user-plus'] },
+      ],
       // auth/user
       token: localStorage.getItem("token") || null,
       userEmail: "",
@@ -1771,15 +1725,6 @@ export default {
   --ok: #21a26a;
   --warn: #f6a019;
   --bad: #e25555;
-  width: 100%;
-  max-width: 1600px;
-  height: 100%;
-  margin: 0 auto;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  box-sizing: border-box;
 }
 
 .people-page :deep(.location-filter-chip) {
@@ -1794,18 +1739,6 @@ export default {
   color: var(--location-color);
 }
 
-.main {
-  flex: 1;
-  min-height: 0;
-  background: var(--tile-bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow-y: auto;
-}
-.panel {
-  padding: 24px;
-}
-
 /* Controls */
 .controls {
   display: grid;
@@ -1813,58 +1746,7 @@ export default {
   margin-bottom: 4px;
 }
 
-.people-tab-controls {
-  flex-shrink: 0;
-}
-
-.people-tabs {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-  padding-bottom: 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.people-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.people-tabs button {
-  background: transparent;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  padding: 8px 16px;
-  color: var(--muted);
-  font: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: all 0.2s;
-}
-
-.people-tabs button:hover {
-  color: var(--text);
-  background: var(--hover);
-  border-radius: 6px 6px 0 0;
-}
-
-.people-tabs button.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
-  background: transparent;
-}
-
 @media (max-width: 768px) {
-  .people-page {
-    padding: 12px;
-    gap: 10px;
-  }
-
-  .panel {
-    padding: 12px;
-  }
 }
 
 /* View Controls */

@@ -148,8 +148,8 @@
               :class="{ 'checked-in': isTeamleiter && ma.checkedIn && !ma.noShow, 'nicht-erschienen': isTeamleiter && ma.noShow, 'is-teamleiter': ma.isTeamleiter, 'ma-card--readonly': !isTeamleiter }"
             >
               <TlBadge v-if="ma.isTeamleiter" class="tl-badge--corner" />
-              <div v-if="ma.einsatzNr" class="job-nr-badge" :class="jobTierClass(ma.einsatzNr)" :title="`Einsatz ${ma.einsatzNr}`">
-                <span class="job-nr-text">{{ ma.einsatzNr }}. Job</span>
+              <div v-if="ma.einsatzOrdinal" class="job-nr-badge" :class="jobTierClass(ma.einsatzOrdinal)" :title="`Einsatz ${ma.einsatzOrdinal}`">
+                <span class="job-nr-text">{{ ma.einsatzOrdinal }}. Job</span>
               </div>
               <div v-if="isTeamleiter" class="ma-check" :class="{ 'ma-check--noshow': ma.noShow }" @click="toggleCheckIn(ma)">
                 <font-awesome-icon :icon="ma.noShow ? 'fa-solid fa-circle-xmark' : ma.checkedIn ? 'fa-solid fa-circle-check' : ['far', 'circle']" />

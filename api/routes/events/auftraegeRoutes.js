@@ -223,10 +223,10 @@ router.get('/filters', async (req, res) => {
 });
 
 // GET /api/auftraege - List auftraege with date filtering
-// Query params: from, to (ISO date strings), locationV2 (ObjectId), bediener (comma-separated string), kunden (comma-separated numbers)
+// Query params: from, to (ISO date strings), locationV2 (ObjectId), bediener (comma-separated string), kunden (comma-separated numbers), bedarfStatus (voll/offen), pseudoEinsatz (boolean)
 router.get('/', async (req, res) => {
   try {
-    const { from, to, locationV2, bediener, kunden: kundenQuery } = req.query;
+    const { from, to, locationV2, bediener, kunden: kundenQuery, bedarfStatus, pseudoEinsatz } = req.query;
     
     const query = {};
     
@@ -269,6 +269,10 @@ router.get('/', async (req, res) => {
       if (kundenList.length > 0) {
         query.kundenNr = { $in: kundenList };
       }
+    }
+
+    if (pseudoEinsatz === 'true') {
+      query.auftragNr = { $in: await Einsatz.distinct('auftragNr', { isPseudo: true }) };
     }
     
     // Only get active/confirmed auftraege (auftStatus = 2 based on import query)
@@ -400,7 +404,7 @@ router.get('/', async (req, res) => {
     });
 
     // Merge data
-    const result = auftraege.map(a => ({
+    let result = auftraege.map(a => ({
       ...a,
       kundeData: kundenMap[a.kundenNr] || null,
       einsaetzeCount: countMap[a.auftragNr] || 0,
@@ -410,6 +414,23 @@ router.get('/', async (req, res) => {
       schichten: schichtenDisplayMap[a.auftragNr] || [],
       stundenlisteSignaturStatus: stundenlisteSignaturStatusMap[a.auftragNr] || null
     }));
+
+    if (bedarfStatus) {
+      const requested = new Set(bedarfStatus.split(',').map(status => status.trim()).filter(Boolean));
+      const allowedStatuses = new Set();
+      if (requested.has('voll')) {
+        allowedStatuses.add('full');
+        allowedStatuses.add('overbooked');
+      }
+      if (requested.has('offen')) {
+        allowedStatuses.add('all-empty');
+        allowedStatuses.add('some-empty');
+        allowedStatuses.add('underbooked');
+      }
+      if (allowedStatuses.size > 0) {
+        result = result.filter(auftrag => allowedStatuses.has(auftrag.schichtStatus));
+      }
+    }
     
     res.json(result);
     

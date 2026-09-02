@@ -3372,7 +3372,6 @@ onBeforeUnmount(() => {
 .main-content {
   flex: 1;
   min-width: 0;
-  padding: 24px 24px 24px 24px;
 }
 
 /* ── Toolbar ─────────────────────────────────────────────────────── */

@@ -1,6 +1,7 @@
 <template>
   <Transition name="dispo-fs">
-  <div class="dispo-page" :class="{ 'fullscreen-mode': isFullscreen }">
+  <PageLayout width="full" content-variant="surface">
+    <div class="dispo-page" :class="{ 'fullscreen-mode': isFullscreen }">
     <!-- Page header (knechti only) -->
     <div v-if="!isFullscreen && isKnechti && !isMobile" class="page-header page-header--knechti">
       <h1 class="knechti-title">KNECHTI-LISTE</h1>
@@ -1676,7 +1677,8 @@
         <font-awesome-icon icon="fa-solid fa-eraser" class="ctx-item-icon" /> Löschen
       </button>
     </ActionMenu>
-  </div>
+    </div>
+  </PageLayout>
   </Transition>
 </template>
 
@@ -1715,6 +1717,7 @@ import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import AnnouncementModal from '@/components/ui-elements/AnnouncementModal.vue';
+import PageLayout from '@/components/layout/PageLayout.vue';
 
 const auth = useAuth();
 const dataCache = useDataCache();
@@ -4514,7 +4517,6 @@ const dispoAnnouncements = [
 @import "@/assets/styles/global.scss";
 
 .dispo-page {
-  padding: 0.5rem 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -4831,10 +4833,10 @@ const dispoAnnouncements = [
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0;
-  margin-left: -1.5rem;
-  margin-right: -1.5rem;
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
+  margin-left: -24px;
+  margin-right: -24px;
+  padding-left: 24px;
+  padding-right: 24px;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
