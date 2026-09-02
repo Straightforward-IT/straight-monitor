@@ -6,6 +6,7 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
 import { useTheme } from '@/stores/theme';
+import { useAuth } from '@/stores/auth';
 
 // Modal Dock
 import { createModalDock } from '@bleck-it/vue-modal-dock';
@@ -112,6 +113,7 @@ import {
   faFilter,
   faFloppyDisk,
   faFolderOpen,
+  faFolder,
   faFont,
   faGear,
   faGlobe,
@@ -304,6 +306,7 @@ library.add(
   faFilter,
   faFloppyDisk,
   faFolderOpen,
+  faFolder,
   faFont,
   faGear,
   faGlobe,
@@ -460,5 +463,18 @@ app
 
 // Theme erst initialisieren, nachdem Pinia registriert wurde.
 useTheme(pinia).init();
+
+async function initializeErudaForAdmin() {
+  await router.isReady();
+
+  const auth = useAuth(pinia);
+  if (!auth.user && auth.token) await auth.fetchMe().catch(() => null);
+  if (!auth.user?.roles?.includes('ADMIN')) return;
+
+  const { default: eruda } = await import('eruda');
+  eruda.init();
+}
+
+void initializeErudaForAdmin();
 
 app.mount('#app');

@@ -1187,6 +1187,39 @@ async function getDriveItemById(token, upn, itemId) {
   return data;
 }
 
+async function downloadDriveItemBuffer(token, upn, itemId) {
+  const { data, headers } = await axios.get(
+    `${GRAPH}/users/${encodeURIComponent(upn)}/drive/items/${encodeURIComponent(itemId)}/content`,
+    { headers: { Authorization: `Bearer ${token}` }, responseType: 'arraybuffer' }
+  );
+  return { buffer: Buffer.from(data), contentType: headers['content-type'] || 'application/octet-stream' };
+}
+
+async function deleteDriveItem(token, upn, itemId) {
+  await axios.delete(
+    `${GRAPH}/users/${encodeURIComponent(upn)}/drive/items/${encodeURIComponent(itemId)}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+}
+
+async function renameDriveItem(token, upn, itemId, name) {
+  const { data } = await axios.patch(
+    `${GRAPH}/users/${encodeURIComponent(upn)}/drive/items/${encodeURIComponent(itemId)}`,
+    { name },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  return data;
+}
+
+async function moveDriveItem(token, upn, itemId, parentItemId) {
+  const { data } = await axios.patch(
+    `${GRAPH}/users/${encodeURIComponent(upn)}/drive/items/${encodeURIComponent(itemId)}`,
+    { parentReference: { id: parentItemId } },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  return data;
+}
+
 /**
  * Gibt eine temporäre Embed-Vorschau-URL zurück (Office, Bilder, PDF usw.).
  * POST /drive/items/{id}/preview → { getUrl }
@@ -1274,6 +1307,10 @@ module.exports = {
   getDriveItemChildren,
   getDriveItemChildrenDirect,
   getDriveItemById,
+  downloadDriveItemBuffer,
+  deleteDriveItem,
+  renameDriveItem,
+  moveDriveItem,
   getDriveItemPreviewUrl,
   uploadDriveItem,
   getOneDriveFolderTree,

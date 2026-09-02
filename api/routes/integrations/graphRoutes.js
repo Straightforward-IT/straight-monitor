@@ -2,7 +2,12 @@
 const express = require("express");
 const axios = require("axios");
 const he = require("he");
+const multer = require("multer");
 const router = express.Router();
+const driveUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
 
 const {
   ensureGraphMailSubscription,
@@ -32,6 +37,9 @@ const {
   getDriveItemChildren,
   getDriveItemById,
   getDriveItemChildrenDirect,
+  deleteDriveItem,
+  renameDriveItem,
+  moveDriveItem,
   getDriveItemPreviewUrl,
   uploadDriveItem,
   getOneDriveFolderTree,
@@ -43,6 +51,7 @@ const { runApplicantMailRetentionCleanup } = require("../../services/employee/Ap
 const registry = require("../../config/registry");
 const { createTaskFromEmail } = require("../../services/integrations/AsanaService");
 const User = require("../../models/System/User");
+const Location = require("../../models/System/Location");
 const asyncHandler = require("../../middleware/AsyncHandler");
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
@@ -661,6 +670,199 @@ function getMailboxUpnForTeam(team) {
   return registry.getGraphMailboxUpn(team) || null;
 }
 
+async function resolveSpaceLocation(req, locationId) {
+  const user = await User.findById(req.user.id).select('role roles locationV2 locationAccess').lean();
+  const isAdmin = user?.role === 'ADMIN' || user?.roles?.includes('ADMIN');
+  const location = await Location.findById(locationId).lean();
+  if (!location?.isActive || !location.spaceFolder?.folderId || !location.spaceFolder?.teamKey) return null;
+  const allowed = isAdmin
+    || String(user?.locationV2 || '') === String(location._id)
+    || (user?.locationAccess || []).some((id) => String(id) === String(location._id));
+  return allowed ? location : null;
+}
+
+async function isSpaceDescendant(token, userPrincipalName, itemId, rootFolderId) {
+  let currentId = itemId;
+  for (let depth = 0; currentId && depth < 50; depth += 1) {
+    if (String(currentId) === String(rootFolderId)) return true;
+    const item = await getDriveItemById(token, userPrincipalName, currentId);
+    currentId = item.parentReference?.id;
+  }
+  return false;
+}
+
+router.get('/spaces', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('role roles locationV2 locationAccess').lean();
+    const isAdmin = user?.role === 'ADMIN' || user?.roles?.includes('ADMIN');
+    const ids = isAdmin ? [] : [user?.locationV2, ...(user?.locationAccess || [])].filter(Boolean);
+    const filter = isAdmin ? { isActive: true } : { _id: { $in: ids }, isActive: true };
+    const locations = await Location.find(filter).select('nameFull shortName color spaceFolder').sort({ nameFull: 1 }).lean();
+    res.json({ ok: true, spaces: locations.filter((location) => location.spaceFolder?.folderId && location.spaceFolder?.teamKey) });
+  } catch (error) {
+    logGraphError('GET /spaces failed', error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+router.get('/spaces/:locationId/children', auth, async (req, res) => {
+  try {
+    const location = await resolveSpaceLocation(req, req.params.locationId);
+    if (!location) return res.status(403).json({ ok: false, error: 'Kein Zugriff auf diesen Standort-Space.' });
+    const team = registry.getTeam(location.spaceFolder.teamKey);
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) return res.status(400).json({ ok: false, error: 'Für diesen Standort ist kein OneDrive eingerichtet.' });
+    const itemId = req.query.itemId || location.spaceFolder.folderId;
+    const token = await getAppToken();
+    if (!await isSpaceDescendant(token, userPrincipalName, itemId, location.spaceFolder.folderId)) {
+      return res.status(403).json({ ok: false, error: 'Der Ordner liegt außerhalb dieses Standort-Spaces.' });
+    }
+    const items = await getDriveItemChildrenDirect(token, userPrincipalName, itemId);
+    res.json({ ok: true, location: { _id: location._id, nameFull: location.nameFull }, items });
+  } catch (error) {
+    logGraphError('GET /spaces/:locationId/children failed', error);
+    res.status(500).json({ ok: false, error: error?.response?.data || error.message });
+  }
+});
+
+router.get('/spaces/:locationId/download/:itemId', auth, async (req, res) => {
+  try {
+    const location = await resolveSpaceLocation(req, req.params.locationId);
+    if (!location) return res.status(403).json({ ok: false, error: 'Kein Zugriff auf diesen Standort-Space.' });
+    const team = registry.getTeam(location.spaceFolder.teamKey);
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) return res.status(400).json({ ok: false, error: 'Für diesen Standort ist kein OneDrive eingerichtet.' });
+    const token = await getAppToken();
+    const itemId = req.params.itemId;
+    if (!await isSpaceDescendant(token, userPrincipalName, itemId, location.spaceFolder.folderId)) {
+      return res.status(403).json({ ok: false, error: 'Die Datei liegt außerhalb dieses Standort-Spaces.' });
+    }
+    const item = await getDriveItemById(token, userPrincipalName, itemId);
+    if (!item.file) return res.status(400).json({ ok: false, error: 'Nur Dateien können heruntergeladen werden.' });
+
+    const file = await axios.get(
+      `${GRAPH}/users/${encodeURIComponent(userPrincipalName)}/drive/items/${encodeURIComponent(itemId)}/content`,
+      { headers: { Authorization: `Bearer ${token}` }, responseType: 'stream' }
+    );
+    const fileName = String(item.name || 'download').replace(/["\r\n]/g, '_');
+    res.setHeader('Content-Type', file.headers['content-type'] || item.file.mimeType || 'application/octet-stream');
+    if (file.headers['content-length']) res.setHeader('Content-Length', file.headers['content-length']);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(item.name || 'download')}`);
+    file.data.pipe(res);
+  } catch (error) {
+    logGraphError('GET /spaces/:locationId/download/:itemId failed', error);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: error?.response?.data || error.message });
+  }
+});
+
+router.delete('/spaces/:locationId/items/:itemId', auth, async (req, res) => {
+  try {
+    const location = await resolveSpaceLocation(req, req.params.locationId);
+    if (!location) return res.status(403).json({ ok: false, error: 'Kein Zugriff auf diesen Standort-Space.' });
+    const team = registry.getTeam(location.spaceFolder.teamKey);
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) return res.status(400).json({ ok: false, error: 'Für diesen Standort ist kein OneDrive eingerichtet.' });
+    const itemId = req.params.itemId;
+    if (String(itemId) === String(location.spaceFolder.folderId)) {
+      return res.status(400).json({ ok: false, error: 'Der Stammordner eines Standort-Spaces kann nicht gelöscht werden.' });
+    }
+    const token = await getAppToken();
+    if (!await isSpaceDescendant(token, userPrincipalName, itemId, location.spaceFolder.folderId)) {
+      return res.status(403).json({ ok: false, error: 'Die Datei liegt außerhalb dieses Standort-Spaces.' });
+    }
+    const item = await getDriveItemById(token, userPrincipalName, itemId);
+    if (!item.file) return res.status(400).json({ ok: false, error: 'Ordner können hier nicht gelöscht werden.' });
+    await deleteDriveItem(token, userPrincipalName, itemId);
+    res.json({ ok: true, itemId });
+  } catch (error) {
+    logGraphError('DELETE /spaces/:locationId/items/:itemId failed', error);
+    res.status(500).json({ ok: false, error: error?.response?.data || error.message });
+  }
+});
+
+router.patch('/spaces/:locationId/items/:itemId', auth, async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    if (!name || name.length > 255 || /[\\/:*?"<>|\r\n]/.test(name)) {
+      return res.status(400).json({ ok: false, error: 'Der Dateiname ist ungültig.' });
+    }
+    const location = await resolveSpaceLocation(req, req.params.locationId);
+    if (!location) return res.status(403).json({ ok: false, error: 'Kein Zugriff auf diesen Standort-Space.' });
+    const team = registry.getTeam(location.spaceFolder.teamKey);
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) return res.status(400).json({ ok: false, error: 'Für diesen Standort ist kein OneDrive eingerichtet.' });
+    const itemId = req.params.itemId;
+    const token = await getAppToken();
+    if (!await isSpaceDescendant(token, userPrincipalName, itemId, location.spaceFolder.folderId)) {
+      return res.status(403).json({ ok: false, error: 'Die Datei liegt außerhalb dieses Standort-Spaces.' });
+    }
+    const item = await getDriveItemById(token, userPrincipalName, itemId);
+    if (!item.file) return res.status(400).json({ ok: false, error: 'Ordner können hier nicht umbenannt werden.' });
+    const renamedItem = await renameDriveItem(token, userPrincipalName, itemId, name);
+    res.json({ ok: true, item: { id: renamedItem.id, name: renamedItem.name } });
+  } catch (error) {
+    logGraphError('PATCH /spaces/:locationId/items/:itemId failed', error);
+    res.status(500).json({ ok: false, error: error?.response?.data || error.message });
+  }
+});
+
+router.post('/spaces/:locationId/upload', auth, driveUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ ok: false, error: 'Datei erforderlich.' });
+    const location = await resolveSpaceLocation(req, req.params.locationId);
+    if (!location) return res.status(403).json({ ok: false, error: 'Kein Zugriff auf diesen Standort-Space.' });
+    const team = registry.getTeam(location.spaceFolder.teamKey);
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) return res.status(400).json({ ok: false, error: 'Für diesen Standort ist kein OneDrive eingerichtet.' });
+    const parentItemId = req.body?.parentItemId || location.spaceFolder.folderId;
+    const token = await getAppToken();
+    if (!await isSpaceDescendant(token, userPrincipalName, parentItemId, location.spaceFolder.folderId)) {
+      return res.status(403).json({ ok: false, error: 'Der Zielordner liegt außerhalb dieses Standort-Spaces.' });
+    }
+    const parent = await getDriveItemById(token, userPrincipalName, parentItemId);
+    if (!parent.folder) return res.status(400).json({ ok: false, error: 'Das Upload-Ziel muss ein Ordner sein.' });
+    const item = await uploadDriveItem(token, userPrincipalName, parentItemId, req.file.originalname, req.file.buffer, req.file.mimetype);
+    res.status(201).json({ ok: true, item });
+  } catch (error) {
+    logGraphError('POST /spaces/:locationId/upload failed', error);
+    res.status(500).json({ ok: false, error: error?.response?.data || error.message });
+  }
+});
+
+router.post('/spaces/:locationId/items/:itemId/move', auth, async (req, res) => {
+  try {
+    const targetFolderId = String(req.body?.targetFolderId || '').trim();
+    if (!targetFolderId) return res.status(400).json({ ok: false, error: 'Zielordner erforderlich.' });
+    const location = await resolveSpaceLocation(req, req.params.locationId);
+    if (!location) return res.status(403).json({ ok: false, error: 'Kein Zugriff auf diesen Standort-Space.' });
+    const itemId = req.params.itemId;
+    if (String(itemId) === String(location.spaceFolder.folderId)) return res.status(400).json({ ok: false, error: 'Der Stammordner kann nicht verschoben werden.' });
+    const team = registry.getTeam(location.spaceFolder.teamKey);
+    const userPrincipalName = getMailboxUpnForTeam(team);
+    if (!userPrincipalName) return res.status(400).json({ ok: false, error: 'Für diesen Standort ist kein OneDrive eingerichtet.' });
+    const token = await getAppToken();
+    const [sourceAllowed, targetAllowed] = await Promise.all([
+      isSpaceDescendant(token, userPrincipalName, itemId, location.spaceFolder.folderId),
+      isSpaceDescendant(token, userPrincipalName, targetFolderId, location.spaceFolder.folderId),
+    ]);
+    if (!sourceAllowed || !targetAllowed) return res.status(403).json({ ok: false, error: 'Quelle oder Ziel liegt außerhalb dieses Standort-Spaces.' });
+    const [item, targetFolder] = await Promise.all([
+      getDriveItemById(token, userPrincipalName, itemId),
+      getDriveItemById(token, userPrincipalName, targetFolderId),
+    ]);
+    if (!targetFolder.folder) return res.status(400).json({ ok: false, error: 'Das Ziel muss ein Ordner sein.' });
+    if (String(item.parentReference?.id) === targetFolderId) return res.json({ ok: true, item });
+    if (item.folder && await isSpaceDescendant(token, userPrincipalName, targetFolderId, itemId)) {
+      return res.status(400).json({ ok: false, error: 'Ein Ordner kann nicht in sich selbst verschoben werden.' });
+    }
+    const movedItem = await moveDriveItem(token, userPrincipalName, itemId, targetFolderId);
+    res.json({ ok: true, item: movedItem });
+  } catch (error) {
+    logGraphError('POST /spaces/:locationId/items/:itemId/move failed', error);
+    res.status(500).json({ ok: false, error: error?.response?.data || error.message });
+  }
+});
+
 /* ------------------------- Mailbox Dashboard ------------------------------ */
 
 router.get("/mailboxes/accounts", auth, async (req, res) => {
@@ -939,12 +1141,6 @@ router.delete("/contacts/:contactId", auth, async (req, res) => {
 });
 
 /* ----------------------------- OneDrive ---------------------------------- */
-
-const multer = require("multer");
-const driveUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
-});
 
 // GET /api/graph/drive/tree?team=<key>
 // Liefert den vollständigen OneDrive-Ordner/Datei-Baum für das Team-Postfach.

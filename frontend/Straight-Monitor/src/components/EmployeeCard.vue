@@ -6772,16 +6772,7 @@ export default {
 }
 
 .employee-tabs-shell .card-actions .icon-btn.active .tab-brand {
-  background-color: var(--accent, var(--primary));
-  background-image: none;
-  -webkit-mask-image: var(--tab-brand-image);
-  -webkit-mask-position: center;
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-size: contain;
-  mask-image: var(--tab-brand-image);
-  mask-position: center;
-  mask-repeat: no-repeat;
-  mask-size: contain;
+  background-image: var(--tab-brand-image);
 }
 
 .employee-tabs-shell .tab-logo-pair {

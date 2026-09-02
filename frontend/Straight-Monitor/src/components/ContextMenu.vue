@@ -9,8 +9,10 @@
         v-for="(option, idx) in options"
         :key="idx"
         class="context-menu-item"
+        :class="{ 'context-menu-item--special': option.special }"
         @click="selectOption(option)"
       >
+        <img v-if="option.image" :src="option.image" class="context-menu-item__image" alt="" />
         <span>{{ option.label }}</span>
       </div>
     </div>
@@ -21,7 +23,7 @@
 defineProps<{
   x: number;
   y: number;
-  options: Array<{ label: string; action: string }>;
+  options: Array<{ label: string; action: string; image?: string; special?: boolean }>;
 }>();
 
 const emit = defineEmits<{
@@ -57,6 +59,9 @@ function selectOption(option: any) {
   overflow: hidden;
 
   .context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 0.75rem 1rem;
     cursor: pointer;
     font-size: 0.9rem;
@@ -66,6 +71,22 @@ function selectOption(option: any) {
     &:hover {
       background: var(--hover);
       color: var(--text);
+    }
+  }
+
+  .context-menu-item__image {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+  }
+
+  .context-menu-item--special {
+    border-bottom: 1px solid var(--border);
+    color: var(--primary);
+    font-weight: 500;
+
+    &:hover {
+      color: var(--primary);
     }
   }
 }

@@ -49,6 +49,10 @@ const locationSchema = new mongoose.Schema({
     registrationNumber: { type: String, default: '', trim: true },
   },
   externalId: { type: String, default: '', trim: true },
+  spaceFolder: {
+    teamKey: { type: String, default: '', trim: true, lowercase: true },
+    folderId: { type: String, default: '', trim: true },
+  },
   // Kostenstelle (KST) für Reisekostenabrechnungen o. ä.; Default aus externalId.
   kostenstelle: { type: String, default: '', trim: true },
   deliveryNotes: { type: String, default: '', trim: true },

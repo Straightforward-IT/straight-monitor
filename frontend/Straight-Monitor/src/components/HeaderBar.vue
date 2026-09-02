@@ -196,8 +196,10 @@
   
     </div>
     <div class="right">
-      <!-- Desktop Buttons -->
-      <div class="desktop-buttons">
+      <div class="desktop-user-area">
+        <span v-if="auth.user" class="header-user-name">Benutzer: {{ auth.user.name || auth.user.email }}</span>
+        <!-- Desktop Buttons -->
+        <div class="desktop-buttons">
         <button v-if="$route.name === 'Bestand'" @click="ui.toggle('shortcuts')">
           Shortcuts
         </button>
@@ -234,6 +236,7 @@
         <custom-tooltip text="Die Segel streichen" position="bottom" :delay-in="150">
           <button @click="logout">Logout</button>
         </custom-tooltip>
+        </div>
       </div>
       
       <!-- Mobile Burger Button -->
@@ -1023,6 +1026,19 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
+.desktop-user-area {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+
+.header-user-name {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 /* Desktop Navigation */
 .desktop-nav {
   display: flex;
@@ -1310,6 +1326,10 @@ onBeforeUnmount(() => {
   /* Button-Gruppen umschalten */
   .desktop-buttons {
     display: none; /* Verstecke Desktop Buttons */
+  }
+
+  .desktop-user-area {
+    display: none;
   }
   
   .mobile-buttons {

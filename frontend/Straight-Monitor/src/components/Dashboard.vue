@@ -1,13 +1,18 @@
 <template>
-  <PageLayout width="full" content-variant="surface">
+  <PageLayout
+    v-model="activeTab"
+    :tabs="dashboardTabs"
+    aria-label="Dashboardbereiche"
+    width="full"
+    content-variant="surface"
+  >
     <template #header>
       <div class="dash__head">
       <h1 data-page-title="Dashboard">Straight <span>Dashboard</span></h1>
-      <p class="dash__user">Benutzer: {{ userName }}</p>
       </div>
     </template>
 
-    <section class="dash">
+    <section v-if="activeTab === 'widgets'" class="dash">
     <!-- Widget Grid -->
     <TransitionGroup
       name="widget-anim"
@@ -38,6 +43,7 @@
       @close="showConfigurator = false"
     />
     </section>
+    <DashboardSpaces v-else />
   </PageLayout>
 </template>
 
@@ -49,11 +55,16 @@ import api from "@/utils/api";
 import { useDashboardPrefs } from "@/stores/dashboardPrefs";
 import WidgetConfigurator from "@/components/widgets/WidgetConfigurator.vue";
 import PageLayout from "@/components/layout/PageLayout.vue";
+import DashboardSpaces from "@/components/DashboardSpaces.vue";
 
 const router = useRouter();
 const prefs = useDashboardPrefs();
-const userName = ref("…");
 const showConfigurator = ref(false);
+const activeTab = ref('widgets');
+const dashboardTabs = [
+  { id: 'widgets', label: 'Übersicht', icon: ['fas', 'table-cells-large'] },
+  { id: 'spaces', label: 'Spaces', icon: ['fas', 'folder-open'] },
+];
 
 const activeWidgets = computed(() => prefs.activeWidgets);
 
@@ -104,7 +115,6 @@ onMounted(async () => {
 
   try {
     const { data } = await api.get("/api/users/me");
-    userName.value = data?.name || "";
 
     // Load widget preferences keyed by user id (backend prefs take priority)
     prefs.load(data?._id, data?.dashboardPrefs ?? null, data?.roles ?? []);
@@ -122,12 +132,6 @@ onMounted(async () => {
   gap: 20px;
 }
 
-.dash__head {
-  display: flex;
-  align-items: baseline;
-  gap: 16px;
-}
-
 .dash__head h1 {
   font-size: 24px;
   font-weight: 600;
@@ -136,12 +140,6 @@ onMounted(async () => {
 .dash__head h1 span {
   font-weight: 700;
 }
-.dash__user {
-  color: var(--muted);
-  font-size: 14px;
-  margin-top: 2px;
-}
-
 /* ── Widget Grid ─────────────────────────────────── */
 .widget-grid {
   display: grid;

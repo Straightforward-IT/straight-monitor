@@ -32,7 +32,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 
   const {
     nameFull, shortName, color, address, locationManager, contact, openingHours,
-    timeZone, legal, externalId, deliveryNotes, settings,
+    timeZone, legal, externalId, spaceFolder, deliveryNotes, settings,
   } = req.body;
   if (!nameFull?.trim() || !shortName?.trim()) {
     return res.status(400).json({ message: 'nameFull und shortName sind erforderlich' });
@@ -52,7 +52,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 
   const location = await Location.create({
     nameFull, shortName, color, address, locationManager: locationManager || null, contact,
-    openingHours, timeZone, legal, externalId, deliveryNotes, settings, createdBy: req.user.id,
+    openingHours, timeZone, legal, externalId, spaceFolder, deliveryNotes, settings, createdBy: req.user.id,
   });
   await location.populate('locationManager', 'name email');
   res.status(201).json(location);
@@ -87,7 +87,7 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
 
   const editableFields = [
     'address', 'locationManager', 'contact', 'openingHours', 'timeZone',
-    'legal', 'externalId', 'deliveryNotes', 'settings',
+    'legal', 'externalId', 'spaceFolder', 'deliveryNotes', 'settings',
   ];
   editableFields.forEach((field) => {
     if (req.body[field] !== undefined) {

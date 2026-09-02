@@ -21,6 +21,12 @@ const { sendMail } = require('../../services/integrations/EmailService');
 const { buildSignaturR2Prefix, sanitizeSegment } = require('../../utils/signaturR2Path');
 const { buildStundenlistePdfFilename } = require('../../utils/stundenlisteFilename');
 const AsanaService = require('../../services/integrations/AsanaService');
+const registry = require('../../config/registry');
+const {
+  getAppToken,
+  getDriveItemById,
+  downloadDriveItemBuffer,
+} = require('../../services/integrations/GraphService');
 
 const router = express.Router();
 
@@ -210,6 +216,33 @@ async function resolveSignaturLocation({ locationId, entityLocationId, auftragLo
     isActive: true,
     $or: [{ nameKey: normalized }, { shortNameKey: normalized }, { externalId: String(standort) }],
   }).select('_id nameFull shortName nameKey shortNameKey').lean();
+}
+
+async function resolveSpaceSignatureSource(req, locationId, itemId) {
+  const user = await User.findById(req.user.id).select('role roles locationV2 locationAccess').lean();
+  const isAdmin = user?.role === 'ADMIN' || user?.roles?.includes('ADMIN');
+  const location = await Location.findById(locationId).lean();
+  const allowed = isAdmin
+    || String(user?.locationV2 || '') === String(location?._id || '')
+    || (user?.locationAccess || []).some((id) => String(id) === String(location?._id || ''));
+  if (!allowed || !location?.isActive || !location.spaceFolder?.folderId || !location.spaceFolder?.teamKey) return null;
+
+  const team = registry.getTeam(location.spaceFolder.teamKey);
+  const userPrincipalName = registry.getGraphMailboxUpn(team);
+  if (!userPrincipalName) return null;
+
+  const token = await getAppToken();
+  let currentId = itemId;
+  let item = null;
+  for (let depth = 0; currentId && depth < 50; depth += 1) {
+    const currentItem = await getDriveItemById(token, userPrincipalName, currentId);
+    if (!item) item = currentItem;
+    if (String(currentId) === String(location.spaceFolder.folderId)) {
+      return { location, token, userPrincipalName, item };
+    }
+    currentId = currentItem.parentReference?.id;
+  }
+  return null;
 }
 
 async function getStundenlisteDefaultSigner(location, auftrag) {
@@ -1090,6 +1123,81 @@ router.get('/storage/url', auth, asyncHandler(async (req, res) => {
 }));
 
 // ─── CREATE ───────────────────────────────────────────────────────────────────
+
+router.post('/spaces/:locationId/items/:itemId', auth, asyncHandler(async (req, res) => {
+  if (!await requireSignaturAccess(req, res)) return;
+  const source = await resolveSpaceSignatureSource(req, req.params.locationId, req.params.itemId);
+  if (!source) return res.status(403).json({ message: 'Kein Zugriff auf diese Datei im Standort-Space.' });
+  if (!source.item?.file) return res.status(400).json({ message: 'Nur Dateien können als Signatur verwendet werden.' });
+
+  const fileName = String(source.item.name || '');
+  const isPdf = /\.pdf$/i.test(fileName);
+  const isDocx = /\.docx$/i.test(fileName);
+  if (!isPdf && !isDocx) return res.status(400).json({ message: 'Signaturen aus Spaces unterstützen nur PDF- und DOCX-Dateien.' });
+
+  const { name, typId, kundeId, mitarbeiterId, submitters, folgeaktionen: folgeaktionenRaw } = req.body || {};
+  if (!name || !typId) return res.status(400).json({ message: 'Bezeichnung und Dokumenttyp sind erforderlich.' });
+  const signaturTyp = await SignaturTyp.findOne({ _id: typId, isActive: true });
+  if (!signaturTyp) return res.status(400).json({ message: 'Ungültiger oder inaktiver Signaturtyp.' });
+
+  const kunde = kundeId ? await Kunde.findById(kundeId).select('kundenNr kundName kuerzel locationV2 signaturOrdner') : null;
+  const mitarbeiter = mitarbeiterId ? await Mitarbeiter.findById(mitarbeiterId).select('vorname nachname personalnr locationV2 signaturOrdner') : null;
+  if (kundeId && !kunde) return res.status(400).json({ message: 'Kunde nicht gefunden.' });
+  if (mitarbeiterId && !mitarbeiter) return res.status(400).json({ message: 'Mitarbeiter nicht gefunden.' });
+  const entityValidationMessage = getEntityValidationMessage(signaturTyp, kunde, mitarbeiter);
+  if (entityValidationMessage) return res.status(400).json({ message: entityValidationMessage });
+
+  const requestedSubmitters = Array.isArray(submitters)
+    ? submitters.filter((submitter) => String(submitter?.name || '').trim())
+    : [];
+  if (!requestedSubmitters.length || requestedSubmitters.some((submitter) => !submitter.embedded && !String(submitter.email || '').trim())) {
+    return res.status(400).json({ message: 'Mindestens ein Unterzeichner mit E-Mail-Adresse ist erforderlich.' });
+  }
+
+  const { buffer } = await downloadDriveItemBuffer(source.token, source.userPrincipalName, req.params.itemId);
+  const apiSubmitters = requestedSubmitters.map((submitter) => ({
+    role: submitter.role || 'Unterzeichner',
+    name: submitter.name,
+    email: submitter.email,
+    send_email: !submitter.embedded,
+  }));
+  const result = isPdf
+    ? await DocuSealService.createSubmissionFromPdf({ name, documentName: fileName, fileBuffer: buffer, submitters: apiSubmitters })
+    : await DocuSealService.createSubmissionFromDocx({ name, documentName: fileName, fileBuffer: buffer, submitters: apiSubmitters });
+  const resultArr = Array.isArray(result) ? result : (result?.submitters || (result?.id ? [result] : []));
+  const storedSubmitters = resultArr.map((apiSubmitter) => {
+    const requested = requestedSubmitters.find((submitter) => (submitter.email && submitter.email === apiSubmitter.email) || submitter.role === apiSubmitter.role) || {};
+    return mapSubmitter(apiSubmitter, requested);
+  });
+
+  const entityType = kunde ? 'Kunde' : (mitarbeiter ? 'Mitarbeiter' : null);
+  const entity = kunde || mitarbeiter;
+  const entityIdentifier = entity ? await ensureSignaturOrdner(entityType, entity) : null;
+  const location = await resolveSignaturLocation({ locationId: req.params.locationId });
+  const vorgang = new SignaturVorgang({
+    name,
+    fileName,
+    typ: signaturTyp._id,
+    typKey: signaturTyp.key,
+    standort: location.shortNameKey || null,
+    locationV2: location._id,
+    status: 'open',
+    mitarbeiter: mitarbeiter?._id || null,
+    mitarbeiterName: mitarbeiter ? `${mitarbeiter.vorname || ''}-${mitarbeiter.nachname || ''}`.replace(/^-|-$/g, '') : null,
+    kunde: kunde?._id || null,
+    kundenNr: kunde?.kundenNr || null,
+    kundenKuerzel: kunde?.kuerzel || null,
+    submissionId: resultArr[0]?.submission_id ?? result?.id ?? null,
+    submitters: storedSubmitters,
+    r2Prefix: buildSignaturR2Prefix({ locationIdentifier: location.shortName || location.nameFull, entityType, entityIdentifier, typKey: signaturTyp.key }),
+    folgeaktionen: parseFolgeaktionen(folgeaktionenRaw) || undefined,
+    createdBy: req.user.id,
+  });
+  await vorgang.save();
+  await vorgang.populate([{ path: 'typ', select: 'key label linkedTo' }, { path: 'locationV2', select: 'nameFull shortName color' }]);
+  broadcastSignaturEvent('vorgang.created', vorgang.toObject());
+  res.status(201).json(vorgang);
+}));
 
 // POST /api/signaturen — create a new SignaturVorgang
 // Body: {

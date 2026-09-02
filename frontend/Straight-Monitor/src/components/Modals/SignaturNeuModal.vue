@@ -101,7 +101,7 @@
                 </button>
               </div>
 
-              <template v-if="form.typId && templatesForTyp.length">
+              <template v-if="!usesCustomEndpoint && form.typId && templatesForTyp.length">
                 <label class="sig-field-label">Vorlage</label>
                 <div class="sig-tpl-chips">
                   <button
@@ -202,7 +202,7 @@
               <label class="sig-field-label">Vorlage</label>
               <div v-if="usesCustomEndpoint" class="sig-template-auto">
                 <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" />
-                <span>Dokument wird automatisch generiert ({{ modal.context.typKey }}).</span>
+                <span>{{ modal.context.sourceDocumentName || `Dokument wird automatisch generiert (${modal.context.typKey}).` }}</span>
               </div>
               <div v-else class="sig-template-row">
                 <select v-model="form.templateId" class="sig-select" @change="onTemplateChange">
@@ -1243,7 +1243,10 @@ async function submit() {
       // specialised endpoint so the same SignaturVorgang remains the record.
       const payload = {
         name: form.value.name.trim(),
+        typId: form.value.typId,
         locationId: form.value.locationId,
+        kundeId: linkMode.value === 'kunde' ? form.value.kundeId : undefined,
+        mitarbeiterId: linkMode.value === 'mitarbeiter' ? form.value.mitarbeiterId : undefined,
         submitters: form.value.submitters.filter(s => (s.name || '').trim()),
         folgeaktionen: folgeaktionen.value,
         draftId: ctx.draftId || undefined,

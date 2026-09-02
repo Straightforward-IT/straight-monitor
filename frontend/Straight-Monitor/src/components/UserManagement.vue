@@ -44,6 +44,7 @@
           <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'general' }" @click="locationModal.activeTab = 'general'">Stammdaten</button>
           <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'contact' }" @click="locationModal.activeTab = 'contact'">Kontakt & Rechtliches</button>
           <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'hours' }" @click="locationModal.activeTab = 'hours'">Öffnungszeiten</button>
+          <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'space' }" @click="locationModal.activeTab = 'space'">Space</button>
           <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'logistics' }" @click="locationModal.activeTab = 'logistics'">Sonstiges</button>
         </nav>
         <div class="modal-body">
@@ -97,6 +98,11 @@
               </div>
             </div>
           </section>
+          <template v-else-if="locationModal.activeTab === 'space'">
+          <div class="form-group"><label>OneDrive-Team</label><input v-model="locationForm.spaceFolder.teamKey" type="text" placeholder="z. B. hamburg" /></div>
+          <div class="form-group"><label>Space-Ordner-ID</label><input v-model="locationForm.spaceFolder.folderId" type="text" placeholder="OneDrive-Ordner-ID" /></div>
+          <p class="hint-text">Dieser Ordner ist der Einstiegspunkt für den Standort-Space im Dashboard.</p>
+          </template>
           <template v-else>
           <div class="form-group"><label>Externe ID</label><input v-model="locationForm.externalId" type="text" /></div>
           <div class="form-group"><label>Anlieferhinweise</label><textarea v-model="locationForm.deliveryNotes" rows="3" /></div>
@@ -497,6 +503,15 @@
                 <option v-for="location in activeLocations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
               </select>
             </div>
+            <div class="form-group">
+              <label>Space-Zugriff</label>
+              <div class="roles-checkboxes">
+                <label v-for="location in activeLocations" :key="location._id" class="role-checkbox-label">
+                  <input type="checkbox" :value="location._id" v-model="editModal.form.locationAccess" />
+                  <span>{{ location.nameFull }}</span>
+                </label>
+              </div>
+            </div>
           </div>
 
           <div class="form-group">
@@ -769,6 +784,7 @@ const locationForm = reactive({
   timeZone: 'Europe/Berlin',
   legal: { legalName: '', vatId: '', registrationNumber: '' },
   externalId: '',
+  spaceFolder: { teamKey: '', folderId: '' },
   deliveryNotes: '',
   settings: {},
 });
@@ -799,6 +815,7 @@ const editModal = reactive({
     password: '',
     location: '',
     locationV2: '',
+    locationAccess: [],
     roles: ['USER'],
     isConfirmed: true,
   },
@@ -1068,6 +1085,7 @@ function resetLocationForm() {
   locationForm.timeZone = 'Europe/Berlin';
   Object.assign(locationForm.legal, { legalName: '', vatId: '', registrationNumber: '' });
   locationForm.externalId = '';
+  Object.assign(locationForm.spaceFolder, { teamKey: '', folderId: '' });
   locationForm.deliveryNotes = '';
   locationForm.settings = {};
 }
@@ -1088,6 +1106,7 @@ function openLocationEdit(location) {
   locationForm.timeZone = location.timeZone || 'Europe/Berlin';
   Object.assign(locationForm.legal, { legalName: '', vatId: '', registrationNumber: '', ...location.legal });
   locationForm.externalId = location.externalId || '';
+  Object.assign(locationForm.spaceFolder, { teamKey: '', folderId: '', ...location.spaceFolder });
   locationForm.deliveryNotes = location.deliveryNotes || '';
   locationForm.settings = location.settings || {};
   Object.assign(locationModal, { open: true, isNew: false, locationId: location._id, activeTab: 'general', error: '' });
@@ -1184,7 +1203,7 @@ function openCreate() {
     saving: false,
     error: '',
     userId: null,
-    form: { name: '', email: '', password: '', location: '', locationV2: '', roles: ['USER'], isConfirmed: true },
+    form: { name: '', email: '', password: '', location: '', locationV2: '', locationAccess: [], roles: ['USER'], isConfirmed: true },
   });
 }
 
@@ -1201,6 +1220,7 @@ function openEdit(u) {
       password: '',
       location: u.location || '',
       locationV2: u.locationV2?._id || u.locationV2 || '',
+      locationAccess: (u.locationAccess || []).map((location) => location._id || location),
       roles: u.roles?.length ? [...u.roles] : [u.role || 'USER'],
       isConfirmed: !!u.isConfirmed,
     },

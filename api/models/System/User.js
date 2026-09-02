@@ -24,6 +24,10 @@ const UserSchema = new mongoose.Schema({
     ref: 'Location',
     default: null
   },
+  locationAccess: {
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Location' }],
+    default: []
+  },
   role: {
     type: String,
     default: 'USER'

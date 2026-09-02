@@ -23,7 +23,8 @@ router.get(
   asyncHandler(async (req, res) => {
     const user = await User.findById(req.user.id)
       .select("-password")
-      .populate("locationV2", "nameFull shortName color externalId");
+      .populate("locationV2", "nameFull shortName color externalId")
+      .populate("locationAccess", "nameFull shortName color");
     res.status(200).json(user);
   })
 );
@@ -249,6 +250,14 @@ async function resolveLocationV2(locationId) {
   return Location.findOne({ _id: locationId, isActive: true }).select('_id nameFull');
 }
 
+async function resolveLocationAccess(locationIds) {
+  if (!Array.isArray(locationIds)) return null;
+  const validIds = [...new Set(locationIds.filter((id) => mongoose.isValidObjectId(id)).map(String))];
+  const locations = await Location.find({ _id: { $in: validIds }, isActive: true }).select('_id');
+  if (locations.length !== validIds.length) return null;
+  return locations.map((location) => location._id);
+}
+
 // GET /api/users/admin/all
 router.get(
   '/admin/all',
@@ -266,13 +275,15 @@ router.post(
   auth,
   asyncHandler(async (req, res) => {
     if (!await requireAdmin(req, res)) return;
-    const { name, email, password, location, locationV2, roles, isConfirmed } = req.body;
+    const { name, email, password, location, locationV2, locationAccess, roles, isConfirmed } = req.body;
     if (!email || !password) return res.status(400).json({ msg: 'E-Mail und Passwort sind erforderlich' });
     if (!email.includes('@straightforward.email')) return res.status(400).json({ msg: 'Bitte benutze eine E-Mail der Firma Straightforward' });
     const existing = await User.findOne({ email });
     if (existing) return res.status(400).json({ msg: 'Benutzer mit dieser E-Mail existiert bereits' });
     const resolvedLocationV2 = await resolveLocationV2(locationV2);
     if (locationV2 && !resolvedLocationV2) return res.status(400).json({ msg: 'Der gewählte Standort ist nicht aktiv oder existiert nicht' });
+    const resolvedLocationAccess = await resolveLocationAccess(locationAccess || []);
+    if (!resolvedLocationAccess) return res.status(400).json({ msg: 'Ein gewählter Space-Standort ist nicht aktiv oder existiert nicht' });
     const resolvedRoles = Array.isArray(roles) && roles.length > 0 ? roles : ['USER'];
     const user = new User({
       name: name || '',
@@ -280,12 +291,13 @@ router.post(
       password,
       location: resolvedLocationV2?.nameFull || location || '',
       locationV2: resolvedLocationV2?._id || null,
+      locationAccess: resolvedLocationAccess,
       role: resolvedRoles.includes('ADMIN') ? 'ADMIN' : 'USER', // keep legacy field in sync
       roles: resolvedRoles,
       isConfirmed: isConfirmed !== undefined ? isConfirmed : true,
     });
     await user.save();
-    await user.populate('locationV2', 'nameFull shortName');
+    await user.populate([{ path: 'locationV2', select: 'nameFull shortName' }, { path: 'locationAccess', select: 'nameFull shortName color' }]);
     const result = user.toObject();
     delete result.password;
     res.status(201).json(result);
@@ -298,7 +310,7 @@ router.put(
   auth,
   asyncHandler(async (req, res) => {
     if (!await requireAdmin(req, res)) return;
-    const { name, email, password, location, locationV2, roles, isConfirmed } = req.body;
+    const { name, email, password, location, locationV2, locationAccess, roles, isConfirmed } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: 'Benutzer nicht gefunden' });
     if (name !== undefined) user.name = name;
@@ -310,6 +322,11 @@ router.put(
       user.locationV2 = resolvedLocationV2?._id || null;
       if (resolvedLocationV2) user.location = resolvedLocationV2.nameFull;
     }
+    if (locationAccess !== undefined) {
+      const resolvedLocationAccess = await resolveLocationAccess(locationAccess);
+      if (!resolvedLocationAccess) return res.status(400).json({ msg: 'Ein gewählter Space-Standort ist nicht aktiv oder existiert nicht' });
+      user.locationAccess = resolvedLocationAccess;
+    }
     if (isConfirmed !== undefined) user.isConfirmed = isConfirmed;
     if (Array.isArray(roles)) {
       user.roles = roles;
@@ -317,7 +334,7 @@ router.put(
     }
     if (password) user.password = password; // pre-save hook handles hashing
     await user.save();
-    await user.populate('locationV2', 'nameFull shortName');
+    await user.populate([{ path: 'locationV2', select: 'nameFull shortName' }, { path: 'locationAccess', select: 'nameFull shortName color' }]);
     const result = user.toObject();
     delete result.password;
     res.status(200).json(result);

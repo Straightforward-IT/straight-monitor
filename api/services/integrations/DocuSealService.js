@@ -117,6 +117,28 @@ class DocuSealService {
     return result;
   }
 
+  async createSubmissionFromDocx({ name, documentName, fileBuffer, submitters, order = 'preserved', message }) {
+    this._ensureConfigured();
+    if (!Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) {
+      throw new Error('createSubmissionFromDocx: fileBuffer (DOCX) is required.');
+    }
+    if (!Array.isArray(submitters) || submitters.length === 0) {
+      throw new Error('createSubmissionFromDocx: at least one submitter is required.');
+    }
+
+    const payload = {
+      name: name || 'Document',
+      documents: [{ name: documentName || `${name || 'Document'}.docx`, file: fileBuffer.toString('base64') }],
+      submitters,
+      order,
+    };
+    if (message) payload.message = message;
+
+    const result = await docuseal.createSubmissionFromDocx(payload);
+    logger.info(`DocuSeal DOCX submission created ("${payload.name}", ${submitters.length} submitter(s)).`);
+    return result;
+  }
+
   /**
    * Fetch a submission with its current status and submitters.
    * @param {number} submissionId
