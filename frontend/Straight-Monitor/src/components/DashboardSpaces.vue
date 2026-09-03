@@ -23,7 +23,7 @@
         <ToolbarLabel>{{ uploadingCount ? `${uploadingCount} ${uploadingCount === 1 ? 'Datei wird' : 'Dateien werden'} hochgeladen...` : `${filteredItems.length} ${filteredItems.length === 1 ? 'Eintrag' : 'Einträge'}` }}</ToolbarLabel>
         <template #actions>
         <ToolbarGroup push-right>
-          <ToolbarButton variant="secondary" :disabled="loading" @click="loadItems">
+          <ToolbarButton variant="secondary" :disabled="loading" @click="refreshCurrentFolder">
             <font-awesome-icon :icon="['fas', loading ? 'spinner' : 'rotate']" :spin="loading" />
             Aktualisieren
           </ToolbarButton>
@@ -227,10 +227,11 @@ function formatDate(value) {
 
 async function loadItems(itemId) {
   if (!selectedSpaceId.value) return false;
+  const folderId = typeof itemId === 'string' ? itemId : '';
   loading.value = true;
   error.value = '';
   try {
-    const { data } = await api.get(`/api/graph/spaces/${selectedSpaceId.value}/children`, { params: itemId ? { itemId } : {} });
+    const { data } = await api.get(`/api/graph/spaces/${selectedSpaceId.value}/children`, { params: folderId ? { itemId: folderId } : {} });
     items.value = data.items || [];
     selectedItemIds.value = selectedItemIds.value.filter((id) => items.value.some((item) => item.id === id));
     return true;
@@ -240,6 +241,10 @@ async function loadItems(itemId) {
   } finally {
     loading.value = false;
   }
+}
+
+async function refreshCurrentFolder() {
+  await loadItems(currentFolderId.value);
 }
 
 async function selectSpace(spaceId) {

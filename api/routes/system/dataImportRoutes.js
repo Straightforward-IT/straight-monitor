@@ -1324,17 +1324,18 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
 
           matched++;
 
-          // Persstatus 6 = Ausgetreten: Flip löschen, Monitor deaktivieren, Asana abschließen
-          if (op.persstatus === 6 && ma.isActive) {
-            op.setFields.isActive = false;
+          // Only Persstatus 1 (Bewerber) and 2 (Mitarbeiter) remain active.
+          const shouldDeactivate = op.persstatus != null && ![1, 2].includes(op.persstatus);
+          if (shouldDeactivate && ma.isActive) {
             if (ma.flip_id) {
-              op.setFields.flip_id = null;
               try {
                 await deleteManyFlipUsers([ma.flip_id]);
               } catch (err) {
                 logger.error(`[PersonalImport] Flip-Löschung fehlgeschlagen für ${ma._id}: ${err.message}`);
+                continue;
               }
             }
+            op.setFields.isActive = false;
             if (ma.asana_id) {
               try {
                 await completeTaskById(ma.asana_id);
@@ -1437,6 +1438,47 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           if (result.modifiedCount > 0) updated++; else unchanged++;
         }
 
+        let deactivatedMissing = 0;
+        if (colOffset === 1) {
+          const activeImportPnrs = new Set(
+            filteredOperations
+              .filter((op) => [1, 2].includes(op.persstatus))
+              .map((op) => String(op.personalnr))
+          );
+          const activeMitarbeiter = await Mitarbeiter.find({ isActive: true })
+            .select('_id personalnr personalnummern flip_id')
+            .lean();
+          const missingMitarbeiter = activeMitarbeiter.filter((ma) => {
+            const personalnummern = [ma.personalnr, ...(ma.personalnummern || [])]
+              .filter(Boolean)
+              .map(String);
+            return !personalnummern.some((personalnr) => activeImportPnrs.has(personalnr));
+          });
+          const missingWithFlip = missingMitarbeiter.filter((ma) => ma.flip_id);
+          let flipDeletionSucceeded = true;
+
+          if (missingWithFlip.length > 0) {
+            try {
+              await deleteManyFlipUsers(missingWithFlip.map((ma) => ma.flip_id));
+            } catch (err) {
+              flipDeletionSucceeded = false;
+              logger.error(`[PersonalImport] Flip-Löschung für nicht importierte Mitarbeiter fehlgeschlagen: ${err.message}`);
+            }
+          }
+
+          const idsToDeactivate = missingMitarbeiter
+            .filter((ma) => !ma.flip_id || flipDeletionSucceeded)
+            .map((ma) => ma._id);
+          if (idsToDeactivate.length > 0) {
+            const result = await Mitarbeiter.updateMany(
+              { _id: { $in: idsToDeactivate }, isActive: true },
+              { $set: { isActive: false } }
+            );
+            deactivatedMissing = result.modifiedCount;
+            deactivated += deactivatedMissing;
+          }
+        }
+
         const details = {
           total: operations.length,
           matched,
@@ -1449,6 +1491,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           pnrAdded,
           pnrAddedList: pnrAddedList.length > 0 ? pnrAddedList : undefined,
           deactivated,
+          deactivatedMissing,
           locationResolution,
         };
 
@@ -1470,6 +1513,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
               <li>Davon geändert: <strong>${updated}</strong></li>
               <li>Unverändert: <strong>${unchanged}</strong></li>
               <li>Nicht gefunden: <strong>${skipped}</strong></li>
+              <li>Deaktiviert: <strong>${deactivated}</strong>${deactivatedMissing > 0 ? ` (${deactivatedMissing} nicht mehr im Import)` : ''}</li>
               ${pnrUpdated > 0 ? `<li>Personalnr per E-Mail korrigiert: <strong>${pnrUpdated}</strong></li>` : ''}
               ${pnrAdded > 0 ? `<li>Zusätzliche Personalnr (Doppelführung): <strong>${pnrAdded}</strong></li>` : ''}
               <li>Standorte: <strong>${locationResolution.resolved}</strong> aufgelöst, <strong>${locationResolution.updated}</strong> geändert, <strong>${locationResolution.unresolved}</strong> offen</li>

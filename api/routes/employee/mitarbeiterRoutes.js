@@ -1639,6 +1639,27 @@ router.patch(
     const { id } = req.params;
     const updateData = req.body;
 
+    const currentMitarbeiter = await Mitarbeiter.findById(id).select("flip_id");
+    if (!currentMitarbeiter) {
+      return res.status(404).json({
+        success: false,
+        message: "Mitarbeiter mit dieser ID nicht gefunden.",
+      });
+    }
+
+    if (updateData.isActive === false && currentMitarbeiter.flip_id) {
+      try {
+        await deleteManyFlipUsers([currentMitarbeiter.flip_id]);
+        logger.info(`Flip-User ${currentMitarbeiter.flip_id} deleted while deactivating Mitarbeiter ${id}`);
+      } catch (error) {
+        logger.error(`Could not delete Flip-User ${currentMitarbeiter.flip_id} while deactivating Mitarbeiter ${id}: ${error.message}`);
+        return res.status(502).json({
+          success: false,
+          message: "Der Flip-User konnte nicht gelöscht werden. Der Mitarbeiter bleibt aktiv.",
+        });
+      }
+    }
+
     // Extract force flag before stripping
     const forcePersonalnr = !!updateData.forcePersonalnr;
     delete updateData.forcePersonalnr;

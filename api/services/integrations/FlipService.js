@@ -170,7 +170,7 @@ async function flipUserRoutine() {
       } else {
         let changesMade = false;
 
-        if (!mitarbeiter.isActive) {
+        if (!mitarbeiter.isActive && flipUser.status === "ACTIVE") {
           mitarbeiter.isActive = true;
           changesMade = true;
           emailLogs.push(
@@ -211,7 +211,7 @@ async function flipUserRoutine() {
         }
       }
 
-      const shouldBeActive = (flipUser.status === "ACTIVE" || flipUser.status === "PENDING_DELETION");
+      const shouldBeActive = flipUser.status === "ACTIVE";
       if (mitarbeiter.isActive !== shouldBeActive) {
         mitarbeiter.isActive = shouldBeActive;
         await mitarbeiter.save();
