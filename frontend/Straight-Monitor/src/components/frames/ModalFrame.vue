@@ -33,26 +33,29 @@
               </div>
               <div class="mf-controls" data-pdf-ignore>
                 <slot name="actions" />
-                <button
-                  v-if="pdfExport"
-                  type="button"
-                  class="mf-pdf"
-                  aria-label="Als PDF exportieren"
-                  title="Als PDF exportieren"
-                  @click="exportToPdf()"
-                >
-                  <font-awesome-icon icon="fa-solid fa-file-pdf" />
-                </button>
-                <MinimizeButton v-if="canMinimize" class="mf-minimize" />
-                <button
-                  v-if="showClose"
-                  type="button"
-                  class="mf-close"
-                  aria-label="Schließen"
-                  @click="requestClose"
-                >
-                  <font-awesome-icon icon="fa-solid fa-xmark" />
-                </button>
+                <CustomTooltip v-if="pdfExport" text="Als PDF exportieren">
+                  <button
+                    type="button"
+                    class="mf-pdf"
+                    aria-label="Als PDF exportieren"
+                    @click="exportToPdf()"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-file-pdf" />
+                  </button>
+                </CustomTooltip>
+                <CustomTooltip v-if="canMinimize" text="Minimieren">
+                  <MinimizeButton class="mf-minimize" />
+                </CustomTooltip>
+                <CustomTooltip v-if="showClose" text="Schließen">
+                  <button
+                    type="button"
+                    class="mf-close"
+                    aria-label="Schließen"
+                    @click="requestClose"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-xmark" />
+                  </button>
+                </CustomTooltip>
               </div>
             </header>
             <!-- Header-less minimizable modals (content renders its own header) -->
@@ -108,6 +111,7 @@ import {
   useSlots,
 } from 'vue';
 import { exportElementToPdf } from '@/utils/htmlToPdfService';
+import CustomTooltip from '@/components/CustomTooltip.vue';
 
 defineOptions({ inheritAttrs: false });
 

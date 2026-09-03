@@ -177,13 +177,16 @@
           <button class="close-btn" :disabled="savingDetail" @click.stop="openSidebarActionMenu" title="Aktionen">
             <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
           </button>
-          <ContextMenu
-            v-if="sidebarActionMenu.open"
+          <ActionMenu
+            :open="sidebarActionMenu.open"
             :x="sidebarActionMenu.x"
             :y="sidebarActionMenu.y"
-            :options="sidebarActionMenuOptions"
+            title="Lead"
+            :width="200"
+            :items="sidebarActionMenuOptions"
+            :group-by="false"
             @close="sidebarActionMenu.open = false"
-            @select="handleSidebarAction"
+            @item-click="handleSidebarAction"
           />
         </template>
 
@@ -949,12 +952,17 @@
             </div>
           </section>
 
+        <template v-if="leadPanelPresentation === 'modal'" #modal-footer>
+          <div id="lead-chronik-modal-host" class="lead-chronik-modal-host"></div>
+        </template>
       </SidePanelFrame>
 
     <!-- Chronik bottom drawer (slides up when a lead is open) -->
     <LeadChronikDrawer
       :show="!!selectedLead && !isMobile"
-      :sidebar-open="!!selectedLead"
+      :sidebar-open="!!selectedLead && leadPanelPresentation === 'panel'"
+      :embedded="leadPanelPresentation === 'modal'"
+      embedded-target="#lead-chronik-modal-host"
       :count="chronikEntries.length + (chronikLead?.aktivitaeten?.length || 0)"
       :lead-title="chronikLead?.title || ''"
       @close="closeSidebar"
@@ -1538,7 +1546,7 @@ import LeadBoard from './leads/LeadBoard.vue';
 import LeadCard from './leads/LeadCard.vue';
 import LeadChronikDrawer from './leads/LeadChronikDrawer.vue';
 import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
-import ContextMenu from '@/components/ContextMenu.vue';
+import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
@@ -1578,10 +1586,18 @@ const leadPanelPresentation = ref('panel');
 const sidebarActionMenu = reactive({ open: false, x: 0, y: 0 });
 const sidebarActionMenuOptions = computed(() => [
   {
-    label: leadPanelPresentation.value === 'panel' ? 'Als Fenster öffnen' : 'In Seitenleiste öffnen',
+    label: leadPanelPresentation.value === 'panel' ? 'Abdocken' : 'In Seitenleiste öffnen',
     action: leadPanelPresentation.value === 'panel' ? 'open-modal' : 'open-panel',
+    icon: 'fa-solid fa-arrow-up-right-from-square',
+    variant: 'primary',
   },
-  { label: 'Archivieren', action: 'archive' },
+  {
+    label: 'Archivieren',
+    action: 'archive',
+    icon: 'fa-solid fa-box-archive',
+    variant: 'danger',
+    disabled: savingDetail.value,
+  },
 ]);
 // Per-session collapsed/expanded state of sidebar sections on mobile.
 // Key: section id, value: true=expanded, false=collapsed.
@@ -2346,12 +2362,13 @@ function closeSidebar() {
 
 function openSidebarActionMenu(event) {
   const rect = event.currentTarget.getBoundingClientRect();
-  sidebarActionMenu.x = rect.right - 150;
+  sidebarActionMenu.x = rect.right - 200;
   sidebarActionMenu.y = rect.bottom + 4;
   sidebarActionMenu.open = true;
 }
 
-function handleSidebarAction(action) {
+function handleSidebarAction({ item }) {
+  const action = item?.action;
   if (action === 'open-modal') leadPanelPresentation.value = 'modal';
   if (action === 'open-panel') leadPanelPresentation.value = 'panel';
   if (action === 'archive') archiveLead();
@@ -3984,6 +4001,11 @@ onBeforeUnmount(() => {
     align-items: center;
     justify-content: center;
   }
+}
+
+.lead-chronik-modal-host {
+  width: 100%;
+  min-width: 0;
 }
 
 /* Drawer-specific overrides: wider textarea in the fixed drawer footer */

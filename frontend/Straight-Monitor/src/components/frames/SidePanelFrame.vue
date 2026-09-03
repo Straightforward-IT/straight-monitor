@@ -18,16 +18,16 @@
         </div>
         <div class="sp-panel__actions">
           <slot name="actions" />
-          <button
-            v-if="showClose"
-            type="button"
-            class="sp-panel__close"
-            aria-label="Schließen"
-            title="Schließen"
-            @click="close"
-          >
-            <font-awesome-icon icon="fa-solid fa-xmark" />
-          </button>
+          <CustomTooltip v-if="showClose" text="Schließen">
+            <button
+              type="button"
+              class="sp-panel__close"
+              aria-label="Schließen"
+              @click="close"
+            >
+              <font-awesome-icon icon="fa-solid fa-xmark" />
+            </button>
+          </CustomTooltip>
         </div>
       </header>
       <div class="sp-panel__body">
@@ -56,6 +56,9 @@
     </template>
     <template #actions><slot name="actions" /></template>
     <slot />
+    <template v-if="$slots['modal-footer']" #footer>
+      <slot name="modal-footer" />
+    </template>
   </ModalFrame>
 
   <Teleport to="body">
@@ -66,6 +69,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch, useSlots } from 'vue';
 import ModalFrame from './ModalFrame.vue';
+import CustomTooltip from '@/components/CustomTooltip.vue';
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

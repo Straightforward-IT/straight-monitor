@@ -50,12 +50,21 @@
         </a>
         <button
           class="icon-btn"
-          :class="{ active: editing }"
-          @click="toggleEdit"
-          title="Bearbeiten"
+          title="Aktionen"
+          @click.stop="openActionMenu"
         >
-          <font-awesome-icon :icon="['fas', 'pen']" />
+          <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
         </button>
+        <ActionMenu
+          :open="actionMenu.open"
+          :x="actionMenu.x"
+          :y="actionMenu.y"
+          title="Kontakt"
+          :items="actionMenuItems"
+          :group-by="false"
+          @close="actionMenu.open = false"
+          @item-click="handleActionMenu"
+        />
       </div>
     </template>
 
@@ -188,38 +197,6 @@
         </div>
       </div>
 
-      <!-- ── Footer ─────────────────────────────────────────────────── -->
-    <template v-if="!loading" #footer>
-        <div class="card-footer">
-        <div class="footer-left">
-          <button
-            v-if="!editing && !showDeleteConfirm"
-            class="btn btn-danger"
-            @click="showDeleteConfirm = true"
-          >
-            <font-awesome-icon :icon="['fas', 'trash']" />
-            Löschen
-          </button>
-          <template v-if="showDeleteConfirm">
-            <button class="btn btn-danger" :disabled="deleting" @click="doDelete">
-              <font-awesome-icon v-if="deleting" :icon="['fas', 'spinner']" spin />
-              Endgültig löschen
-            </button>
-            <button class="btn btn-secondary" @click="showDeleteConfirm = false">Abbrechen</button>
-          </template>
-        </div>
-
-        <div class="footer-right">
-          <template v-if="editing">
-            <button class="btn btn-secondary" @click="cancelEdit">Abbrechen</button>
-            <button class="btn btn-primary" :disabled="saving" @click="saveEdit">
-              <font-awesome-icon v-if="saving" :icon="['fas', 'spinner']" spin />
-              Speichern
-            </button>
-          </template>
-        </div>
-        </div>
-      </template>
   </ModalFrame>
 </template>
 
@@ -227,6 +204,7 @@
 import { ref, computed, reactive, onMounted } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
+import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
 import { useTheme } from '@/stores/theme';
 import { useDataCache } from '@/stores/dataCache';
 import api from '@/utils/api';
@@ -298,6 +276,7 @@ const linkedKunde = computed(() => {
 // ─── Edit state ───────────────────────────────────────────────────────
 const editing = ref(false);
 const saving = ref(false);
+const actionMenu = ref({ open: false, x: 0, y: 0 });
 const editForm = reactive({
   givenName: '',
   surname: '',
@@ -322,6 +301,41 @@ function toggleEdit() {
   } else {
     startEdit();
   }
+}
+
+const actionMenuItems = computed(() => {
+  if (editing.value) {
+    return [
+      { label: 'Speichern', value: 'save', icon: 'fa-solid fa-floppy-disk', variant: 'primary', disabled: saving.value },
+      { label: 'Abbrechen', value: 'cancel-edit', icon: 'fa-solid fa-xmark' },
+    ];
+  }
+
+  if (showDeleteConfirm.value) {
+    return [
+      { label: 'Endgültig löschen', value: 'confirm-delete', icon: 'fa-solid fa-trash', variant: 'danger', disabled: deleting.value },
+      { label: 'Abbrechen', value: 'cancel-delete', icon: 'fa-solid fa-xmark' },
+    ];
+  }
+
+  return [
+    { label: 'Bearbeiten', value: 'edit', icon: 'fa-solid fa-pen' },
+    { label: 'Löschen', value: 'delete', icon: 'fa-solid fa-trash', variant: 'danger' },
+  ];
+});
+
+function openActionMenu(event) {
+  actionMenu.value = { open: true, x: event.clientX, y: event.clientY };
+}
+
+function handleActionMenu({ item }) {
+  actionMenu.value.open = false;
+  if (item.value === 'edit') startEdit();
+  if (item.value === 'delete') showDeleteConfirm.value = true;
+  if (item.value === 'save') saveEdit();
+  if (item.value === 'cancel-edit') cancelEdit();
+  if (item.value === 'confirm-delete') doDelete();
+  if (item.value === 'cancel-delete') showDeleteConfirm.value = false;
 }
 
 function startEdit() {
@@ -534,11 +548,6 @@ onMounted(async () => {
     border-color: color-mix(in srgb, var(--primary) 30%, transparent);
   }
 
-  &.active {
-    background: color-mix(in srgb, var(--primary) 16%, transparent);
-    border-color: color-mix(in srgb, var(--primary) 40%, transparent);
-    color: var(--primary);
-  }
 }
 
 // ── Loading ────────────────────────────────────────────────────────────
@@ -772,76 +781,6 @@ onMounted(async () => {
   .warn-sub {
     font-size: 13px;
     color: var(--muted);
-  }
-}
-
-// ── Footer ─────────────────────────────────────────────────────────────
-.card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 14px 20px;
-  background: var(--surface);
-  flex-shrink: 0;
-}
-
-.footer-left,
-.footer-right {
-  display: flex;
-  gap: 8px;
-}
-
-// ── Buttons ────────────────────────────────────────────────────────────
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 16px;
-  border-radius: 9px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 500;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
-
-  &:hover:not(:disabled) {
-    background: var(--soft);
-  }
-
-  &:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-  }
-
-  &.btn-primary {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: #fff;
-
-    &:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--primary) 85%, #000);
-      border-color: color-mix(in srgb, var(--primary) 85%, #000);
-    }
-  }
-
-  &.btn-secondary {
-    background: var(--soft);
-    border-color: var(--border);
-    color: var(--text);
-  }
-
-  &.btn-danger {
-    background: color-mix(in srgb, #dc3545 12%, transparent);
-    border-color: color-mix(in srgb, #dc3545 35%, transparent);
-    color: #dc3545;
-
-    &:hover:not(:disabled) {
-      background: color-mix(in srgb, #dc3545 20%, transparent);
-    }
   }
 }
 

@@ -188,18 +188,28 @@ if (typeof ResizeObserver !== 'undefined') {
 }
 
 window.addEventListener('resize', updatePosition);
+window.addEventListener('keydown', closeOnEscape, true);
 document.addEventListener('click', closeOnOutsideInteraction);
 document.addEventListener('contextmenu', closeOnOutsideInteraction, true);
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   window.removeEventListener('resize', updatePosition);
+  window.removeEventListener('keydown', closeOnEscape, true);
   document.removeEventListener('click', closeOnOutsideInteraction);
   document.removeEventListener('contextmenu', closeOnOutsideInteraction, true);
 });
 
 function closeMenu() {
   emit('close');
+}
+
+function closeOnEscape(event) {
+  if (event.key !== 'Escape' || !props.open) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+  closeMenu();
 }
 
 function closeOnOutsideInteraction(event) {

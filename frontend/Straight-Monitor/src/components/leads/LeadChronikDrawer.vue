@@ -1,12 +1,17 @@
 <template>
-  <transition name="chronik-drawer-slide">
-    <aside
-      v-if="show"
-      ref="drawerRef"
-      class="chronik-drawer"
-      :class="{ 'chronik-drawer--collapsed': collapsed, 'chronik-drawer--with-sidebar': sidebarOpen }"
-      :style="drawerStyle"
-    >
+  <Teleport :to="embeddedTarget" :disabled="!embedded">
+    <transition name="chronik-drawer-slide">
+      <aside
+        v-if="show"
+        ref="drawerRef"
+        class="chronik-drawer"
+        :class="{
+          'chronik-drawer--collapsed': collapsed,
+          'chronik-drawer--with-sidebar': sidebarOpen,
+          'chronik-drawer--embedded': embedded,
+        }"
+        :style="drawerStyle"
+      >
       <header class="cd-header" @click="collapsed = !collapsed">
         <div
           class="cd-resize-handle"
@@ -38,8 +43,9 @@
           <slot name="footer" />
         </footer>
       </template>
-    </aside>
-  </transition>
+      </aside>
+    </transition>
+  </Teleport>
 </template>
 
 <script setup>
@@ -53,6 +59,8 @@ library.add(faClockRotateLeft, faChevronUp, faChevronDown, faXmark);
 const props = defineProps({
   show: { type: Boolean, default: false },
   sidebarOpen: { type: Boolean, default: false },
+  embedded: { type: Boolean, default: false },
+  embeddedTarget: { type: String, default: 'body' },
   count: { type: Number, default: null },
   leadTitle: { type: String, default: '' },
 });
@@ -198,6 +206,18 @@ onUnmounted(() => {
   transition: right 0.25s ease;
 
   &--with-sidebar { right: var(--cd-sidebar-offset); }
+  &--embedded {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    max-height: min(42vh, 360px);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 0;
+    box-shadow: none;
+    z-index: auto;
+  }
   &--collapsed {
     height: 40px !important;
   }
