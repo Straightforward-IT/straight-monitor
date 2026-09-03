@@ -357,17 +357,18 @@
     />
 
     <!-- Sidebar for Event Details -->
-    <transition name="sidebar-slide">
-      <div v-if="selectedEvent" class="detail-sidebar">
-        <div class="sidebar-header">
-          <div class="sidebar-title-area">
+    <SidePanelFrame v-model="hasSelectedEvent" class="detail-sidebar">
+      <template #header>
+        <div class="sidebar-title-area">
             <span v-if="selectedEvent.auftStatus !== 2" class="sidebar-status" :class="getEventStatusClass(selectedEvent)">{{ getStatusText(selectedEvent.auftStatus) }}</span>
             <h2>{{ selectedEvent.eventTitel || 'Auftrag Details' }}</h2>
             <span class="sidebar-date">
               {{ formatDateRange(new Date(selectedEvent.vonDatum), new Date(selectedEvent.bisDatum)) }}
             </span>
-          </div>
-          <div class="sidebar-header-actions">
+        </div>
+      </template>
+      <template #actions>
+        <div class="sidebar-header-actions">
             <!-- Three-dots quick-actions menu -->
             <div class="qa-menu-wrap">
               <button class="qa-dots-btn" @click.stop="showQuickActions = !showQuickActions" title="Aktionen">
@@ -402,11 +403,9 @@
                 </div>
               </transition>
             </div>
-            <button class="close-btn" @click="selectedEvent = null" title="Schließen (Esc)">×</button>
-          </div>
         </div>
+      </template>
 
-        <div class="sidebar-body">
           <!-- Compact Info Grid -->
           <div class="info-grid">
             <div class="info-item">
@@ -850,12 +849,7 @@
               </label>
             </template>
           </div>
-        </div>
-      </div>
-    </transition>
-
-    <!-- Sidebar Overlay for mobile only -->
-    <div v-if="selectedEvent && isMobile" class="sidebar-overlay" @click="selectedEvent = null"></div>
+    </SidePanelFrame>
 
     <!-- Mitarbeiter Card Modal -->
     <EmployeeCardModal
@@ -1300,6 +1294,7 @@ import { useDocumentModals } from '@/composables/useDocumentModals';
 import { useEventModals } from '@/composables/useEventModals';
 import { useReisekostenModals } from '@/composables/useReisekostenModals';
 import PageLayout from '@/components/layout/PageLayout.vue';
+import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
@@ -1318,7 +1313,7 @@ import docusealLogo from '@/assets/docuseal-logo.webp';
 export default {
   name: "AuftraegePage",
   emits: ['mitarbeiter-drop'],
-  components: { PageLayout, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu },
+  components: { PageLayout, SidePanelFrame, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu },
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
@@ -1468,6 +1463,10 @@ export default {
     };
   },
   computed: {
+    hasSelectedEvent: {
+      get() { return Boolean(this.selectedEvent); },
+      set(open) { if (!open) this.selectedEvent = null; },
+    },
     ...mapState(useAuth, ['user']),
     ...mapState(useUi, { isUiOpen: 'isOpen' }),
     ...mapState(useTheme, ['isDark']),
@@ -3276,156 +3275,38 @@ export default {
   }
 }
 
-/* Sidebar Styles */
-.detail-sidebar {
-  position: sticky;
-  top: 0;
-  width: 420px;
-  min-width: 420px; /* Ensure it keeps size during flex resize of siblings */
-  height: calc(100vh - 48px);
-  margin-left: 14px;
-  box-sizing: border-box;
-  overflow: hidden;
-  background: var(--tile-bg);
-  border: 1px solid color-mix(in oklab, var(--border) 88%, var(--text));
-  border-radius: 10px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.55);
-  display: flex;
-  flex-direction: column;
-  
-  @media (max-width: 1200px) {
-    /* On smaller screens, fall back to overlay or full width behavior if needed, 
-       but for now we keep flow behavior until it breaks layout, then maybe overlay? 
-       Actually, standard responsiveness usually stacks or overlays. 
-       Let's keep it simple for now, maybe reduce width */
-    width: 350px;
-    min-width: 350px;
-  }
-  
-  @media (max-width: 768px) {
-    /* Mobile: Overlay behavior might be better here, or full screen. 
-       Let's restore fixed overlay ONLY for mobile */
-    position: fixed;
-    top: 0;
-    right: 0;
-    height: 100%;
-    width: 100%;
-    min-width: 100%;
-    margin-left: 0;
-    border-radius: 0;
-    z-index: 1000;
+.sidebar-title-area {
+  min-width: 0;
+
+  h2 {
+    margin: 0;
+    overflow: hidden;
+    color: var(--text);
+    font-size: 1.1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
-.sidebar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
-  
-  .sidebar-title-area {
-    flex: 1;
-    min-width: 0;
-    
-    h2 {
-      margin: 0;
-      font-size: 1.1rem;
-      color: var(--text);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .sidebar-date {
-      display: block;
-      margin-top: 3px;
-      font-size: 0.8rem;
-      color: var(--muted);
-    }
-  }
-  
-  .sidebar-status {
-    display: inline-block;
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    padding: 3px 8px;
-    border-radius: 4px;
-    margin-bottom: 6px;
-    
-    &.status-draft { background: #fef3c7; color: #92400e; }
-    &.status-confirmed { background: #d1fae5; color: #065f46; }
-    &.status-completed { background: #dbeafe; color: #1e40af; }
-  }
-  
-  .close-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: none;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    font-size: 1.25rem;
-    font-weight: 500;
-    color: var(--muted);
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-
-    &:hover {
-      background: var(--hover);
-      border-color: var(--border);
-      color: var(--text);
-    }
-  }
+.sidebar-date {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
-.sidebar-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px;
-}
+.sidebar-status {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
 
-.sidebar-overlay {
-  display: none;
-  
-  @media (max-width: 1200px) {
-    display: block;
-    position: fixed;
-    top: 88px;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.4);
-    z-index: 99;
-  }
-}
-
-/* Sidebar Animation - Push effect */
-.sidebar-slide-enter-active,
-.sidebar-slide-leave-active {
-  transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1), min-width 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.2s ease;
-  overflow: hidden;
-  white-space: nowrap; /* Prevent content wrapping during animation */
-}
-
-.sidebar-slide-enter-from,
-.sidebar-slide-leave-to {
-  width: 0 !important;
-  min-width: 0 !important;
-  opacity: 0;
-}
-
-/* Ensure content inside doesn't reflow weirdly during shrink */
-.sidebar-slide-enter-from *,
-.sidebar-slide-leave-to * {
-  opacity: 0;
+  &.status-draft { background: #fef3c7; color: #92400e; }
+  &.status-confirmed { background: #d1fae5; color: #065f46; }
+  &.status-completed { background: #dbeafe; color: #1e40af; }
 }
 
 /* Info Grid in Sidebar */

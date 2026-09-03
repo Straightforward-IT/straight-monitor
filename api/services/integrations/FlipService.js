@@ -38,6 +38,16 @@ const apiUserGroup = "e9e8e278-08a9-4b0e-bdf6-681f8e26c43a";
 const user_role = "53267279-ffb8-4cb9-aced-e5d92ed9be05";
 const BIRTHDAY_GROUP_ID = "be2b944f-5322-4287-9c04-246106f5dc42";
 const FLIP_JOBS_MENU_ITEM_ID = process.env.FLIP_JOBS_MENU_ITEM_ID || "c672be9c-d742-4034-8aa3-5ff5afaf8e3c";
+const PROTECTED_FLIP_USER_IDS = new Set([
+  "4c10c6b2-4c08-4334-abf3-31f55d7529df", // Team Berlin
+  "17e0c1c5-6b27-4bac-b0df-93711b993e64", // Team Hamburg
+  "aa5e08cd-3c47-4cf5-a544-071f463fd6d8", // Team Köln
+]);
+
+function isProtectedFlipUserId(id) {
+  return PROTECTED_FLIP_USER_IDS.has(String(id));
+}
+
 async function flipUserRoutine() {
   let emailLogs = [];
   let invalidLocations = [];
@@ -1383,11 +1393,17 @@ async function restoreFlipUser(id) {
 }
 
 async function deleteManyFlipUsers(ids) {
+  const deletableIds = ids.filter((id) => !isProtectedFlipUserId(id));
+  const protectedIds = ids.filter((id) => isProtectedFlipUserId(id));
+  if (protectedIds.length > 0) {
+    logger.warn(`Skipped deletion of protected shared Flip users: ${protectedIds.join(", ")}`);
+  }
+
   const chunkSize = 100;
   const results = [];
 
-  for (let i = 0; i < ids.length; i += chunkSize) {
-    const chunk = ids.slice(i, i + chunkSize);
+  for (let i = 0; i < deletableIds.length; i += chunkSize) {
+    const chunk = deletableIds.slice(i, i + chunkSize);
     try {
       const response = await flipAxios.delete("/api/admin/users/v4/users/batch", {
         headers: { "Content-Type": "application/json" },
@@ -2116,6 +2132,7 @@ module.exports = {
   assignFlipUserGroups,
   restoreFlipUser,
   deleteManyFlipUsers,
+  isProtectedFlipUserId,
   getFlipAssignments,
   updateLaufzettelBadge,
   updateAllTeamleiterBadges,

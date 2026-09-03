@@ -25,7 +25,7 @@ const logger = require('../../utils/logger');
 const { sendMail } = require('../../services/integrations/EmailService');
 const auth = require('../../middleware/auth');
 const { encryptField } = require('../../utils/encryption');
-const { deleteManyFlipUsers } = require('../../services/integrations/FlipService');
+const { deleteManyFlipUsers, isProtectedFlipUserId } = require('../../services/integrations/FlipService');
 const { completeTaskById } = require('../../services/integrations/AsanaService');
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -1326,7 +1326,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
 
           // Only Persstatus 1 (Bewerber) and 2 (Mitarbeiter) remain active.
           const shouldDeactivate = op.persstatus != null && ![1, 2].includes(op.persstatus);
-          if (shouldDeactivate && ma.isActive) {
+          if (shouldDeactivate && ma.isActive && !isProtectedFlipUserId(ma.flip_id)) {
             if (ma.flip_id) {
               try {
                 await deleteManyFlipUsers([ma.flip_id]);
@@ -1449,6 +1449,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             .select('_id personalnr personalnummern flip_id')
             .lean();
           const missingMitarbeiter = activeMitarbeiter.filter((ma) => {
+            if (isProtectedFlipUserId(ma.flip_id)) return false;
             const personalnummern = [ma.personalnr, ...(ma.personalnummern || [])]
               .filter(Boolean)
               .map(String);

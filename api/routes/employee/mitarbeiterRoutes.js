@@ -51,6 +51,7 @@ const {
   assignTeamleiter,
   updateLaufzettelBadge,
   restoreFlipUser,
+  isProtectedFlipUserId,
 } = require("../../services/integrations/FlipService");
 const {
   findTasks,
@@ -1644,6 +1645,13 @@ router.patch(
       return res.status(404).json({
         success: false,
         message: "Mitarbeiter mit dieser ID nicht gefunden.",
+      });
+    }
+
+    if (updateData.isActive === false && isProtectedFlipUserId(currentMitarbeiter.flip_id)) {
+      return res.status(409).json({
+        success: false,
+        message: "Dieser geteilte Team-Flip-Account ist vor Deaktivierung geschützt.",
       });
     }
 
