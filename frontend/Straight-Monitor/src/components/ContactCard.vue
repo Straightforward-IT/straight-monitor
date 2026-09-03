@@ -1,8 +1,15 @@
 <template>
-  <article class="contact-card" :data-theme="effectiveTheme">
+  <ModalFrame
+    :model-value="true"
+    size="md"
+    class="contact-card-modal"
+    :show-close="true"
+    @close="emit('close')"
+  >
 
     <!-- ── Header ────────────────────────────────────────────────────── -->
-    <header class="card-header">
+    <template #header>
+      <div class="card-header" :data-theme="effectiveTheme">
       <div class="left">
         <div class="avatar" :style="avatarStyle">{{ initials }}</div>
         <div class="title">
@@ -20,7 +27,10 @@
           </div>
         </div>
       </div>
+      </div>
+    </template>
 
+    <template #actions>
       <div class="header-actions">
         <a
           v-if="primaryEmail"
@@ -46,11 +56,8 @@
         >
           <font-awesome-icon :icon="['fas', 'pen']" />
         </button>
-        <button class="icon-btn" @click="$emit('close')" title="Schließen">
-          <font-awesome-icon :icon="['fas', 'xmark']" />
-        </button>
       </div>
-    </header>
+    </template>
 
     <!-- ── Loading ───────────────────────────────────────────────────── -->
     <div v-if="loading" class="loading-state">
@@ -58,10 +65,8 @@
       Lädt Kontakt…
     </div>
 
-    <template v-else>
-
       <!-- ── Body: View ─────────────────────────────────────────────── -->
-      <div v-if="!editing && !showDeleteConfirm" class="card-body">
+      <div v-else-if="!editing && !showDeleteConfirm" class="card-body">
 
         <!-- Microsoft branding -->
         <div class="ms-section">
@@ -184,7 +189,8 @@
       </div>
 
       <!-- ── Footer ─────────────────────────────────────────────────── -->
-      <footer class="card-footer">
+    <template v-if="!loading" #footer>
+        <div class="card-footer">
         <div class="footer-left">
           <button
             v-if="!editing && !showDeleteConfirm"
@@ -212,15 +218,15 @@
             </button>
           </template>
         </div>
-      </footer>
-
-    </template>
-  </article>
+        </div>
+      </template>
+  </ModalFrame>
 </template>
 
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 import { useTheme } from '@/stores/theme';
 import { useDataCache } from '@/stores/dataCache';
 import api from '@/utils/api';
@@ -421,17 +427,15 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-.contact-card {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
-  width: 520px;
-  max-width: 100%;
-  max-height: 90vh;
+:deep(.contact-card-modal) {
+  --mf-max-width: 520px;
+  --mf-surface: var(--surface);
+  --mf-border: 1px solid var(--border);
+  --mf-radius: 16px;
+  --mf-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  --mf-header-padding: 18px 20px;
+  --mf-body-padding: 0;
+  --mf-footer-padding: 0;
 }
 
 // ── Header ─────────────────────────────────────────────────────────────
@@ -439,10 +443,6 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 18px 20px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
 }
 
 .left {
@@ -513,30 +513,31 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.icon-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  display: grid;
+.header-actions .icon-btn {
+  display: inline-grid;
   place-items: center;
-  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
   color: var(--muted);
-  font-size: 14px;
+  cursor: pointer;
+  font-size: 1rem;
   text-decoration: none;
-  transition: background 0.14s ease, color 0.14s ease, border-color 0.2s ease;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 
   &:hover {
-    background: var(--soft);
-    color: var(--text);
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
   }
 
   &.active {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: #fff;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
+    background: color-mix(in srgb, var(--primary) 16%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+    color: var(--primary);
   }
 }
 
@@ -781,7 +782,6 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 10px;
   padding: 14px 20px;
-  border-top: 1px solid var(--border);
   background: var(--surface);
   flex-shrink: 0;
 }
@@ -847,10 +847,10 @@ onMounted(async () => {
 
 // ── Responsive ─────────────────────────────────────────────────────────
 @media (max-width: 560px) {
-  .contact-card {
-    width: 100%;
-    border-radius: 16px 16px 0 0;
-    max-height: 95vh;
+  :deep(.contact-card-modal) {
+    --mf-max-width: 100%;
+    --mf-max-height: 95vh;
+    --mf-radius: 16px 16px 0 0;
   }
 
   .kv > div {

@@ -690,23 +690,15 @@
       </div>
     </div>
 
-      <!-- Feed toggle handle + collapsible feed (fullscreen only) -->
-      <div v-if="isFullscreen && ui.panelType === 'kommentare' && !ui.hidden" class="fs-feed-wrapper">
-        <!-- Left-edge toggle handle — always visible -->
-        <button
-          class="fs-feed-toggle"
-          :title="fsFeedCollapsed ? 'Feed ausklappen [C]' : 'Feed einklappen [C]'"
-          @click="fsFeedCollapsed = !fsFeedCollapsed"
-        >
-          <font-awesome-icon :icon="fsFeedCollapsed ? 'fa-solid fa-chevron-left' : 'fa-solid fa-chevron-right'" />
-        </button>
-        <!-- Feed content (collapses horizontally) -->
-        <div class="fs-inline-feed" :class="{ 'fs-inline-feed--collapsed': fsFeedCollapsed }">
-          <div class="fs-inline-feed-content">
-            <KommentarFeed />
-          </div>
-        </div>
-      </div>
+      <InlinePanelFrame
+        v-if="isFullscreen && ui.panelType === 'kommentare' && !ui.hidden"
+        v-model:collapsed="fsFeedCollapsed"
+        label="Kommentarfeed"
+        title="Kommentar-Feed"
+        @close="ui.close()"
+      >
+        <KommentarFeed hide-header />
+      </InlinePanelFrame>
 
     </div><!-- /.fs-body -->
 
@@ -992,22 +984,11 @@
       </div>
 
       <!-- Mobile Action Sheet (status setter) -->
-      <teleport to="body">
-        <transition name="m-sheet">
-          <div v-if="ctxMenu.open && isMobile" class="m-sheet-backdrop" @click="closeCtxMenu">
-            <div class="m-sheet m-sheet--action" @click.stop>
-              <div class="m-sheet__handle"></div>
-              <div class="m-sheet__header">
-                <div>
-                  <h3>{{ ctxMenu.ma?.vorname }} {{ ctxMenu.ma?.nachname }}</h3>
-                  <span class="m-sheet__sub">{{ formatIsoDate(ctxMenu.day) }}</span>
-                </div>
-                <button class="m-sheet__close" @click="closeCtxMenu">
-                  <font-awesome-icon icon="fa-solid fa-xmark" />
-                </button>
-              </div>
-
-              <div class="m-sheet__body">
+      <BottomSheetFrame
+        v-model="mobileContextMenuOpen"
+        :title="`${ctxMenu.ma?.vorname || ''} ${ctxMenu.ma?.nachname || ''}`.trim()"
+        :subtitle="formatIsoDate(ctxMenu.day)"
+      >
                 <!-- Existing entries -->
                 <template v-if="ctxMenu.entries.length">
                   <div class="m-sheet-group-label">Vorhandene Einträge</div>
@@ -1116,11 +1097,7 @@
                 <button class="m-action-btn m-action-btn--danger" @click="clearStatus">
                   <font-awesome-icon icon="fa-solid fa-eraser" /> Löschen
                 </button>
-              </div>
-            </div>
-          </div>
-        </transition>
-      </teleport>
+      </BottomSheetFrame>
     </template>
 
     <!-- Announcements -->
@@ -1718,6 +1695,8 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import AnnouncementModal from '@/components/ui-elements/AnnouncementModal.vue';
 import PageLayout from '@/components/layout/PageLayout.vue';
+import InlinePanelFrame from '@/components/frames/InlinePanelFrame.vue';
+import BottomSheetFrame from '@/components/frames/BottomSheetFrame.vue';
 
 const auth = useAuth();
 const dataCache = useDataCache();
@@ -2167,6 +2146,10 @@ const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
 const isKnechti = computed(() => ['ed@straightforward.email', 'it@straightforward.email'].includes(auth.user?.email?.toLowerCase()));
 const showFsPanel = computed(() => isFullscreen.value && ui.panelType === 'kommentare' && !ui.hidden);
 const fsFeedCollapsed = ref(false);
+const mobileContextMenuOpen = computed({
+  get: () => ctxMenu.open && isMobile.value,
+  set: (open) => { if (!open) closeCtxMenu(); },
+});
 const hiddenCount = computed(() =>
   mitarbeiter.value.filter((m) => hiddenIds.value.has(String(m._id))).length
 );
@@ -4554,33 +4537,6 @@ const dispoAnnouncements = [
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
-// Feed collapse toggle tab — sits centered on the bottom border of the toolbar
-// over the feed column (right-aligned)
-.fs-feed-toggle {
-  position: absolute;
-  bottom: -12px;
-  right: calc(310px / 2 - 14px);
-  width: 28px;
-  height: 12px;
-  background: var(--panel);
-  border: none;
-  border-radius: 0 0 8px 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 9px;
-  z-index: 51;
-  transition: color 0.15s, background 0.15s;
-  box-shadow: 2px 3px 6px rgba(0, 0, 0, 0.12), -1px 0 0 var(--border), 1px 0 0 var(--border), 0 1px 0 var(--border);
-
-  &:hover {
-    color: var(--primary);
-    background: var(--hover);
-  }
-}
-
 .fs-toolbar-left {
   flex-shrink: 0;
 }
@@ -4942,68 +4898,6 @@ const dispoAnnouncements = [
 // When feed panel is visible: table gets left-only bottom radius
 .fs-body--split .dispo-table-wrapper.fullscreen-wrapper {
   border-radius: 0 0 0 14px;
-}
-
-// Feed wrapper: handle strip + collapsible feed content
-.fs-feed-wrapper {
-  display: flex;
-  flex-direction: row;
-  flex-shrink: 0;
-  align-items: stretch;
-}
-
-// Thin vertical toggle handle — always visible at the left edge of the feed
-.fs-feed-toggle {
-  width: 20px;
-  align-self: stretch;
-  flex-shrink: 0;
-  background: var(--surface);
-  border: none;
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  z-index: 10;
-  transition: color 0.15s, background 0.15s;
-
-  &:hover {
-    color: var(--primary);
-    background: var(--hover);
-  }
-}
-
-.fs-inline-feed {
-  width: 310px;
-  flex-shrink: 0;
-  overflow: hidden;
-  border-radius: 0 0 14px 0;
-  background: var(--bg);
-  display: flex;
-  flex-direction: column;
-  transition: width 0.25s ease;
-
-  &.fs-inline-feed--collapsed {
-    width: 0;
-  }
-}
-
-.fs-inline-feed-content {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  width: 310px; // fixed width so content doesn't squish during animation
-
-  > * {
-    flex: 1;
-    min-height: 0;
-  }
 }
 
 /* Neuer Split-Layout Container */
@@ -7942,91 +7836,6 @@ const dispoAnnouncements = [
   }
 }
 
-/* Bottom sheets (filter + action) */
-.m-sheet-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.4);
-  z-index: 2000;
-  display: flex;
-  align-items: flex-end;
-  justify-content: stretch;
-}
-
-.m-sheet {
-  width: 100%;
-  max-height: 88vh;
-  background: var(--surface, #fff);
-  border-radius: 16px 16px 0 0;
-  display: flex;
-  flex-direction: column;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
-
-  &__handle {
-    width: 36px;
-    height: 4px;
-    background: rgba(0,0,0,0.15);
-    border-radius: 2px;
-    margin: 8px auto 4px;
-  }
-  &__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 16px 10px;
-    border-bottom: 1px solid var(--border, rgba(0,0,0,0.06));
-
-    h3 {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--text, #222);
-    }
-  }
-  &__sub {
-    display: block;
-    font-size: 0.78rem;
-    color: var(--text-muted, #888);
-    margin-top: 2px;
-  }
-  &__close {
-    width: 32px;
-    height: 32px;
-    background: transparent;
-    border: none;
-    color: var(--text-muted, #888);
-    font-size: 1rem;
-    cursor: pointer;
-    border-radius: 8px;
-
-    &:active { background: rgba(0,0,0,0.05); }
-  }
-  &__body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 12px 16px 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-}
-
-/* Filter sheet: compact overrides for vertical layout */
-.m-sheet--filter .m-sheet__body {
-  gap: 4px;
-  padding: 8px 12px 16px;
-
-  /* Turn the vertical divider bar into a slim horizontal rule */
-  :deep(.filter-divider) {
-    display: block;
-    width: 100%;
-    height: 1px;
-    background: var(--border);
-    margin: 2px 0;
-  }
-}
-
 .m-sheet-group-label {
   font-size: 0.72rem;
   font-weight: 600;
@@ -8167,18 +7976,6 @@ const dispoAnnouncements = [
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-/* Sheet slide-up animation */
-.m-sheet-enter-active, .m-sheet-leave-active {
-  transition: opacity 0.2s ease;
-
-  .m-sheet { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
-}
-.m-sheet-enter-from, .m-sheet-leave-to {
-  opacity: 0;
-
-  .m-sheet { transform: translateY(100%); }
 }
 
 // ─── Verfügbarkeiten Bulk Modal ───

@@ -1,7 +1,7 @@
 <template>
   <div class="kf-feed">
     <!-- Header -->
-    <div class="kf-header">
+    <div v-if="!hideHeader" class="kf-header">
       <div class="kf-header-left">
         <span class="kf-header-title">Kommentar-Feed</span>
         <span v-if="unreadCount > 0" class="kf-unread-badge">{{ unreadCount }}</span>
@@ -121,6 +121,10 @@ import { useComments } from '@/stores/comments';
 import { useDataCache } from '@/stores/dataCache';
 import api from '@/utils/api';
 import CustomTooltip from '@/components/CustomTooltip.vue';
+
+defineProps({
+  hideHeader: { type: Boolean, default: false },
+});
 
 const ui = useUi();
 const auth = useAuth();

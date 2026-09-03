@@ -2,9 +2,10 @@
   <transition name="chronik-drawer-slide">
     <aside
       v-if="show"
+      ref="drawerRef"
       class="chronik-drawer"
       :class="{ 'chronik-drawer--collapsed': collapsed, 'chronik-drawer--with-sidebar': sidebarOpen }"
-      :style="!collapsed ? { height: height + 'px' } : null"
+      :style="drawerStyle"
     >
       <header class="cd-header" @click="collapsed = !collapsed">
         <div
@@ -29,15 +30,20 @@
           </button>
         </div>
       </header>
-      <div v-if="!collapsed" class="cd-body">
-        <slot />
-      </div>
+      <template v-if="!collapsed">
+        <div class="cd-body">
+          <slot />
+        </div>
+        <footer v-if="$slots.footer" class="cd-footer">
+          <slot name="footer" />
+        </footer>
+      </template>
     </aside>
   </transition>
 </template>
 
 <script setup>
-import { ref, watch, onUnmounted } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faClockRotateLeft, faChevronUp, faChevronDown, faXmark } from '@fortawesome/free-solid-svg-icons';
@@ -57,13 +63,33 @@ const STORAGE_KEY_COLLAPSED = 'leads_chronik_drawer_collapsed';
 
 const height = ref(parseInt(localStorage.getItem(STORAGE_KEY_HEIGHT) || '320', 10));
 const collapsed = ref(localStorage.getItem(STORAGE_KEY_COLLAPSED) === '1');
+const drawerRef = ref(null);
+const sidebarOffset = ref('0px');
+const naturalHeight = ref(0);
+
+const drawerStyle = computed(() => ({
+  ...(collapsed.value ? {} : { height: `${Math.min(height.value, naturalHeight.value || height.value)}px` }),
+  '--cd-sidebar-offset': sidebarOffset.value,
+}));
 
 watch(height, v => localStorage.setItem(STORAGE_KEY_HEIGHT, String(v)));
 watch(collapsed, v => localStorage.setItem(STORAGE_KEY_COLLAPSED, v ? '1' : '0'));
+watch(
+  () => [props.show, props.sidebarOpen],
+  () => nextTick(() => {
+    syncSidebarOffset();
+    syncNaturalHeight();
+    observeDrawerContent();
+  }),
+  { immediate: true },
+);
 
 let dragging = false;
 let startY = 0;
 let startHeight = 0;
+let sidebarObserver = null;
+let observedSidebar = null;
+let contentObserver = null;
 
 function startResize(e) {
   dragging = true;
@@ -93,7 +119,64 @@ function stopResize() {
   window.removeEventListener('mouseup', stopResize);
 }
 
-onUnmounted(stopResize);
+function syncSidebarOffset() {
+  if (!props.sidebarOpen || !drawerRef.value) {
+    sidebarOffset.value = '0px';
+    return;
+  }
+
+  const sidebar = document.querySelector('.leads-tab .sp-panel, .leads-tab .detail-sidebar:not(.detail-sidebar--mobile)');
+  if (sidebar !== observedSidebar) {
+    sidebarObserver?.disconnect();
+    observedSidebar = sidebar;
+    if (sidebar) {
+      sidebarObserver = new ResizeObserver(syncSidebarOffset);
+      sidebarObserver.observe(sidebar);
+    }
+  }
+
+  sidebarOffset.value = sidebar
+    ? `${Math.max(0, window.innerWidth - sidebar.getBoundingClientRect().left)}px`
+    : '0px';
+}
+
+function syncNaturalHeight() {
+  const drawer = drawerRef.value;
+  const header = drawer?.querySelector('.cd-header');
+  const body = drawer?.querySelector('.cd-body');
+  const content = body?.firstElementChild;
+  const footer = drawer?.querySelector('.cd-footer');
+  if (!header || !body || !content || !footer) return;
+
+  const bodyStyle = getComputedStyle(body);
+  naturalHeight.value = Math.ceil(
+    header.offsetHeight
+    + content.scrollHeight
+    + parseFloat(bodyStyle.paddingTop)
+    + parseFloat(bodyStyle.paddingBottom)
+    + footer.offsetHeight,
+  );
+}
+
+function observeDrawerContent() {
+  if (!drawerRef.value || contentObserver) return;
+  contentObserver = new MutationObserver(() => nextTick(syncNaturalHeight));
+  contentObserver.observe(drawerRef.value, { childList: true, subtree: true, characterData: true });
+}
+
+onMounted(() => {
+  window.addEventListener('resize', syncSidebarOffset);
+  nextTick(() => {
+    syncNaturalHeight();
+    observeDrawerContent();
+  });
+});
+onUnmounted(() => {
+  stopResize();
+  sidebarObserver?.disconnect();
+  contentObserver?.disconnect();
+  window.removeEventListener('resize', syncSidebarOffset);
+});
 </script>
 
 <style scoped lang="scss">
@@ -114,10 +197,7 @@ onUnmounted(stopResize);
   z-index: 90; // below sidebar (which is typically 100+)
   transition: right 0.25s ease;
 
-  &--with-sidebar {
-    // 440px sidebar + 24px page right padding (.kunden-page--wide)
-    right: 466px;
-  }
+  &--with-sidebar { right: var(--cd-sidebar-offset); }
   &--collapsed {
     height: 40px !important;
   }
@@ -191,6 +271,16 @@ onUnmounted(stopResize);
   overflow-y: auto;
   padding: 12px 16px;
   min-height: 0;
+}
+
+.cd-footer {
+  flex: 0 0 auto;
+  padding: 0 16px 12px;
+  background: var(--tile-bg);
+}
+
+@media (max-width: 1100px) {
+  .chronik-drawer { display: none; }
 }
 
 .chronik-drawer-slide-enter-active,

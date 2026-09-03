@@ -144,9 +144,19 @@
     </button>
 
     <!-- Right Sidebar -->
-    <transition name="sidebar-slide">
-      <aside v-if="selectedLead" class="detail-sidebar" :class="{ 'detail-sidebar--mobile': isMobile }">
-        <header class="sidebar-header">
+      <SidePanelFrame
+        v-if="selectedLead"
+        v-model="hasSelectedLead"
+        v-model:presentation="leadPanelPresentation"
+        class="detail-sidebar"
+        :class="{ 'detail-sidebar--mobile': isMobile }"
+        width="420px"
+        :modal-minimizable="true"
+        :modal-title="selectedLead.title"
+        :show-close="!isMobile"
+        @close="closeSidebar"
+      >
+        <template #header>
           <button v-if="isMobile" class="mobile-back-btn" @click="closeSidebar" title="Zurück">
             <font-awesome-icon :icon="['fas', 'chevron-left']" />
           </button>
@@ -162,28 +172,21 @@
               </span>
             </div>
           </div>
-          <template v-if="!isMobile">
-            <button class="btn-archive" @click="archiveLead" :disabled="savingDetail" title="Archivieren">
-              <font-awesome-icon :icon="['fas', 'box-archive']" />
-            </button>
-            <button class="close-btn" @click="closeSidebar">
-              <font-awesome-icon :icon="['fas', 'xmark']" />
-            </button>
-          </template>
-          <div v-else class="mobile-sidebar-overflow">
-            <button class="close-btn" @click="mobileSidebarMenuOpen = !mobileSidebarMenuOpen" title="Aktionen">
-              <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-            </button>
-            <div v-if="mobileSidebarMenuOpen" class="mobile-overflow-backdrop" @click="mobileSidebarMenuOpen = false"></div>
-            <div v-if="mobileSidebarMenuOpen" class="mobile-overflow-menu mobile-overflow-menu--sidebar" @click.stop>
-              <button class="mobile-overflow-item" :disabled="savingDetail" @click="mobileSidebarMenuOpen = false; archiveLead()">
-                <font-awesome-icon :icon="['fas', 'box-archive']" /> Archivieren
-              </button>
-            </div>
-          </div>
-        </header>
+        </template>
+        <template #actions>
+          <button class="close-btn" :disabled="savingDetail" @click.stop="openSidebarActionMenu" title="Aktionen">
+            <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
+          </button>
+          <ContextMenu
+            v-if="sidebarActionMenu.open"
+            :x="sidebarActionMenu.x"
+            :y="sidebarActionMenu.y"
+            :options="sidebarActionMenuOptions"
+            @close="sidebarActionMenu.open = false"
+            @select="handleSidebarAction"
+          />
+        </template>
 
-        <div class="sidebar-body">
           <!-- Standard Fields -->
           <section class="info-section" :class="{ 'mobile-collapsed': isMobile && !mobileSectionsOpen.daten }">
             <h4 class="section-title" :class="{ 'section-title--mobile-clickable': isMobile }" @click="isMobile && toggleMobileSection('daten')">
@@ -946,9 +949,7 @@
             </div>
           </section>
 
-        </div>
-      </aside>
-    </transition>
+      </SidePanelFrame>
 
     <!-- Chronik bottom drawer (slides up when a lead is open) -->
     <LeadChronikDrawer
@@ -1028,6 +1029,8 @@
           </template>
         </div>
 
+      </div>
+      <template #footer>
         <div class="chronik-inline-compose chronik-compose--drawer">
           <div class="compose-dot">
             <span class="dot-avatar">{{ initials(auth.user?.name) }}</span>
@@ -1049,7 +1052,7 @@
             </button>
           </div>
         </div>
-      </div>
+      </template>
     </LeadChronikDrawer>
 
     <!-- Create Modal -->
@@ -1217,16 +1220,13 @@
     />
 
     <!-- Contact Card Modal -->
-    <teleport to="body">
-      <div v-if="selectedMsContact" class="modal-overlay" @click.self="selectedMsContact = null">
-        <ContactCard
-          :contact="selectedMsContact"
-          @close="selectedMsContact = null"
-          @deleted="onContactDeleted"
-          @updated="onContactUpdated"
-        />
-      </div>
-    </teleport>
+    <ContactCard
+      v-if="selectedMsContact"
+      :contact="selectedMsContact"
+      @close="selectedMsContact = null"
+      @deleted="onContactDeleted"
+      @updated="onContactUpdated"
+    />
 
     <!-- Field Manager Modal (Custom Fields / LeadLabels) -->
     <teleport to="body">
@@ -1537,6 +1537,8 @@ import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
 import LeadBoard from './leads/LeadBoard.vue';
 import LeadCard from './leads/LeadCard.vue';
 import LeadChronikDrawer from './leads/LeadChronikDrawer.vue';
+import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
+import ContextMenu from '@/components/ContextMenu.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
@@ -1560,6 +1562,11 @@ const props = defineProps({
   initialLeadId: { type: String, default: null },
 });
 
+const hasSelectedLead = computed({
+  get: () => !!selectedLead.value,
+  set: (open) => { if (!open) closeSidebar(); },
+});
+
 // ─── Mobile detection ───────────────────────────────────────────────
 const MOBILE_BP = 768;
 const isMobile = ref(typeof window !== 'undefined' && window.innerWidth <= MOBILE_BP);
@@ -1567,7 +1574,15 @@ function onResizeMobile() { isMobile.value = window.innerWidth <= MOBILE_BP; }
 
 // Mobile state
 const mobileStageFilter = ref('all'); // 'all' or one of stufeSteps values
-const mobileSidebarMenuOpen = ref(false);
+const leadPanelPresentation = ref('panel');
+const sidebarActionMenu = reactive({ open: false, x: 0, y: 0 });
+const sidebarActionMenuOptions = computed(() => [
+  {
+    label: leadPanelPresentation.value === 'panel' ? 'Als Fenster öffnen' : 'In Seitenleiste öffnen',
+    action: leadPanelPresentation.value === 'panel' ? 'open-modal' : 'open-panel',
+  },
+  { label: 'Archivieren', action: 'archive' },
+]);
 // Per-session collapsed/expanded state of sidebar sections on mobile.
 // Key: section id, value: true=expanded, false=collapsed.
 const mobileSectionsOpen = reactive({
@@ -2293,6 +2308,7 @@ function openLead(lead) {
     return;
   }
   selectedLead.value = lead;
+  leadPanelPresentation.value = 'panel';
   if (window.innerWidth <= 1100) document.body.style.overflow = 'hidden';
   if (isMobile.value) resetMobileSections();
   detailForm.title = lead.title || '';
@@ -2323,8 +2339,22 @@ function closeSidebar() {
   chronikExpandedLeadId.value = null;
   chronikLead.value = null;
   chronikEntries.value = [];
-  mobileSidebarMenuOpen.value = false;
+  sidebarActionMenu.open = false;
+  leadPanelPresentation.value = 'panel';
   document.body.style.overflow = '';
+}
+
+function openSidebarActionMenu(event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  sidebarActionMenu.x = rect.right - 150;
+  sidebarActionMenu.y = rect.bottom + 4;
+  sidebarActionMenu.open = true;
+}
+
+function handleSidebarAction(action) {
+  if (action === 'open-modal') leadPanelPresentation.value = 'modal';
+  if (action === 'open-panel') leadPanelPresentation.value = 'panel';
+  if (action === 'archive') archiveLead();
 }
 
 onUnmounted(() => {
@@ -3666,127 +3696,29 @@ onBeforeUnmount(() => {
   &.ok { background: #d1fae5; color: #065f46; }
 }
 
-/* ── Sidebar ─────────────────────────────────────────────────────── */
-.detail-sidebar {
-  position: sticky;
-  width: 440px;
-  min-width: 440px;
-  height: calc(100vh - 88px);
-  overflow-y: auto;
-  background: var(--tile-bg);
-  border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  margin-left: 16px;
+/* ── Sidebar content and actions ─────────────────────────────────── */
+.sidebar-title-area { min-width: 0; }
+.sidebar-title-area h3 { margin: 0 0 6px; font-size: 1.1rem; color: var(--text); word-break: break-word; }
+.sidebar-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sidebar-owner { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 0.8rem; line-height: 1.2; }
+.sidebar-owner svg { flex: 0 0 auto; font-size: 0.75rem; }
 
-  @media (max-width: 1100px) {
-    position: fixed;
-    right: 0;
-    left: 0;
-    top: 88px;
-    height: calc(100vh - 88px);
-    z-index: 1000;
-    width: 100vw;
-    min-width: 320px;
-    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.2);
-  }
+.close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
 }
 
-.sidebar-slide-enter-active,
-.sidebar-slide-leave-active {
-  transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-              min-width 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-              opacity 0.2s ease,
-              transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
-  overflow: hidden;
-}
-
-.sidebar-slide-enter-from,
-.sidebar-slide-leave-to {
-  width: 0 !important;
-  min-width: 0 !important;
-  opacity: 0;
-  transform: translateX(100%);
-}
-
-.sidebar-slide-enter-to,
-.sidebar-slide-leave-from {
-  transform: translateX(0);
-}
-
-.sidebar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
-
-  .sidebar-title-area {
-    flex: 1;
-    min-width: 0;
-
-    h3 {
-      margin: 0 0 6px;
-      font-size: 1.1rem;
-      color: var(--text);
-      word-break: break-word;
-    }
-
-    .sidebar-status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .sidebar-owner {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-width: 0;
-      color: var(--muted);
-      font-size: 0.8rem;
-      line-height: 1.2;
-
-      svg {
-        flex: 0 0 auto;
-        font-size: 0.75rem;
-      }
-    }
-  }
-
-  .close-btn {
-    background: none;
-    border: none;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 1.1rem;
-    padding: 4px 16px;
-
-    &:hover {
-      color: var(--text);
-    }
-  }
-
-  .btn-archive {
-    background: none;
-    border: none;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 1rem;
-    padding: 4px 8px;
-
-    &:hover { color: #ef4444; }
-    &:disabled { opacity: 0.4; cursor: default; }
-  }
-}
-
-.sidebar-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-}
+.close-btn:hover { background: var(--hover); border-color: var(--border); color: var(--text); }
+.close-btn:disabled { opacity: 0.4; cursor: default; }
 
 .quick-actions {
   display: flex;
@@ -4054,19 +3986,12 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Drawer-specific overrides: wider textarea, slim height, sticky at bottom */
+/* Drawer-specific overrides: wider textarea in the fixed drawer footer */
 .chronik-compose--drawer {
-  position: sticky;
-  bottom: -12px; // counter .cd-body's 12px bottom padding so it pins flush
-  z-index: 2;
-  background: var(--tile-bg);
-  margin-top: 0;
   padding-top: 8px;
-  padding-bottom: 12px;
 
-  /* Extend the timeline path line up into the gap above the compose dot */
   &::before {
-    top: -8px !important;
+    top: -20px !important;
     bottom: 50% !important;
   }
 
@@ -6096,20 +6021,7 @@ onBeforeUnmount(() => {
 
 /* Mobile full-screen sidebar */
 .detail-sidebar--mobile {
-  position: fixed !important;
-  inset: 0 !important;
-  margin-left: 0 !important;
-  width: 100vw !important;
-  height: 100dvh !important;
-  max-width: 100vw !important;
-  border-radius: 0 !important;
-  border-left: none !important;
-  z-index: 1100;
   overscroll-behavior: contain;
-
-  .sidebar-body {
-    -webkit-overflow-scrolling: touch;
-  }
 }
 
 .mobile-back-btn {
@@ -6128,11 +6040,6 @@ onBeforeUnmount(() => {
   border-radius: 6px;
 
   &:hover { background: var(--hover); }
-}
-
-.mobile-sidebar-overflow {
-  position: relative;
-  display: inline-flex;
 }
 
 /* Section accordion (mobile) */

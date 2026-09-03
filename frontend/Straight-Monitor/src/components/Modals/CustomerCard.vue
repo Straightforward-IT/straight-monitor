@@ -899,16 +899,13 @@
     />
 
     <!-- Contact Card Modal -->
-    <teleport to="body" :disabled="Boolean(dockedModal)">
-      <div v-if="selectedContactCard" class="contact-card-overlay" @click.self="selectedContactCard = null">
-        <ContactCard
-          :contact="selectedContactCard"
-          @close="selectedContactCard = null"
-          @deleted="onContactCardDeleted"
-          @updated="onContactCardUpdated"
-        />
-      </div>
-    </teleport>
+    <ContactCard
+      v-if="selectedContactCard"
+      :contact="selectedContactCard"
+      @close="selectedContactCard = null"
+      @deleted="onContactCardDeleted"
+      @updated="onContactCardUpdated"
+    />
 
     <!-- Kontakt Anlegen Modal -->
     <KontaktAnlegenModal

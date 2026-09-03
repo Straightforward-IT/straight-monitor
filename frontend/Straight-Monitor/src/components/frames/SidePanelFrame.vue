@@ -1,7 +1,7 @@
 <template>
   <Transition name="sp">
     <aside
-      v-if="modelValue"
+      v-if="modelValue && presentation === 'panel'"
       ref="panelRef"
       class="sp-panel"
       :style="{ '--sp-width': width }"
@@ -36,25 +36,56 @@
     </aside>
   </Transition>
 
+  <ModalFrame
+    v-if="modelValue && presentation === 'modal'"
+    :model-value="modelValue"
+    :size="modalSize"
+    :show-close="showClose"
+    :close-on-backdrop="closeOnBackdrop"
+    :close-on-escape="closeOnEscape"
+    :minimizable="modalMinimizable"
+    :minimize-title="modalTitle || title"
+    @update:model-value="emit('update:modelValue', $event)"
+    @close="emit('close')"
+  >
+    <template #header>
+      <slot name="header">
+        <h2 v-if="title" :id="titleId" class="sp-panel__title">{{ title }}</h2>
+        <p v-if="subtitle" class="sp-panel__subtitle">{{ subtitle }}</p>
+      </slot>
+    </template>
+    <template #actions><slot name="actions" /></template>
+    <slot />
+  </ModalFrame>
+
   <Teleport to="body">
-    <div v-if="modelValue" class="sp-panel__backdrop" aria-hidden="true" @click="onBackdrop" />
+    <div v-if="modelValue && presentation === 'panel'" class="sp-panel__backdrop" aria-hidden="true" @click="onBackdrop" />
   </Teleport>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch, useSlots } from 'vue';
+import ModalFrame from './ModalFrame.vue';
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   title: { type: String, default: '' },
   subtitle: { type: String, default: '' },
   width: { type: String, default: '420px' },
+  presentation: {
+    type: String,
+    default: 'panel',
+    validator: (value) => ['panel', 'modal'].includes(value),
+  },
+  modalSize: { type: String, default: 'lg' },
+  modalTitle: { type: String, default: '' },
+  modalMinimizable: { type: Boolean, default: false },
   showClose: { type: Boolean, default: true },
   closeOnEscape: { type: Boolean, default: true },
   closeOnBackdrop: { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['update:modelValue', 'close']);
+const emit = defineEmits(['update:modelValue', 'update:presentation', 'close']);
 const slots = useSlots();
 const panelRef = ref(null);
 const titleId = `side-panel-${Math.random().toString(36).slice(2)}-title`;
@@ -70,7 +101,7 @@ function onBackdrop() {
 }
 
 function onKeydown(event) {
-  if (event.key === 'Escape' && props.closeOnEscape && props.modelValue) close();
+  if (event.key === 'Escape' && props.closeOnEscape && props.modelValue && props.presentation === 'panel') close();
 }
 
 watch(
@@ -78,7 +109,7 @@ watch(
   (open) => {
     if (open) {
       window.addEventListener('keydown', onKeydown);
-      nextTick(() => panelRef.value?.focus());
+      nextTick(() => panelRef.value?.focus({ preventScroll: true }));
     } else {
       window.removeEventListener('keydown', onKeydown);
     }
@@ -148,11 +179,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
 
 @media (max-width: 1200px) {
   .sp-panel { --sp-width: min(var(--sp-width), 350px); }
-  .sp-panel__backdrop { position: fixed; inset: var(--header-h, 56px) 0 0; z-index: 99; display: block; background: rgba(0, 0, 0, 0.4); }
 }
 
 @media (max-width: 768px) {
   .sp-panel { position: fixed; z-index: 100; top: 0; right: 0; width: 100%; height: 100%; margin-left: 0; border-radius: 0; }
+  .sp-panel__backdrop { position: fixed; inset: var(--header-h, 56px) 0 0; z-index: 99; display: block; background: rgba(0, 0, 0, 0.4); }
   .sp-enter-from, .sp-leave-to { transform: translateX(100%); width: 100%; }
   .sp-enter-active, .sp-leave-active { transition: transform 0.25s ease, opacity 0.2s ease; }
 }
