@@ -452,6 +452,17 @@
         <div v-else class="empty-contacts">Keine Einsatzorte vorhanden.</div>
       </section>
 
+      <section v-if="activeTab === 'einsatzinfos'" class="section einsatzinfos-section">
+        <div class="einsatzinfos-intro">
+          <div>
+            <span class="einsatzinfos-kicker">Public Monitor & Disposition</span>
+            <h4>Einsatzinformationen</h4>
+          </div>
+          <p>Pflege einen allgemeinen Default und präzisere Vorlagen je Einsatzort, Beruf und Qualifikation. Bestehende Schichten behalten immer ihren gespeicherten Stand.</p>
+        </div>
+        <EinsatzinformationenEditor :kunden-nr="kunde.kundenNr" :einsatzorte="einsatzorte" />
+      </section>
+
       <!-- Statistik -->
       <section v-if="activeTab === 'statistik' && kunde.kundenNr && canSeeSensitiveKpi" class="section analytics-section">
         <h4 class="section-title">
@@ -982,6 +993,7 @@ import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import InformationCard from '@/components/ui-elements/InformationCard.vue';
+import EinsatzinformationenEditor from '@/components/customer/EinsatzinformationenEditor.vue';
 import api from '@/utils/api';
 
 const props = defineProps({
@@ -998,6 +1010,7 @@ const tabs = [
   { id: 'rechnung', label: 'Rechnung', icon: 'file-invoice' },
   { id: 'kontakte', label: 'Kontakte', icon: 'address-book' },
   { id: 'einsaetze', label: 'Einsätze', icon: 'calendar-days' },
+  { id: 'einsatzinfos', label: 'Einsatzinfos', icon: 'circle-info' },
   { id: 'lohn', label: 'Lohn', icon: 'coins' },
   { id: 'statistik', label: 'Statistik', icon: 'chart-bar' },
 ];
@@ -2113,6 +2126,17 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 </script>
 
 <style scoped>
+.einsatzinfos-intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+.einsatzinfos-intro h4 { margin: .15rem 0 0; font-size: 1.35rem; }
+.einsatzinfos-intro p { max-width: 620px; margin: 0; color: var(--text-secondary, #64748b); line-height: 1.5; }
+.einsatzinfos-kicker { color: #2563eb; font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+@media (max-width: 760px) { .einsatzinfos-intro { align-items: flex-start; flex-direction: column; gap: .5rem; } }
 .customer-card {
   display: flex;
   flex: 1 1 auto;

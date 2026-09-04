@@ -303,6 +303,17 @@ router.get(
       .select("auftragNr eventTitel kundenNr geschSt locationV2 eventLocation eventOrt vonDatum bisDatum labels")
       .populate('locationV2', 'nameFull shortName color externalId isActive')
       .lean();
+    const directSchichtIds = [...new Set(einsaetze.map(einsatz => String(einsatz.schicht || '')).filter(Boolean))];
+    const legacyShiftKeys = [...new Set(einsaetze.map(einsatz => einsatz.idAuftragArbeitsschichten).filter(value => value !== null && value !== undefined))];
+    const shiftClauses = [
+      ...(directSchichtIds.length ? [{ _id: { $in: directSchichtIds } }] : []),
+      ...(legacyShiftKeys.length ? [{ auftragNr: { $in: auftragNrs }, idAuftragArbeitsschichten: { $in: legacyShiftKeys } }] : []),
+    ];
+    const schichten = shiftClauses.length
+      ? await Schicht.find({ $or: shiftClauses }).select('auftragNr idAuftragArbeitsschichten einsatzinformation').lean()
+      : [];
+    const schichtById = new Map(schichten.map(schicht => [String(schicht._id), schicht]));
+    const schichtByLegacyKey = new Map(schichten.map(schicht => [`${schicht.auftragNr}:${schicht.idAuftragArbeitsschichten}`, schicht]));
 
     const fallbackExternalIds = [...new Set(auftraege
       .filter((auftrag) => !auftrag.locationV2?.isActive)
@@ -335,10 +346,16 @@ router.get(
     });
 
     // Merge
-    const enriched = einsaetze.map((e) => ({
-      ...e,
-      auftrag: auftragMap[e.auftragNr] || null,
-    }));
+    const enriched = einsaetze.map((e) => {
+      const schicht = schichtById.get(String(e.schicht || ''))
+        || schichtByLegacyKey.get(`${e.auftragNr}:${e.idAuftragArbeitsschichten}`);
+      return {
+        ...e,
+        stabileSchichtId: schicht?._id || e.schicht || null,
+        einsatzinformationHtml: schicht?.einsatzinformation?.renderedHtml || '',
+        auftrag: auftragMap[e.auftragNr] || null,
+      };
+    });
 
     res.json(enriched);
   })
@@ -365,17 +382,18 @@ router.get(
     if (!einsaetze.length) return res.json([]);
 
     const schichtIds = [...new Set(einsaetze.map((e) => e.idAuftragArbeitsschichten).filter((id) => id != null))];
-    const schichten = schichtIds.length
-      ? await Schicht.find({
-          auftragNr: parseInt(auftragNr),
-          idAuftragArbeitsschichten: { $in: schichtIds }
-        })
-          .select("idAuftragArbeitsschichten bezeichnung uhrzeitVon uhrzeitBis treffpunkt treffpunktOrt")
-          .lean()
+    const canonicalSchichtIds = [...new Set(einsaetze.map((e) => e.schicht).filter(Boolean).map(String))];
+    const shiftClauses = [
+      ...(canonicalSchichtIds.length ? [{ _id: { $in: canonicalSchichtIds } }] : []),
+      ...(schichtIds.length ? [{ auftragNr: parseInt(auftragNr), idAuftragArbeitsschichten: { $in: schichtIds } }] : []),
+    ];
+    const schichten = shiftClauses.length
+      ? await Schicht.find({ $or: shiftClauses })
+        .select("idAuftragArbeitsschichten bezeichnung uhrzeitVon uhrzeitBis treffpunkt treffpunktOrt")
+        .lean()
       : [];
-    const schichtById = Object.fromEntries(
-      schichten.map((schicht) => [schicht.idAuftragArbeitsschichten, schicht])
-    );
+    const schichtById = new Map(schichten.map((schicht) => [String(schicht._id), schicht]));
+    const schichtByLegacyId = new Map(schichten.map((schicht) => [schicht.idAuftragArbeitsschichten, schicht]));
 
     const berufKeys = [...new Set(
       einsaetze
@@ -418,11 +436,11 @@ router.get(
       });
     });
 
-    // Group by schicht (idAuftragArbeitsschichten)
+    // Group by canonical shift, with the Zvoove id as a legacy fallback.
     const schichtMap = {};
     einsaetze.forEach((e) => {
-      const key = e.idAuftragArbeitsschichten ?? 0;
-      const schichtMeta = schichtById[key] || null;
+      const key = e.schicht ? String(e.schicht) : `legacy-${e.idAuftragArbeitsschichten ?? 0}`;
+      const schichtMeta = schichtById.get(String(e.schicht || '')) || schichtByLegacyId.get(e.idAuftragArbeitsschichten) || null;
       if (!schichtMap[key]) {
         schichtMap[key] = {
           id: key,
@@ -470,7 +488,7 @@ router.get(
       });
     });
 
-    const result = Object.values(schichtMap).sort((a, b) => a.id - b.id);
+    const result = Object.values(schichtMap).sort((a, b) => String(a.id).localeCompare(String(b.id), 'de', { numeric: true }));
     res.json(result);
   })
 );

@@ -53,6 +53,7 @@
           <div class="detail-row"><span>Vergütung</span><strong>{{ selectedJob.hourlyWage || 'Noch nicht angegeben' }}</strong></div>
           <div class="detail-row"><span>Freie Plätze</span><strong>{{ selectedJob.openPlaces }}</strong></div>
         </section>
+        <PublicEinsatzinformation :html="selectedJob.einsatzinformationHtml" />
         <div v-if="selectedJob.isFixture" class="fixture-note">Beispieldaten für die Layout-Erprobung</div>
         <div class="sticky-action">
           <button v-if="!applicationStatus(selectedJob.id)" class="primary-button" type="button" @click="setApplication(selectedJob.id, 'submitted')">Bewerben</button>
@@ -200,6 +201,7 @@
 </template>
 
 <script setup>
+import PublicEinsatzinformation from '@/components/public/PublicEinsatzinformation.vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {

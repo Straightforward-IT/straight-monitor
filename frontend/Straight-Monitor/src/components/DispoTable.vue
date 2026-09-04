@@ -1076,9 +1076,6 @@
       </BottomSheetFrame>
     </template>
 
-    <!-- Announcements -->
-    <AnnouncementModal :announcements="dispoAnnouncements" />
-
     <!-- Help Modal -->
     <HelpModal v-model="showHelp">
       <template #title>Dispo-Tabelle — Hilfe</template>
@@ -1670,7 +1667,6 @@ import KundeSearch from '@/components/ui-elements/KundeSearch.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
-import AnnouncementModal from '@/components/ui-elements/AnnouncementModal.vue';
 import PageLayout from '@/components/layout/PageLayout.vue';
 import InlinePanelFrame from '@/components/frames/InlinePanelFrame.vue';
 import BottomSheetFrame from '@/components/frames/BottomSheetFrame.vue';
@@ -4462,15 +4458,6 @@ function onNameTouchEnd() {
 }
 
 // selectedKw changes are already handled via watch(visibleDays) above
-
-// ─── Announcements ───
-const dispoAnnouncements = [
-  {
-    id: 'dispo-verf-bulk-v1',
-    title: 'Alternative Eintragmöglichkeit für Verfügbarkeit',
-    text: '<strong>Über Rechtsklick auf Mitarbeiter</strong> → <em>Verfügbarkeiten eintragen</em>: Mehrere Datumsbereiche (z.B. 10.10.–16.10. und 18.10.–20.10.) auf einmal anlegen, Typ wählen (Verfügbar, Blocked, Urlaub …) und optional Uhrzeiten angeben.<br>Falls sich die Bereiche überschneiden, kann die Auswahl gesplittet werden. Bestehende Einsatz-Einträge bleiben unberührt.',
-  },
-];
 </script>
 
 <style scoped lang="scss">

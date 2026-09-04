@@ -11,6 +11,30 @@ const EinsatzSchema = new mongoose.Schema({
     default: null,
     index: true,
   },
+  schicht: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Schicht',
+    default: null,
+    index: true,
+  },
+  source: {
+    type: String,
+    enum: ['monitor', 'zvoove'],
+    default: 'zvoove',
+    index: true,
+  },
+  plannedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  conflictOverride: {
+    confirmed: { type: Boolean, default: false },
+    reason: { type: String, default: '', trim: true, maxlength: 500 },
+    confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    confirmedAt: { type: Date, default: null },
+    conflicts: [{ type: mongoose.Schema.Types.Mixed }],
+  },
   personalNr: {
     type: Number, // PERSONALNR
     required: false
@@ -70,6 +94,15 @@ const EinsatzSchema = new mongoose.Schema({
 
 EinsatzSchema.index({ auftragNr: 1, datumVon: 1 });
 EinsatzSchema.index({ auftragNr: 1, idAuftragArbeitsschichten: 1, datumVon: 1 });
+EinsatzSchema.index({ auftragNr: 1, schicht: 1, personalNr: 1 });
+EinsatzSchema.index(
+  { schicht: 1, personalNr: 1, auftragNr: 1 },
+  {
+    unique: true,
+    name: 'unique_monitor_assignment',
+    partialFilterExpression: { schicht: { $type: 'objectId' }, personalNr: { $type: 'number' } },
+  },
+);
 EinsatzSchema.index({ personalNr: 1, datumVon: 1 });
 
 module.exports = mongoose.model('Einsatz', EinsatzSchema);

@@ -4,6 +4,9 @@
     <div class="toolbar-main-content" :class="{ 'toolbar-main-content--hidden': actionsOpen }">
       <slot />
     </div>
+    <div id="toolbar-inline-actions" class="toolbar-inline-actions" :class="{ 'toolbar-inline-actions--open': actionsOpen }">
+      <slot name="actions" />
+    </div>
     <button
       v-if="$slots.actions"
       class="toolbar-mobile-actions-toggle"
@@ -15,10 +18,6 @@
     >
       <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
     </button>
-
-    <div id="toolbar-inline-actions" class="toolbar-inline-actions" :class="{ 'toolbar-inline-actions--open': actionsOpen }">
-      <slot name="actions" />
-    </div>
   </div>
 </template>
 
@@ -101,7 +100,9 @@ onUnmounted(() => {
     padding-right: 7px;
     overflow: visible;
 
-    &--actions-open { gap: 0; }
+    &--actions-open {
+      gap: 0;
+    }
   }
 
   .toolbar-main-content {
@@ -149,7 +150,11 @@ onUnmounted(() => {
     min-width: 0;
     flex: 1;
 
-    &--open { display: block; }
+    &--open {
+      display: flex;
+      align-self: stretch;
+      min-height: 0;
+    }
 
     :deep(.toolbar-group) {
       display: flex;
@@ -164,38 +169,104 @@ onUnmounted(() => {
     }
 
     :deep(.view-controls-right) {
-      display: grid;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex: 1;
       width: 100%;
       min-width: 0;
-      align-items: center;
-      grid-template-columns: minmax(0, 1fr);
-      gap: 8px;
+      gap: 6px;
     }
 
-    :deep(.sort-menu),
+    :deep(.sort-menu) { justify-self: start; }
+
     :deep(.sort-menu__trigger) {
-      width: 100%;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      justify-content: center;
+      border-radius: 8px;
+      font-size: 0;
+
+      svg { font-size: 0.8rem; }
     }
 
     :deep(.pagination-compact) {
       display: flex;
+      flex: 1;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       min-width: 0;
-      gap: 8px;
+      gap: 6px;
+    }
+
+    :deep(.pagination-text) { display: none; }
+
+    :deep(.pagination-select-compact) {
+      width: 60px;
+      height: 40px;
+      min-width: 0;
+      padding: 0 8px;
+      border-radius: 8px;
+      font-size: 0.875rem;
     }
 
     :deep(.pagination-info-compact),
     :deep(.pagination-controls-compact) {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 4px;
+    }
+
+    :deep(.pagination-btn-compact) {
+      width: 40px;
+      height: 40px;
+      flex: 0 0 40px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+    }
+
+    :deep(.page-indicator) {
+      min-width: 36px;
+      padding: 0 2px;
+      text-align: center;
     }
 
     :deep(.pagination-text) {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+  }
+}
+
+@media (max-width: 380px) {
+  .toolbar-inline-actions {
+    :deep(.view-controls-right),
+    :deep(.pagination-compact) {
+      gap: 4px;
+    }
+
+    :deep(.sort-menu__trigger) {
+      width: 38px;
+      height: 38px;
+    }
+
+    :deep(.pagination-select-compact) {
+      width: 56px;
+      height: 38px;
+      padding-inline: 6px;
+    }
+
+    :deep(.pagination-btn-compact) {
+      width: 36px;
+      height: 38px;
+      flex-basis: 36px;
+    }
+
+    :deep(.page-indicator) {
+      min-width: 32px;
+      font-size: 0.78rem;
     }
   }
 }

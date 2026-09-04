@@ -546,6 +546,7 @@ const folgeaktionen = ref({
 const deliveryRecipient = ref({ name: '', email: '', embedded: false });
 const deliveryPickerKey = ref(0);
 const newEmailError = ref('');
+const signerDeliveryEmails = ref([]);
 
 function addAusliefernEmail(recipient = deliveryRecipient.value) {
   const email = String(recipient.email || '').trim().toLowerCase();
@@ -570,16 +571,30 @@ function removeAusliefernEmail(i) {
   folgeaktionen.value.ausliefernAn.splice(i, 1);
 }
 
-function addSignerDeliveryRecipients() {
+function syncSignerDeliveryRecipients() {
   if (folgeaktionen.value.ausliefernAnSignierer === false) return;
+
+  const signerRecipients = new Map();
   form.value.submitters.forEach(submitter => {
     const email = String(submitter.email || '').trim().toLowerCase();
     if (!/\S+@\S+\.\S+/.test(email)) return;
-    if (!folgeaktionen.value.ausliefernAn.some(recipient => String(recipient.email || '').trim().toLowerCase() === email)) {
-      folgeaktionen.value.ausliefernAn.push({ displayName: submitter.name || '', email });
-    }
+    signerRecipients.set(email, submitter.name || '');
   });
-  folgeaktionen.value.ausliefernAnSignierer = false;
+
+  const previousSignerEmails = new Set(signerDeliveryEmails.value);
+  folgeaktionen.value.ausliefernAn = folgeaktionen.value.ausliefernAn.filter(recipient => {
+    const email = String(recipient.email || '').trim().toLowerCase();
+    return !previousSignerEmails.has(email) || signerRecipients.has(email);
+  });
+
+  signerRecipients.forEach((displayName, email) => {
+    const recipient = folgeaktionen.value.ausliefernAn.find(item =>
+      String(item.email || '').trim().toLowerCase() === email
+    );
+    if (recipient) recipient.displayName = displayName || recipient.displayName;
+    else folgeaktionen.value.ausliefernAn.push({ displayName, email });
+  });
+  signerDeliveryEmails.value = [...signerRecipients.keys()];
 }
 
 // Asana action builder
@@ -633,6 +648,7 @@ const locations = ref([]);
 const linkMode = ref('keine');
 
 const form = ref(emptyForm());
+watch(() => form.value.submitters, syncSignerDeliveryRecipients, { deep: true });
 const signatureDockTitle = computed(() => form.value.name.trim() || modalTitle.value);
 
 function emptyForm() {
@@ -1131,6 +1147,7 @@ watch(() => modal.open, async (open) => {
   deliveryPickerKey.value += 1;
   newEmailError.value = '';
   followerDefaultsLoaded.value = false;
+  signerDeliveryEmails.value = [];
   showAsanaBuilder.value = false;
   asanaSearchQuery.value = '';
   asanaSearchResults.value = [];
@@ -1147,7 +1164,7 @@ watch(() => modal.open, async (open) => {
   await Promise.all([typenRequest, templatesRequest, graphContactsRequest, kundenRequest, mitarbeiterRequest]);
   await hydrateFromContext();
   normalizeSubmitterNames();
-  addSignerDeliveryRecipients();
+  syncSignerDeliveryRecipients();
 });
 
 async function hydrateFromContext() {

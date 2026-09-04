@@ -460,6 +460,13 @@ router.post('/auftrag', auth, extendTimeout, upload.single('file'), async (req, 
     // raw: false attempts to format, but true keeps original which might be better for numbers. 
     // cellDates: true converts Excel dates to JS Date objects.
     const rawData = XLSX.utils.sheet_to_json(sheet);
+    const importedAuftragNrs = rawData
+      .map(rawRow => Number(cleanKeys(rawRow)['AUFTRAGNR']))
+      .filter(Number.isInteger);
+    const protectedMonitorNrs = new Set(await Auftrag.distinct('auftragNr', {
+      auftragNr: { $in: importedAuftragNrs },
+      source: 'monitor',
+    }));
 
     const operations = [];
 
@@ -467,6 +474,7 @@ router.post('/auftrag', auth, extendTimeout, upload.single('file'), async (req, 
       const row = cleanKeys(rawRow);
       
       if (!isValidRow(row, 'AUFTRAGNR')) continue;
+      if (protectedMonitorNrs.has(Number(row['AUFTRAGNR']))) continue;
 
       const filter = { auftragNr: row['AUFTRAGNR'] };
       const update = {
@@ -483,7 +491,8 @@ router.post('/auftrag', auth, extendTimeout, upload.single('file'), async (req, 
         eventOrt: row['EVENT_ORT'],
         eventLocation: row['EVENT_LOCATION'],
         aktiv: row['AKTIV'],
-        auftStatus: row['AUFTSTATUS']
+        auftStatus: row['AUFTSTATUS'],
+        source: 'zvoove',
       };
 
       operations.push({
@@ -694,6 +703,13 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
     }
 
     const rawData = XLSX.utils.sheet_to_json(sheet);
+    const importedAuftragNrs = rawData
+      .map(rawRow => Number(cleanKeys(rawRow)['AUFTRAGNR']))
+      .filter(Number.isInteger);
+    const protectedMonitorNrs = new Set(await Auftrag.distinct('auftragNr', {
+      auftragNr: { $in: importedAuftragNrs },
+      source: 'monitor',
+    }));
 
     const activeLocations = await Location.find({ isActive: true })
       .select('_id externalId')
@@ -759,6 +775,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
       const row = cleanKeys(rawRow);
       // Skip if no Order Number (Main linking key)
       if (!isValidRow(row, 'AUFTRAGNR')) continue;
+      if (protectedMonitorNrs.has(Number(row['AUFTRAGNR']))) continue;
 
       const auftragNr = row['AUFTRAGNR'];
       auftragNrs.add(auftragNr);
@@ -794,6 +811,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
           aktiv: row['AKTIV'],
           auftStatus: row['AUFTSTATUS'],
           referenz: row['REFERENZ'] || undefined,
+          source: 'zvoove',
         };
         if (auftragLocation) auftragFields.locationV2 = auftragLocation._id;
         operationsAuftrag.push({
@@ -854,6 +872,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
         const schichtLocation = resolveLocation(auftragGeschSt, 'schicht', { auftragNr, idSchicht }, 'geschSt');
         newSchichten.push({
           auftragNr,
+          source: 'zvoove',
           ...(schichtLocation ? { locationV2: schichtLocation._id } : {}),
           idAuftragArbeitsschichten: idSchicht,
           bezeichnung: row['BEZEICHNUNG'],
@@ -879,6 +898,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
         const einsatzLocation = resolveLocation(auftragGeschSt, 'einsatz', { auftragNr, personalNr: row['PERSONALNR'] || null }, 'geschSt');
         newEinsaetze.push({
           auftragNr: auftragNr,
+          source: 'zvoove',
           ...(einsatzLocation ? { locationV2: einsatzLocation._id } : {}),
           personalNr: row['PERSONALNR'],
           berufSchl: row['BERUFSCHL'],
@@ -922,7 +942,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 
     // 4. Deactivate Auftraege not in the list, but only within the imported date range
     // This prevents deactivating past orders that are not part of the current export
-    const deactivateQuery = { auftragNr: { $nin: Array.from(auftragNrs) }, aktiv: { $ne: 0 } };
+    const deactivateQuery = { auftragNr: { $nin: Array.from(auftragNrs) }, aktiv: { $ne: 0 }, source: { $ne: 'monitor' } };
     if (minDate && maxDate) {
       // Only deactivate orders whose date range overlaps with the imported period
       deactivateQuery.$and = [
@@ -934,7 +954,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
     stats.auftrag.deactivated = deactivateResult.modifiedCount;
 
     // 5. Cleanup orphaned records (orders not in the list, within date range)
-    const cleanupBase = { auftragNr: { $nin: Array.from(auftragNrs) } };
+    const cleanupBase = { auftragNr: { $nin: Array.from(auftragNrs) }, source: { $ne: 'monitor' } };
     if (minDate && maxDate) cleanupBase.datumVon = { $gte: minDate, $lte: maxDate };
 
     const cleanupSchichtRes = await Schicht.deleteMany(cleanupBase);
@@ -959,12 +979,12 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
     const auftragNrArray = Array.from(auftragNrs);
     const dateFilter = (minDate && maxDate) ? { $gte: minDate, $lte: maxDate } : undefined;
 
-    const delSchichtFilter = { auftragNr: { $in: auftragNrArray } };
+    const delSchichtFilter = { auftragNr: { $in: auftragNrArray }, source: { $ne: 'monitor' } };
     if (dateFilter) delSchichtFilter.datumVon = dateFilter;
     const delSchichtRes = await Schicht.deleteMany(delSchichtFilter);
     stats.schicht.deleted = delSchichtRes.deletedCount;
 
-    const delEinsatzFilter = { auftragNr: { $in: auftragNrArray }, isPseudo: { $ne: true } };
+    const delEinsatzFilter = { auftragNr: { $in: auftragNrArray }, isPseudo: { $ne: true }, source: { $ne: 'monitor' } };
     if (dateFilter) delEinsatzFilter.datumVon = dateFilter;
     const delEinsatzRes = await Einsatz.deleteMany(delEinsatzFilter);
     stats.einsatz.deleted = delEinsatzRes.deletedCount;

@@ -82,6 +82,8 @@
       </div>
     </div>
 
+    <PublicEinsatzinformation :html="einsatz.einsatzinformationHtml" />
+
     <!-- Mitarbeiter List grouped by Schicht -->
     <div class="section">
       <h3 class="section-title">
@@ -356,6 +358,7 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import { faUserClock } from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '@/stores/theme';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import PublicEinsatzinformation from '@/components/public/PublicEinsatzinformation.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import PublicBottomSheet from './PublicBottomSheet.vue';

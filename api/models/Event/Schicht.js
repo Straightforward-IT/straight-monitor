@@ -11,9 +11,21 @@ const SchichtSchema = new mongoose.Schema({
     default: null,
     index: true,
   },
+  source: {
+    type: String,
+    enum: ['monitor', 'zvoove'],
+    default: 'zvoove',
+    index: true,
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
   idAuftragArbeitsschichten: {
     type: Number, // ID_AUFTRAG_ARBEITSSCHICHTEN - Zvoove Shift ID
-    required: true
+    required: false,
+    default: null,
   },
 
   // --- Schicht Infos (aus AUFTRAG_ARBEITSSCHICHTEN) ---
@@ -31,13 +43,25 @@ const SchichtSchema = new mongoose.Schema({
   uhrzeitVon: { type: String }, // UHRZEITVON (HH:MM)
   uhrzeitBis: { type: String }, // UHRZEITBIS (HH:MM)
   typ: { type: String }, // TYP
+  berufSchl: { type: String },
+  qualSchl: { type: String },
   bedarf: { type: Number }, // BEDARF (geplanter Personalbedarf)
   garantiestundenLohn: { type: Number }, // GARANTIESTD_LOHN
   endeOffen: { type: Number }, // ENDEOFFEN (0/1)
 
   // --- Aggregierte Besetzung (aus SQL-Abfrage) ---
   besetzt: { type: Number, default: 0 }, // COUNT(e.PERSONALNR)
-  offen: { type: Number, default: 0 } // BEDARF - COUNT(e.PERSONALNR)
+  offen: { type: Number, default: 0 }, // BEDARF - COUNT(e.PERSONALNR)
+  einsatzinformation: {
+    template: { type: mongoose.Schema.Types.ObjectId, ref: 'EinsatzinformationTemplate', default: null },
+    templateVersion: { type: Number, default: null },
+    resolution: { type: String, default: 'manual' },
+    sourceHtml: { type: String, default: '' },
+    renderedHtml: { type: String, default: '' },
+    unresolvedPlaceholders: [{ type: String }],
+    customized: { type: Boolean, default: false },
+    resolvedAt: { type: Date, default: null },
+  },
 }, { timestamps: true });
 
 SchichtSchema.index({ auftragNr: 1, idAuftragArbeitsschichten: 1, datumVon: 1 });

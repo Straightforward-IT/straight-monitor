@@ -162,12 +162,15 @@
             @contextmenu.prevent="openOrderContextMenu($event, event)"
           >
             <img
-              v-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key) && event.stundenlisteSignaturStatus === 'completed'"
+              v-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key) && ['open', 'completed'].includes(event.stundenlisteSignaturStatus)"
               :src="docusealLogo"
               class="event-signature-complete"
-              :class="{ 'event-signature-complete--outdated': event.stundenlisteIsOutdated }"
-              alt="Stundenliste vollständig signiert"
-              title="Stundenliste vollständig signiert"
+              :class="{
+                'event-signature-complete--completed': event.stundenlisteSignaturStatus === 'completed',
+                'event-signature-complete--outdated': event.stundenlisteIsOutdated,
+              }"
+              :alt="event.stundenlisteIsOutdated ? 'Stundenliste veraltet' : event.stundenlisteSignaturStatus === 'completed' ? 'Stundenliste vollständig signiert' : 'Stundenliste zur Unterschrift gestartet'"
+              :title="event.stundenlisteIsOutdated ? 'Stundenliste veraltet' : event.stundenlisteSignaturStatus === 'completed' ? 'Stundenliste vollständig signiert' : 'Stundenliste zur Unterschrift gestartet'"
             >
             <div v-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key)" class="event-header">
               <span v-if="event.auftStatus !== 2" class="event-status">{{ getStatusText(event.auftStatus) }}</span>
@@ -299,12 +302,15 @@
               @contextmenu.prevent="openOrderContextMenu($event, event)"
             >
             <img
-              v-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && event.stundenlisteSignaturStatus === 'completed'"
+              v-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && ['open', 'completed'].includes(event.stundenlisteSignaturStatus)"
               :src="docusealLogo"
               class="event-signature-complete"
-              :class="{ 'event-signature-complete--outdated': event.stundenlisteIsOutdated }"
-              alt="Stundenliste vollständig signiert"
-              title="Stundenliste vollständig signiert"
+              :class="{
+                'event-signature-complete--completed': event.stundenlisteSignaturStatus === 'completed',
+                'event-signature-complete--outdated': event.stundenlisteIsOutdated,
+              }"
+              :alt="event.stundenlisteIsOutdated ? 'Stundenliste veraltet' : event.stundenlisteSignaturStatus === 'completed' ? 'Stundenliste vollständig signiert' : 'Stundenliste zur Unterschrift gestartet'"
+              :title="event.stundenlisteIsOutdated ? 'Stundenliste veraltet' : event.stundenlisteSignaturStatus === 'completed' ? 'Stundenliste vollständig signiert' : 'Stundenliste zur Unterschrift gestartet'"
             >
             <div class="event-header" v-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && (event.auftStatus !== 2 || event.isPseudo)">
               <span class="event-status">{{ getStatusText(event.auftStatus) }}</span>
@@ -357,7 +363,7 @@
     />
 
     <!-- Sidebar for Event Details -->
-    <SidePanelFrame v-model="hasSelectedEvent" class="detail-sidebar">
+    <SidePanelFrame v-model="hasSelectedEvent">
       <template #header>
         <div class="sidebar-title-area">
             <span v-if="selectedEvent.auftStatus !== 2" class="sidebar-status" :class="getEventStatusClass(selectedEvent)">{{ getStatusText(selectedEvent.auftStatus) }}</span>
@@ -725,9 +731,16 @@
                   <div class="outdated-bar-title">Stundenliste veraltet</div>
                   <div
                     v-for="r in stundenlisteOutdatedReasons"
-                    :key="r.entity"
+                    :key="`${r.entity}-${r.changedAt || r.label}`"
                     class="outdated-bar-reason"
-                  >{{ r.label }}</div>
+                  >
+                    <div>{{ r.label }}</div>
+                    <div v-for="detail in r.details || []" :key="`${detail.field}-${detail.before}-${detail.after}`" class="outdated-bar-detail">
+                      <span class="outdated-bar-detail__field">{{ detail.field }}:</span>
+                      <span>{{ detail.before }} -> {{ detail.after }}</span>
+                    </div>
+                    <div v-if="r.changedAt" class="outdated-bar-time">Geändert am {{ formatDateTime(r.changedAt) }}</div>
+                  </div>
                 </div>
                 <button
                   v-if="canSignaturen"
@@ -932,84 +945,6 @@
                 Hinzufügen
               </button>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Neuer Pseudo-Auftrag Dialog ──────────────────────────────────── -->
-    <div v-if="showNewAuftragDialog" class="modal-overlay" @click.self="showNewAuftragDialog = false">
-      <div class="modal-content modal-qa">
-        <div class="modal-header">
-          <h2><font-awesome-icon icon="fa-solid fa-plus" /> Neuer Pseudo-Auftrag</h2>
-          <button class="close-btn" @click="showNewAuftragDialog = false">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="qa-section">
-            <div class="qa-form-row">
-              <div style="flex:1">
-                <div class="qa-form-field-label">Titel *</div>
-                <input v-model="newAuftrag.eventTitel" class="qa-input" placeholder="z.B. Konferenz Berlin 2026" />
-              </div>
-            </div>
-          </div>
-          <div class="qa-section">
-            <div class="qa-form-row pseudo-time-row">
-              <div style="flex:1">
-                <div class="qa-form-field-label">Von *</div>
-                <div class="qa-date-input-wrap">
-                  <input ref="newAuftragVonInput" v-model="newAuftrag.vonDatum" type="date" class="qa-input qa-date-input" />
-                  <button class="qa-date-trigger" type="button" title="Datum waehlen" @click="openNewAuftragDatePicker('newAuftragVonInput')">
-                    <font-awesome-icon icon="fa-solid fa-calendar-days" />
-                  </button>
-                </div>
-              </div>
-              <div style="flex:1">
-                <div class="qa-form-field-label">Bis *</div>
-                <div class="qa-date-input-wrap">
-                  <input ref="newAuftragBisInput" v-model="newAuftrag.bisDatum" type="date" class="qa-input qa-date-input" />
-                  <button class="qa-date-trigger" type="button" title="Datum waehlen" @click="openNewAuftragDatePicker('newAuftragBisInput')">
-                    <font-awesome-icon icon="fa-solid fa-calendar-days" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="qa-section">
-            <div class="qa-form-row pseudo-time-row">
-              <div style="flex:1">
-                <div class="qa-form-field-label">Standort</div>
-                <select v-model="newAuftrag.locationV2" class="qa-select">
-                  <option value="">— Keine —</option>
-                  <option v-for="location in locations" :key="location._id" :value="location._id">
-                    {{ location.nameFull }}
-                  </option>
-                </select>
-              </div>
-              <div style="flex:1">
-                <div class="qa-form-field-label">Ort</div>
-                <input v-model="newAuftrag.eventOrt" class="qa-input" placeholder="z.B. Berlin" />
-              </div>
-            </div>
-          </div>
-          <div class="qa-section">
-            <div class="qa-form-row">
-              <div style="flex:1">
-                <div class="qa-form-field-label">Location</div>
-                <input v-model="newAuftrag.eventLocation" class="qa-input" placeholder="z.B. Messe Berlin" />
-              </div>
-            </div>
-          </div>
-          <div class="qa-section">
-            <button
-              class="qa-submit-btn"
-              :disabled="!newAuftrag.eventTitel.trim() || !newAuftrag.vonDatum || !newAuftrag.bisDatum || newAuftragSaving"
-              @click="saveNewPseudoAuftrag"
-            >
-              <font-awesome-icon v-if="newAuftragSaving" icon="fa-solid fa-spinner" spin />
-              <font-awesome-icon v-else icon="fa-solid fa-check" />
-              Auftrag anlegen
-            </button>
           </div>
         </div>
       </div>
@@ -1318,7 +1253,7 @@ export default {
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
-    const { openEvent } = useEventModals();
+    const { openEvent, openCreateEvent } = useEventModals();
     const { openReisekosten } = useReisekostenModals();
     const minimizeDock = useMinimizeDock();
 
@@ -1334,7 +1269,7 @@ export default {
         : false;
     };
 
-    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, restoreMinimizedStundenliste, docusealLogo };
+    return { openCustomer, openDocumentModal: openDocument, openEvent, openCreateEvent, openReisekosten, restoreMinimizedStundenliste, docusealLogo };
   },
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -1413,9 +1348,6 @@ export default {
       labelPresetColors: ['#4f46e5','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#64748b'],
       labelSaving: false,
       // New pseudo Auftrag dialog
-      showNewAuftragDialog: false,
-      newAuftrag: { eventTitel: '', vonDatum: '', bisDatum: '', locationV2: '', eventLocation: '', eventOrt: '' },
-      newAuftragSaving: false,
       // Pseudo-MA dialog
       showPseudoDialog: false,
       pseudoSchichtMode: 'existing', // 'existing' | 'new'
@@ -1667,17 +1599,18 @@ export default {
       if (!auftragNr) return;
       await this.loadOrderDirectly(auftragNr, this.$route.query.focusDate);
     },
-    selectedEvent(event) {
+    selectedEvent(event, previousEvent) {
       // Remember the open sidebar so a page refresh reopens it.
       try {
         if (event && event.auftragNr) sessionStorage.setItem('auftraege_selected', String(event.auftragNr));
         else sessionStorage.removeItem('auftraege_selected');
       } catch (e) { /* storage unavailable */ }
-      if (event && event.auftragNr) {
+      const orderChanged = String(event?.auftragNr || '') !== String(previousEvent?.auftragNr || '');
+      if (event?.auftragNr && orderChanged) {
         this.loadStundenlisteStatus(event.auftragNr);
         this.loadEinsatzDoks(event.auftragNr);
         this.loadReisekosten(event.auftragNr);
-      } else {
+      } else if (!event) {
         this.stundenlisteStatus = null;
         this.einsatzDoks = [];
         this.reisekostenListe = [];
@@ -1840,16 +1773,6 @@ export default {
     },
     openMobileDatePicker() {
       this.$refs.mobileDatePicker?.showPicker?.() ?? this.$refs.mobileDatePicker?.click();
-    },
-    openNewAuftragDatePicker(refName) {
-      const input = this.$refs[refName];
-      if (!input) return;
-      if (typeof input.showPicker === 'function') {
-        input.showPicker();
-        return;
-      }
-      input.focus();
-      input.click();
     },
     async jumpToDate(event) {
       const selected = new Date(event.target.value + 'T00:00:00');
@@ -2431,10 +2354,8 @@ export default {
     },
     async fetchAuftragDocs(auftragNr) {
       try {
-        console.log('[AuftraegePage] Fetching docs for auftragNr:', auftragNr);
         const res = await api.get(`/api/reports/by-auftrag/${auftragNr}`);
         this.auftragDocs = res.data?.data || [];
-        console.log('[AuftraegePage] Loaded docs:', this.auftragDocs.length, this.auftragDocs);
       } catch (e) {
         console.error('[AuftraegePage] Error loading docs for auftrag:', e);
         this.auftragDocs = [];
@@ -2662,17 +2583,15 @@ export default {
       }
     },
     openNewAuftragDialog() {
-      const today = new Date().toISOString().slice(0, 10);
-      this.newAuftrag = {
-        eventTitel: '',
-        vonDatum: today,
-        bisDatum: today,
-        locationV2: this.filters.locationV2 || '',
-        eventLocation: '',
-        eventOrt: '',
-      };
-      this.newAuftragSaving = false;
-      this.showNewAuftragDialog = true;
+      this.openCreateEvent({
+        initialPseudo: true,
+        initialLocationV2: this.filters.locationV2 || '',
+        onUpdated: updatedEvent => {
+          const index = this.auftraege.findIndex(item => String(item.auftragNr) === String(updatedEvent.auftragNr));
+          if (index >= 0) this.auftraege.splice(index, 1, { ...this.auftraege[index], ...updatedEvent });
+          else this.auftraege.push({ ...updatedEvent, einsaetzeCount: 0, schichten: [], schichtStatus: 'none', mitarbeiterNames: [] });
+        },
+      });
     },
     handlePseudoRouteQuery() {
       if (!this.$route.query.openPseudo) return;
@@ -2683,31 +2602,6 @@ export default {
       delete nextQuery.openPseudo;
 
       this.$router.replace({ query: nextQuery });
-    },
-    async saveNewPseudoAuftrag() {
-      if (!this.newAuftrag.eventTitel.trim() || !this.newAuftrag.vonDatum || !this.newAuftrag.bisDatum) return;
-      this.newAuftragSaving = true;
-      try {
-        const payload = {
-          eventTitel: this.newAuftrag.eventTitel.trim(),
-          vonDatum: this.newAuftrag.vonDatum,
-          bisDatum: this.newAuftrag.bisDatum,
-        };
-        if (this.newAuftrag.locationV2) payload.locationV2 = this.newAuftrag.locationV2;
-        if (this.newAuftrag.eventLocation.trim()) payload.eventLocation = this.newAuftrag.eventLocation.trim();
-        if (this.newAuftrag.eventOrt.trim()) payload.eventOrt = this.newAuftrag.eventOrt.trim();
-        const res = await api.post('/api/auftraege', payload);
-        const newAuftragData = res.data;
-        // Add to local list so it appears in the calendar
-        this.auftraege.push({ ...newAuftragData, einsaetzeCount: 0, schichten: [], schichtStatus: 'none', mitarbeiterNames: [] });
-        this.showNewAuftragDialog = false;
-        // Open the new event in the sidebar
-        await this.selectEvent(newAuftragData);
-      } catch (err) {
-        alert(err.response?.data?.message || 'Fehler beim Anlegen des Auftrags');
-      } finally {
-        this.newAuftragSaving = false;
-      }
     },
     async deletePseudoAuftrag() {
       if (!this.selectedEvent?.isPseudo) return;
@@ -2789,6 +2683,17 @@ export default {
       try {
         const { data } = await api.get(`/api/auftraege/${auftragNr}/stundenliste-status`);
         this.stundenlisteStatus = data;
+        const eventIndex = this.auftraege.findIndex(event => String(event.auftragNr) === String(auftragNr));
+        const statusUpdate = {
+          stundenlisteSignaturStatus: data.vorgang?.status || null,
+          stundenlisteIsOutdated: Boolean(data.isOutdated),
+        };
+        if (eventIndex !== -1) {
+          this.auftraege.splice(eventIndex, 1, { ...this.auftraege[eventIndex], ...statusUpdate });
+        }
+        if (this.selectedEvent && String(this.selectedEvent.auftragNr) === String(auftragNr)) {
+          this.selectedEvent = { ...this.selectedEvent, ...statusUpdate };
+        }
       } catch (e) {
         console.error('Stundenliste-Status laden fehlgeschlagen', e);
         this.stundenlisteStatus = null;
@@ -3159,8 +3064,6 @@ export default {
         this.showQuickActions = false;
       } else if (this.showLabelDialog) {
         this.showLabelDialog = false;
-      } else if (this.showNewAuftragDialog) {
-        this.showNewAuftragDialog = false;
       } else if (this.showPseudoDialog) {
         this.showPseudoDialog = false;
       } else if (this.selectedMitarbeiter) {
@@ -4201,8 +4104,12 @@ export default {
   width: 17px;
   height: 17px;
   object-fit: contain;
-  filter: hue-rotate(135deg) saturate(0.9);
+  filter: hue-rotate(320deg) saturate(1.1);
   z-index: 1;
+}
+
+.event-signature-complete--completed {
+  filter: hue-rotate(135deg) saturate(0.9);
 }
 
 .event-signature-complete--outdated {
@@ -4558,11 +4465,11 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 7px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -4580,8 +4487,8 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border));
   border-radius: 6px;
@@ -4661,8 +4568,25 @@ export default {
 }
 
 .mdn-search {
-  max-width: 140px;
-  flex: 0 1 140px;
+  min-width: 84px;
+  max-width: none;
+  flex: 1 1 84px;
+}
+
+@media (max-width: 768px) {
+  .nav-inner {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 380px) {
+  .nav-inner {
+    gap: 4px;
+  }
+
+  .mdn-search {
+    min-width: 66px;
+  }
 }
 
 .search-dropdown {
@@ -5731,6 +5655,14 @@ export default {
   margin-top: 2px;
   &::before { content: '• '; }
 }
+.outdated-bar-detail {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.outdated-bar-detail__field { color: var(--text); font-weight: 600; }
+.outdated-bar-time { margin-top: 3px; font-size: 0.68rem; }
 .einsatz-dok-redo-btn {
   display: inline-flex;
   align-items: center;

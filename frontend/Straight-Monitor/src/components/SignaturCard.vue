@@ -54,7 +54,7 @@
     <Transition name="sc-expand">
       <div v-if="expanded" class="sc-body">
         <!-- Pending in-app signature banner -->
-        <div v-if="activeEmbedSrc" class="sc-sign-banner">
+        <div v-if="vorgang.status === 'open' && activeEmbedSrc" class="sc-sign-banner">
           <font-awesome-icon :icon="['fas', 'pen-to-square']" />
           <span>Deine Unterschrift steht noch aus – nach unten scrollen, um das Dokument zu unterschreiben.</span>
         </div>
@@ -274,7 +274,10 @@ const typLabel = computed(() => props.vorgang.typ?.label || props.vorgang.typKey
 const locationLabel = computed(() => props.vorgang.locationV2?.nameFull || props.vorgang.standort || '');
 const displayMitarbeiter = computed(() => (props.vorgang.mitarbeiterName || '').replace(/-/g, ' '));
 
-const signedCount = computed(() => props.vorgang.submitters.filter(s => s.status === 'completed').length);
+const signedCount = computed(() => {
+  if (props.vorgang.status === 'completed') return props.vorgang.submitters.length;
+  return props.vorgang.submitters.filter(s => s.status === 'completed').length;
+});
 const progressPct = computed(() => {
   const total = props.vorgang.submitters.length || 1;
   return Math.round((signedCount.value / total) * 100);
@@ -428,7 +431,9 @@ function submitterSigningSrc(submitter) {
 
 // Auto-select the first pending submitter with an embedSrc when the card expands
 const firstPendingEmbedded = computed(() =>
-  props.vorgang.submitters.find(s => submitterSigningSrc(s) && s.status !== 'completed') || null
+  props.vorgang.status === 'open'
+    ? props.vorgang.submitters.find(s => submitterSigningSrc(s) && s.status !== 'completed') || null
+    : null
 );
 
 function selectEmbedSubmitter(submitter) {

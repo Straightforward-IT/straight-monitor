@@ -72,6 +72,35 @@ const AuftragSchema = new mongoose.Schema({
     type: String, // BEZEICHN from EINSORT (es.BEZEICHN AS Referenz)
     required: false
   },
+  source: {
+    type: String,
+    enum: ['monitor', 'zvoove'],
+    default: 'zvoove',
+    index: true,
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  einsatzort: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Einsatzort',
+    default: null,
+    index: true,
+  },
+  wizardStep: { type: Number, default: 0, min: 0, max: 4 },
+  wizardCompletedAt: { type: Date, default: null },
+  planningVersion: { type: Number, default: 0, min: 0 },
+  stundenlisteChangeLog: [{
+    changedAt: { type: Date, required: true },
+    entity: { type: String, required: true },
+    details: [{
+      field: { type: String, required: true },
+      before: { type: String, default: '' },
+      after: { type: String, default: '' },
+    }],
+  }],
   excludedTeamleiter: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Mitarbeiter' }],
   statusOverrideTeamleiter: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Mitarbeiter' }],
   labels: [{

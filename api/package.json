@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "mocha",
+    "test": "mocha \"test/**/*.test.js\" \"tests/**/*.test.js\"",
     "backfill:einsatz-counts": "node scripts/backfillEinsatzCounts.js",
     "start": "node app.js"
   },
@@ -22,6 +22,7 @@
     "@docuseal/api": "^1.0.23",
     "@e-invoice-eu/core": "^3.2.0",
     "@microsoft/microsoft-graph-client": "^3.0.7",
+    "ajv-formats": "^3.0.1",
     "asana": "^3.0.14",
     "axios": "^1.7.7",
     "bcrypt": "^5.1.1",

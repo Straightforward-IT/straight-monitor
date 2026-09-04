@@ -4,6 +4,7 @@ const publicAuth = require('../../middleware/publicAuth');
 const Auftrag = require('../../models/Event/Auftrag');
 const Schicht = require('../../models/Event/Schicht');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
+const Einsatz = require('../../models/Event/Einsatz');
 
 const router = express.Router();
 
@@ -54,9 +55,9 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
   const schichten = await Schicht.find({
     locationV2: mitarbeiter.locationV2,
     datumBis: { $gte: today },
-    offen: { $gt: 0 },
+    bedarf: { $gt: 0 },
   })
-    .select('auftragNr idAuftragArbeitsschichten bezeichnung treffpunkt treffpunktOrt datumVon datumBis uhrzeitVon uhrzeitBis bedarf besetzt offen endeOffen')
+    .select('auftragNr idAuftragArbeitsschichten bezeichnung treffpunkt treffpunktOrt datumVon datumBis uhrzeitVon uhrzeitBis bedarf besetzt offen endeOffen einsatzinformation')
     .sort({ datumVon: 1, uhrzeitVon: 1 })
     .limit(100)
     .lean();
@@ -67,20 +68,46 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
         auftragNr: { $in: auftragNrs },
         locationV2: mitarbeiter.locationV2,
         isPseudo: { $ne: true },
+        auftStatus: 2,
       })
         .select('auftragNr eventTitel eventLocation eventStrasse eventPlz eventOrt vonDatum bisDatum')
         .lean()
     : [];
   const auftragByNr = new Map(auftraege.map((auftrag) => [auftrag.auftragNr, auftrag]));
+  const legacyKeys = schichten.map(shift => shift.idAuftragArbeitsschichten).filter(value => value !== null && value !== undefined);
+  const assignmentCounts = await Einsatz.aggregate([
+    {
+      $match: {
+        auftragNr: { $in: auftragNrs },
+        $or: [
+          { schicht: { $in: schichten.map(shift => shift._id) } },
+          ...(legacyKeys.length ? [{ idAuftragArbeitsschichten: { $in: legacyKeys } }] : []),
+        ],
+      },
+    },
+    { $group: { _id: { schicht: '$schicht', auftragNr: '$auftragNr', legacy: '$idAuftragArbeitsschichten' }, count: { $sum: 1 } } },
+  ]);
+  const occupiedById = new Map();
+  const occupiedByLegacy = new Map();
+  assignmentCounts.forEach(item => {
+    if (item._id.schicht) occupiedById.set(String(item._id.schicht), item.count);
+    else occupiedByLegacy.set(`${item._id.auftragNr}:${item._id.legacy}`, item.count);
+  });
 
   const jobs = schichten.flatMap((schicht) => {
     const auftrag = auftragByNr.get(schicht.auftragNr);
     if (!auftrag) return [];
+    const occupiedPlaces = occupiedById.get(String(schicht._id))
+      ?? occupiedByLegacy.get(`${schicht.auftragNr}:${schicht.idAuftragArbeitsschichten}`)
+      ?? 0;
+    const openPlaces = Math.max(0, Number(schicht.bedarf || 0) - occupiedPlaces);
+    if (!openPlaces) return [];
 
     return [{
-      id: `${schicht.auftragNr}:${schicht.idAuftragArbeitsschichten}:${schicht.datumVon ? new Date(schicht.datumVon).toISOString() : 'unknown'}`,
+      id: String(schicht._id),
       auftragNr: schicht.auftragNr,
-      schichtId: schicht.idAuftragArbeitsschichten,
+      schichtId: schicht._id,
+      legacySchichtId: schicht.idAuftragArbeitsschichten,
       title: auftrag.eventTitel || auftrag.eventLocation || `Auftrag ${schicht.auftragNr}`,
       role: schicht.bezeichnung || null,
       dateFrom: schicht.datumVon || auftrag.vonDatum || null,
@@ -94,8 +121,9 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
       meetingTime: schicht.treffpunkt || null,
       meetingPlace: schicht.treffpunktOrt || null,
       capacity: schicht.bedarf || null,
-      occupiedPlaces: schicht.besetzt || 0,
-      openPlaces: schicht.offen,
+      occupiedPlaces,
+      openPlaces,
+      einsatzinformationHtml: schicht.einsatzinformation?.renderedHtml || '',
       hourlyWage: null,
       surcharges: null,
       dressCode: null,
