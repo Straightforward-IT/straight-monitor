@@ -1461,6 +1461,13 @@ async function ensureEinsatzinformationScopeAvailable(context, excludeId = null)
   }
 }
 
+function throwTemplateWriteError(error) {
+  if (error?.code !== 11000) throw error;
+  const conflict = new Error('Für diese Kombination aus Einsatzort, Beruf und Qualifikation existiert bereits eine Vorlage.');
+  conflict.statusCode = 409;
+  throw conflict;
+}
+
 // ── Einsatzinformationen: Kundendefault → Einsatzort → Beruf/Qualifikation ──
 router.get('/:kundenNr/einsatzinformationen', auth, asyncHandler(async (req, res) => {
   const kunde = await Kunde.findOne({ kundenNr: Number.parseInt(req.params.kundenNr, 10) }).select('_id locationV2 geschSt').lean();
@@ -1500,17 +1507,20 @@ router.post('/:kundenNr/einsatzinformationen', auth, asyncHandler(async (req, re
   const context = await getEinsatzinformationContext(req.params.kundenNr, req.body);
   await assertEinsatzinformationLocationAccess(req, context.kunde);
   await ensureEinsatzinformationScopeAvailable(context);
-  const template = await EinsatzinformationTemplate.create({
-    kunde: context.kunde._id,
-    einsatzort: context.einsatzortId,
-    beruf: context.berufId,
-    qualifikation: context.qualifikationId,
-    name: templateName(req.body, context),
-    htmlTemplate: prepareEinsatzinformationTemplate(req.body.htmlTemplate),
-    isActive: req.body.isActive !== false,
-    createdBy: req.user.id || req.user._id,
-    updatedBy: req.user.id || req.user._id,
-  });
+  let template;
+  try {
+    template = await EinsatzinformationTemplate.create({
+      kunde: context.kunde._id,
+      einsatzort: context.einsatzortId,
+      beruf: context.berufId,
+      qualifikation: context.qualifikationId,
+      name: templateName(req.body, context),
+      htmlTemplate: prepareEinsatzinformationTemplate(req.body.htmlTemplate),
+      isActive: req.body.isActive !== false,
+      createdBy: req.user.id || req.user._id,
+      updatedBy: req.user.id || req.user._id,
+    });
+  } catch (error) { throwTemplateWriteError(error); }
   await template.populate([
     { path: 'einsatzort', select: 'bezeichnung isActive adresse' },
     { path: 'beruf', select: 'jobKey designation' },
@@ -1525,17 +1535,34 @@ router.put('/:kundenNr/einsatzinformationen/:id', auth, asyncHandler(async (req,
   const context = await getEinsatzinformationContext(req.params.kundenNr, req.body);
   await assertEinsatzinformationLocationAccess(req, context.kunde);
   await ensureEinsatzinformationScopeAvailable(context, req.params.id);
-  const template = await EinsatzinformationTemplate.findOne({ _id: req.params.id, kunde: context.kunde._id });
-  if (!template) return res.status(404).json({ message: 'Einsatzinformation nicht gefunden.' });
-  template.einsatzort = context.einsatzortId;
-  template.beruf = context.berufId;
-  template.qualifikation = context.qualifikationId;
-  template.name = templateName(req.body, context);
-  template.htmlTemplate = prepareEinsatzinformationTemplate(req.body.htmlTemplate);
-  template.isActive = req.body.isActive !== false;
-  template.version += 1;
-  template.updatedBy = req.user.id || req.user._id;
-  await template.save();
+  const expectedVersion = Number(req.body.expectedVersion);
+  if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
+    return res.status(400).json({ message: 'Eine gültige Vorlagenversion ist erforderlich.' });
+  }
+  let template;
+  try {
+    template = await EinsatzinformationTemplate.findOneAndUpdate(
+      { _id: req.params.id, kunde: context.kunde._id, version: expectedVersion },
+      {
+        $set: {
+          einsatzort: context.einsatzortId,
+          beruf: context.berufId,
+          qualifikation: context.qualifikationId,
+          name: templateName(req.body, context),
+          htmlTemplate: prepareEinsatzinformationTemplate(req.body.htmlTemplate),
+          isActive: req.body.isActive !== false,
+          updatedBy: req.user.id || req.user._id,
+        },
+        $inc: { version: 1 },
+      },
+      { new: true, runValidators: true }
+    );
+  } catch (error) { throwTemplateWriteError(error); }
+  if (!template) {
+    const exists = await EinsatzinformationTemplate.exists({ _id: req.params.id, kunde: context.kunde._id });
+    if (!exists) return res.status(404).json({ message: 'Einsatzinformation nicht gefunden.' });
+    return res.status(409).json({ code: 'TEMPLATE_STALE', message: 'Die Vorlage wurde zwischenzeitlich geändert. Bitte neu laden.' });
+  }
   await template.populate([
     { path: 'einsatzort', select: 'bezeichnung isActive adresse' },
     { path: 'beruf', select: 'jobKey designation' },
@@ -1562,8 +1589,9 @@ router.get('/:kundenNr/einsatzorte', auth, asyncHandler(async (req, res) => {
   const kundenNr = Number.parseInt(req.params.kundenNr, 10);
   if (!Number.isInteger(kundenNr)) return res.status(400).json({ message: 'Ungültige Kunden-Nr.' });
 
-  const kunde = await Kunde.findOne({ kundenNr }).select('_id').lean();
+  const kunde = await Kunde.findOne({ kundenNr }).select('_id locationV2 geschSt').lean();
   if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  await assertEinsatzinformationLocationAccess(req, kunde);
 
   const einsatzorte = await Einsatzort.find({ kunde: kunde._id })
     .populate('adresse', 'name strasse plz ort land')
@@ -1582,8 +1610,9 @@ router.post('/:kundenNr/einsatzorte', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Kunden-Nr. und Bezeichnung sind erforderlich.' });
   }
 
-  const kunde = await Kunde.findOne({ kundenNr }).select('_id').lean();
+  const kunde = await Kunde.findOne({ kundenNr }).select('_id locationV2 geschSt').lean();
   if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  await assertEinsatzinformationLocationAccess(req, kunde);
 
   const adresse = await Adresse.create({
     nummer: `MANUAL-EINSATZORT-${new mongoose.Types.ObjectId()}`,
@@ -1614,8 +1643,9 @@ router.patch('/:kundenNr/einsatzorte/:id', auth, asyncHandler(async (req, res) =
     return res.status(400).json({ message: 'Ungültige Angaben zum Einsatzort.' });
   }
 
-  const kunde = await Kunde.findOne({ kundenNr }).select('_id').lean();
+  const kunde = await Kunde.findOne({ kundenNr }).select('_id locationV2 geschSt').lean();
   if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  await assertEinsatzinformationLocationAccess(req, kunde);
   const einsatzort = await Einsatzort.findOne({ _id: req.params.id, kunde: kunde._id });
   if (!einsatzort) return res.status(404).json({ message: 'Einsatzort nicht gefunden.' });
 
@@ -1639,8 +1669,9 @@ router.patch('/:kundenNr/einsatzorte/:id/status', auth, asyncHandler(async (req,
   if (!Number.isInteger(kundenNr) || !mongoose.isValidObjectId(req.params.id) || typeof req.body.isActive !== 'boolean') {
     return res.status(400).json({ message: 'Ungültige Angaben zum Einsatzortstatus.' });
   }
-  const kunde = await Kunde.findOne({ kundenNr }).select('_id').lean();
+  const kunde = await Kunde.findOne({ kundenNr }).select('_id locationV2 geschSt').lean();
   if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  await assertEinsatzinformationLocationAccess(req, kunde);
   const einsatzort = await Einsatzort.findOneAndUpdate(
     { _id: req.params.id, kunde: kunde._id },
     { $set: { isActive: req.body.isActive } },
@@ -1658,8 +1689,13 @@ router.delete('/:kundenNr/einsatzorte/:id', auth, asyncHandler(async (req, res) 
   if (!Number.isInteger(kundenNr) || !mongoose.isValidObjectId(req.params.id)) {
     return res.status(400).json({ message: 'Ungültige Angaben zum Einsatzort.' });
   }
-  const kunde = await Kunde.findOne({ kundenNr }).select('_id').lean();
+  const kunde = await Kunde.findOne({ kundenNr }).select('_id locationV2 geschSt').lean();
   if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  await assertEinsatzinformationLocationAccess(req, kunde);
+  const hasTemplates = await EinsatzinformationTemplate.exists({ kunde: kunde._id, einsatzort: req.params.id });
+  if (hasTemplates) {
+    return res.status(409).json({ message: 'Der Einsatzort wird noch von Einsatzinformations-Vorlagen verwendet. Deaktiviere ihn stattdessen oder lösche zuerst die Vorlagen.' });
+  }
   const einsatzort = await Einsatzort.findOneAndDelete({ _id: req.params.id, kunde: kunde._id }).lean();
   if (!einsatzort) return res.status(404).json({ message: 'Einsatzort nicht gefunden.' });
   res.json({ success: true });

@@ -98,7 +98,7 @@ const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
 const preview = reactive({ renderedHtml: '', unresolvedPlaceholders: [] });
-const form = reactive({ id: null, name: '', htmlTemplate: '', einsatzortId: '', berufId: '', qualifikationId: '', isActive: true, copyMode: false });
+const form = reactive({ id: null, version: null, name: '', htmlTemplate: '', einsatzortId: '', berufId: '', qualifikationId: '', isActive: true, copyMode: false });
 
 const customerDefault = computed(() => templates.value.find(template => !template.einsatzort) || null);
 const textmarks = computed(() => Object.entries(placeholders.value).map(([key, label]) => ({ key, label })));
@@ -109,7 +109,7 @@ function templatesForSite(siteId) {
 function address(site) { return [site.adresse?.strasse, [site.adresse?.plz, site.adresse?.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Keine Adresse'; }
 function variantLabel(template) { return [template.beruf?.designation, template.qualifikation?.designation].filter(Boolean).join(' + ') || 'Einsatzort-Default'; }
 function resetForm(values = {}) {
-  Object.assign(form, { id: null, name: '', htmlTemplate: '', einsatzortId: '', berufId: '', qualifikationId: '', isActive: true, copyMode: false }, values);
+  Object.assign(form, { id: null, version: null, name: '', htmlTemplate: '', einsatzortId: '', berufId: '', qualifikationId: '', isActive: true, copyMode: false }, values);
   Object.assign(preview, { renderedHtml: '', unresolvedPlaceholders: [] });
   error.value = '';
 }
@@ -117,6 +117,7 @@ function selectTemplate(template) {
   if (!template) return resetForm();
   resetForm({
     id: template._id,
+    version: template.version,
     name: template.name,
     htmlTemplate: template.htmlTemplate,
     einsatzortId: template.einsatzort?._id || template.einsatzort || '',
@@ -171,7 +172,7 @@ async function loadPreview() {
 async function saveTemplate() {
   saving.value = true;
   error.value = '';
-  const payload = { name: form.name, htmlTemplate: form.htmlTemplate, einsatzortId: form.einsatzortId || null, berufId: form.berufId || null, qualifikationId: form.qualifikationId || null, isActive: form.isActive };
+  const payload = { name: form.name, htmlTemplate: form.htmlTemplate, einsatzortId: form.einsatzortId || null, berufId: form.berufId || null, qualifikationId: form.qualifikationId || null, isActive: form.isActive, ...(form.id ? { expectedVersion: form.version } : {}) };
   try {
     const response = form.id
       ? await api.put(`/api/kunden/${props.kundenNr}/einsatzinformationen/${form.id}`, payload)

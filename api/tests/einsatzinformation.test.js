@@ -1,5 +1,6 @@
 const { expect } = require('chai');
 const mongoose = require('mongoose');
+const Auftrag = require('../models/Event/Auftrag');
 const Einsatz = require('../models/Event/Einsatz');
 const EinsatzinformationTemplate = require('../models/Event/EinsatzinformationTemplate');
 const Schicht = require('../models/Event/Schicht');
@@ -12,7 +13,7 @@ const {
   resolveTemplate,
   sanitizeTemplate,
 } = require('../services/operations/EinsatzinformationService');
-const { shiftWindow } = require('../services/operations/StaffingSuggestionService');
+const { overlaps, shiftWindow } = require('../services/operations/StaffingSuggestionService');
 
 describe('Einsatzinformationen', () => {
   it('enforces unique template scopes and canonical assignments', () => {
@@ -70,11 +71,15 @@ describe('Einsatzinformationen', () => {
   });
 
   it('supports canonical shifts, overnight windows, and the regular/pseudo release boundary', () => {
+    const draft = new Auftrag({ auftragNr: 4711, source: 'monitor' });
+    expect(draft.planningVersion).to.equal(0);
+    expect(draft.wizardStep).to.equal(0);
     const shift = new Schicht({ auftragNr: 4711, source: 'monitor', bezeichnung: 'Service' });
     expect(shift.validateSync()).to.equal(undefined);
     expect(shift.idAuftragArbeitsschichten).to.equal(null);
     const window = shiftWindow({ datumVon: '2026-09-04', datumBis: '2026-09-04', uhrzeitVon: '18:00', uhrzeitBis: '02:00' });
     expect(window.end.getTime()).to.be.greaterThan(window.start.getTime());
+    expect(overlaps(window.start, window.end, new Date('2026-09-05T00:30:00'), new Date('2026-09-05T03:00:00'))).to.equal(true);
 
     const order = {
       eventTitel: 'Gala', locationV2: new mongoose.Types.ObjectId(), kundenNr: 4711,
@@ -84,5 +89,9 @@ describe('Einsatzinformationen', () => {
     const incomplete = [{ _id: new mongoose.Types.ObjectId(), einsatzinformation: {} }];
     expect(validateAuftragRelease({ ...order, isPseudo: false }, incomplete).some(error => error.message.includes('Einsatzinformationen fehlen'))).to.equal(true);
     expect(validateAuftragRelease({ ...order, isPseudo: true }, incomplete)).to.deep.equal([]);
+    const unresolved = [{ _id: new mongoose.Types.ObjectId(), einsatzinformation: {
+      sourceHtml: '<p>{{ansprechpartner.telefon}}</p>', renderedHtml: '<p></p>', unresolvedPlaceholders: ['ansprechpartner.telefon'],
+    } }];
+    expect(validateAuftragRelease({ ...order, isPseudo: false }, unresolved).some(error => error.message.includes('Textmarken ohne Wert'))).to.equal(true);
   });
 });

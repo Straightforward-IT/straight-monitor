@@ -15,7 +15,7 @@ const Sequence = require('../../models/System/Sequence');
 const User = require('../../models/System/User');
 const asyncHandler = require('../../middleware/AsyncHandler');
 const logger = require('../../utils/logger');
-const { resolveActiveLocation } = require('../../services/operations/LocationResolutionService');
+const { resolveActiveLocation, resolveLocationFromGeschSt } = require('../../services/operations/LocationResolutionService');
 const StundenlisteService = require('../../services/operations/StundenlisteService');
 const TelefonlisteService = require('../../services/operations/TelefonlisteService');
 const R2Service = require('../../services/integrations/R2Service');
@@ -210,6 +210,17 @@ async function resolveWritableLocation(req, locationId) {
   return { location, user };
 }
 
+async function assertCustomerMatchesLocation(customer, locationId) {
+  if (!customer) return;
+  const fallbackLocation = !customer.locationV2 && customer.geschSt
+    ? await resolveLocationFromGeschSt(customer.geschSt)
+    : null;
+  const customerLocationId = customer.locationV2 || fallbackLocation?._id;
+  if (customerLocationId && String(customerLocationId) !== String(locationId)) {
+    throw validationError('Der Kunde gehört nicht zum gewählten Auftragsstandort');
+  }
+}
+
 async function assertOrderLocationAccess(req, auftrag) {
   if (!auftrag?.locationV2) throw validationError('Dem Auftrag ist kein Standort zugeordnet');
   const user = await loadRequestUser(req);
@@ -262,9 +273,10 @@ async function getEinsatzortForAuftrag(kundenNr, einsatzortId) {
   const kunde = Number.isInteger(Number(kundenNr))
     ? await Kunde.findOne({ kundenNr: Number(kundenNr) }).select('_id').lean()
     : null;
+  if (!kunde) throw validationError('Für einen Stammdaten-Einsatzort muss zuerst ein Kunde gewählt werden');
   const einsatzort = await Einsatzort.findOne({
     _id: einsatzortId,
-    ...(kunde ? { kunde: kunde._id } : {}),
+    kunde: kunde._id,
     isActive: { $ne: false },
   }).populate('adresse').lean();
   if (!einsatzort) throw validationError('Der Einsatzort gehört nicht zum gewählten Kunden');
@@ -474,6 +486,7 @@ router.get('/recent-options', auth, asyncHandler(async (req, res) => {
   const locationId = req.query.locationV2;
   const { location } = await resolveWritableLocation(req, locationId);
   const kundenNr = req.query.kundenNr ? Number.parseInt(req.query.kundenNr, 10) : null;
+  const einsatzortId = mongoose.isValidObjectId(req.query.einsatzortId) ? String(req.query.einsatzortId) : null;
   const recentOrders = await Auftrag.find({
     locationV2: location._id,
     aktiv: { $ne: 0 },
@@ -504,7 +517,13 @@ router.get('/recent-options', auth, asyncHandler(async (req, res) => {
         - (lastUse.get(String(right._id)) ?? Number.MAX_SAFE_INTEGER)
       ));
 
-      const sourceOrders = recentOrders.slice(0, 8).map(order => order.auftragNr);
+      const patternOrders = einsatzortId
+        ? [
+          ...recentOrders.filter(order => String(order.einsatzort || '') === einsatzortId),
+          ...recentOrders.filter(order => String(order.einsatzort || '') !== einsatzortId),
+        ]
+        : recentOrders;
+      const sourceOrders = [...new Set(patternOrders.slice(0, 8).map(order => order.auftragNr))];
       recentShiftPatterns = sourceOrders.length
         ? await Schicht.find({ auftragNr: { $in: sourceOrders } })
           .sort({ updatedAt: -1 })
@@ -1184,7 +1203,11 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     ? null
     : Number.parseInt(input.kundenNr, 10);
   if (!isPseudo && !Number.isInteger(kundenNr)) throw validationError('Ein Kunde ist erforderlich');
-  if (Number.isInteger(kundenNr) && !await Kunde.exists({ kundenNr })) throw validationError('Kunde nicht gefunden');
+  const customer = Number.isInteger(kundenNr)
+    ? await Kunde.findOne({ kundenNr }).select('_id locationV2 geschSt').lean()
+    : null;
+  if (Number.isInteger(kundenNr) && !customer) throw validationError('Kunde nicht gefunden');
+  await assertCustomerMatchesLocation(customer, location._id);
 
   let auftragNr;
   if (isPseudo) {
@@ -1359,6 +1382,11 @@ router.patch('/:auftragNr', auth, asyncHandler(async (req, res) => {
   const current = await Auftrag.findOne({ auftragNr });
   if (!current) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   await assertOrderLocationAccess(req, current);
+  if (current.source === 'monitor'
+    && Object.prototype.hasOwnProperty.call(patch, 'auftStatus')
+    && Number(patch.auftStatus) !== Number(current.auftStatus)) {
+    throw validationError('Der Status eines Monitor-Auftrags kann nur über die Freigabe geändert werden');
+  }
   const templateContextChanged = ['kundenNr', 'einsatzort'].some(key => (
     Object.prototype.hasOwnProperty.call(patch, key)
     && editableValueChanged(key, patch[key], current[key])
@@ -1381,6 +1409,11 @@ router.patch('/:auftragNr', auth, asyncHandler(async (req, res) => {
     if (!customerExists) throw validationError('Kunde nicht gefunden');
   }
   const effectiveKundenNr = Object.prototype.hasOwnProperty.call(patch, 'kundenNr') ? patch.kundenNr : current.kundenNr;
+  const effectiveLocationId = patch.locationV2 || current.locationV2;
+  const effectiveCustomer = Number.isInteger(Number(effectiveKundenNr))
+    ? await Kunde.findOne({ kundenNr: Number(effectiveKundenNr) }).select('_id locationV2 geschSt').lean()
+    : null;
+  await assertCustomerMatchesLocation(effectiveCustomer, effectiveLocationId);
   if (Object.prototype.hasOwnProperty.call(patch, 'einsatzort')) {
     const einsatzort = await getEinsatzortForAuftrag(effectiveKundenNr, patch.einsatzort);
     Object.assign(patch, eventAddressFromEinsatzort(einsatzort));
