@@ -74,6 +74,7 @@ const JSZip = require("jszip");
 const { PDFDocument } = require("pdf-lib");
 const sharp = require("sharp");
 const r2Service = require("../../services/integrations/R2Service");
+const { buildEmployeeR2Path } = require("../../utils/employeeR2Path");
 const stripPayrollOwnedEmployeeFields = require("../../utils/sanitizeMitarbeiterUpdate");
 const progressMap = new Map();
 
@@ -435,13 +436,31 @@ router.post(
     const mitarbeiter = await Mitarbeiter.findById(id);
     if (!mitarbeiter) return res.status(404).json({ message: "Mitarbeiter nicht gefunden." });
 
+    if (!mitarbeiter.r2Prefix) {
+      await Mitarbeiter.collection.updateOne(
+        {
+          _id: mitarbeiter._id,
+          $or: [
+            { r2Prefix: { $exists: false } },
+            { r2Prefix: null },
+            { r2Prefix: "" },
+          ],
+        },
+        { $set: { r2Prefix: `employees/${mitarbeiter._id}` } },
+      );
+    }
+
     // Convert to WebP via sharp
     const webpBuffer = await sharp(req.file.buffer)
       .resize(512, 512, { fit: "cover" })
       .webp({ quality: 80 })
       .toBuffer();
 
-    const r2Key = `profilbilder/${id}.webp`;
+    const r2Key = buildEmployeeR2Path(
+      mitarbeiter.r2Prefix || `employees/${mitarbeiter._id}`,
+      "profile",
+      "profile.webp",
+    );
 
     // Delete old image if exists
     if (mitarbeiter.profilbild) {
@@ -486,6 +505,50 @@ router.delete(
       await mitarbeiter.save();
     }
     res.json({ success: true });
+  })
+);
+
+// ── Mitarbeiter-Dokumente (R2) ─────────────────────────────────────────────
+router.get(
+  "/mitarbeiter/:id/storage",
+  auth,
+  asyncHandler(async (req, res) => {
+    const mitarbeiter = await Mitarbeiter.findById(req.params.id).select('r2Prefix');
+    if (!mitarbeiter) return res.status(404).json({ message: "Mitarbeiter nicht gefunden." });
+
+    const prefix = `${mitarbeiter.r2Prefix || `employees/${mitarbeiter._id}`}/`;
+    const objects = await r2Service.listObjects(prefix);
+    res.json(objects
+      .filter((object) => object.Key && !object.Key.endsWith('/'))
+      .map((object) => ({
+        key: object.Key,
+        size: object.Size || 0,
+        lastModified: object.LastModified || null,
+        displayPath: object.Key.slice(prefix.length),
+        fileName: object.Key.split('/').pop(),
+      })));
+  })
+);
+
+router.get(
+  "/mitarbeiter/:id/storage/url",
+  auth,
+  asyncHandler(async (req, res) => {
+    const mitarbeiter = await Mitarbeiter.findById(req.params.id).select('r2Prefix');
+    if (!mitarbeiter) return res.status(404).json({ message: "Mitarbeiter nicht gefunden." });
+
+    const key = String(req.query.key || '');
+    const prefix = `${mitarbeiter.r2Prefix || `employees/${mitarbeiter._id}`}/`;
+    if (!key.startsWith(prefix) || key.endsWith('/')) {
+      return res.status(400).json({ message: 'Ungültiger Mitarbeiter-Dateipfad.' });
+    }
+
+    const filename = key.split('/').pop() || 'dokument';
+    const url = await r2Service.getSignedDownloadUrl(key, 3600, {
+      inline: req.query.download !== 'true',
+      filename,
+    });
+    res.json({ url });
   })
 );
 

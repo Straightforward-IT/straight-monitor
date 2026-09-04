@@ -45,6 +45,8 @@ const MitarbeiterSchema = new mongoose.Schema({
         default: null,
         index: true,
     },
+    // Immutable logical root for all employee-owned R2 objects.
+    r2Prefix: { type: String, default: null, trim: true, immutable: true, sparse: true, unique: true },
     // Stable R2 folder name for employee-related signature documents.
     signaturOrdner: { type: String, default: null, trim: true },
     profilbild: { type: String, required: false, trim: true }, // R2 key for uploaded profile picture (fallback when no Flip photo)
@@ -116,6 +118,13 @@ const MitarbeiterSchema = new mongoose.Schema({
     einsatzCountUpdatedAt: { type: Date, default: null },
     birthdayGroupActive: { type: Boolean, default: false }, // true solange Geburtstags-Gruppe als Primary gesetzt ist
 }, { timestamps: true });
+
+MitarbeiterSchema.pre('validate', function initializeR2Prefix(next) {
+    if (this.isNew && !this.r2Prefix && this._id) {
+        this.r2Prefix = `employees/${this._id}`;
+    }
+    next();
+});
 
 
 function autoPopulate(next) {

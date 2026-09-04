@@ -599,9 +599,11 @@ router.get('/', async (req, res) => {
       .sort({ vonDatum: 1 })
       .lean();
     
-    // Populate with Kunde data
+    // Populate with Kunde data (list view only needs name/kürzel — full Kunde comes via /:auftragNr/details)
     const kundenNrs = [...new Set(auftraege.map(a => a.kundenNr).filter(Boolean))];
-    const kundenData = await Kunde.find({ kundenNr: { $in: kundenNrs } }).lean();
+    const kundenData = await Kunde.find({ kundenNr: { $in: kundenNrs } })
+      .select('_id kundenNr kundName kuerzel')
+      .lean();
     const kundenMap = {};
     kundenData.forEach(k => { kundenMap[k.kundenNr] = k; });
     

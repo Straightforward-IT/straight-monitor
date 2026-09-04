@@ -1303,6 +1303,22 @@
           </button>
         </template>
 
+        <!-- R2 Dokumente -->
+        <template v-if="showTooltips">
+          <custom-tooltip text="R2 Dokumente" :position="tooltipPosition" :delay-in="150">
+            <button class="icon-btn" role="tab" :class="{ active: view === 'documents' }" @click="view = 'documents'" :aria-selected="view === 'documents'">
+              <font-awesome-icon icon="fa-solid fa-folder-tree" />
+              <span>Dokumente</span>
+            </button>
+          </custom-tooltip>
+        </template>
+        <template v-else>
+          <button class="icon-btn" role="tab" :class="{ active: view === 'documents' }" @click="view = 'documents'" :aria-selected="view === 'documents'">
+            <font-awesome-icon icon="fa-solid fa-folder-tree" />
+            <span>Dokumente</span>
+          </button>
+        </template>
+
         <!-- Actions Button with Dropdown -->
         <div class="quick-actions-wrapper" @click.stop>
           <template v-if="showTooltips">
@@ -1509,6 +1525,15 @@
         </div>
       </div>
       </div>
+      <div v-else-if="view === 'documents'" class="employee-storage" role="tabpanel">
+        <SignaturR2Browser
+          root-label="Dokumente"
+          :list-url="`/api/personal/mitarbeiter/${resolvedMa._id}/storage`"
+          :file-url-endpoint="`/api/personal/mitarbeiter/${resolvedMa._id}/storage/url`"
+          :root-prefix="`${resolvedMa.r2Prefix || `employees/${resolvedMa._id}`}/`"
+          :enable-entity-links="false"
+        />
+      </div>
     </section>
 
     <teleport to="body">
@@ -1642,10 +1667,11 @@ import straightDark from "@/assets/SF_000.svg";
 import flipLogo from "@/assets/flip.png";
 import asanaLogo from "@/assets/asana.png";
 import MitarbeiterEinsatzChart from "./MitarbeiterEinsatzChart.vue";
+import SignaturR2Browser from "./SignaturR2Browser.vue";
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, SignaturR2Browser },
   props: {
     ma: { type: Object, required: false, default: null },
     mitarbeiterId: { type: String, default: null },
@@ -6884,6 +6910,10 @@ export default {
 
 .employee-tabs-shell .skills-section {
   grid-column: 1 / -1;
+}
+
+.employee-storage {
+  padding: 20px;
 }
 
 @media (max-width: 900px) {

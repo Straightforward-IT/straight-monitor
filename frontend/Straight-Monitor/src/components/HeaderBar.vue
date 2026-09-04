@@ -1,7 +1,7 @@
 <template>
   <header class="header">
     <div class="left">
-      <img :src="logoSrc" :class="['logo', { 'logo--intro': playLogoIntro }]" alt="logo" />
+      <img :src="logoSrc" :class="['logo', { 'logo--intro': playLogoIntro }]" alt="logo" width="36" height="36" />
       <h1>Monitor</h1>
       <span v-if="currentViewTitle" class="header-view-title" :title="currentViewTitle">{{ currentViewTitle }}</span>
       
@@ -240,7 +240,7 @@
       </div>
       
       <!-- Mobile Burger Button -->
-      <button class="burger-btn" @click="showMobileMenu = !showMobileMenu">
+      <button class="burger-btn" :aria-label="showMobileMenu ? 'Menü schließen' : 'Menü öffnen'" :aria-expanded="showMobileMenu" @click="showMobileMenu = !showMobileMenu">
         <font-awesome-icon :icon="['fas', showMobileMenu ? 'times' : 'bars']" />
       </button>
     </div>
@@ -257,14 +257,42 @@
       </div>
       
       <div class="mobile-menu-items">
-        <router-link
-          to="/dashboard"
-          :class="{ active: $route.name === 'Dashboard' }"
-          @click="showMobileMenu = false"
-        >
-          <font-awesome-icon :icon="['fas', 'chart-line']" />
-          Dashboard
-        </router-link>
+        <div class="mobile-menu-group">
+          <button
+            class="mobile-menu-btn mobile-menu-toggle"
+            :class="{ active: $route.name === 'Dashboard', 'mobile-menu-toggle--open': mobileDashboardMenuOpen }"
+            @click="toggleMobileDashboardMenu"
+          >
+            <span class="mobile-menu-toggle__label">
+              <font-awesome-icon :icon="['fas', 'chart-line']" />
+              Dashboard
+            </span>
+            <span class="mobile-menu-toggle__meta">
+              <font-awesome-icon :icon="['fas', mobileDashboardMenuOpen ? 'chevron-up' : 'chevron-down']" />
+            </span>
+          </button>
+
+          <div v-if="mobileDashboardMenuOpen" class="mobile-submenu">
+            <router-link
+              to="/dashboard"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Dashboard' && !$route.query.tab }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'table-cells-large']" />
+              Übersicht
+            </router-link>
+            <router-link
+              :to="{ path: '/dashboard', query: { tab: 'spaces' } }"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'Dashboard' && $route.query.tab === 'spaces' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'folder-open']" />
+              Spaces
+            </router-link>
+          </div>
+        </div>
         <router-link
           to="/dispo"
           :class="{ active: $route.name === 'Dispo' }"
@@ -297,7 +325,7 @@
               @click="handleMobileNavClick($event, '/auftraege')"
             >
               <font-awesome-icon :icon="['fas', 'layer-group']" />
-              Kunden
+              Übersicht
             </router-link>
             <router-link
               :to="{ path: '/auftraege', query: { openPseudo: '1' } }"
@@ -515,15 +543,49 @@
         </div>
         
         <div class="mobile-menu-group">
-          <router-link
-            to="/signaturen"
-            class="mobile-menu-btn"
-            :class="{ active: isSignSectionActive }"
-            @click="showMobileMenu = false"
+          <button
+            class="mobile-menu-btn mobile-menu-toggle"
+            :class="{ active: isSignSectionActive, 'mobile-menu-toggle--open': mobileSignMenuOpen }"
+            @click="toggleMobileSignMenu"
           >
-            <font-awesome-icon :icon="['fas', 'file-signature']" />
-            Signatur
-          </router-link>
+            <span class="mobile-menu-toggle__label">
+              <font-awesome-icon :icon="['fas', 'file-signature']" />
+              Signatur
+            </span>
+            <span class="mobile-menu-toggle__meta">
+              <font-awesome-icon :icon="['fas', mobileSignMenuOpen ? 'chevron-up' : 'chevron-down']" />
+            </span>
+          </button>
+
+          <div v-if="mobileSignMenuOpen" class="mobile-submenu">
+            <router-link
+              to="/signaturen"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'SignaturenPage' && !$route.query.tab }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'list-check']" />
+              Signaturen
+            </router-link>
+            <router-link
+              :to="{ path: '/signaturen', query: { tab: 'templates' } }"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'SignaturenPage' && $route.query.tab === 'templates' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'file-lines']" />
+              Templates
+            </router-link>
+            <router-link
+              :to="{ path: '/signaturen', query: { tab: 'ablage' } }"
+              class="mobile-submenu__link"
+              :class="{ active: $route.name === 'SignaturenPage' && $route.query.tab === 'ablage' }"
+              @click="closeMobileMenu"
+            >
+              <font-awesome-icon :icon="['fas', 'folder-open']" />
+              Ablage
+            </router-link>
+          </div>
         </div>
 
         
@@ -720,6 +782,7 @@ onMounted(async () => {
 
 // Mobile Menu State
 const showMobileMenu = ref(false);
+const mobileDashboardMenuOpen = ref(false);
 const mobileAuftraegeMenuOpen = ref(false);
 const mobileBestandMenuOpen = ref(false);
 const mobileReportsMenuOpen = ref(false);
@@ -843,12 +906,17 @@ const handleNewPageClick = (event, path) => {
 
 const closeMobileMenu = () => {
   showMobileMenu.value = false;
+  mobileDashboardMenuOpen.value = false;
   mobileAuftraegeMenuOpen.value = false;
   mobileBestandMenuOpen.value = false;
   mobileReportsMenuOpen.value = false;
   mobilePersonalMenuOpen.value = false;
   mobileKundenMenuOpen.value = false;
   mobileSignMenuOpen.value = false;
+};
+
+const toggleMobileDashboardMenu = () => {
+  mobileDashboardMenuOpen.value = !mobileDashboardMenuOpen.value;
 };
 
 const toggleMobileAuftraegeMenu = () => {
@@ -884,6 +952,7 @@ const handleMobileNavClick = (event, path) => {
 watch(
   () => route.name,
   (name) => {
+    mobileDashboardMenuOpen.value = name === 'Dashboard';
     mobileAuftraegeMenuOpen.value = ['Auftraege'].includes(name);
     mobileBestandMenuOpen.value = ['Bestand', 'Verlauf'].includes(name);
     mobileReportsMenuOpen.value = ['Dokumente', 'DokumenteNachpflegen', 'TeamleiterAuswertung'].includes(name);
@@ -1386,6 +1455,7 @@ onBeforeUnmount(() => {
 }
 .logo {
     width: 36px;
+  height: auto;
   transition: opacity .25s ease;
   transform-origin: center center;
   will-change: transform;

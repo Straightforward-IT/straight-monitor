@@ -18,6 +18,10 @@ const Reisekostenabrechnung = require('../../models/Signature/Reisekostenabrechn
 const StundenlisteService = require('../../services/operations/StundenlisteService');
 const ReisekostenService = require('../../services/operations/ReisekostenService');
 const { sendMail } = require('../../services/integrations/EmailService');
+const {
+  TEMPLATE_TYPES: CUSTOMER_EMAIL_TEMPLATE_TYPES,
+  renderResolvedTemplate: renderResolvedCustomerEmailTemplate,
+} = require('../../services/operations/CustomerEmailTemplateService');
 const { buildSignaturR2Prefix, sanitizeSegment } = require('../../utils/signaturR2Path');
 const { buildStundenlistePdfFilename } = require('../../utils/stundenlisteFilename');
 const AsanaService = require('../../services/integrations/AsanaService');
@@ -603,7 +607,9 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
       role:       s.role,
       name:       s.name,
       email:      s.email,
-      send_email: !s.embedded,
+      // Straight Monitor sends the customer-specific Graph message below.
+      // Disabling DocuSeal mail avoids a second, non-customizable invitation.
+      send_email: false,
       values:     { [`${s.role} Datum`]: today },
     })),
     order: 'preserved',
@@ -668,17 +674,17 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     if (!apiSub.embedded && apiSub.slug) {
         const signingLink = apiSub.embedSrc || `https://docuseal.eu/s/${apiSub.slug}`;
         const recipientEmail = requestedSubmitters.find((s) => s.role === apiSub.role)?.email || apiSub.email;
-        const emailContent = `
-          <div style="font-family:Arial,sans-serif;color:#333;">
-            <h2 style="color:#000;">Ihre Stundenliste ist bereit zur Unterschrift</h2>
-            <p>Bitte klicken Sie auf den untenstehenden Link, um die Stundenliste für Auftrag ${auftragNr} zu überprüfen und zu unterschreiben.</p>
-            <a href="${signingLink}" style="display:inline-block;padding:10px 15px;color:#fff;background-color:#E36125;text-decoration:none;border-radius:4px;margin-top:20px;">
-              Dokument unterschreiben
-            </a>
-          </div>
-        `;
         try {
-          await sendMail(recipientEmail, `Ihre Stundenliste für Auftrag ${auftragNr}`, emailContent, 'it');
+          const recipient = requestedSubmitters.find((s) => s.role === apiSub.role) || apiSub;
+          const renderedEmail = await renderResolvedCustomerEmailTemplate({
+            type: CUSTOMER_EMAIL_TEMPLATE_TYPES.STUNDENLISTE_SIGNATURE,
+            kunde,
+            auftrag,
+            location,
+            signaturkontakt: { name: recipient.name || '', email: recipientEmail },
+            signatur: { dokumentname: docName, link: signingLink },
+          });
+          await sendMail(recipientEmail, renderedEmail.subject, renderedEmail.renderedHtml, 'it');
           logger.info(`[SignaturenRoute Stundenliste ${auftragNr}] E-Mail gesendet an ${recipientEmail}`);
         } catch (err) {
           logger.error(`[SignaturenRoute Stundenliste ${auftragNr}] E-Mail fehlgeschlagen:`, err);

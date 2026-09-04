@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "npm --prefix ../../packages/vue-modal-dock ci && npm --prefix ../../packages/vue-modal-dock run build && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint . --ext .js,.vue"
   },
   "dependencies": {
     "@bleck-it/vue-modal-dock": "file:../../packages/vue-modal-dock",
@@ -45,6 +46,8 @@
     "@types/jsonwebtoken": "^9.0.7",
     "@vitejs/plugin-vue": "^5.1.2",
     "autoprefixer": "^10.4.20",
+    "eslint": "^9.0.0",
+    "eslint-plugin-vue": "^10.0.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "vite": "^6.4.0"

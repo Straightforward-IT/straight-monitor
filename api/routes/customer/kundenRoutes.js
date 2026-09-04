@@ -14,6 +14,7 @@ const Adresse = require('../../models/System/Adresse');
 const Einsatzort = require('../../models/Event/Einsatzort');
 const Beruf = require('../../models/Event/Beruf');
 const EinsatzinformationTemplate = require('../../models/Event/EinsatzinformationTemplate');
+const CustomerEmailTemplate = require('../../models/Customer/CustomerEmailTemplate');
 const User = require('../../models/System/User');
 const {
   PLACEHOLDERS: EINSATZINFO_PLACEHOLDERS,
@@ -22,6 +23,15 @@ const {
   renderTemplate: renderEinsatzinformation,
   resolveTemplate: resolveEinsatzinformationTemplate,
 } = require('../../services/operations/EinsatzinformationService');
+const {
+  DEFAULTS: CUSTOMER_EMAIL_DEFAULTS,
+  PLACEHOLDERS: CUSTOMER_EMAIL_PLACEHOLDERS,
+  buildValues: buildCustomerEmailValues,
+  getDefault: getCustomerEmailDefault,
+  prepareHtml: prepareCustomerEmailHtml,
+  prepareSubject: prepareCustomerEmailSubject,
+  renderTemplate: renderCustomerEmailTemplate,
+} = require('../../services/operations/CustomerEmailTemplateService');
 const { decryptField } = require('../../utils/encryption');
 const asyncHandler = require('../../middleware/AsyncHandler');
 const auth = require('../../middleware/auth');
@@ -1467,6 +1477,99 @@ function throwTemplateWriteError(error) {
   conflict.statusCode = 409;
   throw conflict;
 }
+
+// ── Kundenspezifische E-Mail-Vorlagen mit zentralem System-Default ──────────
+router.get('/:kundenNr/email-vorlagen', auth, asyncHandler(async (req, res) => {
+  const kunde = await Kunde.findOne({ kundenNr: Number.parseInt(req.params.kundenNr, 10) }).lean();
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  await assertEinsatzinformationLocationAccess(req, kunde);
+  const overrides = await CustomerEmailTemplate.find({ kunde: kunde._id }).lean();
+  const byType = new Map(overrides.map((template) => [template.type, template]));
+  const templates = Object.values(CUSTOMER_EMAIL_DEFAULTS).map((systemDefault) => {
+    const override = byType.get(systemDefault.type);
+    return override
+      ? { ...systemDefault, ...override, isDefault: false }
+      : { ...systemDefault, version: null, isDefault: true };
+  });
+  res.json({ templates, placeholders: CUSTOMER_EMAIL_PLACEHOLDERS });
+}));
+
+router.post('/:kundenNr/email-vorlagen/preview', auth, asyncHandler(async (req, res) => {
+  const kunde = await Kunde.findOne({ kundenNr: Number.parseInt(req.params.kundenNr, 10) }).lean();
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  await assertEinsatzinformationLocationAccess(req, kunde);
+  const type = String(req.body.type || '');
+  getCustomerEmailDefault(type);
+  const now = new Date();
+  const sampleOrder = {
+    auftragNr: 4711,
+    eventTitel: 'Sommerfest',
+    referenz: 'Ihre Bestellung',
+    vonDatum: now,
+    bisDatum: now,
+    eventLocation: 'Musterlocation',
+    eventStrasse: 'Musterstraße 1',
+    eventPlz: '20095',
+    eventOrt: 'Hamburg',
+    geschSt: kunde.geschSt,
+    ...(req.body.auftrag || {}),
+  };
+  const values = buildCustomerEmailValues({
+    kunde,
+    auftrag: sampleOrder,
+    signaturkontakt: req.body.signaturkontakt || { name: 'Alex Mustermann', email: kunde.signaturKontaktEmail || 'alex@example.com' },
+    signatur: req.body.signatur || { dokumentname: 'Stundenliste Sommerfest', link: 'https://example.com/signieren' },
+    location: req.body.location || { shortName: kunde.geschSt || 'Hamburg' },
+  });
+  res.json(renderCustomerEmailTemplate({
+    subjectTemplate: req.body.subjectTemplate,
+    htmlTemplate: req.body.htmlTemplate,
+  }, values));
+}));
+
+router.put('/:kundenNr/email-vorlagen/:type', auth, asyncHandler(async (req, res) => {
+  const kunde = await Kunde.findOne({ kundenNr: Number.parseInt(req.params.kundenNr, 10) }).lean();
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  await assertEinsatzinformationLocationAccess(req, kunde);
+  const type = String(req.params.type || '');
+  getCustomerEmailDefault(type);
+  const subjectTemplate = prepareCustomerEmailSubject(req.body.subjectTemplate);
+  const htmlTemplate = prepareCustomerEmailHtml(req.body.htmlTemplate);
+  const actor = req.user.id || req.user._id;
+  let template = await CustomerEmailTemplate.findOne({ kunde: kunde._id, type });
+  if (template) {
+    const expectedVersion = Number(req.body.expectedVersion);
+    if (!Number.isSafeInteger(expectedVersion) || expectedVersion !== template.version) {
+      return res.status(409).json({ code: 'TEMPLATE_STALE', message: 'Die Vorlage wurde zwischenzeitlich geändert. Bitte neu laden.' });
+    }
+    template.subjectTemplate = subjectTemplate;
+    template.htmlTemplate = htmlTemplate;
+    template.isActive = true;
+    template.updatedBy = actor;
+    template.version += 1;
+    await template.save();
+  } else {
+    template = await CustomerEmailTemplate.create({
+      kunde: kunde._id,
+      type,
+      subjectTemplate,
+      htmlTemplate,
+      createdBy: actor,
+      updatedBy: actor,
+    });
+  }
+  res.json({ template: { ...getCustomerEmailDefault(type), ...template.toObject(), isDefault: false } });
+}));
+
+router.delete('/:kundenNr/email-vorlagen/:type', auth, asyncHandler(async (req, res) => {
+  const kunde = await Kunde.findOne({ kundenNr: Number.parseInt(req.params.kundenNr, 10) }).lean();
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  await assertEinsatzinformationLocationAccess(req, kunde);
+  const type = String(req.params.type || '');
+  const systemDefault = getCustomerEmailDefault(type);
+  await CustomerEmailTemplate.deleteOne({ kunde: kunde._id, type });
+  res.json({ template: { ...systemDefault, version: null, isDefault: true } });
+}));
 
 // ── Einsatzinformationen: Kundendefault → Einsatzort → Beruf/Qualifikation ──
 router.get('/:kundenNr/einsatzinformationen', auth, asyncHandler(async (req, res) => {

@@ -15,7 +15,7 @@
     <div class="storage-head">
       <nav class="storage-breadcrumb" aria-label="Ablagepfad">
         <button type="button" @click="selectFolder('')">
-          <font-awesome-icon :icon="['fas', 'folder-open']" /> Signaturen
+          <font-awesome-icon :icon="['fas', 'folder-open']" /> {{ rootLabel }}
         </button>
         <template v-for="crumb in breadcrumbs" :key="crumb.path">
           <font-awesome-icon :icon="['fas', 'chevron-right']" class="breadcrumb-separator" />
@@ -61,7 +61,7 @@
       <section class="file-panel">
         <div class="file-panel-head">
           <button
-            v-if="currentEntity"
+            v-if="enableEntityLinks && currentEntity"
             class="entity-link"
             type="button"
             :disabled="entityOpening"
@@ -138,6 +138,14 @@ library.add(
   faFolder, faFolderOpen, faMagnifyingGlass, faRotate, faSpinner, faXmark,
 );
 
+const props = defineProps({
+  rootLabel: { type: String, default: 'Signaturen' },
+  listUrl: { type: String, default: '/api/signaturen/storage' },
+  fileUrlEndpoint: { type: String, default: '/api/signaturen/storage/url' },
+  rootPrefix: { type: String, default: '' },
+  enableEntityLinks: { type: Boolean, default: true },
+});
+
 const files = ref([]);
 const loading = ref(false);
 const error = ref('');
@@ -149,7 +157,9 @@ const selectedMitarbeiterId = ref(null);
 const { openCustomer } = useCustomerModals();
 
 function getRelativePath(file) {
-  return file.displayPath || file.key.replace(/^(?:Signatures|signaturen)\//, '');
+  if (file.displayPath) return file.displayPath;
+  if (props.rootPrefix) return file.key.replace(props.rootPrefix, '');
+  return file.key.replace(/^(?:Signatures|signaturen)\//, '');
 }
 
 function getFolderLabel(path) {
@@ -161,7 +171,7 @@ function getFolderLabel(path) {
     return folderPath.slice(0, parts.length).join('/') === path;
   });
   if (matchingFile) return matchingFile.folderLabels[labelIndex];
-  return parts.pop() || 'Signaturen';
+  return parts.pop() || props.rootLabel;
 }
 
 const filteredFiles = computed(() => {
@@ -196,7 +206,7 @@ const folderTree = computed(() => [...allFolderPaths.value]
     .map((path) => ({
       path,
       depth: path ? path.split('/').length : 0,
-      label: path ? getFolderLabel(path) : 'Signaturen',
+      label: path ? getFolderLabel(path) : props.rootLabel,
       hasChildren: [...allFolderPaths.value].some((candidate) => candidate.startsWith(path ? `${path}/` : '') && candidate !== path),
     }))
 );
@@ -238,7 +248,7 @@ const currentFiles = computed(() => {
 });
 
 const currentItems = computed(() => [...currentFolders.value, ...currentFiles.value]);
-const currentFolderLabel = computed(() => selectedPath.value ? getFolderLabel(selectedPath.value) : 'Signaturen');
+const currentFolderLabel = computed(() => selectedPath.value ? getFolderLabel(selectedPath.value) : props.rootLabel);
 const currentEntity = computed(() => {
   const parts = selectedPath.value.split('/').filter(Boolean);
   if (parts.length !== 3 || !['kunden', 'mitarbeiter'].includes(parts[1])) return null;
@@ -302,18 +312,18 @@ async function loadFiles() {
   loading.value = true;
   error.value = '';
   try {
-    const { data } = await api.get('/api/signaturen/storage');
+    const { data } = await api.get(props.listUrl);
     files.value = Array.isArray(data) ? data : [];
     if (!folderTree.value.some((folder) => folder.path === selectedPath.value)) selectedPath.value = '';
   } catch (requestError) {
-    error.value = requestError?.response?.data?.message || 'R2-Ablage konnte nicht geladen werden.';
+    error.value = requestError?.response?.data?.message || `${props.rootLabel}-Ablage konnte nicht geladen werden.`;
   } finally {
     loading.value = false;
   }
 }
 
 async function getFileUrl(file, download = false) {
-  const { data } = await api.get('/api/signaturen/storage/url', {
+  const { data } = await api.get(props.fileUrlEndpoint, {
     params: { key: file.key, download: download ? 'true' : 'false' },
   });
   return data.url;
