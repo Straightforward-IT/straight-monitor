@@ -678,6 +678,15 @@
                     >
                       <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
                     </button>
+                    <button
+                      v-if="sidebarStundenliste.status === 'open' && canSignaturen"
+                      class="einsatz-dok-action einsatz-dok-action--del"
+                      type="button"
+                      title="Signaturprozess stornieren"
+                      @click.stop="cancelStundenliste"
+                    >
+                      <font-awesome-icon icon="fa-solid fa-trash" />
+                    </button>
                     <template v-if="sidebarStundenliste.status === 'draft'">
                       <a
                         v-if="stundenlisteStatus?.unsignedPdfUrl"
@@ -2758,6 +2767,16 @@ export default {
         alert(err.response?.data?.message || 'Fehler beim Löschen des Signaturentwurfs');
       }
     },
+    async cancelStundenliste() {
+      const vorgang = this.sidebarStundenliste;
+      if (!vorgang?._id || !confirm('Stundenlisten-Signaturprozess wirklich stornieren?')) return;
+      try {
+        await api.delete(`/api/signaturen/${vorgang._id}`);
+        await this.loadStundenlisteStatus(this.selectedEvent.auftragNr);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Fehler beim Stornieren des Signaturprozesses');
+      }
+    },
     async deleteEinsatzDok(dok) {
       if (!this.selectedEvent?.auftragNr) return;
       try {
@@ -2945,8 +2964,11 @@ export default {
       const src = this.sigResult?.embed?.src;
       if (src) window.open(src, '_blank', 'noopener');
     },
-    onVerleiherSigned() {
+    async onVerleiherSigned() {
       this.verleiherSigned = true;
+      if (this.selectedEvent?.auftragNr) {
+        await this.loadStundenlisteStatus(this.selectedEvent.auftragNr);
+      }
     },
     closeSignatureDialog() {
       this.showSignatureDialog = false;
@@ -4104,16 +4126,16 @@ export default {
   width: 17px;
   height: 17px;
   object-fit: contain;
-  filter: hue-rotate(320deg) saturate(1.1);
+  filter: grayscale(1) brightness(0.62);
   z-index: 1;
 }
 
 .event-signature-complete--completed {
-  filter: hue-rotate(135deg) saturate(0.9);
+  filter: hue-rotate(150deg) saturate(1.1);
 }
 
 .event-signature-complete--outdated {
-  filter: hue-rotate(55deg) saturate(1.1);
+  filter: hue-rotate(8deg) saturate(1.25);
 }
 
 .event-card:has(.event-signature-complete) .event-title-row,

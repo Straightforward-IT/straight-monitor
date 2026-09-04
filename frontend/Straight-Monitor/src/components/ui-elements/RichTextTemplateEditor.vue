@@ -93,18 +93,22 @@ onMounted(syncEditor);
 </script>
 
 <style scoped>
-.rich-template-editor { border: 1px solid #d8deea; border-radius: 14px; overflow: hidden; background: var(--color-surface, #fff); }
+.rich-template-editor { border: 1px solid var(--border); border-radius: 9px; overflow: hidden; color: var(--text); background: var(--surface); }
+.rich-template-editor:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 14%, transparent); }
 .rich-template-editor--invalid { border-color: #f59e0b; }
-.rich-template-editor__toolbar { display: flex; gap: .35rem; padding: .55rem; border-bottom: 1px solid #e5e7eb; background: #f8fafc; }
+.rich-template-editor__toolbar { display: flex; flex-wrap: wrap; gap: .35rem; padding: .5rem; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 82%, var(--panel)); }
 .rich-template-editor__toolbar button,
-.rich-template-editor__marks button { border: 1px solid #d8deea; border-radius: 8px; background: #fff; color: #334155; padding: .35rem .55rem; cursor: pointer; }
-.rich-template-editor__surface { min-height: 150px; padding: .85rem; outline: none; line-height: 1.55; }
-.rich-template-editor__surface:empty::before { content: attr(data-placeholder); color: #94a3b8; pointer-events: none; }
-.rich-template-editor__marks { display: flex; align-items: center; gap: .35rem; padding: .6rem; overflow-x: auto; border-top: 1px solid #e5e7eb; }
-.rich-template-editor__marks > span { color: #64748b; font-size: .75rem; font-weight: 800; text-transform: uppercase; }
-.rich-template-editor__marks button { flex: 0 0 auto; color: #1d4ed8; font-size: .78rem; }
-.rich-template-editor__warning { margin: 0; padding: .55rem .75rem; color: #92400e; background: #fffbeb; font-size: .82rem; }
-.rich-template-editor__preview { padding: .7rem .8rem; border-top: 1px solid #e5e7eb; background: #fbfdff; }
-.rich-template-editor__preview summary { color: #475569; cursor: pointer; font-size: .8rem; font-weight: 800; }
-.rich-template-editor__preview > div { margin-top: .65rem; color: #1e293b; }
+.rich-template-editor__marks button { border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); padding: .35rem .55rem; cursor: pointer; font: inherit; font-size: .78rem; }
+.rich-template-editor__toolbar button:hover,
+.rich-template-editor__marks button:hover { border-color: var(--primary); color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--surface)); }
+.rich-template-editor__surface { min-height: 150px; padding: .85rem; outline: none; color: var(--text); background: var(--bg); line-height: 1.55; }
+.rich-template-editor__surface:empty::before { content: attr(data-placeholder); color: var(--muted); pointer-events: none; }
+.rich-template-editor__marks { display: flex; align-items: center; gap: .35rem; padding: .6rem; overflow-x: auto; border-top: 1px solid var(--border); background: var(--surface); }
+.rich-template-editor__marks > span { color: var(--muted); font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.rich-template-editor__marks button { flex: 0 0 auto; color: var(--primary); }
+.rich-template-editor__warning { margin: 0; padding: .55rem .75rem; color: #b45309; background: color-mix(in srgb, #f59e0b 12%, var(--surface)); font-size: .82rem; }
+.rich-template-editor__preview { padding: .7rem .8rem; border-top: 1px solid var(--border); background: var(--surface); }
+.rich-template-editor__preview summary { color: var(--muted); cursor: pointer; font-size: .78rem; font-weight: 700; }
+.rich-template-editor__preview > div { margin-top: .65rem; color: var(--text); }
+.rich-template-editor__preview :deep(a) { color: var(--primary); }
 </style>

@@ -317,6 +317,7 @@ onBeforeUnmount(deactivateFrame);
 }
 
 .mf-subtitle {
+  display: var(--mf-subtitle-display, block);
   margin: 0 0 2px;
   font-size: 0.75rem;
   text-transform: uppercase;

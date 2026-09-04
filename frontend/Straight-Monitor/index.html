@@ -2,13 +2,12 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="/frontend/Straight-Monitor/src/assets/SF_000.svg">
-    <link rel="icon" href="/favicon.png" type="image/x-icon" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Straight-Monitor</title>  
-    <style>
-      
-    </style>
+    <!-- Open the API connection while the JS bundle is still downloading -->
+    <link rel="preconnect" href="%VITE_API_BASE_URL%" crossorigin />
+    <link rel="dns-prefetch" href="%VITE_API_BASE_URL%" />
+    <title>Straight-Monitor</title>
   </head>
   <body>
     <div id="app"></div>

@@ -3,43 +3,44 @@ import '../assets/styles/main.scss';
 import { useAuth } from '@/stores/auth';
 import { jwtDecode } from 'jwt-decode';
 
-import EmailConfirmation from '@/components/EmailConfirmation.vue';
+// Eager: first paint for unauthenticated users
 import HomeLogin from '@/components/HomeLogin.vue';
-import PublicMitarbeiter from '@/components/public/PublicMitarbeiter.vue';
-import PublicEinsaetze from '@/components/public/PublicEinsaetze.vue';
-import CapacityCounter from '@/components/public/CapacityCounter.vue';
-import TaskBestaetigen from '@/components/public/TaskBestaetigen.vue';
-import FlipMonitorLogin from '@/components/FlipMonitorLogin.vue';
-
-// Layout + Seiten (bestehend)
 import MainLayout from '@/layouts/MainLayout.vue';
-import Dashboard from '@/components/Dashboard.vue';
-import Bestand from '@/components/Bestand.vue';
-import Verlauf from '@/components/Verlauf.vue';
-import Auswertung from '@/components/Auswertung.vue';
-import ExcelFormatierung from '@/components/ExcelFormatierung.vue';
-import Lohnabrechnungen from '@/components/Lohnabrechnungen.vue';
-import Personal from '@/components/PeopleDocsModern.vue';
-import Dokumente from '@/components/Dokumente.vue';
-import FlipCreate from '@/components/FlipCreate.vue';
-import BewerberCreate from '@/components/BewerberCreate.vue';
-import FlipExit from '@/components/FlipExit.vue';
-import FlipUserFix from '@/components/FlipUserFix.vue';
-import VerlosungTool from '@/components/VerlosungTool.vue';
-import DatenImport from '@/components/DatenImport.vue';
-import AuftraegePage from '@/components/AuftraegePage.vue';
-import KundenPage from '@/components/KundenPage.vue';
-import TeamleiterAuswertung from '@/components/TeamleiterAuswertung.vue';
-import DokumenteNachpflegen from '@/components/DokumenteNachpflegen.vue';
-import PdfBuilder from '@/components/PdfBuilder.vue';
-import PdfFormFill from '@/components/PdfFormFill.vue';
-import PdfVorgaenge from '@/components/PdfVorgaenge.vue';
-import DocuSealVorgaenge from '@/components/DocuSealVorgaenge.vue';
-import SignaturenPage from '@/components/SignaturenPage.vue';
-import PdfMitarbeiterForm from '@/components/PdfMitarbeiterForm.vue';
-import DispoTable from '@/components/DispoTable.vue';
-import UserManagement from '@/components/UserManagement.vue';
-import NotFound from '@/components/NotFound.vue';
+
+// Lazy: every page becomes its own chunk (xlsx, pdfjs, konva, chart.js etc. leave the main bundle)
+const EmailConfirmation = () => import('@/components/EmailConfirmation.vue');
+const PublicEinsaetze = () => import('@/components/public/PublicEinsaetze.vue');
+const CapacityCounter = () => import('@/components/public/CapacityCounter.vue');
+const TaskBestaetigen = () => import('@/components/public/TaskBestaetigen.vue');
+const FlipMonitorLogin = () => import('@/components/FlipMonitorLogin.vue');
+
+const Dashboard = () => import('@/components/Dashboard.vue');
+const Bestand = () => import('@/components/Bestand.vue');
+const Verlauf = () => import('@/components/Verlauf.vue');
+const Auswertung = () => import('@/components/Auswertung.vue');
+const ExcelFormatierung = () => import('@/components/ExcelFormatierung.vue');
+const Lohnabrechnungen = () => import('@/components/Lohnabrechnungen.vue');
+const Personal = () => import('@/components/PeopleDocsModern.vue');
+const Dokumente = () => import('@/components/Dokumente.vue');
+const FlipCreate = () => import('@/components/FlipCreate.vue');
+const BewerberCreate = () => import('@/components/BewerberCreate.vue');
+const FlipExit = () => import('@/components/FlipExit.vue');
+const FlipUserFix = () => import('@/components/FlipUserFix.vue');
+const VerlosungTool = () => import('@/components/VerlosungTool.vue');
+const DatenImport = () => import('@/components/DatenImport.vue');
+const AuftraegePage = () => import('@/components/AuftraegePage.vue');
+const KundenPage = () => import('@/components/KundenPage.vue');
+const TeamleiterAuswertung = () => import('@/components/TeamleiterAuswertung.vue');
+const DokumenteNachpflegen = () => import('@/components/DokumenteNachpflegen.vue');
+const PdfBuilder = () => import('@/components/PdfBuilder.vue');
+const PdfFormFill = () => import('@/components/PdfFormFill.vue');
+const PdfVorgaenge = () => import('@/components/PdfVorgaenge.vue');
+const DocuSealVorgaenge = () => import('@/components/DocuSealVorgaenge.vue');
+const SignaturenPage = () => import('@/components/SignaturenPage.vue');
+const PdfMitarbeiterForm = () => import('@/components/PdfMitarbeiterForm.vue');
+const DispoTable = () => import('@/components/DispoTable.vue');
+const UserManagement = () => import('@/components/UserManagement.vue');
+const NotFound = () => import('@/components/NotFound.vue');
 
 const routes = [
   { path: '/', name: 'Home', component: HomeLogin, meta: { requiresAuth: false } },

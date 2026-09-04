@@ -22,10 +22,11 @@ defineProps({
 .public-einsatzinfo {
   margin: 1.1rem 0;
   padding: 1rem 1.05rem;
-  border: 1px solid rgba(37, 99, 235, 0.2);
-  border-radius: 18px;
-  background: linear-gradient(145deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.98));
-  box-shadow: 0 10px 28px rgba(30, 64, 175, 0.08);
+  border: 1px solid color-mix(in srgb, var(--primary) 38%, var(--border));
+  border-left: 3px solid var(--primary);
+  border-radius: 8px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--primary) 6%, var(--panel));
 }
 
 .public-einsatzinfo__heading {
@@ -37,7 +38,7 @@ defineProps({
 
 .public-einsatzinfo__heading span:not(.public-einsatzinfo__icon) {
   display: block;
-  color: #2563eb;
+  color: var(--primary);
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -46,7 +47,7 @@ defineProps({
 
 .public-einsatzinfo__heading h3 {
   margin: 0.1rem 0 0;
-  color: #172554;
+  color: var(--text);
   font-size: 1rem;
 }
 
@@ -56,13 +57,13 @@ defineProps({
   width: 2.25rem;
   height: 2.25rem;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 6px;
   color: #fff;
-  background: #2563eb;
+  background: var(--primary);
 }
 
 .public-einsatzinfo__content {
-  color: #273449;
+  color: var(--text);
   font-size: 0.94rem;
   line-height: 1.62;
   overflow-wrap: anywhere;
@@ -72,5 +73,5 @@ defineProps({
 .public-einsatzinfo__content :deep(p:last-child) { margin-bottom: 0; }
 .public-einsatzinfo__content :deep(ul),
 .public-einsatzinfo__content :deep(ol) { padding-left: 1.35rem; }
-.public-einsatzinfo__content :deep(a) { color: #1d4ed8; font-weight: 700; }
+.public-einsatzinfo__content :deep(a) { color: var(--primary); font-weight: 700; }
 </style>

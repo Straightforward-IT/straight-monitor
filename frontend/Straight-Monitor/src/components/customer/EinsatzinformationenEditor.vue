@@ -43,7 +43,7 @@
           <h4>{{ form.id ? 'Vorlage bearbeiten' : 'Neue Vorlage' }}</h4>
         </div>
         <div class="header-actions">
-          <button v-if="form.id" type="button" @click="copyTemplate">Kopie als Ausgangspunkt</button>
+          <ToolbarButton v-if="form.id" variant="outlined" @click="copyTemplate">Kopie als Ausgangspunkt</ToolbarButton>
           <label><input v-model="form.isActive" type="checkbox" /> Aktiv</label>
         </div>
       </header>
@@ -73,7 +73,7 @@
         <footer>
           <button v-if="form.id" class="danger" type="button" :disabled="saving" @click="removeTemplate">Löschen</button>
           <span></span>
-          <button type="button" :disabled="saving || !form.htmlTemplate || (form.copyMode && !form.einsatzortId)" @click="saveTemplate">{{ saving ? 'Speichert …' : 'Vorlage speichern' }}</button>
+          <ToolbarButton :disabled="saving || !form.htmlTemplate || (form.copyMode && !form.einsatzortId)" @click="saveTemplate">{{ saving ? 'Speichert …' : 'Vorlage speichern' }}</ToolbarButton>
         </footer>
       </template>
     </div>
@@ -84,6 +84,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import api from '@/utils/api';
 import RichTextTemplateEditor from '@/components/ui-elements/RichTextTemplateEditor.vue';
+import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 
 const props = defineProps({
   kundenNr: { type: [Number, String], required: true },
@@ -200,29 +201,34 @@ onMounted(load);
 </script>
 
 <style scoped>
-.einsatzinfo-manager { display: grid; grid-template-columns: minmax(230px, .75fr) minmax(0, 2fr); min-height: 520px; border: 1px solid var(--color-border, #e2e8f0); border-radius: 16px; overflow: hidden; }
-.einsatzinfo-manager__nav { padding: .8rem; overflow-y: auto; border-right: 1px solid var(--color-border, #e2e8f0); background: #f8fafc; }
+.einsatzinfo-manager { display: grid; grid-template-columns: minmax(230px, .75fr) minmax(0, 2fr); min-height: 520px; overflow: hidden; border: 1px solid var(--border); border-radius: 9px; color: var(--text); background: var(--surface); }
+.einsatzinfo-manager__nav { padding: .8rem; overflow-y: auto; border-right: 1px solid var(--border); background: var(--panel); }
 .einsatzinfo-manager__nav-head, .einsatzinfo-manager__editor > header, .einsatzinfo-manager__editor footer { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .einsatzinfo-manager button { cursor: pointer; }
-.einsatzinfo-manager__nav-head button, .add-variant { border: 0; color: #2563eb; background: transparent; font-weight: 700; }
-.scope-card, .variant-card { display: flex; width: 100%; flex-direction: column; align-items: flex-start; gap: .18rem; margin-top: .55rem; padding: .7rem; border: 1px solid #dbe3ef; border-radius: 11px; color: #334155; background: #fff; text-align: left; }
-.scope-card.active, .variant-card.active { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.1); }
-.scope-card span { color: #64748b; font-size: .68rem; font-weight: 800; text-transform: uppercase; }
-.scope-card small, .variant-card small { color: #64748b; }
+.einsatzinfo-manager__nav-head button, .add-variant { border: 0; color: var(--primary); background: transparent; font-weight: 600; }
+.einsatzinfo-manager__nav-head button:hover, .add-variant:hover { text-decoration: underline; text-underline-offset: 3px; }
+.scope-card, .variant-card { display: flex; width: 100%; flex-direction: column; align-items: flex-start; gap: .18rem; margin-top: .55rem; padding: .7rem; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); text-align: left; }
+.scope-card:hover, .variant-card:hover { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); }
+.scope-card.active, .variant-card.active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--surface)); box-shadow: inset 0 0 0 1px var(--primary); }
+.scope-card span { color: var(--primary); font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.scope-card small, .variant-card small { color: var(--muted); }
 .variant-card { margin-left: .75rem; width: calc(100% - .75rem); border-style: dashed; }
 .add-variant { margin: .4rem 0 .3rem .75rem; font-size: .78rem; }
 .einsatzinfo-manager__editor { padding: 1.1rem; overflow-y: auto; }
 .einsatzinfo-manager__editor h4 { margin: .15rem 0 0; font-size: 1.2rem; }
-.eyebrow { color: #2563eb; font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.eyebrow { color: var(--primary); font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .header-actions { display: flex; align-items: center; gap: .65rem; }
-.header-actions button { border: 1px solid #dbe3ef; border-radius: 8px; padding: .4rem .6rem; background: #fff; }
+.header-actions label { display: flex; align-items: center; gap: .35rem; color: var(--muted); font-size: .8rem; }
+.header-actions input { accent-color: var(--primary); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin: 1rem 0; }
-.form-grid label { display: grid; gap: .3rem; color: #475569; font-size: .78rem; font-weight: 800; }
+.form-grid label { display: grid; gap: .3rem; color: var(--muted); font-size: .74rem; font-weight: 700; }
 .form-grid .wide { grid-column: 1 / -1; }
-.form-grid input, .form-grid select { width: 100%; min-height: 40px; border: 1px solid #d8deea; border-radius: 9px; padding: .55rem; background: var(--color-surface, #fff); color: inherit; }
+.form-grid input, .form-grid select { box-sizing: border-box; width: 100%; min-height: 40px; padding: .55rem; border: 1px solid var(--border); border-radius: 8px; outline: none; color: var(--text); background: var(--bg); }
+.form-grid input:focus, .form-grid select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 14%, transparent); }
 .einsatzinfo-manager__editor footer { margin-top: 1rem; }
-.einsatzinfo-manager__editor footer button { border: 0; border-radius: 9px; padding: .65rem .9rem; color: #fff; background: #2563eb; font-weight: 800; }
-.einsatzinfo-manager__editor footer .danger { color: #b91c1c; background: #fee2e2; }
-.manager-error { color: #b91c1c; }.manager-state { padding: 3rem; text-align: center; color: #64748b; }
-@media (max-width: 760px) { .einsatzinfo-manager { grid-template-columns: 1fr; }.einsatzinfo-manager__nav { max-height: 240px; border-right: 0; border-bottom: 1px solid #e2e8f0; }.form-grid { grid-template-columns: 1fr; } }
+.einsatzinfo-manager__editor footer .danger { padding: .55rem .7rem; border: 1px solid color-mix(in srgb, #e6584f 45%, var(--border)); border-radius: 8px; color: #e6584f; background: transparent; }
+.einsatzinfo-manager__editor footer .danger:hover { background: color-mix(in srgb, #e6584f 8%, var(--surface)); }
+.einsatzinfo-manager__editor footer :deep(.toolbar-btn:disabled) { cursor: not-allowed; opacity: .45; }
+.manager-error { color: #e6584f; }.manager-state { padding: 3rem; text-align: center; color: var(--muted); }
+@media (max-width: 760px) { .einsatzinfo-manager { grid-template-columns: 1fr; }.einsatzinfo-manager__nav { max-height: 240px; border-right: 0; border-bottom: 1px solid var(--border); }.form-grid { grid-template-columns: 1fr; } }
 </style>

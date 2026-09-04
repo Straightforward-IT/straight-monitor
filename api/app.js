@@ -1,5 +1,6 @@
 const path = require('path');
 const cors = require('cors');
+const compression = require('compression');
 const express = require('express');
 const mongoose = require('mongoose');
 const axios = require('axios');
@@ -90,6 +91,17 @@ app.use((req, _res, next) => {
   next();
 });
 
+// Gzip/Brotli JSON + static responses (Heroku does not compress for us).
+// SSE streams must not be buffered by the compressor.
+app.use(compression({
+  filter: (req, res) => {
+    if (req.headers.accept === 'text/event-stream') return false;
+    const type = String(res.getHeader('Content-Type') || '');
+    if (type.includes('text/event-stream')) return false;
+    return compression.filter(req, res);
+  }
+}));
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -147,7 +159,13 @@ app.get('/api/debug/headers', (req, res) => {
 
 // Serve Vue SPA static files in production
 const distPath = path.join(__dirname, '../frontend/Straight-Monitor/dist');
-app.use(express.static(distPath));
+// Vite emits content-hashed files under /assets → safe to cache for a year; index.html must stay fresh.
+app.use('/assets', express.static(path.join(distPath, 'assets'), { immutable: true, maxAge: '1y' }));
+app.use(express.static(distPath, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache');
+  }
+}));
 
 // SPA fallback: serve index.html for any non-API GET request
 app.get('*', (req, res) => {

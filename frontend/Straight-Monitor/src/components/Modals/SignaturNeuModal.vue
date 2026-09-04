@@ -802,17 +802,19 @@ const hasFixedSignerSlots = computed(() =>
   isReisekostenFlow.value || (usesCustomEndpoint.value && (form.value.typKey || modal.context.typKey) === 'stundenliste')
 );
 const selectedTyp = computed(() => typen.value.find(type => type._id === form.value.typId) || null);
-const REISEKOSTEN_DELIVERY_EMAIL = 'invoice@straightforward.email';
+const REISEKOSTEN_DELIVERY_RECIPIENTS = [
+  { displayName: 'Straightforward Invoice', email: 'invoice@straightforward.email' },
+  { displayName: 'Straightforward DH', email: 'dh@straightforward.email' },
+];
 
 function addReisekostenDefaultDeliveryEmail() {
   if (!isReisekostenFlow.value) return;
-  if (!folgeaktionen.value.ausliefernAn.some(recipient =>
-    String(recipient.email || '').trim().toLowerCase() === REISEKOSTEN_DELIVERY_EMAIL
-  )) {
-    folgeaktionen.value.ausliefernAn.push({
-      displayName: 'Straightforward Invoice',
-      email: REISEKOSTEN_DELIVERY_EMAIL,
-    });
+  for (const defaultRecipient of REISEKOSTEN_DELIVERY_RECIPIENTS) {
+    if (!folgeaktionen.value.ausliefernAn.some(recipient =>
+      String(recipient.email || '').trim().toLowerCase() === defaultRecipient.email
+    )) {
+      folgeaktionen.value.ausliefernAn.push(defaultRecipient);
+    }
   }
 }
 

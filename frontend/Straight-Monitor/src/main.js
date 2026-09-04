@@ -466,7 +466,14 @@ app
 // Theme erst initialisieren, nachdem Pinia registriert wurde.
 useTheme(pinia).init();
 
+// Eruda costs ~150 KiB + >1 s main-thread on mobile — only load it when explicitly requested
+// (?debug=1 once, or localStorage.eruda = '1'). Still restricted to ADMIN.
 async function initializeErudaForAdmin() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('debug') === '1') localStorage.setItem('eruda', '1');
+  if (params.get('debug') === '0') localStorage.removeItem('eruda');
+  if (localStorage.getItem('eruda') !== '1') return;
+
   await router.isReady();
 
   const auth = useAuth(pinia);
