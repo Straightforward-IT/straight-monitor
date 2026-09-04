@@ -121,7 +121,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
   faArrowUpRightFromSquare, faChevronDown, faChevronRight, faDownload, faFilePdf,
@@ -129,9 +129,10 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useCustomerModals } from '@/composables/useCustomerModals';
-import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
+
+const EmployeeCardModal = defineAsyncComponent(() => import('@/components/Modals/EmployeeCardModal.vue'));
 
 library.add(
   faArrowUpRightFromSquare, faChevronDown, faChevronRight, faDownload, faFilePdf,

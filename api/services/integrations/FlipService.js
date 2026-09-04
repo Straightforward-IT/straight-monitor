@@ -1332,6 +1332,12 @@ async function assignFlipTask(req) {
     );
   }
 }
+
+async function completeFlipTask(taskId) {
+  if (!taskId) return null;
+  const response = await flipAxios.post(`/api/tasks/v4/tasks/${taskId}/complete`);
+  return response.data;
+}
 // ✅ Holt alle Assignments für eine bestimmte Task
 async function getFlipTaskAssignments(taskId) {
   try {
@@ -2128,6 +2134,7 @@ module.exports = {
   assignMitarbeiter,
   assignVerlosungEintrag,
   assignFlipTask,
+  completeFlipTask,
   getFlipTaskAssignments,
   markAssignmentAsCompleted,
   assignFlipUserGroups,

@@ -25,6 +25,8 @@ const publicPrototypeRoutes = require('./routes/public/publicPrototypeRoutes');
 const publicRoutes = require('./routes/public/publicRoutes');
 const publicBewerberRoutes = require('./routes/public/publicBewerberRoutes');
 const publicWorkingTimeRoutes = require('./routes/public/publicWorkingTimeRoutes');
+const publicEmployeeDocumentRoutes = require('./routes/public/publicEmployeeDocumentRoutes');
+const employeeDocumentRoutes = require('./routes/employee/employeeDocumentRoutes');
 const oidcRoutes = require('./routes/auth/oidcRoutes');
 const flipTaskRoutes = require('./routes/integrations/flipTaskRoutes');
 const flipUserFixRoutes = require('./routes/integrations/flipUserFixRoutes');
@@ -130,6 +132,8 @@ app.use('/api/public/capacity', publicCapacityRoutes);
 app.use('/api/public/bewerber', publicBewerberRoutes);
 app.use('/api/public/prototype', publicPrototypeRoutes);
 app.use('/api/public/payroll-time', publicWorkingTimeRoutes);
+app.use('/api/public/employee-documents', publicEmployeeDocumentRoutes);
+app.use('/api/employee-documents', employeeDocumentRoutes);
 app.use('/api/public', publicRoutes);
 // OIDC routes are mounted separately — NOT under /api/public which requires publicAuth
 app.use('/api/oidc', oidcRoutes);

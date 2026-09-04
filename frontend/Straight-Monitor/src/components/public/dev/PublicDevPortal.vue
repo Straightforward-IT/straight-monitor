@@ -120,9 +120,9 @@
       <template v-else-if="detailView === 'document' && selectedDocument">
         <section class="document-preview">
           <font-awesome-icon icon="fa-solid fa-file-pdf" /><h2>{{ selectedDocument.name }}</h2>
-          <p>{{ selectedDocument.fileName || 'Noch kein Dokument vorhanden' }}</p><span>Prototyp-Vorschau</span>
+          <p>{{ selectedDocument.upload?.fileName || 'Noch kein Dokument vorhanden' }}</p><span>{{ documentDescription(selectedDocument) }}</span>
         </section>
-        <button v-if="selectedDocument.fileName" class="secondary-button wide" type="button" @click="previewMessage = 'Der Download ist im Prototyp deaktiviert.'">Download testen</button>
+        <button v-if="selectedDocument.upload" class="secondary-button wide" type="button" @click="downloadDocument(selectedDocument)">Dokument herunterladen</button>
         <p v-if="previewMessage" class="inline-message">{{ previewMessage }}</p>
       </template>
 
@@ -179,8 +179,8 @@
       <template v-else-if="detailView === 'documents'">
         <div class="intro-row"><div><h2>Meine Dokumente</h2><p>Unterlagen und Abrechnungen</p></div></div>
         <div class="sub-tabs"><button type="button" :class="{ active: documentTab === 'documents' }" @click="documentTab = 'documents'">Dokumente</button><button type="button" :class="{ active: documentTab === 'payroll' }" @click="documentTab = 'payroll'">Abrechnungen</button></div>
-        <template v-if="documentTab === 'documents'"><div class="document-list"><article v-for="document in demoState.documents" :key="document.id" class="document-row"><button type="button" @click="openDocument(document)"><span class="document-status" :class="document.status"><font-awesome-icon :icon="documentIcon(document.status)" /></span><span><strong>{{ document.name }}</strong><small>{{ documentDescription(document) }}</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button><label v-if="['missing', 'expiring'].includes(document.status)" class="upload-button">{{ document.status === 'missing' ? 'Hochladen' : 'Erneuern' }}<input type="file" accept=".pdf,.jpg,.jpeg,.png" @change="handleLocalUpload($event, document)" /></label></article></div></template>
-        <template v-else><button v-for="payroll in payrollDocuments" :key="payroll.id" class="payroll-row" type="button" @click="openPayroll(payroll)"><span><font-awesome-icon icon="fa-solid fa-file-invoice-dollar" /></span><span><strong>{{ payroll.month }}</strong><small>Lohnabrechnung · PDF</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button></template>
+        <template v-if="documentTab === 'documents'"><div v-if="documentsLoading" class="loading-row"><font-awesome-icon icon="fa-solid fa-spinner" spin /> Dokumente werden geladen</div><p v-else-if="documentsError" class="inline-message">{{ documentsError }}</p><div v-else-if="employeeDocuments.length" class="document-list"><article v-for="document in employeeDocuments" :key="document.id" class="document-row"><button type="button" @click="openDocument(document)"><span class="document-status" :class="document.status"><font-awesome-icon :icon="documentIcon(document.status)" /></span><span><strong>{{ document.label }}</strong><small>{{ documentDescription(document) }}</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button><label v-if="canUpload(document)" class="upload-button">{{ document.status === 'EXPIRED' ? 'Erneuern' : 'Hochladen' }}<input type="file" accept=".pdf,.jpg,.jpeg,.png" :disabled="uploadingRequestId === document.id" @change="uploadDocument($event, document)" /></label></article></div><div v-else class="empty-state"><strong>Keine Dokumente offen</strong><p>Neue Anforderungen erscheinen hier.</p></div></template>
+        <template v-else><div class="empty-state"><strong>Noch keine Abrechnungen</strong><p>Bereitgestellte Abrechnungen erscheinen hier.</p></div></template>
       </template>
 
       <template v-else-if="activeTab === 'profile'">
@@ -277,11 +277,14 @@ const correctionReason = ref('');
 const previewMessage = ref('');
 const resetMessage = ref('');
 const profileImageUrl = ref('');
+const employeeDocuments = ref([]);
+const documentsLoading = ref(false);
+const documentsError = ref('');
+const uploadingRequestId = ref('');
 let timer = null;
 
-const payrollDocuments = [{ id: '2026-08', month: 'August 2026' }, { id: '2026-07', month: 'Juli 2026' }, { id: '2026-06', month: 'Juni 2026' }];
 const timeEntry = computed(() => demoState.timeEntry);
-const missingDocumentCount = computed(() => demoState.documents.filter((item) => ['missing', 'expiring'].includes(item.status)).length);
+const missingDocumentCount = computed(() => employeeDocuments.value.filter((item) => canUpload(item)).length);
 const submittedApplications = computed(() => Object.keys(demoState.applications).length);
 const openActionCount = computed(() => 2 + (submittedApplications.value ? 1 : 0));
 const formattedToday = computed(() => new Date().toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' }));
@@ -330,7 +333,6 @@ function stopTime() { const entry = timeEntry.value; if (entry.status === 'pause
 function submitTime() { timeEntry.value.status = 'submitted'; }
 function advanceTime(status) { timeEntry.value.history.push({ status, at: new Date().toISOString() }); timeEntry.value.status = status; }
 function requestCorrection() { timeEntry.value.correction = { original: formatClock(timeEntry.value.stoppedAt), requested: correctionTime.value, reason: correctionReason.value, requestedAt: new Date().toISOString() }; showCorrection.value = false; correctionTime.value = ''; correctionReason.value = ''; }
-function handleLocalUpload(event, document) { const file = event.target.files?.[0]; if (!file) return; document.fileName = file.name; document.status = 'in_review'; document.validity = null; event.target.value = ''; }
 function resetPrototype() { reset(); resetMessage.value = 'Der lokale Prototyp wurde zurückgesetzt.'; window.setTimeout(() => { resetMessage.value = ''; }, 2500); }
 function toggleTheme() { theme.set(theme.isDark ? 'light' : 'dark'); }
 function formatDuration(milliseconds) { const seconds = Math.floor(Math.max(0, milliseconds) / 1000); return `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; }
@@ -383,9 +385,13 @@ function shortDate(value) { return new Date(value).toLocaleDateString('de-DE', {
 function dayNumber(value) { return new Date(value).toLocaleDateString('de-DE', { day: '2-digit' }); }
 function monthShort(value) { return new Date(value).toLocaleDateString('de-DE', { month: 'short' }).replace('.', '').toUpperCase(); }
 function formatLongDate(value) { return new Date(value).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' }); }
-function documentIcon(status) { return ['approved', 'in_review'].includes(status) ? 'fa-solid fa-circle-check' : status === 'missing' ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-triangle-exclamation'; }
-function documentDescription(document) { if (document.status === 'approved') return 'Geprüft und vollständig'; if (document.status === 'in_review') return `In Prüfung · ${document.fileName}`; if (document.status === 'missing') return 'Fehlt · bitte hochladen'; return `Gültig bis ${new Date(document.validity).toLocaleDateString('de-DE')}`; }
-async function loadJobs() { jobsLoading.value = true; try { const response = await props.api.get('/api/public/prototype/jobs'); jobs.value = response.data.jobs || []; if (!jobs.value.length && import.meta.env.DEV) { jobs.value = createDemoJobs(); jobsAreFixtures.value = true; } } catch (error) { jobsError.value = error.response?.data?.msg || 'Jobs konnten nicht geladen werden.'; if (import.meta.env.DEV) { jobs.value = createDemoJobs(); jobsAreFixtures.value = true; } } finally { jobsLoading.value = false; } }
+function canUpload(document) { return ['REQUESTED', 'REJECTED', 'EXPIRED'].includes(document.status); }
+function documentIcon(status) { return ['APPROVED', 'UPLOADED'].includes(status) ? 'fa-solid fa-circle-check' : ['REQUESTED', 'REJECTED', 'EXPIRED'].includes(status) ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-triangle-exclamation'; }
+function documentDescription(document) { if (document.status === 'APPROVED') return document.validUntil ? `Gültig bis ${new Date(document.validUntil).toLocaleDateString('de-DE')}` : 'Geprüft und vollständig'; if (document.status === 'UPLOADED') return `In Prüfung · ${document.upload?.fileName || ''}`; if (document.status === 'REJECTED') return document.reviewNote || 'Bitte erneut hochladen'; if (document.status === 'EXPIRED') return 'Abgelaufen · bitte erneuern'; return document.dueAt ? `Bitte bis ${new Date(document.dueAt).toLocaleDateString('de-DE')} hochladen` : 'Bitte hochladen'; }
+async function loadJobs() { jobsLoading.value = true; try { const response = await props.api.get('/api/public/prototype/jobs', { params: { email: props.email } }); jobs.value = response.data.jobs || []; if (!jobs.value.length && import.meta.env.DEV) { jobs.value = createDemoJobs(); jobsAreFixtures.value = true; } } catch (error) { jobsError.value = error.response?.data?.msg || 'Jobs konnten nicht geladen werden.'; if (import.meta.env.DEV) { jobs.value = createDemoJobs(); jobsAreFixtures.value = true; } } finally { jobsLoading.value = false; } }
+async function loadEmployeeDocuments() { documentsLoading.value = true; documentsError.value = ''; try { const response = await props.api.get('/api/public/employee-documents', { params: { email: props.email } }); employeeDocuments.value = response.data.requests || []; } catch (error) { documentsError.value = error.response?.data?.msg || 'Dokumente konnten nicht geladen werden.'; } finally { documentsLoading.value = false; } }
+async function uploadDocument(event, document) { const file = event.target.files?.[0]; if (!file) return; uploadingRequestId.value = document.id; documentsError.value = ''; const formData = new FormData(); formData.append('document', file); try { await props.api.post(`/api/public/employee-documents/${document.id}/upload`, formData, { params: { email: props.email } }); await loadEmployeeDocuments(); } catch (error) { documentsError.value = error.response?.data?.msg || 'Dokument konnte nicht hochgeladen werden.'; } finally { uploadingRequestId.value = ''; event.target.value = ''; } }
+async function downloadDocument(document) { previewMessage.value = ''; try { const response = await props.api.get(`/api/public/employee-documents/${document.id}/download`, { params: { email: props.email } }); window.open(response.data.url, '_blank', 'noopener,noreferrer'); } catch (error) { previewMessage.value = error.response?.data?.msg || 'Dokument konnte nicht geladen werden.'; } }
 async function loadProfileImage() {
   try {
     const response = await props.api.get('/api/public/mitarbeiter/profile-picture', {
@@ -398,7 +404,7 @@ async function loadProfileImage() {
   }
 }
 
-onMounted(() => { loadJobs(); loadProfileImage(); timer = window.setInterval(() => { nowTick.value = Date.now(); }, 1000); });
+onMounted(() => { loadJobs(); loadEmployeeDocuments(); loadProfileImage(); timer = window.setInterval(() => { nowTick.value = Date.now(); }, 1000); });
 onBeforeUnmount(() => { window.clearInterval(timer); if (profileImageUrl.value) URL.revokeObjectURL(profileImageUrl.value); });
 </script>
 

@@ -10,6 +10,7 @@ const {
   deleteMessagesInFolder,
 } = require("./services/integrations/GraphService");
 const { runApplicantMailRetentionCleanup } = require("./services/employee/ApplicantMailRetentionService");
+const { expireEmployeeDocumentRequests } = require("./services/employee/EmployeeDocumentService");
 const { sendMonthlyWatchlistReports } = require("./services/operations/KundenWatchlistReportService");
 const registry = require("./config/registry");
 const logger = require("./utils/logger");
@@ -262,6 +263,18 @@ async function runApplicantMailGdprCleanup() {
             <p><strong>Error:</strong> ${error.message}</p>
             <pre>${error.stack}</pre>
           `);
+        }
+      }));
+    }
+
+    if (allow("employee_document_expiry")) {
+      cron.schedule("15 2 * * *", guard(async () => {
+        try {
+          logger.routineStart("employee document expiry check");
+          const result = await expireEmployeeDocumentRequests();
+          logger.info("Employee document expiry check completed:", JSON.stringify(result));
+        } catch (error) {
+          logger.routineError("Employee Document Expiry Check", error);
         }
       }));
     }

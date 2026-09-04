@@ -66,6 +66,23 @@ const MitarbeiterSchema = new mongoose.Schema({
     },
     persgruppe_set_explicitly: { type: Boolean, default: false }, // wenn true: Import überschreibt persgruppe nicht
     isBewerberstatus: { type: Boolean, default: false }, // true wenn Persstatus=1 (Bewerber, noch kein vollständiger MA)
+    isStudent: { type: Boolean, default: false },
+    isSchueler: { type: Boolean, default: false },
+    studieninformationen: {
+        hochschule: { type: String, default: '', trim: true },
+        studiengang: { type: String, default: '', trim: true },
+        startDate: { type: Date, default: null },
+        expectedCompletionDate: { type: Date, default: null },
+    },
+    schulinformationen: {
+        schule: { type: String, default: '', trim: true },
+        startDate: { type: Date, default: null },
+        expectedCompletionDate: { type: Date, default: null },
+    },
+    steuerId: { type: String, default: '', trim: true, select: false },
+    sozialversicherungsnummer: { type: String, default: '', trim: true, select: false },
+    versicherungsnachweisTyp: { type: String, enum: ['', 'KRANKENKASSENKARTE', 'SONSTIGES'], default: '' },
+    hatWeitereBeschaeftigungen: { type: Boolean, default: null },
     berufe: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Beruf' }],
     qualifikationen: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Qualifikation' }],
     // ── Legacy v1 Arrays (nicht mehr für v2 Laufzettel benutzen!) ──

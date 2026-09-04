@@ -22,8 +22,10 @@
 </template>
 
 <script>
-import EmployeeCard from "@/components/EmployeeCard.vue";
+import { defineAsyncComponent } from "vue";
 import ModalFrame from "@/components/frames/ModalFrame.vue";
+
+const EmployeeCard = defineAsyncComponent(() => import("@/components/EmployeeCard.vue"));
 
 export default {
   name: "EmployeeCardModal",

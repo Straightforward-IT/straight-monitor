@@ -106,6 +106,20 @@ const BewerberSchema = new mongoose.Schema(
       enum: ["eingeschrieben", "studienabsicht", "nein", ""],
       default: "",
     },
+    isStudent: { type: Boolean, default: false },
+    isSchueler: { type: Boolean, default: false },
+    studieninformationen: {
+      hochschule: { type: String, default: "", trim: true },
+      studiengang: { type: String, default: "", trim: true },
+      startDate: { type: Date, default: null },
+      expectedCompletionDate: { type: Date, default: null },
+    },
+    schulinformationen: {
+      schule: { type: String, default: "", trim: true },
+      startDate: { type: Date, default: null },
+      expectedCompletionDate: { type: Date, default: null },
+    },
+    hatWeitereBeschaeftigungen: { type: Boolean, default: null },
 
     documents: { type: [BewerberDokumentSchema], default: [] },
     invitations: { type: [BewerberEinladungSchema], default: [] },

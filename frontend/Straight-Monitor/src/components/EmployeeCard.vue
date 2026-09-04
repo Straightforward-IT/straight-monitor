@@ -1526,6 +1526,34 @@
       </div>
       </div>
       <div v-else-if="view === 'documents'" class="employee-storage" role="tabpanel">
+        <section class="employee-document-workflow">
+          <div class="employee-document-workflow__header">
+            <h4>Dokumentanforderungen</h4>
+            <span v-if="documentRequestsLoading">Wird geladen</span>
+            <button type="button" :disabled="documentRulesReconciling" @click="reconcileDocumentRules">Standard prüfen</button>
+          </div>
+          <form class="employee-document-workflow__form" @submit.prevent="createDocumentRequest">
+            <select v-model="newDocumentRequest.type" required aria-label="Dokumenttyp">
+              <option value="" disabled>Dokument auswählen</option>
+              <option v-for="documentType in employeeDocumentTypes" :key="documentType.value" :value="documentType.value">{{ documentType.label }}</option>
+            </select>
+            <input v-model="newDocumentRequest.dueAt" type="date" aria-label="Frist" />
+            <button type="submit" :disabled="documentRequestSaving">Anfordern</button>
+          </form>
+          <p v-if="documentRequestError" class="employee-document-workflow__message employee-document-workflow__message--error">{{ documentRequestError }}</p>
+          <p v-if="documentRuleMessage" class="employee-document-workflow__message">{{ documentRuleMessage }}</p>
+          <div v-if="documentRequests.length" class="employee-document-workflow__list">
+            <article v-for="request in documentRequests" :key="request.id" class="employee-document-workflow__item">
+              <div><strong>{{ request.label }}</strong><small>{{ documentRequestMeta(request) }}</small></div>
+              <div v-if="request.status === 'UPLOADED'" class="employee-document-workflow__actions">
+                <button type="button" :disabled="documentReviewSaving === request.id" @click="reviewDocumentRequest(request, 'APPROVED')">Freigeben</button>
+                <button type="button" class="danger" :disabled="documentReviewSaving === request.id" @click="reviewDocumentRequest(request, 'REJECTED')">Ablehnen</button>
+              </div>
+              <span v-else class="employee-document-workflow__status">{{ request.status }}</span>
+            </article>
+          </div>
+          <p v-else-if="!documentRequestsLoading" class="employee-document-workflow__empty">Keine Dokumentanforderungen.</p>
+        </section>
         <SignaturR2Browser
           root-label="Dokumente"
           :list-url="`/api/personal/mitarbeiter/${resolvedMa._id}/storage`"
@@ -1641,7 +1669,7 @@
   </article>
 </template>
 <script>
-import { computed, ref, onMounted, onBeforeUnmount, watchEffect } from "vue";
+import { computed, defineAsyncComponent, ref, onMounted, onBeforeUnmount, watchEffect } from "vue";
 import { useRouter } from "vue-router";
 import CustomTooltip from "./CustomTooltip.vue";
 import FlipProfile from "./FlipProfile.vue";
@@ -1667,7 +1695,8 @@ import straightDark from "@/assets/SF_000.svg";
 import flipLogo from "@/assets/flip.png";
 import asanaLogo from "@/assets/asana.png";
 import MitarbeiterEinsatzChart from "./MitarbeiterEinsatzChart.vue";
-import SignaturR2Browser from "./SignaturR2Browser.vue";
+
+const SignaturR2Browser = defineAsyncComponent(() => import("./SignaturR2Browser.vue"));
 
 export default {
   name: "EmployeeCard",
@@ -1917,6 +1946,27 @@ export default {
       // Mini-calendar
       calendarEinsaetze: [],
       calendarLoading: false,
+      documentRequests: [],
+      documentRequestsLoading: false,
+      documentRequestSaving: false,
+      documentReviewSaving: '',
+      documentRequestError: '',
+      documentRuleMessage: '',
+      documentRulesReconciling: false,
+      newDocumentRequest: { type: '', dueAt: '' },
+      employeeDocumentTypes: [
+        { value: 'IMMATRICULATION_CERTIFICATE', label: 'Immatrikulationsbescheinigung' },
+        { value: 'SCHOOL_CERTIFICATE', label: 'Schulbescheinigung' },
+        { value: 'PROOF_OF_ACHIEVEMENT', label: 'Leistungsnachweis' },
+        { value: 'RESIDENCE_PERMIT', label: 'Aufenthaltstitel' },
+        { value: 'IDENTITY_CARD', label: 'Personalausweis' },
+        { value: 'HEALTH_INSURANCE_CARD', label: 'Gesundheitskarte' },
+        { value: 'TAX_ID_DOCUMENT', label: 'SteuerID-Dokument' },
+        { value: 'SOCIAL_INSURANCE_NUMBER', label: 'Sozialversicherungsnummer' },
+        { value: 'EMPLOYMENT_CONTRACT', label: 'Arbeitsvertrag' },
+        { value: 'DRIVER_LICENSE', label: 'Führerschein' },
+        { value: 'HEALTH_INSTRUCTION_CERTIFICATE', label: 'Gesundheitszeugnis-/Belehrung' },
+      ],
       calendarYear: new Date().getFullYear(),
       calendarMonth: new Date().getMonth(),
       calendarSelectedDay: null,
@@ -2127,6 +2177,7 @@ export default {
       if (newView === 'inventar' && this.expanded && this.inventarLogs.length === 0 && !this.inventarLoading) {
         this.fetchInventar();
       }
+      if (newView === 'documents' && this.expanded) this.loadDocumentRequests();
     }
   },
 
@@ -2235,6 +2286,80 @@ export default {
       if (this.resolvedMa?.flip?.id) {
         this.loadFlipTasks();
       }
+      if (this.view === 'documents') this.loadDocumentRequests();
+    },
+    async loadDocumentRequests() {
+      if (!this.resolvedMa?._id) return;
+      this.documentRequestsLoading = true;
+      this.documentRequestError = '';
+      try {
+        const response = await api.get('/api/employee-documents/requests', { params: { mitarbeiterId: this.resolvedMa._id } });
+        this.documentRequests = response.data?.requests || [];
+      } catch (error) {
+        this.documentRequests = [];
+        this.documentRequestError = error.response?.data?.msg || 'Dokumentanforderungen konnten nicht geladen werden.';
+      } finally {
+        this.documentRequestsLoading = false;
+      }
+    },
+    async createDocumentRequest() {
+      if (!this.resolvedMa?._id || !this.newDocumentRequest.type) return;
+      this.documentRequestSaving = true;
+      this.documentRequestError = '';
+      try {
+        await api.post('/api/employee-documents/requests', {
+          mitarbeiterId: this.resolvedMa._id,
+          type: this.newDocumentRequest.type,
+          dueAt: this.newDocumentRequest.dueAt || null,
+        });
+        this.newDocumentRequest = { type: '', dueAt: '' };
+        await this.loadDocumentRequests();
+      } catch (error) {
+        this.documentRequestError = error.response?.data?.msg || 'Dokumentanforderung konnte nicht erstellt werden.';
+      } finally {
+        this.documentRequestSaving = false;
+      }
+    },
+    async reconcileDocumentRules() {
+      if (!this.resolvedMa?._id) return;
+      this.documentRulesReconciling = true;
+      this.documentRequestError = '';
+      this.documentRuleMessage = '';
+      try {
+        const preview = await api.post('/api/employee-documents/rules/reconcile', { mitarbeiterId: this.resolvedMa._id });
+        const missing = preview.data?.missing || [];
+        if (!missing.length) {
+          this.documentRuleMessage = 'Alle zutreffenden Standardanforderungen sind erfüllt oder bereits offen.';
+          return;
+        }
+        const labels = missing.map((rule) => rule.type).join(', ');
+        if (!window.confirm(`${missing.length} Standardanforderung(en) anlegen?\n${labels}`)) return;
+        const result = await api.post('/api/employee-documents/rules/reconcile', { mitarbeiterId: this.resolvedMa._id, apply: true });
+        this.documentRuleMessage = `${result.data?.created || 0} Standardanforderung(en) angelegt.`;
+        await this.loadDocumentRequests();
+      } catch (error) {
+        this.documentRequestError = error.response?.data?.msg || 'Standardanforderungen konnten nicht geprüft werden.';
+      } finally {
+        this.documentRulesReconciling = false;
+      }
+    },
+    async reviewDocumentRequest(request, status) {
+      const reviewNote = status === 'REJECTED' ? window.prompt('Grund für die Ablehnung:') : '';
+      if (status === 'REJECTED' && reviewNote === null) return;
+      this.documentReviewSaving = request.id;
+      this.documentRequestError = '';
+      try {
+        await api.patch(`/api/employee-documents/requests/${request.id}/review`, { status, reviewNote });
+        await this.loadDocumentRequests();
+      } catch (error) {
+        this.documentRequestError = error.response?.data?.msg || 'Dokument konnte nicht geprüft werden.';
+      } finally {
+        this.documentReviewSaving = '';
+      }
+    },
+    documentRequestMeta(request) {
+      const state = { REQUESTED: 'Angefordert', UPLOADED: 'Hochgeladen', APPROVED: 'Freigegeben', REJECTED: 'Abgelehnt', EXPIRED: 'Abgelaufen', CANCELLED: 'Abgebrochen' }[request.status] || request.status;
+      return request.dueAt ? `${state} · Frist ${new Date(request.dueAt).toLocaleDateString('de-DE')}` : state;
     },
     async loadEventReportFeedback() {
       if (!this.resolvedMa?._id) return;
