@@ -5,6 +5,7 @@
       <span class="cp-role">
         <font-awesome-icon :icon="['fas', 'user-pen']" />
         {{ roleName }}
+        <span v-if="companyName" class="cp-company">{{ companyName }}</span>
       </span>
       <button v-if="removable" class="cp-remove" type="button" title="Unterzeichner entfernen" @click="$emit('remove')">
         <font-awesome-icon :icon="['fas', 'xmark']" />
@@ -138,15 +139,12 @@
         type="text"
         class="cp-manual-input"
         placeholder="Name"
-        @change="syncManual"
-        @keydown.enter.prevent="syncManual"
       />
       <input
         v-model="manualEmail"
         type="email"
         class="cp-manual-input"
         placeholder="E-Mail"
-        @input="syncManual"
         @change="confirmManual"
         @keydown.enter.prevent="confirmManual"
       />
@@ -173,6 +171,7 @@ const props = defineProps({
   mitarbeiter:{ type: Array, default: () => [] },   // internal employees
   mitarbeiterId: { type: String, default: null },
   kuerzel:    { type: String, default: null },      // Kunde-Kürzel → prioritise matching contacts
+  companyName: { type: String, default: '' },
   removable:  { type: Boolean, default: true },
   locked:     { type: Boolean, default: false },
   showDeliveryMethod: { type: Boolean, default: true },
@@ -333,22 +332,15 @@ function useManual() {
   openDropdown.value = false;
 }
 
-function syncManual() {
-  emit('update:modelValue', {
-    ...props.modelValue,
-    name: manualName.value,
-    email: manualEmail.value,
-  });
-}
-
 function confirmManual() {
+  if (!/\S+@\S+\.\S+/.test(manualEmail.value.trim())) return;
   const selected = {
     ...props.modelValue,
     name: manualName.value,
     email: manualEmail.value,
   };
   emit('update:modelValue', selected);
-  if (/\S+@\S+\.\S+/.test(manualEmail.value.trim())) emit('selected', selected);
+  emit('selected', selected);
 }
 
 function clearSelection() {
@@ -410,6 +402,13 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.cp-company {
+  color: var(--text);
+  font-size: inherit;
+  font-weight: 600;
+  text-transform: none;
 }
 
 .cp-remove {

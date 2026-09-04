@@ -41,7 +41,7 @@
           <div class="sig-body">
             <!-- ───────── STEP 1: Dokument & Typ ───────── -->
             <section v-show="currentStep === 0" class="sig-section">
-              <template v-if="!isReisekostenFlow">
+              <template v-if="!isGeneratedDocumentFlow">
                 <label class="sig-field-label">Location</label>
                 <div class="sig-chip-row">
                 <FilterChip
@@ -61,6 +61,7 @@
                 v-model="form.name"
                 type="text"
                 class="sig-input"
+                :readonly="isGeneratedDocumentFlow"
                 placeholder="z. B. Stundenliste Auftrag 12345"
               />
 
@@ -68,11 +69,11 @@
               <div v-if="typenLoading" class="sig-loading-inline">
                 <font-awesome-icon :icon="['fas', 'spinner']" spin /> Typen laden…
               </div>
-              <div v-else-if="isReisekostenFlow" class="sig-fixed-type">
-                <font-awesome-icon :icon="typIcon('reisekostenabrechnung')" />
+              <div v-else-if="isGeneratedDocumentFlow" class="sig-fixed-type">
+                <font-awesome-icon :icon="typIcon(form.typKey || modal.context.typKey)" />
                 <span>
-                  <strong>{{ selectedTyp?.label || 'Reisekostenabrechnung' }}</strong>
-                  <small>Das Signierte Dokument wird an Invoice ausgeliefert</small>
+                  <strong>{{ selectedTyp?.label || form.typKey || modal.context.typKey }}</strong>
+                  <small>{{ isReisekostenFlow ? 'Das signierte Dokument wird an Invoice ausgeliefert' : 'Das Dokument wird automatisch generiert' }}</small>
                 </span>
                 <font-awesome-icon :icon="['fas', 'lock']" class="sig-fixed-type-lock" />
               </div>
@@ -122,78 +123,91 @@
 
             <!-- ───────── STEP 2: Verknüpfung ───────── -->
             <section v-show="currentStep === 1" class="sig-section">
-              <label class="sig-field-label">Verknüpfen mit</label>
-              <div class="sig-link-toggle">
-                <button
-                  v-for="opt in linkOptions"
-                  :key="opt.key"
-                  class="sig-link-btn"
-                  :class="{ active: linkMode === opt.key }"
-                  type="button"
-                  :disabled="!isLinkAllowed(opt.key)"
-                  @click="setLinkMode(opt.key)"
-                >
-                  <font-awesome-icon :icon="opt.icon" />
-                  {{ opt.label }}
-                </button>
-              </div>
+              <template v-if="isGeneratedDocumentFlow">
+                <label class="sig-field-label">Verknüpft mit</label>
+                <div class="sig-fixed-type">
+                  <font-awesome-icon :icon="linkMode === 'kunde' ? ['fas', 'building'] : ['fas', 'id-badge']" />
+                  <span>
+                    <strong>{{ linkMode === 'kunde' ? selectedKunde?.kundName : `${selectedMitarbeiter?.vorname || ''} ${selectedMitarbeiter?.nachname || ''}`.trim() }}</strong>
+                    <small>{{ linkMode === 'kunde' ? selectedKunde?.kuerzel || selectedKunde?.kundenNr : selectedMitarbeiter?.email }}</small>
+                  </span>
+                  <font-awesome-icon :icon="['fas', 'lock']" class="sig-fixed-type-lock" />
+                </div>
+              </template>
+              <template v-else>
+                <label class="sig-field-label">Verknüpfen mit</label>
+                <div class="sig-link-toggle">
+                  <button
+                    v-for="opt in linkOptions"
+                    :key="opt.key"
+                    class="sig-link-btn"
+                    :class="{ active: linkMode === opt.key }"
+                    type="button"
+                    :disabled="!isLinkAllowed(opt.key)"
+                    @click="setLinkMode(opt.key)"
+                  >
+                    <font-awesome-icon :icon="opt.icon" />
+                    {{ opt.label }}
+                  </button>
+                </div>
 
-              <!-- Kunde search -->
-              <div v-if="linkMode === 'kunde'" class="sig-link-search">
-                <ContactSearchPlaceholder
-                  v-if="form.kundeId"
-                  :title="selectedKunde ? selectedKunde.kundName : ''"
-                  :subtitle="selectedKunde ? (selectedKunde.kuerzel || String(selectedKunde.kundenNr || '')) : ''"
-                  @clear="clearKunde"
-                />
-                <div v-else class="sig-typeahead" ref="kundeBox">
-                  <div class="sig-search-input">
-                    <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
-                    <input v-model="kundeQuery" type="text" placeholder="Kunde / Kürzel suchen…" @focus="kundeOpen = true" />
-                  </div>
-                  <div v-if="kundeOpen && filteredKunden.length" class="sig-typeahead-list">
-                    <button
-                      v-for="k in filteredKunden"
-                      :key="k._id"
-                      class="sig-typeahead-item"
-                      type="button"
-                      @click="selectKunde(k)"
-                    >
-                      <span class="sig-ta-name">{{ k.kundName }}</span>
-                      <span v-if="k.kuerzel" class="sig-ta-kuerzel">{{ k.kuerzel }}</span>
-                      <span v-else class="sig-ta-kuerzel">{{ k.kundenNr }}</span>
-                    </button>
+                <!-- Kunde search -->
+                <div v-if="linkMode === 'kunde'" class="sig-link-search">
+                  <ContactSearchPlaceholder
+                    v-if="form.kundeId"
+                    :title="selectedKunde ? selectedKunde.kundName : ''"
+                    :subtitle="selectedKunde ? (selectedKunde.kuerzel || String(selectedKunde.kundenNr || '')) : ''"
+                    @clear="clearKunde"
+                  />
+                  <div v-else class="sig-typeahead" ref="kundeBox">
+                    <div class="sig-search-input">
+                      <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
+                      <input v-model="kundeQuery" type="text" placeholder="Kunde / Kürzel suchen…" @focus="kundeOpen = true" />
+                    </div>
+                    <div v-if="kundeOpen && filteredKunden.length" class="sig-typeahead-list">
+                      <button
+                        v-for="k in filteredKunden"
+                        :key="k._id"
+                        class="sig-typeahead-item"
+                        type="button"
+                        @click="selectKunde(k)"
+                      >
+                        <span class="sig-ta-name">{{ k.kundName }}</span>
+                        <span v-if="k.kuerzel" class="sig-ta-kuerzel">{{ k.kuerzel }}</span>
+                        <span v-else class="sig-ta-kuerzel">{{ k.kundenNr }}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- Mitarbeiter search -->
-              <div v-if="linkMode === 'mitarbeiter'" class="sig-link-search">
-                <ContactSearchPlaceholder
-                  v-if="form.mitarbeiterId"
-                  :title="selectedMitarbeiter ? `${selectedMitarbeiter.vorname} ${selectedMitarbeiter.nachname}` : ''"
-                  :subtitle="selectedMitarbeiter ? (selectedMitarbeiter.email || '') : ''"
-                  @clear="clearMitarbeiter"
-                />
-                <div v-else class="sig-typeahead" ref="maBox">
-                  <div class="sig-search-input">
-                    <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
-                    <input v-model="maQuery" type="text" placeholder="Mitarbeiter suchen…" @focus="maOpen = true" />
-                  </div>
-                  <div v-if="maOpen && filteredMitarbeiter.length" class="sig-typeahead-list">
-                    <button
-                      v-for="m in filteredMitarbeiter"
-                      :key="m._id"
-                      class="sig-typeahead-item"
-                      type="button"
-                      @click="selectMitarbeiter(m)"
-                    >
-                      <span class="sig-ta-name">{{ m.vorname }} {{ m.nachname }}</span>
-                      <span class="sig-ta-kuerzel">{{ m.email || '—' }}</span>
-                    </button>
+                <!-- Mitarbeiter search -->
+                <div v-if="linkMode === 'mitarbeiter'" class="sig-link-search">
+                  <ContactSearchPlaceholder
+                    v-if="form.mitarbeiterId"
+                    :title="selectedMitarbeiter ? `${selectedMitarbeiter.vorname} ${selectedMitarbeiter.nachname}` : ''"
+                    :subtitle="selectedMitarbeiter ? (selectedMitarbeiter.email || '') : ''"
+                    @clear="clearMitarbeiter"
+                  />
+                  <div v-else class="sig-typeahead" ref="maBox">
+                    <div class="sig-search-input">
+                      <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
+                      <input v-model="maQuery" type="text" placeholder="Mitarbeiter suchen…" @focus="maOpen = true" />
+                    </div>
+                    <div v-if="maOpen && filteredMitarbeiter.length" class="sig-typeahead-list">
+                      <button
+                        v-for="m in filteredMitarbeiter"
+                        :key="m._id"
+                        class="sig-typeahead-item"
+                        type="button"
+                        @click="selectMitarbeiter(m)"
+                      >
+                        <span class="sig-ta-name">{{ m.vorname }} {{ m.nachname }}</span>
+                        <span class="sig-ta-kuerzel">{{ m.email || '—' }}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </template>
 
             </section>
 
@@ -226,12 +240,13 @@
                   :mitarbeiter="mitarbeiterList"
                   :mitarbeiter-id="sub.role === 'Mitarbeiter' ? form.mitarbeiterId : null"
                   :kuerzel="selectedKunde?.kuerzel"
+                  :company-name="sub.role === 'Entleiher' ? (selectedKunde?.kuerzel || selectedKunde?.kundName) : ''"
                   :locked="isReisekostenFlow"
-                  :removable="!isReisekostenFlow && form.submitters.length > 1"
+                  :removable="!hasFixedSignerSlots && form.submitters.length > 1"
                   @remove="removeSubmitter(i)"
                 />
               </div>
-              <button v-if="!form.templateId && !isReisekostenFlow" class="sig-add-submitter" type="button" @click="addSubmitter">
+              <button v-if="!form.templateId && !hasFixedSignerSlots" class="sig-add-submitter" type="button" @click="addSubmitter">
                 <font-awesome-icon :icon="['fas', 'user-plus']" /> Unterzeichner hinzufügen
               </button>
             </section>
@@ -281,15 +296,6 @@
                   </button>
                 </div>
               </div>
-              <p class="sig-hint" style="margin-top:0;margin-bottom:10px;">
-                Nach Abschluss aller Unterschriften wird das signierte PDF an diese Adressen geschickt.
-              </p>
-              <div class="sig-email-chips">
-                <span v-for="(r, i) in folgeaktionen.ausliefernAn" :key="i" class="sig-email-chip">
-                  {{ r.email }}
-                  <button type="button" class="sig-chip-remove" @click="removeAusliefernEmail(i)">×</button>
-                </span>
-              </div>
               <div class="sig-email-add-row">
                 <ContactSearchPicker
                   :key="deliveryPickerKey"
@@ -305,14 +311,16 @@
                 />
               </div>
               <p v-if="newEmailError" class="sig-error" style="margin-top:6px;">{{ newEmailError }}</p>
-
-              <label class="sig-email-checkbox">
-                <input v-model="folgeaktionen.ausliefernAnSignierer" type="checkbox" />
-                <span>
-                  <strong>Signiertes Dokument an Alle ausliefern</strong>
-                  <small>Nach Abschluss erhalten alle beteiligten Signierer das fertige PDF per E-Mail.</small>
+              <p class="sig-hint" style="margin-top:0;margin-bottom:10px;">
+                Nach Abschluss aller Unterschriften wird das signierte PDF an diese Adressen geschickt.
+              </p>
+              <div class="sig-email-chips">
+                <span v-for="(r, i) in folgeaktionen.ausliefernAn" :key="i" class="sig-email-chip">
+                  <span>{{ r.displayName || r.email }}</span>
+                  <small v-if="r.displayName">{{ r.email }}</small>
+                  <button type="button" class="sig-chip-remove" @click="removeAusliefernEmail(i)">×</button>
                 </span>
-              </label>
+              </div>
 
               <!-- Asana Aktionen -->
               <label class="sig-field-label" style="margin-top:20px;">
@@ -562,6 +570,18 @@ function removeAusliefernEmail(i) {
   folgeaktionen.value.ausliefernAn.splice(i, 1);
 }
 
+function addSignerDeliveryRecipients() {
+  if (folgeaktionen.value.ausliefernAnSignierer === false) return;
+  form.value.submitters.forEach(submitter => {
+    const email = String(submitter.email || '').trim().toLowerCase();
+    if (!/\S+@\S+\.\S+/.test(email)) return;
+    if (!folgeaktionen.value.ausliefernAn.some(recipient => String(recipient.email || '').trim().toLowerCase() === email)) {
+      folgeaktionen.value.ausliefernAn.push({ displayName: submitter.name || '', email });
+    }
+  });
+  folgeaktionen.value.ausliefernAnSignierer = false;
+}
+
 // Asana action builder
 const asanaSearchQuery = ref('');
 const asanaSearchResults = ref([]);
@@ -758,8 +778,12 @@ watch([() => form.value.kundeId, () => form.value.typId], () => {
 });
 
 const usesCustomEndpoint = computed(() => !!modal.context.customEndpoint);
+const isGeneratedDocumentFlow = computed(() => usesCustomEndpoint.value && !!(form.value.typKey || modal.context.typKey));
 const isReisekostenFlow = computed(() =>
   (form.value.typKey || modal.context.typKey) === 'reisekostenabrechnung'
+);
+const hasFixedSignerSlots = computed(() =>
+  isReisekostenFlow.value || (usesCustomEndpoint.value && (form.value.typKey || modal.context.typKey) === 'stundenliste')
 );
 const selectedTyp = computed(() => typen.value.find(type => type._id === form.value.typId) || null);
 const REISEKOSTEN_DELIVERY_EMAIL = 'invoice@straightforward.email';
@@ -977,6 +1001,21 @@ function removeSubmitter(i) {
   form.value.submitters.splice(i, 1);
 }
 
+function normalizeSubmitterNames() {
+  form.value.submitters = form.value.submitters.map(submitter => {
+    const email = String(submitter.email || '').trim().toLowerCase();
+    const mitarbeiter = submitter.mitarbeiterId
+      ? mitarbeiterList.value.find(m => m._id === submitter.mitarbeiterId)
+      : mitarbeiterList.value.find(m => String(m.email || '').trim().toLowerCase() === email);
+    if (mitarbeiter) {
+      return { ...submitter, name: `${mitarbeiter.vorname || ''} ${mitarbeiter.nachname || ''}`.trim() || submitter.name };
+    }
+    const contact = graphContacts.value.find(c => String(c.emailAddresses?.[0]?.address || '').trim().toLowerCase() === email);
+    const name = [contact?.givenName, contact?.surname].filter(Boolean).join(' ') || contact?.displayName;
+    return name ? { ...submitter, name } : submitter;
+  });
+}
+
 // ── Auto-fill signers when entering step 3 ───────────────────────────────────
 watch(currentStep, (newStep) => {
   if (newStep !== 2) return;
@@ -1101,12 +1140,14 @@ watch(() => modal.open, async (open) => {
   const typenRequest = loadTypen();
   loadLocations();
   const templatesRequest = loadTemplates();
-  loadGraphContacts();
-  dataCache.loadKunden?.();
-  dataCache.loadMitarbeiter?.();
+  const graphContactsRequest = loadGraphContacts();
+  const kundenRequest = dataCache.loadKunden?.();
+  const mitarbeiterRequest = dataCache.loadMitarbeiter?.();
 
-  await Promise.all([typenRequest, templatesRequest]);
+  await Promise.all([typenRequest, templatesRequest, graphContactsRequest, kundenRequest, mitarbeiterRequest]);
   await hydrateFromContext();
+  normalizeSubmitterNames();
+  addSignerDeliveryRecipients();
 });
 
 async function hydrateFromContext() {
@@ -1223,9 +1264,8 @@ async function hydrateFromContext() {
     applyTemplateDefaults(templates.value.find(t => t.id === ctx.templateId));
   }
 
-  // If context provides a custom endpoint + typKey, jump ahead
   if (ctx.customEndpoint && form.value.typId) {
-    currentStep.value = form.value.kundeId || form.value.mitarbeiterId ? 2 : 1;
+    currentStep.value = isGeneratedDocumentFlow.value ? 0 : (form.value.kundeId || form.value.mitarbeiterId ? 2 : 1);
   }
   addReisekostenDefaultDeliveryEmail();
 }
@@ -1824,6 +1864,7 @@ const ContactSearchPlaceholder = {
   font-size: 0.82rem;
   color: var(--text);
 }
+.sig-email-chip small { color: var(--muted); font-size: 0.72rem; }
 .sig-chip-remove {
   background: none;
   border: none;

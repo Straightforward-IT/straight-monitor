@@ -306,22 +306,26 @@ router.get('/', async (req, res) => {
     // Fetch mitarbeiter names per Auftrag for search
     const allEinsaetze = await Einsatz.find(
       { auftragNr: { $in: auftragNrs }, personalNr: { $ne: null } },
-      { auftragNr: 1, idAuftragArbeitsschichten: 1, personalNr: 1 }
+      { auftragNr: 1, idAuftragArbeitsschichten: 1, personalNr: 1, updatedAt: 1 }
     ).lean();
     const allPersonalNrs = [...new Set(allEinsaetze.map(e => String(e.personalNr)).filter(Boolean))];
     const maList = allPersonalNrs.length
       ? await Mitarbeiter.find(
           { $or: [{ personalnr: { $in: allPersonalNrs } }, { personalnummern: { $in: allPersonalNrs } }] },
-          { personalnr: 1, personalnummern: 1, vorname: 1, nachname: 1 }
+          { personalnr: 1, personalnummern: 1, vorname: 1, nachname: 1, updatedAt: 1 }
         ).lean()
       : [];
     // Map nach ALLEN Nummern des MA (primär + Zusatznummern), damit auch Einsätze
     // einer zweiten Niederlassung dem richtigen Mitarbeiter zugeordnet werden.
     const maNameMap = new Map();
+    const maUpdatedAtMap = new Map();
     maList.forEach(m => {
       const name = `${m.vorname || ''} ${m.nachname || ''}`.trim();
       const nrs = new Set([m.personalnr, ...(m.personalnummern || [])].filter(Boolean).map(String));
-      nrs.forEach(nr => maNameMap.set(nr, name));
+      nrs.forEach(nr => {
+        maNameMap.set(nr, name);
+        maUpdatedAtMap.set(nr, m.updatedAt);
+      });
     });
     const mitarbeiterNamesMap = {};
     const mitarbeiterBySchichtMap = {};
@@ -392,6 +396,17 @@ router.get('/', async (req, res) => {
         stundenlisteSignaturStatusMap[v.auftragNr] = v.status;
       }
     });
+    const stundenlisteIsOutdatedMap = {};
+    auftraege.forEach(auftrag => {
+      const vorgang = sigVorgaenge.find(v => v.auftragNr === auftrag.auftragNr);
+      if (!vorgang) return;
+      const refDate = vorgang.createdAt;
+      stundenlisteIsOutdatedMap[auftrag.auftragNr] = Boolean(
+        auftrag.updatedAt > refDate
+        || allEinsaetze.some(e => e.auftragNr === auftrag.auftragNr && e.updatedAt > refDate)
+        || allEinsaetze.some(e => e.auftragNr === auftrag.auftragNr && maUpdatedAtMap.get(String(e.personalNr)) > refDate)
+      );
+    });
 
     // Build schichten display map (times + occupancy per shift, grouped by auftragNr)
     const schichtenDisplayMap = {};
@@ -419,7 +434,8 @@ router.get('/', async (req, res) => {
       mitarbeiterNames: mitarbeiterNamesMap[a.auftragNr] || [],
       schichtStatus: schichtStatusMap[a.auftragNr] || 'none',
       schichten: schichtenDisplayMap[a.auftragNr] || [],
-      stundenlisteSignaturStatus: stundenlisteSignaturStatusMap[a.auftragNr] || null
+      stundenlisteSignaturStatus: stundenlisteSignaturStatusMap[a.auftragNr] || null,
+      stundenlisteIsOutdated: stundenlisteIsOutdatedMap[a.auftragNr] || false,
     }));
 
     if (bedarfStatus) {

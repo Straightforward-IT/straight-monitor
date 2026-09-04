@@ -247,13 +247,16 @@ async function resolveSpaceSignatureSource(req, locationId, itemId) {
 
 async function getStundenlisteDefaultSigner(location, auftrag) {
   const resolvedLocation = await Location.findById(location._id)
-    .populate('locationManager', 'name email')
+    .populate('locationManager', 'name email mitarbeiter')
     .lean();
   const manager = resolvedLocation?.locationManager;
   if (manager) {
+    const mitarbeiter = manager.mitarbeiter
+      ? await Mitarbeiter.findById(manager.mitarbeiter).select('vorname nachname email').lean()
+      : null;
     return {
-      name: manager.name || manager.email,
-      email: manager.email || null,
+      name: [mitarbeiter?.vorname, mitarbeiter?.nachname].filter(Boolean).join(' ') || manager.name || manager.email,
+      email: manager.email || mitarbeiter?.email || null,
     };
   }
   return StundenlisteService.getVerleiherSigner(auftrag);

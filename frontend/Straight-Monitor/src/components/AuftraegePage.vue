@@ -165,6 +165,7 @@
               v-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key) && event.stundenlisteSignaturStatus === 'completed'"
               :src="docusealLogo"
               class="event-signature-complete"
+              :class="{ 'event-signature-complete--outdated': event.stundenlisteIsOutdated }"
               alt="Stundenliste vollständig signiert"
               title="Stundenliste vollständig signiert"
             >
@@ -301,6 +302,7 @@
               v-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && event.stundenlisteSignaturStatus === 'completed'"
               :src="docusealLogo"
               class="event-signature-complete"
+              :class="{ 'event-signature-complete--outdated': event.stundenlisteIsOutdated }"
               alt="Stundenliste vollständig signiert"
               title="Stundenliste vollständig signiert"
             >
@@ -4201,6 +4203,10 @@ export default {
   object-fit: contain;
   filter: hue-rotate(135deg) saturate(0.9);
   z-index: 1;
+}
+
+.event-signature-complete--outdated {
+  filter: hue-rotate(55deg) saturate(1.1);
 }
 
 .event-card:has(.event-signature-complete) .event-title-row,
