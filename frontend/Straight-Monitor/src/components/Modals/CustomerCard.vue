@@ -902,6 +902,7 @@
     <ContactCard
       v-if="selectedContactCard"
       :contact="selectedContactCard"
+      :initial-editing="selectedContactCard.editing"
       @close="selectedContactCard = null"
       @deleted="onContactCardDeleted"
       @updated="onContactCardUpdated"
@@ -1824,7 +1825,7 @@ function handleContactMenuAction({ item }) {
   const contact = contactMenuContact.value;
   closeContactMenu();
   if (!contact) return;
-  if (item.value === 'edit') openContactCard(contact);
+  if (item.value === 'edit') openContactCard(contact, true);
   if (item.value === 'signature') toggleSignaturKontakt(contact);
   if (item.value === 'inactive') toggleMicrosoftContactInactive(contact);
 }
@@ -1950,8 +1951,8 @@ function onKontaktAngelegt(contact) {
   msContacts.value.unshift(contact);
 }
 
-function openContactCard(contact) {
-  selectedContactCard.value = { ...contact };
+function openContactCard(contact, editing = false) {
+  selectedContactCard.value = { ...contact, editing };
 }
 
 function onContactCardDeleted(contactId) {

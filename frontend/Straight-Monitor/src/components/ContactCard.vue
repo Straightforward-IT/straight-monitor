@@ -212,6 +212,7 @@ import api from '@/utils/api';
 const props = defineProps({
   /** MS Graph contact object. May be sparse (just id + upn) or fully loaded. */
   contact: { type: Object, required: true },
+  initialEditing: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close', 'deleted', 'updated', 'open-kunde']);
@@ -349,6 +350,8 @@ function startEdit() {
   editForm.companyName = c.companyName || '';
   editing.value = true;
 }
+
+if (props.initialEditing) startEdit();
 
 function cancelEdit() {
   editing.value = false;
