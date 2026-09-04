@@ -56,7 +56,7 @@
     <article class="customer-card" :data-theme="effectiveTheme">
       <nav class="customer-tabs" aria-label="Kundendetails">
         <button
-          v-for="tab in tabs"
+          v-for="tab in visibleTabs"
           :key="tab.id"
           type="button"
           class="customer-tab"
@@ -453,7 +453,7 @@
       </section>
 
       <!-- Statistik -->
-      <section v-if="activeTab === 'statistik' && kunde.kundenNr" class="section analytics-section">
+      <section v-if="activeTab === 'statistik' && kunde.kundenNr && canSeeSensitiveKpi" class="section analytics-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'chart-bar']" /> Einsatz-Analytics
         </h4>
@@ -990,6 +990,8 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
+const auth = useAuth();
+
 const tabs = [
   { id: 'allgemein', label: 'Allgemein', icon: 'circle-info' },
   { id: 'rechnung', label: 'Rechnung', icon: 'file-invoice' },
@@ -998,10 +1000,27 @@ const tabs = [
   { id: 'lohn', label: 'Lohn', icon: 'coins' },
   { id: 'statistik', label: 'Statistik', icon: 'chart-bar' },
 ];
-const activeTab = ref(tabs.some((tab) => tab.id === props.initialTab) ? props.initialTab : 'allgemein');
+const canSeeSensitiveKpi = computed(() => {
+  const primaryRole = String(auth.user?.role || '').toUpperCase();
+  const roles = Array.isArray(auth.user?.roles)
+    ? auth.user.roles.map((role) => String(role).toUpperCase())
+    : [];
+
+  return primaryRole === 'ADMIN'
+    || primaryRole === 'VERTRIEB'
+    || roles.includes('ADMIN')
+    || roles.includes('VERTRIEB');
+});
+const visibleTabs = computed(() => tabs.filter((tab) =>
+  tab.id !== 'statistik' || canSeeSensitiveKpi.value
+));
+const activeTab = ref(visibleTabs.value.some((tab) => tab.id === props.initialTab) ? props.initialTab : 'allgemein');
 
 watch(() => props.initialTab, (tab) => {
-  if (tabs.some((item) => item.id === tab)) activeTab.value = tab;
+  if (visibleTabs.value.some((item) => item.id === tab)) activeTab.value = tab;
+});
+watch(canSeeSensitiveKpi, (canSee) => {
+  if (!canSee && activeTab.value === 'statistik') activeTab.value = 'allgemein';
 });
 
 const adressen = ref([]);
@@ -1667,7 +1686,6 @@ watch(activeTab, (tab) => {
   }
 });
 
-const auth = useAuth();
 const dataCache = useDataCache();
 const router = useRouter();
 const dockedModal = useCurrentDockedModal();
@@ -1717,18 +1735,6 @@ function formatEinsatzDate(dateStr) {
   if (!dateStr) return '—';
   return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
-
-const canSeeSensitiveKpi = computed(() => {
-  const primaryRole = String(auth.user?.role || '').toUpperCase();
-  const roles = Array.isArray(auth.user?.roles)
-    ? auth.user.roles.map((role) => String(role).toUpperCase())
-    : [];
-
-  return primaryRole === 'ADMIN'
-    || primaryRole === 'VERTRIEB'
-    || roles.includes('ADMIN')
-    || roles.includes('VERTRIEB');
-});
 
 // MS Graph contacts linked via kuerzel
 const msContacts = ref([]);

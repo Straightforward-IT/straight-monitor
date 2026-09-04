@@ -38,17 +38,15 @@
         </FilterGroup>
         <FilterDivider />
         <FilterGroup label="Kunden">
-          <FilterDropdown :has-value="filters.kunden.length > 0">
-            <template #label>
-              <span v-if="filters.kunden.length === 0">Alle Kunden</span>
-              <span v-else>{{ filters.kunden.length }} ausgewählt</span>
-            </template>
-            <div v-if="filterOptions.kunden.length === 0" class="no-options">Keine Kunden gefunden</div>
-            <label v-for="kunde in filterOptions.kunden" :key="kunde.kundenNr" class="dropdown-item">
-              <input type="checkbox" :checked="filters.kunden.includes(kunde.kundenNr)" @change="toggleKundeFilter(kunde.kundenNr)">
-              <span class="label-text">{{ kunde.kundName }}</span>
-            </label>
-          </FilterDropdown>
+          <PillMultiSelect
+            v-model="filters.kunden"
+            :options="filterOptions.kunden"
+            value-key="kundenNr"
+            label-key="kundName"
+            meta-key="kundenNr"
+            placeholder="Kunden suchen..."
+            @change="onKundenFilterChange"
+          />
         </FilterGroup>
       </ToolbarFilter>
       <div class="nav-inner">
@@ -1301,6 +1299,7 @@ import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
+import PillMultiSelect from '@/components/ui-elements/PillMultiSelect.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
 import { buildEventSchichten } from '@/utils/eventSchichten';
 import laufzettelIcon from '@/assets/laufzettel.png';
@@ -1313,7 +1312,7 @@ import docusealLogo from '@/assets/docuseal-logo.webp';
 export default {
   name: "AuftraegePage",
   emits: ['mitarbeiter-drop'],
-  components: { PageLayout, SidePanelFrame, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu },
+  components: { PageLayout, SidePanelFrame, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu, PillMultiSelect },
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
@@ -2145,6 +2144,10 @@ export default {
       } else {
         this.filters.kunden.splice(idx, 1);
       }
+      this.saveFiltersToStorage();
+      this.resetAndReload();
+    },
+    onKundenFilterChange() {
       this.saveFiltersToStorage();
       this.resetAndReload();
     },

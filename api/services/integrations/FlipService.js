@@ -40,6 +40,7 @@ const BIRTHDAY_GROUP_ID = "be2b944f-5322-4287-9c04-246106f5dc42";
 const FLIP_JOBS_MENU_ITEM_ID = process.env.FLIP_JOBS_MENU_ITEM_ID || "c672be9c-d742-4034-8aa3-5ff5afaf8e3c";
 const PROTECTED_FLIP_USER_IDS = new Set([
   "4c10c6b2-4c08-4334-abf3-31f55d7529df", // Team Berlin
+  "de4bc772-e219-4cef-b969-259456833faa",
   "17e0c1c5-6b27-4bac-b0df-93711b993e64", // Team Hamburg
   "aa5e08cd-3c47-4cf5-a544-071f463fd6d8", // Team Köln
 ]);

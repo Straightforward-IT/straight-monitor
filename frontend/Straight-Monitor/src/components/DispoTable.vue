@@ -71,27 +71,15 @@
 
               <!-- Qualifikation Filter -->
               <div class="fs-qual-filter" :class="{ 'fs-qual-filter--active': qualFilter.length > 0 }">
-                <div class="qual-pills-input qual-pills-input--fs" @click="qualInputFsRef?.focus()">
-                  <span
-                    v-for="(q, idx) in qualFilter"
-                    :key="q._id"
-                    class="qual-pill qual-pill--sm"
-                    :class="{ 'is-focused': qualFocusedPillIdx === idx }"
-                  >
-                    <span class="qual-pill-text">{{ q.designation }}</span>
-                    <button class="qual-pill-remove" @click.stop="removeQual(q)">✕</button>
-                  </span>
-                  <input
-                    ref="qualInputFsRef"
-                    v-model="qualSearchQuery"
-                    type="text"
-                    :placeholder="qualFilter.length ? '' : 'Qual…'"
-                    @focus="openQualDropdown(qualInputFsRef)"
-                    @input="openQualDropdown(qualInputFsRef)"
-                    @blur="onQualBlur"
-                    @keydown="onQualKeydown"
-                  />
-                </div>
+                <PillMultiSelect
+                  v-model="qualFilter"
+                  :options="allQualifikationen"
+                  label-key="designation"
+                  meta-key="qualificationKey"
+                  emit-objects
+                  placeholder="Qual..."
+                  @change="savePrefs"
+                />
               </div>
 
               <!-- Reset -->
@@ -207,27 +195,15 @@
           <FilterDivider />
           <!-- Qualifikation (compact inline) -->
           <div class="tf-qual-filter" :class="{ 'tf-qual-filter--active': qualFilter.length > 0 }">
-            <div class="qual-pills-input qual-pills-input--fs" @click="qualInputRef?.focus()">
-              <span
-                v-for="(q, idx) in qualFilter"
-                :key="q._id"
-                class="qual-pill qual-pill--sm"
-                :class="{ 'is-focused': qualFocusedPillIdx === idx }"
-              >
-                <span class="qual-pill-text">{{ q.designation }}</span>
-                <button class="qual-pill-remove" @click.stop="removeQual(q)">✕</button>
-              </span>
-              <input
-                ref="qualInputRef"
-                v-model="qualSearchQuery"
-                type="text"
-                :placeholder="qualFilter.length ? '' : 'Qualifikation...'"
-                @focus="openQualDropdown(qualInputRef)"
-                @input="openQualDropdown(qualInputRef)"
-                @blur="onQualBlur"
-                @keydown="onQualKeydown"
-              />
-            </div>
+            <PillMultiSelect
+              v-model="qualFilter"
+              :options="allQualifikationen"
+              label-key="designation"
+              meta-key="qualificationKey"
+              emit-objects
+              placeholder="Qualifikation..."
+              @change="savePrefs"
+            />
           </div>
           <FilterDivider />
           <!-- Kunden Filter (compact inline) -->
@@ -1683,6 +1659,7 @@ import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
+import PillMultiSelect from '@/components/ui-elements/PillMultiSelect.vue';
 
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import HelpModal from '@/components/Modals/HelpModal.vue';

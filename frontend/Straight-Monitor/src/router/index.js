@@ -76,7 +76,7 @@ const routes = [
       { path: 'verlosung', name: 'VerlosungTool', component: VerlosungTool },
       { path: 'daten-import', name: 'DatenImport', component: DatenImport },
       { path: 'auftraege', name: 'Auftraege', component: AuftraegePage },
-      { path: 'kunden', name: 'Kunden', component: KundenPage, meta: { roles: ['VERTRIEB'] } },
+      { path: 'kunden', name: 'Kunden', component: KundenPage },
       { path: 'teamleiter-auswertung', name: 'TeamleiterAuswertung', component: TeamleiterAuswertung },
       { path: 'dokumente-nachpflegen', name: 'DokumenteNachpflegen', component: DokumenteNachpflegen },
       { path: 'pdf-vorlagen', name: 'PdfVorlagen', component: PdfBuilder },
