@@ -59,6 +59,7 @@ const EINSATZ_EDITABLE_FIELDS = new Set([
   'ansprechpartnerName', 'ansprechpartnerTelefon', 'ansprechpartnerEmail',
   'letzteAusschreibung', 'detailDatumVon', 'detailDatumBis', 'uhrzeitVon',
   'uhrzeitBis', 'typ', 'bedarf', 'garantiestundenLohn', 'endeOffen',
+  'stundenlisteIncluded',
 ]);
 const DATE_FIELDS = new Set([
   'dtAngelegtAm', 'bestDatum', 'vonDatum', 'bisDatum', 'letzteAusschreibung',

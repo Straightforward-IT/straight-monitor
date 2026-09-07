@@ -482,6 +482,19 @@
                       </span>
                     </div>
                   </div>
+                  <CustomTooltip :text="schichtStundenlisteIncluded(schichtData) ? 'Aus Stundenliste ausschließen' : 'In Stundenliste aufnehmen'">
+                    <button
+                      type="button"
+                      class="stundenliste-visibility-btn"
+                      :class="{ 'is-excluded': !schichtStundenlisteIncluded(schichtData) }"
+                      :disabled="isStundenlisteTogglePending(schichtData.einsaetze)"
+                      :aria-label="schichtStundenlisteIncluded(schichtData) ? 'Schicht aus Stundenliste ausschließen' : 'Schicht in Stundenliste aufnehmen'"
+                      @click.stop="toggleSchichtStundenlisteInclusion(schichtData)"
+                    >
+                      <font-awesome-icon :icon="schichtStundenlisteIncluded(schichtData) ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" />
+                      <font-awesome-icon class="stundenliste-signature-icon" icon="fa-solid fa-file-signature" />
+                    </button>
+                  </CustomTooltip>
                 </div>
 
                 <!-- Schicht Meta Row (Treffpunkt, Ansprechpartner) -->
@@ -551,6 +564,19 @@
                       <span v-if="einsatz.qualifikationData && !getCommonQualifikation(schichtData.einsaetze)" class="badge quali small">
                         {{ einsatz.qualifikationData.designation }}
                       </span>
+                      <CustomTooltip :text="einsatz.stundenlisteIncluded !== false ? 'Aus Stundenliste ausschließen' : 'In Stundenliste aufnehmen'">
+                        <button
+                          type="button"
+                          class="stundenliste-visibility-btn"
+                          :class="{ 'is-excluded': einsatz.stundenlisteIncluded === false }"
+                          :disabled="isStundenlisteTogglePending([einsatz])"
+                          :aria-label="einsatz.stundenlisteIncluded !== false ? 'Mitarbeiter aus Stundenliste ausschließen' : 'Mitarbeiter in Stundenliste aufnehmen'"
+                          @click.stop="toggleEinsatzStundenlisteInclusion(einsatz)"
+                        >
+                          <font-awesome-icon :icon="einsatz.stundenlisteIncluded !== false ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" />
+                          <font-awesome-icon class="stundenliste-signature-icon" icon="fa-solid fa-file-signature" />
+                        </button>
+                      </CustomTooltip>
                       <button
                         v-if="einsatz.isPseudo"
                         class="pseudo-remove-btn"
@@ -1212,11 +1238,11 @@
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faCar, faPencil, faEye } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faCar, faPencil, faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 import { DocusealForm } from '@docuseal/vue';
 
-library.add(faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faCar, faPencil, faEye);
+library.add(faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faCar, faPencil, faEye, faEyeSlash);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
@@ -1245,6 +1271,7 @@ import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
+import CustomTooltip from '@/components/CustomTooltip.vue';
 import PillMultiSelect from '@/components/ui-elements/PillMultiSelect.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
 import { buildEventSchichten } from '@/utils/eventSchichten';
@@ -1258,7 +1285,7 @@ import docusealLogo from '@/assets/docuseal-logo.webp';
 export default {
   name: "AuftraegePage",
   emits: ['mitarbeiter-drop'],
-  components: { PageLayout, SidePanelFrame, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu, PillMultiSelect },
+  components: { PageLayout, SidePanelFrame, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu, CustomTooltip, PillMultiSelect },
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
@@ -1347,6 +1374,7 @@ export default {
       selectedMitarbeiter: null,
       preparedSchichten: [], // Lazy loaded schichten data
       schichtDragOverKey: null,
+      stundenlisteTogglePending: {},
       dataStatus: null, // Last import timestamp
       // ── Quick Actions ──────────────────────────────────────────────────────
       // Label dialog
@@ -1740,6 +1768,34 @@ export default {
     // Determine shifts and metadata from event details (Lazy Load)
     calculateSchichten(event) {
       return buildEventSchichten(event);
+    },
+    schichtStundenlisteIncluded(schichtData) {
+      return schichtData.einsaetze.every(einsatz => einsatz.stundenlisteIncluded !== false);
+    },
+    isStundenlisteTogglePending(einsaetze) {
+      return einsaetze.some(einsatz => this.stundenlisteTogglePending[einsatz._id]);
+    },
+    async toggleSchichtStundenlisteInclusion(schichtData) {
+      const included = !this.schichtStundenlisteIncluded(schichtData);
+      await Promise.all(schichtData.einsaetze.map(einsatz => this.updateStundenlisteInclusion(einsatz, included)));
+    },
+    async toggleEinsatzStundenlisteInclusion(einsatz) {
+      await this.updateStundenlisteInclusion(einsatz, einsatz.stundenlisteIncluded === false);
+    },
+    async updateStundenlisteInclusion(einsatz, included) {
+      if (!this.selectedEvent?.auftragNr || this.stundenlisteTogglePending[einsatz._id]) return;
+      this.stundenlisteTogglePending[einsatz._id] = true;
+      try {
+        await api.patch(
+          `/api/auftraege/${this.selectedEvent.auftragNr}/einsaetze/${einsatz._id}`,
+          { stundenlisteIncluded: included },
+        );
+        einsatz.stundenlisteIncluded = included;
+      } catch (error) {
+        console.error('Stundenlisten-Einbindung konnte nicht aktualisiert werden:', error);
+      } finally {
+        delete this.stundenlisteTogglePending[einsatz._id];
+      }
     },
 
     hasMitarbeiterDragPayload(event) {
@@ -3402,6 +3458,33 @@ export default {
       overflow-wrap: anywhere;
     }
   }
+}
+
+.stundenliste-visibility-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 40px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+  }
+
+  &.is-excluded { color: var(--muted); }
+  &:disabled { cursor: wait; opacity: 0.55; }
+}
+
+.stundenliste-signature-icon {
+  font-size: 0.7em;
 }
 
 .schicht-quali {

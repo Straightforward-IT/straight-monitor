@@ -89,7 +89,8 @@ const EinsatzSchema = new mongoose.Schema({
   bedarf: { type: Number, required: false }, // BEDARF
   garantiestundenLohn: { type: Number, required: false }, // GARANTIESTD_LOHN
   endeOffen: { type: Number, required: false }, // ENDEOFFEN (0/1?)
-  isPseudo: { type: Boolean, default: false } // Manually added pseudo-employee entry
+  isPseudo: { type: Boolean, default: false }, // Manually added pseudo-employee entry
+  stundenlisteIncluded: { type: Boolean, default: true },
 }, { timestamps: true });
 
 EinsatzSchema.index({ auftragNr: 1, datumVon: 1 });

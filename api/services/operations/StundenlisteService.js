@@ -174,9 +174,11 @@ class StundenlisteService {
       ? await Kunde.findOne({ kundenNr: auftrag.kundenNr }).lean()
       : null;
 
-    const einsaetzeQuery = options.excludePseudo
-      ? { auftragNr: nr, isPseudo: { $ne: true } }
-      : { auftragNr: nr };
+    const einsaetzeQuery = {
+      auftragNr: nr,
+      stundenlisteIncluded: { $ne: false },
+      ...(options.excludePseudo ? { isPseudo: { $ne: true } } : {}),
+    };
     const einsaetze = await Einsatz.find(einsaetzeQuery)
       .sort({ idAuftragArbeitsschichten: 1, datumVon: 1 })
       .lean();
