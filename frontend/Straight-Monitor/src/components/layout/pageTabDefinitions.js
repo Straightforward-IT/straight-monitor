@@ -48,8 +48,8 @@ export const inventoryTabs = [
 
 export const customerTabs = [
   { id: 'overview', label: 'Übersicht', icon: ['fas', 'list'], to: queryTarget('/kunden', 'overview', 'overview'), isActive: queryMatch('Kunden', 'overview', 'overview') },
-  { id: 'analytics', label: 'Analytics', icon: ['fas', 'chart-bar'], to: queryTarget('/kunden', 'analytics', 'overview'), isActive: queryMatch('Kunden', 'analytics', 'overview') },
+  { id: 'analytics', label: 'Analytics', icon: ['fas', 'chart-bar'], roles: ['ADMIN', 'VERTRIEB'], to: queryTarget('/kunden', 'analytics', 'overview'), isActive: queryMatch('Kunden', 'analytics', 'overview') },
   { id: 'leads', label: 'Leads', icon: ['fas', 'bullseye'], to: queryTarget('/kunden', 'leads', 'overview'), isActive: queryMatch('Kunden', 'leads', 'overview') },
   { id: 'watchlist', label: 'Watchlist', icon: ['fas', 'binoculars'], to: queryTarget('/kunden', 'watchlist', 'overview'), isActive: queryMatch('Kunden', 'watchlist', 'overview') },
-  { id: 'kontakte', label: 'Kontakte', icon: ['fas', 'address-book'], roles: ['ADMIN', 'VERTRIEB'], to: queryTarget('/kunden', 'kontakte', 'overview'), isActive: queryMatch('Kunden', 'kontakte', 'overview') },
+  { id: 'kontakte', label: 'Kontakte', icon: ['fas', 'address-book'], to: queryTarget('/kunden', 'kontakte', 'overview'), isActive: queryMatch('Kunden', 'kontakte', 'overview') },
 ];

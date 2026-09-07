@@ -149,7 +149,7 @@
             </router-link>
           </div>
         </div>
-        <div v-if="canSeeKunden" class="nav-group nav-group--kunden">
+        <div class="nav-group nav-group--kunden">
           <router-link :to="kundenNavTarget" :class="{ active: isKundenSectionActive, 'dev-role--vertrieb': isDev }"
             @click="handleNewPageClick($event, kundenNavTarget)"
             >{{ kundenNavLabel }}</router-link
@@ -478,7 +478,7 @@
             </router-link>
           </div>
         </div>
-        <div v-if="canSeeKunden" class="mobile-menu-group">
+        <div class="mobile-menu-group">
           <button
             class="mobile-menu-btn mobile-menu-toggle"
             :class="{ active: isKundenSectionActive, 'mobile-menu-toggle--open': mobileKundenMenuOpen, 'dev-role--vertrieb': isDev }"
@@ -844,7 +844,6 @@ watch(
 const newPagesEnabled = computed(() => !!auth.user);
 
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
-const canSeeKunden = computed(() => isAdmin.value || auth.user?.roles?.includes('VERTRIEB'));
 const canSeePayroll = computed(() => isAdmin.value);
 const isPayrollSectionActive = computed(() => route.name === 'Payroll');
 const isKundenSectionActive = computed(() => route.name === 'Kunden');
