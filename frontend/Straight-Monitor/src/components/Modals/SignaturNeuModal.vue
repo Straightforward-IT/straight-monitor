@@ -41,7 +41,7 @@
           <div class="sig-body">
             <!-- ───────── STEP 1: Dokument & Typ ───────── -->
             <section v-show="currentStep === 0" class="sig-section">
-              <template v-if="!isGeneratedDocumentFlow">
+              <template v-if="!isContextLocked">
                 <label class="sig-field-label">Location</label>
                 <div class="sig-chip-row">
                 <FilterChip
@@ -69,11 +69,11 @@
               <div v-if="typenLoading" class="sig-loading-inline">
                 <font-awesome-icon :icon="['fas', 'spinner']" spin /> Typen laden…
               </div>
-              <div v-else-if="isGeneratedDocumentFlow" class="sig-fixed-type">
+              <div v-else-if="isContextLocked" class="sig-fixed-type">
                 <font-awesome-icon :icon="typIcon(form.typKey || modal.context.typKey)" />
                 <span>
                   <strong>{{ selectedTyp?.label || form.typKey || modal.context.typKey }}</strong>
-                  <small>{{ isReisekostenFlow ? 'Das signierte Dokument wird an Invoice ausgeliefert' : 'Das Dokument wird automatisch generiert' }}</small>
+                  <small>{{ isReisekostenFlow ? 'Das signierte Dokument wird an Invoice ausgeliefert' : (usesCustomEndpoint ? 'Das Dokument wird automatisch generiert' : 'Dokumenttyp ist festgelegt') }}</small>
                 </span>
                 <font-awesome-icon :icon="['fas', 'lock']" class="sig-fixed-type-lock" />
               </div>
@@ -123,7 +123,7 @@
 
             <!-- ───────── STEP 2: Verknüpfung ───────── -->
             <section v-show="currentStep === 1" class="sig-section">
-              <template v-if="isGeneratedDocumentFlow">
+              <template v-if="isContextLocked">
                 <label class="sig-field-label">Verknüpft mit</label>
                 <div class="sig-fixed-type">
                   <font-awesome-icon :icon="linkMode === 'kunde' ? ['fas', 'building'] : ['fas', 'id-badge']" />
@@ -794,6 +794,7 @@ watch([() => form.value.kundeId, () => form.value.typId], () => {
 });
 
 const usesCustomEndpoint = computed(() => !!modal.context.customEndpoint);
+const isContextLocked = computed(() => usesCustomEndpoint.value || modal.context.locked === true);
 const isGeneratedDocumentFlow = computed(() => usesCustomEndpoint.value && !!(form.value.typKey || modal.context.typKey));
 const isReisekostenFlow = computed(() =>
   (form.value.typKey || modal.context.typKey) === 'reisekostenabrechnung'
@@ -994,7 +995,9 @@ function applyTemplateDefaults(template) {
     const date = [now.getDate(), now.getMonth() + 1, now.getFullYear()]
       .map((value, index) => index < 2 ? String(value).padStart(2, '0') : value)
       .join('-');
-    form.value.name = `${documentTypeLabel} | ${template.name} | ${date}`;
+    form.value.name = defaultTyp?.key === 'lohnvorschuss'
+      ? `${documentTypeLabel} | <Vorname Nachname> | ${date}`
+      : `${documentTypeLabel} | ${template.name} | ${date}`;
   }
   // Pre-fill submitter rows from template roles when user hasn't filled any in yet
   const tplSubmitters = Array.isArray(template.submitters) ? template.submitters : [];

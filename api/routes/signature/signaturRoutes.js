@@ -352,6 +352,7 @@ function getEntityValidationMessage(signaturTyp, kundeDoc, mitarbeiterDoc) {
   if (kundeDoc && mitarbeiterDoc) return 'Eine Signatur kann nur einem Kunden oder Mitarbeiter zugeordnet werden.';
   // Kunde is always required when the type is Kunde-only
   if (signaturTyp.linkedTo === 'Kunde' && !kundeDoc) return 'Dieser Dokumententyp benötigt einen Kunden.';
+  if (signaturTyp.key === 'lohnvorschuss' && !mitarbeiterDoc) return 'Ein Lohnvorschuss benötigt einen Mitarbeiter.';
   // Mitarbeiter is optional — the person may not be in the system yet (e.g. Arbeitsvertrag for a new hire)
   return null;
 }
@@ -1380,6 +1381,10 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     }
   }
 
+  if (signaturTyp.key === 'lohnvorschuss' && !mitarbeiterDoc) {
+    return res.status(400).json({ message: 'Ein Lohnvorschuss benötigt einen Mitarbeiter.' });
+  }
+
   if (!draft) {
     const entityValidationMessage = getEntityValidationMessage(signaturTyp, kundeDoc, mitarbeiterDoc);
     if (entityValidationMessage) return res.status(400).json({ message: entityValidationMessage });
@@ -1676,6 +1681,10 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
       vorgang.mitarbeiter = null;
       vorgang.mitarbeiterName = null;
     }
+  }
+
+  if (vorgang.typKey === 'lohnvorschuss' && !vorgang.mitarbeiter) {
+    return res.status(400).json({ message: 'Ein Lohnvorschuss benötigt einen Mitarbeiter.' });
   }
 
   if (templateId !== undefined) {

@@ -19,7 +19,9 @@ const emptyContext = () => ({
   mitarbeiterId: null,    // pre-selects a Mitarbeiter entity
   typKey: null,           // e.g. 'stundenliste' → pre-selects the type, skips step 1
   name: null,             // pre-filled document name
+  locationId: null,       // pre-selected Location ObjectId
   standort: null,         // pre-selected Standort (team key)
+  locked: false,          // lock the pre-filled document type, entity, and location
   submitters: [],         // pre-filled submitter rows [{ role, name, email, embedded }]
   templateId: null,       // pre-selects a DocuSeal template (step 2)
   templateName: null,     // display name for the pre-selected template

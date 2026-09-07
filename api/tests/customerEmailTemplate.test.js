@@ -66,6 +66,7 @@ describe('Kunden-E-Mail-Vorlagen', () => {
     expect(rendered.renderedHtml).to.include('src="cid:straightforward-logo"');
     expect(rendered.renderedHtml).to.include('href="https://docuseal.eu/s/abc"');
     expect(rendered.renderedHtml).to.include('mailto:dispo@example.com');
+    expect(rendered.renderedHtml).to.include('Falls Probleme beim Öffnen des Vorgangs entstehen');
     expect(rendered.unresolvedPlaceholders).to.deep.equal([]);
   });
 

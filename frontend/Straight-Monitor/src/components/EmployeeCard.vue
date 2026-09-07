@@ -1272,6 +1272,9 @@
                   <button v-if="resolvedMa?.isActive !== false" class="qa-item" @click="executeQuickAction('open-dispo')">
                     <font-awesome-icon icon="fa-solid fa-table-columns" /> In Dispo öffnen
                   </button>
+                  <button class="qa-item" @click="executeQuickAction('create-lohnvorschuss')">
+                    <font-awesome-icon icon="fa-solid fa-money-bill-wave" /> Lohnvorschuss erstellen
+                  </button>
                 </div>
                 <div class="qa-group">
                   <button class="qa-item" @click="executeQuickAction('edit')">
@@ -1608,6 +1611,7 @@ import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
+import { useSignaturModal } from "@/stores/signaturModal";
 import api from "@/utils/api";
 import { fetchFlipTasks } from "@/utils/flipApi";
 import FlipMappings from "@/assets/FlipMappings.json";
@@ -1742,6 +1746,7 @@ export default {
     });
 
     const dataCache = useDataCache();
+  const signaturModal = useSignaturModal();
 
     // Logos via imports (Vite preloaded) – kein src-Swap → kein Flackern
     return {
@@ -1760,6 +1765,7 @@ export default {
       isTeamleiter,
       router,
       dataCache,
+      signaturModal,
       selfLoadedMa,
       selfLoading,
       flip,
@@ -3177,6 +3183,25 @@ export default {
           this.$emit('close');
           break;
         }
+        case 'create-lohnvorschuss':
+          {
+            const employeeName = `${this.resolvedMa?.vorname || ''} ${this.resolvedMa?.nachname || ''}`.trim();
+            const date = new Date().toLocaleDateString('de-DE').replaceAll('.', '-');
+          this.signaturModal.openModal({
+            mitarbeiterId: this.resolvedMa._id,
+            locationId: this.resolvedMa?.locationV2?._id || this.resolvedMa?.locationV2 || null,
+            typKey: 'lohnvorschuss',
+            name: `Lohnvorschuss | ${employeeName || '<Vorname Nachname>'} | ${date}`,
+            locked: true,
+            submitters: [{
+              role: 'Mitarbeiter',
+              name: employeeName,
+              email: this.resolvedMa?.email || '',
+              embedded: false,
+            }],
+          });
+          break;
+          }
         case 'share-link':
           this.copyShareLink();
           return; // Don't close menu yet
