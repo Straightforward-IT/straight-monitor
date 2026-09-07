@@ -17,7 +17,7 @@ const Auftrag = require('../../models/Event/Auftrag');
 const Reisekostenabrechnung = require('../../models/Signature/Reisekostenabrechnung');
 const StundenlisteService = require('../../services/operations/StundenlisteService');
 const ReisekostenService = require('../../services/operations/ReisekostenService');
-const { sendMail } = require('../../services/integrations/EmailService');
+const { sendMail, sendSignaturEmail } = require('../../services/integrations/EmailService');
 const {
   TEMPLATE_TYPES: CUSTOMER_EMAIL_TEMPLATE_TYPES,
   renderResolvedTemplate: renderResolvedCustomerEmailTemplate,
@@ -43,6 +43,42 @@ function broadcastSignaturEvent(type, payload) {
   const msg = `data: ${JSON.stringify({ type, payload })}\n\n`;
   for (const res of sseClients) {
     try { res.write(msg); } catch (_) { sseClients.delete(res); }
+  }
+}
+
+function getLocationSignatureSenderKey(location) {
+  const teamKey = location?.spaceFolder?.teamKey;
+  if (!teamKey) return 'it';
+
+  try {
+    const senderKey = registry.resolveKey(teamKey);
+    registry.getEmailSender(senderKey);
+    return senderKey;
+  } catch (error) {
+    logger.warn(`Signatur-E-Mail: Standort-Postfach "${teamKey}" ist nicht verfügbar; IT-Postfach wird verwendet.`, error.message);
+    return 'it';
+  }
+}
+
+async function sendSignatureInvitationEmails({ submitters, requestedSubmitters, documentTitle, location }) {
+  const senderKey = getLocationSignatureSenderKey(location);
+
+  for (const submitter of submitters) {
+    if (submitter.embedded || !submitter.slug) continue;
+
+    const requested = requestedSubmitters.find((candidate) =>
+      (candidate.email && candidate.email === submitter.email) || candidate.role === submitter.role
+    ) || {};
+    const recipientEmail = requested.email || submitter.email;
+    if (!recipientEmail) continue;
+
+    try {
+      const signingLink = submitter.embedSrc || `https://docuseal.eu/s/${submitter.slug}`;
+      await sendSignaturEmail(recipientEmail, requested.name || submitter.name || recipientEmail, documentTitle, signingLink, senderKey);
+      logger.info(`Signatur-Einladung von ${senderKey} an ${recipientEmail} gesendet.`);
+    } catch (error) {
+      logger.error(`Signatur-Einladung an ${recipientEmail} konnte nicht gesendet werden:`, error);
+    }
   }
 }
 
@@ -274,14 +310,14 @@ async function resolveSignaturLocation({ locationId, entityLocationId, auftragLo
   if (locationId) {
     if (!/^[a-f\d]{24}$/i.test(String(locationId))) return null;
     return Location.findOne({ _id: locationId, isActive: true })
-      .select('_id nameFull shortName nameKey shortNameKey')
+      .select('_id nameFull shortName nameKey shortNameKey spaceFolder.teamKey')
       .lean();
   }
 
   for (const candidate of [entityLocationId, auftragLocationId]) {
     if (!candidate) continue;
     const location = await Location.findOne({ _id: candidate, isActive: true })
-      .select('_id nameFull shortName nameKey shortNameKey')
+      .select('_id nameFull shortName nameKey shortNameKey spaceFolder.teamKey')
       .lean();
     if (location) return location;
   }
@@ -291,7 +327,7 @@ async function resolveSignaturLocation({ locationId, entityLocationId, auftragLo
   return Location.findOne({
     isActive: true,
     $or: [{ nameKey: normalized }, { shortNameKey: normalized }, { externalId: String(standort) }],
-  }).select('_id nameFull shortName nameKey shortNameKey').lean();
+  }).select('_id nameFull shortName nameKey shortNameKey spaceFolder.teamKey').lean();
 }
 
 async function resolveSpaceSignatureSource(req, locationId, itemId) {
@@ -778,7 +814,12 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
               auslieferungsadressen: (folgeaktionen?.ausliefernAn || []).map(({ email }) => email),
             },
           });
-          await sendMail(recipientEmail, renderedEmail.subject, renderedEmail.renderedHtml, 'it');
+          await sendMail(
+            recipientEmail,
+            renderedEmail.subject,
+            renderedEmail.renderedHtml,
+            getLocationSignatureSenderKey(location),
+          );
           logger.info(`[SignaturenRoute Stundenliste ${auftragNr}] E-Mail gesendet an ${recipientEmail}`);
         } catch (err) {
           logger.error(`[SignaturenRoute Stundenliste ${auftragNr}] E-Mail fehlgeschlagen:`, err);
@@ -890,7 +931,7 @@ router.post('/reisekostenabrechnung/:id', auth, asyncHandler(async (req, res) =>
       role: s.role,
       name: s.name,
       email: s.email,
-      send_email: !s.embedded,
+      send_email: false,
       values: { [`${s.role} Datum`]: today },
     })),
     order: 'preserved',
@@ -957,7 +998,12 @@ router.post('/reisekostenabrechnung/:id', auth, asyncHandler(async (req, res) =>
           </div>
         `;
         try {
-          await sendMail(recipientEmail, 'Ihre Reisekostenabrechnung zur Unterschrift', emailContent, 'it');
+          await sendMail(
+            recipientEmail,
+            'Ihre Reisekostenabrechnung zur Unterschrift',
+            emailContent,
+            getLocationSignatureSenderKey(location),
+          );
         } catch (err) {
           logger.error(`[SignaturenRoute Reisekosten ${rk._id}] E-Mail fehlgeschlagen:`, err);
         }
@@ -1288,7 +1334,7 @@ router.post('/spaces/:locationId/items/:itemId', auth, asyncHandler(async (req, 
     role: submitter.role || 'Unterzeichner',
     name: submitter.name,
     email: submitter.email,
-    send_email: !submitter.embedded,
+    send_email: false,
   }));
   const result = isPdf
     ? await DocuSealService.createSubmissionFromPdf({ name, documentName: fileName, fileBuffer: buffer, submitters: apiSubmitters })
@@ -1297,6 +1343,12 @@ router.post('/spaces/:locationId/items/:itemId', auth, asyncHandler(async (req, 
   const storedSubmitters = resultArr.map((apiSubmitter) => {
     const requested = requestedSubmitters.find((submitter) => (submitter.email && submitter.email === apiSubmitter.email) || submitter.role === apiSubmitter.role) || {};
     return mapSubmitter(apiSubmitter, requested);
+  });
+  await sendSignatureInvitationEmails({
+    submitters: storedSubmitters,
+    requestedSubmitters,
+    documentTitle: name,
+    location: source.location,
   });
 
   const entityType = kunde ? 'Kunde' : (mitarbeiter ? 'Mitarbeiter' : null);
@@ -1428,7 +1480,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
       role:       s.role,
       name:       s.name,
       email:      s.email,
-      send_email: !s.embedded,
+      send_email: false,
     }));
 
     const result = await DocuSealService.createSubmission({
@@ -1444,6 +1496,12 @@ router.post('/', auth, asyncHandler(async (req, res) => {
         (s) => (s.email && s.email === apiSub.email) || s.role === apiSub.role
       ) || {};
       return mapSubmitter(apiSub, requested);
+    });
+    await sendSignatureInvitationEmails({
+      submitters: storedSubmitters,
+      requestedSubmitters: submitters,
+      documentTitle: name,
+      location,
     });
     initialStatus = 'open';
 
@@ -1734,7 +1792,7 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
         role:       s.role,
         name:       s.name,
         email:      s.email,
-        send_email: !s.embedded,
+        send_email: false,
       }));
 
       const result = await DocuSealService.createSubmission({
@@ -1751,6 +1809,12 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
           (s) => (s.email && s.email === apiSub.email) || s.role === apiSub.role
         ) || {};
         return mapSubmitter(apiSub, requested);
+      });
+      await sendSignatureInvitationEmails({
+        submitters: vorgang.submitters,
+        requestedSubmitters: prevSubs,
+        documentTitle: vorgang.name,
+        location: resolvedLocation,
       });
       vorgang.status = 'open';
     } else {
