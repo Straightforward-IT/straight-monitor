@@ -1461,6 +1461,23 @@ router.get('/:id', auth, asyncHandler(async (req, res) => {
 
 // ─── DOWNLOAD URLs ────────────────────────────────────────────────────────────
 
+// GET /api/signaturen/:id/document-url — presigned URL for the best available
+// document version: signed when present, otherwise the persisted unsigned source.
+router.get('/:id/document-url', auth, asyncHandler(async (req, res) => {
+  const vorgang = await SignaturVorgang.findById(req.params.id);
+  if (!vorgang) return res.status(404).json({ message: 'Vorgang nicht gefunden' });
+
+  const key = vorgang.r2KeySigned || vorgang.r2KeyUnsigned;
+  if (!key) return res.status(409).json({ message: 'Kein Dokument hinterlegt' });
+
+  const safeName = vorgang.fileName || (vorgang.name.replace(/[^a-z0-9_\- ]/gi, '_') + '.pdf');
+  const url = await R2Service.getSignedDownloadUrl(key, 3600, {
+    inline: true,
+    filename: safeName,
+  });
+  res.json({ url, signed: Boolean(vorgang.r2KeySigned) });
+}));
+
 // GET /api/signaturen/:id/signed-url — presigned R2 URL for the signed PDF (inline)
 // Falls back to fetching from DocuSeal and caching in R2 when r2KeySigned is not yet set.
 router.get('/:id/signed-url', auth, asyncHandler(async (req, res) => {

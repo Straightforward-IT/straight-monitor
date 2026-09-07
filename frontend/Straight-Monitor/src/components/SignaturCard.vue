@@ -70,9 +70,9 @@
               class="sc-preview-form"
               @complete="onEmbedComplete"
             />
-            <div v-else-if="!hasSignedDoc" class="sc-preview-empty">
+            <div v-else-if="!hasPreviewDocument" class="sc-preview-empty">
               <font-awesome-icon :icon="['fas', 'file-circle-question']" size="2x" />
-              <p>{{ vorgang.status === 'completed' ? 'Kein Dokument hinterlegt' : 'Noch nicht unterschrieben' }}</p>
+              <p>Kein Dokument hinterlegt</p>
             </div>
             <div v-else-if="previewLoading" class="sc-preview-empty">
               <font-awesome-icon :icon="['fas', 'spinner']" spin size="2x" />
@@ -91,9 +91,9 @@
                   <span class="sc-sub-name">{{ s.name || s.email || '—' }}</span>
                   <span class="sc-sub-role">{{ s.role }}</span>
                 </div>
-                <!-- In-app signing button: shown for any awaiting submitter with an embedSrc -->
+                <!-- In-app signing is available only to internal embedded signers. -->
                 <button
-                  v-if="vorgang.status === 'open' && submitterSigningSrc(s) && s.status !== 'completed'"
+                  v-if="vorgang.status === 'open' && s.embedded && submitterSigningSrc(s) && s.status !== 'completed'"
                   class="sc-sub-link sc-sub-link--sign"
                   :class="{ active: activeEmbedSrc === submitterSigningSrc(s) }"
                   type="button"
@@ -245,7 +245,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
@@ -285,6 +285,9 @@ const progressPct = computed(() => {
 
 // True for any completed submission — r2KeySigned may be absent (will be fetched on demand from DocuSeal).
 const hasSignedDoc = computed(() => props.vorgang.status === 'completed' && !!props.vorgang.submissionId);
+const hasPreviewDocument = computed(() =>
+  hasSignedDoc.value || Boolean(props.vorgang.r2KeySigned || props.vorgang.r2KeyUnsigned)
+);
 
 const typIcon = computed(() => ({
   stundenliste: ['fas', 'clock'],
@@ -331,19 +334,27 @@ const hasFolgeaktionen = computed(() => {
 function toggleExpand() {
   expanded.value = !expanded.value;
   if (expanded.value) {
-    // Auto-open in-app form for first pending embedded submitter
-    if (firstPendingEmbedded.value) {
-      activeEmbedSrc.value = firstPendingEmbedded.value.embedSrc;
-    } else if (hasSignedDoc.value && !previewLoaded.value) {
-      loadPreview();
-    }
+    loadExpandedContent();
   }
 }
+
+function loadExpandedContent() {
+  // Auto-open in-app form for first pending embedded submitter.
+  if (firstPendingEmbedded.value) {
+    activeEmbedSrc.value = firstPendingEmbedded.value.embedSrc;
+  } else if (hasPreviewDocument.value && !previewLoaded.value) {
+    loadPreview();
+  }
+}
+
+onMounted(() => {
+  if (expanded.value) loadExpandedContent();
+});
 
 async function loadPreview() {
   previewLoading.value = true;
   try {
-    const { data } = await api.get(`/api/signaturen/${props.vorgang._id}/signed-url`);
+    const { data } = await api.get(`/api/signaturen/${props.vorgang._id}/document-url`);
     previewUrl.value = data.url ? `${data.url}#page=1&view=Fit` : '';
     previewLoaded.value = true;
   } catch (e) {
@@ -429,14 +440,15 @@ function submitterSigningSrc(submitter) {
   return submitter.embedSrc || (submitter.slug ? `https://docuseal.eu/s/${submitter.slug}` : '');
 }
 
-// Auto-select the first pending submitter with an embedSrc when the card expands
+// Auto-select the first pending internal signer when the card expands.
 const firstPendingEmbedded = computed(() =>
   props.vorgang.status === 'open'
-    ? props.vorgang.submitters.find(s => submitterSigningSrc(s) && s.status !== 'completed') || null
+    ? props.vorgang.submitters.find(s => s.embedded && submitterSigningSrc(s) && s.status !== 'completed') || null
     : null
 );
 
 function selectEmbedSubmitter(submitter) {
+  if (!submitter.embedded) return;
   const src = submitterSigningSrc(submitter);
   activeEmbedSrc.value = activeEmbedSrc.value === src ? '' : src;
 }
@@ -627,11 +639,15 @@ function onEmbedComplete() {
 }
 
 .sc-preview {
+  position: relative;
+  isolation: isolate;
+  contain: paint;
   border: 1px solid var(--border);
   border-radius: 10px;
-  overflow: hidden;
-  min-height: 760px;
-  aspect-ratio: 210 / 315;
+  overflow-x: hidden;
+  overflow-y: auto;
+  height: min(760px, calc(100vh - 180px));
+  min-height: 560px;
   background: var(--bg, var(--surface));
   display: flex;
 }
@@ -646,12 +662,14 @@ function onEmbedComplete() {
   font-size: 0.82rem;
 }
 .sc-preview-frame { width: 100%; height: 100%; min-height: 760px; border: none; }
-.sc-preview-form { width: 100%; min-height: 400px; }
+.sc-preview-form { position: relative; z-index: 0; width: 100%; min-height: 760px; }
 
 @media (max-width: 720px) {
   .sc-body-grid { grid-template-columns: 1fr; }
   .sc-preview,
   .sc-preview-frame { min-height: 560px; }
+  .sc-preview { height: min(640px, calc(100vh - 140px)); min-height: 480px; }
+  .sc-preview-form { min-height: 560px; }
 }
 
 .sc-detail-block { margin-bottom: 14px; }
