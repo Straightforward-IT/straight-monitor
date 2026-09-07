@@ -266,6 +266,15 @@ async function getStundenlisteDefaultSigner(location, auftrag) {
   return StundenlisteService.getVerleiherSigner(auftrag);
 }
 
+function buildStundenlisteName(auftrag = {}) {
+  const eventTitle = String(auftrag.eventTitel || '').trim();
+  const date = new Date(auftrag.vonDatum);
+  const eventDate = Number.isNaN(date.getTime())
+    ? ''
+    : `${String(date.getUTCDate()).padStart(2, '0')}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${date.getUTCFullYear()}`;
+  return ['Stundenliste', eventTitle || auftrag.auftragNr, eventDate].filter(Boolean).join(' ');
+}
+
 function getEntityValidationMessage(signaturTyp, kundeDoc, mitarbeiterDoc) {
   if (!signaturTyp) return 'Der Signaturtyp wurde nicht gefunden.';
   if (kundeDoc && mitarbeiterDoc) return 'Eine Signatur kann nur einem Kunden oder Mitarbeiter zugeordnet werden.';
@@ -414,9 +423,6 @@ router.get('/builder-token', auth, asyncHandler(async (req, res) => {
 // POST /api/signaturen/stundenliste/:auftragNr/draft — generate and persist the
 // unsigned PDF, then create the local record that owns the signing workflow.
 router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res) => {
-  const adminUser = await requireSignaturAccess(req, res);
-  if (!adminUser) return;
-
   const auftragNr = parseInt(req.params.auftragNr, 10);
   if (!Number.isFinite(auftragNr)) return res.status(400).json({ message: 'Ungültige Auftragsnummer' });
 
@@ -427,7 +433,7 @@ router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res
   const auftrag = await Auftrag.findOne({ auftragNr }).lean();
   if (!auftrag) return res.status(404).json({ message: `Auftrag ${auftragNr} nicht gefunden` });
   const kunde = auftrag.kundenNr
-    ? await Kunde.findOne({ kundenNr: auftrag.kundenNr }).select('_id kundenNr kundName kuerzel locationV2 signaturOrdner signaturKontaktEmail')
+    ? await Kunde.findOne({ kundenNr: auftrag.kundenNr }).select('_id kundenNr kundName kuerzel locationV2 signaturOrdner signaturKontaktEmail stundenlisteSignaturDoppelt')
     : null;
   if (!kunde) return res.status(400).json({ message: 'Für die Stundenliste wurde kein Kunde gefunden.' });
 
@@ -442,15 +448,19 @@ router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res
   if (!location) return res.status(400).json({ message: 'Bitte eine gültige Location auswählen.' });
 
   const verleiher = await getStundenlisteDefaultSigner(location, auftrag);
-  const eventTitle = String(auftrag.eventTitel || '').trim();
   const excludePseudo = req.body?.excludePseudo === true;
   const pdfFilename = buildStundenlistePdfFilename(auftrag);
-  const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, { excludePseudo });
+  const signatureDoubleCopy = kunde.stundenlisteSignaturDoppelt === true;
+  const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, {
+    signatureTags: signatureDoubleCopy,
+    signatureDoubleCopy,
+    excludePseudo,
+  });
   const unsignedPdfKey = `stundenlisten/${auftragNr}.pdf`;
   await R2Service.uploadFile(unsignedPdfKey, buffer, 'application/pdf');
 
   const vorgang = new SignaturVorgang({
-    name: String(req.body?.name || '').trim() || `Stundenliste ${eventTitle || auftragNr}`,
+    name: String(req.body?.name || '').trim() || buildStundenlisteName(auftrag),
     fileName: pdfFilename,
     typ: signaturTyp._id,
     typKey: 'stundenliste',
@@ -488,9 +498,6 @@ router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res
 // Body (from SignaturNeuModal customEndpoint): { locationId, submitters:[{role,name,email,embedded}] }
 // Response: { vorgang, embed: { role, slug, src } }
 router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
-  const adminUser = await requireSignaturAccess(req, res);
-  if (!adminUser) return;
-
   const auftragNr = parseInt(req.params.auftragNr, 10);
   if (!Number.isFinite(auftragNr)) {
     return res.status(400).json({ message: 'Ungültige Auftragsnummer' });
@@ -525,7 +532,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
 
   const kunde = auftrag.kundenNr
     ? await Kunde.findOne({ kundenNr: auftrag.kundenNr })
-        .select('_id kundenNr kundName kuerzel locationV2 signaturOrdner')
+        .select('_id kundenNr kundName kuerzel locationV2 signaturOrdner stundenlisteSignaturDoppelt')
     : null;
 
   // Resolve the Stundenliste type
@@ -584,12 +591,12 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
 
   const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, {
     signatureTags: true,
+    signatureDoubleCopy: kunde.stundenlisteSignaturDoppelt === true,
     excludePseudo: !!draftVorgang?.stundenlisteExcludePseudo,
   });
 
   const requestedName = typeof name === 'string' ? name.trim() : '';
-  const eventTitle = String(auftrag.eventTitel || '').trim();
-  const docName = requestedName || `Stundenliste ${eventTitle || auftragNr}`;
+  const docName = requestedName || buildStundenlisteName(auftrag);
   const pdfFilename = buildStundenlistePdfFilename(auftrag);
   const today = new Date().toISOString().split('T')[0];
 

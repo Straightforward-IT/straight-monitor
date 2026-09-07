@@ -398,7 +398,7 @@
                     <font-awesome-icon :icon="isGeneratingHoursList ? 'fa-solid fa-spinner' : 'fa-solid fa-file-contract'" :spin="isGeneratingHoursList" />
                     {{ isGeneratingHoursList ? 'Wird erstellt…' : 'Stundenliste generieren' }}
                   </button>
-                  <button v-if="canSignaturen" :class="{ 'dev-role--admin': isDev }" class="qa-dropdown-item" @click="openSignatureDialog">
+                  <button v-if="canManageStundenliste" :class="{ 'dev-role--admin': isDev }" class="qa-dropdown-item" @click="openSignatureDialog">
                     <font-awesome-icon icon="fa-solid fa-file-signature" />
                     Stundenliste zur Signatur
                   </button>
@@ -670,7 +670,7 @@
                       <font-awesome-icon icon="fa-solid fa-download" />
                     </button>
                     <button
-                      v-if="sidebarStundenliste.status === 'open' && canSignaturen"
+                      v-if="sidebarStundenliste.status === 'open' && canManageStundenliste"
                       class="einsatz-dok-action einsatz-dok-action--open-sig"
                       type="button"
                       title="Signaturprozess anzeigen"
@@ -718,7 +718,7 @@
                         <font-awesome-icon icon="fa-solid fa-trash" />
                       </button>
                       <button
-                        v-if="canSignaturen"
+                        v-if="canManageStundenliste"
                         class="einsatz-dok-gen-btn"
                         type="button"
                         title="Signaturentwurf bearbeiten"
@@ -752,7 +752,7 @@
                   </div>
                 </div>
                 <button
-                  v-if="canSignaturen"
+                  v-if="canManageStundenliste"
                   class="einsatz-dok-redo-btn"
                   type="button"
                   title="Stundenliste mit aktuellen Daten neu ausstellen"
@@ -1424,6 +1424,9 @@ export default {
     canSignaturen() {
       return this.isAdmin || this.isVertrieb;
     },
+    canManageStundenliste() {
+      return Boolean(this.user);
+    },
     canSubmitSignature() {
       const email = (this.sigEntleiher.email || '').trim();
       return !!this.sigVerleiher.email && /\S+@\S+\.\S+/.test(email);
@@ -1627,6 +1630,14 @@ export default {
     },
   },
   methods: {
+    buildStundenlisteName(auftrag = {}) {
+      const eventTitle = String(auftrag.eventTitel || '').trim();
+      const date = new Date(auftrag.vonDatum);
+      const eventDate = Number.isNaN(date.getTime())
+        ? ''
+        : `${String(date.getUTCDate()).padStart(2, '0')}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${date.getUTCFullYear()}`;
+      return ['Stundenliste', eventTitle || auftrag.auftragNr, eventDate].filter(Boolean).join(' ');
+    },
     // ── Feiertage ──────────────────────────────────────────────────────────
     async ensureHolidayYearLoaded(year) {
       if (this.loadedHolidayYears.has(year)) return;
@@ -2640,11 +2651,10 @@ export default {
 
       const auftragNr = this.selectedEvent.auftragNr;
       const excludePseudo = await this._askExcludePseudo();
-      const eventTitle = String(this.selectedEvent.eventTitel || '').trim();
       this.isGeneratingHoursList = true;
       try {
         const { data } = await api.post(`/api/signaturen/stundenliste/${auftragNr}/draft`, {
-          name: `Stundenliste ${eventTitle || auftragNr}`,
+          name: this.buildStundenlisteName(this.selectedEvent),
           locationId: typeof this.selectedEvent.locationV2 === 'object'
             ? this.selectedEvent.locationV2?._id
             : this.selectedEvent.locationV2,

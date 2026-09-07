@@ -122,6 +122,7 @@ const KundeSchema = new mongoose.Schema({
   // Default contact for signature processes (MS Graph contact)
   signaturKontaktId:    { type: String, default: null },
   signaturKontaktEmail: { type: String, default: null },
+  stundenlisteSignaturDoppelt: { type: Boolean, default: false },
   inactiveMicrosoftContactIds: [{ type: String, trim: true }],
   // Stable R2 folder name for customer-related signature documents.
   signaturOrdner:       { type: String, default: null, trim: true },

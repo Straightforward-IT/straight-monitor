@@ -13,7 +13,21 @@
         <font-awesome-icon :icon="['fas', 'envelope-open-text']" />
         <span><strong>E-Mail-Vorlage</strong><small>Ansprache für Stundenlisten-Signaturen</small></span>
       </button>
+      <button type="button" :class="{ active: section === 'delivery' }" @click="section = 'delivery'">
+        <font-awesome-icon :icon="['fas', 'paper-plane']" />
+        <span><strong>Auslieferung</strong><small>Empfänger für vollständig signierte Dokumente</small></span>
+      </button>
     </nav>
+
+    <label class="stundenliste-double-copy-toggle">
+      <input v-model="stundenlisteSignaturDoppelt" type="checkbox" :disabled="stundenlisteSettingSaving" @change="saveStundenlisteSetting" />
+      <span>
+        <strong>Stundenliste als Doppelausfertigung</strong>
+        <small>Die erste Signaturausfertigung sperrt Beginn bis Unterschrift; die zweite bleibt leer.</small>
+      </span>
+      <font-awesome-icon v-if="stundenlisteSettingSaving" :icon="['fas', 'spinner']" spin />
+    </label>
+    <p v-if="stundenlisteSettingError" class="stundenliste-double-copy-error">{{ stundenlisteSettingError }}</p>
 
     <template v-if="section === 'overview'">
       <Toolbar class="signature-toolbar">
@@ -83,16 +97,53 @@
       </div>
     </template>
 
-    <CustomerEmailTemplatesEditor v-else :kunden-nr="kunde.kundenNr" />
+    <CustomerEmailTemplatesEditor v-else-if="section === 'email'" :kunden-nr="kunde.kundenNr" />
+
+    <section v-else class="delivery-defaults">
+      <label>
+        <span>Dokumenttyp</span>
+        <select v-model="deliveryTypId" :disabled="deliveryTypesLoading">
+          <option value="">Dokumenttyp auswählen</option>
+          <option v-for="type in deliveryTypes" :key="type._id" :value="type._id">{{ type.label }}</option>
+        </select>
+      </label>
+      <div v-if="deliveryTypId" class="delivery-defaults__content">
+        <ContactSearchPicker
+          :key="deliveryPickerKey"
+          v-model="deliveryRecipient"
+          role-name="Empfänger"
+          :contacts="graphContacts"
+          :removable="false"
+          :show-delivery-method="false"
+          :excluded-emails="deliveryRecipients.map((recipient) => recipient.email)"
+          @selected="addDeliveryRecipient"
+        />
+        <p v-if="deliveryError" class="delivery-defaults__error">{{ deliveryError }}</p>
+        <div v-if="deliveryLoading" class="signature-state"><font-awesome-icon :icon="['fas', 'spinner']" spin /> Laden …</div>
+        <div v-else class="delivery-defaults__recipients">
+          <span v-for="(recipient, index) in deliveryRecipients" :key="recipient.email" class="delivery-recipient">
+            {{ recipient.displayName || recipient.email }}
+            <small v-if="recipient.displayName">{{ recipient.email }}</small>
+            <button type="button" title="Empfänger entfernen" @click="deliveryRecipients.splice(index, 1)">×</button>
+          </span>
+          <p v-if="!deliveryRecipients.length">Keine Standardempfänger festgelegt.</p>
+        </div>
+        <ToolbarButton :disabled="deliverySaving" @click="saveDeliveryRecipients">
+          <font-awesome-icon :icon="['fas', deliverySaving ? 'spinner' : 'floppy-disk']" :spin="deliverySaving" />
+          {{ deliverySaving ? 'Speichert …' : 'Standard speichern' }}
+        </ToolbarButton>
+      </div>
+    </section>
   </section>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faEnvelopeOpenText, faFileSignature, faPlus, faSpinner, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
+import { faEnvelopeOpenText, faFileSignature, faFloppyDisk, faPaperPlane, faPlus, faSpinner, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useSignaturModal } from '@/stores/signaturModal';
+import ContactSearchPicker from '@/components/ContactSearchPicker.vue';
 import CustomerEmailTemplatesEditor from '@/components/customer/CustomerEmailTemplatesEditor.vue';
 import SignaturCard from '@/components/SignaturCard.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
@@ -102,7 +153,7 @@ import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 
-library.add(faEnvelopeOpenText, faFileSignature, faPlus, faSpinner, faTriangleExclamation);
+library.add(faEnvelopeOpenText, faFileSignature, faFloppyDisk, faPaperPlane, faPlus, faSpinner, faTriangleExclamation);
 
 const props = defineProps({
   kunde: { type: Object, required: true },
@@ -125,6 +176,19 @@ const defaultStatuses = statusOptions.filter(({ key }) => key !== 'cancelled').m
 const statuses = ref([...defaultStatuses]);
 const starred = ref(loadStarred());
 let eventSource = null;
+const deliveryTypes = ref([]);
+const deliveryTypesLoading = ref(false);
+const deliveryTypId = ref('');
+const deliveryRecipients = ref([]);
+const deliveryRecipient = ref({ name: '', email: '', embedded: false });
+const deliveryPickerKey = ref(0);
+const graphContacts = ref([]);
+const deliveryLoading = ref(false);
+const deliverySaving = ref(false);
+const deliveryError = ref('');
+const stundenlisteSignaturDoppelt = ref(props.kunde.stundenlisteSignaturDoppelt === true);
+const stundenlisteSettingSaving = ref(false);
+const stundenlisteSettingError = ref('');
 
 const hasDefaultStatuses = computed(() =>
   statuses.value.length === defaultStatuses.length
@@ -223,6 +287,88 @@ function editDraft(vorgang) {
   }, upsertVorgang);
 }
 
+watch(() => props.kunde.stundenlisteSignaturDoppelt, (value) => {
+  if (!stundenlisteSettingSaving.value) stundenlisteSignaturDoppelt.value = value === true;
+});
+
+async function saveStundenlisteSetting() {
+  const previousValue = props.kunde.stundenlisteSignaturDoppelt === true;
+  stundenlisteSettingSaving.value = true;
+  stundenlisteSettingError.value = '';
+  try {
+    await api.put(`/api/kunden/${props.kunde._id}`, {
+      stundenlisteSignaturDoppelt: stundenlisteSignaturDoppelt.value,
+    });
+    props.kunde.stundenlisteSignaturDoppelt = stundenlisteSignaturDoppelt.value;
+  } catch (requestError) {
+    stundenlisteSignaturDoppelt.value = previousValue;
+    stundenlisteSettingError.value = requestError.response?.data?.message || 'Einstellung konnte nicht gespeichert werden.';
+  } finally {
+    stundenlisteSettingSaving.value = false;
+  }
+}
+
+function addDeliveryRecipient(recipient = deliveryRecipient.value) {
+  const email = String(recipient.email || '').trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return;
+  if (!deliveryRecipients.value.some((item) => String(item.email || '').toLowerCase() === email)) {
+    deliveryRecipients.value.push({ displayName: recipient.name || '', email });
+  }
+  deliveryRecipient.value = { name: '', email: '', embedded: false };
+  deliveryPickerKey.value += 1;
+}
+
+async function loadDeliveryTypes() {
+  deliveryTypesLoading.value = true;
+  try {
+    const [{ data: types }, { data: contacts }] = await Promise.all([
+      api.get('/api/signatur-typen'),
+      api.get('/api/graph/contacts'),
+    ]);
+    deliveryTypes.value = (Array.isArray(types) ? types : []).filter((type) => type.isActive !== false);
+    graphContacts.value = Array.isArray(contacts?.contacts) ? contacts.contacts : [];
+  } catch (requestError) {
+    deliveryError.value = requestError.response?.data?.message || 'Einstellungen konnten nicht geladen werden.';
+  } finally {
+    deliveryTypesLoading.value = false;
+  }
+}
+
+async function loadDeliveryRecipients() {
+  deliveryRecipients.value = [];
+  deliveryError.value = '';
+  if (!deliveryTypId.value) return;
+  deliveryLoading.value = true;
+  try {
+    const { data } = await api.get('/api/signaturen/folge-defaults', {
+      params: { kundeId: props.kunde._id, typId: deliveryTypId.value },
+    });
+    deliveryRecipients.value = Array.isArray(data.ausliefernAn) ? data.ausliefernAn : [];
+  } catch (requestError) {
+    deliveryError.value = requestError.response?.data?.message || 'Standardempfänger konnten nicht geladen werden.';
+  } finally {
+    deliveryLoading.value = false;
+  }
+}
+
+async function saveDeliveryRecipients() {
+  if (!deliveryTypId.value || deliverySaving.value) return;
+  deliverySaving.value = true;
+  deliveryError.value = '';
+  try {
+    const { data } = await api.put('/api/signaturen/folge-defaults', {
+      kundeId: props.kunde._id,
+      typId: deliveryTypId.value,
+      ausliefernAn: deliveryRecipients.value,
+    });
+    deliveryRecipients.value = data.ausliefernAn || [];
+  } catch (requestError) {
+    deliveryError.value = requestError.response?.data?.message || 'Standardempfänger konnten nicht gespeichert werden.';
+  } finally {
+    deliverySaving.value = false;
+  }
+}
+
 async function loadVorgaenge() {
   if (!props.kunde.kundenNr) return;
   loading.value = true;
@@ -255,6 +401,10 @@ function connectSSE() {
 }
 
 watch(() => props.kunde.kundenNr, loadVorgaenge);
+watch(section, (value) => {
+  if (value === 'delivery' && !deliveryTypes.value.length) loadDeliveryTypes();
+});
+watch(deliveryTypId, loadDeliveryRecipients);
 onMounted(() => {
   loadVorgaenge();
   connectSSE();
@@ -264,7 +414,7 @@ onBeforeUnmount(() => eventSource?.close());
 
 <style scoped>
 .customer-signatures { display:grid; gap:.8rem; }
-.signature-sections { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.65rem; }
+.signature-sections { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.65rem; }
 .signature-sections button { display:flex; align-items:center; gap:.7rem; min-height:58px; padding:.7rem .8rem; border:1px solid var(--border); border-radius:9px; color:var(--text); background:var(--surface); text-align:left; cursor:pointer; }
 .signature-sections button > svg { color:var(--muted); font-size:1rem; }
 .signature-sections button > span { display:grid; gap:.15rem; }
@@ -272,6 +422,13 @@ onBeforeUnmount(() => eventSource?.close());
 .signature-sections button:hover { border-color:color-mix(in srgb,var(--primary) 55%,var(--border)); }
 .signature-sections button.active { border-color:var(--primary); background:color-mix(in srgb,var(--primary) 7%,var(--surface)); box-shadow:inset 0 0 0 1px var(--primary); }
 .signature-sections button.active > svg { color:var(--primary); }
+.stundenliste-double-copy-toggle { display:flex; align-items:center; gap:.7rem; padding:.75rem .8rem; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--panel); cursor:pointer; }
+.stundenliste-double-copy-toggle input { width:1rem; height:1rem; accent-color:var(--primary); }
+.stundenliste-double-copy-toggle > span { display:grid; gap:.12rem; flex:1; }
+.stundenliste-double-copy-toggle small { color:var(--muted); }
+.stundenliste-double-copy-toggle > svg { color:var(--primary); }
+.stundenliste-double-copy-toggle:has(input:disabled) { cursor:wait; opacity:.75; }
+.stundenliste-double-copy-error { margin:0; color:#e6584f; font-size:.82rem; }
 .signature-toolbar { margin:0; }
 .signature-search { min-width:min(340px,40vw); }
 .signature-filters { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem; padding:.15rem .15rem 0; }
@@ -287,6 +444,17 @@ onBeforeUnmount(() => eventSource?.close());
 .signature-empty > div { display:grid; flex:1; gap:.15rem; }
 .signature-empty strong { color:var(--text); }
 .signature-empty small { color:var(--muted); }
+.delivery-defaults { display:grid; gap:.9rem; max-width:720px; padding:1rem; border:1px solid var(--border); border-radius:9px; background:var(--panel); }
+.delivery-defaults > label { display:grid; gap:.35rem; color:var(--muted); font-size:.74rem; font-weight:700; }
+.delivery-defaults select { min-height:40px; padding:.5rem .65rem; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--surface); font:inherit; }
+.delivery-defaults__content { display:grid; gap:.7rem; }
+.delivery-defaults__recipients { display:flex; flex-wrap:wrap; gap:.45rem; }
+.delivery-defaults__recipients > p { width:100%; margin:0; color:var(--muted); font-size:.82rem; }
+.delivery-recipient { display:inline-flex; align-items:center; gap:.35rem; padding:.35rem .55rem; border:1px solid color-mix(in srgb,var(--primary) 35%,var(--border)); border-radius:999px; color:var(--text); background:var(--surface); font-size:.8rem; }
+.delivery-recipient small { color:var(--muted); }
+.delivery-recipient button { padding:0; border:0; color:var(--muted); background:transparent; font-size:1rem; cursor:pointer; }
+.delivery-recipient button:hover { color:#e6584f; }
+.delivery-defaults__error { margin:0; color:#e6584f; font-size:.82rem; }
 @media (max-width:760px) {
   .signature-sections { grid-template-columns:1fr; }
   .signature-sections button { min-height:48px; }

@@ -163,21 +163,21 @@
               Kunden
             </router-link>
             <router-link
-              v-if="kundenNavLabel !== 'Analytics'"
+              v-if="canSeeKundenInsights && kundenNavLabel !== 'Analytics'"
               :to="{ path: '/kunden', query: { tab: 'analytics' } }"
               class="nav-submenu__link"
             >
               Analytics
             </router-link>
             <router-link
-              v-if="kundenNavLabel !== 'Leads'"
+              v-if="canSeeKundenInsights && kundenNavLabel !== 'Leads'"
               :to="{ path: '/kunden', query: { tab: 'leads' } }"
               class="nav-submenu__link"
             >
               Leads
             </router-link>
             <router-link
-              v-if="kundenNavLabel !== 'Watchlist'"
+              v-if="canSeeKundenInsights && kundenNavLabel !== 'Watchlist'"
               :to="{ path: '/kunden', query: { tab: 'watchlist' } }"
               class="nav-submenu__link"
             >
@@ -504,6 +504,7 @@
               Übersicht
             </router-link>
             <router-link
+              v-if="canSeeKundenInsights"
               :to="{ path: '/kunden', query: { tab: 'analytics' } }"
               class="mobile-submenu__link"
               :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'analytics' }"
@@ -513,6 +514,7 @@
               Analytics
             </router-link>
             <router-link
+              v-if="canSeeKundenInsights"
               :to="{ path: '/kunden', query: { tab: 'leads' } }"
               class="mobile-submenu__link"
               :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'leads' }"
@@ -522,6 +524,7 @@
               Leads
             </router-link>
             <router-link
+              v-if="canSeeKundenInsights"
               :to="{ path: '/kunden', query: { tab: 'watchlist' } }"
               class="mobile-submenu__link"
               :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'watchlist' }"
@@ -844,6 +847,7 @@ watch(
 const newPagesEnabled = computed(() => !!auth.user);
 
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
+const canSeeKundenInsights = computed(() => isAdmin.value || auth.user?.roles?.includes('VERTRIEB'));
 const canSeePayroll = computed(() => isAdmin.value);
 const isPayrollSectionActive = computed(() => route.name === 'Payroll');
 const isKundenSectionActive = computed(() => route.name === 'Kunden');

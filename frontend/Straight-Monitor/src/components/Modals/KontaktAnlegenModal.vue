@@ -50,7 +50,7 @@
             </div>
             <div class="form-row">
               <label>Firma</label>
-              <input v-model="form.companyName" class="form-input" placeholder="Musterfirma GmbH" />
+              <CustomerSearch v-model="selectedKundeId" placeholder="Kunde suchen …" />
             </div>
             <div class="form-row">
               <label>Position</label>
@@ -95,6 +95,8 @@
 import { ref, reactive, computed, nextTick, onMounted } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
+import CustomerSearch from '@/components/ui-elements/Searchbars/CustomerSearch.vue';
+import { useDataCache } from '@/stores/dataCache';
 import api from '@/utils/api';
 
 const props = defineProps({
@@ -109,12 +111,13 @@ const emit = defineEmits(['close', 'created']);
 const saving = ref(false);
 const errorMsg = ref('');
 const firstInputRef = ref(null);
+const dataCache = useDataCache();
+const selectedKundeId = ref('');
 
 const form = reactive({
   team: props.prefilledTeam || 'hamburg',
   givenName: '',
   surname: '',
-  companyName: props.prefilledCompanyName || '',
   jobTitle: '',
   email: '',
   mobilePhone: '',
@@ -125,7 +128,15 @@ const canSave = computed(
   () => (form.givenName.trim() || form.surname.trim()) && form.team
 );
 
-onMounted(() => {
+const selectedKunde = computed(() => (dataCache.kunden || [])
+  .find((kunde) => String(kunde._id) === selectedKundeId.value) || null);
+
+onMounted(async () => {
+  await dataCache.loadKunden();
+  const prefilledKunde = (dataCache.kunden || []).find((kunde) => (
+    String(kunde.kuerzel || '').toLocaleLowerCase('de') === props.prefilledCompanyName.toLocaleLowerCase('de')
+  ));
+  if (prefilledKunde) selectedKundeId.value = String(prefilledKunde._id);
   nextTick(() => firstInputRef.value?.focus());
 });
 
@@ -148,7 +159,7 @@ async function save() {
     };
     if (form.givenName.trim())    payload.givenName    = form.givenName.trim();
     if (form.surname.trim())      payload.surname      = form.surname.trim();
-    if (form.companyName.trim())  payload.companyName  = form.companyName.trim();
+    if (selectedKunde.value?.kuerzel) payload.companyName = selectedKunde.value.kuerzel;
     if (form.jobTitle.trim())     payload.jobTitle     = form.jobTitle.trim();
     if (form.email.trim())        payload.email        = form.email.trim();
     if (form.mobilePhone.trim())  payload.mobilePhone  = form.mobilePhone.trim();

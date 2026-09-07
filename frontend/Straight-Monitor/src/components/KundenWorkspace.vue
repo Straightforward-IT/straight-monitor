@@ -153,6 +153,7 @@
             </FilterGroup>
           </ToolbarFilter>
           <SearchBar v-model="contactSearch" class="toolbar-search" placeholder="Kontakt suchen…" aria-label="Kontakte suchen" />
+          <CustomerSearch v-model="contactFilters.kundeId" class="contact-kunde-picker" placeholder="Kunde filtern …" />
           <ToolbarLabel>{{ filteredContacts.length }} Kontakte</ToolbarLabel>
           <template #actions>
           <ToolbarGroup push-right>
@@ -320,6 +321,7 @@ import LeadsTab from './LeadsTab.vue';
 import KundenWatchlistReportModal from './KundenWatchlistReportModal.vue';
 import ContextMenu from './ContextMenu.vue';
 import SearchBar from './SearchBar.vue';
+import CustomerSearch from '@/components/ui-elements/Searchbars/CustomerSearch.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
@@ -355,6 +357,7 @@ const contactActiveFilterCount = computed(() => {
   let count = 0;
   if (contactFilters.value.team) count++;
   if (contactFilters.value.linked !== null) count++;
+  if (contactFilters.value.kundeId) count++;
   return count;
 });
 
@@ -366,6 +369,7 @@ function resetFilters() {
 function resetContactFilters() {
   contactFilters.value.team = null;
   contactFilters.value.linked = null;
+  contactFilters.value.kundeId = '';
 }
 // Context Menu
 const contextMenu = ref({ visible: false, x: 0, y: 0 });
@@ -645,7 +649,7 @@ const contactsLoading = ref(false);
 const contactSearch = ref('');
 const editingContactId = ref(null);
 const editCompanyValue = ref('');
-const contactFilters = ref({ team: null, linked: null });
+const contactFilters = ref({ team: null, linked: null, kundeId: '' });
 const editContact = ref(null);
 const editForm = ref({});
 const editSaving = ref(false);
@@ -689,6 +693,10 @@ const filteredContacts = computed(() => {
     list = list.filter(c => !!getLinkedKunde(c));
   } else if (contactFilters.value.linked === false) {
     list = list.filter(c => !getLinkedKunde(c));
+  }
+
+  if (contactFilters.value.kundeId) {
+    list = list.filter(c => String(getLinkedKunde(c)?._id) === String(contactFilters.value.kundeId));
   }
 
   // Search
@@ -795,7 +803,7 @@ watch(currentTab, (tab) => {
   if (tab === 'kontakte' && msContacts.value.length === 0) {
     loadContacts();
   }
-});
+}, { immediate: true });
 </script>
 
 <style scoped>
@@ -814,6 +822,11 @@ watch(currentTab, (tab) => {
 
 .kunden-toolbar {
   overflow: visible;
+}
+
+.contact-kunde-picker {
+  min-width: 180px;
+  max-width: 260px;
 }
 
 .kunden-grid {

@@ -56,11 +56,16 @@ class StundenlisteService {
    * @param {object} [options]
    * @param {boolean} [options.signatureTags=false] - Bettet unsichtbare DocuSeal-Texttags
    *   ({{...;type=signature}}) an den Unterschriftslinien ein (für digitale Signatur).
+  * @param {boolean} [options.signatureDoubleCopy=false] - Erstellt für die digitale
+  *   Signatur eine zweite, unveränderte Ausfertigung; nur die erste sperrt Einsatzspalten.
    * @returns {Promise<{ buffer: Buffer, auftragNr: number, auftrag: object }>}
    */
   async buildStundenliste(auftragNr, options = {}) {
     const data = await this._loadData(auftragNr, { excludePseudo: !!options.excludePseudo });
-    const buffer = await this._renderPdf(data, { signatureTags: !!options.signatureTags });
+    const buffer = await this._renderPdf(data, {
+      signatureTags: !!options.signatureTags,
+      signatureDoubleCopy: !!options.signatureDoubleCopy,
+    });
     return { buffer, auftragNr: data.auftrag.auftragNr, auftrag: data.auftrag };
   }
 
@@ -195,15 +200,33 @@ class StundenlisteService {
       }
     }
 
-    const ctx = {
-      doc,
-      font,
-      fontBold,
-      page: doc.addPage([PAGE_W, PAGE_H]),
-      y: PAGE_H - MARGIN,
-      signatureTags: !!options.signatureTags,
-      docusealLogoImg,
-    };
+    const copyOptions = options.signatureDoubleCopy
+      ? [
+        { signatureTags: true, blockedEinsatzColumns: true },
+        { signatureTags: false, blockedEinsatzColumns: false },
+      ]
+      : [{ signatureTags: !!options.signatureTags, blockedEinsatzColumns: false }];
+
+    for (const copyOptionsEntry of copyOptions) {
+      const ctx = {
+        doc,
+        font,
+        fontBold,
+        page: doc.addPage([PAGE_W, PAGE_H]),
+        y: PAGE_H - MARGIN,
+        docusealLogoImg,
+        ...copyOptionsEntry,
+      };
+      this._renderPdfCopy(ctx, { auftrag, kunde, einsaetze, schichten, niederlassung }, logoImg);
+    }
+
+    // ── Seiten-Footer (URL unten rechts auf jeder Seite, wie im Original) ──
+    this._drawPageFooters(doc, fontBold);
+
+    return Buffer.from(await doc.save());
+  }
+
+  _renderPdfCopy(ctx, { auftrag, kunde, einsaetze, schichten, niederlassung }, logoImg) {
 
     // ── Kopf: Logo (volle Breite, wie im Original) ──
     if (logoImg) {
@@ -215,7 +238,7 @@ class StundenlisteService {
 
     // ── Überschrift ──
     this._text(ctx, 'Arbeitnehmerüberlassungsvertrag und zugleich Konkretisierung zum bestehenden Rahmenvertrag zur Arbeitnehmerüberlassung zwischen nachfolgend genanntem Verleiher und Entleiher.', {
-      font: fontBold, size: 13, lineGap: 4,
+      font: ctx.fontBold, size: 13, lineGap: 4,
     });
     ctx.y -= 12;
 
@@ -259,10 +282,6 @@ class StundenlisteService {
     this._ensureSpace(ctx, 50);
     this._text(ctx, 'Es gelten die allgemeinen Geschäftsbedingungen des Verleihers und die Rahmenabsprachen bzgl. Vergütung, Anforderungs- und Tätigkeitsprofil zwischen Entleiher und Verleiher. Sofern kein Rahmenvertrag vorhanden ist, gelten die AGB der H. & P. Straightforward GmbH und die aktuellen Konditionen für den jeweiligen Überlassungszeitraum. Dieser Nachweis gilt als abgeschlossener Einsatz.', { size: 7.5, color: COLOR_MUTED, lineGap: 3 });
 
-    // ── Seiten-Footer (URL unten rechts auf jeder Seite, wie im Original) ──
-    this._drawPageFooters(doc, fontBold);
-
-    return Buffer.from(await doc.save());
   }
 
   // ── Layout-Bausteine ──────────────────────────────────────────────────────
@@ -462,6 +481,14 @@ class StundenlisteService {
     ctx.page.drawLine({ start: { x: MARGIN + CONTENT_W, y: top }, end: { x: MARGIN + CONTENT_W, y: top - rowH }, thickness: 0.4, color: COLOR_LINE });
     // untere Zeilenlinie
     ctx.page.drawLine({ start: { x: MARGIN, y: top - rowH }, end: { x: MARGIN + CONTENT_W, y: top - rowH }, thickness: 0.4, color: COLOR_LINE });
+    if (ctx.blockedEinsatzColumns) {
+      ctx.page.drawLine({
+        start: { x: MARGIN + cols[0].w, y: top - rowH / 2 },
+        end: { x: MARGIN + CONTENT_W, y: top - rowH / 2 },
+        thickness: 0.8,
+        color: COLOR_TEXT,
+      });
+    }
     ctx.y -= rowH;
   }
 

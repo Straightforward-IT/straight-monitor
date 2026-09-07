@@ -48,9 +48,6 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 router.patch('/:id', auth, asyncHandler(async (req, res) => {
   const template = await PaketVorlage.findById(req.params.id);
   if (!template) return res.status(404).json({ message: 'Paketvorlage nicht gefunden' });
-  if (!await canManageTemplate(req.user.id, template)) {
-    return res.status(403).json({ message: 'Keine Berechtigung fuer diese Paketvorlage' });
-  }
 
   Object.assign(template, pickTemplatePayload(req.body));
   await template.save();
