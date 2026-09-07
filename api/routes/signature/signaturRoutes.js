@@ -196,6 +196,80 @@ function mapSubmitter(apiSubmitter, requested = {}) {  return {
   };
 }
 
+function refreshSubmitterFromDocuSeal(local, live, isStundenliste = false) {
+  let changed = false;
+  const embedSrc = live.embed_src || live.embedSrc || '';
+  if (live.slug && live.slug !== local.slug) {
+    local.slug = live.slug;
+    changed = true;
+  }
+  if (embedSrc && embedSrc !== local.embedSrc) {
+    local.embedSrc = embedSrc;
+    changed = true;
+  }
+  if (live.status && live.status !== local.status) {
+    local.status = live.status;
+    changed = true;
+  }
+  if (live.completed_at && !local.completedAt) {
+    local.completedAt = new Date(live.completed_at);
+    changed = true;
+  }
+  if (isStundenliste && local.role === 'Verleiher' && !local.embedded) {
+    local.embedded = true;
+    changed = true;
+  }
+  return changed;
+}
+
+async function restoreMissingStundenlisteSubmission(vorgang) {
+  if (vorgang.typKey !== 'stundenliste' || vorgang.status !== 'open' || vorgang.submissionId || !vorgang.auftragNr) {
+    return false;
+  }
+
+  const requestedSubmitters = vorgang.submitters.map((submitter) => ({
+    role: submitter.role,
+    name: submitter.name,
+    email: submitter.email,
+    embedded: submitter.role === 'Verleiher',
+  }));
+  if (!requestedSubmitters.some((submitter) => submitter.role === 'Verleiher' && submitter.email)
+    || !requestedSubmitters.some((submitter) => submitter.role === 'Entleiher' && submitter.email)) {
+    throw new Error('Stundenliste enthält keine vollständigen Unterzeichnerdaten.');
+  }
+
+  const kunde = vorgang.kunde
+    ? await Kunde.findById(vorgang.kunde).select('stundenlisteSignaturDoppelt')
+    : await Kunde.findOne({ kundenNr: vorgang.kundenNr }).select('stundenlisteSignaturDoppelt');
+  const { buffer: fileBuffer } = await StundenlisteService.buildStundenliste(vorgang.auftragNr, {
+    signatureTags: true,
+    signatureDoubleCopy: kunde?.stundenlisteSignaturDoppelt === true,
+    excludePseudo: vorgang.stundenlisteExcludePseudo === true,
+  });
+  const result = await DocuSealService.createSubmissionFromPdf({
+    name: vorgang.name,
+    documentName: vorgang.fileName || `${vorgang.name}.pdf`,
+    fileBuffer,
+    submitters: requestedSubmitters.map((submitter) => ({
+      ...submitter,
+      send_email: !submitter.embedded,
+      values: { [`${submitter.role} Datum`]: new Date().toISOString().split('T')[0] },
+    })),
+    order: 'preserved',
+  });
+  const resultArr = Array.isArray(result) ? result : (result?.submitters || (result?.id ? [result] : []));
+  if (!resultArr.length) throw new Error('DocuSeal hat keine Unterzeichner zurückgegeben.');
+
+  vorgang.submissionId = resultArr[0].submission_id ?? result?.id;
+  vorgang.submitters = resultArr.map((apiSubmitter) => {
+    const requested = requestedSubmitters.find((submitter) =>
+      (submitter.email && submitter.email === apiSubmitter.email) || submitter.role === apiSubmitter.role
+    ) || {};
+    return mapSubmitter(apiSubmitter, requested);
+  });
+  return true;
+}
+
 async function resolveSignaturLocation({ locationId, entityLocationId, auftragLocationId, standort } = {}) {
   if (locationId) {
     if (!/^[a-f\d]{24}$/i.test(String(locationId))) return null;
@@ -973,14 +1047,7 @@ router.get('/', auth, asyncHandler(async (req, res) => {
             (s) => s.slug === local.slug || s.email === local.email
           );
           if (!live) return local;
-          if (live.status && live.status !== local.status) {
-            local.status = live.status;
-            changed = true;
-          }
-          if (live.completed_at && !local.completedAt) {
-            local.completedAt = new Date(live.completed_at);
-            changed = true;
-          }
+          changed = refreshSubmitterFromDocuSeal(local, live, vorgang.typKey === 'stundenliste') || changed;
           return local;
         });
         if (submission.status === 'completed' && vorgang.status !== 'completed') {
@@ -1433,8 +1500,10 @@ router.get('/:id', auth, asyncHandler(async (req, res) => {
     ]);
   if (!vorgang) return res.status(404).json({ message: 'Vorgang nicht gefunden' });
 
-  if (req.query.refresh === 'true' && vorgang.submissionId) {
+  if (req.query.refresh === 'true') {
     try {
+      await restoreMissingStundenlisteSubmission(vorgang);
+      if (!vorgang.submissionId) return res.json(vorgang);
       const submission = await DocuSealService.getSubmission(vorgang.submissionId);
       if (submission && Array.isArray(submission.submitters)) {
         vorgang.submitters = vorgang.submitters.map((local) => {
@@ -1442,8 +1511,7 @@ router.get('/:id', auth, asyncHandler(async (req, res) => {
             (s) => s.slug === local.slug || s.email === local.email
           );
           if (live) {
-            local.status      = live.status       || local.status;
-            local.completedAt = live.completed_at ? new Date(live.completed_at) : local.completedAt;
+            refreshSubmitterFromDocuSeal(local, live, vorgang.typKey === 'stundenliste');
           }
           return local;
         });
