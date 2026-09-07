@@ -69,6 +69,15 @@ describe('Kunden-E-Mail-Vorlagen', () => {
     expect(rendered.unresolvedPlaceholders).to.deep.equal([]);
   });
 
+  it('verwendet die Du-Anrede des Kunden mit dem Vornamen', () => {
+    const values = buildValues({
+      kunde: { stundenlisteSignaturDuAnrede: true },
+      signaturkontakt: { name: 'Alex Maria Mustermann' },
+    });
+
+    expect(values['signaturkontakt.anrede']).to.equal('Hallo Alex Maria');
+  });
+
   it('zerlegt übergebene Signaturkontaktnamen in Vor- und Nachname', () => {
     expect(splitContactName({ name: 'Alex Maria Mustermann' })).to.deep.equal({
       vorname: 'Alex Maria',

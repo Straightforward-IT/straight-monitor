@@ -485,6 +485,14 @@
             </span>
             <font-awesome-icon v-if="stundenlisteSettingSaving" :icon="['fas', 'spinner']" spin />
           </label>
+          <label class="stundenliste-double-copy-toggle">
+            <input v-model="stundenlisteSignaturDuAnrede" type="checkbox" :disabled="stundenlisteSettingSaving" @change="saveStundenlisteSetting" />
+            <span>
+              <strong>Stundenliste mit Du-Anrede</strong>
+              <small>Verwendet „Hallo {Vorname}“ statt der formellen Anrede im Einsatznachweis.</small>
+            </span>
+            <font-awesome-icon v-if="stundenlisteSettingSaving" :icon="['fas', 'spinner']" spin />
+          </label>
           <p v-if="stundenlisteSettingError" class="stundenliste-double-copy-error">{{ stundenlisteSettingError }}</p>
         </section>
       </section>
@@ -1108,6 +1116,7 @@ const eRechnungForm = ref({
 const eRechnungSaving = ref(false);
 const eRechnungError = ref('');
 const stundenlisteSignaturDoppelt = ref(props.kunde.stundenlisteSignaturDoppelt === true);
+const stundenlisteSignaturDuAnrede = ref(props.kunde.stundenlisteSignaturDuAnrede === true);
 const stundenlisteSettingSaving = ref(false);
 const stundenlisteSettingError = ref('');
 
@@ -1119,18 +1128,25 @@ watch(() => [props.kunde.leitwegId, props.kunde.eRechnungFormat, props.kunde.mws
 watch(() => props.kunde.stundenlisteSignaturDoppelt, (value) => {
   if (!stundenlisteSettingSaving.value) stundenlisteSignaturDoppelt.value = value === true;
 });
+watch(() => props.kunde.stundenlisteSignaturDuAnrede, (value) => {
+  if (!stundenlisteSettingSaving.value) stundenlisteSignaturDuAnrede.value = value === true;
+});
 
 async function saveStundenlisteSetting() {
   const previousValue = props.kunde.stundenlisteSignaturDoppelt === true;
+  const previousDuAnrede = props.kunde.stundenlisteSignaturDuAnrede === true;
   stundenlisteSettingSaving.value = true;
   stundenlisteSettingError.value = '';
   try {
     await api.put(`/api/kunden/${props.kunde._id}`, {
       stundenlisteSignaturDoppelt: stundenlisteSignaturDoppelt.value,
+      stundenlisteSignaturDuAnrede: stundenlisteSignaturDuAnrede.value,
     });
     props.kunde.stundenlisteSignaturDoppelt = stundenlisteSignaturDoppelt.value;
+    props.kunde.stundenlisteSignaturDuAnrede = stundenlisteSignaturDuAnrede.value;
   } catch (error) {
     stundenlisteSignaturDoppelt.value = previousValue;
+    stundenlisteSignaturDuAnrede.value = previousDuAnrede;
     stundenlisteSettingError.value = error.response?.data?.message || 'Einstellung konnte nicht gespeichert werden.';
   } finally {
     stundenlisteSettingSaving.value = false;

@@ -130,13 +130,15 @@ function splitContactName(contact = {}) {
 
 function buildValues({ kunde = {}, auftrag = {}, signaturkontakt = {}, signatur = {}, location = {} } = {}) {
   const contact = splitContactName(signaturkontakt);
+  const duAnrede = kunde.stundenlisteSignaturDuAnrede === true;
+  const anredeName = duAnrede ? contact.vorname || contact.name : contact.name;
   const von = formatDate(auftrag.vonDatum);
   const bis = formatDate(auftrag.bisDatum);
   const zeitraum = von === bis ? von : [von, bis].filter(Boolean).join(' – ');
   const ortName = auftrag.eventLocation || '';
   const plzOrt = [auftrag.eventPlz, auftrag.eventOrt].filter(Boolean).join(' ');
   return {
-    'signaturkontakt.anrede': contact.name ? `Guten Tag ${contact.name}` : 'Guten Tag',
+    'signaturkontakt.anrede': anredeName ? `${duAnrede ? 'Hallo' : 'Guten Tag'} ${anredeName}` : (duAnrede ? 'Hallo' : 'Guten Tag'),
     'signaturkontakt.vorname': contact.vorname,
     'signaturkontakt.nachname': contact.nachname,
     'signaturkontakt.name': contact.name,
