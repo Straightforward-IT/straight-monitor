@@ -410,7 +410,7 @@
     <template #footer>
       <div class="sig-footer">
             <p v-if="error" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ error }}</p>
-            <p v-else-if="currentStep === 2 && submitBlockReason" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ submitBlockReason }}</p>            <div class="sig-footer-actions">
+            <p v-else-if="currentStep >= 2 && submitBlockReason" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ submitBlockReason }}</p>            <div class="sig-footer-actions">
               <button v-if="currentStep > 0" class="sig-btn sig-btn--ghost" type="button" @click="currentStep--">
                 <font-awesome-icon :icon="['fas', 'arrow-left']" /> Zurück
               </button>
@@ -799,11 +799,20 @@ const isGeneratedDocumentFlow = computed(() => usesCustomEndpoint.value && !!(fo
 const isReisekostenFlow = computed(() =>
   (form.value.typKey || modal.context.typKey) === 'reisekostenabrechnung'
 );
+const isLohnvorschussFlow = computed(() =>
+  (form.value.typKey || modal.context.typKey) === 'lohnvorschuss'
+);
 const hasFixedSignerSlots = computed(() =>
-  isReisekostenFlow.value || (usesCustomEndpoint.value && (form.value.typKey || modal.context.typKey) === 'stundenliste')
+  isReisekostenFlow.value
+    || isLohnvorschussFlow.value
+    || (usesCustomEndpoint.value && (form.value.typKey || modal.context.typKey) === 'stundenliste')
 );
 const selectedTyp = computed(() => typen.value.find(type => type._id === form.value.typId) || null);
 const REISEKOSTEN_DELIVERY_RECIPIENTS = [
+  { displayName: 'Straightforward Invoice', email: 'invoice@straightforward.email' },
+  { displayName: 'Straightforward DH', email: 'dh@straightforward.email' },
+];
+const LOHNVORSCHUSS_DELIVERY_RECIPIENTS = [
   { displayName: 'Straightforward Invoice', email: 'invoice@straightforward.email' },
   { displayName: 'Straightforward DH', email: 'dh@straightforward.email' },
 ];
@@ -811,6 +820,17 @@ const REISEKOSTEN_DELIVERY_RECIPIENTS = [
 function addReisekostenDefaultDeliveryEmail() {
   if (!isReisekostenFlow.value) return;
   for (const defaultRecipient of REISEKOSTEN_DELIVERY_RECIPIENTS) {
+    if (!folgeaktionen.value.ausliefernAn.some(recipient =>
+      String(recipient.email || '').trim().toLowerCase() === defaultRecipient.email
+    )) {
+      folgeaktionen.value.ausliefernAn.push(defaultRecipient);
+    }
+  }
+}
+
+function addLohnvorschussDefaultDeliveryEmail() {
+  if (!isLohnvorschussFlow.value) return;
+  for (const defaultRecipient of LOHNVORSCHUSS_DELIVERY_RECIPIENTS) {
     if (!folgeaktionen.value.ausliefernAn.some(recipient =>
       String(recipient.email || '').trim().toLowerCase() === defaultRecipient.email
     )) {
@@ -858,6 +878,21 @@ const filteredMitarbeiter = computed(() => {
     .slice(0, 8);
 });
 
+const templateSignerRoles = computed(() => {
+  if (isLohnvorschussFlow.value) return ['Erste Partei', 'Zweite Partei'];
+
+  const template = templates.value.find(item => item.id === form.value.templateId);
+  return (Array.isArray(template?.submitters) ? template.submitters : [])
+    .map(submitter => String(submitter.name || '').trim())
+    .filter(Boolean);
+});
+
+const hasRequiredTemplateSigners = computed(() =>
+  templateSignerRoles.value.every(role => form.value.submitters.some(submitter =>
+    submitter.role === role && String(submitter.name || '').trim()
+  ))
+);
+
 // ── Step gating ──────────────────────────────────────────────────────────────
 const canAdvance = computed(() => {
   if (currentStep.value === 0) return !!form.value.typId && !!form.value.locationId && !!form.value.name.trim();
@@ -869,8 +904,7 @@ const canAdvance = computed(() => {
   if (currentStep.value === 2) {
     const subs = form.value.submitters;
     if (!subs.some(s => (s.name || '').trim())) return false;
-    // When a template is selected all pre-populated roles must be filled
-    if (form.value.templateId) return subs.every(s => (s.name || '').trim());
+    if (form.value.templateId) return hasRequiredTemplateSigners.value;
     return true;
   }
   return true;
@@ -885,6 +919,7 @@ const maxReachableStep = computed(() => {
 
 const canSubmit = computed(() => {
   if (!canAdvance.value) return false;
+  if (!hasRequiredTemplateSigners.value) return false;
   const subs = form.value.submitters.filter(s => (s.name || '').trim());
   if (!subs.length) return false;
   // Every non-embedded signer must have an email (they receive the link by mail)
@@ -892,6 +927,11 @@ const canSubmit = computed(() => {
 });
 
 const submitBlockReason = computed(() => {
+  const missingRole = templateSignerRoles.value.find(role => !form.value.submitters.some(submitter =>
+    submitter.role === role && String(submitter.name || '').trim()
+  ));
+  if (missingRole) return `Für die Vorlage fehlt der Unterzeichner „${missingRole}“.`;
+
   const subs = form.value.submitters.filter(s => (s.name || '').trim());
   for (const s of subs) {
     if (!s.embedded && !(s.email || '').trim()) {
@@ -937,7 +977,56 @@ function selectTyp(t, clearTemplate = true) {
   }
   // Auto-pick link mode only for Kunde types; Mitarbeiter may not exist yet
   if (t.linkedTo === 'Kunde') linkMode.value = 'kunde';
+  if (t.key === 'lohnvorschuss') ensureLohnvorschussSignerSlots();
 }
+
+function ensureLohnvorschussSignerSlots() {
+  if (!isLohnvorschussFlow.value) return;
+
+  const current = form.value.submitters;
+  const manager = selectedLocation.value?.locationManager;
+  const mitarbeiter = selectedMitarbeiter.value;
+  const slots = [
+    {
+      role: 'Erste Partei',
+      name: manager?.name || manager?.email || '',
+      email: manager?.email || '',
+      embedded: true,
+    },
+    {
+      role: 'Zweite Partei',
+      name: mitarbeiter ? `${mitarbeiter.vorname || ''} ${mitarbeiter.nachname || ''}`.trim() : '',
+      email: mitarbeiter?.email || '',
+      embedded: false,
+    },
+  ];
+
+  const byRole = new Map(current.map(submitter => [submitter.role, submitter]));
+  const hasCurrentLohnvorschussRole = current.some(submitter =>
+    ['Erste Partei', 'Zweite Partei'].includes(submitter.role)
+  );
+  form.value.submitters = slots.map((slot, index) => {
+    const existing = byRole.get(slot.role) || (hasCurrentLohnvorschussRole ? {} : current[index]) || {};
+    return {
+      ...slot,
+      name: existing.name || slot.name,
+      email: existing.email || slot.email,
+      embedded: existing.name || existing.email ? !!existing.embedded : slot.embedded,
+    };
+  });
+}
+
+watch(
+  [
+    isLohnvorschussFlow,
+    () => form.value.mitarbeiterId,
+    () => form.value.locationId,
+    () => selectedLocation.value?.locationManager?._id,
+    () => selectedMitarbeiter.value?._id,
+  ],
+  () => ensureLohnvorschussSignerSlots(),
+  { immediate: true },
+);
 
 function selectTemplateChip(tpl) {
   // Toggle off if already selected
@@ -999,19 +1088,22 @@ function applyTemplateDefaults(template) {
       ? `${documentTypeLabel} | <Vorname Nachname> | ${date}`
       : `${documentTypeLabel} | ${template.name} | ${date}`;
   }
-  // Pre-fill submitter rows from template roles when user hasn't filled any in yet
+  // Template roles define the required signer slots. Keep matching pre-filled values.
   const tplSubmitters = Array.isArray(template.submitters) ? template.submitters : [];
-  if (tplSubmitters.length) {
+  const requiredRoles = templateSignerRoles.value;
+  if (requiredRoles.length) {
     const current = form.value.submitters;
-    const untouched = current.every(s => !s.name && !s.email);
-    if (untouched) {
-      form.value.submitters = tplSubmitters.map(s => ({
-        role: s.name || 'Unterzeichner',
-        name: '',
-        email: '',
-        embedded: false,
-      }));
-    }
+    const byRole = new Map(current.map(submitter => [submitter.role, submitter]));
+    form.value.submitters = requiredRoles.map((role, index) => {
+      const existing = byRole.get(role) || current[index] || {};
+      return {
+        role,
+        name: existing.name || '',
+        email: existing.email || '',
+        embedded: !!existing.embedded,
+      };
+    });
+    ensureLohnvorschussSignerSlots();
   }
 }
 
@@ -1290,6 +1382,7 @@ async function hydrateFromContext() {
     currentStep.value = isGeneratedDocumentFlow.value ? 0 : (form.value.kundeId || form.value.mitarbeiterId ? 2 : 1);
   }
   addReisekostenDefaultDeliveryEmail();
+  addLohnvorschussDefaultDeliveryEmail();
 }
 
 // ── Submit ───────────────────────────────────────────────────────────────────

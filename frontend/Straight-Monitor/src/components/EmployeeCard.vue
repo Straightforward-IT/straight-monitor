@@ -3146,7 +3146,7 @@ export default {
       return `sipgate://phone/call?number=${cleanNumber}`;
     },
 
-    executeQuickAction(action) {
+    async executeQuickAction(action) {
       this._closeQuickActions();
       switch (action) {
         case 'sipgate': {
@@ -3183,25 +3183,51 @@ export default {
           this.$emit('close');
           break;
         }
-        case 'create-lohnvorschuss':
-          {
-            const employeeName = `${this.resolvedMa?.vorname || ''} ${this.resolvedMa?.nachname || ''}`.trim();
-            const date = new Date().toLocaleDateString('de-DE').replaceAll('.', '-');
+        case 'create-lohnvorschuss': {
+          const locationId = this.resolvedMa?.locationV2?._id || this.resolvedMa?.locationV2 || null;
+          const employeeName = `${this.resolvedMa?.vorname || ''} ${this.resolvedMa?.nachname || ''}`.trim();
+          const date = new Date().toLocaleDateString('de-DE').replaceAll('.', '-');
+          let locationManager = null;
+
+          try {
+            const { data: locations } = await api.get('/api/locations');
+            locationManager = (Array.isArray(locations) ? locations : []).find(location =>
+              String(location._id) === String(locationId)
+            )?.locationManager || null;
+          } catch (error) {
+            console.error('Standortleitung für Lohnvorschuss laden fehlgeschlagen', error);
+          }
+
+          if (!locationManager?.email) {
+            window.dispatchEvent(new CustomEvent('app-toast', {
+              detail: { message: 'Für den Standort ist keine Standortleitung mit E-Mail hinterlegt.', type: 'error' },
+            }));
+            break;
+          }
+
           this.signaturModal.openModal({
             mitarbeiterId: this.resolvedMa._id,
-            locationId: this.resolvedMa?.locationV2?._id || this.resolvedMa?.locationV2 || null,
+            locationId,
             typKey: 'lohnvorschuss',
             name: `Lohnvorschuss | ${employeeName || '<Vorname Nachname>'} | ${date}`,
             locked: true,
-            submitters: [{
-              role: 'Mitarbeiter',
-              name: employeeName,
-              email: this.resolvedMa?.email || '',
-              embedded: false,
-            }],
+            submitters: [
+              {
+                role: 'Erste Partei',
+                name: locationManager.name || locationManager.email,
+                email: locationManager.email,
+                embedded: true,
+              },
+              {
+                role: 'Zweite Partei',
+                name: employeeName,
+                email: this.resolvedMa?.email || '',
+                embedded: false,
+              },
+            ],
           });
           break;
-          }
+        }
         case 'share-link':
           this.copyShareLink();
           return; // Don't close menu yet
