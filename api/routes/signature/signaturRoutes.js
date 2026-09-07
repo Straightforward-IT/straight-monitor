@@ -914,16 +914,29 @@ router.put('/folge-defaults', auth, asyncHandler(async (req, res) => {
 // ─── LIST ─────────────────────────────────────────────────────────────────────
 
 // GET /api/signaturen — list with optional filters
-// Query params: status, locationV2, standort (legacy), typ, mitarbeiter, kunde, limit
+// Query params: status, locationV2, standort (legacy), typ, mitarbeiter, kunde,
+// kundenNr (includes records linked by id and older denormalized records), limit
 router.get('/', auth, asyncHandler(async (req, res) => {
-  const { status, locationV2, standort, typ, mitarbeiter, kunde, auftragNr, limit, refresh } = req.query;
+  const { status, locationV2, standort, typ, mitarbeiter, kunde, kundenNr, auftragNr, limit, refresh } = req.query;
   const filter = {};
   if (status)      filter.status      = status;
   if (locationV2)  filter.locationV2  = locationV2;
   if (standort)    filter.standort    = standort;
   if (typ)         filter.typ         = typ;
   if (mitarbeiter) filter.mitarbeiter = mitarbeiter;
-  if (kunde)       filter.kunde       = kunde;
+  if (kunde) {
+    filter.kunde = kunde;
+  } else if (kundenNr !== undefined) {
+    const parsedKundenNr = Number(kundenNr);
+    if (!Number.isSafeInteger(parsedKundenNr)) {
+      return res.status(400).json({ message: 'Ungültige Kundennummer.' });
+    }
+    const kundeDoc = await Kunde.findOne({ kundenNr: parsedKundenNr }).select('_id').lean();
+    filter.$or = [
+      { kundenNr: parsedKundenNr },
+      ...(kundeDoc?._id ? [{ kunde: kundeDoc._id }] : []),
+    ];
+  }
   if (auftragNr)   filter.auftragNr   = Number(auftragNr);
 
   const vorgaenge = await SignaturVorgang.find(filter)

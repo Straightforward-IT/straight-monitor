@@ -1908,6 +1908,28 @@ router.post('/:kundenNr/preise', auth, asyncHandler(async (req, res) => {
   res.status(201).json(populated);
 }));
 
+// All orders overlapping the calendar range, including orders without staffing.
+router.get('/:kundenNr/auftragskalender', auth, asyncHandler(async (req, res) => {
+  const kundenNr = Number(req.params.kundenNr);
+  const von = new Date(req.query.von);
+  const bis = new Date(req.query.bis);
+  if (!Number.isSafeInteger(kundenNr) || kundenNr <= 0
+    || !Number.isFinite(von.getTime()) || !Number.isFinite(bis.getTime()) || bis < von
+    || bis - von > 93 * 24 * 60 * 60 * 1000) {
+    return res.status(400).json({ message: 'Ungültige Kunden-Nr. oder Kalender-Zeitraum.' });
+  }
+  const orders = await Auftrag.find({
+    kundenNr,
+    vonDatum: { $lte: bis },
+    $or: [
+      { bisDatum: { $gte: von } },
+      { bisDatum: null, vonDatum: { $gte: von, $lte: bis } },
+    ],
+  }).select('auftragNr eventTitel vonDatum bisDatum eventOrt eventLocation')
+    .sort({ vonDatum: 1, auftragNr: 1 }).lean();
+  res.json(orders);
+}));
+
 // @route   GET /api/kunden/:kundenNr/top-mitarbeiter
 // @desc    Top-Mitarbeiter eines Kunden (nach Einsatz-Anzahl), nur aktive MA
 // @access  Private

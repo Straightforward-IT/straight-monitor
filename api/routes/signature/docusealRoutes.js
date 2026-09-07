@@ -13,6 +13,10 @@ const User = require('../../models/System/User');
 const Auftrag = require('../../models/Event/Auftrag');
 const Kunde = require('../../models/Customer/Kunde');
 const StundenlisteService = require('../../services/operations/StundenlisteService');
+const {
+  TEMPLATE_TYPES: CUSTOMER_EMAIL_TEMPLATE_TYPES,
+  renderResolvedTemplate: renderResolvedCustomerEmailTemplate,
+} = require('../../services/operations/CustomerEmailTemplateService');
 
 const router = express.Router();
 
@@ -418,7 +422,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
 
   // Custom Graph Email Dispatching
   // Find external submitters (like Entleiher) that are not embedded in the UI
-  const { sendSignaturEmail } = require('../../services/integrations/EmailService');
+  const { sendMail } = require('../../services/integrations/EmailService');
   logger.info(`[Stundenliste ${auftragNr}] storedSubmitters after DocuSeal response:`, JSON.stringify(storedSubmitters, null, 2));
   for (const apiSub of storedSubmitters) {
     logger.info(`[Stundenliste ${auftragNr}] Checking submitter for email: role=${apiSub.role}, email=${apiSub.email}, embedded=${apiSub.embedded}, slug=${apiSub.slug || '(empty)'}`);
@@ -428,7 +432,14 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
       const recipientName = requestedSubmitters.find((s) => s.role === apiSub.role)?.name || apiSub.name || recipientEmail;
       logger.info(`[Stundenliste ${auftragNr}] Attempting to send e-mail to ${recipientEmail} with signing link ${signingLink}`);
       try {
-        await sendSignaturEmail(recipientEmail, recipientName, docName, signingLink, 'it');
+        const renderedEmail = await renderResolvedCustomerEmailTemplate({
+          type: CUSTOMER_EMAIL_TEMPLATE_TYPES.STUNDENLISTE_SIGNATURE,
+          kunde,
+          auftrag,
+          signaturkontakt: { name: recipientName, email: recipientEmail },
+          signatur: { dokumentname: docName, link: signingLink },
+        });
+        await sendMail(recipientEmail, renderedEmail.subject, renderedEmail.renderedHtml, 'it');
         logger.info(`[Stundenliste ${auftragNr}] E-mail successfully dispatched to ${recipientEmail}`);
       } catch (err) {
         logger.error(`Could not send custom e-mail to ${recipientEmail}:`, err);
