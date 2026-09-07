@@ -173,18 +173,20 @@
     </div>
 
     <!-- Selection Bar (normal mode only) -->
-    <Toolbar v-if="!isFullscreen && !isMobile" class="selection-bar">
+    <Toolbar
+      v-if="!isFullscreen && !isMobile"
+      v-model:location-v2="filters.locationV2"
+      :locations="locations"
+      class="selection-bar"
+    >
       <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
           <!-- Standort -->
           <FilterGroup label="Standort">
-            <FilterChip
-              v-for="location in locations"
-              :key="location._id"
-              class="location-filter-chip"
-              :active="filters.locationV2 === String(location._id)"
-              :style="{ '--location-color': location.color || '#6b7280' }"
-              @click="setLocationV2(String(location._id))"
-            >{{ location.shortName || location.nameFull }}</FilterChip>
+            <LocationFilter
+              v-model="filters.locationV2"
+              :locations="locations"
+              @change="onLocationFilterChange"
+            />
           </FilterGroup>
           <FilterDivider />
           <!-- Planung -->
@@ -210,7 +212,6 @@
           <div class="fs-kunde-filter" :class="{ 'fs-kunde-filter--active': !!filters.kundeFilter }">
             <KundeSearch
               ref="kundeFilterRef"
-              :location-v2="filters.locationV2"
               placeholder="Kunde…"
               @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
             />
@@ -681,17 +682,18 @@
     <!-- ─── Mobile UI (≤768px) ─────────────────────────────────────────── -->
     <template v-if="isMobile">
       <!-- Sticky top bar using Toolbar.vue + ToolbarFilter (same as desktop) -->
-      <Toolbar class="m-toolbar">
+      <Toolbar
+        v-model:location-v2="filters.locationV2"
+        :locations="locations"
+        class="m-toolbar"
+      >
         <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
           <FilterGroup label="Standort">
-            <FilterChip
-              v-for="location in locations"
-              :key="location._id"
-              class="location-filter-chip"
-              :active="filters.locationV2 === String(location._id)"
-              :style="{ '--location-color': location.color || '#6b7280' }"
-              @click="setLocationV2(String(location._id))"
-            >{{ location.shortName || location.nameFull }}</FilterChip>
+            <LocationFilter
+              v-model="filters.locationV2"
+              :locations="locations"
+              @change="onLocationFilterChange"
+            />
           </FilterGroup>
           <FilterDivider />
           <FilterGroup label="Zeitraum">
@@ -706,7 +708,6 @@
           <FilterGroup label="🤝 Kunde">
             <div class="kunde-filter-search">
               <KundeSearch
-                :location-v2="filters.locationV2"
                 placeholder="Kunde suchen…"
                 @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
               />
@@ -1653,6 +1654,7 @@ import FilterGroup from '@/components/FilterGroup.vue';
 import flipIconUrl from '@/assets/flip.png';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
+import LocationFilter from '@/components/ui-elements/LocationFilter.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
@@ -3523,6 +3525,11 @@ async function fetchKommentare() {
 // ─── Filters ───
 function setLocationV2(val) {
   filters.locationV2 = filters.locationV2 === val ? null : val;
+  savePrefs();
+  fetchDispo();
+}
+
+function onLocationFilterChange() {
   savePrefs();
   fetchDispo();
 }

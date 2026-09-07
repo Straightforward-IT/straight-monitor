@@ -77,10 +77,11 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
+import { useToolbarLocationContext } from '@/composables/useToolbarLocationContext';
 
 const props = defineProps({
   modelValue:  { default: null },
@@ -93,6 +94,8 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'select']);
 
 const auth = useAuth();
+const toolbarLocation = useToolbarLocationContext();
+const effectiveLocationV2 = computed(() => props.locationV2 || toolbarLocation?.locationV2?.value || null);
 
 const query       = ref('');
 const results     = ref([]);
@@ -107,7 +110,7 @@ const dropdownStyle = ref({});
 let debounceTimer   = null;
 
 function sortResults(list) {
-  const userLocationV2 = auth.user?.locationV2?._id || auth.user?.locationV2 || null;
+  const userLocationV2 = effectiveLocationV2.value || auth.user?.locationV2?._id || auth.user?.locationV2 || null;
   const score = (kunde) => (
     (kunde.kundStatus === 2 ? 4 : 0) +
     (kunde.kuerzel ? 2 : 0) +
@@ -137,7 +140,6 @@ async function fetchResults(searchText = query.value) {
   try {
     const params = {};
     if (trimmed) params.q = trimmed;
-    if (props.locationV2) params.locationV2 = props.locationV2;
     if (props.mitarbeiterId) params.mitarbeiterId = props.mitarbeiterId;
 
     const { data } = await api.get('/api/kunden/search', { params });

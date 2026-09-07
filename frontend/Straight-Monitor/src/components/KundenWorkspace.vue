@@ -3,17 +3,14 @@
       
       <!-- Übersicht Tab (Alle außer Status 1) -->
       <div v-if="currentTab === 'overview'" class="tab-content">
-        <Toolbar class="kunden-toolbar">
+        <Toolbar
+          v-model:location-v2="filters.locationId"
+          :locations="locations"
+          class="kunden-toolbar"
+        >
           <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
             <FilterGroup label="Geschäftsstelle">
-              <FilterChip
-                v-for="location in locations"
-                :key="location._id"
-                class="location-filter-chip"
-                :active="filters.locationId === String(location._id)"
-                :style="{ '--location-color': location.color || '#6b7280' }"
-                @click="setLocationFilter(filters.locationId === String(location._id) ? null : String(location._id))"
-              >{{ location.shortName || location.nameFull }}</FilterChip>
+              <LocationFilter v-model="filters.locationId" :locations="locations" />
             </FilterGroup>
             <FilterDivider />
             <FilterGroup label="Status">
@@ -314,6 +311,7 @@ import FilterPanel from './FilterPanel.vue';
 import FilterGroup from './FilterGroup.vue';
 import FilterChip from './ui-elements/FilterChip.vue';
 import FilterDivider from './ui-elements/FilterDivider.vue';
+import LocationFilter from './ui-elements/LocationFilter.vue';
 import FilterDropdown from './FilterDropdown.vue';
 import CustomTooltip from './CustomTooltip.vue';
 import KundenAnalytics from './KundenAnalytics.vue';

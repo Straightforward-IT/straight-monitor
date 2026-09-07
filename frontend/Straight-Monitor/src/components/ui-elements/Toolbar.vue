@@ -1,6 +1,13 @@
 <template>
   <div v-bind="$attrs" class="toolbar" :class="{ 'toolbar--wrap': wrap, 'toolbar--actions-open': actionsOpen }">
     <slot name="filter" />
+    <LocationFilter
+      v-if="showLocationFilter"
+      :model-value="locationV2"
+      :locations="locations"
+      :allow-all="locationAllowAll"
+      @update:model-value="$emit('update:locationV2', $event)"
+    />
     <div class="toolbar-main-content" :class="{ 'toolbar-main-content--hidden': actionsOpen }">
       <slot />
     </div>
@@ -22,17 +29,30 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, provide, ref } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faEllipsisVertical } from '@fortawesome/free-solid-svg-icons';
+import LocationFilter from '@/components/ui-elements/LocationFilter.vue';
+import { toolbarLocationContextKey } from '@/composables/useToolbarLocationContext';
 
 library.add(faEllipsisVertical);
 
 defineOptions({ inheritAttrs: false });
 
-defineProps({
+const props = defineProps({
   wrap: { type: Boolean, default: false },
+  locationV2: { type: [String, Number], default: null },
+  locations: { type: Array, default: null },
+  showLocationFilter: { type: Boolean, default: false },
+  locationAllowAll: { type: Boolean, default: true },
+});
+defineEmits(['update:locationV2']);
+
+const currentLocation = computed(() => (props.locations || []).find((location) => String(location._id) === String(props.locationV2)) || null);
+provide(toolbarLocationContextKey, {
+  locationV2: computed(() => props.locationV2 ? String(props.locationV2) : null),
+  location: currentLocation,
 });
 
 const actionsOpen = ref(false);

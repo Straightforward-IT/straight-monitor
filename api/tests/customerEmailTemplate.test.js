@@ -61,6 +61,8 @@ describe('Kunden-E-Mail-Vorlagen', () => {
     const rendered = renderTemplate(getDefault(TEMPLATE_TYPES.STUNDENLISTE_SIGNATURE), values);
     expect(rendered.subject).to.equal('Einsatznachweis 04.09.2026 >Straightforward');
     expect(rendered.renderedHtml).to.include('Hallo Alex Mustermann');
+    expect(rendered.renderedHtml).to.include('Guten Tag Alex Mustermann,');
+    expect(rendered.renderedHtml).to.include('anbei finden Sie den Einsatznachweis');
     expect(rendered.renderedHtml).to.include('src="cid:straightforward-logo"');
     expect(rendered.renderedHtml).to.include('href="https://docuseal.eu/s/abc"');
     expect(rendered.renderedHtml).to.include('mailto:dispo@example.com');

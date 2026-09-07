@@ -72,9 +72,10 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import api from '@/utils/api';
+import { useToolbarLocationContext } from '@/composables/useToolbarLocationContext';
 
 const props = defineProps({
   /**
@@ -87,8 +88,11 @@ const props = defineProps({
   placeholder: { type: String,  default: 'Mitarbeiter suchen (Name, Nr.)…' },
   dropup:      { type: Boolean, default: false },
   includeInactive: { type: Boolean, default: false },
+  locationV2: { type: [String, Number], default: null },
 });
 const emit = defineEmits(['update:modelValue', 'select']);
+const toolbarLocation = useToolbarLocationContext();
+const effectiveLocationV2 = computed(() => props.locationV2 || toolbarLocation?.locationV2?.value || null);
 
 // ── State ──────────────────────────────────────────────────────────────────
 const query       = ref('');
@@ -101,6 +105,15 @@ const highlighted = ref(0);
 const container      = ref(null);
 const dropdownStyle  = ref({});
 let debounceTimer    = null;
+
+function sortResults(list) {
+  if (!effectiveLocationV2.value) return list;
+  return [...list].sort((first, second) => {
+    const firstIsLocal = String(first.locationV2?._id || first.locationV2 || '') === String(effectiveLocationV2.value);
+    const secondIsLocal = String(second.locationV2?._id || second.locationV2 || '') === String(effectiveLocationV2.value);
+    return Number(secondIsLocal) - Number(firstIsLocal);
+  });
+}
 
 function updateDropdownPosition() {
   if (!container.value) return;
@@ -131,7 +144,7 @@ function onInput() {
   debounceTimer = setTimeout(async () => {
     try {
       const { data } = await api.get('/api/personal/search', { params: { q: query.value, includeInactive: props.includeInactive } });
-      results.value = data;
+      results.value = sortResults(data || []);
       highlighted.value = 0;
       if (data.length > 0) {
         updateDropdownPosition();
@@ -210,6 +223,11 @@ watch(() => props.modelValue, (val) => {
     selectedList.value = [];
     query.value = '';
   }
+});
+
+watch(effectiveLocationV2, () => {
+  results.value = sortResults(results.value);
+  highlighted.value = 0;
 });
 </script>
 

@@ -285,7 +285,7 @@ router.get(
     if (includeInactive !== 'true') filter.isActive = true;
     const results = await Mitarbeiter.find(filter)
       .sort({ createdAt: -1 })
-      .select('_id vorname nachname email personalnr flip_id profilbild persgruppe isActive')
+      .select('_id vorname nachname email personalnr flip_id profilbild persgruppe isActive locationV2')
       .limit(20)
       .lean();
     res.json(results);

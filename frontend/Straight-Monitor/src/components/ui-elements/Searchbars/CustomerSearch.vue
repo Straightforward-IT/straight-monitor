@@ -7,22 +7,21 @@
         <font-awesome-icon :icon="['fas', 'xmark']" />
       </button>
     </div>
-    <div v-else class="customer-search__input-wrap">
-      <font-awesome-icon :icon="['fas', 'magnifying-glass']" class="customer-search__icon" />
-      <input
-        ref="input"
-        v-model="query"
-        type="search"
-        :placeholder="placeholder"
-        autocomplete="off"
-        @focus="open = true"
-        @input="open = true"
-        @keydown.down.prevent="moveHighlight(1)"
-        @keydown.up.prevent="moveHighlight(-1)"
-        @keydown.enter.prevent="selectHighlighted"
-        @keydown.escape="open = false"
-      />
-    </div>
+    <SearchBar
+      v-else
+      ref="searchBar"
+      v-model="query"
+      class="customer-search__input-wrap"
+      :placeholder="placeholder"
+      input-type="search"
+      compact
+      @focus="open = true"
+      @input="open = true"
+      @keydown.down.prevent="moveHighlight(1)"
+      @keydown.up.prevent="moveHighlight(-1)"
+      @keydown.enter.prevent="selectHighlighted"
+      @keydown.escape="open = false"
+    />
     <ul v-if="open && !selectedCustomer" class="customer-search__results">
       <li
         v-for="(kunde, index) in matchingKunden"
@@ -43,18 +42,25 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useDataCache } from '@/stores/dataCache';
+import SearchBar from '@/components/ui-elements/SearchBar.vue';
+import { useToolbarLocationContext } from '@/composables/useToolbarLocationContext';
 
 const props = defineProps({
   modelValue: { type: [String, Number], default: '' },
   placeholder: { type: String, default: 'Kunde suchen ...' },
+  locationV2: { type: [String, Number], default: null },
 });
 const emit = defineEmits(['update:modelValue', 'select']);
 const dataCache = useDataCache();
+const toolbarLocation = useToolbarLocationContext();
 const container = ref(null);
-const input = ref(null);
+const searchBar = ref(null);
 const query = ref('');
 const open = ref(false);
 const highlightedIndex = ref(0);
+
+const effectiveLocationV2 = computed(() => props.locationV2 || toolbarLocation?.locationV2?.value || null);
+const effectiveLocation = computed(() => toolbarLocation?.location?.value || null);
 
 const selectedCustomer = computed(() => (dataCache.kunden || [])
   .find((kunde) => String(kunde._id) === String(props.modelValue)) || null);
@@ -62,9 +68,22 @@ const matchingKunden = computed(() => {
   const normalizedQuery = query.value.trim().toLocaleLowerCase('de');
   return (dataCache.kunden || []).filter((kunde) => !normalizedQuery || [kunde.kundName, kunde.kuerzel, kunde.kundenNr]
     .some((value) => String(value || '').toLocaleLowerCase('de').includes(normalizedQuery)))
-    .sort((first, second) => String(first.kundName || '').localeCompare(String(second.kundName || ''), 'de'))
+    .sort((first, second) => {
+      const firstIsLocal = matchesLocation(first);
+      const secondIsLocal = matchesLocation(second);
+      if (firstIsLocal !== secondIsLocal) return firstIsLocal ? -1 : 1;
+      return String(first.kundName || '').localeCompare(String(second.kundName || ''), 'de');
+    })
     .slice(0, 20);
 });
+
+function matchesLocation(kunde) {
+  if (!effectiveLocationV2.value) return false;
+  const customerLocation = kunde.locationV2?._id || kunde.locationV2;
+  if (String(customerLocation || '') === String(effectiveLocationV2.value)) return true;
+  return !!effectiveLocation.value?.externalId
+    && String(kunde.geschSt || '') === String(effectiveLocation.value.externalId);
+}
 
 function select(kunde) {
   emit('update:modelValue', String(kunde._id));
@@ -76,7 +95,7 @@ function select(kunde) {
 function clear() {
   emit('update:modelValue', '');
   emit('select', null);
-  nextTick(() => input.value?.focus());
+  nextTick(() => searchBar.value?.focus());
 }
 
 function moveHighlight(direction) {
@@ -96,20 +115,18 @@ function onClickOutside(event) {
 }
 
 watch(query, () => { highlightedIndex.value = 0; });
+watch(effectiveLocationV2, () => { highlightedIndex.value = 0; });
 onMounted(() => {
   dataCache.loadKunden();
   document.addEventListener('mousedown', onClickOutside);
 });
 onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside));
-defineExpose({ focus: () => input.value?.focus() });
+defineExpose({ focus: () => searchBar.value?.focus() });
 </script>
 
 <style scoped>
 .customer-search { position: relative; width: 100%; }
-.customer-search__input-wrap,.customer-search__selected { display:flex; align-items:center; gap:6px; min-height:34px; box-sizing:border-box; padding:0 8px; border:1px solid var(--border); border-radius:6px; background:var(--tile-bg); color:var(--text); font-size:12.5px; }
-.customer-search__input-wrap:focus-within { border-color:var(--primary); }
-.customer-search__icon { flex:0 0 auto; color:var(--muted); font-size:11px; }
-.customer-search input { flex:1; min-width:0; padding:6px 0; border:0; outline:0; background:transparent; color:inherit; font:inherit; }
+.customer-search__selected { display:flex; align-items:center; gap:6px; min-height:34px; box-sizing:border-box; padding:0 8px; border:1px solid var(--border); border-radius:6px; background:var(--tile-bg); color:var(--text); font-size:12.5px; }
 .customer-search__selected { gap:7px; }
 .customer-search__selected span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .customer-search__selected small { margin-left:auto; color:var(--muted); font-size:10px; white-space:nowrap; }
