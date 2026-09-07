@@ -14,7 +14,6 @@
   "employee": {
     "internalEmployeeId": "employee-example-200",
     "personnelNumberSnapshot": "P-EXAMPLE-0200",
-    "paychexEmployeeId": "PAYCHEX-EXAMPLE-0200",
     "displayNameSnapshot": "Alex Beispiel"
   },
   "customer": {

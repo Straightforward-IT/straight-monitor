@@ -141,7 +141,6 @@ const WorkingTimeLedgerSchema = new mongoose.Schema({
   rejectionReason: { type: String, trim: true, maxlength: 2000, default: null },
   lockedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   lockedAt: { type: Date, default: null },
-  payrollRun: { type: mongoose.Schema.Types.ObjectId, ref: 'PayrollRun', default: null },
 
   recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, immutable: true },
   recordedAt: { type: Date, required: true, default: Date.now, immutable: true },
@@ -171,8 +170,8 @@ WorkingTimeLedgerSchema.pre('validate', function validateWorkingTime(next) {
   if (this.status === 'REJECTED' && (!this.rejectedBy || !this.rejectedAt || !this.rejectionReason)) {
     this.invalidate('status', 'Abgelehnte Zeiten benötigen Prüfer, Zeitpunkt und Grund.');
   }
-  if (this.status === 'LOCKED' && (!this.lockedBy || !this.lockedAt || !this.payrollRun)) {
-    this.invalidate('status', 'Gesperrte Zeiten benötigen Sperrvermerk und PayrollRun.');
+  if (this.status === 'LOCKED' && (!this.lockedBy || !this.lockedAt)) {
+    this.invalidate('status', 'Gesperrte Zeiten benötigen Sperrvermerk und Sperrzeitpunkt.');
   }
   next();
 });
@@ -191,7 +190,6 @@ WorkingTimeLedgerSchema.index(
 );
 WorkingTimeLedgerSchema.index({ mitarbeiter: 1, workDate: 1, status: 1 });
 WorkingTimeLedgerSchema.index({ assignmentLedger: 1, workDate: 1 });
-WorkingTimeLedgerSchema.index({ payrollRun: 1, mitarbeiter: 1 });
 WorkingTimeLedgerSchema.index({ source: 1, sourceRef: 1, version: 1 });
 WorkingTimeLedgerSchema.index(
   { mitarbeiter: 1, status: 1, isCurrent: 1 },

@@ -253,8 +253,6 @@ const AssignmentLedgerSchema = new mongoose.Schema({
   recordedAt: { type: Date, required: true, default: Date.now, immutable: true },
   confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   confirmedAt: { type: Date, default: null },
-  payrollRun: { type: mongoose.Schema.Types.ObjectId, ref: 'PayrollRun', default: null },
-  payrollLockedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 AssignmentLedgerSchema.pre('validate', function validateAssignment(next) {
@@ -297,9 +295,6 @@ AssignmentLedgerSchema.pre('validate', function validateAssignment(next) {
       this.invalidate('statutoryPriorRelationshipChecks', 'Bestätigte Einsätze benötigen vollständige gesetzliche Vorbeschäftigungsprüfungen.');
     }
   }
-  if (this.payrollLockedAt && !this.payrollRun) {
-    this.invalidate('payrollRun', 'Eine Payroll-Sperre benötigt einen PayrollRun.');
-  }
   next();
 });
 
@@ -319,7 +314,6 @@ AssignmentLedgerSchema.index({ mitarbeiter: 1, assignmentFrom: 1, assignmentTill
 AssignmentLedgerSchema.index({ kunde: 1, continuityKey: 1, assignmentFrom: 1 });
 AssignmentLedgerSchema.index({ kunde: 1, siteKey: 1, assignmentFrom: 1 });
 AssignmentLedgerSchema.index({ auftrag: 1, status: 1 });
-AssignmentLedgerSchema.index({ payrollRun: 1, mitarbeiter: 1 });
 AssignmentLedgerSchema.index({ source: 1, sourceRef: 1, version: 1 });
 AssignmentLedgerSchema.index(
   { source: 1, sourceRef: 1 },

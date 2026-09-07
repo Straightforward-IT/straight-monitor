@@ -1555,7 +1555,7 @@ export default {
       return this.globalLabels.filter(gl => !existing.has(gl.name.toLowerCase()));
     },
     orderContextMenuItems() {
-      return [
+      const items = [
         {
           label: 'Auftrag öffnen',
           icon: 'fa-solid fa-arrow-up-right-from-square',
@@ -1569,6 +1569,22 @@ export default {
           variant: 'primary',
         },
       ];
+      if (this.contextMenu.event?.kundeData) {
+        items.splice(1, 0, {
+          label: 'Kunde öffnen',
+          icon: 'fa-solid fa-building',
+          action: 'open-customer',
+          variant: 'primary',
+        });
+      }
+      if (this.isAdmin) {
+        items.push({
+          label: 'Stundenerfassung öffnen',
+          icon: 'fa-solid fa-clock',
+          disabled: true,
+        });
+      }
+      return items;
     },
     dayContextMenuItems() {
       return [{
@@ -1829,7 +1845,7 @@ export default {
     openOrderContextMenu(event, auftrag) {
       if (!auftrag) return;
       const menuW = 200;
-      const menuH = 120;
+      const menuH = 160;
       const x = event.clientX + menuW > window.innerWidth ? event.clientX - menuW : event.clientX;
       const y = event.clientY + menuH > window.innerHeight ? event.clientY - menuH : event.clientY;
 
@@ -1874,6 +1890,8 @@ export default {
 
       if (item?.action === 'open') {
         await this.selectEvent(auftrag);
+      } else if (item?.action === 'open-customer' && auftrag.kundeData) {
+        await this.openKundeCard(auftrag.kundeData);
       } else if (item?.action === 'plan-pseudo') {
         await this.selectEvent(auftrag);
         this.openPseudoDialog();

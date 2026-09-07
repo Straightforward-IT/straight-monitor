@@ -75,7 +75,6 @@ const { PDFDocument } = require("pdf-lib");
 const sharp = require("sharp");
 const r2Service = require("../../services/integrations/R2Service");
 const { buildEmployeeR2Path } = require("../../utils/employeeR2Path");
-const stripPayrollOwnedEmployeeFields = require("../../utils/sanitizeMitarbeiterUpdate");
 const progressMap = new Map();
 
 const upload = multer({
@@ -1744,7 +1743,6 @@ router.patch(
     delete updateData.eventreports;
     delete updateData.evaluierungen_received;
     delete updateData.evaluierungen_submitted;
-    stripPayrollOwnedEmployeeFields(updateData);
 
     // Email immer in Kleinbuchstaben speichern, falls sie aktualisiert wird
     if (updateData.email) {

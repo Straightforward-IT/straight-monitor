@@ -5,11 +5,8 @@ const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const User = require('../../models/System/User');
 const AssignmentLedger = require('../../models/Payroll/EinsatzBuch');
 const WorkingTimeLedger = require('../../models/Payroll/ArbeitszeitBuch');
-const PayrollRun = require('../../models/Payroll/PayrollRun');
-const PayrollAuditLog = require('../../models/Payroll/PayrollAuditLog');
 const PayrollError = require('../../utils/PayrollError');
 const { sha256 } = require('../../payroll-core/hash');
-const { markRunRevisionRequired, invalidateEmployeeRuns } = require('./PayrollRunInvalidationService');
 
 const idOf = (value) => value?._id || value || null;
 const idString = (value) => idOf(value)?.toString?.() || '';
@@ -241,31 +238,6 @@ function inheritedFields(current) {
   };
 }
 
-async function auditInput({ actor = null, entry, action, outcome = 'SUCCEEDED', previousStatus, newStatus, summary, reasonCode }) {
-  const userId = actorId(actor);
-  await PayrollAuditLog.create({
-    actor: {
-      user: userId,
-      actorType: userId ? 'USER' : 'SYSTEM',
-      displayId: actor?.email || actor?.name || null,
-    },
-    payrollRun: entry.payrollRun || null,
-    mitarbeiter: entry.mitarbeiter,
-    action,
-    outcome,
-    previousStatus,
-    newStatus,
-    inputHash: entry.contentHash,
-    reasonCode,
-    summary,
-    safeMetadata: {
-      workingTimeId: entry._id,
-      entryKey: entry.entryKey,
-      version: entry.version,
-    },
-  });
-}
-
 async function submitTimer({ employee, entryId, actualStart, actualEnd, breaks = [], clientTimeZone, deviceId, now = new Date() }) {
   if (!mongoose.isValidObjectId(entryId)) throw new PayrollError('WORKING_TIME_ID_INVALID', 'Zeitbuchungs-ID ist ungültig.', 400);
   const current = await WorkingTimeLedger.findOne({ _id: entryId, mitarbeiter: employee._id, isCurrent: true, status: 'OPEN' });
@@ -302,15 +274,6 @@ async function submitTimer({ employee, entryId, actualStart, actualEnd, breaks =
     submittedBy: user?._id || null,
     submittedAt: new Date(),
     contentHash: sha256({ entryKey: current.entryKey, version: current.version + 1, start, end, breaks: actual.breaks, employeeId: employee._id }),
-  });
-  await auditInput({
-    actor: user,
-    entry: submitted,
-    action: 'SUBMIT_INPUT',
-    previousStatus: 'OPEN',
-    newStatus: 'SUBMITTED',
-    reasonCode: 'EMPLOYEE_TIME_SUBMISSION',
-    summary: 'Mitarbeiter hat eine minutengenaue Ist-Zeit eingereicht.',
   });
   return submitted;
 }
@@ -393,15 +356,6 @@ async function recordCompletedEntry({ employee, assignmentId, actualStart, actua
     contentHash,
   });
 
-  await auditInput({
-    actor: user,
-    entry,
-    action: 'SUBMIT_INPUT',
-    previousStatus: null,
-    newStatus: 'SUBMITTED',
-    reasonCode: 'EMPLOYEE_TIME_RECORD',
-    summary: 'Mitarbeiter hat eine abgeschlossene Ist-Zeit nachträglich erfasst.',
-  });
   return entry;
 }
 
@@ -415,15 +369,6 @@ async function approve(entryId, actor) {
   entry.approvedAt = new Date();
   entry.statusHistory.push({ from: 'SUBMITTED', to: 'APPROVED', at: new Date(), by: actorId(actor), reason: 'Ist-Zeit freigegeben' });
   await entry.save();
-  await auditInput({
-    actor,
-    entry,
-    action: 'APPROVE_INPUT',
-    previousStatus: 'SUBMITTED',
-    newStatus: 'APPROVED',
-    reasonCode: 'WORKING_TIME_APPROVED',
-    summary: 'Ist-Zeit im Vier-Augen-Prinzip freigegeben.',
-  });
   return entry;
 }
 
@@ -437,16 +382,6 @@ async function reject(entryId, actor, reason) {
   entry.rejectionReason = String(reason).trim();
   entry.statusHistory.push({ from: 'SUBMITTED', to: 'REJECTED', at: new Date(), by: actorId(actor), reason: entry.rejectionReason });
   await entry.save();
-  await auditInput({
-    actor,
-    entry,
-    action: 'REJECT_INPUT',
-    outcome: 'REJECTED',
-    previousStatus: 'SUBMITTED',
-    newStatus: 'REJECTED',
-    reasonCode: 'WORKING_TIME_REJECTED',
-    summary: entry.rejectionReason,
-  });
   return entry;
 }
 
@@ -459,7 +394,6 @@ async function correct(entryId, actor, { actualStart, actualEnd, breaks = [], re
   const start = wholeMinute(actualStart, 'actualStart');
   const end = wholeMinute(actualEnd, 'actualEnd');
   const actual = calculatedActual({ start, end, breaks, source: 'office' });
-  const previousRun = current.payrollRun ? await PayrollRun.findById(current.payrollRun) : null;
   const corrected = await supersedingEntry(current, {
     ...inheritedFields(current),
     workDate: localDate(start, current.timeZone),
@@ -473,28 +407,6 @@ async function correct(entryId, actor, { actualStart, actualEnd, breaks = [], re
     submittedBy: actorId(actor),
     submittedAt: new Date(),
     contentHash: sha256({ entryKey: current.entryKey, version: current.version + 1, start, end, breaks: actual.breaks, reason, evidenceRefs }),
-  });
-  const revisionReason = `Zeitkorrektur ${corrected._id}`;
-  if (previousRun) await markRunRevisionRequired(previousRun._id, actor, revisionReason);
-  await invalidateEmployeeRuns({
-    employeeId: current.mitarbeiter,
-    validFrom: current.actual?.start || current.workDate,
-    validTill: current.actual?.end || current.workDate,
-    actor,
-    reason: revisionReason,
-  });
-  await PayrollAuditLog.create({
-    actor: { user: actorId(actor), actorType: 'USER', displayId: actor?.email || actor?.name || null },
-    payrollRun: previousRun?._id || null,
-    mitarbeiter: current.mitarbeiter,
-    action: 'CREATE_REVISION',
-    outcome: 'SUCCEEDED',
-    previousStatus: current.status,
-    newStatus: 'SUBMITTED',
-    inputHash: corrected.contentHash,
-    reasonCode: 'WORKING_TIME_CORRECTION',
-    summary: String(reason).trim(),
-    safeMetadata: { previousWorkingTimeId: current._id, correctedWorkingTimeId: corrected._id, evidenceCount: evidenceRefs.length },
   });
   return corrected;
 }
