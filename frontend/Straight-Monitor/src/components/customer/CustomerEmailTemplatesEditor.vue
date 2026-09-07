@@ -94,6 +94,7 @@ import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 
 const props = defineProps({
   kundenNr: { type: [Number, String], required: true },
+  duAnrede: { type: Boolean, default: false },
 });
 
 const templates = ref([]);
@@ -144,7 +145,7 @@ async function load() {
     const { data } = await api.get(`/api/kunden/${props.kundenNr}/email-vorlagen`);
     templates.value = data.templates || [];
     placeholders.value = data.placeholders || {};
-    selectTemplate(templates.value[0]);
+    selectTemplate(templates.value.find((template) => template.type === (props.duAnrede ? 'stundenliste-signature-du' : 'stundenliste-signature')) || templates.value[0]);
   } catch (requestError) {
     error.value = requestError.response?.data?.message || 'E-Mail-Vorlagen konnten nicht geladen werden.';
   } finally {
@@ -205,6 +206,9 @@ async function resetToDefault() {
 }
 
 watch(() => props.kundenNr, load);
+watch(() => props.duAnrede, () => {
+  selectTemplate(templates.value.find((template) => template.type === (props.duAnrede ? 'stundenliste-signature-du' : 'stundenliste-signature')) || templates.value[0]);
+});
 onMounted(load);
 </script>
 

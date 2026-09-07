@@ -76,6 +76,9 @@ describe('Kunden-E-Mail-Vorlagen', () => {
     });
 
     expect(values['signaturkontakt.anrede']).to.equal('Hallo Alex Maria');
+    const rendered = renderTemplate(getDefault(TEMPLATE_TYPES.STUNDENLISTE_SIGNATURE_DU), values);
+    expect(rendered.renderedHtml).to.include('hat dich dazu eingeladen');
+    expect(rendered.renderedHtml).to.include('anbei findest du den Einsatznachweis');
   });
 
   it('zerlegt übergebene Signaturkontaktnamen in Vor- und Nachname', () => {

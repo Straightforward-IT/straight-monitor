@@ -87,7 +87,23 @@
       </div>
     </template>
 
-    <CustomerEmailTemplatesEditor v-else-if="section === 'email'" :kunden-nr="kunde.kundenNr" />
+    <section v-else-if="section === 'email'" class="signature-email-settings">
+      <label class="signature-du-greeting-toggle">
+        <input
+          v-model="stundenlisteSignaturDuAnrede"
+          type="checkbox"
+          :disabled="stundenlisteDuAnredeSaving"
+          @change="saveStundenlisteDuAnrede"
+        />
+        <span>
+          <strong>Stundenliste mit Du-Anrede</strong>
+          <small>Die E-Mail-Vorschau verwendet sofort „Hallo {Vorname}“.</small>
+        </span>
+        <font-awesome-icon v-if="stundenlisteDuAnredeSaving" :icon="['fas', 'spinner']" spin />
+      </label>
+      <p v-if="stundenlisteDuAnredeError" class="signature-du-greeting-error">{{ stundenlisteDuAnredeError }}</p>
+      <CustomerEmailTemplatesEditor :kunden-nr="kunde.kundenNr" :du-anrede="stundenlisteSignaturDuAnrede" />
+    </section>
 
     <section v-else class="delivery-defaults">
       <label>
@@ -176,6 +192,30 @@ const graphContacts = ref([]);
 const deliveryLoading = ref(false);
 const deliverySaving = ref(false);
 const deliveryError = ref('');
+const stundenlisteSignaturDuAnrede = ref(props.kunde.stundenlisteSignaturDuAnrede === true);
+const stundenlisteDuAnredeSaving = ref(false);
+const stundenlisteDuAnredeError = ref('');
+
+watch(() => props.kunde.stundenlisteSignaturDuAnrede, (value) => {
+  if (!stundenlisteDuAnredeSaving.value) stundenlisteSignaturDuAnrede.value = value === true;
+});
+
+async function saveStundenlisteDuAnrede() {
+  const previousValue = props.kunde.stundenlisteSignaturDuAnrede === true;
+  stundenlisteDuAnredeSaving.value = true;
+  stundenlisteDuAnredeError.value = '';
+  try {
+    await api.put(`/api/kunden/${props.kunde._id}`, {
+      stundenlisteSignaturDuAnrede: stundenlisteSignaturDuAnrede.value,
+    });
+    props.kunde.stundenlisteSignaturDuAnrede = stundenlisteSignaturDuAnrede.value;
+  } catch (requestError) {
+    stundenlisteSignaturDuAnrede.value = previousValue;
+    stundenlisteDuAnredeError.value = requestError.response?.data?.message || 'Einstellung konnte nicht gespeichert werden.';
+  } finally {
+    stundenlisteDuAnredeSaving.value = false;
+  }
+}
 
 const hasDefaultStatuses = computed(() =>
   statuses.value.length === defaultStatuses.length
@@ -395,6 +435,14 @@ onBeforeUnmount(() => eventSource?.close());
 .filter-label { margin-right:.15rem; color:var(--muted); font-size:.68rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
 .filter-reset { padding:.25rem .4rem; border:0; color:var(--primary); background:transparent; font-size:.72rem; cursor:pointer; }
 .signature-list { display:grid; gap:.6rem; }
+.signature-email-settings { display:grid; gap:.6rem; }
+.signature-du-greeting-toggle { display:flex; align-items:center; gap:.65rem; max-width:720px; padding:.7rem .8rem; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--panel); cursor:pointer; }
+.signature-du-greeting-toggle input { flex:0 0 auto; width:1rem; height:1rem; accent-color:var(--primary); }
+.signature-du-greeting-toggle > span { display:grid; gap:.1rem; min-width:0; flex:1; }
+.signature-du-greeting-toggle strong { font-size:.84rem; }
+.signature-du-greeting-toggle small { color:var(--muted); font-size:.76rem; }
+.signature-du-greeting-toggle:has(input:disabled) { cursor:wait; opacity:.75; }
+.signature-du-greeting-error { margin:0; color:#e6584f; font-size:.8rem; }
 .signature-state,.signature-empty { display:flex; align-items:center; justify-content:center; gap:.75rem; min-height:150px; padding:1rem; border:1px dashed var(--border); border-radius:10px; color:var(--muted); background:var(--panel); }
 .signature-state > svg { color:var(--primary); font-size:1.2rem; }
 .signature-state button { padding:.4rem .65rem; border:1px solid var(--border); border-radius:7px; color:var(--text); background:var(--surface); cursor:pointer; }

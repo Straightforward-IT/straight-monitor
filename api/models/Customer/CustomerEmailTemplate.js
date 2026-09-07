@@ -4,7 +4,7 @@ const CustomerEmailTemplateSchema = new mongoose.Schema({
   kunde: { type: mongoose.Schema.Types.ObjectId, ref: 'Kunde', required: true, index: true },
   type: {
     type: String,
-    enum: ['stundenliste-signature'],
+    enum: ['stundenliste-signature', 'stundenliste-signature-du'],
     required: true,
   },
   subjectTemplate: { type: String, required: true, trim: true, maxlength: 300 },
