@@ -29,6 +29,7 @@ const PLACEHOLDERS = Object.freeze({
   'einsatzort.adresse': 'Vollständige Einsatzadresse',
   'signatur.dokumentname': 'Dokumentname',
   'signatur.link': 'Link zur Unterschrift',
+  'signatur.auslieferungsadressen': 'E-Mail-Adressen der Folgeaktion Auslieferung',
   standort: 'Straight-Monitor-Standort',
 });
 
@@ -37,12 +38,12 @@ const DEFAULTS = Object.freeze({
     type: TEMPLATE_TYPES.STUNDENLISTE_SIGNATURE,
     label: 'Stundenliste zur Unterschrift',
     description: 'Wird an den Signaturkontakt des Kunden gesendet, sobald die Stundenliste zur Unterschrift bereitsteht.',
-    subjectTemplate: 'Stundenliste {{auftrag.nummer}} – Bitte um Unterschrift',
-    htmlTemplate: '<p>{{signaturkontakt.anrede}},</p><p>bitte prüfen und unterschreiben Sie die Stundenliste für <strong>{{auftrag.titel}}</strong> (Auftrag {{auftrag.nummer}}).</p><p><a href="{{signatur.link}}">Stundenliste prüfen und unterschreiben</a></p><p>Vielen Dank und freundliche Grüße<br>{{standort}}</p>',
+    subjectTemplate: 'Einsatznachweis {{auftrag.von}} >Straightforward',
+    htmlTemplate: '<p><img src="cid:straightforward-logo" alt="Straightforward" width="140"></p><table border="1" cellpadding="18" cellspacing="0" width="100%"><tbody><tr><td><h3>Hallo {{signaturkontakt.vorname}} {{signaturkontakt.nachname}},</h3><p>H. &amp; P. Straightforward GmbH hat Sie dazu eingeladen,<br><strong>&quot;{{signatur.dokumentname}}&quot;</strong><br>zu unterschreiben.</p><hr><p>Klicken Sie auf den unten stehenden Button, um die Dokumente durchzulesen und zu unterschreiben:</p><table cellpadding="0" cellspacing="0" align="center"><tbody><tr><td bgcolor="#1d1d1d"><a href="{{signatur.link}}" style="display:inline-block;padding:14px 24px;color:#ffffff;background-color:#1d1d1d;font-weight:bold;text-decoration:none;">DOKUMENTE AUFRUFEN</a></td></tr></tbody></table><p><strong>Sie haben bis {{auftrag.von}} um 23:59 Uhr Zeit, die Dokumente zu unterschreiben.</strong></p></td></tr></tbody></table><p></p><table border="1" cellpadding="18" cellspacing="0" width="100%"><tbody><tr><td><h4>Hallo {{signaturkontakt.vorname}},</h4><p>anbei findest du den Einsatznachweis für den kommenden Einsatz.<br>Bitte diesen Nachweis vor dem Einsatz digital signieren.</p><p><strong>Nach der Signatur wird dieser Nachweis an folgende Mailadressen weitergeleitet:</strong><br><a href="mailto:{{signatur.auslieferungsadressen}}">{{signatur.auslieferungsadressen}}</a>.</p></td></tr></tbody></table><p><strong>Viele Grüße<br>&gt;Straightforward</strong></p><p><small>*Alle Daten werden in der folgenden Zeitzone angezeigt: <strong>UTC+02:00</strong>, Europe/Berlin</small></p>',
   }),
 });
 
-const ALLOWED_TAGS = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'a', 'h3', 'h4'];
+const ALLOWED_TAGS = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'small', 'ul', 'ol', 'li', 'a', 'img', 'hr', 'table', 'tbody', 'tr', 'td', 'h3', 'h4'];
 
 function validationError(message) {
   const error = new Error(message);
@@ -62,8 +63,13 @@ function escapeHtml(value) {
 function sanitizeTemplate(value) {
   return sanitizeHtml(String(value || ''), {
     allowedTags: ALLOWED_TAGS,
-    allowedAttributes: { a: ['href', 'target', 'rel'] },
-    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    allowedAttributes: {
+      a: ['href', 'target', 'rel', 'style'],
+      img: ['src', 'alt', 'width', 'height'],
+      table: ['border', 'cellpadding', 'cellspacing', 'width', 'bgcolor', 'align'],
+      td: ['bgcolor'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto', 'tel', 'cid'],
     transformTags: {
       a: sanitizeHtml.simpleTransform('a', { target: '_blank', rel: 'noopener noreferrer' }, true),
     },
@@ -83,6 +89,7 @@ function validateTextmarks(value) {
 
 function prepareSubject(value) {
   const subject = sanitizeHtml(String(value || ''), { allowedTags: [], allowedAttributes: {} })
+    .replace(/&gt;/g, '>')
     .replace(/[\r\n]+/g, ' ')
     .trim();
   if (!subject) throw validationError('Ein Betreff ist erforderlich.');
@@ -152,7 +159,8 @@ function buildValues({ kunde = {}, auftrag = {}, signaturkontakt = {}, signatur 
     'einsatzort.adresse': [ortName, auftrag.eventStrasse, plzOrt].filter(Boolean).join(', '),
     'signatur.dokumentname': signatur.dokumentname || '',
     'signatur.link': signatur.link || '',
-    standort: location.shortName || location.nameFull || auftrag.geschSt || '',
+    'signatur.auslieferungsadressen': (signatur.auslieferungsadressen || []).filter(Boolean).join(', '),
+    standort: location.nameFull || location.shortName || auftrag.geschSt || '',
   };
 }
 

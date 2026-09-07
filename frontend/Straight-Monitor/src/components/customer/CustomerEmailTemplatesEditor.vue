@@ -50,7 +50,8 @@
         <RichTextTemplateEditor
           v-model="form.htmlTemplate"
           :textmarks="textmarks"
-          :preview-html="preview.renderedHtml"
+          :preview-html="previewHtml"
+          :inline-image-previews="{ 'cid:straightforward-logo': straightforwardLogoBlack }"
           :unresolved="preview.unresolvedPlaceholders"
           placeholder="E-Mail-Text eingeben …"
           @change="loadPreview"
@@ -87,6 +88,7 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import api from '@/utils/api';
+import straightforwardLogoBlack from '@/assets/straightforward-logo-black.png';
 import RichTextTemplateEditor from '@/components/ui-elements/RichTextTemplateEditor.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 
@@ -106,6 +108,7 @@ const form = reactive({
 });
 
 const textmarks = computed(() => Object.entries(placeholders.value).map(([key, label]) => ({ key, label })));
+const previewHtml = computed(() => preview.renderedHtml.replaceAll('cid:straightforward-logo', straightforwardLogoBlack));
 
 async function insertSubjectMark(key) {
   const input = subjectInput.value;

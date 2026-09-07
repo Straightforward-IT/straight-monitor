@@ -1,12 +1,8 @@
 <template>
   <section class="customer-signatures">
-    <div class="signature-intro">
-      <div>
-        <span class="signature-kicker">Dokumente & Unterschriften</span>
-        <h4>Signatur</h4>
-      </div>
-      <p>Alle Signaturvorgänge dieses Kunden und die zugehörige Stundenlisten-Kommunikation an einem Ort.</p>
-    </div>
+    <h4 class="section-title">
+      <font-awesome-icon :icon="['fas', 'file-signature']" /> Signatur
+    </h4>
 
     <nav class="signature-sections" aria-label="Signaturbereiche">
       <button type="button" :class="{ active: section === 'overview' }" @click="section = 'overview'">
@@ -268,10 +264,6 @@ onBeforeUnmount(() => eventSource?.close());
 
 <style scoped>
 .customer-signatures { display:grid; gap:.8rem; }
-.signature-intro { display:flex; align-items:flex-end; justify-content:space-between; gap:1.2rem; }
-.signature-intro h4 { margin:.15rem 0 0; font-size:1.35rem; }
-.signature-intro p { max-width:620px; margin:0; color:var(--text-secondary, #64748b); line-height:1.5; }
-.signature-kicker { color:var(--primary); font-size:.7rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
 .signature-sections { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.65rem; }
 .signature-sections button { display:flex; align-items:center; gap:.7rem; min-height:58px; padding:.7rem .8rem; border:1px solid var(--border); border-radius:9px; color:var(--text); background:var(--surface); text-align:left; cursor:pointer; }
 .signature-sections button > svg { color:var(--muted); font-size:1rem; }
@@ -296,7 +288,6 @@ onBeforeUnmount(() => eventSource?.close());
 .signature-empty strong { color:var(--text); }
 .signature-empty small { color:var(--muted); }
 @media (max-width:760px) {
-  .signature-intro { align-items:flex-start; flex-direction:column; gap:.5rem; }
   .signature-sections { grid-template-columns:1fr; }
   .signature-sections button { min-height:48px; }
   .signature-toolbar :deep(.toolbar) { flex-wrap:wrap; }

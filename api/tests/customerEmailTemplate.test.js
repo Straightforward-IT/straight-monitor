@@ -21,9 +21,10 @@ describe('Kunden-E-Mail-Vorlagen', () => {
 
   it('liefert für Stundenlisten eine vollständige Systemvorlage', () => {
     const template = getDefault(TEMPLATE_TYPES.STUNDENLISTE_SIGNATURE);
-    expect(template.subjectTemplate).to.include('{{auftrag.nummer}}');
+    expect(template.subjectTemplate).to.include('{{auftrag.von}}');
     expect(template.htmlTemplate).to.include('{{signatur.link}}');
     expect(PLACEHOLDERS).to.have.property('signaturkontakt.vorname');
+    expect(PLACEHOLDERS).to.have.property('signatur.auslieferungsadressen');
     expect(PLACEHOLDERS).to.have.property('einsatzort.adresse');
   });
 
@@ -50,14 +51,19 @@ describe('Kunden-E-Mail-Vorlagen', () => {
         eventOrt: 'Hamburg',
       },
       signaturkontakt: { name: 'Alex Mustermann', email: 'alex@example.com' },
-      signatur: { dokumentname: 'Stundenliste', link: 'https://docuseal.eu/s/abc' },
-      location: { shortName: 'HH' },
+      signatur: {
+        dokumentname: 'Stundenliste',
+        link: 'https://docuseal.eu/s/abc',
+        auslieferungsadressen: ['dispo@example.com'],
+      },
+      location: { nameFull: 'Hamburg', shortName: 'HH' },
     });
     const rendered = renderTemplate(getDefault(TEMPLATE_TYPES.STUNDENLISTE_SIGNATURE), values);
-    expect(rendered.subject).to.equal('Stundenliste 4711 – Bitte um Unterschrift');
-    expect(rendered.renderedHtml).to.include('Guten Tag Alex Mustermann');
-    expect(rendered.renderedHtml).to.include('Sommerfest &lt;Nord&gt;');
+    expect(rendered.subject).to.equal('Einsatznachweis 04.09.2026 >Straightforward');
+    expect(rendered.renderedHtml).to.include('Hallo Alex Mustermann');
+    expect(rendered.renderedHtml).to.include('src="cid:straightforward-logo"');
     expect(rendered.renderedHtml).to.include('href="https://docuseal.eu/s/abc"');
+    expect(rendered.renderedHtml).to.include('mailto:dispo@example.com');
     expect(rendered.unresolvedPlaceholders).to.deep.equal([]);
   });
 

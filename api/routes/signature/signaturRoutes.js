@@ -682,7 +682,11 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
             auftrag,
             location,
             signaturkontakt: { name: recipient.name || '', email: recipientEmail },
-            signatur: { dokumentname: docName, link: signingLink },
+            signatur: {
+              dokumentname: docName,
+              link: signingLink,
+              auslieferungsadressen: (folgeaktionen?.ausliefernAn || []).map(({ email }) => email),
+            },
           });
           await sendMail(recipientEmail, renderedEmail.subject, renderedEmail.renderedHtml, 'it');
           logger.info(`[SignaturenRoute Stundenliste ${auftragNr}] E-Mail gesendet an ${recipientEmail}`);

@@ -48,6 +48,7 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   textmarks: { type: Array, default: () => [] },
   previewHtml: { type: String, default: '' },
+  inlineImagePreviews: { type: Object, default: () => ({}) },
   unresolved: { type: Array, default: () => [] },
   placeholder: { type: String, default: 'Einsatzinformationen eingeben …' },
 });
@@ -55,13 +56,24 @@ const emit = defineEmits(['update:modelValue', 'change']);
 const editor = ref(null);
 const focused = ref(false);
 
+function replaceInlineImageSources(html, replacements) {
+  return Object.entries(replacements).reduce(
+    (result, [source, replacement]) => result.split(source).join(replacement),
+    html || '',
+  );
+}
+
 function syncEditor() {
-  if (!editor.value || focused.value || editor.value.innerHTML === props.modelValue) return;
-  editor.value.innerHTML = props.modelValue || '';
+  const editableHtml = replaceInlineImageSources(props.modelValue, props.inlineImagePreviews);
+  if (!editor.value || focused.value || editor.value.innerHTML === editableHtml) return;
+  editor.value.innerHTML = editableHtml;
 }
 
 function emitValue() {
-  const value = editor.value?.innerHTML || '';
+  const reversePreviews = Object.fromEntries(
+    Object.entries(props.inlineImagePreviews).map(([source, preview]) => [preview, source]),
+  );
+  const value = replaceInlineImageSources(editor.value?.innerHTML, reversePreviews);
   emit('update:modelValue', value);
 }
 

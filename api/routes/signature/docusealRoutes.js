@@ -17,6 +17,7 @@ const {
   TEMPLATE_TYPES: CUSTOMER_EMAIL_TEMPLATE_TYPES,
   renderResolvedTemplate: renderResolvedCustomerEmailTemplate,
 } = require('../../services/operations/CustomerEmailTemplateService');
+const { resolveLocationFromGeschSt } = require('../../services/operations/LocationResolutionService');
 
 const router = express.Router();
 
@@ -303,6 +304,7 @@ router.get('/stundenliste/:auftragNr/signers', auth, asyncHandler(async (req, re
   const kunde = auftrag.kundenNr
     ? await Kunde.findOne({ kundenNr: auftrag.kundenNr }).lean()
     : null;
+  const location = await resolveLocationFromGeschSt(auftrag.geschSt);
 
   const verleiher = StundenlisteService.getVerleiherSigner(auftrag);
 
@@ -436,6 +438,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
           type: CUSTOMER_EMAIL_TEMPLATE_TYPES.STUNDENLISTE_SIGNATURE,
           kunde,
           auftrag,
+          location,
           signaturkontakt: { name: recipientName, email: recipientEmail },
           signatur: { dokumentname: docName, link: signingLink },
         });

@@ -56,7 +56,20 @@ async function sendMail(
       name: att.name,
       contentBytes: att.content,
       contentType: att.contentType || "application/pdf",
+      ...(att.isInline ? { isInline: true, contentId: att.contentId } : {}),
     }));
+
+    if (/cid:straightforward-logo/i.test(content)) {
+      const logoPath = path.join(__dirname, '../../assets/straightforward-logo-black.png');
+      combinedAttachments.push({
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        name: 'straightforward-logo-black.png',
+        contentBytes: fs.readFileSync(logoPath).toString('base64'),
+        contentType: 'image/png',
+        isInline: true,
+        contentId: 'straightforward-logo',
+      });
+    }
 
     const mail = {
       message: {
