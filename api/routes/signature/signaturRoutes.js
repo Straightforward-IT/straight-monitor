@@ -48,10 +48,8 @@ function broadcastSignaturEvent(type, payload) {
 
 async function requireSignaturAccess(req, res) {
   const user = await User.findById(req.user.id).select('role roles');
-  const isAdmin = !!user && (user.roles?.includes('ADMIN') || user.role === 'ADMIN');
-  const isVertrieb = !!user && user.roles?.includes('VERTRIEB');
-  if (!isAdmin && !isVertrieb) {
-    res.status(403).json({ message: 'Zugriff verweigert – nur für Admins und Vertrieb' });
+  if (!user) {
+    res.status(403).json({ message: 'Zugriff verweigert' });
     return null;
   }
   return user;

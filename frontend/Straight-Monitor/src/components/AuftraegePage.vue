@@ -1450,7 +1450,7 @@ export default {
       return Array.isArray(u.roles) && u.roles.includes('VERTRIEB');
     },
     canSignaturen() {
-      return this.isAdmin || this.isVertrieb;
+      return Boolean(this.user);
     },
     canManageStundenliste() {
       return Boolean(this.user);
