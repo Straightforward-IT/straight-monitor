@@ -19,16 +19,6 @@
       </button>
     </nav>
 
-    <label class="stundenliste-double-copy-toggle">
-      <input v-model="stundenlisteSignaturDoppelt" type="checkbox" :disabled="stundenlisteSettingSaving" @change="saveStundenlisteSetting" />
-      <span>
-        <strong>Stundenliste als Doppelausfertigung</strong>
-        <small>Die erste Signaturausfertigung sperrt Beginn bis Unterschrift; die zweite bleibt leer.</small>
-      </span>
-      <font-awesome-icon v-if="stundenlisteSettingSaving" :icon="['fas', 'spinner']" spin />
-    </label>
-    <p v-if="stundenlisteSettingError" class="stundenliste-double-copy-error">{{ stundenlisteSettingError }}</p>
-
     <template v-if="section === 'overview'">
       <Toolbar class="signature-toolbar">
         <SearchBar v-model="search" placeholder="Signaturen durchsuchen …" class="signature-search" />
@@ -186,9 +176,6 @@ const graphContacts = ref([]);
 const deliveryLoading = ref(false);
 const deliverySaving = ref(false);
 const deliveryError = ref('');
-const stundenlisteSignaturDoppelt = ref(props.kunde.stundenlisteSignaturDoppelt === true);
-const stundenlisteSettingSaving = ref(false);
-const stundenlisteSettingError = ref('');
 
 const hasDefaultStatuses = computed(() =>
   statuses.value.length === defaultStatuses.length
@@ -285,27 +272,6 @@ function editDraft(vorgang) {
     kundeId: props.kunde._id || null,
     kundenKuerzel: props.kunde.kuerzel || null,
   }, upsertVorgang);
-}
-
-watch(() => props.kunde.stundenlisteSignaturDoppelt, (value) => {
-  if (!stundenlisteSettingSaving.value) stundenlisteSignaturDoppelt.value = value === true;
-});
-
-async function saveStundenlisteSetting() {
-  const previousValue = props.kunde.stundenlisteSignaturDoppelt === true;
-  stundenlisteSettingSaving.value = true;
-  stundenlisteSettingError.value = '';
-  try {
-    await api.put(`/api/kunden/${props.kunde._id}`, {
-      stundenlisteSignaturDoppelt: stundenlisteSignaturDoppelt.value,
-    });
-    props.kunde.stundenlisteSignaturDoppelt = stundenlisteSignaturDoppelt.value;
-  } catch (requestError) {
-    stundenlisteSignaturDoppelt.value = previousValue;
-    stundenlisteSettingError.value = requestError.response?.data?.message || 'Einstellung konnte nicht gespeichert werden.';
-  } finally {
-    stundenlisteSettingSaving.value = false;
-  }
 }
 
 function addDeliveryRecipient(recipient = deliveryRecipient.value) {
@@ -422,13 +388,6 @@ onBeforeUnmount(() => eventSource?.close());
 .signature-sections button:hover { border-color:color-mix(in srgb,var(--primary) 55%,var(--border)); }
 .signature-sections button.active { border-color:var(--primary); background:color-mix(in srgb,var(--primary) 7%,var(--surface)); box-shadow:inset 0 0 0 1px var(--primary); }
 .signature-sections button.active > svg { color:var(--primary); }
-.stundenliste-double-copy-toggle { display:flex; align-items:center; gap:.7rem; padding:.75rem .8rem; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--panel); cursor:pointer; }
-.stundenliste-double-copy-toggle input { width:1rem; height:1rem; accent-color:var(--primary); }
-.stundenliste-double-copy-toggle > span { display:grid; gap:.12rem; flex:1; }
-.stundenliste-double-copy-toggle small { color:var(--muted); }
-.stundenliste-double-copy-toggle > svg { color:var(--primary); }
-.stundenliste-double-copy-toggle:has(input:disabled) { cursor:wait; opacity:.75; }
-.stundenliste-double-copy-error { margin:0; color:#e6584f; font-size:.82rem; }
 .signature-toolbar { margin:0; }
 .signature-search { min-width:min(340px,40vw); }
 .signature-filters { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem; padding:.15rem .15rem 0; }

@@ -471,6 +471,23 @@
       </section>
 
       <CustomerSignaturesPanel v-if="activeTab === 'signatur'" class="section" :kunde="kunde" />
+      <section v-if="activeTab === 'einstellungen'" class="section customer-settings-section">
+        <h4 class="section-title">
+          <font-awesome-icon :icon="['fas', 'gear']" /> Einstellungen
+        </h4>
+        <section class="customer-settings-group">
+          <h5><font-awesome-icon :icon="['fas', 'file-signature']" /> Signatur</h5>
+          <label class="stundenliste-double-copy-toggle">
+            <input v-model="stundenlisteSignaturDoppelt" type="checkbox" :disabled="stundenlisteSettingSaving" @change="saveStundenlisteSetting" />
+            <span>
+              <strong>Stundenliste als Doppelausfertigung</strong>
+              <small>Erste Ausfertigung sperrt Beginn bis Unterschrift; die zweite bleibt leer.</small>
+            </span>
+            <font-awesome-icon v-if="stundenlisteSettingSaving" :icon="['fas', 'spinner']" spin />
+          </label>
+          <p v-if="stundenlisteSettingError" class="stundenliste-double-copy-error">{{ stundenlisteSettingError }}</p>
+        </section>
+      </section>
 
       <!-- Statistik -->
       <section v-if="activeTab === 'statistik' && kunde.kundenNr && canSeeSensitiveKpi" class="section analytics-section">
@@ -1025,6 +1042,7 @@ const tabs = [
   { id: 'einsatzinfos', label: 'Vorlagen', icon: 'envelope-open-text' },
   { id: 'lohn', label: 'Lohn', icon: 'coins' },
   { id: 'statistik', label: 'Statistik', icon: 'chart-bar' },
+  { id: 'einstellungen', label: 'Einstellungen', icon: 'gear' },
 ];
 const canSeeSensitiveKpi = computed(() => {
   const primaryRole = String(auth.user?.role || '').toUpperCase();
@@ -1089,11 +1107,35 @@ const eRechnungForm = ref({
 });
 const eRechnungSaving = ref(false);
 const eRechnungError = ref('');
+const stundenlisteSignaturDoppelt = ref(props.kunde.stundenlisteSignaturDoppelt === true);
+const stundenlisteSettingSaving = ref(false);
+const stundenlisteSettingError = ref('');
 
 watch(() => [props.kunde.leitwegId, props.kunde.eRechnungFormat, props.kunde.mwst], ([leitwegId, eRechnungFormat, mwst]) => {
   if (eRechnungSaving.value) return;
   eRechnungForm.value = { leitwegId: leitwegId || '', eRechnungFormat: eRechnungFormat || '', mwst: mwst ?? null };
 });
+
+watch(() => props.kunde.stundenlisteSignaturDoppelt, (value) => {
+  if (!stundenlisteSettingSaving.value) stundenlisteSignaturDoppelt.value = value === true;
+});
+
+async function saveStundenlisteSetting() {
+  const previousValue = props.kunde.stundenlisteSignaturDoppelt === true;
+  stundenlisteSettingSaving.value = true;
+  stundenlisteSettingError.value = '';
+  try {
+    await api.put(`/api/kunden/${props.kunde._id}`, {
+      stundenlisteSignaturDoppelt: stundenlisteSignaturDoppelt.value,
+    });
+    props.kunde.stundenlisteSignaturDoppelt = stundenlisteSignaturDoppelt.value;
+  } catch (error) {
+    stundenlisteSignaturDoppelt.value = previousValue;
+    stundenlisteSettingError.value = error.response?.data?.message || 'Einstellung konnte nicht gespeichert werden.';
+  } finally {
+    stundenlisteSettingSaving.value = false;
+  }
+}
 
 async function saveERechnungSettings() {
   eRechnungSaving.value = true;
@@ -2921,6 +2963,20 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   
   svg { color: var(--muted); }
 }
+
+.customer-settings-section { display: grid; gap: .45rem; max-width: 500px; }
+.customer-settings-section .section-title { margin-bottom: 0; }
+.customer-settings-group { display: grid; gap: .4rem; padding: .55rem .65rem; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.customer-settings-group h5 { display: flex; align-items: center; gap: .4rem; margin: 0; font-size: .76rem; color: var(--text); }
+.customer-settings-group h5 svg { color: var(--primary); }
+.stundenliste-double-copy-toggle { display: flex; align-items: center; gap: .55rem; color: var(--text); cursor: pointer; }
+.stundenliste-double-copy-toggle input { width: 1rem; height: 1rem; accent-color: var(--primary); }
+.stundenliste-double-copy-toggle > span { display: grid; gap: .1rem; flex: 1; }
+.stundenliste-double-copy-toggle strong { font-size: .86rem; }
+.stundenliste-double-copy-toggle small { color: var(--muted); font-size: .76rem; }
+.stundenliste-double-copy-toggle > svg { color: var(--primary); }
+.stundenliste-double-copy-toggle:has(input:disabled) { cursor: wait; opacity: .75; }
+.stundenliste-double-copy-error { margin: 0; color: #e6584f; font-size: .8rem; }
 
 .btn-add-contact {
   margin-left: auto;
