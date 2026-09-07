@@ -673,6 +673,11 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   const docName = requestedName || buildStundenlisteName(auftrag);
   const pdfFilename = buildStundenlistePdfFilename(auftrag);
   const today = new Date().toISOString().split('T')[0];
+  const unsignedPdfKey = draftVorgang?.r2KeyUnsigned || `stundenlisten/${auftragNr}.pdf`;
+
+  // Keep the persisted preview source in sync with the exact PDF sent to DocuSeal.
+  // Reusing this key intentionally replaces an earlier draft or issued version.
+  await R2Service.uploadFile(unsignedPdfKey, buffer, 'application/pdf');
 
   const requestedSubmitters = [
     { role: 'Verleiher', name: verleiherSigner.name, email: verleiherSigner.email, embedded: true },
@@ -740,6 +745,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     submissionId,
     submitters: storedSubmitters,
     r2Prefix,
+    r2KeyUnsigned: unsignedPdfKey,
 
     folgeaktionen: folgeaktionen || undefined,
 

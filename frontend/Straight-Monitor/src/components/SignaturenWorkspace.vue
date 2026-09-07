@@ -331,12 +331,12 @@ const filteredVorgaenge = computed(() => {
     }
     return true;
   });
-  // Starred first, then newest
+  // Starred first, then most recently issued or updated.
   return [...list].sort((a, b) => {
     const as = starred.value.includes(a._id) ? 0 : 1;
     const bs = starred.value.includes(b._id) ? 0 : 1;
     if (as !== bs) return as - bs;
-    return new Date(b.createdAt) - new Date(a.createdAt);
+    return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
   });
 });
 
