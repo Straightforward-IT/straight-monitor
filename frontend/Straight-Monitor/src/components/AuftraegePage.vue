@@ -334,10 +334,16 @@
                 class="shift-row shift-row--stacked"
               >
                 <div class="shift-details">
-                  <span class="shift-time">{{ s.uhrzeitVon || '?' }}{{ s.uhrzeitBis ? '–' + s.uhrzeitBis : '' }}</span>
+                  <div class="shift-time-row">
+                    <span class="shift-time">{{ s.uhrzeitVon || '?' }}{{ s.uhrzeitBis ? '–' + s.uhrzeitBis : '' }}</span>
+                    <span
+                      v-if="s.bedarf != null"
+                      class="shift-pos team-coverage"
+                      :class="s.besetzt >= s.bedarf ? 'met' : s.besetzt ? 'unmet' : 'empty'"
+                    >{{ s.besetzt || 0 }}/{{ s.bedarf }}</span>
+                  </div>
                   <span class="shift-name">{{ s.bezeichnung || 'Schicht' }}</span>
                 </div>
-                <span v-if="filters.displayLevels.einsatz" class="shift-pos">{{ s.besetzt }}/{{ s.bedarf }}</span>
                 <ul v-if="filters.displayLevels.einsatz && s.einsaetze?.length" class="shift-einsaetze">
                   <li v-for="name in s.einsaetze" :key="name">{{ name }}</li>
                 </ul>
@@ -3608,6 +3614,11 @@ export default {
     background: #fef3c7;
     color: #92400e;
   }
+
+  &.empty {
+    background: #fee2e2;
+    color: #991b1b;
+  }
 }
 
 .mitarbeiter-row {
@@ -4909,6 +4920,17 @@ export default {
 .shift-details .shift-time,
 .shift-details .shift-name {
   min-width: 0;
+}
+
+.shift-time-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.shift-time-row .shift-time {
+  flex: 1;
 }
 
 .shift-time {
