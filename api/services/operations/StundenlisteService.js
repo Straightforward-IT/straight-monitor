@@ -80,57 +80,20 @@ class StundenlisteService {
     return sha256(this._getRenderedDataSnapshot(data));
   }
 
-  _getRenderedDataSnapshot({ auftrag, kunde, einsaetze, schichten, niederlassung }) {
+  _getRenderedDataSnapshot({ einsaetze, schichten }) {
     return {
-      auftrag: {
-        eventTitel: auftrag.eventTitel,
-        vonDatum: auftrag.vonDatum,
-        bisDatum: auftrag.bisDatum,
-        eventLocation: auftrag.eventLocation,
-        eventStrasse: auftrag.eventStrasse,
-        eventPlz: auftrag.eventPlz,
-        eventOrt: auftrag.eventOrt,
-        referenz: auftrag.referenz,
-      },
-      kunde: {
-        kundName: kunde?.kundName,
-        adresse: this._entleiherAdresse(kunde),
-      },
-      niederlassung: niederlassung && {
-        name: niederlassung.name,
-        betriebsNr: niederlassung.betriebsNr,
-        telefone: niederlassung.telefone,
-        email: niederlassung.email,
-      },
-      schichten: schichten.map(schicht => ({
-        idAuftragArbeitsschichten: schicht.idAuftragArbeitsschichten,
-        bezeichnung: schicht.bezeichnung,
+      einsatzPersonalnummern: einsaetze
+        .map(einsatz => String(einsatz.personalNr ?? ''))
+        .sort(),
+      schichtZeitfenster: schichten
+        .map(schicht => ({
         datumVon: schicht.datumVon,
+        datumBis: schicht.datumBis,
         uhrzeitVon: schicht.uhrzeitVon,
         uhrzeitBis: schicht.uhrzeitBis,
         endeOffen: schicht.endeOffen,
-      })),
-      einsaetze: einsaetze.map(einsatz => ({
-        idAuftragArbeitsschichten: einsatz.idAuftragArbeitsschichten,
-        personalNr: einsatz.personalNr,
-        bezeichnung: einsatz.bezeichnung,
-        datumVon: einsatz.datumVon,
-        berufSchl: einsatz.berufSchl,
-        qualSchl: einsatz.qualSchl,
-        mitarbeiter: einsatz.mitarbeiterData && {
-          vorname: einsatz.mitarbeiterData.vorname,
-          nachname: einsatz.mitarbeiterData.nachname,
-          geburtsdatum: einsatz.mitarbeiterData.geburtsdatum,
-        },
-        beruf: einsatz.berufData && {
-          jobKey: einsatz.berufData.jobKey,
-          designation: einsatz.berufData.designation,
-        },
-        qualifikation: einsatz.qualifikationData && {
-          qualificationKey: einsatz.qualifikationData.qualificationKey,
-          designation: einsatz.qualifikationData.designation,
-        },
-      })),
+      }))
+        .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
     };
   }
 

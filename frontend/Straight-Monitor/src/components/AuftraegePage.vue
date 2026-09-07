@@ -4268,6 +4268,10 @@ export default {
   filter: hue-rotate(8deg) saturate(1.25);
 }
 
+.event-signature-complete--completed.event-signature-complete--outdated {
+  filter: hue-rotate(150deg) saturate(1.1);
+}
+
 .event-card:has(.event-signature-complete) .event-title-row,
 .event-card-mobile:has(.event-signature-complete) .event-header,
 .event-card-mobile:has(.event-signature-complete) .event-title-row {

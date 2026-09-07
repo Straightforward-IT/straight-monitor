@@ -46,11 +46,24 @@ describe('Stundenliste content hash', () => {
     assert.equal(contentHash(reimported), contentHash(original));
   });
 
-  it('changes when a rendered value changes', () => {
+  it('changes when a shift time slot or assignment personnel number changes', () => {
+    const originalHash = contentHash(createData());
+    const changedShift = createData();
+    changedShift.schichten[0].uhrzeitVon = '11:00';
+    const changedAssignment = createData();
+    changedAssignment.einsaetze[0].personalNr = 5678;
+
+    assert.notEqual(contentHash(changedShift), originalHash);
+    assert.notEqual(contentHash(changedAssignment), originalHash);
+  });
+
+  it('ignores changes outside assignment personnel numbers and shift time slots', () => {
     const originalHash = contentHash(createData());
     const changed = createData();
-    changed.schichten[0].uhrzeitVon = '11:00';
+    changed.auftrag.eventTitel = 'Anderes Event';
+    changed.einsaetze[0].mitarbeiterData.nachname = 'Beispiel';
+    changed.schichten[0].bezeichnung = 'Bar';
 
-    assert.notEqual(contentHash(changed), originalHash);
+    assert.equal(contentHash(changed), originalHash);
   });
 });
