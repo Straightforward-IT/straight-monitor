@@ -66,6 +66,8 @@ const SignaturVorgangSchema = new mongoose.Schema({
   auftragNr:   { type: Number, default: null },
   // Keeps the generated Stundenliste consistent when its draft is later sent.
   stundenlisteExcludePseudo: { type: Boolean, default: false },
+  // SHA-256 of the source data rendered into a generated Stundenliste PDF.
+  stundenlisteContentHash: { type: String, default: null },
 
   // Microsoft Graph contact (not a DB record — embedded for historical reference)
   graphContact: {

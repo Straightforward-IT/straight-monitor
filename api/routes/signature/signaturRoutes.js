@@ -451,7 +451,7 @@ router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res
   const excludePseudo = req.body?.excludePseudo === true;
   const pdfFilename = buildStundenlistePdfFilename(auftrag);
   const signatureDoubleCopy = kunde.stundenlisteSignaturDoppelt === true;
-  const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, {
+  const { buffer, contentHash } = await StundenlisteService.buildStundenliste(auftragNr, {
     signatureTags: signatureDoubleCopy,
     signatureDoubleCopy,
     excludePseudo,
@@ -469,6 +469,7 @@ router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res
     status: 'draft',
     auftragNr,
     stundenlisteExcludePseudo: excludePseudo,
+    stundenlisteContentHash: contentHash,
     kunde: kunde._id,
     kundenNr: kunde.kundenNr,
     kundenKuerzel: kunde.kuerzel,
@@ -589,10 +590,11 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     logger.info(`[Stundenliste redo] Existing vorgang ${existingVorgang._id} cancelled for Auftrag ${auftragNr}`);
   }
 
-  const { buffer } = await StundenlisteService.buildStundenliste(auftragNr, {
+  const excludePseudo = !!draftVorgang?.stundenlisteExcludePseudo;
+  const { buffer, contentHash } = await StundenlisteService.buildStundenliste(auftragNr, {
     signatureTags: true,
     signatureDoubleCopy: kunde.stundenlisteSignaturDoppelt === true,
-    excludePseudo: !!draftVorgang?.stundenlisteExcludePseudo,
+    excludePseudo,
   });
 
   const requestedName = typeof name === 'string' ? name.trim() : '';
@@ -655,6 +657,8 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     locationV2: location._id,
     status:   'open',
     auftragNr,
+    stundenlisteExcludePseudo: excludePseudo,
+    stundenlisteContentHash: contentHash,
 
     kunde:         kunde ? kunde._id   : null,
     kundenNr:      kunde ? kunde.kundenNr : null,
@@ -1770,6 +1774,11 @@ router.post('/webhook', verifyDocuSealWebhook, asyncHandler(async (req, res) => 
   if (eventType === 'submission.completed') {
     vorgang.status      = 'completed';
     vorgang.completedAt = new Date();
+    vorgang.submitters = vorgang.submitters.map((submitter) => ({
+      ...submitter.toObject(),
+      status: 'completed',
+      completedAt: submitter.completedAt || vorgang.completedAt,
+    }));
 
     // Use the stored prefix (or rebuild as fallback)
     const r2Prefix = isCanonicalSignaturPrefix(vorgang.r2Prefix)

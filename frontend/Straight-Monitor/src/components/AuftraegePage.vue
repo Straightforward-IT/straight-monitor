@@ -643,7 +643,7 @@
                 <div class="einsatz-dok-info">
                   <div class="einsatz-dok-meta">
                     <span class="einsatz-dok-filename">{{ sidebarStundenliste.fileName || `${sidebarStundenliste.name}.pdf` }}</span>
-                    <span>{{ sidebarStundenliste.submitters.filter(s => s.status === 'completed').length }}/{{ sidebarStundenliste.submitters.length }} unterschrieben</span>
+                    <span>{{ sidebarStundenliste.status === 'completed' ? sidebarStundenliste.submitters.length : sidebarStundenliste.submitters.filter(s => s.status === 'completed').length }}/{{ sidebarStundenliste.submitters.length }} unterschrieben</span>
                   </div>
                 </div>
 
@@ -2994,6 +2994,14 @@ export default {
     },
     async onVerleiherSigned() {
       this.verleiherSigned = true;
+      const vorgangId = this.sigResult?.vorgang?._id;
+      if (vorgangId) {
+        try {
+          await api.get(`/api/signaturen/${vorgangId}?refresh=true`);
+        } catch (err) {
+          console.error('Signaturstatus aktualisieren fehlgeschlagen', err);
+        }
+      }
       if (this.selectedEvent?.auftragNr) {
         await this.loadStundenlisteStatus(this.selectedEvent.auftragNr);
       }

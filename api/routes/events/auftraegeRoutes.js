@@ -708,25 +708,34 @@ router.get('/', async (req, res) => {
     // Batch-fetch Stundenliste signature status (most recent non-cancelled per auftrag)
     const sigVorgaenge = await SignaturVorgang.find(
       { typKey: 'stundenliste', auftragNr: { $in: auftragNrs }, status: { $ne: 'cancelled' } },
-      { auftragNr: 1, status: 1, createdAt: 1 }
+      { auftragNr: 1, status: 1, createdAt: 1, stundenlisteContentHash: 1, stundenlisteExcludePseudo: 1 }
     ).sort({ createdAt: -1 }).lean();
     const stundenlisteSignaturStatusMap = {};
+    const stundenlisteVorgangMap = new Map();
     sigVorgaenge.forEach(v => {
       if (!stundenlisteSignaturStatusMap[v.auftragNr]) {
         stundenlisteSignaturStatusMap[v.auftragNr] = v.status;
+        stundenlisteVorgangMap.set(v.auftragNr, v);
       }
     });
     const stundenlisteIsOutdatedMap = {};
-    auftraege.forEach(auftrag => {
-      const vorgang = sigVorgaenge.find(v => v.auftragNr === auftrag.auftragNr);
+    await Promise.all(auftraege.map(async auftrag => {
+      const vorgang = stundenlisteVorgangMap.get(auftrag.auftragNr);
       if (!vorgang) return;
+      if (vorgang.stundenlisteContentHash) {
+        const currentContentHash = await StundenlisteService.getContentHash(auftrag.auftragNr, {
+          excludePseudo: vorgang.stundenlisteExcludePseudo === true,
+        });
+        stundenlisteIsOutdatedMap[auftrag.auftragNr] = currentContentHash !== vorgang.stundenlisteContentHash;
+        return;
+      }
       const refDate = vorgang.createdAt;
       stundenlisteIsOutdatedMap[auftrag.auftragNr] = Boolean(
         auftrag.updatedAt > refDate
         || allEinsaetze.some(e => e.auftragNr === auftrag.auftragNr && e.updatedAt > refDate)
         || allEinsaetze.some(e => e.auftragNr === auftrag.auftragNr && maUpdatedAtMap.get(String(e.personalNr)) > refDate)
       );
-    });
+    }));
 
     // Build schichten display map (times + occupancy per shift, grouped by auftragNr)
     const schichtenDisplayMap = {};
@@ -909,52 +918,62 @@ router.get('/:auftragNr/stundenliste-status', auth, asyncHandler(async (req, res
     return res.json({ vorgang: null, isOutdated: false, outdatedReasons: [], unsignedPdfUrl: null });
   }
 
-  // The PDF is generated at vorgang.createdAt — compare everything against that.
-  const refDate = vorgang.createdAt;
   const outdatedReasons = [];
-  const recordedChanges = (auftrag?.stundenlisteChangeLog || [])
-    .filter(change => new Date(change.changedAt) > refDate)
-    .map(change => ({
-      entity: change.entity,
-      label: STUNDENLISTE_ENTITY_LABELS[change.entity] || `${change.entity} wurden geändert`,
-      details: change.details || [],
-      changedAt: change.changedAt,
-    }));
+  if (vorgang.stundenlisteContentHash) {
+    const currentContentHash = await StundenlisteService.getContentHash(auftragNr, {
+      excludePseudo: vorgang.stundenlisteExcludePseudo === true,
+    });
+    if (currentContentHash !== vorgang.stundenlisteContentHash) {
+      outdatedReasons.push({
+        entity: 'Inhalt',
+        label: 'Inhalt der Stundenliste wurde geändert',
+      });
+    }
+  } else {
+    // Existing documents have no historical content snapshot. Keep their previous
+    // timestamp-based behavior until they are reissued once.
+    const refDate = vorgang.createdAt;
+    const recordedChanges = (auftrag?.stundenlisteChangeLog || [])
+      .filter(change => new Date(change.changedAt) > refDate)
+      .map(change => ({
+        entity: change.entity,
+        label: STUNDENLISTE_ENTITY_LABELS[change.entity] || `${change.entity} wurden geändert`,
+        details: change.details || [],
+        changedAt: change.changedAt,
+      }));
 
-  // 1. Auftrag fields that affect the Stundenliste PDF changed?
-  if (auftrag && auftrag.updatedAt > refDate && !recordedChanges.some(change => change.entity === 'Auftragsdaten')) {
-    outdatedReasons.push({ entity: 'Auftrag', label: 'Auftragsdaten wurden geändert' });
-  }
-  outdatedReasons.push(...recordedChanges);
+    if (auftrag && auftrag.updatedAt > refDate && !recordedChanges.some(change => change.entity === 'Auftragsdaten')) {
+      outdatedReasons.push({ entity: 'Auftrag', label: 'Auftragsdaten wurden geändert' });
+    }
+    outdatedReasons.push(...recordedChanges);
 
-  // 2. Any Einsatz for this Auftrag updated after creation?
-  const latestEinsatz = await Einsatz
-    .findOne({ auftragNr })
-    .sort({ updatedAt: -1 })
-    .select('updatedAt')
-    .lean();
-  if (latestEinsatz && latestEinsatz.updatedAt > refDate && !recordedChanges.some(change => change.entity === 'Einsatz')) {
-    outdatedReasons.push({ entity: 'Einsätze', label: 'Einsatzdaten wurden geändert' });
-  }
-
-  // 3. Any involved Mitarbeiter updated after creation?
-  const einsaetze = await Einsatz.find({ auftragNr }).select('personalNr').lean();
-  const personalNrStrings = [
-    ...new Set(einsaetze.map(e => e.personalNr).filter(Boolean).map(String)),
-  ];
-  if (personalNrStrings.length) {
-    const latestMA = await Mitarbeiter
-      .findOne({
-        $or: [
-          { personalnr:     { $in: personalNrStrings } },
-          { personalnummern: { $in: personalNrStrings } },
-        ],
-      })
+    const latestEinsatz = await Einsatz
+      .findOne({ auftragNr })
       .sort({ updatedAt: -1 })
       .select('updatedAt')
       .lean();
-    if (latestMA && latestMA.updatedAt > refDate) {
-      outdatedReasons.push({ entity: 'Mitarbeiter', label: 'Mitarbeiterdaten wurden geändert' });
+    if (latestEinsatz && latestEinsatz.updatedAt > refDate && !recordedChanges.some(change => change.entity === 'Einsatz')) {
+      outdatedReasons.push({ entity: 'Einsätze', label: 'Einsatzdaten wurden geändert' });
+    }
+
+    const einsaetze = await Einsatz.find({ auftragNr }).select('personalNr').lean();
+    const personalNrStrings = [
+      ...new Set(einsaetze.map(e => e.personalNr).filter(Boolean).map(String)),
+    ];
+    if (personalNrStrings.length) {
+      const latestMA = await Mitarbeiter
+        .findOne({
+          $or: [
+            { personalnr: { $in: personalNrStrings } },
+            { personalnummern: { $in: personalNrStrings } },
+          ],
+        })
+        .sort({ updatedAt: -1 })
+        .select('updatedAt')
+        .lean();
+      if (latestMA && latestMA.updatedAt > refDate) {
+        outdatedReasons.push({ entity: 'Mitarbeiter', label: 'Mitarbeiterdaten wurden geändert' });
+      }
     }
   }
 
