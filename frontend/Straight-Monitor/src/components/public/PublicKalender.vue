@@ -444,8 +444,8 @@ async function confirmPartialAvailability() {
   const { day, vonHour, vonMinute, bisHour, bisMinute } = partialTimeDialog.value;
   const zeitVon = `${vonHour}:${vonMinute}`;
   const zeitBis = `${bisHour}:${bisMinute}`;
-  if (zeitVon >= zeitBis) {
-    availabilityError.value = 'Die Endzeit muss nach der Startzeit liegen.';
+  if (zeitVon === zeitBis) {
+    availabilityError.value = 'Start- und Endzeit dürfen nicht identisch sein.';
     return;
   }
 
