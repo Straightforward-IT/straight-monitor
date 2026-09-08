@@ -180,6 +180,18 @@ function parseFolgeaktionen(raw) {
   return { ausliefernAn, ausliefernAnSignierer, emailBenachrichtigung, asanaActions };
 }
 
+function parseEntleiherInvitationRecipients(raw, excludedEmail = '') {
+  const normalizedExcludedEmail = String(excludedEmail || '').trim().toLowerCase();
+  if (!Array.isArray(raw)) return [];
+  return [...new Map(raw
+    .map((recipient) => ({
+      name: String(recipient?.name || '').trim(),
+      email: String(recipient?.email || '').trim().toLowerCase(),
+    }))
+    .filter((recipient) => recipient.email && recipient.email !== normalizedExcludedEmail)
+    .map((recipient) => [recipient.email, recipient])).values()];
+}
+
 /**
  * Verify a DocuSeal webhook via shared secret.
  * DocuSeal sends the secret in X-Docuseal-Secret header or ?secret= query param.
@@ -613,7 +625,15 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Ungültige Auftragsnummer' });
   }
 
-  const { name, locationId, standort, submitters, draftId, folgeaktionen: folgeaktionenRaw } = req.body || {};
+  const {
+    name,
+    locationId,
+    standort,
+    submitters,
+    entleiherInvitationRecipients: entleiherInvitationRecipientsRaw,
+    draftId,
+    folgeaktionen: folgeaktionenRaw,
+  } = req.body || {};
   const folgeaktionen = parseFolgeaktionen(folgeaktionenRaw);
 
   let draftVorgang = null;
@@ -636,13 +656,18 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Entleiher (E-Mail) ist erforderlich' });
   }
 
+  const entleiherInvitationRecipients = parseEntleiherInvitationRecipients(
+    entleiherInvitationRecipientsRaw,
+    entleiherReq.email,
+  );
+
   // Load Auftrag + Kunde
   const auftrag = await Auftrag.findOne({ auftragNr }).lean();
   if (!auftrag) return res.status(404).json({ message: `Auftrag ${auftragNr} nicht gefunden` });
 
   const kunde = auftrag.kundenNr
     ? await Kunde.findOne({ kundenNr: auftrag.kundenNr })
-        .select('_id kundenNr kundName kuerzel locationV2 signaturOrdner stundenlisteSignaturDoppelt')
+        .select('_id kundenNr kundName kuerzel locationV2 signaturOrdner stundenlisteSignaturDoppelt stundenlisteMehrereEinladungen')
     : null;
 
   // Resolve the Stundenliste type
@@ -652,6 +677,9 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   }
   if (!kunde) {
     return res.status(400).json({ message: 'Für die Stundenliste wurde kein Kunde gefunden.' });
+  }
+  if (!kunde.stundenlisteMehrereEinladungen) {
+    entleiherInvitationRecipients.length = 0;
   }
 
   const location = await resolveSignaturLocation({
@@ -795,13 +823,20 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     { path: 'locationV2', select: 'nameFull shortName color' },
   ]);
 
-  // Send Graph email to the non-embedded Entleiher.
+  // Send the one Entleiher signing link to the signer plus any explicitly selected
+  // invitation recipients. These recipients do not become DocuSeal submitters.
   for (const apiSub of storedSubmitters) {
     if (!apiSub.embedded && apiSub.slug) {
         const signingLink = apiSub.embedSrc || `https://docuseal.eu/s/${apiSub.slug}`;
-        const recipientEmail = requestedSubmitters.find((s) => s.role === apiSub.role)?.email || apiSub.email;
-        try {
-          const recipient = requestedSubmitters.find((s) => s.role === apiSub.role) || apiSub;
+        const signer = requestedSubmitters.find((s) => s.role === apiSub.role) || apiSub;
+        const invitationRecipients = [
+          { name: signer.name || '', email: signer.email || apiSub.email },
+          ...entleiherInvitationRecipients,
+        ];
+        for (const recipient of invitationRecipients) {
+          const recipientEmail = recipient.email;
+          if (!recipientEmail) continue;
+          try {
           const renderedEmail = await renderResolvedCustomerEmailTemplate({
             type: CUSTOMER_EMAIL_TEMPLATE_TYPES.STUNDENLISTE_SIGNATURE,
             kunde,
@@ -821,8 +856,9 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
             getLocationSignatureSenderKey(location),
           );
           logger.info(`[SignaturenRoute Stundenliste ${auftragNr}] E-Mail gesendet an ${recipientEmail}`);
-        } catch (err) {
-          logger.error(`[SignaturenRoute Stundenliste ${auftragNr}] E-Mail fehlgeschlagen:`, err);
+          } catch (err) {
+            logger.error(`[SignaturenRoute Stundenliste ${auftragNr}] E-Mail fehlgeschlagen:`, err);
+          }
         }
     }
   }
@@ -1685,7 +1721,7 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
 
   const {
     name, typId, locationId, standort, kundeId, mitarbeiterId,
-    templateId, templateName, submitters,
+    templateId, templateName, submitters, entleiherInvitationRecipients: entleiherInvitationRecipientsRaw,
     folgeaktionen: folgeaktionenRaw,
     submit,
   } = req.body;
@@ -1751,6 +1787,15 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   }
 
   if (folgeaktionen) vorgang.folgeaktionen = folgeaktionen;
+  if (entleiherInvitationRecipientsRaw !== undefined) {
+    const entleiherEmail = Array.isArray(submitters)
+      ? submitters.find((submitter) => submitter.role === 'Entleiher')?.email
+      : vorgang.submitters.find((submitter) => submitter.role === 'Entleiher')?.email;
+    vorgang.entleiherInvitationRecipients = parseEntleiherInvitationRecipients(
+      entleiherInvitationRecipientsRaw,
+      entleiherEmail,
+    );
+  }
 
   if (Array.isArray(submitters)) {
     vorgang.submitters = submitters.map((s) => ({

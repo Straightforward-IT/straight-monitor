@@ -231,20 +231,41 @@
 
               <label class="sig-field-label">Unterzeichner</label>
               <div class="sig-submitters">
-                <ContactSearchPicker
-                  v-for="(sub, i) in form.submitters"
-                  :key="i"
-                  v-model="form.submitters[i]"
-                  :role-name="sub.role || `Unterzeichner ${i + 1}`"
-                  :contacts="graphContacts"
-                  :mitarbeiter="mitarbeiterList"
-                  :mitarbeiter-id="sub.role === 'Mitarbeiter' ? form.mitarbeiterId : null"
-                  :kuerzel="selectedKunde?.kuerzel"
-                  :company-name="sub.role === 'Entleiher' ? (selectedKunde?.kuerzel || selectedKunde?.kundName) : ''"
-                  :locked="isReisekostenFlow"
-                  :removable="!hasFixedSignerSlots && form.submitters.length > 1"
-                  @remove="removeSubmitter(i)"
-                />
+                <template v-for="(sub, i) in form.submitters" :key="i">
+                  <ContactSearchPicker
+                    v-model="form.submitters[i]"
+                    :role-name="sub.role || `Unterzeichner ${i + 1}`"
+                    :contacts="graphContacts"
+                    :mitarbeiter="mitarbeiterList"
+                    :mitarbeiter-id="sub.role === 'Mitarbeiter' ? form.mitarbeiterId : null"
+                    :kuerzel="selectedKunde?.kuerzel"
+                    :company-name="sub.role === 'Entleiher' ? (selectedKunde?.kuerzel || selectedKunde?.kundName) : ''"
+                    :locked="isReisekostenFlow"
+                    :removable="!hasFixedSignerSlots && form.submitters.length > 1"
+                    @remove="removeSubmitter(i)"
+                  />
+                  <template v-if="canAddStundenlisteInvitationRecipients && sub.role === 'Entleiher'">
+                    <div class="sig-entleiher-recipients">
+                      <span class="sig-entleiher-recipients-label">Weitere Empfänger des Entleihers</span>
+                      <ContactSearchPicker
+                        v-for="(recipient, recipientIndex) in entleiherInvitationRecipients"
+                        :key="`entleiher-invitation-${recipientIndex}`"
+                        v-model="entleiherInvitationRecipients[recipientIndex]"
+                        role-name="Weitere Empfänger"
+                        :contacts="graphContacts"
+                        :mitarbeiter="mitarbeiterList"
+                        :kuerzel="selectedKunde?.kuerzel"
+                        :removable="true"
+                        :show-delivery-method="false"
+                        :excluded-emails="[...form.submitters, ...entleiherInvitationRecipients].map(contact => contact.email)"
+                        @remove="removeEntleiherInvitationRecipient(recipientIndex)"
+                      />
+                      <button class="sig-add-submitter sig-add-invitation-recipient" type="button" @click="addEntleiherInvitationRecipient">
+                        <font-awesome-icon :icon="['fas', 'plus']" /> Weitere Empfänger
+                      </button>
+                    </div>
+                  </template>
+                </template>
               </div>
               <button v-if="!form.templateId && !hasFixedSignerSlots" class="sig-add-submitter" type="button" @click="addSubmitter">
                 <font-awesome-icon :icon="['fas', 'user-plus']" /> Unterzeichner hinzufügen
@@ -500,6 +521,7 @@ const modalTitle = computed(() => modal.context.draftId ? 'Entwurf bearbeiten' :
 
 const showTypModal = ref(false);
 const inAppSigning = ref(null);
+const entleiherInvitationRecipients = ref([]);
 
 function onTypCreated(typ) {
   typen.value = [...typen.value, typ].sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -547,6 +569,7 @@ const deliveryRecipient = ref({ name: '', email: '', embedded: false });
 const deliveryPickerKey = ref(0);
 const newEmailError = ref('');
 const signerDeliveryEmails = ref([]);
+const invitationDeliveryEmails = ref([]);
 
 function addAusliefernEmail(recipient = deliveryRecipient.value) {
   const email = String(recipient.email || '').trim().toLowerCase();
@@ -595,6 +618,31 @@ function syncSignerDeliveryRecipients() {
     else folgeaktionen.value.ausliefernAn.push({ displayName, email });
   });
   signerDeliveryEmails.value = [...signerRecipients.keys()];
+}
+
+function syncEntleiherInvitationDeliveryRecipients() {
+  const invitationRecipients = new Map();
+  entleiherInvitationRecipients.value.forEach(recipient => {
+    const email = String(recipient.email || '').trim().toLowerCase();
+    if (!/\S+@\S+\.\S+/.test(email)) return;
+    invitationRecipients.set(email, recipient.name || '');
+  });
+
+  const previousInvitationEmails = new Set(invitationDeliveryEmails.value);
+  const signerEmails = new Set(signerDeliveryEmails.value);
+  folgeaktionen.value.ausliefernAn = folgeaktionen.value.ausliefernAn.filter(recipient => {
+    const email = String(recipient.email || '').trim().toLowerCase();
+    return !previousInvitationEmails.has(email) || invitationRecipients.has(email) || signerEmails.has(email);
+  });
+
+  invitationRecipients.forEach((displayName, email) => {
+    const deliveryRecipient = folgeaktionen.value.ausliefernAn.find(item =>
+      String(item.email || '').trim().toLowerCase() === email
+    );
+    if (deliveryRecipient) deliveryRecipient.displayName = displayName || deliveryRecipient.displayName;
+    else folgeaktionen.value.ausliefernAn.push({ displayName, email });
+  });
+  invitationDeliveryEmails.value = [...invitationRecipients.keys()];
 }
 
 // Asana action builder
@@ -649,6 +697,7 @@ const linkMode = ref('keine');
 
 const form = ref(emptyForm());
 watch(() => form.value.submitters, syncSignerDeliveryRecipients, { deep: true });
+watch(entleiherInvitationRecipients, syncEntleiherInvitationDeliveryRecipients, { deep: true });
 const signatureDockTitle = computed(() => form.value.name.trim() || modalTitle.value);
 
 function emptyForm() {
@@ -796,6 +845,12 @@ watch([() => form.value.kundeId, () => form.value.typId], () => {
 const usesCustomEndpoint = computed(() => !!modal.context.customEndpoint);
 const isContextLocked = computed(() => usesCustomEndpoint.value || modal.context.locked === true);
 const isGeneratedDocumentFlow = computed(() => usesCustomEndpoint.value && !!(form.value.typKey || modal.context.typKey));
+const isStundenlisteFlow = computed(() =>
+  isGeneratedDocumentFlow.value && (form.value.typKey || modal.context.typKey) === 'stundenliste'
+);
+const canAddStundenlisteInvitationRecipients = computed(() =>
+  isStundenlisteFlow.value && selectedKunde.value?.stundenlisteMehrereEinladungen === true
+);
 const isReisekostenFlow = computed(() =>
   (form.value.typKey || modal.context.typKey) === 'reisekostenabrechnung'
 );
@@ -1114,6 +1169,14 @@ function removeSubmitter(i) {
   form.value.submitters.splice(i, 1);
 }
 
+function addEntleiherInvitationRecipient() {
+  entleiherInvitationRecipients.value.push({ name: '', email: '', embedded: false });
+}
+
+function removeEntleiherInvitationRecipient(index) {
+  entleiherInvitationRecipients.value.splice(index, 1);
+}
+
 function normalizeSubmitterNames() {
   form.value.submitters = form.value.submitters.map(submitter => {
     const email = String(submitter.email || '').trim().toLowerCase();
@@ -1245,6 +1308,8 @@ watch(() => modal.open, async (open) => {
   newEmailError.value = '';
   followerDefaultsLoaded.value = false;
   signerDeliveryEmails.value = [];
+  invitationDeliveryEmails.value = [];
+  entleiherInvitationRecipients.value = [];
   showAsanaBuilder.value = false;
   asanaSearchQuery.value = '';
   asanaSearchResults.value = [];
@@ -1306,6 +1371,13 @@ async function hydrateFromContext() {
         embedded: !!s.embedded,
       }));
     }
+    entleiherInvitationRecipients.value = Array.isArray(d.entleiherInvitationRecipients)
+      ? d.entleiherInvitationRecipients.map(recipient => ({
+        name: recipient.name || '',
+        email: recipient.email || '',
+        embedded: false,
+      }))
+      : [];
 
     // Restore folgeaktionen
     if (d.folgeaktionen) {
@@ -1403,6 +1475,7 @@ async function submit() {
         kundeId: linkMode.value === 'kunde' ? form.value.kundeId : undefined,
         mitarbeiterId: linkMode.value === 'mitarbeiter' ? form.value.mitarbeiterId : undefined,
         submitters: form.value.submitters.filter(s => (s.name || '').trim()),
+        entleiherInvitationRecipients: entleiherInvitationRecipients.value.filter(recipient => (recipient.email || '').trim()),
         folgeaktionen: folgeaktionen.value,
         draftId: ctx.draftId || undefined,
       };
@@ -1491,6 +1564,7 @@ async function saveAsDraft() {
       templateId: form.value.templateId ?? null,
       templateName: form.value.templateName || '',
       submitters: form.value.submitters.filter(s => (s.name || '').trim()),
+      entleiherInvitationRecipients: entleiherInvitationRecipients.value.filter(recipient => (recipient.email || '').trim()),
       folgeaktionen: folgeaktionen.value,
       draft: true,
     };
@@ -1868,6 +1942,25 @@ const ContactSearchPlaceholder = {
 }
 
 .sig-submitters { display: flex; flex-direction: column; gap: 10px; }
+
+.sig-entleiher-recipients {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: -2px 0 4px 22px;
+  padding: 8px 0 2px 16px;
+  border-left: 2px solid color-mix(in srgb, var(--primary) 55%, var(--border));
+}
+
+.sig-entleiher-recipients-label {
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sig-entleiher-recipients .sig-add-submitter { margin-top: 0; }
 
 .sig-add-submitter {
   margin-top: 12px;

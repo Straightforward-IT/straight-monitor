@@ -133,9 +133,12 @@
       </div>
 
       <div class="mobile-day-content" v-if="weekDays[mobileDayIndex]">
-        
-        <div v-if="getEventsForDay(weekDays[mobileDayIndex].date).length === 0" class="empty-day-state">
-            Keine Aufträge heute
+        <div v-if="loading" class="empty-day-state">
+          Lade Aufträge...
+        </div>
+
+        <div v-else-if="getEventsForDay(weekDays[mobileDayIndex].date).length === 0" class="empty-day-state">
+          Keine Aufträge heute
         </div>
         
         <div

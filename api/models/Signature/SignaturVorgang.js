@@ -83,6 +83,11 @@ const SignaturVorgangSchema = new mongoose.Schema({
   submissionId:         { type: Number, default: null },
 
   submitters: { type: [SubmitterSchema], default: [] },
+  // Additional contacts that receive the Entleiher's signing link for a Stundenliste.
+  entleiherInvitationRecipients: {
+    type: [{ name: { type: String, default: '' }, email: { type: String, default: '' } }],
+    default: [],
+  },
 
   // ── R2 storage ────────────────────────────────────────────────────────────
 

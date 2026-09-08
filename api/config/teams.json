@@ -110,7 +110,7 @@
         "telefone": ["+49 (0)30 994 05 90", "+49 30 702 393 33", "+49 176 436 064 20"]
       },
       "eventReport": {
-        "recipients": ["er@straightforward.email", "er-berlin@straightforward.email"]
+        "recipients": ["er@straightforward.email", "er-berlin@straightforward.email", "jb@straightforward.email"]
       },
       "graph": {
         "subscriptionFolderKey": "applicantInbox",

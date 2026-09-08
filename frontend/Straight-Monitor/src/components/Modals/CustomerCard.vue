@@ -493,6 +493,14 @@
             </span>
             <font-awesome-icon v-if="stundenlisteSettingSaving" :icon="['fas', 'spinner']" spin />
           </label>
+          <label class="stundenliste-double-copy-toggle">
+            <input v-model="stundenlisteMehrereEinladungen" type="checkbox" :disabled="stundenlisteSettingSaving" @change="saveStundenlisteSetting" />
+            <span>
+              <strong>Stundenliste an weitere Empfänger senden</strong>
+              <small>Erlaubt zusätzliche Einladungen mit demselben Entleiher-Signaturlink.</small>
+            </span>
+            <font-awesome-icon v-if="stundenlisteSettingSaving" :icon="['fas', 'spinner']" spin />
+          </label>
           <p v-if="stundenlisteSettingError" class="stundenliste-double-copy-error">{{ stundenlisteSettingError }}</p>
         </section>
       </section>
@@ -1117,6 +1125,7 @@ const eRechnungSaving = ref(false);
 const eRechnungError = ref('');
 const stundenlisteSignaturDoppelt = ref(props.kunde.stundenlisteSignaturDoppelt === true);
 const stundenlisteSignaturDuAnrede = ref(props.kunde.stundenlisteSignaturDuAnrede === true);
+const stundenlisteMehrereEinladungen = ref(props.kunde.stundenlisteMehrereEinladungen === true);
 const stundenlisteSettingSaving = ref(false);
 const stundenlisteSettingError = ref('');
 
@@ -1131,22 +1140,30 @@ watch(() => props.kunde.stundenlisteSignaturDoppelt, (value) => {
 watch(() => props.kunde.stundenlisteSignaturDuAnrede, (value) => {
   if (!stundenlisteSettingSaving.value) stundenlisteSignaturDuAnrede.value = value === true;
 });
+watch(() => props.kunde.stundenlisteMehrereEinladungen, (value) => {
+  if (!stundenlisteSettingSaving.value) stundenlisteMehrereEinladungen.value = value === true;
+});
 
 async function saveStundenlisteSetting() {
   const previousValue = props.kunde.stundenlisteSignaturDoppelt === true;
   const previousDuAnrede = props.kunde.stundenlisteSignaturDuAnrede === true;
+  const previousMehrereEinladungen = props.kunde.stundenlisteMehrereEinladungen === true;
   stundenlisteSettingSaving.value = true;
   stundenlisteSettingError.value = '';
   try {
-    await api.put(`/api/kunden/${props.kunde._id}`, {
+    const { data: updatedKunde } = await api.put(`/api/kunden/${props.kunde._id}`, {
       stundenlisteSignaturDoppelt: stundenlisteSignaturDoppelt.value,
       stundenlisteSignaturDuAnrede: stundenlisteSignaturDuAnrede.value,
+      stundenlisteMehrereEinladungen: stundenlisteMehrereEinladungen.value,
     });
     props.kunde.stundenlisteSignaturDoppelt = stundenlisteSignaturDoppelt.value;
     props.kunde.stundenlisteSignaturDuAnrede = stundenlisteSignaturDuAnrede.value;
+    props.kunde.stundenlisteMehrereEinladungen = stundenlisteMehrereEinladungen.value;
+    await dataCache.updateCachedKunde({ ...props.kunde, ...updatedKunde });
   } catch (error) {
     stundenlisteSignaturDoppelt.value = previousValue;
     stundenlisteSignaturDuAnrede.value = previousDuAnrede;
+    stundenlisteMehrereEinladungen.value = previousMehrereEinladungen;
     stundenlisteSettingError.value = error.response?.data?.message || 'Einstellung konnte nicht gespeichert werden.';
   } finally {
     stundenlisteSettingSaving.value = false;
