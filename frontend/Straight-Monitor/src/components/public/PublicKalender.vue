@@ -120,6 +120,9 @@
         </div>
         <p v-if="availabilityError" class="partial-time-error">{{ availabilityError }}</p>
         <div class="partial-time-actions">
+          <button v-if="partialTimeDialog.day?.availability?.verfuegbarkeit === 'partially'" type="button" class="comment-delete" :disabled="availabilitySaving" @click="deletePartialAvailability">
+            Löschen
+          </button>
           <button type="button" class="partial-time-save" :disabled="availabilitySaving" @click="confirmPartialAvailability">
             {{ availabilitySaving ? 'Wird gespeichert...' : 'Speichern' }}
           </button>
@@ -447,6 +450,13 @@ async function confirmPartialAvailability() {
   }
 
   await saveAvailability(day, zeitVon, zeitBis);
+  if (!availabilityError.value) closePartialTimeDialog();
+}
+
+async function deletePartialAvailability() {
+  const { day } = partialTimeDialog.value;
+  if (!day) return;
+  await clearAvailability(day);
   if (!availabilityError.value) closePartialTimeDialog();
 }
 
