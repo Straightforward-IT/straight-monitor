@@ -29,6 +29,8 @@
       :debug-tl-active="debugTLMode"
       @exit="toggleDebugDev"
       @write-report="openEventReportFromDev"
+      @open-event-reports="openEventReportFromDev()"
+      @open-evaluations="openEvaluationsFromDev"
       @toggle-debug-tl="toggleDebugTL"
     />
 
@@ -71,6 +73,8 @@
           v-else-if="currentView === 'kalender'"
           :einsaetze="einsaetze"
           :is-teamleiter="isTeamleiter"
+          :api="api"
+          :email="email"
           @back="goBack"
           @open-job="openJob"
         />
@@ -501,6 +505,11 @@ function writeReportForJob(einsatz) {
 function openEventReportFromDev(einsatz) {
   if (isDevPortalActive.value) toggleDebugDev();
   writeReportForJob(einsatz);
+}
+
+function openEvaluationsFromDev() {
+  if (isDevPortalActive.value) toggleDebugDev();
+  navigateTo('evaluierungen');
 }
 
 function goBackFromReport() {

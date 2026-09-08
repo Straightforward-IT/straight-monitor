@@ -75,7 +75,7 @@
         <div class="tile-content">
           <div class="tile-title-row">
             <h3>Laufzettel</h3>
-            <CountBadge :count="openLaufzettelCount" color="orange" />
+            <CountBadge class="laufzettel-badge" :count="openLaufzettelCount" color="orange" />
           </div>
           <p>Laufzettel ausfüllen (Evaluierungen)</p>
         </div>
@@ -360,6 +360,12 @@ const upcomingEinsaetze = computed(() => {
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.15rem;
+}
+
+:deep(.count-badge.laufzettel-badge) {
+  background: transparent;
+  border: 1px solid var(--primary);
+  color: var(--primary);
 }
 
 .tile-content p {

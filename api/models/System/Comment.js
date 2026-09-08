@@ -53,5 +53,12 @@ const CommentSchema = new mongoose.Schema(
 CommentSchema.index({ scope: 1, 'context.mitarbeiter': 1 });
 CommentSchema.index({ scope: 1, 'context.datum': 1 });
 CommentSchema.index({ scope: 1, 'context.resourceId': 1 });
+CommentSchema.index(
+  { scope: 1, 'context.resourceType': 1, 'context.mitarbeiter': 1, 'context.datum': 1 },
+  {
+    unique: true,
+    partialFilterExpression: { scope: 'dispo_day', 'context.resourceType': 'public_monitor' },
+  }
+);
 
 module.exports = mongoose.model('Comment', CommentSchema);

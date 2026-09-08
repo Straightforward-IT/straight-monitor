@@ -1,9 +1,13 @@
 const express = require("express");
+const crypto = require("crypto");
 const router = express.Router();
 const asyncHandler = require("../../middleware/AsyncHandler");
 const publicAuth = require("../../middleware/publicAuth");
 const Mitarbeiter = require("../../models/Employee/Mitarbeiter");
 const Einsatz = require("../../models/Event/Einsatz");
+const DispoEintrag = require("../../models/System/DispoEintrag");
+const Comment = require("../../models/System/Comment");
+const User = require("../../models/System/User");
 const Auftrag = require("../../models/Event/Auftrag");
 const Location = require("../../models/System/Location");
 const Schicht = require("../../models/Event/Schicht");
@@ -80,6 +84,47 @@ function detectBereiche({ berufKey, berufDesignation, einsatzBezeichnung }) {
   const isLogistik = LOGISTIK_JOB_KEYS.has(numericBerufKey) || hasBereichKeyword(sourceText, LOGISTIK_KEYWORDS);
 
   return { isService, isLogistik };
+}
+
+async function resolvePublicMitarbeiter(req) {
+  const conditions = [];
+  if (req.oidcFlipId) conditions.push({ flip_id: req.oidcFlipId });
+
+  const email = req.oidcEmail || req.query.email || req.body?.email;
+  if (email) {
+    const normalizedEmail = String(email).toLowerCase().trim();
+    conditions.push({ email: normalizedEmail }, { additionalEmails: normalizedEmail });
+  }
+
+  if (!conditions.length) return null;
+  return Mitarbeiter.findOne({ $or: conditions }).select('_id').lean();
+}
+
+async function resolvePublicCommentAuthor(mitarbeiter) {
+  const userConditions = [{ mitarbeiter: mitarbeiter._id }];
+  if (mitarbeiter.email) userConditions.push({ email: mitarbeiter.email });
+
+  const employeeUser = await User.findOne({ $or: userConditions }).select('_id').lean();
+  if (employeeUser) return employeeUser;
+
+  const email = 'public-monitor-comments@straightforward.email';
+  let serviceUser = await User.findOne({ email }).select('_id').lean();
+  if (serviceUser) return serviceUser;
+
+  try {
+    serviceUser = await User.create({
+      name: 'Public Monitor',
+      email,
+      password: crypto.randomBytes(32).toString('hex'),
+      role: 'SYSTEM',
+      roles: ['SYSTEM'],
+      isConfirmed: false,
+    });
+    return serviceUser;
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+    return User.findOne({ email }).select('_id').lean();
+  }
 }
 
 async function resolveDocumentLocation({ location, locationV2 }) {
@@ -169,7 +214,7 @@ router.get(
     }
 
     const mitarbeiter = await Mitarbeiter.findOne({ $or: orConditions })
-        .select("_id vorname nachname email personalnr flip_id publicMenuOptions qualifikationen laufzettel_submitted laufzettel_received evaluierungen_submitted")
+        .select("_id vorname nachname email personalnr flip_id rank publicMenuOptions qualifikationen laufzettel_submitted laufzettel_received evaluierungen_submitted")
       .populate({
         path: "laufzettel_submitted",
         populate: [
@@ -270,6 +315,209 @@ router.get(
     if (!result?.data) return res.status(204).end();
 
     res.type(result.contentType || "image/jpeg").send(Buffer.from(result.data));
+  })
+);
+
+// ──────────────────────────────────────────────
+// GET/POST /api/public/verfuegbarkeit
+// Reads and stores availability for the authenticated public employee.
+// ──────────────────────────────────────────────
+router.get(
+  "/verfuegbarkeit",
+  asyncHandler(async (req, res) => {
+    const { von, bis } = req.query;
+    const dateVon = new Date(von);
+    const dateBis = new Date(bis);
+    if (!von || !bis || isNaN(dateVon.getTime()) || isNaN(dateBis.getTime())) {
+      return res.status(400).json({ msg: 'Gültige Parameter von und bis sind erforderlich.' });
+    }
+
+    const mitarbeiter = await resolvePublicMitarbeiter(req);
+    if (!mitarbeiter) return res.status(404).json({ msg: 'Mitarbeiter nicht gefunden' });
+
+    dateVon.setHours(0, 0, 0, 0);
+    dateBis.setHours(23, 59, 59, 999);
+    const eintraege = await DispoEintrag.find({
+      mitarbeiter: mitarbeiter._id,
+      typ: 'verfuegbarkeit',
+      verfuegbarkeit: { $in: ['available', 'partially', 'blocked'] },
+      datumVon: { $lte: dateBis },
+      datumBis: { $gte: dateVon },
+    }).lean();
+
+    res.json(eintraege);
+  })
+);
+
+router.post(
+  "/verfuegbarkeit",
+  asyncHandler(async (req, res) => {
+    const { datum, verfuegbarkeit, zeitVon, zeitBis } = req.body;
+    if (!datum || !['available', 'partially', 'blocked'].includes(verfuegbarkeit)) {
+      return res.status(400).json({ msg: 'Datum und ein gültiger Verfügbarkeitsstatus sind erforderlich.' });
+    }
+    const date = new Date(datum);
+    if (isNaN(date.getTime())) return res.status(400).json({ msg: 'Ungültiges Datum.' });
+
+    const mitarbeiter = await resolvePublicMitarbeiter(req);
+    if (!mitarbeiter) return res.status(404).json({ msg: 'Mitarbeiter nicht gefunden' });
+
+    date.setHours(0, 0, 0, 0);
+    const nextDay = new Date(date);
+    nextDay.setDate(nextDay.getDate() + 1);
+    await DispoEintrag.deleteMany({
+      mitarbeiter: mitarbeiter._id,
+      typ: 'verfuegbarkeit',
+      verfuegbarkeit: { $in: ['available', 'partially', 'blocked'] },
+      datumVon: { $gte: date, $lt: nextDay },
+      datumBis: { $gte: date, $lt: nextDay },
+    });
+
+    const eintrag = await DispoEintrag.create({
+      mitarbeiter: mitarbeiter._id,
+      datumVon: date,
+      datumBis: date,
+      typ: 'verfuegbarkeit',
+      verfuegbarkeit,
+      zeitVon: verfuegbarkeit === 'partially' ? zeitVon || undefined : undefined,
+      zeitBis: verfuegbarkeit === 'partially' ? zeitBis || undefined : undefined,
+    });
+    res.status(201).json(eintrag);
+  })
+);
+
+router.delete(
+  "/verfuegbarkeit",
+  asyncHandler(async (req, res) => {
+    const { datum } = req.body;
+    const date = new Date(datum);
+    if (!datum || isNaN(date.getTime())) return res.status(400).json({ msg: 'Ungültiges Datum.' });
+
+    const mitarbeiter = await resolvePublicMitarbeiter(req);
+    if (!mitarbeiter) return res.status(404).json({ msg: 'Mitarbeiter nicht gefunden' });
+
+    date.setHours(0, 0, 0, 0);
+    const nextDay = new Date(date);
+    nextDay.setDate(nextDay.getDate() + 1);
+    await DispoEintrag.deleteMany({
+      mitarbeiter: mitarbeiter._id,
+      typ: 'verfuegbarkeit',
+      verfuegbarkeit: { $in: ['available', 'partially', 'blocked'] },
+      datumVon: { $gte: date, $lt: nextDay },
+      datumBis: { $gte: date, $lt: nextDay },
+    });
+    res.status(204).end();
+  })
+);
+
+// ──────────────────────────────────────────────
+// GET /api/public/dispo-kommentare?von=YYYY-MM-DD&bis=YYYY-MM-DD
+// Returns the authenticated employee's comments for the visible calendar month.
+// ──────────────────────────────────────────────
+router.get(
+  "/dispo-kommentare",
+  asyncHandler(async (req, res) => {
+    const { von, bis } = req.query;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(von || '') || !/^\d{4}-\d{2}-\d{2}$/.test(bis || '')) {
+      return res.status(400).json({ msg: 'Datumsformat muss YYYY-MM-DD sein.' });
+    }
+
+    const mitarbeiter = await resolvePublicMitarbeiter(req);
+    if (!mitarbeiter) return res.status(404).json({ msg: 'Mitarbeiter nicht gefunden' });
+
+    const comments = await Comment.find({
+      scope: 'dispo_day',
+      'context.mitarbeiter': mitarbeiter._id,
+      'context.datum': { $gte: von, $lte: bis },
+      'context.resourceType': 'public_monitor',
+    }).select('_id text context.datum').lean();
+    res.json(comments);
+  })
+);
+
+// ──────────────────────────────────────────────
+// POST /api/public/dispo-kommentare
+// Adds an employee-authored comment to one dispatcher calendar day.
+// ──────────────────────────────────────────────
+router.post(
+  "/dispo-kommentare",
+  asyncHandler(async (req, res) => {
+    const { datum, text } = req.body;
+    const normalizedText = String(text || '').trim();
+    const parsedDate = new Date(`${datum}T00:00:00.000Z`);
+    if (!datum
+      || !/^\d{4}-\d{2}-\d{2}$/.test(datum)
+      || parsedDate.toISOString().slice(0, 10) !== datum
+      || !normalizedText
+      || normalizedText.length > 5000) {
+      return res.status(400).json({ msg: 'Datum und Kommentar sind erforderlich.' });
+    }
+
+    const mitarbeiter = await Mitarbeiter.findById((await resolvePublicMitarbeiter(req))?._id)
+      .select('_id vorname nachname email locationV2')
+      .lean();
+    if (!mitarbeiter) return res.status(404).json({ msg: 'Mitarbeiter nicht gefunden' });
+
+    const author = await resolvePublicCommentAuthor(mitarbeiter);
+    const name = [mitarbeiter.vorname, mitarbeiter.nachname].filter(Boolean).join(' ') || 'Mitarbeiter';
+    const comment = await Comment.findOneAndUpdate(
+      {
+        scope: 'dispo_day',
+        'context.mitarbeiter': mitarbeiter._id,
+        'context.datum': datum,
+        'context.resourceType': 'public_monitor',
+      },
+      {
+        $set: {
+          text: normalizedText,
+          author: name,
+          authorId: author._id,
+          readBy: [author._id],
+          locationV2: mitarbeiter.locationV2 || null,
+        },
+        $setOnInsert: {
+          scope: 'dispo_day',
+          context: { mitarbeiter: mitarbeiter._id, datum, resourceType: 'public_monitor' },
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+    res.status(200).json(comment);
+  })
+);
+
+async function findPublicDayComment(req, commentId) {
+  const mitarbeiter = await resolvePublicMitarbeiter(req);
+  if (!mitarbeiter) return null;
+  return Comment.findOne({
+    _id: commentId,
+    scope: 'dispo_day',
+    'context.mitarbeiter': mitarbeiter._id,
+    'context.resourceType': 'public_monitor',
+  });
+}
+
+router.put(
+  "/dispo-kommentare/:id",
+  asyncHandler(async (req, res) => {
+    const text = String(req.body.text || '').trim();
+    if (!text || text.length > 5000) return res.status(400).json({ msg: 'Kommentar ist erforderlich.' });
+
+    const comment = await findPublicDayComment(req, req.params.id);
+    if (!comment) return res.status(404).json({ msg: 'Kommentar nicht gefunden.' });
+    comment.text = text;
+    await comment.save();
+    res.json(comment);
+  })
+);
+
+router.delete(
+  "/dispo-kommentare/:id",
+  asyncHandler(async (req, res) => {
+    const comment = await findPublicDayComment(req, req.params.id);
+    if (!comment) return res.status(404).json({ msg: 'Kommentar nicht gefunden.' });
+    await comment.deleteOne();
+    res.status(204).end();
   })
 );
 
