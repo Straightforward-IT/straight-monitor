@@ -478,10 +478,9 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
   // 3) Parser-Kommentar als Story (wie gehabt)
   const comment = email.meta?.asana_comment || email.bodyText || "";
   if (comment && comment.trim()) {
-    const safe = comment.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     await queueAsanaWrite(
       `create email comment for task ${createdTask.gid}`,
-      () => createStoryOnTask(createdTask.gid, { html_text: `<body><pre>${safe}</pre></body>` })
+      () => createStoryOnTask(createdTask.gid, { html_text: `<body>${formatCommentHtml(comment)}</body>` })
     );
   }
 
@@ -498,6 +497,17 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
   return createdTask;
 }
 
+function formatCommentHtml(comment = "") {
+  return String(comment)
+    .trim()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .split(/\r?\n\s*\r?\n/)
+    .filter(Boolean)
+    .map((paragraph) => `<p>${paragraph.replace(/\r?\n/g, "<br>")}</p>`)
+    .join("");
+}
 
 /**
  * Fetch a single task by its GID.
@@ -655,7 +665,7 @@ async function _mergeIntoExistingTask(existingTask, email, files = [], hint = {}
 
   const commentText = email.meta?.asana_comment || email.bodyText || "";
   const commentHtml = commentText.trim()
-    ? `<br><pre>${commentText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`
+    ? `<br>${formatCommentHtml(commentText)}`
     : "";
 
   const storyHtml = `<body><strong>🔄 Erneute Bewerbung eingegangen</strong><br>📥 <b>Eingang:</b> ${dateInfo}<br>👤 <b>Von:</b> ${fromInfo}<br>🔍 <b>Quelle:</b> ${providerInfo}${contactHtml}${commentHtml}</body>`;
@@ -849,13 +859,8 @@ async function uploadAttachmentsToTask(task_gid, files = []) {async function cre
   try {
     const comment = email.meta?.asana_comment || email.bodyText || "";
     if (comment && comment.trim()) {
-      // Plaintext → in <pre> kapseln, damit Formatierung erhalten bleibt
-      const safe = comment
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
       await createStoryOnTask(createdTask.gid, {
-        html_text: `<body><pre>${safe}</pre></body>`,
+        html_text: `<body>${formatCommentHtml(comment)}</body>`,
       });
     }
   } catch (e) {

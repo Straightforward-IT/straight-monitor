@@ -167,6 +167,12 @@
             </div>
             <div class="check-item">
               <label class="check-label"
+                >Küche
+                <input type="checkbox" v-model="isKueche" class="check-input"
+              /></label>
+            </div>
+            <div class="check-item">
+              <label class="check-label"
                 >Teamleiter
                 <input
                   type="checkbox"
@@ -364,6 +370,7 @@ export default {
       location: "",
       isService: false,
       isLogistik: false,
+      isKueche: false,
       isTeamleiter: false,
       isFestangestellt: false,
       isOffice: false,
@@ -454,6 +461,7 @@ export default {
     },
     isService: "setDepartment",
     isLogistik: "setDepartment",
+    isKueche: "setDepartment",
   },
   computed: {
     isDev() {
@@ -562,6 +570,7 @@ export default {
 
       if (this.isService) departments.push("Service");
       if (this.isLogistik) departments.push("Logistik");
+      if (this.isKueche) departments.push("Küche");
 
       // Join all selected departments with "/" or set empty string if none
       this.department = departments.length ? departments.join("/") : "";
@@ -711,13 +720,14 @@ export default {
       name = name.trim();
 
       // Define job-related keywords to be removed
-      const jobKeywords = ["s", "service", "l", "logi", "logistik", "s+l", "l+s"];
+      const jobKeywords = ["s", "service", "l", "logi", "logistik", "k", "küche", "kueche", "s+l", "l+s"];
 
       // Split into words while preserving order
       let words = name.split(" ");
       let filteredWords = [];
       let isService = false;
       let isLogistik = false;
+      let isKueche = false;
 
       // Remove job-related keywords and detect role flags
       words.forEach((word) => {
@@ -727,6 +737,8 @@ export default {
           isService = true;
         } else if (["l", "logi", "logistik"].includes(lowerWord)) {
           isLogistik = true;
+        } else if (["k", "küche", "kueche"].includes(lowerWord)) {
+          isKueche = true;
         } else if(["s+l", "l+s"].includes(lowerWord)) {
           isService = true;
           isLogistik = true;
@@ -738,6 +750,7 @@ export default {
       // Assign detected fields
       this.isService = isService;
       this.isLogistik = isLogistik;
+      this.isKueche = isKueche;
       // Check if the name is in "Last, First" format (contains a comma)
       let firstNames = [];
       let lastName = "";
@@ -839,6 +852,7 @@ export default {
       this.location = "";
       this.isService = false;
       this.isLogistik = false;
+      this.isKueche = false;
       this.isTeamleiter = false;
       this.isFestangestellt = false;
       this.isOffice = false;
@@ -904,6 +918,7 @@ export default {
         { name: "department", value: this.department },
         { name: "isService",  value: String(this.isService) },
         { name: "isLogistik", value: String(this.isLogistik) },
+        { name: "isKueche",   value: String(this.isKueche) },
         { name: "isTeamLead", value: String(this.isTeamleiter) },
         { name: "isOffice",   value: String(this.isOffice) },
         { name: "isFesti",    value: String(this.isFestangestellt) },

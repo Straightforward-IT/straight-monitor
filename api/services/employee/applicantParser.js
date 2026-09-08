@@ -7,6 +7,7 @@ const SERVICE_KEYWORDS = [
 const LOGISTIK_KEYWORDS = [
   "logistik", "logistiker", "lager", "eventhand", "eventhands", "aufbau", "abbau", "fahrer", "backline",
 ];
+const KUECHE_KEYWORDS = ["küchenhilfe"];
 
 /* ----------------------------- Helpers ----------------------------- */
 
@@ -137,6 +138,7 @@ function detectStelle(subject = "", bodyText = "") {
   const txt = `${subject || ""} ${bodyText || ""}`.toLowerCase();
   if (SERVICE_KEYWORDS.some((k) => txt.includes(k))) return "S";
   if (LOGISTIK_KEYWORDS.some((k) => txt.includes(k))) return "L";
+  if (KUECHE_KEYWORDS.some((k) => txt.includes(k))) return "K";
   return null;
 }
 
@@ -552,7 +554,7 @@ function parseApplicantEmail({ subject = "", from = "", bodyHtml = "" }) {
     if (subjTry.name) full_name = subjTry.name;
   }
 
-  const title_suffix = (stelle === "S" || stelle === "L") ? stelle : "?";
+  const title_suffix = ["S", "L", "K"].includes(stelle) ? stelle : "?";
   const asana_title = `${full_name || "Unbekannt"} - ${title_suffix}`;
 
   // Task-Body: Kontaktmöglichkeiten + provider-spezifische Nachrichten
