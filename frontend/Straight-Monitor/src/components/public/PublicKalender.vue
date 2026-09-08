@@ -264,9 +264,22 @@ function toIsoDate(date) {
 }
 
 const canManageAvailability = computed(() => Boolean(props.api && props.email));
-const availabilityByDate = computed(() => new Map(
-  availabilityEntries.value.map((entry) => [toIsoDate(new Date(entry.datumVon)), entry])
-));
+const availabilityByDate = computed(() => {
+  const states = new Map();
+  const monthStart = new Date(currentYear.value, currentMonth.value, 1);
+  const monthEnd = new Date(currentYear.value, currentMonth.value + 1, 0);
+  for (const entry of availabilityEntries.value) {
+    const start = new Date(Math.max(new Date(entry.datumVon).getTime(), monthStart.getTime()));
+    const end = new Date(Math.min(new Date(entry.datumBis || entry.datumVon).getTime(), monthEnd.getTime()));
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+      const key = toIsoDate(date);
+      if (!states.has(key)) states.set(key, entry);
+    }
+  }
+  return states;
+});
 const commentDates = computed(() => new Set(
   commentEntries.value.map((entry) => entry.context?.datum).filter(Boolean)
 ));
@@ -348,6 +361,8 @@ function availabilityIcon(status) {
     available: 'fa-solid fa-check',
     partially: 'fa-solid fa-circle-half-stroke',
     blocked: 'fa-solid fa-xmark',
+    krank: 'fa-solid fa-briefcase-medical',
+    urlaub: 'fa-solid fa-umbrella-beach',
   }[status];
 }
 
@@ -413,6 +428,7 @@ async function saveAvailability(day, zeitVon, zeitBis) {
       ...availabilityEntries.value.filter((entry) => toIsoDate(new Date(entry.datumVon)) !== toIsoDate(day.date)),
       data,
     ];
+    await loadAvailability();
     selectedDay.value = { ...day, availability: data };
   } catch (error) {
     availabilityError.value = error.response?.data?.msg || 'Speichern fehlgeschlagen.';
@@ -444,6 +460,7 @@ async function clearAvailability(day) {
     availabilityEntries.value = availabilityEntries.value.filter(
       (entry) => toIsoDate(new Date(entry.datumVon)) !== toIsoDate(day.date)
     );
+    await loadAvailability();
     selectedDay.value = { ...day, availability: null };
   } catch (error) {
     availabilityError.value = error.response?.data?.msg || 'Zurücksetzen fehlgeschlagen.';
@@ -521,11 +538,11 @@ function onDayClick(day) {
     return;
   }
 
-  if (availabilityMode.value.value === 'clear'
+  if (availabilityMode.value.value === 'partially') {
+    openPartialTimeDialog(day);
+  } else if (availabilityMode.value.value === 'clear'
     || day.availability?.verfuegbarkeit === availabilityMode.value.value) {
     clearAvailability(day);
-  } else if (availabilityMode.value.value === 'partially') {
-    openPartialTimeDialog(day);
   } else {
     saveAvailability(day);
   }
@@ -640,6 +657,8 @@ watch([currentMonth, currentYear], () => {
 .calendar-day.availability-available:not(.today) { background: rgba(33, 150, 83, 0.12); }
 .calendar-day.availability-partially:not(.today) { background: rgba(255, 179, 0, 0.16); }
 .calendar-day.availability-blocked:not(.today) { background: rgba(220, 53, 69, 0.12); }
+.calendar-day.availability-krank:not(.today) { background: rgba(220, 53, 69, 0.12); }
+.calendar-day.availability-urlaub:not(.today) { background: rgba(56, 189, 248, 0.13); }
 
 .availability-status-icon {
   position: absolute;
@@ -657,6 +676,8 @@ watch([currentMonth, currentYear], () => {
 .availability-available .availability-status-icon { color: #219653; }
 .availability-partially .availability-status-icon { color: #c58a00; }
 .availability-blocked .availability-status-icon { color: #dc3545; }
+.availability-krank .availability-status-icon { color: #dc3545; }
+.availability-urlaub .availability-status-icon { color: #38bdf8; }
 
 .day-number {
   font-size: 0.85rem;

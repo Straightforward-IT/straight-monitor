@@ -64,6 +64,35 @@ const LOGISTIK_KEYWORDS = [
   'hands',
   'crew',
 ];
+const PUBLIC_DAY_STATE_FILTER = {
+  $or: [
+    { typ: 'verfuegbarkeit', verfuegbarkeit: { $in: ['available', 'partially', 'blocked'] } },
+    { typ: 'abwesenheit', abwesenheitsKategorie: { $in: ['krank', 'urlaub'] } },
+  ],
+};
+
+async function removeDayStates(mitarbeiterId, date, nextDay) {
+  const entries = await DispoEintrag.find({
+    mitarbeiter: mitarbeiterId,
+    ...PUBLIC_DAY_STATE_FILTER,
+    datumVon: { $lt: nextDay },
+    datumBis: { $gte: date },
+  }).lean();
+
+  await Promise.all(entries.flatMap((entry) => {
+    const start = new Date(entry.datumVon);
+    const end = new Date(entry.datumBis || entry.datumVon);
+    const base = { ...entry };
+    delete base._id;
+    delete base.__v;
+    delete base.createdAt;
+    delete base.updatedAt;
+    const replacements = [];
+    if (start < date) replacements.push({ ...base, datumBis: new Date(date.getTime() - 1) });
+    if (end >= nextDay) replacements.push({ ...base, datumVon: new Date(nextDay) });
+    return [DispoEintrag.findByIdAndDelete(entry._id), ...replacements.map((replacement) => DispoEintrag.create(replacement))];
+  }));
+}
 
 function normalizeBereichText(value) {
   return String(value || '')
@@ -339,13 +368,15 @@ router.get(
     dateBis.setHours(23, 59, 59, 999);
     const eintraege = await DispoEintrag.find({
       mitarbeiter: mitarbeiter._id,
-      typ: 'verfuegbarkeit',
-      verfuegbarkeit: { $in: ['available', 'partially', 'blocked'] },
+      ...PUBLIC_DAY_STATE_FILTER,
       datumVon: { $lte: dateBis },
       datumBis: { $gte: dateVon },
-    }).lean();
+    }).sort({ updatedAt: -1 }).lean();
 
-    res.json(eintraege);
+    res.json(eintraege.map((entry) => ({
+      ...entry,
+      verfuegbarkeit: entry.typ === 'abwesenheit' ? entry.abwesenheitsKategorie : entry.verfuegbarkeit,
+    })));
   })
 );
 
@@ -365,13 +396,7 @@ router.post(
     date.setHours(0, 0, 0, 0);
     const nextDay = new Date(date);
     nextDay.setDate(nextDay.getDate() + 1);
-    await DispoEintrag.deleteMany({
-      mitarbeiter: mitarbeiter._id,
-      typ: 'verfuegbarkeit',
-      verfuegbarkeit: { $in: ['available', 'partially', 'blocked'] },
-      datumVon: { $gte: date, $lt: nextDay },
-      datumBis: { $gte: date, $lt: nextDay },
-    });
+    await removeDayStates(mitarbeiter._id, date, nextDay);
 
     const eintrag = await DispoEintrag.create({
       mitarbeiter: mitarbeiter._id,
@@ -399,13 +424,7 @@ router.delete(
     date.setHours(0, 0, 0, 0);
     const nextDay = new Date(date);
     nextDay.setDate(nextDay.getDate() + 1);
-    await DispoEintrag.deleteMany({
-      mitarbeiter: mitarbeiter._id,
-      typ: 'verfuegbarkeit',
-      verfuegbarkeit: { $in: ['available', 'partially', 'blocked'] },
-      datumVon: { $gte: date, $lt: nextDay },
-      datumBis: { $gte: date, $lt: nextDay },
-    });
+    await removeDayStates(mitarbeiter._id, date, nextDay);
     res.status(204).end();
   })
 );

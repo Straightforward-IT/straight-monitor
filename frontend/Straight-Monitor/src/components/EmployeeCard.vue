@@ -1371,6 +1371,15 @@
           <span class="steckbrief-label">Erstellt</span>
           <span class="steckbrief-value steckbrief-value--muted">{{ resolvedMa.erstellt_von }}</span>
         </div>
+        <div v-if="(auth.user?.roles?.includes('ADMIN') || auth.user?.role === 'ADMIN') && resolvedMa._id" class="steckbrief-row">
+          <span class="steckbrief-label">MongoDB ID</span>
+          <span class="steckbrief-value steckbrief-value--muted">
+            {{ resolvedMa._id }}
+            <button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa._id)" title="Kopieren">
+              <font-awesome-icon icon="fa-solid fa-copy" />
+            </button>
+          </span>
+        </div>
         <button class="steckbrief-edit-button" type="button" @click.stop="executeQuickAction('edit')">
           <font-awesome-icon icon="fa-solid fa-pen-to-square" />
           Bearbeiten

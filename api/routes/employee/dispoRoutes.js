@@ -5,6 +5,7 @@ const auth = require('../../middleware/auth');
 const asyncHandler = require('../../middleware/AsyncHandler');
 const DispoEintrag = require('../../models/System/DispoEintrag');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
+const User = require('../../models/System/User');
 const Einsatz = require('../../models/Event/Einsatz');
 const Auftrag = require('../../models/Event/Auftrag');
 const Kunde = require('../../models/Customer/Kunde');
@@ -239,6 +240,22 @@ router.put('/:id', auth, asyncHandler(async (req, res) => {
   }
 
   res.json(eintrag);
+}));
+
+// ─── DELETE /api/dispo?mitarbeiterId=... (ADMIN only) ───
+router.delete('/', auth, asyncHandler(async (req, res) => {
+  const { mitarbeiterId } = req.query;
+  if (!mongoose.isValidObjectId(mitarbeiterId)) {
+    return res.status(400).json({ message: 'Gültige mitarbeiterId ist erforderlich.' });
+  }
+
+  const user = await User.findById(req.user.id).select('role roles').lean();
+  if (!user || (user.role !== 'ADMIN' && !user.roles?.includes('ADMIN'))) {
+    return res.status(403).json({ message: 'Keine Berechtigung.' });
+  }
+
+  const result = await DispoEintrag.deleteMany({ mitarbeiter: mitarbeiterId });
+  res.json({ deletedCount: result.deletedCount });
 }));
 
 // ─── DELETE /api/dispo/:id ───

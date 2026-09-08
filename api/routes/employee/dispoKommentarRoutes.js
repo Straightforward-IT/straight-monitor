@@ -65,6 +65,22 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   res.status(201).json(kommentar);
 }));
 
+// ─── DELETE /api/dispo-kommentare?mitarbeiterId=... (ADMIN only) ───
+router.delete('/', auth, asyncHandler(async (req, res) => {
+  const { mitarbeiterId } = req.query;
+  if (!mongoose.isValidObjectId(mitarbeiterId)) {
+    return res.status(400).json({ message: 'Gültige mitarbeiterId ist erforderlich.' });
+  }
+
+  const user = await User.findById(req.user.id).select('role roles').lean();
+  if (!user || (user.role !== 'ADMIN' && !user.roles?.includes('ADMIN'))) {
+    return res.status(403).json({ message: 'Keine Berechtigung.' });
+  }
+
+  const result = await DispoKommentar.deleteMany({ mitarbeiter: mitarbeiterId });
+  res.json({ deletedCount: result.deletedCount });
+}));
+
 // ─── DELETE /api/dispo-kommentare/:id ───
 router.delete('/:id', auth, asyncHandler(async (req, res) => {
   const kommentar = await DispoKommentar.findById(req.params.id);
