@@ -46,13 +46,13 @@
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
       </div>
 
-      <div v-if="isTeamleiter" class="tile" @click="$emit('navigate', 'kalender')">
+      <div v-if="isTeamleiter" class="tile tile--availability" @click="$emit('navigate', 'kalender')">
         <div class="tile-icon tile-icon--blue">
           <img :src="imgCalender" class="tile-img" alt="Kalender" />
         </div>
         <div class="tile-content">
           <h3>Kalender</h3>
-          <p>Deine Einsätze im Überblick</p>
+          <p>Update: Verfügbarkeiten eintragen</p>
         </div>
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
       </div>
@@ -94,8 +94,8 @@
       </div>
 
       <!-- Teamleiter only -->
-      <div v-if="isTeamleiter" class="tile tile--teamleiter" @click="$emit('navigate', 'eventreport')">
-        <div class="tile-icon">
+      <div v-if="isTeamleiter" class="tile" @click="$emit('navigate', 'eventreport')">
+        <div class="tile-icon tile-icon--orange">
           <img :src="imgEventreport" class="tile-img" alt="Event Report" />
         </div>
         <div class="tile-content">
@@ -294,14 +294,9 @@ const upcomingEinsaetze = computed(() => {
   background: var(--hover);
 }
 
-.tile--teamleiter {
+.tile--availability {
   border-color: var(--primary);
   background: rgba(255, 117, 24, 0.05);
-}
-
-.tile--teamleiter .tile-icon {
-  background: var(--primary);
-  color: white;
 }
 
 .tile-icon {
