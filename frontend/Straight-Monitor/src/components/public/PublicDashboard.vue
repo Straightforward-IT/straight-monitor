@@ -105,29 +105,6 @@
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
       </div>
 
-      <!-- Debug: Teamleiter Toggle -->
-      <div v-if="isDebugUser" class="tile tile--debug" @click="$emit('toggle-debug-tl')">
-        <div class="tile-icon tile-icon--debug">
-          <font-awesome-icon icon="fa-solid fa-user-tie" />
-        </div>
-        <div class="tile-content">
-          <h3>Teamleiter Modus</h3>
-          <p>{{ debugTlActive ? 'Aktiv — klicken zum Deaktivieren' : 'Inaktiv — klicken zum Aktivieren' }}</p>
-        </div>
-        <font-awesome-icon :icon="debugTlActive ? 'fa-solid fa-toggle-on' : 'fa-solid fa-toggle-off'" class="tile-arrow" :style="{ color: debugTlActive ? 'var(--primary)' : undefined }" />
-      </div>
-
-      <!-- Debug: Dev Modus Toggle -->
-      <div v-if="isDebugUser && hasPublicMenuOption('dev-mode')" class="tile tile--debug" @click="$emit('toggle-debug-dev')">
-        <div class="tile-icon tile-icon--debug">
-          <font-awesome-icon icon="fa-solid fa-code" />
-        </div>
-        <div class="tile-content">
-          <h3>Dev Modus</h3>
-          <p>{{ debugDevActive ? 'Aktiv — klicken zum Deaktivieren' : 'Inaktiv — klicken zum Aktivieren' }}</p>
-        </div>
-        <font-awesome-icon :icon="debugDevActive ? 'fa-solid fa-toggle-on' : 'fa-solid fa-toggle-off'" class="tile-arrow" :style="{ color: debugDevActive ? 'var(--primary)' : undefined }" />
-      </div>
     </div>
 
     <!-- Upcoming jobs (Teamleiter only) -->
