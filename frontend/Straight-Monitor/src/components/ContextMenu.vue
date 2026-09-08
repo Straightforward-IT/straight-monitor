@@ -2,7 +2,7 @@
   <div class="context-menu-overlay" @click="$emit('close')">
     <div 
       class="context-menu"
-      :style="{ top: y + 'px', left: x + 'px' }"
+      :style="{ top: menuPosition.y + 'px', left: menuPosition.x + 'px', minWidth: width + 'px' }"
       @click.stop
     >
       <div v-if="title" class="context-menu__title">{{ title }}</div>
@@ -10,10 +10,11 @@
         v-for="(option, idx) in options"
         :key="idx"
         class="context-menu-item"
-        :class="{ 'context-menu-item--special': option.special }"
-        @click="selectOption(option)"
+        :class="{ 'context-menu-item--special': option.special, 'context-menu-item--disabled': option.disabled }"
+        @click="!option.disabled && selectOption(option)"
       >
         <img v-if="option.image" :src="option.image" class="context-menu-item__image" alt="" />
+        <FontAwesomeIcon v-if="option.icon" :icon="option.icon" class="context-menu-item__icon" />
         <span>{{ option.label }}</span>
       </div>
     </div>
@@ -21,19 +22,42 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
-defineProps<{
+const props = withDefaults(defineProps<{
   x: number;
   y: number;
   title?: string;
-  options: Array<{ label: string; action: string; image?: string; special?: boolean }>;
-}>();
+  anchor?: HTMLElement | null;
+  followAnchor?: boolean;
+  width?: number;
+  offset?: number;
+  options: Array<{ label: string; action: string; image?: string; icon?: string; special?: boolean; disabled?: boolean }>;
+}>(), {
+  anchor: null,
+  followAnchor: false,
+  width: 164,
+  offset: 4,
+});
 
 const emit = defineEmits<{
   close: [];
   select: [action: string];
 }>();
+const menuPosition = ref({ x: props.x, y: props.y });
+
+function updatePosition() {
+  if (props.followAnchor && props.anchor) {
+    const rect = props.anchor.getBoundingClientRect();
+    menuPosition.value = {
+      x: rect.right - props.width,
+      y: rect.bottom + props.offset,
+    };
+    return;
+  }
+  menuPosition.value = { x: props.x, y: props.y };
+}
 
 function onKeydown(event: KeyboardEvent) {
   if (event.key !== 'Escape') return;
@@ -43,8 +67,18 @@ function onKeydown(event: KeyboardEvent) {
   emit('close');
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown, true));
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, true));
+watch(() => [props.x, props.y, props.anchor, props.followAnchor], updatePosition, { immediate: true });
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown, true);
+  window.addEventListener('scroll', updatePosition, true);
+  window.addEventListener('resize', updatePosition);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown, true);
+  window.removeEventListener('scroll', updatePosition, true);
+  window.removeEventListener('resize', updatePosition);
+});
 
 function selectOption(option: any) {
   emit('select', option.action);
@@ -123,6 +157,15 @@ function selectOption(option: any) {
     object-fit: contain;
   }
 
+  .context-menu-item__icon {
+    width: 16px;
+    color: var(--muted);
+  }
+
+  .context-menu-item:hover .context-menu-item__icon {
+    color: var(--primary);
+  }
+
   .context-menu-item--special {
     margin-bottom: 4px;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
@@ -134,6 +177,17 @@ function selectOption(option: any) {
     }
 
     &::before { opacity: 1; }
+  }
+
+  .context-menu-item--disabled {
+    color: var(--muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+
+    &:hover {
+      background: transparent;
+      color: var(--muted);
+    }
   }
 }
 </style>

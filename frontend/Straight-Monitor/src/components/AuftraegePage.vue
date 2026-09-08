@@ -356,16 +356,39 @@
     </div>
     </div><!-- End main-content -->
 
-    <ActionMenu
-      :open="contextMenu.open"
+    <ContextMenu
+      v-if="contextMenu.open"
       :x="contextMenu.x"
       :y="contextMenu.y"
       :width="200"
       :title="contextMenu.day ? contextMenu.day.name : 'Auftrag'"
-      :items="contextMenu.day ? dayContextMenuItems : orderContextMenuItems"
-      :group-by="false"
+      :options="contextMenu.day ? dayContextMenuItems : orderContextMenuItems"
       @close="closeOrderContextMenu"
-      @item-click="handleOrderContextMenuAction"
+      @select="handleOrderContextMenuAction"
+    />
+
+    <ContextMenu
+      v-if="documentMenu.open"
+      :x="documentMenu.x"
+      :y="documentMenu.y"
+      :anchor="$refs.neuDokButton"
+      follow-anchor
+      :width="210"
+      :options="documentMenuItems"
+      @close="documentMenu.open = false"
+      @select="handleDocumentMenuAction"
+    />
+
+    <ContextMenu
+      v-if="headerContextMenu.open"
+      :x="headerContextMenu.x"
+      :y="headerContextMenu.y"
+      :anchor="$refs.quickActionsButton"
+      follow-anchor
+      :width="200"
+      :options="headerContextMenuItems"
+      @close="headerContextMenu.open = false"
+      @select="handleHeaderContextMenuAction"
     />
 
     <!-- Sidebar for Event Details -->
@@ -381,40 +404,9 @@
       </template>
       <template #actions>
         <div class="sidebar-header-actions">
-            <!-- Three-dots quick-actions menu -->
-            <div class="qa-menu-wrap">
-              <button class="qa-dots-btn" @click.stop="showQuickActions = !showQuickActions" title="Aktionen">
-                <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
-              </button>
-              <transition name="qa-dropdown-fade">
-                <div v-if="showQuickActions" class="qa-dropdown" @click.stop>
-                  <button class="qa-dropdown-item" @click="openEventEditor">
-                    <font-awesome-icon icon="fa-solid fa-pencil" />
-                    Im Event-Editor öffnen
-                  </button>
-                  <button class="qa-dropdown-item" @click="openLabelDialog">
-                    <font-awesome-icon icon="fa-solid fa-tag" />
-                    Label verwalten
-                  </button>
-                  <button class="qa-dropdown-item" @click="openPseudoDialog">
-                    <font-awesome-icon icon="fa-solid fa-user-plus" />
-                    Pseudo-MA einplanen
-                  </button>
-                  <button class="qa-dropdown-item" @click="createStundenliste" :disabled="hasStundenliste || isGeneratingHoursList">
-                    <font-awesome-icon :icon="isGeneratingHoursList ? 'fa-solid fa-spinner' : 'fa-solid fa-file-contract'" :spin="isGeneratingHoursList" />
-                    {{ isGeneratingHoursList ? 'Wird erstellt…' : 'Stundenliste generieren' }}
-                  </button>
-                  <button v-if="canManageStundenliste" :class="{ 'dev-role--admin': isDev }" class="qa-dropdown-item" @click="openSignatureDialog">
-                    <font-awesome-icon icon="fa-solid fa-file-signature" />
-                    Stundenliste zur Signatur
-                  </button>
-                  <button v-if="selectedEvent && selectedEvent.isPseudo" class="qa-dropdown-item qa-dropdown-item--danger" @click="deletePseudoAuftrag">
-                    <font-awesome-icon icon="fa-solid fa-trash" />
-                    Pseudo-Auftrag löschen
-                  </button>
-                </div>
-              </transition>
-            </div>
+          <button ref="quickActionsButton" class="qa-dots-btn" type="button" title="Aktionen" @click.stop="openHeaderContextMenu">
+            <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
+          </button>
         </div>
       </template>
 
@@ -618,40 +610,10 @@
             <div class="section-header">
               <h3><font-awesome-icon icon="fa-solid fa-folder-open" /> Einsatzdokumente</h3>
               <div class="neu-dok-wrap">
-                <button ref="neuDokButton" class="neu-dok-btn" type="button" @click.stop="toggleNeuMenu">
+                <button ref="neuDokButton" class="neu-dok-btn" type="button" @click.stop="toggleDocumentMenu">
                   <font-awesome-icon icon="fa-solid fa-plus" /> Neu
                   <font-awesome-icon icon="fa-solid fa-chevron-down" class="neu-dok-caret" />
                 </button>
-                <div
-                  v-if="showNeuMenu"
-                  ref="neuDokMenu"
-                  class="neu-dok-menu"
-                  :class="{ 'neu-dok-menu--up': neuMenuOpensUp }"
-                  @click.stop
-                >
-                  <button
-                    class="neu-dok-item"
-                    type="button"
-                    :disabled="isGeneratingTelefonliste"
-                    title="Telefonliste mit aktuellen Einsatzdaten erzeugen"
-                    @click="downloadTelefonliste"
-                  >
-                    <font-awesome-icon :icon="isGeneratingTelefonliste ? 'fa-solid fa-spinner' : 'fa-solid fa-file'" :spin="isGeneratingTelefonliste" />
-                    {{ isGeneratingTelefonliste ? 'Wird erstellt…' : 'Telefonliste' }}
-                  </button>
-                  <button
-                    class="neu-dok-item"
-                    type="button"
-                    :disabled="hasStundenliste || isGeneratingHoursList"
-                    title="Stundenliste mit aktuellen Einsatzdaten erzeugen"
-                    @click="createStundenliste"
-                  >
-                    <font-awesome-icon icon="fa-solid fa-file-contract" /> Stundenliste
-                  </button>
-                  <button class="neu-dok-item" type="button" @click="openReisekostenModal()">
-                    <font-awesome-icon icon="fa-solid fa-car" /> Reisekostenabrechnung
-                  </button>
-                </div>
               </div>
             </div>
 
@@ -1276,7 +1238,7 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
-import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
+import ContextMenu from '@/components/ContextMenu.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import PillMultiSelect from '@/components/ui-elements/PillMultiSelect.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
@@ -1291,7 +1253,7 @@ import docusealLogo from '@/assets/docuseal-logo.webp';
 export default {
   name: "AuftraegePage",
   emits: ['mitarbeiter-drop'],
-  components: { PageLayout, SidePanelFrame, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu, CustomTooltip, PillMultiSelect },
+  components: { PageLayout, SidePanelFrame, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ContextMenu, CustomTooltip, PillMultiSelect },
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
@@ -1362,6 +1324,16 @@ export default {
         event: null,
         day: null,
       },
+      documentMenu: {
+        open: false,
+        x: 0,
+        y: 0,
+      },
+      headerContextMenu: {
+        open: false,
+        x: 0,
+        y: 0,
+      },
       loadedMonths: new Set(), // Track which months we've loaded
       debounceTimer: null,
       
@@ -1402,8 +1374,6 @@ export default {
       pseudoSelectedMas: [],
       pseudoSelectedSchicht: null,
       pseudoSaving: false,
-      // Three-dots dropdown
-      showQuickActions: false,
       isGeneratingHoursList: false,
       isGeneratingTelefonliste: false,
       // ── Stundenliste-Signatur (DocuSeal) ───────────────────────────────────
@@ -1429,8 +1399,6 @@ export default {
       // ── Reisekostenabrechnungen (Einsatzdokumente) ───────────────────────
       reisekostenListe: [],
       reisekostenListeLoading: false,
-      showNeuMenu: false,
-      neuMenuOpensUp: false,
       // Document icons
       auftragDocs: [],
       // ── Feiertage ────────────────────────────────────────────────────────────
@@ -1439,6 +1407,27 @@ export default {
     };
   },
   computed: {
+    documentMenuItems() {
+      return [
+        {
+          action: 'telefonliste',
+          label: this.isGeneratingTelefonliste ? 'Wird erstellt...' : 'Telefonliste',
+          icon: this.isGeneratingTelefonliste ? 'fa-solid fa-spinner' : 'fa-solid fa-file',
+          disabled: this.isGeneratingTelefonliste,
+        },
+        {
+          action: 'stundenliste',
+          label: 'Stundenliste',
+          icon: 'fa-solid fa-file-contract',
+          disabled: this.hasStundenliste || this.isGeneratingHoursList,
+        },
+        {
+          action: 'reisekosten',
+          label: 'Reisekostenabrechnung',
+          icon: 'fa-solid fa-car',
+        },
+      ];
+    },
     hasSelectedEvent: {
       get() { return Boolean(this.selectedEvent); },
       set(open) { if (!open) this.selectedEvent = null; },
@@ -1615,6 +1604,7 @@ export default {
         items.push({
           label: 'Stundenerfassung öffnen',
           icon: 'fa-solid fa-clock',
+          action: 'open-time-entry',
           disabled: true,
         });
       }
@@ -1627,6 +1617,12 @@ export default {
         action: 'collapse-all',
         variant: 'primary',
       }];
+    },
+    headerContextMenuItems() {
+      return [
+        { label: 'Im Event-Editor öffnen', action: 'open-editor', icon: 'fa-solid fa-pencil' },
+        { label: 'Pseudo-MA einplanen', action: 'plan-pseudo', icon: 'fa-solid fa-user-plus' },
+      ];
     },
     activeFilterCount() {
       let count = 0;
@@ -1939,10 +1935,10 @@ export default {
       this.contextMenu.event = null;
       this.contextMenu.day = null;
     },
-    async handleOrderContextMenuAction({ item }) {
+    async handleOrderContextMenuAction(action) {
       const auftrag = this.contextMenu.event;
       const day = this.contextMenu.day;
-      if (item?.action === 'collapse-all' && day) {
+      if (action === 'collapse-all' && day) {
         this.collapseCustomerGroupsForDay(day.date);
         this.closeOrderContextMenu();
         return;
@@ -1950,11 +1946,11 @@ export default {
       if (!auftrag) return;
       this.closeOrderContextMenu();
 
-      if (item?.action === 'open') {
+      if (action === 'open') {
         await this.selectEvent(auftrag);
-      } else if (item?.action === 'open-customer' && auftrag.kundeData) {
+      } else if (action === 'open-customer' && auftrag.kundeData) {
         await this.openKundeCard(auftrag.kundeData);
-      } else if (item?.action === 'plan-pseudo') {
+      } else if (action === 'plan-pseudo') {
         await this.selectEvent(auftrag);
         this.openPseudoDialog();
       }
@@ -2417,7 +2413,7 @@ export default {
       });
     },
     async selectEvent(event) {
-      this.showQuickActions = false;
+      this.headerContextMenu.open = false;
       this.auftragDocs = [];
       // Load full details including Einsätze
       try {
@@ -2433,7 +2429,7 @@ export default {
     },
     openEventEditor() {
       if (!this.selectedEvent) return;
-      this.showQuickActions = false;
+      this.headerContextMenu.open = false;
       this.openEvent(this.selectedEvent, {
         onUpdated: updatedEvent => {
           const eventIndex = this.auftraege.findIndex(item => (
@@ -2638,8 +2634,22 @@ export default {
     },
 
     // ── Quick Actions ────────────────────────────────────────────────────────
+    openHeaderContextMenu() {
+      const rect = this.$refs.quickActionsButton?.getBoundingClientRect();
+      if (!rect) return;
+      this.headerContextMenu = {
+        open: true,
+        x: Math.max(8, rect.right - 200),
+        y: rect.bottom + 6,
+      };
+    },
+    async handleHeaderContextMenuAction(action) {
+      this.headerContextMenu.open = false;
+      if (action === 'open-editor') this.openEventEditor();
+      if (action === 'plan-pseudo') this.openPseudoDialog();
+    },
     async openLabelDialog() {
-      this.showQuickActions = false;
+      this.headerContextMenu.open = false;
       this.newLabelName = '';
       this.newLabelColor = '#4f46e5';
       try {
@@ -2710,7 +2720,7 @@ export default {
         await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}`);
         this.auftraege = this.auftraege.filter(a => a.auftragNr !== this.selectedEvent.auftragNr);
         this.selectedEvent = null;
-        this.showQuickActions = false;
+        this.headerContextMenu.open = false;
       } catch (err) {
         alert(err.response?.data?.message || 'Fehler beim Löschen');
       }
@@ -2752,7 +2762,6 @@ export default {
     },
     async downloadTelefonliste() {
       if (!this.selectedEvent?.auftragNr || this.isGeneratingTelefonliste) return;
-      this.showNeuMenu = false;
       this.isGeneratingTelefonliste = true;
       try {
         const auftragNr = this.selectedEvent.auftragNr;
@@ -2892,11 +2901,9 @@ export default {
       }
     },
     async createStundenliste() {
-      this.showNeuMenu = false;
       await this.ensureStundenlisteDraft();
     },
     openReisekostenModal(id = null) {
-      this.showNeuMenu = false;
       if (!this.selectedEvent?.auftragNr) return;
       this.openReisekosten({
         auftragNr: this.selectedEvent.auftragNr,
@@ -2975,7 +2982,7 @@ export default {
       return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     },
     async openSignatureDialog() {
-      this.showQuickActions = false;
+      this.headerContextMenu.open = false;
       if (!this.selectedEvent) return;
       const auftragNr = this.selectedEvent.auftragNr;
 
@@ -3072,7 +3079,7 @@ export default {
       this.showSignatureDialog = false;
     },
     openPseudoDialog() {
-      this.showQuickActions = false;
+      this.headerContextMenu.open = false;
       this.pseudoSearch = '';
       this.pseudoSearchResults = [];
       this.pseudoSelectedMas = [];
@@ -3151,37 +3158,34 @@ export default {
       }
     },
 
-    async toggleNeuMenu() {
-      this.showNeuMenu = !this.showNeuMenu;
-      if (!this.showNeuMenu) {
-        this.neuMenuOpensUp = false;
+    toggleDocumentMenu() {
+      if (this.documentMenu.open) {
+        this.documentMenu.open = false;
         return;
       }
 
-      await this.$nextTick();
-      const button = this.$refs.neuDokButton;
-      const menu = this.$refs.neuDokMenu;
-      const scrollBoundary = menu?.closest('.sidebar-body');
-      if (!button || !menu || !scrollBoundary) return;
-
-      const buttonRect = button.getBoundingClientRect();
-      const boundaryRect = scrollBoundary.getBoundingClientRect();
-      const menuHeight = menu.offsetHeight;
-      const spaceBelow = boundaryRect.bottom - buttonRect.bottom - 4;
-      const spaceAbove = buttonRect.top - boundaryRect.top - 4;
-
-      this.neuMenuOpensUp = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+      const rect = this.$refs.neuDokButton?.getBoundingClientRect();
+      if (!rect) return;
+      this.documentMenu = {
+        open: true,
+        x: rect.right - 210,
+        y: rect.bottom + 4,
+      };
+    },
+    async handleDocumentMenuAction(action) {
+      if (action === 'telefonliste') await this.downloadTelefonliste();
+      if (action === 'stundenliste') await this.createStundenliste();
+      if (action === 'reisekosten') this.openReisekostenModal();
     },
 
     handleEscapeKey(event) {
       if (event.key !== 'Escape') return;
 
       // Close modals in order of priority (topmost = last opened)
-      if (this.showNeuMenu) {
-        this.showNeuMenu = false;
-        this.neuMenuOpensUp = false;
-      } else if (this.showQuickActions) {
-        this.showQuickActions = false;
+      if (this.documentMenu.open) {
+        this.documentMenu.open = false;
+      } else if (this.headerContextMenu.open) {
+        this.headerContextMenu.open = false;
       } else if (this.showLabelDialog) {
         this.showLabelDialog = false;
       } else if (this.showPseudoDialog) {
@@ -3195,9 +3199,7 @@ export default {
     }
   },
     handleDocumentClick() {
-      this.showQuickActions = false;
-      this.showNeuMenu = false;
-      this.neuMenuOpensUp = false;
+      this.headerContextMenu.open = false;
     },
     async mounted() {
     this.checkMobile();
@@ -5041,10 +5043,6 @@ export default {
   gap: 4px;
 }
 
-.qa-menu-wrap {
-  position: relative;
-}
-
 .qa-dots-btn {
   display: flex;
   align-items: center;
@@ -5064,63 +5062,6 @@ export default {
     border-color: var(--border);
     color: var(--text);
   }
-}
-
-.qa-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 200px;
-  background: var(--tile-bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
-  z-index: 200;
-  overflow: hidden;
-  padding: 4px;
-}
-
-.qa-dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 9px 12px;
-  background: none;
-  border: none;
-  border-radius: 7px;
-  color: var(--text);
-  font-size: 0.84rem;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-
-  svg { color: var(--muted); font-size: 0.85rem; }
-
-  &:hover {
-    background: var(--hover);
-    color: var(--primary);
-    svg { color: var(--primary); }
-  }
-
-  &.qa-dropdown-item--danger {
-    &:hover {
-      background: rgba(239, 68, 68, 0.08);
-      color: #ef4444;
-      svg { color: #ef4444; }
-    }
-  }
-}
-
-.qa-dropdown-fade-enter-active,
-.qa-dropdown-fade-leave-active {
-  transition: opacity 0.12s ease, transform 0.12s ease;
-}
-.qa-dropdown-fade-enter-from,
-.qa-dropdown-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
 }
 
 /* ── Label chips ────────────────────────────────────────────────────── */
@@ -5507,6 +5448,8 @@ export default {
 }
 
 .einsatzdoks-section .section-header {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5516,6 +5459,7 @@ export default {
 
 .neu-dok-wrap {
   position: relative;
+  z-index: 2;
 }
 .neu-dok-btn {
   display: inline-flex;
@@ -5536,7 +5480,7 @@ export default {
   position: absolute;
   right: 0;
   top: calc(100% + 4px);
-  z-index: 300;
+  z-index: 400;
   min-width: 210px;
   background: var(--tile-bg);
   border: 1px solid var(--border);
