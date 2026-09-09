@@ -7,11 +7,12 @@
           <FilterChip
             v-for="location in locations"
             :key="location._id"
+            class="location-filter-chip"
             :active="selectedLocationIds.includes(String(location._id))"
             :style="{ '--location-color': location.color || '#6b7280' }"
             @click="toggleLocationFilter(String(location._id))"
           >
-            {{ location.nameFull }}
+            {{ location.shortName || location.nameFull }}
           </FilterChip>
         </FilterGroup>
         <FilterGroup label="Bestand">
@@ -308,10 +309,15 @@ function toggleLocationFilter(locationId) {
 }
 
 function resetFilters() {
-  inventoryFilters.clearLocations();
+  inventoryFilters.setLocations(getUserLocationId() ? [getUserLocationId()] : []);
   stockState.value = 'all';
   variationOnly.value = false;
   sizeOnly.value = false;
+}
+
+function getUserLocationId() {
+  const location = auth.user?.locationV2?._id || auth.user?.locationV2 || null;
+  return location ? String(location) : null;
 }
 
 function openActionMenu(event) {
@@ -428,13 +434,18 @@ watch([search, selectedLocationIds, stockState, variationOnly, sizeOnly], (_valu
   onCleanup(() => clearTimeout(filterRefreshTimeout));
 });
 
-onMounted(refreshStocks);
+onMounted(async () => {
+  await refreshStocks();
+  if (!selectedLocationIds.value.length && getUserLocationId()) {
+    inventoryFilters.setLocations([getUserLocationId()]);
+  }
+});
 </script>
 
 <style scoped lang="scss">
 .inventory-page { color: var(--text); }
-.inventory-page :deep(.filter-chip) { border-color: color-mix(in srgb, var(--location-color) 45%, var(--border)); color: var(--location-color); }
-.inventory-page :deep(.filter-chip.active) { border-color: var(--location-color); color: var(--location-color); background: color-mix(in srgb, var(--location-color) 12%, transparent); }
+.inventory-page :deep(.location-filter-chip) { border-color: color-mix(in srgb, var(--location-color) 45%, var(--border)); color: var(--location-color); }
+.inventory-page :deep(.location-filter-chip.active) { border-color: var(--location-color); color: var(--location-color); background: color-mix(in srgb, var(--location-color) 12%, transparent); }
 .state { margin: 24px 0; color: var(--muted); }
 .state--error { color: #c3423f; }
 .inventory-list { display: grid; gap: 10px; }

@@ -185,6 +185,7 @@
             <LocationFilter
               v-model="filters.locationV2"
               :locations="locations"
+              :allow-all="false"
               @change="onLocationFilterChange"
             />
           </FilterGroup>
@@ -692,6 +693,7 @@
             <LocationFilter
               v-model="filters.locationV2"
               :locations="locations"
+              :allow-all="false"
               @change="onLocationFilterChange"
             />
           </FilterGroup>

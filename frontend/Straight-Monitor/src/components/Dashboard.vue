@@ -1,6 +1,6 @@
 <template>
   <RouterPageLayout
-    :tabs="dashboardTabs"
+    :tabs="visibleDashboardTabs"
     default-tab="widgets"
     aria-label="Dashboardbereiche"
     width="full"
@@ -14,7 +14,7 @@
 
     <template #default="{ activeTab }">
       <DashboardOverviewTab v-if="activeTab === 'widgets'" :active-widgets="activeWidgets" />
-      <DashboardSpaces v-else />
+      <DashboardSpaces v-else-if="isAdmin" />
     </template>
   </RouterPageLayout>
 </template>
@@ -24,6 +24,7 @@ import { onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import api from "@/utils/api";
 import { useDashboardPrefs } from "@/stores/dashboardPrefs";
+import { useAuth } from "@/stores/auth";
 import RouterPageLayout from "@/components/layout/RouterPageLayout.vue";
 import { dashboardTabs } from '@/components/layout/pageTabDefinitions';
 import DashboardOverviewTab from '@/components/DashboardOverviewTab.vue';
@@ -31,8 +32,13 @@ import DashboardSpaces from "@/components/DashboardSpaces.vue";
 
 const router = useRouter();
 const prefs = useDashboardPrefs();
+const auth = useAuth();
 
 const activeWidgets = computed(() => prefs.activeWidgets);
+const isAdmin = computed(() => auth.user?.role === 'ADMIN' || auth.user?.roles?.includes('ADMIN'));
+const visibleDashboardTabs = computed(() => dashboardTabs.map((tab) => (
+  tab.id === 'spaces' ? { ...tab, disabled: !isAdmin.value } : tab
+)));
 
 /* ── Token Version Check ─────────────────────────── */
 const TOKEN_VERSION_COOKIE = "monitor_token_version";

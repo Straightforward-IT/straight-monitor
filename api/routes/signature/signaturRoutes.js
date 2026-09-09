@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
 const auth = require('../../middleware/auth');
 const asyncHandler = require('../../middleware/AsyncHandler');
 const logger = require('../../utils/logger');
@@ -33,6 +34,10 @@ const {
 } = require('../../services/integrations/GraphService');
 
 const router = express.Router();
+const archiveUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024, files: 20 },
+});
 
 const WEBHOOK_SECRET = process.env.DOCUSEAL_WEBHOOK_SECRET;
 
@@ -1311,6 +1316,51 @@ router.get('/storage/url', auth, asyncHandler(async (req, res) => {
     filename,
   });
   res.json({ url });
+}));
+
+// DELETE /api/signaturen/storage — permanently remove one archived signature file (ADMIN only).
+router.delete('/storage', auth, asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id).select('role roles').lean();
+  const isAdmin = user?.role === 'ADMIN' || user?.roles?.includes('ADMIN');
+  if (!isAdmin) return res.status(403).json({ message: 'Nur Administratoren dürfen Archivdateien löschen.' });
+
+  const key = String(req.body?.key || '');
+  const isSignatureKey = key.startsWith('Signatures/') || key.startsWith('signaturen/');
+  if (!isSignatureKey || key.endsWith('/')) {
+    return res.status(400).json({ message: 'Ungültiger Signatur-Dateipfad' });
+  }
+
+  await R2Service.deleteFile(key);
+  logger.info(`Signatur-Ablage: Datei gelöscht von ${req.user.id}: ${key}`);
+  res.json({ message: 'Archivdatei gelöscht.' });
+}));
+
+// POST /api/signaturen/storage/upload — add files to the selected archive folder (ADMIN only).
+router.post('/storage/upload', auth, archiveUpload.array('files', 20), asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id).select('role roles').lean();
+  const isAdmin = user?.role === 'ADMIN' || user?.roles?.includes('ADMIN');
+  if (!isAdmin) return res.status(403).json({ message: 'Nur Administratoren dürfen Archivdateien hochladen.' });
+
+  const folderPath = String(req.body?.folderPath || '').replace(/^\/+|\/+$/g, '');
+  if (folderPath && (!/^[^/]+(?:\/[^/]+)*$/.test(folderPath) || folderPath.includes('..'))) {
+    return res.status(400).json({ message: 'Ungültiger Zielordner.' });
+  }
+
+  const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+  if (!uploadedFiles.length) return res.status(400).json({ message: 'Mindestens eine Datei ist erforderlich.' });
+
+  const uploaded = await Promise.all(uploadedFiles.map(async (file) => {
+    const fileName = String(file.originalname || '').replace(/[\\/]/g, '_').trim();
+    if (!fileName || fileName === '.' || fileName === '..') {
+      throw Object.assign(new Error('Ungültiger Dateiname.'), { statusCode: 400 });
+    }
+    const key = ['Signatures', folderPath, fileName].filter(Boolean).join('/');
+    await R2Service.uploadFile(key, file.buffer, file.mimetype || 'application/octet-stream');
+    return { key, fileName };
+  }));
+
+  logger.info(`Signatur-Ablage: ${uploaded.length} Datei(en) hochgeladen von ${req.user.id} nach ${folderPath || 'Signatures'}.`);
+  res.status(201).json({ uploaded });
 }));
 
 // ─── CREATE ───────────────────────────────────────────────────────────────────

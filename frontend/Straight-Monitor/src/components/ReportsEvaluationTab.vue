@@ -1,6 +1,16 @@
 <template>
   <div class="tl-page reports-evaluation-tab">
       <Toolbar>
+      <ToolbarFilter v-model="filtersExpanded" :active-count="activeFilterCount" @reset="resetFilters">
+        <FilterGroup label="Standort">
+          <LocationFilter
+            v-model="selectedStandort"
+            :locations="locations"
+            :allow-all="false"
+            @change="fetchData"
+          />
+        </FilterGroup>
+      </ToolbarFilter>
       <div class="filter-section">
         <label>Zeitraum:</label>
         <input 
@@ -11,18 +21,6 @@
           class="month-picker" 
         />
 
-        <div class="filter-divider"></div>
-
-        <label>Standort:</label>
-        <select 
-          v-model="selectedStandort" 
-          @change="fetchData"
-          class="standort-select"
-        >
-          <option v-for="opt in standortOptions" :key="opt.value" :value="opt.value">
-            {{ opt.label }}
-          </option>
-        </select>
       </div>
       <SearchBar
         v-model="searchQuery"
@@ -207,7 +205,11 @@ import { faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, f
 import CustomTooltip from './CustomTooltip.vue';
 import { useDocumentModals } from '@/composables/useDocumentModals';
 import { useTheme } from '@/stores/theme';
+import { useAuth } from '@/stores/auth';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
+import FilterGroup from '@/components/FilterGroup.vue';
+import LocationFilter from '@/components/ui-elements/LocationFilter.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import eventReportLightIcon from '@/assets/eventreport.png';
 import eventReportDarkIcon from '@/assets/eventreport-dark.png';
@@ -215,6 +217,7 @@ import evaluierungLightIcon from '@/assets/evaluierung.png';
 import evaluierungDarkIcon from '@/assets/evaluierung-dark.png';
 
 const theme = useTheme();
+const auth = useAuth();
 const eventReportIconUrl = computed(() => theme.isDark ? eventReportDarkIcon : eventReportLightIcon);
 const evaluierungIconUrl = computed(() => theme.isDark ? evaluierungDarkIcon : evaluierungLightIcon);
 
@@ -230,6 +233,7 @@ const searchQuery = ref('');
 const sortKey = ref('einsatzCount');
 const sortAsc = ref(false); 
 const expandedRows = ref([]); // Array of expanded IDs
+const filtersExpanded = ref(false);
 
 // Default current month YYYY-MM
 const today = new Date();
@@ -238,14 +242,12 @@ const mm = String(today.getMonth() + 1).padStart(2, '0');
 const selectedMonth = ref(`${yyyy}-${mm}`);
 const selectedStandort = ref(null); // null = Alle
 const locations = ref([]);
+const activeFilterCount = computed(() => Number(Boolean(selectedStandort.value)));
 
-const standortOptions = computed(() => [
-  { value: null, label: 'Alle' },
-  ...locations.value.map((location) => ({
-    value: location._id,
-    label: location.nameFull,
-  })),
-]);
+function getUserLocationId() {
+  const location = auth.user?.locationV2?._id || auth.user?.locationV2 || null;
+  return location ? String(location) : null;
+}
 
 function normalizeLocationName(value) {
   return String(value || '')
@@ -451,6 +453,11 @@ async function fetchLocations() {
   locations.value = data || [];
 }
 
+function resetFilters() {
+  selectedStandort.value = getUserLocationId();
+  fetchData();
+}
+
 onMounted(async () => {
   const { month, year, expanded, locationV2, standort } = route.query;
   let keep = false;
@@ -481,6 +488,7 @@ onMounted(async () => {
       const legacyStandort = standort || localStorage.getItem('tl_stats_standort');
       selectedStandort.value = resolveLocationId(storedLocationV2 || legacyStandort);
   }
+  if (!selectedStandort.value) selectedStandort.value = getUserLocationId();
   
   if (expanded) {
       expandedRows.value = expanded.split(',');

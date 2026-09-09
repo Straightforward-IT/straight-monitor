@@ -1,7 +1,6 @@
 <template>
   <div class="verlauf-page inventory-history-tab">
-    <template>
-      <Toolbar wrap>
+    <Toolbar wrap>
         <ToolbarFilter
           v-model="filtersExpanded"
           :active-count="activeFilterCount"
@@ -66,8 +65,6 @@
         </p>
         <p v-else>Keine Log-Einträge vorhanden.</p>
       </div>
-    </template>
-
   </div>
 
   <EmployeeCardModal
@@ -374,17 +371,10 @@ export default {
 }
 .discrete:hover{ color: var(--c-primary); }
 
-.verlauf-filter-group {
-  min-height: 44px;
-}
-
-.verlauf-filter-group.grouping-group {
-  align-items: flex-start;
-}
-
 .verlauf-chip-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 8px;
 }
 

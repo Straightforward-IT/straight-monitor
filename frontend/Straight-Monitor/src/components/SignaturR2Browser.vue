@@ -9,6 +9,10 @@
     <button class="icon-button" type="button" title="Ablage aktualisieren" :disabled="loading" @click="loadFiles">
       <font-awesome-icon :icon="['fas', 'rotate']" :spin="loading" />
     </button>
+    <button v-if="isAdmin" class="icon-button" type="button" title="Dateien hochladen" :disabled="uploading" @click="uploadInput?.click()">
+      <font-awesome-icon :icon="['fas', uploading ? 'spinner' : 'upload']" :spin="uploading" />
+    </button>
+    <input ref="uploadInput" class="upload-input" type="file" multiple @change="uploadSelectedFiles" />
   </Toolbar>
 
   <div class="storage-browser">
@@ -58,7 +62,14 @@
         </div>
       </aside>
 
-      <section class="file-panel">
+      <section
+        class="file-panel"
+        :class="{ 'file-panel--dragging': isDraggingFiles }"
+        @dragenter.prevent="onDragEnter"
+        @dragover.prevent
+        @dragleave.prevent="onDragLeave"
+        @drop.prevent="uploadDroppedFiles"
+      >
         <div class="file-panel-head">
           <button
             v-if="enableEntityLinks && currentEntity"
@@ -100,17 +111,27 @@
             <span class="file-meta">{{ formatSize(file.size) }}</span>
             <span class="file-meta file-meta--date">{{ formatDate(file.lastModified) }}</span>
             <div class="file-actions">
-              <button type="button" title="Datei öffnen" @click="openFile(file)">
-                <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
-              </button>
-              <button type="button" title="Datei herunterladen" @click="downloadFile(file)">
-                <font-awesome-icon :icon="['fas', 'download']" />
+              <button type="button" title="Dateiaktionen" aria-label="Dateiaktionen" @click="openFileMenu(file, $event)">
+                <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
               </button>
             </div>
           </div>
         </div>
+        <div v-if="isDraggingFiles && isAdmin" class="file-dropzone">
+          <font-awesome-icon :icon="['fas', 'upload']" />
+          <span>Dateien in „{{ currentFolderLabel }}“ ablegen</span>
+        </div>
       </section>
     </div>
+
+    <ContextMenu
+      v-if="fileMenu.visible"
+      :x="fileMenu.x"
+      :y="fileMenu.y"
+      :options="fileMenuOptions"
+      @close="closeFileMenu"
+      @select="handleFileMenuAction"
+    />
 
     <EmployeeCardModal
       :mitarbeiter-id="selectedMitarbeiterId"
@@ -125,10 +146,12 @@ import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
   faArrowUpRightFromSquare, faChevronDown, faChevronRight, faDownload, faFilePdf,
-  faFolder, faFolderOpen, faMagnifyingGlass, faRotate, faSpinner, faXmark,
+  faEllipsisVertical, faFolder, faFolderOpen, faMagnifyingGlass, faRotate, faSpinner, faTrash, faUpload, faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useCustomerModals } from '@/composables/useCustomerModals';
+import { useAuth } from '@/stores/auth';
+import ContextMenu from '@/components/ContextMenu.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 
@@ -136,7 +159,7 @@ const EmployeeCardModal = defineAsyncComponent(() => import('@/components/Modals
 
 library.add(
   faArrowUpRightFromSquare, faChevronDown, faChevronRight, faDownload, faFilePdf,
-  faFolder, faFolderOpen, faMagnifyingGlass, faRotate, faSpinner, faXmark,
+  faEllipsisVertical, faFolder, faFolderOpen, faMagnifyingGlass, faRotate, faSpinner, faTrash, faUpload, faXmark,
 );
 
 const props = defineProps({
@@ -155,7 +178,22 @@ const searchQuery = ref('');
 const expandedPaths = ref(new Set(['']));
 const entityOpening = ref(false);
 const selectedMitarbeiterId = ref(null);
+const uploadInput = ref(null);
+const uploading = ref(false);
+const isDraggingFiles = ref(false);
+let dragDepth = 0;
 const { openCustomer } = useCustomerModals();
+const auth = useAuth();
+const isAdmin = computed(() => auth.user?.role === 'ADMIN' || auth.user?.roles?.includes('ADMIN'));
+const fileMenu = ref({ visible: false, x: 0, y: 0, file: null });
+const fileMenuOptions = computed(() => {
+  if (!fileMenu.value.file) return [];
+  return [
+    { label: 'Datei öffnen', action: 'open', icon: ['fas', 'arrow-up-right-from-square'] },
+    { label: 'Herunterladen', action: 'download', icon: ['fas', 'download'] },
+    ...(isAdmin.value ? [{ label: 'Datei löschen', action: 'delete', icon: ['fas', 'trash'] }] : []),
+  ];
+});
 
 function getRelativePath(file) {
   if (file.displayPath) return file.displayPath;
@@ -356,6 +394,74 @@ async function downloadFile(file) {
   }
 }
 
+function onDragEnter(event) {
+  if (!isAdmin.value || !event.dataTransfer?.types.includes('Files')) return;
+  dragDepth += 1;
+  isDraggingFiles.value = true;
+}
+
+function onDragLeave() {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (!dragDepth) isDraggingFiles.value = false;
+}
+
+async function uploadSelectedFiles(event) {
+  await uploadFiles(event.target.files);
+  event.target.value = '';
+}
+
+async function uploadDroppedFiles(event) {
+  dragDepth = 0;
+  isDraggingFiles.value = false;
+  if (!isAdmin.value) return;
+  await uploadFiles(event.dataTransfer?.files);
+}
+
+async function uploadFiles(fileList) {
+  const selectedFiles = Array.from(fileList || []);
+  if (!selectedFiles.length || uploading.value) return;
+
+  uploading.value = true;
+  error.value = '';
+  try {
+    const formData = new FormData();
+    formData.append('folderPath', selectedPath.value);
+    selectedFiles.forEach((file) => formData.append('files', file));
+    await api.post('/api/signaturen/storage/upload', formData);
+    await loadFiles();
+  } catch (requestError) {
+    error.value = requestError?.response?.data?.message || 'Dateien konnten nicht hochgeladen werden.';
+  } finally {
+    uploading.value = false;
+  }
+}
+
+function openFileMenu(file, event) {
+  fileMenu.value = { visible: true, x: event.clientX - 164, y: event.clientY + 8, file };
+}
+
+function closeFileMenu() {
+  fileMenu.value = { visible: false, x: 0, y: 0, file: null };
+}
+
+function handleFileMenuAction(action) {
+  const file = fileMenu.value.file;
+  if (!file) return;
+  if (action === 'open') openFile(file);
+  else if (action === 'download') downloadFile(file);
+  else if (action === 'delete') deleteFile(file);
+}
+
+async function deleteFile(file) {
+  if (!window.confirm(`Datei "${file.name}" unwiderruflich löschen?`)) return;
+  try {
+    await api.delete('/api/signaturen/storage', { data: { key: file.key } });
+    files.value = files.value.filter((entry) => entry.key !== file.key);
+  } catch (requestError) {
+    error.value = requestError?.response?.data?.message || 'Datei konnte nicht gelöscht werden.';
+  }
+}
+
 function formatSize(bytes) {
   if (!bytes) return '0 KB';
   if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
@@ -381,6 +487,8 @@ onMounted(loadFiles);
   background: var(--surface);
   overflow: hidden;
 }
+
+.upload-input { display: none; }
 
 .storage-head {
   min-height: 48px;
@@ -464,7 +572,23 @@ onMounted(loadFiles);
   svg { color: var(--muted); flex-shrink: 0; }
 }
 
-.file-panel { min-width: 0; }
+.file-panel { position: relative; min-width: 0; }
+.file-panel--dragging { outline: 2px dashed var(--primary); outline-offset: -4px; }
+.file-dropzone {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  background: color-mix(in srgb, var(--tile-bg) 88%, var(--primary));
+  color: var(--primary);
+  font-size: 0.84rem;
+  font-weight: 600;
+  pointer-events: none;
+  text-align: center;
+}
+.file-dropzone svg { font-size: 1.3rem; margin: 0 auto; }
 .file-panel-head {
   height: 48px;
   padding: 0 16px;
@@ -498,7 +622,7 @@ onMounted(loadFiles);
   min-height: 48px;
   padding: 7px 12px;
   display: grid;
-  grid-template-columns: 30px minmax(140px, 1fr) 80px 100px 74px;
+  grid-template-columns: 30px minmax(140px, 1fr) 80px 100px 32px;
   align-items: center;
   gap: 8px;
   border-bottom: 1px solid var(--border);
@@ -538,7 +662,7 @@ onMounted(loadFiles);
 @media (max-width: 760px) {
   .storage-layout { grid-template-columns: 1fr; }
   .folder-panel { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--border); }
-  .file-row { grid-template-columns: 30px minmax(100px, 1fr) 70px 74px; }
+  .file-row { grid-template-columns: 30px minmax(100px, 1fr) 70px 32px; }
   .file-meta--date { display: none; }
 }
 </style>

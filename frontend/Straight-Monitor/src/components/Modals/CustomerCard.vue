@@ -460,13 +460,6 @@
       </section>
 
       <section v-if="activeTab === 'einsatzinfos'" class="section einsatzinfos-section">
-        <div class="einsatzinfos-intro">
-          <div>
-            <span class="einsatzinfos-kicker">Public Monitor & Disposition</span>
-            <h4>Vorlagen</h4>
-          </div>
-          <p>Pflege einen allgemeinen Default und präzisere Einsatzinformationen je Einsatzort, Beruf und Qualifikation.</p>
-        </div>
         <EinsatzinformationenEditor :kunden-nr="kunde.kundenNr" :einsatzorte="einsatzorte" />
       </section>
 
@@ -2213,17 +2206,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 </script>
 
 <style scoped>
-.einsatzinfos-intro {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1.5rem;
-  margin-bottom: 1rem;
-}
-.einsatzinfos-intro h4 { margin: .15rem 0 0; font-size: 1.35rem; }
-.einsatzinfos-intro p { max-width: 620px; margin: 0; color: var(--text-secondary, #64748b); line-height: 1.5; }
-.einsatzinfos-kicker { color: var(--primary); font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-@media (max-width: 760px) { .einsatzinfos-intro { align-items: flex-start; flex-direction: column; gap: .5rem; } }
 .customer-card {
   display: flex;
   flex: 1 1 auto;

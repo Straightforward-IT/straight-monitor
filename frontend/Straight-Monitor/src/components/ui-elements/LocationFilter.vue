@@ -52,11 +52,12 @@ onMounted(async () => {
 <style scoped>
 .location-filter {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
 }
 
 .location-filter__chip {
+  --brand: var(--location-color);
   --filter-chip-accent: var(--location-color);
 }
 </style>

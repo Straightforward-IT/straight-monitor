@@ -5,13 +5,12 @@
       <!-- Search + inline filter + count -->
       <Toolbar class="sig-toolbar">
         <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetFilters">
-          <FilterGroup label="Location">
-            <FilterChip
-              v-for="location in locations"
-              :key="location._id"
-              :active="filters.locationId === location._id"
-              @click="toggleFilter('locationId', location._id)"
-            >{{ location.nameFull }}</FilterChip>
+          <FilterGroup label="Standort">
+            <LocationFilter
+              v-model="filters.locationId"
+              :locations="locations"
+              :allow-all="false"
+            />
           </FilterGroup>
           <FilterDivider />
           <FilterGroup label="Status">
@@ -231,6 +230,7 @@ import { useAuth } from '@/stores/auth';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import LocationFilter from '@/components/ui-elements/LocationFilter.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
@@ -357,7 +357,12 @@ function hasDefaultStatuses() {
 }
 
 function resetFilters() {
-  filters.value = { locationId: null, statuses: [...defaultStatuses], entity: null, typKey: null };
+  filters.value = { locationId: getUserLocationId(), statuses: [...defaultStatuses], entity: null, typKey: null };
+}
+
+function getUserLocationId() {
+  const location = auth.user?.locationV2?._id || auth.user?.locationV2 || null;
+  return location ? String(location) : null;
 }
 
 function normalizeLocationKey(value) {
@@ -570,6 +575,7 @@ async function loadLocations() {
   try {
     const { data } = await api.get('/api/locations');
     locations.value = Array.isArray(data) ? data : [];
+    if (!filters.value.locationId) filters.value.locationId = getUserLocationId();
   } catch (e) {
     console.error('Locations laden fehlgeschlagen', e);
   }
