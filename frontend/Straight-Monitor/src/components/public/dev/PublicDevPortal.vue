@@ -1,5 +1,5 @@
 <template>
-  <div class="dev-portal">
+  <div class="dev-portal public-monitor">
     <PublicHeader
       :class="profileRankClass"
       :current-view="detailView ? 'dev-detail' : 'dashboard'"
@@ -14,18 +14,18 @@
       @toggle-debug-tl="$emit('toggle-debug-tl')"
     >
       <template #navigation>
-        <nav v-if="!detailView" class="desktop-nav" aria-label="Hauptnavigation">
-          <button v-for="item in navigation" :key="item.id" type="button" :class="{ active: activeTab === item.id }" @click="selectTab(item.id)">
-            <img v-if="item.id === 'profile' && profileImageUrl" :src="profileImageUrl" class="profile-avatar profile-avatar--nav" alt="" />
-            <span v-else-if="item.id === 'profile'" class="profile-avatar profile-avatar--nav">{{ initials }}</span>
-            <font-awesome-icon v-else :icon="item.icon" />
-            <span>{{ item.label }}</span>
-            <i v-if="item.badge">{{ item.badge }}</i>
-          </button>
-        </nav>
+        <PublicMonitorTabNavigation
+          v-if="!detailView"
+          mode="desktop"
+          :active-tab="activeTab"
+          :initials="initials"
+          :items="navigation"
+          :profile-image-url="profileImageUrl"
+          @select="selectTab"
+        />
       </template>
     </PublicHeader>
-    <main class="dev-main">
+    <PublicMonitorContentFrame>
       <template v-if="detailView === 'calendar-job' && selectedCalendarJob">
         <PublicJobDetail
           :einsatz="selectedCalendarJob"
@@ -118,6 +118,12 @@
         </div>
       </template>
 
+      <AppearanceSettingsPage
+        v-else-if="detailView === 'appearance'"
+        :theme-is-dark="theme.isDark"
+        @set-theme="setTheme"
+      />
+
       <template v-else-if="detailView === 'document' && selectedDocument">
         <section class="document-preview">
           <font-awesome-icon icon="fa-solid fa-file-pdf" /><h2>{{ selectedDocument.name }}</h2>
@@ -136,48 +142,51 @@
         <p v-if="previewMessage" class="inline-message">{{ previewMessage }}</p>
       </template>
 
-      <template v-else-if="activeTab === 'home'">
-        <section class="welcome-row"><div><span>{{ formattedToday }}</span><h2>Hallo, {{ vorname }}!</h2></div><span class="prototype-pill">DEV</span></section>
-        <section v-if="nextEinsatz" class="today-shift">
-          <div class="shift-topline"><span>{{ nextEinsatzDate }} · {{ einsatzTime(nextEinsatz) }}</span><span>{{ nextEinsatzRole }}</span></div>
-          <h3>{{ nextEinsatzTitle }}</h3>
-          <p><font-awesome-icon icon="fa-solid fa-location-dot" /> {{ nextEinsatzLocation }}</p>
-          <button class="primary-button" type="button" @click="openCalendarJob(nextEinsatz)"><font-awesome-icon icon="fa-solid fa-chevron-right" />Einsatz ansehen</button>
-        </section>
-        <section v-else class="today-shift today-shift--empty">
-          <div class="shift-topline"><span>Nächster Einsatz</span></div>
-          <h3>Du hast keinen Job heute.</h3>
-          <p>Genieß deinen Tag!</p>
-          <button class="secondary-button wide" type="button" @click="selectTab('calendar')"><font-awesome-icon icon="fa-solid fa-calendar-days" />Kalender öffnen</button>
-        </section>
-        <PublicUpcomingJobs :einsaetze="upcomingEinsaetze" @open-job="openCalendarJob" />
-        <section class="home-section">
-          <div class="section-heading"><h3>Jobangebote</h3><button type="button" @click="selectTab('jobs')">Alle</button></div>
-          <button v-for="job in jobs.slice(0, 2)" :key="job.id" class="compact-job" type="button" @click="openJob(job)"><span class="job-date"><strong>{{ dayNumber(job.dateFrom) }}</strong>{{ monthShort(job.dateFrom) }}</span><span><strong>{{ job.title }}</strong><small>{{ job.role || 'Tätigkeit offen' }} · {{ jobTime(job) }}</small></span><span class="places">{{ job.openPlaces }} frei</span></button>
-        </section>
-      </template>
+      <HomeTab
+        v-else-if="activeTab === 'home'"
+        :day-number="dayNumber"
+        :einsatz-time="einsatzTime"
+        :formatted-today="formattedToday"
+        :job-time="jobTime"
+        :jobs="jobs"
+        :month-short="monthShort"
+        :next-einsatz="nextEinsatz"
+        :next-einsatz-date="nextEinsatzDate"
+        :next-einsatz-location="nextEinsatzLocation"
+        :next-einsatz-role="nextEinsatzRole"
+        :next-einsatz-title="nextEinsatzTitle"
+        :upcoming-einsaetze="upcomingEinsaetze"
+        :vorname="vorname"
+        @open-calendar-job="openCalendarJob"
+        @open-job="openJob"
+        @select-tab="selectTab"
+      />
 
-      <template v-else-if="activeTab === 'jobs'">
-        <div class="intro-row"><div><h2>Jobangebote</h2><p>Finde deinen nächsten Einsatz.</p></div><span v-if="jobsAreFixtures" class="source-badge">Demo</span></div>
-        <div class="filter-row"><button type="button" :class="{ active: jobFilter === 'all' }" @click="jobFilter = 'all'">Alle</button><button v-for="role in jobRoles" :key="role" type="button" :class="{ active: jobFilter === role }" @click="jobFilter = role">{{ role }}</button></div>
-        <div v-if="jobsLoading" class="loading-row"><font-awesome-icon icon="fa-solid fa-spinner" spin /> Jobs werden geladen</div>
-        <div v-else-if="jobsError && !jobs.length" class="empty-state"><strong>Keine Jobs verfügbar</strong><p>{{ jobsError }}</p></div>
-        <button v-for="job in filteredJobs" :key="job.id" class="job-card" type="button" @click="openJob(job)">
-          <div class="job-card-date"><strong>{{ weekday(job.dateFrom) }}</strong><span>{{ shortDate(job.dateFrom) }}</span></div>
-          <div class="job-card-body"><div class="job-card-title"><h3>{{ job.title }}</h3><span v-if="applicationStatus(job.id)" class="mini-status">{{ applicationLabel(applicationStatus(job.id)) }}</span></div><p>{{ job.role || 'Tätigkeit noch offen' }}</p><div class="job-meta"><span><font-awesome-icon icon="fa-solid fa-clock" /> {{ jobTime(job) }}</span><span><font-awesome-icon icon="fa-solid fa-location-dot" /> {{ job.city || job.locationName || 'Ort offen' }}</span></div><div class="job-card-footer"><span>{{ job.hourlyWage || 'Vergütung folgt' }}</span><strong>Noch {{ job.openPlaces }} Plätze</strong></div></div>
-          <font-awesome-icon icon="fa-solid fa-chevron-right" />
-        </button>
-      </template>
+      <JobsTab
+        v-else-if="activeTab === 'jobs'"
+        :application-label="applicationLabel"
+        :application-status="applicationStatus"
+        :filtered-jobs="filteredJobs"
+        :job-filter="jobFilter"
+        :job-roles="jobRoles"
+        :job-time="jobTime"
+        :jobs="jobs"
+        :jobs-are-fixtures="jobsAreFixtures"
+        :jobs-error="jobsError"
+        :jobs-loading="jobsLoading"
+        :short-date="shortDate"
+        :weekday="weekday"
+        @filter="jobFilter = $event"
+        @open-job="openJob"
+      />
 
-      <template v-else-if="activeTab === 'calendar'">
-        <PublicKalender
-          :einsaetze="einsaetze"
-          :is-teamleiter="false"
-          :api="api"
-          :email="email"
-          @open-job="openCalendarJob"
-        />
-      </template>
+      <CalendarTab
+        v-else-if="activeTab === 'calendar'"
+        :api="api"
+        :einsaetze="einsaetze"
+        :email="email"
+        @open-job="openCalendarJob"
+      />
 
       <template v-else-if="detailView === 'documents'">
         <div class="intro-row"><div><h2>Meine Dokumente</h2><p>Unterlagen und Abrechnungen</p></div></div>
@@ -186,19 +195,38 @@
         <template v-else><div class="empty-state"><strong>Noch keine Abrechnungen</strong><p>Bereitgestellte Abrechnungen erscheinen hier.</p></div></template>
       </template>
 
-      <template v-else-if="activeTab === 'profile'">
-        <section class="profile-intro" :class="profileRankClass">
-          <span class="profile-avatar-ring"><img v-if="profileImageUrl" :src="profileImageUrl" class="profile-avatar profile-avatar--large" alt="" /><span v-else class="profile-avatar profile-avatar--large">{{ initials }}</span></span>
-          <div><h2>Profil <TlBadge v-if="isTeamleiter" /></h2><strong class="profile-name">{{ vorname }}</strong></div><button :class="['rank-test-button', `profile-rank--${nextProfileRank}`]" type="button" title="Nächsten Rang-Stil testen" @click="cycleProfileRank"><font-awesome-icon icon="fa-solid fa-flask" />Rang testen</button>
-        </section>
-        <div class="settings-list"><button type="button" @click="openDocuments"><font-awesome-icon icon="fa-solid fa-folder-open" /><span><strong>Dokumente</strong><small>{{ missingDocumentCount }} offen · Unterlagen und Abrechnungen</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button><template v-if="isTeamleiter"><button type="button" @click="$emit('open-event-reports')"><font-awesome-icon icon="fa-solid fa-file-lines" /><span><strong>Event Reports</strong><small>Berichte erstellen und verwalten</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button><button class="teamleiter-evaluations" type="button" @click="$emit('open-evaluations')"><font-awesome-icon icon="fa-solid fa-clipboard-check" /><span><strong>Laufzettel ausfüllen</strong><small>Evaluierungen bearbeiten</small></span><i v-if="openLaufzettelCount" class="profile-count-badge">{{ openLaufzettelCount }}</i><font-awesome-icon icon="fa-solid fa-chevron-right" /></button></template><button type="button" @click="toggleTheme"><font-awesome-icon :icon="theme.isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon'" /><span><strong>Darstellung</strong><small>{{ theme.isDark ? 'Zum hellen Modus wechseln' : 'Zum dunklen Modus wechseln' }}</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button><button type="button" @click="resetPrototype"><font-awesome-icon icon="fa-solid fa-rotate-left" /><span><strong>Prototyp zurücksetzen</strong><small>Alle lokalen Demo-Zustände löschen</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button></div>
-        <p v-if="resetMessage" class="inline-message">{{ resetMessage }}</p>
-      </template>
-    </main>
+      <ProfileTab
+        v-else-if="activeTab === 'profile'"
+        :initials="initials"
+        :is-teamleiter="isTeamleiter"
+        :missing-document-count="missingDocumentCount"
+        :next-profile-rank="nextProfileRank"
+        :open-laufzettel-count="openLaufzettelCount"
+        :profile-image-url="profileImageUrl"
+        :profile-rank-class="profileRankClass"
+        :reset-message="resetMessage"
+        :theme-is-dark="theme.isDark"
+        :vorname="vorname"
+        @cycle-rank="cycleProfileRank"
+        @open-appearance="openAppearance"
+        @open-documents="openDocuments"
+        @open-evaluations="$emit('open-evaluations')"
+        @open-event-reports="$emit('open-event-reports')"
+        @reset="resetPrototype"
+      />
+    </PublicMonitorContentFrame>
 
     <PublicFooter />
 
-    <nav v-if="!detailView" class="bottom-nav" aria-label="Hauptnavigation"><button v-for="item in navigation" :key="item.id" type="button" :class="{ active: activeTab === item.id }" @click="selectTab(item.id)"><span class="nav-icon"><img v-if="item.id === 'profile' && profileImageUrl" :src="profileImageUrl" class="profile-avatar profile-avatar--nav" alt="" /><span v-else-if="item.id === 'profile'" class="profile-avatar profile-avatar--nav">{{ initials }}</span><font-awesome-icon v-else :icon="item.icon" /><i v-if="item.badge">{{ item.badge }}</i></span><span>{{ item.label }}</span></button></nav>
+    <PublicMonitorTabNavigation
+      v-if="!detailView"
+      mode="mobile"
+      :active-tab="activeTab"
+      :initials="initials"
+      :items="navigation"
+      :profile-image-url="profileImageUrl"
+      @select="selectTab"
+    />
   </div>
 </template>
 
@@ -234,9 +262,14 @@ import { useTheme } from '@/stores/theme';
 import PublicHeader from '../PublicHeader.vue';
 import PublicFooter from '../PublicFooter.vue';
 import PublicJobDetail from '../PublicJobDetail.vue';
-import PublicKalender from '../PublicKalender.vue';
-import PublicUpcomingJobs from '../PublicUpcomingJobs.vue';
-import TlBadge from '@/components/ui-elements/TlBadge.vue';
+import PublicMonitorContentFrame from '../monitor/components/PublicMonitorContentFrame.vue';
+import PublicMonitorTabNavigation from '../monitor/components/PublicMonitorTabNavigation.vue';
+import HomeTab from '../monitor/pages/HomeTab.vue';
+import JobsTab from '../monitor/pages/JobsTab.vue';
+import CalendarTab from '../monitor/pages/CalendarTab.vue';
+import ProfileTab from '../monitor/pages/ProfileTab.vue';
+import AppearanceSettingsPage from '../monitor/pages/AppearanceSettingsPage.vue';
+import '../monitor/assets/public-monitor.css';
 import { createDemoJobs, usePublicDevDemo } from './usePublicDevDemo';
 
 library.add(
@@ -337,7 +370,7 @@ const navigation = computed(() => [
   { id: 'calendar', label: 'Kalender', icon: 'fa-solid fa-calendar-days' },
   { id: 'profile', label: 'Profil', icon: 'fa-solid fa-ellipsis' },
 ]);
-const pageTitle = computed(() => ({ 'calendar-job': 'Job Details', job: 'Job ansehen', time: 'Arbeitszeit', documents: 'Meine Dokumente', document: 'Dokument', payroll: 'Abrechnung' }[detailView.value] || 'Mitarbeiterportal'));
+const pageTitle = computed(() => ({ 'calendar-job': 'Job Details', job: 'Job ansehen', time: 'Arbeitszeit', appearance: 'Darstellung', documents: 'Meine Dokumente', document: 'Dokument', payroll: 'Abrechnung' }[detailView.value] || 'Mitarbeiterportal'));
 const elapsedMs = computed(() => { const entry = timeEntry.value; return entry.status === 'running' && entry.startedAt ? Math.max(0, nowTick.value - new Date(entry.startedAt).getTime() - (entry.pauseMs || 0)) : entry.elapsedMs || 0; });
 const formattedElapsed = computed(() => formatDuration(elapsedMs.value));
 const timeStatusLabel = computed(() => ({ idle: 'Noch nicht eingecheckt', running: 'Eingecheckt', paused: 'Pause läuft', stopped: 'Arbeit beendet', submitted: 'Zeit eingereicht', approved: 'Durch Office freigegeben', locked: 'Für Payroll gesperrt' }[timeEntry.value.status]));
@@ -347,6 +380,7 @@ function closeDetail() { const returnView = returnDetailView.value; returnDetail
 function openJob(job) { selectedJob.value = job; detailView.value = 'job'; window.scrollTo(0, 0); }
 function openCalendarJob(einsatz) { selectedCalendarJob.value = einsatz; detailView.value = 'calendar-job'; window.scrollTo(0, 0); }
 function openTime() { detailView.value = 'time'; window.scrollTo(0, 0); }
+function openAppearance() { returnDetailView.value = 'profile'; detailView.value = 'appearance'; window.scrollTo(0, 0); }
 function openDocuments() { detailView.value = 'documents'; window.scrollTo(0, 0); }
 function openDocument(document) { returnDetailView.value = detailView.value === 'documents' ? 'documents' : null; selectedDocument.value = document; detailView.value = 'document'; }
 function openPayroll(payroll) { returnDetailView.value = detailView.value === 'documents' ? 'documents' : null; selectedPayroll.value = payroll; detailView.value = 'payroll'; }
@@ -360,7 +394,7 @@ function submitTime() { timeEntry.value.status = 'submitted'; }
 function advanceTime(status) { timeEntry.value.history.push({ status, at: new Date().toISOString() }); timeEntry.value.status = status; }
 function requestCorrection() { timeEntry.value.correction = { original: formatClock(timeEntry.value.stoppedAt), requested: correctionTime.value, reason: correctionReason.value, requestedAt: new Date().toISOString() }; showCorrection.value = false; correctionTime.value = ''; correctionReason.value = ''; }
 function resetPrototype() { reset(); resetMessage.value = 'Der lokale Prototyp wurde zurückgesetzt.'; window.setTimeout(() => { resetMessage.value = ''; }, 2500); }
-function toggleTheme() { theme.set(theme.isDark ? 'light' : 'dark'); }
+function setTheme(value) { theme.set(value); }
 function cycleProfileRank() {
   rankPreviewTier.value = nextProfileRank.value;
 }
@@ -449,7 +483,7 @@ onBeforeUnmount(() => { window.clearInterval(timer); if (profileImageUrl.value) 
 </script>
 
 <style scoped>
-.dev-portal { --dev-green:#157f5b; --dev-blue:#1f6f8b; --dev-red:#b84235; min-height:100vh; min-height:100dvh; padding-bottom:calc(76px + env(safe-area-inset-bottom)); background:var(--bg); color:var(--text); font-family:'Avenir Next','Trebuchet MS',sans-serif; }
+.dev-portal { --dev-green:#157f5b; --dev-blue:#1f6f8b; --dev-red:#b84235; box-sizing:border-box; display:flex; flex-direction:column; min-height:100vh; min-height:100dvh; padding-bottom:calc(76px + env(safe-area-inset-bottom)); background:var(--bg); color:var(--text); font-family:'Avenir Next','Trebuchet MS',sans-serif; }
 button,input,textarea { font:inherit; } button { -webkit-tap-highlight-color:transparent; }
 .demo-notice { display:flex; align-items:center; justify-content:center; gap:.45rem; padding:.55rem 1rem; background:color-mix(in srgb,var(--primary) 12%,var(--panel)); color:var(--text); font-size:.7rem; text-align:center; }.demo-notice svg { color:var(--primary); }.dev-main { max-width:680px; margin:0 auto; padding:.5rem 1rem 1rem; }.dev-main h2,.dev-main h3,.dev-main p { margin-top:0; }
 .welcome-row,.intro-row { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin:.2rem 0 1rem; }.welcome-row span:first-child,.intro-row p { color:var(--muted); font-size:.78rem; }.welcome-row h2,.intro-row h2 { margin:.15rem 0 0; font-size:1.35rem; }.prototype-pill,.source-badge { padding:.22rem .45rem; border:1px solid var(--primary); border-radius:4px; color:var(--primary); font-size:.65rem; font-weight:800; }

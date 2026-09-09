@@ -3,8 +3,8 @@
     <div class="public-header-main">
       <div class="left">
         <template v-if="currentView === 'dashboard'">
-          <img :src="logoSrc" class="logo logo--clickable" alt="logo" @click="navigate('dashboard')" />
-          <h1 class="title--clickable" @click="navigate('dashboard')">Public Monitor</h1>
+          <img :src="logoSrc" class="logo" alt="logo" />
+          <h1>Public Monitor</h1>
         </template>
         <template v-else>
           <button class="header-back-btn" @click="$emit('back')">
@@ -360,16 +360,6 @@ onMounted(async () => {
 .logo {
   width: 36px;
   height: auto;
-}
-
-.logo--clickable,
-.title--clickable {
-  cursor: pointer;
-}
-
-.title--clickable:hover {
-  color: var(--primary);
-  transition: color 0.15s;
 }
 
 .header-back-btn {

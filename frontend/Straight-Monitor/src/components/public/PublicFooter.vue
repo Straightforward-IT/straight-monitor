@@ -53,6 +53,9 @@ function openModal(type) {
 
 <style scoped>
 .public-footer {
+  box-sizing: border-box;
+  width: 100%;
+  flex: 0 0 auto;
   background: var(--surface);
   border-top: 1px solid var(--border);
   padding: 1.75rem 1rem calc(1.5rem + env(safe-area-inset-bottom));

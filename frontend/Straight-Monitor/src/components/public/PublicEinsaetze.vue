@@ -34,23 +34,24 @@
       @toggle-debug-tl="toggleDebugTL"
     />
 
-    <div v-else-if="mitarbeiter" class="content">
-      <PublicHeader
-        :vorname="mitarbeiter.vorname"
-        :is-teamleiter="isTeamleiter"
-        :current-view="currentView"
-        :email="email"
-        :debug-tl-active="debugTLMode"
-        :debug-dev-active="debugDevMode"
-        :public-menu-options="publicMenuOptions"
-        :draft-status="draftSaveStatus"
-        @navigate="navigateTo"
-        @back="handleBack"
-        @toggle-debug-tl="toggleDebugTL"
-        @toggle-debug-dev="toggleDebugDev"
-      />
+    <template v-else-if="mitarbeiter">
+      <div class="content">
+        <PublicHeader
+          :vorname="mitarbeiter.vorname"
+          :is-teamleiter="isTeamleiter"
+          :current-view="currentView"
+          :email="email"
+          :debug-tl-active="debugTLMode"
+          :debug-dev-active="debugDevMode"
+          :public-menu-options="publicMenuOptions"
+          :draft-status="draftSaveStatus"
+          @navigate="navigateTo"
+          @back="handleBack"
+          @toggle-debug-tl="toggleDebugTL"
+          @toggle-debug-dev="toggleDebugDev"
+        />
 
-      <div class="page-body">
+        <div class="page-body">
         <!-- Dashboard -->
         <PublicDashboard
           v-if="currentView === 'dashboard'"
@@ -146,10 +147,10 @@
           @back="goBackFromReport"
           @draft-status="setDraftSaveStatus"
         />
+        </div>
       </div>
-
       <PublicFooter />
-    </div>
+    </template>
   </div>
 </template>
 
@@ -604,6 +605,8 @@ onMounted(async () => {
 
 <style scoped>
 .public-page {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg);
@@ -641,6 +644,8 @@ onMounted(async () => {
 }
 
 .content {
+  flex: 1 0 auto;
+  width: 100%;
   max-width: 600px;
   margin: 0 auto;
 }
