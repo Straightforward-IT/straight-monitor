@@ -43,6 +43,11 @@
                 <FilterChip :active="filters.asanaStatus === 'Nicht_verknüpft'" @click="setFilter('asanaStatus', filters.asanaStatus === 'Nicht_verknüpft' ? 'Alle' : 'Nicht_verknüpft')">Nicht verknüpft</FilterChip>
               </FilterGroup>
               <FilterDivider />
+                <FilterGroup label="Flip">
+                  <FilterChip :active="filters.flipLinkage === 'Verknüpft'" @click="setFilter('flipLinkage', filters.flipLinkage === 'Verknüpft' ? 'Alle' : 'Verknüpft')">Verknüpft</FilterChip>
+                  <FilterChip :active="filters.flipLinkage === 'Nicht_verknüpft'" @click="setFilter('flipLinkage', filters.flipLinkage === 'Nicht_verknüpft' ? 'Alle' : 'Nicht_verknüpft')">Nicht verknüpft</FilterChip>
+                </FilterGroup>
+                <FilterDivider />
               <FilterGroup label="P-Nr.">
                 <FilterChip :active="filters.personalnrStatus === 'Vorhanden'" @click="setFilter('personalnrStatus', filters.personalnrStatus === 'Vorhanden' ? 'Alle' : 'Vorhanden')">Vorhanden</FilterChip>
                 <FilterChip :active="filters.personalnrStatus === 'Fehlt'" @click="setFilter('personalnrStatus', filters.personalnrStatus === 'Fehlt' ? 'Alle' : 'Fehlt')">Fehlt</FilterChip>
@@ -629,6 +634,7 @@ export default {
         location: "Alle", // Location-ID oder Alle
         department: "Alle", // Service, Logistik, Management, IT, Alle
         flipStatus: "Alle", // Aktiv, Gesperrt, Gelöscht, Nicht_verknüpft, Alle
+        flipLinkage: "Alle", // Verknüpft, Nicht_verknüpft, Alle
         asanaStatus: "Alle", // Verknüpft, Nicht_verknüpft, Alle
         personalnrStatus: "Alle", // Vorhanden, Fehlt, Alle
         profilbildStatus: "Alle", // Vorhanden, Fehlt, Alle
@@ -669,6 +675,7 @@ export default {
       if (this.filters.status !== 'Aktiv') count++;
       if (this.filters.location !== 'Alle') count++;
       if (this.filters.department !== 'Alle') count++;
+      if (this.filters.flipLinkage !== 'Alle') count++;
       if (this.filters.asanaStatus !== 'Alle') count++;
       if (this.filters.personalnrStatus !== 'Alle') count++;
       if (this.filters.profilbildStatus !== 'Alle') count++;
@@ -687,6 +694,7 @@ export default {
       if (location) labels.push(`Standort: ${location.shortName || location.nameFull}`);
       if (this.filters.department !== 'Alle') labels.push(`Bereich: ${this.filters.department}`);
       if (this.filters.teamleiter !== 'Alle') labels.push(`Rolle: ${this.filters.teamleiter}`);
+      if (this.filters.flipLinkage !== 'Alle') labels.push(`Flip: ${this.filters.flipLinkage.replace('_', ' ')}`);
       if (this.filters.asanaStatus !== 'Alle') labels.push(`Asana: ${this.filters.asanaStatus.replace('_', ' ')}`);
       if (this.filters.personalnrStatus !== 'Alle') labels.push(`P-Nr.: ${this.filters.personalnrStatus}`);
       if (this.filters.profilbildStatus !== 'Alle') labels.push(`Profilbild: ${this.filters.profilbildStatus}`);
@@ -796,6 +804,14 @@ export default {
         result = result.filter((ma) => {
           const hasAsana = ma.asana_id && ma.asana_id.trim() !== '';
           return this.filters.asanaStatus === "Verknüpft" ? hasAsana : !hasAsana;
+        });
+      }
+
+      // Flip Linkage Filter
+      if (this.filters.flipLinkage !== "Alle") {
+        result = result.filter((ma) => {
+          const hasFlipId = ma.flip_id && ma.flip_id.trim() !== '';
+          return this.filters.flipLinkage === "Verknüpft" ? hasFlipId : !hasFlipId;
         });
       }
 

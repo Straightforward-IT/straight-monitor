@@ -86,6 +86,22 @@
           <span>{{ currentItems.length }} {{ currentItems.length === 1 ? 'Element' : 'Elemente' }}</span>
         </div>
 
+        <details v-if="isAdmin && currentFolderTechnicalInfo" class="technical-info">
+          <summary>Technische Informationen</summary>
+          <dl>
+            <template v-if="currentFolderTechnicalInfo.entityId">
+              <dt>{{ currentFolderTechnicalInfo.entityType === 'kunde' ? 'Kunden-ID' : 'Mitarbeiter-ID' }}</dt>
+              <dd><code>{{ currentFolderTechnicalInfo.entityId }}</code></dd>
+            </template>
+            <template v-if="currentFolderTechnicalInfo.folderId">
+              <dt>R2 Folder-ID</dt>
+              <dd><code>{{ currentFolderTechnicalInfo.folderId }}</code></dd>
+            </template>
+            <dt>R2-Präfix</dt>
+            <dd><code>{{ currentFolderTechnicalInfo.r2Prefix }}</code></dd>
+          </dl>
+        </details>
+
         <div v-if="currentItems.length === 0" class="storage-state">
           <font-awesome-icon :icon="['fas', searchQuery ? 'magnifying-glass' : 'folder-open']" />
           <span>{{ searchQuery ? 'Keine passenden Dokumente oder Ordner gefunden.' : 'Dieser Ordner ist leer.' }}</span>
@@ -107,7 +123,7 @@
 
           <div v-for="file in currentFiles" :key="file.key" class="file-row">
             <span class="file-icon file-icon--pdf"><font-awesome-icon :icon="['fas', 'file-pdf']" /></span>
-            <span class="file-name" :title="file.name">{{ file.name }}</span>
+            <button class="file-name file-preview-link" type="button" :title="`${file.name} öffnen`" @click="openFile(file)">{{ file.name }}</button>
             <span class="file-meta">{{ formatSize(file.size) }}</span>
             <span class="file-meta file-meta--date">{{ formatDate(file.lastModified) }}</span>
             <div class="file-actions">
@@ -150,6 +166,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import { useCustomerModals } from '@/composables/useCustomerModals';
+import { useDocumentPreviewModals } from '@/composables/useDocumentPreviewModals';
 import { useAuth } from '@/stores/auth';
 import ContextMenu from '@/components/ContextMenu.vue';
 import SearchBar from '@/components/SearchBar.vue';
@@ -183,6 +200,7 @@ const uploading = ref(false);
 const isDraggingFiles = ref(false);
 let dragDepth = 0;
 const { openCustomer } = useCustomerModals();
+const { openDocumentPreview } = useDocumentPreviewModals();
 const auth = useAuth();
 const isAdmin = computed(() => auth.user?.role === 'ADMIN' || auth.user?.roles?.includes('ADMIN'));
 const fileMenu = ref({ visible: false, x: 0, y: 0, file: null });
@@ -288,6 +306,22 @@ const currentFiles = computed(() => {
 
 const currentItems = computed(() => [...currentFolders.value, ...currentFiles.value]);
 const currentFolderLabel = computed(() => selectedPath.value ? getFolderLabel(selectedPath.value) : props.rootLabel);
+const currentFolderTechnicalInfo = computed(() => {
+  if (!selectedPath.value) return null;
+  const matchingFile = files.value.find((file) => getRelativePath(file).startsWith(`${selectedPath.value}/`));
+  if (!matchingFile?.key) return null;
+
+  const selectedParts = selectedPath.value.split('/').filter(Boolean);
+  const keyParts = matchingFile.key.split('/').filter(Boolean);
+  const r2Prefix = `${keyParts.slice(0, selectedParts.length + 1).join('/')}/`;
+  const isEntityFolder = selectedParts.length === 3 && ['kunden', 'mitarbeiter'].includes(selectedParts[1]);
+  return {
+    entityId: isEntityFolder ? matchingFile.entityId : null,
+    entityType: matchingFile.entityType,
+    folderId: isEntityFolder ? selectedParts[2] : null,
+    r2Prefix,
+  };
+});
 const currentEntity = computed(() => {
   const parts = selectedPath.value.split('/').filter(Boolean);
   if (parts.length !== 3 || !['kunden', 'mitarbeiter'].includes(parts[1])) return null;
@@ -368,15 +402,23 @@ async function getFileUrl(file, download = false) {
   return data.url;
 }
 
-async function openFile(file) {
-  const previewWindow = window.open('', '_blank');
+function openFile(file) {
+  const endpoint = props.fileUrlEndpoint;
   try {
-    const url = await getFileUrl(file);
-    if (previewWindow) previewWindow.location.href = url;
-    else window.open(url, '_blank', 'noopener');
+    openDocumentPreview({
+      id: `${endpoint}:${file.key}`,
+      filename: file.name,
+      mimeType: file.contentType || '',
+      resolveUrl: async ({ download, signal }) => {
+        const { data } = await api.get(endpoint, {
+          params: { key: file.key, download: download ? 'true' : 'false' },
+          signal,
+        });
+        return data.url;
+      },
+    });
   } catch (requestError) {
-    previewWindow?.close();
-    error.value = requestError?.response?.data?.message || 'Datei konnte nicht geöffnet werden.';
+    error.value = requestError.message || 'Datei konnte nicht geöffnet werden.';
   }
 }
 
@@ -600,6 +642,19 @@ onMounted(loadFiles);
   span { color: var(--muted); font-size: 0.76rem; }
 }
 
+.technical-info {
+  padding: 8px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--tile-bg) 86%, var(--primary));
+  color: var(--muted);
+  font-size: 0.75rem;
+  summary { color: var(--text); cursor: pointer; font-weight: 600; }
+  dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 12px; margin: 10px 0 0; }
+  dt { color: var(--muted); }
+  dd { min-width: 0; margin: 0; }
+  code { display: block; overflow-x: auto; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+}
+
 .entity-link {
   display: inline-flex;
   align-items: center;
@@ -643,6 +698,17 @@ onMounted(loadFiles);
 .file-icon { color: #d39a37; font-size: 1rem; text-align: center; }
 .file-icon--pdf { color: #c94141; }
 .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.file-preview-link {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  &:hover, &:focus-visible { color: var(--primary); text-decoration: underline; }
+}
 .file-kind, .file-meta, .row-chevron { color: var(--muted); }
 .row-chevron { font-size: 0.65rem; }
 .file-actions { display: flex; gap: 6px; }

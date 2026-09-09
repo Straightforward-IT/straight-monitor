@@ -1,17 +1,26 @@
 <template>
   <div class="context-menu-overlay" @click="$emit('close')">
     <div 
+      ref="menuRef"
       class="context-menu"
+      role="menu"
+      :aria-label="title || 'Aktionen'"
       :style="{ top: menuPosition.y + 'px', left: menuPosition.x + 'px', minWidth: width + 'px' }"
       @click.stop
+      @keydown="onMenuKeydown"
     >
       <div v-if="title" class="context-menu__title">{{ title }}</div>
       <div 
         v-for="(option, idx) in options"
         :key="idx"
         class="context-menu-item"
+        role="menuitem"
+        :tabindex="option.disabled ? -1 : 0"
+        :aria-disabled="Boolean(option.disabled)"
         :class="{ 'context-menu-item--special': option.special, 'context-menu-item--disabled': option.disabled }"
         @click="!option.disabled && selectOption(option)"
+        @keydown.enter.prevent="!option.disabled && selectOption(option)"
+        @keydown.space.prevent="!option.disabled && selectOption(option)"
       >
         <img v-if="option.image" :src="option.image" class="context-menu-item__image" alt="" />
         <FontAwesomeIcon v-if="option.icon" :icon="option.icon" class="context-menu-item__icon" />
@@ -33,12 +42,14 @@ const props = withDefaults(defineProps<{
   followAnchor?: boolean;
   width?: number;
   offset?: number;
+  focusOnOpen?: boolean;
   options: Array<{ label: string; action: string; image?: string; icon?: string; special?: boolean; disabled?: boolean }>;
 }>(), {
   anchor: null,
   followAnchor: false,
   width: 164,
   offset: 4,
+  focusOnOpen: false,
 });
 
 const emit = defineEmits<{
@@ -46,17 +57,32 @@ const emit = defineEmits<{
   select: [action: string];
 }>();
 const menuPosition = ref({ x: props.x, y: props.y });
+const menuRef = ref<HTMLElement | null>(null);
 
 function updatePosition() {
+  let x = props.x;
+  let y = props.y;
   if (props.followAnchor && props.anchor) {
     const rect = props.anchor.getBoundingClientRect();
-    menuPosition.value = {
-      x: rect.right - props.width,
-      y: rect.bottom + props.offset,
-    };
-    return;
+    x = rect.right - props.width;
+    y = rect.bottom + props.offset;
   }
-  menuPosition.value = { x: props.x, y: props.y };
+  const height = menuRef.value?.offsetHeight || 0;
+  menuPosition.value = {
+    x: Math.max(8, Math.min(x, window.innerWidth - props.width - 8)),
+    y: Math.max(8, Math.min(y, window.innerHeight - height - 8)),
+  };
+}
+
+function onMenuKeydown(event: KeyboardEvent) {
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const items = Array.from(menuRef.value?.querySelectorAll<HTMLElement>('[role="menuitem"][aria-disabled="false"]') || []);
+  if (!items.length) return;
+  const index = items.indexOf(document.activeElement as HTMLElement);
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1
+    : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+  items[next]?.focus();
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -70,6 +96,8 @@ function onKeydown(event: KeyboardEvent) {
 watch(() => [props.x, props.y, props.anchor, props.followAnchor], updatePosition, { immediate: true });
 
 onMounted(() => {
+  updatePosition();
+  if (props.focusOnOpen) menuRef.value?.querySelector<HTMLElement>('[role="menuitem"][aria-disabled="false"]')?.focus();
   window.addEventListener('keydown', onKeydown, true);
   window.addEventListener('scroll', updatePosition, true);
   window.addEventListener('resize', updatePosition);
@@ -131,7 +159,7 @@ function selectOption(option: any) {
     color: var(--text);
     transition: background 0.15s ease, color 0.15s ease;
 
-    &:hover {
+    &:hover, &:focus-visible {
       background: color-mix(in srgb, var(--primary) 8%, transparent);
       color: var(--primary);
 

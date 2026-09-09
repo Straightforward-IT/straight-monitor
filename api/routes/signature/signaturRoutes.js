@@ -1180,10 +1180,14 @@ router.get('/', auth, asyncHandler(async (req, res) => {
 
 // GET /api/signaturen/storage — list every object in the signature archive.
 router.get('/storage', auth, asyncHandler(async (_req, res) => {
-  const [structuredObjects, legacyObjects, locations] = await Promise.all([
+  const [structuredObjects, legacyObjects, locations, kunden] = await Promise.all([
     R2Service.listObjects('Signatures/'),
     R2Service.listObjects('signaturen/'),
     Location.find({}).select('_id nameFull shortName nameKey shortNameKey').lean(),
+    Kunde.find({ signaturOrdner: { $nin: [null, ''] }, locationV2: { $ne: null } })
+      .select('_id kundName kuerzel signaturOrdner locationV2')
+      .populate('locationV2', 'nameFull shortName')
+      .lean(),
   ]);
 
   const objects = [...structuredObjects, ...legacyObjects]
@@ -1239,6 +1243,10 @@ router.get('/storage', auth, asyncHandler(async (_req, res) => {
     if (vorgang.r2KeySigned) vorgangByKey.set(vorgang.r2KeySigned, vorgang);
     if (vorgang.r2KeyAudit) vorgangByKey.set(vorgang.r2KeyAudit, vorgang);
   });
+  const kundeByArchivePrefix = new Map(kunden.map((kunde) => [
+    `Signatures/${sanitizeSegment(kunde.locationV2?.shortName || kunde.locationV2?.nameFull)}/kunden/${kunde.signaturOrdner}/`,
+    kunde,
+  ]));
 
   res.json(objects.map((object) => {
     const legacyId = object.Key.startsWith('signaturen/') ? object.Key.split('/')[1] : null;
@@ -1248,7 +1256,21 @@ router.get('/storage', auth, asyncHandler(async (_req, res) => {
       size: object.Size || 0,
       lastModified: object.LastModified || null,
     };
-    if (!vorgang) return responseObject;
+    if (!vorgang) {
+      const [archivePrefix, kunde] = [...kundeByArchivePrefix.entries()]
+        .find(([prefix]) => object.Key.startsWith(prefix)) || [];
+      if (kunde) {
+        const relativePath = object.Key.slice('Signatures/'.length);
+        const locationFolder = archivePrefix.split('/')[1];
+        const locationName = kunde.locationV2?.nameFull || locationFolder;
+        const entityName = kunde.kuerzel || kunde.kundName || String(kunde._id);
+        responseObject.entityType = 'kunde';
+        responseObject.entityId = String(kunde._id);
+        responseObject.displayPath = relativePath;
+        responseObject.folderLabels = [locationName, 'Kunden', entityName];
+      }
+      return responseObject;
+    }
 
     const legacyLocation = locationByLegacyKey.get(Location.normalize(vorgang.standort));
     const displayLocation = vorgang.locationV2

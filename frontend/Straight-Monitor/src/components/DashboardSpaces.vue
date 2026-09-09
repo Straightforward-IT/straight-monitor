@@ -149,6 +149,7 @@ import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import PageLayout from '@/components/layout/PageLayout.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
+import { useDocumentPreviewModals } from '@/composables/useDocumentPreviewModals';
 import { useSignaturModal } from '@/stores/signaturModal';
 import { useSignaturBuilder } from '@/stores/signaturBuilder';
 
@@ -176,6 +177,7 @@ const selectionAnchorId = ref('');
 const fileOpenNotice = ref('');
 const signaturModal = useSignaturModal();
 const signaturBuilder = useSignaturBuilder();
+const { openDocumentPreview } = useDocumentPreviewModals();
 let fileOpenNoticeTimer;
 const SPACE_NAVIGATION_STORAGE_KEY = 'straight-monitor:dashboard-spaces-navigation';
 
@@ -413,41 +415,32 @@ function handleItemClick(item, event) {
   openFile(item);
 }
 
-function canOpenInBrowser(item) {
-  return /\.(pdf|png|jpe?g|gif|webp|avif|txt|md|csv|json|xml|mp3|wav|ogg|mp4|webm)$/i.test(item.name || '');
-}
-
 function showFileOpenNotice(message) {
   fileOpenNotice.value = message;
   clearTimeout(fileOpenNoticeTimer);
   fileOpenNoticeTimer = setTimeout(() => { fileOpenNotice.value = ''; }, 3200);
 }
 
-async function openFile(item) {
-  if (!canOpenInBrowser(item)) {
-    showFileOpenNotice('Dieses Dateiformat kann nicht im Browser geöffnet werden.');
-    return;
-  }
-  const fileTab = window.open('', '_blank');
-  if (!fileTab) {
-    showFileOpenNotice('Der Browser hat das Öffnen eines neuen Tabs blockiert.');
-    return;
-  }
+function openFile(item) {
+  const spaceId = selectedSpaceId.value;
   try {
-    const token = localStorage.getItem('token');
-    const response = await fetch(
-      `${import.meta.env.VITE_API_BASE_URL || ''}/api/graph/spaces/${selectedSpaceId.value}/download/${encodeURIComponent(item.id)}`,
-      { credentials: 'include', headers: token ? { 'x-auth-token': token } : {} }
-    );
-    if (!response.ok) {
-      const responseError = await response.json().catch(() => null);
-      throw new Error(responseError?.error || 'Die Datei konnte nicht geöffnet werden.');
-    }
-    const fileUrl = URL.createObjectURL(await response.blob());
-    fileTab.location.replace(fileUrl);
-    setTimeout(() => URL.revokeObjectURL(fileUrl), 60_000);
+    openDocumentPreview({
+      id: `space:${spaceId}:${item.id}`,
+      filename: item.name,
+      loadBlob: async ({ signal }) => {
+        const token = localStorage.getItem('token');
+        const response = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL || ''}/api/graph/spaces/${spaceId}/download/${encodeURIComponent(item.id)}`,
+          { signal, credentials: 'include', headers: token ? { 'x-auth-token': token } : {} },
+        );
+        if (!response.ok) {
+          const responseError = await response.json().catch(() => null);
+          throw new Error(responseError?.error || 'Die Datei konnte nicht geöffnet werden.');
+        }
+        return response.blob();
+      },
+    });
   } catch (requestError) {
-    fileTab.close();
     showFileOpenNotice(requestError.message || 'Die Datei konnte nicht geöffnet werden.');
   }
 }
