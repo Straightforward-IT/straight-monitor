@@ -209,8 +209,8 @@ function getFolderLabel(path) {
     const folderPath = getRelativePath(file).split('/').slice(0, -1);
     return folderPath.slice(0, parts.length).join('/') === path;
   });
-  if (matchingFile) return matchingFile.folderLabels[labelIndex];
-  return parts.pop() || props.rootLabel;
+  const label = matchingFile?.folderLabels?.[labelIndex] || parts.pop() || props.rootLabel;
+  return String(label).toLocaleUpperCase('de-DE');
 }
 
 const filteredFiles = computed(() => {
