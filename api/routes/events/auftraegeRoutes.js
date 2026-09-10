@@ -28,6 +28,10 @@ const {
 } = require('../../services/operations/EinsatzinformationService');
 const { getStaffingCandidates } = require('../../services/operations/StaffingSuggestionService');
 const { validateAuftragRelease } = require('../../services/operations/AuftragReleaseService');
+const { withAuftragChronik } = require('../../services/operations/AuftragChronikService');
+const resolveQueries = require('../../utils/resolveQueries');
+
+router.use(require('./auftragChronikRoutes'));
 
 const uploadMem = multer({
   storage: multer.memoryStorage(),
@@ -198,9 +202,9 @@ function hasLocationAccess(user, locationId) {
 
 async function resolveWritableLocation(req, locationId) {
   if (!locationId || !mongoose.isValidObjectId(locationId)) throw validationError('Ein gültiger Standort ist erforderlich');
-  const [location, user] = await Promise.all([
-    resolveActiveLocation(locationId),
-    loadRequestUser(req),
+  const [location, user] = await resolveQueries([
+    () => resolveActiveLocation(locationId),
+    () => loadRequestUser(req),
   ]);
   if (!location) throw validationError('Der gewählte Standort ist nicht aktiv oder existiert nicht');
   if (!hasLocationAccess(user, location._id)) {
@@ -296,12 +300,12 @@ function eventAddressFromEinsatzort(einsatzort) {
 }
 
 async function renderShiftInformation({ auftrag, schicht, sourceHtml, customized, forceTemplate = false }) {
-  const [kunde, einsatzort, beruf, qualifikation, location] = await Promise.all([
-    auftrag.kundenNr ? Kunde.findOne({ kundenNr: auftrag.kundenNr }).lean() : null,
-    auftrag.einsatzort ? Einsatzort.findById(auftrag.einsatzort).populate('adresse').lean() : null,
-    schicht.berufSchl ? Beruf.findOne({ jobKey: Number(schicht.berufSchl) }).lean() : null,
-    schicht.qualSchl ? Qualifikation.findOne({ qualificationKey: Number(schicht.qualSchl) }).lean() : null,
-    auftrag.locationV2 ? resolveActiveLocation(auftrag.locationV2) : null,
+  const [kunde, einsatzort, beruf, qualifikation, location] = await resolveQueries([
+    () => auftrag.kundenNr ? Kunde.findOne({ kundenNr: auftrag.kundenNr }).lean() : null,
+    () => auftrag.einsatzort ? Einsatzort.findById(auftrag.einsatzort).populate('adresse').lean() : null,
+    () => schicht.berufSchl ? Beruf.findOne({ jobKey: Number(schicht.berufSchl) }).lean() : null,
+    () => schicht.qualSchl ? Qualifikation.findOne({ qualificationKey: Number(schicht.qualSchl) }).lean() : null,
+    () => auftrag.locationV2 ? resolveActiveLocation(auftrag.locationV2) : null,
   ]);
   let templateResult = { template: null, resolution: null };
   const existing = schicht.einsatzinformation || {};
@@ -1154,7 +1158,7 @@ router.get('/labels', asyncHandler(async (req, res) => {
 }));
 
 // POST /api/auftraege/:auftragNr/labels – Add a label to an Auftrag
-router.post('/:auftragNr/labels', auth, asyncHandler(async (req, res) => {
+router.post('/:auftragNr/labels', auth, withAuftragChronik('Auftrag.updated', async (req, res) => {
   const { auftragNr } = req.params;
   const { name, color } = req.body;
   if (!name || String(name).trim().length === 0 || String(name).trim().length > 20) {
@@ -1175,7 +1179,7 @@ router.post('/:auftragNr/labels', auth, asyncHandler(async (req, res) => {
 }));
 
 // DELETE /api/auftraege/:auftragNr/labels/:labelId – Remove a label from an Auftrag
-router.delete('/:auftragNr/labels/:labelId', auth, asyncHandler(async (req, res) => {
+router.delete('/:auftragNr/labels/:labelId', auth, withAuftragChronik('Auftrag.updated', async (req, res) => {
   const { auftragNr, labelId } = req.params;
   const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) });
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
@@ -1190,7 +1194,7 @@ router.delete('/:auftragNr/labels/:labelId', auth, asyncHandler(async (req, res)
 // ─────────────────────────────────────────────────────────────
 
 // POST /api/auftraege – Früh gespeicherten Wizard-Entwurf anlegen
-router.post('/', auth, asyncHandler(async (req, res) => {
+router.post('/', auth, withAuftragChronik('Auftrag.created', async (req, res) => {
   const input = req.body || {};
   const isPseudo = Boolean(input.isPseudo);
   if (!String(input.eventTitel || '').trim() || !input.vonDatum || !input.bisDatum) {
@@ -1268,14 +1272,14 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     }
   }
   await auftrag.populate([
-    { path: 'locationV2', select: 'nameFull shortName color externalId' },
+    { path: 'locationV2', select: 'nameFull shortName color externalId', ordered: true },
     { path: 'einsatzort', populate: { path: 'adresse' } },
   ]);
   res.status(201).json(auftrag.toObject());
 }));
 
 // DELETE /api/auftraege/:auftragNr – Delete a pseudo Auftrag (and its pseudo Einsätze)
-router.delete('/:auftragNr', auth, asyncHandler(async (req, res) => {
+router.delete('/:auftragNr', auth, withAuftragChronik('Auftrag.deleted', async (req, res) => {
   const { auftragNr } = req.params;
   const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr), isPseudo: true });
   if (!auftrag) return res.status(404).json({ message: 'Pseudo-Auftrag nicht gefunden' });
@@ -1291,7 +1295,7 @@ router.delete('/:auftragNr', auth, asyncHandler(async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 
 // POST /api/auftraege/:auftragNr/pseudo-einsatz – Schedule a pseudo-employee
-router.post('/:auftragNr/pseudo-einsatz', auth, asyncHandler(async (req, res) => {
+router.post('/:auftragNr/pseudo-einsatz', auth, withAuftragChronik('Einsatz.created', async (req, res) => {
   const { auftragNr } = req.params;
   const { mitarbeiterId, schichtId, isNewPseudoSchicht, newSchichtBezeichnung, newUhrzeitVon, newUhrzeitBis } = req.body;
   if (!mitarbeiterId) return res.status(400).json({ message: 'mitarbeiterId erforderlich' });
@@ -1380,7 +1384,7 @@ router.post('/:auftragNr/pseudo-einsatz', auth, asyncHandler(async (req, res) =>
 // EDITABLE EVENT RESOURCES
 // ─────────────────────────────────────────────────────────────
 
-router.patch('/:auftragNr', auth, asyncHandler(async (req, res) => {
+router.patch('/:auftragNr', auth, withAuftragChronik('Auftrag.updated', async (req, res) => {
   const auftragNr = parseAuftragNr(req.params.auftragNr);
   const patch = normalizeEditablePatch(req.body, AUFTRAG_EDITABLE_FIELDS);
   const current = await Auftrag.findOne({ auftragNr });
@@ -1457,7 +1461,7 @@ router.patch('/:auftragNr', auth, asyncHandler(async (req, res) => {
     { $set: patch },
     { new: true, runValidators: true }
   ).populate([
-    { path: 'locationV2', select: 'nameFull shortName color externalId' },
+    { path: 'locationV2', select: 'nameFull shortName color externalId', ordered: true },
     { path: 'einsatzort', populate: { path: 'adresse' } },
   ]);
 
@@ -1481,7 +1485,7 @@ router.patch('/:auftragNr', auth, asyncHandler(async (req, res) => {
   res.json(auftrag);
 }));
 
-router.post('/:auftragNr/schichten', auth, asyncHandler(async (req, res) => {
+router.post('/:auftragNr/schichten', auth, withAuftragChronik('Schicht.created', async (req, res) => {
   const auftragNr = parseAuftragNr(req.params.auftragNr);
   const auftrag = await Auftrag.findOne({ auftragNr });
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
@@ -1515,7 +1519,7 @@ router.post('/:auftragNr/schichten', auth, asyncHandler(async (req, res) => {
   res.status(201).json(schicht);
 }));
 
-router.patch('/:auftragNr/schichten/:schichtId', auth, asyncHandler(async (req, res) => {
+router.patch('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schicht.updated', async (req, res) => {
   const auftragNr = parseAuftragNr(req.params.auftragNr);
   if (!mongoose.isValidObjectId(req.params.schichtId)) throw validationError('Ungültige Schicht-ID');
   const input = req.body || {};
@@ -1530,9 +1534,9 @@ router.patch('/:auftragNr/schichten/:schichtId', auth, asyncHandler(async (req, 
   const patch = Object.keys(editableInput).length
     ? normalizeEditablePatch(editableInput, SCHICHT_EDITABLE_FIELDS)
     : {};
-  const [auftrag, current] = await Promise.all([
-    Auftrag.findOne({ auftragNr }).lean(),
-    Schicht.findOne({ _id: req.params.schichtId, auftragNr }),
+  const [auftrag, current] = await resolveQueries([
+    () => Auftrag.findOne({ auftragNr }).lean(),
+    () => Schicht.findOne({ _id: req.params.schichtId, auftragNr }),
   ]);
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   if (!current) return res.status(404).json({ message: 'Schicht nicht gefunden' });
@@ -1592,7 +1596,7 @@ router.patch('/:auftragNr/schichten/:schichtId', auth, asyncHandler(async (req, 
   res.json(schicht);
 }));
 
-router.delete('/:auftragNr/schichten/:schichtId', auth, asyncHandler(async (req, res) => {
+router.delete('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schicht.deleted', async (req, res) => {
   const auftragNr = parseAuftragNr(req.params.auftragNr);
   if (!mongoose.isValidObjectId(req.params.schichtId)) throw validationError('Ungültige Schicht-ID');
   const auftrag = await Auftrag.findOne({ auftragNr }).lean();
@@ -1646,15 +1650,15 @@ router.get('/:auftragNr/schichten/:schichtId/candidates', auth, asyncHandler(asy
   res.json({ candidates: availableCandidates, assignmentCount: assignedPersonalNumbers.length, bedarf: schicht.bedarf || 0, planningVersion: auftrag.planningVersion || 0 });
 }));
 
-router.put('/:auftragNr/planning', auth, asyncHandler(async (req, res) => {
+router.put('/:auftragNr/planning', auth, withAuftragChronik('planning.updated', async (req, res) => {
   const auftragNr = parseAuftragNr(req.params.auftragNr);
   const expectedVersion = Number(req.body?.planningVersion);
   const operations = Array.isArray(req.body?.operations) ? req.body.operations : [];
   if (!Number.isSafeInteger(expectedVersion)) throw validationError('Eine gültige Planungsversion ist erforderlich');
-  const [auftrag, user, schichten] = await Promise.all([
-    Auftrag.findOne({ auftragNr }).lean(),
-    loadRequestUser(req),
-    Schicht.find({ auftragNr }).lean(),
+  const [auftrag, user, schichten] = await resolveQueries([
+    () => Auftrag.findOne({ auftragNr }).lean(),
+    () => loadRequestUser(req),
+    () => Schicht.find({ auftragNr }).lean(),
   ]);
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   if (!hasLocationAccess(user, auftrag.locationV2)) return res.status(403).json({ message: 'Für den Standort dieses Auftrags fehlt die Berechtigung' });
@@ -1785,11 +1789,11 @@ router.put('/:auftragNr/planning', auth, asyncHandler(async (req, res) => {
   res.json({ planningVersion: expectedVersion + 1, assignments });
 }));
 
-router.post('/:auftragNr/release', auth, asyncHandler(async (req, res) => {
+router.post('/:auftragNr/release', auth, withAuftragChronik('Auftrag.released', async (req, res) => {
   const auftragNr = parseAuftragNr(req.params.auftragNr);
-  const [auftrag, schichten] = await Promise.all([
-    Auftrag.findOne({ auftragNr }),
-    Schicht.find({ auftragNr }).lean(),
+  const [auftrag, schichten] = await resolveQueries([
+    () => Auftrag.findOne({ auftragNr }),
+    () => Schicht.find({ auftragNr }).lean(),
   ]);
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   const requestUser = await assertOrderLocationAccess(req, auftrag);
@@ -1827,16 +1831,16 @@ router.post('/:auftragNr/release', auth, asyncHandler(async (req, res) => {
   res.json({ ok: true, auftrag: released });
 }));
 
-router.post('/:auftragNr/einsaetze', auth, asyncHandler(async (req, res) => {
+router.post('/:auftragNr/einsaetze', auth, withAuftragChronik('Einsatz.created', async (req, res) => {
   const auftragNr = parseAuftragNr(req.params.auftragNr);
   const { mitarbeiterId, schichtId } = req.body || {};
   if (!mongoose.isValidObjectId(mitarbeiterId)) throw validationError('Ungültige Mitarbeiter-ID');
   if (!mongoose.isValidObjectId(schichtId)) throw validationError('Ungültige Schicht-ID');
 
-  const [auftrag, mitarbeiter, schicht] = await Promise.all([
-    Auftrag.findOne({ auftragNr }).lean(),
-    Mitarbeiter.findById(mitarbeiterId).lean(),
-    Schicht.findOne({ _id: schichtId, auftragNr }).lean(),
+  const [auftrag, mitarbeiter, schicht] = await resolveQueries([
+    () => Auftrag.findOne({ auftragNr }).lean(),
+    () => Mitarbeiter.findById(mitarbeiterId).lean(),
+    () => Schicht.findOne({ _id: schichtId, auftragNr }).lean(),
   ]);
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   if (!mitarbeiter) return res.status(404).json({ message: 'Mitarbeiter nicht gefunden' });
@@ -1915,7 +1919,7 @@ router.post('/:auftragNr/einsaetze', auth, asyncHandler(async (req, res) => {
   res.status(201).json(einsatz);
 }));
 
-router.patch('/:auftragNr/einsaetze/:einsatzId', auth, asyncHandler(async (req, res) => {
+router.patch('/:auftragNr/einsaetze/:einsatzId', auth, withAuftragChronik('Einsatz.updated', async (req, res) => {
   const auftragNr = parseAuftragNr(req.params.auftragNr);
   if (!mongoose.isValidObjectId(req.params.einsatzId)) throw validationError('Ungültige Einsatz-ID');
   const patch = normalizeEditablePatch(req.body, EINSATZ_EDITABLE_FIELDS);
@@ -1986,7 +1990,7 @@ router.patch('/:auftragNr/einsaetze/:einsatzId', auth, asyncHandler(async (req, 
   res.json(einsatz);
 }));
 
-router.delete('/:auftragNr/einsaetze/:einsatzId', auth, asyncHandler(async (req, res) => {
+router.delete('/:auftragNr/einsaetze/:einsatzId', auth, withAuftragChronik('Einsatz.deleted', async (req, res) => {
   const auftragNr = parseAuftragNr(req.params.auftragNr);
   if (!mongoose.isValidObjectId(req.params.einsatzId)) throw validationError('Ungültige Einsatz-ID');
   const auftrag = await Auftrag.findOne({ auftragNr }).lean();
@@ -2001,7 +2005,7 @@ router.delete('/:auftragNr/einsaetze/:einsatzId', auth, asyncHandler(async (req,
 }));
 
 // DELETE /api/auftraege/:auftragNr/pseudo-einsatz/:einsatzId – Remove a pseudo-Einsatz
-router.delete('/:auftragNr/pseudo-einsatz/:einsatzId', auth, asyncHandler(async (req, res) => {
+router.delete('/:auftragNr/pseudo-einsatz/:einsatzId', auth, withAuftragChronik('Einsatz.deleted', async (req, res) => {
   const auftragNr = parseAuftragNr(req.params.auftragNr);
   const { einsatzId } = req.params;
   if (!mongoose.isValidObjectId(einsatzId)) throw validationError('Ungültige Einsatz-ID');

@@ -377,7 +377,17 @@ async function resolveSpaceSignatureSource(req, locationId, itemId) {
 async function getStundenlisteDefaultSigner(location, auftrag) {
   const resolvedLocation = await Location.findById(location._id)
     .populate('locationManager', 'name email mitarbeiter')
+    .populate('signatureDefaults.typ', 'key')
     .lean();
+  const configuredSigner = resolvedLocation?.signatureDefaults?.find((defaultSigner) =>
+    defaultSigner.typ?.key === 'stundenliste' && (defaultSigner.name || defaultSigner.email)
+  );
+  if (configuredSigner) {
+    return {
+      name: configuredSigner.name || configuredSigner.email,
+      email: configuredSigner.email || null,
+    };
+  }
   const manager = resolvedLocation?.locationManager;
   if (manager) {
     const mitarbeiter = manager.mitarbeiter

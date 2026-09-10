@@ -897,12 +897,28 @@ function addLohnvorschussDefaultDeliveryEmail() {
 // ── Straightforward own-company contacts per Location ───────────────────────
 const SF_KUNDENNR = { hamburg: 2100003, berlin: 11000024, koeln: 31000001 };
 const selectedLocation = computed(() => locations.value.find(location => location._id === form.value.locationId) || null);
+const selectedLocationSignatureDefault = computed(() => {
+  const selectedTypeId = String(form.value.typId || '');
+  if (!selectedTypeId) return null;
+  return (selectedLocation.value?.signatureDefaults || []).find(defaultSigner =>
+    String(defaultSigner.typ?._id || defaultSigner.typ || '') === selectedTypeId
+  ) || null;
+});
 const straightforwardKunde = computed(() => {
   const locationKey = selectedLocation.value?.shortNameKey || selectedLocation.value?.nameKey;
   const nr = selectedLocation.value?.settings?.signaturKundenNr || SF_KUNDENNR[locationKey];
   if (!nr) return null;
   return kundenList.value.find(k => k.kundenNr === nr) || null;
 });
+
+function getLocationSignatureDefault() {
+  const configured = selectedLocationSignatureDefault.value;
+  if (configured?.name || configured?.email) {
+    return { name: configured.name || configured.email || '', email: configured.email || '', embedded: configured.embedded !== false };
+  }
+  const manager = selectedLocation.value?.locationManager;
+  return { name: manager?.name || manager?.email || '', email: manager?.email || '', embedded: true };
+}
 
 // ── Typeahead: Kunde ─────────────────────────────────────────────────────────
 const kundeQuery = ref('');
@@ -1039,14 +1055,14 @@ function ensureLohnvorschussSignerSlots() {
   if (!isLohnvorschussFlow.value) return;
 
   const current = form.value.submitters;
-  const manager = selectedLocation.value?.locationManager;
+  const locationSigner = getLocationSignatureDefault();
   const mitarbeiter = selectedMitarbeiter.value;
   const slots = [
     {
       role: 'Erste Partei',
-      name: manager?.name || manager?.email || '',
-      email: manager?.email || '',
-      embedded: true,
+      name: locationSigner.name,
+      email: locationSigner.email,
+      embedded: locationSigner.embedded,
     },
     {
       role: 'Zweite Partei',
@@ -1149,13 +1165,15 @@ function applyTemplateDefaults(template) {
   if (requiredRoles.length) {
     const current = form.value.submitters;
     const byRole = new Map(current.map(submitter => [submitter.role, submitter]));
+    const locationSigner = getLocationSignatureDefault();
     form.value.submitters = requiredRoles.map((role, index) => {
       const existing = byRole.get(role) || current[index] || {};
+      const isFirstSigner = index === 0 && (locationSigner.name || locationSigner.email);
       return {
         role,
-        name: existing.name || '',
-        email: existing.email || '',
-        embedded: !!existing.embedded,
+        name: existing.name || (isFirstSigner ? locationSigner.name : ''),
+        email: existing.email || (isFirstSigner ? locationSigner.email : ''),
+        embedded: existing.name || existing.email ? !!existing.embedded : (isFirstSigner ? locationSigner.embedded : false),
       };
     });
     ensureLohnvorschussSignerSlots();
@@ -1205,8 +1223,11 @@ watch(currentStep, (newStep) => {
   const newSubs = [];
 
   // Signer 1: Straightforward location contact
+  const locationSigner = getLocationSignatureDefault();
   const sfKunde = straightforwardKunde.value;
-  if (sfKunde) {
+  if (locationSigner.name || locationSigner.email) {
+    newSubs.push({ role: 'Du', ...locationSigner });
+  } else if (sfKunde) {
     newSubs.push({
       role: 'Du',
       name: sfKunde.kundName || '',

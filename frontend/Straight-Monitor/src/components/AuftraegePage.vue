@@ -413,11 +413,17 @@
       </template>
       <template #actions>
         <div class="sidebar-header-actions">
+          <button v-if="isAdmin" class="qa-dots-btn" type="button" title="Auftragschronik" :aria-expanded="showChronik" aria-controls="order-chronik-panel" @click.stop="showChronik = !showChronik">Chronik</button>
           <button class="qa-dots-btn" type="button" title="Aktionen" @click.stop="toggleQuickActionsMenu">
             <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
           </button>
         </div>
       </template>
+
+          <section v-if="isAdmin && showChronik && isMobile" id="order-chronik-panel" aria-label="Chronik" style="margin-bottom: 1.25rem">
+            <h3>Chronik</h3>
+            <OrderChronikTimeline :key="selectedEvent.auftragNr" :auftrag-nr="selectedEvent.auftragNr" :revision="chronikRevision" />
+          </section>
 
           <!-- Compact Info Grid -->
           <div class="info-grid">
@@ -859,6 +865,13 @@
             </template>
           </div>
     </SidePanelFrame>
+
+    <OrderChronikDrawer
+      v-if="isAdmin && showChronik && selectedEvent && !isMobile"
+      id="order-chronik-panel" :key="selectedEvent.auftragNr"
+      :auftrag-nr="selectedEvent.auftragNr" :order-title="selectedEvent.eventTitel || ''"
+      :revision="chronikRevision" @close="showChronik = false"
+    />
 
     <!-- Mitarbeiter Card Modal -->
     <EmployeeCardModal
@@ -1303,6 +1316,9 @@ import { useEventModals } from '@/composables/useEventModals';
 import { useReisekostenModals } from '@/composables/useReisekostenModals';
 import PageLayout from '@/components/layout/PageLayout.vue';
 import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
+import OrderChronikDrawer from '@/components/orders/OrderChronikDrawer.vue';
+import OrderChronikTimeline from '@/components/orders/OrderChronikTimeline.vue';
+import { onAuftragMutation } from '@/utils/auftragChanges';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
@@ -1324,7 +1340,7 @@ import docusealPendingIcon from '@/assets/docuseal-pending.webp';
 export default {
   name: "AuftraegePage",
   emits: ['mitarbeiter-drop'],
-  components: { PageLayout, SidePanelFrame, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ContextMenu, PillMultiSelect, CustomTooltip },
+  components: { PageLayout, SidePanelFrame, OrderChronikDrawer, OrderChronikTimeline, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ContextMenu, PillMultiSelect, CustomTooltip },
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
@@ -1388,6 +1404,8 @@ export default {
       searchLoading: false,
       currentWeekStart: null,
       selectedEvent: null,
+      showChronik: false,
+      chronikRevision: 0,
       contextMenu: {
         open: false,
         x: 0,
@@ -1486,7 +1504,7 @@ export default {
     isAdmin() {
       const u = this.user || {};
       return String(u.role || '').toUpperCase() === 'ADMIN'
-        || (Array.isArray(u.roles) && u.roles.includes('ADMIN'));
+        || (Array.isArray(u.roles) && u.roles.some(role => String(role).toUpperCase() === 'ADMIN'));
     },
     isVertrieb() {
       const u = this.user || {};
@@ -1707,6 +1725,7 @@ export default {
     },
   },
   watch: {
+    isAdmin(allowed) { if (!allowed) this.showChronik = false; },
     currentWeekStart() {
       this.$nextTick(() => this.scrollKwToActive('smooth'));
       // Remember the viewed week so a page refresh returns to it.
@@ -1724,6 +1743,7 @@ export default {
       await this.loadOrderDirectly(auftragNr, this.$route.query.focusDate);
     },
     selectedEvent(event) {
+      if (!event) this.showChronik = false;
       // Remember the open sidebar so a page refresh reopens it.
       try {
         if (event && event.auftragNr) sessionStorage.setItem('auftraege_selected', String(event.auftragNr));
@@ -3256,6 +3276,9 @@ export default {
       this.showNeuMenu = false;
     },
     async mounted() {
+    this.stopChronikUpdates = onAuftragMutation(auftragNr => {
+      if (this.isAdmin && Number(this.selectedEvent?.auftragNr) === auftragNr) this.chronikRevision++;
+    });
     this.checkMobile();
     window.addEventListener('resize', this.checkMobile);
     document.addEventListener('keydown', this.handleEscapeKey);
@@ -3312,6 +3335,7 @@ export default {
     this.handlePseudoRouteQuery();
   },
   beforeUnmount() {
+    this.stopChronikUpdates?.();
     window.removeEventListener('resize', this.checkMobile);
     document.removeEventListener('keydown', this.handleEscapeKey);
     document.removeEventListener('click', this.handleDocumentClick);

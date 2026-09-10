@@ -5,6 +5,7 @@ const Einsatz = require('../../models/Event/Einsatz');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Qualifikation = require('../../models/Event/Qualifikation');
 const ZvooveVerfuegbarkeit = require('../../models/System/ZvooveVerfuegbarkeit');
+const resolveQueries = require('../../utils/resolveQueries');
 
 function id(value) {
   return String(value?._id || value || '');
@@ -96,7 +97,7 @@ async function getStaffingCandidates({ auftrag, schicht, user, includeOtherLocat
 
   const employees = await Mitarbeiter.find(filter)
     .select('_id vorname nachname personalnr personalnummern personalnrHistory telefon profilbild flip_id persgruppe locationV2 berufe qualifikationen kundenwuensche austrittsdatum')
-    .populate('berufe', 'jobKey designation')
+    .populate({ path: 'berufe', select: 'jobKey designation', ordered: true })
     .populate('qualifikationen', 'qualificationKey designation')
     .populate('kundenwuensche.kunde', 'kundenNr kundName kuerzel')
     .lean();
@@ -104,19 +105,19 @@ async function getStaffingCandidates({ auftrag, schicht, user, includeOtherLocat
 
   const employeeIdsFound = employees.map(employee => employee._id);
   const personalNrs = [...new Set(employees.flatMap(personalNumbers))];
-  const [dispoEntries, deployments, zvooveEntries, customerOrderNrs, siteOrderNrs, requiredJob, requiredQualification] = await Promise.all([
-    DispoEintrag.find({ mitarbeiter: { $in: employeeIdsFound }, datumVon: { $lte: window.end }, datumBis: { $gte: window.start } }).lean(),
-    Einsatz.find({
+  const [dispoEntries, deployments, zvooveEntries, customerOrderNrs, siteOrderNrs, requiredJob, requiredQualification] = await resolveQueries([
+    () => DispoEintrag.find({ mitarbeiter: { $in: employeeIdsFound }, datumVon: { $lte: window.end }, datumBis: { $gte: window.start } }).lean(),
+    () => Einsatz.find({
       personalNr: { $in: personalNrs },
       datumVon: { $lte: window.end },
       datumBis: { $gte: window.start },
       $or: [{ schicht: { $ne: schicht._id } }, { schicht: null }],
     }).select('_id personalNr auftragNr schichtBezeichnung datumVon datumBis uhrzeitVon uhrzeitBis').lean(),
-    ZvooveVerfuegbarkeit.find({ personalnr: { $in: personalNrs }, datum: { $gte: dateWithTime(window.start, null), $lte: dateWithTime(window.end, null, true) } }).lean(),
-    Number.isInteger(auftrag.kundenNr) ? Auftrag.find({ kundenNr: auftrag.kundenNr }).distinct('auftragNr') : [],
-    auftrag.einsatzort ? Auftrag.find({ einsatzort: auftrag.einsatzort }).distinct('auftragNr') : [],
-    schicht.berufSchl ? Beruf.findOne({ jobKey: Number.parseInt(schicht.berufSchl, 10) }).lean() : null,
-    schicht.qualSchl ? Qualifikation.findOne({ qualificationKey: Number.parseInt(schicht.qualSchl, 10) }).lean() : null,
+    () => ZvooveVerfuegbarkeit.find({ personalnr: { $in: personalNrs }, datum: { $gte: dateWithTime(window.start, null), $lte: dateWithTime(window.end, null, true) } }).lean(),
+    () => Number.isInteger(auftrag.kundenNr) ? Auftrag.find({ kundenNr: auftrag.kundenNr }).distinct('auftragNr') : [],
+    () => auftrag.einsatzort ? Auftrag.find({ einsatzort: auftrag.einsatzort }).distinct('auftragNr') : [],
+    () => schicht.berufSchl ? Beruf.findOne({ jobKey: Number.parseInt(schicht.berufSchl, 10) }).lean() : null,
+    () => schicht.qualSchl ? Qualifikation.findOne({ qualificationKey: Number.parseInt(schicht.qualSchl, 10) }).lean() : null,
   ]);
 
   const history = customerOrderNrs.length

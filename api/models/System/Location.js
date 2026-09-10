@@ -13,6 +13,13 @@ const openingHourSlotSchema = new mongoose.Schema({
   end: { type: String, required: true, trim: true },
 }, { _id: false });
 
+const signatureDefaultSchema = new mongoose.Schema({
+  typ: { type: mongoose.Schema.Types.ObjectId, ref: 'SignaturTyp', required: true },
+  name: { type: String, default: '', trim: true },
+  email: { type: String, default: '', trim: true, lowercase: true },
+  embedded: { type: Boolean, default: true },
+}, { _id: false });
+
 const locationSchema = new mongoose.Schema({
   nameFull: { type: String, required: true, trim: true },
   shortName: { type: String, required: true, trim: true },
@@ -48,6 +55,7 @@ const locationSchema = new mongoose.Schema({
     vatId: { type: String, default: '', trim: true },
     registrationNumber: { type: String, default: '', trim: true },
   },
+  signatureDefaults: { type: [signatureDefaultSchema], default: [] },
   externalId: { type: String, default: '', trim: true },
   spaceFolder: {
     teamKey: { type: String, default: '', trim: true, lowercase: true },

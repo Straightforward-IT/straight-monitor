@@ -34,16 +34,20 @@
       </div>
     </section>
 
-    <div v-if="locationModal.open" class="modal-backdrop" @click.self="closeLocationModal">
-      <form class="modal-content modal-content--location" @submit.prevent="saveLocation">
-        <header class="modal-header">
-          <h3>{{ locationModal.isNew ? 'Standort anlegen' : 'Standort bearbeiten' }}</h3>
-          <button type="button" class="close-btn" @click="closeLocationModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
-        </header>
+    <ModalFrame
+      v-if="locationModal.open"
+      v-model="locationModal.open"
+      :title="locationModal.isNew ? 'Standort anlegen' : 'Standort bearbeiten'"
+      size="lg"
+      style="--mf-max-width: 700px; --mf-body-padding: 0"
+      @close="closeLocationModal"
+    >
+      <form id="location-form" class="location-modal-form" @submit.prevent="saveLocation">
         <nav class="location-modal-tabs" aria-label="Standortfelder">
           <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'general' }" @click="locationModal.activeTab = 'general'">Stammdaten</button>
           <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'contact' }" @click="locationModal.activeTab = 'contact'">Kontakt & Rechtliches</button>
           <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'hours' }" @click="locationModal.activeTab = 'hours'">Öffnungszeiten</button>
+          <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'signature' }" @click="locationModal.activeTab = 'signature'">Signatur</button>
           <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'space' }" @click="locationModal.activeTab = 'space'">Space</button>
           <button type="button" :class="{ 'location-modal-tabs__tab--active': locationModal.activeTab === 'logistics' }" @click="locationModal.activeTab = 'logistics'">Sonstiges</button>
         </nav>
@@ -98,6 +102,17 @@
               </div>
             </div>
           </section>
+          <section v-else-if="locationModal.activeTab === 'signature'" class="signature-defaults">
+            <p class="hint-text">Diese Angaben werden beim Erstellen einer Signatur für den jeweiligen Dokumenttyp vorausgefüllt.</p>
+            <div v-for="signatureType in signatureTypes" :key="signatureType._id" class="signature-defaults__row">
+              <strong>{{ signatureType.label }}</strong>
+              <div class="form-grid">
+                <div class="form-group"><label>Name</label><input v-model="signatureDefaultFor(signatureType._id).name" type="text" /></div>
+                <div class="form-group"><label>E-Mail</label><input v-model="signatureDefaultFor(signatureType._id).email" type="email" /></div>
+              </div>
+              <label class="checkbox-label"><input v-model="signatureDefaultFor(signatureType._id).embedded" type="checkbox" /> Im Monitor unterzeichnen</label>
+            </div>
+          </section>
           <template v-else-if="locationModal.activeTab === 'space'">
           <div class="form-group"><label>OneDrive-Team</label><input v-model="locationForm.spaceFolder.teamKey" type="text" placeholder="z. B. hamburg" /></div>
           <div class="form-group"><label>Space-Ordner-ID</label><input v-model="locationForm.spaceFolder.folderId" type="text" placeholder="OneDrive-Ordner-ID" /></div>
@@ -109,12 +124,12 @@
           </template>
           <p v-if="locationModal.error" class="modal-error">{{ locationModal.error }}</p>
         </div>
-        <footer class="modal-footer">
-          <button type="button" class="btn btn-ghost" @click="closeLocationModal">Abbrechen</button>
-          <button type="submit" class="btn btn-primary" :disabled="locationSaving || !canCreateLocation"><font-awesome-icon :icon="locationSaving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'" :spin="locationSaving" /> {{ locationModal.isNew ? 'Anlegen' : 'Speichern' }}</button>
-        </footer>
       </form>
-    </div>
+      <template #footer>
+        <button type="button" class="btn btn-ghost" @click="closeLocationModal">Abbrechen</button>
+        <button type="submit" form="location-form" class="btn btn-primary" :disabled="locationSaving || !canCreateLocation"><font-awesome-icon :icon="locationSaving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'" :spin="locationSaving" /> {{ locationModal.isNew ? 'Anlegen' : 'Speichern' }}</button>
+      </template>
+    </ModalFrame>
     </template>
 
     <section v-else-if="activeTab === 'users'" class="users">
@@ -735,6 +750,7 @@ import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import PageLayout from '@/components/layout/PageLayout.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 import BewerberManagementTab from '@/components/BewerberManagementTab.vue';
 import EmployeeEmailTemplateTab from '@/components/EmployeeEmailTemplateTab.vue';
 import { useCustomerModals } from '@/composables/useCustomerModals';
@@ -767,6 +783,7 @@ const error = ref('');
 const searchQuery = ref('');
 const activeTab = ref('locations');
 const locations = ref([]);
+const signatureTypes = ref([]);
 const locationsLoading = ref(false);
 const locationSaving = ref(false);
 const locationError = ref('');
@@ -789,6 +806,7 @@ const locationForm = reactive({
   openingHours: emptyOpeningHours(),
   timeZone: 'Europe/Berlin',
   legal: { legalName: '', vatId: '', registrationNumber: '' },
+  signatureDefaults: [],
   externalId: '',
   spaceFolder: { teamKey: '', folderId: '' },
   deliveryNotes: '',
@@ -1038,6 +1056,7 @@ onMounted(async () => {
   await fetchUsers();
   await loadAsanaUserMap();
   await fetchLocations();
+  await fetchSignatureTypes();
   await fetchQualifikationen();
   await fetchLohnarten();
 });
@@ -1080,6 +1099,24 @@ async function fetchLocations() {
   }
 }
 
+async function fetchSignatureTypes() {
+  try {
+    const { data } = await api.get('/api/signatur-typen');
+    signatureTypes.value = (Array.isArray(data) ? data : []).filter((type) => type.isActive !== false);
+  } catch (e) {
+    locationError.value = e?.response?.data?.message || 'Signaturtypen konnten nicht geladen werden.';
+  }
+}
+
+function signatureDefaultFor(typeId) {
+  let signatureDefault = locationForm.signatureDefaults.find((entry) => String(entry.typ) === String(typeId));
+  if (!signatureDefault) {
+    signatureDefault = { typ: typeId, name: '', email: '', embedded: true };
+    locationForm.signatureDefaults.push(signatureDefault);
+  }
+  return signatureDefault;
+}
+
 function resetLocationForm() {
   locationForm.nameFull = '';
   locationForm.shortName = '';
@@ -1090,6 +1127,7 @@ function resetLocationForm() {
   Object.assign(locationForm.openingHours, emptyOpeningHours());
   locationForm.timeZone = 'Europe/Berlin';
   Object.assign(locationForm.legal, { legalName: '', vatId: '', registrationNumber: '' });
+  locationForm.signatureDefaults = [];
   locationForm.externalId = '';
   Object.assign(locationForm.spaceFolder, { teamKey: '', folderId: '' });
   locationForm.deliveryNotes = '';
@@ -1111,6 +1149,12 @@ function openLocationEdit(location) {
   Object.assign(locationForm.openingHours, normalizeOpeningHours(location.openingHours));
   locationForm.timeZone = location.timeZone || 'Europe/Berlin';
   Object.assign(locationForm.legal, { legalName: '', vatId: '', registrationNumber: '', ...location.legal });
+  locationForm.signatureDefaults = (location.signatureDefaults || []).map((entry) => ({
+    typ: entry.typ?._id || entry.typ,
+    name: entry.name || '',
+    email: entry.email || '',
+    embedded: entry.embedded !== false,
+  }));
   locationForm.externalId = location.externalId || '';
   Object.assign(locationForm.spaceFolder, { teamKey: '', folderId: '', ...location.spaceFolder });
   locationForm.deliveryNotes = location.deliveryNotes || '';
@@ -1822,6 +1866,8 @@ function formatDate(d) {
   &--location { max-width: 700px; overflow: hidden; }
 }
 
+.location-modal-form { min-height: 0; }
+
 .modal-header {
   display: flex;
   align-items: center;
@@ -1945,6 +1991,20 @@ function formatDate(d) {
   cursor: pointer;
   font: inherit;
   font-size: 0.78rem;
+}
+
+.signature-defaults {
+  display: grid;
+  gap: 14px;
+}
+.signature-defaults__row {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+
+  strong { font-size: 0.86rem; font-weight: 600; }
 }
 
 .form-group {

@@ -348,7 +348,17 @@ function addShift() { const shift = newShift(); shifts.value.push(shift); applyR
 function addShiftFromPattern(pattern) { shifts.value.push(newShift({ ...pattern, _id: undefined, datumVon: toDate(form.vonDatum), datumBis: toDate(form.vonDatum), einsatzinformation: {} })); }
 function duplicateShift(shift) { shifts.value.push(newShift({ ...shift, _id: undefined, _localId: undefined, bezeichnung: `${shift.bezeichnung} – Kopie`, einsatzinformation: {}, infoSource: shift.infoSource, infoPreview: shift.infoPreview, infoUnresolved: [...(shift.infoUnresolved || [])] })); }
 function repeatShift(shift) { const count = Math.min(30, Math.max(1, Number(window.prompt('Für wie viele weitere Tage wiederholen?', '1')) || 0)); for (let day = 1; day <= count; day += 1) shifts.value.push(newShift({ ...shift, _id: undefined, _localId: undefined, datumVon: addDays(shift.datumVon, day), datumBis: addDays(shift.datumBis || shift.datumVon, day), einsatzinformation: {}, infoSource: shift.infoSource })); }
-async function removeShift(shift) { if (shift._id && !window.confirm('Schicht und ihre Einplanungen löschen?')) return; if (shift._id) await api.delete(`/api/auftraege/${event.value.auftragNr}/schichten/${shift._id}`); shifts.value = shifts.value.filter(item => item !== shift); assignments.value = assignments.value.filter(item => String(item.schicht?._id || item.schicht) !== String(shift._id)); }
+async function removeShift(shift) {
+  if (shift._id && !window.confirm('Schicht und ihre Einplanungen löschen?')) return;
+  errorMessage.value = '';
+  try {
+    if (shift._id) await api.delete(`/api/auftraege/${event.value.auftragNr}/schichten/${shift._id}`);
+    shifts.value = shifts.value.filter(item => item !== shift);
+    assignments.value = assignments.value.filter(item => String(item.schicht?._id || item.schicht) !== String(shift._id)
+      && !(shift.idAuftragArbeitsschichten != null && item.idAuftragArbeitsschichten === shift.idAuftragArbeitsschichten));
+    if (shift._id) emitUpdated();
+  } catch (error) { errorMessage.value = error.response?.data?.message || 'Schicht konnte nicht gelöscht werden.'; }
+}
 function markShiftDirty(shift) { shift._dirty = true; }
 function syncShiftEndDate(shift) { if (!shift.datumBis || shift.datumBis < shift.datumVon) shift.datumBis = shift.datumVon; markShiftDirty(shift); previewShiftInformation(shift); }
 function setShiftInformation(shift, value) { shift.infoSource = value; shift.einsatzinformation ||= {}; shift.einsatzinformation.customized = true; shift.templateSuggestion = false; markShiftDirty(shift); }
@@ -430,7 +440,7 @@ async function assignCandidate(candidate, targetShift = planningShift.value) {
   if (!targetShift?._id) return;
   let conflictOverride;
   if (candidate.conflicts?.length) { const reason = window.prompt(`Konflikte:\n${candidate.conflicts.map(item => `• ${item.label}`).join('\n')}\n\nBegründung für die Einplanung:`); if (!reason?.trim()) return; conflictOverride = { confirmed: true, reason: reason.trim() }; }
-  try { selectedShiftId.value = targetShift._id; await api.post(`/api/auftraege/${event.value.auftragNr}/einsaetze`, { mitarbeiterId: candidate._id, schichtId: targetShift._id, includeOtherLocations: includeOtherLocations.value, conflictOverride }); await loadDetails(); selectedShiftId.value = targetShift._id; await loadCandidates(); }
+  try { selectedShiftId.value = targetShift._id; await api.post(`/api/auftraege/${event.value.auftragNr}/einsaetze`, { mitarbeiterId: candidate._id, schichtId: targetShift._id, includeOtherLocations: includeOtherLocations.value, conflictOverride }); await loadDetails(); emitUpdated(); selectedShiftId.value = targetShift._id; await loadCandidates(); }
   catch (error) { errorMessage.value = error.response?.data?.message || 'Einplanung fehlgeschlagen.'; }
 }
 async function assignSelectedCandidates() {
@@ -456,11 +466,20 @@ async function assignSelectedCandidates() {
     });
     event.value.planningVersion = data.planningVersion;
     await loadDetails();
+    emitUpdated();
     await loadCandidates();
   } catch (error) { errorMessage.value = error.response?.data?.message || 'Mehrfach-Einplanung fehlgeschlagen.'; }
   finally { selectedCandidateIds.value = new Set(); }
 }
-async function removeAssignment(assignment) { await api.delete(`/api/auftraege/${event.value.auftragNr}/einsaetze/${assignment._id}`); assignments.value = assignments.value.filter(item => item._id !== assignment._id); await loadCandidates(); }
+async function removeAssignment(assignment) {
+  errorMessage.value = '';
+  try {
+    await api.delete(`/api/auftraege/${event.value.auftragNr}/einsaetze/${assignment._id}`);
+    assignments.value = assignments.value.filter(item => item._id !== assignment._id);
+    emitUpdated();
+    await loadCandidates();
+  } catch (error) { errorMessage.value = error.response?.data?.message || 'Einplanung konnte nicht entfernt werden.'; }
+}
 function dropCandidate() { const candidate = candidates.value.find(item => item._id === dragCandidateId.value); dragCandidateId.value = ''; if (candidate) assignCandidate(candidate); }
 async function dropCandidateOnShift(shift) {
   const candidateId = dragCandidateId.value;

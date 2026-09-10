@@ -1,5 +1,6 @@
 import axios from 'axios';
 import router from '@/router';
+import { notifyAuftragMutation } from '@/utils/auftragChanges';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -15,7 +16,7 @@ api.interceptors.request.use(cfg => {
 
 // 401 global abfangen
 api.interceptors.response.use(
-  res => res,
+  res => { notifyAuftragMutation(res.config); return res; },
   err => {
     if (err?.response?.status === 401) {
       localStorage.removeItem('token');
