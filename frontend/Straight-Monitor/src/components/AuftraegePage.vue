@@ -2789,22 +2789,12 @@ export default {
         alert(err.response?.data?.message || 'Fehler beim Löschen');
       }
     },
-    async _askExcludePseudo() {
-      const einsaetze = this.selectedEvent?.einsaetze || [];
-      const pseudoCount = einsaetze.filter(e => e.isPseudo).length;
-      if (pseudoCount === 0) return false;
-      return confirm(
-        `In diesem Job ${pseudoCount === 1 ? 'ist' : 'sind'} ${pseudoCount} Pseudo-Mitarbeiter${pseudoCount === 1 ? '' : ''} eingeplant.\n` +
-        'Sollen diese aus der Stundenliste ausgeschlossen werden?'
-      );
-    },
     async ensureStundenlisteDraft({ allowReplacement = false } = {}) {
       if (!this.selectedEvent?.auftragNr || this.isGeneratingHoursList) return null;
       if (this.sidebarStundenliste?.status === 'draft') return this.sidebarStundenliste;
       if (this.sidebarStundenliste && !allowReplacement) return null;
 
       const auftragNr = this.selectedEvent.auftragNr;
-      const excludePseudo = await this._askExcludePseudo();
       const eventTitle = String(this.selectedEvent.eventTitel || '').trim();
       this.isGeneratingHoursList = true;
       try {
@@ -2813,7 +2803,6 @@ export default {
           locationId: typeof this.selectedEvent.locationV2 === 'object'
             ? this.selectedEvent.locationV2?._id
             : this.selectedEvent.locationV2,
-          excludePseudo,
         });
         await this.loadStundenlisteStatus(auftragNr);
         return data;

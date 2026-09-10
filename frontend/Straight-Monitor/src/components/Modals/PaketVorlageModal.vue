@@ -19,7 +19,7 @@
             <button type="button" :class="{ active: direction === 'return' }" @click="setDirection('return')">Zugabe</button>
           </div>
 
-          <section v-for="section in template.sections.filter((entry) => entry.isActive)" :key="section._id" class="package-section">
+          <section v-for="section in activeSections.filter((entry) => entry.isActive)" :key="section._id" class="package-section">
             <h4>{{ section.name }}</h4>
             <label class="select-all"><input type="checkbox" :checked="sectionChecked(section)" @change="setSectionChecked(section, $event.target.checked)" /> Alles auswählen</label>
             <div class="entry-list">
@@ -105,11 +105,18 @@ const error = ref('');
 let additionalLineSequence = 0;
 
 const availableLocations = computed(() => {
+  if (template.value.locationPackages?.length) {
+    const ids = new Set(template.value.locationPackages.map((locationPackage) => String(locationPackage.location?._id || locationPackage.location)));
+    return locations.value.filter((location) => ids.has(String(location._id)));
+  }
   const allowed = template.value.allowedLocations || [];
   if (!allowed.length) return locations.value;
   const ids = new Set(allowed.map((location) => String(location._id || location)));
   return locations.value.filter((location) => ids.has(String(location._id)));
 });
+const activeSections = computed(() => template.value.locationPackages?.find(
+  (locationPackage) => String(locationPackage.location?._id || locationPackage.location) === String(locationId.value),
+)?.sections || template.value.sections || []);
 
 const bookableLines = computed(() => [
   ...Object.values(lines.value).filter((line) => line.checked && line.stockId && line.anzahl > 0),
@@ -170,7 +177,7 @@ function setSectionChecked(section, checked) { section.entries.filter((entry) =>
 
 function setIssueDefaults() {
   const next = {};
-  template.value.sections.forEach((section) => section.entries.filter((entry) => entry.isActive).forEach((entry) => {
+  activeSections.value.forEach((section) => section.entries.filter((entry) => entry.isActive).forEach((entry) => {
     const options = matchingStocks(entry);
     next[entryKey(entry)] = { checked: !!entry.defaultSelected && options.length > 0, anzahl: entry.defaultQuantity, stockId: options[0]?._id || '', options };
   }));
@@ -182,7 +189,7 @@ async function setReturnDefaults() {
   const { data } = await api.get(`/api/inventory/holdings/${mitarbeiterId.value}`);
   holdings.value = data;
   const next = {};
-  template.value.sections.forEach((section) => section.entries.filter((entry) => entry.isActive).forEach((entry) => {
+  activeSections.value.forEach((section) => section.entries.filter((entry) => entry.isActive).forEach((entry) => {
     const options = matchingStocks(entry);
     const held = options.map((option) => ({ option, holding: holdings.value.find((holding) => String(holding.stockId) === String(option._id)) })).find(({ holding }) => holding?.anzahl > 0);
     next[entryKey(entry)] = { checked: !!held, anzahl: held?.holding.anzahl || entry.defaultQuantity, stockId: held?.option._id || options[0]?._id || '', options };

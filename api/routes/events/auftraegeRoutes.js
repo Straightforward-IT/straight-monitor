@@ -1361,6 +1361,7 @@ router.post('/:auftragNr/pseudo-einsatz', auth, asyncHandler(async (req, res) =>
     berufSchl: tpl?.berufSchl,
     qualSchl: tpl?.qualSchl,
     isPseudo: true,
+    stundenlisteIncluded: false,
   });
   await newEinsatz.save();
 

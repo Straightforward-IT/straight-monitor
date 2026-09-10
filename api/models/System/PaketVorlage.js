@@ -32,12 +32,22 @@ const packageSectionSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
 });
 
+const locationPackageSchema = new mongoose.Schema({
+  location: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    required: true,
+  },
+  sections: { type: [packageSectionSchema], default: [] },
+}, { _id: false });
+
 const paketVorlageSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   allowedLocations: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Location',
   }],
+  locationPackages: { type: [locationPackageSchema], default: [] },
   sections: { type: [packageSectionSchema], default: [] },
   isActive: { type: Boolean, default: true },
   createdBy: {
@@ -51,13 +61,16 @@ const paketVorlageSchema = new mongoose.Schema({
 });
 
 paketVorlageSchema.pre('validate', function validateFixedOptions(next) {
-  for (const section of this.sections) {
-    for (const entry of section.entries) {
+  const sectionGroups = [this.sections, ...this.locationPackages.map((locationPackage) => locationPackage.sections)];
+  for (const sections of sectionGroups) {
+    for (const section of sections) {
+      for (const entry of section.entries) {
       if (entry.variationMode === 'fixed' && !entry.variationKey) {
         this.invalidate('sections', 'Feste Variationen brauchen einen Variationsschluessel.');
       }
       if (entry.groesseMode === 'fixed' && !entry.groesseKey) {
         this.invalidate('sections', 'Feste Groessen brauchen einen Groessenschluessel.');
+      }
       }
     }
   }

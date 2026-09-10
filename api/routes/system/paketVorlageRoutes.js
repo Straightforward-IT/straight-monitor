@@ -16,6 +16,7 @@ function pickTemplatePayload(body) {
   const payload = {};
   if (body.name !== undefined) payload.name = String(body.name).trim();
   if (Array.isArray(body.allowedLocations)) payload.allowedLocations = body.allowedLocations;
+  if (Array.isArray(body.locationPackages)) payload.locationPackages = body.locationPackages;
   if (Array.isArray(body.sections)) payload.sections = body.sections;
   if (typeof body.isActive === 'boolean') payload.isActive = body.isActive;
   return payload;
@@ -26,6 +27,8 @@ router.get('/', auth, asyncHandler(async (req, res) => {
   const templates = await PaketVorlage.find(filter)
     .populate('allowedLocations', 'nameFull shortName isActive')
     .populate('sections.entries.item', 'bezeichnung variationen groessen bestaende isActive')
+    .populate('locationPackages.location', 'nameFull shortName isActive')
+    .populate('locationPackages.sections.entries.item', 'bezeichnung variationen groessen bestaende isActive')
     .sort({ name: 1 })
     .lean();
   res.json(templates);
@@ -41,6 +44,8 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   await template.populate([
     { path: 'allowedLocations', select: 'nameFull shortName isActive' },
     { path: 'sections.entries.item', select: 'bezeichnung variationen groessen bestaende isActive' },
+    { path: 'locationPackages.location', select: 'nameFull shortName isActive' },
+    { path: 'locationPackages.sections.entries.item', select: 'bezeichnung variationen groessen bestaende isActive' },
   ]);
   res.status(201).json(template);
 }));
@@ -54,6 +59,8 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   await template.populate([
     { path: 'allowedLocations', select: 'nameFull shortName isActive' },
     { path: 'sections.entries.item', select: 'bezeichnung variationen groessen bestaende isActive' },
+    { path: 'locationPackages.location', select: 'nameFull shortName isActive' },
+    { path: 'locationPackages.sections.entries.item', select: 'bezeichnung variationen groessen bestaende isActive' },
   ]);
   res.json(template);
 }));
