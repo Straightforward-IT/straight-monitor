@@ -193,12 +193,90 @@
             <div class="dispo-cal-layout">
 
               <!-- Mini calendar -->
-              <AssignmentCalendar
-                :key="resolvedMa?._id"
-                :calendar-year="calendarYear" :calendar-month="calendarMonth"
-                :calendar-einsaetze="calendarEinsaetze" :calendar-loading="calendarLoading"
-                @previous="prevCalMonth" @next="nextCalMonth" @open="openCalEinsatz"
-              />
+              <div class="dispo-mini-cal">
+                <!-- Navigation spanning both months -->
+                <div class="dispo-cal-nav">
+                  <button class="dispo-cal-nav-btn" @click.stop="prevCalMonth">
+                    <font-awesome-icon icon="fa-solid fa-chevron-left" />
+                  </button>
+                  <span class="dispo-cal-month-label">{{ calendarMonthName }}</span>
+                  <span class="dispo-cal-month-sep">–</span>
+                  <span class="dispo-cal-month-label">{{ calendarMonthNameNext }}</span>
+                  <button class="dispo-cal-nav-btn" @click.stop="nextCalMonth">
+                    <font-awesome-icon icon="fa-solid fa-chevron-right" />
+                  </button>
+                </div>
+
+                <!-- Two months side by side -->
+                <div class="dispo-two-months">
+                  <!-- Current month -->
+                  <div class="dispo-cal-grid dispo-cal-grid--sm">
+                    <div v-for="wd in ['Mo','Di','Mi','Do','Fr','Sa','So']" :key="'a'+wd" class="dispo-cal-wd">{{ wd }}</div>
+                    <div
+                      v-for="(day, i) in calendarDays"
+                      :key="i"
+                      class="dispo-cal-day"
+                      :class="{
+                        'dispo-cal-day--other':      !day.isCurrentMonth,
+                        'dispo-cal-day--today':       day.isToday,
+                        'dispo-cal-day--has-einsatz': day.einsaetze.length > 0,
+                        'dispo-cal-day--selected':    calendarSelectedDay === day,
+                      }"
+                      @click.stop="onCalDayClick(day)"
+                    >
+                      <span class="dispo-cal-day-num">{{ day.number }}</span>
+                      <div v-if="day.einsaetze.length > 0" class="dispo-cal-dots">
+                        <span v-for="(_, di) in Math.min(day.einsaetze.length, 3)" :key="di" class="dispo-cal-dot" />
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Next month -->
+                  <div class="dispo-cal-grid dispo-cal-grid--sm">
+                    <div v-for="wd in ['Mo','Di','Mi','Do','Fr','Sa','So']" :key="'b'+wd" class="dispo-cal-wd">{{ wd }}</div>
+                    <div
+                      v-for="(day, i) in calendarDaysNext"
+                      :key="'n'+i"
+                      class="dispo-cal-day"
+                      :class="{
+                        'dispo-cal-day--other':      !day.isCurrentMonth,
+                        'dispo-cal-day--today':       day.isToday,
+                        'dispo-cal-day--has-einsatz': day.einsaetze.length > 0,
+                        'dispo-cal-day--selected':    calendarSelectedDay === day,
+                      }"
+                      @click.stop="onCalDayClick(day)"
+                    >
+                      <span class="dispo-cal-day-num">{{ day.number }}</span>
+                      <div v-if="day.einsaetze.length > 0" class="dispo-cal-dots">
+                        <span v-for="(_, di) in Math.min(day.einsaetze.length, 3)" :key="di" class="dispo-cal-dot" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="calendarLoading" class="dispo-cal-loading">
+                  <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" />
+                </div>
+                <transition name="expand">
+                  <div v-if="calendarSelectedDay" class="dispo-cal-detail">
+                    <div class="dispo-cal-detail-date">{{ formatCalSelectedDate }}</div>
+                    <template v-if="calendarSelectedDay.einsaetze.length > 0">
+                      <div
+                        v-for="e in calendarSelectedDay.einsaetze"
+                        :key="e._id"
+                        class="dispo-cal-detail-item dispo-cal-detail-item--link"
+                        @click.stop="openCalEinsatz(e)"
+                      >
+                        <span v-if="e.uhrzeitVon" class="dispo-cal-detail-time">
+                          {{ formatCalTime(e.uhrzeitVon) }}{{ e.uhrzeitBis ? '–' + formatCalTime(e.uhrzeitBis) : '' }}
+                        </span>
+                        <span class="dispo-cal-detail-name">{{ e.auftrag?.eventTitel || e.bezeichnung || `#${e.auftragNr}` }}</span>
+                        <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" class="dispo-cal-detail-arrow" />
+                      </div>
+                    </template>
+                    <p v-else class="dispo-cal-detail-empty">Keine Einsätze</p>
+                  </div>
+                </transition>
+              </div>
 
               <!-- Notiz + Chronik -->
               <div class="dispo-notiz-col">
@@ -260,7 +338,10 @@
           <!-- Einsatz-Verlauf Chart -->
           <MitarbeiterEinsatzChart
             v-if="expanded && resolvedMa?._id"
+            :class="resolvedMa.einsatzCount > 0 ? jobTierClass(resolvedMa.einsatzCount) : null"
             :mitarbeiterId="resolvedMa._id.toString()"
+            :eintrittsdatum="resolvedMa.eintrittsdatum"
+            :einsatzCount="resolvedMa.einsatzCount || 0"
           />
           </template>
 
@@ -1143,14 +1224,22 @@
         <template v-if="showTooltips">
           <custom-tooltip text="Stammdaten" :position="tooltipPosition" :delay-in="150">
             <button class="icon-btn" role="tab" :class="{ active: view === 'profile' }" @click="view = 'profile'" :aria-selected="view === 'profile'">
-              <font-awesome-icon icon="fa-solid fa-user" />
+              <span
+                class="tab-brand tab-brand--sf"
+                :style="{ '--tab-brand-image': `url(${effectiveTheme === 'dark' ? straightDark : straightLight})` }"
+                aria-hidden="true"
+              />
               <span>Stammdaten</span>
             </button>
           </custom-tooltip>
         </template>
         <template v-else>
           <button class="icon-btn" role="tab" :class="{ active: view === 'profile' }" @click="view = 'profile'" :aria-selected="view === 'profile'">
-            <font-awesome-icon icon="fa-solid fa-user" />
+            <span
+              class="tab-brand tab-brand--sf"
+              :style="{ '--tab-brand-image': `url(${effectiveTheme === 'dark' ? straightDark : straightLight})` }"
+              aria-hidden="true"
+            />
             <span>Stammdaten</span>
           </button>
         </template>
@@ -1225,22 +1314,6 @@
           </button>
         </template>
 
-        <!-- R2 Dokumente -->
-        <template v-if="showTooltips">
-          <custom-tooltip text="R2 Dokumente" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" role="tab" :class="{ active: view === 'documents' }" @click="view = 'documents'" :aria-selected="view === 'documents'">
-              <font-awesome-icon icon="fa-solid fa-folder-tree" />
-              <span>Dokumente</span>
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button class="icon-btn" role="tab" :class="{ active: view === 'documents' }" @click="view = 'documents'" :aria-selected="view === 'documents'">
-            <font-awesome-icon icon="fa-solid fa-folder-tree" />
-            <span>Dokumente</span>
-          </button>
-        </template>
-
         <!-- Actions Button with Dropdown -->
         <div class="quick-actions-wrapper" @click.stop>
           <template v-if="showTooltips">
@@ -1271,9 +1344,6 @@
                   </button>
                   <button v-if="resolvedMa?.isActive !== false" class="qa-item" @click="executeQuickAction('open-dispo')">
                     <font-awesome-icon icon="fa-solid fa-table-columns" /> In Dispo öffnen
-                  </button>
-                  <button class="qa-item" @click="executeQuickAction('create-lohnvorschuss')">
-                    <font-awesome-icon icon="fa-solid fa-money-bill-wave" /> Lohnvorschuss erstellen
                   </button>
                 </div>
                 <div class="qa-group">
@@ -1371,15 +1441,6 @@
           <span class="steckbrief-label">Erstellt</span>
           <span class="steckbrief-value steckbrief-value--muted">{{ resolvedMa.erstellt_von }}</span>
         </div>
-        <div v-if="(auth.user?.roles?.includes('ADMIN') || auth.user?.role === 'ADMIN') && resolvedMa._id" class="steckbrief-row">
-          <span class="steckbrief-label">MongoDB ID</span>
-          <span class="steckbrief-value steckbrief-value--muted">
-            {{ resolvedMa._id }}
-            <button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa._id)" title="Kopieren">
-              <font-awesome-icon icon="fa-solid fa-copy" />
-            </button>
-          </span>
-        </div>
         <button class="steckbrief-edit-button" type="button" @click.stop="executeQuickAction('edit')">
           <font-awesome-icon icon="fa-solid fa-pen-to-square" />
           Bearbeiten
@@ -1458,43 +1519,6 @@
           </div>
         </div>
       </div>
-      </div>
-      <div v-else-if="view === 'documents'" class="employee-storage" role="tabpanel">
-        <section class="employee-document-workflow">
-          <div class="employee-document-workflow__header">
-            <h4>Dokumentanforderungen</h4>
-            <span v-if="documentRequestsLoading">Wird geladen</span>
-            <button type="button" :disabled="documentRulesReconciling" @click="reconcileDocumentRules">Standard prüfen</button>
-          </div>
-          <form class="employee-document-workflow__form" @submit.prevent="createDocumentRequest">
-            <select v-model="newDocumentRequest.type" required aria-label="Dokumenttyp">
-              <option value="" disabled>Dokument auswählen</option>
-              <option v-for="documentType in employeeDocumentTypes" :key="documentType.value" :value="documentType.value">{{ documentType.label }}</option>
-            </select>
-            <input v-model="newDocumentRequest.dueAt" type="date" aria-label="Frist" />
-            <button type="submit" :disabled="documentRequestSaving">Anfordern</button>
-          </form>
-          <p v-if="documentRequestError" class="employee-document-workflow__message employee-document-workflow__message--error">{{ documentRequestError }}</p>
-          <p v-if="documentRuleMessage" class="employee-document-workflow__message">{{ documentRuleMessage }}</p>
-          <div v-if="documentRequests.length" class="employee-document-workflow__list">
-            <article v-for="request in documentRequests" :key="request.id" class="employee-document-workflow__item">
-              <div><strong>{{ request.label }}</strong><small>{{ documentRequestMeta(request) }}</small></div>
-              <div v-if="request.status === 'UPLOADED'" class="employee-document-workflow__actions">
-                <button type="button" :disabled="documentReviewSaving === request.id" @click="reviewDocumentRequest(request, 'APPROVED')">Freigeben</button>
-                <button type="button" class="danger" :disabled="documentReviewSaving === request.id" @click="reviewDocumentRequest(request, 'REJECTED')">Ablehnen</button>
-              </div>
-              <span v-else class="employee-document-workflow__status">{{ request.status }}</span>
-            </article>
-          </div>
-          <p v-else-if="!documentRequestsLoading" class="employee-document-workflow__empty">Keine Dokumentanforderungen.</p>
-        </section>
-        <SignaturR2Browser
-          root-label="Dokumente"
-          :list-url="`/api/personal/mitarbeiter/${resolvedMa._id}/storage`"
-          :file-url-endpoint="`/api/personal/mitarbeiter/${resolvedMa._id}/storage/url`"
-          :root-prefix="`${resolvedMa.r2Prefix || `employees/${resolvedMa._id}`}/`"
-          :enable-entity-links="false"
-        />
       </div>
     </section>
 
@@ -1603,8 +1627,7 @@
   </article>
 </template>
 <script>
-import AssignmentCalendar from '@/components/ui-elements/AssignmentCalendar.vue';
-import { computed, defineAsyncComponent, ref, onMounted, onBeforeUnmount, watchEffect } from "vue";
+import { computed, ref, onMounted, onBeforeUnmount, watchEffect } from "vue";
 import { useRouter } from "vue-router";
 import CustomTooltip from "./CustomTooltip.vue";
 import FlipProfile from "./FlipProfile.vue";
@@ -1620,7 +1643,6 @@ import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
-import { useSignaturModal } from "@/stores/signaturModal";
 import api from "@/utils/api";
 import { fetchFlipTasks } from "@/utils/flipApi";
 import FlipMappings from "@/assets/FlipMappings.json";
@@ -1632,11 +1654,9 @@ import flipLogo from "@/assets/flip.png";
 import asanaLogo from "@/assets/asana.png";
 import MitarbeiterEinsatzChart from "./MitarbeiterEinsatzChart.vue";
 
-const SignaturR2Browser = defineAsyncComponent(() => import("./SignaturR2Browser.vue"));
-
 export default {
   name: "EmployeeCard",
-  components: { AssignmentCalendar, CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, SignaturR2Browser },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar },
   props: {
     ma: { type: Object, required: false, default: null },
     mitarbeiterId: { type: String, default: null },
@@ -1755,7 +1775,6 @@ export default {
     });
 
     const dataCache = useDataCache();
-  const signaturModal = useSignaturModal();
 
     // Logos via imports (Vite preloaded) – kein src-Swap → kein Flackern
     return {
@@ -1774,7 +1793,6 @@ export default {
       isTeamleiter,
       router,
       dataCache,
-      signaturModal,
       selfLoadedMa,
       selfLoading,
       flip,
@@ -1884,29 +1902,9 @@ export default {
       // Mini-calendar
       calendarEinsaetze: [],
       calendarLoading: false,
-      documentRequests: [],
-      documentRequestsLoading: false,
-      documentRequestSaving: false,
-      documentReviewSaving: '',
-      documentRequestError: '',
-      documentRuleMessage: '',
-      documentRulesReconciling: false,
-      newDocumentRequest: { type: '', dueAt: '' },
-      employeeDocumentTypes: [
-        { value: 'IMMATRICULATION_CERTIFICATE', label: 'Immatrikulationsbescheinigung' },
-        { value: 'SCHOOL_CERTIFICATE', label: 'Schulbescheinigung' },
-        { value: 'PROOF_OF_ACHIEVEMENT', label: 'Leistungsnachweis' },
-        { value: 'RESIDENCE_PERMIT', label: 'Aufenthaltstitel' },
-        { value: 'IDENTITY_CARD', label: 'Personalausweis' },
-        { value: 'HEALTH_INSURANCE_CARD', label: 'Gesundheitskarte' },
-        { value: 'TAX_ID_DOCUMENT', label: 'SteuerID-Dokument' },
-        { value: 'SOCIAL_INSURANCE_NUMBER', label: 'Sozialversicherungsnummer' },
-        { value: 'EMPLOYMENT_CONTRACT', label: 'Arbeitsvertrag' },
-        { value: 'DRIVER_LICENSE', label: 'Führerschein' },
-        { value: 'HEALTH_INSTRUCTION_CERTIFICATE', label: 'Gesundheitszeugnis-/Belehrung' },
-      ],
       calendarYear: new Date().getFullYear(),
       calendarMonth: new Date().getMonth(),
+      calendarSelectedDay: null,
       showQualificationPicker: false,
       qualificationSearch: '',
       qualificationSaving: false,
@@ -1997,8 +1995,92 @@ export default {
       }
       return Object.values(holdings).filter(h => h.net > 0);
     },
-    calendarYearNext() { return this.calendarMonth === 11 ? this.calendarYear + 1 : this.calendarYear; },
-    calendarMonthNext() { return (this.calendarMonth + 1) % 12; },
+    // Mini-calendar
+    calendarMonthName() {
+      return new Date(this.calendarYear, this.calendarMonth)
+        .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    },
+    calendarDays() {
+      const days = [];
+      const year = this.calendarYear;
+      const month = this.calendarMonth;
+      const firstDay = new Date(year, month, 1);
+      const lastDay  = new Date(year, month + 1, 0);
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+
+      let startDow = firstDay.getDay() - 1;
+      if (startDow === -1) startDow = 6;
+      const prevLastDay = new Date(year, month, 0);
+      for (let i = startDow - 1; i >= 0; i--) {
+        const date = new Date(year, month - 1, prevLastDay.getDate() - i);
+        days.push({ number: date.getDate(), date, isCurrentMonth: false, isToday: false, einsaetze: [] });
+      }
+      for (let day = 1; day <= lastDay.getDate(); day++) {
+        const date = new Date(year, month, day);
+        const dt = new Date(date); dt.setHours(0, 0, 0, 0);
+        const einsaetze = this.calendarEinsaetze.filter(e => {
+          const von = new Date(e.datumVon); von.setHours(0, 0, 0, 0);
+          const bis = new Date(e.datumBis || e.datumVon); bis.setHours(23, 59, 59, 999);
+          return dt >= von && dt <= bis;
+        });
+        days.push({ number: day, date, isCurrentMonth: true, isToday: dt.getTime() === today.getTime(), einsaetze });
+      }
+      const remaining = 42 - days.length;
+      for (let day = 1; day <= remaining; day++) {
+        const date = new Date(year, month + 1, day);
+        days.push({ number: day, date, isCurrentMonth: false, isToday: false, einsaetze: [] });
+      }
+      return days;
+    },
+    formatCalSelectedDate() {
+      if (!this.calendarSelectedDay) return '';
+      const d = this.calendarSelectedDay.date;
+      if (d.toDateString() === new Date().toDateString()) return 'Heute';
+      return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    },
+    // Next month helpers
+    calendarYearNext() {
+      return this.calendarMonth === 11 ? this.calendarYear + 1 : this.calendarYear;
+    },
+    calendarMonthNext() {
+      return (this.calendarMonth + 1) % 12;
+    },
+    calendarMonthNameNext() {
+      return new Date(this.calendarYearNext, this.calendarMonthNext)
+        .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    },
+    calendarDaysNext() {
+      const days = [];
+      const year = this.calendarYearNext;
+      const month = this.calendarMonthNext;
+      const firstDay = new Date(year, month, 1);
+      const lastDay  = new Date(year, month + 1, 0);
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+
+      let startDow = firstDay.getDay() - 1;
+      if (startDow === -1) startDow = 6;
+      const prevLastDay = new Date(year, month, 0);
+      for (let i = startDow - 1; i >= 0; i--) {
+        const date = new Date(year, month - 1, prevLastDay.getDate() - i);
+        days.push({ number: date.getDate(), date, isCurrentMonth: false, isToday: false, einsaetze: [] });
+      }
+      for (let day = 1; day <= lastDay.getDate(); day++) {
+        const date = new Date(year, month, day);
+        const dt = new Date(date); dt.setHours(0, 0, 0, 0);
+        const einsaetze = this.calendarEinsaetze.filter(e => {
+          const von = new Date(e.datumVon); von.setHours(0, 0, 0, 0);
+          const bis = new Date(e.datumBis || e.datumVon); bis.setHours(23, 59, 59, 999);
+          return dt >= von && dt <= bis;
+        });
+        days.push({ number: day, date, isCurrentMonth: true, isToday: dt.getTime() === today.getTime(), einsaetze });
+      }
+      const remaining = 42 - days.length;
+      for (let day = 1; day <= remaining; day++) {
+        const date = new Date(year, month + 1, day);
+        days.push({ number: day, date, isCurrentMonth: false, isToday: false, einsaetze: [] });
+      }
+      return days;
+    },
   },
 
   watch: {
@@ -2030,7 +2112,6 @@ export default {
       if (newView === 'inventar' && this.expanded && this.inventarLogs.length === 0 && !this.inventarLoading) {
         this.fetchInventar();
       }
-      if (newView === 'documents' && this.expanded) this.loadDocumentRequests();
     }
   },
 
@@ -2139,80 +2220,6 @@ export default {
       if (this.resolvedMa?.flip?.id) {
         this.loadFlipTasks();
       }
-      if (this.view === 'documents') this.loadDocumentRequests();
-    },
-    async loadDocumentRequests() {
-      if (!this.resolvedMa?._id) return;
-      this.documentRequestsLoading = true;
-      this.documentRequestError = '';
-      try {
-        const response = await api.get('/api/employee-documents/requests', { params: { mitarbeiterId: this.resolvedMa._id } });
-        this.documentRequests = response.data?.requests || [];
-      } catch (error) {
-        this.documentRequests = [];
-        this.documentRequestError = error.response?.data?.msg || 'Dokumentanforderungen konnten nicht geladen werden.';
-      } finally {
-        this.documentRequestsLoading = false;
-      }
-    },
-    async createDocumentRequest() {
-      if (!this.resolvedMa?._id || !this.newDocumentRequest.type) return;
-      this.documentRequestSaving = true;
-      this.documentRequestError = '';
-      try {
-        await api.post('/api/employee-documents/requests', {
-          mitarbeiterId: this.resolvedMa._id,
-          type: this.newDocumentRequest.type,
-          dueAt: this.newDocumentRequest.dueAt || null,
-        });
-        this.newDocumentRequest = { type: '', dueAt: '' };
-        await this.loadDocumentRequests();
-      } catch (error) {
-        this.documentRequestError = error.response?.data?.msg || 'Dokumentanforderung konnte nicht erstellt werden.';
-      } finally {
-        this.documentRequestSaving = false;
-      }
-    },
-    async reconcileDocumentRules() {
-      if (!this.resolvedMa?._id) return;
-      this.documentRulesReconciling = true;
-      this.documentRequestError = '';
-      this.documentRuleMessage = '';
-      try {
-        const preview = await api.post('/api/employee-documents/rules/reconcile', { mitarbeiterId: this.resolvedMa._id });
-        const missing = preview.data?.missing || [];
-        if (!missing.length) {
-          this.documentRuleMessage = 'Alle zutreffenden Standardanforderungen sind erfüllt oder bereits offen.';
-          return;
-        }
-        const labels = missing.map((rule) => rule.type).join(', ');
-        if (!window.confirm(`${missing.length} Standardanforderung(en) anlegen?\n${labels}`)) return;
-        const result = await api.post('/api/employee-documents/rules/reconcile', { mitarbeiterId: this.resolvedMa._id, apply: true });
-        this.documentRuleMessage = `${result.data?.created || 0} Standardanforderung(en) angelegt.`;
-        await this.loadDocumentRequests();
-      } catch (error) {
-        this.documentRequestError = error.response?.data?.msg || 'Standardanforderungen konnten nicht geprüft werden.';
-      } finally {
-        this.documentRulesReconciling = false;
-      }
-    },
-    async reviewDocumentRequest(request, status) {
-      const reviewNote = status === 'REJECTED' ? window.prompt('Grund für die Ablehnung:') : '';
-      if (status === 'REJECTED' && reviewNote === null) return;
-      this.documentReviewSaving = request.id;
-      this.documentRequestError = '';
-      try {
-        await api.patch(`/api/employee-documents/requests/${request.id}/review`, { status, reviewNote });
-        await this.loadDocumentRequests();
-      } catch (error) {
-        this.documentRequestError = error.response?.data?.msg || 'Dokument konnte nicht geprüft werden.';
-      } finally {
-        this.documentReviewSaving = '';
-      }
-    },
-    documentRequestMeta(request) {
-      const state = { REQUESTED: 'Angefordert', UPLOADED: 'Hochgeladen', APPROVED: 'Freigegeben', REJECTED: 'Abgelehnt', EXPIRED: 'Abgelaufen', CANCELLED: 'Abgebrochen' }[request.status] || request.status;
-      return request.dueAt ? `${state} · Frist ${new Date(request.dueAt).toLocaleDateString('de-DE')}` : state;
     },
     async loadEventReportFeedback() {
       if (!this.resolvedMa?._id) return;
@@ -2436,12 +2443,23 @@ export default {
     prevCalMonth() {
       if (this.calendarMonth === 0) { this.calendarMonth = 11; this.calendarYear--; }
       else this.calendarMonth--;
+      this.calendarSelectedDay = null;
       this._loadCalMonth();
     },
     nextCalMonth() {
       if (this.calendarMonth === 11) { this.calendarMonth = 0; this.calendarYear++; }
       else this.calendarMonth++;
+      this.calendarSelectedDay = null;
       this._loadCalMonth();
+    },
+    onCalDayClick(day) {
+      if (!day.isCurrentMonth) return;
+      this.calendarSelectedDay = this.calendarSelectedDay === day ? null : day;
+    },
+    formatCalTime(val) {
+      if (!val) return '';
+      if (typeof val === 'string' && /^\d{1,2}:\d{2}/.test(val)) return val.substring(0, 5);
+      return '';
     },
     openCalEinsatz(e) {
       if (!e.auftragNr) return;
@@ -3155,7 +3173,7 @@ export default {
       return `sipgate://phone/call?number=${cleanNumber}`;
     },
 
-    async executeQuickAction(action) {
+    executeQuickAction(action) {
       this._closeQuickActions();
       switch (action) {
         case 'sipgate': {
@@ -3190,51 +3208,6 @@ export default {
           if (locationV2) query.locationV2 = String(locationV2);
           this.$router.push({ path: '/dispo', query });
           this.$emit('close');
-          break;
-        }
-        case 'create-lohnvorschuss': {
-          const locationId = this.resolvedMa?.locationV2?._id || this.resolvedMa?.locationV2 || null;
-          const employeeName = `${this.resolvedMa?.vorname || ''} ${this.resolvedMa?.nachname || ''}`.trim();
-          const date = new Date().toLocaleDateString('de-DE').replaceAll('.', '-');
-          let locationManager = null;
-
-          try {
-            const { data: locations } = await api.get('/api/locations');
-            locationManager = (Array.isArray(locations) ? locations : []).find(location =>
-              String(location._id) === String(locationId)
-            )?.locationManager || null;
-          } catch (error) {
-            console.error('Standortleitung für Lohnvorschuss laden fehlgeschlagen', error);
-          }
-
-          if (!locationManager?.email) {
-            window.dispatchEvent(new CustomEvent('app-toast', {
-              detail: { message: 'Für den Standort ist keine Standortleitung mit E-Mail hinterlegt.', type: 'error' },
-            }));
-            break;
-          }
-
-          this.signaturModal.openModal({
-            mitarbeiterId: this.resolvedMa._id,
-            locationId,
-            typKey: 'lohnvorschuss',
-            name: `Lohnvorschuss | ${employeeName || '<Vorname Nachname>'} | ${date}`,
-            locked: true,
-            submitters: [
-              {
-                role: 'Erste Partei',
-                name: locationManager.name || locationManager.email,
-                email: locationManager.email,
-                embedded: true,
-              },
-              {
-                role: 'Zweite Partei',
-                name: employeeName,
-                email: this.resolvedMa?.email || '',
-                embedded: false,
-              },
-            ],
-          });
           break;
         }
         case 'share-link':
@@ -6198,6 +6171,195 @@ export default {
   }
 }
 
+.dispo-mini-cal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dispo-cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  gap: 4px;
+}
+
+.dispo-cal-month-sep {
+  font-size: 10px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.dispo-two-months {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.dispo-cal-month-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.dispo-cal-nav-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: color 0.15s, background 0.15s;
+  &:hover { color: var(--text); background: var(--hover); }
+}
+
+.dispo-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.dispo-cal-grid--sm {
+  .dispo-cal-wd  { font-size: 7px; }
+  .dispo-cal-day-num { font-size: 8px; }
+  .dispo-cal-dot { width: 2px; height: 2px; }
+}
+
+.dispo-cal-wd {
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  padding: 2px 0 4px;
+}
+
+.dispo-cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s;
+
+  &:hover:not(.dispo-cal-day--other) { background: var(--hover); }
+
+  &--other { opacity: 0.2; cursor: default; pointer-events: none; }
+
+  &--today .dispo-cal-day-num { color: var(--primary); font-weight: 700; }
+
+  &--has-einsatz { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+
+  &--selected {
+    background: var(--primary) !important;
+    .dispo-cal-day-num { color: #fff !important; font-weight: 700; }
+    .dispo-cal-dot { background: rgba(255,255,255,0.8); }
+  }
+}
+
+.dispo-cal-day-num {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text);
+}
+
+.dispo-cal-dots {
+  display: flex;
+  gap: 2px;
+}
+
+.dispo-cal-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.dispo-cal-loading {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.dispo-cal-detail {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dispo-cal-detail-date {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.dispo-cal-detail-item {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 12px;
+
+  &--link {
+    cursor: pointer;
+    border-radius: 5px;
+    padding: 2px 4px;
+    margin: 0 -4px;
+    transition: background 0.12s;
+
+    &:hover {
+      background: var(--hover);
+      .dispo-cal-detail-name { color: var(--primary); }
+      .dispo-cal-detail-arrow { opacity: 1; color: var(--primary); }
+    }
+  }
+}
+
+.dispo-cal-detail-arrow {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 9px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.dispo-cal-detail-time {
+  font-weight: 600;
+  color: var(--primary);
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.dispo-cal-detail-name {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dispo-cal-detail-empty {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  margin: 0;
+}
+
 .dispo-notiz-col {
   display: flex;
   flex-direction: column;
@@ -6733,10 +6895,6 @@ export default {
 
 .employee-tabs-shell .skills-section {
   grid-column: 1 / -1;
-}
-
-.employee-storage {
-  padding: 20px;
 }
 
 @media (max-width: 900px) {

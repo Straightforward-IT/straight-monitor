@@ -85,6 +85,12 @@
               </router-link>
             </div>
           </div>
+        <div v-if="canSeePayroll" class="nav-group nav-group--payroll">
+          <router-link
+            to="/payroll"
+            :class="{ active: isPayrollSectionActive }"
+          >Payroll</router-link>
+        </div>
         <div class="nav-group nav-group--reports">
           <router-link
             :to="reportsNavTarget"
@@ -143,7 +149,7 @@
             </router-link>
           </div>
         </div>
-        <div class="nav-group nav-group--kunden">
+        <div v-if="canSeeKunden" class="nav-group nav-group--kunden">
           <router-link :to="kundenNavTarget" :class="{ active: isKundenSectionActive, 'dev-role--vertrieb': isDev }"
             @click="handleNewPageClick($event, kundenNavTarget)"
             >{{ kundenNavLabel }}</router-link
@@ -157,21 +163,21 @@
               Kunden
             </router-link>
             <router-link
-              v-if="canSeeKundenInsights && kundenNavLabel !== 'Analytics'"
+              v-if="kundenNavLabel !== 'Analytics'"
               :to="{ path: '/kunden', query: { tab: 'analytics' } }"
               class="nav-submenu__link"
             >
               Analytics
             </router-link>
             <router-link
-              v-if="canSeeKundenInsights && kundenNavLabel !== 'Leads'"
+              v-if="kundenNavLabel !== 'Leads'"
               :to="{ path: '/kunden', query: { tab: 'leads' } }"
               class="nav-submenu__link"
             >
               Leads
             </router-link>
             <router-link
-              v-if="canSeeKundenInsights && kundenNavLabel !== 'Watchlist'"
+              v-if="kundenNavLabel !== 'Watchlist'"
               :to="{ path: '/kunden', query: { tab: 'watchlist' } }"
               class="nav-submenu__link"
             >
@@ -370,6 +376,17 @@
             </router-link>
           </div>
         </div>
+        <div v-if="canSeePayroll" class="mobile-menu-group">
+          <router-link
+            to="/payroll"
+            class="mobile-menu-btn"
+            :class="{ active: isPayrollSectionActive }"
+            @click="closeMobileMenu"
+          >
+            <font-awesome-icon :icon="['fas', 'calculator']" />
+            Payroll
+          </router-link>
+        </div>
         <div class="mobile-menu-group">
           <button
             class="mobile-menu-btn mobile-menu-toggle"
@@ -461,7 +478,7 @@
             </router-link>
           </div>
         </div>
-        <div class="mobile-menu-group">
+        <div v-if="canSeeKunden" class="mobile-menu-group">
           <button
             class="mobile-menu-btn mobile-menu-toggle"
             :class="{ active: isKundenSectionActive, 'mobile-menu-toggle--open': mobileKundenMenuOpen, 'dev-role--vertrieb': isDev }"
@@ -487,7 +504,6 @@
               Übersicht
             </router-link>
             <router-link
-              v-if="canSeeKundenInsights"
               :to="{ path: '/kunden', query: { tab: 'analytics' } }"
               class="mobile-submenu__link"
               :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'analytics' }"
@@ -497,7 +513,6 @@
               Analytics
             </router-link>
             <router-link
-              v-if="canSeeKundenInsights"
               :to="{ path: '/kunden', query: { tab: 'leads' } }"
               class="mobile-submenu__link"
               :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'leads' }"
@@ -507,7 +522,6 @@
               Leads
             </router-link>
             <router-link
-              v-if="canSeeKundenInsights"
               :to="{ path: '/kunden', query: { tab: 'watchlist' } }"
               class="mobile-submenu__link"
               :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'watchlist' }"
@@ -830,7 +844,9 @@ watch(
 const newPagesEnabled = computed(() => !!auth.user);
 
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
-const canSeeKundenInsights = computed(() => isAdmin.value || auth.user?.roles?.includes('VERTRIEB'));
+const canSeeKunden = computed(() => isAdmin.value || auth.user?.roles?.includes('VERTRIEB'));
+const canSeePayroll = computed(() => isAdmin.value);
+const isPayrollSectionActive = computed(() => route.name === 'Payroll');
 const isKundenSectionActive = computed(() => route.name === 'Kunden');
 const kundenNavLabel = computed(() => {
   if (route.name !== 'Kunden') return 'Kunden';

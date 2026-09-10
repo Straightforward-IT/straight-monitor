@@ -13,7 +13,8 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+const fontkit = require('@pdf-lib/fontkit');
+const { PDFDocument, rgb } = require('pdf-lib');
 
 const Auftrag = require('../../models/Event/Auftrag');
 const Einsatz = require('../../models/Event/Einsatz');
@@ -49,6 +50,8 @@ const COLOR_TEXT = rgb(0.1, 0.1, 0.1);
 const COLOR_MUTED = rgb(0.45, 0.45, 0.45);
 const COLOR_LINE = rgb(0.75, 0.75, 0.75);
 const COLOR_HEADER_BG = rgb(0.93, 0.93, 0.93);
+const FONT_REGULAR_PATH = path.join(__dirname, '../../assets/fonts/NotoSans-Regular.ttf');
+const FONT_BOLD_PATH = path.join(__dirname, '../../assets/fonts/NotoSans-Bold.ttf');
 
 class StundenlisteService {
   /**
@@ -203,8 +206,11 @@ class StundenlisteService {
   // ── PDF-Rendering ─────────────────────────────────────────────────────────
   async _renderPdf({ auftrag, kunde, einsaetze, schichten, niederlassung }, options = {}) {
     const doc = await PDFDocument.create();
-    const font = await doc.embedFont(StandardFonts.Helvetica);
-    const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+    doc.registerFontkit(fontkit);
+    const [font, fontBold] = await Promise.all([
+      doc.embedFont(fs.readFileSync(FONT_REGULAR_PATH), { subset: true }),
+      doc.embedFont(fs.readFileSync(FONT_BOLD_PATH), { subset: true }),
+    ]);
 
     // Logo einbetten (optional)
     let logoImg = null;

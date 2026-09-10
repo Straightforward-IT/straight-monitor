@@ -38,15 +38,17 @@
         </FilterGroup>
         <FilterDivider />
         <FilterGroup label="Kunden">
-          <PillMultiSelect
-            v-model="filters.kunden"
-            :options="filterOptions.kunden"
-            value-key="kundenNr"
-            label-key="kundName"
-            meta-key="kundenNr"
-            placeholder="Kunden suchen..."
-            @change="onKundenFilterChange"
-          />
+          <FilterDropdown :has-value="filters.kunden.length > 0">
+            <template #label>
+              <span v-if="filters.kunden.length === 0">Alle Kunden</span>
+              <span v-else>{{ filters.kunden.length }} ausgewählt</span>
+            </template>
+            <div v-if="filterOptions.kunden.length === 0" class="no-options">Keine Kunden gefunden</div>
+            <label v-for="kunde in filterOptions.kunden" :key="kunde.kundenNr" class="dropdown-item">
+              <input type="checkbox" :checked="filters.kunden.includes(kunde.kundenNr)" @change="toggleKundeFilter(kunde.kundenNr)">
+              <span class="label-text">{{ kunde.kundName }}</span>
+            </label>
+          </FilterDropdown>
         </FilterGroup>
       </ToolbarFilter>
       <div class="nav-inner">
@@ -133,12 +135,9 @@
       </div>
 
       <div class="mobile-day-content" v-if="weekDays[mobileDayIndex]">
-        <div v-if="loading" class="empty-day-state">
-          Lade Aufträge...
-        </div>
-
-        <div v-else-if="getEventsForDay(weekDays[mobileDayIndex].date).length === 0" class="empty-day-state">
-          Keine Aufträge heute
+        
+        <div v-if="getEventsForDay(weekDays[mobileDayIndex].date).length === 0" class="empty-day-state">
+            Keine Aufträge heute
         </div>
         
         <div
@@ -165,15 +164,11 @@
             @contextmenu.prevent="openOrderContextMenu($event, event)"
           >
             <img
-              v-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key) && ['open', 'completed'].includes(event.stundenlisteSignaturStatus)"
+              v-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key) && event.stundenlisteSignaturStatus === 'completed'"
               :src="docusealLogo"
               class="event-signature-complete"
-              :class="{
-                'event-signature-complete--completed': event.stundenlisteSignaturStatus === 'completed',
-                'event-signature-complete--outdated': event.stundenlisteIsOutdated,
-              }"
-              :alt="event.stundenlisteIsOutdated ? 'Stundenliste veraltet' : event.stundenlisteSignaturStatus === 'completed' ? 'Stundenliste vollständig signiert' : 'Stundenliste zur Unterschrift gestartet'"
-              :title="event.stundenlisteIsOutdated ? 'Stundenliste veraltet' : event.stundenlisteSignaturStatus === 'completed' ? 'Stundenliste vollständig signiert' : 'Stundenliste zur Unterschrift gestartet'"
+              alt="Stundenliste vollständig signiert"
+              title="Stundenliste vollständig signiert"
             >
             <div v-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key)" class="event-header">
               <span v-if="event.auftStatus !== 2" class="event-status">{{ getStatusText(event.auftStatus) }}</span>
@@ -305,15 +300,11 @@
               @contextmenu.prevent="openOrderContextMenu($event, event)"
             >
             <img
-              v-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && ['open', 'completed'].includes(event.stundenlisteSignaturStatus)"
+              v-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && event.stundenlisteSignaturStatus === 'completed'"
               :src="docusealLogo"
               class="event-signature-complete"
-              :class="{
-                'event-signature-complete--completed': event.stundenlisteSignaturStatus === 'completed',
-                'event-signature-complete--outdated': event.stundenlisteIsOutdated,
-              }"
-              :alt="event.stundenlisteIsOutdated ? 'Stundenliste veraltet' : event.stundenlisteSignaturStatus === 'completed' ? 'Stundenliste vollständig signiert' : 'Stundenliste zur Unterschrift gestartet'"
-              :title="event.stundenlisteIsOutdated ? 'Stundenliste veraltet' : event.stundenlisteSignaturStatus === 'completed' ? 'Stundenliste vollständig signiert' : 'Stundenliste zur Unterschrift gestartet'"
+              alt="Stundenliste vollständig signiert"
+              title="Stundenliste vollständig signiert"
             >
             <div class="event-header" v-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && (event.auftStatus !== 2 || event.isPseudo)">
               <span class="event-status">{{ getStatusText(event.auftStatus) }}</span>
@@ -337,16 +328,10 @@
                 class="shift-row shift-row--stacked"
               >
                 <div class="shift-details">
-                  <div class="shift-time-row">
-                    <span class="shift-time">{{ s.uhrzeitVon || '?' }}{{ s.uhrzeitBis ? '–' + s.uhrzeitBis : '' }}</span>
-                    <span
-                      v-if="s.bedarf != null"
-                      class="shift-pos team-coverage"
-                      :class="s.besetzt >= s.bedarf ? 'met' : s.besetzt ? 'unmet' : 'empty'"
-                    >{{ s.besetzt || 0 }}/{{ s.bedarf }}</span>
-                  </div>
+                  <span class="shift-time">{{ s.uhrzeitVon || '?' }}{{ s.uhrzeitBis ? '–' + s.uhrzeitBis : '' }}</span>
                   <span class="shift-name">{{ s.bezeichnung || 'Schicht' }}</span>
                 </div>
+                <span v-if="filters.displayLevels.einsatz" class="shift-pos">{{ s.besetzt }}/{{ s.bedarf }}</span>
                 <ul v-if="filters.displayLevels.einsatz && s.einsaetze?.length" class="shift-einsaetze">
                   <li v-for="name in s.einsaetze" :key="name">{{ name }}</li>
                 </ul>
@@ -359,43 +344,20 @@
     </div>
     </div><!-- End main-content -->
 
-    <ContextMenu
-      v-if="contextMenu.open"
+    <ActionMenu
+      :open="contextMenu.open"
       :x="contextMenu.x"
       :y="contextMenu.y"
       :width="200"
       :title="contextMenu.day ? contextMenu.day.name : 'Auftrag'"
-      :options="contextMenu.day ? dayContextMenuItems : orderContextMenuItems"
+      :items="contextMenu.day ? dayContextMenuItems : orderContextMenuItems"
+      :group-by="false"
       @close="closeOrderContextMenu"
-      @select="handleOrderContextMenuAction"
-    />
-
-    <ContextMenu
-      v-if="documentMenu.open"
-      :x="documentMenu.x"
-      :y="documentMenu.y"
-      :anchor="$refs.neuDokButton"
-      follow-anchor
-      :width="210"
-      :options="documentMenuItems"
-      @close="documentMenu.open = false"
-      @select="handleDocumentMenuAction"
-    />
-
-    <ContextMenu
-      v-if="headerContextMenu.open"
-      :x="headerContextMenu.x"
-      :y="headerContextMenu.y"
-      :anchor="$refs.quickActionsButton"
-      follow-anchor
-      :width="200"
-      :options="headerContextMenuItems"
-      @close="headerContextMenu.open = false"
-      @select="handleHeaderContextMenuAction"
+      @item-click="handleOrderContextMenuAction"
     />
 
     <!-- Sidebar for Event Details -->
-    <SidePanelFrame v-model="hasSelectedEvent">
+    <SidePanelFrame v-model="hasSelectedEvent" class="detail-sidebar">
       <template #header>
         <div class="sidebar-title-area">
             <span v-if="selectedEvent.auftStatus !== 2" class="sidebar-status" :class="getEventStatusClass(selectedEvent)">{{ getStatusText(selectedEvent.auftStatus) }}</span>
@@ -407,9 +369,40 @@
       </template>
       <template #actions>
         <div class="sidebar-header-actions">
-          <button ref="quickActionsButton" class="qa-dots-btn" type="button" title="Aktionen" @click.stop="openHeaderContextMenu">
-            <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
-          </button>
+            <!-- Three-dots quick-actions menu -->
+            <div class="qa-menu-wrap">
+              <button class="qa-dots-btn" @click.stop="showQuickActions = !showQuickActions" title="Aktionen">
+                <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
+              </button>
+              <transition name="qa-dropdown-fade">
+                <div v-if="showQuickActions" class="qa-dropdown" @click.stop>
+                  <button class="qa-dropdown-item" @click="openEventEditor">
+                    <font-awesome-icon icon="fa-solid fa-pencil" />
+                    Im Event-Editor öffnen
+                  </button>
+                  <button class="qa-dropdown-item" @click="openLabelDialog">
+                    <font-awesome-icon icon="fa-solid fa-tag" />
+                    Label verwalten
+                  </button>
+                  <button class="qa-dropdown-item" @click="openPseudoDialog">
+                    <font-awesome-icon icon="fa-solid fa-user-plus" />
+                    Pseudo-MA einplanen
+                  </button>
+                  <button class="qa-dropdown-item" @click="createStundenliste" :disabled="hasStundenliste || isGeneratingHoursList">
+                    <font-awesome-icon :icon="isGeneratingHoursList ? 'fa-solid fa-spinner' : 'fa-solid fa-file-contract'" :spin="isGeneratingHoursList" />
+                    {{ isGeneratingHoursList ? 'Wird erstellt…' : 'Stundenliste generieren' }}
+                  </button>
+                  <button v-if="canSignaturen" :class="{ 'dev-role--admin': isDev }" class="qa-dropdown-item" @click="openSignatureDialog">
+                    <font-awesome-icon icon="fa-solid fa-file-signature" />
+                    Stundenliste zur Signatur
+                  </button>
+                  <button v-if="selectedEvent && selectedEvent.isPseudo" class="qa-dropdown-item qa-dropdown-item--danger" @click="deletePseudoAuftrag">
+                    <font-awesome-icon icon="fa-solid fa-trash" />
+                    Pseudo-Auftrag löschen
+                  </button>
+                </div>
+              </transition>
+            </div>
         </div>
       </template>
 
@@ -483,19 +476,6 @@
                       </span>
                     </div>
                   </div>
-                  <CustomTooltip :text="schichtStundenlisteIncluded(schichtData) ? 'Aus Stundenliste ausschließen' : 'In Stundenliste aufnehmen'">
-                    <button
-                      type="button"
-                      class="stundenliste-visibility-btn"
-                      :class="{ 'is-excluded': !schichtStundenlisteIncluded(schichtData) }"
-                      :disabled="isStundenlisteTogglePending(schichtData.einsaetze)"
-                      :aria-label="schichtStundenlisteIncluded(schichtData) ? 'Schicht aus Stundenliste ausschließen' : 'Schicht in Stundenliste aufnehmen'"
-                      @click.stop="toggleSchichtStundenlisteInclusion(schichtData)"
-                    >
-                      <font-awesome-icon :icon="schichtStundenlisteIncluded(schichtData) ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" />
-                      <font-awesome-icon class="stundenliste-signature-icon" icon="fa-solid fa-file-signature" />
-                    </button>
-                  </CustomTooltip>
                 </div>
 
                 <!-- Schicht Meta Row (Treffpunkt, Ansprechpartner) -->
@@ -565,19 +545,6 @@
                       <span v-if="einsatz.qualifikationData && !getCommonQualifikation(schichtData.einsaetze)" class="badge quali small">
                         {{ einsatz.qualifikationData.designation }}
                       </span>
-                      <CustomTooltip :text="einsatz.stundenlisteIncluded !== false ? 'Aus Stundenliste ausschließen' : 'In Stundenliste aufnehmen'">
-                        <button
-                          type="button"
-                          class="stundenliste-visibility-btn"
-                          :class="{ 'is-excluded': einsatz.stundenlisteIncluded === false }"
-                          :disabled="isStundenlisteTogglePending([einsatz])"
-                          :aria-label="einsatz.stundenlisteIncluded !== false ? 'Mitarbeiter aus Stundenliste ausschließen' : 'Mitarbeiter in Stundenliste aufnehmen'"
-                          @click.stop="toggleEinsatzStundenlisteInclusion(einsatz)"
-                        >
-                          <font-awesome-icon :icon="einsatz.stundenlisteIncluded !== false ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" />
-                          <font-awesome-icon class="stundenliste-signature-icon" icon="fa-solid fa-file-signature" />
-                        </button>
-                      </CustomTooltip>
                       <button
                         v-if="einsatz.isPseudo"
                         class="pseudo-remove-btn"
@@ -613,10 +580,40 @@
             <div class="section-header">
               <h3><font-awesome-icon icon="fa-solid fa-folder-open" /> Einsatzdokumente</h3>
               <div class="neu-dok-wrap">
-                <button ref="neuDokButton" class="neu-dok-btn" type="button" @click.stop="toggleDocumentMenu">
+                <button ref="neuDokButton" class="neu-dok-btn" type="button" @click.stop="toggleNeuMenu">
                   <font-awesome-icon icon="fa-solid fa-plus" /> Neu
                   <font-awesome-icon icon="fa-solid fa-chevron-down" class="neu-dok-caret" />
                 </button>
+                <div
+                  v-if="showNeuMenu"
+                  ref="neuDokMenu"
+                  class="neu-dok-menu"
+                  :class="{ 'neu-dok-menu--up': neuMenuOpensUp }"
+                  @click.stop
+                >
+                  <button
+                    class="neu-dok-item"
+                    type="button"
+                    :disabled="isGeneratingTelefonliste"
+                    title="Telefonliste mit aktuellen Einsatzdaten erzeugen"
+                    @click="downloadTelefonliste"
+                  >
+                    <font-awesome-icon :icon="isGeneratingTelefonliste ? 'fa-solid fa-spinner' : 'fa-solid fa-file'" :spin="isGeneratingTelefonliste" />
+                    {{ isGeneratingTelefonliste ? 'Wird erstellt…' : 'Telefonliste' }}
+                  </button>
+                  <button
+                    class="neu-dok-item"
+                    type="button"
+                    :disabled="hasStundenliste || isGeneratingHoursList"
+                    title="Stundenliste mit aktuellen Einsatzdaten erzeugen"
+                    @click="createStundenliste"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-file-contract" /> Stundenliste
+                  </button>
+                  <button class="neu-dok-item" type="button" @click="openReisekostenModal()">
+                    <font-awesome-icon icon="fa-solid fa-car" /> Reisekostenabrechnung
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -640,7 +637,7 @@
                 <div class="einsatz-dok-info">
                   <div class="einsatz-dok-meta">
                     <span class="einsatz-dok-filename">{{ sidebarStundenliste.fileName || `${sidebarStundenliste.name}.pdf` }}</span>
-                    <span>{{ sidebarStundenliste.status === 'completed' ? sidebarStundenliste.submitters.length : sidebarStundenliste.submitters.filter(s => s.status === 'completed').length }}/{{ sidebarStundenliste.submitters.length }} unterschrieben</span>
+                    <span>{{ sidebarStundenliste.submitters.filter(s => s.status === 'completed').length }}/{{ sidebarStundenliste.submitters.length }} unterschrieben</span>
                   </div>
                 </div>
 
@@ -667,22 +664,13 @@
                       <font-awesome-icon icon="fa-solid fa-download" />
                     </button>
                     <button
-                      v-if="sidebarStundenliste.status === 'open' && canManageStundenliste"
+                      v-if="sidebarStundenliste.status === 'open' && canSignaturen"
                       class="einsatz-dok-action einsatz-dok-action--open-sig"
                       type="button"
                       title="Signaturprozess anzeigen"
                       @click.stop="openSignaturVorgang(sidebarStundenliste._id)"
                     >
                       <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
-                    </button>
-                    <button
-                      v-if="sidebarStundenliste.status === 'open' && canSignaturen"
-                      class="einsatz-dok-action einsatz-dok-action--del"
-                      type="button"
-                      title="Signaturprozess stornieren"
-                      @click.stop="cancelStundenliste"
-                    >
-                      <font-awesome-icon icon="fa-solid fa-trash" />
                     </button>
                     <template v-if="sidebarStundenliste.status === 'draft'">
                       <a
@@ -715,7 +703,7 @@
                         <font-awesome-icon icon="fa-solid fa-trash" />
                       </button>
                       <button
-                        v-if="canManageStundenliste"
+                        v-if="canSignaturen"
                         class="einsatz-dok-gen-btn"
                         type="button"
                         title="Signaturentwurf bearbeiten"
@@ -737,19 +725,12 @@
                   <div class="outdated-bar-title">Stundenliste veraltet</div>
                   <div
                     v-for="r in stundenlisteOutdatedReasons"
-                    :key="`${r.entity}-${r.changedAt || r.label}`"
+                    :key="r.entity"
                     class="outdated-bar-reason"
-                  >
-                    <div>{{ r.label }}</div>
-                    <div v-for="detail in r.details || []" :key="`${detail.field}-${detail.before}-${detail.after}`" class="outdated-bar-detail">
-                      <span class="outdated-bar-detail__field">{{ detail.field }}:</span>
-                      <span>{{ detail.before }} -> {{ detail.after }}</span>
-                    </div>
-                    <div v-if="r.changedAt" class="outdated-bar-time">Geändert am {{ formatDateTime(r.changedAt) }}</div>
-                  </div>
+                  >{{ r.label }}</div>
                 </div>
                 <button
-                  v-if="canManageStundenliste"
+                  v-if="canSignaturen"
                   class="einsatz-dok-redo-btn"
                   type="button"
                   title="Stundenliste mit aktuellen Daten neu ausstellen"
@@ -951,6 +932,84 @@
                 Hinzufügen
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Neuer Pseudo-Auftrag Dialog ──────────────────────────────────── -->
+    <div v-if="showNewAuftragDialog" class="modal-overlay" @click.self="showNewAuftragDialog = false">
+      <div class="modal-content modal-qa">
+        <div class="modal-header">
+          <h2><font-awesome-icon icon="fa-solid fa-plus" /> Neuer Pseudo-Auftrag</h2>
+          <button class="close-btn" @click="showNewAuftragDialog = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="qa-section">
+            <div class="qa-form-row">
+              <div style="flex:1">
+                <div class="qa-form-field-label">Titel *</div>
+                <input v-model="newAuftrag.eventTitel" class="qa-input" placeholder="z.B. Konferenz Berlin 2026" />
+              </div>
+            </div>
+          </div>
+          <div class="qa-section">
+            <div class="qa-form-row pseudo-time-row">
+              <div style="flex:1">
+                <div class="qa-form-field-label">Von *</div>
+                <div class="qa-date-input-wrap">
+                  <input ref="newAuftragVonInput" v-model="newAuftrag.vonDatum" type="date" class="qa-input qa-date-input" />
+                  <button class="qa-date-trigger" type="button" title="Datum waehlen" @click="openNewAuftragDatePicker('newAuftragVonInput')">
+                    <font-awesome-icon icon="fa-solid fa-calendar-days" />
+                  </button>
+                </div>
+              </div>
+              <div style="flex:1">
+                <div class="qa-form-field-label">Bis *</div>
+                <div class="qa-date-input-wrap">
+                  <input ref="newAuftragBisInput" v-model="newAuftrag.bisDatum" type="date" class="qa-input qa-date-input" />
+                  <button class="qa-date-trigger" type="button" title="Datum waehlen" @click="openNewAuftragDatePicker('newAuftragBisInput')">
+                    <font-awesome-icon icon="fa-solid fa-calendar-days" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="qa-section">
+            <div class="qa-form-row pseudo-time-row">
+              <div style="flex:1">
+                <div class="qa-form-field-label">Standort</div>
+                <select v-model="newAuftrag.locationV2" class="qa-select">
+                  <option value="">— Keine —</option>
+                  <option v-for="location in locations" :key="location._id" :value="location._id">
+                    {{ location.nameFull }}
+                  </option>
+                </select>
+              </div>
+              <div style="flex:1">
+                <div class="qa-form-field-label">Ort</div>
+                <input v-model="newAuftrag.eventOrt" class="qa-input" placeholder="z.B. Berlin" />
+              </div>
+            </div>
+          </div>
+          <div class="qa-section">
+            <div class="qa-form-row">
+              <div style="flex:1">
+                <div class="qa-form-field-label">Location</div>
+                <input v-model="newAuftrag.eventLocation" class="qa-input" placeholder="z.B. Messe Berlin" />
+              </div>
+            </div>
+          </div>
+          <div class="qa-section">
+            <button
+              class="qa-submit-btn"
+              :disabled="!newAuftrag.eventTitel.trim() || !newAuftrag.vonDatum || !newAuftrag.bisDatum || newAuftragSaving"
+              @click="saveNewPseudoAuftrag"
+            >
+              <font-awesome-icon v-if="newAuftragSaving" icon="fa-solid fa-spinner" spin />
+              <font-awesome-icon v-else icon="fa-solid fa-check" />
+              Auftrag anlegen
+            </button>
           </div>
         </div>
       </div>
@@ -1209,11 +1268,11 @@
 <script>
 // Add imports for icons used in mobile view
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faCar, faPencil, faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
+import { faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faCar, faPencil, faEye } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 import { DocusealForm } from '@docuseal/vue';
 
-library.add(faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faCar, faPencil, faEye, faEyeSlash);
+library.add(faChevronLeft, faChevronRight, faAnglesLeft, faAnglesRight, faUser, faLocationDot, faCalendar, faUserTie, faClock, faBriefcase, faGraduationCap, faCalendarXmark, faTag, faUserPlus, faTimes, faCheck, faSpinner, faEllipsisVertical, faPlus, faTrash, faFileSignature, faArrowUpRightFromSquare, faFolderOpen, faUpload, faFileContract, faFile, faXmark, faTriangleExclamation, faRotateRight, faWandMagicSparkles, faDownload, faChevronDown, faCar, faPencil, faEye);
 
 import api from "../utils/api";
 import { mapState } from 'pinia';
@@ -1241,9 +1300,7 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
-import ContextMenu from '@/components/ContextMenu.vue';
-import CustomTooltip from '@/components/CustomTooltip.vue';
-import PillMultiSelect from '@/components/ui-elements/PillMultiSelect.vue';
+import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
 import { buildEventSchichten } from '@/utils/eventSchichten';
 import laufzettelIcon from '@/assets/laufzettel.png';
@@ -1256,11 +1313,11 @@ import docusealLogo from '@/assets/docuseal-logo.webp';
 export default {
   name: "AuftraegePage",
   emits: ['mitarbeiter-drop'],
-  components: { PageLayout, SidePanelFrame, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ContextMenu, CustomTooltip, PillMultiSelect },
+  components: { PageLayout, SidePanelFrame, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, FilterDropdown, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ActionMenu },
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
-    const { openEvent, openCreateEvent } = useEventModals();
+    const { openEvent } = useEventModals();
     const { openReisekosten } = useReisekostenModals();
     const minimizeDock = useMinimizeDock();
 
@@ -1276,7 +1333,7 @@ export default {
         : false;
     };
 
-    return { openCustomer, openDocumentModal: openDocument, openEvent, openCreateEvent, openReisekosten, restoreMinimizedStundenliste, docusealLogo };
+    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, restoreMinimizedStundenliste, docusealLogo };
   },
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -1327,16 +1384,6 @@ export default {
         event: null,
         day: null,
       },
-      documentMenu: {
-        open: false,
-        x: 0,
-        y: 0,
-      },
-      headerContextMenu: {
-        open: false,
-        x: 0,
-        y: 0,
-      },
       loadedMonths: new Set(), // Track which months we've loaded
       debounceTimer: null,
       
@@ -1355,7 +1402,6 @@ export default {
       selectedMitarbeiter: null,
       preparedSchichten: [], // Lazy loaded schichten data
       schichtDragOverKey: null,
-      stundenlisteTogglePending: {},
       dataStatus: null, // Last import timestamp
       // ── Quick Actions ──────────────────────────────────────────────────────
       // Label dialog
@@ -1366,6 +1412,9 @@ export default {
       labelPresetColors: ['#4f46e5','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#64748b'],
       labelSaving: false,
       // New pseudo Auftrag dialog
+      showNewAuftragDialog: false,
+      newAuftrag: { eventTitel: '', vonDatum: '', bisDatum: '', locationV2: '', eventLocation: '', eventOrt: '' },
+      newAuftragSaving: false,
       // Pseudo-MA dialog
       showPseudoDialog: false,
       pseudoSchichtMode: 'existing', // 'existing' | 'new'
@@ -1377,6 +1426,8 @@ export default {
       pseudoSelectedMas: [],
       pseudoSelectedSchicht: null,
       pseudoSaving: false,
+      // Three-dots dropdown
+      showQuickActions: false,
       isGeneratingHoursList: false,
       isGeneratingTelefonliste: false,
       // ── Stundenliste-Signatur (DocuSeal) ───────────────────────────────────
@@ -1402,6 +1453,8 @@ export default {
       // ── Reisekostenabrechnungen (Einsatzdokumente) ───────────────────────
       reisekostenListe: [],
       reisekostenListeLoading: false,
+      showNeuMenu: false,
+      neuMenuOpensUp: false,
       // Document icons
       auftragDocs: [],
       // ── Feiertage ────────────────────────────────────────────────────────────
@@ -1410,27 +1463,6 @@ export default {
     };
   },
   computed: {
-    documentMenuItems() {
-      return [
-        {
-          action: 'telefonliste',
-          label: this.isGeneratingTelefonliste ? 'Wird erstellt...' : 'Telefonliste',
-          icon: this.isGeneratingTelefonliste ? 'fa-solid fa-spinner' : 'fa-solid fa-file',
-          disabled: this.isGeneratingTelefonliste,
-        },
-        {
-          action: 'stundenliste',
-          label: 'Stundenliste',
-          icon: 'fa-solid fa-file-contract',
-          disabled: this.hasStundenliste || this.isGeneratingHoursList,
-        },
-        {
-          action: 'reisekosten',
-          label: 'Reisekostenabrechnung',
-          icon: 'fa-solid fa-car',
-        },
-      ];
-    },
     hasSelectedEvent: {
       get() { return Boolean(this.selectedEvent); },
       set(open) { if (!open) this.selectedEvent = null; },
@@ -1448,10 +1480,7 @@ export default {
       return Array.isArray(u.roles) && u.roles.includes('VERTRIEB');
     },
     canSignaturen() {
-      return Boolean(this.user);
-    },
-    canManageStundenliste() {
-      return Boolean(this.user);
+      return this.isAdmin || this.isVertrieb;
     },
     canSubmitSignature() {
       const email = (this.sigEntleiher.email || '').trim();
@@ -1581,7 +1610,7 @@ export default {
       return this.globalLabels.filter(gl => !existing.has(gl.name.toLowerCase()));
     },
     orderContextMenuItems() {
-      const items = [
+      return [
         {
           label: 'Auftrag öffnen',
           icon: 'fa-solid fa-arrow-up-right-from-square',
@@ -1595,23 +1624,6 @@ export default {
           variant: 'primary',
         },
       ];
-      if (this.contextMenu.event?.kundeData) {
-        items.splice(1, 0, {
-          label: 'Kunde öffnen',
-          icon: 'fa-solid fa-building',
-          action: 'open-customer',
-          variant: 'primary',
-        });
-      }
-      if (this.isAdmin) {
-        items.push({
-          label: 'Stundenerfassung öffnen',
-          icon: 'fa-solid fa-clock',
-          action: 'open-time-entry',
-          disabled: true,
-        });
-      }
-      return items;
     },
     dayContextMenuItems() {
       return [{
@@ -1620,12 +1632,6 @@ export default {
         action: 'collapse-all',
         variant: 'primary',
       }];
-    },
-    headerContextMenuItems() {
-      return [
-        { label: 'Im Event-Editor öffnen', action: 'open-editor', icon: 'fa-solid fa-pencil' },
-        { label: 'Pseudo-MA einplanen', action: 'plan-pseudo', icon: 'fa-solid fa-user-plus' },
-      ];
     },
     activeFilterCount() {
       let count = 0;
@@ -1660,18 +1666,17 @@ export default {
       if (!auftragNr) return;
       await this.loadOrderDirectly(auftragNr, this.$route.query.focusDate);
     },
-    selectedEvent(event, previousEvent) {
+    selectedEvent(event) {
       // Remember the open sidebar so a page refresh reopens it.
       try {
         if (event && event.auftragNr) sessionStorage.setItem('auftraege_selected', String(event.auftragNr));
         else sessionStorage.removeItem('auftraege_selected');
       } catch (e) { /* storage unavailable */ }
-      const orderChanged = String(event?.auftragNr || '') !== String(previousEvent?.auftragNr || '');
-      if (event?.auftragNr && orderChanged) {
+      if (event && event.auftragNr) {
         this.loadStundenlisteStatus(event.auftragNr);
         this.loadEinsatzDoks(event.auftragNr);
         this.loadReisekosten(event.auftragNr);
-      } else if (!event) {
+      } else {
         this.stundenlisteStatus = null;
         this.einsatzDoks = [];
         this.reisekostenListe = [];
@@ -1679,14 +1684,6 @@ export default {
     },
   },
   methods: {
-    buildStundenlisteName(auftrag = {}) {
-      const eventTitle = String(auftrag.eventTitel || '').trim();
-      const date = new Date(auftrag.vonDatum);
-      const eventDate = Number.isNaN(date.getTime())
-        ? ''
-        : `${String(date.getUTCDate()).padStart(2, '0')}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${date.getUTCFullYear()}`;
-      return ['Stundenliste', eventTitle || auftrag.auftragNr, eventDate].filter(Boolean).join(' ');
-    },
     // ── Feiertage ──────────────────────────────────────────────────────────
     async ensureHolidayYearLoaded(year) {
       if (this.loadedHolidayYears.has(year)) return;
@@ -1774,34 +1771,6 @@ export default {
     calculateSchichten(event) {
       return buildEventSchichten(event);
     },
-    schichtStundenlisteIncluded(schichtData) {
-      return schichtData.einsaetze.every(einsatz => einsatz.stundenlisteIncluded !== false);
-    },
-    isStundenlisteTogglePending(einsaetze) {
-      return einsaetze.some(einsatz => this.stundenlisteTogglePending[einsatz._id]);
-    },
-    async toggleSchichtStundenlisteInclusion(schichtData) {
-      const included = !this.schichtStundenlisteIncluded(schichtData);
-      await Promise.all(schichtData.einsaetze.map(einsatz => this.updateStundenlisteInclusion(einsatz, included)));
-    },
-    async toggleEinsatzStundenlisteInclusion(einsatz) {
-      await this.updateStundenlisteInclusion(einsatz, einsatz.stundenlisteIncluded === false);
-    },
-    async updateStundenlisteInclusion(einsatz, included) {
-      if (!this.selectedEvent?.auftragNr || this.stundenlisteTogglePending[einsatz._id]) return;
-      this.stundenlisteTogglePending[einsatz._id] = true;
-      try {
-        await api.patch(
-          `/api/auftraege/${this.selectedEvent.auftragNr}/einsaetze/${einsatz._id}`,
-          { stundenlisteIncluded: included },
-        );
-        einsatz.stundenlisteIncluded = included;
-      } catch (error) {
-        console.error('Stundenlisten-Einbindung konnte nicht aktualisiert werden:', error);
-      } finally {
-        delete this.stundenlisteTogglePending[einsatz._id];
-      }
-    },
 
     hasMitarbeiterDragPayload(event) {
       const types = Array.from(event.dataTransfer?.types || []);
@@ -1871,6 +1840,16 @@ export default {
     openMobileDatePicker() {
       this.$refs.mobileDatePicker?.showPicker?.() ?? this.$refs.mobileDatePicker?.click();
     },
+    openNewAuftragDatePicker(refName) {
+      const input = this.$refs[refName];
+      if (!input) return;
+      if (typeof input.showPicker === 'function') {
+        input.showPicker();
+        return;
+      }
+      input.focus();
+      input.click();
+    },
     async jumpToDate(event) {
       const selected = new Date(event.target.value + 'T00:00:00');
       if (isNaN(selected)) return;
@@ -1906,7 +1885,7 @@ export default {
     openOrderContextMenu(event, auftrag) {
       if (!auftrag) return;
       const menuW = 200;
-      const menuH = 160;
+      const menuH = 120;
       const x = event.clientX + menuW > window.innerWidth ? event.clientX - menuW : event.clientX;
       const y = event.clientY + menuH > window.innerHeight ? event.clientY - menuH : event.clientY;
 
@@ -1938,10 +1917,10 @@ export default {
       this.contextMenu.event = null;
       this.contextMenu.day = null;
     },
-    async handleOrderContextMenuAction(action) {
+    async handleOrderContextMenuAction({ item }) {
       const auftrag = this.contextMenu.event;
       const day = this.contextMenu.day;
-      if (action === 'collapse-all' && day) {
+      if (item?.action === 'collapse-all' && day) {
         this.collapseCustomerGroupsForDay(day.date);
         this.closeOrderContextMenu();
         return;
@@ -1949,11 +1928,9 @@ export default {
       if (!auftrag) return;
       this.closeOrderContextMenu();
 
-      if (action === 'open') {
+      if (item?.action === 'open') {
         await this.selectEvent(auftrag);
-      } else if (action === 'open-customer' && auftrag.kundeData) {
-        await this.openKundeCard(auftrag.kundeData);
-      } else if (action === 'plan-pseudo') {
+      } else if (item?.action === 'plan-pseudo') {
         await this.selectEvent(auftrag);
         this.openPseudoDialog();
       }
@@ -2168,10 +2145,6 @@ export default {
       } else {
         this.filters.kunden.splice(idx, 1);
       }
-      this.saveFiltersToStorage();
-      this.resetAndReload();
-    },
-    onKundenFilterChange() {
       this.saveFiltersToStorage();
       this.resetAndReload();
     },
@@ -2416,7 +2389,7 @@ export default {
       });
     },
     async selectEvent(event) {
-      this.headerContextMenu.open = false;
+      this.showQuickActions = false;
       this.auftragDocs = [];
       // Load full details including Einsätze
       try {
@@ -2432,7 +2405,7 @@ export default {
     },
     openEventEditor() {
       if (!this.selectedEvent) return;
-      this.headerContextMenu.open = false;
+      this.showQuickActions = false;
       this.openEvent(this.selectedEvent, {
         onUpdated: updatedEvent => {
           const eventIndex = this.auftraege.findIndex(item => (
@@ -2453,8 +2426,10 @@ export default {
     },
     async fetchAuftragDocs(auftragNr) {
       try {
+        console.log('[AuftraegePage] Fetching docs for auftragNr:', auftragNr);
         const res = await api.get(`/api/reports/by-auftrag/${auftragNr}`);
         this.auftragDocs = res.data?.data || [];
+        console.log('[AuftraegePage] Loaded docs:', this.auftragDocs.length, this.auftragDocs);
       } catch (e) {
         console.error('[AuftraegePage] Error loading docs for auftrag:', e);
         this.auftragDocs = [];
@@ -2637,22 +2612,8 @@ export default {
     },
 
     // ── Quick Actions ────────────────────────────────────────────────────────
-    openHeaderContextMenu() {
-      const rect = this.$refs.quickActionsButton?.getBoundingClientRect();
-      if (!rect) return;
-      this.headerContextMenu = {
-        open: true,
-        x: Math.max(8, rect.right - 200),
-        y: rect.bottom + 6,
-      };
-    },
-    async handleHeaderContextMenuAction(action) {
-      this.headerContextMenu.open = false;
-      if (action === 'open-editor') this.openEventEditor();
-      if (action === 'plan-pseudo') this.openPseudoDialog();
-    },
     async openLabelDialog() {
-      this.headerContextMenu.open = false;
+      this.showQuickActions = false;
       this.newLabelName = '';
       this.newLabelColor = '#4f46e5';
       try {
@@ -2696,15 +2657,17 @@ export default {
       }
     },
     openNewAuftragDialog() {
-      this.openCreateEvent({
-        initialPseudo: true,
-        initialLocationV2: this.filters.locationV2 || '',
-        onUpdated: updatedEvent => {
-          const index = this.auftraege.findIndex(item => String(item.auftragNr) === String(updatedEvent.auftragNr));
-          if (index >= 0) this.auftraege.splice(index, 1, { ...this.auftraege[index], ...updatedEvent });
-          else this.auftraege.push({ ...updatedEvent, einsaetzeCount: 0, schichten: [], schichtStatus: 'none', mitarbeiterNames: [] });
-        },
-      });
+      const today = new Date().toISOString().slice(0, 10);
+      this.newAuftrag = {
+        eventTitel: '',
+        vonDatum: today,
+        bisDatum: today,
+        locationV2: this.filters.locationV2 || '',
+        eventLocation: '',
+        eventOrt: '',
+      };
+      this.newAuftragSaving = false;
+      this.showNewAuftragDialog = true;
     },
     handlePseudoRouteQuery() {
       if (!this.$route.query.openPseudo) return;
@@ -2716,6 +2679,31 @@ export default {
 
       this.$router.replace({ query: nextQuery });
     },
+    async saveNewPseudoAuftrag() {
+      if (!this.newAuftrag.eventTitel.trim() || !this.newAuftrag.vonDatum || !this.newAuftrag.bisDatum) return;
+      this.newAuftragSaving = true;
+      try {
+        const payload = {
+          eventTitel: this.newAuftrag.eventTitel.trim(),
+          vonDatum: this.newAuftrag.vonDatum,
+          bisDatum: this.newAuftrag.bisDatum,
+        };
+        if (this.newAuftrag.locationV2) payload.locationV2 = this.newAuftrag.locationV2;
+        if (this.newAuftrag.eventLocation.trim()) payload.eventLocation = this.newAuftrag.eventLocation.trim();
+        if (this.newAuftrag.eventOrt.trim()) payload.eventOrt = this.newAuftrag.eventOrt.trim();
+        const res = await api.post('/api/auftraege', payload);
+        const newAuftragData = res.data;
+        // Add to local list so it appears in the calendar
+        this.auftraege.push({ ...newAuftragData, einsaetzeCount: 0, schichten: [], schichtStatus: 'none', mitarbeiterNames: [] });
+        this.showNewAuftragDialog = false;
+        // Open the new event in the sidebar
+        await this.selectEvent(newAuftragData);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Fehler beim Anlegen des Auftrags');
+      } finally {
+        this.newAuftragSaving = false;
+      }
+    },
     async deletePseudoAuftrag() {
       if (!this.selectedEvent?.isPseudo) return;
       if (!confirm(`Pseudo-Auftrag "${this.selectedEvent.eventTitel}" und alle zugehörigen Pseudo-Einsätze löschen?`)) return;
@@ -2723,7 +2711,7 @@ export default {
         await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}`);
         this.auftraege = this.auftraege.filter(a => a.auftragNr !== this.selectedEvent.auftragNr);
         this.selectedEvent = null;
-        this.headerContextMenu.open = false;
+        this.showQuickActions = false;
       } catch (err) {
         alert(err.response?.data?.message || 'Fehler beim Löschen');
       }
@@ -2744,10 +2732,11 @@ export default {
 
       const auftragNr = this.selectedEvent.auftragNr;
       const excludePseudo = await this._askExcludePseudo();
+      const eventTitle = String(this.selectedEvent.eventTitel || '').trim();
       this.isGeneratingHoursList = true;
       try {
         const { data } = await api.post(`/api/signaturen/stundenliste/${auftragNr}/draft`, {
-          name: this.buildStundenlisteName(this.selectedEvent),
+          name: `Stundenliste ${eventTitle || auftragNr}`,
           locationId: typeof this.selectedEvent.locationV2 === 'object'
             ? this.selectedEvent.locationV2?._id
             : this.selectedEvent.locationV2,
@@ -2765,6 +2754,7 @@ export default {
     },
     async downloadTelefonliste() {
       if (!this.selectedEvent?.auftragNr || this.isGeneratingTelefonliste) return;
+      this.showNeuMenu = false;
       this.isGeneratingTelefonliste = true;
       try {
         const auftragNr = this.selectedEvent.auftragNr;
@@ -2794,17 +2784,6 @@ export default {
       try {
         const { data } = await api.get(`/api/auftraege/${auftragNr}/stundenliste-status`);
         this.stundenlisteStatus = data;
-        const eventIndex = this.auftraege.findIndex(event => String(event.auftragNr) === String(auftragNr));
-        const statusUpdate = {
-          stundenlisteSignaturStatus: data.vorgang?.status || null,
-          stundenlisteIsOutdated: Boolean(data.isOutdated),
-        };
-        if (eventIndex !== -1) {
-          this.auftraege.splice(eventIndex, 1, { ...this.auftraege[eventIndex], ...statusUpdate });
-        }
-        if (this.selectedEvent && String(this.selectedEvent.auftragNr) === String(auftragNr)) {
-          this.selectedEvent = { ...this.selectedEvent, ...statusUpdate };
-        }
       } catch (e) {
         console.error('Stundenliste-Status laden fehlgeschlagen', e);
         this.stundenlisteStatus = null;
@@ -2869,16 +2848,6 @@ export default {
         alert(err.response?.data?.message || 'Fehler beim Löschen des Signaturentwurfs');
       }
     },
-    async cancelStundenliste() {
-      const vorgang = this.sidebarStundenliste;
-      if (!vorgang?._id || !confirm('Stundenlisten-Signaturprozess wirklich stornieren?')) return;
-      try {
-        await api.delete(`/api/signaturen/${vorgang._id}`);
-        await this.loadStundenlisteStatus(this.selectedEvent.auftragNr);
-      } catch (err) {
-        alert(err.response?.data?.message || 'Fehler beim Stornieren des Signaturprozesses');
-      }
-    },
     async deleteEinsatzDok(dok) {
       if (!this.selectedEvent?.auftragNr) return;
       try {
@@ -2904,9 +2873,11 @@ export default {
       }
     },
     async createStundenliste() {
+      this.showNeuMenu = false;
       await this.ensureStundenlisteDraft();
     },
     openReisekostenModal(id = null) {
+      this.showNeuMenu = false;
       if (!this.selectedEvent?.auftragNr) return;
       this.openReisekosten({
         auftragNr: this.selectedEvent.auftragNr,
@@ -2985,7 +2956,7 @@ export default {
       return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     },
     async openSignatureDialog() {
-      this.headerContextMenu.open = false;
+      this.showQuickActions = false;
       if (!this.selectedEvent) return;
       const auftragNr = this.selectedEvent.auftragNr;
 
@@ -3064,25 +3035,14 @@ export default {
       const src = this.sigResult?.embed?.src;
       if (src) window.open(src, '_blank', 'noopener');
     },
-    async onVerleiherSigned() {
+    onVerleiherSigned() {
       this.verleiherSigned = true;
-      const vorgangId = this.sigResult?.vorgang?._id;
-      if (vorgangId) {
-        try {
-          await api.get(`/api/signaturen/${vorgangId}?refresh=true`);
-        } catch (err) {
-          console.error('Signaturstatus aktualisieren fehlgeschlagen', err);
-        }
-      }
-      if (this.selectedEvent?.auftragNr) {
-        await this.loadStundenlisteStatus(this.selectedEvent.auftragNr);
-      }
     },
     closeSignatureDialog() {
       this.showSignatureDialog = false;
     },
     openPseudoDialog() {
-      this.headerContextMenu.open = false;
+      this.showQuickActions = false;
       this.pseudoSearch = '';
       this.pseudoSearchResults = [];
       this.pseudoSelectedMas = [];
@@ -3161,36 +3121,41 @@ export default {
       }
     },
 
-    toggleDocumentMenu() {
-      if (this.documentMenu.open) {
-        this.documentMenu.open = false;
+    async toggleNeuMenu() {
+      this.showNeuMenu = !this.showNeuMenu;
+      if (!this.showNeuMenu) {
+        this.neuMenuOpensUp = false;
         return;
       }
 
-      const rect = this.$refs.neuDokButton?.getBoundingClientRect();
-      if (!rect) return;
-      this.documentMenu = {
-        open: true,
-        x: rect.right - 210,
-        y: rect.bottom + 4,
-      };
-    },
-    async handleDocumentMenuAction(action) {
-      if (action === 'telefonliste') await this.downloadTelefonliste();
-      if (action === 'stundenliste') await this.createStundenliste();
-      if (action === 'reisekosten') this.openReisekostenModal();
+      await this.$nextTick();
+      const button = this.$refs.neuDokButton;
+      const menu = this.$refs.neuDokMenu;
+      const scrollBoundary = menu?.closest('.sidebar-body');
+      if (!button || !menu || !scrollBoundary) return;
+
+      const buttonRect = button.getBoundingClientRect();
+      const boundaryRect = scrollBoundary.getBoundingClientRect();
+      const menuHeight = menu.offsetHeight;
+      const spaceBelow = boundaryRect.bottom - buttonRect.bottom - 4;
+      const spaceAbove = buttonRect.top - boundaryRect.top - 4;
+
+      this.neuMenuOpensUp = spaceBelow < menuHeight && spaceAbove > spaceBelow;
     },
 
     handleEscapeKey(event) {
       if (event.key !== 'Escape') return;
 
       // Close modals in order of priority (topmost = last opened)
-      if (this.documentMenu.open) {
-        this.documentMenu.open = false;
-      } else if (this.headerContextMenu.open) {
-        this.headerContextMenu.open = false;
+      if (this.showNeuMenu) {
+        this.showNeuMenu = false;
+        this.neuMenuOpensUp = false;
+      } else if (this.showQuickActions) {
+        this.showQuickActions = false;
       } else if (this.showLabelDialog) {
         this.showLabelDialog = false;
+      } else if (this.showNewAuftragDialog) {
+        this.showNewAuftragDialog = false;
       } else if (this.showPseudoDialog) {
         this.showPseudoDialog = false;
       } else if (this.selectedMitarbeiter) {
@@ -3202,7 +3167,9 @@ export default {
     }
   },
     handleDocumentClick() {
-      this.headerContextMenu.open = false;
+      this.showQuickActions = false;
+      this.showNeuMenu = false;
+      this.neuMenuOpensUp = false;
     },
     async mounted() {
     this.checkMobile();
@@ -3471,33 +3438,6 @@ export default {
   }
 }
 
-.stundenliste-visibility-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  width: 40px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--primary);
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 8%, transparent);
-  }
-
-  &.is-excluded { color: var(--muted); }
-  &:disabled { cursor: wait; opacity: 0.55; }
-}
-
-.stundenliste-signature-icon {
-  font-size: 0.7em;
-}
-
 .schicht-quali {
   display: inline-flex;
   min-width: 0;
@@ -3618,11 +3558,6 @@ export default {
   &.unmet {
     background: #fef3c7;
     color: #92400e;
-  }
-
-  &.empty {
-    background: #fee2e2;
-    color: #991b1b;
   }
 }
 
@@ -4261,20 +4196,8 @@ export default {
   width: 17px;
   height: 17px;
   object-fit: contain;
-  filter: grayscale(1) brightness(0.62);
+  filter: hue-rotate(135deg) saturate(0.9);
   z-index: 1;
-}
-
-.event-signature-complete--completed {
-  filter: hue-rotate(150deg) saturate(1.1);
-}
-
-.event-signature-complete--outdated {
-  filter: hue-rotate(8deg) saturate(1.25);
-}
-
-.event-signature-complete--completed.event-signature-complete--outdated {
-  filter: hue-rotate(150deg) saturate(1.1);
 }
 
 .event-card:has(.event-signature-complete) .event-title-row,
@@ -4626,11 +4549,11 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 5px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -4648,8 +4571,8 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
   border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border));
   border-radius: 6px;
@@ -4729,25 +4652,8 @@ export default {
 }
 
 .mdn-search {
-  min-width: 84px;
-  max-width: none;
-  flex: 1 1 84px;
-}
-
-@media (max-width: 768px) {
-  .nav-inner {
-    gap: 6px;
-  }
-}
-
-@media (max-width: 380px) {
-  .nav-inner {
-    gap: 4px;
-  }
-
-  .mdn-search {
-    min-width: 66px;
-  }
+  max-width: 140px;
+  flex: 0 1 140px;
 }
 
 .search-dropdown {
@@ -4931,17 +4837,6 @@ export default {
   min-width: 0;
 }
 
-.shift-time-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.shift-time-row .shift-time {
-  flex: 1;
-}
-
 .shift-time {
   color: var(--text);
   font-weight: 650;
@@ -5046,6 +4941,10 @@ export default {
   gap: 4px;
 }
 
+.qa-menu-wrap {
+  position: relative;
+}
+
 .qa-dots-btn {
   display: flex;
   align-items: center;
@@ -5065,6 +4964,63 @@ export default {
     border-color: var(--border);
     color: var(--text);
   }
+}
+
+.qa-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+  z-index: 200;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.qa-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+
+  svg { color: var(--muted); font-size: 0.85rem; }
+
+  &:hover {
+    background: var(--hover);
+    color: var(--primary);
+    svg { color: var(--primary); }
+  }
+
+  &.qa-dropdown-item--danger {
+    &:hover {
+      background: rgba(239, 68, 68, 0.08);
+      color: #ef4444;
+      svg { color: #ef4444; }
+    }
+  }
+}
+
+.qa-dropdown-fade-enter-active,
+.qa-dropdown-fade-leave-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.qa-dropdown-fade-enter-from,
+.qa-dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 /* ── Label chips ────────────────────────────────────────────────────── */
@@ -5451,8 +5407,6 @@ export default {
 }
 
 .einsatzdoks-section .section-header {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5462,7 +5416,6 @@ export default {
 
 .neu-dok-wrap {
   position: relative;
-  z-index: 2;
 }
 .neu-dok-btn {
   display: inline-flex;
@@ -5483,7 +5436,7 @@ export default {
   position: absolute;
   right: 0;
   top: calc(100% + 4px);
-  z-index: 400;
+  z-index: 300;
   min-width: 210px;
   background: var(--tile-bg);
   border: 1px solid var(--border);
@@ -5769,14 +5722,6 @@ export default {
   margin-top: 2px;
   &::before { content: '• '; }
 }
-.outdated-bar-detail {
-  display: flex;
-  gap: 4px;
-  margin-top: 2px;
-  overflow-wrap: anywhere;
-}
-.outdated-bar-detail__field { color: var(--text); font-weight: 600; }
-.outdated-bar-time { margin-top: 3px; font-size: 0.68rem; }
 .einsatz-dok-redo-btn {
   display: inline-flex;
   align-items: center;

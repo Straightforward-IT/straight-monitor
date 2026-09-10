@@ -34,6 +34,17 @@ function contentHash(data) {
 }
 
 describe('Stundenliste content hash', () => {
+  it('renders employee names outside WinAnsi', async () => {
+    const data = createData();
+    data.einsaetze[0].mitarbeiterData.vorname = 'Nuri';
+    data.einsaetze[0].mitarbeiterData.nachname = 'Softić';
+
+    const pdf = await StundenlisteService._renderPdf(data);
+
+    assert.ok(Buffer.isBuffer(pdf));
+    assert.ok(pdf.length > 0);
+  });
+
   it('ignores technical metadata changed by an otherwise identical import', () => {
     const original = createData();
     const reimported = createData();
