@@ -4,7 +4,7 @@
     <div class="page" :class="{ hasRight }">
       <main ref="contentEl" class="content"><router-view /></main>
 
-      <aside v-if="hasRight" class="right" :class="{ open: ui.isOpen }" :style="panelStyle">
+      <aside v-if="hasRight" class="right" :class="{ open: ui.isOpen && ui.panelType }" :style="panelStyle">
         <component :is="panelComponent" />
       </aside>
     </div>
@@ -128,7 +128,7 @@ const defaultType = computed(() => {
 
 // Tatsächlich anzuzeigendes Panel
 const panelComponent = computed(() => {
-  if (ui.hidden) return null;                // vom User geschlossen
+  if (ui.hidden && defaultType.value !== 'shortcuts') return null;
 
   if (ui.panelType) {                        // expliziter Override
     if (ui.panelType === 'shortcuts')    return Shortcuts;

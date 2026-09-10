@@ -168,6 +168,20 @@
               alt="Stundenliste vollständig signiert"
               title="Stundenliste vollständig signiert"
             >
+            <img
+              v-else-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key) && event.stundenlisteSignaturStatus === 'open'"
+              :src="docusealPendingIcon"
+              class="event-signature-pending"
+              alt="Stundenliste zur Signatur ausstehend"
+              title="Stundenliste zur Signatur ausstehend"
+            >
+            <img
+              v-else-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key) && event.stundenlisteSignaturStatus === 'draft'"
+              :src="docusealPendingIcon"
+              class="event-signature-draft"
+              alt="Stundenliste als Entwurf"
+              title="Stundenliste als Entwurf"
+            >
             <div v-if="!isCustomerGroupCollapsed(weekDays[mobileDayIndex].date, customerGroup.key)" class="event-header">
               <span v-if="event.auftStatus !== 2" class="event-status">{{ getStatusText(event.auftStatus) }}</span>
               <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
@@ -303,6 +317,20 @@
               class="event-signature-complete"
               alt="Stundenliste vollständig signiert"
               title="Stundenliste vollständig signiert"
+            >
+            <img
+              v-else-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && event.stundenlisteSignaturStatus === 'open'"
+              :src="docusealPendingIcon"
+              class="event-signature-pending"
+              alt="Stundenliste zur Signatur ausstehend"
+              title="Stundenliste zur Signatur ausstehend"
+            >
+            <img
+              v-else-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && event.stundenlisteSignaturStatus === 'draft'"
+              :src="docusealPendingIcon"
+              class="event-signature-draft"
+              alt="Stundenliste als Entwurf"
+              title="Stundenliste als Entwurf"
             >
             <div class="event-header" v-if="!isCustomerGroupCollapsed(day.date, customerGroup.key) && (event.auftStatus !== 2 || event.isPseudo)">
               <span class="event-status">{{ getStatusText(event.auftStatus) }}</span>
@@ -1290,6 +1318,7 @@ import laufzettelDarkIcon from '@/assets/laufzettel-dark.png';
 import eventreportIcon from '@/assets/eventreport.png';
 import eventreportDarkIcon from '@/assets/eventreport-dark.png';
 import docusealLogo from '@/assets/docuseal-logo.webp';
+import docusealPendingIcon from '@/assets/docuseal-pending.webp';
 
 
 export default {
@@ -1315,7 +1344,7 @@ export default {
         : false;
     };
 
-    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, restoreMinimizedStundenliste, docusealLogo };
+    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, restoreMinimizedStundenliste, docusealLogo, docusealPendingIcon };
   },
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -4281,9 +4310,25 @@ export default {
   z-index: 1;
 }
 
-.event-card:has(.event-signature-complete) .event-title-row,
-.event-card-mobile:has(.event-signature-complete) .event-header,
-.event-card-mobile:has(.event-signature-complete) .event-title-row {
+.event-signature-pending,
+.event-signature-draft {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  z-index: 1;
+}
+
+.event-signature-draft {
+  filter: grayscale(1);
+  opacity: 0.65;
+}
+
+.event-card:has(.event-signature-complete, .event-signature-pending, .event-signature-draft) .event-title-row,
+.event-card-mobile:has(.event-signature-complete, .event-signature-pending, .event-signature-draft) .event-header,
+.event-card-mobile:has(.event-signature-complete, .event-signature-pending, .event-signature-draft) .event-title-row {
   padding-right: 21px;
 }
 

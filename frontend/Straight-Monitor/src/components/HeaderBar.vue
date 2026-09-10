@@ -200,9 +200,6 @@
         <span v-if="auth.user" class="header-user-name">Benutzer: {{ auth.user.name || auth.user.email }}</span>
         <!-- Desktop Buttons -->
         <div class="desktop-buttons">
-        <button v-if="$route.name === 'Bestand'" @click="ui.toggle('shortcuts')">
-          Shortcuts
-        </button>
         <custom-tooltip v-if="$route.name === 'Dispo'" text="Kommentar-Feed [C]" position="bottom" :delay-in="150">
           <button class="icon-btn kf-btn" @click="ui.toggle('kommentare')">
             <font-awesome-icon :icon="['fas', 'comments']" />
@@ -598,7 +595,7 @@
           @click="ui.toggle('shortcuts'); showMobileMenu = false"
         >
           <font-awesome-icon :icon="['fas', 'bolt']" />
-          Shortcuts
+          Pakete
         </button>
 
         <button class="mobile-menu-btn" @click="ui.toggle('tools'); showMobileMenu = false">
