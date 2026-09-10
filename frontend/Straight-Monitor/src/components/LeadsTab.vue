@@ -6288,10 +6288,5 @@ onBeforeUnmount(() => {
     max-width: 100vw;
     overflow-x: hidden;
   }
-
-  /* Hide chronik bottom-drawer remnants (just in case) */
-  .leads-tab :deep(.chronik-drawer) {
-    display: none !important;
-  }
 }
 </style>

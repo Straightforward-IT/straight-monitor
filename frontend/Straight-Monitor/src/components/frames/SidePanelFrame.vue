@@ -8,6 +8,7 @@
       role="complementary"
       :aria-labelledby="title ? titleId : undefined"
       tabindex="-1"
+        v-bind="$attrs"
     >
       <header v-if="hasHeader" class="sp-panel__header">
         <div class="sp-panel__heading">
@@ -45,6 +46,7 @@
     :close-on-escape="closeOnEscape"
     :minimizable="modalMinimizable"
     :minimize-title="modalTitle || title"
+      v-bind="$attrs"
     @update:model-value="emit('update:modelValue', $event)"
     @close="emit('close')"
   >
@@ -70,6 +72,8 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch, useSlots } from 'vue';
 import ModalFrame from './ModalFrame.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
+
+  defineOptions({ inheritAttrs: false });
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
