@@ -1281,6 +1281,39 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       return res.json({ success: true, message: 'Keine gültigen Zeilen gefunden.' });
     }
 
+    // A personal number may be primary or additional for one employee, but it
+    // must never be assigned to multiple employees. Validate all import
+    // numbers before any background update begins.
+    const importedPersonalnrs = [...new Set(filteredOperations.map((operation) => operation.personalnr))];
+    const existingNumberOwners = await Mitarbeiter.find({
+      $or: [
+        { personalnr: { $in: importedPersonalnrs } },
+        { personalnummern: { $in: importedPersonalnrs } },
+      ],
+    }).select('_id vorname nachname personalnr personalnummern').lean();
+    const ownersByPersonalnr = new Map();
+    for (const employee of existingNumberOwners) {
+      for (const employeePersonalnr of [employee.personalnr, ...(employee.personalnummern || [])].filter(Boolean)) {
+        const normalizedPersonalnr = String(employeePersonalnr).trim();
+        if (!importedPersonalnrs.includes(normalizedPersonalnr)) continue;
+        if (!ownersByPersonalnr.has(normalizedPersonalnr)) ownersByPersonalnr.set(normalizedPersonalnr, []);
+        ownersByPersonalnr.get(normalizedPersonalnr).push(employee);
+      }
+    }
+    const personalnrConflicts = [...ownersByPersonalnr.entries()]
+      .filter(([, owners]) => new Set(owners.map((owner) => String(owner._id))).size > 1)
+      .map(([personalnr, owners]) => ({
+        personalnr,
+        owners: owners.map((owner) => `${owner.vorname} ${owner.nachname} (${owner.personalnr || 'ohne primäre PNr'})`),
+      }));
+    if (personalnrConflicts.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: `Import abgebrochen: ${personalnrConflicts.length} Personalnummer(n) sind mehreren Mitarbeitern zugeordnet.`,
+        details: { personalnrConflicts: personalnrConflicts.slice(0, 30) },
+      });
+    }
+
     const activeLocations = await Location.find({ isActive: true })
       .select('_id externalId')
       .lean();
@@ -1371,6 +1404,17 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           }
 
           matched++;
+
+          // A person can legitimately have multiple active personal numbers.
+          // The row for an additional number must not overwrite shared master
+          // data (status, qualifications, address, working time) imported for
+          // the employee's primary number.
+          const matchedViaAdditionalNumber = ma.personalnr !== op.personalnr
+            && (ma.personalnummern || []).includes(op.personalnr);
+          if (matchedViaAdditionalNumber) {
+            unchanged++;
+            continue;
+          }
 
           // Only Persstatus 1 (Bewerber) and 2 (Mitarbeiter) remain active.
           const shouldDeactivate = op.persstatus != null && ![1, 2].includes(op.persstatus);
