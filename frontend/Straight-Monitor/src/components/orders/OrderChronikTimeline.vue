@@ -1,5 +1,5 @@
 <template>
-  <div class="order-chronik" aria-label="Auftragschronik" :aria-busy="loading">
+  <div v-if="isAdmin" class="order-chronik" aria-label="Auftragschronik" :aria-busy="loading">
     <div class="chronik-toolbar">
       <span>Änderungen & Notizen</span>
       <button type="button" :disabled="loading" @click="reload">Aktualisieren</button>
@@ -48,7 +48,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
 
@@ -64,15 +64,18 @@ const deletingId = ref(null);
 let generation = 0;
 let controller;
 let mounted = true;
-const isCurrent = (order, requestGeneration) => mounted && String(props.auftragNr) === String(order) && requestGeneration === generation;
-const isAdmin = () => [auth.user?.role, ...(auth.user?.roles || [])].some(role => String(role).toUpperCase() === 'ADMIN');
+const isAdmin = computed(() => [auth.user?.role, ...(auth.user?.roles || [])].some(role => String(role).toUpperCase() === 'ADMIN'));
+const isCurrent = (order, requestGeneration) => mounted && isAdmin.value && String(props.auftragNr) === String(order) && requestGeneration === generation;
 
 async function load(older = false) {
-  if (!isAdmin()) return;
   controller?.abort();
+  const requestGeneration = ++generation;
+  if (!isAdmin.value) {
+    entries.value = []; nextCursor.value = null; note.value = ''; loading.value = false; error.value = '';
+    return;
+  }
   controller = new AbortController();
   const order = props.auftragNr;
-  const requestGeneration = ++generation;
   loading.value = true;
   error.value = '';
   try {
@@ -91,7 +94,7 @@ async function load(older = false) {
 }
 function reload() { return load(); }
 function loadOlder() { if (!loading.value && nextCursor.value) return load(true); }
-function canDelete(entry) { return isAdmin() && String(entry.actor.id) === String(auth.user?._id || auth.user?.id); }
+function canDelete(entry) { return isAdmin.value && String(entry.actor.id) === String(auth.user?._id || auth.user?.id); }
 function formatTime(value) { return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
 function actionLabel(action) { return ({ created: 'angelegt', updated: 'geändert', deleted: 'gelöscht' })[action]; }
 function displayValue(raw, label) {
@@ -99,7 +102,7 @@ function displayValue(raw, label) {
   return label ?? (raw == null ? '—' : String(raw));
 }
 async function addNote() {
-  if (!isAdmin() || saving.value || !note.value.trim()) return;
+  if (!isAdmin.value || saving.value || !note.value.trim()) return;
   const order = props.auftragNr;
   saving.value = true;
   error.value = '';
@@ -117,18 +120,21 @@ async function deleteNote(entry) {
   error.value = '';
   try {
     await api.delete(`/api/auftraege/${order}/chronik/${entry._id}`);
-    if (mounted && String(order) === String(props.auftragNr)) entries.value = entries.value.filter(item => item._id !== entry._id);
+    if (mounted && String(order) === String(props.auftragNr)) {
+      entries.value = entries.value.filter(item => item._id !== entry._id);
+      await reload();
+    }
   } catch (cause) {
     if (mounted && String(order) === String(props.auftragNr)) error.value = cause.response?.data?.message || 'Notiz konnte nicht gelöscht werden.';
   } finally { if (mounted && String(order) === String(props.auftragNr)) deletingId.value = null; }
 }
 watch(() => props.auftragNr, () => { entries.value = []; nextCursor.value = null; note.value = ''; saving.value = false; deletingId.value = null; });
-watch(() => [props.auftragNr, props.revision], reload, { immediate: true });
+watch(() => [props.auftragNr, props.revision, isAdmin.value], reload, { immediate: true });
 onBeforeUnmount(() => { mounted = false; generation++; controller?.abort(); });
 </script>
 
 <style scoped>
-.order-chronik { color: var(--text); font-size: .86rem; }
+.order-chronik { --text-muted: var(--muted); color: var(--text); font-size: .86rem; }
 .chronik-toolbar, .chronik-meta, .chronik-compose > div { display: flex; align-items: center; justify-content: space-between; gap: .65rem; }
 .chronik-toolbar { margin-bottom: .9rem; color: var(--text-muted); }
 button { border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); padding: .4rem .65rem; cursor: pointer; }

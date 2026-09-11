@@ -1,59 +1,51 @@
 <template>
-  <div class="modal-backdrop" @click.self="$emit('close')">
-    <div class="modal-content crop-modal">
-      <header class="modal-header">
-        <h3>Profilbild hochladen</h3>
-        <button class="close-btn" @click="$emit('close')">
-          <font-awesome-icon icon="fa-solid fa-times" />
-        </button>
-      </header>
-
-      <div class="modal-body">
-        <!-- File selection -->
-        <div v-if="!imageSrc" class="upload-area" @click="triggerFileInput" @dragover.prevent @drop.prevent="onDrop">
-          <font-awesome-icon icon="fa-solid fa-cloud-arrow-up" class="upload-icon" />
-          <p>Bild hierher ziehen oder klicken</p>
-          <small>JPEG, PNG, WebP oder GIF – max. 10 MB</small>
-          <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden-input" @change="onFileSelect" />
-        </div>
-
-        <!-- Cropper -->
-        <div v-else class="cropper-wrapper">
-          <VueCropper
-            ref="cropper"
-            :img="imageSrc"
-            :autoCrop="true"
-            :autoCropWidth="280"
-            :autoCropHeight="280"
-            :fixed="true"
-            :fixedNumber="[1, 1]"
-            :centerBox="true"
-            :canScale="true"
-            :canMove="true"
-            :canMoveBox="true"
-            :info="true"
-            :outputType="'png'"
-            :outputSize="1"
-            :high="true"
-            :maxImgSize="2000"
-          />
-        </div>
-      </div>
-
-      <footer class="modal-footer">
-        <button v-if="imageSrc" class="btn btn-ghost" @click="resetImage">
-          <font-awesome-icon icon="fa-solid fa-rotate-left" /> Anderes Bild
-        </button>
-        <div class="footer-right">
-          <button class="btn btn-ghost" @click="$emit('close')">Abbrechen</button>
-          <button class="btn btn-primary" :disabled="!imageSrc || uploading" @click="uploadCropped">
-            <font-awesome-icon :icon="uploading ? 'fa-solid fa-spinner' : 'fa-solid fa-check'" :class="{ 'fa-spin': uploading }" />
-            {{ uploading ? 'Wird hochgeladen…' : 'Hochladen' }}
-          </button>
-        </div>
-      </footer>
+  <ModalFrame
+    title="Profilbild hochladen"
+    size="sm"
+    style="--mf-max-width: 540px; --mf-body-padding: 20px"
+    @close="$emit('close')"
+  >
+    <div v-if="!imageSrc" class="upload-area" @click="triggerFileInput" @dragover.prevent @drop.prevent="onDrop">
+      <font-awesome-icon icon="fa-solid fa-cloud-arrow-up" class="upload-icon" />
+      <p>Bild hierher ziehen oder klicken</p>
+      <small>JPEG, PNG, WebP oder GIF – max. 10 MB</small>
+      <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden-input" @change="onFileSelect" />
     </div>
-  </div>
+
+    <div v-else class="cropper-wrapper">
+      <VueCropper
+        ref="cropper"
+        :img="imageSrc"
+        :autoCrop="true"
+        :autoCropWidth="280"
+        :autoCropHeight="280"
+        :fixed="true"
+        :fixedNumber="[1, 1]"
+        :centerBox="true"
+        :canScale="true"
+        :canMove="true"
+        :canMoveBox="true"
+        :info="true"
+        :outputType="'png'"
+        :outputSize="1"
+        :high="true"
+        :maxImgSize="2000"
+      />
+    </div>
+
+    <template #footer>
+      <button v-if="imageSrc" class="btn btn-ghost" type="button" @click="resetImage">
+          <font-awesome-icon icon="fa-solid fa-rotate-left" /> Anderes Bild
+      </button>
+      <div class="footer-right">
+        <button class="btn btn-ghost" type="button" @click="$emit('close')">Abbrechen</button>
+        <button class="btn btn-primary" type="button" :disabled="!imageSrc || uploading" @click="uploadCropped">
+          <font-awesome-icon :icon="uploading ? 'fa-solid fa-spinner' : 'fa-solid fa-check'" :class="{ 'fa-spin': uploading }" />
+          {{ uploading ? 'Wird hochgeladen…' : 'Hochladen' }}
+        </button>
+      </div>
+    </template>
+  </ModalFrame>
 </template>
 
 <script>
@@ -63,12 +55,13 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { library } from "@fortawesome/fontawesome-svg-core";
 import { faTimes, faCloudArrowUp, faRotateLeft, faCheck, faSpinner } from "@fortawesome/free-solid-svg-icons";
 import api from "@/utils/api";
+import ModalFrame from "@/components/frames/ModalFrame.vue";
 
 library.add(faTimes, faCloudArrowUp, faRotateLeft, faCheck, faSpinner);
 
 export default {
   name: "ImageCropModal",
-  components: { VueCropper, FontAwesomeIcon },
+  components: { VueCropper, FontAwesomeIcon, ModalFrame },
   props: {
     mitarbeiterId: { type: String, required: true },
   },
@@ -146,63 +139,6 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-}
-
-.crop-modal {
-  background: var(--surface, #fff);
-  border-radius: 16px;
-  width: min(540px, 92vw);
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border, #e5e5e5);
-
-  h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--text, #1a1a1a);
-  }
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--muted, #888);
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 6px;
-  font-size: 1rem;
-  transition: 120ms ease;
-
-  &:hover {
-    background: var(--hover, #f0f0f0);
-    color: var(--text, #1a1a1a);
-  }
-}
-
-.modal-body {
-  padding: 20px;
-  flex: 1;
-  overflow: auto;
-}
 
 .upload-area {
   border: 2px dashed var(--border, #d0d0d0);
@@ -245,15 +181,6 @@ export default {
   border-radius: 10px;
   overflow: hidden;
   background: #1a1a1a;
-}
-
-.modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 20px;
-  border-top: 1px solid var(--border, #e5e5e5);
-  gap: 8px;
 }
 
 .footer-right {

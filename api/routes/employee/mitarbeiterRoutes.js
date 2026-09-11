@@ -75,6 +75,7 @@ const { PDFDocument } = require("pdf-lib");
 const sharp = require("sharp");
 const r2Service = require("../../services/integrations/R2Service");
 const { buildEmployeeR2Path } = require("../../utils/employeeR2Path");
+const SignaturVorgang = require("../../models/Signature/SignaturVorgang");
 const progressMap = new Map();
 
 const upload = multer({
@@ -455,11 +456,7 @@ router.post(
       .webp({ quality: 80 })
       .toBuffer();
 
-    const r2Key = buildEmployeeR2Path(
-      mitarbeiter.r2Prefix || `employees/${mitarbeiter._id}`,
-      "profile",
-      "profile.webp",
-    );
+    const r2Key = buildEmployeeR2Path(mitarbeiter, "profile", "profile.webp");
 
     // Delete old image if exists
     if (mitarbeiter.profilbild) {
@@ -516,14 +513,32 @@ router.get(
     if (!mitarbeiter) return res.status(404).json({ message: "Mitarbeiter nicht gefunden." });
 
     const prefix = `${mitarbeiter.r2Prefix || `employees/${mitarbeiter._id}`}/`;
-    const objects = await r2Service.listObjects(prefix);
-    res.json(objects
+    const signatureDocuments = await SignaturVorgang.find({
+      mitarbeiter: mitarbeiter._id,
+      $or: [
+        { r2KeySigned: { $nin: [null, ''] } },
+        { r2KeyAudit: { $nin: [null, ''] } },
+      ],
+    }).select('typKey r2KeySigned r2KeyAudit').lean();
+    const signatureByKey = new Map(signatureDocuments.flatMap((document) => [
+      [document.r2KeySigned, document],
+      [document.r2KeyAudit, document],
+    ].filter(([key]) => key)));
+    const signatureObjectLists = await Promise.all([...signatureByKey.keys()].map((key) => r2Service.listObjects(key)));
+    const objectsByKey = new Map([
+      ...(await r2Service.listObjects(prefix)),
+      ...signatureObjectLists.flat(),
+    ].filter((object) => object.Key && !object.Key.endsWith('/')).map((object) => [object.Key, object]));
+
+    res.json([...objectsByKey.values()]
       .filter((object) => object.Key && !object.Key.endsWith('/'))
       .map((object) => ({
         key: object.Key,
         size: object.Size || 0,
         lastModified: object.LastModified || null,
-        displayPath: object.Key.slice(prefix.length),
+        displayPath: object.Key.startsWith(prefix)
+          ? object.Key.slice(prefix.length)
+          : `signatures/${signatureByKey.get(object.Key)?.typKey || 'dokument'}/${object.Key.split('/').pop()}`,
         fileName: object.Key.split('/').pop(),
       })));
   })
@@ -538,7 +553,12 @@ router.get(
 
     const key = String(req.query.key || '');
     const prefix = `${mitarbeiter.r2Prefix || `employees/${mitarbeiter._id}`}/`;
-    if (!key.startsWith(prefix) || key.endsWith('/')) {
+    const isEmployeeOwnedKey = key.startsWith(prefix);
+    const linkedSignature = isEmployeeOwnedKey ? null : await SignaturVorgang.exists({
+      mitarbeiter: mitarbeiter._id,
+      $or: [{ r2KeySigned: key }, { r2KeyAudit: key }],
+    });
+    if ((!isEmployeeOwnedKey && !linkedSignature) || key.endsWith('/')) {
       return res.status(400).json({ message: 'Ungültiger Mitarbeiter-Dateipfad.' });
     }
 

@@ -93,7 +93,7 @@ router.post('/:requestId/upload', requireOidc, upload.single('document'), asyncH
     }
   }
   const safeName = `${crypto.randomUUID()}${extension}`;
-  const r2Key = buildEmployeeR2Path(employee.r2Prefix || `employees/${employee._id}`, 'documents/uploads', String(request._id));
+  const r2Key = buildEmployeeR2Path(employee, 'documents/uploads', String(request._id));
   const fileKey = `${r2Key}/${safeName}`;
   const contentHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
   await r2Service.uploadFile(fileKey, req.file.buffer, req.file.mimetype);

@@ -9,7 +9,7 @@
     <button class="icon-button" type="button" title="Ablage aktualisieren" :disabled="loading" @click="loadFiles">
       <font-awesome-icon :icon="['fas', 'rotate']" :spin="loading" />
     </button>
-    <button v-if="isAdmin" class="icon-button" type="button" title="Dateien hochladen" :disabled="uploading" @click="uploadInput?.click()">
+    <button v-if="isAdmin && allowUpload" class="icon-button" type="button" title="Dateien hochladen" :disabled="uploading" @click="uploadInput?.click()">
       <font-awesome-icon :icon="['fas', uploading ? 'spinner' : 'upload']" :spin="uploading" />
     </button>
     <input ref="uploadInput" class="upload-input" type="file" multiple @change="uploadSelectedFiles" />
@@ -183,8 +183,14 @@ const props = defineProps({
   rootLabel: { type: String, default: 'Signaturen' },
   listUrl: { type: String, default: '/api/signaturen/storage' },
   fileUrlEndpoint: { type: String, default: '/api/signaturen/storage/url' },
+  uploadUrl: { type: String, default: '/api/signaturen/storage/upload' },
+  deleteUrl: { type: String, default: '/api/signaturen/storage' },
   rootPrefix: { type: String, default: '' },
   enableEntityLinks: { type: Boolean, default: true },
+  allowUpload: { type: Boolean, default: true },
+  allowDelete: { type: Boolean, default: true },
+  nonDeletablePrefixes: { type: Array, default: () => [] },
+  archiveDeleted: { type: Boolean, default: false },
 });
 
 const files = ref([]);
@@ -209,14 +215,20 @@ const fileMenuOptions = computed(() => {
   return [
     { label: 'Datei öffnen', action: 'open', icon: ['fas', 'arrow-up-right-from-square'] },
     { label: 'Herunterladen', action: 'download', icon: ['fas', 'download'] },
-    ...(isAdmin.value ? [{ label: 'Datei löschen', action: 'delete', icon: ['fas', 'trash'] }] : []),
+    ...(isAdmin.value && canDeleteFile(fileMenu.value.file) ? [{ label: props.archiveDeleted ? 'Datei archivieren' : 'Datei löschen', action: 'delete', icon: ['fas', 'trash'] }] : []),
   ];
 });
+
+function canDeleteFile(file) {
+  return props.allowDelete && !props.nonDeletablePrefixes.some((prefix) =>
+    file.key.startsWith(String(prefix).replace(/^\/+/, ''))
+  );
+}
 
 function getRelativePath(file) {
   if (file.displayPath) return file.displayPath;
   if (props.rootPrefix) return file.key.replace(props.rootPrefix, '');
-  return file.key.replace(/^(?:Signatures|signaturen)\//, '');
+  return file.key;
 }
 
 function getFolderLabel(path) {
@@ -461,7 +473,7 @@ async function uploadDroppedFiles(event) {
 
 async function uploadFiles(fileList) {
   const selectedFiles = Array.from(fileList || []);
-  if (!selectedFiles.length || uploading.value) return;
+  if (!props.allowUpload || !selectedFiles.length || uploading.value) return;
 
   uploading.value = true;
   error.value = '';
@@ -469,7 +481,7 @@ async function uploadFiles(fileList) {
     const formData = new FormData();
     formData.append('folderPath', selectedPath.value);
     selectedFiles.forEach((file) => formData.append('files', file));
-    await api.post('/api/signaturen/storage/upload', formData);
+    await api.post(props.uploadUrl, formData);
     await loadFiles();
   } catch (requestError) {
     error.value = requestError?.response?.data?.message || 'Dateien konnten nicht hochgeladen werden.';
@@ -495,9 +507,11 @@ function handleFileMenuAction(action) {
 }
 
 async function deleteFile(file) {
-  if (!window.confirm(`Datei "${file.name}" unwiderruflich löschen?`)) return;
+  if (!canDeleteFile(file)) return;
+  const action = props.archiveDeleted ? 'archivieren' : 'unwiderruflich löschen';
+  if (!window.confirm(`Datei "${file.name}" ${action}?`)) return;
   try {
-    await api.delete('/api/signaturen/storage', { data: { key: file.key } });
+    await api.delete(props.deleteUrl, { data: { key: file.key } });
     files.value = files.value.filter((entry) => entry.key !== file.key);
   } catch (requestError) {
     error.value = requestError?.response?.data?.message || 'Datei konnte nicht gelöscht werden.';
@@ -571,7 +585,7 @@ onMounted(loadFiles);
 }
 
 .storage-layout { display: grid; grid-template-columns: minmax(210px, 280px) minmax(0, 1fr); min-height: 430px; }
-.folder-panel { padding: 8px 0; border-right: 1px solid var(--border); overflow: auto; }
+.folder-panel { padding: 8px 0; border-right: 1px solid var(--border); overflow-x: hidden; overflow-y: auto; }
 .folder-row {
   width: 100%;
   height: 34px;

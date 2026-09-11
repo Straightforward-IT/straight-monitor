@@ -1213,6 +1213,14 @@
           </template>
         </section>
 
+        <section v-if="view === 'ablage'" class="employee-storage-view">
+          <R2FileBrowser
+            :root-label="`${resolvedMa.vorname} ${resolvedMa.nachname}`"
+            :list-url="`/api/personal/mitarbeiter/${resolvedMa._id}/storage`"
+            :file-url-endpoint="`/api/personal/mitarbeiter/${resolvedMa._id}/storage/url`"
+          />
+        </section>
+
       </div>
     </transition>
 
@@ -1311,6 +1319,22 @@
           <button class="icon-btn" role="tab" :class="{ active: view === 'inventar' }" @click="view = 'inventar'" :aria-selected="view === 'inventar'">
             <font-awesome-icon icon="fa-solid fa-box-open" />
             <span>Inventar</span>
+          </button>
+        </template>
+
+        <!-- R2-Ablage -->
+        <template v-if="showTooltips">
+          <custom-tooltip text="Ablage" :position="tooltipPosition" :delay-in="150">
+            <button class="icon-btn" role="tab" :class="{ active: view === 'ablage' }" @click="view = 'ablage'" :aria-selected="view === 'ablage'">
+              <font-awesome-icon icon="fa-solid fa-folder-open" />
+              <span>Ablage</span>
+            </button>
+          </custom-tooltip>
+        </template>
+        <template v-else>
+          <button class="icon-btn" role="tab" :class="{ active: view === 'ablage' }" @click="view = 'ablage'" :aria-selected="view === 'ablage'">
+            <font-awesome-icon icon="fa-solid fa-folder-open" />
+            <span>Ablage</span>
           </button>
         </template>
 
@@ -1638,6 +1662,7 @@ import DeleteMitarbeiterDialog from "@/components/Modals/DeleteMitarbeiterDialog
 import ImageCropModal from "./ImageCropModal.vue";
 import TlBadge from "./ui-elements/TlBadge.vue";
 import SearchBar from "./SearchBar.vue";
+import R2FileBrowser from "./R2FileBrowser.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
@@ -1656,7 +1681,7 @@ import MitarbeiterEinsatzChart from "./MitarbeiterEinsatzChart.vue";
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, R2FileBrowser },
   props: {
     ma: { type: Object, required: false, default: null },
     mitarbeiterId: { type: String, default: null },

@@ -145,7 +145,18 @@
 
     <!-- ───────────── TAB: R2-ABLAGE ───────────── -->
     <template v-else>
-      <SignaturR2Browser />
+      <R2FileBrowser
+        root-label="Signaturen"
+        list-url="/api/signaturen/storage"
+        file-url-endpoint="/api/signaturen/storage/url"
+        upload-url="/api/signaturen/storage/upload"
+        delete-url="/api/signaturen/storage"
+        :enable-entity-links="true"
+        :allow-upload="true"
+        :allow-delete="true"
+        :archive-deleted="true"
+        :non-deletable-prefixes="['Signatures/Archiv/Geloescht/']"
+      />
     </template>
 
     <SignaturTypAnlegenModal v-model="showTypModal" @created="onTypCreated" />
@@ -239,7 +250,7 @@ import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import SignaturCard from '@/components/SignaturCard.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
-import SignaturR2Browser from '@/components/SignaturR2Browser.vue';
+import R2FileBrowser from '@/components/R2FileBrowser.vue';
 
 library.add(faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil, faFolderOpen, faClone);
 

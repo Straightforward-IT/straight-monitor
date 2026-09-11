@@ -27,6 +27,10 @@ flowchart TD
     View --> Orders[AuftraegePage]
     Orders --> OrdersPage[PageLayout]
     OrdersPage --> OrdersPanel[SidePanelFrame]
+    OrdersPage --> OrderDrawer[OrderChronikDrawer - Admin only]
+    OrderDrawer --> CompanionDrawer[CompanionDrawerFrame]
+    OrderDrawer --> OrderTimeline[OrderChronikTimeline]
+    OrdersPanel -->|width <= 1100px| OrderTimeline
 
     View --> Customers[KundenPage]
     Customers --> RouterPage[RouterPageLayout]
@@ -169,7 +173,7 @@ The generic contract uses `modelValue` and emits `update:modelValue`, `update:co
 - the selector used to measure the lead `SidePanelFrame`;
 - desktop-only display behavior.
 
-Its default and footer slots remain owned by `LeadsTab`, which supplies the timeline and comment composer. This preserves the existing `LeadChronikDrawer` API while allowing future pages to create wrappers such as `OrderHistoryDrawer` or `CustomerActivityDrawer` without duplicating frame behavior.
+Its default and footer slots remain owned by `LeadsTab`, which supplies the timeline and comment composer. `OrderChronikDrawer` follows the same wrapper pattern, with its timeline and note composer in `OrderChronikTimeline`.
 
 ```vue
 <CompanionDrawerFrame
@@ -197,6 +201,10 @@ hasSelectedEvent: {
 ```
 
 Selecting an order fills `selectedEvent`, which opens the panel. A close action from `SidePanelFrame` emits `update:modelValue(false)`, and the computed setter clears `selectedEvent`. Orders use only the default panel presentation; they do not expose the detachable modal mode.
+
+Admins can toggle the selected order's Chronik from the panel actions. Above 1100px, `OrderChronikDrawer` configures `CompanionDrawerFrame` with the independent persistence key `orders_chronik_drawer`, the order panel selector, and a 380px default height. At 1100px and below, the same `OrderChronikTimeline` appears inside the detail panel, matching the frame's desktop-only breakpoint. Closing the order or losing Admin access closes the Chronik.
+
+Successful order mutations from the shared Axios client increment the selected order's Chronik revision. This includes mutations inside an open editor and calendar removals. The timeline reloads independently, aborts stale reads, and never makes requests for non-Admins. See [Auftrag-Chronik](AUFTRAG-CHRONIK.md) for capture, authorization, and test coverage.
 
 ## BottomSheetFrame
 
@@ -235,6 +243,8 @@ It is currently used elsewhere, for example in `DispoTable.vue`. If leads or ord
 - `frontend/Straight-Monitor/src/components/frames/BottomSheetFrame.vue`
 - `frontend/Straight-Monitor/src/components/LeadsTab.vue`
 - `frontend/Straight-Monitor/src/components/leads/LeadChronikDrawer.vue`
+- `frontend/Straight-Monitor/src/components/orders/OrderChronikDrawer.vue`
+- `frontend/Straight-Monitor/src/components/orders/OrderChronikTimeline.vue`
 - `frontend/Straight-Monitor/src/components/CustomerLeadsTab.vue`
 - `frontend/Straight-Monitor/src/components/KundenPage.vue`
 - `frontend/Straight-Monitor/src/components/AuftraegePage.vue`

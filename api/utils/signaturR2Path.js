@@ -5,7 +5,7 @@
  *
  * Directory structure:
  *   Signatures/{location}/kunden/{kuerzel-or-name}/{typKey}/
- *   Signatures/{location}/mitarbeiter/{name}/{typKey}/
+ *   employees/{employeeId}/signatures/{typKey}/ (when an employee R2 prefix is supplied)
  *   Signatures/{location}/sonstige/{typKey}/
  *
  * Files placed under each prefix:
@@ -21,7 +21,7 @@
  * @param {string}  opts.entityIdentifier  kuerzel (Kunde) or "{vorname}-{nachname}" (Mitarbeiter)
  * @param {string}  opts.locationIdentifier Location shortName or name
  * @param {string}  opts.typKey            e.g. 'stundenliste', 'auerv'
- * @param {string}  [opts.entityPrefix]    previously persisted entity base folder
+ * @param {string}  [opts.entityPrefix]    explicit entity base folder, e.g. an employee R2 signatures prefix
  * @returns {string} R2 key prefix without trailing slash
  */
 function buildSignaturR2Prefix({

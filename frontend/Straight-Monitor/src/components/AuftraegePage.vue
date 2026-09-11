@@ -413,14 +413,14 @@
       </template>
       <template #actions>
         <div class="sidebar-header-actions">
-          <button v-if="isAdmin" class="qa-dots-btn" type="button" title="Auftragschronik" :aria-expanded="showChronik" aria-controls="order-chronik-panel" @click.stop="showChronik = !showChronik">Chronik</button>
+          <button v-if="isAdmin" class="order-chronik-toggle" type="button" title="Auftragschronik" :aria-expanded="showChronik" :aria-controls="chronikInline ? 'order-chronik-panel' : undefined" @click.stop="showChronik = !showChronik">Chronik</button>
           <button class="qa-dots-btn" type="button" title="Aktionen" @click.stop="toggleQuickActionsMenu">
             <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
           </button>
         </div>
       </template>
 
-          <section v-if="isAdmin && showChronik && isMobile" id="order-chronik-panel" aria-label="Chronik" style="margin-bottom: 1.25rem">
+          <section v-if="isAdmin && showChronik && chronikInline" id="order-chronik-panel" aria-label="Chronik" style="margin-bottom: 1.25rem">
             <h3>Chronik</h3>
             <OrderChronikTimeline :key="selectedEvent.auftragNr" :auftrag-nr="selectedEvent.auftragNr" :revision="chronikRevision" />
           </section>
@@ -867,8 +867,8 @@
     </SidePanelFrame>
 
     <OrderChronikDrawer
-      v-if="isAdmin && showChronik && selectedEvent && !isMobile"
-      id="order-chronik-panel" :key="selectedEvent.auftragNr"
+      v-if="isAdmin && showChronik && selectedEvent && !chronikInline"
+      :key="selectedEvent.auftragNr"
       :auftrag-nr="selectedEvent.auftragNr" :order-title="selectedEvent.eventTitel || ''"
       :revision="chronikRevision" @close="showChronik = false"
     />
@@ -1405,6 +1405,7 @@ export default {
       currentWeekStart: null,
       selectedEvent: null,
       showChronik: false,
+      chronikInline: window.innerWidth <= 1100,
       chronikRevision: 0,
       contextMenu: {
         open: false,
@@ -1943,6 +1944,7 @@ export default {
       return allSame ? firstQuali : null;
     },
     checkMobile() {
+      this.chronikInline = window.innerWidth <= 1100;
       this.isMobile = window.innerWidth <= 768;
     },
     openMobileDatePicker() {
@@ -5089,6 +5091,19 @@ export default {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.order-chronik-toggle {
+  min-height: 32px;
+  padding: .35rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  &[aria-expanded="true"] { border-color: var(--primary); }
+  &:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 }
 
 .qa-dots-btn {

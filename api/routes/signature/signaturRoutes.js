@@ -24,6 +24,7 @@ const {
   renderResolvedTemplate: renderResolvedCustomerEmailTemplate,
 } = require('../../services/operations/CustomerEmailTemplateService');
 const { buildSignaturR2Prefix, sanitizeSegment } = require('../../utils/signaturR2Path');
+const { buildEmployeeR2Path } = require('../../utils/employeeR2Path');
 const { buildStundenlistePdfFilename } = require('../../utils/stundenlisteFilename');
 const AsanaService = require('../../services/integrations/AsanaService');
 const registry = require('../../config/registry');
@@ -437,6 +438,7 @@ async function buildR2PrefixForVorgang(vorgang, resolvedLocation = null) {
   let entityType = null;
   let entityIdentifier = null;
   let entityLocationId = null;
+  let employee = null;
   if (vorgang.kunde) {
     const kunde = await Kunde.findById(vorgang.kunde)
       .select('_id kundenNr kundName kuerzel signaturOrdner locationV2');
@@ -446,12 +448,12 @@ async function buildR2PrefixForVorgang(vorgang, resolvedLocation = null) {
       ? await ensureSignaturOrdner(entityType, kunde)
       : vorgang.kundenKuerzel;
   } else if (vorgang.mitarbeiter) {
-    const mitarbeiter = await Mitarbeiter.findById(vorgang.mitarbeiter)
-      .select('_id personalnr vorname nachname signaturOrdner locationV2');
+    employee = await Mitarbeiter.findById(vorgang.mitarbeiter)
+      .select('_id personalnr vorname nachname signaturOrdner r2Prefix locationV2');
     entityType = 'Mitarbeiter';
-    entityLocationId = mitarbeiter?.locationV2 || null;
-    entityIdentifier = mitarbeiter
-      ? await ensureSignaturOrdner(entityType, mitarbeiter)
+    entityLocationId = employee?.locationV2 || null;
+    entityIdentifier = employee
+      ? await ensureSignaturOrdner(entityType, employee)
       : vorgang.mitarbeiterName;
   }
 
@@ -471,6 +473,9 @@ async function buildR2PrefixForVorgang(vorgang, resolvedLocation = null) {
     locationIdentifier: location?.shortName || location?.nameFull || vorgang.standort,
     entityType,
     entityIdentifier,
+    entityPrefix: employee
+      ? buildEmployeeR2Path(employee, 'signatures')
+      : undefined,
     typKey: vorgang.typKey,
   });
 }
@@ -924,7 +929,7 @@ router.post('/reisekostenabrechnung/:id', auth, asyncHandler(async (req, res) =>
   }
 
   const mitarbeiter = rk.mitarbeiter
-    ? await Mitarbeiter.findById(rk.mitarbeiter).select('_id vorname nachname personalnr signaturOrdner locationV2')
+    ? await Mitarbeiter.findById(rk.mitarbeiter).select('_id vorname nachname personalnr signaturOrdner r2Prefix locationV2')
     : null;
 
   const location = await resolveSignaturLocation({
@@ -1004,6 +1009,7 @@ router.post('/reisekostenabrechnung/:id', auth, asyncHandler(async (req, res) =>
     locationIdentifier: location.shortName || location.nameFull,
     entityType: 'Mitarbeiter',
     entityIdentifier: entityFolder,
+    entityPrefix: mitarbeiter ? buildEmployeeR2Path(mitarbeiter, 'signatures') : undefined,
     typKey: 'reisekostenabrechnung',
   });
 
@@ -1190,9 +1196,10 @@ router.get('/', auth, asyncHandler(async (req, res) => {
 
 // GET /api/signaturen/storage — list every object in the signature archive.
 router.get('/storage', auth, asyncHandler(async (_req, res) => {
-  const [structuredObjects, legacyObjects, locations, kunden] = await Promise.all([
+  const [structuredObjects, legacyObjects, employeeObjects, locations, kunden] = await Promise.all([
     R2Service.listObjects('Signatures/'),
     R2Service.listObjects('signaturen/'),
+    R2Service.listObjects('employees/'),
     Location.find({}).select('_id nameFull shortName nameKey shortNameKey').lean(),
     Kunde.find({ signaturOrdner: { $nin: [null, ''] }, locationV2: { $ne: null } })
       .select('_id kundName kuerzel signaturOrdner locationV2')
@@ -1200,7 +1207,9 @@ router.get('/storage', auth, asyncHandler(async (_req, res) => {
       .lean(),
   ]);
 
-  const objects = [...structuredObjects, ...legacyObjects]
+  const objects = [...structuredObjects, ...legacyObjects, ...employeeObjects.filter((object) =>
+    /^employees\/[a-f\d]{24}\/signatures\//i.test(object.Key || '')
+  )]
     .filter((object) => object.Key && !object.Key.endsWith('/'));
   const objectKeys = objects.map((object) => object.Key);
   const legacyVorgangIds = [...new Set(legacyObjects
@@ -1293,7 +1302,7 @@ router.get('/storage', auth, asyncHandler(async (_req, res) => {
     const linkedTo = vorgang.typ?.linkedTo;
     const isKunde = linkedTo === 'Kunde' || (linkedTo !== 'Mitarbeiter' && !!vorgang.kunde);
     const isMitarbeiter = linkedTo === 'Mitarbeiter' || (!isKunde && !!vorgang.mitarbeiter);
-    const pathSegments = [locationFolder];
+    let pathSegments = [locationFolder];
     const folderLabels = [locationName];
 
     if (isKunde) {
@@ -1308,8 +1317,13 @@ router.get('/storage', auth, asyncHandler(async (_req, res) => {
         || vorgang.mitarbeiterName
         || 'Ohne Zuordnung';
       const entityFolder = vorgang.mitarbeiter?.signaturOrdner || sanitizeSegment(fullName) || 'ohne-zuordnung';
-      pathSegments.push('mitarbeiter', entityFolder);
-      folderLabels.push('Mitarbeiter', fullName);
+      if (/^employees\/[a-f\d]{24}\/signatures\//i.test(object.Key)) {
+        pathSegments = ['employees', String(vorgang.mitarbeiter?._id || 'unbekannt'), 'signatures'];
+        folderLabels.splice(0, folderLabels.length, 'Mitarbeiter', fullName, 'Signaturen');
+      } else {
+        pathSegments.push('mitarbeiter', entityFolder);
+        folderLabels.push('Mitarbeiter', fullName);
+      }
       responseObject.entityType = 'mitarbeiter';
       responseObject.entityId = vorgang.mitarbeiter?._id ? String(vorgang.mitarbeiter._id) : null;
     } else {
@@ -1337,7 +1351,9 @@ router.get('/storage', auth, asyncHandler(async (_req, res) => {
 // GET /api/signaturen/storage/url?key=...&download=true — temporary R2 file URL.
 router.get('/storage/url', auth, asyncHandler(async (req, res) => {
   const key = String(req.query.key || '');
-  const isSignatureKey = key.startsWith('Signatures/') || key.startsWith('signaturen/');
+  const isSignatureKey = key.startsWith('Signatures/')
+    || key.startsWith('signaturen/')
+    || /^employees\/[a-f\d]{24}\/signatures\//i.test(key);
   if (!isSignatureKey || key.endsWith('/')) {
     return res.status(400).json({ message: 'Ungültiger Signatur-Dateipfad' });
   }
@@ -1350,21 +1366,28 @@ router.get('/storage/url', auth, asyncHandler(async (req, res) => {
   res.json({ url });
 }));
 
-// DELETE /api/signaturen/storage — permanently remove one archived signature file (ADMIN only).
+// DELETE /api/signaturen/storage — archive a signature file (ADMIN only).
 router.delete('/storage', auth, asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id).select('role roles').lean();
   const isAdmin = user?.role === 'ADMIN' || user?.roles?.includes('ADMIN');
   if (!isAdmin) return res.status(403).json({ message: 'Nur Administratoren dürfen Archivdateien löschen.' });
 
   const key = String(req.body?.key || '');
-  const isSignatureKey = key.startsWith('Signatures/') || key.startsWith('signaturen/');
+  const isSignatureKey = key.startsWith('Signatures/')
+    || key.startsWith('signaturen/')
+    || /^employees\/[a-f\d]{24}\/signatures\//i.test(key);
   if (!isSignatureKey || key.endsWith('/')) {
     return res.status(400).json({ message: 'Ungültiger Signatur-Dateipfad' });
   }
 
-  await R2Service.deleteFile(key);
-  logger.info(`Signatur-Ablage: Datei gelöscht von ${req.user.id}: ${key}`);
-  res.json({ message: 'Archivdatei gelöscht.' });
+  if (key.startsWith('Signatures/Archiv/Geloescht/')) {
+    return res.status(400).json({ message: 'Archivierte Dateien können nicht erneut gelöscht werden.' });
+  }
+
+  const archiveKey = `Signatures/Archiv/Geloescht/${key}`;
+  await R2Service.moveFile(key, archiveKey);
+  logger.info(`Signatur-Ablage: Datei archiviert von ${req.user.id}: ${key} -> ${archiveKey}`);
+  res.json({ message: 'Datei wurde in das Archiv verschoben.', archiveKey });
 }));
 
 // POST /api/signaturen/storage/upload — add files to the selected archive folder (ADMIN only).
@@ -1434,7 +1457,7 @@ router.post('/spaces/:locationId/items/:itemId', auth, asyncHandler(async (req, 
   if (!signaturTyp) return res.status(400).json({ message: 'Ungültiger oder inaktiver Signaturtyp.' });
 
   const kunde = kundeId ? await Kunde.findById(kundeId).select('kundenNr kundName kuerzel locationV2 signaturOrdner') : null;
-  const mitarbeiter = mitarbeiterId ? await Mitarbeiter.findById(mitarbeiterId).select('vorname nachname personalnr locationV2 signaturOrdner') : null;
+  const mitarbeiter = mitarbeiterId ? await Mitarbeiter.findById(mitarbeiterId).select('vorname nachname personalnr locationV2 signaturOrdner r2Prefix') : null;
   if (kundeId && !kunde) return res.status(400).json({ message: 'Kunde nicht gefunden.' });
   if (mitarbeiterId && !mitarbeiter) return res.status(400).json({ message: 'Mitarbeiter nicht gefunden.' });
   const entityValidationMessage = getEntityValidationMessage(signaturTyp, kunde, mitarbeiter);
@@ -1488,7 +1511,13 @@ router.post('/spaces/:locationId/items/:itemId', auth, asyncHandler(async (req, 
     kundenKuerzel: kunde?.kuerzel || null,
     submissionId: resultArr[0]?.submission_id ?? result?.id ?? null,
     submitters: storedSubmitters,
-    r2Prefix: buildSignaturR2Prefix({ locationIdentifier: location.shortName || location.nameFull, entityType, entityIdentifier, typKey: signaturTyp.key }),
+    r2Prefix: buildSignaturR2Prefix({
+      locationIdentifier: location.shortName || location.nameFull,
+      entityType,
+      entityIdentifier,
+      entityPrefix: mitarbeiter ? buildEmployeeR2Path(mitarbeiter, 'signatures') : undefined,
+      typKey: signaturTyp.key,
+    }),
     folgeaktionen: parseFolgeaktionen(folgeaktionenRaw) || undefined,
     createdBy: req.user.id,
   });
@@ -1537,7 +1566,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 
   if (mitarbeiterId) {
     mitarbeiterDoc = await Mitarbeiter.findById(mitarbeiterId)
-      .select('vorname nachname personalnr locationV2 signaturOrdner');
+      .select('vorname nachname personalnr locationV2 signaturOrdner r2Prefix');
     if (!mitarbeiterDoc) {
       return res.status(400).json({ message: 'Mitarbeiter nicht gefunden' });
     }
@@ -1585,6 +1614,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     locationIdentifier: location.shortName || location.nameFull,
     entityType,
     entityIdentifier,
+    entityPrefix: mitarbeiterDoc ? buildEmployeeR2Path(mitarbeiterDoc, 'signatures') : undefined,
     typKey: signaturTyp.key,
   });
 

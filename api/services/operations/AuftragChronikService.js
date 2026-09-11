@@ -99,11 +99,11 @@ function buildChanges(before, after, names = new Map()) {
 
 async function snapshot(auftragNr) {
   if (!Number.isSafeInteger(auftragNr) || auftragNr <= 0) return {};
-  const order = await Auftrag.findOne({ auftragNr }).lean();
+  const order = await Auftrag.findOne({ auftragNr }).select(['auftragNr', ...FIELDS.Auftrag].join(' ')).lean();
   if (!order) return {};
   // Sequential queries keep all reads in the same transaction snapshot.
-  const shifts = await Schicht.find({ auftragNr }).lean();
-  const assignments = await Einsatz.find({ auftragNr }).lean();
+  const shifts = await Schicht.find({ auftragNr }).select(FIELDS.Schicht.join(' ')).lean();
+  const assignments = await Einsatz.find({ auftragNr }).select(FIELDS.Einsatz.join(' ')).lean();
   return { Auftrag: [order], Schicht: shifts, Einsatz: assignments };
 }
 
@@ -143,6 +143,11 @@ class RejectedResponse extends Error {
  */
 function withAuftragChronik(action, handler) {
   return asyncHandler(async (req, res) => {
+    // Legacy handlers use parseInt; reject partial numbers before either the write or snapshot.
+    if (req.params.auftragNr !== undefined && (!/^\d+$/.test(req.params.auftragNr)
+      || !Number.isSafeInteger(Number(req.params.auftragNr)) || Number(req.params.auftragNr) <= 0)) {
+      return res.status(400).json({ message: 'Ungültige Auftragsnummer.' });
+    }
     let result;
     try {
       result = await mongoose.connection.transaction(async () => {
@@ -155,8 +160,8 @@ function withAuftragChronik(action, handler) {
         if (response.statusCode >= 400) throw new RejectedResponse(response);
         const orderNumber = Number(req.params.auftragNr ?? response.body?.auftragNr);
         const after = await snapshot(orderNumber);
-        const changes = buildChanges(before, after, await employeeNames(before, after));
-        if (changes.length) {
+        if (buildChanges(before, after).length) {
+          const changes = buildChanges(before, after, await employeeNames(before, after));
           const order = after.Auftrag?.[0] || before.Auftrag?.[0];
           const user = await User.findById(req.user?.id || req.user?._id).select('name email').lean();
           if (!user) throw new Error('Chronik: Benutzerkonto nicht gefunden');

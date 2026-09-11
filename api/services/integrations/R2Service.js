@@ -1,4 +1,4 @@
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, CopyObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const logger = require('../../utils/logger'); // Assuming this exists based on instructions
 
@@ -120,6 +120,27 @@ class R2Service {
       throw error;
     }
   }
+
+  /**
+   * Move an object within R2 by copying it and deleting the source only after
+   * the copy succeeds.
+   */
+  async moveFile(sourceKey, destinationKey) {
+    try {
+      await this.client.send(new CopyObjectCommand({
+        Bucket: this.bucketName,
+        Key: destinationKey,
+        CopySource: `${this.bucketName}/${encodeURIComponent(sourceKey).replace(/%2F/g, '/')}`,
+      }));
+      await this.deleteFile(sourceKey);
+      logger.info(`Successfully moved file ${sourceKey} to ${destinationKey} in R2`);
+      return { sourceKey, destinationKey };
+    } catch (error) {
+      logger.error(`Error moving file ${sourceKey} to ${destinationKey} in R2:`, error);
+      throw error;
+    }
+  }
+
   async testConnection() {
     try {
       const { HeadBucketCommand } = require('@aws-sdk/client-s3');
