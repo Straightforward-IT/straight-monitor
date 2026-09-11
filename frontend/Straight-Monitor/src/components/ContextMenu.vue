@@ -10,7 +10,8 @@
       @keydown="onMenuKeydown"
     >
       <div v-if="title" class="context-menu__title">{{ title }}</div>
-      <div 
+      <div
+        v-if="options.length"
         v-for="(option, idx) in options"
         :key="idx"
         class="context-menu-item"
@@ -26,6 +27,7 @@
         <FontAwesomeIcon v-if="option.icon" :icon="option.icon" class="context-menu-item__icon" />
         <span>{{ option.label }}</span>
       </div>
+      <slot />
     </div>
   </div>
 </template>
@@ -43,13 +45,14 @@ const props = withDefaults(defineProps<{
   width?: number;
   offset?: number;
   focusOnOpen?: boolean;
-  options: Array<{ label: string; action: string; image?: string; icon?: string; special?: boolean; disabled?: boolean }>;
+  options?: Array<{ label: string; action: string; image?: string; icon?: string; special?: boolean; disabled?: boolean }>;
 }>(), {
   anchor: null,
   followAnchor: false,
   width: 164,
   offset: 4,
   focusOnOpen: false,
+  options: () => [],
 });
 
 const emit = defineEmits<{

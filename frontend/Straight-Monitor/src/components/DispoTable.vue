@@ -1470,12 +1470,11 @@
     </teleport>
 
     <!-- Cell Context Menu (desktop only — mobile uses bottom-sheet) -->
-    <ActionMenu
-      :open="ctxMenu.open && !isMobile"
+    <ContextMenu
+      v-if="ctxMenu.open && !isMobile"
       :x="ctxMenu.x"
       :y="ctxMenu.y"
       :width="220"
-      :close-on-select="false"
       :title="ctxMenu.isMulti ? (selectionMaCount > 1 ? `${selectionMaCount} Mitarbeiter` : `${ctxMenu.ma?.vorname || ''} ${ctxMenu.ma?.nachname || ''}`.trim()) : `${ctxMenu.ma?.vorname || ''} ${ctxMenu.ma?.nachname || ''}`.trim()"
       @close="closeCtxMenu"
     >
@@ -1627,7 +1626,7 @@
       <button class="ctx-item ctx-item--clear" @click="clearStatus">
         <font-awesome-icon icon="fa-solid fa-eraser" class="ctx-item-icon" /> Löschen
       </button>
-    </ActionMenu>
+    </ContextMenu>
     </div>
   </PageLayout>
   </Transition>
