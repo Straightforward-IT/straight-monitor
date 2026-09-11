@@ -980,6 +980,19 @@ export default {
 
       try {
         // Upload all selected files
+        // Personal resolves Beruf/Qualifikation keys against these master lists.
+        if (this.berufFile && this.isAdmin) {
+          const response = await this.uploadFile(this.berufFile, 'beruf');
+          results.push({ type: 'Berufe', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.qualifikationFile && this.isAdmin) {
+          const response = await this.uploadFile(this.qualifikationFile, 'qualifikation');
+          results.push({ type: 'Qualifikationen', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
         if (this.einsatzFile) {
           const response = await this.uploadFile(this.einsatzFile, 'einsatz');
           results.push({ type: 'Einsätze', ...response });
@@ -1013,18 +1026,6 @@ export default {
         if (this.kundenFile && this.isAdmin) {
           const response = await this.uploadFile(this.kundenFile, 'kunden');
           results.push({ type: 'Kunden', ...response });
-          if (!response.success) hasErrors = true;
-        }
-
-        if (this.berufFile && this.isAdmin) {
-          const response = await this.uploadFile(this.berufFile, 'beruf');
-          results.push({ type: 'Berufe', ...response });
-          if (!response.success) hasErrors = true;
-        }
-
-        if (this.qualifikationFile && this.isAdmin) {
-          const response = await this.uploadFile(this.qualifikationFile, 'qualifikation');
-          results.push({ type: 'Qualifikationen', ...response });
           if (!response.success) hasErrors = true;
         }
 

@@ -1238,8 +1238,12 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       if (persgruppe != null) setFields.persgruppe = persgruppe;
       if (email) setFields.email = email;
       if (telefon) setFields.telefon = telefon;
-      if (adresse) setFields.adresse = adresse;
-      if (adresse2) setFields.adresse2 = adresse2;
+      // Liste 7002 is authoritative for address data. Explicitly clear stale
+      // values when an address block is empty, including prior misaligned imports.
+      if (hasNewFormat) {
+        setFields.adresse = adresse;
+        setFields.adresse2 = adresse2;
+      }
       if (arbeitszeit) setFields.arbeitszeit = arbeitszeit;
       // Persstatus 1 = Bewerber (noch kein vollständiger MA), 2 = Mitarbeiter
       if (persstatus != null) setFields.isBewerberstatus = persstatus === 1;
