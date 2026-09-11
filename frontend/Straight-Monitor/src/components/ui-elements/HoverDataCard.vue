@@ -134,6 +134,12 @@
             >
               Keine Daten vorhanden.
             </p>
+            <p
+              v-if="view.note"
+              class="hover-data-card__note"
+            >
+              {{ view.note }}
+            </p>
           </div>
         </div>
       </div>
@@ -416,6 +422,7 @@ onBeforeUnmount(close);
 .hover-data-card__row--emphasis dt, .hover-data-card__row--emphasis dd { color: var(--text); font-weight: 600; }
 .hover-data-card__swatch { display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 2px; }
 .hover-data-card__empty { color: var(--muted); margin-top: 12px; }
+.hover-data-card__note { margin: 12px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .hover-data-card-enter-active, .hover-data-card-leave-active { transition: opacity 0.12s ease; }
 .hover-data-card-enter-from, .hover-data-card-leave-to { opacity: 0; }
 @media (max-width: 400px) {

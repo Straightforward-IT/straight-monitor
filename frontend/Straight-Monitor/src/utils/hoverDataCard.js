@@ -63,12 +63,13 @@ function hoursView(data) {
   return {
     type: HOVER_DATA_CARD_TYPES.HOURS,
     ...common(data, 'Stundenbezogen beschäftigt'),
+    note: 'Berechnung mit Soll-Stunden, produktive Stunden werden hier noch nicht erfasst.',
     metric: { value: result.used, limit: monthlyHours, unit: 'Std.' },
     metadata: data.hourlyRate ?? data.stundenlohn ? [{ label: 'Stundenlohn', value: formatEuro(values(data).hourlyRate) }] : [],
     segments: result.segments,
     sections: [{ label: 'Arbeitszeiten', rows: [
       { label: 'Monatsstunden', value: `${formatHoverNumber(monthlyHours)} Std.` },
-      { label: 'Eingesetzt', value: `${formatHoverNumber(workedHours)} Std.`, segment: 'worked' },
+      { label: 'Eingesetzt', value: `~${formatHoverNumber(workedHours)} Std.`, segment: 'worked' },
       { label: 'Geplant', value: `${formatHoverNumber(plannedHours)} Std.`, segment: 'planned' },
     ] }, { rows: [
       { label: 'Belegt', value: `${formatHoverNumber(result.used)} Std.`, emphasis: true },

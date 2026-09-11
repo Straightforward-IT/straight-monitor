@@ -1961,6 +1961,8 @@ export default {
       // Dispo / Chronik
       einsatzContext: { last: null, next: null },
       loadingEinsatzContext: false,
+      einsatzAnalytics: { ist: [], forecast: [] },
+      loadingEinsatzAnalytics: false,
       chronik: [],
       loadingChronik: false,
       newChronikText: '',
@@ -2018,32 +2020,43 @@ export default {
       const employee = this.resolvedMa;
       const employmentType = employee?.arbeitsverhaeltnis?.typ;
       const employeeName = [employee?.vorname, employee?.nachname].filter(Boolean).join(' ');
-      const now = new Date();
+      const selectedYear = this.calendarYear;
+      const selectedMonth = this.calendarMonth + 1;
+      const monthlyHours = Number(employee?.arbeitszeit?.monat);
+      const monthlyRecords = (records) => records.find(record =>
+        record.year === selectedYear && record.month === selectedMonth
+      )?.hours || 0;
+      const yearlyCount = (records) => records
+        .filter(record => record.year === selectedYear)
+        .reduce((total, record) => total + (Number(record.days) || 0), 0);
+      const workedHours = monthlyRecords(this.einsatzAnalytics.ist);
+      const plannedHours = monthlyRecords(this.einsatzAnalytics.forecast);
+      const monthLabel = new Date(selectedYear, this.calendarMonth, 1)
+        .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
 
       if (employmentType === 3) {
         return {
           type: 'days',
-          eyebrow: `${now.getFullYear()} · Demo`,
+          eyebrow: String(selectedYear),
           employeeName,
           title: 'Kurzfristig beschäftigt',
-          workedDays: 18,
-          plannedDays: 7,
+          workedDays: yearlyCount(this.einsatzAnalytics.ist),
+          plannedDays: yearlyCount(this.einsatzAnalytics.forecast),
           dayLimit: 70,
         };
       }
 
       if (employmentType !== 0 && employmentType !== 1) return null;
-      const monthlyHours = Number(employee?.arbeitszeit?.monat);
       if (!Number.isFinite(monthlyHours) || monthlyHours <= 0) return null;
 
       return {
         type: 'hours',
-        eyebrow: `${now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })} · Demo`,
+        eyebrow: monthLabel,
         employeeName,
         title: employmentType === 0 ? 'Vollzeit beschäftigt' : 'Teilzeit beschäftigt',
         monthlyHours,
-        workedHours: monthlyHours * 0.35,
-        plannedHours: monthlyHours * 0.45,
+        workedHours,
+        plannedHours,
       };
     },
     // Filtere Tasks nach Status (offen vs. erledigt)
@@ -2334,6 +2347,7 @@ export default {
       this.tasksLoaded = false;
       this.loadEventReportFeedback();
       this.loadEinsatzContext();
+      this.loadEinsatzAnalytics();
       this.loadChronik();
       this._loadCalMonth();
       this.fetchInventar();
@@ -2572,12 +2586,14 @@ export default {
       else this.calendarMonth--;
       this.calendarSelectedDay = null;
       this._loadCalMonth();
+      this.loadEinsatzAnalytics();
     },
     nextCalMonth() {
       if (this.calendarMonth === 11) { this.calendarMonth = 0; this.calendarYear++; }
       else this.calendarMonth++;
       this.calendarSelectedDay = null;
       this._loadCalMonth();
+      this.loadEinsatzAnalytics();
     },
     onCalDayClick(day) {
       if (!day.isCurrentMonth) return;
@@ -2609,6 +2625,28 @@ export default {
         console.error('Einsatz-Kontext Fehler:', err);
       } finally {
         this.loadingEinsatzContext = false;
+      }
+    },
+
+    async loadEinsatzAnalytics() {
+      if (!this.resolvedMa?._id) return;
+      this.loadingEinsatzAnalytics = true;
+      try {
+        const from = new Date(this.calendarYear, 0, 1).toISOString();
+        const bis = new Date(this.calendarYear, 11, 31, 23, 59, 59).toISOString();
+        const { data } = await api.get(
+          `/api/personal/${this.resolvedMa._id}/analytics/einsaetze`,
+          { params: { von: from, bis } }
+        );
+        this.einsatzAnalytics = {
+          ist: data.ist || [],
+          forecast: data.forecast || [],
+        };
+      } catch (err) {
+        console.error('Einsatz-Analytics Fehler:', err);
+        this.einsatzAnalytics = { ist: [], forecast: [] };
+      } finally {
+        this.loadingEinsatzAnalytics = false;
       }
     },
 

@@ -4052,12 +4052,13 @@ router.get(
         const year = d.getFullYear();
         const month = d.getMonth() + 1;
         const key = `${year}-${String(month).padStart(2, "0")}`;
-        if (!map[key]) map[key] = { year, month, count: 0, hours: 0 };
+        if (!map[key]) map[key] = { year, month, count: 0, days: new Set(), hours: 0 };
         map[key].count++;
+        map[key].days.add(d.toISOString().slice(0, 10));
         map[key].hours += parseHours(e.uhrzeitVon, e.uhrzeitBis, e.bedarf, e.endeOffen);
       });
       return Object.values(map)
-        .map(r => ({ ...r, hours: Math.round(r.hours * 10) / 10 }))
+        .map(({ days, ...record }) => ({ ...record, days: days.size, hours: Math.round(record.hours * 10) / 10 }))
         .sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
     }
 
