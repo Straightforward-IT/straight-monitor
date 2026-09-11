@@ -86,7 +86,7 @@
           <div class="card-header">
             <div class="header-content">
               <h2>Personal Import (Liste 7002)</h2>
-              <p class="subtitle">Personalnr., Geburtsdatum, Geburtsort, Eintritt, Austrittsdatum, Berufe, Qualifikationen, Persgruppe, Adressen, E-Mail, Telefon</p>
+              <p class="subtitle">Personalnr., Stammdaten, Berufe, Qualifikationen, Persgruppe, Arbeitszeit, Adressen, E-Mail, Telefon</p>
             </div>
             <span v-if="personalFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
@@ -119,6 +119,8 @@
                     <tr><td>P – Telefon (TEL)</td><td>Q – E-Mail (EMAIL)</td><td>R – Strasse2</td></tr>
                     <tr><td>S – PLZ2</td><td>T – Ort2</td><td>U – Land2</td></tr>
                     <tr><td>V – Telefon2 (TEL2)</td><td>W – E-Mail2 (EMAIL2)</td><td></td></tr>
+                    <tr><td>X–AD – Arbeitszeit Mo–So</td><td>AE – Wochenstunden (ARBZEITWCH)</td><td>AF – Monatsstunden (ARBZEITMON)</td></tr>
+                    <tr><td>AG – Zeitkonto Plus-Limit (DZEITKONTOPLUS)</td><td>AH – Zeitkonto Minus-Limit (DZEITKONTOMINUS)</td><td></td></tr>
                   </tbody></table>
                 </div>
               </details>

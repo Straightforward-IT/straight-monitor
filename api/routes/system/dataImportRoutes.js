@@ -1078,8 +1078,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
   }
 });
 
-// --- Personal Import (kombiniert: Personalnr, Persstatus, Geburtsdatum, Geburtsname, Geburtsort, Eintritt, Austrittsdatum, Beruf/Quali, Persgruppe, Adresse(n), Email, Telefon) ---
-// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Geburtsname(GEBNAME), F=Geburtsort(GEBORT), G=Eintritt1, H=Austritt1, I=Berufsschlüssel(komma), J=Qualischlüssel(komma), K=Persgruppe, L=Strasse, M=PLZ, N=Ort, O=Land, P=Telefon, Q=Email, R=Strasse2, S=PLZ2, T=Ort2, U=Land2, V=Telefon2, W=Email2
+// --- Personal Import (kombiniert: Personalnr, Persstatus, Stammdaten, Beruf/Quali, Persgruppe, Arbeitszeit, Adresse(n), Email, Telefon) ---
+// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Geburtsname(GEBNAME), F=Geburtsort(GEBORT), G=Eintritt1, H=Austritt1, I=Berufsschlüssel(komma), J=Qualischlüssel(komma), K=Persgruppe, L=Strasse, M=PLZ, N=Ort, O=Land, P=Telefon, Q=Email, R=Strasse2, S=PLZ2, T=Ort2, U=Land2, V=Telefon2, W=Email2, X-AH=Arbeitszeit
 // Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 router.post('/personal', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
@@ -1145,12 +1145,14 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       // New 7002 (colOffset=1): A=Prüffeld, B=Personalnr, C=Persstatus, D=Geburtsdatum,
       //   E=Geburtsname, F=Geburtsort, G=Eintritt1, H=Austritt1, I=Berufsschl, J=Qualschl, K=Persgruppe,
       //   L=Strasse, M=PLZ, N=Ort, O=Land, P=Tel, Q=Email,
-      //   R=Strasse2, S=PLZ2, T=Ort2, U=Land2, V=Tel2, W=Email2
+      //   R=Strasse2, S=PLZ2, T=Ort2, U=Land2, V=Tel2, W=Email2,
+      //   X=Arbeitszeit Mo, Y=Di, Z=Mi, AA=Do, AB=Fr, AC=Sa, AD=So, AE=Woche,
+      //   AF=Monat, AG=Zeitkonto-Plus-Limit, AH=Zeitkonto-Minus-Limit
       // Legacy (colOffset=0): A=Personalnr, B=ignoriert, C=Austritt, D=Berufsschl,
       //   E=Qualschl, F=Persgruppe, G=Email, H=Telefon
       let personalnr, persstatus, geburtsdatum, geburtsname, geburtsort, eintrittsdatum, austrittsdatum;
       let berufKeys, qualiKeys, persgruppRaw, email, telefon;
-      let adresse = null, adresse2 = null;
+      let adresse = null, adresse2 = null, arbeitszeit = null;
 
       if (hasNewFormat) {
         personalnr = parseStr(row[1]);
@@ -1184,6 +1186,25 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         if (strasse2 || plz2 || ort2 || land2 || tel2 || email2) {
           adresse2 = { strasse: strasse2, plz: plz2, ort: ort2, land: land2, telefon: tel2, email: email2 };
         }
+        const parseNumber = (value) => {
+          if (value == null || String(value).trim() === '') return null;
+          const parsed = Number(String(value).trim().replace(',', '.'));
+          return Number.isFinite(parsed) ? parsed : null;
+        };
+        arbeitszeit = {
+          montag: parseNumber(row[23]),
+          dienstag: parseNumber(row[24]),
+          mittwoch: parseNumber(row[25]),
+          donnerstag: parseNumber(row[26]),
+          freitag: parseNumber(row[27]),
+          samstag: parseNumber(row[28]),
+          sonntag: parseNumber(row[29]),
+          woche: parseNumber(row[30]),
+          monat: parseNumber(row[31]),
+          zeitkontoPlusLimit: parseNumber(row[32]),
+          zeitkontoMinusLimit: parseNumber(row[33]),
+        };
+        if (Object.values(arbeitszeit).every((value) => value == null)) arbeitszeit = null;
       } else {
         personalnr = parseStr(row[0]);
         if (!personalnr) continue;
@@ -1219,6 +1240,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       if (telefon) setFields.telefon = telefon;
       if (adresse) setFields.adresse = adresse;
       if (adresse2) setFields.adresse2 = adresse2;
+      if (arbeitszeit) setFields.arbeitszeit = arbeitszeit;
       // Persstatus 1 = Bewerber (noch kein vollständiger MA), 2 = Mitarbeiter
       if (persstatus != null) setFields.isBewerberstatus = persstatus === 1;
 

@@ -58,6 +58,20 @@ const MitarbeiterSchema = new mongoose.Schema({
     geburtsort: { type: String, required: false, trim: true },
     eintrittsdatum: { type: Date, required: false },
     austrittsdatum: { type: Date, required: false },
+    // Contractual working-time targets and time-account limits imported from Zvoove.
+    arbeitszeit: {
+        montag: { type: Number, default: null },
+        dienstag: { type: Number, default: null },
+        mittwoch: { type: Number, default: null },
+        donnerstag: { type: Number, default: null },
+        freitag: { type: Number, default: null },
+        samstag: { type: Number, default: null },
+        sonntag: { type: Number, default: null },
+        woche: { type: Number, default: null },
+        monat: { type: Number, default: null },
+        zeitkontoPlusLimit: { type: Number, default: null },
+        zeitkontoMinusLimit: { type: Number, default: null },
+    },
     persgruppe: {
         type: Number,
         required: false,
