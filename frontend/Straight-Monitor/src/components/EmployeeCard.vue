@@ -1441,6 +1441,22 @@
           <span class="steckbrief-label">Austritt</span>
           <span class="steckbrief-value">{{ formatDate(resolvedMa.austrittsdatum) }}</span>
         </div>
+        <section v-if="hasArbeitszeit" class="arbeitszeit-section">
+          <h4 class="arbeitszeit-title">
+            <font-awesome-icon icon="fa-solid fa-clock" />
+            Arbeitszeit
+          </h4>
+          <dl class="arbeitszeit-grid">
+            <div v-for="day in arbeitszeitTage" :key="day.key">
+              <dt>{{ day.label }}</dt>
+              <dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.[day.key]) }}</dd>
+            </div>
+            <div><dt>Woche</dt><dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.woche) }}</dd></div>
+            <div><dt>Monat</dt><dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.monat) }}</dd></div>
+            <div><dt>Zeitkonto +</dt><dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.zeitkontoPlusLimit) }}</dd></div>
+            <div><dt>Zeitkonto -</dt><dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.zeitkontoMinusLimit) }}</dd></div>
+          </dl>
+        </section>
         <div v-if="addressLines(resolvedMa.adresse).length" class="steckbrief-row steckbrief-row--block">
           <span class="steckbrief-label">Adresse</span>
           <span class="steckbrief-value steckbrief-value--lines">
@@ -1951,6 +1967,17 @@ export default {
       const map = { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' };
       return this.resolvedMa?.persgruppe ? map[this.resolvedMa.persgruppe] ?? null : null;
     },
+    arbeitszeitTage() {
+      return [
+        { key: 'montag', label: 'Mo' }, { key: 'dienstag', label: 'Di' },
+        { key: 'mittwoch', label: 'Mi' }, { key: 'donnerstag', label: 'Do' },
+        { key: 'freitag', label: 'Fr' }, { key: 'samstag', label: 'Sa' },
+        { key: 'sonntag', label: 'So' },
+      ];
+    },
+    hasArbeitszeit() {
+      return Object.values(this.resolvedMa?.arbeitszeit || {}).some((value) => value != null);
+    },
     // Filtere Tasks nach Status (offen vs. erledigt)
     filteredTasksToMe() {
       if (!this.flipTasks.assignedToMe) return [];
@@ -2344,6 +2371,13 @@ export default {
       } catch {
         return '—';
       }
+    },
+    formatArbeitszeit(value) {
+      if (value == null || value === '') return '—';
+      const number = Number(value);
+      return Number.isFinite(number)
+        ? `${number.toLocaleString('de-DE', { maximumFractionDigits: 2 })} Std.`
+        : '—';
     },
     // Builds display lines for an address object: street, then "PLZ Ort", then country.
     addressLines(adr) {
@@ -6918,6 +6952,48 @@ export default {
   }
 }
 
+.arbeitszeit-section {
+  grid-column: 1 / -1;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.arbeitszeit-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.arbeitszeit-title svg { color: var(--primary); }
+
+.arbeitszeit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.arbeitszeit-grid > div { min-width: 0; }
+
+.arbeitszeit-grid dt {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.arbeitszeit-grid dd {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .employee-tabs-shell .skills-section {
   grid-column: 1 / -1;
 }
@@ -7005,6 +7081,10 @@ export default {
     width: min(100%, 320px);
     height: 240px;
     justify-self: center;
+  }
+
+  .arbeitszeit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

@@ -114,13 +114,13 @@
                     <tr><td>A – Prüffeld (7002)</td><td>B – Personalnr</td><td>C – Persstatus (6=Ausgetreten)</td></tr>
                     <tr><td>D – Geburtsdatum (GEBDATUM)</td><td>E – Geburtsname (GEBNAME)</td><td>F – Geburtsort (GEBORT)</td></tr>
                     <tr><td>G – Eintritt (EINTRITT1)</td><td>H – Austrittsdatum (AUSTRITT1)</td><td>I – Berufsschlüssel (kommasep.)</td></tr>
-                    <tr><td>J – Qualischlüssel (kommasep.)</td><td>K – Personengruppe (PERSGR)</td><td>L – Strasse</td></tr>
-                    <tr><td>M – PLZ</td><td>N – Ort</td><td>O – Land</td></tr>
-                    <tr><td>P – Telefon (TEL)</td><td>Q – E-Mail (EMAIL)</td><td>R – Strasse2</td></tr>
-                    <tr><td>S – PLZ2</td><td>T – Ort2</td><td>U – Land2</td></tr>
-                    <tr><td>V – Telefon2 (TEL2)</td><td>W – E-Mail2 (EMAIL2)</td><td></td></tr>
-                    <tr><td>X–AD – Arbeitszeit Mo–So</td><td>AE – Wochenstunden (ARBZEITWCH)</td><td>AF – Monatsstunden (ARBZEITMON)</td></tr>
-                    <tr><td>AG – Zeitkonto Plus-Limit (DZEITKONTOPLUS)</td><td>AH – Zeitkonto Minus-Limit (DZEITKONTOMINUS)</td><td></td></tr>
+                    <tr><td>J – Qualischlüssel (kommasep.)</td><td>K – Personengruppe (PERSGR)</td><td>L–R – Arbeitszeit Mo–So</td></tr>
+                    <tr><td>S – Wochenstunden (ARBZEITWCH)</td><td>T – Monatsstunden (ARBZEITMON)</td><td>U – Zeitkonto Plus-Limit</td></tr>
+                    <tr><td>V – Zeitkonto Minus-Limit</td><td>W – Strasse</td><td>X – PLZ</td></tr>
+                    <tr><td>Y – Ort</td><td>Z – Land</td><td>AA – Telefon (TEL)</td></tr>
+                    <tr><td>AB – E-Mail (EMAIL)</td><td>AC – Strasse2</td><td>AD – PLZ2</td></tr>
+                    <tr><td>AE – Ort2</td><td>AF – Land2</td><td>AG – Telefon2 (TEL2)</td></tr>
+                    <tr><td>AH – E-Mail2 (EMAIL2)</td><td></td><td></td></tr>
                   </tbody></table>
                 </div>
               </details>

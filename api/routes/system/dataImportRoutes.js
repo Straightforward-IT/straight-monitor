@@ -1079,7 +1079,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 });
 
 // --- Personal Import (kombiniert: Personalnr, Persstatus, Stammdaten, Beruf/Quali, Persgruppe, Arbeitszeit, Adresse(n), Email, Telefon) ---
-// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Geburtsname(GEBNAME), F=Geburtsort(GEBORT), G=Eintritt1, H=Austritt1, I=Berufsschlüssel(komma), J=Qualischlüssel(komma), K=Persgruppe, L=Strasse, M=PLZ, N=Ort, O=Land, P=Telefon, Q=Email, R=Strasse2, S=PLZ2, T=Ort2, U=Land2, V=Telefon2, W=Email2, X-AH=Arbeitszeit
+// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Geburtsname(GEBNAME), F=Geburtsort(GEBORT), G=Eintritt1, H=Austritt1, I=Berufsschlüssel(komma), J=Qualischlüssel(komma), K=Persgruppe, L-V=Arbeitszeit, W=Strasse, X=PLZ, Y=Ort, Z=Land, AA=Telefon, AB=Email, AC=Strasse2, AD=PLZ2, AE=Ort2, AF=Land2, AG=Telefon2, AH=Email2
 // Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 router.post('/personal', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
@@ -1144,10 +1144,10 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       // Fixed column indices per format.
       // New 7002 (colOffset=1): A=Prüffeld, B=Personalnr, C=Persstatus, D=Geburtsdatum,
       //   E=Geburtsname, F=Geburtsort, G=Eintritt1, H=Austritt1, I=Berufsschl, J=Qualschl, K=Persgruppe,
-      //   L=Strasse, M=PLZ, N=Ort, O=Land, P=Tel, Q=Email,
-      //   R=Strasse2, S=PLZ2, T=Ort2, U=Land2, V=Tel2, W=Email2,
-      //   X=Arbeitszeit Mo, Y=Di, Z=Mi, AA=Do, AB=Fr, AC=Sa, AD=So, AE=Woche,
-      //   AF=Monat, AG=Zeitkonto-Plus-Limit, AH=Zeitkonto-Minus-Limit
+      //   L=Arbeitszeit Mo, M=Di, N=Mi, O=Do, P=Fr, Q=Sa, R=So, S=Woche,
+      //   T=Monat, U=Zeitkonto-Plus-Limit, V=Zeitkonto-Minus-Limit,
+      //   W=Strasse, X=PLZ, Y=Ort, Z=Land, AA=Tel, AB=Email,
+      //   AC=Strasse2, AD=PLZ2, AE=Ort2, AF=Land2, AG=Tel2, AH=Email2
       // Legacy (colOffset=0): A=Personalnr, B=ignoriert, C=Austritt, D=Berufsschl,
       //   E=Qualschl, F=Persgruppe, G=Email, H=Telefon
       let personalnr, persstatus, geburtsdatum, geburtsname, geburtsort, eintrittsdatum, austrittsdatum;
@@ -1166,45 +1166,45 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         berufKeys = parseKeys(row[8]);
         qualiKeys = parseKeys(row[9]);
         persgruppRaw = row[10] != null ? parseInt(row[10], 10) : null;
-        // Adresse 1 (Hauptadresse) — Tel/Email fließen in die Primärfelder
-        const strasse = parseStr(row[11]);
-        const plz = parseStr(row[12]);
-        const ort = parseStr(row[13]);
-        const land = parseStr(row[14]);
-        telefon = parseStr(row[15]);
-        email = parseStr(row[16]) ? String(row[16]).trim().toLowerCase() : null;
-        if (strasse || plz || ort || land) {
-          adresse = { strasse, plz, ort, land };
-        }
-        // Adresse 2 (Zweitadresse) inkl. eigener Tel/Email
-        const strasse2 = parseStr(row[17]);
-        const plz2 = parseStr(row[18]);
-        const ort2 = parseStr(row[19]);
-        const land2 = parseStr(row[20]);
-        const tel2 = parseStr(row[21]);
-        const email2 = parseStr(row[22]) ? String(row[22]).trim().toLowerCase() : null;
-        if (strasse2 || plz2 || ort2 || land2 || tel2 || email2) {
-          adresse2 = { strasse: strasse2, plz: plz2, ort: ort2, land: land2, telefon: tel2, email: email2 };
-        }
         const parseNumber = (value) => {
           if (value == null || String(value).trim() === '') return null;
           const parsed = Number(String(value).trim().replace(',', '.'));
           return Number.isFinite(parsed) ? parsed : null;
         };
         arbeitszeit = {
-          montag: parseNumber(row[23]),
-          dienstag: parseNumber(row[24]),
-          mittwoch: parseNumber(row[25]),
-          donnerstag: parseNumber(row[26]),
-          freitag: parseNumber(row[27]),
-          samstag: parseNumber(row[28]),
-          sonntag: parseNumber(row[29]),
-          woche: parseNumber(row[30]),
-          monat: parseNumber(row[31]),
-          zeitkontoPlusLimit: parseNumber(row[32]),
-          zeitkontoMinusLimit: parseNumber(row[33]),
+          montag: parseNumber(row[11]),
+          dienstag: parseNumber(row[12]),
+          mittwoch: parseNumber(row[13]),
+          donnerstag: parseNumber(row[14]),
+          freitag: parseNumber(row[15]),
+          samstag: parseNumber(row[16]),
+          sonntag: parseNumber(row[17]),
+          woche: parseNumber(row[18]),
+          monat: parseNumber(row[19]),
+          zeitkontoPlusLimit: parseNumber(row[20]),
+          zeitkontoMinusLimit: parseNumber(row[21]),
         };
         if (Object.values(arbeitszeit).every((value) => value == null)) arbeitszeit = null;
+        // Adresse 1 (Hauptadresse) — Tel/Email fließen in die Primärfelder
+        const strasse = parseStr(row[22]);
+        const plz = parseStr(row[23]);
+        const ort = parseStr(row[24]);
+        const land = parseStr(row[25]);
+        telefon = parseStr(row[26]);
+        email = parseStr(row[27]) ? String(row[27]).trim().toLowerCase() : null;
+        if (strasse || plz || ort || land) {
+          adresse = { strasse, plz, ort, land };
+        }
+        // Adresse 2 (Zweitadresse) inkl. eigener Tel/Email
+        const strasse2 = parseStr(row[28]);
+        const plz2 = parseStr(row[29]);
+        const ort2 = parseStr(row[30]);
+        const land2 = parseStr(row[31]);
+        const tel2 = parseStr(row[32]);
+        const email2 = parseStr(row[33]) ? String(row[33]).trim().toLowerCase() : null;
+        if (strasse2 || plz2 || ort2 || land2 || tel2 || email2) {
+          adresse2 = { strasse: strasse2, plz: plz2, ort: ort2, land: land2, telefon: tel2, email: email2 };
+        }
       } else {
         personalnr = parseStr(row[0]);
         if (!personalnr) continue;
