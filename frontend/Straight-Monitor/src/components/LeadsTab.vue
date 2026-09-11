@@ -177,16 +177,15 @@
           <button class="close-btn" :disabled="savingDetail" @click.stop="openSidebarActionMenu" title="Aktionen">
             <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
           </button>
-          <ActionMenu
-            :open="sidebarActionMenu.open"
+          <ContextMenu
+            v-if="sidebarActionMenu.open"
             :x="sidebarActionMenu.x"
             :y="sidebarActionMenu.y"
             title="Lead"
             :width="200"
-            :items="sidebarActionMenuOptions"
-            :group-by="false"
+            :options="sidebarActionMenuOptions"
             @close="sidebarActionMenu.open = false"
-            @item-click="handleSidebarAction"
+            @select="handleSidebarAction"
           />
         </template>
 
@@ -1546,7 +1545,7 @@ import LeadBoard from './leads/LeadBoard.vue';
 import LeadCard from './leads/LeadCard.vue';
 import LeadChronikDrawer from './leads/LeadChronikDrawer.vue';
 import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
-import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
+import ContextMenu from '@/components/ContextMenu.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
@@ -2367,8 +2366,7 @@ function openSidebarActionMenu(event) {
   sidebarActionMenu.open = true;
 }
 
-function handleSidebarAction({ item }) {
-  const action = item?.action;
+function handleSidebarAction(action) {
   if (action === 'open-modal') leadPanelPresentation.value = 'modal';
   if (action === 'open-panel') leadPanelPresentation.value = 'panel';
   if (action === 'archive') archiveLead();

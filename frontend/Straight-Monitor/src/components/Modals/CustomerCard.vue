@@ -975,35 +975,32 @@
       @close="closeEinsatzortForm"
       @saved="onEinsatzortSaved"
     />
-    <ActionMenu
-      :open="Boolean(adresseMenuAdresse)"
+    <ContextMenu
+      v-if="adresseMenuAdresse"
       :x="adresseMenuPosition.x"
       :y="adresseMenuPosition.y"
-      :items="adresseMenuItems"
+      :options="adresseMenuItems"
       :width="240"
-      group-by="false"
       @close="closeAdresseMenu"
-      @item-click="handleAdresseMenuAction"
+      @select="handleAdresseMenuAction"
     />
-    <ActionMenu
-      :open="Boolean(einsatzortMenuEinsatzort)"
+    <ContextMenu
+      v-if="einsatzortMenuEinsatzort"
       :x="einsatzortMenuPosition.x"
       :y="einsatzortMenuPosition.y"
-      :items="einsatzortMenuItems"
+      :options="einsatzortMenuItems"
       :width="220"
-      group-by="false"
       @close="closeEinsatzortMenu"
-      @item-click="handleEinsatzortMenuAction"
+      @select="handleEinsatzortMenuAction"
     />
-    <ActionMenu
-      :open="Boolean(contactMenuContact)"
+    <ContextMenu
+      v-if="contactMenuContact"
       :x="contactMenuPosition.x"
       :y="contactMenuPosition.y"
-      :items="contactMenuItems"
+      :options="contactMenuItems"
       :width="220"
-      group-by="false"
       @close="closeContactMenu"
-      @item-click="handleContactMenuAction"
+      @select="handleContactMenuAction"
     />
     </article>
   </ModalFrame>
@@ -1016,7 +1013,7 @@ import { useCurrentDockedModal } from '@bleck-it/vue-modal-dock';
 import { useAuth } from '@/stores/auth';
 import { useTheme } from '@/stores/theme';
 import { useDataCache } from '@/stores/dataCache';
-import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
+import ContextMenu from '@/components/ContextMenu.vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import KundenAnalyticsEmbed from '@/components/KundenAnalyticsEmbed.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
@@ -1084,20 +1081,20 @@ const showAdresseFormModal = ref(false);
 const adresseFormAdresse = ref(null);
 const adresseMenuItems = computed(() => {
   const adresse = adresseMenuAdresse.value;
-  const items = [{ value: 'edit', label: 'Bearbeiten', icon: ['fas', 'pen'] }];
+  const items = [{ action: 'edit', label: 'Bearbeiten', icon: ['fas', 'pen'] }];
   if (adresse && adresse.art !== 'A') {
     items.push({
-      value: 'billing',
+      action: 'billing',
       label: adresse.isRechnAdr ? 'Rechnungsanschrift entfernen' : 'Als Rechnungsanschrift festlegen',
       icon: ['fas', 'file-invoice'],
     });
     items.push({
-      value: 'postal',
+      action: 'postal',
       label: adresse.isPostAdr ? 'Postanschrift entfernen' : 'Als Postanschrift festlegen',
       icon: ['fas', 'envelope'],
     });
   }
-  items.push({ value: 'deactivate', label: 'Ausblenden', icon: ['fas', 'trash'], variant: 'danger' });
+  items.push({ action: 'deactivate', label: 'Ausblenden', icon: ['fas', 'trash'], variant: 'danger' });
   return items;
 });
 const kundenAdressen = computed(() => adressen.value
@@ -1267,9 +1264,9 @@ const sortedEinsatzorte = computed(() => [...visibleEinsatzorte.value].sort((fir
 const einsatzortMenuItems = computed(() => {
   const einsatzort = einsatzortMenuEinsatzort.value;
   return [
-    { value: 'edit', label: 'Bearbeiten', icon: ['fas', 'pen'] },
-    { value: 'status', label: einsatzort?.isActive !== false ? 'Deaktivieren' : 'Aktivieren', icon: ['fas', einsatzort?.isActive !== false ? 'eye-slash' : 'eye'] },
-    { value: 'delete', label: 'Löschen', icon: ['fas', 'trash'], variant: 'danger' },
+    { action: 'edit', label: 'Bearbeiten', icon: ['fas', 'pen'] },
+    { action: 'status', label: einsatzort?.isActive !== false ? 'Deaktivieren' : 'Aktivieren', icon: ['fas', einsatzort?.isActive !== false ? 'eye-slash' : 'eye'] },
+    { action: 'delete', label: 'Löschen', icon: ['fas', 'trash'], variant: 'danger' },
   ];
 });
 
@@ -1338,16 +1335,16 @@ function onEinsatzortSaved(einsatzort) {
   closeEinsatzortForm();
 }
 
-async function handleEinsatzortMenuAction({ item }) {
+async function handleEinsatzortMenuAction(action) {
   const einsatzort = einsatzortMenuEinsatzort.value;
   closeEinsatzortMenu();
   if (!einsatzort) return;
-  if (item.value === 'edit') {
+  if (action === 'edit') {
     einsatzortFormEinsatzort.value = { ...einsatzort };
     showEinsatzortFormModal.value = true;
     return;
   }
-  if (item.value === 'status') {
+  if (action === 'status') {
     try {
       const { data } = await api.patch(`/api/kunden/${props.kunde.kundenNr}/einsatzorte/${einsatzort._id}/status`, { isActive: einsatzort.isActive === false });
       const index = einsatzorte.value.findIndex((entry) => entry._id === einsatzort._id);
@@ -1357,7 +1354,7 @@ async function handleEinsatzortMenuAction({ item }) {
     }
     return;
   }
-  if (item.value === 'delete' && confirm(`„${einsatzort.bezeichnung}“ wirklich löschen?`)) {
+  if (action === 'delete' && confirm(`„${einsatzort.bezeichnung}“ wirklich löschen?`)) {
     try {
       await api.delete(`/api/kunden/${props.kunde.kundenNr}/einsatzorte/${einsatzort._id}`);
       einsatzorte.value = einsatzorte.value.filter((entry) => entry._id !== einsatzort._id);
@@ -1377,13 +1374,13 @@ function closeAdresseMenu() {
   adresseMenuAdresse.value = null;
 }
 
-function handleAdresseMenuAction({ item }) {
+function handleAdresseMenuAction(action) {
   const adresse = adresseMenuAdresse.value;
   closeAdresseMenu();
-  if (item.value === 'edit' && adresse) openEditAdresse(adresse);
-  if (item.value === 'billing' && adresse) toggleRechnungsanschrift(adresse);
-  if (item.value === 'postal' && adresse) togglePostanschrift(adresse);
-  if (item.value === 'deactivate' && adresse) deactivateAdresse(adresse);
+  if (action === 'edit' && adresse) openEditAdresse(adresse);
+  if (action === 'billing' && adresse) toggleRechnungsanschrift(adresse);
+  if (action === 'postal' && adresse) togglePostanschrift(adresse);
+  if (action === 'deactivate' && adresse) deactivateAdresse(adresse);
 }
 
 function openCreateAdresse() {
@@ -1884,15 +1881,15 @@ const contactMenuItems = computed(() => {
   const contact = contactMenuContact.value;
   const isSignatureStandard = contact?.id === signaturKontaktId.value;
   return [
-    { value: 'edit', label: 'Bearbeiten', icon: ['fas', 'pen'] },
+    { action: 'edit', label: 'Bearbeiten', icon: ['fas', 'pen'] },
     {
-      value: 'signature',
+      action: 'signature',
       label: isSignatureStandard ? 'Signatur-Standard entfernen' : 'Als Signatur-Standard setzen',
       icon: ['fas', isSignatureStandard ? 'xmark' : 'file-signature'],
       disabled: signaturKontaktSaving.value,
     },
     {
-      value: 'inactive',
+      action: 'inactive',
       label: isMicrosoftContactInactive(contact) ? 'Wieder anzeigen' : 'Ausblenden',
       icon: ['fas', isMicrosoftContactInactive(contact) ? 'eye' : 'eye-slash'],
       variant: isMicrosoftContactInactive(contact) ? 'primary' : 'danger',
@@ -1914,13 +1911,13 @@ function closeContactMenu() {
   contactMenuContact.value = null;
 }
 
-function handleContactMenuAction({ item }) {
+function handleContactMenuAction(action) {
   const contact = contactMenuContact.value;
   closeContactMenu();
   if (!contact) return;
-  if (item.value === 'edit') openContactCard(contact, true);
-  if (item.value === 'signature') toggleSignaturKontakt(contact);
-  if (item.value === 'inactive') toggleMicrosoftContactInactive(contact);
+  if (action === 'edit') openContactCard(contact, true);
+  if (action === 'signature') toggleSignaturKontakt(contact);
+  if (action === 'inactive') toggleMicrosoftContactInactive(contact);
 }
 
 async function toggleMicrosoftContactInactive(contact) {

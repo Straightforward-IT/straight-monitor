@@ -11,23 +11,22 @@
       {{ label }}
     </button>
 
-    <ActionMenu
-      :open="open"
+    <ContextMenu
+      v-if="open"
       :x="position.x"
       :y="position.y"
       :width="width"
       :title="title"
-      :items="menuItems"
-      :group-by="false"
+      :options="menuItems"
       @close="open = false"
-      @item-click="handleItemClick"
+      @select="handleItemClick"
     />
   </div>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue';
-import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
+import ContextMenu from '@/components/ContextMenu.vue';
 
 const props = defineProps({
   modelValue: { type: String, required: true },
@@ -45,11 +44,12 @@ const position = ref({ x: 0, y: 0 });
 const menuItems = computed(() => [
   ...props.options.map((option) => ({
     ...option,
+    action: option.value,
     active: option.value === props.modelValue,
   })),
   { type: 'divider' },
   {
-    value: 'direction',
+    action: 'direction',
     label: `Richtung: ${props.ascending ? 'Aufsteigend' : 'Absteigend'}`,
   },
 ]);
@@ -65,12 +65,12 @@ function toggleMenu(event) {
   open.value = true;
 }
 
-function handleItemClick({ item }) {
-  if (item.value === 'direction') {
+function handleItemClick(action) {
+  if (action === 'direction') {
     emit('update:ascending', !props.ascending);
     return;
   }
-  emit('update:modelValue', item.value);
+  emit('update:modelValue', action);
 }
 </script>
 

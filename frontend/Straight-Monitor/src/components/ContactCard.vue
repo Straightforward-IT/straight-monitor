@@ -55,15 +55,14 @@
         >
           <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
         </button>
-        <ActionMenu
-          :open="actionMenu.open"
+        <ContextMenu
+          v-if="actionMenu.open"
           :x="actionMenu.x"
           :y="actionMenu.y"
           title="Kontakt"
-          :items="actionMenuItems"
-          :group-by="false"
+          :options="actionMenuItems"
           @close="actionMenu.open = false"
-          @item-click="handleActionMenu"
+          @select="handleActionMenu"
         />
       </div>
     </template>
@@ -204,7 +203,7 @@
 import { ref, computed, reactive, onMounted } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
-import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
+import ContextMenu from '@/components/ContextMenu.vue';
 import { useTheme } from '@/stores/theme';
 import { useDataCache } from '@/stores/dataCache';
 import api from '@/utils/api';
@@ -307,21 +306,21 @@ function toggleEdit() {
 const actionMenuItems = computed(() => {
   if (editing.value) {
     return [
-      { label: 'Speichern', value: 'save', icon: 'fa-solid fa-floppy-disk', variant: 'primary', disabled: saving.value },
-      { label: 'Abbrechen', value: 'cancel-edit', icon: 'fa-solid fa-xmark' },
+      { label: 'Speichern', action: 'save', icon: 'fa-solid fa-floppy-disk', variant: 'primary', disabled: saving.value },
+      { label: 'Abbrechen', action: 'cancel-edit', icon: 'fa-solid fa-xmark' },
     ];
   }
 
   if (showDeleteConfirm.value) {
     return [
-      { label: 'Endgültig löschen', value: 'confirm-delete', icon: 'fa-solid fa-trash', variant: 'danger', disabled: deleting.value },
-      { label: 'Abbrechen', value: 'cancel-delete', icon: 'fa-solid fa-xmark' },
+      { label: 'Endgültig löschen', action: 'confirm-delete', icon: 'fa-solid fa-trash', variant: 'danger', disabled: deleting.value },
+      { label: 'Abbrechen', action: 'cancel-delete', icon: 'fa-solid fa-xmark' },
     ];
   }
 
   return [
-    { label: 'Bearbeiten', value: 'edit', icon: 'fa-solid fa-pen' },
-    { label: 'Löschen', value: 'delete', icon: 'fa-solid fa-trash', variant: 'danger' },
+    { label: 'Bearbeiten', action: 'edit', icon: 'fa-solid fa-pen' },
+    { label: 'Löschen', action: 'delete', icon: 'fa-solid fa-trash', variant: 'danger' },
   ];
 });
 
@@ -329,14 +328,14 @@ function openActionMenu(event) {
   actionMenu.value = { open: true, x: event.clientX, y: event.clientY };
 }
 
-function handleActionMenu({ item }) {
+function handleActionMenu(action) {
   actionMenu.value.open = false;
-  if (item.value === 'edit') startEdit();
-  if (item.value === 'delete') showDeleteConfirm.value = true;
-  if (item.value === 'save') saveEdit();
-  if (item.value === 'cancel-edit') cancelEdit();
-  if (item.value === 'confirm-delete') doDelete();
-  if (item.value === 'cancel-delete') showDeleteConfirm.value = false;
+  if (action === 'edit') startEdit();
+  if (action === 'delete') showDeleteConfirm.value = true;
+  if (action === 'save') saveEdit();
+  if (action === 'cancel-edit') cancelEdit();
+  if (action === 'confirm-delete') doDelete();
+  if (action === 'cancel-delete') showDeleteConfirm.value = false;
 }
 
 function startEdit() {

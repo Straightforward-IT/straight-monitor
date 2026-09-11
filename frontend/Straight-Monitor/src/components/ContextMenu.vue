@@ -10,23 +10,27 @@
       @keydown="onMenuKeydown"
     >
       <div v-if="title" class="context-menu__title">{{ title }}</div>
-      <div
-        v-if="options.length"
-        v-for="(option, idx) in options"
-        :key="idx"
-        class="context-menu-item"
-        role="menuitem"
-        :tabindex="option.disabled ? -1 : 0"
-        :aria-disabled="Boolean(option.disabled)"
-        :class="{ 'context-menu-item--special': option.special, 'context-menu-item--disabled': option.disabled }"
-        @click="!option.disabled && selectOption(option)"
-        @keydown.enter.prevent="!option.disabled && selectOption(option)"
-        @keydown.space.prevent="!option.disabled && selectOption(option)"
-      >
-        <img v-if="option.image" :src="option.image" class="context-menu-item__image" alt="" />
-        <FontAwesomeIcon v-if="option.icon" :icon="option.icon" class="context-menu-item__icon" />
-        <span>{{ option.label }}</span>
-      </div>
+      <template v-for="(option, idx) in options" :key="idx">
+        <div v-if="option.type === 'divider'" class="context-menu__divider" />
+        <div
+          v-else
+          class="context-menu-item"
+          role="menuitem"
+          :tabindex="option.disabled ? -1 : 0"
+          :aria-disabled="Boolean(option.disabled)"
+          :class="[
+            option.variant && `context-menu-item--${option.variant}`,
+            { 'context-menu-item--special': option.special, 'context-menu-item--disabled': option.disabled }
+          ]"
+          @click="!option.disabled && selectOption(option)"
+          @keydown.enter.prevent="!option.disabled && selectOption(option)"
+          @keydown.space.prevent="!option.disabled && selectOption(option)"
+        >
+          <img v-if="option.image" :src="option.image" class="context-menu-item__image" alt="" />
+          <FontAwesomeIcon v-if="option.icon" :icon="option.icon" class="context-menu-item__icon" />
+          <span>{{ option.label }}</span>
+        </div>
+      </template>
       <slot />
     </div>
   </div>
@@ -45,7 +49,16 @@ const props = withDefaults(defineProps<{
   width?: number;
   offset?: number;
   focusOnOpen?: boolean;
-  options?: Array<{ label: string; action: string; image?: string; icon?: string; special?: boolean; disabled?: boolean }>;
+  options?: Array<{
+    label?: string;
+    action?: string;
+    type?: 'divider';
+    image?: string;
+    icon?: string | string[];
+    special?: boolean;
+    disabled?: boolean;
+    variant?: 'primary' | 'danger' | 'muted';
+  }>;
 }>(), {
   anchor: null,
   followAnchor: false,
@@ -149,6 +162,12 @@ function selectOption(option: any) {
     text-transform: uppercase;
   }
 
+  .context-menu__divider {
+    height: 1px;
+    margin: 2px 0;
+    background: color-mix(in srgb, var(--border) 72%, transparent);
+  }
+
   .context-menu-item {
     position: relative;
     display: flex;
@@ -219,6 +238,14 @@ function selectOption(option: any) {
       background: transparent;
       color: var(--muted);
     }
+  }
+
+  .context-menu-item--primary {
+    color: var(--primary);
+  }
+
+  .context-menu-item--danger {
+    color: #dc3545;
   }
 }
 </style>
