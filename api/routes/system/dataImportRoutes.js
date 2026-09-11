@@ -1078,7 +1078,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
   }
 });
 
-// --- Personal Import (kombiniert: Personalnr, Persstatus, Stammdaten, Beruf/Quali, Persgruppe, Arbeitszeit, Adresse(n), Email, Telefon) ---
+// --- Personal Import (kombiniert: Personalnr, Persstatus, Stammdaten, Beruf/Quali, Persgruppe, Arbeitsverhältnis, Arbeitszeit, Adresse(n), Email, Telefon) ---
 // Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Geburtsname(GEBNAME), F=Geburtsort(GEBORT), G=Eintritt1, H=Austritt1, I=Berufsschlüssel(komma), J=Qualischlüssel(komma), K=Persgruppe, L=Arbeitszeit-von, M=Arbeitszeit-bis, N-X=Arbeitszeit, Y=Strasse, Z=PLZ, AA=Ort, AB=Land, AC=Telefon, AD=Email, AE=Strasse2, AF=PLZ2, AG=Ort2, AH=Land2, AI=Telefon2, AJ=Email2
 // Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 router.post('/personal', auth, extendTimeout, upload.single('file'), async (req, res) => {
@@ -1104,9 +1104,10 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
     // Skip header row if first cell looks like text
     const startRow = (rawData.length > 0 && isNaN(rawData[0][0])) ? 1 : 0;
 
-    // Prüffeld-Validierung: Spalte A muss 7002 enthalten (falls vorhanden)
+    // Prüffeld-Validierung: Spalte A enthält 7002.
     // If present, all data columns are shifted one to the right
     let colOffset = 0;
+    let isExtendedFormat = false;
     if (rawData.length > startRow) {
       const firstVal = parseInt(rawData[startRow][0], 10);
       if (firstVal === 7001) {
@@ -1114,6 +1115,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       }
       if (firstVal === 7002) {
         colOffset = 1;
+        isExtendedFormat = true;
       }
     }
 
@@ -1152,58 +1154,78 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       //   E=Qualschl, F=Persgruppe, G=Email, H=Telefon
       let personalnr, persstatus, geburtsdatum, geburtsname, geburtsort, eintrittsdatum, austrittsdatum;
       let berufKeys, qualiKeys, persgruppRaw, email, telefon;
-      let adresse = null, adresse2 = null, arbeitszeit = null;
+      let adresse = null, adresse2 = null, arbeitszeit = null, arbeitsverhaeltnis = null;
 
       if (hasNewFormat) {
         personalnr = parseStr(row[1]);
         if (!personalnr) continue;
         persstatus = row[2] != null ? parseInt(row[2], 10) : null;
         geburtsdatum = parseDate(row[3]);
-        geburtsname = parseStr(row[4]);
-        geburtsort = parseStr(row[5]);
-        eintrittsdatum = parseDate(row[6]);
-        austrittsdatum = parseDate(row[7]);
-        berufKeys = parseKeys(row[8]);
-        qualiKeys = parseKeys(row[9]);
-        persgruppRaw = row[10] != null ? parseInt(row[10], 10) : null;
+        const dataStart = isExtendedFormat ? 6 : 4;
+        geburtsname = parseStr(row[dataStart]);
+        geburtsort = parseStr(row[dataStart + 1]);
+        eintrittsdatum = parseDate(row[dataStart + 2]);
+        austrittsdatum = parseDate(row[dataStart + 3]);
+        berufKeys = parseKeys(row[dataStart + 4]);
+        qualiKeys = parseKeys(row[dataStart + 5]);
+        persgruppRaw = row[dataStart + 6] != null ? parseInt(row[dataStart + 6], 10) : null;
         const parseNumber = (value) => {
           if (value == null || String(value).trim() === '') return null;
           const parsed = Number(String(value).trim().replace(',', '.'));
           return Number.isFinite(parsed) ? parsed : null;
         };
+        const parseBoolean = (value) => {
+          if (value == null || String(value).trim() === '') return null;
+          if (typeof value === 'boolean') return value;
+          const normalized = String(value).trim().toLowerCase();
+          if (['1', 'true', 'ja', 'yes'].includes(normalized)) return true;
+          if (['0', 'false', 'nein', 'no'].includes(normalized)) return false;
+          return null;
+        };
+        const workingTimeStart = isExtendedFormat ? 16 : 11;
+        if (isExtendedFormat) {
+          const typ = parseNumber(row[14]);
+          arbeitsverhaeltnis = {
+            von: parseDate(row[13]),
+            typ: [0, 1, 2, 3].includes(typ) ? typ : null,
+            durchschnittBeiFortfuehren: parseBoolean(row[15]),
+          };
+          if (Object.values(arbeitsverhaeltnis).every((value) => value == null)) arbeitsverhaeltnis = null;
+        }
         arbeitszeit = {
-          von: parseDate(row[11]),
-          bis: parseDate(row[12]),
-          montag: parseNumber(row[13]),
-          dienstag: parseNumber(row[14]),
-          mittwoch: parseNumber(row[15]),
-          donnerstag: parseNumber(row[16]),
-          freitag: parseNumber(row[17]),
-          samstag: parseNumber(row[18]),
-          sonntag: parseNumber(row[19]),
-          woche: parseNumber(row[20]),
-          monat: parseNumber(row[21]),
-          zeitkontoPlusLimit: parseNumber(row[22]),
-          zeitkontoMinusLimit: parseNumber(row[23]),
+          von: parseDate(row[workingTimeStart]),
+          bis: parseDate(row[workingTimeStart + 1]),
+          montag: parseNumber(row[workingTimeStart + 2]),
+          dienstag: parseNumber(row[workingTimeStart + 3]),
+          mittwoch: parseNumber(row[workingTimeStart + 4]),
+          donnerstag: parseNumber(row[workingTimeStart + 5]),
+          freitag: parseNumber(row[workingTimeStart + 6]),
+          samstag: parseNumber(row[workingTimeStart + 7]),
+          sonntag: parseNumber(row[workingTimeStart + 8]),
+          woche: parseNumber(row[workingTimeStart + 9]),
+          monat: parseNumber(row[workingTimeStart + 10]),
+          zeitkontoPlusLimit: parseNumber(row[workingTimeStart + 11]),
+          zeitkontoMinusLimit: parseNumber(row[workingTimeStart + 12]),
         };
         if (Object.values(arbeitszeit).every((value) => value == null)) arbeitszeit = null;
         // Adresse 1 (Hauptadresse) — Tel/Email fließen in die Primärfelder
-        const strasse = parseStr(row[24]);
-        const plz = parseStr(row[25]);
-        const ort = parseStr(row[26]);
-        const land = parseStr(row[27]);
-        telefon = parseStr(row[28]);
-        email = parseStr(row[29]) ? String(row[29]).trim().toLowerCase() : null;
+        const addressStart = workingTimeStart + 13;
+        const strasse = parseStr(row[addressStart]);
+        const plz = parseStr(row[addressStart + 1]);
+        const ort = parseStr(row[addressStart + 2]);
+        const land = parseStr(row[addressStart + 3]);
+        telefon = parseStr(row[addressStart + 4]);
+        email = parseStr(row[addressStart + 5]) ? String(row[addressStart + 5]).trim().toLowerCase() : null;
         if (strasse || plz || ort || land) {
           adresse = { strasse, plz, ort, land };
         }
         // Adresse 2 (Zweitadresse) inkl. eigener Tel/Email
-        const strasse2 = parseStr(row[30]);
-        const plz2 = parseStr(row[31]);
-        const ort2 = parseStr(row[32]);
-        const land2 = parseStr(row[33]);
-        const tel2 = parseStr(row[34]);
-        const email2 = parseStr(row[35]) ? String(row[35]).trim().toLowerCase() : null;
+        const strasse2 = parseStr(row[addressStart + 6]);
+        const plz2 = parseStr(row[addressStart + 7]);
+        const ort2 = parseStr(row[addressStart + 8]);
+        const land2 = parseStr(row[addressStart + 9]);
+        const tel2 = parseStr(row[addressStart + 10]);
+        const email2 = parseStr(row[addressStart + 11]) ? String(row[addressStart + 11]).trim().toLowerCase() : null;
         if (strasse2 || plz2 || ort2 || land2 || tel2 || email2) {
           adresse2 = { strasse: strasse2, plz: plz2, ort: ort2, land: land2, telefon: tel2, email: email2 };
         }
@@ -1246,6 +1268,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         setFields.adresse = adresse;
         setFields.adresse2 = adresse2;
       }
+      if (arbeitsverhaeltnis) setFields.arbeitsverhaeltnis = arbeitsverhaeltnis;
       if (arbeitszeit) setFields.arbeitszeit = arbeitszeit;
       // Persstatus 1 = Bewerber (noch kein vollständiger MA), 2 = Mitarbeiter
       if (persstatus != null) setFields.isBewerberstatus = persstatus === 1;

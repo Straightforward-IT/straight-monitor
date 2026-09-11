@@ -948,7 +948,7 @@ export default {
               return;
             }
             const prueffeld = parseInt(rows[startRow][0], 10);
-            if (prueffeld !== expectedCode) {
+            if (!(Array.isArray(expectedCode) ? expectedCode : [expectedCode]).includes(prueffeld)) {
               const labels = { 7001: 'Einsatz-Komplett (Liste 7001)', 7002: 'Personal (Liste 7002)', 7003: 'Verfügbarkeiten (Liste 7003)', 7034: 'Adressen (Liste 7034)', 6001: 'Rechnungen (Liste 6001)', 3201: 'Personalnr-Historien (Liste 3201)', 3202: 'Einsatzorte / Kundenpreise', 3203: 'Kunden' };
               alert(`⚠️ Prüffeld-Fehler: Spalte A enthält "${rows[startRow][0] ?? '(leer)'}" – erwartet wird ${expectedCode} (${labels[expectedCode]}).`);
               resolve(false);

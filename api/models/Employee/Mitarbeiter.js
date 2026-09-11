@@ -58,6 +58,11 @@ const MitarbeiterSchema = new mongoose.Schema({
     geburtsort: { type: String, required: false, trim: true },
     eintrittsdatum: { type: Date, required: false },
     austrittsdatum: { type: Date, required: false },
+    arbeitsverhaeltnis: {
+        von: { type: Date, default: null },
+        typ: { type: Number, enum: [0, 1, 2, 3], default: null },
+        durchschnittBeiFortfuehren: { type: Boolean, default: null },
+    },
     // Contractual working-time targets and time-account limits imported from Zvoove.
     arbeitszeit: {
         von: { type: Date, default: null },
