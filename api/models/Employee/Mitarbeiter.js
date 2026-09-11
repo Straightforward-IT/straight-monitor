@@ -60,6 +60,8 @@ const MitarbeiterSchema = new mongoose.Schema({
     austrittsdatum: { type: Date, required: false },
     // Contractual working-time targets and time-account limits imported from Zvoove.
     arbeitszeit: {
+        von: { type: Date, default: null },
+        bis: { type: Date, default: null },
         montag: { type: Number, default: null },
         dienstag: { type: Number, default: null },
         mittwoch: { type: Number, default: null },

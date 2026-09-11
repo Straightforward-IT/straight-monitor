@@ -114,13 +114,13 @@
                     <tr><td>A – Prüffeld (7002)</td><td>B – Personalnr</td><td>C – Persstatus (6=Ausgetreten)</td></tr>
                     <tr><td>D – Geburtsdatum (GEBDATUM)</td><td>E – Geburtsname (GEBNAME)</td><td>F – Geburtsort (GEBORT)</td></tr>
                     <tr><td>G – Eintritt (EINTRITT1)</td><td>H – Austrittsdatum (AUSTRITT1)</td><td>I – Berufsschlüssel (kommasep.)</td></tr>
-                    <tr><td>J – Qualischlüssel (kommasep.)</td><td>K – Personengruppe (PERSGR)</td><td>L–R – Arbeitszeit Mo–So</td></tr>
-                    <tr><td>S – Wochenstunden (ARBZEITWCH)</td><td>T – Monatsstunden (ARBZEITMON)</td><td>U – Zeitkonto Plus-Limit</td></tr>
-                    <tr><td>V – Zeitkonto Minus-Limit</td><td>W – Strasse</td><td>X – PLZ</td></tr>
-                    <tr><td>Y – Ort</td><td>Z – Land</td><td>AA – Telefon (TEL)</td></tr>
-                    <tr><td>AB – E-Mail (EMAIL)</td><td>AC – Strasse2</td><td>AD – PLZ2</td></tr>
-                    <tr><td>AE – Ort2</td><td>AF – Land2</td><td>AG – Telefon2 (TEL2)</td></tr>
-                    <tr><td>AH – E-Mail2 (EMAIL2)</td><td></td><td></td></tr>
+                    <tr><td>J – Qualischlüssel (kommasep.)</td><td>K – Personengruppe (PERSGR)</td><td>L – Arbeitszeit gültig von</td></tr>
+                    <tr><td>M – Arbeitszeit gültig bis</td><td>N–T – Arbeitszeit Mo–So</td><td>U – Wochenstunden (ARBZEITWCH)</td></tr>
+                    <tr><td>V – Monatsstunden (ARBZEITMON)</td><td>W – Zeitkonto Plus-Limit</td><td>X – Zeitkonto Minus-Limit</td></tr>
+                    <tr><td>Y – Strasse</td><td>Z – PLZ</td><td>AA – Ort</td></tr>
+                    <tr><td>AB – Land</td><td>AC – Telefon (TEL)</td><td>AD – E-Mail (EMAIL)</td></tr>
+                    <tr><td>AE – Strasse2</td><td>AF – PLZ2</td><td>AG – Ort2</td></tr>
+                    <tr><td>AH – Land2</td><td>AI – Telefon2 (TEL2)</td><td>AJ – E-Mail2 (EMAIL2)</td></tr>
                   </tbody></table>
                 </div>
               </details>
