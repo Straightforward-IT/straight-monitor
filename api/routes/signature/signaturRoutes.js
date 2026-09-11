@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
+const { PDFDocument } = require('pdf-lib');
 const auth = require('../../middleware/auth');
 const asyncHandler = require('../../middleware/AsyncHandler');
 const logger = require('../../utils/logger');
@@ -97,6 +98,38 @@ async function requireSignaturAccess(req, res) {
   return user;
 }
 
+async function buildCompletedPdfAttachments(vorgang, pdfBuffer) {
+  const pdfName = vorgang.fileName || `${vorgang.name || 'Signatur'}.pdf`;
+  if (vorgang.typKey !== 'stundenliste' || !vorgang.stundenlisteDoppelausfertigung) {
+    return [{ name: pdfName, contentType: 'application/pdf', content: pdfBuffer.toString('base64') }];
+  }
+
+  const source = await PDFDocument.load(pdfBuffer);
+  const pageCount = source.getPageCount();
+  if (pageCount < 2 || pageCount % 2 !== 0) {
+    throw new Error(`Doppelausfertigung hat keine gerade Seitenanzahl (${pageCount}).`);
+  }
+
+  const copyPageCount = pageCount / 2;
+  const baseName = pdfName.replace(/\.pdf$/i, '');
+  const attachments = [];
+  for (let copyIndex = 0; copyIndex < 2; copyIndex += 1) {
+    const output = await PDFDocument.create();
+    const pageIndices = Array.from(
+      { length: copyPageCount },
+      (_, index) => copyIndex * copyPageCount + index
+    );
+    const pages = await output.copyPages(source, pageIndices);
+    pages.forEach((page) => output.addPage(page));
+    attachments.push({
+      name: `${baseName}-${copyIndex === 0 ? 'Signiert' : 'Unsigniert'}.pdf`,
+      contentType: 'application/pdf',
+      content: Buffer.from(await output.save()).toString('base64'),
+    });
+  }
+  return attachments;
+}
+
 /**
  * Execute post-completion actions stored on a SignaturVorgang.
  * Called fire-and-forget from the submission.completed webhook handler.
@@ -124,21 +157,17 @@ async function executeFolgeaktionen(vorgang) {
   if (recipients.length > 0 && vorgang.r2KeySigned) {
     try {
       const pdfBuffer = await R2Service.downloadFile(vorgang.r2KeySigned);
-      const base64Pdf = pdfBuffer.toString('base64');
-      const pdfName   = vorgang.fileName || `${vorgang.name || 'Signatur'}.pdf`;
-      const attachment = {
-        name: pdfName,
-        contentType: 'application/pdf',
-        content: base64Pdf,
-      };
+      const attachments = await buildCompletedPdfAttachments(vorgang, pdfBuffer);
       const subject = `Unterzeichnetes Dokument: ${vorgang.name || 'Signatur'}`;
-      const body    = `<p>Das Dokument <strong>${vorgang.name || 'Signatur'}</strong> wurde vollständig unterzeichnet und ist als Anhang beigefügt.</p>`;
+      const body = vorgang.stundenlisteDoppelausfertigung
+        ? `<p>Die Stundenliste <strong>${vorgang.name || 'Signatur'}</strong> wurde vollständig unterzeichnet. Beide Ausfertigungen sind separat angehängt.</p>`
+        : `<p>Das Dokument <strong>${vorgang.name || 'Signatur'}</strong> wurde vollständig unterzeichnet und ist als Anhang beigefügt.</p>`;
       await sendMail(
         recipients.map(r => r.email),
         subject,
         body,
         'it',
-        [attachment],
+        attachments,
       );
       logger.info(`SignaturVorgang ${vorgang._id}: Signed PDF sent to ${recipients.map(r => r.email).join(', ')}`);
     } catch (err) {
@@ -610,6 +639,7 @@ router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res
     status: 'draft',
     auftragNr,
     stundenlisteExcludePseudo: excludePseudo,
+    stundenlisteDoppelausfertigung: signatureDoubleCopy,
     stundenlisteContentHash: contentHash,
     kunde: kunde._id,
     kundenNr: kunde.kundenNr,
@@ -820,6 +850,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     status:   'open',
     auftragNr,
     stundenlisteExcludePseudo: excludePseudo,
+    stundenlisteDoppelausfertigung: kunde.stundenlisteSignaturDoppelt === true,
     stundenlisteContentHash: contentHash,
 
     kunde:         kunde ? kunde._id   : null,
