@@ -102,6 +102,16 @@ const routes = [
   }
 ];
 
+// Isolated preview for the reusable hover card; unavailable in production builds.
+if (import.meta.env.DEV) {
+  routes.unshift({
+    path: '/dev/hover-data-card',
+    name: 'HoverDataCardDemo',
+    component: () => import('@/components/dev/HoverDataCardDemo.vue'),
+    meta: { requiresAuth: false },
+  });
+}
+
 const router = createRouter({ history: createWebHistory(), routes });
 
 function tokenIsExpired(token) {

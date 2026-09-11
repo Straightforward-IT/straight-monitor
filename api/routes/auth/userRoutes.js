@@ -53,6 +53,40 @@ router.put(
   })
 );
 
+// PUT /api/users/me/dispo-prefs/hide-for-all
+router.put(
+  "/me/dispo-prefs/hide-for-all",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { mitarbeiterId } = req.body;
+    if (!mongoose.isValidObjectId(mitarbeiterId)) {
+      return res.status(400).json({ msg: "mitarbeiterId must be a valid ObjectId" });
+    }
+
+    const result = await User.updateMany({}, [
+      {
+        $set: {
+          dispoPrefs: {
+            $mergeObjects: [
+              { $ifNull: ["$dispoPrefs", {}] },
+              {
+                hiddenMitarbeiter: {
+                  $setUnion: [
+                    { $ifNull: ["$dispoPrefs.hiddenMitarbeiter", []] },
+                    [mitarbeiterId]
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]);
+
+    res.status(200).json({ msg: "Employee hidden for all users", modifiedCount: result.modifiedCount });
+  })
+);
+
 // PUT /api/users/me/kunden-watchlist/toggle
 router.put(
   "/me/kunden-watchlist/toggle",

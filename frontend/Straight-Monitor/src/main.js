@@ -84,6 +84,7 @@ import {
   faCodeBranch,
   faCoins,
   faComment,
+  faComments,
   faCommentDots,
   faCompressAlt,
   faCopy,
@@ -204,6 +205,7 @@ import {
   faUserTie,
   faUserXmark,
   faUsers,
+  faUsersSlash,
   faVial,
   faWarehouse,
 } from '@fortawesome/free-solid-svg-icons';
@@ -279,6 +281,7 @@ library.add(
   faCodeBranch,
   faCoins,
   faComment,
+  faComments,
   faCommentDots,
   faCompressAlt,
   faCopy,
@@ -399,6 +402,7 @@ library.add(
   faUserTie,
   faUserXmark,
   faUsers,
+  faUsersSlash,
   faVial,
   faWarehouse,
 );

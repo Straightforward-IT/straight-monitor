@@ -133,14 +133,14 @@ function selectOption(option: any) {
   color: var(--text);
   z-index: 1001;
   min-width: 164px;
-  padding: 4px 0;
+  padding: 2px 0;
   overflow: hidden;
 
   .context-menu__title {
-    padding: 5px 14px 7px;
+    padding: 4px 12px 5px;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
     color: var(--muted);
-    font-size: 0.66rem;
+    font-size: 0.62rem;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -151,10 +151,10 @@ function selectOption(option: any) {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 32px;
-    padding: 5px 12px 5px 14px;
+    min-height: 27px;
+    padding: 3px 10px 3px 12px;
     cursor: pointer;
-    font-size: 0.82rem;
+    font-size: 0.76rem;
     line-height: 1.25;
     color: var(--text);
     transition: background 0.15s ease, color 0.15s ease;
@@ -168,8 +168,8 @@ function selectOption(option: any) {
 
     &::before {
       position: absolute;
-      top: 7px;
-      bottom: 7px;
+      top: 5px;
+      bottom: 5px;
       left: 0;
       width: 2px;
       background: var(--primary);
@@ -180,13 +180,13 @@ function selectOption(option: any) {
   }
 
   .context-menu-item__image {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     object-fit: contain;
   }
 
   .context-menu-item__icon {
-    width: 16px;
+    width: 14px;
     color: var(--muted);
   }
 
@@ -195,7 +195,7 @@ function selectOption(option: any) {
   }
 
   .context-menu-item--special {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
     color: var(--primary);
     font-weight: 500;

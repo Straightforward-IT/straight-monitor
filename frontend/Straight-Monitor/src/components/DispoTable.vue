@@ -1223,16 +1223,14 @@
     </teleport>
 
     <!-- Name Context Menu -->
-    <ActionMenu
-      :open="nameMenu.open"
+    <ContextMenu
+      v-if="nameMenu.open"
       :x="nameMenu.x"
       :y="nameMenu.y"
       :title="nameMenu.ma ? `${nameMenu.ma.vorname} ${nameMenu.ma.nachname}` : ''"
-      :items="nameMenuItems"
-      :group-by="false"
-      :close-on-select="true"
+      :options="nameMenuItems"
       @close="closeNameMenu"
-      @item-click="handleNameMenuAction"
+      @select="handleNameMenuAction"
     />
 
     <!-- Employee Card Modal -->
@@ -1660,6 +1658,7 @@ import LocationFilter from '@/components/ui-elements/LocationFilter.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ActionMenu from '@/components/ui-elements/ActionMenu.vue';
+import ContextMenu from '@/components/ContextMenu.vue';
 import PillMultiSelect from '@/components/ui-elements/PillMultiSelect.vue';
 
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
@@ -2167,34 +2166,30 @@ const nameMenuItems = computed(() => {
   const phone = (nameMenu.ma?.telefon || '').trim();
 
   return [
-    { label: 'Karte Öffnen', icon: 'fa-solid fa-address-card', action: 'karte', variant: 'primary' },
-    { label: 'Kundenwunsch hinzufügen', icon: 'fa-solid fa-handshake', action: 'kundenwunsch', variant: 'primary' },
-    { label: 'Notiz bearbeiten', icon: 'fa-solid fa-sticky-note', action: 'notiz', variant: 'primary' },
-    { label: 'Verfügbarkeiten eintragen', icon: 'fa-solid fa-calendar-plus', action: 'verf', variant: 'primary' },
+    { label: 'Karte Öffnen', icon: 'fa-solid fa-address-card', action: 'karte' },
+    { label: 'Kundenwunsch hinzufügen', icon: 'fa-solid fa-handshake', action: 'kundenwunsch' },
+    { label: 'Notiz bearbeiten', icon: 'fa-solid fa-sticky-note', action: 'notiz' },
+    { label: 'Verfügbarkeiten eintragen', icon: 'fa-solid fa-calendar-plus', action: 'verf' },
     ...(phone
       ? [{
           label: phone,
           icon: 'fa-solid fa-phone',
           action: 'copyPhone',
-          color: '#10b981',
-          iconRight: copiedPhone.value ? 'fa-solid fa-check' : 'fa-solid fa-copy',
-          badge: copiedPhone.value ? '✓' : undefined,
         }]
       : []),
-    { type: 'divider' },
     {
       label: isHidden ? 'Einblenden' : 'Ausblenden',
       icon: isHidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash',
       action: isHidden ? 'unhide' : 'hide',
-      variant: 'muted',
     },
+    ...(!isHidden ? [{ label: 'Für Alle ausblenden', icon: 'fa-solid fa-users-slash', action: 'hideForAll' }] : []),
   ];
 });
 
-function handleNameMenuAction({ item }) {
-  if (!item) return;
+function handleNameMenuAction(action) {
+  if (!action) return;
 
-  switch (item.action) {
+  switch (action) {
     case 'karte':
       openKarte();
       break;
@@ -2215,6 +2210,9 @@ function handleNameMenuAction({ item }) {
       break;
     case 'unhide':
       unhideMA(nameMenu.ma?._id);
+      break;
+    case 'hideForAll':
+      hideMAForAll(nameMenu.ma?._id);
       break;
     default:
       break;
@@ -3432,6 +3430,20 @@ function hideMA(maId) {
   hiddenIds.value = next;
   closeNameMenu();
   savePrefs();
+}
+
+async function hideMAForAll(maId) {
+  if (!maId) return;
+
+  try {
+    await api.put('/api/users/me/dispo-prefs/hide-for-all', { mitarbeiterId: String(maId) });
+    const next = new Set(hiddenIds.value);
+    next.add(String(maId));
+    hiddenIds.value = next;
+    closeNameMenu();
+  } catch (err) {
+    console.error('Mitarbeiter für alle ausblenden fehlgeschlagen:', err);
+  }
 }
 
 function unhideMA(maId) {
