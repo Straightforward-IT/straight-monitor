@@ -208,8 +208,8 @@ class StundenlisteService {
     const doc = await PDFDocument.create();
     doc.registerFontkit(fontkit);
     const [font, fontBold] = await Promise.all([
-      doc.embedFont(fs.readFileSync(FONT_REGULAR_PATH), { subset: true }),
-      doc.embedFont(fs.readFileSync(FONT_BOLD_PATH), { subset: true }),
+      doc.embedFont(fs.readFileSync(FONT_REGULAR_PATH)),
+      doc.embedFont(fs.readFileSync(FONT_BOLD_PATH)),
     ]);
 
     // Logo einbetten (optional)
@@ -269,54 +269,57 @@ class StundenlisteService {
       const logoW = CONTENT_W;
       const logoH = (logoImg.height / logoImg.width) * logoW;
       ctx.page.drawImage(logoImg, { x: MARGIN, y: ctx.y - logoH, width: logoW, height: logoH });
-      ctx.y -= logoH + 22;
+      ctx.y -= logoH + 14;
     }
 
     // ── Überschrift ──
     this._text(ctx, 'Arbeitnehmerüberlassungsvertrag und zugleich Konkretisierung zum bestehenden Rahmenvertrag zur Arbeitnehmerüberlassung zwischen nachfolgend genanntem Verleiher und Entleiher.', {
       font: ctx.fontBold, size: 13, lineGap: 4,
     });
-    ctx.y -= 12;
+    ctx.y -= 7;
 
     // ── Einleitungstext ──
     const zeitraum = this._dateRange(auftrag.vonDatum, auftrag.bisDatum);
     this._text(ctx, `Der Verleiher überlässt dem Entleiher am ${zeitraum} die untenstehend aufgeführten Arbeitnehmer.`, { size: 10.5, lineGap: 3 });
-    ctx.y -= 8;
+    ctx.y -= 5;
     this._text(ctx, 'Die unbefristete Erlaubnis zur Arbeitnehmerüberlassung liegt vor. (Urkunde der Bundesagentur für Arbeit, Agentur für Arbeit Kiel, in Kiel, zuletzt erteilt am 08.11.2021)', { size: 9, color: COLOR_MUTED, lineGap: 3 });
-    ctx.y -= 22;
+    ctx.y -= 14;
 
     // ── Entleiher / Verleiher (zwei Spalten) ──
     this._twoColumnBlocks(ctx, kunde);
-    ctx.y -= 20;
+    ctx.y -= 12;
 
     // ── Betreuende Niederlassung ──
     this._niederlassungBlock(ctx, niederlassung);
-    ctx.y -= 20;
+    ctx.y -= 12;
 
     // ── Event-Block ──
     this._eventBlock(ctx, auftrag);
-    ctx.y -= 22;
+    ctx.y -= 14;
 
     // ── Tabelle (gruppiert nach Schicht) ──
     this._renderTable(ctx, einsaetze, schichten);
-    ctx.y -= 20;
+    ctx.y -= 12;
 
     // ── Pausen-Hinweis ──
     this._ensureSpace(ctx, 60);
     this._text(ctx, 'Pausenzeiten sind, wenn extra aufgeführt, in den Arbeitsstunden nach § 4 Arbeitszeit inbegriffen. Bitte gesetzliche Pausenzeiten beachten. Mehr als 6 Stunden = 30 Minuten | Mehr als 9 Stunden = 45 Minuten. Bitte beachten Sie, dass die gesetzliche Regelarbeitszeit 10 Stunden nicht überschreiten darf. Kommt es hier zu Unregelmäßigkeiten, müssen wir von zukünftigen Überlassungen absehen.', { size: 8, color: COLOR_MUTED, lineGap: 3 });
-    ctx.y -= 26;
+    ctx.y -= 14;
 
     // ── Unterschriften ──
     this._signatureBlock(ctx, kunde);
-    ctx.y -= 22;
+    ctx.y -= 14;
 
     // ── Bemerkungsbox ──
     this._bemerkungBox(ctx);
-    ctx.y -= 22;
+    ctx.y -= 8;
 
     // ── Footer ──
-    this._ensureSpace(ctx, 50);
-    this._text(ctx, 'Es gelten die allgemeinen Geschäftsbedingungen des Verleihers und die Rahmenabsprachen bzgl. Vergütung, Anforderungs- und Tätigkeitsprofil zwischen Entleiher und Verleiher. Sofern kein Rahmenvertrag vorhanden ist, gelten die AGB der H. & P. Straightforward GmbH und die aktuellen Konditionen für den jeweiligen Überlassungszeitraum. Dieser Nachweis gilt als abgeschlossener Einsatz.', { size: 7.5, color: COLOR_MUTED, lineGap: 3 });
+    const legalTerms = 'Es gelten die allgemeinen Geschäftsbedingungen des Verleihers und die Rahmenabsprachen bzgl. Vergütung, Anforderungs- und Tätigkeitsprofil zwischen Entleiher und Verleiher. Sofern kein Rahmenvertrag vorhanden ist, gelten die AGB der H. & P. Straightforward GmbH und die aktuellen Konditionen für den jeweiligen Überlassungszeitraum. Dieser Nachweis gilt als abgeschlossener Einsatz.';
+    const legalTermsLineHeight = 10.5;
+    const legalTermsHeight = this._wrap(legalTerms, ctx.font, 7.5, CONTENT_W).length * legalTermsLineHeight;
+    this._ensureSpace(ctx, legalTermsHeight);
+    this._text(ctx, legalTerms, { size: 7.5, color: COLOR_MUTED, lineGap: 3 });
 
   }
 
@@ -531,10 +534,10 @@ class StundenlisteService {
   _signatureBlock(ctx, kunde) {
     const colGap = 30;
     const colW = (CONTENT_W - colGap) / 2;
-    // Ensure enough space for sig + badge (when active) + bemerkung before computing positions.
+    // Keep the signature fields together; the following remarks box may continue on page two.
     // Must be called BEFORE lineY is derived from ctx.y, otherwise a page-jump resets ctx.y
     // while lineY still points to the old near-bottom position.
-    this._ensureSpace(ctx, ctx.signatureTags ? 185 : 150);
+    this._ensureSpace(ctx, ctx.signatureTags ? 91 : 58);
     // lineY is the same regardless of badge — badge goes BELOW the sig names
     const lineY = ctx.y - 30;
 
@@ -644,7 +647,7 @@ class StundenlisteService {
   }
 
   _bemerkungBox(ctx) {
-    const boxH = 60;
+    const boxH = 48;
     this._ensureSpace(ctx, boxH);
     const top = ctx.y;
     ctx.page.drawRectangle({ x: MARGIN, y: top - boxH, width: CONTENT_W, height: boxH, borderColor: COLOR_LINE, borderWidth: 0.8 });
