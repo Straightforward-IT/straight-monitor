@@ -64,6 +64,12 @@ const MitarbeiterSchema = new mongoose.Schema({
         durchschnittBeiFortfuehren: { type: Boolean, default: null },
         // 0 = Vollzeit, 1 = Teilzeit, 2 = Geringfügig Beschäftigt (603€ Limitiert), 3 = Kurzfristig Beschäftigt
     },
+    // Arbeitstage bei Vorarbeitgebern für die 70-Tage-Regel. Der Wert gilt nur
+    // für das angegebene Kalenderjahr und wird danach in der Anzeige zurückgesetzt.
+    vorarbeitgebertage: {
+        year: { type: Number, default: null },
+        days: { type: Number, default: 0, min: 0 },
+    },
     // Contractual working-time targets and time-account limits imported from Zvoove.
     arbeitszeit: {
         von: { type: Date, default: null },

@@ -28,6 +28,7 @@ function values(data) {
     workedHours: nonNegative(data.workedHours ?? data.eingesetzteStunden),
     plannedHours: nonNegative(data.plannedHours ?? data.geplanteStunden),
     monthlyHours: nonNegative(data.monthlyHours ?? data.monatsstunden),
+    priorEmployerDays: nonNegative(data.priorEmployerDays ?? data.vorarbeitgebertage),
     workedDays: nonNegative(data.workedDays ?? data.eingesetzteTage),
     plannedDays: nonNegative(data.plannedDays ?? data.geplanteTage),
     dayLimit: nonNegative(data.dayLimit ?? data.jahresarbeitstage ?? 70),
@@ -80,8 +81,9 @@ function hoursView(data) {
 }
 
 function daysView(data) {
-  const { workedDays, plannedDays, dayLimit } = values(data);
-  const result = capacitySegments({ worked: workedDays, planned: plannedDays, limit: dayLimit, unit: 'Tage', remainingLabel: 'Verbleibend' });
+  const { priorEmployerDays, workedDays, plannedDays, dayLimit } = values(data);
+  const result = capacitySegments({ worked: priorEmployerDays + workedDays, planned: plannedDays, limit: dayLimit, unit: 'Tage', remainingLabel: 'Verbleibend' });
+  result.segments.splice(0, 1, { id: 'prior-employer', label: 'Vorarbeitgeber', value: priorEmployerDays, color: '#7c8aa0' }, { id: 'worked', label: 'Eingesetzt', value: workedDays, color: '#94a3b8' });
   return {
     type: HOVER_DATA_CARD_TYPES.DAYS,
     ...common(data, 'Kurzfristig beschäftigt'),
@@ -89,6 +91,7 @@ function daysView(data) {
     metadata: [{ label: 'Jahresgrenze', value: `${formatHoverNumber(dayLimit, 0)} Arbeitstage` }],
     segments: result.segments,
     sections: [{ label: 'Arbeitstage im Kalenderjahr', rows: [
+      { label: 'Vorarbeitgeber', value: `${formatHoverNumber(priorEmployerDays, 0)} Tage`, segment: 'prior-employer' },
       { label: 'Eingesetzt', value: `${formatHoverNumber(workedDays, 0)} Tage`, segment: 'worked' },
       { label: 'Geplant', value: `${formatHoverNumber(plannedDays, 0)} Tage`, segment: 'planned' },
     ] }, { rows: [

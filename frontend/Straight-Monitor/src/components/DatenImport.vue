@@ -10,7 +10,7 @@
     <div class="last-import-section">
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'adressen', 'kunden', 'einsatzort', 'beruf', 'qualifikation', 'lohnart', 'kundenkondition', 'rechnung', 'kundenpreis', 'personalnr-history'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
+        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'adressen', 'kunden', 'einsatzort', 'beruf', 'qualifikation', 'lohnart', 'kundenkondition', 'rechnung', 'kundenpreis', 'personalnr-history', 'vorarbeitgebertage'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -407,6 +407,23 @@
                   <table class="req-table"><tbody><tr><td>LOHNARTNR</td><td>LOHNARTKUR</td><td>LOHNARTTXT</td><td>Weitere LOHNART-Felder gemäß Export</td></tr></tbody></table>
                 </div>
               </details>
+            </div>
+          </div>
+        </div>
+
+        <!-- Personalnr. Historien -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>70-Tage Vorarbeitgeber</h2>
+              <p class="subtitle">Spalte A: Personalnr., Spalte B: bereits genutzte Arbeitstage</p>
+            </div>
+            <span v-if="vorarbeitgebertageFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area" :class="{ 'has-file': vorarbeitgebertageFile }" @dragover.prevent @drop="(e) => handleDragAndDrop(e, 'vorarbeitgebertage')" @click="triggerFileInput('vorarbeitgebertage-upload')">
+              <div class="upload-content"><i class="fas fa-file-excel upload-icon"></i><span class="upload-text"><span v-if="vorarbeitgebertageFile" class="file-name">{{ vorarbeitgebertageFile.name }}</span><span v-else>Datei auswählen oder hier ablegen</span></span></div>
+              <input id="vorarbeitgebertage-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'vorarbeitgebertage')" accept=".xlsx,.xls" />
             </div>
           </div>
         </div>
@@ -838,6 +855,7 @@ export default {
       kundenpreisFile: null,
       kundenkonditionFile: null,
       personalnrHistoryFile: null,
+      vorarbeitgebertageFile: null,
       adressenFile: null,
       einsatzortFile: null,
       kundenFile: null,
@@ -886,6 +904,7 @@ export default {
         kundenpreis: 'Kundenpreise',
         kundenkondition: 'Kundenkonditionen',
         'personalnr-history': 'Personalnr. Historien',
+        vorarbeitgebertage: '70-Tage Vorarbeitgeber',
       };
       return labels[type] || type;
     },
@@ -930,6 +949,7 @@ export default {
       if (type === 'kundenpreis') this.kundenpreisFile = file;
       if (type === 'kundenkondition') this.kundenkonditionFile = file;
       if (type === 'personalnr-history') this.personalnrHistoryFile = file;
+      if (type === 'vorarbeitgebertage') this.vorarbeitgebertageFile = file;
       if (type === 'adressen') this.adressenFile = file;
       if (type === 'einsatzort') this.einsatzortFile = file;
       if (type === 'kunden') this.kundenFile = file;
@@ -972,7 +992,7 @@ export default {
         return;
       }
 
-      const adminFiles = this.isAdmin ? [this.adressenFile, this.einsatzortFile, this.kundenFile, this.berufFile, this.qualifikationFile, this.lohnartFile, this.rechnungFile, this.kundenpreisFile, this.kundenkonditionFile, this.personalnrHistoryFile] : [];
+      const adminFiles = this.isAdmin ? [this.adressenFile, this.einsatzortFile, this.kundenFile, this.berufFile, this.qualifikationFile, this.lohnartFile, this.rechnungFile, this.kundenpreisFile, this.kundenkonditionFile, this.personalnrHistoryFile, this.vorarbeitgebertageFile] : [];
       const fileCount = [this.einsatzFile, this.personalFile, this.verfuegbarkeitFile, ...adminFiles].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
@@ -1058,6 +1078,12 @@ export default {
         if (this.personalnrHistoryFile && this.isAdmin) {
           const response = await this.uploadFile(this.personalnrHistoryFile, 'personalnr-history');
           results.push({ type: 'Personalnr. Historien', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.vorarbeitgebertageFile && this.isAdmin) {
+          const response = await this.uploadFile(this.vorarbeitgebertageFile, 'vorarbeitgebertage');
+          results.push({ type: '70-Tage Vorarbeitgeber', ...response });
           if (!response.success) hasErrors = true;
         }
 
@@ -1264,13 +1290,14 @@ export default {
       this.kundenpreisFile = null;
       this.kundenkonditionFile = null;
       this.personalnrHistoryFile = null;
+      this.vorarbeitgebertageFile = null;
       this.adressenFile = null;
       this.einsatzortFile = null;
       this.kundenFile = null;
       this.fetchLastUploads();
     },
     hasAnyFile() {
-      const adminFiles = this.isAdmin ? (this.adressenFile || this.einsatzortFile || this.kundenFile || this.berufFile || this.qualifikationFile || this.lohnartFile || this.rechnungFile || this.kundenpreisFile || this.kundenkonditionFile || this.personalnrHistoryFile) : false;
+      const adminFiles = this.isAdmin ? (this.adressenFile || this.einsatzortFile || this.kundenFile || this.berufFile || this.qualifikationFile || this.lohnartFile || this.rechnungFile || this.kundenpreisFile || this.kundenkonditionFile || this.personalnrHistoryFile || this.vorarbeitgebertageFile) : false;
       return this.einsatzFile || this.personalFile || this.verfuegbarkeitFile || adminFiles;
     },
 

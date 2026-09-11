@@ -70,6 +70,17 @@
           </label>
         </div>
 
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Vorarbeitgeber-Tage</label>
+            <input v-model.number="form.vorarbeitgebertage.days" type="number" min="0" step="1" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label>Kalenderjahr</label>
+            <input v-model.number="form.vorarbeitgebertage.year" type="number" min="2000" step="1" class="form-input" />
+          </div>
+        </div>
+
         <!-- Adresse -->
         <div class="form-section">
           <h4>Adresse</h4>
@@ -248,6 +259,7 @@ const form = ref({
   personalnrHistory: [],
   persgruppe: null,
   persgruppe_set_explicitly: false,
+  vorarbeitgebertage: { year: new Date().getFullYear(), days: 0 },
   adresse: { strasse: "", plz: "", ort: "", land: "" },
   adresse2: { strasse: "", plz: "", ort: "", land: "", telefon: "", email: "" },
 });
@@ -278,6 +290,10 @@ watch(
         personalnrHistory: [...(newVal.personalnrHistory || [])],
         persgruppe: newVal.persgruppe ?? null,
         persgruppe_set_explicitly: !!newVal.persgruppe_set_explicitly,
+        vorarbeitgebertage: {
+          year: newVal.vorarbeitgebertage?.year ?? new Date().getFullYear(),
+          days: newVal.vorarbeitgebertage?.days ?? 0,
+        },
         adresse: {
           strasse: newVal.adresse?.strasse || "",
           plz: newVal.adresse?.plz || "",

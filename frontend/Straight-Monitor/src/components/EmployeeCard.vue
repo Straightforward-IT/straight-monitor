@@ -1401,46 +1401,23 @@
 
       <!-- Steckbrief (Monitor Profil, kompakt unter dem Foto) -->
       <div class="steckbrief">
-        <div class="steckbrief-row">
-          <span class="steckbrief-label">E-Mail</span>
-          <span class="steckbrief-value">
-            {{ resolvedMa.email || '—' }}
-            <button v-if="resolvedMa.email" class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.email)" title="Kopieren">
-              <font-awesome-icon icon="fa-solid fa-copy" />
-            </button>
-          </span>
-        </div>
-        <div v-if="resolvedMa.telefon" class="steckbrief-row">
-          <span class="steckbrief-label">Telefon</span>
-          <span class="steckbrief-value">
-            <a :href="generateSipgateLink(resolvedMa.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')">
-              <font-awesome-icon icon="fa-solid fa-phone" /> {{ resolvedMa.telefon }}
-            </a>
-            <button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.telefon)" title="Kopieren">
-              <font-awesome-icon icon="fa-solid fa-copy" />
-            </button>
-          </span>
-        </div>
-        <div v-if="resolvedMa.geburtsdatum" class="steckbrief-row">
-          <span class="steckbrief-label">Geburtstag</span>
-          <span class="steckbrief-value">{{ formatDate(resolvedMa.geburtsdatum) }}</span>
-        </div>
-        <div v-if="resolvedMa.geburtsname" class="steckbrief-row">
-          <span class="steckbrief-label">Geburtsname</span>
-          <span class="steckbrief-value">{{ resolvedMa.geburtsname }}</span>
-        </div>
-        <div v-if="resolvedMa.geburtsort" class="steckbrief-row">
-          <span class="steckbrief-label">Geburtsort</span>
-          <span class="steckbrief-value">{{ resolvedMa.geburtsort }}</span>
-        </div>
-        <div v-if="resolvedMa.eintrittsdatum" class="steckbrief-row">
-          <span class="steckbrief-label">Eintritt</span>
-          <span class="steckbrief-value">{{ formatDate(resolvedMa.eintrittsdatum) }}</span>
-        </div>
-        <div v-if="resolvedMa.austrittsdatum" class="steckbrief-row">
-          <span class="steckbrief-label">Austritt</span>
-          <span class="steckbrief-value">{{ formatDate(resolvedMa.austrittsdatum) }}</span>
-        </div>
+        <section class="stammdaten-section">
+          <h4 class="stammdaten-title">
+            <font-awesome-icon icon="fa-solid fa-id-card" />
+            Stammdaten
+          </h4>
+          <dl class="stammdaten-grid">
+            <div><dt>E-Mail</dt><dd>{{ resolvedMa.email || '—' }} <button v-if="resolvedMa.email" class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.email)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></dd></div>
+            <div v-if="resolvedMa.additionalEmails?.length"><dt>Alt. Mails</dt><dd class="email-list"><span v-for="(email, idx) in resolvedMa.additionalEmails" :key="idx" class="email-badge">{{ email }}</span></dd></div>
+            <div v-if="resolvedMa.telefon"><dt>Telefon</dt><dd><a :href="generateSipgateLink(resolvedMa.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')"><font-awesome-icon icon="fa-solid fa-phone" /> {{ resolvedMa.telefon }}</a><button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.telefon)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></dd></div>
+            <div v-if="resolvedMa.geburtsdatum"><dt>Geburtstag</dt><dd>{{ formatDate(resolvedMa.geburtsdatum) }}</dd></div>
+            <div v-if="resolvedMa.geburtsname"><dt>Geburtsname</dt><dd>{{ resolvedMa.geburtsname }}</dd></div>
+            <div v-if="resolvedMa.geburtsort"><dt>Geburtsort</dt><dd>{{ resolvedMa.geburtsort }}</dd></div>
+            <div v-if="resolvedMa.eintrittsdatum"><dt>Eintritt</dt><dd>{{ formatDate(resolvedMa.eintrittsdatum) }}</dd></div>
+            <div v-if="resolvedMa.austrittsdatum"><dt>Austritt</dt><dd>{{ formatDate(resolvedMa.austrittsdatum) }}</dd></div>
+            <div v-if="addressLines(resolvedMa.adresse).length"><dt>Adresse</dt><dd class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse)" :key="idx">{{ line }}</span></dd></div>
+          </dl>
+        </section>
         <section v-if="hasArbeitsverhaeltnis" class="arbeitsverhaeltnis-section">
           <h4 class="arbeitsverhaeltnis-title">
             <font-awesome-icon icon="fa-solid fa-money-bill-wave" />
@@ -1482,14 +1459,9 @@
             <div><dt>Monat</dt><dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.monat) }}</dd></div>
             <div><dt>Zeitkonto +</dt><dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.zeitkontoPlusLimit) }}</dd></div>
             <div><dt>Zeitkonto -</dt><dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.zeitkontoMinusLimit) }}</dd></div>
+            <div v-if="resolvedMa.arbeitsverhaeltnis?.typ === 3"><dt>Vorarbeitgeber</dt><dd>{{ vorarbeitgebertageDisplay }} Tage</dd></div>
           </dl>
         </section>
-        <div v-if="addressLines(resolvedMa.adresse).length" class="steckbrief-row steckbrief-row--block">
-          <span class="steckbrief-label">Adresse</span>
-          <span class="steckbrief-value steckbrief-value--lines">
-            <span v-for="(line, idx) in addressLines(resolvedMa.adresse)" :key="idx">{{ line }}</span>
-          </span>
-        </div>
         <div v-if="addressLines(resolvedMa.adresse2).length || resolvedMa.adresse2?.telefon || resolvedMa.adresse2?.email" class="steckbrief-row steckbrief-row--block">
           <span class="steckbrief-label">Adresse 2</span>
           <span class="steckbrief-value steckbrief-value--lines">
@@ -1497,12 +1469,6 @@
             <span v-if="resolvedMa.adresse2?.telefon" class="steckbrief-value--muted">{{ resolvedMa.adresse2.telefon }}</span>
             <span v-if="resolvedMa.adresse2?.email" class="steckbrief-value--muted">{{ resolvedMa.adresse2.email }}</span>
           </span>
-        </div>
-        <div v-if="resolvedMa.additionalEmails && resolvedMa.additionalEmails.length > 0" class="steckbrief-row steckbrief-row--block">
-          <span class="steckbrief-label">Alt. Mails</span>
-          <div class="email-list">
-            <span v-for="(email, idx) in resolvedMa.additionalEmails" :key="idx" class="email-badge">{{ email }}</span>
-          </div>
         </div>
         <div v-if="resolvedMa.erstellt_von" class="steckbrief-row">
           <span class="steckbrief-label">Erstellt</span>
@@ -2016,6 +1982,10 @@ export default {
       const typ = this.resolvedMa?.arbeitsverhaeltnis?.typ;
       return typ != null ? labels[typ] || null : null;
     },
+    vorarbeitgebertageDisplay() {
+      const value = this.resolvedMa?.vorarbeitgebertage;
+      return value?.year === new Date().getFullYear() ? Number(value.days) || 0 : 0;
+    },
     arbeitszeitHoverData() {
       const employee = this.resolvedMa;
       const employmentType = employee?.arbeitsverhaeltnis?.typ;
@@ -2035,11 +2005,15 @@ export default {
         .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
 
       if (employmentType === 3) {
+        const priorEmployerDays = employee?.vorarbeitgebertage?.year === selectedYear
+          ? Number(employee.vorarbeitgebertage.days) || 0
+          : 0;
         return {
           type: 'days',
           eyebrow: String(selectedYear),
           employeeName,
           title: 'Kurzfristig beschäftigt',
+          priorEmployerDays,
           workedDays: yearlyCount(this.einsatzAnalytics.ist),
           plannedDays: yearlyCount(this.einsatzAnalytics.forecast),
           dayLimit: 70,
@@ -3503,7 +3477,8 @@ export default {
           additionalEmails: formData.additionalEmails,
           personalnrHistory: formData.personalnrHistory,
           adresse: formData.adresse,
-          adresse2: formData.adresse2
+          adresse2: formData.adresse2,
+          vorarbeitgebertage: formData.vorarbeitgebertage,
         };
 
         const response = await api.patch(
@@ -3548,6 +3523,7 @@ export default {
           personalnrHistory: formData.personalnrHistory,
           adresse: formData.adresse,
           adresse2: formData.adresse2,
+          vorarbeitgebertage: formData.vorarbeitgebertage,
           forcePersonalnr: true
         };
 
@@ -7058,6 +7034,7 @@ export default {
   }
 }
 
+.stammdaten-section,
 .arbeitszeit-section,
 .arbeitsverhaeltnis-section {
   grid-column: 1 / -1;
@@ -7095,6 +7072,7 @@ export default {
   }
 }
 
+.stammdaten-title,
 .arbeitszeit-title,
 .arbeitsverhaeltnis-title {
   display: flex;
@@ -7106,9 +7084,11 @@ export default {
   font-weight: 700;
 }
 
+.stammdaten-title svg,
 .arbeitszeit-title svg,
 .arbeitsverhaeltnis-title svg { color: var(--primary); }
 
+.stammdaten-grid,
 .arbeitszeit-grid,
 .arbeitsverhaeltnis-grid {
   display: grid;
@@ -7117,9 +7097,11 @@ export default {
   margin: 0;
 }
 
+.stammdaten-grid > div,
 .arbeitszeit-grid > div,
 .arbeitsverhaeltnis-grid > div { min-width: 0; }
 
+.stammdaten-grid dt,
 .arbeitszeit-grid dt,
 .arbeitsverhaeltnis-grid dt {
   color: var(--muted);
@@ -7127,12 +7109,19 @@ export default {
   font-weight: 600;
 }
 
+.stammdaten-grid dd,
 .arbeitszeit-grid dd,
 .arbeitsverhaeltnis-grid dd {
   margin: 2px 0 0;
   color: var(--text);
   font-size: 12px;
   font-weight: 600;
+}
+
+.stammdaten-address {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .employee-tabs-shell .skills-section {

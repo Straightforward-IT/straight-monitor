@@ -2894,5 +2894,47 @@ router.post('/personalnr-history', auth, extendTimeout, upload.single('file'), a
   }
 });
 
+// POST /vorarbeitgebertage – Import 70-Tage Vorarbeitgeber-Tage
+// Spaltenstruktur: A=Personalnr, B=Arbeitstage. Die erste Zeile ist immer die Überschrift.
+router.post('/vorarbeitgebertage', auth, extendTimeout, upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+
+  try {
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const year = new Date().getFullYear();
+    const stats = { total: 0, updated: 0, unmatched: 0, invalid: 0, year };
+
+    for (const row of rows.slice(1)) {
+      const personalnr = String(row[0] ?? '').trim();
+      const days = Number(String(row[1] ?? '').replace(',', '.'));
+      if (!personalnr && row[1] === '') continue;
+      stats.total++;
+      if (!personalnr || !Number.isFinite(days) || days < 0) {
+        stats.invalid++;
+        continue;
+      }
+
+      const result = await Mitarbeiter.updateOne(
+        { personalnr },
+        { $set: { vorarbeitgebertage: { year, days } } }
+      );
+      if (result.matchedCount) stats.updated++;
+      else stats.unmatched++;
+    }
+
+    const status = stats.unmatched || stats.invalid ? 'warning' : 'success';
+    const message = `${stats.updated} Vorarbeitgeber-Tage für ${year} aktualisiert.`;
+    await logImport('vorarbeitgebertage', req.file.originalname, status, stats.updated, stats, req.user?.id);
+    logger.info(`[Import Vorarbeitgebertage] ${message}`);
+    res.json({ success: true, message, details: stats });
+  } catch (error) {
+    logger.error('[Import Vorarbeitgebertage] Error:', error);
+    await logImport('vorarbeitgebertage', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Vorarbeitgeber-Tage.', error: error.message });
+  }
+});
+
 
 module.exports = router;
