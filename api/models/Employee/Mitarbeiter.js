@@ -62,6 +62,7 @@ const MitarbeiterSchema = new mongoose.Schema({
         von: { type: Date, default: null },
         typ: { type: Number, enum: [0, 1, 2, 3], default: null },
         durchschnittBeiFortfuehren: { type: Boolean, default: null },
+        // 0 = Vollzeit, 1 = Teilzeit, 2 = Geringfügig Beschäftigt (603€ Limitiert), 3 = Kurzfristig Beschäftigt
     },
     // Contractual working-time targets and time-account limits imported from Zvoove.
     arbeitszeit: {

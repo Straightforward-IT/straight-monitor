@@ -1441,11 +1441,38 @@
           <span class="steckbrief-label">Austritt</span>
           <span class="steckbrief-value">{{ formatDate(resolvedMa.austrittsdatum) }}</span>
         </div>
+        <section v-if="hasArbeitsverhaeltnis" class="arbeitsverhaeltnis-section">
+          <h4 class="arbeitsverhaeltnis-title">
+            <font-awesome-icon icon="fa-solid fa-money-bill-wave" />
+            Lohn
+          </h4>
+          <dl class="arbeitsverhaeltnis-grid">
+            <div v-if="resolvedMa.arbeitsverhaeltnis?.von"><dt>Gültig ab</dt><dd>{{ formatDate(resolvedMa.arbeitsverhaeltnis.von) }}</dd></div>
+            <div v-if="arbeitsverhaeltnisTypLabel"><dt>Arbeitsverhältnis</dt><dd>{{ arbeitsverhaeltnisTypLabel }}</dd></div>
+            <div v-if="resolvedMa.arbeitsverhaeltnis?.durchschnittBeiFortfuehren != null"><dt>Durchschnitt fortführen</dt><dd>{{ resolvedMa.arbeitsverhaeltnis.durchschnittBeiFortfuehren ? 'Ja' : 'Nein' }}</dd></div>
+          </dl>
+        </section>
         <section v-if="hasArbeitszeit" class="arbeitszeit-section">
           <h4 class="arbeitszeit-title">
             <font-awesome-icon icon="fa-solid fa-clock" />
             Arbeitszeit
           </h4>
+          <HoverDataCard
+            v-if="arbeitszeitHoverData"
+            :data="arbeitszeitHoverData"
+            placement="left"
+          >
+            <template #default="{ triggerProps }">
+              <button
+                type="button"
+                class="arbeitszeit-info-button"
+                aria-label="Arbeitszeitübersicht anzeigen"
+                v-bind="triggerProps"
+              >
+                <font-awesome-icon icon="fa-solid fa-circle-info" />
+              </button>
+            </template>
+          </HoverDataCard>
           <dl class="arbeitszeit-grid">
             <div v-for="day in arbeitszeitTage" :key="day.key">
               <dt>{{ day.label }}</dt>
@@ -1679,6 +1706,7 @@ import ImageCropModal from "./ImageCropModal.vue";
 import TlBadge from "./ui-elements/TlBadge.vue";
 import SearchBar from "./SearchBar.vue";
 import R2FileBrowser from "./R2FileBrowser.vue";
+import HoverDataCard from "./ui-elements/HoverDataCard.vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
@@ -1697,7 +1725,7 @@ import MitarbeiterEinsatzChart from "./MitarbeiterEinsatzChart.vue";
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, R2FileBrowser },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, R2FileBrowser, HoverDataCard },
   props: {
     ma: { type: Object, required: false, default: null },
     mitarbeiterId: { type: String, default: null },
@@ -1977,6 +2005,46 @@ export default {
     },
     hasArbeitszeit() {
       return Object.values(this.resolvedMa?.arbeitszeit || {}).some((value) => value != null);
+    },
+    hasArbeitsverhaeltnis() {
+      return Object.values(this.resolvedMa?.arbeitsverhaeltnis || {}).some((value) => value != null);
+    },
+    arbeitsverhaeltnisTypLabel() {
+      const labels = ["Vollzeit", "Teilzeit", "Geringfügig", "Kurzfristig"];
+      const typ = this.resolvedMa?.arbeitsverhaeltnis?.typ;
+      return typ != null ? labels[typ] || null : null;
+    },
+    arbeitszeitHoverData() {
+      const employee = this.resolvedMa;
+      const employmentType = employee?.arbeitsverhaeltnis?.typ;
+      const employeeName = [employee?.vorname, employee?.nachname].filter(Boolean).join(' ');
+      const now = new Date();
+
+      if (employmentType === 3) {
+        return {
+          type: 'days',
+          eyebrow: `${now.getFullYear()} · Demo`,
+          employeeName,
+          title: 'Kurzfristig beschäftigt',
+          workedDays: 18,
+          plannedDays: 7,
+          dayLimit: 70,
+        };
+      }
+
+      if (employmentType !== 0 && employmentType !== 1) return null;
+      const monthlyHours = Number(employee?.arbeitszeit?.monat);
+      if (!Number.isFinite(monthlyHours) || monthlyHours <= 0) return null;
+
+      return {
+        type: 'hours',
+        eyebrow: `${now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })} · Demo`,
+        employeeName,
+        title: employmentType === 0 ? 'Vollzeit beschäftigt' : 'Teilzeit beschäftigt',
+        monthlyHours,
+        workedHours: monthlyHours * 0.35,
+        plannedHours: monthlyHours * 0.45,
+      };
     },
     // Filtere Tasks nach Status (offen vs. erledigt)
     filteredTasksToMe() {
@@ -6952,15 +7020,45 @@ export default {
   }
 }
 
-.arbeitszeit-section {
+.arbeitszeit-section,
+.arbeitsverhaeltnis-section {
   grid-column: 1 / -1;
+  position: relative;
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--soft);
 }
 
-.arbeitszeit-title {
+.arbeitszeit-info-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+}
+
+.arbeitszeit-title,
+.arbeitsverhaeltnis-title {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -6970,24 +7068,29 @@ export default {
   font-weight: 700;
 }
 
-.arbeitszeit-title svg { color: var(--primary); }
+.arbeitszeit-title svg,
+.arbeitsverhaeltnis-title svg { color: var(--primary); }
 
-.arbeitszeit-grid {
+.arbeitszeit-grid,
+.arbeitsverhaeltnis-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
 }
 
-.arbeitszeit-grid > div { min-width: 0; }
+.arbeitszeit-grid > div,
+.arbeitsverhaeltnis-grid > div { min-width: 0; }
 
-.arbeitszeit-grid dt {
+.arbeitszeit-grid dt,
+.arbeitsverhaeltnis-grid dt {
   color: var(--muted);
   font-size: 10px;
   font-weight: 600;
 }
 
-.arbeitszeit-grid dd {
+.arbeitszeit-grid dd,
+.arbeitsverhaeltnis-grid dd {
   margin: 2px 0 0;
   color: var(--text);
   font-size: 12px;
@@ -7084,6 +7187,10 @@ export default {
   }
 
   .arbeitszeit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .arbeitsverhaeltnis-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

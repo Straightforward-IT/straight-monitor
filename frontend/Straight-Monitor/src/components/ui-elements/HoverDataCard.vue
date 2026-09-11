@@ -36,7 +36,7 @@
         @pointerleave="onCardLeave"
       >
         <div
-          v-if="data.eyebrow || data.employeeName"
+          v-if="view.eyebrow || view.employeeName"
           class="hover-data-card__header"
         >
           <span
@@ -44,16 +44,16 @@
             aria-hidden="true"
           />
           <span
-            v-if="data.employeeName"
+            v-if="view.employeeName"
             class="hover-data-card__employee-name"
           >
-            {{ data.employeeName }}
+            {{ view.employeeName }}
           </span>
           <span
-            v-if="data.eyebrow"
+            v-if="view.eyebrow"
             class="hover-data-card__eyebrow"
           >
-            {{ data.eyebrow }}
+            {{ view.eyebrow }}
           </span>
         </div>
 
@@ -63,8 +63,8 @@
             :aria-label="chartDescription"
           >
             <figcaption>
-              <strong>{{ numberFormat.format(total) }}</strong>
-              <span>{{ data.unit || 'Std.' }}</span>
+              <strong>{{ formatMetric(view.metric?.value) }}</strong>
+              <span>von {{ metricLabel(view.metric?.limit) }}</span>
             </figcaption>
             <div
               class="hover-data-card__track"
@@ -81,17 +81,17 @@
 
           <div class="hover-data-card__details">
             <p
-              v-if="data.title"
+              v-if="view.title"
               class="hover-data-card__title"
             >
-              {{ data.title }}
+              {{ view.title }}
             </p>
             <dl
-              v-if="data.metadata?.length"
+              v-if="view.metadata?.length"
               class="hover-data-card__metadata"
             >
               <div
-                v-for="row in data.metadata"
+                v-for="row in view.metadata"
                 :key="row.label"
                 class="hover-data-card__row"
               >
@@ -101,7 +101,7 @@
             </dl>
 
             <section
-              v-for="(section, index) in data.sections || []"
+              v-for="(section, index) in view.sections || []"
               :key="section.id || index"
               class="hover-data-card__section"
             >
@@ -129,7 +129,7 @@
               </dl>
             </section>
             <p
-              v-if="!data.sections?.length"
+              v-if="!view.sections?.length"
               class="hover-data-card__empty"
             >
               Keine Daten vorhanden.
@@ -143,32 +143,20 @@
 
 <script setup>
 import { computed, getCurrentInstance, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { buildHoverDataCard, formatEuro, formatHoverNumber } from '@/utils/hoverDataCard';
 
 const props = defineProps({
   data: {
     type: Object,
     default: () => ({
+      type: 'hours',
       eyebrow: 'September 2026',
       employeeName: 'Max Mustermann',
-      title: 'Teilzeit beschäftigt',
-      unit: 'Std.',
-      metadata: [{ label: 'Stundenlohn', value: '16,00 €' }],
-      segments: [
-        { id: 'worked', label: 'Eingesetzt', value: 11.25, color: '#94a3b8' },
-        { id: 'planned', label: 'Geplant', value: 94, color: 'var(--primary)' },
-        { id: 'free', label: 'Frei', value: 3, color: '#62b58f' },
-      ],
-      sections: [
-        { label: 'Arbeitszeiten', rows: [
-          { label: 'Monatsstunden', value: '108,25 Std.' },
-          { label: 'Eingesetzt', value: '11,25 Std.', segment: 'worked' },
-          { label: 'Geplant', value: '94,00 Std.', segment: 'planned' },
-        ] },
-        { rows: [
-          { label: 'Belegt', value: '105,25 Std.', emphasis: true },
-          { label: 'Frei', value: '3,00 Std.', segment: 'free' },
-        ] },
-      ],
+      title: 'Stundenbezogen beschäftigt',
+      monthlyHours: 108.25,
+      workedHours: 11.25,
+      plannedHours: 94,
+      hourlyRate: 16,
     }),
   },
   placement: { type: String, default: 'right', validator: value => ['top', 'right', 'bottom', 'left'].includes(value) },
@@ -184,10 +172,9 @@ const card = ref(null);
 const isOpen = ref(false);
 const positioned = ref(false);
 const coordinates = ref({ top: 0, left: 0 });
-const numberFormat = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 });
-const segments = computed(() => (props.data.segments || []).filter(segment => Number.isFinite(segment.value) && segment.value > 0));
-const total = computed(() => segments.value.reduce((sum, segment) => sum + segment.value, 0));
-const chartDescription = computed(() => segments.value.map(segment => `${segment.label}: ${numberFormat.format(segment.value)} ${props.data.unit || 'Std.'}`).join(', ') || 'Keine Werte');
+const view = computed(() => buildHoverDataCard(props.data));
+const segments = computed(() => (view.value.segments || []).filter(segment => Number.isFinite(segment.value) && segment.value > 0));
+const chartDescription = computed(() => segments.value.map(segment => `${segment.label}: ${metricLabel(segment.value)}`).join(', ') || 'Keine Werte');
 const triggerProps = computed(() => ({ 'aria-describedby': isOpen.value ? cardId : undefined }));
 const cardStyle = computed(() => ({
   top: `${coordinates.value.top}px`,
@@ -204,7 +191,15 @@ let overCard = false;
 let hasFocus = false;
 
 function segmentColor(id) {
-  return props.data.segments?.find(segment => segment.id === id)?.color;
+  return view.value.segments?.find(segment => segment.id === id)?.color;
+}
+
+function formatMetric(value) {
+  return view.value.metric?.currency ? formatEuro(value) : formatHoverNumber(value, view.value.type === 'days' ? 0 : 2);
+}
+
+function metricLabel(value) {
+  return view.value.metric?.currency ? formatMetric(value) : `${formatMetric(value)} ${view.value.metric?.unit || 'Std.'}`;
 }
 
 function updatePosition() {
@@ -392,10 +387,10 @@ onBeforeUnmount(close);
 .hover-data-card__employee-name { min-width: 0; overflow: hidden; font-size: 12px; font-weight: 600; letter-spacing: normal; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
 .hover-data-card__eyebrow { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .hover-data-card__employee-name + .hover-data-card__eyebrow::before { content: '·'; margin: 0 7px; color: var(--border); }
-.hover-data-card__body { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 20px; padding: 16px; }
+.hover-data-card__body { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 16px; padding: 16px; }
 .hover-data-card__chart { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 0; }
 .hover-data-card__chart figcaption { text-align: center; }
-.hover-data-card__chart strong { display: block; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.hover-data-card__chart strong { display: block; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .hover-data-card__chart figcaption span { display: block; color: var(--muted); font-size: 11px; }
 .hover-data-card__track {
   display: flex;
@@ -424,7 +419,7 @@ onBeforeUnmount(close);
 .hover-data-card-enter-active, .hover-data-card-leave-active { transition: opacity 0.12s ease; }
 .hover-data-card-enter-from, .hover-data-card-leave-to { opacity: 0; }
 @media (max-width: 400px) {
-  .hover-data-card__body { grid-template-columns: 48px minmax(0, 1fr); gap: 12px; padding: 12px; }
+  .hover-data-card__body { grid-template-columns: 58px minmax(0, 1fr); gap: 10px; padding: 12px; }
   .hover-data-card__row { font-size: 12px; gap: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
