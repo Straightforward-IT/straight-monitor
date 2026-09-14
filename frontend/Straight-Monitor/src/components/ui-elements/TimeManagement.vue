@@ -8,7 +8,7 @@
     @pointermove="moveCursor"
     @pointerleave="cursor.visible = false"
   >
-    <dl class="tm-context">
+    <dl v-if="showContext" class="tm-context">
       <div><dt>Personalnummer</dt><dd>{{ employee.personalNr }}</dd></div>
       <div><dt>Mitarbeiter</dt><dd>{{ employee.name }}</dd></div>
       <div><dt>Monat / Jahr</dt><dd>{{ monthLabel }}</dd></div>
@@ -18,14 +18,20 @@
       <div><dt>Tätigkeit</dt><dd>{{ selectedEntry?.activity || employee.employmentLabel }}</dd></div>
     </dl>
 
+    <slot
+      name="documents"
+      :auftrag-nr="selectedEntry?.auftragNr || null"
+    />
+
     <div class="tm-layout">
       <TimeMonthMatrix
         :month="month"
         :entries="workspace.data.entries"
         :selected-date="selectedDate"
-        :held="held"
-        @select-day="selectDay"
-        @select-week="selectWeek"
+      :held="held"
+      @select-day="selectDay"
+      @select-week="selectWeek"
+      @change-type="changeEntryType"
       />
       <aside
         class="tm-information"
@@ -56,11 +62,6 @@
         </div>
       </aside>
     </div>
-
-    <slot
-      name="documents"
-      :auftrag-nr="selectedEntry?.auftragNr || null"
-    />
 
     <section
       class="tm-details"
@@ -459,10 +460,10 @@ import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
 import HourBucket from '@/components/ui-elements/HourBucket.vue';
 import TimeMonthMatrix from '@/components/ui-elements/TimeMonthMatrix.vue';
 import TimeDayEntryModal from '@/components/Modals/TimeDayEntryModal.vue';
-import { addTimeEntry, bucketMinutes, cancelTime, collectTime, createTimeWorkspace, dropOnDay, dropTime,
+import { addTimeEntry, bucketMinutes, cancelTime, changeTimeEntryType, collectTime, createTimeWorkspace, dropOnDay, dropTime,
   formatMinutes, hasTimeChanges, monthWeeks, revertTime, saveTime, sourceMinutes, targetLabel, timeTotals, undoTime } from '@/utils/timeManagement';
 
-const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, initialData: { type: Object, required: true }, saveEnabled: { type: Boolean, default: true } });
+const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, initialData: { type: Object, required: true }, saveEnabled: { type: Boolean, default: true }, showContext: { type: Boolean, default: true } });
 const emit = defineEmits(['save']);
 // A workspace is an employee/month session. Remount with a key when either changes.
 const workspace = reactive(createTimeWorkspace(props.initialData));
@@ -625,6 +626,12 @@ function createEntry(entry) {
     selectDay(entry.date);
     selectedEntryId.value = workspace.data.entries.at(-1).id;
     message.value = `${entry.label} angelegt · ${formatMinutes(entry.minutes)}.`;
+  }
+}
+function changeEntryType({ entryId, code }) {
+  if (changeTimeEntryType(workspace, entryId, code)) {
+    selectEntry(workspace.data.entries.find(entry => entry.id === entryId));
+    message.value = 'Eintragsart geändert. Die Stunden bleiben unverändert.';
   }
 }
 function onKeydown(event) {

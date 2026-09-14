@@ -2,6 +2,7 @@
   <section
     class="time-month-matrix"
     aria-label="Monatsübersicht nach Kalenderwochen"
+    @click="typeMenuId = ''"
   >
     <header class="tmx-heading">
       <h2>Stundenerfassung</h2><span>{{ monthLabel }} · h:mm</span>
@@ -66,19 +67,51 @@
                     {{ week.days[weekdayIndex].day }}
                   </button>
                   <div class="tmx-values">
-                    <button
+                    <div
                       v-for="entry in entriesByDate[week.days[weekdayIndex].date] || []"
                       :key="entry.id"
-                      type="button"
                       class="tm-entry"
                       :class="[`tm-entry--${entry.kind}`, { 'tm-entry--changed': entry.minutes !== entry.originalMinutes }]"
                       :data-time-target="entry.id"
-                      :disabled="entry.kind === 'planned'"
-                      :aria-label="`${week.days[weekdayIndex].day}. ${monthLabel} · ${entry.label} · ${formatMinutes(entry.minutes)}${entry.kind === 'planned' ? ' · geplant' : ''}`"
                       :title="`${entry.label} · ${formatMinutes(entry.minutes)}${entry.minutes !== entry.originalMinutes ? ` · vorher ${formatMinutes(entry.originalMinutes)}` : ''}`"
                     >
-                      <span>{{ entry.code || (entry.kind === 'planned' ? 'PL' : 'P') }}</span><strong>{{ formatMinutes(entry.minutes).replace(' h', '') }}</strong><i aria-hidden="true" />
-                    </button>
+                      <button
+                        type="button"
+                        class="tm-entry__type"
+                        :aria-expanded="typeMenuId === entry.id"
+                        :aria-label="`Art ${entry.code || (entry.kind === 'planned' ? 'PL' : 'P')} für ${week.days[weekdayIndex].day}. ${monthLabel} ändern`"
+                        @click.stop="typeMenuId = typeMenuId === entry.id ? '' : entry.id"
+                      >
+                        {{ entry.code || (entry.kind === 'planned' ? 'PL' : 'P') }}
+                      </button>
+                      <button
+                        type="button"
+                        class="tm-entry__hours"
+                        :disabled="entry.kind === 'planned'"
+                        :aria-label="`${week.days[weekdayIndex].day}. ${monthLabel} · ${entry.label} · ${formatMinutes(entry.minutes)}${entry.kind === 'planned' ? ' · geplant' : ''}`"
+                      >
+                        <strong>{{ formatMinutes(entry.minutes).replace(' h', '') }}</strong><i aria-hidden="true" />
+                      </button>
+                      <div
+                        v-if="typeMenuId === entry.id"
+                        class="tm-entry__type-menu"
+                        role="menu"
+                        :aria-label="`Art für ${entry.label} wählen`"
+                        @click.stop
+                      >
+                        <button
+                          v-for="type in entryTypes"
+                          :key="type.code"
+                          type="button"
+                          role="menuitemradio"
+                          :aria-checked="entry.code === type.code"
+                          :class="{ 'tm-entry__type-option--active': entry.code === type.code }"
+                          @click.stop="chooseType(entry.id, type.code)"
+                        >
+                          <b>{{ type.code }}</b><span>{{ type.label }}</span>
+                        </button>
+                      </div>
+                    </div>
                     <button
                       v-if="!entriesByDate[week.days[weekdayIndex].date]?.length"
                       type="button"
@@ -107,10 +140,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { formatMinutes, monthWeeks } from '@/utils/timeManagement';
+import { computed, ref } from 'vue';
+import { formatMinutes, monthWeeks, TIME_ENTRY_TYPES } from '@/utils/timeManagement';
 const props = defineProps({ month: { type: String, required: true }, entries: { type: Array, required: true }, selectedDate: { type: String, default: '' }, held: { type: Number, default: 0 } });
-const emit = defineEmits(['selectDay', 'selectWeek']);
+const emit = defineEmits(['selectDay', 'selectWeek', 'changeType']);
+const typeMenuId = ref('');
+const entryTypes = TIME_ENTRY_TYPES;
 const weekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const weeks = computed(() => monthWeeks(props.month));
 const monthLabel = computed(() => new Date(`${props.month}-01T12:00:00`).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }));
@@ -121,6 +156,10 @@ const entriesByDate = computed(() => {
 });
 function weekTotal(week) {
   return week.days.filter(day => day.inMonth).reduce((total, day) => total + (entriesByDate.value[day.date] || []).filter(entry => entry.kind !== 'planned').reduce((sum, entry) => sum + entry.minutes, 0), 0);
+}
+function chooseType(entryId, code) {
+  typeMenuId.value = '';
+  emit('changeType', { entryId, code });
 }
 </script>
 
@@ -147,11 +186,18 @@ function weekTotal(week) {
 .tmx-date { width: 25px; flex: 0 0 25px; padding: 0; border: 1px solid transparent; border-radius: 3px; background: transparent; color: var(--text); font-size: 11px; cursor: pointer; align-self: stretch; }
 .tmx-date:hover { background: var(--hover); border-color: var(--border); }
 .tmx-values { flex: 1; min-width: 0; display: grid; gap: 3px; }
-.tm-entry { --entry-color: #7f98b0; display: grid; grid-template-columns: 24px minmax(0, 1fr) 4px; gap: 3px; align-items: center; min-height: 26px; border: 1px solid color-mix(in srgb, var(--entry-color) 45%, var(--border)); border-radius: 3px; padding: 0 3px; background: color-mix(in srgb, var(--entry-color) 15%, var(--surface)); color: var(--text); cursor: pointer; }
-.tm-entry > span { font-size: 10px; border-right: 1px solid color-mix(in srgb, var(--entry-color) 35%, transparent); }
-.tm-entry > strong { font-size: 11px; font-weight: 500; text-align: right; white-space: nowrap; }
-.tm-entry > i { align-self: stretch; width: 3px; background: var(--entry-color); margin: 3px 0; border-radius: 1px; }
-.tm-entry:hover:not(:disabled) { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.tm-entry { --entry-color: #7f98b0; position: relative; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 3px; align-items: center; min-height: 26px; border: 1px solid color-mix(in srgb, var(--entry-color) 45%, var(--border)); border-radius: 3px; padding: 0 3px; background: color-mix(in srgb, var(--entry-color) 15%, var(--surface)); color: var(--text); }
+.tm-entry__type { align-self: stretch; min-width: 0; padding: 0; border: 0; border-right: 1px solid color-mix(in srgb, var(--entry-color) 35%, transparent); background: transparent; color: inherit; font-size: 10px; cursor: pointer; }
+.tm-entry__type:hover, .tm-entry__type[aria-expanded=true] { color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); }
+.tm-entry__hours { display: grid; grid-template-columns: minmax(0, 1fr) 4px; gap: 3px; align-items: center; align-self: stretch; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.tm-entry__hours:disabled { cursor: default; }
+.tm-entry__hours > strong { font-size: 11px; font-weight: 500; text-align: right; white-space: nowrap; }
+.tm-entry__hours > i { align-self: stretch; width: 3px; background: var(--entry-color); margin: 3px 0; border-radius: 1px; }
+.tm-entry__type-menu { position: absolute; z-index: 30; top: calc(100% + 3px); left: 0; width: 220px; max-height: 220px; overflow-y: auto; padding: 4px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 8px 20px rgba(0, 0, 0, .16); }
+.tm-entry__type-menu button { display: grid; grid-template-columns: 28px 1fr; width: 100%; gap: 5px; padding: 5px 6px; border: 0; border-radius: 3px; background: transparent; color: var(--text); font-size: 10px; text-align: left; cursor: pointer; }
+.tm-entry__type-menu button:hover, .tm-entry__type-option--active { background: var(--hover) !important; color: var(--primary) !important; }
+.tm-entry__type-menu b { font-size: 10px; }
+.tm-entry:has(.tm-entry__hours:hover:not(:disabled)) { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
 .tm-entry--vacation { --entry-color: #62b58f; }
 .tm-entry--sick, .tm-entry--absence { --entry-color: #a997d0; }
 .tm-entry--correction { --entry-color: #70b4af; }

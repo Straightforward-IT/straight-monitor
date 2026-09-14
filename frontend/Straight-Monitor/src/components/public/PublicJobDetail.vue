@@ -75,8 +75,11 @@
           <span class="msc-icon"><font-awesome-icon icon="fa-solid fa-location-dot" /></span>
           <div class="msc-content">
             <span class="msc-label">Location</span>
-            <span class="msc-value">{{ einsatz.auftrag?.eventLocation }}</span>
-            <span v-if="einsatz.auftrag?.eventOrt" class="msc-sub">{{ einsatz.auftrag.eventOrt }}</span>
+            <a v-if="einsatzortMapsUrl" :href="einsatzortMapsUrl" target="_blank" rel="noopener noreferrer" class="msc-value info-link">
+              {{ einsatz.auftrag?.eventLocation }}
+            </a>
+            <span v-else class="msc-value">{{ einsatz.auftrag?.eventLocation }}</span>
+            <span v-if="einsatzortAddress" class="msc-sub">{{ einsatzortAddress }}</span>
           </div>
         </div>
         <div v-if="einsatz.ansprechpartnerName" class="msc-row">
@@ -457,6 +460,24 @@ const ownSchicht = computed(() => {
     return schichtGruppen.value.find(s => s.bezeichnung === props.einsatz.schichtBezeichnung) ?? null;
   }
   return null;
+});
+
+const einsatzortMapsUrl = computed(() => {
+  const auftrag = props.einsatz?.auftrag;
+  const adresse = auftrag?.einsatzort?.adresse;
+  const addressParts = adresse
+    ? [adresse.name, adresse.strasse, [adresse.plz, adresse.ort].filter(Boolean).join(' '), adresse.land]
+    : [auftrag?.eventLocation, auftrag?.eventStrasse, [auftrag?.eventPlz, auftrag?.eventOrt].filter(Boolean).join(' ')];
+  const address = addressParts.filter(Boolean).join(', ');
+  return address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : '';
+});
+
+const einsatzortAddress = computed(() => {
+  const auftrag = props.einsatz?.auftrag;
+  const adresse = auftrag?.einsatzort?.adresse;
+  return adresse
+    ? [adresse.strasse, [adresse.plz, adresse.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+    : [auftrag?.eventStrasse, [auftrag?.eventPlz, auftrag?.eventOrt].filter(Boolean).join(' ')].filter(Boolean).join(', ');
 });
 
 const ROLE_FILTER_ALIAS_RULES = [

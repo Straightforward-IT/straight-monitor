@@ -37,7 +37,11 @@
         <p class="payroll-page__notice">Wähle einen Mitarbeiter, um übergebene Schichtstunden, Zeitkonto und Fehlzeiten für den Monat zu verwalten.</p>
       </template>
       <template v-else>
-        <p class="payroll-page__notice">Übergebene Schichtstunden stammen aus der Stundenschnellerfassung. Umbuchungen, Fehlzeiten und Zeitkonto sind weiterhin eine lokale Vorschau; ein bestehendes Zeitkonto wird noch nicht verändert.</p>
+        <EmployeeCard
+          :key="employeeId"
+          :mitarbeiter-id="employeeId"
+          class="payroll-page__employee-card"
+        />
         <p v-if="loading" role="status">Monatsstunden werden geladen …</p>
         <p v-else-if="error" role="alert">{{ error }}</p>
         <template v-else-if="data">
@@ -48,6 +52,7 @@
             :month="month"
             :initial-data="data.initialData"
             :save-enabled="false"
+            :show-context="false"
           >
             <template #documents="{ auftragNr }">
               <OrderDocuments :auftrag-nr="auftragNr" />
@@ -68,6 +73,7 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import MitarbeiterSearch from '@/components/ui-elements/MitarbeiterSearch.vue';
+import EmployeeCard from '@/components/EmployeeCard.vue';
 import TimeManagement from '@/components/ui-elements/TimeManagement.vue';
 import OrderDocuments from '@/components/ui-elements/OrderDocuments.vue';
 import { payrollTabs } from '@/components/layout/pageTabDefinitions';
@@ -138,6 +144,7 @@ onBeforeUnmount(() => {
 .payroll-page__field--employee :deep(.ma-search) { min-width: 0; }
 .payroll-page__field input { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
 .payroll-page__body { min-width: 0; }
+.payroll-page__employee-card { margin-bottom: 16px; }
 .payroll-page__notice { padding: 10px 14px; margin: 0 0 12px; color: var(--muted); font-size: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
 @media (max-width: 720px) {
   .payroll-page { padding: 10px; }

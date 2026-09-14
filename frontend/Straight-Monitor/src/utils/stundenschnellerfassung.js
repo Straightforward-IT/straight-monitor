@@ -59,6 +59,13 @@ export function clockMinutes(value) {
   return hours * 60 + minutes;
 }
 
+/** § 4 ArbZG: mandatory total rest break for the recorded working time. */
+export function minimumRestBreakMinutes(workMinutes) {
+  if (workMinutes > 9 * 60) return 45;
+  if (workMinutes > 6 * 60) return 30;
+  return 0;
+}
+
 const berlinClock = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 function actualMinute(date, clock, offset) {
   const day = new Date(`${date}T00:00:00Z`);
@@ -77,7 +84,8 @@ export function analyzeQuickEntry(entry, date = null) {
   const activeBreaks = (entry.breaks || []).filter(block => block.start || block.end);
   const usesBlocks = activeBreaks.length > 0;
   const empty = !entry.start && !entry.end && !usesBlocks && Number(entry.breakMinutes ?? 0) === 0 && Number(entry.paidBreakMinutes ?? 0) === 0;
-  const result = { empty, complete: false, errors, grossMinutes: 0, breakMinutes: 0, paidBreakMinutes: 0, netMinutes: 0, overnight: false, usesBlocks };
+  const warnings = [];
+  const result = { empty, complete: false, errors, warnings, grossMinutes: 0, workMinutes: 0, minimumRestBreakMinutes: 0, breakMinutes: 0, paidBreakMinutes: 0, netMinutes: 0, overnight: false, usesBlocks };
   if (empty) return result;
 
   const start = clockMinutes(entry.start);
@@ -139,6 +147,12 @@ export function analyzeQuickEntry(entry, date = null) {
   }
   if (result.paidBreakMinutes > result.breakMinutes) errors.push('Bezahlte Pause darf die gesamte Pause nicht überschreiten.');
   if (result.breakMinutes > result.grossMinutes) errors.push('Die Pause darf nicht länger als die Ist-Zeit sein.');
+  result.workMinutes = result.grossMinutes - result.breakMinutes;
+  result.minimumRestBreakMinutes = minimumRestBreakMinutes(result.workMinutes);
+  if (result.minimumRestBreakMinutes && result.breakMinutes < result.minimumRestBreakMinutes) {
+    warnings.push(`Für ${Math.floor(result.workMinutes / 60)}:${String(result.workMinutes % 60).padStart(2, '0')} Stunden Arbeitszeit sind mindestens ${result.minimumRestBreakMinutes} Minuten Ruhepause erforderlich; erfasst sind ${result.breakMinutes} Minuten.`);
+  }
+  if (result.workMinutes > 10 * 60) warnings.push('Die Arbeitszeit ohne Ruhepausen liegt über 10 Stunden. Gesetzliche oder tarifliche Ausnahme prüfen.');
   result.complete = errors.length === 0;
   if (result.complete) result.netMinutes = result.grossMinutes - result.breakMinutes + result.paidBreakMinutes;
   return result;

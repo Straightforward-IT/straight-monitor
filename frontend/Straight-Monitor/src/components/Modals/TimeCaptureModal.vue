@@ -31,7 +31,7 @@
               v-for="order in orders"
               :key="order.auftragNr"
               :value="order.auftragNr"
-            >#{{ order.auftragNr }} · {{ order.eventTitel }}</option>
+            >{{ orderOptionLabel(order) }}</option>
           </select></label>
         </template>
         <span v-else>Auftrag #{{ selectedOrder }}</span>
@@ -91,7 +91,7 @@
         Stunden werden geladen …
       </p>
       <template v-if="review && !loading">
-        <label class="time-capture__reason">Bearbeitungsvermerk
+        <label class="time-capture__reason">Bearbeitungsvermerk <span>(optional)</span>
           <input
             v-model="reason"
             maxlength="1000"
@@ -166,6 +166,11 @@ const selectedOrder = ref(props.auftragNr || '');
 const orders = ref([]), review = ref(null), generation = ref(0), loading = ref(false), busy = ref(false);
 const dirty = ref(false), error = ref(''), notice = ref(''), reason = ref(''), confirmAction = ref(null), monthEmployee = ref(props.employeeId || '');
 const statusLabel = status => ({ SUBMITTED: 'Vom Mitarbeiter eingereicht', DRAFT: 'Interner Entwurf', RELEASED: 'An Zeitverwaltung übergeben' }[status] || 'Offen');
+function orderOptionLabel(order) {
+  const date = String(order.vonDatum || '').slice(0, 10);
+  const dateLabel = date ? new Date(`${date}T12:00:00`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Datum offen';
+  return `${dateLabel} · #${order.auftragNr} · ${order.eventTitel}`;
+}
 const assignments = computed(() => (review.value?.einsaetze || []).map(einsatz => {
   const entry = review.value.entries.find(row => row._id === einsatz._id);
   return { ...einsatz, timeStatus: statusLabel(entry?.status), timeSubmission: entry?.employeeSubmission };
@@ -208,10 +213,9 @@ async function save(payload) {
   const entries = payload.entries.filter(row => row.dirty || (payload.action === 'release' && review.value.entries.find(entry => entry._id === row.einsatzId)?.status !== 'RELEASED'))
     .map(row => ({ ...row, revision: review.value.entries.find(entry => entry._id === row.einsatzId)?.revision || 0 }));
   if (!entries.length) { notice.value = 'Keine neuen Änderungen zur Übernahme.'; return; }
-  if (!reason.value.trim()) { error.value = 'Bitte einen Bearbeitungsvermerk eintragen.'; return; }
   busy.value = true;
   try {
-    await api.post(`/api/working-times/orders/${selectedOrder.value}`, { action: payload.action, reason: reason.value, entries });
+    await api.post(`/api/working-times/orders/${selectedOrder.value}`, { action: payload.action, reason: reason.value.trim(), entries });
     if (payload.action === 'release') window.dispatchEvent(new CustomEvent('working-times:released'));
     notice.value = payload.action === 'release' ? `${entries.length} Einsätze an die Zeitverwaltung übergeben.` : 'Entwurf gespeichert. Die Zeitverwaltung bleibt bis zur Übergabe auf dem bisherigen Stand.';
     dirty.value = false; reason.value = '';
@@ -232,6 +236,7 @@ onMounted(() => props.auftragNr ? loadReview() : loadOrders());
 .time-capture :disabled { opacity: .55; cursor: default; }
 .time-capture :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .time-capture__reason { padding: 10px 20px; }
+.time-capture__reason span { font-weight: 400; }
 .time-capture__notice { padding: 10px 20px; margin: 0; font-size: 12px; background: color-mix(in srgb, var(--primary) 8%, var(--surface)); }
 .time-capture__notice--error { color: #c75048; }
 .time-capture__history { flex-shrink: 0; padding: 10px 20px; border-top: 1px solid var(--border); font-size: 11px; max-height: 160px; overflow: auto; }

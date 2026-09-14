@@ -629,8 +629,9 @@ router.get(
     // Get unique auftragNrs to enrich with Auftrag details
     const auftragNrs = [...new Set(einsaetze.map((e) => e.auftragNr))];
     const auftraege = await Auftrag.find({ auftragNr: { $in: auftragNrs } })
-      .select("auftragNr eventTitel kundenNr geschSt locationV2 eventLocation eventOrt vonDatum bisDatum labels")
+      .select("auftragNr eventTitel kundenNr geschSt locationV2 einsatzort eventLocation eventStrasse eventPlz eventOrt vonDatum bisDatum labels")
       .populate('locationV2', 'nameFull shortName color externalId isActive')
+      .populate({ path: 'einsatzort', select: 'bezeichnung adresse', populate: { path: 'adresse', select: 'name strasse plz ort land' } })
       .lean();
     const directSchichtIds = [...new Set(einsaetze.map(einsatz => String(einsatz.schicht || '')).filter(Boolean))];
     const legacyShiftKeys = [...new Set(einsaetze.map(einsatz => einsatz.idAuftragArbeitsschichten).filter(value => value !== null && value !== undefined))];

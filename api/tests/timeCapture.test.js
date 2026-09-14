@@ -44,7 +44,7 @@ describe('Operational time capture API', function () {
   }
   const time = () => ({ start: '10:00', end: '18:00', breakMinutes: 30 });
   const submit = (id = einsatz._id) => request(`/${id}`, { publicAccess: true, method: 'POST', body: time() });
-  const update = (action, revision, values = time()) => request(`/orders/${order.auftragNr}`, { method: 'POST', body: { action, reason: 'Mit Mitarbeiter abgestimmt', entries: [{ einsatzId: String(einsatz._id), revision, ...values }] } });
+  const update = (action, revision, values = time(), reason = 'Mit Mitarbeiter abgestimmt') => request(`/orders/${order.auftragNr}`, { method: 'POST', body: { action, reason, entries: [{ einsatzId: String(einsatz._id), revision, ...values }] } });
   const month = () => request(`/employees/${employee._id}/month?month=2020-09`);
   before(async () => {
     // Disposable local DB only. No application/database connection settings used.
@@ -86,6 +86,13 @@ describe('Operational time capture API', function () {
     assert.equal(state.body.locked, true);
     assert.equal(state.body.original.netMinutes, 450);
     assert.equal((await submit(second._id)).status, 201); // another shift in the same order
+  });
+  it('allows entries before the scheduled end and an optional office note', async () => {
+    const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const futureShift = await Schicht.create({ auftragNr: order.auftragNr, datumVon: new Date(`${futureDate}T00:00:00Z`), uhrzeitVon: '10:00', uhrzeitBis: '18:00' });
+    const future = await Einsatz.create({ auftragNr: order.auftragNr, schicht: futureShift._id, personalNr: Number(employee.personalnr), datumVon: new Date(`${futureDate}T00:00:00Z`) });
+    assert.equal((await submit(future._id)).status, 201);
+    assert.equal((await update('save', 0, time(), '')).status, 200);
   });
   it('rejects shared tokens, forged employee identities and public tokens on internal routes', async () => {
     assert.equal((await request(`/${einsatz._id}`, { publicAccess: true, token: 'shared-legacy-test-token', method: 'POST', body: { ...time(), email: employee.email } })).status, 403);

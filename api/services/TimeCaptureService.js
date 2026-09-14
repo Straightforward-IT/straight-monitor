@@ -94,7 +94,6 @@ async function publicStatus(employee, id) {
 async function submitEmployee(employee, id, input) {
   const { einsatz, shift, date } = await ownedAssignment(employee, id);
   const current = calculate(date, input, true);
-  if (current.actualEnd > new Date()) fail(400, 'Arbeitszeit kann erst nach Ende der Schicht eingereicht werden.');
   try {
     return await Stundenzeit.create({
       _id: einsatz._id, mitarbeiter: employee._id, personalNr: einsatz.personalNr, auftragNr: einsatz.auftragNr,
@@ -153,7 +152,7 @@ async function saveReview(user, number, input) {
   if (!Array.isArray(input.entries) || !input.entries.length || input.entries.length > 500) fail(400, 'Zwischen 1 und 500 Einsätzen angeben.');
   if (new Set(input.entries.map(row => row.einsatzId)).size !== input.entries.length) fail(400, 'Einsatz mehrfach enthalten.');
   const reason = String(input.reason || '').trim();
-  if (!reason || reason.length > 1000) fail(400, 'Bitte einen Bearbeitungsvermerk (maximal 1000 Zeichen) angeben.');
+  if (reason.length > 1000) fail(400, 'Der Bearbeitungsvermerk darf maximal 1000 Zeichen enthalten.');
   // The entire order action succeeds or fails. Revisions prevent lost edits and
   // a concurrent public submission cannot be overwritten by an office draft.
   try {
@@ -163,7 +162,6 @@ async function saveReview(user, number, input) {
         const { einsatz, shift, date } = await assignment(row.einsatzId, session);
         if (einsatz.auftragNr !== order.auftragNr) fail(400, 'Einsatz gehört nicht zu diesem Auftrag.');
         const current = calculate(date, row);
-        if (current.actualEnd > new Date()) fail(400, 'Ist-Stunden können erst nach Ende der Schicht gespeichert werden.');
         const previous = await Stundenzeit.findById(einsatz._id).session(session).lean();
         if (!Number.isInteger(row.revision) || row.revision !== (previous?.revision || 0)) fail(409, 'Stunden wurden inzwischen geändert. Bitte neu laden und die Änderungen prüfen.', 'TIME_REVISION_CONFLICT');
         if (previous && (previous.personalNr !== einsatz.personalNr || previous.auftragNr !== einsatz.auftragNr)) fail(409, 'Die Einsatzzuordnung wurde verändert. Bitte separat klären.');

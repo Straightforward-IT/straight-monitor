@@ -129,7 +129,7 @@
                 v-for="row in group.rows"
                 :key="row.key"
               >
-                <tr :class="{ 'quick-time__row--error': row.analysis.errors.length, 'quick-time__row--dirty': row.dirty }">
+                <tr :class="{ 'quick-time__row--error': row.analysis.errors.length, 'quick-time__row--warning': !row.analysis.errors.length && row.analysis.warnings.length, 'quick-time__row--dirty': row.dirty }">
                   <th
                     scope="row"
                     class="quick-time__person"
@@ -257,6 +257,19 @@
                       role="alert"
                     >
                       <FontAwesomeIcon :icon="faCircleExclamation" /> {{ row.analysis.errors.join(' ') }}
+                    </p>
+                  </td>
+                </tr>
+                <tr
+                  v-else-if="row.analysis.warnings.length"
+                  class="quick-time__warning-row"
+                >
+                  <td colspan="7">
+                    <p
+                      :id="`${instanceId}-${row.key}-warning`"
+                      role="status"
+                    >
+                      <FontAwesomeIcon :icon="faTriangleExclamation" /> {{ row.analysis.warnings.join(' ') }} Die Erfassung kann trotzdem gespeichert werden.
                     </p>
                   </td>
                 </tr>
@@ -396,6 +409,13 @@
       >
         {{ message }}
       </p>
+      <p
+        v-else-if="warningCount"
+        class="quick-time__footer-warning"
+        role="status"
+      >
+        {{ warningCount }} {{ warningCount === 1 ? 'Eintrag enthält' : 'Einträge enthalten' }} einen Pausen- oder Arbeitszeit-Hinweis. Speichern bleibt möglich.
+      </p>
     </footer>
   </form>
 </template>
@@ -403,7 +423,7 @@
 <script setup>
 import { computed, getCurrentInstance, ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faArrowRotateLeft, faCheck, faChevronDown, faChevronUp, faCircleExclamation, faClock, faCopy, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faArrowRotateLeft, faCheck, faChevronDown, faChevronUp, faCircleExclamation, faClock, faCopy, faTriangleExclamation, faXmark } from '@fortawesome/free-solid-svg-icons';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import { analyzeQuickEntry, buildQuickEntryGroups, createQuickEntry, employeeName, formatHours, plannedTimes } from '@/utils/stundenschnellerfassung';
 
@@ -454,6 +474,7 @@ const visibleRows = computed(() => visibleGroups.value.flatMap(group => group.ro
 const totalMinutes = computed(() => rows.value.reduce((sum, row) => sum + row.analysis.netMinutes, 0));
 const completeCount = computed(() => rows.value.filter(row => row.analysis.complete).length);
 const errorCount = computed(() => rows.value.filter(row => row.analysis.errors.length).length);
+const warningCount = computed(() => rows.value.filter(row => row.analysis.warnings.length).length);
 const dirtyCount = computed(() => rows.value.filter(row => row.dirty).length);
 watch(dirtyCount, count => emit('dirty-change', count > 0));
 const canSubmit = computed(() => !errorCount.value && (completeCount.value > 0 || rows.value.some(row => row.analysis.empty && row.dirty)));
@@ -464,8 +485,8 @@ function formatDate(value) {
 }
 function isOvernight(start, end) { return start && end && end < start; }
 function groupTotal(group) { return group.rows.reduce((sum, row) => sum + row.analysis.netMinutes, 0); }
-function statusClass(row) { return row.analysis.errors.length ? 'error' : row.dirty ? 'dirty' : row.analysis.complete ? 'complete' : 'empty'; }
-function statusText(row) { return row.analysis.errors.length ? 'Prüfen' : row.dirty ? 'Geändert' : row.einsatz.timeStatus || (row.analysis.complete ? 'Erfasst' : 'Offen'); }
+function statusClass(row) { return row.analysis.errors.length ? 'error' : row.analysis.warnings.length ? 'warning' : row.dirty ? 'dirty' : row.analysis.complete ? 'complete' : 'empty'; }
+function statusText(row) { return row.analysis.errors.length ? 'Prüfen' : row.analysis.warnings.length ? 'Pause prüfen' : row.dirty ? 'Geändert' : row.einsatz.timeStatus || (row.analysis.complete ? 'Erfasst' : 'Offen'); }
 function toggleBreaks(key) {
   if (expandedRows.value.has(key)) expandedRows.value.delete(key);
   else expandedRows.value.add(key);
@@ -567,6 +588,7 @@ function submit(action = 'save') {
 .quick-time__status-dot.complete { background: #62b58f; }
 .quick-time__status-dot.dirty { background: var(--primary); }
 .quick-time__status-dot.error { background: #dc665e; }
+.quick-time__status-dot.warning { background: #e6a447; }
 .quick-time__planned { display: flex; gap: 6px; align-items: center; min-height: 32px; white-space: nowrap; color: var(--muted); font-size: 12px; }
 .quick-time__planned > span { opacity: .5; }
 .quick-time__time-pair { display: flex; align-items: center; gap: 5px; }
@@ -588,8 +610,10 @@ function submit(action = 'save') {
 .quick-time button:disabled { opacity: .35; cursor: not-allowed; }
 .quick-time__row--dirty .quick-time__person { box-shadow: inset 2px 0 var(--primary); }
 .quick-time__row--error .quick-time__person { box-shadow: inset 2px 0 #dc665e; }
+.quick-time__row--warning .quick-time__person { box-shadow: inset 2px 0 #e6a447; }
 .quick-time__error-row p { display: flex; align-items: center; gap: 8px; color: #c75048; font-size: 12px; }
-.quick-time__error-row td { padding-top: 7px; padding-bottom: 10px; }
+.quick-time__warning-row p { display: flex; align-items: center; gap: 8px; color: #9a6417; font-size: 12px; }
+.quick-time__error-row td, .quick-time__warning-row td { padding-top: 7px; padding-bottom: 10px; }
 .quick-time__break-panel { padding: 2px 0 6px; }
 .quick-time__break-panel-heading { display: flex; align-items: center; gap: 16px; padding-bottom: 12px; }
 .quick-time__break-panel-heading strong { font-size: 12px; font-weight: 500; }
@@ -614,8 +638,9 @@ function submit(action = 'save') {
 .quick-time__total > strong { display: block; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .quick-time__total small { font-size: 11px; font-weight: 400; color: var(--muted); }
 .quick-time__accept { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--primary); background: var(--primary); color: #27221c; font-weight: 600; cursor: pointer; }
-.quick-time__message, .quick-time__footer-error { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+.quick-time__message, .quick-time__footer-error, .quick-time__footer-warning { flex-basis: 100%; font-size: 12px; color: var(--muted); }
 .quick-time__footer-error { color: #c75048; }
+.quick-time__footer-warning { color: #9a6417; }
 .quick-time__empty { padding: 28px 24px; color: var(--muted); text-align: center; }
 .quick-time__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 760px) {

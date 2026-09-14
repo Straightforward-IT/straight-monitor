@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { analyzeQuickEntry, buildQuickEntryGroups, createQuickEntry, formatHours, plannedTimes } from '../src/utils/stundenschnellerfassung.js';
+import { analyzeQuickEntry, buildQuickEntryGroups, createQuickEntry, formatHours, minimumRestBreakMinutes, plannedTimes } from '../src/utils/stundenschnellerfassung.js';
 import { createStundenschnellerfassungDemo } from '../src/components/dev/stundenschnellerfassungDemo.js';
 
 const analyze = values => analyzeQuickEntry(createQuickEntry({ _id: 'assignment' }, values));
@@ -56,6 +56,17 @@ test('night shift subtracts only unpaid break minutes', () => {
   assert.equal(result.grossMinutes, 660);
   assert.equal(result.netMinutes, 615);
   assert.equal(formatHours(result.netMinutes), '10,25');
+});
+
+test('insufficient statutory rest breaks warn without blocking a valid capture', () => {
+  const insufficient = analyze({ start: '10:00', end: '18:00', breakMinutes: 0 });
+  assert.equal(insufficient.complete, true);
+  assert.equal(insufficient.minimumRestBreakMinutes, 30);
+  assert.equal(insufficient.warnings.length, 1);
+  assert.match(insufficient.warnings[0], /mindestens 30 Minuten Ruhepause/);
+  assert.deepEqual(analyze({ start: '10:00', end: '18:30', breakMinutes: 30 }).warnings, []);
+  assert.equal(minimumRestBreakMinutes(9 * 60 + 1), 45);
+  assert.equal(analyze({ start: '08:00', end: '19:00', breakMinutes: 45 }).warnings.length, 1);
 });
 
 test('three timed breaks work across midnight without double-counting manual totals', () => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { addTimeEntry, bucketMinutes, cancelTime, collectTime, createTimeWorkspace, dropOnDay, dropTime,
+import { addTimeEntry, bucketMinutes, cancelTime, changeTimeEntryType, collectTime, createTimeWorkspace, dropOnDay, dropTime,
   formatMinutes, hasTimeChanges, monthDays, revertTime, saveTime, sourceMinutes, timeTotals, undoTime } from '../src/utils/timeManagement.js';
 import { timeManagementFixture } from '../src/components/dev/timeManagementFixture.js';
 
@@ -72,6 +72,19 @@ test('planned rows are immutable and invalid targets cannot consume bucket minut
   collectTime(w, 'shift-a', 60);
   for (const id of ['planned-23', 'new', 'missing']) assert.equal(dropTime(w, id, 60), 0);
   assert.equal(bucketMinutes(w), 60); assert.equal(dropTime(w, 'bank', -1), 0);
+});
+
+test('changing an entry type keeps its minutes and updates crediting and totals', () => {
+  const w = create();
+  const entry = w.data.entries.find(item => item.id === 'shift-09');
+  const before = timeTotals(w.data).forecast;
+  assert.ok(changeTimeEntryType(w, 'shift-09', 'UU'));
+  assert.deepEqual({ code: entry.code, kind: entry.kind, credited: entry.credited, minutes: entry.minutes }, { code: 'UU', kind: 'vacation', credited: false, minutes: 420 });
+  assert.equal(timeTotals(w.data).forecast, before - 420);
+  assert.ok(changeTimeEntryType(w, 'shift-09', 'P'));
+  assert.equal(w.data.entries.find(item => item.id === 'shift-09').label, 'Deck10 · Service');
+  assert.ok(undoTime(w));
+  assert.equal(w.data.entries.find(item => item.id === 'shift-09').code, 'UU');
 });
 
 test('absence entries honor explicit monthly credit; FA draws from bank', () => {

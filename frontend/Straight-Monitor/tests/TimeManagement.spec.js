@@ -46,6 +46,17 @@ describe('TimeManagement interactions', () => {
     expect(target('shift-a').text()).toContain('8:00 h');
   });
 
+  it('changes an entry type through the left type control without changing minutes', async () => {
+    render();
+    const entry = wrapper.get('.time-month-matrix [data-time-target="shift-09"]');
+    await entry.get('.tm-entry__type').trigger('click');
+    const menu = wrapper.get('[role="menu"]');
+    await menu.findAll('button').find(button => button.text().includes('Krank (mit Lohnfortzahlung)')).trigger('click');
+    expect(entry.get('.tm-entry__type').text()).toBe('K');
+    expect(entry.text()).toContain('7:00');
+    expect(wrapper.get('[aria-label="Monatskontingent"]').text()).toContain('110:00 h');
+  });
+
   it('Escape returns a mixed bucket and partial drops, including new empty-day destinations', async () => {
     render();
     await target('shift-a').trigger('contextmenu', { button: 2, shiftKey: true });

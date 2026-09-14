@@ -30,6 +30,12 @@ export const DAY_ENTRY_TYPES = [
   ['V', 'Schnittvortrag', 'absence', false],
 ].map(([code, label, kind, credited]) => ({ code, label, kind, credited }));
 
+export const TIME_ENTRY_TYPES = [
+  { code: 'P', label: 'Produktive Zeit', kind: 'productive', credited: true },
+  ...DAY_ENTRY_TYPES,
+  { code: 'PL', label: 'Geplante Schicht', kind: 'planned', credited: false },
+];
+
 export const cloneTimeData = value => JSON.parse(JSON.stringify(value));
 const minutes = value => Number.isFinite(Number(value)) ? Math.max(0, Math.round(Number(value))) : 0;
 export function formatMinutes(value) {
@@ -180,6 +186,20 @@ export function addTimeEntry(workspace, entry) {
   if (entry.code === 'FA') workspace.data.bankMinutes -= amount;
   else workspace.data.createdMinutes += amount;
   workspace.data.journal.unshift({ label: `${entry.date.slice(8)}. · ${entry.label} angelegt`, transfers: [] });
+  return true;
+}
+export function changeTimeEntryType(workspace, entryId, code) {
+  if (workspace.active || bucketMinutes(workspace)) return false;
+  const entry = workspace.data.entries.find(item => item.id === entryId);
+  const type = TIME_ENTRY_TYPES.find(item => item.code === code);
+  if (!entry || !type || entry.code === type.code) return false;
+  workspace.history.push(cloneTimeData(workspace.data));
+  entry.typeChangeOriginalLabel ||= entry.label;
+  entry.code = type.code;
+  entry.kind = type.kind;
+  entry.credited = type.credited;
+  entry.label = type.code === 'P' || type.code === 'PL' ? entry.typeChangeOriginalLabel : type.label;
+  workspace.data.journal.unshift({ label: `${entry.date.slice(8)}. · Art auf ${type.label} geändert`, transfers: [] });
   return true;
 }
 export function dropOnDay(workspace, date, amount) {
