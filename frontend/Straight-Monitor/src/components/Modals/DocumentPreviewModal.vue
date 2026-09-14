@@ -9,6 +9,7 @@
     :minimize-id="minimizeId"
     :minimize-title="displayName"
     teleport
+    full-bleed
     :close-on-escape="!menuOpen"
     class="document-preview-modal"
     @update:model-value="emit('update:modelValue', $event)"
@@ -398,12 +399,7 @@ onBeforeUnmount(() => actionController?.abort());
 .document-preview-empty-sheet { padding: 20px; color: var(--muted); }
 @media (max-width: 600px) {
   :global(.document-preview-modal) {
-    --mf-max-width: 100vw;
-    --mf-max-height: 100dvh;
-    --mf-overlay-padding: 0;
-    --mf-header-padding: calc(env(safe-area-inset-top) + 8px) 12px 8px;
-    --mf-radius: 0;
-    --mf-shadow: none;
+    --mf-header-padding: 8px 12px;
   }
   .document-preview-image, .document-preview-media, .document-preview-text { padding: 12px; }
 }

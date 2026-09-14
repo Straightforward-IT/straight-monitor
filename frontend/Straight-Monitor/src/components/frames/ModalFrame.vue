@@ -11,13 +11,13 @@
           v-if="open && !region?.minimized"
           ref="overlayRef"
           class="mf-overlay"
-          :class="{ 'mf-overlay--elevated': layer === 'elevated' }"
+          :class="{ 'mf-overlay--elevated': layer === 'elevated', 'mf-overlay--full-bleed': fullBleed }"
           @mousedown.self="onBackdrop"
         >
           <section
             ref="dialogRef"
             class="mf-dialog"
-            :class="`mf-dialog--${size}`"
+            :class="[`mf-dialog--${size}`, { 'mf-dialog--full-bleed': fullBleed }]"
             role="dialog"
             aria-modal="true"
             :aria-labelledby="title ? titleId : undefined"
@@ -149,6 +149,8 @@ const props = defineProps({
   pdfExport: { type: Boolean, default: false },
   /** Renders a minimizable modal above app-shell stacking contexts. */
   teleport: { type: Boolean, default: false },
+  /** Removes the overlay inset and fills the available viewport. */
+  fullBleed: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue', 'close']);
@@ -277,6 +279,11 @@ onBeforeUnmount(deactivateFrame);
   --mf-z: var(--z-modal-elevated, 1500);
 }
 
+.mf-overlay--full-bleed {
+  align-items: stretch;
+  padding: 0;
+}
+
 .mf-dialog {
   --mf-max-width: 640px;
   position: relative;
@@ -302,6 +309,15 @@ onBeforeUnmount(deactivateFrame);
   --mf-max-width: 96vw;
   --mf-max-height: 94vh;
   height: var(--mf-max-height);
+}
+
+.mf-dialog--full-bleed {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .mf-header {
