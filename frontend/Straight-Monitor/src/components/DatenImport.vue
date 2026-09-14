@@ -112,7 +112,7 @@
                 <div class="table-scroll">
                   <table class="req-table"><tbody>
                     <tr><td>A – Prüffeld (7002)</td><td>B – Personalnr</td><td>C – Persstatus (6=Ausgetreten)</td></tr>
-                    <tr><td>D – Geburtsdatum (GEBDATUM)</td><td>E – Nachname (ignoriert)</td><td>F – Vorname (ignoriert)</td></tr>
+                    <tr><td>D – Geburtsdatum (GEBDATUM)</td><td>E – Nachname</td><td>F – Vorname</td></tr>
                     <tr><td>G – Geburtsname (GEBNAME)</td><td>H – Geburtsort (GEBORT)</td><td>I – Eintritt (EINTRITT1)</td></tr>
                     <tr><td>J – Austrittsdatum (AUSTRITT1)</td><td>K – Berufsschlüssel (kommasep.)</td><td>L – Qualischlüssel (kommasep.)</td></tr>
                     <tr><td>M – Personengruppe (PERSGR)</td><td>N – Arbeitsverhältnis gültig von</td><td>O – Arbeitsverhältnis-Typ (0–3)</td></tr>

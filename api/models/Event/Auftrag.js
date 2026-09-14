@@ -112,6 +112,11 @@ const AuftragSchema = new mongoose.Schema({
     filename: { type: String, required: true },
     size: { type: Number, default: 0 },
     mimeType: { type: String, default: 'application/octet-stream' },
+    type: {
+      type: String,
+      enum: ['einsatznachweis', 'einsatzinformation', 'ablauf', 'wegbeschreibung', 'sicherheit', 'kunde', 'sonstiges'],
+      default: 'einsatznachweis',
+    },
     audience: {
       type: String,
       enum: ['job', 'teamleiter', 'office', 'office_roles'],
@@ -119,6 +124,8 @@ const AuftragSchema = new mongoose.Schema({
     },
     berufKeys: [{ type: Number }],
     allowedRoles: [{ type: String, uppercase: true, trim: true }],
+    deliveryEmails: [{ type: String, lowercase: true, trim: true }],
+    deliveryMessage: { type: String, maxlength: 1000, trim: true, default: '' },
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     uploadedAt: { type: Date, default: Date.now },
   }],

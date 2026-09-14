@@ -19,6 +19,7 @@ const { resolveActiveLocation, resolveLocationFromGeschSt } = require('../../ser
 const StundenlisteService = require('../../services/operations/StundenlisteService');
 const TelefonlisteService = require('../../services/operations/TelefonlisteService');
 const R2Service = require('../../services/integrations/R2Service');
+const { sendMail } = require('../../services/integrations/EmailService');
 const SignaturVorgang = require('../../models/Signature/SignaturVorgang');
 const { buildStundenlistePdfFilename, contentDisposition } = require('../../utils/stundenlisteFilename');
 const {
@@ -40,6 +41,7 @@ const uploadMem = multer({
 
 const EINSATZ_DOK_PREFIX = (auftragNr) => `Auftraege/${auftragNr}/docs/`;
 const EINSATZ_DOK_AUDIENCES = new Set(['job', 'teamleiter', 'office', 'office_roles']);
+const EINSATZ_DOK_TYPES = new Set(['einsatznachweis', 'einsatzinformation', 'ablauf', 'wegbeschreibung', 'sicherheit', 'kunde', 'sonstiges']);
 
 function normalizeDocumentAudience(value) {
   const audience = String(value || 'office').trim().toLowerCase();
@@ -49,12 +51,29 @@ function normalizeDocumentAudience(value) {
 
 function normalizeNumberList(value) {
   const values = Array.isArray(value) ? value : String(value || '').split(',');
-  return [...new Set(values.map(Number).filter(Number.isInteger))];
+  return [...new Set(
+    values
+      .map(entry => String(entry).trim())
+      .filter(Boolean)
+      .map(Number)
+      .filter(Number.isInteger)
+  )];
 }
 
 function normalizeRoleList(value) {
   const values = Array.isArray(value) ? value : String(value || '').split(',');
   return [...new Set(values.map(role => String(role).trim().toUpperCase()).filter(Boolean))];
+}
+
+function normalizeEmailList(value) {
+  const values = Array.isArray(value) ? value : String(value || '').split(/[;,\s]+/);
+  const emails = [...new Set(values.map(email => String(email).trim().toLowerCase()).filter(Boolean))];
+  if (emails.some(email => !/^\S+@\S+\.\S+$/.test(email))) throw validationError('Ungültige E-Mail-Adresse');
+  return emails;
+}
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 }
 
 function userRoles(user) {
@@ -76,9 +95,12 @@ function serializeEinsatzDokument(document) {
     filename: document.filename,
     size: document.size,
     mimeType: document.mimeType,
+    type: document.type || 'sonstiges',
     audience: document.audience || 'office',
     berufKeys: document.berufKeys || [],
     allowedRoles: document.allowedRoles || [],
+    deliveryEmails: document.deliveryEmails || [],
+    deliveryMessage: document.deliveryMessage || '',
     uploadedAt: document.uploadedAt,
   };
 }
@@ -1123,6 +1145,21 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// GET /api/auftraege/berufe/search?q=... - compact selector data for rule editors
+router.get('/berufe/search', auth, asyncHandler(async (req, res) => {
+  const query = String(req.query.q || '').trim();
+  const search = query
+    ? {
+        $or: [
+          { designation: { $regex: escapeRegex(query), $options: 'i' } },
+          ...(Number.isInteger(Number(query)) ? [{ jobKey: Number(query) }] : []),
+        ],
+      }
+    : {};
+  const berufe = await Beruf.find(search).select('jobKey designation').sort({ jobKey: 1 }).limit(30).lean();
+  res.json(berufe);
+}));
+
 // GET /api/auftraege/sync?since=<ISO_DATE> - Incremental sync endpoint
 router.get('/sync', async (req, res) => {
   try {
@@ -2121,8 +2158,13 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
   const safeName = req.file.originalname.replace(/[/\\:*?"<>|]/g, '_');
   const key = `${EINSATZ_DOK_PREFIX(auftragNr)}${Date.now()}-${safeName}`;
   const audience = normalizeDocumentAudience(req.body.audience);
+  const type = String(req.body.type || 'einsatznachweis').trim().toLowerCase();
+  if (!EINSATZ_DOK_TYPES.has(type)) return res.status(400).json({ success: false, message: 'Ungültiger Dokumenttyp' });
   const berufKeys = normalizeNumberList(req.body.berufKeys);
   const allowedRoles = normalizeRoleList(req.body.allowedRoles);
+  const deliveryEmails = normalizeEmailList(req.body.deliveryEmails);
+  const deliveryMessage = String(req.body.deliveryMessage || '').trim();
+  if (deliveryMessage.length > 1000) return res.status(400).json({ success: false, message: 'Mitteilung ist zu lang' });
   if (audience !== 'job' && berufKeys.length) {
     return res.status(400).json({ success: false, message: 'Berufseinschränkungen sind nur für Mitarbeiter-Dokumente möglich' });
   }
@@ -2137,13 +2179,39 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
     filename: safeName,
     size: req.file.size,
     mimeType: req.file.mimetype,
+    type,
     audience,
     berufKeys,
     allowedRoles: audience === 'office_roles' ? (allowedRoles.length ? allowedRoles : ['ADMIN', 'VERTRIEB']) : [],
+    deliveryEmails,
+    deliveryMessage,
     uploadedBy: req.user?._id || req.user?.id || null,
     uploadedAt: new Date(),
   };
   await Auftrag.updateOne({ _id: auftrag._id }, { $push: { einsatzdokumente: document } });
+
+  if (deliveryEmails.length) {
+    const uploader = await User.findById(req.user?._id || req.user?.id).select('name email').lean();
+    const uploaderName = uploader?.name || uploader?.email || 'Ein Monitor-Nutzer';
+    const title = auftrag.eventTitel || `Auftrag #${auftragNr}`;
+    const typeLabel = {
+      einsatznachweis: 'Einsatznachweis',
+      einsatzinformation: 'Einsatzinformation',
+      ablauf: 'Ablaufplan',
+      wegbeschreibung: 'Wegbeschreibung',
+      sicherheit: 'Sicherheitsdokument',
+      kunde: 'Kundendokument',
+      sonstiges: 'Dokument',
+    }[type];
+    const content = `<p><strong>${escapeHtml(uploaderName)}</strong> hat ein neues Dokument zum Projekt <strong>${escapeHtml(title)}</strong> hinzugefügt.</p>
+      <table style="border-collapse:collapse"><tr><td style="padding:4px 12px 4px 0;color:#666">Dokument</td><td><strong>${escapeHtml(safeName)}</strong></td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:#666">Typ</td><td>${escapeHtml(typeLabel)}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:#666">Auftrag</td><td>#${escapeHtml(auftragNr)}</td></tr></table>
+      ${deliveryMessage ? `<p>${escapeHtml(deliveryMessage).replace(/\n/g, '<br>')}</p>` : ''}`;
+    sendMail(deliveryEmails, `Neues Dokument: ${title}`, content, 'it')
+      .then(() => logger.info(`Einsatzdok notification sent to ${deliveryEmails.join(', ')}`))
+      .catch(error => logger.error(`Einsatzdok notification failed: ${error.message}`));
+  }
 
   logger.info(`Einsatzdok uploaded: ${key} (${req.file.size} bytes) by user ${req.user?.id}`);
   res.json({ success: true, data: serializeEinsatzDokument(document) });

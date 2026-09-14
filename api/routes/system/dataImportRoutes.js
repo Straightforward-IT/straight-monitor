@@ -1079,7 +1079,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 });
 
 // --- Personal Import (kombiniert: Personalnr, Persstatus, Stammdaten, Beruf/Quali, Persgruppe, Arbeitsverhältnis, Arbeitszeit, Adresse(n), Email, Telefon) ---
-// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Geburtsname(GEBNAME), F=Geburtsort(GEBORT), G=Eintritt1, H=Austritt1, I=Berufsschlüssel(komma), J=Qualischlüssel(komma), K=Persgruppe, L=Arbeitszeit-von, M=Arbeitszeit-bis, N-X=Arbeitszeit, Y=Strasse, Z=PLZ, AA=Ort, AB=Land, AC=Telefon, AD=Email, AE=Strasse2, AF=PLZ2, AG=Ort2, AH=Land2, AI=Telefon2, AJ=Email2
+// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Nachname, F=Vorname, G=Geburtsname(GEBNAME), H=Geburtsort(GEBORT), I=Eintritt1, J=Austritt1, K=Berufsschlüssel(komma), L=Qualischlüssel(komma), M=Persgruppe, N=Arbeitsverhältnis-von, O=Arbeitsverhältnis-Typ, P=Durchschnitt bei Fortführen, Q=Arbeitszeit-von, R=Arbeitszeit-bis, S-AC=Arbeitszeit, AD=Strasse, AE=PLZ, AF=Ort, AG=Land, AH=Telefon, AI=Email, AJ=Strasse2, AK=PLZ2, AL=Ort2, AM=Land2, AN=Telefon2, AO=Email2
 // Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 router.post('/personal', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
@@ -1145,14 +1145,16 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
 
       // Fixed column indices per format.
       // New 7002 (colOffset=1): A=Prüffeld, B=Personalnr, C=Persstatus, D=Geburtsdatum,
-      //   E=Geburtsname, F=Geburtsort, G=Eintritt1, H=Austritt1, I=Berufsschl, J=Qualschl, K=Persgruppe,
-      //   L=Arbeitszeit-von, M=Arbeitszeit-bis, N=Mo, O=Di, P=Mi, Q=Do, R=Fr, S=Sa,
-      //   T=So, U=Woche, V=Monat, W=Zeitkonto-Plus-Limit, X=Zeitkonto-Minus-Limit,
-      //   Y=Strasse, Z=PLZ, AA=Ort, AB=Land, AC=Tel, AD=Email,
-      //   AE=Strasse2, AF=PLZ2, AG=Ort2, AH=Land2, AI=Tel2, AJ=Email2
+      //   E=Nachname, F=Vorname, G=Geburtsname, H=Geburtsort, I=Eintritt1, J=Austritt1,
+      //   K=Berufsschl, L=Qualschl, M=Persgruppe, N=Arbeitsverhältnis-von,
+      //   O=Arbeitsverhältnis-Typ, P=Durchschnitt bei Fortführen, Q=Arbeitszeit-von,
+      //   R=Arbeitszeit-bis, S=Mo, T=Di, U=Mi, V=Do, W=Fr, X=Sa, Y=So, Z=Woche,
+      //   AA=Monat, AB=Zeitkonto-Plus-Limit, AC=Zeitkonto-Minus-Limit, AD=Strasse,
+      //   AE=PLZ, AF=Ort, AG=Land, AH=Tel, AI=Email, AJ=Strasse2, AK=PLZ2,
+      //   AL=Ort2, AM=Land2, AN=Tel2, AO=Email2
       // Legacy (colOffset=0): A=Personalnr, B=ignoriert, C=Austritt, D=Berufsschl,
       //   E=Qualschl, F=Persgruppe, G=Email, H=Telefon
-      let personalnr, persstatus, geburtsdatum, geburtsname, geburtsort, eintrittsdatum, austrittsdatum;
+      let personalnr, persstatus, geburtsdatum, nachname, vorname, geburtsname, geburtsort, eintrittsdatum, austrittsdatum;
       let berufKeys, qualiKeys, persgruppRaw, email, telefon;
       let adresse = null, adresse2 = null, arbeitszeit = null, arbeitsverhaeltnis = null;
 
@@ -1161,6 +1163,8 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         if (!personalnr) continue;
         persstatus = row[2] != null ? parseInt(row[2], 10) : null;
         geburtsdatum = parseDate(row[3]);
+        nachname = parseStr(row[4]);
+        vorname = parseStr(row[5]);
         const dataStart = isExtendedFormat ? 6 : 4;
         geburtsname = parseStr(row[dataStart]);
         geburtsort = parseStr(row[dataStart + 1]);
@@ -1234,6 +1238,8 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         if (!personalnr) continue;
         persstatus = null;
         geburtsdatum = null;
+        nachname = null;
+        vorname = null;
         geburtsort = null;
         eintrittsdatum = null;
         austrittsdatum = parseDate(row[2]);
@@ -1253,6 +1259,8 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         berufe: berufIds,
         qualifikationen: qualiIds,
       };
+      if (nachname) setFields.nachname = nachname;
+      if (vorname) setFields.vorname = vorname;
       if (geburtsdatum) setFields.geburtsdatum = geburtsdatum;
       if (geburtsname) setFields.geburtsname = geburtsname;
       if (geburtsort) setFields.geburtsort = geburtsort;

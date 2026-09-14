@@ -832,7 +832,7 @@
                   <div class="einsatz-dok-meta">{{ formatFileSize(dok.size) }} &middot; {{ einsatzDokAudienceLabel(dok) }}</div>
                 </div>
                 <div class="einsatz-dok-actions">
-                  <button class="einsatz-dok-action" type="button" title="Öffnen" @click="openEinsatzDok(dok)">
+                  <button class="einsatz-dok-action" type="button" title="Vorschau öffnen" @click="previewEinsatzDok(dok)">
                     <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
                   </button>
                   <button class="einsatz-dok-action" type="button" title="Herunterladen" @click="openEinsatzDok(dok, true)">
@@ -842,23 +842,6 @@
                     <font-awesome-icon icon="fa-solid fa-xmark" />
                   </button>
                 </div>
-              </div>
-
-              <div class="einsatz-dok-access">
-                <label for="einsatz-dok-audience">Sichtbar für</label>
-                <select id="einsatz-dok-audience" v-model="einsatzDokAudience">
-                  <option value="job">Mitarbeiter im Auftrag</option>
-                  <option value="teamleiter">Teamleiter im Auftrag</option>
-                  <option value="office">Alle Monitor-Nutzer</option>
-                  <option value="office_roles">Nur Vertrieb und Admin</option>
-                </select>
-                <input
-                  v-if="einsatzDokAudience === 'job'"
-                  v-model="einsatzDokBerufKeys"
-                  type="text"
-                  inputmode="numeric"
-                  placeholder="Berufsschlüssel, z. B. 10001 (optional)"
-                />
               </div>
 
               <!-- Uploading indicator -->
@@ -882,6 +865,69 @@
             </template>
           </div>
     </SidePanelFrame>
+
+    <ModalFrame
+      v-if="showEinsatzDokUploadDialog"
+      v-model="showEinsatzDokUploadDialog"
+      title="Dokument hinzufügen"
+      subtitle="Einsatzdokumente"
+      size="sm"
+      class="einsatz-dok-upload-dialog"
+      @close="cancelEinsatzDokUpload"
+    >
+      <div class="einsatz-dok-dialog-body">
+        <p class="einsatz-dok-dialog-files">{{ pendingEinsatzDokFiles.length }} {{ pendingEinsatzDokFiles.length === 1 ? 'Datei ausgewählt' : 'Dateien ausgewählt' }}</p>
+        <div class="einsatz-dok-dialog-file-list">
+          <span v-for="file in pendingEinsatzDokFiles" :key="`${file.name}-${file.lastModified}`">{{ file.name }}</span>
+        </div>
+        <label>Dokumenttyp
+          <select v-model="einsatzDokType">
+            <option value="einsatznachweis">Einsatznachweis</option>
+            <option value="einsatzinformation">Einsatzinformation</option>
+            <option value="ablauf">Ablaufplan</option>
+            <option value="wegbeschreibung">Wegbeschreibung</option>
+            <option value="sicherheit">Sicherheitsdokument</option>
+            <option value="kunde">Kundendokument</option>
+            <option value="sonstiges">Sonstiges</option>
+          </select>
+        </label>
+        <label>Sichtbar für
+          <select v-model="einsatzDokAudience">
+            <option value="job">Mitarbeiter im Auftrag</option>
+            <option value="teamleiter">Teamleiter im Auftrag</option>
+            <option value="office">Alle Monitor-Nutzer</option>
+            <option value="office_roles">Nur Vertrieb und Admin</option>
+          </select>
+        </label>
+        <label v-if="einsatzDokAudience === 'job'">Berufsschlüssel (optional)
+          <BerufSearch v-model="einsatzDokBerufKeys" placeholder="Beruf suchen..." />
+        </label>
+        <label>E-Mail-Benachrichtigung (optional)
+          <input v-model="einsatzDokDeliveryEmails" type="text" inputmode="email" placeholder="name@straightforward.email, ..." />
+        </label>
+        <label>Mitteilung (optional)
+          <textarea v-model="einsatzDokDeliveryMessage" rows="3" placeholder="Zusätzliche Information zur Datei"></textarea>
+        </label>
+      </div>
+      <template #footer>
+        <button type="button" class="einsatz-dok-dialog-cancel" :disabled="einsatzDokUploading" @click="cancelEinsatzDokUpload">Abbrechen</button>
+        <button type="button" class="einsatz-dok-dialog-submit" :disabled="einsatzDokUploading" @click="confirmEinsatzDokUpload">
+          <font-awesome-icon :icon="einsatzDokUploading ? 'fa-solid fa-spinner' : 'fa-solid fa-upload'" :spin="einsatzDokUploading" />
+          Hochladen
+        </button>
+      </template>
+    </ModalFrame>
+
+    <DocumentPreviewModal
+      v-if="previewEinsatzDokument"
+      v-model="showEinsatzDokPreview"
+      :filename="previewEinsatzDokument.filename"
+      :mime-type="previewEinsatzDokument.mimeType"
+      :resolve-url="resolveEinsatzDokPreviewUrl"
+      minimizable
+      :minimize-id="`einsatz-dokument-${previewEinsatzDokument._id}`"
+      @close="closeEinsatzDokPreview"
+    />
 
     <OrderChronikDrawer
       v-if="isAdmin && showChronik && selectedEvent && !chronikInline"
@@ -1334,6 +1380,8 @@ import { useReisekostenModals } from '@/composables/useReisekostenModals';
 import { useTimeCaptureModals } from '@/composables/useTimeCaptureModals';
 import PageLayout from '@/components/layout/PageLayout.vue';
 import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
+import DocumentPreviewModal from '@/components/Modals/DocumentPreviewModal.vue';
 import OrderChronikDrawer from '@/components/orders/OrderChronikDrawer.vue';
 import OrderChronikTimeline from '@/components/orders/OrderChronikTimeline.vue';
 import { onAuftragMutation } from '@/utils/auftragChanges';
@@ -1344,6 +1392,7 @@ import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import PillMultiSelect from '@/components/ui-elements/PillMultiSelect.vue';
+import BerufSearch from '@/components/ui-elements/BerufSearch.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
 import { buildEventSchichten } from '@/utils/eventSchichten';
@@ -1358,7 +1407,7 @@ import docusealPendingIcon from '@/assets/docuseal-pending.webp';
 export default {
   name: "AuftraegePage",
   emits: ['mitarbeiter-drop'],
-  components: { PageLayout, SidePanelFrame, OrderChronikDrawer, OrderChronikTimeline, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ContextMenu, PillMultiSelect, CustomTooltip },
+  components: { PageLayout, SidePanelFrame, ModalFrame, DocumentPreviewModal, OrderChronikDrawer, OrderChronikTimeline, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ContextMenu, PillMultiSelect, BerufSearch, CustomTooltip },
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
@@ -1502,8 +1551,15 @@ export default {
       einsatzDoks: [],
       einsatzDoksLoading: false,
       einsatzDokUploading: false,
-      einsatzDokAudience: 'job',
-      einsatzDokBerufKeys: '',
+      showEinsatzDokUploadDialog: false,
+      pendingEinsatzDokFiles: [],
+      einsatzDokType: 'einsatznachweis',
+      einsatzDokAudience: 'office',
+      einsatzDokBerufKeys: [],
+      einsatzDokDeliveryEmails: '',
+      einsatzDokDeliveryMessage: '',
+      showEinsatzDokPreview: false,
+      previewEinsatzDokument: null,
       // ── Reisekostenabrechnungen (Einsatzdokumente) ───────────────────────
       reisekostenListe: [],
       reisekostenListeLoading: false,
@@ -2951,15 +3007,28 @@ export default {
       const files = Array.from(event.target.files || []);
       if (!files.length || !this.selectedEvent?.auftragNr) return;
       event.target.value = ''; // reset so same file can be re-selected
+      this.pendingEinsatzDokFiles = files;
+      this.showEinsatzDokUploadDialog = true;
+    },
+    cancelEinsatzDokUpload() {
+      if (this.einsatzDokUploading) return;
+      this.showEinsatzDokUploadDialog = false;
+      this.pendingEinsatzDokFiles = [];
+    },
+    async confirmEinsatzDokUpload() {
+      if (!this.pendingEinsatzDokFiles.length || !this.selectedEvent?.auftragNr || this.einsatzDokUploading) return;
       this.einsatzDokUploading = true;
       try {
-        for (const file of files) {
+        for (const file of this.pendingEinsatzDokFiles) {
           const form = new FormData();
           form.append('file', file);
+          form.append('type', this.einsatzDokType);
           form.append('audience', this.einsatzDokAudience);
-          if (this.einsatzDokAudience === 'job' && this.einsatzDokBerufKeys.trim()) {
-            form.append('berufKeys', this.einsatzDokBerufKeys.trim());
+          if (this.einsatzDokAudience === 'job' && this.einsatzDokBerufKeys.length) {
+            form.append('berufKeys', this.einsatzDokBerufKeys.join(','));
           }
+          if (this.einsatzDokDeliveryEmails.trim()) form.append('deliveryEmails', this.einsatzDokDeliveryEmails.trim());
+          if (this.einsatzDokDeliveryMessage.trim()) form.append('deliveryMessage', this.einsatzDokDeliveryMessage.trim());
           const { data } = await api.post(
             `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`,
             form,
@@ -2967,6 +3036,8 @@ export default {
           );
           this.einsatzDoks.push(data.data);
         }
+        this.showEinsatzDokUploadDialog = false;
+        this.pendingEinsatzDokFiles = [];
       } catch (e) {
         console.error('Upload fehlgeschlagen', e);
       } finally {
@@ -2991,12 +3062,26 @@ export default {
         );
         if (download) {
           await this.downloadFile(data.data.url, dok.filename);
-        } else {
-          window.open(data.data.url, '_blank', 'noopener');
         }
       } catch (error) {
         console.error('Einsatzdokument öffnen fehlgeschlagen', error);
       }
+    },
+    previewEinsatzDok(dok) {
+      this.previewEinsatzDokument = dok;
+      this.showEinsatzDokPreview = true;
+    },
+    closeEinsatzDokPreview() {
+      this.showEinsatzDokPreview = false;
+      this.previewEinsatzDokument = null;
+    },
+    async resolveEinsatzDokPreviewUrl() {
+      const dok = this.previewEinsatzDokument;
+      if (!this.selectedEvent?.auftragNr || !dok?._id) throw new Error('Dokument ist nicht verfügbar.');
+      const { data } = await api.get(
+        `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente/${dok._id}/download`
+      );
+      return data.data.url;
     },
     async deleteStundenlisteDraft() {
       const vorgang = this.sidebarStundenliste;
@@ -5619,6 +5704,151 @@ export default {
   color: var(--muted);
   padding: 6px 0;
   font-style: italic;
+}
+
+.einsatz-dok-access {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px 9px;
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--tile-bg) 82%, var(--hover));
+
+  label {
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  select,
+  input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    outline: none;
+    background: var(--tile-bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.76rem;
+  }
+
+  select {
+    cursor: pointer;
+    color-scheme: light dark;
+  }
+
+  input {
+    grid-column: 1 / -1;
+
+    &::placeholder { color: var(--muted); opacity: 0.8; }
+  }
+
+  select:focus,
+  input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 16%, transparent);
+  }
+}
+
+:deep(.einsatz-dok-upload-dialog) {
+  --mf-body-padding: 0;
+  --mf-footer-padding: 12px 16px;
+}
+
+.einsatz-dok-dialog-body {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+
+  label {
+    display: grid;
+    gap: 5px;
+    color: var(--muted);
+    font-size: 0.74rem;
+    font-weight: 600;
+  }
+
+  input,
+  select,
+  textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    background: var(--tile-bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+  }
+
+  input,
+  select { height: 34px; padding: 0 9px; }
+  textarea { padding: 8px 9px; resize: vertical; }
+  select { cursor: pointer; color-scheme: light dark; }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 16%, transparent);
+  }
+}
+
+.einsatz-dok-dialog-files {
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.einsatz-dok-dialog-file-list {
+  display: grid;
+  gap: 4px;
+  max-height: 82px;
+  overflow-y: auto;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+  color: var(--muted);
+  font-size: 0.75rem;
+
+  span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+.einsatz-dok-dialog-cancel,
+.einsatz-dok-dialog-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+
+  &:disabled { cursor: wait; opacity: 0.55; }
+}
+
+.einsatz-dok-dialog-submit {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
 }
 
 .einsatz-dok-upload-btn {

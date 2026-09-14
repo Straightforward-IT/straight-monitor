@@ -305,23 +305,37 @@ router.get(
   asyncHandler(async (req, res) => {
     const { q, includeInactive } = req.query;
     if (!q || String(q).trim().length < 2) return res.json([]);
-    const regex = new RegExp(String(q).trim(), 'i');
-    const filter = {
+    const search = String(q).trim();
+    const terms = search.split(/\s+/).filter(Boolean).slice(0, 5);
+    const regex = (term) => new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const matchingTerm = (term) => ({
       $or: [
-        { vorname: regex },
-        { nachname: regex },
-        { email: regex },
-        { personalnr: regex },
-        { personalnummern: regex },
-      ]
+        { vorname: regex(term) },
+        { nachname: regex(term) },
+        { email: regex(term) },
+        { personalnr: regex(term) },
+        { personalnummern: regex(term) },
+      ],
+    });
+    const filter = {
+      $and: terms.map(matchingTerm),
     };
     if (includeInactive !== 'true') filter.isActive = true;
     const results = await Mitarbeiter.find(filter)
-      .sort({ createdAt: -1 })
       .select('_id vorname nachname email personalnr flip_id profilbild persgruppe isActive locationV2')
       .limit(20)
       .lean();
-    res.json(results);
+    const normalizedSearch = search.toLocaleLowerCase('de-DE');
+    const score = (employee) => {
+      const fullName = `${employee.vorname || ''} ${employee.nachname || ''}`.trim().toLocaleLowerCase('de-DE');
+      const email = String(employee.email || '').toLocaleLowerCase('de-DE');
+      const personalNr = String(employee.personalnr || '');
+      if (personalNr === search || email === normalizedSearch || fullName === normalizedSearch) return 3;
+      if (fullName.startsWith(normalizedSearch)) return 2;
+      return 1;
+    };
+    res.json(results.sort((first, second) => score(second) - score(first)
+      || `${first.nachname || ''} ${first.vorname || ''}`.localeCompare(`${second.nachname || ''} ${second.vorname || ''}`, 'de')));
   })
 );
 

@@ -132,7 +132,6 @@ async function resolvePublicMitarbeiter(req) {
 
 async function canAccessPublicEinsatzDokument(req, auftragNr, document) {
   if (!['job', 'teamleiter'].includes(document.audience)) return false;
-  if (!req.oidcEmail && !req.oidcFlipId) return false;
 
   const publicMitarbeiter = await resolvePublicMitarbeiter(req);
   if (!publicMitarbeiter) return false;

@@ -27,6 +27,19 @@
           <span v-if="getJobNote()" class="job-notes-dot"></span>
         </button>
       </div>
+      <div v-if="einsatzDoks.length" class="job-documents-row">
+        <button
+          v-for="dok in einsatzDoks"
+          :key="dok._id"
+          type="button"
+          class="job-document-btn"
+          :title="dok.filename"
+          @click="downloadEinsatzDok(dok)"
+        >
+          <font-awesome-icon icon="fa-solid fa-download" />
+          <span>{{ dok.filename }}</span>
+        </button>
+      </div>
     </div>
 
     <!-- Deine Schicht -->
@@ -83,25 +96,6 @@
     </div>
 
     <PublicEinsatzinformation :html="einsatz.einsatzinformationHtml" />
-
-    <section v-if="einsatzDoksLoading || einsatzDoks.length" class="section einsatzdoks-section">
-      <h3 class="section-title">
-        <font-awesome-icon icon="fa-solid fa-folder-open" /> Dokumente
-      </h3>
-      <LoadingSpinner v-if="einsatzDoksLoading" label="Dokumente werden geladen..." class="inline-loader" />
-      <div v-else class="public-dok-list">
-        <button
-          v-for="dok in einsatzDoks"
-          :key="dok._id"
-          type="button"
-          class="public-dok-row"
-          @click="downloadEinsatzDok(dok)"
-        >
-          <font-awesome-icon icon="fa-solid fa-file-arrow-down" />
-          <span>{{ dok.filename }}</span>
-        </button>
-      </div>
-    </section>
 
     <!-- Mitarbeiter List grouped by Schicht -->
     <div class="section">
@@ -1172,7 +1166,10 @@ async function loadEinsatzDoks() {
   if (!auftragNr) return;
   einsatzDoksLoading.value = true;
   try {
-    const { data } = await props.api.get(`/api/public/einsatzdokumente/${auftragNr}`);
+    const { data } = await props.api.get(`/api/public/einsatzdokumente/${auftragNr}`, {
+      headers: { 'x-public-token': props.token },
+      params: { email: props.email },
+    });
     einsatzDoks.value = data.data || [];
   } catch {
     einsatzDoks.value = [];
@@ -1184,7 +1181,11 @@ async function loadEinsatzDoks() {
 async function downloadEinsatzDok(dok) {
   try {
     const { data } = await props.api.get(
-      `/api/public/einsatzdokumente/${props.einsatz.auftragNr}/${dok._id}/download`
+      `/api/public/einsatzdokumente/${props.einsatz.auftragNr}/${dok._id}/download`,
+      {
+        headers: { 'x-public-token': props.token },
+        params: { email: props.email },
+      },
     );
     window.open(data.data.url, '_blank', 'noopener');
   } catch {
@@ -1513,25 +1514,33 @@ watch(() => props.einsatz?._id, () => {
   font-style: italic;
 }
 
-.einsatzdoks-section { margin-top: 1.25rem; }
-.public-dok-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.public-dok-row {
+.job-documents-row {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+.job-document-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 0.65rem;
-  width: 100%;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--panel);
-  color: var(--text);
+  gap: 0.4rem;
+  max-width: 100%;
+  padding: 0.35rem 0.75rem;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--tile-bg);
+  color: var(--muted);
   font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, color 0.15s;
 }
-.public-dok-row svg { color: var(--primary); }
-.public-dok-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.public-dok-row:active { background: var(--hover); }
+.job-document-btn svg { color: var(--primary); }
+.job-document-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.job-document-btn:active { opacity: 0.75; }
 
 /* Schicht Groups */
 .schicht-group {

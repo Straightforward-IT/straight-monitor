@@ -67,6 +67,15 @@ function getLocationSignatureSenderKey(location) {
   }
 }
 
+async function getVorgangSignatureSenderKey(vorgang) {
+  if (!vorgang.locationV2) return 'it';
+
+  const location = await Location.findById(vorgang.locationV2)
+    .select('spaceFolder.teamKey')
+    .lean();
+  return getLocationSignatureSenderKey(location);
+}
+
 async function sendSignatureInvitationEmails({ submitters, requestedSubmitters, documentTitle, location }) {
   const senderKey = getLocationSignatureSenderKey(location);
 
@@ -156,6 +165,7 @@ async function executeFolgeaktionen(vorgang) {
   const recipients = [...recipientsByEmail.values()];
   if (recipients.length > 0 && vorgang.r2KeySigned) {
     try {
+      const senderKey = await getVorgangSignatureSenderKey(vorgang);
       const pdfBuffer = await R2Service.downloadFile(vorgang.r2KeySigned);
       const attachments = await buildCompletedPdfAttachments(vorgang, pdfBuffer);
       const subject = `Unterzeichnetes Dokument: ${vorgang.name || 'Signatur'}`;
@@ -166,10 +176,10 @@ async function executeFolgeaktionen(vorgang) {
         recipients.map(r => r.email),
         subject,
         body,
-        'it',
+        senderKey,
         attachments,
       );
-      logger.info(`SignaturVorgang ${vorgang._id}: Signed PDF sent to ${recipients.map(r => r.email).join(', ')}`);
+      logger.info(`SignaturVorgang ${vorgang._id}: Signed PDF sent from ${senderKey} to ${recipients.map(r => r.email).join(', ')}`);
     } catch (err) {
       logger.error(`SignaturVorgang ${vorgang._id}: Ausliefern fehlgeschlagen:`, err.message);
     }
