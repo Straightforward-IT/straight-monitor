@@ -1340,6 +1340,7 @@ import { useCustomerModals } from '@/composables/useCustomerModals';
 import { useDocumentModals } from '@/composables/useDocumentModals';
 import { useEventModals } from '@/composables/useEventModals';
 import { useReisekostenModals } from '@/composables/useReisekostenModals';
+import { useTimeCaptureModals } from '@/composables/useTimeCaptureModals';
 import PageLayout from '@/components/layout/PageLayout.vue';
 import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
 import SearchBar from '@/components/SearchBar.vue';
@@ -1369,6 +1370,7 @@ export default {
     const { openDocument } = useDocumentModals();
     const { openEvent } = useEventModals();
     const { openReisekosten } = useReisekostenModals();
+    const { openTimeCapture } = useTimeCaptureModals();
     const minimizeDock = useMinimizeDock();
 
     const restoreMinimizedStundenliste = (auftragNr) => {
@@ -1383,7 +1385,7 @@ export default {
         : false;
     };
 
-    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, restoreMinimizedStundenliste, docusealLogo, docusealPendingIcon };
+    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, openTimeCapture, restoreMinimizedStundenliste, docusealLogo, docusealPendingIcon };
   },
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -1699,7 +1701,6 @@ export default {
           label: 'Stundenerfassung öffnen',
           icon: 'fa-solid fa-clock',
           action: 'open-time-entry',
-          disabled: true,
         });
       }
       return items;
@@ -2072,6 +2073,8 @@ export default {
       } else if (action === 'plan-pseudo') {
         await this.selectEvent(auftrag);
         this.openPseudoDialog();
+      } else if (action === 'open-time-entry') {
+        this.openTimeCapture({ auftragNr: String(auftrag.auftragNr) });
       }
     },
     toggleQuickActionsMenu(event) {

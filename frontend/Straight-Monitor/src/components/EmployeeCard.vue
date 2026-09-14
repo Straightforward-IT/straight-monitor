@@ -1419,6 +1419,8 @@
             <div v-if="resolvedMa.eintrittsdatum"><dt>Eintritt</dt><dd>{{ formatDate(resolvedMa.eintrittsdatum) }}</dd></div>
             <div v-if="resolvedMa.austrittsdatum"><dt>Austritt</dt><dd>{{ formatDate(resolvedMa.austrittsdatum) }}</dd></div>
             <div v-if="addressLines(resolvedMa.adresse).length"><dt>Adresse</dt><dd class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse)" :key="idx">{{ line }}</span></dd></div>
+            <div v-if="addressLines(resolvedMa.adresse2).length || resolvedMa.adresse2?.telefon || resolvedMa.adresse2?.email"><dt>Adresse 2</dt><dd class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse2)" :key="idx">{{ line }}</span><span v-if="resolvedMa.adresse2?.telefon" class="steckbrief-value--muted">{{ resolvedMa.adresse2.telefon }}</span><span v-if="resolvedMa.adresse2?.email" class="steckbrief-value--muted">{{ resolvedMa.adresse2.email }}</span></dd></div>
+            <div v-if="resolvedMa.erstellt_von"><dt>Erstellt</dt><dd>{{ resolvedMa.erstellt_von }}</dd></div>
           </dl>
         </section>
         <section v-if="hasArbeitsverhaeltnis" class="arbeitsverhaeltnis-section">
@@ -1465,18 +1467,6 @@
             <div v-if="resolvedMa.arbeitsverhaeltnis?.typ === 3"><dt>Vorarbeitgeber</dt><dd>{{ vorarbeitgebertageDisplay }} Tage</dd></div>
           </dl>
         </section>
-        <div v-if="addressLines(resolvedMa.adresse2).length || resolvedMa.adresse2?.telefon || resolvedMa.adresse2?.email" class="steckbrief-row steckbrief-row--block">
-          <span class="steckbrief-label">Adresse 2</span>
-          <span class="steckbrief-value steckbrief-value--lines">
-            <span v-for="(line, idx) in addressLines(resolvedMa.adresse2)" :key="idx">{{ line }}</span>
-            <span v-if="resolvedMa.adresse2?.telefon" class="steckbrief-value--muted">{{ resolvedMa.adresse2.telefon }}</span>
-            <span v-if="resolvedMa.adresse2?.email" class="steckbrief-value--muted">{{ resolvedMa.adresse2.email }}</span>
-          </span>
-        </div>
-        <div v-if="resolvedMa.erstellt_von" class="steckbrief-row">
-          <span class="steckbrief-label">Erstellt</span>
-          <span class="steckbrief-value steckbrief-value--muted">{{ resolvedMa.erstellt_von }}</span>
-        </div>
         <button class="steckbrief-edit-button" type="button" @click.stop="executeQuickAction('edit')">
           <font-awesome-icon icon="fa-solid fa-pen-to-square" />
           Bearbeiten
