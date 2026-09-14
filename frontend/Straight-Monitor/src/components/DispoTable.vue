@@ -412,7 +412,9 @@
               >
                 <!-- Nachname -->
                 <td class="col-nachname" :style="{ width: colWidths.nachname + 'px', minWidth: colWidths.nachname + 'px', maxWidth: colWidths.nachname + 'px' }">
-                  <div class="ma-name-cell">
+                  <HoverDataCard :data="employeeHoverData(ma)" :disabled="!employeeHoverData(ma)" placement="right" block @open="loadEmployeeHoverData(ma)">
+                    <template #default="{ triggerProps }">
+                  <div class="ma-name-cell" v-bind="triggerProps">
                     <div v-if="isTeamleiter(ma)" class="tl-corner-wrapper"><TlBadge /></div>
                     <div v-else-if="ma.isBewerberstatus" class="bew-corner-wrapper">Bew.</div>
                     <div v-if="getExitLabel(ma)" class="exit-corner-wrapper">{{ getExitLabel(ma) }}</div>
@@ -426,10 +428,16 @@
                     </button>
                     <span class="ma-name">{{ ma.nachname }}</span>
                   </div>
+                    </template>
+                  </HoverDataCard>
                 </td>
                 <!-- Vorname -->
                 <td class="col-vorname" :style="{ width: colWidths.vorname + 'px', minWidth: colWidths.vorname + 'px', maxWidth: colWidths.vorname + 'px' }">
-                  <span class="ma-name">{{ ma.vorname }}</span>
+                  <HoverDataCard :data="employeeHoverData(ma)" :disabled="!employeeHoverData(ma)" placement="right" block @open="loadEmployeeHoverData(ma)">
+                    <template #default="{ triggerProps }">
+                      <span class="ma-name" v-bind="triggerProps">{{ ma.vorname }}</span>
+                    </template>
+                  </HoverDataCard>
                 </td>
                 <!-- Notiz -->
                 <td
@@ -1658,6 +1666,7 @@ import FilterDropdown from '@/components/FilterDropdown.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import PillMultiSelect from '@/components/ui-elements/PillMultiSelect.vue';
+import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
 
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import HelpModal from '@/components/Modals/HelpModal.vue';
@@ -1693,6 +1702,8 @@ const filterExpanded = ref(false);
 const isMobile = ref(window.innerWidth <= 768);
 const starredIds = ref(new Set());
 const hiddenIds = ref(new Set());
+const employeeHoverAnalytics = reactive({});
+const employeeHoverLoading = new Set();
 const showHidden = ref(false);
 const highlightedMaId = ref(null);
 const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 0, flipped: false });
@@ -3102,6 +3113,66 @@ function getMaBereich(ma) {
   if (hasS) return 'S';
   if (hasL) return 'L';
   return null;
+}
+
+function employeeHoverData(ma) {
+  const employmentType = ma.arbeitsverhaeltnis?.typ;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const analytics = employeeHoverAnalytics[`${ma._id}-${year}`] || { ist: [], forecast: [] };
+  const employeeName = [ma.vorname, ma.nachname].filter(Boolean).join(' ');
+  const monthlyRecord = records => records.find(record => record.year === year && record.month === month) || {};
+
+  if (employmentType === 3) {
+    const yearlyDays = records => records
+      .filter(record => record.year === year)
+      .reduce((total, record) => total + (Number(record.days) || 0), 0);
+    return {
+      type: 'days',
+      eyebrow: String(year),
+      employeeName,
+      title: 'Kurzfristig beschäftigt',
+      priorEmployerDays: ma.vorarbeitgebertage?.year === year ? ma.vorarbeitgebertage.days : 0,
+      workedDays: yearlyDays(analytics.ist),
+      plannedDays: yearlyDays(analytics.forecast),
+      dayLimit: 70,
+    };
+  }
+
+  if (employmentType !== 0 && employmentType !== 1) return null;
+  const monthlyHours = Number(ma.arbeitszeit?.monat);
+  if (!Number.isFinite(monthlyHours) || monthlyHours <= 0) return null;
+  const monthLabel = now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  return {
+    type: 'hours',
+    eyebrow: monthLabel,
+    employeeName,
+    title: employmentType === 0 ? 'Vollzeit beschäftigt' : 'Teilzeit beschäftigt',
+    monthlyHours,
+    workedHours: Number(monthlyRecord(analytics.ist).hours) || 0,
+    plannedHours: Number(monthlyRecord(analytics.forecast).hours) || 0,
+  };
+}
+
+async function loadEmployeeHoverData(ma) {
+  const year = new Date().getFullYear();
+  const key = `${ma._id}-${year}`;
+  if (employeeHoverAnalytics[key] || employeeHoverLoading.has(key)) return;
+  employeeHoverLoading.add(key);
+  try {
+    const { data } = await api.get(`/api/personal/${ma._id}/analytics/einsaetze`, {
+      params: {
+        von: new Date(year, 0, 1).toISOString(),
+        bis: new Date(year, 11, 31, 23, 59, 59).toISOString(),
+      },
+    });
+    employeeHoverAnalytics[key] = { ist: data.ist || [], forecast: data.forecast || [] };
+  } catch (error) {
+    console.error('Mitarbeiter-Hover-Analytics laden fehlgeschlagen:', error);
+  } finally {
+    employeeHoverLoading.delete(key);
+  }
 }
 
 function getEntriesForCell(maId, iso) {

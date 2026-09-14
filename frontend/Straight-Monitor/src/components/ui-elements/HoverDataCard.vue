@@ -3,6 +3,7 @@
     v-if="!inline"
     ref="anchor"
     class="hover-data-card-anchor"
+    :class="{ 'hover-data-card-anchor--block': block }"
     @pointerenter="onPointerEnter"
     @pointerleave="onPointerLeave"
     @pointerdown="pointerType = $event.pointerType"
@@ -176,6 +177,7 @@ const props = defineProps({
   closeDelay: { type: Number, default: 160 },
   disabled: { type: Boolean, default: false },
   inline: { type: Boolean, default: false },
+  block: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['open', 'close']);
@@ -357,6 +359,7 @@ onBeforeUnmount(close);
 
 <style scoped>
 .hover-data-card-anchor { display: inline-flex; vertical-align: middle; min-width: 0; }
+.hover-data-card-anchor--block { display: block; width: 100%; }
 .hover-data-card-trigger {
   padding: 8px 12px;
   border: 1px solid var(--border);
