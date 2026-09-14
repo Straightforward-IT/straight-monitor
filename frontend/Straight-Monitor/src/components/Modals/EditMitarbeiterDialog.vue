@@ -1,12 +1,18 @@
 <template>
   <ModalFrame
-    title="Mitarbeiter Daten bearbeiten"
+    title="Mitarbeiterdaten bearbeiten"
+    :subtitle="employeeSubtitle"
     size="lg"
     layer="elevated"
     class="edit-mitarbeiter-dialog"
     @close="emit('close')"
   >
-      <div class="edit-form">
+    <div class="edit-form">
+      <section class="form-section form-section--first">
+        <div class="form-section__heading">
+          <span class="form-section__icon"><font-awesome-icon icon="fa-solid fa-user" /></span>
+          <h4>Persönliche Daten</h4>
+        </div>
         <div class="form-grid form-grid--three">
           <div class="form-group">
             <label>Vorname</label>
@@ -54,23 +60,28 @@
             <input v-model="form.erstellt_von" type="text" class="form-input" />
           </div>
         </div>
+      </section>
 
-        <div class="form-group">
-          <label>Personengruppe</label>
-          <select v-model="form.persgruppe" class="form-input">
-            <option :value="null">— nicht gesetzt —</option>
-            <option :value="101">101 – Festangestellt (Festi)</option>
-            <option :value="110">110 – Kurzfristig angestellt (KZF)</option>
-            <option :value="109">109 – Geringfügig angestellt (Mini)</option>
-            <option :value="106">106 – Werkstudent (Werkst.)</option>
-          </select>
-          <label class="checkbox-label" style="margin-top:8px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)">
-            <input type="checkbox" v-model="form.persgruppe_set_explicitly" />
-            Manuell gesetzt – nicht vom Import überschreiben
-          </label>
+      <section class="form-section">
+        <div class="form-section__heading">
+          <span class="form-section__icon"><font-awesome-icon icon="fa-solid fa-briefcase" /></span>
+          <h4>Beschäftigung</h4>
         </div>
-
-        <div class="form-grid">
+        <div class="form-grid form-grid--employment">
+          <div class="form-group form-group--employment-type">
+            <label>Personengruppe</label>
+            <select v-model="form.persgruppe" class="form-input">
+              <option :value="null">— nicht gesetzt —</option>
+              <option :value="101">101 – Festangestellt (Festi)</option>
+              <option :value="110">110 – Kurzfristig angestellt (KZF)</option>
+              <option :value="109">109 – Geringfügig angestellt (Mini)</option>
+              <option :value="106">106 – Werkstudent (Werkst.)</option>
+            </select>
+            <label class="checkbox-label">
+              <input v-model="form.persgruppe_set_explicitly" type="checkbox" />
+              Manuell gesetzt – nicht vom Import überschreiben
+            </label>
+          </div>
           <div class="form-group">
             <label>Vorarbeitgeber-Tage</label>
             <input v-model.number="form.vorarbeitgebertage.days" type="number" min="0" step="1" class="form-input" />
@@ -80,10 +91,15 @@
             <input v-model.number="form.vorarbeitgebertage.year" type="number" min="2000" step="1" class="form-input" />
           </div>
         </div>
+      </section>
 
-        <!-- Adresse -->
-        <div class="form-section">
-          <h4>Adresse</h4>
+      <section class="form-section">
+        <div class="form-section__heading">
+          <span class="form-section__icon"><font-awesome-icon icon="fa-solid fa-location-dot" /></span>
+          <h4>Adressen</h4>
+        </div>
+        <div class="address-group">
+          <h5>Hauptadresse</h5>
           <div class="form-grid form-grid--address">
             <div class="form-group form-group--street">
               <label>Straße</label>
@@ -103,10 +119,11 @@
             </div>
           </div>
         </div>
-
-        <!-- Adresse 2 -->
-        <div class="form-section">
-          <h4>Adresse 2 (Zweitadresse)</h4>
+        <div class="address-group address-group--secondary">
+          <div class="address-group__heading">
+            <h5>Zweitadresse</h5>
+            <span>Optional</span>
+          </div>
           <div class="form-grid form-grid--address">
             <div class="form-group form-group--street">
               <label>Straße</label>
@@ -136,10 +153,14 @@
             </div>
           </div>
         </div>
+      </section>
 
-        <!-- Additional Emails -->
-        <div class="form-section">
+      <section class="form-section">
+        <div class="form-section__heading">
+          <span class="form-section__icon"><font-awesome-icon icon="fa-solid fa-envelope" /></span>
           <h4>Alternative E-Mails</h4>
+        </div>
+        <div class="list-editor">
           <div
             v-for="(email, index) in form.additionalEmails"
             :key="index"
@@ -151,20 +172,27 @@
               class="form-input"
             />
             <button
+              type="button"
               class="btn btn-sm btn-icon btn-danger"
               @click="removeEmail(index)"
+              aria-label="E-Mail entfernen"
+              title="E-Mail entfernen"
             >
               <font-awesome-icon icon="fa-solid fa-trash" />
             </button>
           </div>
-          <button class="btn btn-sm btn-secondary mt-2" @click="addEmail">
+          <button type="button" class="btn btn-sm btn-secondary mt-2" @click="addEmail">
             <font-awesome-icon icon="fa-solid fa-plus" /> E-Mail hinzufügen
           </button>
         </div>
+      </section>
 
-        <!-- Personalnr History -->
-        <div class="form-section">
-          <h4>Personalnummer Historie</h4>
+      <section class="form-section form-section--last">
+        <div class="form-section__heading">
+          <span class="form-section__icon"><font-awesome-icon icon="fa-solid fa-clock-rotate-left" /></span>
+          <h4>Personalnummer-Historie</h4>
+        </div>
+        <div class="list-editor">
           <div v-if="form.personalnrHistory && form.personalnrHistory.length > 0">
             <div
               v-for="(entry, index) in form.personalnrHistory"
@@ -178,8 +206,10 @@
                 </span>
               </div>
               <button
+                type="button"
                 class="btn btn-sm btn-icon btn-danger"
                 @click="removeHistory(index)"
+                aria-label="Historieneintrag entfernen"
                 title="Eintrag entfernen"
               >
                 <font-awesome-icon icon="fa-solid fa-trash" />
@@ -188,42 +218,42 @@
           </div>
           <p v-else class="empty-state">Keine Historie vorhanden.</p>
         </div>
-      </div>
+      </section>
+    </div>
 
-      <template #footer>
-        <!-- Conflict confirmation -->
-        <div v-if="conflictInfo" class="edit-footer edit-footer--conflict">
-          <div class="conflict-warning">
-            <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
-            Personalnr <strong>{{ form.personalnr }}</strong> wird verwendet von <strong>{{ conflictInfo.name }}</strong>.
-            Trotzdem zuweisen? <em>{{ conflictInfo.name }} verliert dadurch die Personalnr.</em>
-          </div>
-          <div class="conflict-actions">
-            <button class="btn btn-ghost" @click="$emit('cancel-conflict')">Abbrechen</button>
-            <button class="btn btn-danger" @click="saveForce" :disabled="saving">
-              <font-awesome-icon :icon="saving ? 'fa-solid fa-spinner' : 'fa-solid fa-right-left'" :class="{ 'fa-spin': saving }" />
-              Trotzdem zuweisen
-            </button>
-          </div>
+    <template #footer>
+      <div v-if="conflictInfo" class="edit-footer edit-footer--conflict">
+        <div class="conflict-warning">
+          <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
+          Personalnr <strong>{{ form.personalnr }}</strong> wird verwendet von <strong>{{ conflictInfo.name }}</strong>.
+          Trotzdem zuweisen? <em>{{ conflictInfo.name }} verliert dadurch die Personalnr.</em>
         </div>
-        <div v-else class="edit-footer">
-          <div class="modal-footer-actions">
-            <button class="btn btn-ghost" @click="emit('close')">Abbrechen</button>
-            <button class="btn btn-primary" @click="save" :disabled="saving">
-              <font-awesome-icon
-                :icon="saving ? 'fa-solid fa-spinner' : 'fa-solid fa-save'"
-                :class="{ 'fa-spin': saving }"
-              />
-              Speichern
-            </button>
-          </div>
+        <div class="conflict-actions">
+          <button type="button" class="btn btn-ghost" @click="$emit('cancel-conflict')">Abbrechen</button>
+          <button type="button" class="btn btn-danger" :disabled="saving" @click="saveForce">
+            <font-awesome-icon :icon="saving ? 'fa-solid fa-spinner' : 'fa-solid fa-right-left'" :class="{ 'fa-spin': saving }" />
+            Trotzdem zuweisen
+          </button>
         </div>
-      </template>
+      </div>
+      <div v-else class="edit-footer">
+        <div class="modal-footer-actions">
+          <button type="button" class="btn btn-ghost" @click="emit('close')">Abbrechen</button>
+          <button type="button" class="btn btn-primary" :disabled="saving" @click="save">
+            <font-awesome-icon
+              :icon="saving ? 'fa-solid fa-spinner' : 'fa-solid fa-save'"
+              :class="{ 'fa-spin': saving }"
+            />
+            Speichern
+          </button>
+        </div>
+      </div>
+    </template>
   </ModalFrame>
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import ModalFrame from "@/components/frames/ModalFrame.vue";
@@ -244,6 +274,12 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["close", "save", "save-force", "cancel-conflict"]);
+
+const employeeSubtitle = computed(() => {
+  const name = [props.mitarbeiter?.vorname, props.mitarbeiter?.nachname].filter(Boolean).join(" ");
+  const personalnr = props.mitarbeiter?.personalnr ? `Personalnr. ${props.mitarbeiter.personalnr}` : "";
+  return [name, personalnr].filter(Boolean).join(" · ") || "Mitarbeiterprofil";
+});
 
 const form = ref({
   vorname: "",
@@ -369,20 +405,86 @@ function saveForce() {
 </script>
 
 <style scoped lang="scss">
-.edit-mitarbeiter-dialog {
-  --mf-max-width: min(960px, 94vw);
-  --mf-body-padding: 24px;
-  --mf-footer-padding: 16px 24px;
+:global(.edit-mitarbeiter-dialog) {
+  --mf-max-width: min(1040px, calc(100vw - 32px));
+  --mf-max-height: min(860px, calc(100dvh - 32px));
+  --mf-body-padding: 0;
+  --mf-header-padding: 17px 24px;
+  --mf-footer-padding: 13px 24px;
+  --mf-radius: 10px;
+  --mf-border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  --mf-shadow: 0 24px 64px rgba(0, 0, 0, 0.24);
+  --mf-title-size: 1.08rem;
+}
+
+:global(.edit-mitarbeiter-dialog .mf-header) {
+  background: color-mix(in srgb, var(--tile-bg, var(--surface)) 94%, var(--primary) 6%);
+}
+
+:global(.edit-mitarbeiter-dialog .mf-subtitle) {
+  margin-bottom: 2px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+:global(.edit-mitarbeiter-dialog .mf-footer) {
+  background: var(--tile-bg, var(--surface));
 }
 
 .edit-form {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+}
+
+.form-section {
+  margin: 0;
+  padding: 20px 24px 22px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+
+  &:nth-child(even) {
+    background: color-mix(in srgb, var(--tile-bg, var(--surface)) 96%, var(--text) 4%);
+  }
+}
+
+.form-section--last {
+  border-bottom: 0;
+}
+
+.form-section__heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+
+  h4 {
+    margin: 0;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+}
+
+.form-section__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+  font-size: 0.8rem;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 14px 16px;
+
+  & + & {
+    margin-top: 14px;
+  }
 }
 
 .form-grid--three {
@@ -393,63 +495,122 @@ function saveForce() {
   grid-template-columns: minmax(0, 2fr) minmax(90px, 0.65fr) minmax(0, 1.25fr) minmax(0, 1fr);
 }
 
+.form-grid--employment {
+  grid-template-columns: minmax(280px, 2fr) minmax(150px, 1fr) minmax(150px, 1fr);
+}
+
 .form-group {
-  margin-bottom: 1.25rem;
+  min-width: 0;
 
   label {
     display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-    font-size: 0.9rem;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 0.78rem;
     color: var(--muted);
   }
 }
 
 .form-input {
   width: 100%;
-  padding: 0.75rem;
+  min-height: 40px;
+  padding: 9px 11px;
   border-radius: 6px;
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--bg, var(--tile-bg));
   color: var(--text);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+
+  &:hover:not(:focus) {
+    border-color: color-mix(in srgb, var(--border) 55%, var(--text));
+  }
 
   &:focus {
     border-color: var(--primary);
     outline: none;
-    box-shadow: 0 0 0 2px rgba(255, 117, 24, 0.15);
+    background: var(--tile-bg, var(--surface));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
   }
 }
 
 .help-text {
-  font-size: 0.8rem;
+  margin: 5px 0 0;
+  font-size: 0.72rem;
   color: var(--muted);
-  margin-top: 0.25rem;
+  line-height: 1.3;
 }
 
-.form-section {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  margin: 9px 0 0 !important;
+  font-size: 0.76rem !important;
+  line-height: 1.35;
+  cursor: pointer;
 
-  h4 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 600;
+  input {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    flex: 0 0 auto;
+    accent-color: var(--primary);
   }
+}
+
+.address-group {
+  h5 {
+    margin: 0 0 11px;
+    color: var(--text);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+}
+
+.address-group--secondary {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 75%, transparent);
+}
+
+.address-group__heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 11px;
+
+  h5 {
+    margin: 0;
+  }
+
+  span {
+    color: var(--muted);
+    font-size: 0.7rem;
+  }
+}
+
+.list-editor {
+  max-width: 720px;
 }
 
 .item-row {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: 8px;
+  margin-bottom: 8px;
   align-items: center;
+
+  .form-input {
+    flex: 1;
+  }
 
   &.history-row {
     justify-content: space-between;
-    padding: 0.5rem;
-    background: var(--hover);
+    min-height: 42px;
+    padding: 7px 8px 7px 12px;
+    border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+    background: var(--tile-bg, var(--surface));
     border-radius: 6px;
   }
 }
@@ -479,21 +640,24 @@ function saveForce() {
 }
 
 .btn {
-  padding: 0.6rem 1.2rem;
+  min-height: 36px;
+  padding: 8px 14px;
   border-radius: 6px;
-  border: none;
-  font-weight: 500;
+  border: 1px solid transparent;
+  font-weight: 600;
+  font-size: 0.82rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-  transition: all 0.2s;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 
   &.btn-primary {
     background: var(--primary);
     color: white;
     &:hover {
-      filter: brightness(1.1);
+      background: color-mix(in srgb, var(--primary) 88%, black);
     }
   }
 
@@ -524,7 +688,8 @@ function saveForce() {
   }
 
   &.btn-icon {
-    padding: 0.5rem;
+    width: 36px;
+    padding: 0;
   }
 
   &:disabled {
@@ -574,23 +739,53 @@ function saveForce() {
 }
 
 @media (max-width: 620px) {
-  .edit-mitarbeiter-dialog {
-    --mf-body-padding: 18px;
-    --mf-footer-padding: 14px 18px;
+  :global(.edit-mitarbeiter-dialog) {
+    --mf-max-width: calc(100vw - 16px);
+    --mf-max-height: calc(100dvh - 16px);
+    --mf-header-padding: 14px 16px;
+    --mf-footer-padding: 12px 16px;
+    --mf-radius: 8px;
   }
 
   .form-grid {
     grid-template-columns: 1fr;
     gap: 0;
+
+    & + & {
+      margin-top: 0;
+    }
+  }
+
+  .form-group + .form-group {
+    margin-top: 13px;
+  }
+
+  .form-section {
+    padding: 18px 16px 20px;
+  }
+
+  .form-section__heading {
+    margin-bottom: 14px;
+  }
+
+  .conflict-actions,
+  .modal-footer-actions {
+    width: 100%;
+
+    .btn {
+      flex: 1;
+    }
   }
 }
 
 @media (min-width: 621px) and (max-width: 820px) {
   .form-grid--three,
-  .form-grid--address {
+  .form-grid--address,
+  .form-grid--employment {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .form-group--employment-type,
   .form-group--street {
     grid-column: 1 / -1;
   }
