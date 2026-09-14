@@ -15,6 +15,9 @@ idempotent nach `ArbeitszeitBuch` überführen.
 1. Mitarbeiter reicht **einmal pro Einsatz** ein: `SUBMITTED`.
 2. Interner, bestätigter `User` speichert Anpassungen: `DRAFT`.
 3. Interner User übergibt ausdrücklich: `RELEASED`.
+4. Ein interner User kann einen einzelnen übergebenen Einsatz zurücknehmen. Der
+  Status wechselt zu `DRAFT`, die freigegebene Monatsprojektion wird entfernt
+  und die Zeile ist in der Schnellerfassung wieder bearbeitbar.
 
 Der Mongo-Primärschlüssel entspricht der Einsatz-ID. Gleichzeitige Einreichungen
 können deshalb nicht zwei Datensätze erzeugen. Es gibt keine Public-Update- oder
@@ -41,6 +44,7 @@ Auftragsstandort. Es wurde keine neue Payroll-Rollenbeschränkung eingeführt.
   Monatsprojektion; ein neuer Entwurf lässt die bisherige Freigabe bestehen.
 - `revision`: Versionsprüfung bei jeder internen Mutation; 0 für neue Einträge.
 - `history`: Original und jede Bürorevision mit Zeitpunkt, User, Vermerk, Zeiten.
+  Rücknahmen werden als `WITHDRAWN` protokolliert.
 
 Interne Sammelaktionen laufen atomar in einer MongoDB-Transaktion. Ein veralteter
 Datensatz führt zu HTTP 409 und verhindert die gesamte Aktion. Eine erneute
@@ -61,7 +65,7 @@ Intern:
 - `GET /api/working-times/orders/:auftragNr?employeeId=…` → Auftrag, Schichten,
   Einsätze und bestehende Stunden. Mitarbeiterfilter optional.
 - `POST /api/working-times/orders/:auftragNr` →
-  `{action: 'save'|'release', reason, entries: [{einsatzId, revision, start, end,
+  `{action: 'save'|'release'|'withdraw', reason, entries: [{einsatzId, revision, start, end,
   breakMinutes, paidBreakMinutes, breaks: [{start, end, paid}]}]}`.
 - `GET /api/working-times/employees/:employeeId/orders?month=YYYY-MM`.
 - `GET /api/working-times/employees/:employeeId/month?month=YYYY-MM` → Props für
@@ -83,6 +87,9 @@ Die Berechnung ist Zeitdauervalidierung, keine vollständige ArbZG-/Lohnprüfung
   `TimeCaptureModal` mit `Stundenschnellerfassung` im verbundenen Modus.
 - Speichern und Übergabe sind getrennte Aktionen. Der Bearbeitungsvermerk ist
   Pflicht. Bei Fehlern bleiben Eingaben erhalten; 409 verlangt bewusstes Neuladen.
+- Jeder Einsatz kann über den Pfeil am Zeilenende einzeln übergeben werden.
+  Übergebene Zeilen sind gesperrt; der umgekehrte Pfeil nimmt nur diesen Einsatz
+  aus der Zeitverwaltung zurück und entsperrt ihn nach dem Server-Reload.
 - `/zeitverwaltung/:employeeId?month=YYYY-MM` ist eine authentifizierte Seite mit
   tatsächlich übergebenen Schichtstunden.
 

@@ -120,6 +120,20 @@ describe('Operational time capture API', function () {
     assert.equal(review.entries[0].employeeSubmission.netMinutes, 450);
     assert.equal(review.entries[0].history.length, 5);
   });
+  it('withdraws one released entry without losing its editable draft', async () => {
+    assert.equal((await update('release', 0)).status, 200);
+    assert.equal((await month()).body.initialData.entries.length, 1);
+    assert.equal((await update('withdraw', 1)).status, 200);
+    assert.equal((await month()).body.initialData.entries.length, 0);
+    const withdrawn = await Stundenzeit.findById(einsatz._id).lean();
+    assert.equal(withdrawn.status, 'DRAFT');
+    assert.equal(withdrawn.current.netMinutes, 450);
+    assert.equal(withdrawn.released, undefined);
+    assert.equal(withdrawn.history.at(-1).action, 'WITHDRAWN');
+    assert.equal((await update('withdraw', 2)).status, 409);
+    assert.equal((await update('release', 2, { ...time(), end: '19:00' })).status, 200);
+    assert.equal((await month()).body.initialData.entries[0].minutes, 510);
+  });
   it('locks employee capture after an office-created entry and rolls back conflicting batches', async () => {
     assert.equal((await update('save', 0)).status, 200);
     assert.equal((await submit()).status, 409);

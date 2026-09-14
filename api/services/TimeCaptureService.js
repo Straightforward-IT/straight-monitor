@@ -148,7 +148,7 @@ async function employeeOrders(user, employeeId, month) {
   return orders.filter(order => canAccess(user, order.locationV2));
 }
 async function saveReview(user, number, input) {
-  if (!['save', 'release'].includes(input.action)) fail(400, 'Unbekannte Aktion.');
+  if (!['save', 'release', 'withdraw'].includes(input.action)) fail(400, 'Unbekannte Aktion.');
   if (!Array.isArray(input.entries) || !input.entries.length || input.entries.length > 500) fail(400, 'Zwischen 1 und 500 Einsätzen angeben.');
   if (new Set(input.entries.map(row => row.einsatzId)).size !== input.entries.length) fail(400, 'Einsatz mehrfach enthalten.');
   const reason = String(input.reason || '').trim();
@@ -161,11 +161,26 @@ async function saveReview(user, number, input) {
       for (const row of input.entries) {
         const { einsatz, shift, date } = await assignment(row.einsatzId, session);
         if (einsatz.auftragNr !== order.auftragNr) fail(400, 'Einsatz gehört nicht zu diesem Auftrag.');
-        const current = calculate(date, row);
         const previous = await Stundenzeit.findById(einsatz._id).session(session).lean();
         if (!Number.isInteger(row.revision) || row.revision !== (previous?.revision || 0)) fail(409, 'Stunden wurden inzwischen geändert. Bitte neu laden und die Änderungen prüfen.', 'TIME_REVISION_CONFLICT');
         if (previous && (previous.personalNr !== einsatz.personalNr || previous.auftragNr !== einsatz.auftragNr)) fail(409, 'Die Einsatzzuordnung wurde verändert. Bitte separat klären.');
-        const revision = row.revision + 1, at = new Date(), status = input.action === 'release' ? 'RELEASED' : 'DRAFT';
+        const revision = row.revision + 1, at = new Date();
+        if (input.action === 'withdraw') {
+          if (!previous?.released) fail(409, 'Einsatz ist nicht an die Zeitverwaltung übergeben.', 'TIME_NOT_RELEASED');
+          const result = await Stundenzeit.updateOne(
+            { _id: einsatz._id, revision: row.revision },
+            {
+              $set: { revision, status: 'DRAFT' },
+              $unset: { released: 1, releasedAt: 1, releasedBy: 1 },
+              $push: { history: { revision, action: 'WITHDRAWN', at, by: user._id, reason, values: previous.current } },
+            },
+            { session, runValidators: true },
+          );
+          if (result.modifiedCount !== 1) fail(409, 'Stunden wurden inzwischen geändert.', 'TIME_REVISION_CONFLICT');
+          continue;
+        }
+        const current = calculate(date, row);
+        const status = input.action === 'release' ? 'RELEASED' : 'DRAFT';
         const patch = { current, revision, status, ...(status === 'RELEASED' ? { released: current, releasedAt: at, releasedBy: user._id } : {}) };
         const history = { revision, action: status, at, by: user._id, reason, values: current };
         if (previous) {

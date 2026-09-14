@@ -6,26 +6,18 @@
     novalidate
     @submit.prevent="submit('save')"
   >
-    <header class="quick-time__order">
-      <div>
-        <p class="quick-time__eyebrow">
-          Auftrag #{{ auftrag.auftragNr }}
-        </p>
-        <h2>{{ auftrag.eventTitel || 'Stundenschnellerfassung' }}</h2>
-        <p class="quick-time__location">
-          {{ [auftrag.eventLocation, auftrag.eventOrt].filter(Boolean).join(' · ') }}
+    <header class="quick-time__workbar">
+      <div
+        v-if="showContext"
+        class="quick-time__context"
+      >
+        <h2>{{ auftrag.eventTitel || `Auftrag #${auftrag.auftragNr}` }}</h2>
+        <p>
+          <span v-if="auftrag.eventTitel">Auftrag #{{ auftrag.auftragNr }}</span><template v-if="auftrag.eventTitel && (auftrag.eventLocation || auftrag.eventOrt)"> · </template>{{ [auftrag.eventLocation, auftrag.eventOrt].filter(Boolean).join(' · ') }}
         </p>
       </div>
-      <div class="quick-time__overview">
-        <span><strong>{{ groups.length }}</strong> Schichten</span>
-        <span><strong>{{ rows.length }}</strong> Einsätze</span>
-        <span class="quick-time__overview-total"><strong>{{ formatHours(totalMinutes) }}</strong> Ist-Std.</span>
-      </div>
-    </header>
-
-    <div class="quick-time__toolbar">
       <label class="quick-time__filter">
-        Schicht
+        <span>Schicht</span>
         <select
           v-model="selectedGroup"
           aria-label="Schicht"
@@ -38,12 +30,16 @@
           >{{ group.schicht.bezeichnung }} ({{ group.rows.length }})</option>
         </select>
       </label>
-      <span class="quick-time__hint">{{ completeCount }} von {{ rows.length }} Einsätzen erfasst</span>
+      <div class="quick-time__overview">
+        <span><strong>{{ completeCount }}/{{ rows.length }}</strong> erfasst</span>
+        <span><strong>{{ groups.length }}</strong> Schichten</span>
+        <span class="quick-time__overview-total"><strong>{{ formatHours(totalMinutes) }}</strong> Std.</span>
+      </div>
       <span
         v-if="dirtyCount"
         class="quick-time__dirty"
       >{{ dirtyCount }} geändert</span>
-    </div>
+    </header>
 
     <div class="quick-time__content">
       <div
@@ -73,7 +69,7 @@
           <button
             type="button"
             class="quick-time__text-button"
-            :disabled="!group.rows[0]?.analysis.complete || group.rows.length < 2"
+            :disabled="!group.rows[0]?.analysis.complete || !group.rows.slice(1).some(row => !row.locked)"
             @click="copyFirst(group)"
           >
             <FontAwesomeIcon :icon="faCopy" /> Erste Zeile übertragen
@@ -129,7 +125,7 @@
                 v-for="row in group.rows"
                 :key="row.key"
               >
-                <tr :class="{ 'quick-time__row--error': row.analysis.errors.length, 'quick-time__row--warning': !row.analysis.errors.length && row.analysis.warnings.length, 'quick-time__row--dirty': row.dirty }">
+                <tr :class="{ 'quick-time__row--error': row.analysis.errors.length, 'quick-time__row--warning': !row.analysis.errors.length && row.analysis.warnings.length, 'quick-time__row--dirty': row.dirty, 'quick-time__row--locked': row.locked }">
                   <th
                     scope="row"
                     class="quick-time__person"
@@ -157,6 +153,7 @@
                         :aria-label="`Ist-Beginn – ${row.name}`"
                         :aria-invalid="row.analysis.errors.length ? 'true' : undefined"
                         :aria-describedby="row.analysis.errors.length ? `${instanceId}-${row.key}-error` : undefined"
+                        :disabled="row.locked"
                         @input="message = ''"
                       >
                       <span aria-hidden="true">–</span>
@@ -167,6 +164,7 @@
                         :aria-label="`Ist-Ende – ${row.name}`"
                         :aria-invalid="row.analysis.errors.length ? 'true' : undefined"
                         :aria-describedby="row.analysis.errors.length ? `${instanceId}-${row.key}-error` : undefined"
+                        :disabled="row.locked"
                         @input="message = ''"
                       >
                     </div>
@@ -183,6 +181,7 @@
                       step="1"
                       class="quick-time__minutes"
                       :readonly="row.analysis.usesBlocks"
+                      :disabled="row.locked"
                       :aria-label="`Pause in Minuten – ${row.name}`"
                       @input="setMinutes(row, 'breakMinutes', $event)"
                     >
@@ -205,6 +204,7 @@
                       step="1"
                       class="quick-time__minutes"
                       :readonly="row.analysis.usesBlocks"
+                      :disabled="row.locked"
                       :aria-label="`Bezahlte Pause in Minuten – ${row.name}`"
                       @input="setMinutes(row, 'paidBreakMinutes', $event)"
                     >
@@ -219,7 +219,7 @@
                     <div class="quick-time__row-actions">
                       <button
                         type="button"
-                        :disabled="!row.planned.start || !row.planned.end"
+                        :disabled="row.locked || !row.planned.start || !row.planned.end"
                         :title="`Soll-Zeiten übernehmen – ${row.name}`"
                         :aria-label="`Soll-Zeiten übernehmen – ${row.name}`"
                         @click="usePlanned([row])"
@@ -228,7 +228,7 @@
                       </button>
                       <button
                         type="button"
-                        :disabled="!row.dirty"
+                        :disabled="row.locked || !row.dirty"
                         :title="`Zurücksetzen – ${row.name}`"
                         :aria-label="`Zurücksetzen – ${row.name}`"
                         @click="resetRows([row])"
@@ -237,13 +237,28 @@
                       </button>
                       <button
                         type="button"
-                        :disabled="row.analysis.empty"
+                        :disabled="row.locked || row.analysis.empty"
                         :title="`Zeile leeren – ${row.name}`"
                         :aria-label="`Zeile leeren – ${row.name}`"
                         @click="clearRow(row)"
                       >
                         <FontAwesomeIcon :icon="faXmark" />
                       </button>
+                      <CustomTooltip
+                        v-if="connected"
+                        :text="row.locked ? 'Rücknahme aus der Stundenerfassung' : 'Übertragen in die Stundenerfassung'"
+                      >
+                        <button
+                          type="button"
+                          class="quick-time__transfer-action"
+                          :class="{ 'quick-time__transfer-action--withdraw': row.locked }"
+                          :disabled="!row.locked && (!row.analysis.complete || row.analysis.errors.length)"
+                          :aria-label="row.locked ? 'Rücknahme aus der Stundenerfassung' : 'Übertragen in die Stundenerfassung'"
+                          @click="submitRow(row)"
+                        >
+                          <FontAwesomeIcon :icon="row.locked ? faArrowLeft : faArrowRight" />
+                        </button>
+                      </CustomTooltip>
                     </div>
                   </td>
                 </tr>
@@ -297,6 +312,7 @@
                               v-model="block.start"
                               type="time"
                               step="60"
+                              :disabled="row.locked"
                               :aria-label="`Pause ${index + 1} Beginn – ${row.name}`"
                               @input="message = ''"
                             >
@@ -305,13 +321,14 @@
                               v-model="block.end"
                               type="time"
                               step="60"
+                              :disabled="row.locked"
                               :aria-label="`Pause ${index + 1} Ende – ${row.name}`"
                               @input="message = ''"
                             >
                             <button
                               type="button"
                               class="quick-time__remove-break"
-                              :disabled="!block.start && !block.end"
+                              :disabled="row.locked || (!block.start && !block.end)"
                               :aria-label="`Pause ${index + 1} entfernen – ${row.name}`"
                               @click="clearBreak(row, index)"
                             >
@@ -321,6 +338,7 @@
                           <label class="quick-time__paid"><input
                             v-model="block.paid"
                             type="checkbox"
+                            :disabled="row.locked"
                             :aria-label="`Pause ${index + 1} bezahlt – ${row.name}`"
                             @change="message = ''"
                           > Bezahlt</label>
@@ -347,23 +365,20 @@
         </div>
       </section>
 
-      <div class="quick-time__explanation">
-        Ein Ende vor dem Beginn zählt als Folgetag. Bezahlte Pausen werden nicht von den Ist-Stunden abgezogen.
-      </div>
     </div>
     <footer class="quick-time__footer">
       <div class="quick-time__bulk">
         <ToolbarButton
           variant="secondary"
-          :disabled="!visibleRows.length"
-          @click="usePlanned(visibleRows)"
+          :disabled="!editableVisibleRows.length"
+          @click="usePlanned(editableVisibleRows)"
         >
           <FontAwesomeIcon :icon="faClock" /> {{ selectedGroup === 'all' ? 'Alle Soll-Zeiten übernehmen' : 'Soll-Zeiten der Schicht' }}
         </ToolbarButton>
         <ToolbarButton
           variant="secondary"
-          :disabled="!visibleRows.some(row => row.dirty)"
-          @click="resetRows(visibleRows)"
+          :disabled="!editableVisibleRows.some(row => row.dirty)"
+          @click="resetRows(editableVisibleRows)"
         >
           <FontAwesomeIcon :icon="faArrowRotateLeft" /> Zurücksetzen
         </ToolbarButton>
@@ -423,7 +438,8 @@
 <script setup>
 import { computed, getCurrentInstance, ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faArrowRotateLeft, faCheck, faChevronDown, faChevronUp, faCircleExclamation, faClock, faCopy, faTriangleExclamation, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faArrowRight, faArrowRotateLeft, faCheck, faChevronDown, faChevronUp, faCircleExclamation, faClock, faCopy, faTriangleExclamation, faXmark } from '@fortawesome/free-solid-svg-icons';
+import CustomTooltip from '@/components/CustomTooltip.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import { analyzeQuickEntry, buildQuickEntryGroups, createQuickEntry, employeeName, formatHours, plannedTimes } from '@/utils/stundenschnellerfassung';
 
@@ -431,6 +447,7 @@ const props = defineProps({
   contained: { type: Boolean, default: false },
   connected: { type: Boolean, default: false },
   busy: { type: Boolean, default: false },
+  showContext: { type: Boolean, default: true },
   auftrag: { type: Object, required: true },
   schichten: { type: Array, default: () => [] },
   einsaetze: { type: Array, default: () => [] },
@@ -465,12 +482,13 @@ const groups = computed(() => sourceGroups.value.map(group => ({
     const key = String(einsatz._id);
     const entry = entries.value[key];
     const date = einsatz.detailDatumVon || group.schicht.datumVon || einsatz.datumVon;
-    return { key, einsatz, entry, date, name: employeeName(einsatz), planned: plannedTimes(einsatz, group.schicht), analysis: analyzeQuickEntry(entry, props.connected && date ? String(date).slice(0, 10) : null), dirty: JSON.stringify(entry) !== JSON.stringify(baseline.value[key]) };
+    return { key, einsatz, entry, date, name: employeeName(einsatz), planned: plannedTimes(einsatz, group.schicht), analysis: analyzeQuickEntry(entry, props.connected && date ? String(date).slice(0, 10) : null), dirty: JSON.stringify(entry) !== JSON.stringify(baseline.value[key]), locked: props.connected && !!einsatz.timeReleased };
   }),
 })));
 const rows = computed(() => groups.value.flatMap(group => group.rows));
 const visibleGroups = computed(() => selectedGroup.value === 'all' ? groups.value : groups.value.filter(group => group.key === selectedGroup.value));
 const visibleRows = computed(() => visibleGroups.value.flatMap(group => group.rows));
+const editableVisibleRows = computed(() => visibleRows.value.filter(row => !row.locked));
 const totalMinutes = computed(() => rows.value.reduce((sum, row) => sum + row.analysis.netMinutes, 0));
 const completeCount = computed(() => rows.value.filter(row => row.analysis.complete).length);
 const errorCount = computed(() => rows.value.filter(row => row.analysis.errors.length).length);
@@ -485,26 +503,27 @@ function formatDate(value) {
 }
 function isOvernight(start, end) { return start && end && end < start; }
 function groupTotal(group) { return group.rows.reduce((sum, row) => sum + row.analysis.netMinutes, 0); }
-function statusClass(row) { return row.analysis.errors.length ? 'error' : row.analysis.warnings.length ? 'warning' : row.dirty ? 'dirty' : row.analysis.complete ? 'complete' : 'empty'; }
-function statusText(row) { return row.analysis.errors.length ? 'Prüfen' : row.analysis.warnings.length ? 'Pause prüfen' : row.dirty ? 'Geändert' : row.einsatz.timeStatus || (row.analysis.complete ? 'Erfasst' : 'Offen'); }
+function statusClass(row) { return row.locked ? 'released' : row.analysis.errors.length ? 'error' : row.analysis.warnings.length ? 'warning' : row.dirty ? 'dirty' : row.analysis.complete ? 'complete' : 'empty'; }
+function statusText(row) { return row.locked ? 'Übergeben' : row.analysis.errors.length ? 'Prüfen' : row.analysis.warnings.length ? 'Pause prüfen' : row.dirty ? 'Geändert' : row.einsatz.timeStatus || (row.analysis.complete ? 'Erfasst' : 'Offen'); }
 function toggleBreaks(key) {
   if (expandedRows.value.has(key)) expandedRows.value.delete(key);
   else expandedRows.value.add(key);
 }
 function setMinutes(row, field, event) { row.entry[field] = event.target.value; message.value = ''; }
 function clearBreak(row, index) {
+  if (row.locked) return;
   row.entry.breaks[index] = { start: '', end: '', paid: false };
   message.value = '';
 }
-function clearRow(row) { entries.value[row.key] = createQuickEntry(row.einsatz); message.value = ''; }
+function clearRow(row) { if (!row.locked) entries.value[row.key] = createQuickEntry(row.einsatz); message.value = ''; }
 function resetRows(targets) {
-  targets.forEach(row => { entries.value[row.key] = clone(baseline.value[row.key]); });
+  targets.filter(row => !row.locked).forEach(row => { entries.value[row.key] = clone(baseline.value[row.key]); });
   message.value = 'Ausgangswerte wiederhergestellt.';
 }
 function usePlanned(targets) {
   let count = 0;
   targets.forEach(row => {
-    if (!row.planned.start || !row.planned.end) return;
+    if (row.locked || !row.planned.start || !row.planned.end) return;
     row.entry.start = row.planned.start;
     row.entry.end = row.planned.end;
     count++;
@@ -514,8 +533,9 @@ function usePlanned(targets) {
 function copyFirst(group) {
   const first = group.rows[0];
   if (!first?.analysis.complete) return;
-  group.rows.slice(1).forEach(row => { entries.value[row.key] = { ...clone(first.entry), einsatzId: row.key }; });
-  message.value = `Zeiten und Pausen der ersten Zeile auf ${group.rows.length - 1} weitere Einsätze in „${group.schicht.bezeichnung}“ übertragen.`;
+  const targets = group.rows.slice(1).filter(row => !row.locked);
+  targets.forEach(row => { entries.value[row.key] = { ...clone(first.entry), einsatzId: row.key }; });
+  message.value = `Zeiten und Pausen der ersten Zeile auf ${targets.length} weitere Einsätze in „${group.schicht.bezeichnung}“ übertragen.`;
 }
 function cancel() {
   if (props.connected) { emit('cancel'); return; }
@@ -524,20 +544,27 @@ function cancel() {
   message.value = 'Änderungen verworfen.';
   emit('cancel');
 }
-function submit(action = 'save') {
-  if (!canSubmit.value || props.busy) return;
-  const payload = {
+function buildPayload(action, targetRows) {
+  return {
     action,
     auftragNr: props.auftrag.auftragNr,
-    entries: rows.value.filter(row => row.analysis.complete).map(row => ({
+    entries: targetRows.filter(row => action === 'withdraw' || row.analysis.complete).map(row => ({
       ...clone(row.entry), personalNr: row.einsatz.personalNr, schicht: row.einsatz.schicht?._id || row.einsatz.schicht || null,
       dirty: row.dirty,
       datum: String(row.date || '').slice(0, 10), endDayOffset: row.analysis.overnight ? 1 : 0,
       breakMinutes: row.analysis.breakMinutes, paidBreakMinutes: row.analysis.paidBreakMinutes, netMinutes: row.analysis.netMinutes,
     })),
-    clearedEinsatzIds: rows.value.filter(row => row.analysis.empty && row.dirty).map(row => row.key),
-    totalMinutes: totalMinutes.value,
+    clearedEinsatzIds: targetRows.filter(row => row.analysis.empty && row.dirty).map(row => row.key),
+    totalMinutes: targetRows.reduce((sum, row) => sum + row.analysis.netMinutes, 0),
   };
+}
+function submitRow(row) {
+  if (props.busy || (!row.locked && (!row.analysis.complete || row.analysis.errors.length))) return;
+  emit('submit', buildPayload(row.locked ? 'withdraw' : 'release', [row]));
+}
+function submit(action = 'save') {
+  if (!canSubmit.value || props.busy) return;
+  const payload = buildPayload(action, rows.value);
   emit('submit', payload);
   if (props.connected) return; // Only refreshed server props acknowledge a successful save.
   baseline.value = clone(entries.value);
@@ -549,35 +576,34 @@ function submit(action = 'save') {
 .quick-time { color: var(--text); font-size: 13px; min-width: 0; }
 .quick-time--contained { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .quick-time--contained .quick-time__content { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
-.quick-time--contained > :is(header, footer, .quick-time__toolbar) { flex-shrink: 0; }
+.quick-time--contained > :is(header, footer) { flex-shrink: 0; }
 .quick-time * { box-sizing: border-box; }
-.quick-time__order { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.quick-time__eyebrow { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
-.quick-time h2 { margin: 5px 0; font-size: 22px; font-weight: 600; }
-.quick-time__location { color: var(--muted); font-size: 12px; }
-.quick-time__overview { display: flex; gap: 28px; text-align: right; }
-.quick-time__overview > span { display: grid; gap: 3px; color: var(--muted); font-size: 11px; }
-.quick-time__overview strong { color: var(--text); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.quick-time__overview-total { padding-left: 26px; border-left: 1px solid var(--border); }
+.quick-time__workbar { display: flex; align-items: center; gap: 16px; min-height: 52px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.quick-time__context { flex: 1 1 260px; min-width: 180px; }
+.quick-time__context h2 { margin: 0; overflow: hidden; color: var(--text); font-size: 14px; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.quick-time__context p { margin-top: 2px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.quick-time__overview { display: flex; align-items: center; gap: 14px; white-space: nowrap; }
+.quick-time__overview > span { display: inline-flex; align-items: baseline; gap: 4px; color: var(--muted); font-size: 10px; }
+.quick-time__overview strong { color: var(--text); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.quick-time__overview-total { padding-left: 14px; border-left: 1px solid var(--border); }
 .quick-time__overview-total strong { color: var(--primary); }
-.quick-time__toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 14px 24px; }
 .quick-time__filter { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
-.quick-time__filter select { min-width: 190px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 12px; }
-.quick-time__hint { font-size: 12px; color: var(--muted); }
-.quick-time__dirty { margin-left: auto; font-size: 11px; color: var(--text); background: color-mix(in srgb, var(--primary) 16%, var(--surface)); padding: 4px 8px; border-radius: 5px; }
-.quick-time__shift { margin: 0 24px 18px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
-.quick-time__shift-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 16px; background: color-mix(in srgb, var(--primary) 5%, var(--surface)); border-bottom: 1px solid var(--border); }
+.quick-time__filter select { min-width: 180px; height: 32px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 11px; }
+.quick-time__dirty { font-size: 10px; color: var(--text); background: color-mix(in srgb, var(--primary) 16%, var(--surface)); padding: 4px 7px; border-radius: 5px; white-space: nowrap; }
+.quick-time__content { padding-top: 12px; }
+.quick-time__shift { margin: 0 16px 12px; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; background: var(--surface); }
+.quick-time__shift-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 9px 12px; background: color-mix(in srgb, var(--primary) 5%, var(--surface)); border-bottom: 1px solid var(--border); }
 .quick-time__shift-heading { display: flex; align-items: center; gap: 11px; }
-.quick-time__shift-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border)); border-radius: 7px; color: var(--primary); background: var(--surface); }
-.quick-time__shift-heading h3 { font-size: 14px; font-weight: 600; }
+.quick-time__shift-icon { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border)); border-radius: 6px; color: var(--primary); background: var(--surface); }
+.quick-time__shift-heading h3 { font-size: 13px; font-weight: 600; }
 .quick-time__shift-heading h3 span { margin-left: 7px; font-size: 11px; font-weight: 400; color: var(--muted); }
 .quick-time__shift-heading p { margin-top: 3px; font-size: 11px; color: var(--muted); }
 .quick-time__text-button { display: inline-flex; gap: 7px; align-items: center; border: 0; padding: 6px 0; background: none; color: var(--muted); cursor: pointer; font-size: 11px; }
 .quick-time__text-button:hover { color: var(--text); }
 .quick-time__table-scroll { overflow-x: auto; }
 .quick-time__table { width: 100%; border-collapse: collapse; text-align: left; font-variant-numeric: tabular-nums; }
-.quick-time__table th, .quick-time__table td { padding: 12px 10px; vertical-align: top; }
-.quick-time__table thead th { padding-top: 10px; padding-bottom: 10px; white-space: nowrap; font-size: 11px; font-weight: 500; color: var(--muted); background: var(--hover); border-bottom: 1px solid var(--border); }
+.quick-time__table th, .quick-time__table td { padding: 9px 8px; vertical-align: top; }
+.quick-time__table thead th { padding-top: 8px; padding-bottom: 8px; white-space: nowrap; font-size: 10px; font-weight: 500; color: var(--muted); background: var(--hover); border-bottom: 1px solid var(--border); }
 .quick-time__table thead small { margin-left: 2px; opacity: .75; }
 .quick-time__table tbody tr + tr > * { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
 .quick-time__table th:first-child, .quick-time__table td:first-child { padding-left: 16px; }
@@ -586,6 +612,7 @@ function submit(action = 'save') {
 .quick-time__person > span { display: block; font-weight: 400; font-size: 10px; color: var(--muted); }
 .quick-time__status-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); margin: 0 5px 1px 0; }
 .quick-time__status-dot.complete { background: #62b58f; }
+.quick-time__status-dot.released { background: #4a8e70; }
 .quick-time__status-dot.dirty { background: var(--primary); }
 .quick-time__status-dot.error { background: #dc665e; }
 .quick-time__status-dot.warning { background: #e6a447; }
@@ -605,12 +632,16 @@ function submit(action = 'save') {
 .quick-time__hours--empty { color: var(--muted); font-weight: 400; }
 .quick-time__row-actions { display: flex; gap: 4px; padding-top: 1px; }
 .quick-time__row-actions button, .quick-time__remove-break { display: grid; place-items: center; width: 28px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--muted); cursor: pointer; }
+.quick-time__row-actions .quick-time__transfer-action { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); color: var(--primary); }
+.quick-time__row-actions .quick-time__transfer-action--withdraw { border-color: color-mix(in srgb, #4a8e70 55%, var(--border)); color: #4a8e70; }
 .quick-time button:hover:not(:disabled) { border-color: var(--primary); }
 .quick-time :is(input, select, button, [tabindex]):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .quick-time button:disabled { opacity: .35; cursor: not-allowed; }
 .quick-time__row--dirty .quick-time__person { box-shadow: inset 2px 0 var(--primary); }
 .quick-time__row--error .quick-time__person { box-shadow: inset 2px 0 #dc665e; }
 .quick-time__row--warning .quick-time__person { box-shadow: inset 2px 0 #e6a447; }
+.quick-time__row--locked { background: color-mix(in srgb, #4a8e70 4%, var(--surface)); }
+.quick-time__row--locked .quick-time__person { box-shadow: inset 2px 0 #4a8e70; }
 .quick-time__error-row p { display: flex; align-items: center; gap: 8px; color: #c75048; font-size: 12px; }
 .quick-time__warning-row p { display: flex; align-items: center; gap: 8px; color: #9a6417; font-size: 12px; }
 .quick-time__error-row td, .quick-time__warning-row td { padding-top: 7px; padding-bottom: 10px; }
@@ -629,13 +660,12 @@ function submit(action = 'save') {
 .quick-time__table tfoot { border-top: 1px solid var(--border); background: var(--hover); }
 .quick-time__table tfoot th, .quick-time__table tfoot td { font-size: 12px; font-weight: 600; }
 .quick-time__table tfoot span { margin-left: 12px; font-size: 10px; font-weight: 400; color: var(--muted); }
-.quick-time__explanation { padding: 0 24px 18px; font-size: 11px; color: var(--muted); }
-.quick-time__footer { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 16px 24px; border-top: 1px solid var(--border); background: var(--surface); }
+.quick-time__footer { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--border); background: var(--surface); }
 .quick-time__bulk, .quick-time__submit { display: flex; flex-wrap: wrap; gap: 8px; }
-.quick-time__bulk :deep(button), .quick-time__submit :deep(button) { font-size: 12px; border-radius: 6px; padding: 9px 12px; }
+.quick-time__bulk :deep(button), .quick-time__submit :deep(button) { font-size: 11px; border-radius: 6px; padding: 7px 10px; }
 .quick-time__total { margin-left: auto; text-align: right; }
 .quick-time__total > span { display: block; color: var(--muted); font-size: 10px; }
-.quick-time__total > strong { display: block; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.quick-time__total > strong { display: block; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .quick-time__total small { font-size: 11px; font-weight: 400; color: var(--muted); }
 .quick-time__accept { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--primary); background: var(--primary); color: #27221c; font-weight: 600; cursor: pointer; }
 .quick-time__message, .quick-time__footer-error, .quick-time__footer-warning { flex-basis: 100%; font-size: 12px; color: var(--muted); }
@@ -644,16 +674,18 @@ function submit(action = 'save') {
 .quick-time__empty { padding: 28px 24px; color: var(--muted); text-align: center; }
 .quick-time__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 760px) {
-  .quick-time__order { align-items: flex-start; flex-direction: column; padding: 18px 16px; }
-  .quick-time__overview { width: 100%; justify-content: space-between; text-align: left; }
-  .quick-time__overview-total { padding-left: 20px; }
-  .quick-time__toolbar { gap: 10px; padding: 12px 16px; }
+  .quick-time__workbar { align-items: flex-start; flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px; }
+  .quick-time__context { flex-basis: 100%; }
+  .quick-time__filter { flex: 1; }
+  .quick-time__filter span { display: none; }
+  .quick-time__filter select { width: 100%; min-width: 0; }
+  .quick-time__overview { order: 3; width: 100%; justify-content: space-between; }
+  .quick-time__overview-total { padding-left: 10px; }
   .quick-time__shift { margin: 0 12px 14px; }
   .quick-time__shift-header { flex-wrap: wrap; gap: 7px; padding: 12px; }
   .quick-time__shift-heading h3 span { display: block; margin: 3px 0 0; }
   .quick-time__footer { padding: 16px; }
   .quick-time__bulk { width: 100%; }
   .quick-time__total { margin: 0 auto 0 0; }
-  .quick-time__explanation { padding: 0 16px 16px; line-height: 1.6; }
 }
 </style>

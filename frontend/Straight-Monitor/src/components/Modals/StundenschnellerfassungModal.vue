@@ -2,7 +2,6 @@
   <ModalFrame
     :model-value="modelValue"
     title="Stundenschnellerfassung"
-    :subtitle="`Auftrag #${auftrag.auftragNr} · ${auftrag.eventTitel || ''}`"
     size="xl"
     :close-on-backdrop="false"
     class="quick-time-modal"

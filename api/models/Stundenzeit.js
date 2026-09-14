@@ -31,7 +31,7 @@ const schema = new mongoose.Schema({
   history: [{
     _id: false,
     revision: Number,
-    action: { type: String, enum: ['SUBMITTED', 'DRAFT', 'RELEASED'] },
+    action: { type: String, enum: ['SUBMITTED', 'DRAFT', 'RELEASED', 'WITHDRAWN'] },
     at: Date,
     by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     reason: String,
