@@ -3,11 +3,12 @@
     :is="localMinimizable ? MinimizableRegion : PassThrough"
     v-if="!minimizable || open"
     v-bind="regionProps"
+    v-slot="region"
   >
-    <Teleport to="body" :disabled="canMinimize">
+    <Teleport to="body" :disabled="canMinimize && !teleport">
       <Transition name="mf" :appear="minimizable">
         <div
-          v-if="open"
+          v-if="open && !region?.minimized"
           ref="overlayRef"
           class="mf-overlay"
           :class="{ 'mf-overlay--elevated': layer === 'elevated' }"
@@ -146,6 +147,8 @@ const props = defineProps({
   persistOnUnmount: { type: Boolean, default: false },
   /** Shows a PDF export button in the header controls. */
   pdfExport: { type: Boolean, default: false },
+  /** Renders a minimizable modal above app-shell stacking contexts. */
+  teleport: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue', 'close']);

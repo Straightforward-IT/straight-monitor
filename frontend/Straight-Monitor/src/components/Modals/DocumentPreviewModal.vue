@@ -8,6 +8,7 @@
     :minimizable="minimizable"
     :minimize-id="minimizeId"
     :minimize-title="displayName"
+    teleport
     :close-on-escape="!menuOpen"
     class="document-preview-modal"
     @update:model-value="emit('update:modelValue', $event)"
