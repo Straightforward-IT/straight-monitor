@@ -396,7 +396,14 @@ onBeforeUnmount(() => actionController?.abort());
 }
 .document-preview-empty-sheet { padding: 20px; color: var(--muted); }
 @media (max-width: 600px) {
-  :global(.document-preview-modal) { --mf-header-padding: 12px; --mf-overlay-padding: 8px; }
+  :global(.document-preview-modal) {
+    --mf-max-width: 100vw;
+    --mf-max-height: 100dvh;
+    --mf-overlay-padding: 0;
+    --mf-header-padding: calc(env(safe-area-inset-top) + 8px) 12px 8px;
+    --mf-radius: 0;
+    --mf-shadow: none;
+  }
   .document-preview-image, .document-preview-media, .document-preview-text { padding: 12px; }
 }
 </style>
