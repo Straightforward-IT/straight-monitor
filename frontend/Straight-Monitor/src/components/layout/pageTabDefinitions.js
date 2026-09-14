@@ -28,6 +28,10 @@ export const personalTabs = [
   { id: 'bewerber', label: 'Bewerber', icon: ['fas', 'user-plus'], to: queryTarget('/personal', 'bewerber', 'mitarbeiter'), isActive: queryMatch('Personal', 'bewerber', 'mitarbeiter') },
 ];
 
+export const payrollTabs = [
+  { id: 'stundenerfassung', label: 'Stundenerfassung', icon: ['fas', 'clock'], to: queryTarget('/payroll', 'stundenerfassung', 'stundenerfassung'), isActive: queryMatch('Payroll', 'stundenerfassung', 'stundenerfassung') },
+];
+
 export const reportTabs = [
   { id: 'dokumente', label: 'Dokumente', icon: ['fas', 'file-lines'], to: '/dokumente', isActive: (route) => route.name === 'Dokumente' },
   { id: 'auswertung', label: 'Auswertung', icon: ['fas', 'chart-column'], to: '/teamleiter-auswertung', isActive: (route) => route.name === 'TeamleiterAuswertung' },

@@ -62,45 +62,53 @@
               Nachpflege
             </button>
           </div>
-          <div v-if="!loading.documents && filteredDocumentsSorted.length > 0" class="view-controls-right">
-            <div class="pagination-compact">
-            <div class="pagination-info-compact">
-              <span class="pagination-text">{{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}</span>
-              
-              <select 
-                v-model="itemsPerPage" 
+          <template #bottom-actions>
+            <div v-if="!loading.documents && filteredDocumentsSorted.length > 0" class="toolbar-page-controls">
+              <SortMenu
+                v-model="sortKey"
+                v-model:ascending="sortAscending"
+                :options="documentSortOptions"
+              />
+              <span class="toolbar-page-controls__summary">
+                {{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}
+              </span>
+              <select
+                v-model="itemsPerPage"
+                class="toolbar-page-controls__select"
+                aria-label="Einträge pro Seite"
                 @change="setItemsPerPage(Number($event.target.value))"
-                class="pagination-select-compact"
               >
                 <option v-for="size in pageOptions" :key="size" :value="size">
                   {{ size }}
                 </option>
               </select>
-            </div>
-            
-            <div class="pagination-controls-compact" v-if="totalPages > 1">
-              <button 
-                class="pagination-btn-compact" 
-                :disabled="currentPage === 1" 
-                @click="prevPage"
+              <button
+                v-if="totalPages > 1"
+                class="toolbar-page-controls__button"
+                type="button"
                 title="Vorherige Seite"
+                aria-label="Vorherige Seite"
+                :disabled="currentPage === 1"
+                @click="prevPage"
               >
                 <font-awesome-icon icon="fa-solid fa-chevron-left" />
               </button>
-              
-              <span class="page-indicator">{{ currentPage }} / {{ totalPages }}</span>
-              
-              <button 
-                class="pagination-btn-compact" 
-                :disabled="currentPage === totalPages" 
-                @click="nextPage"
+              <span v-if="totalPages > 1" class="toolbar-page-controls__page">
+                {{ currentPage }} / {{ totalPages }}
+              </span>
+              <button
+                v-if="totalPages > 1"
+                class="toolbar-page-controls__button"
+                type="button"
                 title="Nächste Seite"
+                aria-label="Nächste Seite"
+                :disabled="currentPage === totalPages"
+                @click="nextPage"
               >
                 <font-awesome-icon icon="fa-solid fa-chevron-right" />
               </button>
             </div>
-            </div>
-          </div>
+          </template>
         </Toolbar>
       </div>
 
@@ -246,6 +254,7 @@ import FilterPanel from '@/components/FilterPanel.vue';
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import SortMenu from '@/components/ui-elements/SortMenu.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
@@ -317,7 +326,7 @@ library.add(
 
 export default {
   name: "DocumentsOverviewTab",
-  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, EmployeeCardModal, SearchBar, Toolbar, ToolbarFilter, FilterGroup, FilterChip, FilterDivider, ContextMenu },
+  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, EmployeeCardModal, SearchBar, Toolbar, SortMenu, ToolbarFilter, FilterGroup, FilterChip, FilterDivider, ContextMenu },
 
   setup() {
     const dataCache = useDataCache();
@@ -377,6 +386,14 @@ export default {
       // sorting (restored from session or defaults)
       sortKey: filterDefaults.sortKey,
       sortOrder: filterDefaults.sortOrder,
+      documentSortOptions: [
+        { value: 'datum', label: 'Datum' },
+        { value: 'docType', label: 'Typ' },
+        { value: 'bezeichnung', label: 'Event' },
+        { value: 'teamleiter', label: 'Teamleiter' },
+        { value: 'mitarbeiter', label: 'Mitarbeiter' },
+        { value: 'status', label: 'Status' },
+      ],
 
       // pagination (restored from session or defaults)
       currentPage: filterDefaults.currentPage,
@@ -393,6 +410,14 @@ export default {
   },
 
   computed: {
+    sortAscending: {
+      get() {
+        return this.sortOrder === 'asc';
+      },
+      set(value) {
+        this.sortOrder = value ? 'asc' : 'desc';
+      },
+    },
     quickActionOptions() {
       const document = this.quickActionMenu.document;
       if (!document) return [];
@@ -1286,17 +1311,87 @@ export default {
   margin: 0 2px;
 }
 
-.view-controls-right {
-  display: flex;
-  align-items: center;
-  margin-left: auto;
-  flex-shrink: 0;
+.docs-search-toolbar {
+  margin-bottom: 29px;
+  overflow: visible;
 }
 
-// Docs search toolbar (hidden on mobile)
-.docs-search-toolbar {
-  margin-bottom: 12px;
-  overflow: visible;
+.toolbar-page-controls {
+  position: absolute;
+  top: 100%;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  white-space: nowrap;
+
+  :deep(.sort-menu__trigger),
+  &__select,
+  &__button {
+    height: 24px;
+    box-sizing: border-box;
+    border: 1px solid var(--border);
+    border-radius: 0 0 5px 5px;
+    background: var(--tile-bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.72rem;
+    box-shadow: none;
+  }
+
+  :deep(.sort-menu__trigger) {
+    gap: 5px;
+    padding: 0 8px;
+  }
+
+  &__select {
+    min-width: 48px;
+    padding: 0 6px;
+    cursor: pointer;
+  }
+
+  &__button {
+    display: inline-flex;
+    width: 28px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  :deep(.sort-menu__trigger:hover),
+  &__select:hover,
+  &__button:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  &__select:focus-visible,
+  &__button:focus-visible,
+  :deep(.sort-menu__trigger:focus-visible) {
+    outline: 2px solid color-mix(in srgb, var(--primary) 35%, transparent);
+    outline-offset: 1px;
+  }
+
+  &__button:disabled {
+    color: var(--muted);
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  &__summary,
+  &__page {
+    color: var(--muted);
+    font-size: 0.72rem;
+    line-height: 24px;
+  }
+
+  &__page {
+    min-width: 32px;
+    text-align: center;
+  }
 }
 
 .toolbar-inner {
@@ -1633,91 +1728,25 @@ export default {
   background: color-mix(in srgb, var(--bad) 85%, black);
 }
 
-/* Compact Pagination Styles */
-.pagination-compact {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-  justify-self: end;
-}
-
-.pagination-info-compact {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.pagination-text {
-  font-size: 0.8rem;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.pagination-select-compact {
-  padding: 0.125rem 0.25rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
-  min-width: 50px;
-}
-
-.pagination-select-compact:hover {
-  border-color: var(--brand);
-}
-
-.pagination-select-compact:focus {
-  outline: none;
-  border-color: var(--brand);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 20%, transparent);
-}
-
-.pagination-controls-compact {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.pagination-btn-compact {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-}
-
-.pagination-btn-compact:hover:not(:disabled) {
-  background: var(--soft);
-  border-color: var(--brand);
-}
-
-.pagination-btn-compact:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.page-indicator {
-  font-size: 0.8rem;
-  color: var(--muted);
-  padding: 0 0.25rem;
-  white-space: nowrap;
-}
-
 @media (max-width: 640px) {
-  .pagination-compact {
-    justify-self: start;
-    width: 100%;
-    justify-content: space-between;
+  .toolbar-page-controls {
+    right: 6px;
+    gap: 3px;
+
+    :deep(.sort-menu__trigger) {
+      width: 24px;
+      padding: 0;
+      justify-content: center;
+      font-size: 0;
+
+      svg {
+        font-size: 0.7rem;
+      }
+    }
+
+    &__summary {
+      display: none;
+    }
   }
 }
 

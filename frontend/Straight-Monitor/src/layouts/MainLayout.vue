@@ -41,6 +41,7 @@ const routeTitleFallbacks = {
   Auswertung: 'Auswertung Jobangebote',
   ExcelFormatierung: 'Excel Formatierung',
   Lohnabrechnungen: 'Lohnabrechnungen',
+  Payroll: 'Stunden',
   Personal: 'Personal',
   Dokumente: 'Reports',
   BenutzerErstellen: 'Benutzer erstellen',

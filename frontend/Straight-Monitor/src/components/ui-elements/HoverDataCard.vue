@@ -1,5 +1,6 @@
 <template>
   <span
+    v-if="!inline"
     ref="anchor"
     class="hover-data-card-anchor"
     @pointerenter="onPointerEnter"
@@ -23,15 +24,20 @@
     </slot>
   </span>
 
-  <Teleport to="body">
+  <Teleport
+    to="body"
+    :disabled="inline"
+  >
     <Transition name="hover-data-card">
       <div
-        v-if="isOpen"
+        v-if="inline || isOpen"
         :id="cardId"
         ref="card"
         class="hover-data-card"
-        role="tooltip"
-        :style="cardStyle"
+        :class="{ 'hover-data-card--inline': inline }"
+        :role="inline ? 'region' : 'tooltip'"
+        :aria-label="inline ? 'Monatskontingent' : undefined"
+        :style="inline ? undefined : cardStyle"
         @pointerenter="onCardEnter"
         @pointerleave="onCardLeave"
       >
@@ -169,6 +175,7 @@ const props = defineProps({
   openDelay: { type: Number, default: 180 },
   closeDelay: { type: Number, default: 160 },
   disabled: { type: Boolean, default: false },
+  inline: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['open', 'close']);
@@ -250,7 +257,7 @@ function updatePosition() {
 async function open() {
   clearTimeout(openTimer);
   clearTimeout(closeTimer);
-  if (props.disabled || isOpen.value) return;
+  if (props.inline || props.disabled || isOpen.value) return;
   positioned.value = false;
   isOpen.value = true;
   await nextTick();
@@ -343,6 +350,7 @@ function onOutsidePointerDown(event) {
 }
 
 watch(() => props.disabled, disabled => { if (disabled) close(); });
+watch(() => props.inline, () => close());
 watch(() => props.placement, () => { if (isOpen.value) nextTick(updatePosition); });
 onBeforeUnmount(close);
 </script>
@@ -389,6 +397,7 @@ onBeforeUnmount(close);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+.hover-data-card--inline { position: relative; z-index: auto; width: 100%; max-width: none; max-height: none; box-shadow: none; }
 .hover-data-card__indicator { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
 .hover-data-card__employee-name { min-width: 0; overflow: hidden; font-size: 12px; font-weight: 600; letter-spacing: normal; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
 .hover-data-card__eyebrow { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }

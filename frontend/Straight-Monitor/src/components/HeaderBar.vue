@@ -89,7 +89,7 @@
           <router-link
             to="/payroll"
             :class="{ active: isPayrollSectionActive }"
-          >Payroll</router-link>
+          >Stunden</router-link>
         </div>
         <div class="nav-group nav-group--reports">
           <router-link
@@ -381,7 +381,7 @@
             @click="closeMobileMenu"
           >
             <font-awesome-icon :icon="['fas', 'calculator']" />
-            Payroll
+            Stunden
           </router-link>
         </div>
         <div class="mobile-menu-group">
@@ -843,7 +843,7 @@ const newPagesEnabled = computed(() => !!auth.user);
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
 const canSeeKunden = computed(() => isAdmin.value || auth.user?.roles?.includes('VERTRIEB'));
 const canSeePayroll = computed(() => isAdmin.value);
-const isPayrollSectionActive = computed(() => route.name === 'Payroll');
+const isPayrollSectionActive = computed(() => route.name === 'Payroll' || route.name === 'Zeitverwaltung');
 const isKundenSectionActive = computed(() => route.name === 'Kunden');
 const kundenNavLabel = computed(() => {
   if (route.name !== 'Kunden') return 'Kunden';

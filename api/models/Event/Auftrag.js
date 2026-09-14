@@ -107,6 +107,21 @@ const AuftragSchema = new mongoose.Schema({
     name: { type: String, required: true, maxlength: 20, trim: true },
     color: { type: String, default: '#4f46e5', trim: true }
   }],
+  einsatzdokumente: [{
+    key: { type: String, required: true },
+    filename: { type: String, required: true },
+    size: { type: Number, default: 0 },
+    mimeType: { type: String, default: 'application/octet-stream' },
+    audience: {
+      type: String,
+      enum: ['job', 'teamleiter', 'office', 'office_roles'],
+      default: 'office',
+    },
+    berufKeys: [{ type: Number }],
+    allowedRoles: [{ type: String, uppercase: true, trim: true }],
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    uploadedAt: { type: Date, default: Date.now },
+  }],
   isPseudo: {
     type: Boolean,
     default: false

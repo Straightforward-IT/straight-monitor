@@ -72,6 +72,10 @@
       </div>
 
       <div class="detail-fields">
+        <div class="detail-field" v-if="detailReport.ausruestung_fehlt">
+          <span class="detail-field-label">Ausrüstung fehlt</span>
+          <p class="detail-field-text">{{ detailReport.ausruestung_fehlt }}</p>
+        </div>
         <div class="detail-field" v-if="detailReport.puenktlichkeit">
           <span class="detail-field-label">Pünktlichkeit</span>
           <p class="detail-field-text">{{ detailReport.puenktlichkeit }}</p>
@@ -142,8 +146,15 @@
         </button>
         <p v-if="form.notizen" class="er-notes-preview">{{ form.notizen }}</p>
       </div>
+      <div class="er-equipment-row">
+        <button type="button" class="er-equipment-btn" :class="{ 'er-equipment-btn--active': !!form.ausruestung_fehlt }" @click="showEquipmentModal = true">
+          <font-awesome-icon icon="fa-solid fa-toolbox" />
+          Ausrüstung fehlt?
+          <span v-if="form.ausruestung_fehlt" class="er-equipment-dot"></span>
+        </button>
+        <p v-if="form.ausruestung_fehlt" class="er-equipment-preview">{{ form.ausruestung_fehlt }}</p>
+      </div>
 
-      
       <!-- Einsatz auswählen -->
       <div class="form-group">
         <label>Einsatz auswählen *</label>
@@ -296,29 +307,24 @@
     </template><!-- end form/success wrapper -->
 
     <!-- Notizen Modal -->
-    <Transition name="er-notiz">
-      <div v-if="showNotizModal" class="er-modal-overlay" @click.self="showNotizModal = false">
-        <div class="er-modal-sheet">
-          <div class="er-modal-handle"></div>
-          <div class="er-modal-icon">
-            <font-awesome-icon icon="fa-solid fa-comment" />
-          </div>
-          <h3 class="er-modal-title">Notizen</h3>
-          <textarea
-            class="er-notiz-textarea"
-            v-model="form.notizen"
-            v-auto-grow
-            placeholder="Notizen zu diesem Einsatz…"
-            rows="5"
-            autofocus
-          ></textarea>
-          <div class="er-modal-actions">
-            <button class="er-modal-btn er-modal-btn--cancel" type="button" @click="showNotizModal = false">Schließen</button>
-            <button class="er-modal-btn er-modal-btn--confirm" type="button" @click="showNotizModal = false">Speichern</button>
-          </div>
-        </div>
+    <PublicBottomSheet v-model="showNotizModal">
+      <h3 class="er-modal-title">Notizen</h3>
+      <textarea class="er-notiz-textarea" v-model="form.notizen" v-auto-grow placeholder="Notizen zu diesem Einsatz…" rows="5" autofocus></textarea>
+      <div class="public-bottom-sheet__actions">
+        <button class="public-bottom-sheet__button public-bottom-sheet__button--secondary" type="button" @click="showNotizModal = false">Schließen</button>
+        <button class="public-bottom-sheet__button public-bottom-sheet__button--primary" type="button" @click="showNotizModal = false">Speichern</button>
       </div>
-    </Transition>
+    </PublicBottomSheet>
+
+    <!-- Fehlende Ausrüstung Modal -->
+    <PublicBottomSheet v-model="showEquipmentModal">
+      <h3 class="er-modal-title">Fehlende Ausrüstung</h3>
+      <textarea class="er-notiz-textarea" v-model="form.ausruestung_fehlt" v-auto-grow placeholder="Welche Ausrüstung hat gefehlt?" rows="4" autofocus></textarea>
+      <div class="public-bottom-sheet__actions">
+        <button class="public-bottom-sheet__button public-bottom-sheet__button--secondary" type="button" @click="showEquipmentModal = false">Schließen</button>
+        <button class="public-bottom-sheet__button public-bottom-sheet__button--primary" type="button" @click="showEquipmentModal = false">Speichern</button>
+      </div>
+    </PublicBottomSheet>
   </div>
 </template>
 
@@ -326,6 +332,7 @@
 import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import { useTheme } from '@/stores/theme';
 import { usePublicDraftAutosave } from '@/composables/usePublicDraftAutosave';
+import PublicBottomSheet from '@/components/public/PublicBottomSheet.vue';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 
@@ -472,6 +479,7 @@ const selectedEinsatzLabel = computed(() => {
 });
 
 const showNotizModal = ref(false);
+const showEquipmentModal = ref(false);
 
 const form = reactive({
   location: '',
@@ -486,7 +494,8 @@ const form = reactive({
   mitarbeiter_job: '',
   feedback_auftraggeber: '',
   sonstiges: '',
-  notizen: ''
+  notizen: '',
+  ausruestung_fehlt: ''
 });
 
 // ── Draft helpers ─────────────────────────────────
@@ -516,6 +525,7 @@ function formHasUserContent() {
     form.feedback_auftraggeber?.trim() ||
     form.sonstiges?.trim() ||
     form.notizen?.trim() ||
+    form.ausruestung_fehlt?.trim() ||
     form.puenktlichkeit?.trim() ||
     form.erscheinungsbild?.trim() ||
     form.mitarbeiter_job?.trim() ||
@@ -740,6 +750,7 @@ async function submitReport() {
       feedback_auftraggeber: form.feedback_auftraggeber,
       sonstiges: form.sonstiges,
       notizen: form.notizen,
+      ausruestung_fehlt: form.ausruestung_fehlt,
       teamleiter_email: props.email
     });
     submitSuccess.value = true;
@@ -1481,90 +1492,64 @@ async function submitReport() {
   border-left: 3px solid #0ea5e9;
 }
 
-/* Notizen Modal */
-.er-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 100;
-  display: flex;
-  align-items: flex-end;
-}
-.er-modal-sheet {
-  width: 100%;
-  background: var(--panel);
-  border-radius: 20px 20px 0 0;
-  padding: 0.75rem 1.25rem 2rem;
-  padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+.er-equipment-row {
+  margin-bottom: 0.75rem;
   display: flex;
   flex-direction: column;
+  gap: 0.4rem;
+}
+.er-equipment-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--tile-bg);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
-.er-modal-handle {
-  width: 36px;
-  height: 4px;
-  border-radius: 4px;
-  background: var(--border);
-  margin-bottom: 0.25rem;
+.er-equipment-btn--active {
+  border-color: #dc2626;
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.07);
 }
-.er-modal-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: rgba(14, 165, 233, 0.12);
-  border: 1.5px solid rgba(14, 165, 233, 0.3);
-  color: #0ea5e9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
+.er-equipment-btn:active { opacity: 0.75; }
+.er-equipment-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #dc2626;
+  flex-shrink: 0;
 }
+.er-equipment-preview {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--hover);
+  border-radius: 8px;
+  border-left: 3px solid #dc2626;
+}
+
+/* Notizen Modal */
 .er-modal-title {
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--text);
   margin: 0;
 }
-.er-notiz-textarea {
-  width: 100%;
-  box-sizing: border-box;
-  background: var(--tile-bg);
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
-  padding: 0.75rem;
-  font-size: 0.9rem;
-  color: var(--text);
-  font-family: inherit;
-  resize: none;
-  overflow: hidden;
-  outline: none;
-  line-height: 1.5;
-}
-.er-notiz-textarea:focus { border-color: #0ea5e9; }
-.er-modal-actions {
-  display: flex;
-  gap: 0.75rem;
-  width: 100%;
-}
-.er-modal-btn {
-  flex: 1;
-  padding: 0.8rem;
-  border-radius: 12px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  -webkit-tap-highlight-color: transparent;
-  transition: opacity 0.15s;
-}
-.er-modal-btn:active { opacity: 0.75; }
 .er-modal-btn--cancel {
   background: var(--hover);
   color: var(--muted);
 }
 .er-modal-btn--confirm {
-  background: #0ea5e9;
+  background: var(--primary);
   color: white;
 }
 

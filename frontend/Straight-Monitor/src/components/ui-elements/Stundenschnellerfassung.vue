@@ -2,8 +2,9 @@
   <form
     class="quick-time"
     :class="{ 'quick-time--contained': contained }"
+    :inert="busy || undefined"
     novalidate
-    @submit.prevent="submit"
+    @submit.prevent="submit('save')"
   >
     <header class="quick-time__order">
       <div>
@@ -138,6 +139,7 @@
                       class="quick-time__status-dot"
                       :class="statusClass(row)"
                     />{{ statusText(row) }}<span class="quick-time__person-number"> · {{ row.einsatz.personalNr }}</span></span>
+                    <small v-if="row.einsatz.timeSubmission">MA: {{ row.einsatz.timeSubmission.start }}–{{ row.einsatz.timeSubmission.end }} · {{ formatHours(row.einsatz.timeSubmission.netMinutes) }} Std.</small>
                   </th>
                   <td>
                     <span class="quick-time__planned">{{ row.planned.start || '–' }}<span>–</span>{{ row.planned.end || '–' }}</span>
@@ -368,7 +370,16 @@
           class="quick-time__accept"
           :disabled="!canSubmit"
         >
-          <FontAwesomeIcon :icon="faCheck" /> Übernehmen
+          <FontAwesomeIcon :icon="faCheck" /> {{ connected ? 'Entwurf speichern' : 'Übernehmen' }}
+        </button>
+        <button
+          v-if="connected"
+          type="button"
+          class="quick-time__accept"
+          :disabled="!canSubmit"
+          @click="submit('release')"
+        >
+          An Zeitverwaltung übergeben
         </button>
       </div>
       <p
@@ -398,12 +409,14 @@ import { analyzeQuickEntry, buildQuickEntryGroups, createQuickEntry, employeeNam
 
 const props = defineProps({
   contained: { type: Boolean, default: false },
+  connected: { type: Boolean, default: false },
+  busy: { type: Boolean, default: false },
   auftrag: { type: Object, required: true },
   schichten: { type: Array, default: () => [] },
   einsaetze: { type: Array, default: () => [] },
   zeiten: { type: Array, default: () => [] },
 });
-const emit = defineEmits(['submit', 'cancel']);
+const emit = defineEmits(['submit', 'cancel', 'dirty-change']);
 const instanceId = `quick-time-${getCurrentInstance().uid}`;
 const entries = ref({});
 const baseline = ref({});
@@ -431,7 +444,8 @@ const groups = computed(() => sourceGroups.value.map(group => ({
   rows: group.einsaetze.map(einsatz => {
     const key = String(einsatz._id);
     const entry = entries.value[key];
-    return { key, einsatz, entry, date: einsatz.detailDatumVon || einsatz.datumVon || group.schicht.datumVon, name: employeeName(einsatz), planned: plannedTimes(einsatz, group.schicht), analysis: analyzeQuickEntry(entry), dirty: JSON.stringify(entry) !== JSON.stringify(baseline.value[key]) };
+    const date = einsatz.detailDatumVon || group.schicht.datumVon || einsatz.datumVon;
+    return { key, einsatz, entry, date, name: employeeName(einsatz), planned: plannedTimes(einsatz, group.schicht), analysis: analyzeQuickEntry(entry, props.connected && date ? String(date).slice(0, 10) : null), dirty: JSON.stringify(entry) !== JSON.stringify(baseline.value[key]) };
   }),
 })));
 const rows = computed(() => groups.value.flatMap(group => group.rows));
@@ -441,6 +455,7 @@ const totalMinutes = computed(() => rows.value.reduce((sum, row) => sum + row.an
 const completeCount = computed(() => rows.value.filter(row => row.analysis.complete).length);
 const errorCount = computed(() => rows.value.filter(row => row.analysis.errors.length).length);
 const dirtyCount = computed(() => rows.value.filter(row => row.dirty).length);
+watch(dirtyCount, count => emit('dirty-change', count > 0));
 const canSubmit = computed(() => !errorCount.value && (completeCount.value > 0 || rows.value.some(row => row.analysis.empty && row.dirty)));
 
 function formatDate(value) {
@@ -450,7 +465,7 @@ function formatDate(value) {
 function isOvernight(start, end) { return start && end && end < start; }
 function groupTotal(group) { return group.rows.reduce((sum, row) => sum + row.analysis.netMinutes, 0); }
 function statusClass(row) { return row.analysis.errors.length ? 'error' : row.dirty ? 'dirty' : row.analysis.complete ? 'complete' : 'empty'; }
-function statusText(row) { return row.analysis.errors.length ? 'Prüfen' : row.dirty ? 'Geändert' : row.analysis.complete ? 'Erfasst' : 'Offen'; }
+function statusText(row) { return row.analysis.errors.length ? 'Prüfen' : row.dirty ? 'Geändert' : row.einsatz.timeStatus || (row.analysis.complete ? 'Erfasst' : 'Offen'); }
 function toggleBreaks(key) {
   if (expandedRows.value.has(key)) expandedRows.value.delete(key);
   else expandedRows.value.add(key);
@@ -482,17 +497,20 @@ function copyFirst(group) {
   message.value = `Zeiten und Pausen der ersten Zeile auf ${group.rows.length - 1} weitere Einsätze in „${group.schicht.bezeichnung}“ übertragen.`;
 }
 function cancel() {
+  if (props.connected) { emit('cancel'); return; }
   entries.value = clone(baseline.value);
   expandedRows.value = new Set();
   message.value = 'Änderungen verworfen.';
   emit('cancel');
 }
-function submit() {
-  if (!canSubmit.value) return;
+function submit(action = 'save') {
+  if (!canSubmit.value || props.busy) return;
   const payload = {
+    action,
     auftragNr: props.auftrag.auftragNr,
     entries: rows.value.filter(row => row.analysis.complete).map(row => ({
       ...clone(row.entry), personalNr: row.einsatz.personalNr, schicht: row.einsatz.schicht?._id || row.einsatz.schicht || null,
+      dirty: row.dirty,
       datum: String(row.date || '').slice(0, 10), endDayOffset: row.analysis.overnight ? 1 : 0,
       breakMinutes: row.analysis.breakMinutes, paidBreakMinutes: row.analysis.paidBreakMinutes, netMinutes: row.analysis.netMinutes,
     })),
@@ -500,6 +518,7 @@ function submit() {
     totalMinutes: totalMinutes.value,
   };
   emit('submit', payload);
+  if (props.connected) return; // Only refreshed server props acknowledge a successful save.
   baseline.value = clone(entries.value);
   message.value = `${payload.entries.length} Einsätze lokal übernommen · ${formatHours(totalMinutes.value)} Std.`;
 }

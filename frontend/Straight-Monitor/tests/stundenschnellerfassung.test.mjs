@@ -5,6 +5,14 @@ import { createStundenschnellerfassungDemo } from '../src/components/dev/stunden
 
 const analyze = values => analyzeQuickEntry(createQuickEntry({ _id: 'assignment' }, values));
 
+test('dated office preview accounts for Berlin clock changes and rejects ambiguous clocks', () => {
+  const row = createQuickEntry({ _id: 'a' }, { start: '00:00', end: '04:00', breakMinutes: 30 });
+  assert.equal(analyzeQuickEntry(row, '2020-10-25').netMinutes, 270);
+  assert.equal(analyzeQuickEntry(row, '2020-03-29').netMinutes, 150);
+  row.start = '02:30';
+  assert.equal(analyzeQuickEntry(row, '2020-10-25').complete, false);
+});
+
 test('reference fixture groups six assignments in two shifts and starts at 24 hours', () => {
   const fixture = createStundenschnellerfassungDemo();
   const groups = buildQuickEntryGroups(fixture.auftrag, fixture.schichten, fixture.einsaetze);

@@ -39,6 +39,49 @@ const uploadMem = multer({
 });
 
 const EINSATZ_DOK_PREFIX = (auftragNr) => `Auftraege/${auftragNr}/docs/`;
+const EINSATZ_DOK_AUDIENCES = new Set(['job', 'teamleiter', 'office', 'office_roles']);
+
+function normalizeDocumentAudience(value) {
+  const audience = String(value || 'office').trim().toLowerCase();
+  if (!EINSATZ_DOK_AUDIENCES.has(audience)) throw validationError('Ungültige Dokumentfreigabe');
+  return audience;
+}
+
+function normalizeNumberList(value) {
+  const values = Array.isArray(value) ? value : String(value || '').split(',');
+  return [...new Set(values.map(Number).filter(Number.isInteger))];
+}
+
+function normalizeRoleList(value) {
+  const values = Array.isArray(value) ? value : String(value || '').split(',');
+  return [...new Set(values.map(role => String(role).trim().toUpperCase()).filter(Boolean))];
+}
+
+function userRoles(user) {
+  return new Set([user?.role, ...(user?.roles || [])].filter(Boolean).map(role => String(role).toUpperCase()));
+}
+
+async function canAccessOfficeDocument(document, user) {
+  if (document.audience !== 'office_roles') return true;
+  const allowedRoles = document.allowedRoles?.length ? document.allowedRoles : ['ADMIN', 'VERTRIEB'];
+  const currentUser = await User.findById(user?._id || user?.id).select('role roles').lean();
+  const roles = userRoles(currentUser);
+  return allowedRoles.some(role => roles.has(role));
+}
+
+function serializeEinsatzDokument(document) {
+  return {
+    _id: document._id,
+    key: document.key,
+    filename: document.filename,
+    size: document.size,
+    mimeType: document.mimeType,
+    audience: document.audience || 'office',
+    berufKeys: document.berufKeys || [],
+    allowedRoles: document.allowedRoles || [],
+    uploadedAt: document.uploadedAt,
+  };
+}
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -2027,24 +2070,43 @@ router.get('/:auftragNr/einsatzdokumente', auth, asyncHandler(async (req, res) =
   const auftrag = await Auftrag.findOne({ auftragNr: parseAuftragNr(auftragNr) }).lean();
   if (!auftrag) return res.status(404).json({ success: false, message: 'Auftrag nicht gefunden' });
   await assertOrderLocationAccess(req, auftrag);
+  const knownDocuments = auftrag.einsatzdokumente || [];
+  const knownKeys = new Set(knownDocuments.map(document => document.key));
   const prefix = EINSATZ_DOK_PREFIX(auftragNr);
-  const objects = await R2Service.listObjects(prefix);
-  const docs = await Promise.all(
-    objects
-      .filter(obj => obj.Key !== prefix) // exclude the prefix placeholder itself
-      .map(async (obj) => {
-        const filename = obj.Key.slice(prefix.length);
-        const url = await R2Service.getSignedDownloadUrl(obj.Key, 7200, { inline: true });
-        return {
-          key: obj.Key,
-          filename,
-          size: obj.Size,
-          lastModified: obj.LastModified,
-          url,
-        };
-      })
-  );
+  const legacyDocuments = (await R2Service.listObjects(prefix))
+    .filter(object => object.Key !== prefix && !knownKeys.has(object.Key))
+    .map(object => ({
+      _id: new mongoose.Types.ObjectId(),
+      key: object.Key,
+      filename: object.Key.slice(prefix.length),
+      size: object.Size || 0,
+      mimeType: 'application/octet-stream',
+      audience: 'office',
+      berufKeys: [],
+      allowedRoles: [],
+      uploadedAt: object.LastModified || new Date(),
+    }));
+  if (legacyDocuments.length) {
+    await Auftrag.updateOne({ _id: auftrag._id }, { $push: { einsatzdokumente: { $each: legacyDocuments } } });
+  }
+  const documents = await Promise.all([...knownDocuments, ...legacyDocuments].map(async (document) => (
+    (await canAccessOfficeDocument(document, req.user)) ? document : null
+  )));
+  const docs = documents.filter(Boolean);
   res.json({ success: true, data: docs });
+}));
+
+// GET /api/auftraege/:auftragNr/einsatzdokumente/:documentId/download
+router.get('/:auftragNr/einsatzdokumente/:documentId/download', auth, asyncHandler(async (req, res) => {
+  const auftrag = await Auftrag.findOne({ auftragNr: parseAuftragNr(req.params.auftragNr) }).lean();
+  if (!auftrag) return res.status(404).json({ success: false, message: 'Auftrag nicht gefunden' });
+  await assertOrderLocationAccess(req, auftrag);
+  const document = (auftrag.einsatzdokumente || []).find(item => String(item._id) === req.params.documentId);
+  if (!document || !(await canAccessOfficeDocument(document, req.user))) {
+    return res.status(404).json({ success: false, message: 'Dokument nicht gefunden' });
+  }
+  const url = await R2Service.getSignedDownloadUrl(document.key, 300, { inline: true });
+  res.json({ success: true, data: { url } });
 }));
 
 // POST /api/auftraege/:auftragNr/einsatzdokumente
@@ -2058,28 +2120,48 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
   // Sanitise filename to prevent path traversal
   const safeName = req.file.originalname.replace(/[/\\:*?"<>|]/g, '_');
   const key = `${EINSATZ_DOK_PREFIX(auftragNr)}${Date.now()}-${safeName}`;
+  const audience = normalizeDocumentAudience(req.body.audience);
+  const berufKeys = normalizeNumberList(req.body.berufKeys);
+  const allowedRoles = normalizeRoleList(req.body.allowedRoles);
+  if (audience !== 'job' && berufKeys.length) {
+    return res.status(400).json({ success: false, message: 'Berufseinschränkungen sind nur für Mitarbeiter-Dokumente möglich' });
+  }
+  if (audience !== 'office_roles' && allowedRoles.length) {
+    return res.status(400).json({ success: false, message: 'Rollen sind nur für rollenbeschränkte App-Dokumente möglich' });
+  }
 
   await R2Service.uploadFile(key, req.file.buffer, req.file.mimetype);
-  const url = await R2Service.getSignedDownloadUrl(key, 7200, { inline: true });
+  const document = {
+    _id: new mongoose.Types.ObjectId(),
+    key,
+    filename: safeName,
+    size: req.file.size,
+    mimeType: req.file.mimetype,
+    audience,
+    berufKeys,
+    allowedRoles: audience === 'office_roles' ? (allowedRoles.length ? allowedRoles : ['ADMIN', 'VERTRIEB']) : [],
+    uploadedBy: req.user?._id || req.user?.id || null,
+    uploadedAt: new Date(),
+  };
+  await Auftrag.updateOne({ _id: auftrag._id }, { $push: { einsatzdokumente: document } });
 
   logger.info(`Einsatzdok uploaded: ${key} (${req.file.size} bytes) by user ${req.user?.id}`);
-  res.json({ success: true, data: { key, filename: safeName, size: req.file.size, url } });
+  res.json({ success: true, data: serializeEinsatzDokument(document) });
 }));
 
 // DELETE /api/auftraege/:auftragNr/einsatzdokumente
 // Body: { key } — the full R2 key of the file to remove
-router.delete('/:auftragNr/einsatzdokumente', auth, asyncHandler(async (req, res) => {
+router.delete('/:auftragNr/einsatzdokumente/:documentId', auth, asyncHandler(async (req, res) => {
   const { auftragNr } = req.params;
-  const { key } = req.body;
-  if (!key) return res.status(400).json({ success: false, message: 'key fehlt' });
-  // Security: key must be within the expected prefix
-  if (!key.startsWith(EINSATZ_DOK_PREFIX(auftragNr))) {
-    return res.status(403).json({ success: false, message: 'Ungültiger Pfad' });
-  }
   const auftrag = await Auftrag.findOne({ auftragNr: parseAuftragNr(auftragNr) }).lean();
   if (!auftrag) return res.status(404).json({ success: false, message: 'Auftrag nicht gefunden' });
   await assertOrderLocationAccess(req, auftrag);
-  await R2Service.deleteFile(key);
+  const document = (auftrag.einsatzdokumente || []).find(item => String(item._id) === req.params.documentId);
+  if (!document || !(await canAccessOfficeDocument(document, req.user))) {
+    return res.status(404).json({ success: false, message: 'Dokument nicht gefunden' });
+  }
+  await R2Service.deleteFile(document.key);
+  await Auftrag.updateOne({ _id: auftrag._id }, { $pull: { einsatzdokumente: { _id: document._id } } });
   res.json({ success: true });
 }));
 

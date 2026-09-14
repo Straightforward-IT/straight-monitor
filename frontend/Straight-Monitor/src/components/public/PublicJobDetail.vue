@@ -84,6 +84,25 @@
 
     <PublicEinsatzinformation :html="einsatz.einsatzinformationHtml" />
 
+    <section v-if="einsatzDoksLoading || einsatzDoks.length" class="section einsatzdoks-section">
+      <h3 class="section-title">
+        <font-awesome-icon icon="fa-solid fa-folder-open" /> Dokumente
+      </h3>
+      <LoadingSpinner v-if="einsatzDoksLoading" label="Dokumente werden geladen..." class="inline-loader" />
+      <div v-else class="public-dok-list">
+        <button
+          v-for="dok in einsatzDoks"
+          :key="dok._id"
+          type="button"
+          class="public-dok-row"
+          @click="downloadEinsatzDok(dok)"
+        >
+          <font-awesome-icon icon="fa-solid fa-file-arrow-down" />
+          <span>{{ dok.filename }}</span>
+        </button>
+      </div>
+    </section>
+
     <!-- Mitarbeiter List grouped by Schicht -->
     <div class="section">
       <h3 class="section-title">
@@ -189,16 +208,21 @@
       </div>
     </div>
 
-    <!-- Action Buttons: Zeiterfassung (Dev-User) + Event Report (Teamleiter) -->
+    <p v-if="hatZeiterfassung && zeitError && !zeiterfassungSheet" class="zeit-error-text" role="alert">
+      {{ zeitError }}
+      <button v-if="!zeitStatusReady" type="button" class="zeit-add-btn" @click="loadZeitStatus">Erneut laden</button>
+    </p>
+    <!-- Action Buttons: Zeiterfassung + Event Report -->
     <div v-if="isTeamleiter || hatZeiterfassung" class="action-bar">
       <button
         v-if="hatZeiterfassung"
         class="action-btn"
         :class="{ 'action-btn--done': zeitEingereicht }"
+        :disabled="zeitEingereicht || !zeitStatusReady || zeitBusy"
         @click="!zeitEingereicht && oeffneZeiterfassung()"
       >
         <font-awesome-icon icon="fa-solid fa-clock" class="action-btn-icon" />
-        {{ zeitEingereicht ? 'Arbeitszeit eingereicht ✓' : 'Arbeitszeit erfassen' }}
+        {{ zeitEingereicht ? 'Arbeitszeit gesperrt ✓ · Änderungen über das Büro' : 'Arbeitszeit erfassen' }}
       </button>
       <button
         v-if="isTeamleiter && (!hatZeiterfassung || zeitEingereicht)"
@@ -277,6 +301,7 @@
     <!-- Zeiterfassung Modal (Dev-User only, § 4 ArbZG validiert) -->
     <PublicBottomSheet v-model="zeiterfassungSheet" sheet-class="zeit-sheet" :close-on-backdrop="false">
       <h3 class="calmodal-title">Arbeitszeit erfassen</h3>
+      <p class="calmodal-hint">Du kannst deine Stunden für diesen Einsatz einmal einreichen. Danach kann nur das Büro Änderungen vornehmen.</p>
       <p class="calmodal-hint">{{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung }} · {{ formatDate(einsatz.datumVon) }}</p>
 
       <div class="zeit-time-row">
@@ -396,6 +421,7 @@ const hatZeiterfassung = computed(() =>
   props.publicMenuOptions.includes('zeiterfassung') || props.publicMenuOptions.includes('*')
 );
 const zeitEingereicht = ref(false);
+const zeitStatusReady = ref(false);
 const zeiterfassungSheet = ref(false);
 const zeitHinweisOffen = ref(false);
 const zeitBusy = ref(false);
@@ -411,6 +437,8 @@ defineEmits(['back', 'write-report']);
 const loadingMa = ref(false);
 const schichtGruppen = ref([]);
 const activeRoleFilterIds = ref([]);
+const einsatzDoks = ref([]);
+const einsatzDoksLoading = ref(false);
 
 const ownSchicht = computed(() => {
   if (!schichtGruppen.value.length) return null;
@@ -516,6 +544,7 @@ function saveNotiz() {
 }
 
 function oeffneZeiterfassung() {
+  if (!zeitStatusReady.value || zeitEingereicht.value || zeitBusy.value) return;
   zeitForm.start = formatTime(props.einsatz?.uhrzeitVon) || '';
   zeitForm.end = formatTime(props.einsatz?.uhrzeitBis) || '';
   zeitForm.pausen = [];
@@ -534,65 +563,49 @@ function formatZeitMin(min) {
   return `${h}:${String(m).padStart(2, '0')} h`;
 }
 
-// Kombiniert das Einsatzdatum mit einer HH:MM-Uhrzeit zu einem minutengenauen ISO-Zeitstempel.
-function zeitZuIso(datum, hhmm, refStart = null) {
-  if (!datum || !hhmm) return null;
-  const base = new Date(datum);
-  const [h, m] = String(hhmm).split(':').map(Number);
-  base.setHours(h || 0, m || 0, 0, 0);
-  if (refStart) {
-    const [rh, rm] = String(refStart).split(':').map(Number);
-    if ((h || 0) * 60 + (m || 0) <= (rh || 0) * 60 + (rm || 0)) base.setDate(base.getDate() + 1);
+let zeitRequest = 0;
+async function loadZeitStatus() {
+  const request = ++zeitRequest;
+  const id = props.einsatz?._id;
+  zeitStatusReady.value = false;
+  zeitEingereicht.value = false;
+  zeitError.value = '';
+  if (!hatZeiterfassung.value || !id) return;
+  try {
+    const { data } = await props.api.get(`/api/public/working-times/${id}`, { headers: { 'x-public-token': props.token } });
+    if (request !== zeitRequest) return;
+    zeitEingereicht.value = data.locked;
+    zeitStatusReady.value = true;
+  } catch (error) {
+    if (request === zeitRequest) zeitError.value = error?.response?.data?.message || 'Erfassungsstatus konnte nicht geladen werden.';
   }
-  return base.toISOString();
-}
-
-function zeitDeviceId() {
-  const key = 'straight-monitor:time-device';
-  let value = localStorage.getItem(key);
-  if (!value) {
-    value = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-    localStorage.setItem(key, value);
-  }
-  return value;
 }
 
 async function submitZeiterfassung() {
-  if (!zeitValidierung.value?.gueltig || zeitBusy.value) return;
-
-  const payload = {
-    // TODO: assignmentLedgerId muss eine echte EinsatzBuch-ID sein, sobald aus
-    // Auftrag/Einsatz EinsatzBuch-Datensätze erzeugt werden. Aktuell existiert
-    // noch keine — der POST scheitert dann mit 404 (ASSIGNMENT_NOT_AVAILABLE).
-    assignmentLedgerId: props.einsatz.assignmentLedgerId || props.einsatz._id,
-    actualStart: zeitZuIso(props.einsatz.datumVon, zeitForm.start),
-    actualEnd: zeitZuIso(props.einsatz.datumVon, zeitForm.end, zeitForm.start),
-    breaks: zeitForm.pausen.map(p => ({ minutes: Number(p.minuten) || 0, source: 'employee' })),
-    clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Berlin',
-    deviceId: zeitDeviceId(),
-    email: props.email || undefined,
-  };
-
+  if (!zeitValidierung.value?.gueltig || zeitBusy.value || zeitEingereicht.value || !zeitStatusReady.value) return;
+  const id = props.einsatz._id;
   zeitBusy.value = true;
   zeitError.value = '';
   try {
-    await props.api.post('/api/public/payroll-time/record', payload);
+    await props.api.post(`/api/public/working-times/${id}`, {
+      start: zeitForm.start,
+      end: zeitForm.end,
+      breakMinutes: zeitForm.pausen.reduce((sum, pause) => sum + Number(pause.minuten), 0),
+    }, { headers: { 'x-public-token': props.token } });
+    if (props.einsatz._id !== id) return;
+    zeitEingereicht.value = true;
+    zeiterfassungSheet.value = false;
+    try { showToast({ text: 'Arbeitszeit eingereicht. Änderungen erfolgen jetzt durch das Büro.', intent: 'success', duration: 3500 }); } catch {}
   } catch (error) {
-    const status = error?.response?.status;
-    // 404 = EinsatzBuch-Pipeline noch WIP: lokal fortführen, damit die Demo läuft.
-    if (status !== 404) {
-      zeitError.value = error?.response?.data?.message || error?.response?.data?.msg || 'Zeit konnte nicht übermittelt werden.';
-      zeitBusy.value = false;
-      return;
+    if (props.einsatz._id !== id) return;
+    if (error?.response?.status === 409) {
+      zeitEingereicht.value = true;
+      zeiterfassungSheet.value = false;
     }
-    console.warn('Zeiterfassung: EinsatzBuch noch nicht verfügbar, nur lokal gespeichert.', error?.response?.data || error?.message);
+    zeitError.value = error?.response?.data?.message || 'Zeit konnte nicht übermittelt werden. Deine Eingaben bleiben erhalten.';
+  } finally {
+    zeitBusy.value = false;
   }
-  zeitBusy.value = false;
-
-  localStorage.setItem(`zeiterfassung_${props.einsatz.auftragNr}`, JSON.stringify({ ...payload, submittedAt: new Date().toISOString() }));
-  zeitEingereicht.value = true;
-  zeiterfassungSheet.value = false;
-  try { showToast({ text: 'Arbeitszeit eingereicht.', intent: 'success', duration: 2200 }); } catch {}
 }
 
 function normalizeRoleFilterValue(value) {
@@ -1154,16 +1167,44 @@ async function loadMitarbeiter() {
   }
 }
 
+async function loadEinsatzDoks() {
+  const auftragNr = props.einsatz?.auftragNr;
+  if (!auftragNr) return;
+  einsatzDoksLoading.value = true;
+  try {
+    const { data } = await props.api.get(`/api/public/einsatzdokumente/${auftragNr}`);
+    einsatzDoks.value = data.data || [];
+  } catch {
+    einsatzDoks.value = [];
+  } finally {
+    einsatzDoksLoading.value = false;
+  }
+}
+
+async function downloadEinsatzDok(dok) {
+  try {
+    const { data } = await props.api.get(
+      `/api/public/einsatzdokumente/${props.einsatz.auftragNr}/${dok._id}/download`
+    );
+    window.open(data.data.url, '_blank', 'noopener');
+  } catch {
+    try { showToast({ text: 'Dokument konnte nicht geöffnet werden.', intent: 'error', duration: 3000 }); } catch {}
+  }
+}
+
 onMounted(() => {
   loadMitarbeiter();
+  loadEinsatzDoks();
   connectCheckInSSE(props.einsatz?.auftragNr);
-  zeitEingereicht.value = !!localStorage.getItem(`zeiterfassung_${props.einsatz?.auftragNr}`);
 });
 
+watch(() => [props.einsatz?._id, props.token, hatZeiterfassung.value], loadZeitStatus, { immediate: true });
 watch(() => props.einsatz?._id, () => {
+  zeiterfassungSheet.value = false;
   loadMitarbeiter();
+  loadEinsatzDoks();
   connectCheckInSSE(props.einsatz?.auftragNr);
-  zeitEingereicht.value = !!localStorage.getItem(`zeiterfassung_${props.einsatz?.auftragNr}`);
+
   zeitForm.start = '';
   zeitForm.end = '';
   zeitForm.pausen = [];
@@ -1471,6 +1512,26 @@ watch(() => props.einsatz?._id, () => {
   border-radius: 10px;
   font-style: italic;
 }
+
+.einsatzdoks-section { margin-top: 1.25rem; }
+.public-dok-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.public-dok-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.public-dok-row svg { color: var(--primary); }
+.public-dok-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.public-dok-row:active { background: var(--hover); }
 
 /* Schicht Groups */
 .schicht-group {

@@ -14,8 +14,15 @@ test('short-term card compares worked and planned calendar-year days with 70 day
   const card = buildHoverDataCard({ type: 'days', workedDays: 18, plannedDays: 7 });
   assert.equal(card.type, HOVER_DATA_CARD_TYPES.DAYS);
   assert.deepEqual(card.metric, { value: 25, limit: 70, unit: 'Tage' });
-  assert.deepEqual(card.segments.map(segment => [segment.id, segment.value]), [['worked', 18], ['planned', 7], ['remaining', 45]]);
+  assert.deepEqual(card.segments.map(segment => [segment.id, segment.value]), [['prior-employer', 0], ['worked', 18], ['planned', 7], ['remaining', 45]]);
   assert.match(card.sections[1].rows.find(row => row.label === 'Verwendet').value, /25 \/ 70 Tage/);
+});
+
+test('prior-employer days consume the same annual allowance as current assignments', () => {
+  const card = buildHoverDataCard({ type: 'days', priorEmployerDays: 10, workedDays: 18, plannedDays: 7 });
+  assert.equal(card.metric.value, 35);
+  assert.equal(card.segments.find(segment => segment.id === 'remaining').value, 35);
+  assert.equal(card.sections[0].rows.find(row => row.label === 'Vorarbeitgeber').value, '10 Tage');
 });
 
 test('earnings card calculates a monthly estimate from hours times hourly rate', () => {

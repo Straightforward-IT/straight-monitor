@@ -25,6 +25,7 @@
     >
       <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
     </button>
+    <slot name="bottom-actions" />
   </div>
 </template>
 

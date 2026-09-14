@@ -89,6 +89,7 @@ const props = defineProps({
   dropup:      { type: Boolean, default: false },
   includeInactive: { type: Boolean, default: false },
   locationV2: { type: [String, Number], default: null },
+  selectedItem: { type: Object, default: null },
 });
 const emit = defineEmits(['update:modelValue', 'select']);
 const toolbarLocation = useToolbarLocationContext();
@@ -224,6 +225,10 @@ watch(() => props.modelValue, (val) => {
     query.value = '';
   }
 });
+
+watch(() => props.selectedItem, (item) => {
+  if (!props.multiple && item && String(item._id) === String(props.modelValue)) selected.value = item;
+}, { immediate: true });
 
 watch(effectiveLocationV2, () => {
   results.value = sortResults(results.value);

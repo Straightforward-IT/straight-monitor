@@ -35,6 +35,7 @@ const EventReportSchema = new mongoose.Schema(
     mitarbeiter_job: { type: String, required: false },
     feedback_auftraggeber: { type: String, required: false },
     sonstiges: { type: String, required: false },
+    ausruestung_fehlt: { type: String, required: false },
     mitarbeiter_feedback: [
       {
         mitarbeiter: {
@@ -99,6 +100,7 @@ EventReportSchema.methods.toHtml = function () {
 <strong>Mitarbeiter Job</strong>\n${this.mitarbeiter_job || "-"}\n
 <strong>Feedback Auftraggeber</strong>\n${this.feedback_auftraggeber || "-"}\n
 <strong>Sonstiges</strong>\n${this.sonstiges || "-"}\n
+<strong>Ausrüstung fehlt</strong>\n${this.ausruestung_fehlt || "-"}\n
 <strong>Zugewiesen</strong>\n${this.assigned ? "Ja" : "Nein"}\n
   `;
 };

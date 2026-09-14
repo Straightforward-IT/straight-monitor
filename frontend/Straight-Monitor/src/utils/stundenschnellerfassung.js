@@ -59,8 +59,20 @@ export function clockMinutes(value) {
   return hours * 60 + minutes;
 }
 
-/** Duration-only UI preview. No payroll or statutory break rules are applied. */
-export function analyzeQuickEntry(entry) {
+const berlinClock = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+function actualMinute(date, clock, offset) {
+  const day = new Date(`${date}T00:00:00Z`);
+  if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== date) throw new Error('Ungültiges Einsatzdatum.');
+  day.setUTCDate(day.getUTCDate() + offset);
+  const expected = `${day.toISOString().slice(0, 10)} ${clock}`;
+  const wall = day.getTime() + clockMinutes(clock) * 60000;
+  const matches = [60, 120].map(minutes => new Date(wall - minutes * 60000)).filter(value => berlinClock.format(value) === expected);
+  if (matches.length !== 1) throw new Error('Diese Uhrzeit ist durch die Zeitumstellung nicht eindeutig. Bitte separat klären.');
+  return matches[0].getTime() / 60000;
+}
+
+/** Duration-only UI preview. Optional date accounts for Europe/Berlin DST. */
+export function analyzeQuickEntry(entry, date = null) {
   const errors = [];
   const activeBreaks = (entry.breaks || []).filter(block => block.start || block.end);
   const usesBlocks = activeBreaks.length > 0;
@@ -81,6 +93,12 @@ export function analyzeQuickEntry(entry) {
   const end = rawEnd < start ? rawEnd + 1440 : rawEnd;
   result.overnight = rawEnd < start;
   result.grossMinutes = end - start;
+  if (date) {
+    try {
+      result.grossMinutes = actualMinute(date, entry.end, result.overnight ? 1 : 0) - actualMinute(date, entry.start, 0);
+      if (result.grossMinutes > 1440) errors.push('Eine Erfassung darf höchstens 24 Stunden umfassen.');
+    } catch (error) { errors.push(error.message); return result; }
+  }
 
   if (usesBlocks) {
     const intervals = [];
@@ -99,8 +117,13 @@ export function analyzeQuickEntry(entry) {
         return;
       }
       intervals.push({ start: blockStart, end: blockEnd });
-      result.breakMinutes += blockEnd - blockStart;
-      if (block.paid) result.paidBreakMinutes += blockEnd - blockStart;
+      let duration = blockEnd - blockStart;
+      if (date) {
+        try { duration = actualMinute(date, block.end, blockEnd >= 1440 ? 1 : 0) - actualMinute(date, block.start, blockStart >= 1440 ? 1 : 0); }
+        catch (error) { errors.push(error.message); return; }
+      }
+      result.breakMinutes += duration;
+      if (block.paid) result.paidBreakMinutes += duration;
     });
     intervals.sort((left, right) => left.start - right.start);
     if (intervals.some((interval, index) => index > 0 && interval.start < intervals[index - 1].end)) errors.push('Pausen dürfen sich nicht überschneiden.');

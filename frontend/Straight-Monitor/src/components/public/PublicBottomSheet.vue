@@ -75,6 +75,39 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
   background: var(--border);
 }
 
+:global(.public-bottom-sheet__actions) {
+  display: flex;
+  width: 100%;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+:global(.public-bottom-sheet__button) {
+  flex: 1;
+  padding: 0.8rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+:global(.public-bottom-sheet__button:active) { opacity: 0.75; }
+:global(.public-bottom-sheet__button:disabled) { opacity: 0.5; cursor: not-allowed; }
+
+:global(.public-bottom-sheet__button--secondary) {
+  border: 1px solid var(--border);
+  background: var(--hover);
+  color: var(--muted);
+}
+
+:global(.public-bottom-sheet__button--primary) {
+  border: 1.5px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+}
+
 .public-bottom-sheet-enter-active {
   transition: opacity 0.2s;
 }

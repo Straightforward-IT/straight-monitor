@@ -51,7 +51,10 @@
         <div class="title">
           <div class="name">{{ resolvedMa.vorname }} {{ resolvedMa.nachname }}</div>
           <div class="meta">
-            <span class="pill" :class="resolvedMa.isActive ? 'ok' : 'muted'">
+            <span
+              class="pill"
+              :class="resolvedMa.personalnr ? (resolvedMa.isActive ? 'ok' : 'muted') : 'warn'"
+            >
               <font-awesome-icon
                 :icon="
                   resolvedMa.isActive
@@ -59,12 +62,6 @@
                     : 'fa-regular fa-circle'
                 "
               />
-              {{ resolvedMa.isActive ? "Aktiv" : "Inaktiv" }}
-            </span>
-
-            <!-- Personalnr mit visueller Warnung wenn fehlend -->
-            <span class="pill" :class="resolvedMa.personalnr ? 'info' : 'warn'">
-              <font-awesome-icon icon="fa-solid fa-id-badge" />
               {{ resolvedMa.personalnr || "Personalnr fehlt" }}
             </span>
 
@@ -1369,6 +1366,12 @@
                   <button v-if="resolvedMa?.isActive !== false" class="qa-item" @click="executeQuickAction('open-dispo')">
                     <font-awesome-icon icon="fa-solid fa-table-columns" /> In Dispo öffnen
                   </button>
+                  <button class="qa-item" @click="executeQuickAction('time-capture')">
+                    <font-awesome-icon icon="fa-solid fa-clock" /> Stundenschnellerfassung
+                  </button>
+                  <button class="qa-item" @click="executeQuickAction('time-management')">
+                    <font-awesome-icon icon="fa-solid fa-calendar" /> Zeitverwaltung
+                  </button>
                 </div>
                 <div class="qa-group">
                   <button class="qa-item" @click="executeQuickAction('edit')">
@@ -1666,6 +1669,7 @@ import CustomTooltip from "./CustomTooltip.vue";
 import FlipProfile from "./FlipProfile.vue";
 import { useDocumentModals } from "@/composables/useDocumentModals";
 import ContextMenu from "./ContextMenu.vue";
+import { useTimeCaptureModals } from '@/composables/useTimeCaptureModals';
 import EditMitarbeiterDialog from "@/components/Modals/EditMitarbeiterDialog.vue";
 import DeleteMitarbeiterDialog from "@/components/Modals/DeleteMitarbeiterDialog.vue";
 import ImageCropModal from "./ImageCropModal.vue";
@@ -1708,6 +1712,7 @@ export default {
     const auth = useAuth();
     const router = useRouter();
     const { openDocument: openDocumentModal } = useDocumentModals();
+    const { openTimeCapture } = useTimeCaptureModals();
 
     // Self-loading state (used when only mitarbeiterId prop is passed)
     const selfLoadedMa = ref(null);
@@ -1832,6 +1837,7 @@ export default {
       selfLoading,
       flip,
       openDocumentModal,
+      openTimeCapture,
     };
   },
 
@@ -2304,9 +2310,6 @@ export default {
     async enrichWithFlip(data) {
       if (!data?.flip_id) return;
       try {
-        // Ensure the group data is available in the store, then refresh this
-        // single user (fetchFlipById preserves groups from the store).
-        await this.flip.fetchAll();
         const flipUser = await this.flip.fetchFlipById(data.flip_id);
         if (flipUser) data.flip = flipUser;
       } catch { /* flip profile will show on next load */ }
@@ -3315,6 +3318,13 @@ export default {
     executeQuickAction(action) {
       this._closeQuickActions();
       switch (action) {
+        case 'time-capture':
+          this.openTimeCapture({ employeeId: String(this.resolvedMa._id) });
+          break;
+        case 'time-management':
+          this.$router.push({ name: 'Payroll', query: { tab: 'stundenerfassung', employeeId: String(this.resolvedMa._id) } });
+          this.$emit('close');
+          break;
         case 'sipgate': {
           const phone = this.getPhoneNumber();
           if (phone) {

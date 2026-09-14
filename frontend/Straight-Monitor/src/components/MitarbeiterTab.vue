@@ -92,56 +92,55 @@
               </div>
             </div>
 
-            <template #actions>
-            <!-- Controls: Sort + Pagination -->
-            <div class="view-controls-right">
-            <SortMenu
-              v-model="mitarbeitersSortBy"
-              v-model:ascending="mitarbeitersIsAscending"
-              :options="mitarbeiterSortOptions"
-            />
-
-            <!-- Pagination Info (compact version) -->
-            <div v-if="!loading.mitarbeiter && filteredMitarbeitersSorted.length > 0" class="pagination-compact">
-              <div class="pagination-info-compact">
-                <span class="pagination-text">{{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}</span>
-                
-                <select 
-                  v-model="itemsPerPage" 
+            <template #bottom-actions>
+              <div
+                v-if="!loading.mitarbeiter && filteredMitarbeitersSorted.length > 0"
+                class="toolbar-page-controls"
+              >
+                <SortMenu
+                  v-model="mitarbeitersSortBy"
+                  v-model:ascending="mitarbeitersIsAscending"
+                  :options="mitarbeiterSortOptions"
+                />
+                <span class="toolbar-page-controls__summary">
+                  {{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}
+                </span>
+                <select
+                  v-model="itemsPerPage"
+                  class="toolbar-page-controls__select"
+                  aria-label="Einträge pro Seite"
                   @change="setItemsPerPage(Number($event.target.value))"
-                  class="pagination-select-compact"
                 >
                   <option v-for="size in pageOptions" :key="size" :value="size">
                     {{ size }}
                   </option>
                 </select>
+                <button
+                  v-if="totalPages > 1"
+                  class="toolbar-page-controls__button"
+                  type="button"
+                  title="Vorherige Seite"
+                  aria-label="Vorherige Seite"
+                  :disabled="currentPage === 1"
+                  @click="prevPage"
+                >
+                  <font-awesome-icon icon="fa-solid fa-chevron-left" />
+                </button>
+                <span v-if="totalPages > 1" class="toolbar-page-controls__page">
+                  {{ currentPage }} / {{ totalPages }}
+                </span>
+                <button
+                  v-if="totalPages > 1"
+                  class="toolbar-page-controls__button"
+                  type="button"
+                  title="Nächste Seite"
+                  aria-label="Nächste Seite"
+                  :disabled="currentPage === totalPages"
+                  @click="nextPage"
+                >
+                  <font-awesome-icon icon="fa-solid fa-chevron-right" />
+                </button>
               </div>
-              
-              <div class="pagination-controls-compact" v-if="totalPages > 1">
-                <custom-tooltip text="Vorherige Seite" position="top" :delay-in="150">
-                  <button 
-                    class="pagination-btn-compact" 
-                    :disabled="currentPage === 1" 
-                    @click="prevPage"
-                  >
-                    <font-awesome-icon icon="fa-solid fa-chevron-left" />
-                  </button>
-                </custom-tooltip>
-                
-                <span class="page-indicator">{{ currentPage }} / {{ totalPages }}</span>
-                
-                <custom-tooltip text="Nächste Seite" position="top" :delay-in="150">
-                  <button 
-                    class="pagination-btn-compact" 
-                    :disabled="currentPage === totalPages" 
-                    @click="nextPage"
-                  >
-                    <font-awesome-icon icon="fa-solid fa-chevron-right" />
-                  </button>
-                </custom-tooltip>
-              </div>
-            </div>
-            </div>
             </template>
           </Toolbar>
         </div> <!-- end controls -->
@@ -581,13 +580,6 @@ export default {
     return { flip, dataCache };
   },
 
-  watch: {
-    // Reset to first page when search query changes
-    mitarbeitersSearchQuery() {
-      this.currentPage = 1;
-    },
-  },
-
   data() {
     return {
       // auth/user
@@ -736,9 +728,7 @@ export default {
     
     // Mitarbeiter mit Flip-Daten und Skills anreichern
     mitarbeitersEnriched() {
-      const ready = this.flip?.loaded;
       const arr = this.mitarbeiters || [];
-      if (!ready) return arr;
 
       return arr.map((ma) => {
           let flipUser;
@@ -928,6 +918,13 @@ export default {
       const start = (this.currentPage - 1) * this.itemsPerPage;
       const end = start + this.itemsPerPage;
       return this.filteredMitarbeitersSorted.slice(start, end);
+    },
+
+    visibleFlipIdsKey() {
+      return this.paginatedMitarbeiters
+        .map((ma) => ma.flip_id)
+        .filter(Boolean)
+        .join(',');
     },
 
     totalPages() {
@@ -1638,6 +1635,13 @@ export default {
       }
     },
 
+    async loadVisibleFlipUsers() {
+      const ids = this.paginatedMitarbeiters
+        .map((ma) => ma.flip_id)
+        .filter(Boolean);
+      await this.flip.ensureUsers(ids);
+    },
+
     scrollToExpandedEmployee() {
       if (this.expandedEmployeeId) {
         // Warte kurz, bis das DOM aktualisiert wurde
@@ -1655,6 +1659,15 @@ export default {
   },
 
   watch: {
+    mitarbeitersSearchQuery() {
+      this.currentPage = 1;
+    },
+    visibleFlipIdsKey: {
+      immediate: true,
+      handler() {
+        this.loadVisibleFlipUsers();
+      },
+    },
     initiallyExpanded(newValue) {
       this.expanded = newValue;
     },
@@ -1690,15 +1703,6 @@ export default {
       this.dataCache.loadBerufe(),
       this.dataCache.loadQualifikationen(),
     ]);
-
-    // 3) Alle Flip-User vorladen (für spätere Filter & Verknüpfung)
-    try {
-      await this.flip.fetchAll();
-    } catch (e) {
-      // Fehler ist bereits im Store protokolliert (this.flip.error)
-      console.error("Flip-Users konnten nicht geladen werden:", e);
-    }
-
 
   },
 
@@ -1888,8 +1892,86 @@ export default {
 }
 
 .people-search-toolbar {
-  margin-bottom: 12px;
+  margin-bottom: 29px;
   overflow: visible;
+}
+
+.toolbar-page-controls {
+  position: absolute;
+  top: 100%;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  white-space: nowrap;
+
+  :deep(.sort-menu__trigger),
+  &__select,
+  &__button {
+    height: 24px;
+    box-sizing: border-box;
+    border: 1px solid var(--border);
+    border-radius: 0 0 5px 5px;
+    background: var(--tile-bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.72rem;
+    box-shadow: none;
+  }
+
+  :deep(.sort-menu__trigger) {
+    gap: 5px;
+    padding: 0 8px;
+  }
+
+  &__select {
+    min-width: 48px;
+    padding: 0 6px;
+    cursor: pointer;
+  }
+
+  &__button {
+    display: inline-flex;
+    width: 28px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  :deep(.sort-menu__trigger:hover),
+  &__select:hover,
+  &__button:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  &__select:focus-visible,
+  &__button:focus-visible,
+  :deep(.sort-menu__trigger:focus-visible) {
+    outline: 2px solid color-mix(in srgb, var(--primary) 35%, transparent);
+    outline-offset: 1px;
+  }
+
+  &__button:disabled {
+    color: var(--muted);
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  &__summary,
+  &__page {
+    color: var(--muted);
+    font-size: 0.72rem;
+    line-height: 24px;
+  }
+
+  &__page {
+    min-width: 32px;
+    text-align: center;
+  }
 }
 
 .toolbar-inner {
@@ -3004,16 +3086,6 @@ html {
   }
 }
 
-.view-controls-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
 /* View Controls */
 .view-controls {
   display: flex;
@@ -3305,91 +3377,6 @@ html {
   }
 }
 
-/* Compact Pagination Styles */
-.pagination-compact {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.pagination-info-compact {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pagination-text {
-  font-size: 0.8rem;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.pagination-select-compact {
-  height: 34px;
-  box-sizing: border-box;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
-  min-width: 50px;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-  
-  &:hover {
-    background: var(--soft);
-    border-color: var(--brand);
-    color: var(--brand);
-  }
-  
-  &:focus {
-    outline: none;
-    border-color: var(--brand);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 20%, transparent);
-  }
-}
-
-.pagination-controls-compact {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pagination-btn-compact {
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  
-  &:hover:not(:disabled) {
-    background: var(--soft);
-    border-color: var(--brand);
-    color: var(--brand);
-  }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.page-indicator {
-  font-size: 0.8rem;
-  color: var(--muted);
-  padding: 0 0.25rem;
-  white-space: nowrap;
-}
-
 /* Loading Styles */
 .loading-container {
   display: flex; 
@@ -3418,48 +3405,20 @@ html {
     padding: 12px 8px;
   }
   
-  .view-controls-right {
-    width: auto;
-    justify-content: space-between;
-    gap: 8px;
-    flex-wrap: nowrap;
-    min-width: 0;
-  }
-  
-  .pagination-compact {
-    justify-content: space-between;
-    gap: 8px;
-    flex-wrap: nowrap;
-    flex: 1;
-    min-width: 0;
-  }
+  .toolbar-page-controls {
+    right: 6px;
+    gap: 3px;
 
-  .pagination-info-compact,
-  .pagination-controls-compact {
-    flex-wrap: nowrap;
-    white-space: nowrap;
-  }
+    :deep(.sort-menu__trigger) {
+      width: 24px;
+      padding: 0;
+      justify-content: center;
+      font-size: 0;
 
-  .pagination-info-compact,
-  .pagination-controls-compact {
-    min-width: 0;
-  }
-
-  .pagination-text,
-  .page-indicator,
-  .pagination-select-compact,
-  .pagination-btn-compact {
-    font-size: 0.9rem;
-  }
-
-  .pagination-select-compact {
-    min-width: 42px;
-    padding: 0.125rem 0.2rem;
-  }
-
-  .pagination-btn-compact {
-    width: 26px;
-    height: 26px;
+      svg {
+        font-size: 0.7rem;
+      }
+    }
   }
   
   /* Search & Filter mobile */
@@ -3507,10 +3466,6 @@ html {
     padding: 8px 4px;
   }
 
-  .view-controls-right {
-    gap: 4px;
-  }
-  
   .view-toggle-btn {
     padding: 4px 6px;
     min-width: 32px;
@@ -3521,25 +3476,8 @@ html {
     font-size: 11px;
   }
   
-  .pagination-btn-compact {
-    width: 24px;
-    height: 24px;
-  }
-
-  .pagination-compact {
-    gap: 4px;
-  }
-
-  .pagination-info-compact,
-  .pagination-controls-compact {
-    gap: 0.35rem;
-  }
-
-  .pagination-text,
-  .page-indicator,
-  .pagination-select-compact,
-  .pagination-btn-compact {
-    font-size: 0.82rem;
+  .toolbar-page-controls__summary {
+    display: none;
   }
   
   .chip-group {

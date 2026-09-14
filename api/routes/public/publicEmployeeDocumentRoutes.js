@@ -41,6 +41,39 @@ async function employeeFromRequest(req) {
   return WorkingTimeService.resolvePublicEmployee({ flipId: req.oidcFlipId, email: req.oidcEmail || req.query.email });
 }
 
+const PAYROLL_FILE_PATTERN = /^([a-zA-ZäöüÄÖÜß]+)_([a-zA-ZäöüÄÖÜß]+)_(LA|LST)_(\d{4})(?:-(0[1-9]|1[0-2]))?\.pdf$/;
+const LEGACY_PAYROLL_FILE_PATTERN = /^(LA|LST)_([A-Z]+)_(\d{4})(?:-(0[1-9]|1[0-2]))?\.pdf$/;
+
+function parsePayrollFileName(fileName) {
+  const match = fileName.match(PAYROLL_FILE_PATTERN);
+  if (match) {
+    const [, lastName, firstName, type, year, month = null] = match;
+    return { lastName, firstName, type, location: null, year, month };
+  }
+
+  const legacyMatch = fileName.match(LEGACY_PAYROLL_FILE_PATTERN);
+  if (!legacyMatch) return null;
+  const [, type, location, year, month = null] = legacyMatch;
+  return { lastName: null, firstName: null, type, location, year, month };
+}
+
+function serializePayrollDocument(object, prefix) {
+  const fileName = object.Key?.slice(prefix.length);
+  if (!fileName || fileName.includes('/')) return null;
+
+  const parsedFileName = parsePayrollFileName(fileName);
+  if (!parsedFileName) return null;
+  return {
+    fileName,
+    type: parsedFileName.type,
+    location: parsedFileName.location,
+    year: Number(parsedFileName.year),
+    month: parsedFileName.month ? Number(parsedFileName.month) : null,
+    size: object.Size || 0,
+    lastModified: object.LastModified || null,
+  };
+}
+
 function serializeRequest(request) {
   const uploadDoc = request.currentUpload;
   return {
@@ -64,6 +97,36 @@ router.get('/', requireOidc, asyncHandler(async (req, res) => {
     .populate('currentUpload', 'originalFileName uploadedAt')
     .sort({ dueAt: 1, createdAt: -1 });
   res.json({ requests: requests.map(serializeRequest) });
+}));
+
+router.get('/payroll', requireOidc, asyncHandler(async (req, res) => {
+  const employee = await employeeFromRequest(req);
+  const prefix = `${buildEmployeeR2Path(employee, 'documents/payroll')}/`;
+  const documents = (await r2Service.listObjects(prefix))
+    .map((object) => serializePayrollDocument(object, prefix))
+    .filter(Boolean)
+    .sort((left, right) =>
+      right.year - left.year
+      || (right.month || 13) - (left.month || 13)
+      || right.fileName.localeCompare(left.fileName, 'de')
+    );
+
+  res.json({ documents });
+}));
+
+router.get('/payroll/download', requireOidc, asyncHandler(async (req, res) => {
+  const employee = await employeeFromRequest(req);
+  const fileName = String(req.query.fileName || '');
+  if (!parsePayrollFileName(fileName)) {
+    return res.status(400).json({ msg: 'Ungültiger Abrechnungspfad.' });
+  }
+
+  const key = buildEmployeeR2Path(employee, 'documents/payroll', fileName);
+  const objectExists = (await r2Service.listObjects(key)).some((object) => object.Key === key);
+  if (!objectExists) return res.status(404).json({ msg: 'Abrechnung nicht gefunden.' });
+
+  const url = await r2Service.getSignedDownloadUrl(key, 900, { filename: fileName });
+  res.json({ url });
 }));
 
 router.post('/:requestId/upload', requireOidc, upload.single('document'), asyncHandler(async (req, res) => {

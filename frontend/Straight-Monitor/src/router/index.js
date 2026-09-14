@@ -41,6 +41,7 @@ const PdfMitarbeiterForm = () => import('@/components/PdfMitarbeiterForm.vue');
 const DispoTable = () => import('@/components/DispoTable.vue');
 const UserManagement = () => import('@/components/UserManagement.vue');
 const NotFound = () => import('@/components/NotFound.vue');
+const PayrollPage = () => import('@/components/PayrollPage.vue');
 
 const routes = [
   { path: '/', name: 'Home', component: HomeLogin, meta: { requiresAuth: false } },
@@ -77,6 +78,8 @@ const routes = [
       { path: 'verlosung', name: 'VerlosungTool', component: VerlosungTool },
       { path: 'daten-import', name: 'DatenImport', component: DatenImport },
       { path: 'auftraege', name: 'Auftraege', component: AuftraegePage },
+      { path: 'payroll', name: 'Payroll', component: PayrollPage },
+      { path: 'zeitverwaltung/:employeeId', name: 'Zeitverwaltung', component: () => import('@/components/TimeManagementPage.vue') },
       { path: 'kunden', name: 'Kunden', component: KundenPage },
       { path: 'teamleiter-auswertung', name: 'TeamleiterAuswertung', component: TeamleiterAuswertung },
       { path: 'dokumente-nachpflegen', name: 'DokumenteNachpflegen', component: DokumenteNachpflegen },
@@ -102,8 +105,20 @@ const routes = [
   }
 ];
 
-// Isolated preview for the reusable hover card; unavailable in production builds.
+// Isolated component previews; unavailable in production builds.
 if (import.meta.env.DEV) {
+  routes.unshift({
+    path: '/dev/stundenschnellerfassung',
+    name: 'StundenschnellerfassungDemo',
+    component: () => import('@/components/dev/StundenschnellerfassungDemo.vue'),
+    meta: { requiresAuth: false },
+  });
+  routes.unshift({
+    path: '/dev/time-management',
+    name: 'TimeManagementDemo',
+    component: () => import('@/components/dev/TimeManagementDemo.vue'),
+    meta: { requiresAuth: false },
+  });
   routes.unshift({
     path: '/dev/hover-data-card',
     name: 'HoverDataCardDemo',

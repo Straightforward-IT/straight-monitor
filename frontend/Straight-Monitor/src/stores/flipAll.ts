@@ -40,6 +40,8 @@ const TEAMLEITER_GROUP_IDS = [
   FlipMappings.user_group_ids.koeln_teamleiter,
 ];
 
+const flipUserRequests = new Map<string, Promise<IFlipUser | null>>();
+
 export const useFlipAll = defineStore("flipAll", {
   state: () => ({
     // Flip-Users
@@ -49,6 +51,8 @@ export const useFlipAll = defineStore("flipAll", {
 
     byId: new Map<string, IFlipUser>(),
     byEmail: new Map<string, IFlipUser>(),
+    userFetchedAt: new Map<string, number>(),
+    userTTL: 5 * 60 * 1000,
 
     // Mitarbeiter (optional gecacht)
     mitarbeiterLoaded: false,
@@ -99,6 +103,7 @@ export const useFlipAll = defineStore("flipAll", {
         this.byId.clear();
         this.byEmail.clear();
 
+        const fetchedAt = Date.now();
         for (const u of arr) {
           const id = u?.id || undefined;
           if (!id) continue;
@@ -132,6 +137,7 @@ export const useFlipAll = defineStore("flipAll", {
           };
 
           this.byId.set(id, mapped);
+          this.userFetchedAt.set(id, fetchedAt);
           if (mapped.email) this.byEmail.set(mapped.email.toLowerCase(), mapped);
         }
 
@@ -146,42 +152,65 @@ export const useFlipAll = defineStore("flipAll", {
     /* =======================
      * Flip User - Einzel
      * ======================= */
-    async fetchFlipById(id: string) {
-      const data = await fetchFlipUserById(id);
-      // wir überschreiben/vereinheitlichen minimal:
-      const u = (data?.data ?? data) as any;
-      if (!u?.id) return null;
-      // Bestehende Groups aus Store bewahren (Einzel-Fetch liefert keine Groups)
-      const existing = this.byId.get(u.id);
-      const mapped: IFlipUser = {
-        id: u.id,
-        external_id: u.external_id ?? null,
-        vorname: u.first_name ?? u.vorname ?? null,
-        nachname: u.last_name ?? u.nachname ?? null,
-        email: u.email ?? null,
-        status: u.status ?? "ACTIVE",
-        benutzername: u.username ?? u.benutzername ?? null,
-        erstellungsdatum: u.created_at ?? null,
-        aktualisierungsdatum: u.updated_at ?? null,
-        loeschdatum: u.deletion_at ?? null,
-        profilbild: u.profile_picture?.file_id ?? null,
-        rolle: u.role ?? "USER",
-        required_actions: u.required_actions ?? [],
-        profile: u.profile ?? null,
-        attributes: Array.isArray(u.attributes) ? u.attributes : null,
-        primary_user_group: u.primary_user_group
-          ? {
-              id: u.primary_user_group.id ?? null,
-              title: u.primary_user_group.title?.text ?? null,
-              language: u.primary_user_group.title?.language ?? null,
-              status: u.primary_user_group.status ?? null,
-            }
-          : undefined,
-        groups: u.groups ?? existing?.groups ?? [],
-      };
-      this.byId.set(mapped.id!, mapped);
-      if (mapped.email) this.byEmail.set(mapped.email.toLowerCase(), mapped);
-      return mapped;
+    async fetchFlipById(id: string, force = false) {
+      const cached = this.byId.get(id);
+      const fetchedAt = this.userFetchedAt.get(id) || 0;
+      if (!force && cached && Date.now() - fetchedAt < this.userTTL) return cached;
+
+      if (!force) {
+        const pending = flipUserRequests.get(id);
+        if (pending) return pending;
+      }
+
+      const request = (async () => {
+        const data = await fetchFlipUserById(id);
+        const u = (data?.data ?? data) as any;
+        if (!u?.id) return null;
+
+        const existing = this.byId.get(u.id);
+        const mapped: IFlipUser = {
+          id: u.id,
+          external_id: u.external_id ?? null,
+          vorname: u.first_name ?? u.vorname ?? null,
+          nachname: u.last_name ?? u.nachname ?? null,
+          email: u.email ?? null,
+          status: u.status ?? "ACTIVE",
+          benutzername: u.username ?? u.benutzername ?? null,
+          erstellungsdatum: u.created_at ?? null,
+          aktualisierungsdatum: u.updated_at ?? null,
+          loeschdatum: u.deletion_at ?? null,
+          profilbild: u.profile_picture?.file_id ?? null,
+          rolle: u.role ?? "USER",
+          required_actions: u.required_actions ?? [],
+          profile: u.profile ?? null,
+          attributes: Array.isArray(u.attributes) ? u.attributes : null,
+          primary_user_group: u.primary_user_group
+            ? {
+                id: u.primary_user_group.id ?? null,
+                title: u.primary_user_group.title?.text ?? null,
+                language: u.primary_user_group.title?.language ?? null,
+                status: u.primary_user_group.status ?? null,
+              }
+            : undefined,
+          groups: u.groups ?? existing?.groups ?? [],
+        };
+        this.byId.set(mapped.id!, mapped);
+        this.userFetchedAt.set(mapped.id!, Date.now());
+        if (mapped.email) this.byEmail.set(mapped.email.toLowerCase(), mapped);
+        return mapped;
+      })();
+
+      flipUserRequests.set(id, request);
+      try {
+        return await request;
+      } finally {
+        if (flipUserRequests.get(id) === request) flipUserRequests.delete(id);
+      }
+    },
+
+    async ensureUsers(ids: string[]) {
+      const uniqueIds = [...new Set(ids.filter(Boolean))];
+      await Promise.allSettled(uniqueIds.map((id) => this.fetchFlipById(id)));
     },
 
     async updateFlipUser(id: string, payload: Partial<IFlipUser>) {

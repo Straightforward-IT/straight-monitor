@@ -23,6 +23,7 @@
       <span>Beispieldaten</span> Zeiten für einen Auftrag gesammelt erfassen und prüfen.
     </p>
     <div class="quick-time-demo__surface">
+      <DemoOrderDocuments :auftrag-nr="fixture.auftrag.auftragNr" />
       <Stundenschnellerfassung
         v-bind="fixture"
         @submit="onSubmit"
@@ -43,7 +44,11 @@
       v-model="modalOpen"
       v-bind="fixture"
       @submit="onSubmit"
-    />
+    >
+      <template #documents>
+        <DemoOrderDocuments :auftrag-nr="fixture.auftrag.auftragNr" />
+      </template>
+    </StundenschnellerfassungModal>
   </PageLayout>
 </template>
 
@@ -53,6 +58,7 @@ import PageLayout from '@/components/layout/PageLayout.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import Stundenschnellerfassung from '@/components/ui-elements/Stundenschnellerfassung.vue';
 import StundenschnellerfassungModal from '@/components/Modals/StundenschnellerfassungModal.vue';
+import DemoOrderDocuments from './DemoOrderDocuments.vue';
 import { formatHours } from '@/utils/stundenschnellerfassung';
 import { createStundenschnellerfassungDemo } from './stundenschnellerfassungDemo';
 

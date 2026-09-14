@@ -16,6 +16,7 @@ const Qualifikation = require("../../models/Event/Qualifikation");
 const TelefonlisteService = require("../../services/operations/TelefonlisteService");
 const { EventReport, Laufzettel, EvaluierungMA } = require("../../models/Classes/FlipDocs");
 const CheckIn = require("../../models/CheckIn");
+const R2Service = require("../../services/integrations/R2Service");
 const logger = require("../../utils/logger");
 const AsanaService = require("../../services/integrations/AsanaService");
 const { sendMail } = require("../../services/integrations/EmailService");
@@ -128,6 +129,68 @@ async function resolvePublicMitarbeiter(req) {
   if (!conditions.length) return null;
   return Mitarbeiter.findOne({ $or: conditions }).select('_id').lean();
 }
+
+async function canAccessPublicEinsatzDokument(req, auftragNr, document) {
+  if (!['job', 'teamleiter'].includes(document.audience)) return false;
+  if (!req.oidcEmail && !req.oidcFlipId) return false;
+
+  const publicMitarbeiter = await resolvePublicMitarbeiter(req);
+  if (!publicMitarbeiter) return false;
+  const mitarbeiter = await Mitarbeiter.findById(publicMitarbeiter._id)
+    .select('personalnr personalnummern personalnrHistory qualifikationen')
+    .lean();
+  if (!mitarbeiter) return false;
+
+  const personalNumbers = resolvePersonalNumbers(mitarbeiter);
+  const einsatz = await Einsatz.findOne({ auftragNr: Number(auftragNr), personalNr: { $in: personalNumbers } })
+    .select('berufSchl')
+    .lean();
+  if (!einsatz) return false;
+
+  if (document.audience === 'teamleiter') {
+    const teamleiterQual = await Qualifikation.findOne({ qualificationKey: 50055 }).select('_id').lean();
+    const isTeamleiter = teamleiterQual
+      && (mitarbeiter.qualifikationen || []).some(item => String(item._id || item) === String(teamleiterQual._id));
+    if (!isTeamleiter) return false;
+  }
+
+  return !(document.berufKeys || []).length || document.berufKeys.includes(Number(einsatz.berufSchl));
+}
+
+function serializePublicEinsatzDokument(document) {
+  return {
+    _id: document._id,
+    filename: document.filename,
+    size: document.size,
+    mimeType: document.mimeType,
+  };
+}
+
+// GET /api/public/einsatzdokumente/:auftragNr
+router.get('/einsatzdokumente/:auftragNr', asyncHandler(async (req, res) => {
+  const auftrag = await Auftrag.findOne({ auftragNr: Number(req.params.auftragNr) }).select('einsatzdokumente').lean();
+  if (!auftrag) return res.status(404).json({ msg: 'Auftrag nicht gefunden' });
+  const documents = await Promise.all((auftrag.einsatzdokumente || []).map(async (document) => (
+    (await canAccessPublicEinsatzDokument(req, req.params.auftragNr, document))
+      ? serializePublicEinsatzDokument(document)
+      : null
+  )));
+  res.json({ data: documents.filter(Boolean) });
+}));
+
+// GET /api/public/einsatzdokumente/:auftragNr/:documentId/download
+// A public employee may only retrieve documents released for their own assignment.
+router.get('/einsatzdokumente/:auftragNr/:documentId/download', asyncHandler(async (req, res) => {
+  const auftrag = await Auftrag.findOne({ auftragNr: Number(req.params.auftragNr) }).select('einsatzdokumente').lean();
+  if (!auftrag) return res.status(404).json({ msg: 'Auftrag nicht gefunden' });
+  const document = (auftrag.einsatzdokumente || []).find(item => String(item._id) === req.params.documentId);
+  if (!document || !(await canAccessPublicEinsatzDokument(req, req.params.auftragNr, document))) {
+    return res.status(404).json({ msg: 'Dokument nicht gefunden' });
+  }
+
+  const url = await R2Service.getSignedDownloadUrl(document.key, 300, { inline: true });
+  res.json({ data: { url, filename: document.filename } });
+}));
 
 async function resolvePublicCommentAuthor(mitarbeiter) {
   const userConditions = [{ mitarbeiter: mitarbeiter._id }];
@@ -267,7 +330,7 @@ router.get(
 
     // Query EventReports directly by teamleiter reference (no array dependency)
     const allReports = await EventReport.find({ teamleiter: mitarbeiter._id })
-      .select("auftragnummer datum kunde location name_teamleiter mitarbeiter_anzahl puenktlichkeit erscheinungsbild team mitarbeiter_job mitarbeiter_feedback feedback_auftraggeber sonstiges assigned comments version")
+      .select("auftragnummer datum kunde location name_teamleiter mitarbeiter_anzahl puenktlichkeit erscheinungsbild team mitarbeiter_job mitarbeiter_feedback feedback_auftraggeber sonstiges ausruestung_fehlt assigned comments version")
       .populate({ path: "mitarbeiter_feedback.mitarbeiter", select: "vorname nachname" })
       .sort({ datum: -1 })
       .lean();
@@ -798,6 +861,7 @@ router.post(
       mitarbeiter_feedback,
       feedback_auftraggeber,
       sonstiges,
+      ausruestung_fehlt,
       teamleiter_email,
       locationV2,
     } = req.body;
@@ -856,6 +920,7 @@ router.post(
       mitarbeiter_feedback: resolvedFeedback,
       feedback_auftraggeber: feedback_auftraggeber || "",
       sonstiges: sonstiges || "",
+      ausruestung_fehlt: ausruestung_fehlt || "",
       teamleiter: teamleiter?._id,
       assigned: !!teamleiter,
     });
@@ -939,6 +1004,9 @@ router.post(
               <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
               <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Sonstiges</h3>
               <p style="margin:0;font-size:0.9rem;">${fmtText(sonstiges)}</p>
+              <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
+              <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Ausrüstung fehlt</h3>
+              <p style="margin:0;font-size:0.9rem;">${fmtText(ausruestung_fehlt)}</p>
             </div>
           </div>`;
 

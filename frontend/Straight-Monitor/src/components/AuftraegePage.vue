@@ -823,25 +823,42 @@
             <template v-else>
               <div
                 v-for="dok in einsatzDoks"
-                :key="dok.key"
+                :key="dok._id"
                 class="einsatz-dok-row einsatz-dok--upload"
               >
                 <font-awesome-icon icon="fa-solid fa-file" class="einsatz-dok-icon" />
                 <div class="einsatz-dok-info">
                   <div class="einsatz-dok-name">{{ dok.filename }}</div>
-                  <div class="einsatz-dok-meta">{{ formatFileSize(dok.size) }}</div>
+                  <div class="einsatz-dok-meta">{{ formatFileSize(dok.size) }} &middot; {{ einsatzDokAudienceLabel(dok) }}</div>
                 </div>
                 <div class="einsatz-dok-actions">
-                  <a :href="dok.url" target="_blank" class="einsatz-dok-action" title="Öffnen">
+                  <button class="einsatz-dok-action" type="button" title="Öffnen" @click="openEinsatzDok(dok)">
                     <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
-                  </a>
-                  <button class="einsatz-dok-action" type="button" title="Herunterladen" @click="downloadFile(dok.url, dok.filename)">
+                  </button>
+                  <button class="einsatz-dok-action" type="button" title="Herunterladen" @click="openEinsatzDok(dok, true)">
                     <font-awesome-icon icon="fa-solid fa-download" />
                   </button>
                   <button class="einsatz-dok-action einsatz-dok-action--del" title="Löschen" type="button" @click="deleteEinsatzDok(dok)">
                     <font-awesome-icon icon="fa-solid fa-xmark" />
                   </button>
                 </div>
+              </div>
+
+              <div class="einsatz-dok-access">
+                <label for="einsatz-dok-audience">Sichtbar für</label>
+                <select id="einsatz-dok-audience" v-model="einsatzDokAudience">
+                  <option value="job">Mitarbeiter im Auftrag</option>
+                  <option value="teamleiter">Teamleiter im Auftrag</option>
+                  <option value="office">Alle Monitor-Nutzer</option>
+                  <option value="office_roles">Nur Vertrieb und Admin</option>
+                </select>
+                <input
+                  v-if="einsatzDokAudience === 'job'"
+                  v-model="einsatzDokBerufKeys"
+                  type="text"
+                  inputmode="numeric"
+                  placeholder="Berufsschlüssel, z. B. 10001 (optional)"
+                />
               </div>
 
               <!-- Uploading indicator -->
@@ -1314,6 +1331,7 @@ import { useCustomerModals } from '@/composables/useCustomerModals';
 import { useDocumentModals } from '@/composables/useDocumentModals';
 import { useEventModals } from '@/composables/useEventModals';
 import { useReisekostenModals } from '@/composables/useReisekostenModals';
+import { useTimeCaptureModals } from '@/composables/useTimeCaptureModals';
 import PageLayout from '@/components/layout/PageLayout.vue';
 import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
 import OrderChronikDrawer from '@/components/orders/OrderChronikDrawer.vue';
@@ -1346,6 +1364,7 @@ export default {
     const { openDocument } = useDocumentModals();
     const { openEvent } = useEventModals();
     const { openReisekosten } = useReisekostenModals();
+    const { openTimeCapture } = useTimeCaptureModals();
     const minimizeDock = useMinimizeDock();
 
     const restoreMinimizedStundenliste = (auftragNr) => {
@@ -1360,7 +1379,7 @@ export default {
         : false;
     };
 
-    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, restoreMinimizedStundenliste, docusealLogo, docusealPendingIcon };
+    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, openTimeCapture, restoreMinimizedStundenliste, docusealLogo, docusealPendingIcon };
   },
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -1483,6 +1502,8 @@ export default {
       einsatzDoks: [],
       einsatzDoksLoading: false,
       einsatzDokUploading: false,
+      einsatzDokAudience: 'job',
+      einsatzDokBerufKeys: '',
       // ── Reisekostenabrechnungen (Einsatzdokumente) ───────────────────────
       reisekostenListe: [],
       reisekostenListeLoading: false,
@@ -1664,14 +1685,7 @@ export default {
           variant: 'primary',
         });
       }
-      if (this.isAdmin) {
-        items.push({
-          label: 'Stundenerfassung öffnen',
-          icon: 'fa-solid fa-clock',
-          action: 'open-time-entry',
-          disabled: true,
-        });
-      }
+      items.push({ label: 'Stundenschnellerfassung', icon: 'fa-solid fa-clock', action: 'open-time-entry' });
       return items;
     },
     dayContextMenuItems() {
@@ -1685,6 +1699,7 @@ export default {
     headerActionMenuItems() {
       const items = [
         { label: 'Im Event-Editor öffnen', action: 'open-editor', icon: 'fa-solid fa-pencil' },
+        { label: 'Stundenschnellerfassung', action: 'open-time-entry', icon: 'fa-solid fa-clock' },
         { label: 'Pseudo-MA einplanen', action: 'plan-pseudo', icon: 'fa-solid fa-user-plus' },
       ];
       if (this.selectedEvent?.isPseudo) {
@@ -2040,6 +2055,8 @@ export default {
 
       if (action === 'open') {
         await this.selectEvent(auftrag);
+      } else if (action === 'open-time-entry') {
+        this.openTimeCapture({ auftragNr: auftrag.auftragNr });
       } else if (action === 'open-customer' && auftrag.kundeData) {
         await this.openKundeCard(auftrag.kundeData);
       } else if (action === 'plan-pseudo') {
@@ -2059,6 +2076,7 @@ export default {
     async handleHeaderActionMenuAction(action) {
       this.showQuickActions = false;
       if (action === 'open-editor') await this.openEventEditor();
+      if (action === 'open-time-entry' && this.selectedEvent) this.openTimeCapture({ auftragNr: this.selectedEvent.auftragNr });
       if (action === 'manage-labels') await this.openLabelDialog();
       if (action === 'plan-pseudo') this.openPseudoDialog();
       if (action === 'create-hours-list') await this.createStundenliste();
@@ -2938,6 +2956,10 @@ export default {
         for (const file of files) {
           const form = new FormData();
           form.append('file', file);
+          form.append('audience', this.einsatzDokAudience);
+          if (this.einsatzDokAudience === 'job' && this.einsatzDokBerufKeys.trim()) {
+            form.append('berufKeys', this.einsatzDokBerufKeys.trim());
+          }
           const { data } = await api.post(
             `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`,
             form,
@@ -2949,6 +2971,31 @@ export default {
         console.error('Upload fehlgeschlagen', e);
       } finally {
         this.einsatzDokUploading = false;
+      }
+    },
+    einsatzDokAudienceLabel(dok) {
+      const labels = {
+        job: 'Mitarbeiter im Auftrag',
+        teamleiter: 'Teamleiter im Auftrag',
+        office: 'Alle Monitor-Nutzer',
+        office_roles: 'Vertrieb und Admin',
+      };
+      const berufKeys = dok.berufKeys?.length ? ` (${dok.berufKeys.join(', ')})` : '';
+      return `${labels[dok.audience] || 'Alle Monitor-Nutzer'}${berufKeys}`;
+    },
+    async openEinsatzDok(dok, download = false) {
+      if (!this.selectedEvent?.auftragNr || !dok._id) return;
+      try {
+        const { data } = await api.get(
+          `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente/${dok._id}/download`
+        );
+        if (download) {
+          await this.downloadFile(data.data.url, dok.filename);
+        } else {
+          window.open(data.data.url, '_blank', 'noopener');
+        }
+      } catch (error) {
+        console.error('Einsatzdokument öffnen fehlgeschlagen', error);
       }
     },
     async deleteStundenlisteDraft() {
@@ -2964,10 +3011,8 @@ export default {
     async deleteEinsatzDok(dok) {
       if (!this.selectedEvent?.auftragNr) return;
       try {
-        await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`, {
-          data: { key: dok.key },
-        });
-        this.einsatzDoks = this.einsatzDoks.filter(d => d.key !== dok.key);
+        await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente/${dok._id}`);
+        this.einsatzDoks = this.einsatzDoks.filter(d => d._id !== dok._id);
       } catch (e) {
         console.error('Löschen fehlgeschlagen', e);
       }

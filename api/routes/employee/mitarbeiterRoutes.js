@@ -174,6 +174,38 @@ function normalizeUmlautsForSort(str) {
     .replace(/[^a-z\s]/g, ""); 
 }
 
+function normalizePayrollPersonalnr(value) {
+  return String(value ?? "").trim();
+}
+
+function indexEmployeesByPersonalnr(employees) {
+  const employeeByPersonalnr = new Map();
+  const ambiguousPersonalnrs = new Set();
+
+  for (const employee of employees) {
+    const personalnrs = [
+      employee.personalnr,
+      ...(employee.personalnummern || []),
+      ...(employee.personalnrHistory || []).map((entry) => entry.value),
+    ];
+
+    for (const value of personalnrs) {
+      const personalnr = normalizePayrollPersonalnr(value);
+      if (!personalnr || ambiguousPersonalnrs.has(personalnr)) continue;
+
+      const existingEmployee = employeeByPersonalnr.get(personalnr);
+      if (existingEmployee && String(existingEmployee._id) !== String(employee._id)) {
+        employeeByPersonalnr.delete(personalnr);
+        ambiguousPersonalnrs.add(personalnr);
+      } else {
+        employeeByPersonalnr.set(personalnr, employee);
+      }
+    }
+  }
+
+  return { employeeByPersonalnr, ambiguousPersonalnrs };
+}
+
 async function sendAllMailsInBackground(
   data,
   userId,
@@ -532,15 +564,22 @@ router.get(
 
     res.json([...objectsByKey.values()]
       .filter((object) => object.Key && !object.Key.endsWith('/'))
-      .map((object) => ({
-        key: object.Key,
-        size: object.Size || 0,
-        lastModified: object.LastModified || null,
-        displayPath: object.Key.startsWith(prefix)
+      .map((object) => {
+        const relativePath = object.Key.startsWith(prefix)
           ? object.Key.slice(prefix.length)
-          : `signatures/${signatureByKey.get(object.Key)?.typKey || 'dokument'}/${object.Key.split('/').pop()}`,
-        fileName: object.Key.split('/').pop(),
-      })));
+          : `signatures/${signatureByKey.get(object.Key)?.typKey || 'dokument'}/${object.Key.split('/').pop()}`;
+        const displayPath = relativePath.startsWith('documents/payroll/')
+          ? `Lohnabrechnungen/${relativePath.slice('documents/payroll/'.length)}`
+          : relativePath;
+
+        return {
+          key: object.Key,
+          size: object.Size || 0,
+          lastModified: object.LastModified || null,
+          displayPath,
+          fileName: object.Key.split('/').pop(),
+        };
+      }));
   })
 );
 
@@ -2483,6 +2522,34 @@ router.post(
           .json({ error: "PDF und Excel stimmen nicht überein." });
       }
 
+      const rowPersonalnrs = data.map((row) => normalizePayrollPersonalnr(row[0]));
+      const rowsWithoutPersonalnr = rowPersonalnrs
+        .map((personalnr, index) => personalnr ? null : index + 2)
+        .filter(Boolean);
+      if (rowsWithoutPersonalnr.length > 0) {
+        return res.status(400).json({
+          error: `Personalnummer fehlt in Excel-Zeile(n): ${rowsWithoutPersonalnr.join(', ')}.`,
+        });
+      }
+
+      const uniquePersonalnrs = [...new Set(rowPersonalnrs)];
+      const employees = await Mitarbeiter.find({
+        $or: [
+          { personalnr: { $in: uniquePersonalnrs } },
+          { personalnummern: { $in: uniquePersonalnrs } },
+          { 'personalnrHistory.value': { $in: uniquePersonalnrs } },
+        ],
+      }).select('_id r2Prefix personalnr personalnummern personalnrHistory.value').lean();
+      const { employeeByPersonalnr, ambiguousPersonalnrs } = indexEmployeesByPersonalnr(employees);
+      const unknownPersonalnrs = uniquePersonalnrs.filter((personalnr) => !employeeByPersonalnr.has(personalnr) && !ambiguousPersonalnrs.has(personalnr));
+
+      if (ambiguousPersonalnrs.size > 0 || unknownPersonalnrs.length > 0) {
+        const problems = [];
+        if (unknownPersonalnrs.length > 0) problems.push(`nicht gefunden: ${unknownPersonalnrs.join(', ')}`);
+        if (ambiguousPersonalnrs.size > 0) problems.push(`nicht eindeutig: ${[...ambiguousPersonalnrs].join(', ')}`);
+        return res.status(400).json({ error: `Mitarbeiter-Zuordnung fehlgeschlagen (${problems.join('; ')}).` });
+      }
+
       const zip = new JSZip();
       
       const monatLesbar = ganzesJahr ? "" : (MONATSNAMEN[monat.padStart(2, "0")] || monat);
@@ -2513,9 +2580,15 @@ router.post(
         outputPdf.addPage(page);
 
         const fileBuffer = await outputPdf.save();
+        const period = ganzesJahr ? String(jahr) : `${jahr}-${monat.padStart(2, '0')}`;
         const filename = ganzesJahr 
           ? `${safeNachname}_${safeVorname}_${dokumentart}_${stadt}_${jahr}.pdf`
-          : `${safeNachname}_${safeVorname}_${dokumentart}_${stadt}_${monat}.pdf`;
+          : `${safeNachname}_${safeVorname}_${dokumentart}_${stadt}_${monat}_${jahr}.pdf`;
+
+        const mitarbeiter = employeeByPersonalnr.get(rowPersonalnrs[i]);
+        const r2Filename = `${safeNachname}_${safeVorname}_${dokumentart}_${period}.pdf`;
+        const r2Key = buildEmployeeR2Path(mitarbeiter, 'documents/payroll', r2Filename);
+        await r2Service.uploadFile(r2Key, fileBuffer, 'application/pdf');
 
         zip.file(filename, fileBuffer);
       }

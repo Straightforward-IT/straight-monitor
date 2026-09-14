@@ -17,14 +17,50 @@
               <FilterChip :active="filters.status === 2" @click="setStatusFilter(2)">Aktiv</FilterChip>
               <FilterChip :active="filters.status === 3" @click="setStatusFilter(3)">Inaktiv</FilterChip>
             </FilterGroup>
-            <FilterDivider />
-            <FilterGroup label="Sortierung">
-              <FilterChip :active="filters.sortBy === 'name'" @click="toggleSort('name')">Name</FilterChip>
-              <FilterChip :active="filters.sortBy === 'date'" @click="toggleSort('date')">Datum</FilterChip>
-            </FilterGroup>
           </ToolbarFilter>
           <SearchBar v-model="searchQuery" class="toolbar-search" placeholder="Kunden suchen…" aria-label="Kunden suchen" />
-          <ToolbarLabel>{{ filteredKunden.length }} Kunden</ToolbarLabel>
+          <template #bottom-actions>
+            <div v-if="filteredKunden.length > 0" class="toolbar-page-controls">
+              <SortMenu
+                v-model="filters.sortBy"
+                v-model:ascending="sortAscending"
+                :options="customerSortOptions"
+              />
+              <span class="toolbar-page-controls__summary">
+                {{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}
+              </span>
+              <select
+                v-model="itemsPerPage"
+                class="toolbar-page-controls__select"
+                aria-label="Kunden pro Seite"
+              >
+                <option v-for="size in pageOptions" :key="size" :value="size">{{ size }}</option>
+              </select>
+              <button
+                v-if="totalPages > 1"
+                class="toolbar-page-controls__button"
+                type="button"
+                title="Vorherige Seite"
+                aria-label="Vorherige Seite"
+                :disabled="currentPage === 1"
+                @click="prevPage"
+              >
+                <font-awesome-icon :icon="['fas', 'chevron-left']" />
+              </button>
+              <span v-if="totalPages > 1" class="toolbar-page-controls__page">{{ currentPage }} / {{ totalPages }}</span>
+              <button
+                v-if="totalPages > 1"
+                class="toolbar-page-controls__button"
+                type="button"
+                title="Nächste Seite"
+                aria-label="Nächste Seite"
+                :disabled="currentPage === totalPages"
+                @click="nextPage"
+              >
+                <font-awesome-icon :icon="['fas', 'chevron-right']" />
+              </button>
+            </div>
+          </template>
         </Toolbar>
         
         <div v-if="isLoading" class="loading-state">
@@ -38,7 +74,7 @@
         <div v-else class="kunden-grid">
            <!-- Simple Card List for now -->
             <div 
-              v-for="kunde in filteredKunden" 
+              v-for="kunde in paginatedKunden" 
               :key="kunde._id" 
               class="kunde-card"
               @click="openCustomer(kunde)"
@@ -164,6 +200,45 @@
             </ToolbarButton>
           </ToolbarGroup>
           </template>
+          <template #bottom-actions>
+            <div v-if="filteredContacts.length > 0" class="toolbar-page-controls">
+              <span class="toolbar-page-controls__summary">
+                {{ contactPaginationInfo.start }}-{{ contactPaginationInfo.end }} von {{ contactPaginationInfo.total }}
+              </span>
+              <select
+                v-model="contactsPerPage"
+                class="toolbar-page-controls__select"
+                aria-label="Kontakte pro Seite"
+              >
+                <option v-for="size in pageOptions" :key="size" :value="size">{{ size }}</option>
+              </select>
+              <button
+                v-if="contactTotalPages > 1"
+                class="toolbar-page-controls__button"
+                type="button"
+                title="Vorherige Seite"
+                aria-label="Vorherige Seite"
+                :disabled="contactCurrentPage === 1"
+                @click="prevContactPage"
+              >
+                <font-awesome-icon :icon="['fas', 'chevron-left']" />
+              </button>
+              <span v-if="contactTotalPages > 1" class="toolbar-page-controls__page">
+                {{ contactCurrentPage }} / {{ contactTotalPages }}
+              </span>
+              <button
+                v-if="contactTotalPages > 1"
+                class="toolbar-page-controls__button"
+                type="button"
+                title="Nächste Seite"
+                aria-label="Nächste Seite"
+                :disabled="contactCurrentPage === contactTotalPages"
+                @click="nextContactPage"
+              >
+                <font-awesome-icon :icon="['fas', 'chevron-right']" />
+              </button>
+            </div>
+          </template>
         </Toolbar>
 
         <div v-if="contactsLoading && msContacts.length === 0" class="loading-state">
@@ -188,7 +263,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="c in filteredContacts" :key="c.id">
+              <tr v-for="c in paginatedContacts" :key="c.id">
                 <td class="contact-name">
                   <strong>{{ c.displayName }}</strong>
                   <span v-if="c.jobTitle" class="job-title">{{ c.jobTitle }}</span>
@@ -321,6 +396,7 @@ import ContextMenu from './ContextMenu.vue';
 import SearchBar from './SearchBar.vue';
 import CustomerSearch from '@/components/ui-elements/Searchbars/CustomerSearch.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import SortMenu from '@/components/ui-elements/SortMenu.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
@@ -340,6 +416,15 @@ const locations = ref([]);
 const showReportModal = ref(false);
 const searchQuery = ref('');
 const isLoading = ref(false);
+const currentPage = ref(1);
+const itemsPerPage = ref(25);
+const pageOptions = [25, 50, 100];
+const customerSortOptions = [
+  { value: 'name', label: 'Name' },
+  { value: 'kuerzel', label: 'Kürzel' },
+  { value: 'kundenNr', label: 'Kundennr' },
+  { value: 'date', label: 'Datum' },
+];
 const filtersExpanded = ref(false);
 const filterExpanded = ref(false);
 const contactFilterExpanded = ref(false);
@@ -417,6 +502,14 @@ const filters = ref(storedFilters ? { ...defaultFilters, ...JSON.parse(storedFil
 watch(filters, (newVal) => {
   localStorage.setItem('kundenFilters', JSON.stringify(newVal));
 }, { deep: true });
+
+watch([searchQuery, filters], () => {
+  currentPage.value = 1;
+}, { deep: true });
+
+watch(itemsPerPage, () => {
+  currentPage.value = 1;
+});
 
 onMounted(async () => {
   isLoading.value = true;
@@ -523,6 +616,12 @@ function processData(list) {
     if (filters.value.sortBy === 'date') {
       valA = a.kundeSeit ? new Date(a.kundeSeit).getTime() : 0;
       valB = b.kundeSeit ? new Date(b.kundeSeit).getTime() : 0;
+    } else if (filters.value.sortBy === 'kundenNr') {
+      valA = Number(a.kundenNr) || 0;
+      valB = Number(b.kundenNr) || 0;
+    } else if (filters.value.sortBy === 'kuerzel') {
+      valA = (a.kuerzel || '').toLowerCase();
+      valB = (b.kuerzel || '').toLowerCase();
     } else {
       // Name default
       valA = (a.kundName || '').toLowerCase();
@@ -542,6 +641,24 @@ const filteredKunden = computed(() => {
   // Base list: All non-leads
   const raw = allKunden.value.filter(k => k.kundStatus !== 1);
   return processData(raw);
+});
+
+const sortAscending = computed({
+  get: () => filters.value.sortDir === 'asc',
+  set: (value) => { filters.value.sortDir = value ? 'asc' : 'desc'; },
+});
+
+const totalPages = computed(() => Math.ceil(filteredKunden.value.length / itemsPerPage.value));
+
+const paginatedKunden = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  return filteredKunden.value.slice(start, start + itemsPerPage.value);
+});
+
+const paginationInfo = computed(() => {
+  const total = filteredKunden.value.length;
+  const start = total === 0 ? 0 : (currentPage.value - 1) * itemsPerPage.value + 1;
+  return { start, end: Math.min(currentPage.value * itemsPerPage.value, total), total };
 });
 
 // Leads: Status == 1
@@ -605,6 +722,14 @@ function toggleSort(field) {
   }
 }
 
+function nextPage() {
+  if (currentPage.value < totalPages.value) currentPage.value++;
+}
+
+function prevPage() {
+  if (currentPage.value > 1) currentPage.value--;
+}
+
 function setLocationFilter(locationId) {
   filters.value.locationId = locationId;
 }
@@ -645,6 +770,8 @@ function formatDate(dateStr) {
 const msContacts = ref([]);
 const contactsLoading = ref(false);
 const contactSearch = ref('');
+const contactCurrentPage = ref(1);
+const contactsPerPage = ref(25);
 const editingContactId = ref(null);
 const editCompanyValue = ref('');
 const contactFilters = ref({ team: null, linked: null, kundeId: '' });
@@ -708,6 +835,35 @@ const filteredContacts = computed(() => {
   }
   return list;
 });
+
+const contactTotalPages = computed(() => Math.ceil(filteredContacts.value.length / contactsPerPage.value));
+
+const paginatedContacts = computed(() => {
+  const start = (contactCurrentPage.value - 1) * contactsPerPage.value;
+  return filteredContacts.value.slice(start, start + contactsPerPage.value);
+});
+
+const contactPaginationInfo = computed(() => {
+  const total = filteredContacts.value.length;
+  const start = total === 0 ? 0 : (contactCurrentPage.value - 1) * contactsPerPage.value + 1;
+  return { start, end: Math.min(contactCurrentPage.value * contactsPerPage.value, total), total };
+});
+
+watch([contactSearch, contactFilters], () => {
+  contactCurrentPage.value = 1;
+}, { deep: true });
+
+watch(contactsPerPage, () => {
+  contactCurrentPage.value = 1;
+});
+
+function nextContactPage() {
+  if (contactCurrentPage.value < contactTotalPages.value) contactCurrentPage.value++;
+}
+
+function prevContactPage() {
+  if (contactCurrentPage.value > 1) contactCurrentPage.value--;
+}
 
 function primaryEmail(contact) {
   return contact.emailAddresses?.[0]?.address || '';
@@ -819,7 +975,101 @@ watch(currentTab, (tab) => {
 }
 
 .kunden-toolbar {
+  margin-bottom: 29px;
   overflow: visible;
+}
+
+.toolbar-page-controls {
+  position: absolute;
+  top: 100%;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  white-space: nowrap;
+}
+
+.toolbar-page-controls :deep(.sort-menu__trigger),
+.toolbar-page-controls__select,
+.toolbar-page-controls__button {
+  height: 24px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 0 0 5px 5px;
+  background: var(--tile-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.72rem;
+  box-shadow: none;
+}
+
+.toolbar-page-controls :deep(.sort-menu__trigger) {
+  gap: 5px;
+  padding: 0 8px;
+}
+
+.toolbar-page-controls__select {
+  min-width: 48px;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.toolbar-page-controls__button {
+  display: inline-flex;
+  width: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.toolbar-page-controls :deep(.sort-menu__trigger:hover),
+.toolbar-page-controls__select:hover,
+.toolbar-page-controls__button:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.toolbar-page-controls__button:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.45;
+}
+
+.toolbar-page-controls__summary,
+.toolbar-page-controls__page {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 24px;
+}
+
+.toolbar-page-controls__page {
+  min-width: 32px;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .toolbar-page-controls {
+    right: 6px;
+    gap: 3px;
+  }
+
+  .toolbar-page-controls :deep(.sort-menu__trigger) {
+    width: 24px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+  }
+
+  .toolbar-page-controls :deep(.sort-menu__trigger svg) {
+    font-size: 0.7rem;
+  }
+
+  .toolbar-page-controls__summary {
+    display: none;
+  }
 }
 
 .contact-kunde-picker {

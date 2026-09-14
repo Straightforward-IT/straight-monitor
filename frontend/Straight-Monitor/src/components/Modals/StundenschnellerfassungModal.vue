@@ -9,6 +9,7 @@
     style="--mf-max-width: min(1540px, 96vw); --mf-body-padding: 0; --mf-body-overflow: hidden; --mf-max-height: 94dvh"
     @close="close"
   >
+    <slot name="documents" />
     <Stundenschnellerfassung
       v-if="modelValue"
       contained
