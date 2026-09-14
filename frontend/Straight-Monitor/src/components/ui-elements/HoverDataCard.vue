@@ -64,7 +64,17 @@
           </span>
         </div>
 
-        <div class="hover-data-card__body">
+        <div v-if="loading" class="hover-data-card__loading" aria-live="polite">
+          <span class="hover-data-card__loading-chart" aria-hidden="true" />
+          <div class="hover-data-card__loading-details">
+            <span class="hover-data-card__loading-line hover-data-card__loading-line--title" />
+            <span class="hover-data-card__loading-line" />
+            <span class="hover-data-card__loading-line" />
+            <span class="hover-data-card__loading-line hover-data-card__loading-line--short" />
+          </div>
+          <span class="sr-only">Arbeitszeitdaten werden geladen</span>
+        </div>
+        <div v-else class="hover-data-card__body">
           <figure
             class="hover-data-card__chart"
             :aria-label="chartDescription"
@@ -178,6 +188,9 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
   inline: { type: Boolean, default: false },
   block: { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
+  keepOpen: { type: Boolean, default: false },
+  suppressed: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['open', 'close']);
@@ -259,7 +272,7 @@ function updatePosition() {
 async function open() {
   clearTimeout(openTimer);
   clearTimeout(closeTimer);
-  if (props.inline || props.disabled || isOpen.value) return;
+  if (props.inline || props.disabled || props.suppressed || isOpen.value) return;
   positioned.value = false;
   isOpen.value = true;
   await nextTick();
@@ -294,7 +307,7 @@ function close() {
 function scheduleClose() {
   clearTimeout(openTimer);
   clearTimeout(closeTimer);
-  if (!overAnchor && !overCard && !hasFocus) closeTimer = setTimeout(close, props.closeDelay);
+  if (!props.keepOpen && !overAnchor && !overCard && !hasFocus) closeTimer = setTimeout(close, props.closeDelay);
 }
 
 function onPointerEnter(event) {
@@ -354,6 +367,7 @@ function onOutsidePointerDown(event) {
 watch(() => props.disabled, disabled => { if (disabled) close(); });
 watch(() => props.inline, () => close());
 watch(() => props.placement, () => { if (isOpen.value) nextTick(updatePosition); });
+watch(() => props.keepOpen, keepOpen => { if (!keepOpen) scheduleClose(); });
 onBeforeUnmount(close);
 </script>
 
@@ -406,6 +420,15 @@ onBeforeUnmount(close);
 .hover-data-card__eyebrow { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .hover-data-card__employee-name + .hover-data-card__eyebrow::before { content: '·'; margin: 0 7px; color: var(--border); }
 .hover-data-card__body { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 16px; padding: 16px; }
+.hover-data-card__loading { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 16px; min-height: 182px; padding: 16px; }
+.hover-data-card__loading-chart, .hover-data-card__loading-line { background: linear-gradient(90deg, var(--soft) 25%, var(--hover) 50%, var(--soft) 75%); background-size: 200% 100%; animation: hover-data-card-loading 1.1s ease-in-out infinite; }
+.hover-data-card__loading-chart { width: 32px; height: 150px; justify-self: center; border-radius: 5px; }
+.hover-data-card__loading-details { display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
+.hover-data-card__loading-line { display: block; width: 100%; height: 12px; border-radius: 3px; }
+.hover-data-card__loading-line--title { width: 58%; height: 16px; margin-bottom: 8px; }
+.hover-data-card__loading-line--short { width: 70%; }
+@keyframes hover-data-card-loading { to { background-position: -200% 0; } }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .hover-data-card__chart { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 0; }
 .hover-data-card__chart figcaption { text-align: center; }
 .hover-data-card__chart strong { display: block; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }

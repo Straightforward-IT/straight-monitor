@@ -405,14 +405,14 @@
                 :key="`l-${ma._id}`"
                 :data-left-row="String(ma._id)"
                 @mouseenter="onRowMouseEnter(String(ma._id))"
-                @mouseleave="onRowMouseLeave()"
+                @mouseleave="onNameRowMouseLeave(String(ma._id)); onRowMouseLeave()"
                 :class="{ 'row-highlighted': highlightedMaId === String(ma._id) }"
                 @contextmenu.prevent.stop="openNameMenu($event, ma)"
                 style="cursor: default"
               >
                 <!-- Nachname -->
                 <td class="col-nachname" :style="{ width: colWidths.nachname + 'px', minWidth: colWidths.nachname + 'px', maxWidth: colWidths.nachname + 'px' }">
-                  <HoverDataCard :data="employeeHoverData(ma)" :disabled="!employeeHoverData(ma)" placement="right" block @open="loadEmployeeHoverData(ma)">
+                  <HoverDataCard :data="employeeHoverData(ma)" :disabled="!employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" :keep-open="activeNameHoverId === String(ma._id)" :suppressed="activeNameHoverId === String(ma._id)" placement="right" :open-delay="0" block @open="openNameHoverCard(ma)">
                     <template #default="{ triggerProps }">
                   <div class="ma-name-cell" v-bind="triggerProps">
                     <div v-if="isTeamleiter(ma)" class="tl-corner-wrapper"><TlBadge /></div>
@@ -433,7 +433,7 @@
                 </td>
                 <!-- Vorname -->
                 <td class="col-vorname" :style="{ width: colWidths.vorname + 'px', minWidth: colWidths.vorname + 'px', maxWidth: colWidths.vorname + 'px' }">
-                  <HoverDataCard :data="employeeHoverData(ma)" :disabled="!employeeHoverData(ma)" placement="right" block @open="loadEmployeeHoverData(ma)">
+                  <HoverDataCard :data="employeeHoverData(ma)" :disabled="!employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" :keep-open="activeNameHoverId === String(ma._id)" :suppressed="activeNameHoverId === String(ma._id)" placement="right" :open-delay="0" block @open="openNameHoverCard(ma)">
                     <template #default="{ triggerProps }">
                       <span class="ma-name" v-bind="triggerProps">{{ ma.vorname }}</span>
                     </template>
@@ -1703,7 +1703,8 @@ const isMobile = ref(window.innerWidth <= 768);
 const starredIds = ref(new Set());
 const hiddenIds = ref(new Set());
 const employeeHoverAnalytics = reactive({});
-const employeeHoverLoading = new Set();
+const employeeHoverLoading = reactive({});
+const activeNameHoverId = ref(null);
 const showHidden = ref(false);
 const highlightedMaId = ref(null);
 const cellTooltipState = ref({ visible: false, text: '', comments: [], x: 0, y: 0, flipped: false });
@@ -3155,11 +3156,24 @@ function employeeHoverData(ma) {
   };
 }
 
+function isEmployeeHoverLoading(ma) {
+  return Boolean(employeeHoverLoading[`${ma._id}-${new Date().getFullYear()}`]);
+}
+
+function openNameHoverCard(ma) {
+  activeNameHoverId.value = String(ma._id);
+  loadEmployeeHoverData(ma);
+}
+
+function onNameRowMouseLeave(maId) {
+  if (activeNameHoverId.value === maId) activeNameHoverId.value = null;
+}
+
 async function loadEmployeeHoverData(ma) {
   const year = new Date().getFullYear();
   const key = `${ma._id}-${year}`;
-  if (employeeHoverAnalytics[key] || employeeHoverLoading.has(key)) return;
-  employeeHoverLoading.add(key);
+  if (employeeHoverAnalytics[key] || employeeHoverLoading[key]) return;
+  employeeHoverLoading[key] = true;
   try {
     const { data } = await api.get(`/api/personal/${ma._id}/analytics/einsaetze`, {
       params: {
@@ -3171,7 +3185,7 @@ async function loadEmployeeHoverData(ma) {
   } catch (error) {
     console.error('Mitarbeiter-Hover-Analytics laden fehlgeschlagen:', error);
   } finally {
-    employeeHoverLoading.delete(key);
+    delete employeeHoverLoading[key];
   }
 }
 
