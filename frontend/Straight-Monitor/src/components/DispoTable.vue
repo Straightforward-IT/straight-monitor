@@ -2177,8 +2177,6 @@ const nameMenuItems = computed(() => {
 
   return [
     { label: 'Karte Öffnen', icon: 'fa-solid fa-address-card', action: 'karte' },
-    { label: 'Kundenwunsch hinzufügen', icon: 'fa-solid fa-handshake', action: 'kundenwunsch' },
-    { label: 'Notiz bearbeiten', icon: 'fa-solid fa-sticky-note', action: 'notiz' },
     { label: 'Verfügbarkeiten eintragen', icon: 'fa-solid fa-calendar-plus', action: 'verf' },
     ...(phone
       ? [{
