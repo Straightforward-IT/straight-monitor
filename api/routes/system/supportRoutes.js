@@ -133,8 +133,9 @@ router.post(
     try {
       // Prepare attachments for email
       const attachments = files.map(file => ({
-        filename: file.originalname,
-        content: file.buffer
+        name: file.originalname,
+        content: file.buffer.toString('base64'),
+        contentType: file.mimetype,
       }));
 
       // Send email only to IT (no confirmation email to user)

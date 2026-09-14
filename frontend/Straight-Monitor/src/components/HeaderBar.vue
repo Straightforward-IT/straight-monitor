@@ -623,19 +623,14 @@
   </div>
 
   <!-- Support Modal -->
-  <div v-if="showSupportModal" class="modal-overlay" @click="closeSupportModal">
-    <div class="modal-content" @click.stop>
-      <div class="modal-header">
-        <h2>
-          <font-awesome-icon :icon="['fas', 'ticket-alt']" />
-          Support anfragen
-        </h2>
-        <button class="close-btn" @click="closeSupportModal">
-          <font-awesome-icon :icon="['fas', 'times']" />
-        </button>
-      </div>
-
-      <form @submit.prevent="submitSupportRequest" class="support-form">
+  <ModalFrame
+    v-model="showSupportModal"
+    class="support-modal"
+    title="Support anfragen"
+    size="md"
+    @close="resetSupportForm"
+  >
+      <form class="support-form" @submit.prevent="submitSupportRequest">
         <div class="form-group">
           <label for="support-type">Typ der Anfrage</label>
           <select id="support-type" v-model="supportForm.type" required>
@@ -718,8 +713,7 @@
           </button>
         </div>
       </form>
-    </div>
-  </div>
+  </ModalFrame>
 </template>
 
 <script setup>
@@ -732,6 +726,7 @@ import { useComments } from "@/stores/comments";
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import CustomTooltip from './CustomTooltip.vue';
 import CommentBubbleBadge from './CommentBubbleBadge.vue';
+import ModalFrame from './frames/ModalFrame.vue';
 import api from '@/utils/api';
 import { setTheme } from '@getflip/bridge';
 
@@ -831,7 +826,7 @@ const syncBodyScrollLock = (locked) => {
 };
 
 watch(
-  () => showMobileMenu.value || showSupportModal.value,
+  () => showMobileMenu.value,
   (isLocked) => {
     syncBodyScrollLock(isLocked);
   }
@@ -961,13 +956,16 @@ watch(
 );
 
 // Support Modal Functions
-const closeSupportModal = () => {
-  showSupportModal.value = false;
-  // Reset form
+const resetSupportForm = () => {
   supportForm.type = '';
   supportForm.subject = '';
   supportForm.description = '';
   supportForm.files = [];
+};
+
+const closeSupportModal = () => {
+  showSupportModal.value = false;
+  resetSupportForm();
 };
 
 const handleFileUpload = (event) => {
@@ -1583,57 +1581,10 @@ button {
 }
 
 /* Support Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-}
-
-.modal-content {
-  background: var(--tile-bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  width: 100%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border);
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 4px;
-  font-size: 16px;
+:deep(.support-modal) {
+  --mf-max-width: 600px;
+  --mf-body-padding: 0;
+  --mf-surface: var(--tile-bg);
 }
 
 .support-form {
@@ -1813,15 +1764,11 @@ button {
 }
 
 @media (max-width: 768px) {
-  .modal-overlay {
-    padding: 10px;
+  :deep(.support-modal) {
+    --mf-overlay-padding: 10px;
+    --mf-max-height: 95vh;
   }
-  
-  .modal-content {
-    max-height: 95vh;
-  }
-  
-  .modal-header,
+
   .support-form {
     padding: 16px;
   }

@@ -826,10 +826,10 @@
                   <div class="einsatz-dok-meta">{{ formatFileSize(dok.size) }}</div>
                 </div>
                 <div class="einsatz-dok-actions">
-                  <a :href="dok.url" target="_blank" class="einsatz-dok-action" title="Öffnen">
+                  <button class="einsatz-dok-action" type="button" title="Öffnen" @click="previewEinsatzDok(dok)">
                     <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
-                  </a>
-                  <button class="einsatz-dok-action" type="button" title="Herunterladen" @click="downloadFile(dok.url, dok.filename)">
+                  </button>
+                  <button class="einsatz-dok-action" type="button" title="Herunterladen" @click="downloadEinsatzDok(dok)">
                     <font-awesome-icon icon="fa-solid fa-download" />
                   </button>
                   <button class="einsatz-dok-action einsatz-dok-action--del" title="Löschen" type="button" @click="deleteEinsatzDok(dok)">
@@ -859,6 +859,42 @@
             </template>
           </div>
     </SidePanelFrame>
+
+    <ModalFrame v-if="showEinsatzDokDialog" v-model="showEinsatzDokDialog" title="Dokument hochladen" size="sm" @close="cancelEinsatzDokUpload">
+      <div class="einsatz-dok-dialog">
+        <p>{{ pendingEinsatzDokFile?.name }}</p>
+        <label>Dokumenttyp
+          <select v-model="einsatzDokType">
+            <option value="einsatznachweis">Einsatznachweis</option><option value="einsatzinformation">Einsatzinformation</option>
+            <option value="ablauf">Ablaufplan</option><option value="wegbeschreibung">Wegbeschreibung</option>
+            <option value="sicherheit">Sicherheitsdokument</option><option value="kunde">Kundendokument</option><option value="sonstiges">Sonstiges</option>
+          </select>
+        </label>
+        <label>Sichtbar für
+          <select v-model="einsatzDokAudience">
+            <option value="job">Mitarbeiter im Auftrag</option><option value="teamleiter">Teamleiter im Auftrag</option>
+            <option value="office">Alle App-Nutzer</option><option value="office_roles">Bestimmte App-Rollen</option>
+          </select>
+        </label>
+        <label v-if="einsatzDokAudience === 'job'">Berufe einschränken (optional)<BerufSearch v-model="einsatzDokBerufKeys" /></label>
+        <label v-if="einsatzDokAudience === 'office_roles'">App-Rollen (kommagetrennt)<input v-model="einsatzDokAllowedRoles" placeholder="ADMIN, VERTRIEB" /></label>
+        <label>E-Mail-Benachrichtigung (optional)<input v-model="einsatzDokDeliveryEmails" type="text" inputmode="email" placeholder="name@beispiel.de" /></label>
+        <label>Mitteilung (optional)<textarea v-model="einsatzDokDeliveryMessage" rows="3" /></label>
+      </div>
+      <template #footer>
+        <button type="button" class="einsatz-dok-dialog-cancel" :disabled="einsatzDokUploading" @click="cancelEinsatzDokUpload">Abbrechen</button>
+        <button type="button" class="einsatz-dok-dialog-submit" :disabled="einsatzDokUploading" @click="confirmEinsatzDokUpload">{{ einsatzDokUploading ? 'Wird hochgeladen...' : 'Hochladen' }}</button>
+      </template>
+    </ModalFrame>
+
+    <DocumentPreviewModal
+      v-if="previewEinsatzDokument"
+      v-model="showEinsatzDokPreview"
+      :filename="previewEinsatzDokument.filename"
+      :mime-type="previewEinsatzDokument.mimeType"
+      :resolve-url="resolveEinsatzDokPreviewUrl"
+      @close="previewEinsatzDokument = null"
+    />
 
     <!-- Mitarbeiter Card Modal -->
     <EmployeeCardModal
@@ -1297,6 +1333,9 @@ import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
+import DocumentPreviewModal from '@/components/Modals/DocumentPreviewModal.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
+import BerufSearch from '@/components/ui-elements/BerufSearch.vue';
 import { useCustomerModals } from '@/composables/useCustomerModals';
 import { useDocumentModals } from '@/composables/useDocumentModals';
 import { useEventModals } from '@/composables/useEventModals';
@@ -1324,7 +1363,7 @@ import docusealPendingIcon from '@/assets/docuseal-pending.webp';
 export default {
   name: "AuftraegePage",
   emits: ['mitarbeiter-drop'],
-  components: { PageLayout, SidePanelFrame, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ContextMenu, PillMultiSelect, CustomTooltip },
+  components: { PageLayout, SidePanelFrame, ModalFrame, DocumentPreviewModal, BerufSearch, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ContextMenu, PillMultiSelect, CustomTooltip },
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
@@ -1464,6 +1503,16 @@ export default {
       einsatzDoks: [],
       einsatzDoksLoading: false,
       einsatzDokUploading: false,
+      showEinsatzDokDialog: false,
+      pendingEinsatzDokFile: null,
+      einsatzDokType: 'einsatznachweis',
+      einsatzDokAudience: 'job',
+      einsatzDokBerufKeys: [],
+      einsatzDokAllowedRoles: '',
+      einsatzDokDeliveryEmails: '',
+      einsatzDokDeliveryMessage: '',
+      showEinsatzDokPreview: false,
+      previewEinsatzDokument: null,
       // ── Reisekostenabrechnungen (Einsatzdokumente) ───────────────────────
       reisekostenListe: [],
       reisekostenListeLoading: false,
@@ -2908,25 +2957,66 @@ export default {
       }
     },
     async onEinsatzDokUpload(event) {
-      const files = Array.from(event.target.files || []);
-      if (!files.length || !this.selectedEvent?.auftragNr) return;
-      event.target.value = ''; // reset so same file can be re-selected
+      const [file] = Array.from(event.target.files || []);
+      event.target.value = '';
+      if (!file || !this.selectedEvent?.auftragNr) return;
+      this.pendingEinsatzDokFile = file;
+      this.einsatzDokType = 'einsatznachweis';
+      this.einsatzDokAudience = 'job';
+      this.einsatzDokBerufKeys = [];
+      this.einsatzDokAllowedRoles = '';
+      this.einsatzDokDeliveryEmails = '';
+      this.einsatzDokDeliveryMessage = '';
+      this.showEinsatzDokDialog = true;
+    },
+    cancelEinsatzDokUpload() {
+      if (this.einsatzDokUploading) return;
+      this.showEinsatzDokDialog = false;
+      this.pendingEinsatzDokFile = null;
+    },
+    async confirmEinsatzDokUpload() {
+      const file = this.pendingEinsatzDokFile;
+      if (!file || !this.selectedEvent?.auftragNr) return;
       this.einsatzDokUploading = true;
       try {
-        for (const file of files) {
-          const form = new FormData();
-          form.append('file', file);
-          const { data } = await api.post(
-            `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`,
-            form,
-            { headers: { 'Content-Type': 'multipart/form-data' } }
-          );
-          this.einsatzDoks.push(data.data);
-        }
+        const form = new FormData();
+        form.append('file', file);
+        form.append('type', this.einsatzDokType);
+        form.append('audience', this.einsatzDokAudience);
+        form.append('berufKeys', this.einsatzDokBerufKeys.join(','));
+        form.append('allowedRoles', this.einsatzDokAllowedRoles);
+        form.append('deliveryEmails', this.einsatzDokDeliveryEmails);
+        form.append('deliveryMessage', this.einsatzDokDeliveryMessage);
+        const { data } = await api.post(
+          `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`, form,
+          { headers: { 'Content-Type': 'multipart/form-data' } },
+        );
+        this.einsatzDoks.push(data.data);
+        this.showEinsatzDokDialog = false;
+        this.pendingEinsatzDokFile = null;
       } catch (e) {
         console.error('Upload fehlgeschlagen', e);
       } finally {
         this.einsatzDokUploading = false;
+      }
+    },
+    previewEinsatzDok(dok) {
+      this.previewEinsatzDokument = dok;
+      this.showEinsatzDokPreview = true;
+    },
+    async resolveEinsatzDokPreviewUrl() {
+      const dok = this.previewEinsatzDokument;
+      if (!dok || !this.selectedEvent?.auftragNr) throw new Error('Kein Dokument ausgewählt');
+      const { data } = await api.get(`/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente/${dok._id}/download`);
+      return data.data.url;
+    },
+    async downloadEinsatzDok(dok) {
+      try {
+        this.previewEinsatzDokument = dok;
+        const url = await this.resolveEinsatzDokPreviewUrl();
+        await this.downloadFile(url, dok.filename);
+      } catch (e) {
+        console.error('Dokument-Download fehlgeschlagen', e);
       }
     },
     async deleteStundenlisteDraft() {
@@ -2942,10 +3032,8 @@ export default {
     async deleteEinsatzDok(dok) {
       if (!this.selectedEvent?.auftragNr) return;
       try {
-        await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`, {
-          data: { key: dok.key },
-        });
-        this.einsatzDoks = this.einsatzDoks.filter(d => d.key !== dok.key);
+        await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente/${dok._id}`);
+        this.einsatzDoks = this.einsatzDoks.filter(d => d._id !== dok._id);
       } catch (e) {
         console.error('Löschen fehlgeschlagen', e);
       }
@@ -5463,6 +5551,88 @@ export default {
   border: 1px solid var(--border);
   &:hover { opacity: 1; background: var(--hover); }
 }
+
+/* ── Einsatzdokument upload dialog ──────────────────────────────────── */
+.einsatz-dok-dialog {
+  display: grid;
+  gap: 14px;
+
+  > p {
+    overflow: hidden;
+    margin: 0;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--tile-bg);
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  > label {
+    display: grid;
+    gap: 6px;
+    color: var(--text);
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  :is(select, input, textarea) {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    font-weight: 400;
+
+    &:focus { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 14%, transparent); }
+  }
+
+  textarea { min-height: 76px; resize: vertical; }
+  :deep(.beruf-search__input-wrap) {
+    box-sizing: border-box;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+  }
+  :deep(.beruf-search__input-wrap:focus-within) {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 14%, transparent);
+  }
+  :deep(.beruf-search__input-wrap input) {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: 0.8rem;
+  }
+  :deep(.beruf-search__input-wrap input:focus) { box-shadow: none; }
+}
+
+.einsatz-dok-dialog-cancel,
+.einsatz-dok-dialog-submit {
+  min-width: 110px;
+  padding: 9px 14px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+
+  &:disabled { cursor: wait; opacity: 0.55; }
+}
+.einsatz-dok-dialog-cancel { border: 1px solid var(--border); background: transparent; color: var(--muted); }
+.einsatz-dok-dialog-cancel:hover:not(:disabled) { background: var(--hover); }
+.einsatz-dok-dialog-submit { border: 1px solid var(--primary); background: var(--primary); color: #fff; }
+.einsatz-dok-dialog-submit:hover:not(:disabled) { opacity: 0.88; }
 
 /* ── Einsatzdokumente Section (Sidebar) ────────────────────────────── */
 .einsatzdoks-section {
