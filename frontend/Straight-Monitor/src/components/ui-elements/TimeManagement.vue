@@ -41,7 +41,7 @@
           <h2>Informationen</h2><span class="tm-live"><i /> Live-Berechnung</span>
         </header>
         <div class="tm-information__identity">
-          <span>{{ employee.employmentLabel }}</span><span>Monatskontingent <strong>{{ formatMinutes(quota) }}</strong></span>
+          <span>{{ employee.employmentLabel }}</span><span>Monatsstunden <strong>{{ formatMinutes(quota) }}</strong></span>
         </div>
         <HoverDataCard
           inline
@@ -323,7 +323,7 @@
     </section>
     <div class="tm-guide">
       <span><kbd>Rechtsklick</kbd> 1 h sammeln</span><span><kbd>Linksklick</kbd> 1 h ablegen</span><span><kbd>⇧ Shift</kbd> alles</span><span><kbd>⌘ / Ctrl</kbd> Minuten wählen</span><span><kbd>Esc</kbd> zurücklegen</span>
-      <span class="tm-guide__note">Zeitkonto und Eimer sind außerhalb des Monatskontingents.</span>
+      <span class="tm-guide__note">Zeitkonto und Eimer sind außerhalb des Monatsstundens.</span>
     </div>
 
     <footer
@@ -520,7 +520,7 @@ const cardData = computed(() => {
     { id: 'remaining', label: 'Frei', value: free / 60, color: '#62b58f' },
     { id: 'over', label: 'Über Kontingent', value: 0, color: '#dc665e' },
   ];
-  return { employeeName: props.employee.name, eyebrow: monthLabel.value, title: 'Monatliches Stundenkontingent',
+  return { employeeName: props.employee.name, eyebrow: monthLabel.value, title: 'Monatsstunden',
     metric: { value: t.forecast / 60, limit: quota.value / 60, unit: 'Std.' }, segments,
     sections: [{ label: 'Aktuelle Berechnung', rows: [
       { label: 'Produktive Ist-Zeit', value: formatMinutes(t.productive), segment: 'productive' },

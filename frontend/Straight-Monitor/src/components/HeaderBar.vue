@@ -838,7 +838,7 @@ const newPagesEnabled = computed(() => !!auth.user);
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
 const canSeeKunden = computed(() => isAdmin.value || auth.user?.roles?.includes('VERTRIEB'));
 const canSeePayroll = computed(() => isAdmin.value);
-const isPayrollSectionActive = computed(() => route.name === 'Payroll' || route.name === 'Zeitverwaltung');
+const isPayrollSectionActive = computed(() => route.name === 'Payroll');
 const isKundenSectionActive = computed(() => route.name === 'Kunden');
 const kundenNavLabel = computed(() => {
   if (route.name !== 'Kunden') return 'Kunden';

@@ -25,12 +25,12 @@
       </CustomTooltip>
       <CustomTooltip
         v-if="monthEmployee"
-        text="Monat in der Zeitverwaltung öffnen"
+        text="Monat in Stunden öffnen"
       >
         <button
           type="button"
           class="time-capture__header-action"
-          aria-label="Monat in der Zeitverwaltung öffnen"
+          aria-label="Monat in Stunden öffnen"
           :disabled="busy || loading"
           @click="openMonth"
         >
@@ -244,7 +244,7 @@ function guard(action) { if (dirty.value) confirmAction.value = action; else act
 function runConfirmed() { const action = confirmAction.value; confirmAction.value = null; dirty.value = false; action?.(); }
 function close() { if (!busy.value) guard(() => emit('update:modelValue', false)); }
 function reload() { if (!busy.value) guard(() => selectedOrder.value ? loadReview() : loadOrders()); }
-function openMonth() { router.push({ name: 'Zeitverwaltung', params: { employeeId: monthEmployee.value }, query: { month: month.value } }); }
+function openMonth() { router.push({ name: 'Payroll', query: { employeeId: monthEmployee.value, month: month.value } }); }
 async function loadOrders() {
   loading.value = true; error.value = ''; review.value = null; selectedOrder.value = '';
   try {

@@ -50,7 +50,7 @@
       <label class="time-entry-form__check"><input
         v-model="credited"
         type="checkbox"
-      > Auf das Monatskontingent anrechnen</label>
+      > Auf Monatsstunden anrechnen</label>
       <label>Notiz <span>(optional)</span><input
         v-model="note"
         maxlength="160"

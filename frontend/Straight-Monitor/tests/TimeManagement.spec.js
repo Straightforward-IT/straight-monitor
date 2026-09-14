@@ -25,8 +25,8 @@ afterEach(() => { wrapper?.unmount(); wrapper = null; document.body.innerHTML = 
 describe('TimeManagement interactions', () => {
   it('shows all 30 days, fixed employee HoverDataCard and untouched fixture inputs', async () => {
     render(); expect(wrapper.findAll('[data-day]')).toHaveLength(30);
-    expect(wrapper.get('[aria-label="Monatskontingent"]').text()).toContain('Max Mustermann');
-    expect(wrapper.get('[aria-label="Monatskontingent"]').text()).toContain('110:00 h');
+    expect(wrapper.get('[aria-label="Monatsstunden"]').text()).toContain('Max Mustermann');
+    expect(wrapper.get('[aria-label="Monatsstunden"]').text()).toContain('110:00 h');
     expect(wrapper.find('[role="tooltip"]').exists()).toBe(false);
     await target('shift-a').trigger('contextmenu', { button: 2 });
     expect(wrapper.props('initialData').entries.find(e => e.id === 'shift-a').minutes).toBe(480);
@@ -41,7 +41,7 @@ describe('TimeManagement interactions', () => {
     await target('bank').trigger('click'); expect(bucket()).toContain('1:00 h');
     expect(target('bank').text()).toContain('25:00 h');
     await target('bank').trigger('click', { shiftKey: true }); expect(bucket()).toContain('leer');
-    expect(wrapper.get('[aria-label="Monatskontingent"]').text()).toContain('108:00 h');
+    expect(wrapper.get('[aria-label="Monatsstunden"]').text()).toContain('108:00 h');
     await button('Rückgängig').trigger('click'); expect(target('bank').text()).toContain('24:00 h');
     expect(target('shift-a').text()).toContain('8:00 h');
   });
@@ -54,7 +54,7 @@ describe('TimeManagement interactions', () => {
     await menu.findAll('button').find(button => button.text().includes('Krank (mit Lohnfortzahlung)')).trigger('click');
     expect(entry.get('.tm-entry__type').text()).toBe('K');
     expect(entry.text()).toContain('7:00');
-    expect(wrapper.get('[aria-label="Monatskontingent"]').text()).toContain('110:00 h');
+    expect(wrapper.get('[aria-label="Monatsstunden"]').text()).toContain('110:00 h');
   });
 
   it('Escape returns a mixed bucket and partial drops, including new empty-day destinations', async () => {
@@ -129,9 +129,9 @@ describe('TimeManagement interactions', () => {
 describe('HoverDataCard inline presentation', () => {
   it('can switch from inline to normal hover mode without losing the trigger', async () => {
     wrapper = mount(HoverDataCard, { props: { inline: true } });
-    expect(wrapper.get('[aria-label="Monatskontingent"]').text()).toContain('Max Mustermann');
+    expect(wrapper.get('[aria-label="Monatsstunden"]').text()).toContain('Max Mustermann');
     await wrapper.setProps({ inline: false });
-    expect(wrapper.find('[aria-label="Monatskontingent"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="Monatsstunden"]').exists()).toBe(false);
     expect(wrapper.get('button').text()).toBe('Monatsübersicht');
   });
 });

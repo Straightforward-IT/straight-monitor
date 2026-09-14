@@ -40,7 +40,25 @@
       <p v-else-if="!documents.length">
         Für diesen Auftrag sind noch keine Dokumente verknüpft.
       </p>
-      <ul v-else>
+      <ul v-if="auftragNr">
+        <li class="order-documents__upload-item">
+          <label
+            class="order-documents__upload-zone"
+            :class="{ 'order-documents__upload-zone--dragging': dragging, 'order-documents__upload-zone--uploading': uploading }"
+            @dragenter.prevent="dragging = true"
+            @dragover.prevent="dragging = true"
+            @dragleave="dragging = false"
+            @drop.prevent="uploadDroppedFile"
+          >
+            <FontAwesomeIcon :icon="faCloudArrowUp" />
+            <span><strong>{{ uploading ? 'Einsatzinfo wird hochgeladen ...' : 'Einsatzinfo hochladen' }}</strong><small>Datei hier ablegen oder auswählen</small></span>
+            <input
+              type="file"
+              :disabled="uploading"
+              @change="uploadSelectedFile"
+            >
+          </label>
+        </li>
         <li
           v-for="document in documents"
           :key="document.id"
@@ -49,7 +67,7 @@
             type="button"
             class="order-documents__item"
             :disabled="document.available === false"
-            :title="document.available === false ? 'Die Datei ist noch nicht hinterlegt' : 'Im DocumentPreviewModal öffnen'"
+            :title="document.available === false ? 'Die Datei ist noch nicht hinterlegt' : document.category === 'EventReport' ? 'Im Dokumentdetail öffnen' : 'Im DocumentPreviewModal öffnen'"
             @click="open(document)"
           >
             <FontAwesomeIcon :icon="document.category === 'EventReport' ? faClipboardList : faFileLines" />
@@ -61,18 +79,27 @@
           </button>
         </li>
       </ul>
+      <p
+        v-if="uploadError"
+        class="order-documents__error"
+        role="alert"
+      >
+        {{ uploadError }}
+      </p>
     </div>
   </component>
 </template>
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faArrowUpRightFromSquare, faClipboardList, faFileLines } from '@fortawesome/free-solid-svg-icons';
+import { faArrowUpRightFromSquare, faClipboardList, faCloudArrowUp, faFileLines } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
+import { useDocumentModals } from '@/composables/useDocumentModals';
 import { useDocumentPreviewModals } from '@/composables/useDocumentPreviewModals';
 const props = defineProps({ auftragNr: { type: [Number, String], default: null }, items: { type: Array, default: null }, title: { type: String, default: 'Auftragsdokumente' }, compact: { type: Boolean, default: false } });
+const { openDocument } = useDocumentModals();
 const { openDocumentPreview } = useDocumentPreviewModals();
-const documents = ref([]), loading = ref(false), error = ref('');
+const documents = ref([]), loading = ref(false), error = ref(''), dragging = ref(false), uploading = ref(false), uploadError = ref('');
 let request = 0, controller;
 const dateText = date => date ? new Date(date).toLocaleDateString('de-DE') : 'Datum offen';
 async function load() {
@@ -90,6 +117,17 @@ async function load() {
   } finally { if (current === request) loading.value = false; }
 }
 function open(document) {
+  if (document.category === 'EventReport') {
+    openDocument({
+      _id: document.recordId,
+      docType: 'Event-Bericht',
+      bezeichnung: document.title,
+      datum: document.date,
+      status: document.status,
+      details: { _id: document.recordId, auftragnummer: String(props.auftragNr), name_teamleiter: document.teamLeader },
+    });
+    return;
+  }
   if (document.previewSource) { openDocumentPreview(document.previewSource); return; }
   // Capture the order now: changing the selected shift must not retarget an open preview.
   const order = props.auftragNr;
@@ -111,6 +149,31 @@ function open(document) {
   }
   openDocumentPreview(source);
 }
+async function upload(file) {
+  if (!file || !props.auftragNr || uploading.value) return;
+  uploading.value = true;
+  uploadError.value = '';
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('type', 'einsatzinformation');
+    form.append('audience', 'job');
+    await api.post(`/api/auftraege/${props.auftragNr}/einsatzdokumente`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  } catch (failure) {
+    uploadError.value = failure?.response?.data?.message || 'Einsatzinfo konnte nicht hochgeladen werden.';
+  } finally {
+    uploading.value = false;
+  }
+}
+function uploadSelectedFile(event) {
+  const [file] = Array.from(event.target.files || []);
+  event.target.value = '';
+  upload(file);
+}
+function uploadDroppedFile(event) {
+  dragging.value = false;
+  upload(Array.from(event.dataTransfer?.files || [])[0]);
+}
 watch(() => [props.auftragNr, props.items], load, { immediate: true });
 onBeforeUnmount(() => { request++; controller?.abort(); });
 </script>
@@ -125,6 +188,7 @@ onBeforeUnmount(() => { request++; controller?.abort(); });
 .order-documents header button { padding: 5px 8px; font-size: 10px; }
 .order-documents ul { list-style: none; padding: 0; margin: 0; display: flex; gap: 8px; overflow: auto; max-height: 116px; }
 .order-documents li { display: flex; flex: 0 0 285px; min-width: 0; }
+.order-documents__upload-item { order: -1; }
 .order-documents__item { display: flex; align-items: center; gap: 10px; padding: 10px; text-align: left; width: 100%; }
 .order-documents__item > svg { color: var(--primary); flex-shrink: 0; font-size: 16px; }
 .order-documents__item > span { display: flex; flex: 1; flex-direction: column; gap: 5px; min-width: 0; }
@@ -133,6 +197,15 @@ onBeforeUnmount(() => { request++; controller?.abort(); });
 .order-documents__item .order-documents__open { font-size: 10px; color: var(--muted); }
 .order-documents__item .order-documents__completed { color: #42896c; }
 .order-documents .order-documents__error { color: #c75048; }
+.order-documents__upload-zone { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 48px; padding: 8px 10px; border: 1px dashed color-mix(in srgb, var(--primary) 55%, var(--border)); border-radius: 6px; background: color-mix(in srgb, var(--primary) 4%, var(--surface)); color: var(--muted); cursor: pointer; transition: border-color .15s ease, background .15s ease, color .15s ease; }
+.order-documents__upload-zone > svg { flex: 0 0 auto; color: var(--primary); font-size: 15px; }
+.order-documents__upload-zone > span { display: grid; gap: 2px; min-width: 0; }
+.order-documents__upload-zone strong { color: var(--text); font-size: 11px; font-weight: 600; }
+.order-documents__upload-zone small { color: var(--muted); font-size: 10px; }
+.order-documents__upload-zone input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.order-documents__upload-zone:hover, .order-documents__upload-zone--dragging { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--surface)); color: var(--primary); }
+.order-documents__upload-zone:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+.order-documents__upload-zone--uploading { cursor: wait; opacity: .7; }
 .order-documents button:hover:not(:disabled) { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 7%, var(--surface)); }
 .order-documents button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .order-documents button:disabled { opacity: .6; cursor: default; }

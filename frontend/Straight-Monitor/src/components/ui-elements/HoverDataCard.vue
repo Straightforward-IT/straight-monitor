@@ -37,7 +37,7 @@
         class="hover-data-card"
         :class="{ 'hover-data-card--inline': inline }"
         :role="inline ? 'region' : 'tooltip'"
-        :aria-label="inline ? 'Monatskontingent' : undefined"
+        :aria-label="inline ? 'Monatsstunden' : undefined"
         :style="inline ? undefined : cardStyle"
         @pointerenter="onCardEnter"
         @pointerleave="onCardLeave"

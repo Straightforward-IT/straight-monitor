@@ -90,8 +90,8 @@ Die Berechnung ist Zeitdauervalidierung, keine vollständige ArbZG-/Lohnprüfung
 - Jeder Einsatz kann über den Pfeil am Zeilenende einzeln übergeben werden.
   Übergebene Zeilen sind gesperrt; der umgekehrte Pfeil nimmt nur diesen Einsatz
   aus der Zeitverwaltung zurück und entsperrt ihn nach dem Server-Reload.
-- `/zeitverwaltung/:employeeId?month=YYYY-MM` ist eine authentifizierte Seite mit
-  tatsächlich übergebenen Schichtstunden.
+- `/payroll?employeeId=:employeeId&month=YYYY-MM` ist die zentrale Ansicht für
+  tatsächlich übergebene Schichtstunden und den Mitarbeiterkontext.
 
 **Weiterhin Vorschau:** Eimer-Umbuchungen, manuell erzeugte Fehlzeiten und das
 Zeitkonto werden dort noch nicht persistiert. Der angezeigte Pool startet mit 0
@@ -106,8 +106,8 @@ Workflows eingereichte Stunden nicht nochmals eingereicht werden können.
 
 ## Auftragsdokumente in beiden Ansichten
 
-`OrderDocuments` wird in der Schnellerfassung und im Dokument-Slot der großen
-Zeitverwaltung wiederverwendet. Der Slot erhält die Auftragsnummer der gerade
+`OrderDocuments` wird in der Schnellerfassung und im Dokument-Slot der Payroll-
+Ansicht wiederverwendet. Der Slot erhält die Auftragsnummer der gerade
 ausgewählten Schicht. Dokumente öffnen sich über `useDocumentPreviewModals` im
 dockbaren `DocumentPreviewModal`, einschließlich Download, Druck und Extratab.
 

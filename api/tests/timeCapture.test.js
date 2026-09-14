@@ -176,6 +176,7 @@ describe('Operational time capture API', function () {
     assert.equal(response.status, 200);
     assert.equal(response.body.documents.length, 3);
     assert.equal(response.body.documents[0].completed, true);
+    assert.equal(response.body.documents.find(doc => doc.category === 'EventReport').teamLeader, 'Testleitung');
     assert.equal(response.body.documents.find(doc => doc.title === 'Wartet auf Datei').available, false);
     assert.equal(JSON.stringify(response.body).includes('test/signed.pdf'), false);
     const pdf = await fetch(`${base}/api/working-times/orders/${order.auftragNr}/documents/eventreport/${report._id}/preview`, { headers: { 'x-auth-token': userToken() } });

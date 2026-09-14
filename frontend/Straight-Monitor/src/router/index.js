@@ -79,7 +79,7 @@ const routes = [
       { path: 'daten-import', name: 'DatenImport', component: DatenImport },
       { path: 'auftraege', name: 'Auftraege', component: AuftraegePage },
       { path: 'payroll', name: 'Payroll', component: PayrollPage },
-      { path: 'zeitverwaltung/:employeeId', name: 'Zeitverwaltung', component: () => import('@/components/TimeManagementPage.vue') },
+      { path: 'zeitverwaltung/:employeeId', redirect: to => ({ path: '/payroll', query: { employeeId: to.params.employeeId, ...(to.query.month ? { month: to.query.month } : {}) } }) },
       { path: 'kunden', name: 'Kunden', component: KundenPage },
       { path: 'teamleiter-auswertung', name: 'TeamleiterAuswertung', component: TeamleiterAuswertung },
       { path: 'dokumente-nachpflegen', name: 'DokumenteNachpflegen', component: DokumenteNachpflegen },

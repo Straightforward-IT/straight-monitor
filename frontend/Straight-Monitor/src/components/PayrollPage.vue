@@ -20,7 +20,10 @@
         </label>
         <label class="payroll-page__field">
           <span>Monat</span>
-          <input :value="month" type="month" @change="changeMonth">
+          <div class="payroll-page__month-control">
+            <input :value="month" type="month" @change="changeMonth">
+            <small v-if="plannedHours">Soll: {{ plannedHours }} Std.</small>
+          </div>
         </label>
         <template #actions>
           <ToolbarGroup push-right>
@@ -90,6 +93,12 @@ let request = 0;
 
 const employeeId = computed(() => String(route.query.employeeId || ''));
 const month = computed(() => String(route.query.month || new Date().toLocaleDateString('sv-SE').slice(0, 7)));
+const plannedHours = computed(() => {
+  const hours = Number(data.value?.employee?.monthlyHours);
+  return Number.isFinite(hours) && hours > 0
+    ? new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(hours)
+    : '';
+});
 const selectedEmployeeId = computed({
   get: () => employeeId.value || null,
   set: value => replaceQuery({ employeeId: value || null }),
@@ -142,6 +151,8 @@ onBeforeUnmount(() => {
 .payroll-page__field { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 12px; }
 .payroll-page__field--employee { width: min(360px, 100%); }
 .payroll-page__field--employee :deep(.ma-search) { min-width: 0; }
+.payroll-page__month-control { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.payroll-page__month-control small { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .payroll-page__field input { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
 .payroll-page__body { min-width: 0; }
 .payroll-page__employee-card { margin-bottom: 16px; }
@@ -151,5 +162,6 @@ onBeforeUnmount(() => {
   .payroll-page__field { width: 100%; justify-content: space-between; }
   .payroll-page__field--employee { width: 100%; }
   .payroll-page__field input { flex: 1; min-width: 0; }
+  .payroll-page__month-control { flex: 1; justify-content: flex-end; }
 }
 </style>

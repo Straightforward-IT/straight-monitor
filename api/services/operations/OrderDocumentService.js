@@ -18,7 +18,7 @@ async function list(user, number) {
     Reisekosten.find({ auftragNr: order.auftragNr }).select('kopf.name kopf.vorname kopf.titel status r2Key anlagen signaturVorgang updatedAt').lean(),
   ]);
   const documents = [
-    ...reports.map(doc => descriptor('eventreport', doc, { category: 'EventReport', title: `EventReport · ${doc.name_teamleiter}`, status: 'Eingereicht', preview: 'pdf' })),
+    ...reports.map(doc => descriptor('eventreport', doc, { category: 'EventReport', title: `EventReport · ${doc.name_teamleiter}`, teamLeader: doc.name_teamleiter, status: 'Eingereicht', preview: 'pdf' })),
     ...slips.map(doc => descriptor('laufzettel', doc, { category: 'Weitere', title: `Laufzettel · ${doc.name_mitarbeiter}`, status: doc.status === 'ABGESCHLOSSEN' ? 'Abgeschlossen' : 'Erfasst', preview: 'pdf' })),
     ...signatures.map(doc => descriptor('signature', doc, {
       category: doc.typKey === 'stundenliste' ? 'Stundenliste' : 'Weitere',
