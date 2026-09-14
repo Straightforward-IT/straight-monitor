@@ -4,6 +4,10 @@
     :subtitle="employeeSubtitle"
     size="lg"
     layer="elevated"
+    minimizable
+    isolate-minimize
+    :minimize-id="minimizeId"
+    :minimize-title="minimizeTitle"
     class="edit-mitarbeiter-dialog"
     @close="emit('close')"
   >
@@ -275,10 +279,18 @@ const props = defineProps({
 
 const emit = defineEmits(["close", "save", "save-force", "cancel-conflict"]);
 
+const employeeName = computed(() =>
+  [props.mitarbeiter?.vorname, props.mitarbeiter?.nachname].filter(Boolean).join(" ")
+);
+const minimizeId = computed(() =>
+  `edit-mitarbeiter-${props.mitarbeiter?._id || props.mitarbeiter?.personalnr || "employee"}`
+);
+const minimizeTitle = computed(() =>
+  employeeName.value ? `${employeeName.value} bearbeiten` : "Mitarbeiter bearbeiten"
+);
 const employeeSubtitle = computed(() => {
-  const name = [props.mitarbeiter?.vorname, props.mitarbeiter?.nachname].filter(Boolean).join(" ");
   const personalnr = props.mitarbeiter?.personalnr ? `Personalnr. ${props.mitarbeiter.personalnr}` : "";
-  return [name, personalnr].filter(Boolean).join(" · ") || "Mitarbeiterprofil";
+  return [employeeName.value, personalnr].filter(Boolean).join(" · ") || "Mitarbeiterprofil";
 });
 
 const form = ref({

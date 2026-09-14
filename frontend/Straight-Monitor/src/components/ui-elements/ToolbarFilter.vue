@@ -266,6 +266,7 @@ function toggle() {
     padding: 0;
     gap: 6px;
     border-radius: 0;
+    flex-shrink: 0;
     flex-wrap: nowrap;
 
     &:hover {
@@ -293,6 +294,8 @@ function toggle() {
     padding: 3px 9px;
     font-size: 0.78rem;
     line-height: 1.4;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   // Shorter divider

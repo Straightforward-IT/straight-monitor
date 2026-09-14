@@ -105,6 +105,18 @@ onUnmounted(() => {
     flex: 1;
     max-width: 460px;
   }
+
+  // Filter controls keep their labels on one line; the toolbar scrolls when needed.
+  :deep(.filter-group),
+  :deep(.location-filter) {
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+  }
+
+  :deep(.filter-chip) {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 }
 
 .toolbar-main-content {
