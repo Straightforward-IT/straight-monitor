@@ -75,11 +75,22 @@
           <span class="msc-icon"><font-awesome-icon icon="fa-solid fa-location-dot" /></span>
           <div class="msc-content">
             <span class="msc-label">Location</span>
-            <a v-if="einsatzortMapsUrl" :href="einsatzortMapsUrl" target="_blank" rel="noopener noreferrer" class="msc-value info-link">
+            <a v-if="einsatzortNavigationUrl" :href="einsatzortNavigationUrl" class="msc-value info-link">
               {{ einsatz.auftrag?.eventLocation }}
             </a>
             <span v-else class="msc-value">{{ einsatz.auftrag?.eventLocation }}</span>
-            <span v-if="einsatzortAddress" class="msc-sub">{{ einsatzortAddress }}</span>
+            <span v-if="einsatzortAddress" class="msc-address-row">
+              <span class="msc-sub">{{ einsatzortAddress }}</span>
+              <button
+                type="button"
+                class="msc-copy-btn"
+                title="Adresse kopieren"
+                aria-label="Adresse kopieren"
+                @click="copyEinsatzortAddress"
+              >
+                <font-awesome-icon icon="fa-solid fa-copy" />
+              </button>
+            </span>
           </div>
         </div>
         <div v-if="einsatz.ansprechpartnerName" class="msc-row">
@@ -462,14 +473,17 @@ const ownSchicht = computed(() => {
   return null;
 });
 
-const einsatzortMapsUrl = computed(() => {
+const einsatzortNavigationUrl = computed(() => {
   const auftrag = props.einsatz?.auftrag;
   const adresse = auftrag?.einsatzort?.adresse;
   const addressParts = adresse
     ? [adresse.name, adresse.strasse, [adresse.plz, adresse.ort].filter(Boolean).join(' '), adresse.land]
     : [auftrag?.eventLocation, auftrag?.eventStrasse, [auftrag?.eventPlz, auftrag?.eventOrt].filter(Boolean).join(' ')];
   const address = addressParts.filter(Boolean).join(', ');
-  return address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : '';
+  if (!address) return '';
+  if (/iPad|iPhone|iPod/.test(navigator.userAgent)) return `maps://?q=${encodeURIComponent(address)}`;
+  if (/Android/.test(navigator.userAgent)) return `geo:0,0?q=${encodeURIComponent(address)}`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 });
 
 const einsatzortAddress = computed(() => {
@@ -1074,6 +1088,23 @@ async function copyPhone(tel, event) {
   }
 }
 
+async function copyEinsatzortAddress() {
+  if (!einsatzortAddress.value) return;
+  try {
+    await navigator.clipboard.writeText(einsatzortAddress.value);
+  } catch {
+    const el = document.createElement('input');
+    el.value = einsatzortAddress.value;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+  }
+  try {
+    await showToast({ text: 'Adresse kopiert.', intent: 'success', duration: 2500 });
+  } catch {}
+}
+
 async function loadCheckIns(auftragNr) {
   try {
     const res = await props.api.get('/api/public/checkins', { params: { auftragNr } });
@@ -1402,6 +1433,31 @@ watch(() => props.einsatz?._id, () => {
 .msc-sub {
   font-size: 0.78rem;
   color: var(--muted);
+}
+
+.msc-address-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.msc-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.msc-copy-btn:active {
+  background: rgba(255, 117, 24, 0.1);
 }
 
 /* Info Section */

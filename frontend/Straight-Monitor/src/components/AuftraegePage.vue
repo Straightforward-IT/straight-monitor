@@ -413,17 +413,11 @@
       </template>
       <template #actions>
         <div class="sidebar-header-actions">
-          <button v-if="isAdmin" class="order-chronik-toggle" type="button" title="Auftragschronik" :aria-expanded="showChronik" :aria-controls="chronikInline ? 'order-chronik-panel' : undefined" @click.stop="showChronik = !showChronik">Chronik</button>
           <button class="qa-dots-btn" type="button" title="Aktionen" @click.stop="toggleQuickActionsMenu">
             <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
           </button>
         </div>
       </template>
-
-          <section v-if="isAdmin && showChronik && chronikInline" id="order-chronik-panel" aria-label="Chronik" style="margin-bottom: 1.25rem">
-            <h3>Chronik</h3>
-            <OrderChronikTimeline :key="selectedEvent.auftragNr" :auftrag-nr="selectedEvent.auftragNr" :revision="chronikRevision" />
-          </section>
 
           <!-- Compact Info Grid -->
           <div class="info-grid">
@@ -823,19 +817,19 @@
             <template v-else>
               <div
                 v-for="dok in einsatzDoks"
-                :key="dok._id"
+                :key="dok.key"
                 class="einsatz-dok-row einsatz-dok--upload"
               >
                 <font-awesome-icon icon="fa-solid fa-file" class="einsatz-dok-icon" />
                 <div class="einsatz-dok-info">
                   <div class="einsatz-dok-name">{{ dok.filename }}</div>
-                  <div class="einsatz-dok-meta">{{ formatFileSize(dok.size) }} &middot; {{ einsatzDokAudienceLabel(dok) }}</div>
+                  <div class="einsatz-dok-meta">{{ formatFileSize(dok.size) }}</div>
                 </div>
                 <div class="einsatz-dok-actions">
-                  <button class="einsatz-dok-action" type="button" title="Vorschau öffnen" @click="previewEinsatzDok(dok)">
+                  <a :href="dok.url" target="_blank" class="einsatz-dok-action" title="Öffnen">
                     <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
-                  </button>
-                  <button class="einsatz-dok-action" type="button" title="Herunterladen" @click="openEinsatzDok(dok, true)">
+                  </a>
+                  <button class="einsatz-dok-action" type="button" title="Herunterladen" @click="downloadFile(dok.url, dok.filename)">
                     <font-awesome-icon icon="fa-solid fa-download" />
                   </button>
                   <button class="einsatz-dok-action einsatz-dok-action--del" title="Löschen" type="button" @click="deleteEinsatzDok(dok)">
@@ -865,76 +859,6 @@
             </template>
           </div>
     </SidePanelFrame>
-
-    <ModalFrame
-      v-if="showEinsatzDokUploadDialog"
-      v-model="showEinsatzDokUploadDialog"
-      title="Dokument hinzufügen"
-      subtitle="Einsatzdokumente"
-      size="sm"
-      class="einsatz-dok-upload-dialog"
-      @close="cancelEinsatzDokUpload"
-    >
-      <div class="einsatz-dok-dialog-body">
-        <p class="einsatz-dok-dialog-files">{{ pendingEinsatzDokFiles.length }} {{ pendingEinsatzDokFiles.length === 1 ? 'Datei ausgewählt' : 'Dateien ausgewählt' }}</p>
-        <div class="einsatz-dok-dialog-file-list">
-          <span v-for="file in pendingEinsatzDokFiles" :key="`${file.name}-${file.lastModified}`">{{ file.name }}</span>
-        </div>
-        <label>Dokumenttyp
-          <select v-model="einsatzDokType">
-            <option value="einsatznachweis">Einsatznachweis</option>
-            <option value="einsatzinformation">Einsatzinformation</option>
-            <option value="ablauf">Ablaufplan</option>
-            <option value="wegbeschreibung">Wegbeschreibung</option>
-            <option value="sicherheit">Sicherheitsdokument</option>
-            <option value="kunde">Kundendokument</option>
-            <option value="sonstiges">Sonstiges</option>
-          </select>
-        </label>
-        <label>Sichtbar für
-          <select v-model="einsatzDokAudience">
-            <option value="job">Mitarbeiter im Auftrag</option>
-            <option value="teamleiter">Teamleiter im Auftrag</option>
-            <option value="office">Alle Monitor-Nutzer</option>
-            <option value="office_roles">Nur Vertrieb und Admin</option>
-          </select>
-        </label>
-        <label v-if="einsatzDokAudience === 'job'">Berufsschlüssel (optional)
-          <BerufSearch v-model="einsatzDokBerufKeys" placeholder="Beruf suchen..." />
-        </label>
-        <label>E-Mail-Benachrichtigung (optional)
-          <input v-model="einsatzDokDeliveryEmails" type="text" inputmode="email" placeholder="name@straightforward.email, ..." />
-        </label>
-        <label>Mitteilung (optional)
-          <textarea v-model="einsatzDokDeliveryMessage" rows="3" placeholder="Zusätzliche Information zur Datei"></textarea>
-        </label>
-      </div>
-      <template #footer>
-        <button type="button" class="einsatz-dok-dialog-cancel" :disabled="einsatzDokUploading" @click="cancelEinsatzDokUpload">Abbrechen</button>
-        <button type="button" class="einsatz-dok-dialog-submit" :disabled="einsatzDokUploading" @click="confirmEinsatzDokUpload">
-          <font-awesome-icon :icon="einsatzDokUploading ? 'fa-solid fa-spinner' : 'fa-solid fa-upload'" :spin="einsatzDokUploading" />
-          Hochladen
-        </button>
-      </template>
-    </ModalFrame>
-
-    <DocumentPreviewModal
-      v-if="previewEinsatzDokument"
-      v-model="showEinsatzDokPreview"
-      :filename="previewEinsatzDokument.filename"
-      :mime-type="previewEinsatzDokument.mimeType"
-      :resolve-url="resolveEinsatzDokPreviewUrl"
-      minimizable
-      :minimize-id="`einsatz-dokument-${previewEinsatzDokument._id}`"
-      @close="closeEinsatzDokPreview"
-    />
-
-    <OrderChronikDrawer
-      v-if="isAdmin && showChronik && selectedEvent && !chronikInline"
-      :key="selectedEvent.auftragNr"
-      :auftrag-nr="selectedEvent.auftragNr" :order-title="selectedEvent.eventTitel || ''"
-      :revision="chronikRevision" @close="showChronik = false"
-    />
 
     <!-- Mitarbeiter Card Modal -->
     <EmployeeCardModal
@@ -1377,14 +1301,8 @@ import { useCustomerModals } from '@/composables/useCustomerModals';
 import { useDocumentModals } from '@/composables/useDocumentModals';
 import { useEventModals } from '@/composables/useEventModals';
 import { useReisekostenModals } from '@/composables/useReisekostenModals';
-import { useTimeCaptureModals } from '@/composables/useTimeCaptureModals';
 import PageLayout from '@/components/layout/PageLayout.vue';
 import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
-import ModalFrame from '@/components/frames/ModalFrame.vue';
-import DocumentPreviewModal from '@/components/Modals/DocumentPreviewModal.vue';
-import OrderChronikDrawer from '@/components/orders/OrderChronikDrawer.vue';
-import OrderChronikTimeline from '@/components/orders/OrderChronikTimeline.vue';
-import { onAuftragMutation } from '@/utils/auftragChanges';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
@@ -1392,7 +1310,6 @@ import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import PillMultiSelect from '@/components/ui-elements/PillMultiSelect.vue';
-import BerufSearch from '@/components/ui-elements/BerufSearch.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import { loadHolidaysForYear } from '@/utils/holidays.js';
 import { buildEventSchichten } from '@/utils/eventSchichten';
@@ -1407,13 +1324,12 @@ import docusealPendingIcon from '@/assets/docuseal-pending.webp';
 export default {
   name: "AuftraegePage",
   emits: ['mitarbeiter-drop'],
-  components: { PageLayout, SidePanelFrame, ModalFrame, DocumentPreviewModal, OrderChronikDrawer, OrderChronikTimeline, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ContextMenu, PillMultiSelect, BerufSearch, CustomTooltip },
+  components: { PageLayout, SidePanelFrame, FilterPanel, ThinScrollContainer, FilterGroup, FilterChip, FilterDivider, EmployeeCardModal, SearchBar, DocusealForm, Toolbar, ToolbarFilter, DatePicker, TlBadge, ContextMenu, PillMultiSelect, CustomTooltip },
   setup() {
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
     const { openEvent } = useEventModals();
     const { openReisekosten } = useReisekostenModals();
-    const { openTimeCapture } = useTimeCaptureModals();
     const minimizeDock = useMinimizeDock();
 
     const restoreMinimizedStundenliste = (auftragNr) => {
@@ -1428,7 +1344,7 @@ export default {
         : false;
     };
 
-    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, openTimeCapture, restoreMinimizedStundenliste, docusealLogo, docusealPendingIcon };
+    return { openCustomer, openDocumentModal: openDocument, openEvent, openReisekosten, restoreMinimizedStundenliste, docusealLogo, docusealPendingIcon };
   },
   data() {
     // Load filter settings from sessionStorage or use defaults
@@ -1472,9 +1388,6 @@ export default {
       searchLoading: false,
       currentWeekStart: null,
       selectedEvent: null,
-      showChronik: false,
-      chronikInline: window.innerWidth <= 1100,
-      chronikRevision: 0,
       contextMenu: {
         open: false,
         x: 0,
@@ -1551,15 +1464,6 @@ export default {
       einsatzDoks: [],
       einsatzDoksLoading: false,
       einsatzDokUploading: false,
-      showEinsatzDokUploadDialog: false,
-      pendingEinsatzDokFiles: [],
-      einsatzDokType: 'einsatznachweis',
-      einsatzDokAudience: 'office',
-      einsatzDokBerufKeys: [],
-      einsatzDokDeliveryEmails: '',
-      einsatzDokDeliveryMessage: '',
-      showEinsatzDokPreview: false,
-      previewEinsatzDokument: null,
       // ── Reisekostenabrechnungen (Einsatzdokumente) ───────────────────────
       reisekostenListe: [],
       reisekostenListeLoading: false,
@@ -1582,7 +1486,7 @@ export default {
     isAdmin() {
       const u = this.user || {};
       return String(u.role || '').toUpperCase() === 'ADMIN'
-        || (Array.isArray(u.roles) && u.roles.some(role => String(role).toUpperCase() === 'ADMIN'));
+        || (Array.isArray(u.roles) && u.roles.includes('ADMIN'));
     },
     isVertrieb() {
       const u = this.user || {};
@@ -1741,7 +1645,14 @@ export default {
           variant: 'primary',
         });
       }
-      items.push({ label: 'Stundenschnellerfassung', icon: 'fa-solid fa-clock', action: 'open-time-entry' });
+      if (this.isAdmin) {
+        items.push({
+          label: 'Stundenerfassung öffnen',
+          icon: 'fa-solid fa-clock',
+          action: 'open-time-entry',
+          disabled: true,
+        });
+      }
       return items;
     },
     dayContextMenuItems() {
@@ -1755,7 +1666,6 @@ export default {
     headerActionMenuItems() {
       const items = [
         { label: 'Im Event-Editor öffnen', action: 'open-editor', icon: 'fa-solid fa-pencil' },
-        { label: 'Stundenschnellerfassung', action: 'open-time-entry', icon: 'fa-solid fa-clock' },
         { label: 'Pseudo-MA einplanen', action: 'plan-pseudo', icon: 'fa-solid fa-user-plus' },
       ];
       if (this.selectedEvent?.isPseudo) {
@@ -1797,7 +1707,6 @@ export default {
     },
   },
   watch: {
-    isAdmin(allowed) { if (!allowed) this.showChronik = false; },
     currentWeekStart() {
       this.$nextTick(() => this.scrollKwToActive('smooth'));
       // Remember the viewed week so a page refresh returns to it.
@@ -1815,7 +1724,6 @@ export default {
       await this.loadOrderDirectly(auftragNr, this.$route.query.focusDate);
     },
     selectedEvent(event) {
-      if (!event) this.showChronik = false;
       // Remember the open sidebar so a page refresh reopens it.
       try {
         if (event && event.auftragNr) sessionStorage.setItem('auftraege_selected', String(event.auftragNr));
@@ -2015,7 +1923,6 @@ export default {
       return allSame ? firstQuali : null;
     },
     checkMobile() {
-      this.chronikInline = window.innerWidth <= 1100;
       this.isMobile = window.innerWidth <= 768;
     },
     openMobileDatePicker() {
@@ -2111,8 +2018,6 @@ export default {
 
       if (action === 'open') {
         await this.selectEvent(auftrag);
-      } else if (action === 'open-time-entry') {
-        this.openTimeCapture({ auftragNr: auftrag.auftragNr });
       } else if (action === 'open-customer' && auftrag.kundeData) {
         await this.openKundeCard(auftrag.kundeData);
       } else if (action === 'plan-pseudo') {
@@ -2132,7 +2037,6 @@ export default {
     async handleHeaderActionMenuAction(action) {
       this.showQuickActions = false;
       if (action === 'open-editor') await this.openEventEditor();
-      if (action === 'open-time-entry' && this.selectedEvent) this.openTimeCapture({ auftragNr: this.selectedEvent.auftragNr });
       if (action === 'manage-labels') await this.openLabelDialog();
       if (action === 'plan-pseudo') this.openPseudoDialog();
       if (action === 'create-hours-list') await this.createStundenliste();
@@ -3007,28 +2911,11 @@ export default {
       const files = Array.from(event.target.files || []);
       if (!files.length || !this.selectedEvent?.auftragNr) return;
       event.target.value = ''; // reset so same file can be re-selected
-      this.pendingEinsatzDokFiles = files;
-      this.showEinsatzDokUploadDialog = true;
-    },
-    cancelEinsatzDokUpload() {
-      if (this.einsatzDokUploading) return;
-      this.showEinsatzDokUploadDialog = false;
-      this.pendingEinsatzDokFiles = [];
-    },
-    async confirmEinsatzDokUpload() {
-      if (!this.pendingEinsatzDokFiles.length || !this.selectedEvent?.auftragNr || this.einsatzDokUploading) return;
       this.einsatzDokUploading = true;
       try {
-        for (const file of this.pendingEinsatzDokFiles) {
+        for (const file of files) {
           const form = new FormData();
           form.append('file', file);
-          form.append('type', this.einsatzDokType);
-          form.append('audience', this.einsatzDokAudience);
-          if (this.einsatzDokAudience === 'job' && this.einsatzDokBerufKeys.length) {
-            form.append('berufKeys', this.einsatzDokBerufKeys.join(','));
-          }
-          if (this.einsatzDokDeliveryEmails.trim()) form.append('deliveryEmails', this.einsatzDokDeliveryEmails.trim());
-          if (this.einsatzDokDeliveryMessage.trim()) form.append('deliveryMessage', this.einsatzDokDeliveryMessage.trim());
           const { data } = await api.post(
             `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`,
             form,
@@ -3036,52 +2923,11 @@ export default {
           );
           this.einsatzDoks.push(data.data);
         }
-        this.showEinsatzDokUploadDialog = false;
-        this.pendingEinsatzDokFiles = [];
       } catch (e) {
         console.error('Upload fehlgeschlagen', e);
       } finally {
         this.einsatzDokUploading = false;
       }
-    },
-    einsatzDokAudienceLabel(dok) {
-      const labels = {
-        job: 'Mitarbeiter im Auftrag',
-        teamleiter: 'Teamleiter im Auftrag',
-        office: 'Alle Monitor-Nutzer',
-        office_roles: 'Vertrieb und Admin',
-      };
-      const berufKeys = dok.berufKeys?.length ? ` (${dok.berufKeys.join(', ')})` : '';
-      return `${labels[dok.audience] || 'Alle Monitor-Nutzer'}${berufKeys}`;
-    },
-    async openEinsatzDok(dok, download = false) {
-      if (!this.selectedEvent?.auftragNr || !dok._id) return;
-      try {
-        const { data } = await api.get(
-          `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente/${dok._id}/download`
-        );
-        if (download) {
-          await this.downloadFile(data.data.url, dok.filename);
-        }
-      } catch (error) {
-        console.error('Einsatzdokument öffnen fehlgeschlagen', error);
-      }
-    },
-    previewEinsatzDok(dok) {
-      this.previewEinsatzDokument = dok;
-      this.showEinsatzDokPreview = true;
-    },
-    closeEinsatzDokPreview() {
-      this.showEinsatzDokPreview = false;
-      this.previewEinsatzDokument = null;
-    },
-    async resolveEinsatzDokPreviewUrl() {
-      const dok = this.previewEinsatzDokument;
-      if (!this.selectedEvent?.auftragNr || !dok?._id) throw new Error('Dokument ist nicht verfügbar.');
-      const { data } = await api.get(
-        `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente/${dok._id}/download`
-      );
-      return data.data.url;
     },
     async deleteStundenlisteDraft() {
       const vorgang = this.sidebarStundenliste;
@@ -3096,8 +2942,10 @@ export default {
     async deleteEinsatzDok(dok) {
       if (!this.selectedEvent?.auftragNr) return;
       try {
-        await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente/${dok._id}`);
-        this.einsatzDoks = this.einsatzDoks.filter(d => d._id !== dok._id);
+        await api.delete(`/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`, {
+          data: { key: dok.key },
+        });
+        this.einsatzDoks = this.einsatzDoks.filter(d => d.key !== dok.key);
       } catch (e) {
         console.error('Löschen fehlgeschlagen', e);
       }
@@ -3408,9 +3256,6 @@ export default {
       this.showNeuMenu = false;
     },
     async mounted() {
-    this.stopChronikUpdates = onAuftragMutation(auftragNr => {
-      if (this.isAdmin && Number(this.selectedEvent?.auftragNr) === auftragNr) this.chronikRevision++;
-    });
     this.checkMobile();
     window.addEventListener('resize', this.checkMobile);
     document.addEventListener('keydown', this.handleEscapeKey);
@@ -3467,7 +3312,6 @@ export default {
     this.handlePseudoRouteQuery();
   },
   beforeUnmount() {
-    this.stopChronikUpdates?.();
     window.removeEventListener('resize', this.checkMobile);
     document.removeEventListener('keydown', this.handleEscapeKey);
     document.removeEventListener('click', this.handleDocumentClick);
@@ -5223,19 +5067,6 @@ export default {
   gap: 4px;
 }
 
-.order-chronik-toggle {
-  min-height: 32px;
-  padding: .35rem .6rem;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  cursor: pointer;
-  &[aria-expanded="true"] { border-color: var(--primary); }
-  &:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-}
-
 .qa-dots-btn {
   display: flex;
   align-items: center;
@@ -5704,151 +5535,6 @@ export default {
   color: var(--muted);
   padding: 6px 0;
   font-style: italic;
-}
-
-.einsatz-dok-access {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 7px 9px;
-  margin-top: 10px;
-  padding: 9px 10px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--tile-bg) 82%, var(--hover));
-
-  label {
-    color: var(--muted);
-    font-size: 0.76rem;
-    font-weight: 500;
-    white-space: nowrap;
-  }
-
-  select,
-  input {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    height: 30px;
-    padding: 0 8px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    outline: none;
-    background: var(--tile-bg);
-    color: var(--text);
-    font: inherit;
-    font-size: 0.76rem;
-  }
-
-  select {
-    cursor: pointer;
-    color-scheme: light dark;
-  }
-
-  input {
-    grid-column: 1 / -1;
-
-    &::placeholder { color: var(--muted); opacity: 0.8; }
-  }
-
-  select:focus,
-  input:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 16%, transparent);
-  }
-}
-
-:deep(.einsatz-dok-upload-dialog) {
-  --mf-body-padding: 0;
-  --mf-footer-padding: 12px 16px;
-}
-
-.einsatz-dok-dialog-body {
-  display: grid;
-  gap: 12px;
-  padding: 16px;
-
-  label {
-    display: grid;
-    gap: 5px;
-    color: var(--muted);
-    font-size: 0.74rem;
-    font-weight: 600;
-  }
-
-  input,
-  select,
-  textarea {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    outline: none;
-    background: var(--tile-bg);
-    color: var(--text);
-    font: inherit;
-    font-size: 0.8rem;
-  }
-
-  input,
-  select { height: 34px; padding: 0 9px; }
-  textarea { padding: 8px 9px; resize: vertical; }
-  select { cursor: pointer; color-scheme: light dark; }
-
-  input:focus,
-  select:focus,
-  textarea:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 16%, transparent);
-  }
-}
-
-.einsatz-dok-dialog-files {
-  color: var(--text);
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.einsatz-dok-dialog-file-list {
-  display: grid;
-  gap: 4px;
-  max-height: 82px;
-  overflow-y: auto;
-  padding: 8px 9px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--hover) 60%, transparent);
-  color: var(--muted);
-  font-size: 0.75rem;
-
-  span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-}
-
-.einsatz-dok-dialog-cancel,
-.einsatz-dok-dialog-submit {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 34px;
-  padding: 7px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-
-  &:disabled { cursor: wait; opacity: 0.55; }
-}
-
-.einsatz-dok-dialog-submit {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: #fff;
 }
 
 .einsatz-dok-upload-btn {

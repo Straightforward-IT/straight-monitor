@@ -2,7 +2,6 @@
   <ModalFrame
     :model-value="modelValue"
     title="Stundenschnellerfassung"
-    subtitle="Mitarbeitereingabe → interne Prüfung → Zeitverwaltung"
     size="xl"
     minimizable
     :minimize-id="minimizeId"
@@ -13,7 +12,7 @@
     @close="close"
   >
     <div class="time-capture">
-      <div class="time-capture__controls">
+      <Toolbar class="time-capture__toolbar">
         <template v-if="employeeId && !auftragNr">
           <label>Monat <input
             v-model="month"
@@ -35,13 +34,6 @@
           </select></label>
         </template>
         <span v-else>Auftrag #{{ selectedOrder }}</span>
-        <button
-          type="button"
-          :disabled="busy || loading"
-          @click="reload"
-        >
-          Neu laden
-        </button>
         <label v-if="employees.length">Zeitverwaltung
           <select
             v-model="monthEmployee"
@@ -56,15 +48,25 @@
           v-model="month"
           type="month"
         ></label>
-        <button
-          v-if="monthEmployee"
-          type="button"
-          :disabled="busy || loading"
-          @click="openMonth"
-        >
-          Monat öffnen
-        </button>
-      </div>
+        <template #actions>
+          <ToolbarGroup push-right>
+            <ToolbarButton
+              variant="secondary"
+              :disabled="busy || loading"
+              @click="reload"
+            >
+              Neu laden
+            </ToolbarButton>
+            <ToolbarButton
+              v-if="monthEmployee"
+              :disabled="busy || loading"
+              @click="openMonth"
+            >
+              Monat öffnen
+            </ToolbarButton>
+          </ToolbarGroup>
+        </template>
+      </Toolbar>
       <OrderDocuments
         v-if="selectedOrder"
         :auftrag-nr="selectedOrder"
@@ -156,6 +158,9 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/utils/api';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
+import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
+import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import Stundenschnellerfassung from '@/components/ui-elements/Stundenschnellerfassung.vue';
 import OrderDocuments from '@/components/ui-elements/OrderDocuments.vue';
 const props = defineProps({ modelValue: { type: Boolean, default: true }, auftragNr: { type: [String, Number], default: null }, employeeId: { type: String, default: null }, minimizeId: { type: String, required: true } });
@@ -229,7 +234,7 @@ onMounted(() => props.auftragNr ? loadReview() : loadOrders());
 <style scoped>
 .time-capture { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; color: var(--text); }
 .time-capture > :not(.quick-time) { flex-shrink: 0; }
-.time-capture__controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 14px 20px; background: var(--surface); border-bottom: 1px solid var(--border); font-size: 12px; }
+.time-capture__toolbar { margin: 0; border-radius: 0; box-shadow: none; }
 .time-capture label { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--muted); }
 .time-capture input, .time-capture select, .time-capture button { padding: 8px 10px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; font: inherit; }
 .time-capture button { cursor: pointer; }
