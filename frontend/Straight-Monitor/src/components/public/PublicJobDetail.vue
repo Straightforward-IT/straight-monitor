@@ -34,7 +34,7 @@
           type="button"
           class="job-document-btn"
           :title="dok.filename"
-          @click="downloadEinsatzDok(dok)"
+          @click="openEinsatzDok(dok)"
         >
           <font-awesome-icon icon="fa-solid fa-download" />
           <span>{{ dok.filename }}</span>
@@ -367,6 +367,14 @@
       </div>
     </PublicBottomSheet>
 
+    <PublicDocumentPreviewModal
+      v-if="previewEinsatzDokument"
+      v-model="showEinsatzDokPreview"
+      :filename="previewEinsatzDokument.filename"
+      :mime-type="previewEinsatzDokument.mimeType"
+      :load-blob="loadEinsatzDokBlob"
+    />
+
 
   </div>
 </template>
@@ -381,6 +389,7 @@ import PublicEinsatzinformation from '@/components/public/PublicEinsatzinformati
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import PublicBottomSheet from './PublicBottomSheet.vue';
+import PublicDocumentPreviewModal from './PublicDocumentPreviewModal.vue';
 import { showToast } from '@getflip/bridge';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
@@ -433,6 +442,8 @@ const schichtGruppen = ref([]);
 const activeRoleFilterIds = ref([]);
 const einsatzDoks = ref([]);
 const einsatzDoksLoading = ref(false);
+const showEinsatzDokPreview = ref(false);
+const previewEinsatzDokument = ref(null);
 
 const ownSchicht = computed(() => {
   if (!schichtGruppen.value.length) return null;
@@ -1178,19 +1189,26 @@ async function loadEinsatzDoks() {
   }
 }
 
-async function downloadEinsatzDok(dok) {
-  try {
-    const { data } = await props.api.get(
-      `/api/public/einsatzdokumente/${props.einsatz.auftragNr}/${dok._id}/download`,
-      {
-        headers: { 'x-public-token': props.token },
-        params: { email: props.email },
-      },
-    );
-    window.open(data.data.url, '_blank', 'noopener');
-  } catch {
-    try { showToast({ text: 'Dokument konnte nicht geöffnet werden.', intent: 'error', duration: 3000 }); } catch {}
-  }
+function openEinsatzDok(dok) {
+  previewEinsatzDokument.value = dok;
+  showEinsatzDokPreview.value = true;
+}
+
+async function loadEinsatzDokBlob({ signal } = {}) {
+  const dok = previewEinsatzDokument.value;
+  if (!dok) throw new Error('Kein Dokument ausgewählt.');
+  const { data } = await props.api.get(
+    `/api/public/einsatzdokumente/${props.einsatz.auftragNr}/${dok._id}/download`,
+    {
+      headers: { 'x-public-token': props.token },
+      params: { email: props.email },
+      signal,
+    },
+  );
+  return fetch(data.data.url, { signal }).then(response => {
+    if (!response.ok) throw new Error('Dokument konnte nicht geladen werden.');
+    return response.blob();
+  });
 }
 
 onMounted(() => {
