@@ -60,10 +60,6 @@
             <input v-model="form.geburtsort" type="text" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Erstellt von</label>
-            <input v-model="form.erstellt_von" type="text" class="form-input" />
-          </div>
-          <div class="form-group">
             <label>IBAN</label>
             <input v-model="form.iban" type="text" class="form-input" :class="{ 'form-input--missing': !form.iban }" autocomplete="off" />
             <p v-if="!form.iban" class="help-text help-text--missing">IBAN fehlt!</p>
@@ -308,7 +304,6 @@ const form = ref({
   geburtsdatum: "",
   geburtsname: "",
   geburtsort: "",
-  erstellt_von: "",
   additionalEmails: [],
   personalnrHistory: [],
   persgruppe: null,
@@ -340,7 +335,6 @@ watch(
         geburtsdatum: toDateInput(newVal.geburtsdatum),
         geburtsname: newVal.geburtsname || "",
         geburtsort: newVal.geburtsort || "",
-        erstellt_von: newVal.erstellt_von || "",
         additionalEmails: [...(newVal.additionalEmails || [])],
         personalnrHistory: [...(newVal.personalnrHistory || [])],
         persgruppe: newVal.persgruppe ?? null,
