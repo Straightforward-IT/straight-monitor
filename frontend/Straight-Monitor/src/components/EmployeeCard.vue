@@ -356,8 +356,8 @@
                 Event Reports – geschrieben ({{ resolvedMa.eventreports.length }})
               </h5>
               <div class="doc-list">
-                <div 
-                  v-for="doc in sortByDateDesc(resolvedMa.eventreports)" 
+                <div
+                  v-for="doc in sortByDateDesc(resolvedMa.eventreports)"
                   :key="doc._id" 
                   class="doc-item"
                   @click="openDocument(doc, 'Event-Bericht')"
@@ -1423,13 +1423,13 @@
             <div v-if="resolvedMa.erstellt_von"><dt>Erstellt</dt><dd>{{ resolvedMa.erstellt_von }}</dd></div>
           </dl>
         </section>
-        <section v-if="hasArbeitsverhaeltnis || resolvedMa.iban" class="arbeitsverhaeltnis-section">
+        <section class="arbeitsverhaeltnis-section">
           <h4 class="arbeitsverhaeltnis-title">
             <font-awesome-icon icon="fa-solid fa-money-bill-wave" />
             Lohn
           </h4>
           <dl class="arbeitsverhaeltnis-grid">
-            <div v-if="resolvedMa.iban"><dt>IBAN</dt><dd>{{ resolvedMa.iban }}</dd></div>
+            <div><dt>IBAN</dt><dd :class="{ 'iban-missing': !resolvedMa.iban }">{{ resolvedMa.iban || 'IBAN fehlt!' }}</dd></div>
             <div v-if="resolvedMa.arbeitsverhaeltnis?.von"><dt>Gültig ab</dt><dd>{{ formatDate(resolvedMa.arbeitsverhaeltnis.von) }}</dd></div>
             <div v-if="arbeitsverhaeltnisTypLabel"><dt>Arbeitsverhältnis</dt><dd>{{ arbeitsverhaeltnisTypLabel }}</dd></div>
             <div v-if="resolvedMa.arbeitsverhaeltnis?.durchschnittBeiFortfuehren != null"><dt>Durchschnitt fortführen</dt><dd>{{ resolvedMa.arbeitsverhaeltnis.durchschnittBeiFortfuehren ? 'Ja' : 'Nein' }}</dd></div>
@@ -7119,6 +7119,10 @@ export default {
   color: var(--text);
   font-size: 12px;
   font-weight: 600;
+}
+
+.arbeitsverhaeltnis-grid .iban-missing {
+  color: #dc2626;
 }
 
 .stammdaten-address {

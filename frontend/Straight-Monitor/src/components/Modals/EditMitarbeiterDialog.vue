@@ -63,6 +63,11 @@
             <label>Erstellt von</label>
             <input v-model="form.erstellt_von" type="text" class="form-input" />
           </div>
+          <div class="form-group">
+            <label>IBAN</label>
+            <input v-model="form.iban" type="text" class="form-input" :class="{ 'form-input--missing': !form.iban }" autocomplete="off" />
+            <p v-if="!form.iban" class="help-text help-text--missing">IBAN fehlt!</p>
+          </div>
         </div>
       </section>
 
@@ -93,10 +98,6 @@
           <div class="form-group">
             <label>Kalenderjahr</label>
             <input v-model.number="form.vorarbeitgebertage.year" type="number" min="2000" step="1" class="form-input" />
-          </div>
-          <div class="form-group">
-            <label>IBAN</label>
-            <input v-model="form.iban" type="text" class="form-input" autocomplete="off" />
           </div>
         </div>
       </section>
@@ -553,11 +554,25 @@ function saveForce() {
   }
 }
 
+.form-input--missing {
+  border-color: #dc2626;
+
+  &:focus {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px color-mix(in srgb, #dc2626 16%, transparent);
+  }
+}
+
 .help-text {
   margin: 5px 0 0;
   font-size: 0.72rem;
   color: var(--muted);
   line-height: 1.3;
+}
+
+.help-text--missing {
+  color: #dc2626;
+  font-weight: 600;
 }
 
 .checkbox-label {
