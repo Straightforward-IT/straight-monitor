@@ -41,7 +41,7 @@
           @change="credited = selectedType.credited"
         >
           <option
-            v-for="type in DAY_ENTRY_TYPES"
+            v-for="type in dayEntryTypes"
             :key="type.code"
             :value="type.code"
           >{{ type.code }} · {{ type.label }}</option>
@@ -95,20 +95,24 @@ import { computed, getCurrentInstance, ref } from 'vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import { DAY_ENTRY_TYPES, formatMinutes, monthDays } from '@/utils/timeManagement';
 const props = defineProps({ month: { type: String, required: true }, initialDate: { type: String, required: true },
-  employeeName: { type: String, default: '' }, bankMinutes: { type: Number, default: 0 } });
+  employeeName: { type: String, default: '' }, bankMinutes: { type: Number, default: 0 }, dayEntryTypes: { type: Array, default: () => DAY_ENTRY_TYPES } });
 const emit = defineEmits(['close', 'create']);
 const formId = `time-day-entry-${getCurrentInstance().uid}`;
 const date = ref(props.initialDate);
-const code = ref('U');
+const code = ref(props.dayEntryTypes[0]?.code || '');
 const hours = ref(0);
 const minutePart = ref(0);
 const credited = ref(true);
 const note = ref('');
 const error = ref('');
-const selectedType = computed(() => DAY_ENTRY_TYPES.find(type => type.code === code.value));
+const selectedType = computed(() => props.dayEntryTypes.find(type => type.code === code.value));
 const lastDate = computed(() => monthDays(props.month).at(-1).date);
 function submit() {
   const amount = Number(hours.value) * 60 + Number(minutePart.value);
+  if (!selectedType.value) {
+    error.value = 'Keine gültige Fehlzeitart aus den importierten Lohnarten verfügbar.';
+    return;
+  }
   if (!monthDays(props.month).some(day => day.date === date.value) || !Number.isInteger(amount)
     || !Number.isInteger(Number(hours.value)) || !Number.isInteger(Number(minutePart.value))
     || amount < 0 || amount > 1440 || Number(hours.value) < 0 || Number(minutePart.value) < 0 || Number(minutePart.value) > 59) {

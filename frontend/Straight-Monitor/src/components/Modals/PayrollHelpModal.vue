@@ -41,6 +41,8 @@
 
     <section id="payroll-help-bucket" class="help-section">
       <h4>4. Stunden mit dem Eimer verschieben</h4>
+      <p>Aktiviere zuerst „Eimer“ in der Toolbar. Der Modus ist beim Öffnen der Seite ausgeschaltet; normale Klicks öffnen dann die Tagesdetails. „Eimer aktiv“ zeigt, dass Sammeln und Ablegen eingeschaltet sind. Der normale Mauszeiger bleibt sichtbar.</p>
+      <p>Ein erneuter Klick auf den Eimer schaltet den Modus aus und setzt eine noch laufende Sammlung zurück. Bereits abgeschlossene Umbuchungen bleiben in der Vorschau erhalten.</p>
       <p>Rechtsklick auf bearbeitbare Stunden oder das Zeitkonto sammelt jeweils eine Stunde. Der Eimer neben dem Mauszeiger zeigt die gesammelte Menge. Im Modus „Ablegen“ legt ein Linksklick jeweils eine Stunde am Ziel ab.</p>
       <p>Beispiel: Sammle zwei Stunden aus Schicht A und vier Stunden aus Schicht B. Klicke anschließend mit gedrückter Shift-Taste auf das Zeitkonto, um alle sechs Stunden dort abzulegen. Das Seitenpanel kannst du dabei schließen; die Stunden bleiben im Eimer.</p>
       <p>Unter „Detailerfassung“ kannst du über „Neue Stunden“ zusätzliche Stunden sammeln oder mit „Entfernen“ gesammelte Stunden aus der Vorschau herausnehmen. Die Auswahl neben „Neue Stunden“ bestimmt die Menge bei Shift + Rechtsklick.</p>

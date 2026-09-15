@@ -35,4 +35,9 @@ const AdresseSchema = new mongoose.Schema({
 	importiertAm: { type: Date, default: Date.now },
 }, { timestamps: true });
 
+AdresseSchema.plugin(require('../plugins/geodataInvalidation'), {
+  fields: ['strasse', 'plz', 'ort', 'land', 'nat'],
+  addresses: row => [row],
+});
+
 module.exports = mongoose.model('Adresse', AdresseSchema);

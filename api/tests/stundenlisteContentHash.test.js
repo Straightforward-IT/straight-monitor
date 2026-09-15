@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { sha256 } = require('../payroll-core/hash');
+const { sha256 } = require('../utils/contentHash');
 const StundenlisteService = require('../services/operations/StundenlisteService');
 
 function createData() {

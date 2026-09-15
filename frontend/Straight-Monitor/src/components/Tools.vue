@@ -8,15 +8,9 @@
     </div>
 
     <div class="actions">
-      <!-- Admin/Bestand -->
-      <button class="s-btn" @click="go('/teamleiter-auswertung')">
+      <button v-if="newPagesEnabled" class="s-btn" :class="{ 'dev-role--admin': isDev }" type="button" @click="go('/mitarbeiter-einsatzortkarte')">
         <img :src="logoSrc" alt="" />
-        <span>Teamleiter&nbsp;Auswertung</span>
-      </button>
-
-      <button class="s-btn" :class="{ 'dev-role--vertrieb': isDev }" @click="go('/lohnabrechnungen')">
-        <img :src="logoSrc" alt="" />
-        <span>Lohnabrechnungen</span>
+        <span>Mitarbeiter- &amp; Einsatzortkarte</span>
       </button>
 
       <button class="s-btn" :class="{ 'dev-role--admin': isDev }" v-if="newPagesEnabled" @click="go('/benutzer-verwaltung')">
@@ -32,6 +26,20 @@
       <button class="s-btn" :class="{ 'dev-role--admin': isDev }" v-if="newPagesEnabled" @click="go('/onedrive-explorer')">
         <img :src="logoSrc" alt="" />
         <span>OneDrive Explorer</span>
+      </button>
+
+      <div v-if="newPagesEnabled" class="sep"></div>
+
+      <button class="s-btn" :class="{ 'dev-role--vertrieb': isDev }" @click="go('/lohnabrechnungen')">
+        <img :src="logoSrc" alt="" />
+        <span>Lohnabrechnungen</span>
+      </button>
+
+      <div class="sep"></div>
+
+      <button class="s-btn" @click="go('/teamleiter-auswertung')">
+        <img :src="logoSrc" alt="" />
+        <span>Teamleiter&nbsp;Auswertung</span>
       </button>
 
       <button class="s-btn" @click="go('/daten-import')">

@@ -5,7 +5,7 @@ const multer = require('multer');
 const asyncHandler = require('../../middleware/AsyncHandler');
 const publicAuth = require('../../middleware/publicAuth');
 const sensitiveRoute = require('../../middleware/sensitiveRoute');
-const WorkingTimeService = require('../../services/payroll/WorkingTimeService');
+const { resolvePublicEmployee } = require('../../services/operations/PublicEmployeeService');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const EmployeeDocumentRequest = require('../../models/Employee/EmployeeDocumentRequest');
 const EmployeeDocumentUpload = require('../../models/Employee/EmployeeDocumentUpload');
@@ -38,7 +38,7 @@ function requireOidc(req, res, next) {
 }
 
 async function employeeFromRequest(req) {
-  return WorkingTimeService.resolvePublicEmployee({ flipId: req.oidcFlipId, email: req.oidcEmail || req.query.email });
+  return resolvePublicEmployee({ flipId: req.oidcFlipId, email: req.oidcEmail || req.query.email });
 }
 
 const PAYROLL_FILE_PATTERN = /^([a-zA-ZäöüÄÖÜß]+)_([a-zA-ZäöüÄÖÜß]+)_(LA|LST)_(\d{4})(?:-(0[1-9]|1[0-2]))?\.pdf$/;

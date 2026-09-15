@@ -113,7 +113,7 @@
             >
               <span aria-hidden="true">＋</span> Tageseintrag
             </button>
-            <div class="tm-new-source">
+            <div v-if="bucketEnabled" class="tm-new-source">
               <button
                 type="button"
                 class="tm-source"
@@ -140,14 +140,16 @@
             </div>
             <button
               type="button"
-              class="tm-source tm-source--remove"
+              v-if="bucketEnabled"
+            class="tm-source tm-source--remove"
               data-time-target="remove"
               aria-label="Stunden entfernen"
             >
               <span aria-hidden="true">−</span> Entfernen <small>{{ formatMinutes(workspace.data.removedMinutes) }}</small>
             </button>
             <div
-              class="tm-tools"
+              v-if="bucketEnabled"
+            class="tm-tools"
               aria-label="Alternative Eimer-Bedienung"
             >
               <button
@@ -364,7 +366,7 @@
         </section>
       </div>
     </Teleport>
-    <div v-if="showGuide" class="tm-guide">
+    <div v-if="showGuide && bucketEnabled" class="tm-guide">
       <span><kbd>Rechtsklick</kbd> 1 h sammeln</span><span><kbd>Linksklick</kbd> 1 h ablegen</span><span><kbd>⇧ Shift</kbd> alles</span><span><kbd>⌘ / Ctrl</kbd> Minuten wählen</span><span><kbd>Esc</kbd> zurücklegen</span>
       <span class="tm-guide__note">Zeitkonto und Eimer sind außerhalb des Monatsstundens.</span>
     </div>
@@ -378,7 +380,7 @@
         :minutes="held"
       />
       <div class="tm-bucket-bar__content">
-        <strong data-testid="bucket-total">{{ held ? `${formatMinutes(held)} im Eimer` : 'Dein Eimer ist leer' }}</strong><span>{{ held ? bucketOrigins : 'Rechtsklick auf eine Schicht oder das Zeitkonto, um Stunden zu sammeln.' }}</span>
+        <strong data-testid="bucket-total">{{ held ? `${formatMinutes(held)} im Eimer` : bucketEnabled ? 'Dein Eimer ist leer' : 'Eimer-Modus ausgeschaltet' }}</strong><span>{{ held ? bucketOrigins : bucketEnabled ? 'Rechtsklick auf eine Schicht oder das Zeitkonto, um Stunden zu sammeln.' : 'Aktiviere den Eimer in der Toolbar, um Stunden zu sammeln und abzulegen.' }}</span>
       </div>
       <button
         v-if="held"
@@ -428,13 +430,14 @@
       :initial-date="entryDate"
       :employee-name="employee.name"
       :bank-minutes="workspace.data.bankMinutes"
+      :day-entry-types="dayEntryTypes"
       @close="entryDate = ''"
       @create="createEntry"
     />
 
     <Teleport to="body">
       <div
-        v-if="cursor.visible && !slider && !entryDate"
+        v-if="bucketEnabled && cursor.visible && !slider && !entryDate"
         class="tm-cursor"
         :style="cursorStyle"
         aria-hidden="true"
@@ -498,7 +501,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
 import HourBucket from '@/components/ui-elements/HourBucket.vue';
 import TimeMonthMatrix from '@/components/ui-elements/TimeMonthMatrix.vue';
@@ -506,7 +509,7 @@ import TimeDayEntryModal from '@/components/Modals/TimeDayEntryModal.vue';
 import { addTimeEntry, bucketMinutes, cancelTime, changeTimeEntryType, collectTime, createTimeWorkspace, dropOnDay, dropTime,
   formatMinutes, hasTimeChanges, monthWeeks, revertTime, saveTime, sourceMinutes, targetLabel, timeTotals, timeTypeBreakdown, undoTime } from '@/utils/timeManagement';
 
-const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, initialData: { type: Object, required: true }, saveEnabled: { type: Boolean, default: true }, showContext: { type: Boolean, default: true }, showGuide: { type: Boolean, default: true }, detailsInSidePanel: { type: Boolean, default: false }, detailsTarget: { type: Object, default: null } });
+const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, initialData: { type: Object, required: true }, dayEntryTypes: { type: Array, default: () => [] }, saveEnabled: { type: Boolean, default: true }, showContext: { type: Boolean, default: true }, showGuide: { type: Boolean, default: true }, bucketEnabled: { type: Boolean, default: true }, detailsInSidePanel: { type: Boolean, default: false }, detailsTarget: { type: Object, default: null } });
 const emit = defineEmits(['save', 'openCapture', 'selectDay', 'closeDetails']);
 // A workspace is an employee/month session. Remount with a key when either changes.
 const workspace = reactive(createTimeWorkspace(props.initialData));
@@ -525,6 +528,15 @@ const slider = ref(null);
 const sliderElement = ref(null);
 const rangeInput = ref(null);
 const cursor = reactive({ visible: false, x: 0, y: 0, label: '' });
+watch(() => props.bucketEnabled, enabled => {
+  cursor.visible = false;
+  slider.value = null;
+  mode.value = 'drop';
+  precision.value = false;
+  if (!enabled && cancelTime(workspace)) {
+    message.value = 'Eimer ausgeschaltet. Die laufende Sammlung wurde zurückgelegt.';
+  }
+});
 let entrySequence = 0;
 const monthLabel = computed(() => new Date(`${props.month}-01T12:00:00`).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }));
 const selectedEntry = computed(() => workspace.data.entries.find(entry => entry.id === selectedEntryId.value));
@@ -599,19 +611,28 @@ function targetFrom(event) {
   return target && (root.value?.contains(target) || props.detailsTarget?.contains(target)) && !target.disabled ? target : null;
 }
 function moveCursor(event) {
-  if (event.pointerType === 'touch') { cursor.visible = false; return; }
+  if (!props.bucketEnabled || event.pointerType === 'touch') { cursor.visible = false; return; }
   const target = targetFrom(event);
   cursor.visible = !!target || held.value > 0;
   cursor.x = event.clientX;
   cursor.y = event.clientY;
   cursor.label = !target ? 'Ziel wählen' : event.shiftKey ? 'Alles bewegen' : held.value ? 'Links ablegen · rechts sammeln' : 'Rechts sammeln';
 }
-function onBoardClick(event) { handleTarget(event, mode.value); }
+function onBoardClick(event) {
+  if (props.bucketEnabled) { handleTarget(event, mode.value); return; }
+  const target = targetFrom(event);
+  if (!target) return;
+  const id = target.dataset.timeTarget;
+  const entry = workspace.data.entries.find(item => item.id === id);
+  if (entry) selectEntry(entry);
+  else if (id.startsWith('day:')) selectDay(id.slice(4));
+}
 function onBoardContext(event) {
   // macOS Ctrl + primary click can be delivered as a contextmenu event.
   handleTarget(event, event.ctrlKey && event.button === 0 ? mode.value : 'collect');
 }
 function handleTarget(event, operation) {
+  if (!props.bucketEnabled) return;
   const target = targetFrom(event);
   if (!target) return;
   event.preventDefault();
@@ -642,6 +663,7 @@ function handleTarget(event, operation) {
   moveMinutes(id, operation, event.shiftKey ? max : Math.min(60, max));
 }
 function moveMinutes(id, operation, amount) {
+  if (!props.bucketEnabled) return;
   const moved = operation === 'collect' ? collectTime(workspace, id, amount, newMinutes.value)
     : id.startsWith('day:') ? dropOnDay(workspace, id.slice(4), amount) : dropTime(workspace, id, amount);
   if (moved) message.value = `${formatMinutes(moved)} ${operation === 'collect' ? 'gesammelt' : 'abgelegt'}.`;

@@ -4,6 +4,38 @@ const Einsatz = require('../models/Event/Einsatz');
 const Schicht = require('../models/Event/Schicht');
 const Auftrag = require('../models/Event/Auftrag');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
+const Lohnart = require('../models/Payroll/Lohnart');
+
+const DAY_ENTRY_TYPES = Object.freeze({
+  M: { kind: 'correction', credited: true },
+  U: { kind: 'vacation', credited: true },
+  K: { kind: 'sick', credited: true },
+  F: { kind: 'absence', credited: true },
+  FA: { kind: 'absence', credited: true },
+  BG: { kind: 'absence', credited: true },
+  BI: { kind: 'absence', credited: true },
+  EZ: { kind: 'absence', credited: false },
+  FE: { kind: 'absence', credited: false },
+  FS: { kind: 'absence', credited: false },
+  FU: { kind: 'absence', credited: false },
+  GW: { kind: 'absence', credited: false },
+  KA: { kind: 'sick', credited: true },
+  KE: { kind: 'sick', credited: false },
+  KF: { kind: 'absence', credited: false },
+  KG: { kind: 'absence', credited: false },
+  KI: { kind: 'sick', credited: false },
+  KK: { kind: 'sick', credited: false },
+  KO: { kind: 'sick', credited: false },
+  KW: { kind: 'absence', credited: false },
+  MS: { kind: 'absence', credited: false },
+  NV: { kind: 'absence', credited: false },
+  PZ: { kind: 'absence', credited: false },
+  Q: { kind: 'absence', credited: true },
+  UB: { kind: 'vacation', credited: true },
+  US: { kind: 'vacation', credited: true },
+  UU: { kind: 'vacation', credited: false },
+  V: { kind: 'absence', credited: false },
+});
 
 function fail(statusCode, message, code = 'TIME_CAPTURE_INVALID') {
   throw Object.assign(new Error(message), { statusCode, code });
@@ -133,6 +165,25 @@ function monthRange(month) {
   till.setUTCMonth(till.getUTCMonth() + 1);
   return { from, till: till.toISOString().slice(0, 10) };
 }
+async function dayEntryTypes() {
+  const lohnarten = await Lohnart.find({ kb: { $ne: '' } })
+    .select('lohnartNummer kb lohnartBezeichnung')
+    .sort({ lohnartNummer: 1 })
+    .lean();
+  const types = new Map();
+  for (const lohnart of lohnarten) {
+    const code = String(lohnart.kb || '').trim().toUpperCase();
+    const definition = DAY_ENTRY_TYPES[code];
+    if (!definition || types.has(code)) continue;
+    types.set(code, {
+      code,
+      label: lohnart.lohnartBezeichnung || code,
+      lohnartNummer: lohnart.lohnartNummer,
+      ...definition,
+    });
+  }
+  return [...types.values()].sort((left, right) => left.label.localeCompare(right.label, 'de'));
+}
 async function review(user, number, employeeId) {
   const auftrag = await orderForUser(user, number);
   const filter = { auftragNr: auftrag.auftragNr, isPseudo: { $ne: true }, personalNr: { $ne: null } };
@@ -207,7 +258,10 @@ async function saveReview(user, number, input) {
 async function monthView(user, employeeId, month) {
   const employee = await employeeForUser(user, employeeId);
   const { from, till } = monthRange(month);
-  const entries = await Stundenzeit.find({ mitarbeiter: employee._id, 'released.date': { $gte: from, $lt: till } }).lean();
+  const [entries, availableDayEntryTypes] = await Promise.all([
+    Stundenzeit.find({ mitarbeiter: employee._id, 'released.date': { $gte: from, $lt: till } }).lean(),
+    dayEntryTypes(),
+  ]);
   const assignments = await Einsatz.find({ personalNr: { $in: employeeNumbers(employee) }, isPseudo: { $ne: true }, $or: [
     { detailDatumVon: { $gte: new Date(from), $lt: new Date(till) } },
     { detailDatumVon: null, datumVon: { $gte: new Date(from), $lt: new Date(till) } },
@@ -221,6 +275,7 @@ async function monthView(user, employeeId, month) {
   return {
     employee: { id: String(employee._id), personalNr: employee.personalnr, name: [employee.vorname, employee.nachname].filter(Boolean).join(' '), monthlyHours: employee.arbeitszeit?.monat ?? 0, employmentLabel: ['Vollzeit', 'Teilzeit', 'Geringfügig beschäftigt', 'Kurzfristig beschäftigt'][employee.arbeitsverhaeltnis?.typ] || 'Arbeitsverhältnis' },
     month,
+    dayEntryTypes: availableDayEntryTypes,
     initialData: { bankMinutes: 0, entries: [...entries.map(item => {
       const order = orders.find(value => value.auftragNr === item.auftragNr);
       return { id: String(item._id), einsatzId: String(item._id), schichtId: item.schicht ? String(item.schicht) : null, auftragNr: item.auftragNr,
@@ -242,4 +297,4 @@ async function monthView(user, employeeId, month) {
     })] },
   };
 }
-module.exports = { publicStatus, submitEmployee, review, employeeOrders, saveReview, monthView, calculate, canAccess, orderForUser, objectId, fail };
+module.exports = { publicStatus, submitEmployee, review, employeeOrders, saveReview, monthView, dayEntryTypes, calculate, canAccess, orderForUser, objectId, fail };

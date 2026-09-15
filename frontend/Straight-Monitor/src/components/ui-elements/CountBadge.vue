@@ -42,7 +42,9 @@ const colorClass = computed(() => `badge--${props.color}`);
 }
 
 .badge--orange {
-  background: var(--primary, #ff7518);
+  border: 1px solid var(--primary, #ff7518);
+  background: transparent;
+  color: var(--primary, #ff7518);
 }
 
 .badge--blue {

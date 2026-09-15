@@ -25,7 +25,7 @@ const Beruf = require('../../models/Event/Beruf');
 const Qualifikation = require('../../models/Event/Qualifikation');
 const registry = require('../../config/registry');
 const logger = require('../../utils/logger');
-const { sha256 } = require('../../payroll-core/hash');
+const { sha256 } = require('../../utils/contentHash');
 
 // Verleiher ist immer die Straightforward GmbH (Hauptsitz Berlin).
 const VERLEIHER = {

@@ -28,14 +28,54 @@
             <label class="payroll-page__field">
               <span>Monat</span>
               <div class="payroll-page__month-control">
+                <CustomTooltip text="Vorheriger Monat">
+                  <button
+                    type="button"
+                    class="payroll-page__month-nav"
+                    aria-label="Vorheriger Monat"
+                    @click="shiftMonth(-1)"
+                  >
+                    <FontAwesomeIcon :icon="faChevronLeft" />
+                  </button>
+                </CustomTooltip>
                 <input
                   :value="month"
                   type="month"
                   @change="changeMonth"
                 >
+                <CustomTooltip text="Nächster Monat">
+                  <button
+                    type="button"
+                    class="payroll-page__month-nav"
+                    aria-label="Nächster Monat"
+                    @click="shiftMonth(1)"
+                  >
+                    <FontAwesomeIcon :icon="faChevronRight" />
+                  </button>
+                </CustomTooltip>
               </div>
             </label>
             <ToolbarGroup>
+              <ToolbarButton
+                :variant="bucketEnabled ? 'primary' : 'secondary'"
+                :aria-pressed="bucketEnabled"
+                :disabled="loading || !data"
+                aria-label="Eimer-Modus"
+                :title="bucketEnabled ? 'Eimer ausschalten und laufende Sammlung zurücklegen' : 'Stunden mit dem Eimer sammeln und ablegen'"
+                @click="bucketEnabled = !bucketEnabled"
+              >
+                <FontAwesomeIcon :icon="faBucket" />
+                {{ bucketEnabled ? 'Eimer aktiv' : 'Eimer' }}
+              </ToolbarButton>
+              <ToolbarButton
+                variant="secondary"
+                aria-label="Hilfe zur Stundenerfassung"
+                aria-haspopup="dialog"
+                @click="showHelp = true"
+              >
+                <FontAwesomeIcon :icon="faCircleQuestion" />
+                Hilfe
+              </ToolbarButton>
               <CustomTooltip text="Stand neu laden">
                 <ToolbarButton
                   variant="secondary"
@@ -50,21 +90,6 @@
                   />
                 </ToolbarButton>
               </CustomTooltip>
-              <ToolbarButton
-                :disabled="!employeeId"
-                @click="openTimeCapture({ employeeId })"
-              >
-                Stundenschnellerfassung
-              </ToolbarButton>
-              <ToolbarButton
-                variant="secondary"
-                aria-label="Hilfe zur Stundenerfassung"
-                aria-haspopup="dialog"
-                @click="showHelp = true"
-              >
-                <FontAwesomeIcon :icon="faCircleQuestion" />
-                Hilfe
-              </ToolbarButton>
             </ToolbarGroup>
           </div>
         </Toolbar>
@@ -75,6 +100,9 @@
         </template>
         <template v-else>
           <EmployeeCard
+            :key="employeeId"
+            :mitarbeiter-id="employeeId"
+            class="payroll-page__employee-card"
           />
           <p
             v-if="loading"
@@ -100,9 +128,11 @@
               :employee="data.employee"
               :month="month"
               :initial-data="data.initialData"
+              :day-entry-types="data.dayEntryTypes"
               :save-enabled="false"
               :show-context="false"
               :show-guide="false"
+              :bucket-enabled="bucketEnabled"
               details-in-side-panel
               :details-target="detailsTarget"
               @select-day="openDayDetails"
@@ -175,7 +205,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faCircleQuestion, faEllipsisVertical, faRotateRight } from '@fortawesome/free-solid-svg-icons';
+import { faBucket, faChevronLeft, faChevronRight, faCircleQuestion, faEllipsisVertical, faRotateRight } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import PayrollHelpModal from '@/components/Modals/PayrollHelpModal.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
@@ -202,6 +232,7 @@ const error = ref('');
 const revision = ref(0);
 const detailsOpen = ref(false);
 const showHelp = ref(false);
+const bucketEnabled = ref(false);
 const selectedDay = ref('');
 const detailsTarget = shallowRef(null);
 const dayMenuOpen = ref(false);
@@ -276,11 +307,17 @@ function replaceQuery(patch) {
   router.replace({ query });
 }
 function changeMonth(event) { if (event.target.value) replaceQuery({ month: event.target.value }); }
+function shiftMonth(offset) {
+  const [year, monthNumber] = month.value.split('-').map(Number);
+  const target = new Date(year, monthNumber - 1 + offset, 1);
+  replaceQuery({ month: `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}` });
+}
 watch(employeeId, saveEmployeeId, { immediate: true });
 function openAssignmentCapture(entry) {
   openTimeCapture({ auftragNr: entry.auftragNr });
 }
 async function loadMonth() {
+  bucketEnabled.value = false;
   detailsOpen.value = false;
   const current = ++request;
   if (!employeeId.value) { data.value = null; loading.value = false; return; }
@@ -317,6 +354,9 @@ onBeforeUnmount(() => {
 .payroll-page__controls { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 .payroll-page__month-control { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .payroll-page__field input { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
+.payroll-page__month-nav { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); background: var(--surface); cursor: pointer; }
+.payroll-page__month-nav:hover { color: var(--primary); border-color: var(--primary); }
+.payroll-page__month-nav:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .payroll-page__refresh { width: 36px; height: 36px; justify-content: center; padding: 0; }
 .payroll-page__body { display: flex; align-items: flex-start; min-width: 0; }
 .payroll-page__main { flex: 1; min-width: 0; container: payroll-main / inline-size; }

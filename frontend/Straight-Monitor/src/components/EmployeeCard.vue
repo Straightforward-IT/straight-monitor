@@ -1435,6 +1435,17 @@
             <div v-if="resolvedMa.arbeitsverhaeltnis?.durchschnittBeiFortfuehren != null"><dt>Durchschnitt fortführen</dt><dd>{{ resolvedMa.arbeitsverhaeltnis.durchschnittBeiFortfuehren ? 'Ja' : 'Nein' }}</dd></div>
           </dl>
         </section>
+        <section v-if="resolvedMa.fuehrerschein?.klasse || resolvedMa.fuehrerschein?.gueltigVon || resolvedMa.fuehrerschein?.gueltigBis" class="fuehrerschein-section">
+          <h4 class="fuehrerschein-title">
+            <font-awesome-icon icon="fa-solid fa-id-card" />
+            Führerschein
+          </h4>
+          <dl class="fuehrerschein-grid">
+            <div v-if="resolvedMa.fuehrerschein?.klasse"><dt>Klasse</dt><dd>{{ resolvedMa.fuehrerschein.klasse }}</dd></div>
+            <div v-if="resolvedMa.fuehrerschein?.gueltigVon"><dt>Gültig von</dt><dd>{{ formatDate(resolvedMa.fuehrerschein.gueltigVon) }}</dd></div>
+            <div v-if="resolvedMa.fuehrerschein?.gueltigBis"><dt>Gültig bis</dt><dd>{{ formatDate(resolvedMa.fuehrerschein.gueltigBis) }}</dd></div>
+          </dl>
+        </section>
         <section v-if="hasArbeitszeit" class="arbeitszeit-section">
           <h4 class="arbeitszeit-title">
             <font-awesome-icon icon="fa-solid fa-clock" />
@@ -7085,13 +7096,25 @@ export default {
   font-weight: 700;
 }
 
+.fuehrerschein-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .stammdaten-title svg,
 .arbeitszeit-title svg,
-.arbeitsverhaeltnis-title svg { color: var(--primary); }
+.arbeitsverhaeltnis-title svg,
+.fuehrerschein-title svg { color: var(--primary); }
 
 .stammdaten-grid,
 .arbeitszeit-grid,
-.arbeitsverhaeltnis-grid {
+.arbeitsverhaeltnis-grid,
+.fuehrerschein-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
@@ -7100,11 +7123,13 @@ export default {
 
 .stammdaten-grid > div,
 .arbeitszeit-grid > div,
-.arbeitsverhaeltnis-grid > div { min-width: 0; }
+.arbeitsverhaeltnis-grid > div,
+.fuehrerschein-grid > div { min-width: 0; }
 
 .stammdaten-grid dt,
 .arbeitszeit-grid dt,
-.arbeitsverhaeltnis-grid dt {
+.arbeitsverhaeltnis-grid dt,
+.fuehrerschein-grid dt {
   color: var(--muted);
   font-size: 10px;
   font-weight: 600;
@@ -7112,7 +7137,8 @@ export default {
 
 .stammdaten-grid dd,
 .arbeitszeit-grid dd,
-.arbeitsverhaeltnis-grid dd {
+.arbeitsverhaeltnis-grid dd,
+.fuehrerschein-grid dd {
   margin: 2px 0 0;
   color: var(--text);
   font-size: 12px;

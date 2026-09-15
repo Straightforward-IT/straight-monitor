@@ -4,11 +4,9 @@
 
 `Stundenzeit` ist der operative Erfassungs- und Prüfdatensatz zu einem `Einsatz`.
 Er hängt direkt an Auftrag/Schicht/Einsatz und benötigt keine Tarif- oder
-Kundenlohnregel. Das bestehende Payroll-`EinsatzBuch` verlangt solche Daten;
-deshalb wird für die Erfassung kein unvollständiger Payroll-Datensatz erzeugt.
-Die bestehenden Payroll-Ledger/Timer-Endpunkte werden nicht migriert oder
-automatisch befüllt. Ein späterer Payroll-Adapter muss freigegebene Revisionen
-idempotent nach `ArbeitszeitBuch` überführen.
+Kundenlohnregel. Freigegebene Revisionen stehen für spätere Auswertungs- oder
+Exportadapter zur Verfügung, ohne dass die Erfassung an einen Payroll-Datensatz
+gekoppelt ist.
 
 ## Zustände und Berechtigungen
 
@@ -94,15 +92,17 @@ Die Berechnung ist Zeitdauervalidierung, keine vollständige ArbZG-/Lohnprüfung
   tatsächlich übergebene Schichtstunden und den Mitarbeiterkontext.
 
 **Weiterhin Vorschau:** Eimer-Umbuchungen, manuell erzeugte Fehlzeiten und das
-Zeitkonto werden dort noch nicht persistiert. Der angezeigte Pool startet mit 0
+Zeitkonto werden dort noch nicht persistiert. Die Fehlzeitarten kommen aus den
+importierten `LOHNART`-Stammdaten: Nur Lohnarten mit einem gültigen `KB` werden
+angeboten; `KB` ist dabei maßgeblich, nicht `LOHNARTKUR`. Der angezeigte Pool startet mit 0
 und ist kein importierter Kontostand. Der Speicherbutton ist in der verbundenen
 Monatsansicht deaktiviert. Die bestehende `/dev/time-management`-Demo bleibt
 separat und kann ihre lokale Sitzung weiterhin speichern.
 
-Alte `localStorage`-Erfassungen oder ArbeitszeitBuch-Einträge werden nicht
-automatisch als bestätigte Einreichungen importiert. Vor produktiver Einführung
-müssen bestehende Erfassungen abgeglichen werden, damit bereits außerhalb dieses
-Workflows eingereichte Stunden nicht nochmals eingereicht werden können.
+Frühere Erfassungen werden nicht automatisch als bestätigte Einreichungen
+importiert. Vor produktiver Einführung müssen bestehende Erfassungen abgeglichen
+werden, damit bereits außerhalb dieses Workflows eingereichte Stunden nicht
+nochmals eingereicht werden können.
 
 ## Auftragsdokumente in beiden Ansichten
 

@@ -3,7 +3,10 @@
     <p class="upcoming-jobs__hint">
       <span>ⓘ</span> Daten wie Uhrzeiten und Personallisten in dieser App sind nicht Live-Updated und können von denen in der Zvoove Work App abweichen.
     </p>
-    <h2 class="upcoming-jobs__title">Nächste Jobs</h2>
+    <div class="upcoming-jobs__heading">
+      <h2 class="upcoming-jobs__title">{{ title }}</h2>
+      <CountBadge v-if="badgeCount" :count="badgeCount" color="orange" />
+    </div>
     <button
       v-for="einsatz in upcomingEinsaetze"
       :key="einsatz._id"
@@ -27,7 +30,7 @@
       </span>
       <font-awesome-icon icon="fa-solid fa-chevron-right" class="upcoming-jobs__arrow" />
     </button>
-    <p v-if="!upcomingEinsaetze.length" class="upcoming-jobs__empty">Keine bevorstehenden Jobs.</p>
+    <p v-if="!upcomingEinsaetze.length" class="upcoming-jobs__empty">{{ emptyLabel }}</p>
   </section>
 </template>
 
@@ -35,13 +38,17 @@
 import { computed } from 'vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faChevronRight, faLocationDot } from '@fortawesome/free-solid-svg-icons';
+import CountBadge from '@/components/ui-elements/CountBadge.vue';
 
 library.add(faChevronRight, faLocationDot);
 
 defineEmits(['open-job']);
 
 const props = defineProps({
+  badgeCount: { type: Number, default: 0 },
+  completed: { type: Boolean, default: false },
   einsaetze: { type: Array, default: () => [] },
+  title: { type: String, default: 'Nächste Jobs' },
 });
 
 const upcomingEinsaetze = computed(() => {
@@ -52,10 +59,12 @@ const upcomingEinsaetze = computed(() => {
     .filter((einsatz) => {
       const end = new Date(einsatz.datumBis || einsatz.datumVon);
       end.setHours(23, 59, 59, 999);
-      return end >= today;
+      return props.completed ? end < today : end >= today;
     })
     .sort((left, right) => new Date(left.datumVon) - new Date(right.datumVon));
 });
+
+const emptyLabel = computed(() => props.completed ? 'Keine Jobs ohne Zeiterfassung.' : 'Keine bevorstehenden Jobs.');
 
 function formatTime(value) {
   if (!value) return '';
@@ -77,7 +86,7 @@ function formatShortDate(value) {
 .upcoming-jobs { margin: 1.4rem 0 1.5rem; }
 .upcoming-jobs__hint { margin: 0 0 .75rem; color: var(--muted); font-size: .78rem; line-height: 1.5; }
 .upcoming-jobs__hint span { margin-right: 4px; color: var(--primary); }
-.upcoming-jobs__title { margin: 0 0 .75rem; padding-bottom: .5rem; border-bottom: 2px solid var(--border); color: var(--text); font-size: 1rem; font-weight: 600; }
+.upcoming-jobs__heading { display:flex; align-items:center; gap:.45rem; margin:0 0 .75rem; padding-bottom:.5rem; border-bottom:2px solid var(--border); }.upcoming-jobs__title { margin:0; color:var(--text); font-size:1rem; font-weight:600; }
 .upcoming-jobs__card { display: flex; width: 100%; align-items: center; gap: .5rem; margin-bottom: .5rem; padding: .75rem .75rem .75rem 1rem; border: 0; border-left: 3px solid var(--primary); border-radius: 8px; background: var(--panel); color: var(--text); cursor: pointer; text-align: left; }
 .upcoming-jobs__body { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: .2rem; }
 .upcoming-jobs__header { display: flex; align-items: baseline; gap: .4rem; }

@@ -135,13 +135,10 @@
 
       <template v-else-if="detailView === 'payroll' && selectedPayroll">
         <section class="document-preview payroll-preview">
-          <font-awesome-icon icon="fa-solid fa-file-invoice-dollar" /><h2>{{ selectedPayroll.label }}</h2>
-          <p>{{ selectedPayroll.fileName }}</p><span>{{ payrollMeta(selectedPayroll) }}</span>
+          <font-awesome-icon icon="fa-solid fa-file-invoice-dollar" /><h2>Lohnabrechnung {{ selectedPayroll.month }}</h2>
+          <p>Bereitgestellt durch den zukünftigen Payroll-Anbieter</p><span>Schreibgeschützte Prototyp-Vorschau</span>
         </section>
-        <button class="secondary-button wide" type="button" :disabled="downloadingPayroll === selectedPayroll.fileName" @click="downloadPayroll(selectedPayroll)">
-          <font-awesome-icon :icon="downloadingPayroll === selectedPayroll.fileName ? 'fa-solid fa-spinner' : 'fa-solid fa-download'" :spin="downloadingPayroll === selectedPayroll.fileName" />
-          {{ downloadingPayroll === selectedPayroll.fileName ? 'Download wird vorbereitet' : 'Herunterladen' }}
-        </button>
+        <button class="secondary-button wide" type="button" @click="previewMessage = 'Der Download ist im Prototyp deaktiviert.'">Download testen</button>
         <p v-if="previewMessage" class="inline-message">{{ previewMessage }}</p>
       </template>
 
@@ -158,6 +155,7 @@
         :next-einsatz-location="nextEinsatzLocation"
         :next-einsatz-role="nextEinsatzRole"
         :next-einsatz-title="nextEinsatzTitle"
+        :recent-jobs-without-time-entry="recentJobsWithoutTimeEntry"
         :upcoming-einsaetze="upcomingEinsaetze"
         :vorname="vorname"
         @open-calendar-job="openCalendarJob"
@@ -195,18 +193,7 @@
         <div class="intro-row"><div><h2>Meine Dokumente</h2><p>Unterlagen und Abrechnungen</p></div></div>
         <div class="sub-tabs"><button type="button" :class="{ active: documentTab === 'documents' }" @click="documentTab = 'documents'">Dokumente</button><button type="button" :class="{ active: documentTab === 'payroll' }" @click="documentTab = 'payroll'">Abrechnungen</button></div>
         <template v-if="documentTab === 'documents'"><div v-if="documentsLoading" class="loading-row"><font-awesome-icon icon="fa-solid fa-spinner" spin /> Dokumente werden geladen</div><p v-else-if="documentsError" class="inline-message">{{ documentsError }}</p><div v-else-if="employeeDocuments.length" class="document-list"><article v-for="document in employeeDocuments" :key="document.id" class="document-row"><button type="button" @click="openDocument(document)"><span class="document-status" :class="document.status"><font-awesome-icon :icon="documentIcon(document.status)" /></span><span><strong>{{ document.label }}</strong><small>{{ documentDescription(document) }}</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button><label v-if="canUpload(document)" class="upload-button">{{ document.status === 'EXPIRED' ? 'Erneuern' : 'Hochladen' }}<input type="file" accept=".pdf,.jpg,.jpeg,.png" :disabled="uploadingRequestId === document.id" @change="uploadDocument($event, document)" /></label></article></div><div v-else class="empty-state"><strong>Keine Dokumente offen</strong><p>Neue Anforderungen erscheinen hier.</p></div></template>
-        <template v-else>
-          <div v-if="payrollLoading" class="loading-row"><font-awesome-icon icon="fa-solid fa-spinner" spin /> Abrechnungen werden geladen</div>
-          <p v-else-if="payrollError" class="inline-message">{{ payrollError }}</p>
-          <div v-else-if="payrollDocuments.length" class="document-list">
-            <button v-for="payroll in payrollDocuments" :key="payroll.fileName" class="payroll-row" type="button" @click="openPayroll(payroll)">
-              <span><font-awesome-icon icon="fa-solid fa-file-invoice-dollar" /></span>
-              <span><strong>{{ payroll.label }}</strong><small>{{ payrollMeta(payroll) }}</small></span>
-              <font-awesome-icon icon="fa-solid fa-chevron-right" />
-            </button>
-          </div>
-          <div v-else class="empty-state"><strong>Noch keine Abrechnungen</strong><p>Bereitgestellte Abrechnungen erscheinen hier.</p></div>
-        </template>
+        <template v-else><div class="empty-state"><strong>Noch keine Abrechnungen</strong><p>Bereitgestellte Abrechnungen erscheinen hier.</p></div></template>
       </template>
 
       <ProfileTab
@@ -258,7 +245,6 @@ import {
   faCircleInfo,
   faCircleXmark,
   faClock,
-  faDownload,
   faEllipsis,
   faFileCircleExclamation,
   faFileInvoiceDollar,
@@ -289,7 +275,7 @@ import { createDemoJobs, usePublicDevDemo } from './usePublicDevDemo';
 
 library.add(
   faArrowRightFromBracket, faBriefcase, faCalendarDays, faChevronRight,
-  faCircleCheck, faCircleExclamation, faCircleInfo, faCircleXmark, faClock, faDownload, faEllipsis,
+  faCircleCheck, faCircleExclamation, faCircleInfo, faCircleXmark, faClock, faEllipsis,
   faFileCircleExclamation, faFileInvoiceDollar, faFilePdf, faFlask, faFolderOpen,
   faHouse, faLocationDot, faMoon, faRotateLeft, faSpinner, faSun, faTriangleExclamation,
 );
@@ -332,11 +318,6 @@ const rankPreviewTier = ref(null);
 const employeeDocuments = ref([]);
 const documentsLoading = ref(false);
 const documentsError = ref('');
-const payrollDocuments = ref([]);
-const payrollLoading = ref(false);
-const payrollError = ref('');
-const payrollLoaded = ref(false);
-const downloadingPayroll = ref('');
 const uploadingRequestId = ref('');
 let timer = null;
 
@@ -382,6 +363,9 @@ const nextEinsatzLocation = computed(() => {
 const upcomingEinsaetze = computed(() => props.einsaetze.filter(
   (einsatz) => String(einsatz._id) !== String(nextEinsatz.value?._id)
 ));
+const recentJobsWithoutTimeEntry = computed(() => props.einsaetze.filter((einsatz) =>
+  einsatzEnd(einsatz) < new Date().setHours(0, 0, 0, 0) && !einsatz.hasWorkingTimeEntry
+));
 const openLaufzettelCount = computed(() =>
   (props.mitarbeiter?.laufzettel_received || []).filter((laufzettel) => laufzettel.status !== 'ABGESCHLOSSEN').length
 );
@@ -401,9 +385,9 @@ function openJob(job) { selectedJob.value = job; detailView.value = 'job'; windo
 function openCalendarJob(einsatz) { selectedCalendarJob.value = einsatz; detailView.value = 'calendar-job'; window.scrollTo(0, 0); }
 function openTime() { detailView.value = 'time'; window.scrollTo(0, 0); }
 function openAppearance() { returnDetailView.value = 'profile'; detailView.value = 'appearance'; window.scrollTo(0, 0); }
-function openDocuments() { detailView.value = 'documents'; if (!payrollLoaded.value) loadPayrollDocuments(); window.scrollTo(0, 0); }
+function openDocuments() { detailView.value = 'documents'; window.scrollTo(0, 0); }
 function openDocument(document) { returnDetailView.value = detailView.value === 'documents' ? 'documents' : null; selectedDocument.value = document; detailView.value = 'document'; }
-function openPayroll(payroll) { returnDetailView.value = detailView.value === 'documents' ? 'documents' : null; selectedPayroll.value = payroll; previewMessage.value = ''; detailView.value = 'payroll'; }
+function openPayroll(payroll) { returnDetailView.value = detailView.value === 'documents' ? 'documents' : null; selectedPayroll.value = payroll; detailView.value = 'payroll'; }
 function applicationStatus(id) { return demoState.applications[id] || null; }
 function setApplication(id, status) { if (status) demoState.applications[id] = status; else delete demoState.applications[id]; }
 function applicationLabel(status) { return ({ submitted: 'Bewerbung eingegangen', confirmed: 'Bestätigt', waitlist: 'Warteliste' }[status] || status); }
@@ -482,14 +466,10 @@ function formatLongDate(value) { return new Date(value).toLocaleDateString('de-D
 function canUpload(document) { return ['REQUESTED', 'REJECTED', 'EXPIRED'].includes(document.status); }
 function documentIcon(status) { return ['APPROVED', 'UPLOADED'].includes(status) ? 'fa-solid fa-circle-check' : ['REQUESTED', 'REJECTED', 'EXPIRED'].includes(status) ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-triangle-exclamation'; }
 function documentDescription(document) { if (document.status === 'APPROVED') return document.validUntil ? `Gültig bis ${new Date(document.validUntil).toLocaleDateString('de-DE')}` : 'Geprüft und vollständig'; if (document.status === 'UPLOADED') return `In Prüfung · ${document.upload?.fileName || ''}`; if (document.status === 'REJECTED') return document.reviewNote || 'Bitte erneut hochladen'; if (document.status === 'EXPIRED') return 'Abgelaufen · bitte erneuern'; return document.dueAt ? `Bitte bis ${new Date(document.dueAt).toLocaleDateString('de-DE')} hochladen` : 'Bitte hochladen'; }
-function payrollLabel(document) { const period = document.month ? new Date(document.year, document.month - 1, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }) : String(document.year); return `${document.type === 'LST' ? 'Lohnsteuerbescheid' : 'Lohnabrechnung'} ${period}`; }
-function payrollMeta(document) { const location = ({ HH: 'Hamburg', B: 'Berlin', K: 'Köln' })[document.location] || document.location; const provided = document.lastModified ? `Bereitgestellt am ${new Date(document.lastModified).toLocaleDateString('de-DE')}` : null; const size = document.size ? `${Math.max(1, Math.round(document.size / 1024))} KB` : null; return [location, provided, size].filter(Boolean).join(' · '); }
 async function loadJobs() { jobsLoading.value = true; try { const response = await props.api.get('/api/public/prototype/jobs', { params: { email: props.email } }); jobs.value = response.data.jobs || []; if (!jobs.value.length && import.meta.env.DEV) { jobs.value = createDemoJobs(); jobsAreFixtures.value = true; } } catch (error) { jobsError.value = error.response?.data?.msg || 'Jobs konnten nicht geladen werden.'; if (import.meta.env.DEV) { jobs.value = createDemoJobs(); jobsAreFixtures.value = true; } } finally { jobsLoading.value = false; } }
 async function loadEmployeeDocuments() { documentsLoading.value = true; documentsError.value = ''; try { const response = await props.api.get('/api/public/employee-documents', { params: { email: props.email } }); employeeDocuments.value = response.data.requests || []; } catch (error) { documentsError.value = error.response?.data?.msg || 'Dokumente konnten nicht geladen werden.'; } finally { documentsLoading.value = false; } }
-async function loadPayrollDocuments() { payrollLoading.value = true; payrollError.value = ''; try { const response = await props.api.get('/api/public/employee-documents/payroll', { params: { email: props.email } }); payrollDocuments.value = (response.data.documents || []).map((document) => ({ ...document, label: payrollLabel(document) })); payrollLoaded.value = true; } catch (error) { payrollError.value = error.response?.data?.msg || 'Abrechnungen konnten nicht geladen werden.'; } finally { payrollLoading.value = false; } }
 async function uploadDocument(event, document) { const file = event.target.files?.[0]; if (!file) return; uploadingRequestId.value = document.id; documentsError.value = ''; const formData = new FormData(); formData.append('document', file); try { await props.api.post(`/api/public/employee-documents/${document.id}/upload`, formData, { params: { email: props.email } }); await loadEmployeeDocuments(); } catch (error) { documentsError.value = error.response?.data?.msg || 'Dokument konnte nicht hochgeladen werden.'; } finally { uploadingRequestId.value = ''; event.target.value = ''; } }
 async function downloadDocument(document) { previewMessage.value = ''; try { const response = await props.api.get(`/api/public/employee-documents/${document.id}/download`, { params: { email: props.email } }); window.open(response.data.url, '_blank', 'noopener,noreferrer'); } catch (error) { previewMessage.value = error.response?.data?.msg || 'Dokument konnte nicht geladen werden.'; } }
-async function downloadPayroll(document) { downloadingPayroll.value = document.fileName; previewMessage.value = ''; try { const response = await props.api.get('/api/public/employee-documents/payroll/download', { params: { email: props.email, fileName: document.fileName } }); window.open(response.data.url, '_blank', 'noopener,noreferrer'); } catch (error) { previewMessage.value = error.response?.data?.msg || 'Abrechnung konnte nicht geladen werden.'; } finally { downloadingPayroll.value = ''; } }
 async function loadProfileImage() {
   try {
     const response = await props.api.get('/api/public/mitarbeiter/profile-picture', {

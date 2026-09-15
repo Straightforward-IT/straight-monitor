@@ -9,9 +9,7 @@ function normalize(value) {
   if (Array.isArray(value)) return value.map(normalize);
   if (typeof value === 'bigint') return value.toString();
   if (typeof value !== 'object') return value;
-
-  if (value._bsontype === 'ObjectId') return value.toString();
-  if (value._bsontype === 'Decimal128') return value.toString();
+  if (value._bsontype === 'ObjectId' || value._bsontype === 'Decimal128') return value.toString();
   if (typeof value.toObject === 'function') return normalize(value.toObject({ depopulate: true }));
 
   return Object.keys(value)

@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const LohnartSchema = new mongoose.Schema({
   lohnartNummer: { type: String, required: true, unique: true, trim: true },
+  kb: { type: String, default: '', trim: true },
   lohnartKurzzeichen: { type: String, default: '' },
   lohnartBezeichnung: { type: String, default: '' },
   rechnungstext: { type: String, default: '' },

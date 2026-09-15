@@ -11,4 +11,14 @@ const EinsatzortSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true, index: true },
 }, { timestamps: true });
 
+EinsatzortSchema.plugin(require('../plugins/geodataInvalidation'), {
+  fields: ['adresse'],
+  addresses: async (row, session) => {
+    if (!row.adresse) return [];
+    const address = await require('../System/Adresse').findById(row.adresse)
+      .select('strasse plz ort land nat').session(session || null).lean();
+    return address ? [address] : [];
+  },
+});
+
 module.exports = mongoose.model('Einsatzort', EinsatzortSchema);

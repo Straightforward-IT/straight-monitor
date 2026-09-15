@@ -93,7 +93,7 @@
                         class="tm-entry__hours"
                         :disabled="entry.kind === 'planned' && !entry.locked"
                         :aria-label="entry.locked ? `${week.days[weekdayIndex].day}. ${monthLabel} · ${entry.label} · Stundenschnellerfassung öffnen` : `${week.days[weekdayIndex].day}. ${monthLabel} · ${entry.label} · ${formatMinutes(entry.minutes)}${entry.kind === 'planned' ? ' · geplant' : ''}`"
-                        @click.stop="entry.locked && emit('openCapture', entry)"
+                        @click="onHoursClick($event, entry)"
                       >
                         <strong>{{ entry.locked ? 'Erfassen' : formatMinutes(entry.minutes).replace(' h', '') }}</strong><i aria-hidden="true" />
                       </button>
@@ -152,6 +152,11 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { formatMinutes, monthWeeks, TIME_ENTRY_TYPES } from '@/utils/timeManagement';
 const props = defineProps({ month: { type: String, required: true }, entries: { type: Array, required: true }, selectedDate: { type: String, default: '' }, held: { type: Number, default: 0 } });
 const emit = defineEmits(['selectDay', 'selectWeek', 'changeType', 'openCapture']);
+function onHoursClick(event, entry) {
+  if (!entry.locked) return;
+  event.stopPropagation();
+  emit('openCapture', entry);
+}
 const typeMenuId = ref('');
 const typeButtons = new Map();
 const typeMenuPosition = ref({ top: 0, left: 0, maxHeight: 220 });

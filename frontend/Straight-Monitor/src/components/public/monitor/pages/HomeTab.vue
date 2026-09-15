@@ -18,6 +18,15 @@
       <button class="secondary-button wide" type="button" @click="$emit('select-tab', 'calendar')"><font-awesome-icon icon="fa-solid fa-calendar-days" />Kalender öffnen</button>
     </section>
 
+    <PublicUpcomingJobs
+      v-if="recentJobsWithoutTimeEntry.length"
+      :einsaetze="recentJobsWithoutTimeEntry"
+      :badge-count="recentJobsWithoutTimeEntry.length"
+      completed
+      title="Einsatzzeiten eintragen"
+      @open-job="$emit('open-calendar-job', $event)"
+    />
+
     <PublicUpcomingJobs :einsaetze="upcomingEinsaetze" @open-job="$emit('open-calendar-job', $event)" />
 
     <section class="home-section">
@@ -42,6 +51,7 @@ defineProps({
   nextEinsatzLocation: { type: String, default: '' },
   nextEinsatzRole: { type: String, default: '' },
   nextEinsatzTitle: { type: String, default: '' },
+  recentJobsWithoutTimeEntry: { type: Array, default: () => [] },
   upcomingEinsaetze: { type: Array, default: () => [] },
   vorname: { type: String, default: '' },
 });

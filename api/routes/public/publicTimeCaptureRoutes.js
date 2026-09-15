@@ -1,13 +1,13 @@
 const express = require('express');
 const publicAuth = require('../../middleware/publicAuth');
-const WorkingTimeService = require('../../services/payroll/WorkingTimeService');
+const { resolvePublicEmployee } = require('../../services/operations/PublicEmployeeService');
 const service = require('../../services/TimeCaptureService');
 const router = express.Router();
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 router.use(publicAuth.headerOnly, wrap(async (req, res, next) => {
   // A shared legacy token plus an email supplied by the client is not identity.
   if (req.oidcUser?.source !== 'oidc') return res.status(403).json({ message: 'Für die eigene Stundenerfassung bitte persönlich über OIDC anmelden.' });
-  req.timeEmployee = await WorkingTimeService.resolvePublicEmployee({ email: req.oidcEmail, flipId: req.oidcFlipId });
+  req.timeEmployee = await resolvePublicEmployee({ email: req.oidcEmail, flipId: req.oidcFlipId });
   next();
 }));
 router.get('/:einsatzId', wrap(async (req, res) => res.json(await service.publicStatus(req.timeEmployee, req.params.einsatzId))));
