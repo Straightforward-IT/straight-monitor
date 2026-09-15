@@ -727,27 +727,6 @@
                 </div>
               </div>
 
-              <!-- Outdated bar — shown when Auftrag/Einsatz/Mitarbeiter changed after Stundenliste was generated -->
-              <div v-if="stundenlisteIsOutdated" class="einsatz-dok-outdated-bar">
-                <font-awesome-icon icon="fa-solid fa-triangle-exclamation" class="outdated-bar-icon" />
-                <div class="outdated-bar-info">
-                  <div class="outdated-bar-title">Stundenliste veraltet</div>
-                  <div
-                    v-for="r in stundenlisteOutdatedReasons"
-                    :key="r.entity"
-                    class="outdated-bar-reason"
-                  >{{ r.label }}</div>
-                </div>
-                <button
-                  v-if="canSignaturen"
-                  class="einsatz-dok-redo-btn"
-                  type="button"
-                  title="Stundenliste mit aktuellen Daten neu ausstellen"
-                  @click="openSignatureDialog"
-                >
-                  <font-awesome-icon icon="fa-solid fa-rotate-right" /> Neu ausstellen
-                </button>
-              </div>
             </template>
 
             <!-- Reisekostenabrechnungen -->
@@ -5890,56 +5869,6 @@ export default {
   flex-shrink: 0;
   &:hover {
     background: color-mix(in srgb, var(--primary) 12%, transparent);
-  }
-}
-
-.einsatz-dok-outdated-bar {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  background: color-mix(in srgb, #f59e0b 8%, transparent);
-  border: 1px solid color-mix(in srgb, #f59e0b 30%, transparent);
-  border-radius: 9px;
-  padding: 9px 12px;
-  margin-top: 6px;
-}
-.outdated-bar-icon {
-  color: #f59e0b;
-  font-size: 0.9rem;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-.outdated-bar-info {
-  flex: 1;
-  min-width: 0;
-}
-.outdated-bar-title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #f59e0b;
-}
-.outdated-bar-reason {
-  font-size: 0.73rem;
-  color: var(--muted);
-  margin-top: 2px;
-  &::before { content: '• '; }
-}
-.einsatz-dok-redo-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  border: 1px solid #f59e0b;
-  border-radius: 7px;
-  background: none;
-  color: #f59e0b;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  &:hover {
-    background: color-mix(in srgb, #f59e0b 14%, transparent);
   }
 }
 
