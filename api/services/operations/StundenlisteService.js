@@ -251,6 +251,7 @@ class StundenlisteService {
         page: doc.addPage([PAGE_W, PAGE_H]),
         y: PAGE_H - MARGIN,
         docusealLogoImg,
+        blankMissingValues: !!options.blankMissingValues,
         ...copyOptionsEntry,
       };
       this._renderPdfCopy(ctx, { auftrag, kunde, einsaetze, schichten, niederlassung }, logoImg);
@@ -264,9 +265,9 @@ class StundenlisteService {
 
   _renderPdfCopy(ctx, { auftrag, kunde, einsaetze, schichten, niederlassung }, logoImg) {
 
-    // ── Kopf: Logo (volle Breite, wie im Original) ──
+    // ── Kopf: Logo ──
     if (logoImg) {
-      const logoW = CONTENT_W;
+      const logoW = CONTENT_W * 0.86;
       const logoH = (logoImg.height / logoImg.width) * logoW;
       ctx.page.drawImage(logoImg, { x: MARGIN, y: ctx.y - logoH, width: logoW, height: logoH });
       ctx.y -= logoH + 14;
@@ -274,15 +275,15 @@ class StundenlisteService {
 
     // ── Überschrift ──
     this._text(ctx, 'Arbeitnehmerüberlassungsvertrag und zugleich Konkretisierung zum bestehenden Rahmenvertrag zur Arbeitnehmerüberlassung zwischen nachfolgend genanntem Verleiher und Entleiher.', {
-      font: ctx.fontBold, size: 13, lineGap: 4,
+      font: ctx.fontBold, size: 12, lineGap: 4,
     });
     ctx.y -= 7;
 
     // ── Einleitungstext ──
     const zeitraum = this._dateRange(auftrag.vonDatum, auftrag.bisDatum);
-    this._text(ctx, `Der Verleiher überlässt dem Entleiher am ${zeitraum} die untenstehend aufgeführten Arbeitnehmer.`, { size: 10.5, lineGap: 3 });
+    this._text(ctx, `Der Verleiher überlässt dem Entleiher am ${zeitraum} die untenstehend aufgeführten Arbeitnehmer.`, { size: 9.5, lineGap: 3 });
     ctx.y -= 5;
-    this._text(ctx, 'Die unbefristete Erlaubnis zur Arbeitnehmerüberlassung liegt vor. (Urkunde der Bundesagentur für Arbeit, Agentur für Arbeit Kiel, in Kiel, zuletzt erteilt am 08.11.2021)', { size: 9, color: COLOR_MUTED, lineGap: 3 });
+    this._text(ctx, 'Die unbefristete Erlaubnis zur Arbeitnehmerüberlassung liegt vor. (Urkunde der Bundesagentur für Arbeit, Agentur für Arbeit Kiel, in Kiel, zuletzt erteilt am 08.11.2021)', { size: 8, color: COLOR_MUTED, lineGap: 3 });
     ctx.y -= 14;
 
     // ── Entleiher / Verleiher (zwei Spalten) ──
@@ -333,18 +334,18 @@ class StundenlisteService {
     // Entleiher (links)
     const entleiherAdr = this._entleiherAdresse(kunde);
     const leftLines = [
-      { text: 'Entleiher', font: ctx.fontBold, size: 11 },
-      { text: (kunde && kunde.kundName) || '—', size: 9.5 },
+      { text: 'Entleiher', font: ctx.fontBold, size: 10 },
+      { text: (kunde && kunde.kundName) || '—', size: 8.5 },
     ];
-    if (entleiherAdr.strasse) leftLines.push({ text: entleiherAdr.strasse, size: 9.5 });
-    if (entleiherAdr.plzOrt) leftLines.push({ text: entleiherAdr.plzOrt, size: 9.5 });
+    if (entleiherAdr.strasse) leftLines.push({ text: entleiherAdr.strasse, size: 8.5 });
+    if (entleiherAdr.plzOrt) leftLines.push({ text: entleiherAdr.plzOrt, size: 8.5 });
 
     // Verleiher (rechts)
     const rightLines = [
-      { text: 'Verleiher', font: ctx.fontBold, size: 11 },
-      { text: VERLEIHER.name, size: 9.5 },
-      { text: VERLEIHER.strasse, size: 9.5 },
-      { text: VERLEIHER.plzOrt, size: 9.5 },
+      { text: 'Verleiher', font: ctx.fontBold, size: 10 },
+      { text: VERLEIHER.name, size: 8.5 },
+      { text: VERLEIHER.strasse, size: 8.5 },
+      { text: VERLEIHER.plzOrt, size: 8.5 },
     ];
 
     const leftH = this._columnHeight(leftLines);
@@ -359,19 +360,19 @@ class StundenlisteService {
 
   _niederlassungBlock(ctx, niederlassung) {
     this._ensureSpace(ctx, 44);
-    this._text(ctx, 'Betreuende Niederlassung', { font: ctx.fontBold, size: 11 });
+    this._text(ctx, 'Betreuende Niederlassung', { font: ctx.fontBold, size: 10 });
     ctx.y -= 3;
     if (!niederlassung) {
-      this._text(ctx, '—', { size: 9.5 });
+      this._text(ctx, '—', { size: 8.5 });
       return;
     }
     const parts = [];
     if (niederlassung.name) parts.push(`Niederlassung ${niederlassung.name}`);
     if (niederlassung.betriebsNr) parts.push(`Betriebs-Nr. ${niederlassung.betriebsNr}`);
-    this._text(ctx, parts.join('  ·  ') || '—', { size: 9.5, lineGap: 3 });
+    this._text(ctx, parts.join('  ·  ') || '—', { size: 8.5, lineGap: 3 });
     const tel = Array.isArray(niederlassung.telefone) ? niederlassung.telefone.filter(Boolean) : [];
-    if (tel.length) this._text(ctx, `Tel.: ${tel.join('  /  ')}`, { size: 9.5, lineGap: 3 });
-    if (niederlassung.email) this._text(ctx, `E-Mail: ${niederlassung.email}`, { size: 9.5, lineGap: 3 });
+    if (tel.length) this._text(ctx, `Tel.: ${tel.join('  /  ')}`, { size: 8.5, lineGap: 3 });
+    if (niederlassung.email) this._text(ctx, `E-Mail: ${niederlassung.email}`, { size: 8.5, lineGap: 3 });
   }
 
   _eventBlock(ctx, auftrag) {
@@ -380,21 +381,21 @@ class StundenlisteService {
     const ort = [auftrag.eventLocation, auftrag.eventStrasse, [auftrag.eventPlz, auftrag.eventOrt].filter(Boolean).join(' ')]
       .filter(Boolean).join(', ');
     const rows = [
-      ['Event', auftrag.eventTitel || '—'],
-      ['Ort', ort || '—'],
-      ['Referenz', auftrag.referenz || '—'],
-      ['Überlassungszeitraum', this._dateRange(auftrag.vonDatum, auftrag.bisDatum)],
+      ['Event', auftrag.eventTitel || (ctx.blankMissingValues ? '' : '—')],
+      ['Ort', ort || (ctx.blankMissingValues ? '' : '—')],
+      ['Referenz', auftrag.referenz || (ctx.blankMissingValues ? '' : '—')],
+      ['Überlassungszeitraum', auftrag.vonDatum || auftrag.bisDatum ? this._dateRange(auftrag.vonDatum, auftrag.bisDatum) : (ctx.blankMissingValues ? '' : '—')],
     ];
     for (const [label, value] of rows) {
       const labelW = 130;
-      const lineH = 15;
+      const lineH = 14;
       this._ensureSpace(ctx, lineH);
-      ctx.page.drawText(`${label}:`, { x: MARGIN, y: ctx.y - 10, size: 9.5, font: ctx.fontBold, color: COLOR_TEXT });
-      const lines = this._wrap(value, ctx.font, 9.5, CONTENT_W - labelW);
+      ctx.page.drawText(`${label}:`, { x: MARGIN, y: ctx.y - 9, size: 8.5, font: ctx.fontBold, color: COLOR_TEXT });
+      const lines = this._wrap(value, ctx.font, 8.5, CONTENT_W - labelW);
       lines.forEach((ln, idx) => {
-        ctx.page.drawText(ln, { x: MARGIN + labelW, y: ctx.y - 10 - idx * 12, size: 9.5, font: ctx.font, color: COLOR_TEXT });
+        ctx.page.drawText(ln, { x: MARGIN + labelW, y: ctx.y - 9 - idx * 11, size: 8.5, font: ctx.font, color: COLOR_TEXT });
       });
-      ctx.y -= Math.max(lineH, lines.length * 12 + 3);
+      ctx.y -= Math.max(lineH, lines.length * 11 + 3);
     }
   }
 
@@ -455,13 +456,14 @@ class StundenlisteService {
       })();
       const dateStr = this._date(schicht?.datumVon || first.datumVon || null);
       const infoStr = [dateStr, timeStr].filter(Boolean).join('   ');
-      const headerText = `Beruf, T\u00e4tigkeit: ${[beruf, quali].filter(Boolean).join(' \u2013 ') || '\u2014'}` + (infoStr ? `   |   ${infoStr}` : '');
+      const jobLabel = [beruf, quali].filter(Boolean).join(' \u2013 ') || (ctx.blankMissingValues ? '' : '\u2014');
+      const headerText = `Beruf, T\u00e4tigkeit: ${jobLabel}` + (infoStr ? `   |   ${infoStr}` : '');
 
       // Schicht-Überschrift
-      this._ensureSpace(ctx, 18 + 20 + 26);
-      ctx.page.drawRectangle({ x: MARGIN, y: ctx.y - 16, width: CONTENT_W, height: 16, color: COLOR_HEADER_BG });
-      ctx.page.drawText(headerText, { x: MARGIN + 4, y: ctx.y - 12, size: 9, font: ctx.fontBold, color: COLOR_TEXT });
-      ctx.y -= 18;
+      this._ensureSpace(ctx, 17 + 18 + 24);
+      ctx.page.drawRectangle({ x: MARGIN, y: ctx.y - 15, width: CONTENT_W, height: 15, color: COLOR_HEADER_BG });
+      ctx.page.drawText(headerText, { x: MARGIN + 4, y: ctx.y - 11, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
+      ctx.y -= 17;
 
       // Tabellenkopf
       this._drawTableHeader(ctx, cols);
@@ -479,12 +481,12 @@ class StundenlisteService {
   }
 
   _drawTableHeader(ctx, cols) {
-    const rowH = 18;
+    const rowH = 17;
     this._ensureSpace(ctx, rowH);
     const top = ctx.y;
     let x = MARGIN;
     for (const c of cols) {
-      ctx.page.drawText(c.label, { x: x + 3, y: top - 12, size: 7.5, font: ctx.fontBold, color: COLOR_TEXT });
+      ctx.page.drawText(c.label, { x: x + 3, y: top - 11, size: 6.5, font: ctx.fontBold, color: COLOR_TEXT });
       x += c.w;
     }
     // untere Linie
@@ -493,7 +495,7 @@ class StundenlisteService {
   }
 
   _drawTableRow(ctx, cols, einsatz) {
-    const rowH = 26;
+    const rowH = 24;
     this._ensureSpace(ctx, rowH, () => this._drawTableHeader(ctx, cols));
     const top = ctx.y;
 
@@ -507,10 +509,10 @@ class StundenlisteService {
       // Spaltentrenner
       ctx.page.drawLine({ start: { x, y: top }, end: { x, y: top - rowH }, thickness: 0.4, color: COLOR_LINE });
       if (c.key === 'name') {
-        const nameLines = this._wrap(name, ctx.font, 8.5, c.w - 6);
-        ctx.page.drawText(nameLines[0] || '', { x: x + 3, y: top - 11, size: 8.5, font: ctx.font, color: COLOR_TEXT });
+        const nameLines = this._wrap(name, ctx.font, 7.5, c.w - 6);
+        ctx.page.drawText(nameLines[0] || '', { x: x + 3, y: top - 10, size: 7.5, font: ctx.font, color: COLOR_TEXT });
         if (geb) {
-          ctx.page.drawText(geb, { x: x + 3, y: top - 21, size: 7, font: ctx.font, color: COLOR_MUTED });
+          ctx.page.drawText(geb, { x: x + 3, y: top - 19, size: 6, font: ctx.font, color: COLOR_MUTED });
         }
       }
       // Beginn/Ende/Pause/Stunden/Unterschrift bleiben leer (handschriftlich)

@@ -60,6 +60,7 @@ import {
   faCamera,
   faCartShopping,
   faChartBar as faChartBarSolid,
+  faChartColumn,
   faChartLine,
   faChartPie,
   faCheck,
@@ -73,6 +74,7 @@ import {
   faCircleDot,
   faCircleExclamation,
   faCircleHalfStroke,
+  faCircleNotch,
   faCircleQuestion,
   faCircleXmark as faCircleXmarkSolid,
   faClipboard,
@@ -227,6 +229,7 @@ library.add(
   // Regular
   faChartBar,
   faCircle,
+  faCircleNotch,
   faCircleXmark,
   faStarRegular,
 
@@ -262,6 +265,7 @@ library.add(
   faCamera,
   faCartShopping,
   faChartBarSolid,
+  faChartColumn,
   faChartLine,
   faChartPie,
   faCheck,

@@ -126,11 +126,18 @@ function earningsView(data) {
   };
 }
 
-/**
- * Turns monthly time facts into one of the three card views. Legacy presentation
- * objects with `segments` remain usable while downstream callers migrate.
- */
-export function buildHoverDataCard(data = {}) {
+// `used` segments fill the ring, `remaining` is drawn faint, `over` is already part of the
+// total and only drives the outer overage arc plus its legend row.
+const SEGMENT_ROLES = { remaining: 'remaining', over: 'over', 'over-limit': 'over' };
+
+function withSegmentRoles(view) {
+  return {
+    ...view,
+    segments: (view.segments || []).map(segment => ({ ...segment, role: segment.role || SEGMENT_ROLES[segment.id] || 'used' })),
+  };
+}
+
+function resolveView(data) {
   if (Array.isArray(data.segments) && !data.type) {
     const total = data.segments.reduce((sum, segment) => sum + nonNegative(segment.value), 0);
     return {
@@ -145,4 +152,12 @@ export function buildHoverDataCard(data = {}) {
     case HOVER_DATA_CARD_TYPES.HOURS:
     default: return hoursView(data);
   }
+}
+
+/**
+ * Turns monthly time facts into one of the three card views. Legacy presentation
+ * objects with `segments` remain usable while downstream callers migrate.
+ */
+export function buildHoverDataCard(data = {}) {
+  return withSegmentRoles(resolveView(data));
 }

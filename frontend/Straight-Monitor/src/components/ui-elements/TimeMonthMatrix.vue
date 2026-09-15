@@ -3,6 +3,7 @@
     class="time-month-matrix"
     aria-label="Monatsübersicht nach Kalenderwochen"
     @click="typeMenuId = ''"
+    @keydown.escape="typeMenuId = ''"
   >
     <header class="tmx-heading">
       <h2>Stundenerfassung</h2><span>{{ monthLabel }} · h:mm</span>
@@ -11,6 +12,7 @@
       class="tmx-scroll"
       tabindex="0"
       aria-label="Kalenderwochen, horizontal scrollbar"
+      @scroll="updateTypeMenuPosition"
     >
       <table class="tmx-table">
         <thead>
@@ -81,7 +83,8 @@
                         :disabled="entry.locked"
                         :aria-expanded="typeMenuId === entry.id"
                         :aria-label="entry.locked ? `${entry.label} wartet auf Stundenerfassung` : `Art ${entry.code || (entry.kind === 'planned' ? 'PL' : 'P')} für ${week.days[weekdayIndex].day}. ${monthLabel} ändern`"
-                        @click.stop="typeMenuId = typeMenuId === entry.id ? '' : entry.id"
+                        :ref="element => setTypeButton(entry.id, element)"
+                        @click.stop="toggleTypeMenu(entry.id)"
                       >
                         {{ entry.code || (entry.kind === 'planned' ? 'PL' : 'P') }}
                       </button>
@@ -94,25 +97,6 @@
                       >
                         <strong>{{ entry.locked ? 'Erfassen' : formatMinutes(entry.minutes).replace(' h', '') }}</strong><i aria-hidden="true" />
                       </button>
-                      <div
-                        v-if="typeMenuId === entry.id"
-                        class="tm-entry__type-menu"
-                        role="menu"
-                        :aria-label="`Art für ${entry.label} wählen`"
-                        @click.stop
-                      >
-                        <button
-                          v-for="type in entryTypes"
-                          :key="type.code"
-                          type="button"
-                          role="menuitemradio"
-                          :aria-checked="entry.code === type.code"
-                          :class="{ 'tm-entry__type-option--active': entry.code === type.code }"
-                          @click.stop="chooseType(entry.id, type.code)"
-                        >
-                          <b>{{ type.code }}</b><span>{{ type.label }}</span>
-                        </button>
-                      </div>
                     </div>
                     <button
                       v-if="!entriesByDate[week.days[weekdayIndex].date]?.length"
@@ -135,6 +119,28 @@
         </tbody>
       </table>
     </div>
+    <Teleport to="body">
+      <div
+        v-if="activeTypeEntry"
+        class="tm-entry__type-menu"
+        role="menu"
+        :aria-label="`Art für ${activeTypeEntry.label} wählen`"
+        :style="typeMenuStyle"
+        @click.stop
+      >
+        <button
+          v-for="type in entryTypes"
+          :key="type.code"
+          type="button"
+          role="menuitemradio"
+          :aria-checked="activeTypeEntry.code === type.code"
+          :class="{ 'tm-entry__type-option--active': activeTypeEntry.code === type.code }"
+          @click.stop="chooseType(activeTypeEntry.id, type.code)"
+        >
+          <b>{{ type.code }}</b><span>{{ type.label }}</span>
+        </button>
+      </div>
+    </Teleport>
     <footer class="tmx-legend">
       <span><i class="tmx-color--productive" />P Produktiv</span><span><i class="tmx-color--vacation" />U Urlaub</span><span><i class="tmx-color--sick" />K Krank</span><span><i class="tmx-color--correction" />M Korrektur</span><span><i class="tmx-color--planned" />PL Geplant</span><span class="tmx-hint">Tagesnummer = Details</span>
     </footer>
@@ -142,11 +148,13 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { formatMinutes, monthWeeks, TIME_ENTRY_TYPES } from '@/utils/timeManagement';
 const props = defineProps({ month: { type: String, required: true }, entries: { type: Array, required: true }, selectedDate: { type: String, default: '' }, held: { type: Number, default: 0 } });
 const emit = defineEmits(['selectDay', 'selectWeek', 'changeType', 'openCapture']);
 const typeMenuId = ref('');
+const typeButtons = new Map();
+const typeMenuPosition = ref({ top: 0, left: 0, maxHeight: 220 });
 const entryTypes = TIME_ENTRY_TYPES;
 const weekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const weeks = computed(() => monthWeeks(props.month));
@@ -156,6 +164,35 @@ const entriesByDate = computed(() => {
   for (const entry of props.entries) (grouped[entry.date] ||= []).push(entry);
   return grouped;
 });
+const activeTypeEntry = computed(() => props.entries.find(entry => entry.id === typeMenuId.value) || null);
+const typeMenuStyle = computed(() => ({
+  top: `${typeMenuPosition.value.top}px`,
+  left: `${typeMenuPosition.value.left}px`,
+  '--type-menu-max-height': `${typeMenuPosition.value.maxHeight}px`,
+}));
+function setTypeButton(entryId, element) {
+  if (element) typeButtons.set(entryId, element);
+  else typeButtons.delete(entryId);
+}
+function updateTypeMenuPosition() {
+  const button = typeButtons.get(typeMenuId.value);
+  if (!button) return;
+  const rect = button.getBoundingClientRect();
+  const gap = 3;
+  const inset = 8;
+  const top = Math.min(rect.bottom + gap, window.innerHeight - inset);
+  typeMenuPosition.value = {
+    top,
+    left: Math.max(inset, Math.min(rect.left, window.innerWidth - 228)),
+    maxHeight: Math.max(80, Math.min(220, window.innerHeight - top - inset)),
+  };
+}
+async function toggleTypeMenu(entryId) {
+  typeMenuId.value = typeMenuId.value === entryId ? '' : entryId;
+  if (!typeMenuId.value) return;
+  await nextTick();
+  updateTypeMenuPosition();
+}
 function weekTotal(week) {
   return week.days.filter(day => day.inMonth).reduce((total, day) => total + (entriesByDate.value[day.date] || []).filter(entry => entry.kind !== 'planned').reduce((sum, entry) => sum + entry.minutes, 0), 0);
 }
@@ -163,6 +200,14 @@ function chooseType(entryId, code) {
   typeMenuId.value = '';
   emit('changeType', { entryId, code });
 }
+onMounted(() => {
+  window.addEventListener('resize', updateTypeMenuPosition);
+  window.addEventListener('scroll', updateTypeMenuPosition, true);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateTypeMenuPosition);
+  window.removeEventListener('scroll', updateTypeMenuPosition, true);
+});
 </script>
 
 <style scoped>
@@ -195,7 +240,7 @@ function chooseType(entryId, code) {
 .tm-entry__hours:disabled { cursor: default; }
 .tm-entry__hours > strong { font-size: 11px; font-weight: 500; text-align: right; white-space: nowrap; }
 .tm-entry__hours > i { align-self: stretch; width: 3px; background: var(--entry-color); margin: 3px 0; border-radius: 1px; }
-.tm-entry__type-menu { position: absolute; z-index: 30; top: calc(100% + 3px); left: 0; width: 220px; max-height: 220px; overflow-y: auto; padding: 4px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 8px 20px rgba(0, 0, 0, .16); }
+.tm-entry__type-menu { position: fixed; z-index: calc(var(--z-modal-elevated, 1500) + 100); width: 220px; max-height: var(--type-menu-max-height, 220px); overflow-y: auto; padding: 4px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 8px 20px rgba(0, 0, 0, .16); }
 .tm-entry__type-menu button { display: grid; grid-template-columns: 28px 1fr; width: 100%; gap: 5px; padding: 5px 6px; border: 0; border-radius: 3px; background: transparent; color: var(--text); font-size: 10px; text-align: left; cursor: pointer; }
 .tm-entry__type-menu button:hover, .tm-entry__type-option--active { background: var(--hover) !important; color: var(--primary) !important; }
 .tm-entry__type-menu b { font-size: 10px; }

@@ -1,6 +1,6 @@
 # HoverDataCard
 
-Reusable read-only hover card: a proportional, segmented column on the left and grouped text data on the right. It supports hours, short-term employment days, and monthly earnings. It uses the shared theme variables, including light and dark surfaces. No API, store, or employee logic is connected.
+Reusable read-only hover card: a segmented ring on the left and grouped text data on the right. The ring shows the split of the individual hour types as coloured slices, the free capacity as a faint slice, and — once the limit is exceeded — a marker at the limit plus a red outer arc covering the overage. The reached amount and the limit sit in the centre. Hovering a legend row (or a slice) highlights the matching slice. It supports hours, short-term employment days, and monthly earnings. It uses the shared theme variables, including light and dark surfaces. No API, store, or employee logic is connected.
 
 The component includes September 2026 dummy data and a default button:
 
@@ -43,7 +43,8 @@ const overview = {
 - `days` is for short-term employment. Set `workedDays`, `plannedDays`, and optional `dayLimit` (default: 70). The card compares all days used or planned in the calendar year with the limit.
 - `earnings` is for marginal employment. Set `workedHours`, `plannedHours`, `hourlyRate`, and optional `earningsLimit` (default: 603). It calculates worked and planned earnings from hours × hourly rate for the displayed month.
 - Negative, missing, and non-finite values are treated as zero. An overage is shown in red. Earnings figures are a front-end estimate only: premiums, allowances, variable wage types, payroll rules, and statutory decisions are not included.
-- Existing presentation data with `segments` and no `type` remains supported during migration.
+- Existing presentation data with `segments` and no `type` remains supported during migration. Segments get a `role`: `remaining` (ids `remaining`) is drawn faint, `over` (ids `over`, `over-limit`) only feeds the legend and the outer overage arc, everything else fills the ring. Very small slices are widened to a minimum so every hour type stays visible.
+- The ring size follows `--hover-data-card-ring-size` (default 112px); set it on the card to fit tighter layouts, e.g. `:deep(.hover-data-card--inline) { --hover-data-card-ring-size: 92px; }`.
 - `inline`: renders the same card permanently in normal layout flow, without a trigger or body teleport. For example, `<HoverDataCard inline :data="overview" />` provides a fixed overview alongside an editor. Positioning and hover dismissal apply only to popup mode.
 - `placement`: `right` (default), `left`, `top`, or `bottom`. The card chooses an alternate side or stays within the viewport when space is limited, and follows scrolling/resizing.
 - `openDelay`: 180 ms on hover. Keyboard focus opens immediately. `closeDelay`: 160 ms so the pointer can cross into the card. It remains visible while hovered or while its trigger has focus.

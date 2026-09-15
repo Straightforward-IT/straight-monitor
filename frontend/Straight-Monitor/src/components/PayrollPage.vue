@@ -33,7 +33,6 @@
                   type="month"
                   @change="changeMonth"
                 >
-                <small v-if="plannedHours">Soll: {{ plannedHours }} Std.</small>
               </div>
             </label>
             <ToolbarGroup>
@@ -76,9 +75,6 @@
         </template>
         <template v-else>
           <EmployeeCard
-            :key="employeeId"
-            :mitarbeiter-id="employeeId"
-            class="payroll-page__employee-card"
           />
           <p
             v-if="loading"
@@ -199,6 +195,7 @@ import { useTimeCaptureModals } from '@/composables/useTimeCaptureModals';
 const route = useRoute();
 const router = useRouter();
 const { openTimeCapture } = useTimeCaptureModals();
+const PAYROLL_EMPLOYEE_STORAGE_KEY = 'payroll_selected_employee_id';
 const data = ref(null);
 const loading = ref(false);
 const error = ref('');
@@ -248,17 +245,21 @@ function focusSelectedDay() {
 }
 let request = 0;
 
-const employeeId = computed(() => String(route.query.employeeId || ''));
+function storedEmployeeId() {
+  return sessionStorage.getItem(PAYROLL_EMPLOYEE_STORAGE_KEY) || '';
+}
+function saveEmployeeId(value) {
+  if (value) sessionStorage.setItem(PAYROLL_EMPLOYEE_STORAGE_KEY, String(value));
+  else sessionStorage.removeItem(PAYROLL_EMPLOYEE_STORAGE_KEY);
+}
+const employeeId = computed(() => String(route.query.employeeId || storedEmployeeId()));
 const month = computed(() => String(route.query.month || new Date().toLocaleDateString('sv-SE').slice(0, 7)));
-const plannedHours = computed(() => {
-  const hours = Number(data.value?.employee?.monthlyHours);
-  return Number.isFinite(hours) && hours > 0
-    ? new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(hours)
-    : '';
-});
 const selectedEmployeeId = computed({
   get: () => employeeId.value || null,
-  set: value => replaceQuery({ employeeId: value || null }),
+  set: value => {
+    saveEmployeeId(value);
+    replaceQuery({ employeeId: value || null });
+  },
 });
 const selectedEmployee = computed(() => {
   if (!data.value?.employee || String(data.value.employee.id) !== employeeId.value) return null;
@@ -275,8 +276,9 @@ function replaceQuery(patch) {
   router.replace({ query });
 }
 function changeMonth(event) { if (event.target.value) replaceQuery({ month: event.target.value }); }
+watch(employeeId, saveEmployeeId, { immediate: true });
 function openAssignmentCapture(entry) {
-  openTimeCapture({ auftragNr: entry.auftragNr, employeeId: employeeId.value });
+  openTimeCapture({ auftragNr: entry.auftragNr });
 }
 async function loadMonth() {
   detailsOpen.value = false;
@@ -314,7 +316,6 @@ onBeforeUnmount(() => {
 .payroll-page__field--employee :deep(.ma-search) { min-width: 0; }
 .payroll-page__controls { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 .payroll-page__month-control { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.payroll-page__month-control small { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .payroll-page__field input { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
 .payroll-page__refresh { width: 36px; height: 36px; justify-content: center; padding: 0; }
 .payroll-page__body { display: flex; align-items: flex-start; min-width: 0; }

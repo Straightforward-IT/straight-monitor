@@ -114,15 +114,15 @@
                     <tr><td>A – Prüffeld (7002)</td><td>B – Personalnr</td><td>C – Persstatus (6=Ausgetreten)</td></tr>
                     <tr><td>D – Geburtsdatum (GEBDATUM)</td><td>E – Nachname</td><td>F – Vorname</td></tr>
                     <tr><td>G – Geburtsname (GEBNAME)</td><td>H – Geburtsort (GEBORT)</td><td>I – Eintritt (EINTRITT1)</td></tr>
-                    <tr><td>J – Austrittsdatum (AUSTRITT1)</td><td>K – Berufsschlüssel (kommasep.)</td><td>L – Qualischlüssel (kommasep.)</td></tr>
-                    <tr><td>M – Personengruppe (PERSGR)</td><td>N – Arbeitsverhältnis gültig von</td><td>O – Arbeitsverhältnis-Typ (0–3)</td></tr>
-                    <tr><td>P – Durchschnitt bei Fortführen (0/1)</td><td>Q – Arbeitszeit gültig von</td><td>R – Arbeitszeit gültig bis</td></tr>
-                    <tr><td>S–Y – Arbeitszeit Mo–So</td><td>Z – Wochenstunden (ARBZEITWCH)</td><td>AA – Monatsstunden (ARBZEITMON)</td></tr>
-                    <tr><td>AB – Zeitkonto Plus-Limit</td><td>AC – Zeitkonto Minus-Limit</td><td>AD – Strasse</td></tr>
-                    <tr><td>AE – PLZ</td><td>AF – Ort</td><td>AG – Land</td></tr>
-                    <tr><td>AH – Telefon (TEL)</td><td>AI – E-Mail (EMAIL)</td><td>AJ – Strasse2</td></tr>
-                    <tr><td>AK – PLZ2</td><td>AL – Ort2</td><td>AM – Land2</td></tr>
-                    <tr><td>AN – Telefon2 (TEL2)</td><td>AO – E-Mail2 (EMAIL2)</td><td></td></tr>
+                    <tr><td>J – Austrittsdatum (AUSTRITT1)</td><td>K – IBAN</td><td>L – Berufsschlüssel (kommasep.)</td></tr>
+                    <tr><td>M – Qualischlüssel (kommasep.)</td><td>N – Personengruppe (PERSGR)</td><td>O – Arbeitsverhältnis gültig von</td></tr>
+                    <tr><td>P – Arbeitsverhältnis-Typ (0–3)</td><td>Q – Durchschnitt bei Fortführen (0/1)</td><td>R – Arbeitszeit gültig von</td></tr>
+                    <tr><td>S – Arbeitszeit gültig bis</td><td>T–Z – Arbeitszeit Mo–So</td><td>AA – Wochenstunden (ARBZEITWCH)</td></tr>
+                    <tr><td>AB – Monatsstunden (ARBZEITMON)</td><td>AC – Zeitkonto Plus-Limit</td><td>AD – Zeitkonto Minus-Limit</td></tr>
+                    <tr><td>AE – Strasse</td><td>AF – PLZ</td><td>AG – Ort</td></tr>
+                    <tr><td>AH – Land</td><td>AI – Telefon (TEL)</td><td>AJ – E-Mail (EMAIL)</td></tr>
+                    <tr><td>AK – Strasse2</td><td>AL – PLZ2</td><td>AM – Ort2</td></tr>
+                    <tr><td>AN – Land2</td><td>AO – Telefon2 (TEL2)</td><td>AP – E-Mail2 (EMAIL2)</td></tr>
                   </tbody></table>
                 </div>
               </details>

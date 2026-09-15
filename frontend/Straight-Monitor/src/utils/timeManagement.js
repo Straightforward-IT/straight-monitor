@@ -93,6 +93,35 @@ export function timeTotals(data) {
   result.forecast = result.credited + result.planned;
   return result;
 }
+export function timeTypeBreakdown(data) {
+  const groups = new Map();
+  const styles = {
+    productive: { label: 'Produktive Ist-Zeit', color: '#3aa675', order: 0 },
+    vacation: { label: 'Urlaub', color: '#62b58f', order: 1 },
+    sick: { label: 'Krankheit', color: '#a997d0', order: 2 },
+    absence: { label: 'Fehlzeit', color: '#a997d0', order: 3 },
+    correction: { label: 'Stundenkorrekturen', color: '#70b4af', order: 4 },
+    planned: { label: 'Geplante Schichten', color: 'var(--primary)', order: 5 },
+  };
+  for (const entry of data.entries) {
+    const amount = minutes(entry.minutes);
+    if (!amount || (entry.kind !== 'planned' && !entry.credited)) continue;
+    const splitByCode = ['vacation', 'sick', 'absence'].includes(entry.kind);
+    const key = splitByCode ? `${entry.kind}:${entry.code || entry.label}` : entry.kind;
+    const style = styles[entry.kind] || styles.absence;
+    const type = TIME_ENTRY_TYPES.find(item => item.code === entry.code);
+    const current = groups.get(key) || {
+      id: `hours-${String(key).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      label: splitByCode ? type?.label || entry.label || style.label : style.label,
+      color: style.color,
+      order: style.order,
+      minutes: 0,
+    };
+    current.minutes += amount;
+    groups.set(key, current);
+  }
+  return [...groups.values()].sort((left, right) => left.order - right.order || left.label.localeCompare(right.label, 'de'));
+}
 export function sourceMinutes(workspace, source, newMinutes = 480) {
   if (source === 'new') return minutes(newMinutes);
   if (source === 'bank') return workspace.data.bankMinutes;

@@ -94,6 +94,10 @@
             <label>Kalenderjahr</label>
             <input v-model.number="form.vorarbeitgebertage.year" type="number" min="2000" step="1" class="form-input" />
           </div>
+          <div class="form-group">
+            <label>IBAN</label>
+            <input v-model="form.iban" type="text" class="form-input" autocomplete="off" />
+          </div>
         </div>
       </section>
 
@@ -299,6 +303,7 @@ const form = ref({
   personalnr: "",
   email: "",
   telefon: "",
+  iban: "",
   geburtsdatum: "",
   geburtsname: "",
   geburtsort: "",
@@ -330,6 +335,7 @@ watch(
         personalnr: newVal.personalnr || "",
         email: newVal.email || "",
         telefon: newVal.telefon || "",
+        iban: newVal.iban || "",
         geburtsdatum: toDateInput(newVal.geburtsdatum),
         geburtsname: newVal.geburtsname || "",
         geburtsort: newVal.geburtsort || "",

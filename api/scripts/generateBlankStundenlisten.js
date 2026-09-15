@@ -36,12 +36,16 @@ function createBlankData(kunde, rowsPerShift) {
 
   return {
     auftrag: {
-      eventTitel: 'Blanko Stundenliste',
     },
     kunde,
     einsaetze,
     schichten,
-    niederlassung: null,
+    niederlassung: {
+      name: 'Köln',
+      betriebsNr: '74934500',
+      telefone: ['+49 221 777 100 22', '+49 176 769 666 39'],
+      email: 'teamkoeln@straightforward.email',
+    },
   };
 }
 
@@ -54,7 +58,9 @@ async function generate() {
 
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   for (const variant of VARIANTS) {
-    const buffer = await StundenlisteService._renderPdf(createBlankData(kunde, variant.rows));
+    const buffer = await StundenlisteService._renderPdf(createBlankData(kunde, variant.rows), {
+      blankMissingValues: true,
+    });
     fs.writeFileSync(path.join(OUTPUT_DIR, `Stundenliste-KCG-${variant.name}.pdf`), buffer);
   }
 

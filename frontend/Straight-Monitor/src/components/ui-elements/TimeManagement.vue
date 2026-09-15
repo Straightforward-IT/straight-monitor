@@ -504,7 +504,7 @@ import HourBucket from '@/components/ui-elements/HourBucket.vue';
 import TimeMonthMatrix from '@/components/ui-elements/TimeMonthMatrix.vue';
 import TimeDayEntryModal from '@/components/Modals/TimeDayEntryModal.vue';
 import { addTimeEntry, bucketMinutes, cancelTime, changeTimeEntryType, collectTime, createTimeWorkspace, dropOnDay, dropTime,
-  formatMinutes, hasTimeChanges, monthWeeks, revertTime, saveTime, sourceMinutes, targetLabel, timeTotals, undoTime } from '@/utils/timeManagement';
+  formatMinutes, hasTimeChanges, monthWeeks, revertTime, saveTime, sourceMinutes, targetLabel, timeTotals, timeTypeBreakdown, undoTime } from '@/utils/timeManagement';
 
 const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, initialData: { type: Object, required: true }, saveEnabled: { type: Boolean, default: true }, showContext: { type: Boolean, default: true }, showGuide: { type: Boolean, default: true }, detailsInSidePanel: { type: Boolean, default: false }, detailsTarget: { type: Object, default: null } });
 const emit = defineEmits(['save', 'openCapture', 'selectDay', 'closeDetails']);
@@ -555,22 +555,17 @@ const cardData = computed(() => {
   const t = totals.value;
   const free = Math.max(0, quota.value - t.forecast);
   const over = Math.max(0, t.forecast - quota.value);
+  const hourTypes = timeTypeBreakdown(workspace.data);
   const segments = [
-    { id: 'productive', label: 'Produktiv', value: t.productive / 60, color: '#7f98b0' },
-    { id: 'absence', label: 'Fehlzeiten', value: t.absence / 60, color: '#a997d0' },
-    { id: 'correction', label: 'Korrekturen', value: t.correction / 60, color: '#70b4af' },
-    { id: 'planned', label: 'Geplant', value: t.planned / 60, color: 'var(--primary)' },
+    ...hourTypes.map(type => ({ id: type.id, label: type.label, value: type.minutes / 60, color: type.color })),
     { id: 'remaining', label: 'Frei', value: free / 60, color: '#62b58f' },
     { id: 'over', label: 'Über Kontingent', value: 0, color: '#dc665e' },
   ];
   return { employeeName: props.employee.name, eyebrow: monthLabel.value, title: 'Monatsstunden',
     metric: { value: t.forecast / 60, limit: quota.value / 60, unit: 'Std.' }, segments,
-    sections: [{ label: 'Aktuelle Berechnung', rows: [
-      { label: 'Produktive Ist-Zeit', value: formatMinutes(t.productive), segment: 'productive' },
-      { label: 'Fehlzeiten angerechnet', value: formatMinutes(t.absence), segment: 'absence' },
-      { label: 'Stundenkorrekturen', value: formatMinutes(t.correction), segment: 'correction' },
-      { label: 'Geplante Schichten', value: formatMinutes(t.planned), segment: 'planned' },
-    ] }, { rows: [
+    sections: [{ label: 'Aktuelle Berechnung', rows: hourTypes.map(type => ({
+      label: type.label, value: formatMinutes(type.minutes), segment: type.id,
+    })) }, { rows: [
       { label: 'Voraussichtlich', value: formatMinutes(t.forecast), emphasis: true },
       { label: 'Monatsstunden', value: formatMinutes(quota.value) },
       { label: over ? 'Über Kontingent' : 'Noch frei', value: formatMinutes(over || free), segment: over ? 'over' : 'remaining', emphasis: true },
@@ -736,14 +731,13 @@ onBeforeUnmount(() => {
 .tm-live > i { width: 5px; height: 5px; border-radius: 50%; background: var(--tm-green); }
 .tm-information__identity { display: flex; justify-content: space-between; gap: 8px; padding: 7px 12px; font-size: 10px; color: var(--muted); border-bottom: 1px solid var(--border); }
 .tm-information__identity strong { color: var(--text); font-weight: 500; margin-left: 4px; }
-.tm-information :deep(.hover-data-card--inline) { border: 0; border-radius: 0; font-size: 11px; line-height: 1.4; }
+.tm-information :deep(.hover-data-card--inline) { --hover-data-card-ring-size: 92px; --hover-data-card-column-height: 250px; border: 0; border-radius: 0; font-size: 11px; line-height: 1.4; }
 .tm-information :deep(.hover-data-card__header) { padding: 7px 12px; }
 .tm-information :deep(.hover-data-card__employee-name) { font-size: 11px; }
 .tm-information :deep(.hover-data-card__eyebrow) { font-size: 9px; }
-.tm-information :deep(.hover-data-card__body) { grid-template-columns: 56px minmax(0, 1fr); padding: 10px 12px; gap: 12px; }
-.tm-information :deep(.hover-data-card__chart strong) { font-size: 14px; }
-.tm-information :deep(.hover-data-card__chart figcaption span) { font-size: 9px; }
-.tm-information :deep(.hover-data-card__track) { width: 25px; min-height: 130px; }
+.tm-information :deep(.hover-data-card__body) { padding: 10px 12px; gap: 12px; }
+.tm-information :deep(.hover-data-card__ring-center strong) { font-size: 13px; }
+.tm-information :deep(.hover-data-card__ring-center span) { font-size: 9px; }
 .tm-information :deep(.hover-data-card__title) { font-size: 12px; }
 .tm-information :deep(.hover-data-card__section) { margin-top: 7px; padding-top: 6px; }
 .tm-information :deep(.hover-data-card__section h3) { font-size: 9px; margin-bottom: 3px; }

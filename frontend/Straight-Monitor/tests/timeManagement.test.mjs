@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { addTimeEntry, bucketMinutes, cancelTime, changeTimeEntryType, collectTime, createTimeWorkspace, dropOnDay, dropTime,
-  formatMinutes, hasTimeChanges, monthDays, revertTime, saveTime, sourceMinutes, timeTotals, undoTime } from '../src/utils/timeManagement.js';
+  formatMinutes, hasTimeChanges, monthDays, revertTime, saveTime, sourceMinutes, timeTotals, timeTypeBreakdown, undoTime } from '../src/utils/timeManagement.js';
 import { timeManagementFixture } from '../src/components/dev/timeManagementFixture.js';
 
 const create = () => createTimeWorkspace(timeManagementFixture());
@@ -96,6 +96,21 @@ test('absence entries honor explicit monthly credit; FA draws from bank', () => 
   assert.equal(w.data.createdMinutes, 360);
   assert.equal(addTimeEntry(w, { id: 'too-much', code: 'FA', minutes: 9999 }), false);
   collectTime(w, 'bank', 1); assert.equal(addTimeEntry(w, { id: 'while-held', minutes: 60 }), false);
+});
+
+test('hour type breakdown lists only used forecast contributors by their actual type', () => {
+  const breakdown = timeTypeBreakdown({ entries: [
+    { code: 'P', label: 'Einsatz', kind: 'productive', credited: true, minutes: 450 },
+    { code: 'U', label: 'Urlaub', kind: 'vacation', credited: true, minutes: 480 },
+    { code: 'K', label: 'Krank', kind: 'sick', credited: true, minutes: 0 },
+    { code: 'UU', label: 'Urlaub unbezahlt', kind: 'vacation', credited: false, minutes: 360 },
+    { code: 'PL', label: 'Planung', kind: 'planned', credited: false, minutes: 240 },
+  ] });
+  assert.deepEqual(breakdown.map(type => [type.label, type.minutes]), [
+    ['Produktive Ist-Zeit', 450],
+    ['Urlaub (bezahlt)', 480],
+    ['Geplante Schichten', 240],
+  ]);
 });
 
 test('calendar includes leap-day and correct month bounds; formatting preserves minute precision', () => {
