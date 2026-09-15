@@ -1420,6 +1420,11 @@
             <div v-if="resolvedMa.austrittsdatum"><dt>Austritt</dt><dd>{{ formatDate(resolvedMa.austrittsdatum) }}</dd></div>
             <div v-if="addressLines(resolvedMa.adresse).length"><dt>Adresse</dt><dd class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse)" :key="idx">{{ line }}</span></dd></div>
             <div v-if="addressLines(resolvedMa.adresse2).length || resolvedMa.adresse2?.telefon || resolvedMa.adresse2?.email"><dt>Adresse 2</dt><dd class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse2)" :key="idx">{{ line }}</span><span v-if="resolvedMa.adresse2?.telefon" class="steckbrief-value--muted">{{ resolvedMa.adresse2.telefon }}</span><span v-if="resolvedMa.adresse2?.email" class="steckbrief-value--muted">{{ resolvedMa.adresse2.email }}</span></dd></div>
+            <template v-for="(fuehrerschein, index) in fuehrerscheine" :key="fuehrerschein._id || index">
+              <div v-if="fuehrerschein.klasse"><dt>Führerschein{{ fuehrerscheine.length > 1 ? ` ${index + 1}` : '' }}</dt><dd>{{ fuehrerschein.klasse }}</dd></div>
+              <div v-if="fuehrerschein.gueltigVon"><dt>Gültig ab</dt><dd>{{ formatDate(fuehrerschein.gueltigVon) }}</dd></div>
+              <div v-if="fuehrerschein.gueltigBis"><dt>Gültig bis</dt><dd>{{ formatDate(fuehrerschein.gueltigBis) }}</dd></div>
+            </template>
             <div v-if="resolvedMa.erstellt_von"><dt>Erstellt</dt><dd>{{ resolvedMa.erstellt_von }}</dd></div>
           </dl>
         </section>
@@ -1973,6 +1978,10 @@ export default {
     },
     hasArbeitsverhaeltnis() {
       return Object.values(this.resolvedMa?.arbeitsverhaeltnis || {}).some((value) => value != null);
+    },
+    fuehrerscheine() {
+      if (this.resolvedMa?.fuehrerscheine?.length) return this.resolvedMa.fuehrerscheine;
+      return this.resolvedMa?.fuehrerschein ? [this.resolvedMa.fuehrerschein] : [];
     },
     arbeitsverhaeltnisTypLabel() {
       const labels = ["Vollzeit", "Teilzeit", "Geringfügig", "Kurzfristig"];
@@ -3472,6 +3481,7 @@ export default {
           email: formData.email,
           telefon: formData.telefon,
           iban: formData.iban,
+          fuehrerscheine: formData.fuehrerscheine,
           geburtsdatum: formData.geburtsdatum || null,
           geburtsname: formData.geburtsname,
           geburtsort: formData.geburtsort,
@@ -3517,6 +3527,7 @@ export default {
           email: formData.email,
           telefon: formData.telefon,
           iban: formData.iban,
+          fuehrerscheine: formData.fuehrerscheine,
           geburtsdatum: formData.geburtsdatum || null,
           geburtsname: formData.geburtsname,
           geburtsort: formData.geburtsort,

@@ -29,6 +29,11 @@ const MitarbeiterSchema = new mongoose.Schema({
         gueltigVon: { type: Date, default: null },
         gueltigBis: { type: Date, default: null },
     },
+    fuehrerscheine: [{
+        klasse: { type: String, trim: true },
+        gueltigVon: { type: Date, default: null },
+        gueltigBis: { type: Date, default: null },
+    }],
     // Hauptadresse (Adresse 1) aus Zvoove — Tel/Email der Hauptadresse fließen in telefon/email.
     adresse: {
         strasse: { type: String, trim: true },
