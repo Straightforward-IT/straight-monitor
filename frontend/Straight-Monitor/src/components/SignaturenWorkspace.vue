@@ -38,6 +38,43 @@
             </ToolbarButton>
           </ToolbarGroup>
         </template>
+        <template #bottom-actions>
+          <div v-if="filteredVorgaenge.length > 0" class="toolbar-page-controls">
+            <span class="toolbar-page-controls__summary">
+              {{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}
+            </span>
+            <select
+              v-model="itemsPerPage"
+              class="toolbar-page-controls__select"
+              aria-label="Signaturen pro Seite"
+            >
+              <option v-for="size in pageOptions" :key="size" :value="size">{{ size }}</option>
+            </select>
+            <button
+              v-if="totalPages > 1"
+              class="toolbar-page-controls__button"
+              type="button"
+              title="Vorherige Seite"
+              aria-label="Vorherige Seite"
+              :disabled="currentPage === 1"
+              @click="prevPage"
+            >
+              <font-awesome-icon :icon="['fas', 'chevron-left']" />
+            </button>
+            <span v-if="totalPages > 1" class="toolbar-page-controls__page">{{ currentPage }} / {{ totalPages }}</span>
+            <button
+              v-if="totalPages > 1"
+              class="toolbar-page-controls__button"
+              type="button"
+              title="Nächste Seite"
+              aria-label="Nächste Seite"
+              :disabled="currentPage === totalPages"
+              @click="nextPage"
+            >
+              <font-awesome-icon :icon="['fas', 'chevron-right']" />
+            </button>
+          </div>
+        </template>
       </Toolbar>
 
       <!-- Type pills -->
@@ -68,7 +105,7 @@
       </div>
       <div v-else class="sig-grid">
         <SignaturCard
-          v-for="v in filteredVorgaenge"
+          v-for="v in paginatedVorgaenge"
           :key="v._id"
           :id="`signatur-${v._id}`"
           :vorgang="v"
@@ -291,6 +328,9 @@ const typen = ref([]);
 const locations = ref([]);
 const loading = ref(false);
 const search = ref('');
+const currentPage = ref(1);
+const itemsPerPage = ref(25);
+const pageOptions = [25, 50, 100];
 const filterExpanded = ref(false);
 const showTypModal = ref(false);
 const starred = ref(loadStarred());
@@ -351,6 +391,19 @@ const filteredVorgaenge = computed(() => {
   });
 });
 
+const totalPages = computed(() => Math.ceil(filteredVorgaenge.value.length / itemsPerPage.value));
+
+const paginatedVorgaenge = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  return filteredVorgaenge.value.slice(start, start + itemsPerPage.value);
+});
+
+const paginationInfo = computed(() => {
+  const total = filteredVorgaenge.value.length;
+  const start = total === 0 ? 0 : (currentPage.value - 1) * itemsPerPage.value + 1;
+  return { start, end: Math.min(currentPage.value * itemsPerPage.value, total), total };
+});
+
 // ── Actions ──────────────────────────────────────────────────────────────────
 function toggleFilter(key, value) {
   filters.value[key] = filters.value[key] === value ? null : value;
@@ -360,6 +413,14 @@ function toggleStatus(status) {
   const index = filters.value.statuses.indexOf(status);
   if (index === -1) filters.value.statuses.push(status);
   else filters.value.statuses.splice(index, 1);
+}
+
+function nextPage() {
+  if (currentPage.value < totalPages.value) currentPage.value++;
+}
+
+function prevPage() {
+  if (currentPage.value > 1) currentPage.value--;
 }
 
 function hasDefaultStatuses() {
@@ -613,6 +674,14 @@ watch(activeTab, (tab) => {
   if (tab === 'templates' && templates.value.length === 0) loadTemplates();
 }, { immediate: true });
 
+watch([search, filters, itemsPerPage], () => {
+  currentPage.value = 1;
+}, { deep: true });
+
+watch(totalPages, (pageCount) => {
+  if (currentPage.value > pageCount) currentPage.value = Math.max(pageCount, 1);
+});
+
 watch(() => modal.open, (isOpen, wasOpen) => {
   if (wasOpen && !isOpen) loadVorgaenge();
 });
@@ -677,7 +746,83 @@ onUnmounted(() => {
 }
 
 .sig-toolbar {
+  margin-bottom: 29px;
   overflow: visible;
+}
+
+.toolbar-page-controls {
+  position: absolute;
+  top: 100%;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  white-space: nowrap;
+}
+
+.toolbar-page-controls__select,
+.toolbar-page-controls__button {
+  height: 24px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 0 0 5px 5px;
+  background: var(--tile-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.72rem;
+  box-shadow: none;
+}
+
+.toolbar-page-controls__select {
+  min-width: 48px;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.toolbar-page-controls__button {
+  display: inline-flex;
+  width: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.toolbar-page-controls__select:hover,
+.toolbar-page-controls__button:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.toolbar-page-controls__button:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.45;
+}
+
+.toolbar-page-controls__summary,
+.toolbar-page-controls__page {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 24px;
+}
+
+.toolbar-page-controls__page {
+  min-width: 32px;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .toolbar-page-controls {
+    right: 6px;
+    gap: 3px;
+  }
+
+  .toolbar-page-controls__summary {
+    display: none;
+  }
 }
 
 .sig-inner {
