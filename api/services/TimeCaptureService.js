@@ -20,6 +20,12 @@ function minute(value) {
   if (typeof value !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) fail(400, 'Beginn und Ende im Format HH:MM angeben.');
   return Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
 }
+function scheduledMinutes(start, end) {
+  if (typeof start !== 'string' || typeof end !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(start) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(end)) return 0;
+  const from = Number(start.slice(0, 2)) * 60 + Number(start.slice(3));
+  const till = Number(end.slice(0, 2)) * 60 + Number(end.slice(3));
+  return till > from ? till - from : till + 1440 - from;
+}
 function count(value) {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 1440) fail(400, 'Pausen müssen ganze Minuten zwischen 0 und 1440 sein.');
   return value;
@@ -202,13 +208,20 @@ async function monthView(user, employeeId, month) {
   const employee = await employeeForUser(user, employeeId);
   const { from, till } = monthRange(month);
   const entries = await Stundenzeit.find({ mitarbeiter: employee._id, 'released.date': { $gte: from, $lt: till } }).lean();
+  const assignments = await Einsatz.find({ personalNr: { $in: employeeNumbers(employee) }, isPseudo: { $ne: true }, $or: [
+    { detailDatumVon: { $gte: new Date(from), $lt: new Date(till) } },
+    { detailDatumVon: null, datumVon: { $gte: new Date(from), $lt: new Date(till) } },
+  ] }).select('_id auftragNr schicht detailDatumVon datumVon uhrzeitVon uhrzeitBis').lean();
   // Access to a complete employee month is governed by the employee's location,
   // while editing an individual order separately requires that order's location.
-  const orders = await Auftrag.find({ auftragNr: { $in: entries.map(item => item.auftragNr) } }).select('auftragNr eventTitel eventLocation eventOrt').lean();
+  const orders = await Auftrag.find({ auftragNr: { $in: [...entries, ...assignments].map(item => item.auftragNr) } }).select('auftragNr eventTitel eventLocation eventOrt locationV2').lean();
+  const shifts = await Schicht.find({ _id: { $in: assignments.map(item => item.schicht).filter(Boolean) } }).select('_id uhrzeitVon uhrzeitBis').lean();
+  const releasedIds = new Set(entries.map(item => String(item._id)));
+  const pending = assignments.filter(item => !releasedIds.has(String(item._id)) && canAccess(user, orders.find(order => order.auftragNr === item.auftragNr)?.locationV2));
   return {
     employee: { id: String(employee._id), personalNr: employee.personalnr, name: [employee.vorname, employee.nachname].filter(Boolean).join(' '), monthlyHours: employee.arbeitszeit?.monat ?? 0, employmentLabel: ['Vollzeit', 'Teilzeit', 'Geringfügig beschäftigt', 'Kurzfristig beschäftigt'][employee.arbeitsverhaeltnis?.typ] || 'Arbeitsverhältnis' },
     month,
-    initialData: { bankMinutes: 0, entries: entries.map(item => {
+    initialData: { bankMinutes: 0, entries: [...entries.map(item => {
       const order = orders.find(value => value.auftragNr === item.auftragNr);
       return { id: String(item._id), einsatzId: String(item._id), schichtId: item.schicht ? String(item.schicht) : null, auftragNr: item.auftragNr,
         date: item.released.date, kind: 'productive', code: 'P', credited: true,
@@ -216,7 +229,17 @@ async function monthView(user, employeeId, month) {
         label: order?.eventTitel || `Auftrag ${item.auftragNr}`, location: order?.eventLocation || order?.eventOrt || '',
         source: 'Schnellerfassung · übergeben', note: `${item.released.start}–${item.released.end} · ${item.released.breakMinutes} Min. Pause`,
       };
-    }) },
+    }), ...pending.map(item => {
+      const order = orders.find(value => value.auftragNr === item.auftragNr);
+      const shift = shifts.find(value => String(value._id) === String(item.schicht));
+      const start = item.uhrzeitVon || shift?.uhrzeitVon;
+      const end = item.uhrzeitBis || shift?.uhrzeitBis;
+      return { id: String(item._id), einsatzId: String(item._id), schichtId: item.schicht ? String(item.schicht) : null, auftragNr: item.auftragNr,
+        date: (item.detailDatumVon || item.datumVon).toISOString().slice(0, 10), kind: 'planned', code: 'O', credited: false,
+        minutes: scheduledMinutes(start, end), originalMinutes: scheduledMinutes(start, end), locked: true, label: order?.eventTitel || `Auftrag ${item.auftragNr}`,
+        location: order?.eventLocation || order?.eventOrt || '', source: 'Ausstehend · Schnellerfassung öffnen', note: start && end ? `${start}–${end} · geplant` : '',
+      };
+    })] },
   };
 }
 module.exports = { publicStatus, submitEmployee, review, employeeOrders, saveReview, monthView, calculate, canAccess, orderForUser, objectId, fail };

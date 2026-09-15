@@ -88,6 +88,8 @@ const props = defineProps({
   placeholder: { type: String,  default: 'Mitarbeiter suchen (Name, Nr.)…' },
   dropup:      { type: Boolean, default: false },
   includeInactive: { type: Boolean, default: false },
+  requirePersonalnr: { type: Boolean, default: false },
+  preferActive: { type: Boolean, default: false },
   locationV2: { type: [String, Number], default: null },
   selectedItem: { type: Object, default: null },
 });
@@ -144,7 +146,12 @@ function onInput() {
   loading.value = true;
   debounceTimer = setTimeout(async () => {
     try {
-      const { data } = await api.get('/api/personal/search', { params: { q: query.value, includeInactive: props.includeInactive } });
+      const { data } = await api.get('/api/personal/search', { params: {
+        q: query.value,
+        includeInactive: props.includeInactive,
+        requirePersonalnr: props.requirePersonalnr,
+        preferActive: props.preferActive,
+      } });
       results.value = sortResults(data || []);
       highlighted.value = 0;
       if (data.length > 0) {

@@ -14,7 +14,7 @@
 
     <template #default="{ activeTab }">
       <DashboardOverviewTab v-if="activeTab === 'widgets'" :active-widgets="activeWidgets" />
-      <DashboardSpaces v-else-if="isAdmin" />
+      <!-- <DashboardSpaces v-else-if="isAdmin" /> -->
     </template>
   </RouterPageLayout>
 </template>
@@ -28,7 +28,7 @@ import { useAuth } from "@/stores/auth";
 import RouterPageLayout from "@/components/layout/RouterPageLayout.vue";
 import { dashboardTabs } from '@/components/layout/pageTabDefinitions';
 import DashboardOverviewTab from '@/components/DashboardOverviewTab.vue';
-import DashboardSpaces from "@/components/DashboardSpaces.vue";
+// import DashboardSpaces from "@/components/DashboardSpaces.vue";
 
 const router = useRouter();
 const prefs = useDashboardPrefs();
@@ -36,9 +36,7 @@ const auth = useAuth();
 
 const activeWidgets = computed(() => prefs.activeWidgets);
 const isAdmin = computed(() => auth.user?.role === 'ADMIN' || auth.user?.roles?.includes('ADMIN'));
-const visibleDashboardTabs = computed(() => dashboardTabs.map((tab) => (
-  tab.id === 'spaces' ? { ...tab, disabled: !isAdmin.value } : tab
-)));
+const visibleDashboardTabs = computed(() => dashboardTabs.filter((tab) => tab.id !== 'spaces'));
 
 /* ── Token Version Check ─────────────────────────── */
 const TOKEN_VERSION_COOKIE = "monitor_token_version";

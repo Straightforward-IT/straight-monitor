@@ -2,7 +2,7 @@
   <div class="layout">
     <HeaderBar :current-view-title="currentViewTitle" />
     <div class="page" :class="{ hasRight }">
-      <main ref="contentEl" class="content"><router-view /></main>
+      <main ref="contentEl" class="content" :class="{ 'content--payroll': route.name === 'Payroll' }"><router-view /></main>
 
       <aside v-if="hasRight" class="right" :class="{ open: ui.isOpen && ui.panelType }" :style="panelStyle">
         <component :is="panelComponent" />
@@ -203,6 +203,8 @@ onBeforeUnmount(() => {
 .page{ flex:1; display:grid; grid-template-columns:1fr; }
 .page.hasRight{ grid-template-columns: 1fr auto; }
 .content{ padding:16px; background: var(--bg); color: var(--text); min-width: 0; overflow: hidden; min-height: calc(100vh - var(--header-h, 56px)); }
+/* Let the payroll day panel stick to the viewport while the page scrolls. */
+.content--payroll { overflow: clip; }
 .content :deep(.layout-managed-page-title){ display:none !important; }
 
 /* Sticky Drawer (Right Panel) */

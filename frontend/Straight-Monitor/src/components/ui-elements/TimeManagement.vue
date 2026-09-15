@@ -8,7 +8,10 @@
     @pointermove="moveCursor"
     @pointerleave="cursor.visible = false"
   >
-    <dl v-if="showContext" class="tm-context">
+    <dl
+      v-if="showContext"
+      class="tm-context"
+    >
       <div><dt>Personalnummer</dt><dd>{{ employee.personalNr }}</dd></div>
       <div><dt>Mitarbeiter</dt><dd>{{ employee.name }}</dd></div>
       <div><dt>Monat / Jahr</dt><dd>{{ monthLabel }}</dd></div>
@@ -19,6 +22,7 @@
     </dl>
 
     <slot
+      v-if="!detailsInSidePanel"
       name="documents"
       :auftrag-nr="selectedEntry?.auftragNr || null"
     />
@@ -28,10 +32,11 @@
         :month="month"
         :entries="workspace.data.entries"
         :selected-date="selectedDate"
-      :held="held"
-      @select-day="selectDay"
-      @select-week="selectWeek"
-      @change-type="changeEntryType"
+        :held="held"
+        @select-day="selectDay"
+        @select-week="selectWeek"
+        @change-type="changeEntryType"
+        @open-capture="emit('openCapture', $event)"
       />
       <aside
         class="tm-information"
@@ -63,265 +68,303 @@
       </aside>
     </div>
 
-    <section
-      class="tm-details"
-      aria-label="Detailerfassung"
+    <Teleport
+      v-if="!detailsInSidePanel || detailsTarget"
+      :to="detailsTarget || 'body'"
+      :disabled="!detailsInSidePanel"
     >
-      <header class="tm-section-heading">
-        <h2>Detailerfassung</h2><span>{{ scopeLabel }}</span>
-      </header>
-      <div class="tm-detail-toolbar">
-        <div
-          class="tm-scope"
-          aria-label="Zeitraum der Detailtabelle"
-        >
-          <button
-            v-for="scope in detailScopes"
-            :key="scope.id"
-            type="button"
-            :aria-pressed="detailScope === scope.id"
-            @click="detailScope = scope.id"
-          >
-            {{ scope.label }}
-          </button>
-        </div>
-        <button
-          type="button"
-          class="tm-button"
-          :disabled="!!held || !!slider"
-          @click="openEntry(selectedDate)"
-        >
-          <span aria-hidden="true">＋</span> Tageseintrag
-        </button>
-        <div class="tm-new-source">
-          <button
-            type="button"
-            class="tm-source"
-            data-time-target="new"
-            aria-label="Neue Stunden sammeln"
-          >
-            <span aria-hidden="true">＋</span> Neue Stunden
-          </button>
-          <select
-            v-model.number="newMinutes"
-            aria-label="Neue Stunden pro voller Entnahme"
-            title="Shift + Rechtsklick erzeugt diese Menge"
-          >
-            <option :value="60">
-              Shift: 1 h
-            </option><option :value="240">
-              Shift: 4 h
-            </option><option :value="480">
-              Shift: 8 h
-            </option><option :value="960">
-              Shift: 16 h
-            </option>
-          </select>
-        </div>
-        <button
-          type="button"
-          class="tm-source tm-source--remove"
-          data-time-target="remove"
-          aria-label="Stunden entfernen"
-        >
-          <span aria-hidden="true">−</span> Entfernen <small>{{ formatMinutes(workspace.data.removedMinutes) }}</small>
-        </button>
-        <div
-          class="tm-tools"
-          aria-label="Alternative Eimer-Bedienung"
-        >
-          <button
-            type="button"
-            :aria-pressed="mode === 'collect'"
-            @click="mode = 'collect'"
-          >
-            Sammeln
-          </button>
-          <button
-            type="button"
-            :aria-pressed="mode === 'drop'"
-            @click="mode = 'drop'"
-          >
-            Ablegen
-          </button>
-          <button
-            type="button"
-            :aria-pressed="precision"
-            title="Minutenwahl auch ohne gedrückte Taste öffnen"
-            @click="precision = !precision"
-          >
-            Minuten
-          </button>
-        </div>
-      </div>
-      <nav
-        class="tm-detail-tabs"
-        aria-label="Detailansicht"
-      >
-        <button
-          type="button"
-          :aria-pressed="detailTab === 'entries'"
-          @click="detailTab = 'entries'"
-        >
-          Schichten &amp; Zeiten <span>{{ scopedEntries.length }}</span>
-        </button>
-        <button
-          type="button"
-          :aria-pressed="detailTab === 'absences'"
-          @click="detailTab = 'absences'"
-        >
-          Fehlzeiten <span>{{ scopedAbsences.length }}</span>
-        </button>
-        <button
-          type="button"
-          :aria-pressed="detailTab === 'history'"
-          @click="detailTab = 'history'"
-        >
-          Änderungsprotokoll <span>{{ workspace.data.journal.length }}</span>
-        </button>
-        <span class="tm-save-state">{{ dirty ? 'Ungespeicherte Änderungen' : 'Gespeicherter Stand' }}</span>
-      </nav>
       <div
-        v-if="detailTab !== 'history'"
-        class="tm-table-scroll"
-        tabindex="0"
-        aria-label="Schichtdetails, scrollbar"
+        class="tm-details-content"
+        :class="{ 'tm-details-content--panel': detailsInSidePanel }"
+        @click="detailsInSidePanel && onBoardClick($event)"
+        @contextmenu="detailsInSidePanel && onBoardContext($event)"
+        @pointermove="detailsInSidePanel && moveCursor($event)"
+        @pointerleave="detailsInSidePanel && (cursor.visible = false)"
       >
-        <table class="tm-data-table">
-          <thead>
-            <tr>
-              <th scope="col">
-                Datum
-              </th><th scope="col">
-                KB
-              </th><th scope="col">
-                Auftrag
-              </th><th scope="col">
-                Kunde / Einsatzort
-              </th><th scope="col">
-                Schicht / Eintragsart
-              </th><th
-                scope="col"
-                class="tm-numeric"
-              >
-                Erfasst
-              </th><th
-                scope="col"
-                class="tm-numeric"
-              >
-                Aktuell
-              </th><th
-                scope="col"
-                class="tm-numeric"
-              >
-                Änderung
-              </th><th scope="col">
-                Anrechnung
-              </th><th scope="col">
-                Quelle
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="entry in visibleEntries"
-              :key="entry.id"
-              :data-entry-id="entry.id"
-              :class="{ 'tm-row--selected': selectedEntryId === entry.id, 'tm-row--changed': entry.minutes !== entry.originalMinutes }"
-              @click="selectEntry(entry)"
+        <slot v-if="detailsInSidePanel" name="day-documents" />
+        <section
+          class="tm-details"
+          aria-label="Detailerfassung"
+        >
+          <header class="tm-section-heading">
+            <h2>Detailerfassung</h2><span>{{ scopeLabel }}</span>
+          </header>
+          <div class="tm-detail-toolbar">
+            <div
+              v-if="!detailsInSidePanel"
+              class="tm-scope"
+              aria-label="Zeitraum der Detailtabelle"
             >
-              <td>
-                <button
-                  type="button"
-                  class="tm-date-link"
-                  :aria-label="entry.date + ' in der Detailtabelle anzeigen'"
-                  @click.stop="selectDay(entry.date)"
-                >
-                  {{ shortDate(entry.date) }}
-                </button>
-              </td>
-              <td>
-                <span
-                  class="tm-type"
-                  :class="'tm-type--' + entry.kind"
-                >{{ entry.code || (entry.kind === 'planned' ? 'PL' : 'P') }}</span>
-              </td>
-              <td>{{ entry.auftragNr || '—' }}</td>
-              <td><span class="tm-location">{{ entry.location || '—' }}</span><small class="tm-customer">{{ entry.customerName || '' }}</small></td>
-              <td class="tm-entry-label">
-                {{ entry.label }}
-              </td>
-              <td class="tm-numeric">
-                {{ formatMinutes(entry.originalMinutes) }}
-              </td>
-              <td class="tm-numeric">
-                <button
-                  type="button"
-                  class="tm-table-time"
-                  :data-time-target="entry.id"
-                  :disabled="entry.kind === 'planned'"
-                  :aria-label="entry.date + ' · ' + entry.label + ' · Stunden bearbeiten'"
-                >
-                  {{ formatMinutes(entry.minutes) }}
-                </button>
-              </td>
-              <td class="tm-numeric tm-difference">
-                {{ entry.minutes !== entry.originalMinutes ? (entry.minutes > entry.originalMinutes ? '+' : '') + formatMinutes(entry.minutes - entry.originalMinutes) : '—' }}
-              </td>
-              <td>{{ entry.kind === 'planned' ? 'Prognose' : entry.credited ? 'Monatsstunden' : 'Ohne Anrechnung' }}</td>
-              <td class="tm-muted">
-                {{ entry.source || 'Tageseintrag' }}
-              </td>
-            </tr>
-            <tr v-if="!visibleEntries.length">
-              <td
-                colspan="10"
-                class="tm-table-empty"
+              <button
+                v-for="scope in detailScopes"
+                :key="scope.id"
+                type="button"
+                :aria-pressed="detailScope === scope.id"
+                @click="detailScope = scope.id"
               >
-                Keine {{ detailTab === 'absences' ? 'Fehlzeiten' : 'Einträge' }} in diesem Zeitraum. Über „Tageseintrag“ kannst du einen Eintrag anlegen.
-              </td>
-            </tr>
-          </tbody>
-          <tfoot>
-            <tr>
-              <th
-                colspan="5"
-                scope="row"
+                {{ scope.label }}
+              </button>
+            </div>
+            <button
+              type="button"
+              class="tm-button"
+              :disabled="!!held || !!slider"
+              @click="openEntry(selectedDate)"
+            >
+              <span aria-hidden="true">＋</span> Tageseintrag
+            </button>
+            <div class="tm-new-source">
+              <button
+                type="button"
+                class="tm-source"
+                data-time-target="new"
+                aria-label="Neue Stunden sammeln"
               >
-                {{ visibleEntries.length }} Einträge · Summe Ist-Zeit
-              </th><td class="tm-numeric">
-                {{ formatMinutes(visibleOriginalTotal) }}
-              </td><td class="tm-numeric">
-                <strong>{{ formatMinutes(visibleActualTotal) }}</strong>
-              </td><td colspan="3">
-                Geplante Zeit separat: {{ formatMinutes(visiblePlannedTotal) }}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-      <section
-        v-else
-        class="tm-history"
-        aria-label="Änderungsprotokoll"
-      >
-        <p v-if="!workspace.data.journal.length">
-          Noch keine Änderungen. Sammle Stunden aus den Kalenderfeldern oder der Spalte „Aktuell“ und lege sie im Zeitkonto ab.
-        </p>
-        <ol v-else>
-          <li
-            v-for="(change, index) in workspace.data.journal"
-            :key="index"
+                <span aria-hidden="true">＋</span> Neue Stunden
+              </button>
+              <select
+                v-model.number="newMinutes"
+                aria-label="Neue Stunden pro voller Entnahme"
+                title="Shift + Rechtsklick erzeugt diese Menge"
+              >
+                <option :value="60">
+                  Shift: 1 h
+                </option><option :value="240">
+                  Shift: 4 h
+                </option><option :value="480">
+                  Shift: 8 h
+                </option><option :value="960">
+                  Shift: 16 h
+                </option>
+              </select>
+            </div>
+            <button
+              type="button"
+              class="tm-source tm-source--remove"
+              data-time-target="remove"
+              aria-label="Stunden entfernen"
+            >
+              <span aria-hidden="true">−</span> Entfernen <small>{{ formatMinutes(workspace.data.removedMinutes) }}</small>
+            </button>
+            <div
+              class="tm-tools"
+              aria-label="Alternative Eimer-Bedienung"
+            >
+              <button
+                type="button"
+                :aria-pressed="mode === 'collect'"
+                @click="mode = 'collect'"
+              >
+                Sammeln
+              </button>
+              <button
+                type="button"
+                :aria-pressed="mode === 'drop'"
+                @click="mode = 'drop'"
+              >
+                Ablegen
+              </button>
+              <button
+                type="button"
+                :aria-pressed="precision"
+                title="Minutenwahl auch ohne gedrückte Taste öffnen"
+                @click="precision = !precision"
+              >
+                Minuten
+              </button>
+            </div>
+          </div>
+          <nav
+            class="tm-detail-tabs"
+            aria-label="Detailansicht"
           >
-            <strong>{{ change.label }}</strong><span
-              v-for="(transfer, transferIndex) in groupTransfers(change.transfers)"
-              :key="transferIndex"
-            >{{ formatMinutes(transfer.minutes) }} · {{ transfer.sourceLabel }} → {{ transfer.targetLabel }}</span>
-          </li>
-        </ol>
-      </section>
-    </section>
-    <div class="tm-guide">
+            <button
+              type="button"
+              :aria-pressed="detailTab === 'entries'"
+              @click="detailTab = 'entries'"
+            >
+              Schichten &amp; Zeiten <span>{{ scopedEntries.length }}</span>
+            </button>
+            <button
+              type="button"
+              :aria-pressed="detailTab === 'absences'"
+              @click="detailTab = 'absences'"
+            >
+              Fehlzeiten <span>{{ scopedAbsences.length }}</span>
+            </button>
+            <button
+              type="button"
+              :aria-pressed="detailTab === 'history'"
+              @click="detailTab = 'history'"
+            >
+              Änderungsprotokoll <span>{{ workspace.data.journal.length }}</span>
+            </button>
+            <span class="tm-save-state">{{ dirty ? 'Ungespeicherte Änderungen' : 'Gespeicherter Stand' }}</span>
+          </nav>
+          <div
+            v-if="detailTab !== 'history'"
+            class="tm-table-scroll"
+            tabindex="0"
+            aria-label="Schichtdetails, scrollbar"
+          >
+            <table class="tm-data-table">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    Datum
+                  </th><th scope="col">
+                    KB
+                  </th><th scope="col">
+                    Auftrag
+                  </th><th scope="col">
+                    Kunde / Einsatzort
+                  </th><th scope="col">
+                    Schicht / Eintragsart
+                  </th><th
+                    scope="col"
+                    class="tm-numeric"
+                  >
+                    Erfasst
+                  </th><th
+                    scope="col"
+                    class="tm-numeric"
+                  >
+                    Aktuell
+                  </th><th
+                    scope="col"
+                    class="tm-numeric"
+                  >
+                    Änderung
+                  </th><th scope="col">
+                    Anrechnung
+                  </th><th scope="col">
+                    Quelle
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="entry in visibleEntries"
+                  :key="entry.id"
+                  :data-entry-id="entry.id"
+                  :class="{ 'tm-row--selected': selectedEntryId === entry.id, 'tm-row--changed': entry.minutes !== entry.originalMinutes }"
+                  @click="selectEntry(entry)"
+                >
+                  <td data-label="Datum">
+                    <button
+                      type="button"
+                      class="tm-date-link"
+                      :aria-label="entry.date + ' in der Detailtabelle anzeigen'"
+                      @click.stop="selectDay(entry.date)"
+                    >
+                      {{ shortDate(entry.date) }}
+                    </button>
+                  </td>
+                  <td data-label="KB">
+                    <span
+                      class="tm-type"
+                      :class="'tm-type--' + entry.kind"
+                    >{{ entry.code || (entry.kind === 'planned' ? 'PL' : 'P') }}</span>
+                  </td>
+                  <td data-label="Auftrag">
+                    {{ entry.auftragNr || '—' }}
+                  </td>
+                  <td data-label="Kunde / Einsatzort">
+                    <span class="tm-location">{{ entry.location || '—' }}</span><small class="tm-customer">{{ entry.customerName || '' }}</small>
+                  </td>
+                  <td
+                    data-label="Schicht / Eintragsart"
+                    class="tm-entry-label"
+                  >
+                    {{ entry.label }}
+                  </td>
+                  <td
+                    data-label="Erfasst"
+                    class="tm-numeric"
+                  >
+                    {{ formatMinutes(entry.originalMinutes) }}
+                  </td>
+                  <td
+                    data-label="Aktuell"
+                    class="tm-numeric"
+                  >
+                    <button
+                      type="button"
+                      class="tm-table-time"
+                      :data-time-target="entry.id"
+                      :disabled="entry.kind === 'planned'"
+                      :aria-label="entry.date + ' · ' + entry.label + ' · Stunden bearbeiten'"
+                    >
+                      {{ formatMinutes(entry.minutes) }}
+                    </button>
+                  </td>
+                  <td
+                    data-label="Änderung"
+                    class="tm-numeric tm-difference"
+                  >
+                    {{ entry.minutes !== entry.originalMinutes ? (entry.minutes > entry.originalMinutes ? '+' : '') + formatMinutes(entry.minutes - entry.originalMinutes) : '—' }}
+                  </td>
+                  <td data-label="Anrechnung">
+                    {{ entry.kind === 'planned' ? 'Prognose' : entry.credited ? 'Monatsstunden' : 'Ohne Anrechnung' }}
+                  </td>
+                  <td
+                    data-label="Quelle"
+                    class="tm-muted"
+                  >
+                    {{ entry.source || 'Tageseintrag' }}
+                  </td>
+                </tr>
+                <tr v-if="!visibleEntries.length">
+                  <td
+                    colspan="10"
+                    class="tm-table-empty"
+                  >
+                    Keine {{ detailTab === 'absences' ? 'Fehlzeiten' : 'Einträge' }} in diesem Zeitraum. Über „Tageseintrag“ kannst du einen Eintrag anlegen.
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th
+                    colspan="5"
+                    scope="row"
+                  >
+                    {{ visibleEntries.length }} Einträge · Summe Ist-Zeit
+                  </th><td class="tm-numeric">
+                    {{ formatMinutes(visibleOriginalTotal) }}
+                  </td><td class="tm-numeric">
+                    <strong>{{ formatMinutes(visibleActualTotal) }}</strong>
+                  </td><td colspan="3">
+                    Geplante Zeit separat: {{ formatMinutes(visiblePlannedTotal) }}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <section
+            v-else
+            class="tm-history"
+            aria-label="Änderungsprotokoll"
+          >
+            <p v-if="!workspace.data.journal.length">
+              Noch keine Änderungen. Sammle Stunden aus den Kalenderfeldern oder der Spalte „Aktuell“ und lege sie im Zeitkonto ab.
+            </p>
+            <ol v-else>
+              <li
+                v-for="(change, index) in workspace.data.journal"
+                :key="index"
+              >
+                <strong>{{ change.label }}</strong><span
+                  v-for="(transfer, transferIndex) in groupTransfers(change.transfers)"
+                  :key="transferIndex"
+                >{{ formatMinutes(transfer.minutes) }} · {{ transfer.sourceLabel }} → {{ transfer.targetLabel }}</span>
+              </li>
+            </ol>
+          </section>
+        </section>
+      </div>
+    </Teleport>
+    <div v-if="showGuide" class="tm-guide">
       <span><kbd>Rechtsklick</kbd> 1 h sammeln</span><span><kbd>Linksklick</kbd> 1 h ablegen</span><span><kbd>⇧ Shift</kbd> alles</span><span><kbd>⌘ / Ctrl</kbd> Minuten wählen</span><span><kbd>Esc</kbd> zurücklegen</span>
       <span class="tm-guide__note">Zeitkonto und Eimer sind außerhalb des Monatsstundens.</span>
     </div>
@@ -463,14 +506,14 @@ import TimeDayEntryModal from '@/components/Modals/TimeDayEntryModal.vue';
 import { addTimeEntry, bucketMinutes, cancelTime, changeTimeEntryType, collectTime, createTimeWorkspace, dropOnDay, dropTime,
   formatMinutes, hasTimeChanges, monthWeeks, revertTime, saveTime, sourceMinutes, targetLabel, timeTotals, undoTime } from '@/utils/timeManagement';
 
-const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, initialData: { type: Object, required: true }, saveEnabled: { type: Boolean, default: true }, showContext: { type: Boolean, default: true } });
-const emit = defineEmits(['save']);
+const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, initialData: { type: Object, required: true }, saveEnabled: { type: Boolean, default: true }, showContext: { type: Boolean, default: true }, showGuide: { type: Boolean, default: true }, detailsInSidePanel: { type: Boolean, default: false }, detailsTarget: { type: Object, default: null } });
+const emit = defineEmits(['save', 'openCapture', 'selectDay', 'closeDetails']);
 // A workspace is an employee/month session. Remount with a key when either changes.
 const workspace = reactive(createTimeWorkspace(props.initialData));
 const root = ref(null);
 const selectedDate = ref(props.initialData.entries[0]?.date || `${props.month}-01`);
 const selectedEntryId = ref(props.initialData.entries[0]?.id || '');
-const detailScope = ref('month');
+const detailScope = ref(props.detailsInSidePanel ? 'day' : 'month');
 const detailTab = ref('entries');
 const detailScopes = [{ id: 'month', label: 'Monat' }, { id: 'week', label: 'Woche' }, { id: 'day', label: 'Tag' }];
 const mode = ref('drop');
@@ -534,14 +577,19 @@ const cardData = computed(() => {
     ] }], note: held.value ? `${formatMinutes(held.value)} sind gerade im Eimer und noch keinem Ziel zugeordnet.` : 'Ist-Zeit + angerechnete Fehlzeiten + Korrekturen + Planung.' };
 });
 function shortDate(date) { return new Date(`${date}T12:00:00`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
-function selectEntry(entry) { selectedEntryId.value = entry.id; selectedDate.value = entry.date; }
+function selectEntry(entry) {
+  selectedEntryId.value = entry.id;
+  selectedDate.value = entry.date;
+  if (props.detailsInSidePanel) emit('selectDay', entry.date);
+}
 function selectDay(date) {
   selectedDate.value = date;
   selectedEntryId.value = workspace.data.entries.find(entry => entry.date === date)?.id || '';
   detailScope.value = 'day';
   detailTab.value = 'entries';
+  if (props.detailsInSidePanel) emit('selectDay', date);
 }
-function selectWeek(date) { selectDay(date); detailScope.value = 'week'; }
+function selectWeek(date) { selectDay(date); if (!props.detailsInSidePanel) detailScope.value = 'week'; }
 function groupTransfers(transfers) {
   const grouped = new Map();
   for (const transfer of transfers) {
@@ -553,7 +601,7 @@ function groupTransfers(transfers) {
 }
 function targetFrom(event) {
   const target = event.target.closest?.('[data-time-target]');
-  return target && root.value?.contains(target) && !target.disabled ? target : null;
+  return target && (root.value?.contains(target) || props.detailsTarget?.contains(target)) && !target.disabled ? target : null;
 }
 function moveCursor(event) {
   if (event.pointerType === 'touch') { cursor.visible = false; return; }
@@ -576,7 +624,11 @@ function handleTarget(event, operation) {
   const id = target.dataset.timeTarget;
   const entry = workspace.data.entries.find(item => item.id === id);
   if (entry) selectEntry(entry);
-  if (operation === 'drop' && !held.value && id.startsWith('day:')) { openEntry(id.slice(4)); return; }
+  if (operation === 'drop' && !held.value && id.startsWith('day:')) {
+    if (props.detailsInSidePanel) selectDay(id.slice(4));
+    else openEntry(id.slice(4));
+    return;
+  }
   const max = operation === 'collect' ? sourceMinutes(workspace, id, newMinutes.value) : id === 'new' ? 0 : held.value;
   if (!max) {
     message.value = operation === 'collect' ? 'Hier sind keine Stunden zum Sammeln verfügbar.' : id === 'new' ? 'Neue Stunden sind eine Quelle. Wähle ein anderes Ziel.' : 'Der Eimer ist leer. Zuerst Stunden sammeln.';
@@ -635,7 +687,9 @@ function changeEntryType({ entryId, code }) {
   }
 }
 function onKeydown(event) {
-  if (event.key === 'Escape' && !entryDate.value && (held.value || slider.value)) { event.preventDefault(); cancel(); }
+  if (event.key !== 'Escape' || entryDate.value || document.querySelector('.mf-overlay')) return;
+  if (held.value || slider.value) { event.preventDefault(); cancel(); }
+  else if (props.detailsTarget && !event.defaultPrevented) emit('closeDetails');
 }
 function onKeyup(event) {
   if (slider.value?.modifier && ['Meta', 'Control'].includes(event.key) && !event.metaKey && !event.ctrlKey) applySlider();
@@ -663,12 +717,12 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.time-management { --tm-blue: #7f98b0; --tm-purple: #a997d0; --tm-green: #62b58f; color: var(--text); font-size: 12px; line-height: 1.4; }
-.time-management *, .tm-minute-picker * { box-sizing: border-box; }
-.time-management button, .time-management input, .time-management select, .tm-minute-picker button, .tm-minute-picker input { font: inherit; }
-.time-management button { color: inherit; }
-.time-management button:disabled { cursor: default; opacity: .48; }
-.time-management button:focus-visible, .time-management select:focus-visible, .tm-table-scroll:focus-visible, .tm-minute-picker input:focus-visible, .tm-minute-picker button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.time-management, .tm-details-content { --tm-blue: #7f98b0; --tm-purple: #a997d0; --tm-green: #62b58f; color: var(--text); font-size: 12px; line-height: 1.4; }
+.time-management *, .tm-details-content *, .tm-minute-picker * { box-sizing: border-box; }
+.time-management button, .time-management input, .time-management select, .tm-details-content button, .tm-details-content input, .tm-details-content select, .tm-minute-picker button, .tm-minute-picker input { font: inherit; }
+.time-management button, .tm-details-content button { color: inherit; }
+.time-management button:disabled, .tm-details-content button:disabled { cursor: default; opacity: .48; }
+.tm-details-content button:focus-visible, .tm-details-content select:focus-visible, .time-management button:focus-visible, .time-management select:focus-visible, .tm-table-scroll:focus-visible, .tm-minute-picker input:focus-visible, .tm-minute-picker button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .tm-context { display: grid; grid-template-columns: 100px minmax(145px, 1.15fr) 140px 95px minmax(140px, 1.25fr) minmax(115px, 1fr) minmax(90px, .8fr); gap: 8px; margin: 0 0 14px; }
 .tm-context > div { min-width: 0; }
 .tm-context dt { margin-bottom: 4px; color: var(--muted); font-size: 10px; font-weight: 500; }
@@ -786,6 +840,27 @@ kbd { display: inline-block; padding: 1px 3px; margin-right: 3px; border: 1px so
 .tm-minute-picker label { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
 .tm-minute-picker input[type=number] { width: 80px; border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; background: var(--surface); color: var(--text); }
 .tm-minute-picker .tm-minute-picker__help { font-size: 10px; line-height: 1.6; margin: 16px 0 12px; }
+
+.tm-details-content--panel .tm-details { margin-top: 12px; }
+.tm-details-content--panel .tm-detail-tabs { flex-wrap: wrap; }
+.tm-details-content--panel .tm-save-state { width: 100%; padding: 6px 2px; }
+.tm-details-content--panel .tm-table-scroll { min-height: 0; max-height: none; overflow: visible; }
+.tm-details-content--panel .tm-data-table { display: block; min-width: 0; }
+.tm-details-content--panel .tm-data-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.tm-details-content--panel .tm-data-table tbody,
+.tm-details-content--panel .tm-data-table tfoot { display: block; position: static; }
+.tm-details-content--panel .tm-data-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px; gap: 8px; border-bottom: 1px solid var(--border); }
+.tm-details-content--panel .tm-data-table td,
+.tm-details-content--panel .tm-data-table th { display: block; min-width: 0; padding: 4px; border: 0; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.tm-details-content--panel .tm-data-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 3px; color: var(--muted); font-size: 10px; font-weight: 400; }
+.tm-details-content--panel .tm-data-table td[data-label="Schicht / Eintragsart"],
+.tm-details-content--panel .tm-data-table td[data-label="Quelle"],
+.tm-details-content--panel .tm-data-table [colspan] { grid-column: 1 / -1; }
+.tm-details-content--panel .tm-location { white-space: normal; }
+.tm-details-content--panel .tm-data-table tfoot td:nth-child(2)::before { content: 'Erfasst: '; }
+.tm-details-content--panel .tm-data-table tfoot td:nth-child(3)::before { content: 'Aktuell: '; }
+.tm-details-content--panel .tm-tools { margin-left: 0; }
+.tm-details-content--panel .tm-new-source { border: 0; padding-left: 0; }
 
 [data-time-target]:not(:disabled) { cursor: pointer; }
 @media (max-width: 1150px) {

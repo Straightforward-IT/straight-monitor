@@ -7,9 +7,9 @@ import HoverDataCard from '../src/components/ui-elements/HoverDataCard.vue';
 import { timeManagementEmployee, timeManagementFixture } from '../src/components/dev/timeManagementFixture.js';
 
 let wrapper;
-function render() {
+function render(initialData = timeManagementFixture()) {
   wrapper = mount(TimeManagement, { attachTo: document.body, global: { stubs: { 'font-awesome-icon': true } }, props: {
-    employee: timeManagementEmployee, month: '2026-09', initialData: timeManagementFixture(),
+    employee: timeManagementEmployee, month: '2026-09', initialData,
   } });
   return wrapper;
 }
@@ -55,6 +55,16 @@ describe('TimeManagement interactions', () => {
     expect(entry.get('.tm-entry__type').text()).toBe('K');
     expect(entry.text()).toContain('7:00');
     expect(wrapper.get('[aria-label="Monatsstunden"]').text()).toContain('110:00 h');
+  });
+
+  it('opens related time capture when a locked assignment is clicked', async () => {
+    render({
+      ...timeManagementFixture(),
+      entries: [{ id: 'pending-shift', einsatzId: 'pending-shift', auftragNr: 9100001, date: '2026-09-09', code: 'O', label: 'Ausstehender Einsatz', kind: 'planned', credited: false, minutes: 480, locked: true }],
+    });
+    expect(wrapper.get('[aria-label="Monatsstunden"]').text()).toContain('8:00 h');
+    await wrapper.get('.tm-entry--locked .tm-entry__hours').trigger('click');
+    expect(wrapper.emitted('openCapture')[0][0]).toMatchObject({ auftragNr: 9100001, einsatzId: 'pending-shift' });
   });
 
   it('Escape returns a mixed bucket and partial drops, including new empty-day destinations', async () => {

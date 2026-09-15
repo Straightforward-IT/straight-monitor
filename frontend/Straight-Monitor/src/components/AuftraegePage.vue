@@ -43,7 +43,7 @@
             :options="filterOptions.kunden"
             value-key="kundenNr"
             label-key="kundName"
-            meta-key="kundenNr"
+            meta-key="kuerzel"
             placeholder="Kunden suchen..."
             @change="onKundenFilterChange"
           />

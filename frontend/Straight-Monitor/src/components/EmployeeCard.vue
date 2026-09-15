@@ -7,8 +7,8 @@
     </div>
 
     <template v-if="resolvedMa">
-    <!-- Selection Checkbox (always visible in grid view) -->
-    <div class="selection-overlay" @click.stop>
+    <!-- Selection Checkbox (only shown in selection views) -->
+    <div v-if="showCheckbox" class="selection-overlay" @click.stop>
       <input
         type="checkbox"
         :checked="isSelected"

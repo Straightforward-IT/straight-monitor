@@ -303,7 +303,7 @@ router.get(
   '/search',
   auth,
   asyncHandler(async (req, res) => {
-    const { q, includeInactive } = req.query;
+    const { q, includeInactive, requirePersonalnr, preferActive } = req.query;
     if (!q || String(q).trim().length < 2) return res.json([]);
     const search = String(q).trim();
     const terms = search.split(/\s+/).filter(Boolean).slice(0, 5);
@@ -321,6 +321,7 @@ router.get(
       $and: terms.map(matchingTerm),
     };
     if (includeInactive !== 'true') filter.isActive = true;
+    if (requirePersonalnr === 'true') filter.$and.push({ personalnr: { $exists: true, $nin: [null, ''] } });
     const results = await Mitarbeiter.find(filter)
       .select('_id vorname nachname email personalnr flip_id profilbild persgruppe isActive locationV2')
       .limit(20)
@@ -334,7 +335,8 @@ router.get(
       if (fullName.startsWith(normalizedSearch)) return 2;
       return 1;
     };
-    res.json(results.sort((first, second) => score(second) - score(first)
+    res.json(results.sort((first, second) => (preferActive === 'true' ? Number(second.isActive) - Number(first.isActive) : 0)
+      || score(second) - score(first)
       || `${first.nachname || ''} ${first.vorname || ''}`.localeCompare(`${second.nachname || ''} ${second.vorname || ''}`, 'de')));
   })
 );

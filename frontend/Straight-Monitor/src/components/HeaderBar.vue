@@ -52,6 +52,26 @@
           >
             Signatur
           </router-link>
+          <div class="nav-submenu" aria-label="Signatur Untermenue">
+            <router-link
+              to="/signaturen"
+              class="nav-submenu__link"
+            >
+              Signaturen
+            </router-link>
+            <router-link
+              :to="{ path: '/signaturen', query: { tab: 'templates' } }"
+              class="nav-submenu__link"
+            >
+              Templates
+            </router-link>
+            <router-link
+              :to="{ path: '/signaturen', query: { tab: 'ablage' } }"
+              class="nav-submenu__link"
+            >
+              Ablage
+            </router-link>
+          </div>
         </div>
           <div class="nav-group nav-group--personal">
             <router-link
@@ -89,7 +109,7 @@
           <router-link
             to="/payroll"
             :class="{ active: isPayrollSectionActive }"
-          >Stunden</router-link>
+          >Stunden <span class="beta-tag beta-tag--payroll">IN ARBEIT</span></router-link>
         </div>
         <div class="nav-group nav-group--reports">
           <router-link
@@ -279,7 +299,7 @@
               <font-awesome-icon :icon="['fas', 'table-cells-large']" />
               Übersicht
             </router-link>
-            <router-link
+            <!-- <router-link
               :to="{ path: '/dashboard', query: { tab: 'spaces' } }"
               class="mobile-submenu__link"
               :class="{ active: $route.name === 'Dashboard' && $route.query.tab === 'spaces' }"
@@ -287,7 +307,7 @@
             >
               <font-awesome-icon :icon="['fas', 'folder-open']" />
               Spaces
-            </router-link>
+            </router-link> -->
           </div>
         </div>
         <router-link
@@ -382,6 +402,7 @@
           >
             <font-awesome-icon :icon="['fas', 'calculator']" />
             Stunden
+            <span class="beta-tag beta-tag--payroll">IN ARBEIT</span>
           </router-link>
         </div>
         <div class="mobile-menu-group">
@@ -1530,14 +1551,19 @@ a.disabled {
 }
 
 .beta-tag {
-  background: #ff9500;
-  color: white;
-  font-size: 9px;
+  background: color-mix(in srgb, var(--primary) 52%, var(--surface));
+  color: color-mix(in srgb, var(--text) 68%, var(--primary));
+  font-size: 8px;
   font-weight: 600;
-  padding: 2px 5px;
+  padding: 2px 4px;
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+}
+
+@media (min-width: 1101px) {
+  .nav-group--payroll > a { overflow: visible; }
+  .beta-tag--payroll { position: absolute; top: -8px; right: -5px; }
 }
 
 .neu-tag {

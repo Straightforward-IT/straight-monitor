@@ -102,17 +102,23 @@ describe('Operational time capture API', function () {
   });
   it('keeps employee original, office draft and released month separate through corrections', async () => {
     assert.equal((await submit()).status, 201);
-    assert.equal((await month()).body.initialData.entries.length, 0);
+    let monthEntries = (await month()).body.initialData.entries;
+    assert.equal(monthEntries.length, 2);
+    assert.ok(monthEntries.every(entry => entry.locked));
+    assert.equal(monthEntries.find(entry => entry.einsatzId === String(einsatz._id)).minutes, 480);
     assert.equal((await update('save', 1, { ...time(), end: '19:00' })).status, 200);
-    assert.equal((await month()).body.initialData.entries.length, 0);
+    assert.equal((await month()).body.initialData.entries.length, 2);
     assert.equal((await submit()).status, 409);
     assert.equal((await update('release', 2, { ...time(), end: '19:00' })).status, 200);
-    assert.equal((await month()).body.initialData.entries[0].minutes, 510);
+    monthEntries = (await month()).body.initialData.entries;
+    assert.equal(monthEntries.find(entry => entry.einsatzId === String(einsatz._id)).minutes, 510);
     assert.equal((await update('save', 3, { ...time(), end: '20:00' })).status, 200);
-    assert.equal((await month()).body.initialData.entries[0].minutes, 510);
+    monthEntries = (await month()).body.initialData.entries;
+    assert.equal(monthEntries.find(entry => entry.einsatzId === String(einsatz._id)).minutes, 510);
     assert.equal((await update('release', 4, { ...time(), end: '20:00' })).status, 200);
     const latest = (await month()).body.initialData.entries;
-    assert.equal(latest.length, 1); assert.equal(latest[0].minutes, 570); assert.equal(latest[0].originalMinutes, 450);
+    const released = latest.find(entry => entry.einsatzId === String(einsatz._id));
+    assert.equal(latest.length, 2); assert.equal(released.minutes, 570); assert.equal(released.originalMinutes, 450);
     assert.equal((await submit()).status, 409);
     assert.equal((await update('release', 4)).status, 409);
     const review = (await request(`/orders/${order.auftragNr}`)).body;
@@ -122,9 +128,9 @@ describe('Operational time capture API', function () {
   });
   it('withdraws one released entry without losing its editable draft', async () => {
     assert.equal((await update('release', 0)).status, 200);
-    assert.equal((await month()).body.initialData.entries.length, 1);
+    assert.equal((await month()).body.initialData.entries.length, 2);
     assert.equal((await update('withdraw', 1)).status, 200);
-    assert.equal((await month()).body.initialData.entries.length, 0);
+    assert.equal((await month()).body.initialData.entries.length, 2);
     const withdrawn = await Stundenzeit.findById(einsatz._id).lean();
     assert.equal(withdrawn.status, 'DRAFT');
     assert.equal(withdrawn.current.netMinutes, 450);
@@ -132,7 +138,8 @@ describe('Operational time capture API', function () {
     assert.equal(withdrawn.history.at(-1).action, 'WITHDRAWN');
     assert.equal((await update('withdraw', 2)).status, 409);
     assert.equal((await update('release', 2, { ...time(), end: '19:00' })).status, 200);
-    assert.equal((await month()).body.initialData.entries[0].minutes, 510);
+    const released = (await month()).body.initialData.entries.find(entry => entry.einsatzId === String(einsatz._id));
+    assert.equal(released.minutes, 510);
   });
   it('locks employee capture after an office-created entry and rolls back conflicting batches', async () => {
     assert.equal((await update('save', 0)).status, 200);
@@ -143,7 +150,7 @@ describe('Operational time capture API', function () {
     ] } });
     assert.equal(response.status, 409);
     assert.equal(await Stundenzeit.findById(second._id), null);
-    assert.equal((await month()).body.initialData.entries.length, 0);
+    assert.equal((await month()).body.initialData.entries.length, 2);
   });
   it('checks live location access and does not reveal a previous employee submission on reassignment', async () => {
     await submit();
@@ -163,7 +170,7 @@ describe('Operational time capture API', function () {
     const review = await request(`/orders/${order.auftragNr}?employeeId=${employee._id}`);
     assert.equal(review.body.einsaetze.find(row => row.personalNr === 200001).mitarbeiterData._id, String(employee._id));
     assert.equal((await update('release', 1)).status, 200);
-    assert.equal((await month()).body.initialData.entries.length, 1);
+    assert.equal((await month()).body.initialData.entries.length, 2);
   });
   it('lists linked documents, prioritizes completed hours lists and renders a report PDF', async () => {
     const report = await EventReport.create({ auftragnummer: String(order.auftragNr), name_teamleiter: 'Testleitung', kunde: 'Testkunde', location: 'Hamburg', datum: new Date('2020-09-08'), sonstiges: 'Gespeicherter Bericht mit Umlauten: äöü.' });

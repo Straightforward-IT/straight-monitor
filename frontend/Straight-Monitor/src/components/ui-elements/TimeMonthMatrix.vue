@@ -71,15 +71,16 @@
                       v-for="entry in entriesByDate[week.days[weekdayIndex].date] || []"
                       :key="entry.id"
                       class="tm-entry"
-                      :class="[`tm-entry--${entry.kind}`, { 'tm-entry--changed': entry.minutes !== entry.originalMinutes }]"
-                      :data-time-target="entry.id"
-                      :title="`${entry.label} · ${formatMinutes(entry.minutes)}${entry.minutes !== entry.originalMinutes ? ` · vorher ${formatMinutes(entry.originalMinutes)}` : ''}`"
+                      :class="[`tm-entry--${entry.kind}`, { 'tm-entry--changed': entry.minutes !== entry.originalMinutes, 'tm-entry--locked': entry.locked }]"
+                      :data-time-target="entry.locked ? undefined : entry.id"
+                      :title="entry.locked ? `${entry.label} · Stunden erfassen` : `${entry.label} · ${formatMinutes(entry.minutes)}${entry.minutes !== entry.originalMinutes ? ` · vorher ${formatMinutes(entry.originalMinutes)}` : ''}`"
                     >
                       <button
                         type="button"
                         class="tm-entry__type"
+                        :disabled="entry.locked"
                         :aria-expanded="typeMenuId === entry.id"
-                        :aria-label="`Art ${entry.code || (entry.kind === 'planned' ? 'PL' : 'P')} für ${week.days[weekdayIndex].day}. ${monthLabel} ändern`"
+                        :aria-label="entry.locked ? `${entry.label} wartet auf Stundenerfassung` : `Art ${entry.code || (entry.kind === 'planned' ? 'PL' : 'P')} für ${week.days[weekdayIndex].day}. ${monthLabel} ändern`"
                         @click.stop="typeMenuId = typeMenuId === entry.id ? '' : entry.id"
                       >
                         {{ entry.code || (entry.kind === 'planned' ? 'PL' : 'P') }}
@@ -87,10 +88,11 @@
                       <button
                         type="button"
                         class="tm-entry__hours"
-                        :disabled="entry.kind === 'planned'"
-                        :aria-label="`${week.days[weekdayIndex].day}. ${monthLabel} · ${entry.label} · ${formatMinutes(entry.minutes)}${entry.kind === 'planned' ? ' · geplant' : ''}`"
+                        :disabled="entry.kind === 'planned' && !entry.locked"
+                        :aria-label="entry.locked ? `${week.days[weekdayIndex].day}. ${monthLabel} · ${entry.label} · Stundenschnellerfassung öffnen` : `${week.days[weekdayIndex].day}. ${monthLabel} · ${entry.label} · ${formatMinutes(entry.minutes)}${entry.kind === 'planned' ? ' · geplant' : ''}`"
+                        @click.stop="entry.locked && emit('openCapture', entry)"
                       >
-                        <strong>{{ formatMinutes(entry.minutes).replace(' h', '') }}</strong><i aria-hidden="true" />
+                        <strong>{{ entry.locked ? 'Erfassen' : formatMinutes(entry.minutes).replace(' h', '') }}</strong><i aria-hidden="true" />
                       </button>
                       <div
                         v-if="typeMenuId === entry.id"
@@ -143,7 +145,7 @@
 import { computed, ref } from 'vue';
 import { formatMinutes, monthWeeks, TIME_ENTRY_TYPES } from '@/utils/timeManagement';
 const props = defineProps({ month: { type: String, required: true }, entries: { type: Array, required: true }, selectedDate: { type: String, default: '' }, held: { type: Number, default: 0 } });
-const emit = defineEmits(['selectDay', 'selectWeek', 'changeType']);
+const emit = defineEmits(['selectDay', 'selectWeek', 'changeType', 'openCapture']);
 const typeMenuId = ref('');
 const entryTypes = TIME_ENTRY_TYPES;
 const weekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
@@ -202,6 +204,9 @@ function chooseType(entryId, code) {
 .tm-entry--sick, .tm-entry--absence { --entry-color: #a997d0; }
 .tm-entry--correction { --entry-color: #70b4af; }
 .tm-entry--planned { --entry-color: var(--primary); border-style: dashed; opacity: .75; cursor: default; }
+.tm-entry--locked { opacity: 1; cursor: pointer; }
+.tm-entry--locked .tm-entry__hours { color: var(--primary); }
+.tm-entry--locked .tm-entry__hours:hover { background: color-mix(in srgb, var(--primary) 12%, transparent); }
 .tm-entry--changed > strong { font-weight: 700; }
 .tm-entry--changed { border-color: var(--primary); }
 .tmx-empty { width: 100%; border: 1px dashed color-mix(in srgb, var(--border) 70%, transparent); border-radius: 3px; background: transparent; color: var(--muted); font-size: 10px; cursor: pointer; min-height: 26px; }

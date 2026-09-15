@@ -414,7 +414,7 @@ onBeforeUnmount(close);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.hover-data-card--inline { position: relative; z-index: auto; width: 100%; max-width: none; max-height: none; box-shadow: none; }
+.hover-data-card--inline { position: relative; z-index: auto; width: 100%; max-width: none; max-height: none; overflow: visible; overscroll-behavior: auto; box-shadow: none; }
 .hover-data-card__indicator { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
 .hover-data-card__employee-name { min-width: 0; overflow: hidden; font-size: 12px; font-weight: 600; letter-spacing: normal; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
 .hover-data-card__eyebrow { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
