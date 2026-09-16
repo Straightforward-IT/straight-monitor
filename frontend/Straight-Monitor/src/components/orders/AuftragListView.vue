@@ -3,12 +3,54 @@
     class="order-list-view"
     aria-label="Aufträge als Liste"
   >
-    <Toolbar
-      :show-location-filter="true"
-      :locations="locations"
-      :location-v2="locationV2"
-      @update:location-v2="$emit('update:locationV2', $event)"
-    >
+    <Toolbar>
+      <ToolbarFilter
+        :model-value="filterExpanded"
+        :active-count="activeFilterCount"
+        @update:model-value="$emit('update:filterExpanded', $event)"
+        @reset="$emit('resetFilters')"
+      >
+        <FilterGroup label="Standort">
+          <LocationFilter
+            :model-value="locationV2"
+            :locations="locations"
+            @update:model-value="$emit('update:locationV2', $event)"
+          />
+        </FilterGroup>
+        <FilterDivider />
+        <FilterGroup label="Einsätze">
+          <FilterChip
+            :active="bedarfStatus.includes('voll')"
+            @click="$emit('toggleBedarfStatus', 'voll')"
+          >
+            Voll
+          </FilterChip>
+          <FilterChip
+            :active="bedarfStatus.includes('offen')"
+            @click="$emit('toggleBedarfStatus', 'offen')"
+          >
+            Offen
+          </FilterChip>
+          <FilterChip
+            :active="pseudoEinsatz"
+            @click="$emit('togglePseudoEinsatz')"
+          >
+            Pseudo
+          </FilterChip>
+        </FilterGroup>
+        <FilterDivider />
+        <FilterGroup label="Kunden">
+          <PillMultiSelect
+            :model-value="kunden"
+            :options="kundenOptions"
+            value-key="kundenNr"
+            label-key="kundName"
+            meta-key="kuerzel"
+            placeholder="Kunden suchen…"
+            @change="$emit('update:kunden', $event)"
+          />
+        </FilterGroup>
+      </ToolbarFilter>
       <SearchBar
         class="toolbar-search"
         :model-value="searchQuery"
@@ -91,8 +133,14 @@
 
 <script setup>
 import { computed } from "vue";
+import FilterGroup from "@/components/FilterGroup.vue";
 import SearchBar from "@/components/SearchBar.vue";
+import FilterChip from "@/components/ui-elements/FilterChip.vue";
+import FilterDivider from "@/components/ui-elements/FilterDivider.vue";
+import LocationFilter from "@/components/ui-elements/LocationFilter.vue";
+import PillMultiSelect from "@/components/ui-elements/PillMultiSelect.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
+import ToolbarFilter from "@/components/ui-elements/ToolbarFilter.vue";
 
 const props = defineProps({
   orders: { type: Array, default: () => [] },
@@ -101,11 +149,26 @@ const props = defineProps({
   locationV2: { type: [String, Number], default: null },
   searchQuery: { type: String, default: "" },
   selectedOrderNumber: { type: [String, Number], default: null },
+  filterExpanded: { type: Boolean, default: false },
+  activeFilterCount: { type: Number, default: 0 },
+  kunden: { type: Array, default: () => [] },
+  kundenOptions: { type: Array, default: () => [] },
+  bedarfStatus: { type: Array, default: () => [] },
+  pseudoEinsatz: { type: Boolean, default: false },
   statusClass: { type: Function, required: true },
   statusText: { type: Function, required: true },
 });
 
-defineEmits(["select", "update:locationV2", "update:searchQuery"]);
+defineEmits([
+  "select",
+  "update:locationV2",
+  "update:searchQuery",
+  "update:filterExpanded",
+  "update:kunden",
+  "toggleBedarfStatus",
+  "togglePseudoEinsatz",
+  "resetFilters",
+]);
 
 const sortedOrders = computed(() => [...props.orders].sort((left, right) => {
   const leftDate = new Date(left.vonDatum || 0).getTime();
@@ -124,12 +187,13 @@ function hasDateRange(order) {
 }
 
 function staffingText(order) {
-  const assigned = Array.isArray(order.einsaetze) ? order.einsaetze.length : null;
-  const required = Array.isArray(order.schichten)
-    ? order.schichten.reduce((sum, shift) => sum + (Number(shift.bedarf) || 0), 0)
-    : null;
-  if (assigned == null && required == null) return "–";
-  return required ? `${assigned || 0} / ${required}` : String(assigned || 0);
+  if (Array.isArray(order.schichten) && order.schichten.length) {
+    const assigned = order.schichten.reduce((sum, shift) => sum + (Number(shift.besetzt) || 0), 0);
+    const required = order.schichten.reduce((sum, shift) => sum + (Number(shift.bedarf) || 0), 0);
+    return `${assigned} / ${required}`;
+  }
+
+  return typeof order.einsaetzeCount === "number" ? `${order.einsaetzeCount} / –` : "–";
 }
 </script>
 

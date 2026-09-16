@@ -692,11 +692,22 @@
           :location-v2="filters.locationV2"
           :search-query="searchQuery"
           :selected-order-number="selectedEvent?.auftragNr"
+          :filter-expanded="filterExpanded"
+          :active-filter-count="listActiveFilterCount"
+          :kunden="filters.kunden"
+          :kunden-options="filterOptions.kunden"
+          :bedarf-status="filters.bedarfStatus"
+          :pseudo-einsatz="filters.pseudoEinsatz"
           :status-class="getEventStatusClass"
           :status-text="getStatusText"
           @select="selectEvent"
           @update:location-v2="setLocationFilter"
           @update:search-query="searchQuery = $event"
+          @update:filter-expanded="filterExpanded = $event"
+          @update:kunden="setKundenFilter"
+          @toggle-bedarf-status="toggleBedarfStatusFilter"
+          @toggle-pseudo-einsatz="togglePseudoEinsatzFilter"
+          @reset-filters="resetListFilters"
         />
       </div>
       <!-- End main-content -->
@@ -2775,6 +2786,14 @@ export default {
       if (this.filters.pseudoEinsatz) count++;
       return count;
     },
+    listActiveFilterCount() {
+      let count = 0;
+      if (this.filters.locationV2) count++;
+      if (this.filters.kunden.length > 0) count++;
+      if (this.filters.bedarfStatus.length > 0) count++;
+      if (this.filters.pseudoEinsatz) count++;
+      return count;
+    },
     // Maps the active Location v2 filter to its Bundesland code.
     activeStateLand() {
       const map = { 1: "BE", 2: "HH", 3: "NW" };
@@ -3428,6 +3447,10 @@ export default {
       this.saveFiltersToStorage();
       this.resetAndReload();
     },
+    setKundenFilter(kunden) {
+      this.filters.kunden = kunden;
+      this.onKundenFilterChange();
+    },
     togglePseudoEinsatzFilter() {
       this.filters.pseudoEinsatz = !this.filters.pseudoEinsatz;
       this.saveFiltersToStorage();
@@ -3467,6 +3490,15 @@ export default {
       // Clear storage on reset, then apply user defaults
       sessionStorage.removeItem("auftraege_filters");
       this.filters.locationV2 = this.getUserLocationId();
+      this.saveFiltersToStorage();
+      this.fetchFilterOptions();
+      this.resetAndReload();
+    },
+    resetListFilters() {
+      this.filters.locationV2 = this.getUserLocationId();
+      this.filters.kunden = [];
+      this.filters.bedarfStatus = [];
+      this.filters.pseudoEinsatz = false;
       this.saveFiltersToStorage();
       this.fetchFilterOptions();
       this.resetAndReload();
