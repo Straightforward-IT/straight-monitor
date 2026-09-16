@@ -24,6 +24,11 @@ const MitarbeiterSchema = new mongoose.Schema({
     additionalEmails: [{ type: String, lowercase: true, trim: true }],
     telefon: { type: String, required: false, trim: true },
     iban: { type: String, required: false, trim: true, uppercase: true },
+        fuehrerschein: {
+            klasse: { type: String, trim: true, default: null },
+            gueltigVon: { type: Date, default: null },
+            gueltigBis: { type: Date, default: null },
+        },
     // Hauptadresse (Adresse 1) aus Zvoove — Tel/Email der Hauptadresse fließen in telefon/email.
     adresse: {
         strasse: { type: String, trim: true },

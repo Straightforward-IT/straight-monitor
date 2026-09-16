@@ -682,6 +682,30 @@ router.post('/kunde', auth, upload.single('file'), async (req, res) => {
   }
 });
 
+const EINSATZ_7001_HEADERS = [
+  'CODE', 'IST_PSEUDO',
+  'AUFTRAGNR', 'PERSONALNR', 'BERUFSCHL', 'QUALSCHL', 'BEZEICHN', 'DATUMVON', 'DATUMBIS', 'CPROTBEDIENER', 'DTPROTDATUM', 'REFERENZ', 'ID_AUFTRAG_ARBEITSSCHICHTEN',
+  'BEZEICHNUNG', 'TREFFPUNKTUHRZEIT', 'TREFFPUNKTORT', 'ANSP_NAME', 'ANSP_TELEFON', 'ANSP_EMAIL', 'LETZTEAUSSCHREIBUNG',
+  'DETAIL_DATUMVON', 'DETAIL_DATUMBIS', 'UHRZEITVON', 'UHRZEITBIS', 'TYP', 'BEDARF', 'GARANTIESTD_LOHN', 'ENDEOFFEN',
+  'A_GESCHST', 'KUNDENNR', 'EVENTTITEL', 'BEDIENER', 'DTANGELEGTAM', 'BESTDATUM', 'VONDATUM', 'BISDATUM', 'EVENT_STRASSE', 'EVENT_PLZ', 'EVENT_ORT', 'EVENT_LOCATION', 'AKTIV', 'AUFTSTATUS',
+  'KUNDNAME', 'KUNDESEIT', 'KUNDSTATUS', 'K_GESCHST', 'K_KOSTENST', 'BEMERKUNG', 'BEMERKUNG2', 'BEMERKUNG3',
+  'ADR1_NUMMER', 'ADR1_LNAME', 'ADR1_BRANCHE', 'ADR1_LBRANCHE', 'ADR1_STRASSE', 'ADR1_PLZ', 'ADR1_ORT', 'ADR1_LAND', 'ADR1_TELEFON1', 'ADR1_TELEFON2', 'ADR1_EMAIL', 'ADR1_HOMEPAGE',
+  'ADR2_NUMMER', 'ADR2_LNAME', 'ADR2_BRANCHE', 'ADR2_LBRANCHE', 'ADR2_STRASSE', 'ADR2_PLZ', 'ADR2_ORT', 'ADR2_LAND', 'ADR2_TELEFON1', 'ADR2_TELEFON2', 'ADR2_EMAIL', 'ADR2_HOMEPAGE',
+  'ADR3_NUMMER', 'ADR3_LNAME', 'ADR3_BRANCHE', 'ADR3_LBRANCHE', 'ADR3_STRASSE', 'ADR3_PLZ', 'ADR3_ORT', 'ADR3_LAND', 'ADR3_TELEFON1', 'ADR3_TELEFON2', 'ADR3_EMAIL', 'ADR3_HOMEPAGE',
+];
+
+const validateEinsatz7001Header = (header) => {
+  const actualHeaders = (header || []).map((value) => String(value ?? ''));
+  const mismatchIndex = EINSATZ_7001_HEADERS.findIndex((expected, index) => actualHeaders[index] !== expected);
+  if (mismatchIndex === -1 && actualHeaders.length === EINSATZ_7001_HEADERS.length) return null;
+
+  const index = mismatchIndex === -1 ? EINSATZ_7001_HEADERS.length : mismatchIndex;
+  const column = XLSX.utils.encode_col(index);
+  const expected = EINSATZ_7001_HEADERS[index] || 'keine weitere Spalte';
+  const actual = actualHeaders[index] || 'leer';
+  return `Ungültige Header-Zeile für Liste 7001 in Spalte ${column}: erwartet "${expected}", erhalten "${actual}".`;
+};
+
 // --- Einsatz Import (Zvoove Komplett-Export) ---
 router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
@@ -692,14 +716,14 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-    // Prüffeld-Validierung: Spalte A muss 7001 enthalten
+    // Validate the SQL export header before processing or reading any records.
     const rawCheck = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-    const checkStart = (rawCheck.length > 0 && isNaN(rawCheck[0][0])) ? 1 : 0;
-    if (rawCheck.length > checkStart) {
-      const prueffeld = parseInt(rawCheck[checkStart][0], 10);
-      if (prueffeld === 7002) {
-        return res.status(400).json({ success: false, message: 'Falsche Liste: Die Datei enthält das Prüffeld 7002 (Personal). Für den Einsatz-Import wird Liste 7001 erwartet.' });
-      }
+    const headerError = validateEinsatz7001Header(rawCheck[0]);
+    if (headerError) {
+      return res.status(400).json({ success: false, message: headerError });
+    }
+    if (rawCheck.length > 1 && parseInt(rawCheck[1][0], 10) !== 7001) {
+      return res.status(400).json({ success: false, message: 'Falsche Liste: Für den Einsatz-Import wird Prüffeld 7001 erwartet.' });
     }
 
     const rawData = XLSX.utils.sheet_to_json(sheet);
@@ -1078,9 +1102,29 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
   }
 });
 
-// --- Personal Import (kombiniert: Personalnr, Persstatus, Stammdaten, IBAN, Beruf/Quali, Persgruppe, Arbeitsverhältnis, Arbeitszeit, Adresse(n), Email, Telefon) ---
-// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Nachname, F=Vorname, G=Geburtsname(GEBNAME), H=Geburtsort(GEBORT), I=Eintritt1, J=Austritt1, K=IBAN, L=Berufsschlüssel(komma), M=Qualischlüssel(komma), N=Persgruppe, O=Arbeitsverhältnis-von, P=Arbeitsverhältnis-Typ, Q=Durchschnitt bei Fortführen, R=Arbeitszeit-von, S=Arbeitszeit-bis, T-AD=Arbeitszeit, AE=Strasse, AF=PLZ, AG=Ort, AH=Land, AI=Telefon, AJ=Email, AK=Strasse2, AL=PLZ2, AM=Ort2, AN=Land2, AO=Telefon2, AP=Email2
+// --- Personal Import (kombiniert: Personalnr, Persstatus, Stammdaten, IBAN, Führerschein, Beruf/Quali, Persgruppe, Arbeitsverhältnis, Arbeitszeit, Adresse(n), Email, Telefon) ---
+// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Nachname, F=Vorname, G=Geburtsname(GEBNAME), H=Geburtsort(GEBORT), I=Eintritt1, J=Austritt1, K=IBAN, L=Führerschein, M=Führerschein gültig von, N=Führerschein gültig bis, O=Berufsschlüssel(komma), P=Qualischlüssel(komma), Q=Persgruppe, R=Arbeitsverhältnis-von, S=Arbeitsverhältnis-Typ, T=Durchschnitt bei Fortführen, U=Arbeitszeit-von, V=Arbeitszeit-bis, W-AI=Arbeitszeit, AJ=Strasse, AK=PLZ, AL=Ort, AM=Land, AN=Telefon, AO=Email, AP=Strasse2, AQ=PLZ2, AR=Ort2, AS=Land2, AT=Telefon2, AU=Email2
 // Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
+const PERSONAL_7002_HEADERS = [
+  'CODE', 'PERSONALNR', 'PERSSTATUS', 'GEBDATUM', 'NACHNAME', 'VORNAME', 'GEBNAME', 'GEBORT', 'EINTRITT1', 'AUSTRITT1',
+  'IBAN', 'FUEHRERSCH', 'FUEHRERSCHEIN_GUELTIGVON', 'FUEHRERSCHEIN_GUELTIGBIS', 'BERUFSCHL_LISTE', 'QUALSCHL_LISTE', 'PERSGR',
+  'ARBEITSVERHAELTNIS_VON', 'ARBEITSVERHAELTNISTYP', 'DURCHSCHNBERFORTFUEHREN',
+  'ARBEITSZEIT_VON', 'ARBEITSZEIT_BIS', 'ARBZEITMO', 'ARBZEITDI', 'ARBZEITMI', 'ARBZEITDO', 'ARBZEITFR', 'ARBZEITSA', 'ARBZEITSO',
+  'ARBZEITWCH', 'ARBZEITMON', 'DZEITKONTOPLUS', 'DZEITKONTOMINUS',
+  'STRASSE', 'PLZ', 'ORT', 'LAND', 'TEL', 'EMAIL', 'STRASSE2', 'PLZ2', 'ORT2', 'LAND2', 'TEL2', 'EMAIL2',
+];
+
+const validatePersonal7002Header = (header) => {
+  const actualHeaders = (header || []).map((value) => String(value ?? ''));
+  const mismatchIndex = PERSONAL_7002_HEADERS.findIndex((expected, index) => actualHeaders[index] !== expected);
+  if (mismatchIndex === -1 && actualHeaders.length === PERSONAL_7002_HEADERS.length) return null;
+
+  const column = XLSX.utils.encode_col(mismatchIndex === -1 ? PERSONAL_7002_HEADERS.length : mismatchIndex);
+  const expected = PERSONAL_7002_HEADERS[mismatchIndex === -1 ? PERSONAL_7002_HEADERS.length : mismatchIndex] || 'keine weitere Spalte';
+  const actual = actualHeaders[mismatchIndex === -1 ? PERSONAL_7002_HEADERS.length : mismatchIndex] || 'leer';
+  return `Ungültige Header-Zeile für Liste 7002 in Spalte ${column}: erwartet "${expected}", erhalten "${actual}".`;
+};
+
 router.post('/personal', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -1101,21 +1145,22 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-    // Skip header row if first cell looks like text
-    const startRow = (rawData.length > 0 && isNaN(rawData[0][0])) ? 1 : 0;
+    const headerError = validatePersonal7002Header(rawData[0]);
+    if (headerError) {
+      return res.status(400).json({ success: false, message: headerError });
+    }
+    const startRow = 1;
 
     // Prüffeld-Validierung: Spalte A enthält 7002.
-    // If present, all data columns are shifted one to the right
-    let colOffset = 0;
-    let isExtendedFormat = false;
+    let colOffset = 1;
+    let isExtendedFormat = true;
     if (rawData.length > startRow) {
       const firstVal = parseInt(rawData[startRow][0], 10);
       if (firstVal === 7001) {
         return res.status(400).json({ success: false, message: 'Falsche Liste: Die Datei enthält das Prüffeld 7001 (Einsatz-Komplett). Für den Personal-Import wird Liste 7002 erwartet.' });
       }
-      if (firstVal === 7002) {
-        colOffset = 1;
-        isExtendedFormat = true;
+      if (firstVal !== 7002) {
+        return res.status(400).json({ success: false, message: 'Falsche Liste: Für den Personal-Import wird Prüffeld 7002 erwartet.' });
       }
     }
 
@@ -1145,18 +1190,18 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
 
       // Fixed column indices per format.
       // New 7002 (colOffset=1): A=Prüffeld, B=Personalnr, C=Persstatus, D=Geburtsdatum,
-      //   E=Nachname, F=Vorname, G=Geburtsname, H=Geburtsort, I=Eintritt1, J=Austritt1,
-      //   K=IBAN, L=Berufsschl, M=Qualschl, N=Persgruppe, O=Arbeitsverhältnis-von,
-      //   P=Arbeitsverhältnis-Typ, Q=Durchschnitt bei Fortführen, R=Arbeitszeit-von,
-      //   S=Arbeitszeit-bis, T=Mo, U=Di, V=Mi, W=Do, X=Fr, Y=Sa, Z=So, AA=Woche,
-      //   AB=Monat, AC=Zeitkonto-Plus-Limit, AD=Zeitkonto-Minus-Limit, AE=Strasse,
-      //   AF=PLZ, AG=Ort, AH=Land, AI=Tel, AJ=Email, AK=Strasse2, AL=PLZ2,
-      //   AM=Ort2, AN=Land2, AO=Tel2, AP=Email2
+      //   K=IBAN, L=Führerschein, M=Gültig von, N=Gültig bis, O=Berufsschl, P=Qualschl,
+      //   Q=Persgruppe, R=Arbeitsverhältnis-von, S=Arbeitsverhältnis-Typ,
+      //   T=Durchschnitt bei Fortführen, U=Arbeitszeit-von, V=Arbeitszeit-bis, W=Mo,
+      //   X=Di, Y=Mi, Z=Do, AA=Fr, AB=Sa, AC=So, AD=Woche, AE=Monat,
+      //   AF=Zeitkonto-Plus-Limit, AG=Zeitkonto-Minus-Limit, AH=Strasse, AI=PLZ,
+      //   AJ=Ort, AK=Land, AL=Tel, AM=Email, AN=Strasse2, AO=PLZ2, AP=Ort2,
+      //   AQ=Land2, AR=Tel2, AS=Email2
       // Legacy (colOffset=0): A=Personalnr, B=ignoriert, C=Austritt, D=Berufsschl,
       //   E=Qualschl, F=Persgruppe, G=Email, H=Telefon
       let personalnr, persstatus, geburtsdatum, nachname, vorname, geburtsname, geburtsort, eintrittsdatum, austrittsdatum;
       let iban, berufKeys, qualiKeys, persgruppRaw, email, telefon;
-      let adresse = null, adresse2 = null, arbeitszeit = null, arbeitsverhaeltnis = null;
+      let adresse = null, adresse2 = null, arbeitszeit = null, arbeitsverhaeltnis = null, fuehrerschein = null;
 
       if (hasNewFormat) {
         personalnr = parseStr(row[1]);
@@ -1171,9 +1216,19 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         eintrittsdatum = parseDate(row[dataStart + 2]);
         austrittsdatum = parseDate(row[dataStart + 3]);
         iban = parseStr(row[dataStart + 4]);
-        berufKeys = parseKeys(row[dataStart + 5]);
-        qualiKeys = parseKeys(row[dataStart + 6]);
-        persgruppRaw = row[dataStart + 7] != null ? parseInt(row[dataStart + 7], 10) : null;
+        const fuehrerscheinKlasse = parseStr(row[dataStart + 5]);
+        const fuehrerscheinGueltigVon = parseDate(row[dataStart + 6]);
+        const fuehrerscheinGueltigBis = parseDate(row[dataStart + 7]);
+        if (fuehrerscheinKlasse || fuehrerscheinGueltigVon || fuehrerscheinGueltigBis) {
+          fuehrerschein = {
+            klasse: fuehrerscheinKlasse,
+            gueltigVon: fuehrerscheinGueltigVon,
+            gueltigBis: fuehrerscheinGueltigBis,
+          };
+        }
+        berufKeys = parseKeys(row[dataStart + 8]);
+        qualiKeys = parseKeys(row[dataStart + 9]);
+        persgruppRaw = row[dataStart + 10] != null ? parseInt(row[dataStart + 10], 10) : null;
         const parseNumber = (value) => {
           if (value == null || String(value).trim() === '') return null;
           const parsed = Number(String(value).trim().replace(',', '.'));
@@ -1187,13 +1242,13 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           if (['0', 'false', 'nein', 'no'].includes(normalized)) return false;
           return null;
         };
-        const workingTimeStart = isExtendedFormat ? 17 : 11;
+        const workingTimeStart = isExtendedFormat ? 20 : 11;
         if (isExtendedFormat) {
-          const typ = parseNumber(row[15]);
+          const typ = parseNumber(row[18]);
           arbeitsverhaeltnis = {
-            von: parseDate(row[14]),
+            von: parseDate(row[17]),
             typ: [0, 1, 2, 3].includes(typ) ? typ : null,
-            durchschnittBeiFortfuehren: parseBoolean(row[16]),
+            durchschnittBeiFortfuehren: parseBoolean(row[19]),
           };
           if (Object.values(arbeitsverhaeltnis).every((value) => value == null)) arbeitsverhaeltnis = null;
         }
@@ -1264,6 +1319,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       if (nachname) setFields.nachname = nachname;
       if (vorname) setFields.vorname = vorname;
       if (iban) setFields.iban = iban;
+      if (hasNewFormat) setFields.fuehrerschein = fuehrerschein;
       if (geburtsdatum) setFields.geburtsdatum = geburtsdatum;
       if (geburtsname) setFields.geburtsname = geburtsname;
       if (geburtsort) setFields.geburtsort = geburtsort;

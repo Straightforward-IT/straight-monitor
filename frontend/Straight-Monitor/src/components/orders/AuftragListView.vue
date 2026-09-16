@@ -3,7 +3,7 @@
     class="order-list-view"
     aria-label="Aufträge als Liste"
   >
-    <Toolbar>
+    <Toolbar class="order-list-toolbar">
       <ToolbarFilter
         :model-value="filterExpanded"
         :active-count="activeFilterCount"
@@ -59,6 +59,63 @@
         @update:model-value="$emit('update:searchQuery', $event)"
       />
       <span class="order-count">{{ sortedOrders.length }} Aufträge</span>
+      <template #bottom-actions>
+        <div
+          class="toolbar-period-controls"
+          role="group"
+          aria-label="Aktuellen Zeitraum auswählen"
+        >
+          <button
+            v-for="option in CURRENT_PERIOD_OPTIONS"
+            :key="option.value"
+            type="button"
+            class="toolbar-period-controls__button"
+            :class="{ 'is-active': period === option.value }"
+            :aria-pressed="period === option.value"
+            @click="$emit('update:period', option.value)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+        <div class="toolbar-date-controls">
+          <CustomTooltip :text="previousPeriodLabel">
+            <button
+              type="button"
+              class="toolbar-date-controls__nav"
+              :aria-label="previousPeriodLabel"
+              @click="shiftReferenceDate(-1)"
+            >
+              <font-awesome-icon :icon="['fas', 'chevron-left']" />
+            </button>
+          </CustomTooltip>
+          <DatePicker
+            v-model="referenceDateModel"
+            inline
+            :mode="datePickerMode"
+          >
+            <template #default="{ toggle }">
+              <button
+                type="button"
+                class="toolbar-date-controls__picker"
+                :aria-label="`${periodUnitLabel} wählen`"
+                @click="toggle"
+              >
+                {{ periodDateLabel }}
+              </button>
+            </template>
+          </DatePicker>
+          <CustomTooltip :text="nextPeriodLabel">
+            <button
+              type="button"
+              class="toolbar-date-controls__nav"
+              :aria-label="nextPeriodLabel"
+              @click="shiftReferenceDate(1)"
+            >
+              <font-awesome-icon :icon="['fas', 'chevron-right']" />
+            </button>
+          </CustomTooltip>
+        </div>
+      </template>
     </Toolbar>
 
     <div
@@ -70,12 +127,22 @@
         class="order-list-head"
         role="row"
       >
-        <span role="columnheader">Zeitraum</span>
-        <span role="columnheader">Auftrag</span>
-        <span role="columnheader">Kunde</span>
-        <span role="columnheader">Ort</span>
-        <span role="columnheader">Status</span>
-        <span role="columnheader">Besetzung</span>
+        <button
+          v-for="column in sortColumns"
+          :key="column.key"
+          type="button"
+          class="sort-header"
+          role="columnheader"
+          :aria-sort="ariaSort(column.key)"
+          @click="toggleSort(column.key)"
+        >
+          <span>{{ column.label }}</span>
+          <span
+            class="sort-indicator"
+            :class="{ 'is-active': sortKey === column.key }"
+            aria-hidden="true"
+          >{{ sortKey === column.key && sortDirection === "desc" ? "▼" : "▲" }}</span>
+        </button>
       </div>
 
       <div
@@ -132,7 +199,9 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import CustomTooltip from "@/components/CustomTooltip.vue";
+import DatePicker from "@/components/ui-elements/DatePicker.vue";
 import FilterGroup from "@/components/FilterGroup.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import FilterChip from "@/components/ui-elements/FilterChip.vue";
@@ -141,6 +210,11 @@ import LocationFilter from "@/components/ui-elements/LocationFilter.vue";
 import PillMultiSelect from "@/components/ui-elements/PillMultiSelect.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
 import ToolbarFilter from "@/components/ui-elements/ToolbarFilter.vue";
+import {
+  CURRENT_PERIOD_OPTIONS,
+  getPeriodRange,
+  orderOverlapsRange,
+} from "@/utils/orderListPeriods";
 
 const props = defineProps({
   orders: { type: Array, default: () => [] },
@@ -155,26 +229,110 @@ const props = defineProps({
   kundenOptions: { type: Array, default: () => [] },
   bedarfStatus: { type: Array, default: () => [] },
   pseudoEinsatz: { type: Boolean, default: false },
+  period: {
+    type: String,
+    default: "month",
+    validator: (value) => CURRENT_PERIOD_OPTIONS.some((option) => option.value === value),
+  },
+  referenceDate: { type: Date, default: () => new Date() },
   statusClass: { type: Function, required: true },
   statusText: { type: Function, required: true },
 });
 
-defineEmits([
+const emit = defineEmits([
   "select",
   "update:locationV2",
   "update:searchQuery",
   "update:filterExpanded",
   "update:kunden",
+  "update:period",
+  "update:referenceDate",
   "toggleBedarfStatus",
   "togglePseudoEinsatz",
   "resetFilters",
 ]);
 
-const sortedOrders = computed(() => [...props.orders].sort((left, right) => {
-  const leftDate = new Date(left.vonDatum || 0).getTime();
-  const rightDate = new Date(right.vonDatum || 0).getTime();
-  return leftDate - rightDate || Number(left.auftragNr || 0) - Number(right.auftragNr || 0);
+const sortColumns = [
+  { key: "date", label: "Zeitraum" },
+  { key: "order", label: "Auftrag" },
+  { key: "customer", label: "Kunde" },
+  { key: "location", label: "Ort" },
+  { key: "status", label: "Status" },
+  { key: "staffing", label: "Besetzung" },
+];
+const sortKey = ref("date");
+const sortDirection = ref("asc");
+const referenceDateModel = computed({
+  get: () => props.referenceDate,
+  set: (value) => emit("update:referenceDate", value),
+});
+const datePickerMode = computed(() => props.period === "month" ? "month" : "date");
+const periodUnitLabel = computed(() => ({ day: "Tag", week: "Woche", month: "Monat" })[props.period]);
+const previousPeriodLabel = computed(() => props.period === "week" ? "Vorherige Woche" : `Vorheriger ${periodUnitLabel.value}`);
+const nextPeriodLabel = computed(() => props.period === "week" ? "Nächste Woche" : `Nächster ${periodUnitLabel.value}`);
+const periodDateLabel = computed(() => {
+  const range = getPeriodRange(props.period, props.referenceDate);
+  if (props.period === "month") {
+    return range.start.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+  }
+  if (props.period === "week") {
+    const format = (date) => date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+    return `${format(range.start)} – ${format(range.end)}`;
+  }
+  return range.start.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+});
+const periodOrders = computed(() => {
+  const range = getPeriodRange(props.period, props.referenceDate);
+  return props.orders.filter((order) => orderOverlapsRange(order, range));
+});
+
+const sortedOrders = computed(() => [...periodOrders.value].sort((left, right) => {
+  const comparison = compareValues(sortValue(left, sortKey.value), sortValue(right, sortKey.value));
+  if (comparison !== 0) return sortDirection.value === "asc" ? comparison : -comparison;
+
+  const dateComparison = compareValues(sortValue(left, "date"), sortValue(right, "date"));
+  return dateComparison || compareValues(Number(left.auftragNr || 0), Number(right.auftragNr || 0));
 }));
+
+function toggleSort(key) {
+  if (sortKey.value === key) {
+    sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
+    return;
+  }
+  sortKey.value = key;
+  sortDirection.value = "asc";
+}
+
+function shiftReferenceDate(offset) {
+  const date = new Date(props.referenceDate);
+  if (props.period === "month") {
+    date.setDate(1);
+    date.setMonth(date.getMonth() + offset);
+  } else {
+    date.setDate(date.getDate() + offset * (props.period === "week" ? 7 : 1));
+  }
+  emit("update:referenceDate", date);
+}
+
+function ariaSort(key) {
+  if (sortKey.value !== key) return "none";
+  return sortDirection.value === "asc" ? "ascending" : "descending";
+}
+
+function sortValue(order, key) {
+  if (key === "date") return new Date(order.vonDatum || 0).getTime();
+  if (key === "order") return Number(order.auftragNr || 0);
+  if (key === "customer") return order.kundeData?.kundName || order.kundenName || "";
+  if (key === "location") return order.eventOrt || order.eventLocation || "";
+  if (key === "status") return Number(order.auftStatus || 0);
+  if (key === "staffing") return staffingSummary(order).assigned;
+  return "";
+}
+
+function compareValues(left, right) {
+  if (typeof left === "number" && typeof right === "number") return left - right;
+  return String(left).localeCompare(String(right), "de", { numeric: true, sensitivity: "base" });
+}
 
 function formatDate(value) {
   if (!value) return "–";
@@ -186,21 +344,124 @@ function hasDateRange(order) {
   return new Date(order.vonDatum).toDateString() !== new Date(order.bisDatum).toDateString();
 }
 
-function staffingText(order) {
+function staffingSummary(order) {
   if (Array.isArray(order.schichten) && order.schichten.length) {
     const assigned = order.schichten.reduce((sum, shift) => sum + (Number(shift.besetzt) || 0), 0);
     const required = order.schichten.reduce((sum, shift) => sum + (Number(shift.bedarf) || 0), 0);
-    return `${assigned} / ${required}`;
+    return { assigned, required };
   }
 
-  return typeof order.einsaetzeCount === "number" ? `${order.einsaetzeCount} / –` : "–";
+  return {
+    assigned: typeof order.einsaetzeCount === "number" ? order.einsaetzeCount : null,
+    required: null,
+  };
+}
+
+function staffingText(order) {
+  const staffing = staffingSummary(order);
+  if (staffing.assigned == null) return "–";
+  return `${staffing.assigned} / ${staffing.required ?? "–"}`;
 }
 </script>
 
 <style scoped lang="scss">
-.order-list-view { min-width: 0; }
+.order-list-view { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+.order-list-toolbar { margin-bottom: 29px; overflow: visible; }
 .order-count { flex: 0 0 auto; color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
-.order-list-table { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--tile-bg); }
+.toolbar-period-controls {
+  position: absolute;
+  z-index: 5;
+  top: 100%;
+  left: 12px;
+  display: flex;
+  height: 24px;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.toolbar-period-controls__button {
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 0 0 5px 5px;
+  background: var(--tile-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: .72rem;
+  cursor: pointer;
+}
+.toolbar-period-controls__button:hover,
+.toolbar-period-controls__button:focus-visible,
+.toolbar-period-controls__button.is-active {
+  border-color: var(--primary);
+  color: var(--primary);
+  outline: none;
+}
+.toolbar-period-controls__button.is-active {
+  background: color-mix(in srgb, var(--primary) 8%, var(--tile-bg));
+  font-weight: 700;
+}
+.toolbar-date-controls {
+  position: absolute;
+  z-index: 5;
+  top: 100%;
+  right: 12px;
+  display: flex;
+  height: 24px;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.toolbar-date-controls__picker,
+.toolbar-date-controls__nav {
+  height: 24px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 0 0 5px 5px;
+  background: var(--tile-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: .72rem;
+}
+.toolbar-date-controls__picker {
+  width: 190px;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.toolbar-date-controls__nav {
+  display: inline-flex;
+  width: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+.toolbar-date-controls__picker:hover,
+.toolbar-date-controls__nav:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.toolbar-date-controls__picker:focus-visible,
+.toolbar-date-controls__nav:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.toolbar-date-controls :deep(.dp-layer--inline) { right: -32px; left: auto; }
+.order-list-table {
+  max-height: calc(100dvh - var(--header-h, 56px) - 190px);
+  min-height: 160px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--tile-bg);
+}
 .order-list-head,
 .order-list-row {
   display: grid;
@@ -209,7 +470,14 @@ function staffingText(order) {
   gap: 14px;
   padding: 11px 14px;
 }
-.order-list-head { border-bottom: 1px solid var(--border); background: var(--hover); color: var(--muted); font-size: 0.7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.order-list-head { position: sticky; z-index: 2; top: 0; border-bottom: 1px solid var(--border); background: var(--hover); color: var(--muted); font-size: 0.7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.sort-header { display: inline-flex; min-width: 0; align-items: center; gap: 5px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; text-transform: inherit; cursor: pointer; }
+.sort-header:hover,
+.sort-header:focus-visible { color: var(--primary); outline: none; }
+.sort-indicator { opacity: 0; font-size: .55rem; transition: opacity .15s; }
+.sort-header:hover .sort-indicator,
+.sort-header:focus-visible .sort-indicator,
+.sort-indicator.is-active { opacity: 1; }
 .order-list-row { width: 100%; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background .15s; }
 .order-list-row:last-child { border-bottom: 0; }
 .order-list-row:hover,
@@ -234,5 +502,17 @@ function staffingText(order) {
   .order-list-row > span:nth-child(5),
   .order-list-row > span:nth-child(6) { grid-column: 2; grid-row: 1; justify-self: end; }
   .order-list-row > span:nth-child(6) { grid-row: 2; color: var(--muted); font-size: .78rem; }
+}
+
+@media (max-width: 768px) {
+  .order-count { display: none; }
+  .toolbar-period-controls { left: 6px; gap: 3px; }
+  .toolbar-date-controls { right: 6px; gap: 3px; }
+  .toolbar-date-controls__picker { width: 150px; }
+}
+
+@media (max-width: 420px) {
+  .order-list-toolbar { margin-bottom: 53px; }
+  .toolbar-date-controls { top: calc(100% + 24px); }
 }
 </style>

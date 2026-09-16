@@ -698,6 +698,8 @@
           :kunden-options="filterOptions.kunden"
           :bedarf-status="filters.bedarfStatus"
           :pseudo-einsatz="filters.pseudoEinsatz"
+          :period="listPeriod"
+          :reference-date="listReferenceDate"
           :status-class="getEventStatusClass"
           :status-text="getStatusText"
           @select="selectEvent"
@@ -705,6 +707,8 @@
           @update:search-query="searchQuery = $event"
           @update:filter-expanded="filterExpanded = $event"
           @update:kunden="setKundenFilter"
+          @update:period="setListPeriod"
+          @update:reference-date="setListReferenceDate"
           @toggle-bedarf-status="toggleBedarfStatusFilter"
           @toggle-pseudo-einsatz="togglePseudoEinsatzFilter"
           @reset-filters="resetListFilters"
@@ -2269,6 +2273,7 @@ import CustomTooltip from "@/components/CustomTooltip.vue";
 import AuftragCalendarSearchDropdown from "@/components/orders/calendar/AuftragCalendarSearchDropdown.vue";
 import { loadHolidaysForYear } from "@/utils/holidays.js";
 import { buildEventSchichten } from "@/utils/eventSchichten";
+import { getPeriodRange } from "@/utils/orderListPeriods";
 import laufzettelIcon from "@/assets/laufzettel.png";
 import laufzettelDarkIcon from "@/assets/laufzettel-dark.png";
 import eventreportIcon from "@/assets/eventreport.png";
@@ -2384,6 +2389,8 @@ export default {
       searchExpanded: false,
       searchDropdownResults: [],
       searchLoading: false,
+      listPeriod: "month",
+      listReferenceDate: new Date(),
       currentWeekStart: null,
       selectedEvent: null,
       contextMenu: {
@@ -2804,6 +2811,9 @@ export default {
     },
   },
   watch: {
+    viewMode(value) {
+      if (value === "list") this.ensureListPeriodLoaded(this.listPeriod, this.listReferenceDate);
+    },
     currentWeekStart() {
       this.$nextTick(() => this.scrollKwToActive("smooth"));
       // Remember the viewed week so a page refresh returns to it.
@@ -3507,6 +3517,11 @@ export default {
       this.auftraege = []; // Clear current list
       this.loadedMonths.clear(); // Reset cache
 
+      if (this.viewMode === "list") {
+        await this.ensureListPeriodLoaded(this.listPeriod, this.listReferenceDate);
+        return;
+      }
+
       // Reload current view
       // We need to reload based on currentWeekStart
       // Usually current week spans 2 months max, so let's reload a safe range or just use ensureMonthLoaded logic
@@ -3518,6 +3533,51 @@ export default {
       await this.ensureMonthLoaded(start);
       // If week crosses month boundary
       await this.ensureMonthLoaded(end);
+    },
+    async setListPeriod(period) {
+      if (this.listPeriod === period) return;
+      this.listPeriod = period;
+      await this.ensureListPeriodLoaded(period, this.listReferenceDate);
+    },
+    async setListReferenceDate(date) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return;
+      this.listReferenceDate = new Date(date);
+      await this.ensureListPeriodLoaded(this.listPeriod, this.listReferenceDate);
+    },
+    async ensureListPeriodLoaded(period, referenceDate = this.listReferenceDate) {
+      const { start, end } = getPeriodRange(period, referenceDate);
+      const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+      let firstMissing = null;
+      let lastMissing = null;
+
+      while (cursor <= end) {
+        const month = new Date(cursor);
+        const monthKey = `${month.getFullYear()}-${month.getMonth()}`;
+        if (!this.loadedMonths.has(monthKey)) {
+          firstMissing ||= month;
+          lastMissing = month;
+        }
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+
+      if (!firstMissing) return;
+
+      const loadEnd = new Date(
+        lastMissing.getFullYear(),
+        lastMissing.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
+      );
+      await this.loadAuftraege(firstMissing, loadEnd);
+
+      const loadedMonth = new Date(firstMissing);
+      while (loadedMonth <= loadEnd) {
+        this.loadedMonths.add(`${loadedMonth.getFullYear()}-${loadedMonth.getMonth()}`);
+        loadedMonth.setMonth(loadedMonth.getMonth() + 1);
+      }
     },
     async loadInitialData() {
       // Load current month and all future
