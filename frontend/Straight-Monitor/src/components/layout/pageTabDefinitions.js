@@ -23,6 +23,11 @@ export const signatureTabs = [
   { id: 'ablage', label: 'Ablage', icon: ['fas', 'folder-open'], to: queryTarget('/signaturen', 'ablage', 'signaturen'), isActive: queryMatch('SignaturenPage', 'ablage', 'signaturen') },
 ];
 
+export const orderTabs = [
+  { id: 'calendar', label: 'Kalender', icon: ['fas', 'calendar-days'], to: queryTarget('/auftraege', 'calendar', 'calendar'), isActive: queryMatch('Auftraege', 'calendar', 'calendar') },
+  { id: 'list', label: 'Liste', icon: ['fas', 'list'], to: queryTarget('/auftraege', 'list', 'calendar'), isActive: queryMatch('Auftraege', 'list', 'calendar') },
+];
+
 export const personalTabs = [
   { id: 'mitarbeiter', label: 'Mitarbeiter', icon: ['fas', 'users'], to: queryTarget('/personal', 'mitarbeiter', 'mitarbeiter'), isActive: queryMatch('Personal', 'mitarbeiter', 'mitarbeiter') },
   { id: 'bewerber', label: 'Bewerber', icon: ['fas', 'user-plus'], to: queryTarget('/personal', 'bewerber', 'mitarbeiter'), isActive: queryMatch('Personal', 'bewerber', 'mitarbeiter') },
