@@ -6,41 +6,6 @@
     novalidate
     @submit.prevent="submit('save')"
   >
-    <header class="quick-time__workbar">
-      <div
-        v-if="showContext"
-        class="quick-time__context"
-      >
-        <h2>{{ auftrag.eventTitel || `Auftrag #${auftrag.auftragNr}` }}</h2>
-        <p>
-          <span v-if="auftrag.eventTitel">Auftrag #{{ auftrag.auftragNr }}</span><template v-if="auftrag.eventTitel && (auftrag.eventLocation || auftrag.eventOrt)"> · </template>{{ [auftrag.eventLocation, auftrag.eventOrt].filter(Boolean).join(' · ') }}
-        </p>
-      </div>
-      <label class="quick-time__filter">
-        <span>Schicht</span>
-        <select
-          v-model="selectedGroup"
-          aria-label="Schicht"
-        >
-          <option value="all">Alle Schichten</option>
-          <option
-            v-for="group in groups"
-            :key="group.key"
-            :value="group.key"
-          >{{ group.schicht.bezeichnung }} ({{ group.rows.length }})</option>
-        </select>
-      </label>
-      <div class="quick-time__overview">
-        <span><strong>{{ completeCount }}/{{ rows.length }}</strong> erfasst</span>
-        <span><strong>{{ groups.length }}</strong> Schichten</span>
-        <span class="quick-time__overview-total"><strong>{{ formatHours(totalMinutes) }}</strong> Std.</span>
-      </div>
-      <span
-        v-if="dirtyCount"
-        class="quick-time__dirty"
-      >{{ dirtyCount }} geändert</span>
-    </header>
-
     <div class="quick-time__content">
       <div
         v-if="!groups.length"
@@ -54,11 +19,20 @@
         :key="group.key"
         class="quick-time__shift"
       >
-        <header class="quick-time__shift-header">
+        <header
+          class="quick-time__shift-header"
+          role="button"
+          tabindex="0"
+          :aria-expanded="expandedGroups.has(group.key)"
+          :aria-controls="`${instanceId}-${group.key}-entries`"
+          @click="toggleGroup(group.key)"
+          @keydown.enter.prevent="toggleGroup(group.key)"
+          @keydown.space.prevent="toggleGroup(group.key)"
+        >
           <div class="quick-time__shift-heading">
             <span class="quick-time__shift-icon"><FontAwesomeIcon :icon="faClock" /></span>
             <div>
-              <h3>{{ group.schicht.bezeichnung || 'Schicht' }} <span>{{ group.rows.length }} Mitarbeiter</span></h3>
+              <h3>{{ group.schicht.bezeichnung || 'Schicht' }} <span>{{ group.rows.filter(row => row.analysis.complete).length }}/{{ group.rows.length }} erfasst · {{ formatHours(groupTotal(group)) }} Std.</span></h3>
               <p>
                 {{ formatDate(group.schicht.datumVon) }}<template v-if="group.schicht.uhrzeitVon">
                   · {{ group.schicht.uhrzeitVon }}–{{ group.schicht.uhrzeitBis }}<span v-if="isOvernight(group.schicht.uhrzeitVon, group.schicht.uhrzeitBis)"> (+1 Tag)</span>
@@ -66,24 +40,37 @@
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            class="quick-time__text-button"
-            :disabled="!group.rows[0]?.analysis.complete || !group.rows.slice(1).some(row => !row.locked)"
-            @click="copyFirst(group)"
-          >
-            <FontAwesomeIcon :icon="faCopy" /> Erste Zeile übertragen
-          </button>
+          <div class="quick-time__shift-actions">
+            <button
+              type="button"
+              class="quick-time__text-button"
+              :disabled="!group.rows[0]?.analysis.complete || !group.rows.slice(1).some(row => !row.locked)"
+              @click.stop="copyFirst(group)"
+            >
+              <FontAwesomeIcon :icon="faCopy" /> Erste Zeile übertragen
+            </button>
+            <button
+              type="button"
+              class="quick-time__collapse-button"
+              :aria-expanded="expandedGroups.has(group.key)"
+              :aria-controls="`${instanceId}-${group.key}-entries`"
+              :aria-label="`${group.schicht.bezeichnung || 'Schicht'} ${expandedGroups.has(group.key) ? 'minimieren' : 'erweitern'}`"
+              @click.stop="toggleGroup(group.key)"
+            >
+              <FontAwesomeIcon :icon="expandedGroups.has(group.key) ? faChevronUp : faChevronDown" />
+            </button>
+          </div>
         </header>
 
         <div
-          v-if="!group.rows.length"
+          v-if="expandedGroups.has(group.key) && !group.rows.length"
           class="quick-time__empty"
         >
           Dieser Schicht sind noch keine Mitarbeiter zugeordnet.
         </div>
         <div
-          v-else
+          v-else-if="expandedGroups.has(group.key)"
+          :id="`${instanceId}-${group.key}-entries`"
           class="quick-time__table-scroll"
           tabindex="0"
           :aria-label="`Zeiterfassung ${group.schicht.bezeichnung}`"
@@ -373,7 +360,7 @@
           :disabled="!editableVisibleRows.length"
           @click="usePlanned(editableVisibleRows)"
         >
-          <FontAwesomeIcon :icon="faClock" /> {{ selectedGroup === 'all' ? 'Alle Soll-Zeiten übernehmen' : 'Soll-Zeiten der Schicht' }}
+          <FontAwesomeIcon :icon="faClock" /> Sichtbare Soll-Zeiten übernehmen
         </ToolbarButton>
         <ToolbarButton
           variant="secondary"
@@ -384,7 +371,7 @@
         </ToolbarButton>
       </div>
       <div class="quick-time__total">
-        <span>Auftrag gesamt</span><strong>{{ formatHours(totalMinutes) }} <small>Std.</small></strong>
+        <span>Auftrag gesamt · {{ completeCount }}/{{ rows.length }} erfasst</span><strong>{{ formatHours(totalMinutes) }} <small>Std.</small></strong>
       </div>
       <div class="quick-time__submit">
         <ToolbarButton
@@ -452,13 +439,15 @@ const props = defineProps({
   schichten: { type: Array, default: () => [] },
   einsaetze: { type: Array, default: () => [] },
   zeiten: { type: Array, default: () => [] },
+  employeeSearch: { type: String, default: '' },
+  submissionFilter: { type: String, default: 'all' },
 });
 const emit = defineEmits(['submit', 'cancel', 'dirty-change']);
 const instanceId = `quick-time-${getCurrentInstance().uid}`;
 const entries = ref({});
 const baseline = ref({});
-const selectedGroup = ref('all');
 const expandedRows = ref(new Set());
+const expandedGroups = ref(new Set());
 const message = ref('');
 const clone = value => JSON.parse(JSON.stringify(value));
 const sourceGroups = computed(() => buildQuickEntryGroups(props.auftrag, props.schichten, props.einsaetze));
@@ -471,8 +460,8 @@ watch(() => [props.auftrag.auftragNr, props.schichten, props.einsaetze, props.ze
   }
   entries.value = next;
   baseline.value = clone(next);
-  selectedGroup.value = 'all';
   expandedRows.value = new Set();
+  expandedGroups.value = new Set(sourceGroups.value.map(group => group.key));
   message.value = '';
 }, { immediate: true });
 
@@ -482,11 +471,14 @@ const groups = computed(() => sourceGroups.value.map(group => ({
     const key = String(einsatz._id);
     const entry = entries.value[key];
     const date = einsatz.detailDatumVon || group.schicht.datumVon || einsatz.datumVon;
-    return { key, einsatz, entry, date, name: employeeName(einsatz), planned: plannedTimes(einsatz, group.schicht), analysis: analyzeQuickEntry(entry, props.connected && date ? String(date).slice(0, 10) : null), dirty: JSON.stringify(entry) !== JSON.stringify(baseline.value[key]), locked: props.connected && !!einsatz.timeReleased };
+    return { key, einsatz, entry, date, name: employeeName(einsatz), planned: plannedTimes(einsatz, group.schicht), analysis: analyzeQuickEntry(entry, props.connected && date ? String(date).slice(0, 10) : null), dirty: JSON.stringify(entry) !== JSON.stringify(baseline.value[key]), locked: props.connected && !!einsatz.timeReleased, submitted: !!einsatz.timeSubmitted };
   }),
 })));
 const rows = computed(() => groups.value.flatMap(group => group.rows));
-const visibleGroups = computed(() => selectedGroup.value === 'all' ? groups.value : groups.value.filter(group => group.key === selectedGroup.value));
+const matchesFilters = row => (!props.employeeSearch || `${row.name} ${row.einsatz.mitarbeiterData?.vorname || ''} ${row.einsatz.mitarbeiterData?.nachname || ''} ${row.einsatz.personalNr || ''}`.toLocaleLowerCase('de-DE').includes(props.employeeSearch.trim().toLocaleLowerCase('de-DE')))
+  && (props.submissionFilter === 'all' || (props.submissionFilter === 'submitted') === row.submitted);
+const filteredGroups = computed(() => groups.value.map(group => ({ ...group, rows: group.rows.filter(matchesFilters) })).filter(group => group.rows.length));
+const visibleGroups = computed(() => filteredGroups.value);
 const visibleRows = computed(() => visibleGroups.value.flatMap(group => group.rows));
 const editableVisibleRows = computed(() => visibleRows.value.filter(row => !row.locked));
 const totalMinutes = computed(() => rows.value.reduce((sum, row) => sum + row.analysis.netMinutes, 0));
@@ -505,6 +497,10 @@ function isOvernight(start, end) { return start && end && end < start; }
 function groupTotal(group) { return group.rows.reduce((sum, row) => sum + row.analysis.netMinutes, 0); }
 function statusClass(row) { return row.locked ? 'released' : row.analysis.errors.length ? 'error' : row.analysis.warnings.length ? 'warning' : row.dirty ? 'dirty' : row.analysis.complete ? 'complete' : 'empty'; }
 function statusText(row) { return row.locked ? 'Übergeben' : row.analysis.errors.length ? 'Prüfen' : row.analysis.warnings.length ? 'Pause prüfen' : row.dirty ? 'Geändert' : row.einsatz.timeStatus || (row.analysis.complete ? 'Erfasst' : 'Offen'); }
+function toggleGroup(key) {
+  if (expandedGroups.value.has(key)) expandedGroups.value.delete(key);
+  else expandedGroups.value.add(key);
+}
 function toggleBreaks(key) {
   if (expandedRows.value.has(key)) expandedRows.value.delete(key);
   else expandedRows.value.add(key);
@@ -576,30 +572,21 @@ function submit(action = 'save') {
 .quick-time { color: var(--text); font-size: 13px; min-width: 0; }
 .quick-time--contained { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .quick-time--contained .quick-time__content { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
-.quick-time--contained > :is(header, footer) { flex-shrink: 0; }
+.quick-time--contained > footer { flex-shrink: 0; }
 .quick-time * { box-sizing: border-box; }
-.quick-time__workbar { display: flex; align-items: center; gap: 16px; min-height: 52px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.quick-time__context { flex: 1 1 260px; min-width: 180px; }
-.quick-time__context h2 { margin: 0; overflow: hidden; color: var(--text); font-size: 14px; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
-.quick-time__context p { margin-top: 2px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.quick-time__overview { display: flex; align-items: center; gap: 14px; white-space: nowrap; }
-.quick-time__overview > span { display: inline-flex; align-items: baseline; gap: 4px; color: var(--muted); font-size: 10px; }
-.quick-time__overview strong { color: var(--text); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.quick-time__overview-total { padding-left: 14px; border-left: 1px solid var(--border); }
-.quick-time__overview-total strong { color: var(--primary); }
-.quick-time__filter { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
-.quick-time__filter select { min-width: 180px; height: 32px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 11px; }
-.quick-time__dirty { font-size: 10px; color: var(--text); background: color-mix(in srgb, var(--primary) 16%, var(--surface)); padding: 4px 7px; border-radius: 5px; white-space: nowrap; }
-.quick-time__content { padding-top: 12px; }
+.quick-time__content { padding-top: 0; }
 .quick-time__shift { margin: 0 16px 12px; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; background: var(--surface); }
-.quick-time__shift-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 9px 12px; background: color-mix(in srgb, var(--primary) 5%, var(--surface)); border-bottom: 1px solid var(--border); }
+.quick-time__shift-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 9px 12px; background: color-mix(in srgb, var(--primary) 5%, var(--surface)); border-bottom: 1px solid var(--border); cursor: pointer; }
+.quick-time__shift-header:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .quick-time__shift-heading { display: flex; align-items: center; gap: 11px; }
 .quick-time__shift-icon { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border)); border-radius: 6px; color: var(--primary); background: var(--surface); }
 .quick-time__shift-heading h3 { font-size: 13px; font-weight: 600; }
 .quick-time__shift-heading h3 span { margin-left: 7px; font-size: 11px; font-weight: 400; color: var(--muted); }
 .quick-time__shift-heading p { margin-top: 3px; font-size: 11px; color: var(--muted); }
+.quick-time__shift-actions { display: flex; align-items: center; gap: 12px; }
 .quick-time__text-button { display: inline-flex; gap: 7px; align-items: center; border: 0; padding: 6px 0; background: none; color: var(--muted); cursor: pointer; font-size: 11px; }
 .quick-time__text-button:hover { color: var(--text); }
+.quick-time__collapse-button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--muted); cursor: pointer; }
 .quick-time__table-scroll { overflow-x: auto; }
 .quick-time__table { width: 100%; border-collapse: collapse; text-align: left; font-variant-numeric: tabular-nums; }
 .quick-time__table th, .quick-time__table td { padding: 9px 8px; vertical-align: top; }
@@ -674,15 +661,9 @@ function submit(action = 'save') {
 .quick-time__empty { padding: 28px 24px; color: var(--muted); text-align: center; }
 .quick-time__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 760px) {
-  .quick-time__workbar { align-items: flex-start; flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px; }
-  .quick-time__context { flex-basis: 100%; }
-  .quick-time__filter { flex: 1; }
-  .quick-time__filter span { display: none; }
-  .quick-time__filter select { width: 100%; min-width: 0; }
-  .quick-time__overview { order: 3; width: 100%; justify-content: space-between; }
-  .quick-time__overview-total { padding-left: 10px; }
   .quick-time__shift { margin: 0 12px 14px; }
   .quick-time__shift-header { flex-wrap: wrap; gap: 7px; padding: 12px; }
+  .quick-time__shift-actions { width: 100%; justify-content: space-between; }
   .quick-time__shift-heading h3 span { display: block; margin: 3px 0 0; }
   .quick-time__footer { padding: 16px; }
   .quick-time__bulk { width: 100%; }

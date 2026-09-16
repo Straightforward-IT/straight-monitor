@@ -40,21 +40,26 @@
     </template>
     <div class="time-capture">
       <Toolbar class="time-capture__toolbar">
-        <template v-if="employeeId && !auftragNr">
-          <label
-            class="time-capture__control time-capture__control--month"
-            title="Monat"
+        <template #filter>
+          <ToolbarFilter
+            v-model="filterExpanded"
+            :active-count="activeFilterCount"
+            :active-filter-labels="activeFilterLabels"
+            @reset="resetFilters"
           >
-            <FontAwesomeIcon :icon="faCalendarDays" />
-            <span class="time-capture__sr-only">Monat</span>
-            <input
-              v-model="month"
-              type="month"
-              aria-label="Monat"
-              :disabled="busy || loading || dirty"
-              @change="loadOrders"
-            >
-          </label>
+            <FilterGroup label="Einreichung">
+              <FilterChip :active="submissionFilter === 'submitted'" @click="submissionFilter = submissionFilter === 'submitted' ? 'all' : 'submitted'">Eingereicht</FilterChip>
+              <FilterChip :active="submissionFilter === 'not-submitted'" @click="submissionFilter = submissionFilter === 'not-submitted' ? 'all' : 'not-submitted'">Nicht eingereicht</FilterChip>
+            </FilterGroup>
+          </ToolbarFilter>
+        </template>
+        <SearchBar
+          v-model="employeeSearch"
+          class="toolbar-search"
+          placeholder="Mitarbeiter suchen..."
+          aria-label="Mitarbeiter suchen"
+        />
+        <template v-if="employeeId && !auftragNr">
           <label
             class="time-capture__control time-capture__control--order"
             title="Auftrag"
@@ -81,56 +86,11 @@
           class="time-capture__order-reference"
           :title="review?.auftrag?.eventTitel || `Auftrag #${selectedOrder}`"
         >{{ review?.auftrag?.eventTitel || 'Auftrag' }} <small>#{{ selectedOrder }}</small></span>
-        <label
-          v-if="employees.length"
-          class="time-capture__control time-capture__control--employee"
-          title="Zeitverwaltung"
-        >
-          <FontAwesomeIcon :icon="faUser" />
-          <span class="time-capture__sr-only">Zeitverwaltung</span>
-          <select
-            v-model="monthEmployee"
-            aria-label="Zeitverwaltung"
-            :disabled="busy || loading"
-          ><option
-            v-for="employee in employees"
-            :key="employee.id"
-            :value="employee.id"
-          >{{ employee.name }}</option></select>
-        </label>
-        <label
-          v-if="auftragNr"
-          class="time-capture__control time-capture__control--month"
-          title="Monat"
-        >
-          <FontAwesomeIcon :icon="faCalendarDays" />
-          <span class="time-capture__sr-only">Monat</span>
-          <input
-            v-model="month"
-            type="month"
-            aria-label="Monat"
-          >
-        </label>
         <OrderDocuments
           v-if="selectedOrder"
           compact
           :auftrag-nr="selectedOrder"
         />
-        <label
-          v-if="review && !loading"
-          class="time-capture__control time-capture__control--reason"
-          title="Bearbeitungsvermerk (optional)"
-        >
-          <FontAwesomeIcon :icon="faPen" />
-          <span class="time-capture__sr-only">Bearbeitungsvermerk (optional)</span>
-          <input
-            v-model="reason"
-            maxlength="1000"
-            :disabled="busy || loading"
-            aria-label="Bearbeitungsvermerk (optional)"
-            placeholder="Bearbeitungsvermerk (optional)"
-          >
-        </label>
       </Toolbar>
       <p
         v-if="error"
@@ -164,6 +124,8 @@
           :schichten="review.schichten"
           :einsaetze="assignments"
           :zeiten="times"
+          :employee-search="employeeSearch"
+          :submission-filter="submissionFilter"
           @submit="save"
           @cancel="close"
           @dirty-change="dirty = $event"
@@ -210,12 +172,16 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faArrowUpRightFromSquare, faBriefcase, faCalendarDays, faPen, faRotateRight, faUser } from '@fortawesome/free-solid-svg-icons';
+import { faArrowUpRightFromSquare, faBriefcase, faRotateRight } from '@fortawesome/free-solid-svg-icons';
 import { useRouter } from 'vue-router';
 import api from '@/utils/api';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
+import FilterGroup from '@/components/FilterGroup.vue';
+import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import SearchBar from '@/components/SearchBar.vue';
 import Stundenschnellerfassung from '@/components/ui-elements/Stundenschnellerfassung.vue';
 import OrderDocuments from '@/components/ui-elements/OrderDocuments.vue';
 const props = defineProps({ modelValue: { type: Boolean, default: true }, auftragNr: { type: [String, Number], default: null }, employeeId: { type: String, default: null }, minimizeId: { type: String, required: true } });
@@ -224,7 +190,10 @@ const router = useRouter();
 const month = ref(new Date().toLocaleDateString('sv-SE').slice(0, 7));
 const selectedOrder = ref(props.auftragNr || '');
 const orders = ref([]), review = ref(null), generation = ref(0), loading = ref(false), busy = ref(false);
-const dirty = ref(false), error = ref(''), notice = ref(''), reason = ref(''), confirmAction = ref(null), monthEmployee = ref(props.employeeId || '');
+const dirty = ref(false), error = ref(''), notice = ref(''), confirmAction = ref(null), monthEmployee = ref(props.employeeId || '');
+const filterExpanded = ref(false);
+const employeeSearch = ref('');
+const submissionFilter = ref('all');
 const statusLabel = status => ({ SUBMITTED: 'Vom Mitarbeiter eingereicht', DRAFT: 'Interner Entwurf', RELEASED: 'An Zeitverwaltung übergeben', WITHDRAWN: 'Aus Zeitverwaltung zurückgenommen' }[status] || 'Offen');
 function orderOptionLabel(order) {
   const date = String(order.vonDatum || '').slice(0, 10);
@@ -233,15 +202,19 @@ function orderOptionLabel(order) {
 }
 const assignments = computed(() => (review.value?.einsaetze || []).map(einsatz => {
   const entry = review.value.entries.find(row => row._id === einsatz._id);
-  return { ...einsatz, timeStatus: statusLabel(entry?.status), timeSubmission: entry?.employeeSubmission, timeReleased: !!entry?.released };
+  return { ...einsatz, timeStatus: statusLabel(entry?.status), timeSubmission: entry?.employeeSubmission, timeReleased: !!entry?.released, timeSubmitted: entry?.status === 'SUBMITTED' || !!entry?.employeeSubmission };
 }));
 const times = computed(() => (review.value?.entries || []).map(entry => ({ einsatzId: entry._id, ...entry.current })));
-const employees = computed(() => [...new Map(assignments.value.filter(item => item.mitarbeiterData?._id).map(item => [item.mitarbeiterData._id, { id: item.mitarbeiterData._id, name: [item.mitarbeiterData.vorname, item.mitarbeiterData.nachname].filter(Boolean).join(' ') }])).values()]);
+const activeFilterCount = computed(() => Number(submissionFilter.value !== 'all'));
+const activeFilterLabels = computed(() => [
+  submissionFilter.value === 'submitted' ? 'Eingereicht' : submissionFilter.value === 'not-submitted' ? 'Nicht eingereicht' : null,
+].filter(Boolean));
 const history = computed(() => (review.value?.entries || []).flatMap(entry => (entry.history || []).map(item => ({ ...item, employee: assignments.value.find(value => value._id === entry._id)?.mitarbeiterData?.nachname || entry.personalNr }))).sort((a, b) => new Date(b.at) - new Date(a.at)));
 const dateTime = date => new Date(date).toLocaleString('de-DE');
 const messageOf = error => error?.response?.data?.message || 'Die Anfrage konnte nicht abgeschlossen werden. Eingaben bleiben erhalten.';
 function guard(action) { if (dirty.value) confirmAction.value = action; else action(); }
 function runConfirmed() { const action = confirmAction.value; confirmAction.value = null; dirty.value = false; action?.(); }
+function resetFilters() { submissionFilter.value = 'all'; }
 function close() { if (!busy.value) guard(() => emit('update:modelValue', false)); }
 function reload() { if (!busy.value) guard(() => selectedOrder.value ? loadReview() : loadOrders()); }
 function openMonth() { router.push({ name: 'Payroll', query: { employeeId: monthEmployee.value, month: month.value } }); }
@@ -262,7 +235,11 @@ async function loadReview() {
   try {
     const { data } = await api.get(`/api/working-times/orders/${selectedOrder.value}`, { params: { employeeId: props.employeeId || undefined } });
     review.value = data; generation.value++; dirty.value = false;
-    if (!monthEmployee.value) monthEmployee.value = employees.value[0]?.id || '';
+    if (props.employeeId) {
+      const employee = assignments.value.find(item => String(item.mitarbeiterData?._id) === String(props.employeeId))?.mitarbeiterData;
+      employeeSearch.value = [employee?.vorname, employee?.nachname].filter(Boolean).join(' ');
+    }
+    if (!monthEmployee.value) monthEmployee.value = assignments.value[0]?.mitarbeiterData?._id || '';
   } catch (failure) { error.value = messageOf(failure); }
   finally { loading.value = false; }
 }
@@ -279,14 +256,14 @@ async function save(payload) {
   if (!entries.length) { notice.value = 'Keine neuen Änderungen zur Übernahme.'; return; }
   busy.value = true;
   try {
-    await api.post(`/api/working-times/orders/${selectedOrder.value}`, { action: payload.action, reason: reason.value.trim(), entries });
+    await api.post(`/api/working-times/orders/${selectedOrder.value}`, { action: payload.action, entries });
     if (['release', 'withdraw'].includes(payload.action)) window.dispatchEvent(new CustomEvent('working-times:released'));
     notice.value = payload.action === 'release'
       ? `${entries.length} ${entries.length === 1 ? 'Einsatz' : 'Einsätze'} an die Zeitverwaltung übergeben.`
       : payload.action === 'withdraw'
         ? `${entries.length} ${entries.length === 1 ? 'Einsatz' : 'Einsätze'} aus der Zeitverwaltung zurückgenommen.`
         : 'Entwurf gespeichert. Die Zeitverwaltung bleibt bis zur Übergabe auf dem bisherigen Stand.';
-    dirty.value = false; reason.value = '';
+    dirty.value = false;
     await loadReview();
   } catch (failure) { error.value = messageOf(failure); }
   finally { busy.value = false; }
@@ -295,23 +272,17 @@ onMounted(() => props.auftragNr ? loadReview() : loadOrders());
 </script>
 
 <style scoped>
-.time-capture { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; color: var(--text); }
+.time-capture { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 16px; padding: 16px; overflow: hidden; color: var(--text); }
 .time-capture > :not(.quick-time) { flex-shrink: 0; }
-.time-capture__toolbar { align-items: center; gap: 7px; min-height: 44px; padding: 5px 16px; margin: 0; border-inline: 0; border-radius: 0; box-shadow: none; overflow: visible; z-index: 2; }
+.time-capture__toolbar { overflow: visible; z-index: 2; }
 .time-capture__toolbar :deep(.order-documents--compact summary) { min-height: 32px; padding: 5px 9px; font-size: 11px; background: var(--surface); }
 .time-capture__order-reference { max-width: 250px; overflow: hidden; color: var(--text); font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .time-capture__order-reference small { margin-left: 4px; color: var(--muted); font-size: 10px; font-weight: 400; }
 .time-capture__control { display: inline-flex; align-items: center; gap: 6px; height: 32px; min-width: 0; padding-left: 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--muted); }
 .time-capture__control > svg { flex: 0 0 auto; width: 12px; font-size: 11px; }
 .time-capture__control :is(input, select) { min-width: 0; height: 30px; padding: 4px 8px 4px 0; color: var(--text); background: transparent; border: 0; outline: 0; font: inherit; font-size: 11px; }
-.time-capture__control--employee { flex: 0 1 190px; }
-.time-capture__control--employee select { width: 100%; }
-.time-capture__control--month { flex: 0 0 150px; }
-.time-capture__control--month input { width: 122px; }
 .time-capture__control--order { flex: 1 1 360px; max-width: 520px; }
 .time-capture__control--order select { width: 100%; }
-.time-capture__control--reason { flex: 1 1 240px; }
-.time-capture__control--reason input { width: 100%; }
 .time-capture__control:focus-within { border-color: var(--primary); outline: 2px solid color-mix(in srgb, var(--primary) 24%, transparent); outline-offset: 0; }
 .time-capture__header-action { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
 .time-capture__header-action:hover:not(:disabled), .time-capture__header-action:focus-visible { border-color: color-mix(in srgb, var(--primary) 30%, transparent); background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); }
@@ -330,6 +301,5 @@ onMounted(() => props.auftragNr ? loadReview() : loadOrders());
   .time-capture__toolbar :deep(.toolbar-main-content) { flex: 0 0 auto; }
   .time-capture__order-reference { max-width: 180px; align-self: center; }
   .time-capture__control--order { flex-basis: 320px; }
-  .time-capture__control--reason { flex-basis: 220px; }
 }
 </style>

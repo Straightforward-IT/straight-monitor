@@ -30,6 +30,7 @@ const {
 const { getStaffingCandidates } = require('../../services/operations/StaffingSuggestionService');
 const { validateAuftragRelease } = require('../../services/operations/AuftragReleaseService');
 const { withAuftragChronik } = require('../../services/operations/AuftragChronikService');
+const { allocateMonitorId } = require('../../services/operations/MonitorIdService');
 const resolveQueries = require('../../utils/resolveQueries');
 
 router.use(require('./auftragChronikRoutes'));
@@ -302,6 +303,12 @@ async function assertOrderLocationAccess(req, auftrag) {
   return user;
 }
 
+async function allocateMonitorIdForAuftrag(entityType, auftrag) {
+  const location = await resolveActiveLocation(auftrag?.locationV2);
+  if (!location) throw validationError('Dem Auftrag ist kein aktiver Standort für die Monitor-ID zugeordnet');
+  return allocateMonitorId(entityType, location.externalId);
+}
+
 function conflictIdentity(conflict = {}) {
   return [conflict.type, conflict.entryId || conflict.einsatzId || conflict.label].map(value => String(value || '')).join(':');
 }
@@ -313,24 +320,22 @@ function conflictOverrideCovers(override, conflicts) {
   return conflicts.every(conflict => confirmed.has(conflictIdentity(conflict)));
 }
 
-async function allocatePseudoAuftragNr() {
-  const latest = await Auftrag.findOne({ auftragNr: { $gte: 9000001 } })
+async function allocateManualAuftragNr() {
+  const latest = await Auftrag.findOne({ auftragNr: { $gte: 8000001, $lt: 9000000 } })
     .sort({ auftragNr: -1 })
     .select('auftragNr')
     .lean();
   try {
     await Sequence.findOneAndUpdate(
-      { key: 'auftrag-pseudo' },
-      { $max: { value: Math.max(9000000, Number(latest?.auftragNr || 0)) } },
+      { key: 'auftrag-manual' },
+      { $max: { value: Math.max(8000000, Number(latest?.auftragNr || 0)) } },
       { upsert: true, setDefaultsOnInsert: true }
     );
   } catch (error) {
-    // Zwei erste parallele Aufrufe können beim Upsert denselben eindeutigen Key
-    // anlegen wollen. Danach existiert die Sequenz bereits und kann atomar zählen.
     if (error?.code !== 11000) throw error;
   }
   const sequence = await Sequence.findOneAndUpdate(
-    { key: 'auftrag-pseudo' },
+    { key: 'auftrag-manual' },
     { $inc: { value: 1 } },
     { new: true }
   );
@@ -1276,7 +1281,6 @@ router.delete('/:auftragNr/labels/:labelId', auth, withAuftragChronik('Auftrag.u
 // POST /api/auftraege – Früh gespeicherten Wizard-Entwurf anlegen
 router.post('/', auth, withAuftragChronik('Auftrag.created', async (req, res) => {
   const input = req.body || {};
-  const isPseudo = Boolean(input.isPseudo);
   if (!String(input.eventTitel || '').trim() || !input.vonDatum || !input.bisDatum) {
     throw validationError('Titel, Beginn und Ende sind erforderlich');
   }
@@ -1289,29 +1293,21 @@ router.post('/', auth, withAuftragChronik('Auftrag.created', async (req, res) =>
   const kundenNr = input.kundenNr === null || input.kundenNr === undefined || input.kundenNr === ''
     ? null
     : Number.parseInt(input.kundenNr, 10);
-  if (!isPseudo && !Number.isInteger(kundenNr)) throw validationError('Ein Kunde ist erforderlich');
+  if (!Number.isInteger(kundenNr)) throw validationError('Ein Kunde ist erforderlich');
   const customer = Number.isInteger(kundenNr)
     ? await Kunde.findOne({ kundenNr }).select('_id locationV2 geschSt').lean()
     : null;
   if (Number.isInteger(kundenNr) && !customer) throw validationError('Kunde nicht gefunden');
   await assertCustomerMatchesLocation(customer, location._id);
 
-  let auftragNr;
-  if (isPseudo) {
-    auftragNr = await allocatePseudoAuftragNr();
-  } else {
-    auftragNr = Number.parseInt(input.auftragNr, 10);
-    if (!Number.isInteger(auftragNr) || auftragNr <= 0) throw validationError('Eine gültige Auftragsnummer ist erforderlich');
-    if (auftragNr >= 9000000) throw validationError('Der 9er-Nummernkreis ist Pseudo-Aufträgen vorbehalten');
-    if (await Auftrag.exists({ auftragNr })) {
-      return res.status(409).json({ message: 'Diese Auftragsnummer ist bereits vergeben' });
-    }
-  }
+  let auftragNr = await allocateManualAuftragNr();
 
   const einsatzort = input.einsatzort
     ? await getEinsatzortForAuftrag(kundenNr, input.einsatzort)
     : null;
   const createData = {
+    monitorId: await allocateMonitorId('auftrag', location.externalId),
+    creationOrigin: 'manual',
     eventTitel: String(input.eventTitel).trim(),
     vonDatum,
     bisDatum,
@@ -1334,21 +1330,16 @@ router.post('/', auth, withAuftragChronik('Auftrag.created', async (req, res) =>
     auftStatus: 1,
     wizardStep: 0,
     planningVersion: 0,
-    isPseudo,
+    isPseudo: false,
   };
   let auftrag;
-  for (let attempt = 0; attempt < (isPseudo ? 5 : 1); attempt += 1) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       auftrag = await Auftrag.create({ ...createData, auftragNr });
       break;
     } catch (error) {
-      if (!isPseudo && error?.code === 11000) {
-        const conflict = new Error('Diese Auftragsnummer ist bereits vergeben');
-        conflict.statusCode = 409;
-        throw conflict;
-      }
-      if (!isPseudo || error?.code !== 11000 || attempt === 4) throw error;
-      auftragNr = await allocatePseudoAuftragNr();
+      if (error?.code !== 11000 || attempt === 4) throw error;
+      auftragNr = await allocateManualAuftragNr();
     }
   }
   await auftrag.populate([
@@ -1429,6 +1420,8 @@ router.post('/:auftragNr/pseudo-einsatz', auth, withAuftragChronik('Einsatz.crea
   }
 
   const newEinsatz = new Einsatz({
+    monitorId: await allocateMonitorIdForAuftrag('einsatz', auftrag),
+    creationOrigin: 'manual',
     auftragNr: parseInt(auftragNr),
     locationV2: auftrag.locationV2 || null,
     personalNr: personalnrInt,
@@ -1581,6 +1574,8 @@ router.post('/:auftragNr/schichten', auth, withAuftragChronik('Schicht.created',
   const patch = normalizeEditablePatch(editableInput, SCHICHT_EDITABLE_FIELDS);
   const schicht = new Schicht({
     ...patch,
+    monitorId: await allocateMonitorIdForAuftrag('schicht', auftrag),
+    creationOrigin: 'manual',
     auftragNr,
     locationV2: auftrag.locationV2,
     source: 'monitor',
@@ -1834,6 +1829,8 @@ router.put('/:auftragNr/planning', auth, withAuftragChronik('planning.updated', 
     }
     const { schicht } = operation;
     await Einsatz.create({
+      monitorId: await allocateMonitorIdForAuftrag('einsatz', auftrag),
+      creationOrigin: 'manual',
       auftragNr,
       locationV2: auftrag.locationV2 || null,
       schicht: schicht._id,
@@ -1960,6 +1957,8 @@ router.post('/:auftragNr/einsaetze', auth, withAuftragChronik('Einsatz.created',
   }
 
   const einsatz = await Einsatz.create({
+    monitorId: await allocateMonitorIdForAuftrag('einsatz', auftrag),
+    creationOrigin: 'manual',
     auftragNr,
     locationV2: auftrag.locationV2 || null,
     schicht: schicht._id,

@@ -25,6 +25,25 @@
     >
       <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
     </button>
+    <button
+      v-if="newOptions.length"
+      ref="newButton"
+      class="toolbar-new-button"
+      type="button"
+      :aria-expanded="newMenuOpen"
+      aria-haspopup="menu"
+      @click="toggleNewMenu"
+    >+ Neu</button>
+    <ContextMenu
+      v-if="newMenuOpen"
+      :x="newMenuPosition.x"
+      :y="newMenuPosition.y"
+      :anchor="newButton"
+      follow-anchor
+      :options="newOptions"
+      @close="newMenuOpen = false"
+      @select="emit('new-select', $event)"
+    />
     <slot name="bottom-actions" />
   </div>
 </template>
@@ -34,6 +53,7 @@ import { computed, onMounted, onUnmounted, provide, ref } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faEllipsisVertical } from '@fortawesome/free-solid-svg-icons';
+import ContextMenu from '@/components/ContextMenu.vue';
 import LocationFilter from '@/components/ui-elements/LocationFilter.vue';
 import { toolbarLocationContextKey } from '@/composables/useToolbarLocationContext';
 
@@ -47,8 +67,9 @@ const props = defineProps({
   locations: { type: Array, default: null },
   showLocationFilter: { type: Boolean, default: false },
   locationAllowAll: { type: Boolean, default: true },
+  newOptions: { type: Array, default: () => [] },
 });
-defineEmits(['update:locationV2']);
+const emit = defineEmits(['update:locationV2', 'new-select']);
 
 const currentLocation = computed(() => (props.locations || []).find((location) => String(location._id) === String(props.locationV2)) || null);
 provide(toolbarLocationContextKey, {
@@ -58,6 +79,19 @@ provide(toolbarLocationContextKey, {
 
 const actionsOpen = ref(false);
 const isMobile = ref(typeof window !== 'undefined' && window.innerWidth <= 768);
+const newButton = ref(null);
+const newMenuOpen = ref(false);
+const newMenuPosition = ref({ x: 0, y: 0 });
+
+function toggleNewMenu() {
+  if (newMenuOpen.value) {
+    newMenuOpen.value = false;
+    return;
+  }
+  const rect = newButton.value?.getBoundingClientRect();
+  newMenuPosition.value = { x: rect?.right || 0, y: rect?.bottom || 0 };
+  newMenuOpen.value = true;
+}
 
 function onResize() {
   isMobile.value = window.innerWidth <= 768;
@@ -125,6 +159,29 @@ onUnmounted(() => {
 
 .toolbar-mobile-actions-toggle {
   display: none;
+}
+
+.toolbar-new-button {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible,
+  &[aria-expanded='true'] {
+    border-color: var(--primary);
+  }
 }
 
 @media (max-width: 768px) {

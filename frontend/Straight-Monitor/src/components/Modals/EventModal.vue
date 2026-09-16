@@ -2,8 +2,8 @@
   <ModalFrame
     :model-value="true"
     :title="modalTitle"
-    subtitle="Disposition · Auftrag, Schichten und Personal in einem Ablauf"
-    size="full"
+    subtitle="Event"
+    size="Monitor Event-Wizard"
     :minimizable="minimizable"
     :minimize-id="minimizeId"
     :minimize-title="minimizeTitle || modalTitle"
@@ -15,7 +15,7 @@
   >
     <template #actions>
       <span v-if="event" class="wizard-state" :class="event.auftStatus === 2 ? 'confirmed' : 'draft'">
-        {{ event.auftStatus === 2 ? 'Bestätigt' : 'Entwurf' }} · #{{ event.auftragNr }}
+        {{ event.auftStatus === 2 ? 'Bestätigt' : 'Entwurf' }} · {{ event.monitorId || `#${event.auftragNr}` }}
       </span>
       <span v-if="statusMessage" class="save-state">{{ statusMessage }}</span>
     </template>
@@ -44,13 +44,7 @@
             <div><span class="eyebrow">Schritt 1</span><h3>Was soll disponiert werden?</h3><p>Die Kerndaten legen Zeitraum, Standort und Kundenkontext für alle weiteren Vorschläge fest.</p></div>
           </header>
 
-          <div v-if="!event" class="order-type">
-            <button type="button" :class="{ active: !form.isPseudo }" @click="form.isPseudo = false"><strong>Regulärer Auftrag</strong><small>Mit Kunde, eigener Auftragsnummer und Einsatzinformationen</small></button>
-            <button type="button" :class="{ active: form.isPseudo }" @click="form.isPseudo = true"><strong>Pseudo-Auftrag</strong><small>Automatische 9er-Nummer, Kunde und Einsatzinfo optional</small></button>
-          </div>
-
           <div class="form-grid order-grid">
-            <label v-if="!form.isPseudo" class="field"><span>Auftragsnummer *</span><input v-model.number="form.auftragNr" type="number" :disabled="!!event" placeholder="z. B. 412345" /></label>
             <label class="field wide"><span>Titel *</span><input v-model.trim="form.eventTitel" type="text" placeholder="Worum geht es bei diesem Auftrag?" /></label>
             <label class="field"><span>Standort *</span><select v-model="form.locationV2" :disabled="!!event && event.auftStatus === 2"><option value="">Standort wählen</option><option v-for="location in locations" :key="location._id" :value="location._id">{{ location.shortName || location.nameFull }}</option></select></label>
             <label class="field"><span>Von *</span><input v-model="form.vonDatum" type="datetime-local" /></label>
@@ -76,8 +70,8 @@
             </div>
             <button type="button" class="one-off-toggle" :class="{ active: oneOffAddress }" @click="enableOneOffAddress"><span>＋</span><div><strong>Einmalige Auftragsadresse</strong><small>Nur für diesen Auftrag, ohne neuen Stammdaten-Einsatzort</small></div></button>
           </div>
-          <div v-else class="empty-state prominent">{{ form.isPseudo ? 'Optional: Gib eine einmalige Adresse für den Pseudo-Auftrag ein.' : 'Bitte zuerst im Schritt „Auftrag“ einen Kunden auswählen.' }}</div>
-          <div v-if="oneOffAddress || (!selectedCustomer && form.isPseudo)" class="address-panel">
+          <div v-else class="empty-state prominent">Bitte zuerst im Schritt „Auftrag“ einen Kunden auswählen.</div>
+          <div v-if="oneOffAddress" class="address-panel">
             <h4>Einmalige Adresse</h4>
             <div class="form-grid"><label class="field wide"><span>Bezeichnung</span><input v-model.trim="form.eventLocation" /></label><label class="field wide"><span>Straße</span><input v-model.trim="form.eventStrasse" /></label><label class="field"><span>PLZ</span><input v-model.trim="form.eventPlz" /></label><label class="field"><span>Ort</span><input v-model.trim="form.eventOrt" /></label></div>
           </div>
@@ -136,7 +130,7 @@
         <section v-else class="wizard-page review-page">
           <header class="page-heading"><div><span class="eyebrow">Schritt 5</span><h3>Prüfen & freigeben</h3><p>Offener Personalbedarf ist sichtbar, verhindert die Freigabe aber nicht.</p></div></header>
           <div class="review-grid">
-            <article><span>Auftrag</span><h4>{{ form.eventTitel }}</h4><dl><div><dt>Nummer</dt><dd>#{{ event.auftragNr }}</dd></div><div><dt>Typ</dt><dd>{{ form.isPseudo ? 'Pseudo-Auftrag' : 'Regulär' }}</dd></div><div><dt>Kunde</dt><dd>{{ selectedCustomer?.kundName || 'Kein Kunde' }}</dd></div><div><dt>Zeitraum</dt><dd>{{ formatDateTime(form.vonDatum) }} – {{ formatDateTime(form.bisDatum) }}</dd></div></dl><button type="button" @click="currentStep = 0">Bearbeiten</button></article>
+            <article><span>Auftrag</span><h4>{{ form.eventTitel }}</h4><dl><div><dt>Monitor-ID</dt><dd>{{ event.monitorId || `#${event.auftragNr}` }}</dd></div><div><dt>Typ</dt><dd>Monitor-Auftrag</dd></div><div><dt>Kunde</dt><dd>{{ selectedCustomer?.kundName || 'Kein Kunde' }}</dd></div><div><dt>Zeitraum</dt><dd>{{ formatDateTime(form.vonDatum) }} – {{ formatDateTime(form.bisDatum) }}</dd></div></dl><button type="button" @click="currentStep = 0">Bearbeiten</button></article>
             <article><span>Einsatzort</span><h4>{{ form.eventLocation || selectedSite?.bezeichnung || 'Nicht gewählt' }}</h4><p>{{ [form.eventStrasse, [form.eventPlz, form.eventOrt].filter(Boolean).join(' ')].filter(Boolean).join(', ') }}</p><button type="button" @click="currentStep = 1">Bearbeiten</button></article>
             <article class="wide"><span>Schichten & Besetzung</span><div class="review-shifts"><div v-for="shift in shifts" :key="shift._id"><strong>{{ shift.bezeichnung }}</strong><span>{{ formatDate(shift.datumVon) }} · {{ shortTime(shift.uhrzeitVon) }}–{{ shortTime(shift.uhrzeitBis) }}</span><b>{{ assignmentsForShift(shift).length }} / {{ shift.bedarf || 0 }}</b><small :class="{ invalid: !shift.infoSource || shift.infoUnresolved?.length }">{{ shift.infoSource ? shift.infoUnresolved?.length ? `${shift.infoUnresolved.length} Textmarke(n) ohne Wert` : 'Einsatzinformation vollständig' : form.isPseudo ? 'Ohne Einsatzinformation zulässig' : 'Einsatzinformation fehlt' }}</small></div></div><button type="button" @click="currentStep = 2">Schichten bearbeiten</button></article>
             <article v-if="conflictAssignments.length" class="wide conflict-review"><span>Bestätigte Konflikte</span><div v-for="assignment in conflictAssignments" :key="assignment._id"><strong>{{ assignment.mitarbeiterData ? `${assignment.mitarbeiterData.vorname} ${assignment.mitarbeiterData.nachname}` : `Personal ${assignment.personalNr}` }}</strong><p>{{ assignment.conflictOverride.reason }}</p><small>{{ (assignment.conflictOverride.conflicts || []).map(conflict => conflict.label).join(' · ') }}</small></div><button type="button" @click="currentStep = 3">Planung prüfen</button></article>
@@ -166,7 +160,6 @@ import api from '@/utils/api';
 
 const props = defineProps({
   auftragNr: { type: [String, Number], default: null },
-  initialPseudo: { type: Boolean, default: false },
   initialLocationV2: { type: String, default: '' },
   minimizable: { type: Boolean, default: true },
   minimizeId: { type: String, default: '' },
@@ -227,7 +220,7 @@ const dragCandidateId = ref('');
 const dispoEntries = ref([]);
 
 const form = reactive({
-  auftragNr: '', isPseudo: props.initialPseudo, eventTitel: '', locationV2: props.initialLocationV2 || auth.user?.locationV2?._id || auth.user?.locationV2 || '', kundenNr: null,
+  auftragNr: '', isPseudo: false, eventTitel: '', locationV2: props.initialLocationV2 || auth.user?.locationV2?._id || auth.user?.locationV2 || '', kundenNr: null,
   vonDatum: toLocalDateTime(now), bisDatum: toLocalDateTime(later), bestDatum: toDate(now), referenz: '', labels: [], einsatzort: '', eventLocation: '', eventStrasse: '', eventPlz: '', eventOrt: '',
 });
 const modalTitle = computed(() => event.value ? `${event.value.eventTitel || 'Auftrag'} · #${event.value.auftragNr}` : 'Neuen Auftrag anlegen');
@@ -323,9 +316,9 @@ async function siteCreated(site) { showSiteModal.value = false; await loadSites(
 function siteAddress(site) { return [site.adresse?.strasse, [site.adresse?.plz, site.adresse?.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Keine Adresse'; }
 function addLabel() { if (!labelDraft.value || form.labels.some(label => label.name.toLowerCase() === labelDraft.value.toLowerCase())) return; form.labels.push({ name: labelDraft.value, color: '#eeaf67' }); labelDraft.value = ''; }
 
-function orderPayload(includeCreationFields = false) { return { ...(includeCreationFields ? { auftragNr: form.auftragNr, isPseudo: form.isPseudo } : {}), eventTitel: form.eventTitel, locationV2: form.locationV2, kundenNr: form.kundenNr, vonDatum: form.vonDatum, bisDatum: form.bisDatum, bestDatum: form.bestDatum || null, referenz: form.referenz, labels: form.labels }; }
+function orderPayload() { return { eventTitel: form.eventTitel, locationV2: form.locationV2, kundenNr: form.kundenNr, vonDatum: form.vonDatum, bisDatum: form.bisDatum, bestDatum: form.bestDatum || null, referenz: form.referenz, labels: form.labels }; }
 async function saveOrder() {
-  if (!form.eventTitel || !form.locationV2 || !form.vonDatum || !form.bisDatum || (!form.isPseudo && (!form.auftragNr || !form.kundenNr))) throw new Error('Bitte Titel, Standort, Zeitraum, Auftragsnummer und Kunde vollständig angeben.');
+  if (!form.eventTitel || !form.locationV2 || !form.vonDatum || !form.bisDatum || (!form.isPseudo && !form.kundenNr)) throw new Error('Bitte Titel, Standort, Zeitraum und Kunde vollständig angeben.');
   const response = event.value
     ? await api.patch(`/api/auftraege/${event.value.auftragNr}`, orderPayload(false))
     : await api.post('/api/auftraege', orderPayload(true));

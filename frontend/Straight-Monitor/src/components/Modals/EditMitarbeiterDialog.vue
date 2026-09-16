@@ -69,37 +69,6 @@
 
       <section class="form-section">
         <div class="form-section__heading">
-          <span class="form-section__icon"><font-awesome-icon icon="fa-solid fa-id-card" /></span>
-          <h4>Führerscheine</h4>
-        </div>
-        <div class="list-editor">
-          <div v-for="(fuehrerschein, index) in form.fuehrerscheine" :key="fuehrerschein._id || index" class="fuehrerschein-row">
-            <div class="form-grid form-grid--three">
-              <div class="form-group">
-                <label>Klasse</label>
-                <input v-model="fuehrerschein.klasse" type="text" class="form-input" />
-              </div>
-              <div class="form-group">
-                <label>Gültig von</label>
-                <input v-model="fuehrerschein.gueltigVon" type="date" class="form-input" />
-              </div>
-              <div class="form-group">
-                <label>Gültig bis</label>
-                <input v-model="fuehrerschein.gueltigBis" type="date" class="form-input" />
-              </div>
-            </div>
-            <button type="button" class="btn btn-sm btn-icon btn-danger" @click="removeFuehrerschein(index)" aria-label="Führerschein entfernen" title="Führerschein entfernen">
-              <font-awesome-icon icon="fa-solid fa-trash" />
-            </button>
-          </div>
-          <button type="button" class="btn btn-sm btn-secondary mt-2" @click="addFuehrerschein">
-            <font-awesome-icon icon="fa-solid fa-plus" /> Führerschein hinzufügen
-          </button>
-        </div>
-      </section>
-
-      <section class="form-section">
-        <div class="form-section__heading">
           <span class="form-section__icon"><font-awesome-icon icon="fa-solid fa-briefcase" /></span>
           <h4>Beschäftigung</h4>
         </div>
@@ -335,7 +304,6 @@ const form = ref({
   geburtsdatum: "",
   geburtsname: "",
   geburtsort: "",
-  fuehrerscheine: [],
   additionalEmails: [],
   personalnrHistory: [],
   persgruppe: null,
@@ -367,13 +335,6 @@ watch(
         geburtsdatum: toDateInput(newVal.geburtsdatum),
         geburtsname: newVal.geburtsname || "",
         geburtsort: newVal.geburtsort || "",
-        fuehrerscheine: (newVal.fuehrerscheine?.length ? newVal.fuehrerscheine : (newVal.fuehrerschein ? [newVal.fuehrerschein] : []))
-          .map((fuehrerschein) => ({
-            _id: fuehrerschein._id,
-            klasse: fuehrerschein.klasse || "",
-            gueltigVon: toDateInput(fuehrerschein.gueltigVon),
-            gueltigBis: toDateInput(fuehrerschein.gueltigBis),
-          })),
         additionalEmails: [...(newVal.additionalEmails || [])],
         personalnrHistory: [...(newVal.personalnrHistory || [])],
         persgruppe: newVal.persgruppe ?? null,
@@ -408,14 +369,6 @@ function addEmail() {
 
 function removeEmail(index) {
   form.value.additionalEmails.splice(index, 1);
-}
-
-function addFuehrerschein() {
-  form.value.fuehrerscheine.push({ klasse: "", gueltigVon: "", gueltigBis: "" });
-}
-
-function removeFuehrerschein(index) {
-  form.value.fuehrerscheine.splice(index, 1);
 }
 
 function removeHistory(index) {
@@ -614,18 +567,6 @@ function saveForce() {
 .help-text--missing {
   color: #dc2626;
   font-weight: 600;
-}
-
-.fuehrerschein-row {
-  display: flex;
-  align-items: end;
-  gap: 10px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-
-  .form-grid {
-    flex: 1;
-  }
 }
 
 .checkbox-label {

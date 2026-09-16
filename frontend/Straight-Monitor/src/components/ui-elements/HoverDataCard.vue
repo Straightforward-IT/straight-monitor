@@ -348,7 +348,11 @@ const ring = computed(() => {
   return { slices, over };
 });
 
-const columnSegments = computed(() => ring.value.slices);
+const columnSegments = computed(() => [...ring.value.slices].sort((left, right) => {
+  if (left.role === 'remaining') return -1;
+  if (right.role === 'remaining') return 1;
+  return 0;
+}));
 const columnLimitStyle = computed(() => ({
   top: `${(ring.value.over?.angle || 0) / 3.6}%`,
 }));

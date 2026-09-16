@@ -20,30 +20,12 @@
         </router-link>
         <div class="nav-group nav-group--auftraege">
           <router-link
-            :to="newPagesEnabled ? auftraegeNavTarget : '#'"
+            :to="newPagesEnabled ? '/auftraege' : '#'"
             :class="{ active: isAuftraegeSectionActive, disabled: !newPagesEnabled }"
-            @click="handleNewPageClick($event, auftraegeNavTarget)"
+            @click="handleNewPageClick($event, '/auftraege')"
           >
-            {{ auftraegeNavLabel }}
+            Aufträge
           </router-link>
-          <div class="nav-submenu" aria-label="Auftraege Untermenue">
-            <router-link
-              v-if="auftraegeNavLabel !== 'Aufträge'"
-              to="/auftraege"
-              class="nav-submenu__link"
-              @click="handleNewPageClick($event, '/auftraege')"
-            >
-              Aufträge
-            </router-link>
-            <router-link
-              v-if="auftraegeNavLabel !== 'Pseudo-Auftrag'"
-              :to="{ path: '/auftraege', query: { openPseudo: '1' } }"
-              class="nav-submenu__link"
-              @click="handleNewPageClick($event, '/auftraege')"
-            >
-              Pseudo-Auftrag
-            </router-link>
-          </div>
         </div>
         <div class="nav-group nav-group--sign">
           <router-link
@@ -343,15 +325,6 @@
             >
               <font-awesome-icon :icon="['fas', 'layer-group']" />
               Übersicht
-            </router-link>
-            <router-link
-              :to="{ path: '/auftraege', query: { openPseudo: '1' } }"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Auftraege' && $route.query.openPseudo }"
-              @click="handleMobileNavClick($event, '/auftraege')"
-            >
-              <font-awesome-icon :icon="['fas', 'plus']" />
-              Pseudo-Auftrag
             </router-link>
           </div>
         </div>
@@ -871,10 +844,6 @@ const kundenNavTarget = computed(() => {
   return tab ? { path: '/kunden', query: { tab } } : '/kunden';
 });
 const isAuftraegeSectionActive = computed(() => route.name === 'Auftraege');
-const auftraegeNavLabel = computed(() => route.name === 'Auftraege' && route.query.openPseudo ? 'Pseudo-Auftrag' : 'Aufträge');
-const auftraegeNavTarget = computed(() => auftraegeNavLabel.value === 'Pseudo-Auftrag'
-  ? { path: '/auftraege', query: { openPseudo: '1' } }
-  : '/auftraege');
 const isBestandSectionActive = computed(() => ['Bestand', 'Verlauf'].includes(route.name));
 const bestandNavLabel = computed(() => {
   if (route.name === 'Verlauf') return route.query.tab === 'graph' ? 'Graph' : 'Verlauf';

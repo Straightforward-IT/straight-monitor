@@ -16,6 +16,21 @@ const AuftragSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  // Human-readable identity for records created in Straight Monitor. The
+  // numeric auftragNr remains the Zvoove-compatible relation and API key.
+  monitorId: {
+    type: String,
+    trim: true,
+    immutable: true,
+    sparse: true,
+    unique: true,
+  },
+  creationOrigin: {
+    type: String,
+    enum: ['manual', 'zvoove-import'],
+    immutable: true,
+    index: true,
+  },
   kundenNr: {
     type: Number, // KUNDENNR
     required: false

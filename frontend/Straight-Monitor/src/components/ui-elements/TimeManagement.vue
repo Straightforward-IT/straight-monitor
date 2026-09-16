@@ -570,7 +570,7 @@ const cardData = computed(() => {
   const hourTypes = timeTypeBreakdown(workspace.data);
   const segments = [
     ...hourTypes.map(type => ({ id: type.id, label: type.label, value: type.minutes / 60, color: type.color })),
-    { id: 'remaining', label: 'Frei', value: free / 60, color: '#62b58f' },
+    { id: 'remaining', label: 'Frei', value: free / 60, color: '#f4f1eb' },
     { id: 'over', label: 'Über Kontingent', value: 0, color: '#dc665e' },
   ];
   return { employeeName: props.employee.name, eyebrow: monthLabel.value, title: 'Monatsstunden',

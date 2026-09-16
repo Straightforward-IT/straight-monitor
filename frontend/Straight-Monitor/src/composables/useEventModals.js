@@ -20,14 +20,13 @@ export function useEventModals() {
     const id = 'event-new';
     return dockedModals.open({
       id,
-      title: options.initialPseudo ? 'Neuer Pseudo-Auftrag' : 'Neuer Auftrag',
+      title: 'Neuer Auftrag',
       component: EventModal,
       props: {
-        initialPseudo: Boolean(options.initialPseudo),
         initialLocationV2: options.initialLocationV2 || '',
         minimizable: true,
         minimizeId: id,
-        minimizeTitle: options.initialPseudo ? 'Neuer Pseudo-Auftrag' : 'Neuer Auftrag',
+        minimizeTitle: 'Neuer Auftrag',
         closeOnEscape: false,
         onUpdated: options.onUpdated,
         onClose: () => dockedModals.remove(id),

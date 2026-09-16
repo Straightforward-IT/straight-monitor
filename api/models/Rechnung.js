@@ -14,6 +14,13 @@ const { decryptField } = require('../utils/encryption');
 
 const RechnungSchema = new mongoose.Schema(
   {
+    monitorId: { type: String, trim: true, immutable: true, sparse: true, unique: true },
+    creationOrigin: {
+      type: String,
+      enum: ['manual', 'zvoove-import'],
+      immutable: true,
+      index: true,
+    },
     // ── Plaintext queryable fields ────────────────────────────────────────────
     buchDatum:   { type: Date,   index: true }, // needed for range queries
     kundenNr:    { type: Number },              // needed for customer joins

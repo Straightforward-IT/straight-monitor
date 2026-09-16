@@ -1,6 +1,19 @@
 const mongoose = require('mongoose');
 
 const AdresseSchema = new mongoose.Schema({
+	monitorId: {
+		type: String,
+		trim: true,
+		immutable: true,
+		sparse: true,
+		unique: true,
+	},
+	creationOrigin: {
+		type: String,
+		enum: ['manual', 'zvoove-import'],
+		immutable: true,
+		index: true,
+	},
 	nummer: {
 		type: String,
 		required: true,

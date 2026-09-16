@@ -242,11 +242,15 @@ describe('Auftrag Chronik routes with real transactions', function () {
     assert.equal((await feed()).length, 6);
   });
 
-  it('records newly created regular/pseudo orders and shifts only after persistence', async () => {
+  it('records newly created Monitor orders and shifts only after persistence', async () => {
     await Kunde.collection.insertOne({ _id: oid(), kundenNr: 123, locationV2: location._id });
-    for (const isPseudo of [false, true]) {
-      const created = await request('POST', '/', { auftragNr: 12345, isPseudo, kundenNr: 123, eventTitel: 'New order', locationV2: location._id, vonDatum: '2026-09-10', bisDatum: '2026-09-11' });
+    for (const sequence of [1, 2]) {
+      const created = await request('POST', '/', { kundenNr: 123, eventTitel: 'New order', locationV2: location._id, vonDatum: '2026-09-10', bisDatum: '2026-09-11', ...(sequence === 2 ? { isPseudo: true } : {}) });
       assert.equal(created.status, 201, JSON.stringify(created.body));
+      assert.equal(created.body.auftragNr, 8000000 + sequence);
+      assert.equal(created.body.monitorId, `M2${String(sequence).padStart(6, '0')}`);
+      assert.equal(created.body.creationOrigin, 'manual');
+      assert.equal(created.body.isPseudo, false);
       assert.equal(await Entry.countDocuments({ auftragId: created.body._id, action: 'Auftrag.created' }), 1);
       const newShift = await request('POST', `/${created.body.auftragNr}/schichten`, { bezeichnung: 'Neue Schicht', uhrzeitVon: '09:00', uhrzeitBis: '15:00' });
       assert.equal(newShift.status, 201, JSON.stringify(newShift.body));

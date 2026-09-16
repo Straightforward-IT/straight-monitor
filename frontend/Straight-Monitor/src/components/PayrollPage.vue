@@ -14,7 +14,6 @@
           class="payroll-page__toolbar"
         >
           <label class="payroll-page__field payroll-page__field--employee">
-            <span>Mitarbeiter</span>
             <MitarbeiterSearch
               v-model="selectedEmployeeId"
               include-inactive
@@ -25,36 +24,6 @@
             />
           </label>
           <div class="payroll-page__controls">
-            <label class="payroll-page__field">
-              <span>Monat</span>
-              <div class="payroll-page__month-control">
-                <CustomTooltip text="Vorheriger Monat">
-                  <button
-                    type="button"
-                    class="payroll-page__month-nav"
-                    aria-label="Vorheriger Monat"
-                    @click="shiftMonth(-1)"
-                  >
-                    <FontAwesomeIcon :icon="faChevronLeft" />
-                  </button>
-                </CustomTooltip>
-                <input
-                  :value="month"
-                  type="month"
-                  @change="changeMonth"
-                >
-                <CustomTooltip text="Nächster Monat">
-                  <button
-                    type="button"
-                    class="payroll-page__month-nav"
-                    aria-label="Nächster Monat"
-                    @click="shiftMonth(1)"
-                  >
-                    <FontAwesomeIcon :icon="faChevronRight" />
-                  </button>
-                </CustomTooltip>
-              </div>
-            </label>
             <ToolbarGroup>
               <ToolbarButton
                 :variant="bucketEnabled ? 'primary' : 'secondary'"
@@ -92,6 +61,40 @@
               </CustomTooltip>
             </ToolbarGroup>
           </div>
+          <template #bottom-actions>
+            <div class="payroll-page__month-controls">
+              <CustomTooltip text="Vorheriger Monat">
+                <button
+                  type="button"
+                  class="payroll-page__month-nav"
+                  aria-label="Vorheriger Monat"
+                  @click="shiftMonth(-1)"
+                >
+                  <FontAwesomeIcon :icon="faChevronLeft" />
+                </button>
+              </CustomTooltip>
+              <DatePicker v-model="monthDate" inline mode="month">
+                <template #default="{ toggle }">
+                  <button
+                    type="button"
+                    class="payroll-page__month-picker"
+                    aria-label="Monat wählen"
+                    @click="toggle"
+                  >{{ monthLabel }}</button>
+                </template>
+              </DatePicker>
+              <CustomTooltip text="Nächster Monat">
+                <button
+                  type="button"
+                  class="payroll-page__month-nav"
+                  aria-label="Nächster Monat"
+                  @click="shiftMonth(1)"
+                >
+                  <FontAwesomeIcon :icon="faChevronRight" />
+                </button>
+              </CustomTooltip>
+            </div>
+          </template>
         </Toolbar>
         <template v-if="!employeeId">
           <p class="payroll-page__notice">
@@ -102,6 +105,7 @@
           <EmployeeCard
             :key="employeeId"
             :mitarbeiter-id="employeeId"
+            :enable-header-context-menu="true"
             class="payroll-page__employee-card"
           />
           <p
@@ -215,6 +219,7 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
+import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import MitarbeiterSearch from '@/components/ui-elements/MitarbeiterSearch.vue';
 import EmployeeCard from '@/components/EmployeeCard.vue';
 import TimeManagement from '@/components/ui-elements/TimeManagement.vue';
@@ -285,6 +290,17 @@ function saveEmployeeId(value) {
 }
 const employeeId = computed(() => String(route.query.employeeId || storedEmployeeId()));
 const month = computed(() => String(route.query.month || new Date().toLocaleDateString('sv-SE').slice(0, 7)));
+const monthDate = computed({
+  get: () => {
+    const [year, monthNumber] = month.value.split('-').map(Number);
+    return new Date(year, monthNumber - 1, 1);
+  },
+  set: value => {
+    if (!value) return;
+    replaceQuery({ month: `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}` });
+  },
+});
+const monthLabel = computed(() => monthDate.value.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }));
 const selectedEmployeeId = computed({
   get: () => employeeId.value || null,
   set: value => {
@@ -306,7 +322,6 @@ function replaceQuery(patch) {
   Object.keys(query).forEach(key => { if (query[key] == null || query[key] === '') delete query[key]; });
   router.replace({ query });
 }
-function changeMonth(event) { if (event.target.value) replaceQuery({ month: event.target.value }); }
 function shiftMonth(offset) {
   const [year, monthNumber] = month.value.split('-').map(Number);
   const target = new Date(year, monthNumber - 1 + offset, 1);
@@ -314,7 +329,7 @@ function shiftMonth(offset) {
 }
 watch(employeeId, saveEmployeeId, { immediate: true });
 function openAssignmentCapture(entry) {
-  openTimeCapture({ auftragNr: entry.auftragNr });
+  openTimeCapture({ auftragNr: entry.auftragNr, employeeId: employeeId.value });
 }
 async function loadMonth() {
   bucketEnabled.value = false;
@@ -347,17 +362,24 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .payroll-page { padding: 16px; min-width: 0; }
-.payroll-page__toolbar { margin-bottom: 16px; }
+.payroll-page__toolbar { margin-bottom: 29px; overflow: visible; }
 .payroll-page__field { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 12px; }
 .payroll-page__field--employee { width: min(360px, 100%); }
 .payroll-page__field--employee :deep(.ma-search) { min-width: 0; }
 .payroll-page__controls { display: flex; align-items: center; gap: 12px; margin-left: auto; }
-.payroll-page__month-control { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.payroll-page__controls :deep(.toolbar-btn) { min-height: 28px; height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--tile-bg); color: var(--primary); font: inherit; font-size: 0.78rem; font-weight: 600; }
+.payroll-page__controls :deep(.toolbar-btn--primary) { border-color: var(--primary); background: var(--tile-bg); color: var(--primary); }
+.payroll-page__controls :deep(.toolbar-btn:hover:not(:disabled)), .payroll-page__controls :deep(.toolbar-btn:focus-visible) { border-color: var(--primary); background: var(--tile-bg); color: var(--primary); }
+.payroll-page__controls :deep(.toolbar-btn:disabled) { border-color: var(--border); background: var(--hover); color: var(--muted); cursor: not-allowed; opacity: 0.55; }
 .payroll-page__field input { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
-.payroll-page__month-nav { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); background: var(--surface); cursor: pointer; }
-.payroll-page__month-nav:hover { color: var(--primary); border-color: var(--primary); }
+.payroll-page__month-controls { position: absolute; top: 100%; right: 12px; z-index: 5; display: flex; align-items: center; gap: 4px; height: 24px; white-space: nowrap; }
+.payroll-page__month-picker, .payroll-page__month-nav { height: 24px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 0 0 5px 5px; color: var(--text); background: var(--tile-bg); font: inherit; font-size: 0.72rem; box-shadow: none; }
+.payroll-page__month-picker { width: 150px; padding: 0 6px; cursor: pointer; }
+.payroll-page__month-controls :deep(.dp-layer--inline) { right: -44px; left: auto; }
+.payroll-page__month-nav { display: inline-flex; align-items: center; justify-content: center; width: 28px; padding: 0; color: var(--muted); cursor: pointer; }
+.payroll-page__month-picker:hover, .payroll-page__month-nav:hover { color: var(--primary); border-color: var(--primary); }
 .payroll-page__month-nav:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.payroll-page__refresh { width: 36px; height: 36px; justify-content: center; padding: 0; }
+.payroll-page__refresh { width: 28px; height: 28px; justify-content: center; padding: 0; }
 .payroll-page__body { display: flex; align-items: flex-start; min-width: 0; }
 .payroll-page__main { flex: 1; min-width: 0; container: payroll-main / inline-size; }
 .payroll-page :deep(.payroll-page__day-panel) { top: calc(var(--header-h, 56px) + 12px); height: calc(100dvh - var(--header-h, 56px) - 28px); }
@@ -397,6 +419,6 @@ onBeforeUnmount(() => {
   .payroll-page__field--employee { width: 100%; }
   .payroll-page__controls { width: 100%; margin-left: 0; flex-wrap: wrap; }
   .payroll-page__field input { flex: 1; min-width: 0; }
-  .payroll-page__month-control { flex: 1; justify-content: flex-end; }
+  .payroll-page__month-controls { right: 6px; gap: 3px; }
 }
 </style>

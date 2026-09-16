@@ -35,7 +35,8 @@ const {
 const { decryptField } = require('../../utils/encryption');
 const asyncHandler = require('../../middleware/AsyncHandler');
 const auth = require('../../middleware/auth');
-const { resolveLocationFromGeschSt } = require('../../services/operations/LocationResolutionService');
+const { resolveActiveLocation, resolveLocationFromGeschSt } = require('../../services/operations/LocationResolutionService');
+const { allocateMonitorId } = require('../../services/operations/MonitorIdService');
 
 // Helper: builds forecast pipeline stages that query BOTH Schicht and Einsatz collections.
 // This handles the transition from 7001 (bedarf only in Einsatz) to 7011 (bedarf in Schicht,
@@ -53,6 +54,11 @@ const forecastUnionPipeline = (matchCondition) => [
     bedarf: { $first: '$bedarf' }
   }}
 ];
+
+async function resolveMonitorIdLocation(locationV2, geschSt) {
+  return (locationV2 ? await resolveActiveLocation(locationV2) : null)
+    || await resolveLocationFromGeschSt(geschSt);
+}
 
 function getMitarbeiterPersonalnummern(maDoc) {
   const numbers = new Set();
@@ -905,8 +911,14 @@ router.get('/:id', auth, asyncHandler(async (req, res) => {
 // @desc    Neuen Kunden erstellen
 // @access  Private
 router.post('/', auth, asyncHandler(async (req, res) => {
+  const location = await resolveMonitorIdLocation(req.body.locationV2, req.body.geschSt);
+  if (!location) return res.status(400).json({ message: 'Ein aktiver Standort ist für einen manuell angelegten Kunden erforderlich.' });
+  const { monitorId, creationOrigin, ...input } = req.body;
   const newKunde = new Kunde({
-    ...req.body
+    ...input,
+    locationV2: location._id,
+    monitorId: await allocateMonitorId('kunde', location.externalId),
+    creationOrigin: 'manual',
   });
 
   const savedKunde = await newKunde.save();
@@ -1186,8 +1198,10 @@ router.post('/:kundenNr/adressen', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Ungültige Kunden-Nr.' });
   }
 
-  const kundeExists = await Kunde.exists({ kundenNr });
-  if (!kundeExists) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  const kunde = await Kunde.findOne({ kundenNr }).select('locationV2 geschSt').lean();
+  if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
+  const location = await resolveMonitorIdLocation(kunde.locationV2, kunde.geschSt);
+  if (!location) return res.status(400).json({ message: 'Der Kunde hat keinen aktiven Standort für die Monitor-ID.' });
 
   const toNullableText = (value) => {
     const text = String(value ?? '').trim();
@@ -1198,6 +1212,8 @@ router.post('/:kundenNr/adressen', auth, asyncHandler(async (req, res) => {
   if (!name) return res.status(400).json({ message: 'Bitte einen Namen angeben.' });
 
   const adresse = await Adresse.create({
+    monitorId: await allocateMonitorId('adresse', location.externalId),
+    creationOrigin: 'manual',
     nummer: `MANUAL-${new mongoose.Types.ObjectId()}`,
     art,
     name,
@@ -1716,8 +1732,12 @@ router.post('/:kundenNr/einsatzorte', auth, asyncHandler(async (req, res) => {
   const kunde = await Kunde.findOne({ kundenNr }).select('_id locationV2 geschSt').lean();
   if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
   await assertEinsatzinformationLocationAccess(req, kunde);
+  const location = await resolveMonitorIdLocation(kunde.locationV2, kunde.geschSt);
+  if (!location) return res.status(400).json({ message: 'Der Kunde hat keinen aktiven Standort für die Monitor-ID.' });
 
   const adresse = await Adresse.create({
+    monitorId: await allocateMonitorId('adresse', location.externalId),
+    creationOrigin: 'manual',
     nummer: `MANUAL-EINSATZORT-${new mongoose.Types.ObjectId()}`,
     art: 'K',
     ...einsatzortAddressUpdate(req.body),

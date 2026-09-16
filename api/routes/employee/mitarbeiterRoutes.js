@@ -78,24 +78,6 @@ const { buildEmployeeR2Path } = require("../../utils/employeeR2Path");
 const SignaturVorgang = require("../../models/Signature/SignaturVorgang");
 const progressMap = new Map();
 
-// Keep this static, sensitive route ahead of employee parameter routes. Handle
-// failures locally: the legacy global handler logs headers and request bodies.
-router.get('/map-data', require('../../middleware/sensitiveRoute'), auth, require('../../middleware/requireAdmin'), asyncHandler(async (req, res) => {
-  res.set('Cache-Control', 'private, no-store');
-  res.set('Vary', 'x-auth-token');
-  try {
-    const { getMapData } = require('../../services/geodata/EmployeeMapService');
-    res.json(await getMapData(req.user.id || req.user._id, req.query));
-  } catch (error) {
-    const expected = error.statusCode >= 400 && error.statusCode < 500;
-    if (!expected) console.warn('[map] Map data request failed.');
-    res.status(expected ? error.statusCode : 500).json({
-      code: expected ? error.code : 'MAP_UNAVAILABLE',
-      message: expected ? error.message : 'Die Kartendaten konnten nicht geladen werden. Bitte erneut versuchen.',
-    });
-  }
-}));
-
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {

@@ -24,16 +24,6 @@ const MitarbeiterSchema = new mongoose.Schema({
     additionalEmails: [{ type: String, lowercase: true, trim: true }],
     telefon: { type: String, required: false, trim: true },
     iban: { type: String, required: false, trim: true, uppercase: true },
-    fuehrerschein: {
-        klasse: { type: String, trim: true },
-        gueltigVon: { type: Date, default: null },
-        gueltigBis: { type: Date, default: null },
-    },
-    fuehrerscheine: [{
-        klasse: { type: String, trim: true },
-        gueltigVon: { type: Date, default: null },
-        gueltigBis: { type: Date, default: null },
-    }],
     // Hauptadresse (Adresse 1) aus Zvoove — Tel/Email der Hauptadresse fließen in telefon/email.
     adresse: {
         strasse: { type: String, trim: true },
@@ -266,11 +256,6 @@ MitarbeiterSchema.virtual('evaluierungSoll').get(function () {
 // Bewusst NICHT unique: leere Arrays würden sonst als doppelte null-Keys kollidieren;
 // die Eindeutigkeit der primären Nummer wird bereits über personalnr erzwungen.
 MitarbeiterSchema.index({ personalnummern: 1 }, { sparse: true });
-
-MitarbeiterSchema.plugin(require('../plugins/geodataInvalidation'), {
-    fields: ['adresse', 'adresse2'],
-    addresses: row => [row.adresse, row.adresse2].filter(Boolean),
-});
 
 const Mitarbeiter = mongoose.model('Mitarbeiter', MitarbeiterSchema);
 
