@@ -3,22 +3,38 @@
     <div :class="['gt-card', { 'gt-ancestor': !node.direct }]">
       <span class="gt-name">{{ node.name }}</span>
       <span v-if="node.direct" class="gt-badge">Mitglied</span>
+      <button
+        v-if="node.direct"
+        type="button"
+        class="gt-remove"
+        title="Aus Gruppe entfernen"
+        aria-label="Aus Gruppe entfernen"
+        :disabled="removingGroupId === node.id"
+        @click.stop="$emit('remove', node.id)"
+      >
+        <font-awesome-icon :icon="removingGroupId === node.id ? 'fa-solid fa-spinner' : 'fa-solid fa-minus'" :spin="removingGroupId === node.id" />
+      </button>
     </div>
 
     <ul v-if="node.children?.length" class="gt-children">
       <li v-for="child in node.children" :key="child.id">
-        <FlipGroupNode :node="child" />
+        <FlipGroupNode :node="child" :removing-group-id="removingGroupId" @remove="$emit('remove', $event)" />
       </li>
     </ul>
   </div>
 </template>
 
 <script>
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+
 export default {
   name: 'FlipGroupNode',
+  components: { FontAwesomeIcon },
   props: {
-    node: { type: Object, required: true }
-  }
+    node: { type: Object, required: true },
+    removingGroupId: { type: String, default: null }
+  },
+  emits: ['remove']
 }
 </script>
 
@@ -34,7 +50,7 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 6px 28px 6px 12px;
   border-radius: 8px;
   background: var(--soft);
   border: 1px solid var(--border);
@@ -67,6 +83,31 @@ export default {
   background: color-mix(in srgb, var(--primary, #e07b00) 15%, transparent);
   color: var(--primary, #e07b00);
   font-weight: 600;
+}
+
+.gt-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--muted, #777);
+  background: transparent;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: #c83737;
+    background: color-mix(in srgb, #c83737 12%, transparent);
+  }
+
+  &:disabled {
+    cursor: wait;
+  }
 }
 
 /* Children container */

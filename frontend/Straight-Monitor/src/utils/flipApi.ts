@@ -45,6 +45,10 @@ export async function assignFlipUserGroups(payload: {
   return data;
 }
 
+export async function removeFlipUserGroup(userId: UUID, groupId: UUID) {
+  await api.delete(`/api/personal/flip/${userId}/groups/${groupId}`);
+}
+
 /* ==========
  * Aufgaben
  * ========== */

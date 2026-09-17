@@ -892,6 +892,59 @@ async function getAllFlipUserGroupAssignments(groupId) {
   }
 }
 
+async function getFlipUserGroupsForUser(userId) {
+  const groups = await getAllFlipUserGroups();
+  const groupById = new Map(groups.map((group) => [group.id || group.group_id, group]));
+  const memberships = await Promise.all(groups.map(async (group) => {
+    const groupId = group.id || group.group_id;
+    if (!groupId) return null;
+
+    const assignments = await getAllFlipUserGroupAssignments(groupId);
+    const isAssigned = assignments.some((assignment) =>
+      assignment?.id?.user_id === userId || assignment?.user_id === userId
+    );
+    if (!isAssigned) return null;
+
+    return groupId;
+  }));
+
+  const toGroup = (group, direct) => {
+    const id = group.id || group.group_id;
+    const title = Array.isArray(group.title)
+      ? group.title.find((entry) => entry?.language === 'de')?.text
+        || group.title.find((entry) => entry?.text)?.text
+      : group.title?.text || group.title;
+    return {
+      id,
+      name: title || group.name || 'Unbenannte Gruppe',
+      parent_id: group.parent_id || null,
+      direct,
+    };
+  };
+
+  const resolvedGroups = new Map();
+  for (const groupId of memberships.filter(Boolean)) {
+    let group = groupById.get(groupId);
+    if (!group) continue;
+
+    resolvedGroups.set(groupId, toGroup(group, true));
+    while (group.parent_id && groupById.has(group.parent_id)) {
+      group = groupById.get(group.parent_id);
+      const parentId = group.id || group.group_id;
+      if (!resolvedGroups.has(parentId)) {
+        resolvedGroups.set(parentId, toGroup(group, false));
+      }
+    }
+  }
+
+  return Array.from(resolvedGroups.values());
+}
+
+async function removeFlipUserFromGroup(userId, groupId) {
+  const flipUser = new FlipUser({ id: userId });
+  await flipUser.removeFromGroup(groupId);
+}
+
 /** Builds an HTML snippet with context info for error emails */
 function _buildContextHtml(context = {}) {
   const { requestingUser, flipUser } = context;
@@ -2125,6 +2178,8 @@ module.exports = {
   getFlipUserGroupAssignments,
   getAllFlipUserGroups,
   getAllFlipUserGroupAssignments,
+  getFlipUserGroupsForUser,
+  removeFlipUserFromGroup,
   getFlipProfilePicture,
   findFlipUserByName,
   findFlipUserById,

@@ -49,7 +49,7 @@ export interface IFlipUser {
   primary_user_group?: FlipPrimaryUserGroup;
 
   // optional Zusatzfelder aus anderen Endpunkten
-  groups?: Array<{ id: UUID; name: string }>;
+  groups?: Array<{ id: UUID; name: string; parent_id?: UUID | null; direct?: boolean }>;
 }
 
 /** Flip-Task (vereinheitlicht) */

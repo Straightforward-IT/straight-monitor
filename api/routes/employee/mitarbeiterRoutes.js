@@ -40,6 +40,8 @@ const {
   getFlipUserGroupAssignments,
   getAllFlipUserGroups,
   getAllFlipUserGroupAssignments,
+  getFlipUserGroupsForUser,
+  removeFlipUserFromGroup,
   findFlipUserById,
   findFlipUserByName,
   flipUserRoutine,
@@ -1166,6 +1168,24 @@ router.get(
   asyncHandler(async (req, res) => {
     const data = await getFlipUserGroupAssignments(req.query);
     res.status(200).json(data);
+  })
+);
+
+router.get(
+  "/flip/:id/groups",
+  auth,
+  asyncHandler(async (req, res) => {
+    const groups = await getFlipUserGroupsForUser(req.params.id);
+    res.status(200).json({ data: groups });
+  })
+);
+
+router.delete(
+  "/flip/:userId/groups/:groupId",
+  auth,
+  asyncHandler(async (req, res) => {
+    await removeFlipUserFromGroup(req.params.userId, req.params.groupId);
+    res.status(204).end();
   })
 );
 

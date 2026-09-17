@@ -2389,7 +2389,13 @@ export default {
       if (!data?.flip_id) return;
       try {
         const flipUser = await this.flip.fetchFlipById(data.flip_id);
-        if (flipUser) data.flip = flipUser;
+        if (flipUser) {
+          const response = await api.get(`/api/personal/flip/${data.flip_id}/groups`);
+          data.flip = {
+            ...flipUser,
+            groups: response.data?.data || [],
+          };
+        }
       } catch { /* flip profile will show on next load */ }
     },
 
@@ -4216,6 +4222,11 @@ export default {
   cursor: pointer;
 }
 
+.card-header > * {
+  position: relative;
+  z-index: 11;
+}
+
 .employee-card-close {
   width: 32px;
   height: 32px;
@@ -4342,6 +4353,26 @@ export default {
   height: 14px;
   object-fit: contain;
   filter: brightness(0) saturate(100%) invert(72%) sepia(46%) saturate(500%) hue-rotate(340deg) brightness(101%) contrast(92%);
+}
+
+.card--has-user .pill {
+  background: color-mix(in srgb, var(--text) 8%, var(--surface));
+}
+
+.card--has-user .pill.ok {
+  background: color-mix(in srgb, #21a26a 18%, var(--surface));
+}
+
+.card--has-user .pill.muted {
+  background: color-mix(in srgb, var(--text) 6%, var(--surface));
+}
+
+.card--has-user .pill.warn {
+  background: color-mix(in srgb, #f6a019 20%, var(--surface));
+}
+
+.card--has-user .pill--monitor {
+  background: color-mix(in srgb, var(--primary) 18%, var(--surface));
 }
 
 .avatar--job-tier {

@@ -42,7 +42,7 @@
           :key="root.id"
           class="gt-subtree"
         >
-          <FlipGroupNode :node="root" />
+          <FlipGroupNode :node="root" :removing-group-id="removingGroupId" @remove="removeGroup" />
         </div>
       </div>
       <div v-else class="empty">
@@ -69,6 +69,7 @@
 <script>
 import { ref, computed, onMounted } from 'vue'
 import { useFlipAll } from '@/stores/flipAll'
+import { removeFlipUserGroup } from '@/utils/flipApi'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import FlipGroupNode from './FlipGroupNode.vue'
 
@@ -85,6 +86,8 @@ export default {
 
   setup(props) {
     const flip = useFlipAll()
+    const removingGroupId = ref(null)
+    const removedGroupIds = ref([])
 
     // Computed
     const userStatus = computed(() => props.flipUser.status?.toLowerCase() || 'unknown')
@@ -92,7 +95,7 @@ export default {
 
     // Build hierarchical group tree nodes
     const groupRoots = computed(() => {
-      const groups = props.flipUser.groups
+      const groups = props.flipUser.groups?.filter((group) => !removedGroupIds.value.includes(group.id))
       if (!groups?.length) return []
 
       const map = new Map()
@@ -136,12 +139,25 @@ export default {
       })
     }
 
+    const removeGroup = async (groupId) => {
+      if (!props.flipUser.id || removingGroupId.value) return
+      removingGroupId.value = groupId
+      try {
+        await removeFlipUserGroup(props.flipUser.id, groupId)
+        removedGroupIds.value.push(groupId)
+      } finally {
+        removingGroupId.value = null
+      }
+    }
+
     return {
       userStatus,
       hasAttributes,
       groupRoots,
+      removingGroupId,
       formatStatus,
-      formatDate
+      formatDate,
+      removeGroup
     }
   }
 }
