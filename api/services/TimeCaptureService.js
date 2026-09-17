@@ -62,8 +62,8 @@ function count(value) {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 1440) fail(400, 'Pausen müssen ganze Minuten zwischen 0 und 1440 sein.');
   return value;
 }
-const employeeNumbers = employee => [...new Set([employee.personalnr, ...(employee.personalnummern || [])].filter(value => value != null && String(value).trim() !== '').map(Number).filter(Number.isSafeInteger))];
-const employeeNumberQuery = numbers => ({ $or: [{ personalnr: { $in: numbers.map(String) } }, { personalnummern: { $in: numbers.map(String) } }] });
+const employeeNumbers = employee => [...new Set([employee.personalnr].filter(value => value != null && String(value).trim() !== '').map(Number).filter(Number.isSafeInteger))];
+const employeeNumberQuery = numbers => ({ personalnr: { $in: numbers.map(String) } });
 const berlin = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 function instant(date, clock, offset = 0) {
   const day = new Date(`${date}T00:00:00Z`);
@@ -153,7 +153,7 @@ async function orderForUser(user, number, session = null) {
   return order;
 }
 async function employeeForUser(user, id) {
-  const employee = await Mitarbeiter.findById(objectId(id)).select('personalnr personalnummern vorname nachname locationV2 arbeitszeit arbeitsverhaeltnis').lean();
+  const employee = await Mitarbeiter.findById(objectId(id)).select('personalnr vorname nachname locationV2 arbeitszeit arbeitsverhaeltnis').lean();
   if (!employee) fail(404, 'Mitarbeiter nicht gefunden.');
   if (!canAccess(user, employee.locationV2)) fail(403, 'Für diesen Mitarbeiterstandort fehlt die Berechtigung.');
   return employee;
@@ -189,7 +189,7 @@ async function review(user, number, employeeId) {
   const filter = { auftragNr: auftrag.auftragNr, isPseudo: { $ne: true }, personalNr: { $ne: null } };
   if (employeeId) filter.personalNr = { $in: employeeNumbers(await employeeForUser(user, employeeId)) };
   const einsaetze = await Einsatz.find(filter).sort({ datumVon: 1, personalNr: 1 }).lean();
-  const employees = await Mitarbeiter.find(employeeNumberQuery(einsaetze.map(item => item.personalNr))).select('personalnr personalnummern vorname nachname').lean();
+  const employees = await Mitarbeiter.find(employeeNumberQuery(einsaetze.map(item => item.personalNr))).select('personalnr vorname nachname').lean();
   const schichten = await Schicht.find({ auftragNr: auftrag.auftragNr }).sort({ datumVon: 1 }).lean();
   const entries = await Stundenzeit.find({ _id: { $in: einsaetze.map(item => item._id) } }).populate('history.by', 'name').lean();
   return { auftrag, schichten, einsaetze: einsaetze.map(item => ({ ...item, mitarbeiterData: employees.find(employee => employeeNumbers(employee).includes(item.personalNr)) })), entries };

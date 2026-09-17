@@ -185,7 +185,6 @@ function indexEmployeesByPersonalnr(employees) {
   for (const employee of employees) {
     const personalnrs = [
       employee.personalnr,
-      ...(employee.personalnummern || []),
       ...(employee.personalnrHistory || []).map((entry) => entry.value),
     ];
 
@@ -314,7 +313,6 @@ router.get(
         { nachname: regex(term) },
         { email: regex(term) },
         { personalnr: regex(term) },
-        { personalnummern: regex(term) },
       ],
     });
     const filter = {
@@ -1287,7 +1285,7 @@ router.get(
     let query;
 
     if (/^\d+$/.test(search)) {
-      query = { $or: [{ personalnr: search }, { personalnummern: search }] };
+      query = { personalnr: search };
     } else {
       const parts = search.split(/\s+/).filter(Boolean);
       if (parts.length >= 2) {
@@ -1337,7 +1335,6 @@ router.get(
     }
     if (personalnr && personalnr.trim() && personalnr.trim() !== "0") {
       conditions.push({ personalnr: personalnr.trim() });
-      conditions.push({ personalnummern: personalnr.trim() });
     }
     if (asana_id && asana_id.trim()) {
       conditions.push({ asana_id: asana_id.trim() });
@@ -2552,10 +2549,9 @@ router.post(
       const employees = await Mitarbeiter.find({
         $or: [
           { personalnr: { $in: uniquePersonalnrs } },
-          { personalnummern: { $in: uniquePersonalnrs } },
           { 'personalnrHistory.value': { $in: uniquePersonalnrs } },
         ],
-      }).select('_id r2Prefix personalnr personalnummern personalnrHistory.value').lean();
+      }).select('_id r2Prefix personalnr personalnrHistory.value').lean();
       const { employeeByPersonalnr, ambiguousPersonalnrs } = indexEmployeesByPersonalnr(employees);
       const unknownPersonalnrs = uniquePersonalnrs.filter((personalnr) => !employeeByPersonalnr.has(personalnr) && !ambiguousPersonalnrs.has(personalnr));
 
@@ -4029,7 +4025,7 @@ router.get(
     if (!year || !month) return res.status(400).json({ msg: "year und month erforderlich" });
 
     const ma = await Mitarbeiter.findById(req.params.id)
-      .select("personalnr personalnummern")
+      .select("personalnr")
       .lean();
     if (!ma) return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
 
@@ -4038,10 +4034,6 @@ router.get(
       const n = Number(ma.personalnr);
       if (!isNaN(n) && n > 0) pNrSet.add(n);
     }
-    (ma.personalnummern || []).forEach(p => {
-      const n = Number(p);
-      if (!isNaN(n) && n > 0) pNrSet.add(n);
-    });
     const pNrs = [...pNrSet];
     if (!pNrs.length) return res.json({ days: [], year: Number(year), month: Number(month) });
 
@@ -4110,7 +4102,7 @@ router.get(
   auth,
   asyncHandler(async (req, res) => {
     const ma = await Mitarbeiter.findById(req.params.id)
-      .select("personalnr personalnummern personalnrHistory")
+      .select("personalnr personalnrHistory")
       .lean();
     if (!ma) return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
 
@@ -4177,7 +4169,7 @@ router.get(
   auth,
   asyncHandler(async (req, res) => {
     const ma = await Mitarbeiter.findById(req.params.id)
-      .select("personalnr personalnummern")
+      .select("personalnr")
       .lean();
     if (!ma) return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
 
@@ -4186,10 +4178,6 @@ router.get(
       const n = Number(ma.personalnr);
       if (!isNaN(n) && n > 0) pNrSet.add(n);
     }
-    (ma.personalnummern || []).forEach((p) => {
-      const n = Number(p);
-      if (!isNaN(n) && n > 0) pNrSet.add(n);
-    });
     const pNrs = [...pNrSet];
     if (!pNrs.length) return res.json({ last: null, next: null });
 

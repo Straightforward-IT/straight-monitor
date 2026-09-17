@@ -743,11 +743,10 @@ router.get(
     const mitarbeiterList = await Mitarbeiter.find({
       $or: [
         { personalnr: { $in: personalNrStrings } },
-        { personalnummern: { $in: personalNrStrings } },
         { "personalnrHistory.value": { $in: personalNrStrings } },
       ],
     })
-      .select("personalnr personalnummern personalnrHistory vorname nachname telefon qualifikationen flip_id")
+      .select("personalnr personalnrHistory vorname nachname telefon qualifikationen flip_id")
       .lean();
 
     const ordinalMaps = await ordinalsForEmployees(mitarbeiterList);

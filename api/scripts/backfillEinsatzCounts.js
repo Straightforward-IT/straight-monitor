@@ -18,11 +18,10 @@ async function backfill() {
     isActive: { $ne: false },
     $or: [
       { personalnr: { $exists: true, $nin: [null, ""] } },
-      { "personalnummern.0": { $exists: true } },
       { "personalnrHistory.0": { $exists: true } },
     ],
   })
-    .select("_id vorname nachname personalnr personalnummern personalnrHistory einsatzCount rank")
+    .select("_id vorname nachname personalnr personalnrHistory einsatzCount rank")
     .lean();
 
   const snapshotAt = new Date();

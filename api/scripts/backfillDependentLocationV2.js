@@ -59,8 +59,8 @@ async function planVerfuegbarkeiten() {
   const personalnrs = [...new Set(verfuegbarkeiten.map((entry) => String(entry.personalnr)).filter(Boolean))];
   const [mitarbeiter, activeLocations] = await Promise.all([
     personalnrs.length
-    ? await Mitarbeiter.find({ $or: [{ personalnr: { $in: personalnrs } }, { personalnummern: { $in: personalnrs } }] })
-      .select('personalnr personalnummern locationV2')
+    ? await Mitarbeiter.find({ personalnr: { $in: personalnrs } })
+      .select('personalnr locationV2')
       .lean()
     : [],
     Location.find({ isActive: true }).select('_id externalId').lean(),
@@ -69,9 +69,7 @@ async function planVerfuegbarkeiten() {
   const locationByPersonalnr = new Map();
   for (const ma of mitarbeiter) {
     const primaryLocation = ma.locationV2 || locationsByExternalId.get(String(ma.personalnr || '').trim().match(/^\d/)?.[0]) || null;
-    for (const personalnr of [ma.personalnr, ...(ma.personalnummern || [])].filter(Boolean)) {
-      locationByPersonalnr.set(String(personalnr), primaryLocation);
-    }
+    if (ma.personalnr) locationByPersonalnr.set(String(ma.personalnr), primaryLocation);
   }
   const operations = [];
   const report = { total: verfuegbarkeiten.length, matched: 0, unresolved: 0, unresolvedEntries: [] };

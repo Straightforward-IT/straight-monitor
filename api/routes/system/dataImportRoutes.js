@@ -1390,32 +1390,30 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       return res.json({ success: true, message: 'Keine gültigen Zeilen gefunden.' });
     }
 
-    // A personal number may be primary or additional for one employee, but it
-    // must never be assigned to multiple employees. Validate all import
+    // A personnel number belongs to exactly one employee. Validate all import
     // numbers before any background update begins.
     const importedPersonalnrs = [...new Set(filteredOperations.map((operation) => operation.personalnr))];
     const existingNumberOwners = await Mitarbeiter.find({
-      $or: [
-        { personalnr: { $in: importedPersonalnrs } },
-        { personalnummern: { $in: importedPersonalnrs } },
-      ],
-    }).select('_id vorname nachname personalnr personalnummern').lean();
+      personalnr: { $in: importedPersonalnrs },
+    }).select('_id vorname nachname personalnr').lean();
     const ownersByPersonalnr = new Map();
     for (const employee of existingNumberOwners) {
-      for (const employeePersonalnr of [employee.personalnr, ...(employee.personalnummern || [])].filter(Boolean)) {
-        const normalizedPersonalnr = String(employeePersonalnr).trim();
-        if (!importedPersonalnrs.includes(normalizedPersonalnr)) continue;
-        if (!ownersByPersonalnr.has(normalizedPersonalnr)) ownersByPersonalnr.set(normalizedPersonalnr, []);
-        ownersByPersonalnr.get(normalizedPersonalnr).push(employee);
-      }
+      const normalizedPersonalnr = String(employee.personalnr).trim();
+      if (!ownersByPersonalnr.has(normalizedPersonalnr)) ownersByPersonalnr.set(normalizedPersonalnr, []);
+      ownersByPersonalnr.get(normalizedPersonalnr).push(employee);
     }
     const personalnrConflicts = [...ownersByPersonalnr.entries()]
       .filter(([, owners]) => new Set(owners.map((owner) => String(owner._id))).size > 1)
       .map(([personalnr, owners]) => ({
         personalnr,
-        owners: owners.map((owner) => `${owner.vorname} ${owner.nachname} (${owner.personalnr || 'ohne primäre PNr'})`),
+        owners: owners.map((owner) => ({
+          id: String(owner._id),
+          name: [owner.vorname, owner.nachname].filter(Boolean).join(' '),
+          personalnr: owner.personalnr || null,
+        })),
       }));
     if (personalnrConflicts.length > 0) {
+      logger.warn(`[Import Personal] Abgebrochen: doppelte Personalnummern ${personalnrConflicts.map(({ personalnr }) => personalnr).join(', ')}`);
       return res.status(409).json({
         success: false,
         message: `Import abgebrochen: ${personalnrConflicts.length} Personalnummer(n) sind mehreren Mitarbeitern zugeordnet.`,
@@ -1463,26 +1461,19 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
 
     ;(async () => {
       try {
-        // Set aller in DIESEM Import als aktiv geführten Personalnummern.
-        // Dient dazu, eine „zweite aktive Nummer“ (z.B. weitere Niederlassung) von
-        // einer echten Personalnr-Korrektur zu unterscheiden.
-        const importPnrSet = new Set(filteredOperations.map(o => o.personalnr).filter(Boolean));
         const locationResolution = {
           resolved: 0,
           updated: 0,
           unchanged: 0,
           unresolved: 0,
-          ignoredAdditionalNumbers: 0,
           unresolvedEntries: [],
         };
 
         // Execute bulk updates (find by Personalnr, Fallback per E-Mail)
         for (const op of filteredOperations) {
-          let ma = await Mitarbeiter.findOne({
-            $or: [{ personalnr: op.personalnr }, { personalnummern: op.personalnr }]
-          }).select('_id personalnr personalnummern personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2').lean();
-          let pnrChanged = false;      // echte Korrektur: primäre personalnr wird überschrieben
-          let pnrAddedToArray = false; // zusätzliche aktive Nr (z.B. zweite Niederlassung)
+          let ma = await Mitarbeiter.findOne({ personalnr: op.personalnr })
+            .select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2').lean();
+          let pnrChanged = false;
 
           if (!ma) {
             // Fallback: suche per E-Mail aus der Excel-Zeile
@@ -1490,18 +1481,9 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             if (fallbackEmail) {
               ma = await Mitarbeiter.findOne({
                 $or: [{ email: fallbackEmail }, { additionalEmails: fallbackEmail }]
-              }).select('_id personalnr personalnummern personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2').lean();
+              }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2').lean();
               if (ma && ma.personalnr !== op.personalnr) {
-                // Führt Zvoove die bereits gespeicherte Nummer in DIESEM Import noch als
-                // aktiv? Dann ist op.personalnr eine ZUSÄTZLICHE aktive Nummer (Doppel-
-                // führung), keine Korrektur → ins Array statt die primäre Nr zu überschreiben.
-                const existingStillActive = ma.personalnr && importPnrSet.has(ma.personalnr);
-                const alreadyInArray = Array.isArray(ma.personalnummern) && ma.personalnummern.includes(op.personalnr);
-                if (existingStillActive && !alreadyInArray) {
-                  pnrAddedToArray = true;
-                } else if (!alreadyInArray) {
-                  pnrChanged = true;
-                }
+                pnrChanged = true;
               }
             }
 
@@ -1513,17 +1495,6 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           }
 
           matched++;
-
-          // A person can legitimately have multiple active personal numbers.
-          // The row for an additional number must not overwrite shared master
-          // data (status, qualifications, address, working time) imported for
-          // the employee's primary number.
-          const matchedViaAdditionalNumber = ma.personalnr !== op.personalnr
-            && (ma.personalnummern || []).includes(op.personalnr);
-          if (matchedViaAdditionalNumber) {
-            unchanged++;
-            continue;
-          }
 
           // Only Persstatus 1 (Bewerber) and 2 (Mitarbeiter) remain active.
           const shouldDeactivate = op.persstatus != null && ![1, 2].includes(op.persstatus);
@@ -1574,51 +1545,31 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             }
           }
 
-          // Zusätzliche aktive Personalnr (Doppelführung, z.B. zweite Niederlassung):
-          // ins Array aufnehmen, primäre personalnr bleibt unverändert.
-          const addPersonalnummern = [];
-          if (pnrAddedToArray) {
-            if (ma.personalnr) addPersonalnummern.push(ma.personalnr); // primäre Nr im Array spiegeln
-            addPersonalnummern.push(op.personalnr);
-            pnrAdded++;
-            if (pnrAddedList.length < 30) {
-              pnrAddedList.push({ primaer: ma.personalnr || '(leer)', zusatz: op.personalnr, email: ma.email });
-            }
-          }
-
-          const importedNumberIsPrimary = ma.personalnr === op.personalnr || pnrChanged;
-          if (importedNumberIsPrimary) {
-            const resolvedLocation = op.locationResolution.location;
-            if (resolvedLocation) {
-              locationResolution.resolved++;
-              if (String(ma.locationV2 || '') !== String(resolvedLocation._id)) {
-                op.setFields.locationV2 = resolvedLocation._id;
-                locationResolution.updated++;
-              } else {
-                locationResolution.unchanged++;
-              }
+          const resolvedLocation = op.locationResolution.location;
+          if (resolvedLocation) {
+            locationResolution.resolved++;
+            if (String(ma.locationV2 || '') !== String(resolvedLocation._id)) {
+              op.setFields.locationV2 = resolvedLocation._id;
+              locationResolution.updated++;
             } else {
-              locationResolution.unresolved++;
-              if (locationResolution.unresolvedEntries.length < 30) {
-                locationResolution.unresolvedEntries.push({
-                  mitarbeiterId: String(ma._id),
-                  personalnr: op.personalnr,
-                  externalId: op.locationResolution.externalId,
-                  reason: op.locationResolution.externalId ? 'unknown-external-id' : 'missing-prefix',
-                });
-              }
+              locationResolution.unchanged++;
             }
-          } else if (pnrAddedToArray) {
-            locationResolution.ignoredAdditionalNumbers++;
+          } else {
+            locationResolution.unresolved++;
+            if (locationResolution.unresolvedEntries.length < 30) {
+              locationResolution.unresolvedEntries.push({
+                mitarbeiterId: String(ma._id),
+                personalnr: op.personalnr,
+                externalId: op.locationResolution.externalId,
+                reason: op.locationResolution.externalId ? 'unknown-external-id' : 'missing-prefix',
+              });
+            }
           }
 
           const updateOps = { $set: op.setFields };
           const addToSet = {};
           if (addToAdditional.length > 0) {
             addToSet.additionalEmails = { $each: addToAdditional };
-          }
-          if (addPersonalnummern.length > 0) {
-            addToSet.personalnummern = { $each: addPersonalnummern };
           }
           if (Object.keys(addToSet).length > 0) {
             updateOps.$addToSet = addToSet;
@@ -1647,14 +1598,11 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
               .map((op) => String(op.personalnr))
           );
           const activeMitarbeiter = await Mitarbeiter.find({ isActive: true })
-            .select('_id personalnr personalnummern flip_id')
+            .select('_id personalnr flip_id')
             .lean();
           const missingMitarbeiter = activeMitarbeiter.filter((ma) => {
             if (isProtectedFlipUserId(ma.flip_id)) return false;
-            const personalnummern = [ma.personalnr, ...(ma.personalnummern || [])]
-              .filter(Boolean)
-              .map(String);
-            return !personalnummern.some((personalnr) => activeImportPnrs.has(personalnr));
+            return !activeImportPnrs.has(String(ma.personalnr || ''));
           });
           const missingWithFlip = missingMitarbeiter.filter((ma) => ma.flip_id);
           let flipDeletionSucceeded = true;

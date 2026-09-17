@@ -746,6 +746,18 @@
             </div>
           </div>
 
+          <div v-if="resultModalData.details?.personalnrConflicts?.length > 0" class="section conflicts-section">
+            <h3>⚠️ Doppelte Personalnummern</h3>
+            <div class="conflict-list">
+              <div v-for="conflict in resultModalData.details.personalnrConflicts" :key="conflict.personalnr" class="conflict-item">
+                <strong>Personalnr {{ conflict.personalnr }}</strong>
+                <p v-for="owner in conflict.owners" :key="owner.id">
+                  {{ owner.name || 'Unbekannter Mitarbeiter' }} · ID: <code>{{ owner.id }}</code> · Primär: <code>{{ owner.personalnr || 'keine' }}</code>
+                </p>
+              </div>
+            </div>
+          </div>
+
           <!-- PNr Updated Section -->
           <div v-if="resultModalData.details?.pnrUpdatedList?.length > 0" class="section pnr-updated-section">
             <h3>🔄 Personalnr korrigiert (per E-Mail-Fallback)</h3>
@@ -1136,7 +1148,8 @@ export default {
       let combinedArrays = {
         notFoundEntries: [],
         conflictDetails: [],
-        pnrUpdatedList: []
+        pnrUpdatedList: [],
+        personalnrConflicts: []
       };
       
       results.forEach(result => {
@@ -1166,6 +1179,9 @@ export default {
           if (result.details.pnrUpdatedList && Array.isArray(result.details.pnrUpdatedList)) {
             combinedArrays.pnrUpdatedList.push(...result.details.pnrUpdatedList);
           }
+          if (result.details.personalnrConflicts && Array.isArray(result.details.personalnrConflicts)) {
+            combinedArrays.personalnrConflicts.push(...result.details.personalnrConflicts);
+          }
         }
       });
       
@@ -1177,7 +1193,8 @@ export default {
           ...nestedStats, // Include specific sub-objects (auftrag, kunde, einsatz)
           notFoundEntries: combinedArrays.notFoundEntries,
           conflictDetails: combinedArrays.conflictDetails,
-          pnrUpdatedList: combinedArrays.pnrUpdatedList
+          pnrUpdatedList: combinedArrays.pnrUpdatedList,
+          personalnrConflicts: combinedArrays.personalnrConflicts
         }
       };
     },
@@ -1201,7 +1218,8 @@ export default {
         console.error(`Error uploading ${endpointSuffix}:`, error);
         return {
           success: false,
-          message: `${file.name}: ${error.response?.data?.message || error.message || "Unbekannter Fehler"}`
+          message: `${file.name}: ${error.response?.data?.message || error.message || "Unbekannter Fehler"}`,
+          details: error.response?.data?.details || {}
         };
       }
     },

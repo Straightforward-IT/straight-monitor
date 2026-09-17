@@ -13,7 +13,6 @@ function resolvePersonalNumbers(mitarbeiter) {
   };
 
   add(mitarbeiter?.personalnr);
-  for (const value of mitarbeiter?.personalnummern || []) add(value);
   for (const entry of mitarbeiter?.personalnrHistory || []) add(entry?.value);
 
   return [...numbers];
