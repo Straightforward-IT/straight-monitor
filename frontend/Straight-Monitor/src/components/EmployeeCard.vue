@@ -2372,6 +2372,7 @@ export default {
         const response = await api.get(`/api/personal/mitarbeiter/${id}`);
         const data = response.data?.data || response.data;
         await this.enrichWithFlip(data);
+        await this.dataCache.updateOneMitarbeiter(data);
         if (this.ma) {
           Object.assign(this.ma, data);
         } else {

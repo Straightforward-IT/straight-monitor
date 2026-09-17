@@ -192,7 +192,9 @@ export const useFlipAll = defineStore("flipAll", {
                 status: u.primary_user_group.status ?? null,
               }
             : undefined,
-          groups: u.groups ?? existing?.groups ?? [],
+          groups: Array.isArray(u.groups) && u.groups.length > 0
+            ? u.groups
+            : existing?.groups ?? [],
         };
         this.byId.set(mapped.id!, mapped);
         this.userFetchedAt.set(mapped.id!, Date.now());

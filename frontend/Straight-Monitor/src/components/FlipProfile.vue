@@ -16,6 +16,10 @@
           <dd>{{ flipUser.benutzername || "—" }}</dd>
         </div>
         <div>
+          <dt>Flip-ID</dt>
+          <dd>{{ flipUser.id || "—" }}</dd>
+        </div>
+        <div>
           <dt>Erstellt</dt>
           <dd>{{ formatDate(flipUser.erstellungsdatum) }}</dd>
         </div>
