@@ -52,6 +52,14 @@ router.post(
       });
     }
 
+    // Optional context fields provided by the user
+    const priority = req.body.priority || "normal";
+    const personalNr = (req.body.personalNr || "").trim();
+    const referenceId = (req.body.referenceId || "").trim();
+    const affectedArea = (req.body.affectedArea || "").trim();
+    const relatedName = (req.body.relatedName || "").trim();
+    const currentRoute = (req.body.currentRoute || "").trim();
+
     // Load full user data from database
     const User = require('../../models/System/User');
     let userData = null;
@@ -75,8 +83,35 @@ router.post(
 
     const typeLabel = typeMapping[type] || type;
 
+    // Priority mapping
+    const priorityMapping = {
+      low: "🟢 Niedrig",
+      normal: "🔵 Normal",
+      high: "🟠 Hoch",
+      critical: "🔴 Kritisch",
+    };
+    const priorityLabel = priorityMapping[priority] || priority;
+
+    // Optional context rows (only rendered when provided)
+    const optionalRows = [
+      { label: "Personalnummer", value: personalNr },
+      { label: "Referenz-ID", value: referenceId },
+      { label: "Betroffener Bereich", value: affectedArea },
+      { label: "Name (MA/Kunde)", value: relatedName },
+      { label: "Aktuelle Seite", value: currentRoute },
+    ]
+      .filter((row) => row.value)
+      .map(
+        (row) => `
+            <tr>
+              <td style="padding: 8px; font-weight: bold;">${row.label}:</td>
+              <td style="padding: 8px;">${row.value}</td>
+            </tr>`
+      )
+      .join("");
+
     // Prepare email content
-    const emailSubject = `[Monitor Support] ${typeLabel}: ${subject}`;
+    const emailSubject = `[Monitor Support] [${priorityLabel}] ${typeLabel}: ${subject}`;
     
     let emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -92,13 +127,17 @@ router.post(
               <td style="padding: 8px;">${typeLabel}</td>
             </tr>
             <tr>
+              <td style="padding: 8px; font-weight: bold;">Priorität:</td>
+              <td style="padding: 8px;">${priorityLabel}</td>
+            </tr>
+            <tr>
               <td style="padding: 8px; font-weight: bold;">Benutzer:</td>
               <td style="padding: 8px;">${userName} (${userEmail})</td>
             </tr>
             <tr>
               <td style="padding: 8px; font-weight: bold;">Betreff:</td>
               <td style="padding: 8px;">${subject}</td>
-            </tr>
+            </tr>${optionalRows}
             <tr>
               <td style="padding: 8px; font-weight: bold;">Datum:</td>
               <td style="padding: 8px;">${new Date().toLocaleString('de-DE')}</td>

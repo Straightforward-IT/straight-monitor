@@ -1,11 +1,11 @@
 <template>
   <header class="header">
-    <div class="left">
-      <img :src="logoSrc" :class="['logo', { 'logo--intro': playLogoIntro }]" alt="logo" width="36" height="36" />
-      <h1>Monitor</h1>
-      <span v-if="currentViewTitle" class="header-view-title" :title="currentViewTitle">{{ currentViewTitle }}</span>
-      
-      <!-- Desktop Navigation -->
+    <div class="header-top">
+      <div class="left">
+        <img :src="logoSrc" :class="['logo', { 'logo--intro': playLogoIntro }]" alt="logo" width="36" height="36" />
+        <h1>Monitor</h1>
+        <span v-if="currentViewTitle" class="header-view-title" :title="currentViewTitle">{{ currentViewTitle }}</span>
+      </div>
       <nav class="desktop-nav">
         <router-link
           to="/dashboard"
@@ -195,9 +195,7 @@
           </div>
         </div>
       </nav>
-  
-    </div>
-    <div class="right">
+      <div class="right">
       <div class="desktop-user-area">
         <span v-if="auth.user" class="header-user-name">Benutzer: {{ auth.user.name || auth.user.email }}</span>
         <!-- Desktop Buttons -->
@@ -226,7 +224,7 @@
             class="icon-btn"
             @click="showSupportModal = true"
           >
-            <font-awesome-icon :icon="['fas', 'ticket-alt']" />
+            Ticket
           </button>
         </custom-tooltip>
 
@@ -242,6 +240,7 @@
       <button class="burger-btn" :aria-label="showMobileMenu ? 'Menü schließen' : 'Menü öffnen'" :aria-expanded="showMobileMenu" @click="showMobileMenu = !showMobileMenu">
         <font-awesome-icon :icon="['fas', showMobileMenu ? 'times' : 'bars']" />
       </button>
+    </div>
     </div>
   </header>
 
@@ -625,15 +624,27 @@
     @close="resetSupportForm"
   >
       <form class="support-form" @submit.prevent="submitSupportRequest">
-        <div class="form-group">
-          <label for="support-type">Typ der Anfrage</label>
-          <select id="support-type" v-model="supportForm.type" required>
-            <option value="">Bitte wählen...</option>
-            <option value="bug">🐛 Bug/Fehler melden</option>
-            <option value="feature">💡 Feature-Request</option>
-            <option value="question">❓ Frage/Hilfe</option>
-            <option value="other">📋 Sonstiges</option>
-          </select>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="support-type">Typ der Anfrage</label>
+            <select id="support-type" v-model="supportForm.type" required>
+              <option value="">Bitte wählen...</option>
+              <option value="bug">🐛 Bug/Fehler melden</option>
+              <option value="feature">💡 Feature-Request</option>
+              <option value="question">❓ Frage/Hilfe</option>
+              <option value="other">📋 Sonstiges</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="support-priority">Priorität</label>
+            <select id="support-priority" v-model="supportForm.priority" required>
+              <option value="low">🟢 Niedrig</option>
+              <option value="normal">🔵 Normal</option>
+              <option value="high">🟠 Hoch</option>
+              <option value="critical">🔴 Kritisch</option>
+            </select>
+          </div>
         </div>
 
         <div class="form-group">
@@ -646,6 +657,48 @@
             required
           />
         </div>
+
+        <details class="optional-fields">
+          <summary>Optionale Angaben (helfen bei der Bearbeitung)</summary>
+          <div class="optional-fields__grid">
+            <div class="form-group">
+              <label for="support-personalnr">Personalnummer</label>
+              <input
+                id="support-personalnr"
+                v-model="supportForm.personalNr"
+                type="text"
+                placeholder="z. B. 12345"
+              />
+            </div>
+            <div class="form-group">
+              <label for="support-reference">Referenz-ID (Auftrag / MA / Datensatz)</label>
+              <input
+                id="support-reference"
+                v-model="supportForm.referenceId"
+                type="text"
+                placeholder="z. B. Auftrags- oder Datensatz-ID"
+              />
+            </div>
+            <div class="form-group">
+              <label for="support-area">Betroffener Bereich / Seite</label>
+              <input
+                id="support-area"
+                v-model="supportForm.affectedArea"
+                type="text"
+                placeholder="z. B. Dispo, Personal, Aufträge"
+              />
+            </div>
+            <div class="form-group">
+              <label for="support-name">Name (Mitarbeiter / Kunde)</label>
+              <input
+                id="support-name"
+                v-model="supportForm.relatedName"
+                type="text"
+                placeholder="z. B. Max Mustermann"
+              />
+            </div>
+          </div>
+        </details>
 
         <div class="form-group">
           <label for="support-description">Detaillierte Beschreibung</label>
@@ -783,8 +836,13 @@ let lockedScrollY = 0;
 
 const supportForm = reactive({
   type: '',
+  priority: 'normal',
   subject: '',
   description: '',
+  personalNr: '',
+  referenceId: '',
+  affectedArea: '',
+  relatedName: '',
   files: []
 });
 
@@ -948,8 +1006,13 @@ watch(
 // Support Modal Functions
 const resetSupportForm = () => {
   supportForm.type = '';
+  supportForm.priority = 'normal';
   supportForm.subject = '';
   supportForm.description = '';
+  supportForm.personalNr = '';
+  supportForm.referenceId = '';
+  supportForm.affectedArea = '';
+  supportForm.relatedName = '';
   supportForm.files = [];
 };
 
@@ -991,8 +1054,14 @@ const submitSupportRequest = async () => {
     
     const formData = new FormData();
     formData.append('type', supportForm.type);
+    formData.append('priority', supportForm.priority);
     formData.append('subject', supportForm.subject);
     formData.append('description', supportForm.description);
+    formData.append('personalNr', supportForm.personalNr);
+    formData.append('referenceId', supportForm.referenceId);
+    formData.append('affectedArea', supportForm.affectedArea);
+    formData.append('relatedName', supportForm.relatedName);
+    formData.append('currentRoute', route.fullPath);
     formData.append('userEmail', auth.user?.email || 'unbekannt');
     
     // Attach files
@@ -1065,12 +1134,29 @@ onBeforeUnmount(() => {
   position: sticky;
   top: 0;
   z-index: 10;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   padding: 8px 16px;
   background: var(--panel);
   min-height: 56px;
+}
+.header-top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "left right"
+    "nav  nav";
+  align-items: center;
+  column-gap: 12px;
+}
+.header-top .left {
+  grid-area: left;
+}
+.header-top .right {
+  grid-area: right;
+  justify-self: end;
+}
+.header-top .desktop-nav {
+  grid-area: nav;
+  margin-top: 4px;
 }
 .left,
 .right {
@@ -1098,12 +1184,6 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 12px;
   align-items: center;
-}
-
-@media (min-width: 1101px) {
-  .left {
-    align-items: flex-end;
-  }
 }
 
 .nav-group {
@@ -1356,7 +1436,7 @@ onBeforeUnmount(() => {
 }
 
 /* Compact Header Optimierungen */
-@media (max-width: 1100px) {
+@media (max-width: 900px) {
   .header {
     padding: 6px 12px;
     min-height: 48px;
@@ -1530,7 +1610,7 @@ a.disabled {
   letter-spacing: 0.3px;
 }
 
-@media (min-width: 1101px) {
+@media (min-width: 901px) {
   .nav-group--payroll > a { overflow: visible; }
   .beta-tag--payroll { position: absolute; top: -8px; right: -5px; }
 }
@@ -1558,6 +1638,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
 }
 .icon-btn :deep(svg) {
   width: 16px;
@@ -1590,6 +1671,76 @@ button {
   margin-bottom: 20px;
 }
 
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.optional-fields {
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 8px 12px;
+}
+
+.optional-fields > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+  padding: 4px 0;
+  list-style: none;
+  user-select: none;
+}
+
+.optional-fields > summary::-webkit-details-marker {
+  display: none;
+}
+
+.optional-fields > summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 8px;
+  transition: transform 0.2s ease;
+  color: var(--muted);
+}
+
+.optional-fields[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.optional-fields__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.optional-fields__grid .form-group {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.optional-fields__grid .form-group label {
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.optional-fields__grid .form-group input {
+  margin-top: auto;
+}
+
+@media (max-width: 768px) {
+  .form-row,
+  .optional-fields__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .form-group label {
   display: block;
   font-weight: 600;
@@ -1602,6 +1753,7 @@ button {
 .form-group select,
 .form-group textarea {
   width: 100%;
+  box-sizing: border-box;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
