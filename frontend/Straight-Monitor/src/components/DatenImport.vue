@@ -1183,6 +1183,12 @@ export default {
     },
     async uploadFile(file, endpointSuffix) {
       const formData = new FormData();
+      if (endpointSuffix === 'einsatz' || endpointSuffix === 'personal') {
+        const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
+        formData.append('excelColumnCount', String(range.e.c + 1));
+      }
       formData.append("file", file);
 
       try {

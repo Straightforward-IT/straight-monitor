@@ -706,6 +706,17 @@ const validateEinsatz7001Header = (header) => {
   return `Ungültige Header-Zeile für Liste 7001 in Spalte ${column}: erwartet "${expected}", erhalten "${actual}".`;
 };
 
+const validateClientColumnCount = (value, expectedCount, listCode) => {
+  const actualCount = Number.parseInt(value, 10);
+  if (!Number.isInteger(actualCount) || actualCount < 1) {
+    return `Ungültige Spaltenanzahl für Liste ${listCode}: Das Frontend hat keine gültige Anzahl übermittelt.`;
+  }
+  if (actualCount !== expectedCount) {
+    return `Ungültige Spaltenanzahl für Liste ${listCode}: Frontend meldet ${actualCount}, erwartet werden ${expectedCount}.`;
+  }
+  return null;
+};
+
 // --- Einsatz Import (Zvoove Komplett-Export) ---
 router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, res) => {
   try {
@@ -718,6 +729,10 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 
     // Validate the SQL export header before processing or reading any records.
     const rawCheck = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    const columnCountError = validateClientColumnCount(req.body.excelColumnCount, EINSATZ_7001_HEADERS.length, 7001);
+    if (columnCountError) {
+      return res.status(400).json({ success: false, message: columnCountError });
+    }
     const headerError = validateEinsatz7001Header(rawCheck[0]);
     if (headerError) {
       return res.status(400).json({ success: false, message: headerError });
@@ -1145,6 +1160,10 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
+    const columnCountError = validateClientColumnCount(req.body.excelColumnCount, PERSONAL_7002_HEADERS.length, 7002);
+    if (columnCountError) {
+      return res.status(400).json({ success: false, message: columnCountError });
+    }
     const headerError = validatePersonal7002Header(rawData[0]);
     if (headerError) {
       return res.status(400).json({ success: false, message: headerError });
