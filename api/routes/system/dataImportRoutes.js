@@ -1041,7 +1041,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
       const importedPnrs = [...new Set(newEinsaetze.map(e => e.personalNr))];
       const importedPnrStrs = importedPnrs.map(String);
       const maWithEinsatz = await Mitarbeiter.find(
-        { $or: [{ personalnr: { $in: importedPnrStrs } }, { personalnummern: { $in: importedPnrStrs } }] },
+        { $or: [{ personalnr: { $in: importedPnrStrs } }, { 'personalnrHistory.value': { $in: importedPnrStrs } }] },
         '_id'
       ).lean();
       const maIdsWithEinsatz = maWithEinsatz.map(m => m._id);
@@ -2749,8 +2749,8 @@ router.post('/verfuegbarkeit', auth, extendTimeout, upload.single('file'), async
     const personalnrs = [...new Set(dataRows.map((cols) => String(cols?.[2] || '').trim()).filter(Boolean))];
     const [mitarbeiter, activeLocations] = await Promise.all([
       personalnrs.length
-      ? await Mitarbeiter.find({ $or: [{ personalnr: { $in: personalnrs } }, { personalnummern: { $in: personalnrs } }] })
-        .select('personalnr personalnummern locationV2')
+      ? await Mitarbeiter.find({ $or: [{ personalnr: { $in: personalnrs } }, { 'personalnrHistory.value': { $in: personalnrs } }] })
+        .select('personalnr personalnrHistory locationV2')
         .lean()
       : [],
       Location.find({ isActive: true }).select('_id externalId').lean(),
@@ -2759,7 +2759,7 @@ router.post('/verfuegbarkeit', auth, extendTimeout, upload.single('file'), async
     const locationByPersonalnr = new Map();
     for (const ma of mitarbeiter) {
       const primaryLocation = ma.locationV2 || locationsByExternalId.get(String(ma.personalnr || '').trim().match(/^\d/)?.[0]) || null;
-      for (const personalnr of [ma.personalnr, ...(ma.personalnummern || [])].filter(Boolean)) {
+      for (const personalnr of [ma.personalnr, ...(ma.personalnrHistory || []).map(h => h.value)].filter(Boolean)) {
         locationByPersonalnr.set(String(personalnr), primaryLocation);
       }
     }

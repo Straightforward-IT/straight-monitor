@@ -14,7 +14,6 @@ function id(value) {
 function personalNumbers(employee) {
   return [...new Set([
     employee?.personalnr,
-    ...(employee?.personalnummern || []),
     ...(employee?.personalnrHistory || []).map(entry => entry?.value),
   ]
     .map(value => Number.parseInt(value, 10))
@@ -96,7 +95,7 @@ async function getStaffingCandidates({ auftrag, schicht, user, includeOtherLocat
   if (Array.isArray(employeeIds)) filter._id = { $in: employeeIds };
 
   const employees = await Mitarbeiter.find(filter)
-    .select('_id vorname nachname personalnr personalnummern personalnrHistory telefon profilbild flip_id persgruppe locationV2 berufe qualifikationen kundenwuensche austrittsdatum')
+    .select('_id vorname nachname personalnr personalnrHistory telefon profilbild flip_id persgruppe locationV2 berufe qualifikationen kundenwuensche austrittsdatum')
     .populate({ path: 'berufe', select: 'jobKey designation', ordered: true })
     .populate('qualifikationen', 'qualificationKey designation')
     .populate('kundenwuensche.kunde', 'kundenNr kundName kuerzel')

@@ -164,7 +164,7 @@ describe('Operational time capture API', function () {
     assert.equal((await update('release', 1)).status, 403);
   });
   it('resolves secondary personal numbers to the same employee across the workflow', async () => {
-    await Mitarbeiter.updateOne({ _id: employee._id }, { $set: { personalnummern: ['200001'] } });
+    await Mitarbeiter.updateOne({ _id: employee._id }, { $set: { personalnrHistory: [{ value: '200001' }] } });
     await Einsatz.updateOne({ _id: einsatz._id }, { $set: { personalNr: 200001 } });
     assert.equal((await submit()).status, 201);
     const review = await request(`/orders/${order.auftragNr}?employeeId=${employee._id}`);

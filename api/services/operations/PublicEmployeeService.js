@@ -20,7 +20,7 @@ async function resolvePublicEmployee({ flipId, email }) {
   if (!query) throw publicEmployeeError('PUBLIC_EMPLOYEE_REQUIRED', 'Mitarbeiteridentität fehlt.', 401);
 
   const employees = await Mitarbeiter.find(query)
-    .select('_id personalnr vorname nachname flip_id email isActive')
+    .select('_id personalnr personalnrHistory vorname nachname flip_id email isActive')
     .limit(2)
     .lean();
 

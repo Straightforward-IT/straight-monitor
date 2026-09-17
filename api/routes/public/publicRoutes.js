@@ -136,7 +136,7 @@ async function canAccessPublicEinsatzDokument(req, auftragNr, document) {
   const publicMitarbeiter = await resolvePublicMitarbeiter(req);
   if (!publicMitarbeiter) return false;
   const mitarbeiter = await Mitarbeiter.findById(publicMitarbeiter._id)
-    .select('personalnr personalnummern personalnrHistory qualifikationen')
+    .select('personalnr personalnrHistory qualifikationen')
     .lean();
   if (!mitarbeiter) return false;
 

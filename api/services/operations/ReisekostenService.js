@@ -123,7 +123,7 @@ class ReisekostenService {
     if (personalNr != null && String(personalNr).trim() !== '') {
       const pnr = String(personalNr).trim();
       mitarbeiter = await Mitarbeiter.findOne({
-        $or: [{ personalnr: pnr }, { personalnummern: pnr }],
+        $or: [{ personalnr: pnr }, { 'personalnrHistory.value': pnr }],
       })
         .select('vorname nachname personalnr locationV2 adresse adresse2')
         .lean();

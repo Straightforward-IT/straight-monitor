@@ -215,7 +215,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   let mitarbeiter = null;
   if (doc.personalNr != null) {
     mitarbeiter = await Mitarbeiter.findOne({
-      $or: [{ personalnr: String(doc.personalNr) }, { personalnummern: String(doc.personalNr) }],
+      $or: [{ personalnr: String(doc.personalNr) }, { 'personalnrHistory.value': String(doc.personalNr) }],
     }).select('_id locationV2').lean();
   }
 
@@ -269,7 +269,7 @@ router.put('/:id', auth, asyncHandler(async (req, res) => {
   let mitarbeiter = null;
   if (doc.personalNr != null) {
     mitarbeiter = await Mitarbeiter.findOne({
-      $or: [{ personalnr: String(doc.personalNr) }, { personalnummern: String(doc.personalNr) }],
+      $or: [{ personalnr: String(doc.personalNr) }, { 'personalnrHistory.value': String(doc.personalNr) }],
     }).select('_id locationV2').lean();
   }
 

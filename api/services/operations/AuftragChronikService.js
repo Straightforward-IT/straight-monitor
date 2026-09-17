@@ -112,12 +112,12 @@ async function employeeNames(before, after) {
     .map(record => record.personalNr).filter(value => value != null).map(String))];
   if (!numbers.length) return new Map();
   const employees = await Mitarbeiter.find({ $or: [
-    { personalnr: { $in: numbers } }, { personalnummern: { $in: numbers } }, { 'personalnrHistory.value': { $in: numbers } },
-  ] }).select('personalnr personalnummern personalnrHistory vorname nachname').lean();
+    { personalnr: { $in: numbers } }, { 'personalnrHistory.value': { $in: numbers } },
+  ] }).select('personalnr personalnrHistory vorname nachname').lean();
   const names = new Map();
   for (const employee of employees) {
     const name = [employee.vorname, employee.nachname].filter(Boolean).join(' ');
-    for (const number of [employee.personalnr, ...(employee.personalnummern || []), ...(employee.personalnrHistory || []).map(item => item.value)]) {
+    for (const number of [employee.personalnr, ...(employee.personalnrHistory || []).map(item => item.value)]) {
       if (number != null && name) names.set(String(number), `${name} (#${number})`);
     }
   }

@@ -160,19 +160,19 @@ class StundenlisteService {
 
     const [mitarbeiterList, berufList, qualiList] = await Promise.all([
       personalNrs.length
-        ? Mitarbeiter.find({ $or: [{ personalnr: { $in: personalNrs } }, { personalnummern: { $in: personalNrs } }] })
-            .select('vorname nachname personalnr personalnummern geburtsdatum')
+        ? Mitarbeiter.find({ $or: [{ personalnr: { $in: personalNrs } }, { 'personalnrHistory.value': { $in: personalNrs } }] })
+            .select('vorname nachname personalnr personalnrHistory geburtsdatum')
             .lean()
         : [],
       berufKeys.length ? Beruf.find({ jobKey: { $in: berufKeys } }).lean() : [],
       qualiKeys.length ? Qualifikation.find({ qualificationKey: { $in: qualiKeys } }).lean() : [],
     ]);
 
-    // Map nach ALLEN Personalnummern (primär + Zusatznummern) keyen, damit
-    // Einsätze einer zweiten Niederlassung korrekt aufgelöst werden.
+    // Map nach primärer Personalnr + Historien-Nummern keyen, damit Einsätze aus
+    // früheren Anstellungen korrekt aufgelöst werden.
     const mitarbeiterMap = new Map();
     mitarbeiterList.forEach(m => {
-      const nrs = new Set([m.personalnr, ...(m.personalnummern || [])].filter(Boolean).map(String));
+      const nrs = new Set([m.personalnr, ...(m.personalnrHistory || []).map(h => h.value)].filter(Boolean).map(String));
       nrs.forEach(nr => mitarbeiterMap.set(nr, m));
     });
     const berufMap = new Map(berufList.map(b => [b.jobKey, b]));

@@ -1745,7 +1745,6 @@ router.put('/:auftragNr/planning', auth, withAuftragChronik('planning.updated', 
       const employee = await Mitarbeiter.findOne({
         $or: [
           { personalnr: String(assignment.personalNr) },
-          { personalnummern: String(assignment.personalNr) },
           { 'personalnrHistory.value': String(assignment.personalNr) },
         ],
       }).select('_id').lean();
@@ -1879,7 +1878,6 @@ router.post('/:auftragNr/release', auth, withAuftragChronik('Auftrag.released', 
     const employee = await Mitarbeiter.findOne({
       $or: [
         { personalnr: String(assignment.personalNr) },
-        { personalnummern: String(assignment.personalNr) },
         { 'personalnrHistory.value': String(assignment.personalNr) },
       ],
     }).select('_id vorname nachname').lean();

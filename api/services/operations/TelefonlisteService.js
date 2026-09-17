@@ -52,16 +52,16 @@ class TelefonlisteService {
         ? Mitarbeiter.find({
             $or: [
               { personalnr: { $in: personalNrs } },
-              { personalnummern: { $in: personalNrs } },
+              { 'personalnrHistory.value': { $in: personalNrs } },
             ],
-          }).select('personalnr personalnummern vorname nachname telefon').lean()
+          }).select('personalnr personalnrHistory vorname nachname telefon').lean()
         : [],
       berufKeys.length ? Beruf.find({ jobKey: { $in: berufKeys } }).select('jobKey designation').lean() : [],
     ]);
 
     const mitarbeiterByPersonalNr = new Map();
     mitarbeiter.forEach((person) => {
-      [person.personalnr, ...(person.personalnummern || [])]
+      [person.personalnr, ...(person.personalnrHistory || []).map(h => h.value)]
         .filter(Boolean)
         .forEach((personalNr) => mitarbeiterByPersonalNr.set(String(personalNr), person));
     });

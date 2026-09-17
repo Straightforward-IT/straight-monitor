@@ -1664,7 +1664,6 @@ async function syncRankGroups(mitarbeiterList) {
   const eligible = mitarbeiterList.filter(
     ma => ma.flip_id && ma.isActive !== false && (
       ma.personalnr
-      || (ma.personalnummern && ma.personalnummern.length > 0)
       || (ma.personalnrHistory && ma.personalnrHistory.length > 0)
     )
   );
