@@ -1218,6 +1218,51 @@
           />
         </section>
 
+        <!-- Rohdaten View (Admin only): editable raw MongoDB document -->
+        <section v-if="view === 'raw' && isAdmin" class="raw-view">
+          <div class="raw-header">
+            <h4 class="section-title">
+              <font-awesome-icon icon="fa-solid fa-database" class="section-icon" />
+              Rohdaten (MongoDB-Dokument)
+            </h4>
+            <div class="raw-actions">
+              <button class="btn btn-sm btn-ghost" @click.stop="loadRawDocument" :disabled="rawLoading || rawSaving">
+                <font-awesome-icon :icon="'fa-solid fa-rotate-right'" :class="{ 'fa-spin': rawLoading }" />
+                Neu laden
+              </button>
+              <button class="btn btn-sm" @click.stop="saveRawDocument" :disabled="rawLoading || rawSaving">
+                <font-awesome-icon v-if="rawSaving" icon="fa-solid fa-spinner" class="fa-spin" />
+                <span v-else>Speichern</span>
+              </button>
+            </div>
+          </div>
+
+          <p class="raw-warning">
+            <font-awesome-icon icon="fa-solid fa-circle-exclamation" />
+            Direktes Bearbeiten des kompletten Dokuments. Änderungen werden schema-validiert gespeichert.
+            <code>_id</code>, <code>__v</code>, <code>r2Prefix</code> und Timestamps sind schreibgeschützt.
+          </p>
+
+          <div v-if="rawLoading" class="raw-loading">
+            <font-awesome-icon icon="fa-solid fa-spinner" class="fa-spin" /> Lade Dokument…
+          </div>
+          <template v-else>
+            <textarea
+              v-model="rawJson"
+              class="raw-editor"
+              spellcheck="false"
+              autocomplete="off"
+              @input="rawError = ''"
+            ></textarea>
+            <p v-if="rawError" class="raw-error">
+              <font-awesome-icon icon="fa-solid fa-circle-exclamation" /> {{ rawError }}
+            </p>
+            <p v-if="rawSuccess" class="raw-success">
+              <font-awesome-icon icon="fa-solid fa-circle-check" /> {{ rawSuccess }}
+            </p>
+          </template>
+        </section>
+
       </div>
     </transition>
 
@@ -1335,6 +1380,24 @@
           </button>
         </template>
 
+        <!-- Rohdaten Button (Admin only) -->
+        <template v-if="isAdmin">
+          <template v-if="showTooltips">
+            <custom-tooltip text="Rohdaten (Admin)" :position="tooltipPosition" :delay-in="150">
+              <button class="icon-btn icon-btn--admin" role="tab" :class="{ active: view === 'raw' }" @click="view = 'raw'" :aria-selected="view === 'raw'">
+                <font-awesome-icon icon="fa-solid fa-database" />
+                <span>Rohdaten</span>
+              </button>
+            </custom-tooltip>
+          </template>
+          <template v-else>
+            <button class="icon-btn icon-btn--admin" role="tab" :class="{ active: view === 'raw' }" @click="view = 'raw'" :aria-selected="view === 'raw'">
+              <font-awesome-icon icon="fa-solid fa-database" />
+              <span>Rohdaten</span>
+            </button>
+          </template>
+        </template>
+
         <!-- Actions Button with Dropdown -->
         <div class="quick-actions-wrapper" @click.stop>
           <template v-if="showTooltips">
@@ -1418,6 +1481,7 @@
             <div v-if="resolvedMa.geburtsort"><dt>Geburtsort</dt><dd>{{ resolvedMa.geburtsort }}</dd></div>
             <div v-if="resolvedMa.eintrittsdatum"><dt>Eintritt</dt><dd>{{ formatDate(resolvedMa.eintrittsdatum) }}</dd></div>
             <div v-if="resolvedMa.austrittsdatum"><dt>Austritt</dt><dd>{{ formatDate(resolvedMa.austrittsdatum) }}</dd></div>
+            <div v-if="resolvedMa.sozialversicherungsnummer"><dt>Sozialvers.-Nr.</dt><dd>{{ resolvedMa.sozialversicherungsnummer }} <button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.sozialversicherungsnummer)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></dd></div>
             <div v-if="addressLines(resolvedMa.adresse).length"><dt>Adresse</dt><dd class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse)" :key="idx">{{ line }}</span></dd></div>
             <div v-if="addressLines(resolvedMa.adresse2).length || resolvedMa.adresse2?.telefon || resolvedMa.adresse2?.email"><dt>Adresse 2</dt><dd class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse2)" :key="idx">{{ line }}</span><span v-if="resolvedMa.adresse2?.telefon" class="steckbrief-value--muted">{{ resolvedMa.adresse2.telefon }}</span><span v-if="resolvedMa.adresse2?.email" class="steckbrief-value--muted">{{ resolvedMa.adresse2.email }}</span></dd></div>
             <div v-if="resolvedMa.erstellt_von"><dt>Erstellt</dt><dd>{{ resolvedMa.erstellt_von }}</dd></div>
@@ -1942,12 +2006,22 @@ export default {
       showQualificationPicker: false,
       qualificationSearch: '',
       qualificationSaving: false,
+      // Rohdaten (Admin) editor state
+      rawJson: '',
+      rawLoading: false,
+      rawSaving: false,
+      rawLoaded: false,
+      rawError: '',
+      rawSuccess: '',
     };
   },
 
   computed: {
     resolvedMa() {
       return this.ma || this.selfLoadedMa;
+    },
+    isAdmin() {
+      return !!this.auth.user?.roles?.includes('ADMIN');
     },
     contextMenuOptions() {
       return [
@@ -2202,8 +2276,16 @@ export default {
         // Reset inventar state when a different mitarbeiter is shown
         this.inventarLogs = [];
         this.inventarLoading = false;
+        // Reset raw editor so it reloads for the new mitarbeiter
+        this.rawLoaded = false;
+        this.rawJson = '';
+        this.rawError = '';
+        this.rawSuccess = '';
         if (this.view === 'inventar' && this.expanded) {
           this.fetchInventar();
+        }
+        if (this.view === 'raw' && this.isAdmin && this.expanded) {
+          this.loadRawDocument();
         }
       }
     },
@@ -2215,6 +2297,10 @@ export default {
       // Load inventar when switching to inventar view
       if (newView === 'inventar' && this.expanded && this.inventarLogs.length === 0 && !this.inventarLoading) {
         this.fetchInventar();
+      }
+      // Load raw document when switching to the admin raw view
+      if (newView === 'raw' && this.isAdmin && !this.rawLoaded && !this.rawLoading) {
+        this.loadRawDocument();
       }
     }
   },
@@ -2382,6 +2468,50 @@ export default {
         this.inventarLogs = [];
       } finally {
         this.inventarLoading = false;
+      }
+    },
+    async loadRawDocument() {
+      if (!this.resolvedMa?._id) return;
+      this.rawLoading = true;
+      this.rawError = '';
+      this.rawSuccess = '';
+      try {
+        const { data } = await api.get(`/api/personal/mitarbeiter/${this.resolvedMa._id}/raw`);
+        this.rawJson = JSON.stringify(data?.data ?? {}, null, 2);
+        this.rawLoaded = true;
+      } catch (err) {
+        console.error('[EmployeeCard] loadRawDocument failed:', err);
+        this.rawError = err.response?.data?.message || err.message || 'Rohdaten konnten nicht geladen werden.';
+      } finally {
+        this.rawLoading = false;
+      }
+    },
+    async saveRawDocument() {
+      this.rawError = '';
+      this.rawSuccess = '';
+      let parsed;
+      try {
+        parsed = JSON.parse(this.rawJson);
+      } catch (err) {
+        this.rawError = `Ungültiges JSON: ${err.message}`;
+        return;
+      }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        this.rawError = 'Das Dokument muss ein JSON-Objekt sein.';
+        return;
+      }
+      this.rawSaving = true;
+      try {
+        const { data } = await api.put(`/api/personal/mitarbeiter/${this.resolvedMa._id}/raw`, parsed);
+        this.rawJson = JSON.stringify(data?.data ?? {}, null, 2);
+        this.rawSuccess = 'Gespeichert.';
+        // Refresh the resolved Mitarbeiter so other tabs reflect the changes.
+        this.refreshMitarbeiterAndFlip();
+      } catch (err) {
+        console.error('[EmployeeCard] saveRawDocument failed:', err);
+        this.rawError = err.response?.data?.message || err.message || 'Speichern fehlgeschlagen.';
+      } finally {
+        this.rawSaving = false;
       }
     },
     initials(ma) {
@@ -5714,6 +5844,11 @@ export default {
     height: 40px;
   }
 
+  .left:has(> .job-tier-rainbow)::before {
+    width: 46px;
+    height: 46px;
+  }
+
   .icon-btn {
     width: 36px;
     height: 36px;
@@ -6508,6 +6643,122 @@ export default {
   gap: 16px;
 }
 
+/* ── Rohdaten (Admin) editor ─────────────────────────────────────────────── */
+.icon-btn--admin.active {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #8b5cf6 25%, transparent);
+}
+.employee-tabs-shell .card-actions .icon-btn--admin {
+  color: #8b5cf6;
+}
+.employee-tabs-shell .card-actions .icon-btn--admin.active {
+  color: #8b5cf6;
+  border-bottom-color: #8b5cf6;
+}
+
+.raw-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.raw-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  .section-title {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+}
+
+.raw-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.raw-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: color-mix(in srgb, #f59e0b 75%, var(--text));
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
+  border-radius: 8px;
+
+  code {
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 11px;
+    background: var(--soft);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+}
+
+.raw-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 24px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.raw-editor {
+  width: 100%;
+  min-height: 420px;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--tile-bg, var(--surface));
+  color: var(--text);
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+
+  &:focus {
+    outline: none;
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 3px color-mix(in srgb, #8b5cf6 20%, transparent);
+  }
+}
+
+.raw-error,
+.raw-success {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.raw-error {
+  color: #dc2626;
+}
+
+.raw-success {
+  color: #059669;
+}
+
 /* Quick Actions Overlay + Menu (teleported to body, so not scoped) */
 </style>
 
@@ -6975,6 +7226,7 @@ export default {
   align-items: stretch;
   gap: 22px;
   padding: 20px;
+  container-type: inline-size;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -7129,6 +7381,29 @@ export default {
   gap: 1px;
 }
 
+@container (max-width: 960px) {
+  .stammdaten-grid,
+  .arbeitsverhaeltnis-grid,
+  .arbeitszeit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 560px) {
+  .employee-tabs-shell .steckbrief {
+    grid-template-columns: 1fr;
+  }
+
+  .stammdaten-grid,
+  .arbeitsverhaeltnis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .arbeitszeit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .employee-tabs-shell .skills-section {
   grid-column: 1 / -1;
 }
@@ -7196,26 +7471,46 @@ export default {
 
 @media (max-width: 620px) {
   .card-header .title .meta {
-    display: none !important;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
   }
 
-  .employee-tabs-shell .card-actions .icon-btn > span:not(.tab-logo-pair) {
+  .employee-tabs-shell .card-actions {
+    min-height: 48px;
+    padding: 0 6px;
+    gap: 2px;
+    scroll-snap-type: x proximity;
+  }
+
+  .employee-tabs-shell .card-actions .icon-btn > span:not([class]) {
     display: none;
   }
 
   .employee-tabs-shell .card-actions .icon-btn {
-    min-width: 42px;
-    padding: 0 11px;
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+    padding: 0;
+    scroll-snap-align: start;
   }
 
   .employee-tabs-shell .hero-right {
     grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px;
   }
 
   .employee-tabs-shell .hero-media {
     width: min(100%, 320px);
-    height: 240px;
+    height: auto;
+    aspect-ratio: 4 / 3;
     justify-self: center;
+  }
+
+  .stammdaten-grid {
+    grid-template-columns: 1fr;
   }
 
   .arbeitszeit-grid {

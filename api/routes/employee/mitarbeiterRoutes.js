@@ -6,6 +6,8 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config(); // Load environment variables from .env
 const stringSimilarity = require("string-similarity");
 const auth = require("../../middleware/auth");
+const requireAdmin = require("../../middleware/requireAdmin");
+const mongoose = require("mongoose");
 const xlsx = require("xlsx");
 const multer = require("multer");
 const path = require("path");
@@ -1627,6 +1629,7 @@ router.get(
     const { id } = req.params;
 
     const mitarbeiter = await Mitarbeiter.findById(id)
+      .select('+sozialversicherungsnummer')
       .populate([
         { 
           path: "laufzettel_received",
@@ -1926,6 +1929,68 @@ router.patch(
       }
 
       // Alle anderen Fehler werden vom asyncHandler an die globale Fehlerbehandlung weitergeleitet
+      throw error;
+    }
+  })
+);
+
+// --- Admin Raw Document Endpoints ---
+// Fields that must never be changed through the raw editor.
+const RAW_PROTECTED_FIELDS = ['_id', '__v', 'r2Prefix', 'createdAt', 'updatedAt'];
+
+function toObjectId(id) {
+  return mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null;
+}
+
+// GET the untouched MongoDB document (unpopulated, incl. select:false fields).
+router.get(
+  "/mitarbeiter/:id/raw",
+  auth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const oid = toObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ success: false, message: "Ungültige ID." });
+    // Native driver bypasses schema select/populate hooks → truly raw document.
+    const doc = await Mitarbeiter.collection.findOne({ _id: oid });
+    if (!doc) return res.status(404).json({ success: false, message: "Mitarbeiter nicht gefunden." });
+    res.json({ success: true, data: doc });
+  })
+);
+
+// PUT arbitrary field updates from the raw editor (Admin only, schema-validated).
+router.put(
+  "/mitarbeiter/:id/raw",
+  auth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const oid = toObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ success: false, message: "Ungültige ID." });
+    if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+      return res.status(400).json({ success: false, message: "Ungültiger Dokument-Body." });
+    }
+
+    const update = { ...req.body };
+    for (const field of RAW_PROTECTED_FIELDS) delete update[field];
+
+    try {
+      const mitarbeiter = await Mitarbeiter.findByIdAndUpdate(
+        oid,
+        { $set: update },
+        { new: true, runValidators: true, context: "query" }
+      );
+      if (!mitarbeiter) return res.status(404).json({ success: false, message: "Mitarbeiter nicht gefunden." });
+
+      // Return the canonical raw document so the editor reflects stored values.
+      const raw = await Mitarbeiter.collection.findOne({ _id: oid });
+      res.json({ success: true, data: raw });
+    } catch (error) {
+      if (error.code === 11000) {
+        const field = Object.keys(error.keyValue || {})[0];
+        return res.status(409).json({ success: false, message: `Wert für '${field}' ist bereits vergeben.` });
+      }
+      if (error.name === "ValidationError" || error.name === "CastError") {
+        return res.status(400).json({ success: false, message: `Validierungsfehler: ${error.message}` });
+      }
       throw error;
     }
   })

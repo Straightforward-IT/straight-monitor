@@ -2858,22 +2858,40 @@ router.post('/personalnr-history', auth, extendTimeout, upload.single('file'), a
 
     const stats = { total: 0, matched: 0, added: 0, skippedDuplicates: 0, unmatched: 0 };
 
+    // Parse rows once and collect every referenced personalnr for a single lookup.
+    const parsedRows = [];
+    const allPnrs = new Set();
     for (let i = startRow; i < rows.length; i++) {
-      const row = rows[i];
-      // Col C (index 2): comma-separated personalnr blob
-      const blobRaw = String(row[2] ?? '').trim();
+      const blobRaw = String(rows[i]?.[2] ?? '').trim();
       if (!blobRaw) continue;
-
-      const pnrArray = blobRaw.split(',').map(s => s.trim()).filter(Boolean);
+      const pnrArray = [...new Set(blobRaw.split(',').map(s => s.trim()).filter(Boolean))];
       if (pnrArray.length === 0) continue;
+      parsedRows.push(pnrArray);
+      for (const pnr of pnrArray) allPnrs.add(pnr);
+    }
 
+    // One query for all matching Mitarbeiter; map every current personalnr to its doc.
+    const mitarbeiterList = allPnrs.size
+      ? await Mitarbeiter.find(
+          { personalnr: { $in: [...allPnrs] } },
+          { _id: 1, personalnr: 1, personalnrHistory: 1 }
+        ).lean()
+      : [];
+    const mitarbeiterByPersonalnr = new Map(
+      mitarbeiterList.map(ma => [String(ma.personalnr), ma])
+    );
+
+    // Accumulate new history entries per Mitarbeiter (multiple rows can target the same doc).
+    const pending = new Map(); // maId -> { ma, known: Set, entries: [] }
+    const now = new Date();
+    const updatedBy = req.user?.email || 'system';
+
+    for (const pnrArray of parsedRows) {
       stats.total++;
 
-      // Find the Mitarbeiter whose current personalnr matches any value in the blob
-      const mitarbeiter = await Mitarbeiter.findOne(
-        { personalnr: { $in: pnrArray } },
-        { _id: 1, personalnr: 1, personalnrHistory: 1 }
-      ).lean();
+      const mitarbeiter = pnrArray
+        .map(pnr => mitarbeiterByPersonalnr.get(pnr))
+        .find(Boolean);
 
       if (!mitarbeiter) {
         stats.unmatched++;
@@ -2882,35 +2900,40 @@ router.post('/personalnr-history', auth, extendTimeout, upload.single('file'), a
 
       stats.matched++;
 
-      // Collect existing history values to prevent duplicates
-      const existingValues = new Set(
-        (mitarbeiter.personalnrHistory || []).map(h => h.value)
-      );
-      // Also exclude the current active personalnr
-      existingValues.add(mitarbeiter.personalnr);
-
-      const newEntries = pnrArray
-        .filter(pnr => pnr !== mitarbeiter.personalnr && !existingValues.has(pnr))
-        .map(pnr => ({
-          value: pnr,
-          updatedAt: new Date(),
-          updatedBy: req.user?.email || 'system',
-          source: 'import'
-        }));
-
-      const duplicatesInThisRow = pnrArray.filter(
-        pnr => pnr !== mitarbeiter.personalnr && existingValues.has(pnr)
-      ).length;
-
-      stats.skippedDuplicates += duplicatesInThisRow;
-
-      if (newEntries.length > 0) {
-        await Mitarbeiter.updateOne(
-          { _id: mitarbeiter._id },
-          { $push: { personalnrHistory: { $each: newEntries } } }
-        );
-        stats.added += newEntries.length;
+      const maId = String(mitarbeiter._id);
+      let bucket = pending.get(maId);
+      if (!bucket) {
+        const known = new Set((mitarbeiter.personalnrHistory || []).map(h => h.value));
+        known.add(mitarbeiter.personalnr);
+        bucket = { ma: mitarbeiter, known, entries: [] };
+        pending.set(maId, bucket);
       }
+
+      for (const pnr of pnrArray) {
+        if (pnr === mitarbeiter.personalnr) continue;
+        if (bucket.known.has(pnr)) {
+          stats.skippedDuplicates++;
+          continue;
+        }
+        bucket.known.add(pnr);
+        bucket.entries.push({ value: pnr, updatedAt: now, updatedBy, source: 'import' });
+      }
+    }
+
+    const bulkOps = [];
+    for (const { ma, entries } of pending.values()) {
+      if (!entries.length) continue;
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: ma._id },
+          update: { $push: { personalnrHistory: { $each: entries } } },
+        },
+      });
+      stats.added += entries.length;
+    }
+
+    if (bulkOps.length) {
+      await Mitarbeiter.bulkWrite(bulkOps, { ordered: false });
     }
 
     const status = stats.matched > 0 ? 'success' : 'warning';

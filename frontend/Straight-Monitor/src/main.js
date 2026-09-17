@@ -215,6 +215,7 @@ import {
   faUsersSlash,
   faVial,
   faWarehouse,
+  faDatabase,
 } from '@fortawesome/free-solid-svg-icons';
 
 
@@ -419,6 +420,7 @@ library.add(
   faUsersSlash,
   faVial,
   faWarehouse,
+  faDatabase,
 );
 
 
