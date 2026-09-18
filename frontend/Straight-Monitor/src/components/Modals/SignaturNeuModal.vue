@@ -814,8 +814,18 @@ watch(currentStep, async (step) => {
     const { data } = await api.get('/api/signaturen/folge-defaults', {
       params: { kundeId: form.value.kundeId, typId: form.value.typId },
     });
-    if (folgeaktionen.value.ausliefernAn.length === 0 && data.ausliefernAn?.length) {
-      folgeaktionen.value.ausliefernAn = data.ausliefernAn;
+    if (data.ausliefernAn?.length) {
+      const recipientsByEmail = new Map(
+        folgeaktionen.value.ausliefernAn.map((recipient) => [
+          String(recipient.email || '').trim().toLowerCase(),
+          recipient,
+        ]),
+      );
+      data.ausliefernAn.forEach((recipient) => {
+        const email = String(recipient.email || '').trim().toLowerCase();
+        if (email && !recipientsByEmail.has(email)) recipientsByEmail.set(email, recipient);
+      });
+      folgeaktionen.value.ausliefernAn = [...recipientsByEmail.values()];
     }
     followerDefaultsLoaded.value = true;
   } catch (e) {

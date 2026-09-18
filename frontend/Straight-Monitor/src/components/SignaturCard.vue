@@ -113,6 +113,17 @@
                   <font-awesome-icon :icon="['fas', 'link']" />
                 </button>
               </div>
+              <div
+                v-for="recipient in vorgang.entleiherInvitationRecipients || []"
+                :key="`invitation-${recipient.email}`"
+                class="sc-submitter sub-invitation-recipient"
+              >
+                <font-awesome-icon :icon="['fas', 'envelope']" class="sc-sub-icon" />
+                <div class="sc-sub-info">
+                  <span class="sc-sub-name">{{ recipient.name || recipient.email || '—' }}</span>
+                  <span class="sc-sub-role">Weiterer Empfänger</span>
+                </div>
+              </div>
             </div>
 
             <div class="sc-detail-block" v-if="vorgang.docusealTemplateName">
@@ -762,6 +773,7 @@ function onEmbedComplete() {
   &.sub-completed .sc-sub-icon { color: #10b981; }
   &.sub-awaiting .sc-sub-icon { color: #f59e0b; }
   &.sub-declined .sc-sub-icon { color: #ef4444; }
+  &.sub-invitation-recipient .sc-sub-icon { color: var(--primary); }
 }
 
 .sc-actions {

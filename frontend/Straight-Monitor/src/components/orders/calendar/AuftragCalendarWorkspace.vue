@@ -4187,12 +4187,15 @@ export default {
 
       const auftragNr = this.selectedEvent.auftragNr;
       const eventTitle = String(this.selectedEvent.eventTitel || "").trim();
+      const eventDate = this.selectedEvent.vonDatum
+        ? new Date(this.selectedEvent.vonDatum).toLocaleDateString("de-DE", { timeZone: "UTC" })
+        : "";
       this.isGeneratingHoursList = true;
       try {
         const { data } = await api.post(
           `/api/signaturen/stundenliste/${auftragNr}/draft`,
           {
-            name: `Stundenliste ${eventTitle || auftragNr}`,
+            name: ["Stundenliste", eventTitle || auftragNr, eventDate].filter(Boolean).join(" "),
             locationId:
               typeof this.selectedEvent.locationV2 === "object"
                 ? this.selectedEvent.locationV2?._id
