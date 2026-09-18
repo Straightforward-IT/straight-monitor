@@ -54,24 +54,23 @@ function broadcastSignaturEvent(type, payload) {
 }
 
 function getLocationSignatureSenderKey(location) {
-  const teamKey = location?.spaceFolder?.teamKey;
-  if (!teamKey) return 'it';
+  const locationEmail = String(location?.contact?.mainEmail || '').trim().toLowerCase();
+  const team = registry.listTeams({ includeDevelopmentOnly: true }).find((candidate) =>
+    String(candidate?.email?.address || '').trim().toLowerCase() === locationEmail
+  );
+  if (team) return team.key;
 
-  try {
-    const senderKey = registry.resolveKey(teamKey);
-    registry.getEmailSender(senderKey);
-    return senderKey;
-  } catch (error) {
-    logger.warn(`Signatur-E-Mail: Standort-Postfach "${teamKey}" ist nicht verfügbar; IT-Postfach wird verwendet.`, error.message);
-    return 'it';
+  if (locationEmail) {
+    logger.warn(`Signatur-E-Mail: Standort-Postfach "${locationEmail}" ist nicht in der Team-Konfiguration; IT-Postfach wird verwendet.`);
   }
+  return 'it';
 }
 
 async function getVorgangSignatureSenderKey(vorgang) {
   if (!vorgang.locationV2) return 'it';
 
   const location = await Location.findById(vorgang.locationV2)
-    .select('spaceFolder.teamKey')
+    .select('contact.mainEmail')
     .lean();
   return getLocationSignatureSenderKey(location);
 }
@@ -367,14 +366,14 @@ async function resolveSignaturLocation({ locationId, entityLocationId, auftragLo
   if (locationId) {
     if (!/^[a-f\d]{24}$/i.test(String(locationId))) return null;
     return Location.findOne({ _id: locationId, isActive: true })
-      .select('_id nameFull shortName nameKey shortNameKey spaceFolder.teamKey')
+      .select('_id nameFull shortName nameKey shortNameKey spaceFolder.teamKey contact.mainEmail')
       .lean();
   }
 
   for (const candidate of [entityLocationId, auftragLocationId]) {
     if (!candidate) continue;
     const location = await Location.findOne({ _id: candidate, isActive: true })
-      .select('_id nameFull shortName nameKey shortNameKey spaceFolder.teamKey')
+      .select('_id nameFull shortName nameKey shortNameKey spaceFolder.teamKey contact.mainEmail')
       .lean();
     if (location) return location;
   }
@@ -384,7 +383,7 @@ async function resolveSignaturLocation({ locationId, entityLocationId, auftragLo
   return Location.findOne({
     isActive: true,
     $or: [{ nameKey: normalized }, { shortNameKey: normalized }, { externalId: String(standort) }],
-  }).select('_id nameFull shortName nameKey shortNameKey spaceFolder.teamKey').lean();
+  }).select('_id nameFull shortName nameKey shortNameKey spaceFolder.teamKey contact.mainEmail').lean();
 }
 
 async function resolveSpaceSignatureSource(req, locationId, itemId) {
