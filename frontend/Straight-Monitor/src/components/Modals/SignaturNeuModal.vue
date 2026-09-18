@@ -159,25 +159,12 @@
                     :subtitle="selectedKunde ? (selectedKunde.kuerzel || String(selectedKunde.kundenNr || '')) : ''"
                     @clear="clearKunde"
                   />
-                  <div v-else class="sig-typeahead" ref="kundeBox">
-                    <div class="sig-search-input">
-                      <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
-                      <input v-model="kundeQuery" type="text" placeholder="Kunde / Kürzel suchen…" @focus="kundeOpen = true" />
-                    </div>
-                    <div v-if="kundeOpen && filteredKunden.length" class="sig-typeahead-list">
-                      <button
-                        v-for="k in filteredKunden"
-                        :key="k._id"
-                        class="sig-typeahead-item"
-                        type="button"
-                        @click="selectKunde(k)"
-                      >
-                        <span class="sig-ta-name">{{ k.kundName }}</span>
-                        <span v-if="k.kuerzel" class="sig-ta-kuerzel">{{ k.kuerzel }}</span>
-                        <span v-else class="sig-ta-kuerzel">{{ k.kundenNr }}</span>
-                      </button>
-                    </div>
-                  </div>
+                  <KundeSearch
+                    v-else
+                    v-model="form.kundeId"
+                    placeholder="Kunde / Kürzel suchen…"
+                    @select="selectKunde"
+                  />
                 </div>
 
                 <!-- Mitarbeiter search -->
@@ -499,6 +486,7 @@ import { useSignaturBuilder } from '@/stores/signaturBuilder';
 import { useAuth } from '@/stores/auth';
 import { useDataCache } from '@/stores/dataCache';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import KundeSearch from '@/components/ui-elements/KundeSearch.vue';
 import ContactSearchPicker from '@/components/ContactSearchPicker.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
 import DocuSealSigningModal from '@/components/Modals/DocuSealSigningModal.vue';
@@ -920,23 +908,6 @@ function getLocationSignatureDefault() {
   return { name: manager?.name || manager?.email || '', email: manager?.email || '', embedded: true };
 }
 
-// ── Typeahead: Kunde ─────────────────────────────────────────────────────────
-const kundeQuery = ref('');
-const kundeOpen = ref(false);
-const kundeBox = ref(null);
-const filteredKunden = computed(() => {
-  const q = kundeQuery.value.trim().toLowerCase();
-  let list = kundenList.value;
-  if (q) {
-    list = list.filter(k =>
-      (k.kundName || '').toLowerCase().includes(q) ||
-      (k.kuerzel || '').toLowerCase().includes(q) ||
-      String(k.kundenNr || '').includes(q)
-    );
-  }
-  return list.slice(0, 8);
-});
-
 // ── Typeahead: Mitarbeiter ───────────────────────────────────────────────────
 const maQuery = ref('');
 const maOpen = ref(false);
@@ -1124,8 +1095,6 @@ function setLinkMode(key) {
 
 function selectKunde(k) {
   form.value.kundeId = k._id;
-  kundeOpen.value = false;
-  kundeQuery.value = '';
 }
 function clearKunde() { form.value.kundeId = null; }
 
@@ -1627,7 +1596,6 @@ function closeWithoutPrompt() {
 
 // Close typeahead dropdowns on outside click
 function onDocClick(e) {
-  if (kundeBox.value && !kundeBox.value.contains(e.target)) kundeOpen.value = false;
   if (maBox.value && !maBox.value.contains(e.target)) maOpen.value = false;
 }
 document.addEventListener('click', onDocClick);

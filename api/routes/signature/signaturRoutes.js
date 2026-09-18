@@ -613,7 +613,7 @@ router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res
   const auftrag = await Auftrag.findOne({ auftragNr }).lean();
   if (!auftrag) return res.status(404).json({ message: `Auftrag ${auftragNr} nicht gefunden` });
   const kunde = auftrag.kundenNr
-    ? await Kunde.findOne({ kundenNr: auftrag.kundenNr }).select('_id kundenNr kundName kuerzel locationV2 signaturOrdner signaturKontaktEmail stundenlisteSignaturDoppelt')
+    ? await Kunde.findOne({ kundenNr: auftrag.kundenNr }).select('_id kundenNr kundName kuerzel locationV2 signaturOrdner signaturKontaktEmail signaturKontaktId signaturKontakte stundenlisteSignaturDoppelt stundenlisteMehrereEinladungen')
     : null;
   if (!kunde) return res.status(400).json({ message: 'Für die Stundenliste wurde kein Kunde gefunden.' });
 
@@ -660,6 +660,12 @@ router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res
       { role: 'Verleiher', name: verleiher.name || '', email: verleiher.email || '', embedded: true },
       { role: 'Entleiher', name: kunde.kundName || '', email: kunde.signaturKontaktEmail || '', embedded: false },
     ],
+    entleiherInvitationRecipients: kunde.stundenlisteMehrereEinladungen
+      ? (kunde.signaturKontakte || [])
+        .filter((contact) => String(contact.id) !== String(kunde.signaturKontaktId || ''))
+        .map((contact) => ({ name: contact.name || '', email: contact.email || '' }))
+        .filter((contact) => contact.email)
+      : [],
     r2Prefix: buildSignaturR2Prefix({
       locationIdentifier: location.shortName || location.nameFull,
       entityType: 'Kunde',

@@ -135,6 +135,11 @@ const KundeSchema = new mongoose.Schema({
   // Default contact for signature processes (MS Graph contact)
   signaturKontaktId:    { type: String, default: null },
   signaturKontaktEmail: { type: String, default: null },
+  signaturKontakte: [{
+    id: { type: String, trim: true },
+    name: { type: String, trim: true },
+    email: { type: String, trim: true, lowercase: true },
+  }],
   stundenlisteSignaturDoppelt: { type: Boolean, default: false },
   stundenlisteSignaturDuAnrede: { type: Boolean, default: false },
   stundenlisteMehrereEinladungen: { type: Boolean, default: false },

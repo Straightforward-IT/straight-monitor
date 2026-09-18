@@ -281,7 +281,7 @@
           Keine Microsoft-Kontakte mit Kürzel „{{ kunde.kuerzel }}" gefunden.
         </div>
 
-        <div v-if="!signaturKontaktId && linkedContacts.length > 0" class="sig-standard-hint">
+        <div v-if="!signaturKontaktIds.length && linkedContacts.length > 0" class="sig-standard-hint">
           <font-awesome-icon :icon="['fas', 'circle-info']" />
           Noch kein Signatur-Standard gesetzt – wähle einen Kontakt als Standard für Signaturen.
         </div>
@@ -292,11 +292,11 @@
             :key="contact.id"
             interactive
             :inactive="isMicrosoftContactInactive(contact)"
-            :highlighted="contact.id === signaturKontaktId"
+            :highlighted="isSignaturKontakt(contact)"
             @click="openContactCard(contact)"
           >
-            <template v-if="contact.id === signaturKontaktId" #legend>
-              <font-awesome-icon :icon="['fas', 'file-signature']" /> Signatur-Standard
+            <template v-if="isSignaturKontakt(contact)" #legend>
+              <font-awesome-icon :icon="['fas', 'file-signature']" /> {{ contact.id === signaturKontaktId ? 'Signatur-Standard' : 'Weiterer Signatur-Standard' }}
             </template>
             <template #icon>
               <div class="ms-logo-grid" aria-hidden="true">
@@ -487,7 +487,7 @@
             <font-awesome-icon v-if="stundenlisteSettingSaving" :icon="['fas', 'spinner']" spin />
           </label>
           <label class="stundenliste-double-copy-toggle">
-            <input v-model="stundenlisteMehrereEinladungen" type="checkbox" :disabled="stundenlisteSettingSaving" @change="saveStundenlisteSetting" />
+            <input v-model="stundenlisteMehrereEinladungen" type="checkbox" :disabled="stundenlisteSettingSaving" @change="handleMehrereEinladungenChange" />
             <span>
               <strong>Stundenliste an weitere Empfänger senden</strong>
               <small>Erlaubt zusätzliche Einladungen mit demselben Entleiher-Signaturlink.</small>
@@ -1002,6 +1002,26 @@
       @close="closeContactMenu"
       @select="handleContactMenuAction"
     />
+    <div v-if="showSignatureContactCollapseDialog" class="modal-overlay" @click.self="cancelSignatureContactCollapse">
+      <section class="modal-content signature-contact-collapse-dialog" role="dialog" aria-modal="true" aria-labelledby="signature-contact-collapse-title">
+        <header class="modal-header">
+          <h3 id="signature-contact-collapse-title">Signatur-Standard auswählen</h3>
+          <button class="close-btn" type="button" aria-label="Schließen" @click="cancelSignatureContactCollapse"><font-awesome-icon :icon="['fas', 'xmark']" /></button>
+        </header>
+        <div class="modal-body">
+          <p>Für diesen Kunden bleibt ein einzelner Signatur-Standard bestehen.</p>
+          <label v-for="contact in selectedSignatureContacts" :key="contact.id" class="signature-contact-choice">
+            <input v-model="signatureContactCollapseId" type="radio" :value="contact.id" name="signature-contact-collapse" />
+            <span>{{ contact.name || contact.email }}</span>
+            <small>{{ contact.email }}</small>
+          </label>
+        </div>
+        <footer class="signature-contact-collapse-actions">
+          <button class="preise-cancel-btn" type="button" @click="cancelSignatureContactCollapse">Abbrechen</button>
+          <button class="preise-save-btn" type="button" :disabled="stundenlisteSettingSaving || !signatureContactCollapseId" @click="confirmSignatureContactCollapse">Übernehmen</button>
+        </footer>
+      </section>
+    </div>
     </article>
   </ModalFrame>
 </template>
@@ -1158,6 +1178,16 @@ async function saveStundenlisteSetting() {
   } finally {
     stundenlisteSettingSaving.value = false;
   }
+}
+
+function handleMehrereEinladungenChange() {
+  if (!stundenlisteMehrereEinladungen.value && signaturKontaktIds.value.length > 1) {
+    stundenlisteMehrereEinladungen.value = true;
+    signatureContactCollapseId.value = signaturKontaktId.value || signaturKontaktIds.value[0] || '';
+    showSignatureContactCollapseDialog.value = true;
+    return;
+  }
+  saveStundenlisteSetting();
 }
 
 async function saveERechnungSettings() {
@@ -1873,13 +1903,21 @@ onMounted(loadContacts);
 watch(() => props.kunde.kuerzel, loadContacts);
 
 // Standard-Signatur-Kontakt
-const signaturKontaktId     = ref(props.kunde.signaturKontaktId || '');
+const normalizeSignaturKontaktIds = (kunde) => {
+  const ids = Array.isArray(kunde.signaturKontakte) ? kunde.signaturKontakte.map((contact) => String(contact?.id || '').trim()) : [];
+  if (kunde.signaturKontaktId) ids.unshift(String(kunde.signaturKontaktId));
+  return [...new Set(ids.filter(Boolean))];
+};
+const signaturKontaktId = ref(props.kunde.signaturKontaktId || '');
+const signaturKontaktIds = ref(normalizeSignaturKontaktIds(props.kunde));
 const signaturKontaktSaving = ref(false);
+const showSignatureContactCollapseDialog = ref(false);
+const signatureContactCollapseId = ref('');
 const contactMenuContact = ref(null);
 const contactMenuPosition = ref({ x: 0, y: 0 });
 const contactMenuItems = computed(() => {
   const contact = contactMenuContact.value;
-  const isSignatureStandard = contact?.id === signaturKontaktId.value;
+  const isSignatureStandard = isSignaturKontakt(contact);
   return [
     { action: 'edit', label: 'Bearbeiten', icon: ['fas', 'pen'] },
     {
@@ -1900,6 +1938,21 @@ const contactMenuItems = computed(() => {
 watch(() => props.kunde.signaturKontaktId, (val) => {
   signaturKontaktId.value = val || '';
 });
+watch(() => props.kunde.signaturKontakte, () => {
+  if (!signaturKontaktSaving.value) signaturKontaktIds.value = normalizeSignaturKontaktIds(props.kunde);
+}, { deep: true });
+
+const selectedSignatureContacts = computed(() => signaturKontaktIds.value.map((contactId) => {
+  const current = linkedContacts.value.find((contact) => String(contact.id) === contactId);
+  const stored = (props.kunde.signaturKontakte || []).find((contact) => String(contact.id) === contactId);
+  return current
+    ? { id: String(current.id), name: current.displayName || '', email: current.emailAddresses?.[0]?.address || '' }
+    : { id: contactId, name: stored?.name || '', email: stored?.email || '' };
+}));
+
+function isSignaturKontakt(contact) {
+  return Boolean(contact?.id) && signaturKontaktIds.value.includes(String(contact.id));
+}
 
 function openContactMenu(contact, event) {
   const rect = event.currentTarget.getBoundingClientRect();
@@ -1932,18 +1985,24 @@ async function toggleMicrosoftContactInactive(contact) {
   else nextIds.add(contactId);
 
   const update = { inactiveMicrosoftContactIds: [...nextIds] };
-  if (!wasInactive && contactId === signaturKontaktId.value) {
-    update.signaturKontaktId = null;
-    update.signaturKontaktEmail = null;
+  if (!wasInactive && isSignaturKontakt(contact)) {
+    const nextIds = signaturKontaktIds.value.filter((id) => id !== contactId);
+    const nextPrimaryId = nextIds.includes(signaturKontaktId.value) ? signaturKontaktId.value : (nextIds[0] || '');
+    const nextPrimary = selectedSignatureContacts.value.find((entry) => entry.id === nextPrimaryId);
+    update.signaturKontakte = selectedSignatureContacts.value.filter((entry) => entry.id !== contactId);
+    update.signaturKontaktId = nextPrimaryId || null;
+    update.signaturKontaktEmail = nextPrimary?.email || null;
   }
 
   try {
     await api.put(`/api/kunden/${props.kunde._id}`, update);
     props.kunde.inactiveMicrosoftContactIds = update.inactiveMicrosoftContactIds;
-    if (update.signaturKontaktId === null) {
-      signaturKontaktId.value = '';
-      props.kunde.signaturKontaktId = null;
-      props.kunde.signaturKontaktEmail = null;
+    if (update.signaturKontaktId !== undefined) {
+      signaturKontaktIds.value = update.signaturKontakte.map((entry) => entry.id);
+      signaturKontaktId.value = update.signaturKontaktId || '';
+      props.kunde.signaturKontaktId = update.signaturKontaktId;
+      props.kunde.signaturKontaktEmail = update.signaturKontaktEmail;
+      props.kunde.signaturKontakte = update.signaturKontakte;
     }
     const cached = dataCache.kunden?.find((kunde) => kunde._id === props.kunde._id);
     if (cached) Object.assign(cached, update);
@@ -1954,29 +2013,72 @@ async function toggleMicrosoftContactInactive(contact) {
 }
 
 async function toggleSignaturKontakt(contact) {
-  // clicking the active contact deselects it; otherwise select the new one
-  const newId    = signaturKontaktId.value === contact.id ? '' : contact.id;
-  const newEmail = newId ? (contact.emailAddresses?.[0]?.address || null) : null;
-  signaturKontaktId.value     = newId;
+  const contactId = String(contact.id || '');
+  const multipleEnabled = props.kunde.stundenlisteMehrereEinladungen === true;
+  const newIds = multipleEnabled
+    ? (isSignaturKontakt(contact) ? signaturKontaktIds.value.filter((id) => id !== contactId) : [...signaturKontaktIds.value, contactId])
+    : (isSignaturKontakt(contact) ? [] : [contactId]);
+  const newId = newIds.includes(signaturKontaktId.value) ? signaturKontaktId.value : (newIds[0] || '');
+  const contacts = newIds.map((id) => {
+    const selected = id === contactId ? contact : linkedContacts.value.find((entry) => String(entry.id) === id);
+    return selected && { id, name: selected.displayName || '', email: selected.emailAddresses?.[0]?.address || '' };
+  }).filter(Boolean);
   signaturKontaktSaving.value = true;
   try {
     await api.put(`/api/kunden/${props.kunde._id}`, {
-      signaturKontaktId:    newId || null,
-      signaturKontaktEmail: newEmail,
+      signaturKontaktId: newId || null,
+      signaturKontaktEmail: contacts.find((entry) => entry.id === newId)?.email || null,
+      signaturKontakte: contacts,
     });
-    props.kunde.signaturKontaktId    = newId || null;
-    props.kunde.signaturKontaktEmail = newEmail;
+    signaturKontaktIds.value = newIds;
+    signaturKontaktId.value = newId;
+    props.kunde.signaturKontaktId = newId || null;
+    props.kunde.signaturKontaktEmail = contacts.find((entry) => entry.id === newId)?.email || null;
+    props.kunde.signaturKontakte = contacts;
     const cached = dataCache.kunden?.find(k => k._id === props.kunde._id);
     if (cached) {
-      cached.signaturKontaktId    = newId || null;
-      cached.signaturKontaktEmail = newEmail;
+      cached.signaturKontaktId = props.kunde.signaturKontaktId;
+      cached.signaturKontaktEmail = props.kunde.signaturKontaktEmail;
+      cached.signaturKontakte = contacts;
     }
   } catch (e) {
     // revert on error
+    signaturKontaktIds.value = normalizeSignaturKontaktIds(props.kunde);
     signaturKontaktId.value = props.kunde.signaturKontaktId || '';
     console.error('Fehler beim Speichern des Signatur-Kontakts', e);
   } finally {
     signaturKontaktSaving.value = false;
+  }
+}
+
+function cancelSignatureContactCollapse() {
+  showSignatureContactCollapseDialog.value = false;
+  signatureContactCollapseId.value = '';
+}
+
+async function confirmSignatureContactCollapse() {
+  const selected = selectedSignatureContacts.value.find((contact) => contact.id === signatureContactCollapseId.value);
+  if (!selected) return;
+  stundenlisteSettingSaving.value = true;
+  stundenlisteSettingError.value = '';
+  try {
+    const update = {
+      stundenlisteMehrereEinladungen: false,
+      signaturKontaktId: selected.id,
+      signaturKontaktEmail: selected.email || null,
+      signaturKontakte: [selected],
+    };
+    const { data: updatedKunde } = await api.put(`/api/kunden/${props.kunde._id}`, update);
+    Object.assign(props.kunde, update, updatedKunde);
+    signaturKontaktIds.value = [selected.id];
+    signaturKontaktId.value = selected.id;
+    stundenlisteMehrereEinladungen.value = false;
+    await dataCache.updateCachedKunde({ ...props.kunde });
+    cancelSignatureContactCollapse();
+  } catch (error) {
+    stundenlisteSettingError.value = error.response?.data?.message || 'Einstellung konnte nicht gespeichert werden.';
+  } finally {
+    stundenlisteSettingSaving.value = false;
   }
 }
 
@@ -2989,6 +3091,14 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 .stundenliste-double-copy-toggle > svg { color: var(--primary); }
 .stundenliste-double-copy-toggle:has(input:disabled) { cursor: wait; opacity: .75; }
 .stundenliste-double-copy-error { margin: 0; color: #e6584f; font-size: .8rem; }
+.signature-contact-collapse-dialog { width: min(420px, calc(100vw - 2rem)); }
+.signature-contact-collapse-dialog .modal-body { display: grid; gap: .65rem; }
+.signature-contact-collapse-dialog .modal-body > p { color: var(--muted); font-size: .86rem; }
+.signature-contact-choice { display: grid; grid-template-columns: auto 1fr; column-gap: .55rem; align-items: center; padding: .45rem .5rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+.signature-contact-choice input { grid-row: span 2; accent-color: var(--primary); }
+.signature-contact-choice span { color: var(--text); font-size: .88rem; }
+.signature-contact-choice small { color: var(--muted); font-size: .78rem; }
+.signature-contact-collapse-actions { display: flex; justify-content: flex-end; gap: .5rem; padding: 0 1rem 1rem; }
 
 .btn-add-contact {
   margin-left: auto;

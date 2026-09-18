@@ -355,7 +355,7 @@
                     <span class="shift-name" v-if="s.bezeichnung">{{
                       s.bezeichnung
                     }}</span>
-                    <span v-if="filters.displayLevels.einsatz" class="shift-pos"
+                    <span v-if="filters.displayLevels.einsatz" class="shift-pos" :class="getShiftBedarfClass(s)"
                       >{{ s.besetzt }}/{{ s.bedarf }}</span
                     >
                     <ul
@@ -626,6 +626,7 @@
                       <span
                         v-if="filters.displayLevels.einsatz"
                         class="shift-pos"
+                        :class="getShiftBedarfClass(s)"
                         >{{ s.besetzt }}/{{ s.bedarf }}</span
                       >
                       <ul
@@ -3862,6 +3863,15 @@ export default {
       if (!s || s === "none") return "bedarf-none";
       return `bedarf-${s}`;
     },
+    getShiftBedarfClass(shift) {
+      const required = Number(shift?.bedarf || 0);
+      const assigned = Number(shift?.besetzt || 0);
+      if (!required) return "bedarf-none";
+      if (!assigned) return "bedarf-all-empty";
+      if (assigned < required) return assigned === 1 ? "bedarf-some-empty" : "bedarf-underbooked";
+      if (assigned === required) return "bedarf-full";
+      return "bedarf-overbooked";
+    },
     getSchichtenForDay(event, date) {
       if (!event.schichten?.length || !date) return [];
       const d = new Date(date);
@@ -5704,6 +5714,8 @@ export default {
   &.is-today {
     background: color-mix(in oklab, var(--primary) 7%, transparent);
     box-shadow: inset 0 3px 0 var(--primary);
+
+    .day-name { color: var(--primary); }
   }
 
   .day-name {
@@ -6542,9 +6554,23 @@ export default {
 }
 
 .shift-pos {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--tile-bg);
   font-weight: 600;
   color: var(--text);
   flex-shrink: 0;
+
+  &.bedarf-none { background: color-mix(in srgb, var(--muted) 10%, var(--tile-bg)); }
+  &.bedarf-all-empty { border-color: #ef4444; background: color-mix(in srgb, #ef4444 13%, var(--tile-bg)); }
+  &.bedarf-some-empty { border-color: #f97316; background: color-mix(in srgb, #f97316 13%, var(--tile-bg)); }
+  &.bedarf-underbooked { border-color: #eab308; background: color-mix(in srgb, #eab308 13%, var(--tile-bg)); }
+  &.bedarf-full { border-color: #22c55e; background: color-mix(in srgb, #22c55e 13%, var(--tile-bg)); }
+  &.bedarf-overbooked { border-color: #15803d; background: color-mix(in srgb, #15803d 13%, var(--tile-bg)); }
 }
 
 .shift-einsaetze {

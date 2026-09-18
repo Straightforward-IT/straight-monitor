@@ -82,6 +82,7 @@
     </Toolbar>
 
     <div
+      ref="orderListTable"
       class="order-list-table"
       role="table"
       aria-label="Auftragsliste"
@@ -122,12 +123,16 @@
         Keine Aufträge für die aktuelle Auswahl gefunden.
       </div>
       <button
-        v-for="order in sortedOrders"
+        v-for="(order, index) in sortedOrders"
         v-else
         :key="order._id || order.auftragNr"
         type="button"
         class="order-list-row"
-        :class="{ 'is-selected': String(order.auftragNr) === String(selectedOrderNumber) }"
+        :class="{
+          'is-selected': String(order.auftragNr) === String(selectedOrderNumber),
+          [currentDateGroupClass(order, index)]: isCurrentDateEntry(order),
+        }"
+        :data-current-date-start="isFirstCurrentDateEntry(order, index) || null"
         role="row"
         @click="$emit('select', order)"
       >
@@ -146,23 +151,20 @@
           <small>#{{ order.auftragNr }}</small>
         </span>
         <span role="cell">{{ order.kundeData?.kundName || order.kundenName || "–" }}</span>
-        <span role="cell">{{ order.eventOrt || order.eventLocation || "–" }}</span>
+        <span role="cell">{{ order.eventLocation || order.eventOrt || "–" }}</span>
         <span role="cell">
           <span
-            class="status-pill"
-            :class="statusClass(order)"
-          >
-            {{ statusText(order.auftStatus) }}
-          </span>
+            class="staffing-pill"
+            :class="staffingBedarfClass(order)"
+          >{{ staffingText(order) }}</span>
         </span>
-        <span role="cell">{{ staffingText(order) }}</span>
       </button>
     </div>
   </section>
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import CalendarControls from "@/components/ui-elements/CalendarControls.vue";
 import FilterGroup from "@/components/FilterGroup.vue";
 import SearchBar from "@/components/SearchBar.vue";
@@ -218,12 +220,12 @@ const sortColumns = [
   { key: "date", label: "Zeitraum" },
   { key: "order", label: "Auftrag" },
   { key: "customer", label: "Kunde" },
-  { key: "location", label: "Ort" },
-  { key: "status", label: "Status" },
+  { key: "location", label: "Einsatzort" },
   { key: "staffing", label: "Besetzung" },
 ];
 const sortKey = ref("date");
 const sortDirection = ref("asc");
+const orderListTable = ref(null);
 const referenceDateModel = computed({
   get: () => props.referenceDate,
   set: (value) => emit("update:referenceDate", value),
@@ -259,7 +261,7 @@ function sortValue(order, key) {
   if (key === "date") return new Date(order.vonDatum || 0).getTime();
   if (key === "order") return Number(order.auftragNr || 0);
   if (key === "customer") return order.kundeData?.kundName || order.kundenName || "";
-  if (key === "location") return order.eventOrt || order.eventLocation || "";
+  if (key === "location") return order.eventLocation || order.eventOrt || "";
   if (key === "status") return Number(order.auftStatus || 0);
   if (key === "staffing") return staffingSummary(order).assigned;
   return "";
@@ -280,6 +282,27 @@ function hasDateRange(order) {
   return new Date(order.vonDatum).toDateString() !== new Date(order.bisDatum).toDateString();
 }
 
+function isCurrentDateEntry(order) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const start = new Date(order.vonDatum || 0);
+  const end = new Date(order.bisDatum || order.vonDatum || 0);
+  return start < tomorrow && end >= today;
+}
+
+function currentDateGroupClass(order, index) {
+  if (!isCurrentDateEntry(order)) return "";
+  const previousIsCurrent = index > 0 && isCurrentDateEntry(sortedOrders.value[index - 1]);
+  const nextIsCurrent = index < sortedOrders.value.length - 1
+    && isCurrentDateEntry(sortedOrders.value[index + 1]);
+  if (!previousIsCurrent && !nextIsCurrent) return "is-current-single";
+  if (!previousIsCurrent) return "is-current-first";
+  if (!nextIsCurrent) return "is-current-last";
+  return "is-current-middle";
+}
+
 function staffingSummary(order) {
   if (Array.isArray(order.schichten) && order.schichten.length) {
     const assigned = order.schichten.reduce((sum, shift) => sum + (Number(shift.besetzt) || 0), 0);
@@ -298,6 +321,52 @@ function staffingText(order) {
   if (staffing.assigned == null) return "–";
   return `${staffing.assigned} / ${staffing.required ?? "–"}`;
 }
+
+function staffingBedarfClass(order) {
+  const { assigned, required } = staffingSummary(order);
+  if (required == null || !required) return "bedarf-none";
+  if (!assigned) return "bedarf-all-empty";
+  if (assigned < required) return assigned === 1 ? "bedarf-some-empty" : "bedarf-underbooked";
+  if (assigned === required) return "bedarf-full";
+  return "bedarf-overbooked";
+}
+
+function scrollToCurrentPeriod() {
+  if (sortKey.value !== "date" || sortDirection.value !== "asc") return;
+  if (!orderListTable.value) return;
+  const currentRow = orderListTable.value.querySelector('[data-current-date-start="true"]');
+  const header = orderListTable.value.querySelector(".order-list-head");
+  if (currentRow) {
+    const targetScrollTop = Math.max(
+      0,
+      currentRow.offsetTop - orderListTable.value.offsetTop - (header?.offsetHeight || 0)
+    );
+    orderListTable.value.style.paddingBottom = "0px";
+    const availableScroll = orderListTable.value.scrollHeight - orderListTable.value.clientHeight;
+    orderListTable.value.style.paddingBottom = `${Math.max(0, targetScrollTop - availableScroll)}px`;
+    orderListTable.value.scrollTop = targetScrollTop;
+  }
+}
+
+function isSameCalendarDay(value, date) {
+  const entryDate = new Date(value || 0);
+  return !Number.isNaN(entryDate.getTime())
+    && entryDate.getFullYear() === date.getFullYear()
+    && entryDate.getMonth() === date.getMonth()
+    && entryDate.getDate() === date.getDate();
+}
+
+function isFirstCurrentDateEntry(order, index) {
+  return isSameCalendarDay(order.vonDatum, new Date())
+    && (index === 0 || !isSameCalendarDay(sortedOrders.value[index - 1].vonDatum, new Date()));
+}
+
+function queueScrollToCurrentPeriod() {
+  nextTick(scrollToCurrentPeriod);
+}
+
+onMounted(queueScrollToCurrentPeriod);
+watch(sortedOrders, queueScrollToCurrentPeriod);
 </script>
 
 <style scoped lang="scss">
@@ -351,7 +420,7 @@ function staffingText(order) {
 .order-list-head,
 .order-list-row {
   display: grid;
-  grid-template-columns: minmax(130px, .8fr) minmax(190px, 1.4fr) minmax(160px, 1.2fr) minmax(130px, 1fr) minmax(105px, .7fr) minmax(85px, .55fr);
+  grid-template-columns: minmax(130px, .8fr) minmax(190px, 1.4fr) minmax(160px, 1.2fr) minmax(130px, 1fr) minmax(85px, .55fr);
   align-items: center;
   gap: 14px;
   padding: 11px 14px;
@@ -369,6 +438,20 @@ function staffingText(order) {
 .order-list-row:hover,
 .order-list-row:focus-visible { background: color-mix(in srgb, var(--primary) 7%, transparent); outline: none; }
 .order-list-row.is-selected { background: color-mix(in srgb, var(--primary) 12%, transparent); box-shadow: inset 3px 0 var(--primary); }
+.order-list-row.is-current-single,
+.order-list-row.is-current-first,
+.order-list-row.is-current-middle,
+.order-list-row.is-current-last { position: relative; z-index: 1; box-shadow: inset 1px 0 var(--primary), inset -1px 0 var(--primary); }
+.order-list-row.is-current-single { box-shadow: inset 1px 0 var(--primary), inset -1px 0 var(--primary), inset 0 1px var(--primary), inset 0 -1px var(--primary); }
+.order-list-row.is-current-first { box-shadow: inset 1px 0 var(--primary), inset -1px 0 var(--primary), inset 0 1px var(--primary); }
+.order-list-row.is-current-last { box-shadow: inset 1px 0 var(--primary), inset -1px 0 var(--primary), inset 0 -1px var(--primary); }
+.order-list-row.is-current-single.is-selected,
+.order-list-row.is-current-first.is-selected,
+.order-list-row.is-current-middle.is-selected,
+.order-list-row.is-current-last.is-selected { box-shadow: inset 3px 0 var(--primary), inset -1px 0 var(--primary); }
+.order-list-row.is-current-single.is-selected { box-shadow: inset 3px 0 var(--primary), inset -1px 0 var(--primary), inset 0 1px var(--primary), inset 0 -1px var(--primary); }
+.order-list-row.is-current-first.is-selected { box-shadow: inset 3px 0 var(--primary), inset -1px 0 var(--primary), inset 0 1px var(--primary); }
+.order-list-row.is-current-last.is-selected { box-shadow: inset 3px 0 var(--primary), inset -1px 0 var(--primary), inset 0 -1px var(--primary); }
 .order-list-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .date-cell,
 .order-cell { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
@@ -379,15 +462,20 @@ function staffingText(order) {
 .status-pill.status-draft { background: color-mix(in srgb, #f59e0b 16%, transparent); color: #b45309; }
 .status-pill.status-confirmed { background: color-mix(in srgb, #10b981 16%, transparent); color: #047857; }
 .status-pill.status-completed { background: color-mix(in srgb, #3b82f6 16%, transparent); color: #1d4ed8; }
+.staffing-pill { display: inline-flex; min-height: 18px; align-items: center; padding: 1px 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--tile-bg); color: var(--text); font-weight: 600; }
+.staffing-pill.bedarf-none { background: color-mix(in srgb, var(--muted) 10%, var(--tile-bg)); }
+.staffing-pill.bedarf-all-empty { border-color: #ef4444; background: color-mix(in srgb, #ef4444 13%, var(--tile-bg)); }
+.staffing-pill.bedarf-some-empty { border-color: #f97316; background: color-mix(in srgb, #f97316 13%, var(--tile-bg)); }
+.staffing-pill.bedarf-underbooked { border-color: #eab308; background: color-mix(in srgb, #eab308 13%, var(--tile-bg)); }
+.staffing-pill.bedarf-full { border-color: #22c55e; background: color-mix(in srgb, #22c55e 13%, var(--tile-bg)); }
+.staffing-pill.bedarf-overbooked { border-color: #15803d; background: color-mix(in srgb, #15803d 13%, var(--tile-bg)); }
 .list-state { padding: 48px 20px; color: var(--muted); text-align: center; }
 
 @media (max-width: 900px) {
   .order-list-head { display: none; }
   .order-list-row { grid-template-columns: 1fr auto; gap: 8px 16px; padding: 14px; }
   .order-list-row > span { grid-column: 1; }
-  .order-list-row > span:nth-child(5),
-  .order-list-row > span:nth-child(6) { grid-column: 2; grid-row: 1; justify-self: end; }
-  .order-list-row > span:nth-child(6) { grid-row: 2; color: var(--muted); font-size: .78rem; }
+  .order-list-row > span:nth-child(5) { grid-column: 2; grid-row: 1; justify-self: end; }
 }
 
 @media (max-width: 768px) {

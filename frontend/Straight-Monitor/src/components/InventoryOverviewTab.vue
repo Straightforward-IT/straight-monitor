@@ -89,11 +89,11 @@
                 :title="`${location.name}: ${location.anzahl}`"
               >{{ location.shortName || location.name }} {{ location.anzahl }}</span>
             </span>
-            <button type="button" class="item-card__edit" title="Artikel bearbeiten" @click.stop="openItemEdit(item)">
-              <font-awesome-icon :icon="['fas', 'pen']" />
-            </button>
             <button type="button" class="item-card__edit" title="Bestandsverlauf als Graph öffnen" @click.stop="openItemHistory(item)">
               <font-awesome-icon :icon="['fas', 'chart-line']" />
+            </button>
+            <button type="button" class="item-card__edit" title="Artikel bearbeiten" @click.stop="openItemEdit(item)">
+              <font-awesome-icon :icon="['fas', 'pen']" />
             </button>
             <button v-if="isAdmin" type="button" class="item-card__edit item-card__delete" title="Artikel löschen" @click.stop="deleteItem(item)">
               <font-awesome-icon :icon="['fas', 'trash']" />
