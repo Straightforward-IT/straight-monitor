@@ -151,6 +151,53 @@ onUnmounted(() => {
     flex-shrink: 0;
     white-space: nowrap;
   }
+
+  :deep(.toolbar-btn) {
+    min-height: 28px;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--tile-bg);
+    color: var(--primary);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  :deep(.toolbar-btn--primary) {
+    border-color: var(--primary);
+    background: var(--tile-bg);
+    color: var(--primary);
+  }
+
+  :deep(.toolbar-btn--secondary),
+  :deep(.toolbar-btn--menu) {
+    border-color: var(--border);
+    background: var(--tile-bg);
+    color: var(--text);
+  }
+
+  :deep(.toolbar-btn:hover:not(:disabled)),
+  :deep(.toolbar-btn:focus-visible) {
+    border-color: var(--primary);
+    background: var(--tile-bg);
+    color: var(--primary);
+  }
+
+  :deep(.toolbar-btn--menu:hover:not(:disabled)),
+  :deep(.toolbar-btn--menu:focus-visible) {
+    background: var(--hover);
+    color: var(--text);
+  }
+
+  :deep(.toolbar-btn:disabled) {
+    border-color: var(--border);
+    background: var(--hover);
+    color: var(--muted);
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
 }
 
 .toolbar-main-content {

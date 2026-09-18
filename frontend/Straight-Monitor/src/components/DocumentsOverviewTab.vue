@@ -63,51 +63,19 @@
             </button>
           </div>
           <template #bottom-actions>
-            <div v-if="!loading.documents && filteredDocumentsSorted.length > 0" class="toolbar-page-controls">
-              <SortMenu
-                v-model="sortKey"
-                v-model:ascending="sortAscending"
-                :options="documentSortOptions"
-              />
-              <span class="toolbar-page-controls__summary">
-                {{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}
-              </span>
-              <select
-                v-model="itemsPerPage"
-                class="toolbar-page-controls__select"
-                aria-label="Einträge pro Seite"
-                @change="setItemsPerPage(Number($event.target.value))"
-              >
-                <option v-for="size in pageOptions" :key="size" :value="size">
-                  {{ size }}
-                </option>
-              </select>
-              <button
-                v-if="totalPages > 1"
-                class="toolbar-page-controls__button"
-                type="button"
-                title="Vorherige Seite"
-                aria-label="Vorherige Seite"
-                :disabled="currentPage === 1"
-                @click="prevPage"
-              >
-                <font-awesome-icon icon="fa-solid fa-chevron-left" />
-              </button>
-              <span v-if="totalPages > 1" class="toolbar-page-controls__page">
-                {{ currentPage }} / {{ totalPages }}
-              </span>
-              <button
-                v-if="totalPages > 1"
-                class="toolbar-page-controls__button"
-                type="button"
-                title="Nächste Seite"
-                aria-label="Nächste Seite"
-                :disabled="currentPage === totalPages"
-                @click="nextPage"
-              >
-                <font-awesome-icon icon="fa-solid fa-chevron-right" />
-              </button>
-            </div>
+            <ToolbarPageControls
+              v-if="!loading.documents"
+              :page="currentPage"
+              :items-per-page="itemsPerPage"
+              :total-items="filteredDocumentsSorted.length"
+              :page-options="pageOptions"
+              @update:page="setPage"
+              @update:items-per-page="setItemsPerPage"
+            >
+              <template #sort>
+                <SortMenu v-model="sortKey" v-model:ascending="sortAscending" :options="documentSortOptions" />
+              </template>
+            </ToolbarPageControls>
           </template>
         </Toolbar>
       </div>
@@ -255,6 +223,7 @@ import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import SortMenu from '@/components/ui-elements/SortMenu.vue';
+import ToolbarPageControls from '@/components/ui-elements/ToolbarPageControls.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
@@ -326,7 +295,7 @@ library.add(
 
 export default {
   name: "DocumentsOverviewTab",
-  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, EmployeeCardModal, SearchBar, Toolbar, SortMenu, ToolbarFilter, FilterGroup, FilterChip, FilterDivider, ContextMenu },
+  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, EmployeeCardModal, SearchBar, Toolbar, SortMenu, ToolbarPageControls, ToolbarFilter, FilterGroup, FilterChip, FilterDivider, ContextMenu },
 
   setup() {
     const dataCache = useDataCache();

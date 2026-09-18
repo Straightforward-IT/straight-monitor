@@ -39,41 +39,7 @@
           </ToolbarGroup>
         </template>
         <template #bottom-actions>
-          <div v-if="filteredVorgaenge.length > 0" class="toolbar-page-controls">
-            <span class="toolbar-page-controls__summary">
-              {{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}
-            </span>
-            <select
-              v-model="itemsPerPage"
-              class="toolbar-page-controls__select"
-              aria-label="Signaturen pro Seite"
-            >
-              <option v-for="size in pageOptions" :key="size" :value="size">{{ size }}</option>
-            </select>
-            <button
-              v-if="totalPages > 1"
-              class="toolbar-page-controls__button"
-              type="button"
-              title="Vorherige Seite"
-              aria-label="Vorherige Seite"
-              :disabled="currentPage === 1"
-              @click="prevPage"
-            >
-              <font-awesome-icon :icon="['fas', 'chevron-left']" />
-            </button>
-            <span v-if="totalPages > 1" class="toolbar-page-controls__page">{{ currentPage }} / {{ totalPages }}</span>
-            <button
-              v-if="totalPages > 1"
-              class="toolbar-page-controls__button"
-              type="button"
-              title="Nächste Seite"
-              aria-label="Nächste Seite"
-              :disabled="currentPage === totalPages"
-              @click="nextPage"
-            >
-              <font-awesome-icon :icon="['fas', 'chevron-right']" />
-            </button>
-          </div>
+          <ToolbarPageControls v-model:page="currentPage" v-model:items-per-page="itemsPerPage" :total-items="filteredVorgaenge.length" :page-options="pageOptions" items-per-page-label="Signaturen pro Seite" />
         </template>
       </Toolbar>
 
@@ -281,6 +247,7 @@ import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import LocationFilter from '@/components/ui-elements/LocationFilter.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import ToolbarPageControls from '@/components/ui-elements/ToolbarPageControls.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';

@@ -18,12 +18,12 @@
             </div>
 
             <!-- Weekday labels -->
-            <div v-if="mode === 'date'" class="dp-weekdays">
+            <div v-if="isDayMode || mode === 'week'" class="dp-weekdays">
               <span v-for="d in WEEKDAYS" :key="d">{{ d }}</span>
             </div>
 
             <!-- Day cells -->
-            <div v-if="mode === 'date'" class="dp-cells">
+            <div v-if="isDayMode || mode === 'week'" class="dp-cells">
               <button
                 v-for="cell in cells"
                 :key="cell.key"
@@ -32,12 +32,13 @@
                   'dp-cell--other': !cell.current,
                   'dp-cell--today': cell.isToday,
                   'dp-cell--selected': cell.isSelected,
+                  'dp-cell--week-selected': cell.isWeekSelected,
                 }"
-                @click="selectDate(cell.date)"
+                @click="selectValue(cell.date)"
               >{{ cell.day }}</button>
             </div>
 
-            <div v-else class="dp-months">
+            <div v-else-if="mode === 'month'" class="dp-months">
               <button
                 v-for="monthOption in monthOptions"
                 :key="monthOption.value"
@@ -47,9 +48,19 @@
               >{{ monthOption.label }}</button>
             </div>
 
+            <div v-else class="dp-years">
+              <button
+                v-for="yearOption in yearOptions"
+                :key="yearOption.value"
+                class="dp-year"
+                :class="{ 'dp-year--current': yearOption.current, 'dp-year--selected': yearOption.selected }"
+                @click="selectYear(yearOption.value)"
+              >{{ yearOption.value }}</button>
+            </div>
+
             <!-- Footer -->
-            <div v-if="mode === 'date'" class="dp-footer">
-              <button class="dp-today-btn" @click="selectToday">Heute</button>
+            <div v-if="isDayMode || mode === 'week'" class="dp-footer">
+              <button class="dp-today-btn" @click="selectToday">{{ mode === 'week' ? 'Aktuelle Woche' : 'Heute' }}</button>
             </div>
           </div>
         </div>
@@ -78,6 +89,7 @@ const popupStyle = ref({});
 
 // The month currently displayed in the picker
 const viewDate = ref(props.modelValue ? new Date(props.modelValue) : new Date());
+const isDayMode = computed(() => props.mode === 'date' || props.mode === 'day');
 
 watch(() => props.modelValue, (val) => {
   if (val) viewDate.value = new Date(val);
@@ -86,13 +98,29 @@ watch(() => props.modelValue, (val) => {
 const monthLabel = computed(() =>
   `${MONTHS[viewDate.value.getMonth()]} ${viewDate.value.getFullYear()}`
 );
-const viewLabel = computed(() => props.mode === 'month' ? String(viewDate.value.getFullYear()) : monthLabel.value);
+const yearRangeStart = computed(() => Math.floor(viewDate.value.getFullYear() / 12) * 12);
+const viewLabel = computed(() => {
+  if (props.mode === 'month') return String(viewDate.value.getFullYear());
+  if (props.mode === 'year') return `${yearRangeStart.value}-${yearRangeStart.value + 11}`;
+  return monthLabel.value;
+});
 
 function isSameDay(a, b) {
   if (!a || !b) return false;
   return a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
+}
+
+function weekStart(date) {
+  const result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const offset = result.getDay() === 0 ? 6 : result.getDay() - 1;
+  result.setDate(result.getDate() - offset);
+  return result;
+}
+
+function isSameWeek(a, b) {
+  return !!b && isSameDay(weekStart(a), weekStart(b));
 }
 
 const today = new Date();
@@ -125,6 +153,7 @@ const cells = computed(() => {
       current: true,
       isToday: isSameDay(date, today),
       isSelected: isSameDay(date, props.modelValue),
+      isWeekSelected: props.mode === 'week' && isSameWeek(date, props.modelValue),
     });
   }
 
@@ -144,6 +173,10 @@ const monthOptions = computed(() => MONTHS.map((label, value) => ({
   current: today.getFullYear() === viewDate.value.getFullYear() && today.getMonth() === value,
   selected: props.modelValue?.getFullYear() === viewDate.value.getFullYear() && props.modelValue?.getMonth() === value,
 })));
+const yearOptions = computed(() => Array.from({ length: 12 }, (_, index) => {
+  const value = yearRangeStart.value + index;
+  return { value, current: today.getFullYear() === value, selected: props.modelValue?.getFullYear() === value };
+}));
 
 function prevMonth() {
   viewDate.value = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() - 1, 1);
@@ -158,6 +191,10 @@ function previousView() {
     viewDate.value = new Date(viewDate.value.getFullYear() - 1, 0, 1);
     return;
   }
+  if (props.mode === 'year') {
+    viewDate.value = new Date(viewDate.value.getFullYear() - 12, 0, 1);
+    return;
+  }
   prevMonth();
 }
 
@@ -166,20 +203,29 @@ function nextView() {
     viewDate.value = new Date(viewDate.value.getFullYear() + 1, 0, 1);
     return;
   }
+  if (props.mode === 'year') {
+    viewDate.value = new Date(viewDate.value.getFullYear() + 12, 0, 1);
+    return;
+  }
   nextMonth();
 }
 
-function selectDate(date) {
-  emit('update:modelValue', new Date(date));
+function selectValue(date) {
+  emit('update:modelValue', props.mode === 'week' ? weekStart(date) : new Date(date));
   close();
 }
 
 function selectToday() {
-  selectDate(new Date());
+  selectValue(new Date());
 }
 
 function selectMonth(month) {
   emit('update:modelValue', new Date(viewDate.value.getFullYear(), month, 1));
+  close();
+}
+
+function selectYear(year) {
+  emit('update:modelValue', new Date(year, 0, 1));
   close();
 }
 
@@ -326,7 +372,37 @@ function computePosition() {
   padding: 10px;
 }
 
+.dp-years {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 10px;
+}
+
 .dp-month {
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text, #333);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--primary, #eeaf67);
+    color: var(--primary, #eeaf67);
+  }
+
+  &--current { color: var(--primary, #eeaf67); }
+
+  &--selected {
+    background: var(--primary, #eeaf67);
+    color: #fff;
+  }
+}
+
+.dp-year {
   height: 38px;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -382,6 +458,11 @@ function computePosition() {
     background: var(--primary, #eeaf67) !important;
     color: #fff !important;
     font-weight: 700;
+  }
+
+  &--week-selected {
+    background: color-mix(in oklab, var(--primary, #eeaf67) 18%, transparent);
+    color: var(--primary, #eeaf67);
   }
 }
 

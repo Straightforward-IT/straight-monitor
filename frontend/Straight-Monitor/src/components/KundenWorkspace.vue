@@ -20,46 +20,11 @@
           </ToolbarFilter>
           <SearchBar v-model="searchQuery" class="toolbar-search" placeholder="Kunden suchen…" aria-label="Kunden suchen" />
           <template #bottom-actions>
-            <div v-if="filteredKunden.length > 0" class="toolbar-page-controls">
-              <SortMenu
-                v-model="filters.sortBy"
-                v-model:ascending="sortAscending"
-                :options="customerSortOptions"
-              />
-              <span class="toolbar-page-controls__summary">
-                {{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}
-              </span>
-              <select
-                v-model="itemsPerPage"
-                class="toolbar-page-controls__select"
-                aria-label="Kunden pro Seite"
-              >
-                <option v-for="size in pageOptions" :key="size" :value="size">{{ size }}</option>
-              </select>
-              <button
-                v-if="totalPages > 1"
-                class="toolbar-page-controls__button"
-                type="button"
-                title="Vorherige Seite"
-                aria-label="Vorherige Seite"
-                :disabled="currentPage === 1"
-                @click="prevPage"
-              >
-                <font-awesome-icon :icon="['fas', 'chevron-left']" />
-              </button>
-              <span v-if="totalPages > 1" class="toolbar-page-controls__page">{{ currentPage }} / {{ totalPages }}</span>
-              <button
-                v-if="totalPages > 1"
-                class="toolbar-page-controls__button"
-                type="button"
-                title="Nächste Seite"
-                aria-label="Nächste Seite"
-                :disabled="currentPage === totalPages"
-                @click="nextPage"
-              >
-                <font-awesome-icon :icon="['fas', 'chevron-right']" />
-              </button>
-            </div>
+            <ToolbarPageControls v-model:page="currentPage" v-model:items-per-page="itemsPerPage" :total-items="filteredKunden.length" :page-options="pageOptions" items-per-page-label="Kunden pro Seite">
+              <template #sort>
+                <SortMenu v-model="filters.sortBy" v-model:ascending="sortAscending" :options="customerSortOptions" />
+              </template>
+            </ToolbarPageControls>
           </template>
         </Toolbar>
         
@@ -201,43 +166,7 @@
           </ToolbarGroup>
           </template>
           <template #bottom-actions>
-            <div v-if="filteredContacts.length > 0" class="toolbar-page-controls">
-              <span class="toolbar-page-controls__summary">
-                {{ contactPaginationInfo.start }}-{{ contactPaginationInfo.end }} von {{ contactPaginationInfo.total }}
-              </span>
-              <select
-                v-model="contactsPerPage"
-                class="toolbar-page-controls__select"
-                aria-label="Kontakte pro Seite"
-              >
-                <option v-for="size in pageOptions" :key="size" :value="size">{{ size }}</option>
-              </select>
-              <button
-                v-if="contactTotalPages > 1"
-                class="toolbar-page-controls__button"
-                type="button"
-                title="Vorherige Seite"
-                aria-label="Vorherige Seite"
-                :disabled="contactCurrentPage === 1"
-                @click="prevContactPage"
-              >
-                <font-awesome-icon :icon="['fas', 'chevron-left']" />
-              </button>
-              <span v-if="contactTotalPages > 1" class="toolbar-page-controls__page">
-                {{ contactCurrentPage }} / {{ contactTotalPages }}
-              </span>
-              <button
-                v-if="contactTotalPages > 1"
-                class="toolbar-page-controls__button"
-                type="button"
-                title="Nächste Seite"
-                aria-label="Nächste Seite"
-                :disabled="contactCurrentPage === contactTotalPages"
-                @click="nextContactPage"
-              >
-                <font-awesome-icon :icon="['fas', 'chevron-right']" />
-              </button>
-            </div>
+            <ToolbarPageControls v-model:page="contactCurrentPage" v-model:items-per-page="contactsPerPage" :total-items="filteredContacts.length" :page-options="pageOptions" items-per-page-label="Kontakte pro Seite" />
           </template>
         </Toolbar>
 
@@ -397,6 +326,7 @@ import SearchBar from './SearchBar.vue';
 import CustomerSearch from '@/components/ui-elements/Searchbars/CustomerSearch.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import SortMenu from '@/components/ui-elements/SortMenu.vue';
+import ToolbarPageControls from '@/components/ui-elements/ToolbarPageControls.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';

@@ -77,44 +77,7 @@
             {{ option.label }}
           </button>
         </div>
-        <div class="toolbar-date-controls">
-          <CustomTooltip :text="previousPeriodLabel">
-            <button
-              type="button"
-              class="toolbar-date-controls__nav"
-              :aria-label="previousPeriodLabel"
-              @click="shiftReferenceDate(-1)"
-            >
-              <font-awesome-icon :icon="['fas', 'chevron-left']" />
-            </button>
-          </CustomTooltip>
-          <DatePicker
-            v-model="referenceDateModel"
-            inline
-            :mode="datePickerMode"
-          >
-            <template #default="{ toggle }">
-              <button
-                type="button"
-                class="toolbar-date-controls__picker"
-                :aria-label="`${periodUnitLabel} wählen`"
-                @click="toggle"
-              >
-                {{ periodDateLabel }}
-              </button>
-            </template>
-          </DatePicker>
-          <CustomTooltip :text="nextPeriodLabel">
-            <button
-              type="button"
-              class="toolbar-date-controls__nav"
-              :aria-label="nextPeriodLabel"
-              @click="shiftReferenceDate(1)"
-            >
-              <font-awesome-icon :icon="['fas', 'chevron-right']" />
-            </button>
-          </CustomTooltip>
-        </div>
+        <CalendarControls v-model="referenceDateModel" :type="period" />
       </template>
     </Toolbar>
 
@@ -200,8 +163,7 @@
 
 <script setup>
 import { computed, ref } from "vue";
-import CustomTooltip from "@/components/CustomTooltip.vue";
-import DatePicker from "@/components/ui-elements/DatePicker.vue";
+import CalendarControls from "@/components/ui-elements/CalendarControls.vue";
 import FilterGroup from "@/components/FilterGroup.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import FilterChip from "@/components/ui-elements/FilterChip.vue";
@@ -266,21 +228,6 @@ const referenceDateModel = computed({
   get: () => props.referenceDate,
   set: (value) => emit("update:referenceDate", value),
 });
-const datePickerMode = computed(() => props.period === "month" ? "month" : "date");
-const periodUnitLabel = computed(() => ({ day: "Tag", week: "Woche", month: "Monat" })[props.period]);
-const previousPeriodLabel = computed(() => props.period === "week" ? "Vorherige Woche" : `Vorheriger ${periodUnitLabel.value}`);
-const nextPeriodLabel = computed(() => props.period === "week" ? "Nächste Woche" : `Nächster ${periodUnitLabel.value}`);
-const periodDateLabel = computed(() => {
-  const range = getPeriodRange(props.period, props.referenceDate);
-  if (props.period === "month") {
-    return range.start.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
-  }
-  if (props.period === "week") {
-    const format = (date) => date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
-    return `${format(range.start)} – ${format(range.end)}`;
-  }
-  return range.start.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
-});
 const periodOrders = computed(() => {
   const range = getPeriodRange(props.period, props.referenceDate);
   return props.orders.filter((order) => orderOverlapsRange(order, range));
@@ -301,17 +248,6 @@ function toggleSort(key) {
   }
   sortKey.value = key;
   sortDirection.value = "asc";
-}
-
-function shiftReferenceDate(offset) {
-  const date = new Date(props.referenceDate);
-  if (props.period === "month") {
-    date.setDate(1);
-    date.setMonth(date.getMonth() + offset);
-  } else {
-    date.setDate(date.getDate() + offset * (props.period === "week" ? 7 : 1));
-  }
-  emit("update:referenceDate", date);
 }
 
 function ariaSort(key) {
@@ -402,56 +338,6 @@ function staffingText(order) {
   background: color-mix(in srgb, var(--primary) 8%, var(--tile-bg));
   font-weight: 700;
 }
-.toolbar-date-controls {
-  position: absolute;
-  z-index: 5;
-  top: 100%;
-  right: 12px;
-  display: flex;
-  height: 24px;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-}
-.toolbar-date-controls__picker,
-.toolbar-date-controls__nav {
-  height: 24px;
-  box-sizing: border-box;
-  border: 1px solid var(--border);
-  border-radius: 0 0 5px 5px;
-  background: var(--tile-bg);
-  color: var(--text);
-  font: inherit;
-  font-size: .72rem;
-}
-.toolbar-date-controls__picker {
-  width: 190px;
-  padding: 0 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.toolbar-date-controls__nav {
-  display: inline-flex;
-  width: 28px;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--muted);
-  cursor: pointer;
-}
-.toolbar-date-controls__picker:hover,
-.toolbar-date-controls__nav:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-}
-.toolbar-date-controls__picker:focus-visible,
-.toolbar-date-controls__nav:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-.toolbar-date-controls :deep(.dp-layer--inline) { right: -32px; left: auto; }
 .order-list-table {
   max-height: calc(100dvh - var(--header-h, 56px) - 190px);
   min-height: 160px;
@@ -507,12 +393,10 @@ function staffingText(order) {
 @media (max-width: 768px) {
   .order-count { display: none; }
   .toolbar-period-controls { left: 6px; gap: 3px; }
-  .toolbar-date-controls { right: 6px; gap: 3px; }
-  .toolbar-date-controls__picker { width: 150px; }
 }
 
 @media (max-width: 420px) {
   .order-list-toolbar { margin-bottom: 53px; }
-  .toolbar-date-controls { top: calc(100% + 24px); }
+  :deep(.calendar-controls) { top: calc(100% + 24px); }
 }
 </style>

@@ -5,10 +5,11 @@
       class="sort-menu__trigger"
       :aria-expanded="open"
       aria-haspopup="menu"
+      :aria-label="`${activeLabel}, ${ascending ? 'aufsteigend' : 'absteigend'} sortiert`"
       @click.stop="toggleMenu"
     >
-      <font-awesome-icon icon="fa-solid fa-arrow-up-wide-short" />
-      {{ label }}
+      <font-awesome-icon :icon="ascending ? 'fa-solid fa-arrow-up-wide-short' : 'fa-solid fa-arrow-down-wide-short'" />
+      {{ activeLabel }}
     </button>
 
     <ContextMenu
@@ -40,6 +41,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'update:ascending']);
 const open = ref(false);
 const position = ref({ x: 0, y: 0 });
+const activeLabel = computed(() => props.options.find((option) => option.value === props.modelValue)?.label || props.label);
 
 const menuItems = computed(() => [
   ...props.options.map((option) => ({

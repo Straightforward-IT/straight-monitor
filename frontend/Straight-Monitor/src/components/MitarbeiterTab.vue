@@ -93,54 +93,19 @@
             </div>
 
             <template #bottom-actions>
-              <div
-                v-if="!loading.mitarbeiter && filteredMitarbeitersSorted.length > 0"
-                class="toolbar-page-controls"
+              <ToolbarPageControls
+                v-if="!loading.mitarbeiter"
+                :page="currentPage"
+                :items-per-page="itemsPerPage"
+                :total-items="filteredMitarbeitersSorted.length"
+                :page-options="pageOptions"
+                @update:page="setPage"
+                @update:items-per-page="setItemsPerPage"
               >
-                <SortMenu
-                  v-model="mitarbeitersSortBy"
-                  v-model:ascending="mitarbeitersIsAscending"
-                  :options="mitarbeiterSortOptions"
-                />
-                <span class="toolbar-page-controls__summary">
-                  {{ paginationInfo.start }}-{{ paginationInfo.end }} von {{ paginationInfo.total }}
-                </span>
-                <select
-                  v-model="itemsPerPage"
-                  class="toolbar-page-controls__select"
-                  aria-label="Einträge pro Seite"
-                  @change="setItemsPerPage(Number($event.target.value))"
-                >
-                  <option v-for="size in pageOptions" :key="size" :value="size">
-                    {{ size }}
-                  </option>
-                </select>
-                <button
-                  v-if="totalPages > 1"
-                  class="toolbar-page-controls__button"
-                  type="button"
-                  title="Vorherige Seite"
-                  aria-label="Vorherige Seite"
-                  :disabled="currentPage === 1"
-                  @click="prevPage"
-                >
-                  <font-awesome-icon icon="fa-solid fa-chevron-left" />
-                </button>
-                <span v-if="totalPages > 1" class="toolbar-page-controls__page">
-                  {{ currentPage }} / {{ totalPages }}
-                </span>
-                <button
-                  v-if="totalPages > 1"
-                  class="toolbar-page-controls__button"
-                  type="button"
-                  title="Nächste Seite"
-                  aria-label="Nächste Seite"
-                  :disabled="currentPage === totalPages"
-                  @click="nextPage"
-                >
-                  <font-awesome-icon icon="fa-solid fa-chevron-right" />
-                </button>
-              </div>
+                <template #sort>
+                  <SortMenu v-model="mitarbeitersSortBy" v-model:ascending="mitarbeitersIsAscending" :options="mitarbeiterSortOptions" />
+                </template>
+              </ToolbarPageControls>
             </template>
           </Toolbar>
         </div> <!-- end controls -->
@@ -478,6 +443,7 @@ import ImageCropModal from "@/components/ImageCropModal.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
 import SortMenu from "@/components/ui-elements/SortMenu.vue";
+import ToolbarPageControls from "@/components/ui-elements/ToolbarPageControls.vue";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
 
@@ -570,7 +536,7 @@ library.add(
 
 export default {
   name: "MitarbeiterTab",
-  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar, SortMenu },
+  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar, SortMenu, ToolbarPageControls },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {

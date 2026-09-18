@@ -89,56 +89,6 @@
                 aria-label="Aufträge suchen"
               />
             </div>
-            <button
-              v-if="!isMobile"
-              class="nav-btn nav-btn--icon"
-              @click="previousWeek"
-              title="Vorherige Woche"
-            >
-              <font-awesome-icon icon="fa-solid fa-chevron-left" />
-            </button>
-            <div v-if="!isMobile" class="current-range">
-              {{ formatDateRange(currentWeekStart, currentWeekEnd) }}
-            </div>
-            <button
-              v-if="!isMobile"
-              class="nav-btn nav-btn--icon"
-              @click="nextWeek"
-              title="Nächste Woche"
-            >
-              <font-awesome-icon icon="fa-solid fa-chevron-right" />
-            </button>
-            <button
-              v-if="!isMobile"
-              class="nav-btn today-btn"
-              @click="goToToday"
-            >
-              Heute
-            </button>
-            <DatePicker
-              v-if="!isMobile"
-              :model-value="currentWeekStart"
-              @update:model-value="setDateFromPicker"
-            >
-              <template #default="{ toggle }">
-                <button
-                  class="nav-btn calendar-btn"
-                  @click="toggle"
-                  title="Zu Woche springen (Datum wählen)"
-                >
-                  <font-awesome-icon icon="fa-solid fa-calendar" />
-                </button>
-              </template>
-            </DatePicker>
-            <div
-              v-if="dataStatus && !isMobile"
-              class="data-status-badge"
-              :title="'Stand der Daten: ' + formatDataStatus(dataStatus)"
-            >
-              <font-awesome-icon icon="fa-solid fa-clock" />
-              <span>{{ formatDataStatus(dataStatus) }}</span>
-            </div>
-
             <!-- Mobile day nav — lives inside the toolbar -->
             <template v-if="isMobile">
               <button
@@ -185,6 +135,18 @@
               </div>
             </template>
           </div>
+          <template #bottom-actions>
+            <RouterLink
+              v-if="dataStatus && !isMobile"
+              class="data-status-badge"
+              to="/daten-import"
+              :title="'Stand der Daten: ' + formatDataStatus(dataStatus)"
+            >
+              <font-awesome-icon icon="fa-solid fa-clock" />
+              <span>{{ formatDataStatus(dataStatus) }}</span>
+            </RouterLink>
+            <CalendarControls v-if="!isMobile" v-model="calendarWeekDate" type="week" />
+          </template>
         </Toolbar>
 
         <!-- Mobile View -->
@@ -2265,6 +2227,7 @@ import AuftragDetailsSidePanel from "@/components/orders/AuftragDetailsSidePanel
 import SearchBar from "@/components/SearchBar.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
 import ToolbarFilter from "@/components/ui-elements/ToolbarFilter.vue";
+import CalendarControls from "@/components/ui-elements/CalendarControls.vue";
 import DatePicker from "@/components/ui-elements/DatePicker.vue";
 import TlBadge from "@/components/ui-elements/TlBadge.vue";
 import ContextMenu from "@/components/ContextMenu.vue";
@@ -2307,6 +2270,7 @@ export default {
     DocusealForm,
     Toolbar,
     ToolbarFilter,
+    CalendarControls,
     DatePicker,
     TlBadge,
     ContextMenu,
@@ -2562,6 +2526,14 @@ export default {
       const end = new Date(this.currentWeekStart);
       end.setDate(end.getDate() + 6);
       return end;
+    },
+    calendarWeekDate: {
+      get() {
+        return this.currentWeekStart;
+      },
+      set(date) {
+        this.setDateFromPicker(date);
+      },
     },
     currentKW() {
       if (!this.currentWeekStart) return "";
@@ -5330,6 +5302,10 @@ export default {
 }
 
 .data-status-badge {
+  position: absolute;
+  top: 100%;
+  left: 12px;
+  z-index: 5;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -5341,6 +5317,14 @@ export default {
   border: 1px solid var(--border);
   white-space: nowrap;
   flex-shrink: 0;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--primary);
+    color: var(--text);
+    outline: none;
+  }
 
   svg {
     font-size: 0.65rem;
@@ -5460,6 +5444,7 @@ export default {
 .calendar-navigation {
   width: 100%;
   max-width: 100%;
+  margin-bottom: 29px;
   box-sizing: border-box;
   flex-wrap: nowrap;
   overflow: visible; // allow ToolbarFilter dropdowns to escape

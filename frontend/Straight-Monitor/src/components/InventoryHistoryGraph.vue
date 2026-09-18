@@ -139,7 +139,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { Line } from 'vue-chartjs';
 import {
   CategoryScale,
@@ -173,6 +174,7 @@ ChartJS.register(
 );
 
 const theme = useTheme();
+const route = useRoute();
 const catalogue = ref([]);
 const catalogLoading = ref(false);
 const catalogError = ref('');
@@ -427,6 +429,13 @@ async function loadHistory() {
     if (sequence === requestSequence) historyLoading.value = false;
   }
 }
+
+watch(() => route.query.itemId, (itemId) => {
+  const value = typeof itemId === 'string' ? itemId : '';
+  if (selectedItemId.value === value) return;
+  selectedItemId.value = value;
+  loadHistory();
+}, { immediate: true });
 
 onMounted(loadCatalogue);
 </script>

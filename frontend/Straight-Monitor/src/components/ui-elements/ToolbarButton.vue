@@ -9,7 +9,7 @@ defineProps({
   variant: {
     type: String,
     default: 'primary',
-    // 'primary' | 'secondary'
+    // 'primary' | 'secondary' | 'outlined' | 'menu'
   },
 });
 </script>
@@ -47,6 +47,13 @@ defineProps({
     color: var(--primary);
     border: 1px solid var(--primary);
     &:hover { background: color-mix(in oklab, var(--primary) 12%, transparent); }
+  }
+
+  &--menu {
+    background: var(--tile-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    &:hover { border-color: var(--primary); color: var(--text); }
   }
 }
 </style>

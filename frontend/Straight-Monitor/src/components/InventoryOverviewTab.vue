@@ -1,7 +1,7 @@
 <template>
   <section class="inventory-page inventory-overview-tab">
 
-    <Toolbar wrap>
+    <Toolbar wrap class="inventory-toolbar">
       <ToolbarFilter v-model="filterOpen" :active-count="activeFilterCount" @reset="resetFilters">
         <FilterGroup label="Standort">
           <FilterChip
@@ -27,23 +27,30 @@
 
       <SearchBar v-model="search" class="toolbar-search" placeholder="Bezeichnung, Variante, Größe oder Standort" />
 
-      <ToolbarLabel>{{ filteredStocks.length }} Kombinationen</ToolbarLabel>
-
       <template #actions>
       <ToolbarGroup push-right>
-        <ToolbarButton variant="secondary" title="Bestandsaktionen" @click="openActionMenu">
+        <ToolbarButton variant="menu" title="Bestandsaktionen" @click="openActionMenu">
           <font-awesome-icon :icon="['fas', 'ellipsis']" />
           Aktionen
         </ToolbarButton>
-        <ToolbarButton variant="secondary" title="Bestand aktualisieren" @click="refreshStocks">
-          <font-awesome-icon :icon="['fas', loading ? 'spinner' : 'rotate']" :spin="loading" />
-          Aktualisieren
-        </ToolbarButton>
-        <ToolbarButton @click="openItemCreate">
+        <ToolbarButton variant="secondary" @click="openItemCreate">
           <font-awesome-icon :icon="['fas', 'plus']" />
-          Artikel anlegen
+          Neu
         </ToolbarButton>
       </ToolbarGroup>
+      </template>
+      <template #bottom-actions>
+        <ToolbarPageControls
+          v-model:page="currentPage"
+          v-model:items-per-page="itemsPerPage"
+          :total-items="sortedItems.length"
+          :page-options="pageOptions"
+          items-per-page-label="Artikel pro Seite"
+        >
+          <template #sort>
+            <SortMenu v-model="sortBy" v-model:ascending="sortAscending" :options="sortOptions" />
+          </template>
+        </ToolbarPageControls>
       </template>
     </Toolbar>
 
@@ -52,7 +59,7 @@
     <p v-else-if="!filteredStocks.length" class="state">Keine Bestandskombinationen gefunden.</p>
 
     <div v-else class="inventory-list">
-      <article v-for="item in groupedItems" :key="item.id" class="item-card">
+      <article v-for="item in paginatedItems" :key="item.id" class="item-card">
         <header class="item-card__header" @click="toggleItemDetails(item)">
           <div class="item-card__summary">
             <button type="button" class="item-card__details-trigger" :aria-expanded="isItemExpanded(item.id)" @click.stop="toggleItemDetails(item)">
@@ -64,6 +71,7 @@
                   @toggle="toggleItemHighlight(item)"
                 />
                 <h3>{{ item.bezeichnung }}</h3>
+                <span v-if="!item.totalTarget" class="item-card__no-target">Kein Soll</span>
               </span>
               <span class="item-card__meta">{{ item.locations.length }} {{ item.locations.length === 1 ? 'Standort' : 'Standorte' }} · {{ item.stocks.length }} Kombinationen</span>
             </button>
@@ -83,6 +91,9 @@
             </span>
             <button type="button" class="item-card__edit" title="Artikel bearbeiten" @click.stop="openItemEdit(item)">
               <font-awesome-icon :icon="['fas', 'pen']" />
+            </button>
+            <button type="button" class="item-card__edit" title="Bestandsverlauf als Graph öffnen" @click.stop="openItemHistory(item)">
+              <font-awesome-icon :icon="['fas', 'chart-line']" />
             </button>
             <button v-if="isAdmin" type="button" class="item-card__edit item-card__delete" title="Artikel löschen" @click.stop="deleteItem(item)">
               <font-awesome-icon :icon="['fas', 'trash']" />
@@ -165,9 +176,10 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faTrash, faWarehouse } from '@fortawesome/free-solid-svg-icons';
+import { faArrowUpRightFromSquare, faChartLine, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faTrash, faWarehouse } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { useDataCache } from '@/stores/dataCache';
 import { useAuth } from '@/stores/auth';
@@ -177,8 +189,9 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
-import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
+import ToolbarPageControls from '@/components/ui-elements/ToolbarPageControls.vue';
 import SearchBar from '@/components/ui-elements/SearchBar.vue';
+import SortMenu from '@/components/ui-elements/SortMenu.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import InventoryItemModal from '@/components/InventoryItemModal.vue';
@@ -187,8 +200,9 @@ import ContextMenu from '@/components/ContextMenu.vue';
 import InventoryReportModal from '@/components/InventoryReportModal.vue';
 import FavoriteStarButton from '@/components/ui-elements/FavoriteStarButton.vue';
 
-library.add(faArrowUpRightFromSquare, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faTrash, faWarehouse);
+library.add(faArrowUpRightFromSquare, faChartLine, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faTrash, faWarehouse);
 
+const router = useRouter();
 const dataCache = useDataCache();
 const auth = useAuth();
 const inventoryFilters = useInventoryFilters();
@@ -208,8 +222,19 @@ const editingItem = ref(null);
 const expandedItemIds = ref([]);
 const selectedItemLocationIds = ref({});
 const reportMode = ref(null);
+const currentPage = ref(1);
+const itemsPerPage = ref(25);
+const pageOptions = [25, 50, 100];
+const sortBy = ref('name');
+const sortAscending = ref(true);
+const sortOptions = [
+  { value: 'name', label: 'Name' },
+  { value: 'count', label: 'Ist-Bestand' },
+  { value: 'utilization', label: '% Ist / Soll' },
+];
 const actionMenu = ref({ visible: false, x: 0, y: 0 });
 const actionMenuOptions = [
+  { label: 'Aktualisieren', action: 'refresh', icon: ['fas', 'rotate'] },
   { label: 'Bestandsupdate senden', action: 'email' },
   { label: 'Excel-Liste herunterladen', action: 'excel' },
 ];
@@ -273,8 +298,14 @@ const groupedItems = computed(() => {
       order: stock.groesseOrder,
     });
   }
-  return [...groups.values()].map((group) => ({
-    ...group,
+  return [...groups.values()].map((group) => {
+    const totalCount = group.stocks.reduce((total, stock) => total + Number(stock.anzahl || 0), 0);
+    const totalTarget = group.stocks.reduce((total, stock) => total + Number(stock.soll || 0), 0);
+    return {
+      ...group,
+      totalCount,
+      totalTarget,
+      utilization: totalTarget ? totalCount / totalTarget : 0,
     locations: [...group.locations.values()].sort((left, right) => left.name.localeCompare(right.name, 'de')),
     locationTotals: [...group.locations.values()]
       .map((location) => ({
@@ -286,10 +317,25 @@ const groupedItems = computed(() => {
       .sort((left, right) => left.name.localeCompare(right.name, 'de')),
     variations: [...group.variations.values()].sort((left, right) => left.order - right.order || left.label.localeCompare(right.label, 'de')),
     sizes: [...group.sizes.values()].sort((left, right) => left.order - right.order || left.label.localeCompare(right.label, 'de')),
-  })).sort((left, right) => {
-    if (isItemHighlighted(left) !== isItemHighlighted(right)) return isItemHighlighted(left) ? -1 : 1;
-    return left.bezeichnung.localeCompare(right.bezeichnung, 'de');
+    };
   });
+});
+
+const sortedItems = computed(() => [...groupedItems.value].sort((left, right) => {
+  if (sortBy.value === 'utilization' && !left.totalTarget !== !right.totalTarget) {
+    return left.totalTarget ? -1 : 1;
+  }
+  const values = {
+    name: () => left.bezeichnung.localeCompare(right.bezeichnung, 'de'),
+    count: () => left.totalCount - right.totalCount,
+    utilization: () => left.utilization - right.utilization,
+  };
+  const comparison = values[sortBy.value]();
+  return sortAscending.value ? comparison : -comparison;
+}));
+const paginatedItems = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  return sortedItems.value.slice(start, start + itemsPerPage.value);
 });
 
 function isItemHighlighted(item) {
@@ -325,6 +371,10 @@ function openActionMenu(event) {
 }
 
 function handleActionMenu(action) {
+  if (action === 'refresh') {
+    refreshStocks();
+    return;
+  }
   reportMode.value = action;
 }
 
@@ -361,6 +411,10 @@ function openItemEdit(item) {
     stocks: stocks.value.filter((stock) => String(stock.itemId || stock._id) === item.id),
   };
   showCreateDialog.value = true;
+}
+
+function openItemHistory(item) {
+  router.push({ path: '/verlauf', query: { tab: 'graph', itemId: item.id } });
 }
 
 async function deleteItem(item) {
@@ -429,10 +483,12 @@ async function handleStockUpdated() {
 
 let filterRefreshTimeout;
 watch([search, selectedLocationIds, stockState, variationOnly, sizeOnly], (_values, _previousValues, onCleanup) => {
+  currentPage.value = 1;
   clearTimeout(filterRefreshTimeout);
   filterRefreshTimeout = setTimeout(refreshStocks, 250);
   onCleanup(() => clearTimeout(filterRefreshTimeout));
 });
+watch([itemsPerPage, sortBy, sortAscending], () => { currentPage.value = 1; });
 
 onMounted(async () => {
   await refreshStocks();
@@ -444,6 +500,7 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .inventory-page { color: var(--text); }
+.inventory-toolbar { margin-bottom: 29px; overflow: visible; }
 .inventory-page :deep(.location-filter-chip) { border-color: color-mix(in srgb, var(--location-color) 45%, var(--border)); color: var(--location-color); }
 .inventory-page :deep(.location-filter-chip.active) { border-color: var(--location-color); color: var(--location-color); background: color-mix(in srgb, var(--location-color) 12%, transparent); }
 .state { margin: 24px 0; color: var(--muted); }
@@ -455,6 +512,7 @@ onMounted(async () => {
 .item-card__details-trigger { min-width: 0; display: grid; justify-items: start; gap: 5px; border: 0; padding: 0; background: transparent; color: var(--text); cursor: pointer; font: inherit; text-align: left; }
 .item-card__title-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .item-card h3 { font-size: 0.98rem; margin: 0; }
+.item-card__no-target { flex: 0 0 auto; padding: 2px 5px; border: 1px solid color-mix(in srgb, #d78a00 45%, var(--border)); border-radius: 4px; background: color-mix(in srgb, #d78a00 10%, var(--tile-bg)); color: #a96100; font-size: 0.65rem; font-weight: 600; white-space: nowrap; }
 .item-card__meta { color: var(--muted); font-size: 0.74rem; }
 .item-card__actions { display: flex; align-items: center; gap: 7px; }
 .item-card__totals { display: flex; align-items: center; justify-content: flex-end; gap: 4px; flex-wrap: wrap; }

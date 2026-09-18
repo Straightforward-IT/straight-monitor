@@ -62,38 +62,7 @@
             </ToolbarGroup>
           </div>
           <template #bottom-actions>
-            <div class="payroll-page__month-controls">
-              <CustomTooltip text="Vorheriger Monat">
-                <button
-                  type="button"
-                  class="payroll-page__month-nav"
-                  aria-label="Vorheriger Monat"
-                  @click="shiftMonth(-1)"
-                >
-                  <FontAwesomeIcon :icon="faChevronLeft" />
-                </button>
-              </CustomTooltip>
-              <DatePicker v-model="monthDate" inline mode="month">
-                <template #default="{ toggle }">
-                  <button
-                    type="button"
-                    class="payroll-page__month-picker"
-                    aria-label="Monat wählen"
-                    @click="toggle"
-                  >{{ monthLabel }}</button>
-                </template>
-              </DatePicker>
-              <CustomTooltip text="Nächster Monat">
-                <button
-                  type="button"
-                  class="payroll-page__month-nav"
-                  aria-label="Nächster Monat"
-                  @click="shiftMonth(1)"
-                >
-                  <FontAwesomeIcon :icon="faChevronRight" />
-                </button>
-              </CustomTooltip>
-            </div>
+            <CalendarControls v-model="monthDate" type="month" />
           </template>
         </Toolbar>
         <template v-if="!employeeId">
@@ -209,7 +178,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faBucket, faChevronLeft, faChevronRight, faCircleQuestion, faEllipsisVertical, faRotateRight } from '@fortawesome/free-solid-svg-icons';
+import { faBucket, faCircleQuestion, faEllipsisVertical, faRotateRight } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import PayrollHelpModal from '@/components/Modals/PayrollHelpModal.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
@@ -219,7 +188,7 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
-import DatePicker from '@/components/ui-elements/DatePicker.vue';
+import CalendarControls from '@/components/ui-elements/CalendarControls.vue';
 import MitarbeiterSearch from '@/components/ui-elements/MitarbeiterSearch.vue';
 import EmployeeCard from '@/components/EmployeeCard.vue';
 import TimeManagement from '@/components/ui-elements/TimeManagement.vue';
@@ -300,7 +269,6 @@ const monthDate = computed({
     replaceQuery({ month: `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}` });
   },
 });
-const monthLabel = computed(() => monthDate.value.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }));
 const selectedEmployeeId = computed({
   get: () => employeeId.value || null,
   set: value => {
@@ -321,11 +289,6 @@ function replaceQuery(patch) {
   const query = { ...route.query, ...patch };
   Object.keys(query).forEach(key => { if (query[key] == null || query[key] === '') delete query[key]; });
   router.replace({ query });
-}
-function shiftMonth(offset) {
-  const [year, monthNumber] = month.value.split('-').map(Number);
-  const target = new Date(year, monthNumber - 1 + offset, 1);
-  replaceQuery({ month: `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}` });
 }
 watch(employeeId, saveEmployeeId, { immediate: true });
 function openAssignmentCapture(entry) {
@@ -367,18 +330,7 @@ onBeforeUnmount(() => {
 .payroll-page__field--employee { width: min(360px, 100%); }
 .payroll-page__field--employee :deep(.ma-search) { min-width: 0; }
 .payroll-page__controls { display: flex; align-items: center; gap: 12px; margin-left: auto; }
-.payroll-page__controls :deep(.toolbar-btn) { min-height: 28px; height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--tile-bg); color: var(--primary); font: inherit; font-size: 0.78rem; font-weight: 600; }
-.payroll-page__controls :deep(.toolbar-btn--primary) { border-color: var(--primary); background: var(--tile-bg); color: var(--primary); }
-.payroll-page__controls :deep(.toolbar-btn:hover:not(:disabled)), .payroll-page__controls :deep(.toolbar-btn:focus-visible) { border-color: var(--primary); background: var(--tile-bg); color: var(--primary); }
-.payroll-page__controls :deep(.toolbar-btn:disabled) { border-color: var(--border); background: var(--hover); color: var(--muted); cursor: not-allowed; opacity: 0.55; }
 .payroll-page__field input { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
-.payroll-page__month-controls { position: absolute; top: 100%; right: 12px; z-index: 5; display: flex; align-items: center; gap: 4px; height: 24px; white-space: nowrap; }
-.payroll-page__month-picker, .payroll-page__month-nav { height: 24px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 0 0 5px 5px; color: var(--text); background: var(--tile-bg); font: inherit; font-size: 0.72rem; box-shadow: none; }
-.payroll-page__month-picker { width: 150px; padding: 0 6px; cursor: pointer; }
-.payroll-page__month-controls :deep(.dp-layer--inline) { right: -44px; left: auto; }
-.payroll-page__month-nav { display: inline-flex; align-items: center; justify-content: center; width: 28px; padding: 0; color: var(--muted); cursor: pointer; }
-.payroll-page__month-picker:hover, .payroll-page__month-nav:hover { color: var(--primary); border-color: var(--primary); }
-.payroll-page__month-nav:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .payroll-page__refresh { width: 28px; height: 28px; justify-content: center; padding: 0; }
 .payroll-page__body { display: flex; align-items: flex-start; min-width: 0; }
 .payroll-page__main { flex: 1; min-width: 0; container: payroll-main / inline-size; }
@@ -419,6 +371,5 @@ onBeforeUnmount(() => {
   .payroll-page__field--employee { width: 100%; }
   .payroll-page__controls { width: 100%; margin-left: 0; flex-wrap: wrap; }
   .payroll-page__field input { flex: 1; min-width: 0; }
-  .payroll-page__month-controls { right: 6px; gap: 3px; }
 }
 </style>
