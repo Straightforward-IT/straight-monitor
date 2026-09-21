@@ -1049,6 +1049,7 @@ function ensureLohnvorschussSignerSlots() {
       role: 'Zweite Partei',
       name: mitarbeiter ? `${mitarbeiter.vorname || ''} ${mitarbeiter.nachname || ''}`.trim() : '',
       email: mitarbeiter?.email || '',
+      mitarbeiterId: mitarbeiter?._id || null,
       embedded: false,
     },
   ];
@@ -1059,6 +1060,12 @@ function ensureLohnvorschussSignerSlots() {
   );
   form.value.submitters = slots.map((slot, index) => {
     const existing = byRole.get(slot.role) || (hasCurrentLohnvorschussRole ? {} : current[index]) || {};
+    if (slot.role === 'Zweite Partei') {
+      return {
+        ...slot,
+        embedded: existing.name || existing.email ? !!existing.embedded : slot.embedded,
+      };
+    }
     return {
       ...slot,
       name: existing.name || slot.name,
@@ -1226,6 +1233,7 @@ watch(currentStep, (newStep) => {
       role: 'Unterzeichner 1',
       name: `${m.vorname || ''} ${m.nachname || ''}`.trim(),
       email: m.email || '',
+      mitarbeiterId: m._id,
       embedded: false,
     });
   } else {

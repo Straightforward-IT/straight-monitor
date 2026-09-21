@@ -872,10 +872,6 @@ router.get('/:auftragNr/details', auth, async (req, res) => {
     if (!auftrag) {
       return res.status(404).json({ success: false, message: 'Auftrag nicht gefunden' });
     }
-    const requestUser = await loadRequestUser(req);
-    if (!hasLocationAccess(requestUser, auftrag.locationV2?._id || auftrag.locationV2)) {
-      return res.status(403).json({ success: false, message: 'Für den Standort dieses Auftrags fehlt die Berechtigung' });
-    }
     
     // Get Kunde
     let kundeData = null;
@@ -2099,7 +2095,6 @@ router.get('/:auftragNr/einsatzdokumente', auth, asyncHandler(async (req, res) =
   const { auftragNr } = req.params;
   const auftrag = await Auftrag.findOne({ auftragNr: parseAuftragNr(auftragNr) }).lean();
   if (!auftrag) return res.status(404).json({ success: false, message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
   const knownDocuments = auftrag.einsatzdokumente || [];
   const knownKeys = new Set(knownDocuments.map(document => document.key));
   const prefix = EINSATZ_DOK_PREFIX(auftragNr);
