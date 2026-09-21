@@ -78,9 +78,9 @@ function verifyDocuSealWebhook(req, res, next) {
  */
 function mapSubmitter(apiSubmitter, requested) {
   return {
-    role:     apiSubmitter.role || requested.role || '',
-    name:     apiSubmitter.name || requested.name || '',
-    email:    apiSubmitter.email || requested.email || '',
+    role:     requested.role || apiSubmitter.role || '',
+    name:     requested.name || apiSubmitter.name || '',
+    email:    requested.email || apiSubmitter.email || '',
     slug:     apiSubmitter.slug || '',
     embedSrc: apiSubmitter.embed_src || (apiSubmitter.slug ? `https://docuseal.eu/s/${apiSubmitter.slug}` : ''),
     embedded: !!requested.embedded,

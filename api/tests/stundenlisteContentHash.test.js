@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { sha256 } = require('../utils/contentHash');
 const StundenlisteService = require('../services/operations/StundenlisteService');
+const Einsatz = require('../models/Event/Einsatz');
 
 function createData() {
   return {
@@ -17,13 +18,13 @@ function createData() {
     niederlassung: { name: 'Hamburg', betriebsNr: '123', telefone: ['040 123'], email: 'hamburg@example.test' },
     schichten: [{
       _id: 'schicht-id', updatedAt: new Date('2026-09-07T12:00:00.000Z'), idAuftragArbeitsschichten: 10,
-      bezeichnung: 'Service', datumVon: new Date('2026-09-10T00:00:00.000Z'), uhrzeitVon: '10:00', uhrzeitBis: '18:00', endeOffen: 0,
+        bezeichnung: 'Service-Schicht', datumVon: new Date('2026-09-10T00:00:00.000Z'), uhrzeitVon: '10:00', uhrzeitBis: '18:00', endeOffen: 0,
     }],
     einsaetze: [{
       _id: 'einsatz-id', updatedAt: new Date('2026-09-07T12:00:00.000Z'), idAuftragArbeitsschichten: 10,
       personalNr: 1234, bezeichnung: 'Servicekraft', datumVon: new Date('2026-09-10T10:00:00.000Z'), berufSchl: '2', qualSchl: '7',
       mitarbeiterData: { _id: 'mitarbeiter-id', updatedAt: new Date('2026-09-07T12:00:00.000Z'), vorname: 'Max', nachname: 'Mustermann', geburtsdatum: new Date('1990-01-01T00:00:00.000Z') },
-      berufData: { _id: 'beruf-id', jobKey: 2, designation: 'Service' },
+        berufData: { _id: 'beruf-id', jobKey: 2, designation: 'Nicht in der Überschrift' },
       qualifikationData: { _id: 'quali-id', qualificationKey: 7, designation: 'Barista' },
     }],
   };
@@ -34,6 +35,28 @@ function contentHash(data) {
 }
 
 describe('Stundenliste content hash', () => {
+  it('identifies included assignments without a personal number', async () => {
+    const originalFind = Einsatz.find;
+    let criteria;
+    Einsatz.find = value => {
+      criteria = value;
+      return {
+        sort() { return this; },
+        select() { return this; },
+        lean: async () => [{ personalNr: 1001 }, { personalNr: null }, {}],
+      };
+    };
+
+    try {
+      const missing = await StundenlisteService.getMissingPersonalNrEinsaetze(1234);
+      assert.equal(missing.length, 2);
+      assert.equal(criteria.auftragNr, 1234);
+      assert.deepEqual(criteria.stundenlisteIncluded, { $ne: false });
+    } finally {
+      Einsatz.find = originalFind;
+    }
+  });
+
   it('renders employee names outside WinAnsi', async () => {
     const data = createData();
     data.einsaetze[0].mitarbeiterData.vorname = 'Nuri';

@@ -83,6 +83,20 @@ class StundenlisteService {
     return sha256(this._getRenderedDataSnapshot(data));
   }
 
+  async getMissingPersonalNrEinsaetze(auftragNr, options = {}) {
+    const nr = parseInt(auftragNr, 10);
+    const einsaetze = await Einsatz.find({
+      auftragNr: nr,
+      stundenlisteIncluded: { $ne: false },
+      ...(options.excludePseudo ? { isPseudo: { $ne: true } } : {}),
+    })
+      .sort({ idAuftragArbeitsschichten: 1, datumVon: 1 })
+      .select('personalNr idAuftragArbeitsschichten bezeichnung datumVon')
+      .lean();
+
+    return einsaetze.filter(einsatz => !einsatz.personalNr);
+  }
+
   _getRenderedDataSnapshot({ einsaetze, schichten }) {
     return {
       einsatzPersonalnummern: einsaetze
@@ -445,7 +459,8 @@ class StundenlisteService {
 
       const schicht = schichtMap.get(key);
       const first = list[0] || {};
-      const beruf = first.berufData?.designation || schicht?.bezeichnung || '';
+      const schichtBezeichnung = schicht?.bezeichnung || '';
+      const beruf = first.berufData?.designation || '';
       const quali = first.qualifikationData?.designation || '';
       const timeStr = (() => {
         if (!schicht) return '';
@@ -456,14 +471,16 @@ class StundenlisteService {
       })();
       const dateStr = this._date(schicht?.datumVon || first.datumVon || null);
       const infoStr = [dateStr, timeStr].filter(Boolean).join('   ');
-      const jobLabel = [beruf, quali].filter(Boolean).join(' \u2013 ') || (ctx.blankMissingValues ? '' : '\u2014');
-      const headerText = `Beruf, T\u00e4tigkeit: ${jobLabel}` + (infoStr ? `   |   ${infoStr}` : '');
+      const schichtLabel = schichtBezeichnung || (ctx.blankMissingValues ? '' : '\u2014');
+      const detailsLabel = [beruf, quali, infoStr].filter(Boolean).join(' \u2013 ');
 
       // Schicht-Überschrift
-      this._ensureSpace(ctx, 17 + 18 + 24);
-      ctx.page.drawRectangle({ x: MARGIN, y: ctx.y - 15, width: CONTENT_W, height: 15, color: COLOR_HEADER_BG });
-      ctx.page.drawText(headerText, { x: MARGIN + 4, y: ctx.y - 11, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
-      ctx.y -= 17;
+      const headerH = 28;
+      this._ensureSpace(ctx, headerH + 18 + 24);
+      ctx.page.drawRectangle({ x: MARGIN, y: ctx.y - headerH, width: CONTENT_W, height: headerH, color: COLOR_HEADER_BG });
+      ctx.page.drawText(schichtLabel, { x: MARGIN + 4, y: ctx.y - 10, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
+      ctx.page.drawText(detailsLabel, { x: MARGIN + 4, y: ctx.y - 22, size: 7, font: ctx.font, color: COLOR_TEXT });
+      ctx.y -= headerH + 2;
 
       // Tabellenkopf
       this._drawTableHeader(ctx, cols);

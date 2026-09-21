@@ -1215,7 +1215,6 @@
                     <font-awesome-icon icon="fa-solid fa-trash" />
                   </button>
                   <button
-                    v-if="canSignaturen"
                     class="einsatz-dok-gen-btn"
                     type="button"
                     title="Signaturentwurf bearbeiten"
@@ -4186,6 +4185,28 @@ export default {
       if (this.sidebarStundenliste && !allowReplacement) return null;
 
       const auftragNr = this.selectedEvent.auftragNr;
+      try {
+        const { data } = await api.get(
+          `/api/signaturen/stundenliste/${auftragNr}/validation`,
+        );
+        const missingPersonalNrEinsaetze =
+          data?.missingPersonalNrEinsaetze || [];
+        if (missingPersonalNrEinsaetze.length) {
+          const count = missingPersonalNrEinsaetze.length;
+          const noun = count === 1 ? "Einsatz enthält" : "Einsätze enthalten";
+          if (!confirm(
+            `${count} ${noun} keine Personalnummer. Die Namen dieser Mitarbeiter können in der Stundenliste nicht ausgegeben werden. Trotzdem erstellen?`,
+          )) return null;
+        }
+      } catch (err) {
+        console.error("Stundenlisten-Prüfung fehlgeschlagen", err);
+        alert(
+          err.response?.data?.message ||
+            "Stundenliste konnte nicht auf fehlende Personalnummern geprüft werden",
+        );
+        return null;
+      }
+
       const eventTitle = String(this.selectedEvent.eventTitel || "").trim();
       const eventDate = this.selectedEvent.vonDatum
         ? new Date(this.selectedEvent.vonDatum).toLocaleDateString("de-DE", { timeZone: "UTC" })

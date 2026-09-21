@@ -1176,6 +1176,8 @@ function removeEntleiherInvitationRecipient(index) {
 
 function normalizeSubmitterNames() {
   form.value.submitters = form.value.submitters.map(submitter => {
+    if (String(submitter.name || '').trim()) return submitter;
+
     const email = String(submitter.email || '').trim().toLowerCase();
     const mitarbeiter = submitter.mitarbeiterId
       ? mitarbeiterList.value.find(m => m._id === submitter.mitarbeiterId)
