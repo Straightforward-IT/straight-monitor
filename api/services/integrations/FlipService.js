@@ -80,7 +80,7 @@ async function flipUserRoutine() {
     );
     
     const validLocations = ["Hamburg", "Köln", "Berlin"];
-    const validDepartmentParts = ["Service", "Logistik", "Office"];
+    const validDepartmentParts = ["Service", "Logistik", "Office", "Küche"];
 
     for (const flipUserData of allFlipUsers) {
       if (flipUserData.primary_user_group?.id === apiUserGroup) continue;
@@ -152,7 +152,12 @@ async function flipUserRoutine() {
           invalidDepartments.push({
             name: `${flipUser.vorname} ${flipUser.nachname}`,
             email: flipUser.email,
-            department: department
+            flipId: flipUser.id,
+            department,
+            invalidParts: departmentParts.filter(part => !validDepartmentParts.includes(part)),
+            attributes: (flipUserData.attributes || []).filter(attribute =>
+              ['department', 'location'].includes(attribute.name || attribute.technical_name)
+            ),
           });
         }
       }
@@ -334,7 +339,8 @@ async function flipUserRoutine() {
       if (syncResult.errors.length > 0) {
         emailLogs.push(`⚠️ ${syncResult.errors.length} errors during attribute sync:`);
         syncResult.errors.slice(0, 10).forEach(err => {
-          emailLogs.push(`   🔴 ${err.name}: ${err.error}`);
+          const details = err.details ? `<br>&nbsp;&nbsp;&nbsp;Details: <code>${JSON.stringify(err.details)}</code>` : '';
+          emailLogs.push(`   🔴 ${err.name}: ${err.error}${details}`);
         });
         if (syncResult.errors.length > 10) {
           emailLogs.push(`   ... and ${syncResult.errors.length - 10} more errors`);
@@ -356,7 +362,12 @@ async function flipUserRoutine() {
     if (invalidDepartments.length > 0) {
       emailLogs.push("<br><br><strong>⚠️ Ungültige Department-Attribute gefunden:</strong>");
       invalidDepartments.forEach(user => {
-        emailLogs.push(`🔴 ${user.name} (${user.email}): <strong>${user.department}</strong>`);
+        emailLogs.push(
+          `🔴 ${user.name} (${user.email}, Flip ID: ${user.flipId}): ` +
+          `<strong>${user.department}</strong> ` +
+          `(ungültig: ${user.invalidParts.join(', ')})<br>` +
+          `&nbsp;&nbsp;&nbsp;Profil-/Attributquelle: <code>${JSON.stringify(user.attributes)}</code>`
+        );
       });
     }
 
@@ -1593,7 +1604,12 @@ async function syncFlipAttributes(flipUsersById = {}) {
         body: { attributes },
       });
 
-      updates.push({ id: ma._id, name: `${ma.vorname} ${ma.nachname}`, attributes: attributes.map(a => a.name) });
+      updates.push({
+        id: ma._id,
+        flipId: ma.flip_id,
+        name: `${ma.vorname} ${ma.nachname}`,
+        managedAttributes: newAttrsMap,
+      });
     } catch (error) {
       errors.push({ id: ma._id, name: `${ma.vorname} ${ma.nachname}`, error: error.message });
     }
@@ -1610,8 +1626,22 @@ async function syncFlipAttributes(flipUsersById = {}) {
       // Log per-item failures returned by the batch endpoint
       (res.data?.items || []).forEach(item => {
         if (item.status !== 200) {
-          const maName = updates.find(u => u.id)?.name || item.id;
-          errors.push({ id: item.id, name: maName, error: item.error?.code || `HTTP ${item.status}` });
+          const update = updates.find(updateItem => updateItem.flipId === item.id);
+          const responseError = item.error || {};
+          const error = responseError.detail || responseError.message || responseError.title || responseError.code || `HTTP ${item.status}`;
+          const details = {
+            flipId: item.id,
+            status: item.status,
+            flipError: responseError,
+            attemptedManagedAttributes: update?.managedAttributes,
+          };
+          logger.warn(`[FlipAttributeSync] Batch item failed: ${JSON.stringify(details)}`);
+          errors.push({
+            id: item.id,
+            name: update?.name || item.id,
+            error,
+            details,
+          });
         }
       });
     } catch (batchErr) {
