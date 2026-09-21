@@ -1167,6 +1167,16 @@
                   <font-awesome-icon icon="fa-solid fa-download" />
                 </button>
                 <button
+                  v-if="sidebarStundenliste.status === 'completed' && canSignaturen"
+                  class="einsatz-dok-gen-btn"
+                  type="button"
+                  title="Stundenliste neu ausstellen"
+                  @click.stop="openSignatureDialog({ allowReplacement: true })"
+                >
+                  <font-awesome-icon icon="fa-solid fa-file-signature" />
+                  Neu ausstellen
+                </button>
+                <button
                   v-if="sidebarStundenliste.status === 'open' && canSignaturen"
                   class="einsatz-dok-action einsatz-dok-action--open-sig"
                   type="button"
@@ -4520,7 +4530,7 @@ export default {
       if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
       return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     },
-    async openSignatureDialog() {
+    async openSignatureDialog({ allowReplacement = false } = {}) {
       this.showQuickActions = false;
       if (!this.selectedEvent) return;
       const auftragNr = this.selectedEvent.auftragNr;
@@ -4530,7 +4540,7 @@ export default {
       if (this.restoreMinimizedStundenliste(auftragNr)) return;
 
       const draft = await this.ensureStundenlisteDraft({
-        allowReplacement: this.stundenlisteIsOutdated,
+        allowReplacement: allowReplacement || this.stundenlisteIsOutdated,
       });
       if (!draft) return;
 
