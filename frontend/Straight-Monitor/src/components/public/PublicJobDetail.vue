@@ -413,7 +413,7 @@ import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import PublicBottomSheet from './PublicBottomSheet.vue';
 import PublicDocumentPreviewModal from './PublicDocumentPreviewModal.vue';
-import { showToast } from '@getflip/bridge';
+import { download, showToast } from '@getflip/bridge';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 import { pruefeArbeitszeit } from '@/utils/arbeitszeitValidierung.js';
@@ -1097,8 +1097,18 @@ async function downloadWalletPass() {
     }, {
       headers: { 'x-public-token': props.token },
     });
-    const url = new URL(response.data.url, props.api.defaults.baseURL || window.location.origin);
-    window.location.assign(url.toString());
+    const url = new URL(response.data.url, props.api.defaults.baseURL || window.location.origin).toString();
+    const fileName = `auftrag-${props.einsatz.auftragNr}.pkpass`;
+    const isEmbeddedInFlip = 'FlipFlutter' in window || window.self !== window.top;
+
+    if (isEmbeddedInFlip) {
+      const accepted = await download(fileName, 'application/vnd.apple.pkpass', url);
+      if (!accepted) throw new Error('Flip hat den Apple-Wallet-Pass nicht übernommen.');
+      try { showToast({ text: 'Apple-Wallet-Pass wird geöffnet.', intent: 'success', duration: 2200 }); } catch {}
+      return;
+    }
+
+    window.open(url, '_blank', 'noopener,noreferrer');
   } catch (error) {
     try { showToast({ text: 'Apple-Wallet-Pass konnte nicht erstellt werden.', intent: 'error', duration: 3000 }); } catch {}
   } finally {
