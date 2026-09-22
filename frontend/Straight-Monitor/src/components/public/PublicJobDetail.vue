@@ -1095,7 +1095,7 @@ async function downloadWalletPass() {
       reference: String(props.einsatz.auftragNr || ''),
       barcode: `auftrag:${props.einsatz.auftragNr}`,
     }, {
-      headers: { 'x-auth-token': localStorage.getItem('token') || '' },
+      headers: { 'x-public-token': props.token },
       responseType: 'blob',
     });
     const url = URL.createObjectURL(new Blob([response.data], { type: 'application/vnd.apple.pkpass' }));
