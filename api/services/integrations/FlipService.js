@@ -1545,6 +1545,9 @@ async function syncFlipAttributes(flipUsersById = {}) {
         errors.push({ id: ma._id, name: `${ma.vorname} ${ma.nachname}`, error: 'Flip User nicht gefunden' });
         continue;
       }
+      if (flipUserData.status === 'PENDING_DELETION') {
+        continue;
+      }
 
       // Build before-map from existing Flip attributes
       const beforeMap = {};
