@@ -132,8 +132,8 @@
             v-if="walletPassEnabled"
             class="download-icon-btn"
             :disabled="downloadingWalletPass"
-            :title="downloadingWalletPass ? 'Apple-Wallet-Pass wird erstellt' : 'Pass erstellen'"
-            aria-label="Pass erstellen"
+            :title="downloadingWalletPass ? 'Apple-Wallet-Pass wird versendet' : 'Pass per E-Mail senden'"
+            aria-label="Pass per E-Mail senden"
             @click="downloadWalletPass"
           >
             <font-awesome-icon :icon="downloadingWalletPass ? 'fa-solid fa-spinner' : 'fa-solid fa-wallet'" :spin="downloadingWalletPass" />
@@ -413,7 +413,7 @@ import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import PublicBottomSheet from './PublicBottomSheet.vue';
 import PublicDocumentPreviewModal from './PublicDocumentPreviewModal.vue';
-import { download, showToast } from '@getflip/bridge';
+import { showToast } from '@getflip/bridge';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 import { pruefeArbeitszeit } from '@/utils/arbeitszeitValidierung.js';
@@ -1085,7 +1085,7 @@ async function downloadWalletPass() {
   try {
     const title = props.einsatz.auftrag?.eventTitel || props.einsatz.bezeichnung || `Auftrag #${props.einsatz.auftragNr}`;
     const location = props.einsatz.auftrag?.eventLocation || props.einsatz.auftrag?.eventOrt || props.einsatz.treffpunktOrt;
-    const response = await props.api.post('/api/wallet-passes/generate', {
+    await props.api.post('/api/wallet-passes/email', {
       serialNumber: `auftrag-${props.einsatz._id || props.einsatz.auftragNr}`,
       title,
       subtitle: props.einsatz.bezeichnung || props.einsatz.schichtBezeichnung,
@@ -1097,20 +1097,9 @@ async function downloadWalletPass() {
     }, {
       headers: { 'x-public-token': props.token },
     });
-    const url = new URL(response.data.url, props.api.defaults.baseURL || window.location.origin).toString();
-    const fileName = `auftrag-${props.einsatz.auftragNr}.pkpass`;
-    const isEmbeddedInFlip = 'FlipFlutter' in window || window.self !== window.top;
-
-    if (isEmbeddedInFlip) {
-      const accepted = await download(fileName, 'application/vnd.apple.pkpass', url);
-      if (!accepted) throw new Error('Flip hat den Apple-Wallet-Pass nicht übernommen.');
-      try { showToast({ text: 'Apple-Wallet-Pass wird geöffnet.', intent: 'success', duration: 2200 }); } catch {}
-      return;
-    }
-
-    window.open(url, '_blank', 'noopener,noreferrer');
+    try { showToast({ text: 'Apple-Wallet-Pass wurde per E-Mail versendet.', intent: 'success', duration: 3000 }); } catch {}
   } catch (error) {
-    try { showToast({ text: 'Apple-Wallet-Pass konnte nicht erstellt werden.', intent: 'error', duration: 3000 }); } catch {}
+    try { showToast({ text: 'Apple-Wallet-Pass konnte nicht per E-Mail versendet werden.', intent: 'error', duration: 3000 }); } catch {}
   } finally {
     downloadingWalletPass.value = false;
   }

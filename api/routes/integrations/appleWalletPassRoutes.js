@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const asyncHandler = require('../../middleware/AsyncHandler');
 const publicAuth = require('../../middleware/publicAuth');
 const { contentDisposition } = require('../../utils/stundenlisteFilename');
+const { sendMail } = require('../../services/integrations/EmailService');
 const { generateWalletPass } = require('../../services/integrations/AppleWalletPassService');
 
 const router = express.Router();
@@ -25,6 +26,16 @@ function sendPass(res, generatedPass) {
     .send(generatedPass.buffer);
 }
 
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>'"]/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;',
+  }[character]));
+}
+
 /**
  * POST /api/wallet-passes/generate
  *
@@ -44,6 +55,27 @@ router.post('/generate', publicAuth.headerOnly, asyncHandler(async (req, res) =>
     url: `/api/wallet-passes/download/${token}`,
     expiresIn: HANDOFF_TOKEN_TTL_SECONDS,
   });
+}));
+
+router.post('/email', publicAuth.headerOnly, asyncHandler(async (req, res) => {
+  if (!req.oidcEmail) {
+    return res.status(403).json({ msg: 'Für den Pass-Versand ist eine OIDC-Anmeldung erforderlich.' });
+  }
+
+  const generatedPass = await generateWalletPass(req.body);
+  await sendMail(
+    req.oidcEmail,
+    `Apple-Wallet-Pass: ${req.body.title || 'Auftrag'}`,
+    `<p>Dein Apple-Wallet-Pass für <strong>${escapeHtml(req.body.title || 'deinen Auftrag')}</strong> ist angehängt.</p><p>Öffne den Anhang auf deinem iPhone und wähle „Zu Wallet hinzufügen“.</p>`,
+    'it',
+    [{
+      name: generatedPass.filename,
+      content: generatedPass.buffer.toString('base64'),
+      contentType: generatedPass.mimeType,
+    }],
+  );
+
+  return res.status(202).json({ message: 'Der Apple-Wallet-Pass wurde per E-Mail versendet.' });
 }));
 
 router.get('/download/:token', asyncHandler(async (req, res) => {
