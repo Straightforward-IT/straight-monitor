@@ -50,7 +50,10 @@ Send the public portal's `x-public-token` header and JSON such as:
 }
 ```
 
-The response has content type `application/vnd.apple.pkpass` and is returned as
-an attachment. Supplying the same pass type and serial number again creates a
-replacement for the existing Wallet pass; push-based updates are not part of
-this first route.
+The authenticated `POST /api/wallet-passes/generate` response contains a
+short-lived `url` (60 seconds). Navigate the browser directly to that URL so
+iOS can hand the `application/vnd.apple.pkpass` response to Wallet's native
+"Add" screen. Do not download it through an XHR blob.
+
+Supplying the same pass type and serial number again creates a replacement for
+the existing Wallet pass; push-based updates are not part of this first route.

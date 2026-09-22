@@ -1096,17 +1096,9 @@ async function downloadWalletPass() {
       barcode: `auftrag:${props.einsatz.auftragNr}`,
     }, {
       headers: { 'x-public-token': props.token },
-      responseType: 'blob',
     });
-    const url = URL.createObjectURL(new Blob([response.data], { type: 'application/vnd.apple.pkpass' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `auftrag-${props.einsatz.auftragNr}.pkpass`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    try { showToast({ text: 'Apple-Wallet-Pass wird heruntergeladen.', intent: 'success', duration: 2200 }); } catch {}
+    const url = new URL(response.data.url, props.api.defaults.baseURL || window.location.origin);
+    window.location.assign(url.toString());
   } catch (error) {
     try { showToast({ text: 'Apple-Wallet-Pass konnte nicht erstellt werden.', intent: 'error', duration: 3000 }); } catch {}
   } finally {
