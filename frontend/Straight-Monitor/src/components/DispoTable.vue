@@ -96,7 +96,7 @@
         <!-- KW Chips -->
         <div class="kw-chips">
           <span class="kw-label">KW</span>
-          <button v-if="kwChipOffset > 0" class="kw-nav-btn" @click="kwChipOffset--" title="Vorherige Wochen">
+          <button class="kw-nav-btn" @click="kwChipOffset--" title="Vorherige Wochen">
             <font-awesome-icon icon="fa-solid fa-chevron-left" />
           </button>
           <CustomTooltip
@@ -258,7 +258,7 @@
       <!-- Center: KW chips -->
       <div class="kw-chips">
         <span class="kw-label">KW</span>
-        <button v-if="kwChipOffset > 0" class="kw-nav-btn" @click="kwChipOffset--" title="Vorherige Wochen">
+        <button class="kw-nav-btn" @click="kwChipOffset--" title="Vorherige Wochen">
           <font-awesome-icon icon="fa-solid fa-chevron-left" />
         </button>
         <CustomTooltip
@@ -2888,7 +2888,7 @@ function getISOWeek(d) {
 }
 
 const selectedKw = ref(null); // { kw, year } | null
-const kwChipOffset = ref(0); // weeks to shift the KW chip window forward
+const kwChipOffset = ref(0); // weeks to shift the KW chip window from the current week
 
 function toggleKw(chip) {
   if (selectedKw.value?.kw === chip.kw && selectedKw.value?.year === chip.year) {
@@ -2920,10 +2920,8 @@ const effectiveTage = computed(() => {
   return base;
 });
 
-let _prevEffective = null;
-watch(effectiveTage, (val, old) => {
-  // Refetch when selected KW requires more data than we have
-  if (val > (old ?? filters.tage)) fetchDispo();
+watch([effectiveTage, kwChipOffset], () => {
+  fetchDispo();
 });
 
 // ─── Computed ───
@@ -2933,7 +2931,8 @@ const days = computed(() => {
   today.setHours(0, 0, 0, 0);
   const todayIso = toIso(today);
 
-  for (let i = 0; i < effectiveTage.value; i++) {
+  const startDay = kwChipOffset.value * 7;
+  for (let i = startDay; i < startDay + effectiveTage.value; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() + i);
     const dow = d.getDay();
@@ -3542,11 +3541,13 @@ async function fetchDispo() {
   _verfFetchedMonths.clear(); // invalidate per-month cache since entries are replaced
   try {
     const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() + Math.min(0, kwChipOffset.value * 7));
     const endDate = new Date(today);
-    endDate.setDate(endDate.getDate() + effectiveTage.value);
+    endDate.setDate(endDate.getDate() + Math.max(0, kwChipOffset.value * 7) + effectiveTage.value);
 
     const params = new URLSearchParams({
-      von: today.toISOString(),
+      von: startDate.toISOString(),
       bis: endDate.toISOString(),
     });
     if (filters.locationV2) params.append('locationV2', filters.locationV2);
@@ -3605,9 +3606,11 @@ function migrateLegacyLocationPreference() {
 
 async function fetchKommentare() {
   const today = new Date();
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() + Math.min(0, kwChipOffset.value * 7));
   const endDate = new Date(today);
-  endDate.setDate(endDate.getDate() + effectiveTage.value);
-  const von = today.toISOString().slice(0, 10);
+  endDate.setDate(endDate.getDate() + Math.max(0, kwChipOffset.value * 7) + effectiveTage.value);
+  const von = startDate.toISOString().slice(0, 10);
   const bis = endDate.toISOString().slice(0, 10);
   // fetch dispo day comments (date-bounded: today → bis)
   await comments.fetch({ scope: 'dispo_day', von, bis, locationV2: filters.locationV2 });

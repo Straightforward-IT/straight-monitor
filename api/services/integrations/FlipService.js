@@ -1491,10 +1491,10 @@ async function deleteManyFlipUsers(ids) {
   return results;
 }
 
-const TRACKED_ATTRS = ['isService', 'isLogistik', 'isOffice', 'isTeamLead', 'isFesti'];
+const TRACKED_ATTRS = ['isService', 'isLogistik', 'isKueche', 'isOffice', 'isTeamLead', 'isFesti'];
 
 /**
- * Sync Flip user attributes (isService, isLogistik, isOffice, isTeamLead, isFesti)
+ * Sync Flip user attributes (isService, isLogistik, isKueche, isOffice, isTeamLead, isFesti)
  * based on Berufe/Qualifikationen in MongoDB.
  *
  * @param {Object} [flipUsersById={}]  Pre-fetched map of flip_id → raw Flip user object.
@@ -1530,6 +1530,7 @@ async function syncFlipAttributes(flipUsersById = {}) {
       const hasBeruf   = berufKeys.length > 0;
       const isService  = hasBeruf ? berufKeys.includes(10001) : null;
       const isLogistik = hasBeruf ? berufKeys.includes(10002) : null;
+      const isKueche   = hasBeruf ? berufKeys.includes(10022) : null;
       // isOffice/isTeamLead nur setzen wenn Personalnr vorhanden (= Zvoove-Mitarbeiter)
       const isOffice   = hasPersonalnr ? qualiKeys.includes(40)    : null; // Quali-Key 40 = Office
       const isTeamLead = hasPersonalnr ? qualiKeys.includes(50055) : null;
@@ -1558,6 +1559,7 @@ async function syncFlipAttributes(flipUsersById = {}) {
       if (isTeamLead !== null) afterMap.isTeamLead = String(isTeamLead);
       if (isService  !== null) afterMap.isService  = String(isService);
       if (isLogistik !== null) afterMap.isLogistik = String(isLogistik);
+      if (isKueche   !== null) afterMap.isKueche   = String(isKueche);
 
       // Detect changes among tracked attributes (nur gesetzte Werte vergleichen)
       const diff = TRACKED_ATTRS
@@ -1577,10 +1579,12 @@ async function syncFlipAttributes(flipUsersById = {}) {
       if (isTeamLead !== null) managedKeys.add('isTeamLead');
       if (isService  !== null) managedKeys.add('isService');
       if (isLogistik !== null) managedKeys.add('isLogistik');
+      if (isKueche   !== null) managedKeys.add('isKueche');
 
       const newAttrsMap = {};
       if (isService  !== null) newAttrsMap.isService  = String(isService);
       if (isLogistik !== null) newAttrsMap.isLogistik = String(isLogistik);
+      if (isKueche   !== null) newAttrsMap.isKueche   = String(isKueche);
       if (isOffice   !== null) newAttrsMap.isOffice   = String(isOffice);
       if (isTeamLead !== null) newAttrsMap.isTeamLead = String(isTeamLead);
       newAttrsMap.isFesti    = String(isFesti);
