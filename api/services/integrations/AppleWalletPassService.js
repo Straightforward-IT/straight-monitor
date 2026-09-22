@@ -5,7 +5,7 @@ const sharp = require('sharp');
 const { PKPass } = require('passkit-generator');
 
 const API_ROOT = path.resolve(__dirname, '../..');
-const DEFAULT_STRIP_LOGO_PATH = path.resolve(API_ROOT, '../frontend/Straight-Monitor/src/assets/straightforward-logo-white.png');
+const DEFAULT_STRIP_LOGO_PATH = path.join(API_ROOT, 'assets/straightforward-logo-white.png');
 const PASS_MIME_TYPE = 'application/vnd.apple.pkpass';
 const BARCODE_FORMATS = new Set([
   'PKBarcodeFormatQR',

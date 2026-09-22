@@ -26,11 +26,11 @@ APPLE_WALLET_P12_PASSWORD=<p12 password>
 ```
 
 The optional `APPLE_WALLET_LOGO_PATH` is resolved relative to `api`; without it,
-`api/assets/straightforward-logo-black.png` is used.
+`api/assets/straightforward-logo-white.png` is used.
 
 ## Request
 
-Send the normal `x-auth-token` header and JSON such as:
+Send the public portal's `x-public-token` header and JSON such as:
 
 ```json
 {
