@@ -22,3 +22,10 @@ coverage/
 
 # Auto-generated runtime files
 .graph-subscription.json
+
+# Apple Wallet signing material
+config/*.cer
+config/*.certSigningRequest
+config/*.p12
+config/*.pfx
+config/*.pem

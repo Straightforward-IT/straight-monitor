@@ -127,16 +127,28 @@
             {{ filter.label }}
           </FilterChip>
         </div>
-        <button
-          v-if="isTeamleiter"
-          class="download-icon-btn"
-          :disabled="downloadingStundenliste || totalMitarbeiter === 0"
-          :title="downloadingStundenliste ? 'Telefonliste wird erstellt' : 'Telefonliste herunterladen'"
-          aria-label="Telefonliste herunterladen"
-          @click="downloadStundenliste"
-        >
-          <font-awesome-icon :icon="downloadingStundenliste ? 'fa-solid fa-spinner' : 'fa-solid fa-download'" :spin="downloadingStundenliste" />
-        </button>
+        <div v-if="isTeamleiter || walletPassEnabled" class="download-actions">
+          <button
+            v-if="walletPassEnabled"
+            class="download-icon-btn"
+            :disabled="downloadingWalletPass"
+            :title="downloadingWalletPass ? 'Apple-Wallet-Pass wird erstellt' : 'Pass erstellen'"
+            aria-label="Pass erstellen"
+            @click="downloadWalletPass"
+          >
+            <font-awesome-icon :icon="downloadingWalletPass ? 'fa-solid fa-spinner' : 'fa-solid fa-wallet'" :spin="downloadingWalletPass" />
+          </button>
+          <button
+            v-if="isTeamleiter"
+            class="download-icon-btn"
+            :disabled="downloadingStundenliste || totalMitarbeiter === 0"
+            :title="downloadingStundenliste ? 'Telefonliste wird erstellt' : 'Telefonliste herunterladen'"
+            aria-label="Telefonliste herunterladen"
+            @click="downloadStundenliste"
+          >
+            <font-awesome-icon :icon="downloadingStundenliste ? 'fa-solid fa-spinner' : 'fa-solid fa-download'" :spin="downloadingStundenliste" />
+          </button>
+        </div>
         
       </div>
 
@@ -393,7 +405,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faUserClock } from '@fortawesome/free-solid-svg-icons';
+import { faUserClock, faWallet } from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '@/stores/theme';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import PublicEinsatzinformation from '@/components/public/PublicEinsatzinformation.vue';
@@ -406,7 +418,7 @@ import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
 import { pruefeArbeitszeit } from '@/utils/arbeitszeitValidierung.js';
 
-library.add(faUserClock);
+library.add(faUserClock, faWallet);
 
 const theme = useTheme();
 const imgEventreport = computed(() => theme.isDark ? eventreportDark : eventreportLight);
@@ -420,6 +432,7 @@ const props = defineProps({
   email: { type: String, default: '' },
   token: { type: String, default: '' },
   publicMenuOptions: { type: Array, default: () => [] },
+  walletPassEnabled: { type: Boolean, default: false },
 });
 
 const hasReport = computed(() => {
@@ -430,6 +443,7 @@ const hasReport = computed(() => {
 });
 
 const downloadingStundenliste = ref(false);
+const downloadingWalletPass = ref(false);
 
 const hatZeiterfassung = computed(() =>
   props.publicMenuOptions.includes('zeiterfassung') || props.publicMenuOptions.includes('*')
@@ -1053,6 +1067,53 @@ async function downloadStundenliste() {
   }
 }
 
+function walletPassStartDate() {
+  const date = props.einsatz?.datumVon;
+  const time = props.einsatz?.uhrzeitVon;
+  if (!date) return undefined;
+  if (!time) return new Date(date).toISOString();
+
+  const normalizedTime = String(time).slice(0, 5);
+  const normalizedDate = new Date(date).toISOString().slice(0, 10);
+  return new Date(`${normalizedDate}T${normalizedTime}:00`).toISOString();
+}
+
+async function downloadWalletPass() {
+  if (downloadingWalletPass.value) return;
+
+  downloadingWalletPass.value = true;
+  try {
+    const title = props.einsatz.auftrag?.eventTitel || props.einsatz.bezeichnung || `Auftrag #${props.einsatz.auftragNr}`;
+    const location = props.einsatz.auftrag?.eventLocation || props.einsatz.auftrag?.eventOrt || props.einsatz.treffpunktOrt;
+    const response = await props.api.post('/api/wallet-passes/generate', {
+      serialNumber: `auftrag-${props.einsatz._id || props.einsatz.auftragNr}`,
+      title,
+      subtitle: props.einsatz.bezeichnung || props.einsatz.schichtBezeichnung,
+      startDate: walletPassStartDate(),
+      location,
+      notes: props.einsatz.einsatzinformationHtml?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
+      reference: String(props.einsatz.auftragNr || ''),
+      barcode: `auftrag:${props.einsatz.auftragNr}`,
+    }, {
+      headers: { 'x-auth-token': localStorage.getItem('token') || '' },
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(new Blob([response.data], { type: 'application/vnd.apple.pkpass' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `auftrag-${props.einsatz.auftragNr}.pkpass`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    try { showToast({ text: 'Apple-Wallet-Pass wird heruntergeladen.', intent: 'success', duration: 2200 }); } catch {}
+  } catch (error) {
+    try { showToast({ text: 'Apple-Wallet-Pass konnte nicht erstellt werden.', intent: 'error', duration: 3000 }); } catch {}
+  } finally {
+    downloadingWalletPass.value = false;
+  }
+}
+
 async function copyPhone(tel, event) {
   event?.preventDefault();
   try {
@@ -1558,6 +1619,12 @@ watch(() => props.einsatz?._id, () => {
   gap: 0.5rem;
   flex-wrap: wrap;
   min-width: 0;
+}
+
+.download-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.5rem;
 }
 
 .download-icon-btn {

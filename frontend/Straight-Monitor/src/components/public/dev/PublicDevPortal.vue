@@ -36,6 +36,7 @@
           :mitarbeiter="mitarbeiter"
           :token="token"
           :public-menu-options="['*', 'dev-mode']"
+          :wallet-pass-enabled="true"
           @write-report="$emit('write-report', $event)"
         />
       </template>
