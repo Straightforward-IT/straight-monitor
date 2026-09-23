@@ -84,10 +84,12 @@ function cleanInvisibleChars(text = "") {
   let s = String(text);
   // bekannte Zero-Width/Soft Hyphen usw.
   s = s.replace(/[\u200B-\u200D\u2060\uFEFF\u00AD\u034F\u180E]/g, "");
-  // Entferne Kontrollen außer \n und \t
-  s = s.replace(/[^\S\n\t]/g, (m) => (m === "\n" || m === "\t" ? m : "")); // konservativ
-  // Entferne *zusätzlich* Unicode-Kontroll-/Format-Zeichen
-  s = s.replace(/[\p{Cf}\p{Cc}\p{Cs}\p{Co}\p{Cn}]/gu, "");
+  // Windows- und klassische Mac-Zeilenenden vereinheitlichen, Leerzeichen erhalten.
+  s = s.replace(/\r\n?/g, "\n");
+  // Entferne weitere Unicode-Kontroll-/Format-Zeichen, aber behalte Texttrenner.
+  s = s
+    .replace(/[\p{Cf}\p{Cs}\p{Co}\p{Cn}]/gu, "")
+    .replace(/[\p{Cc}]/gu, (char) => (char === "\n" || char === "\t" ? char : ""));
   // Entferne Combining marks
   s = s.replace(/[\p{Mn}\p{Me}]/gu, "");
   return s;
@@ -251,6 +253,36 @@ function extractIndeedMessageFromText(plain = "") {
   }
   const msg = out.join("\n").trim();
   return msg || null;
+}
+
+function extractIndeedEmailContent(plain = "") {
+  const footerMarkers = [
+    "Einstellungen für Neuigkeiten", "No longer want application emails",
+    "Indem Sie antworten", "Indeed verarbeitet und analysiert",
+    "Indeed Datenschutzerklärung", "Nutzungsbedingungen", "©",
+  ].map((marker) => marker.toLowerCase());
+
+  const content = [];
+  for (const rawLine of String(plain).split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const lowerLine = line.toLowerCase();
+    const footerStart = footerMarkers.reduce((firstIndex, marker) => {
+      const index = lowerLine.indexOf(marker);
+      return index >= 0 && (firstIndex < 0 || index < firstIndex) ? index : firstIndex;
+    }, -1);
+
+    if (footerStart >= 0) {
+      const beforeFooter = line.slice(0, footerStart).trim();
+      if (beforeFooter) content.push(beforeFooter);
+      break;
+    }
+
+    content.push(line);
+  }
+
+  return content.join("\n").trim();
 }
 
 function extractIndeedFields(html, subject, plainText) {
@@ -493,6 +525,15 @@ function parseApplicantEmail({ subject = "", from = "", bodyHtml = "" }) {
     company = ex.company;
     indeed_message = ex.indeed_message;
     subject_used_as_fallback = ex.subject_used_as_fallback;
+
+    const lines = [`Betreff: ${String(subject).trim() || "(kein Betreff)"}`];
+    const emailContent = extractIndeedEmailContent(plainText);
+    if (emailContent) {
+      lines.push("");
+      lines.push("E-Mail-Inhalt:");
+      lines.push(emailContent);
+    }
+    asana_comment = lines.join("\n").trim();
   } else if (provider === "recrudo") {
     const ex = extractRecrudo(plainText);
     ({ full_name, email, telefon, stadt, alter } = ex);
