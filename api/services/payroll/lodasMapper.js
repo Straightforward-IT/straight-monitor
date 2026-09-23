@@ -1,4 +1,4 @@
-const contract = require('../../../Documentation/Payroll/hr_exchange-1.0.28.json');
+const contract = require('./hr_exchange-1.0.28.json');
 const { fail, text, exactKeys } = require('./preparationDomain');
 
 // Small, explicit validator for the scalar wire objects used by this adapter.
