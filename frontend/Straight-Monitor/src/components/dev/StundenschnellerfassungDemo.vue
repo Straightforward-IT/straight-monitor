@@ -25,7 +25,9 @@
     <div class="quick-time-demo__surface">
       <DemoOrderDocuments :auftrag-nr="fixture.auftrag.auftragNr" />
       <Stundenschnellerfassung
-        v-bind="fixture"
+        :auftrag="fixture.auftrag"
+        :einsaetze="fixture.einsaetze"
+        :zeiten="fixture.zeiten"
         @submit="onSubmit"
       />
     </div>
@@ -42,7 +44,9 @@
     <StundenschnellerfassungModal
       v-if="modalOpen"
       v-model="modalOpen"
-      v-bind="fixture"
+      :auftrag="fixture.auftrag"
+      :einsaetze="fixture.einsaetze"
+      :zeiten="fixture.zeiten"
       @submit="onSubmit"
     >
       <template #documents>

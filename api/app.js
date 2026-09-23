@@ -134,6 +134,7 @@ app.use('/api/public/bewerber', publicBewerberRoutes);
 app.use('/api/public/prototype', publicPrototypeRoutes);
 app.use('/api/public/working-times', require('./routes/public/publicTimeCaptureRoutes'));
 app.use('/api/working-times', require('./routes/employee/timeCaptureRoutes'));
+app.use('/api/payroll', require('./routes/payroll/preparationRoutes'));
 app.use('/api/public/employee-documents', publicEmployeeDocumentRoutes);
 app.use('/api/employee-documents', employeeDocumentRoutes);
 app.use('/api/public', publicRoutes);

@@ -5,7 +5,7 @@
     size="xl"
     :close-on-backdrop="false"
     class="quick-time-modal"
-    style="--mf-max-width: min(1540px, 96vw); --mf-body-padding: 0; --mf-body-overflow: hidden; --mf-max-height: 94dvh"
+    style="--mf-max-width: min(1380px, 95vw); --mf-body-padding: 0; --mf-body-overflow: hidden; --mf-max-height: 92dvh; --mf-header-padding: 8px 12px; --mf-title-size: .9rem; --mf-radius: 8px"
     @close="close"
   >
     <slot name="documents" />
@@ -13,7 +13,6 @@
       v-if="modelValue"
       contained
       :auftrag="auftrag"
-      :schichten="schichten"
       :einsaetze="einsaetze"
       :zeiten="zeiten"
       @submit="emit('submit', $event)"
@@ -29,7 +28,6 @@ import Stundenschnellerfassung from '@/components/ui-elements/Stundenschnellerfa
 defineProps({
   modelValue: { type: Boolean, default: true },
   auftrag: { type: Object, required: true },
-  schichten: { type: Array, default: () => [] },
   einsaetze: { type: Array, default: () => [] },
   zeiten: { type: Array, default: () => [] },
 });

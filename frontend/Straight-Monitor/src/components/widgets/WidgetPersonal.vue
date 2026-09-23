@@ -1,6 +1,6 @@
 <template>
   <DashboardWidget
-    title="Zuletzt erstellt"
+    title="Neueste Mitarbeiter"
     :icon="['fas', 'people-line']"
     title-link-to="/personal"
     :loading="loading"

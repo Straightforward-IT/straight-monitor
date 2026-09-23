@@ -290,19 +290,34 @@ const statusOptions = [
 ];
 const defaultStatuses = statusOptions.filter(({ key }) => key !== 'cancelled').map(({ key }) => key);
 
+const FILTERS_KEY = 'signaturen_filters';
+function loadPersistedFilters() {
+  try {
+    const raw = sessionStorage.getItem(FILTERS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+const persistedFilters = loadPersistedFilters();
+
 const vorgaenge = ref([]);
 const typen = ref([]);
 const locations = ref([]);
 const loading = ref(false);
-const search = ref('');
+const search = ref(persistedFilters?.search ?? '');
 const currentPage = ref(1);
-const itemsPerPage = ref(25);
+const itemsPerPage = ref(persistedFilters?.itemsPerPage ?? 25);
 const pageOptions = [25, 50, 100];
 const filterExpanded = ref(false);
 const showTypModal = ref(false);
 const starred = ref(loadStarred());
 
-const filters = ref({ locationId: null, statuses: [...defaultStatuses], entity: null, typKey: null });
+const filters = ref({
+  locationId: null,
+  statuses: [...defaultStatuses],
+  entity: null,
+  typKey: null,
+  ...(persistedFilters?.filters || {}),
+});
 
 const activeFilterCount = computed(() =>
   ['locationId', 'entity', 'typKey'].filter(k => filters.value[k] !== null).length
@@ -393,6 +408,16 @@ function prevPage() {
 function hasDefaultStatuses() {
   return defaultStatuses.length === filters.value.statuses.length
     && defaultStatuses.every(status => filters.value.statuses.includes(status));
+}
+
+function persistFilters() {
+  try {
+    sessionStorage.setItem(FILTERS_KEY, JSON.stringify({
+      filters: filters.value,
+      search: search.value,
+      itemsPerPage: itemsPerPage.value,
+    }));
+  } catch { /* ignore */ }
 }
 
 function resetFilters() {
@@ -580,9 +605,28 @@ async function loadTemplates() {
 async function loadVorgaenge() {
   loading.value = true;
   try {
-    const { data } = await api.get('/api/signaturen?refresh=true');
-    vorgaenge.value = Array.isArray(data) ? data : [];
+    // Recent window (all statuses) covers history; pending (open/draft) is finite and
+    // always fetched in full so older unsigned signatures are never hidden by the window.
+    const [recentRes, pendingRes] = await Promise.all([
+      api.get('/api/signaturen?refresh=true'),
+      api.get('/api/signaturen', { params: { status: 'open,draft', limit: 500 } }),
+    ]);
+    const recent = Array.isArray(recentRes.data) ? recentRes.data : [];
+    const pending = Array.isArray(pendingRes.data) ? pendingRes.data : [];
+    const byId = new Map();
+    for (const v of recent) byId.set(String(v._id), v);
+    for (const v of pending) if (!byId.has(String(v._id))) byId.set(String(v._id), v);
+    vorgaenge.value = [...byId.values()];
     if (targetVorgangId.value) {
+      // Deep-linked record may fall outside both sets — fetch it directly.
+      if (!vorgaenge.value.some(v => String(v._id) === targetVorgangId.value)) {
+        try {
+          const { data: target } = await api.get(`/api/signaturen/${targetVorgangId.value}?refresh=true`);
+          if (target?._id) vorgaenge.value = [target, ...vorgaenge.value];
+        } catch (err) {
+          console.error('Verknüpfte Signatur konnte nicht geladen werden', err);
+        }
+      }
       const target = vorgaenge.value.find(v => String(v._id) === targetVorgangId.value);
       if (target) {
         showSignaturesTab();
@@ -614,7 +658,8 @@ async function loadLocations() {
   try {
     const { data } = await api.get('/api/locations');
     locations.value = Array.isArray(data) ? data : [];
-    if (!filters.value.locationId) filters.value.locationId = getUserLocationId();
+    // Only apply the user's default location on first visit; a persisted choice (incl. "Alle") wins.
+    if (!persistedFilters && !filters.value.locationId) filters.value.locationId = getUserLocationId();
   } catch (e) {
     console.error('Locations laden fehlgeschlagen', e);
   }
@@ -643,6 +688,7 @@ watch(activeTab, (tab) => {
 
 watch([search, filters, itemsPerPage], () => {
   currentPage.value = 1;
+  persistFilters();
 }, { deep: true });
 
 watch(totalPages, (pageCount) => {

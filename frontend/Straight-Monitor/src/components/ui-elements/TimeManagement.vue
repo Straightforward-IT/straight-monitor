@@ -36,6 +36,7 @@
         @select-day="selectDay"
         @select-week="selectWeek"
         @change-type="changeEntryType"
+        :readonly="preparationMode"
         @open-capture="emit('openCapture', $event)"
       />
       <aside
@@ -52,7 +53,7 @@
           inline
           :data="cardData"
         />
-        <button
+        <button v-if="!preparationMode"
           type="button"
           class="tm-bank"
           data-time-target="bank"
@@ -61,6 +62,10 @@
           <span class="tm-bank__heading"><strong>{{ saveEnabled ? 'Zeitkonto' : 'Zeitkonto · Vorschau' }}</strong><small>Stunden parken / zurückholen</small></span>
           <strong class="tm-bank__balance">{{ formatMinutes(workspace.data.bankMinutes) }}</strong>
           <span class="tm-bank__bottom">Gespeichert {{ formatMinutes(workspace.saved.bankMinutes) }} <b>{{ bankDifference > 0 ? '+' : '' }}{{ formatMinutes(bankDifference) }}</b></span>
+        </button>
+        <button v-else type="button" class="tm-bank" data-time-target="bank">
+          <span class="tm-bank__heading"><strong>Zeitkonto nicht verfügbar</strong></span>
+          <small>LODAS führt den Kontostand. Eimer-Aktionen erstellen nur Vorschläge.</small>
         </button>
         <div class="tm-comparison">
           <span>Monatsprognose zum gespeicherten Stand</span><strong>{{ forecastDifference > 0 ? '+' : '' }}{{ formatMinutes(forecastDifference) }}</strong>
@@ -113,7 +118,7 @@
             >
               <span aria-hidden="true">＋</span> Tageseintrag
             </button>
-            <div v-if="bucketEnabled" class="tm-new-source">
+            <div v-if="bucketEnabled && !preparationMode" class="tm-new-source">
               <button
                 type="button"
                 class="tm-source"
@@ -140,7 +145,7 @@
             </div>
             <button
               type="button"
-              v-if="bucketEnabled"
+              v-if="bucketEnabled && !preparationMode"
             class="tm-source tm-source--remove"
               data-time-target="remove"
               aria-label="Stunden entfernen"
@@ -148,7 +153,7 @@
               <span aria-hidden="true">−</span> Entfernen <small>{{ formatMinutes(workspace.data.removedMinutes) }}</small>
             </button>
             <div
-              v-if="bucketEnabled"
+              v-if="bucketEnabled && !preparationMode"
             class="tm-tools"
               aria-label="Alternative Eimer-Bedienung"
             >
@@ -372,6 +377,7 @@
     </div>
 
     <footer
+      v-if="!preparationMode"
       class="tm-bucket-bar"
       :class="{ 'tm-bucket-bar--filled': held }"
     >
@@ -509,10 +515,11 @@ import TimeDayEntryModal from '@/components/Modals/TimeDayEntryModal.vue';
 import { addTimeEntry, bucketMinutes, cancelTime, changeTimeEntryType, collectTime, createTimeWorkspace, dropOnDay, dropTime,
   formatMinutes, hasTimeChanges, monthWeeks, revertTime, saveTime, sourceMinutes, targetLabel, timeTotals, timeTypeBreakdown, undoTime } from '@/utils/timeManagement';
 
-const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, initialData: { type: Object, required: true }, dayEntryTypes: { type: Array, default: () => [] }, saveEnabled: { type: Boolean, default: true }, showContext: { type: Boolean, default: true }, showGuide: { type: Boolean, default: true }, bucketEnabled: { type: Boolean, default: true }, detailsInSidePanel: { type: Boolean, default: false }, detailsTarget: { type: Object, default: null } });
-const emit = defineEmits(['save', 'openCapture', 'selectDay', 'closeDetails']);
+const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, initialData: { type: Object, required: true }, dayEntryTypes: { type: Array, default: () => [] }, saveEnabled: { type: Boolean, default: true }, showContext: { type: Boolean, default: true }, showGuide: { type: Boolean, default: true }, bucketEnabled: { type: Boolean, default: true }, detailsInSidePanel: { type: Boolean, default: false }, detailsTarget: { type: Object, default: null }, preparationMode: Boolean });
+const emit = defineEmits(['save', 'openCapture', 'selectDay', 'closeDetails', 'prepareTransfer', 'prepareEntry']);
 // A workspace is an employee/month session. Remount with a key when either changes.
 const workspace = reactive(createTimeWorkspace(props.initialData));
+if (props.preparationMode) { workspace.data.bankMinutes = null; workspace.saved.bankMinutes = null; }
 const root = ref(null);
 const selectedDate = ref(props.initialData.entries[0]?.date || `${props.month}-01`);
 const selectedEntryId = ref(props.initialData.entries[0]?.id || '');
@@ -640,6 +647,11 @@ function handleTarget(event, operation) {
   const id = target.dataset.timeTarget;
   const entry = workspace.data.entries.find(item => item.id === id);
   if (entry) selectEntry(entry);
+  if (props.preparationMode) {
+    if (entry?.kind === 'productive') emit('prepareTransfer', { source: entry.id, target: 'AZK', date: entry.date });
+    else if (id === 'bank') emit('prepareTransfer', { source: 'AZK', target: 'PAYMENT', date: selectedDate.value });
+    return;
+  }
   if (operation === 'drop' && !held.value && id.startsWith('day:')) {
     if (props.detailsInSidePanel) selectDay(id.slice(4));
     else openEntry(id.slice(4));
@@ -688,7 +700,7 @@ function save() {
   emit('save', { employeeId: props.employee.id, month: props.month, ...data });
   message.value = 'In dieser Demo-Sitzung gespeichert.';
 }
-function openEntry(date) { if (held.value || slider.value) return; cursor.visible = false; selectedDate.value = date; entryDate.value = date; }
+function openEntry(date) { if (props.preparationMode) { emit('prepareEntry', { date }); return; } if (held.value || slider.value) return; cursor.visible = false; selectedDate.value = date; entryDate.value = date; }
 function createEntry(entry) {
   if (addTimeEntry(workspace, { ...entry, id: `manual-${Date.now()}-${++entrySequence}` })) {
     entryDate.value = '';
@@ -698,6 +710,7 @@ function createEntry(entry) {
   }
 }
 function changeEntryType({ entryId, code }) {
+  if (props.preparationMode) return;
   if (changeTimeEntryType(workspace, entryId, code)) {
     selectEntry(workspace.data.entries.find(entry => entry.id === entryId));
     message.value = 'Eintragsart geändert. Die Stunden bleiben unverändert.';

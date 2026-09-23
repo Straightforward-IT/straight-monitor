@@ -25,7 +25,10 @@
           >
             <header v-if="hasHeader" class="mf-header">
               <div class="mf-header-main">
-                <slot name="header">
+                <slot
+                  name="header"
+                  :title-id="titleId"
+                >
                   <div class="mf-titles">
                     <p v-if="subtitle" class="mf-subtitle">{{ subtitle }}</p>
                     <h3 v-if="title" :id="titleId" class="mf-title">{{ title }}</h3>

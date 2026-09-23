@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { analyzeQuickEntry, buildQuickEntryGroups, createQuickEntry, formatHours, minimumRestBreakMinutes, plannedTimes } from '../src/utils/stundenschnellerfassung.js';
+import { analyzeQuickEntry, buildQuickEntryRows, createQuickEntry, formatHours, minimumRestBreakMinutes, plannedTimes } from '../src/utils/stundenschnellerfassung.js';
 import { createStundenschnellerfassungDemo } from '../src/components/dev/stundenschnellerfassungDemo.js';
 
 const analyze = values => analyzeQuickEntry(createQuickEntry({ _id: 'assignment' }, values));
@@ -13,40 +13,23 @@ test('dated office preview accounts for Berlin clock changes and rejects ambiguo
   assert.equal(analyzeQuickEntry(row, '2020-10-25').complete, false);
 });
 
-test('reference fixture groups six assignments in two shifts and starts at 24 hours', () => {
+test('reference fixture projects one row per assignment and starts at 24 hours', () => {
   const fixture = createStundenschnellerfassungDemo();
-  const groups = buildQuickEntryGroups(fixture.auftrag, fixture.schichten, fixture.einsaetze);
-  assert.deepEqual(groups.map(group => group.einsaetze.length), [4, 2]);
+  const rows = buildQuickEntryRows(fixture.auftrag, fixture.einsaetze);
+  assert.equal(rows.length, 6);
+  assert.equal(new Set(rows.map(row => row._id)).size, 6);
   const minutes = fixture.zeiten.reduce((sum, entry) => sum + analyze(entry).netMinutes, 0);
   assert.equal(minutes, 1440);
   assert.equal(formatHours(minutes), '24,00');
 });
 
-test('direct shift references keep monitor shifts with null legacy IDs separate', () => {
-  const shifts = [{ _id: 'a', auftragNr: 1 }, { _id: 'b', auftragNr: 1 }, { _id: 'foreign', auftragNr: 2 }];
+test('row projection filters by order without requiring shift details', () => {
   const assignments = [
-    { _id: 'one', auftragNr: 1, schicht: 'a' },
-    { _id: 'two', auftragNr: 1, schicht: { _id: 'b' } },
-    { _id: 'other', auftragNr: 2, schicht: 'a' },
-    { _id: 'unknown', auftragNr: 1, schicht: 'missing' },
+    { _id: 'later', auftragNr: 1, detailDatumVon: '2026-09-09', uhrzeitVon: '10:00' },
+    { _id: 'other', auftragNr: 2, detailDatumVon: '2026-09-08' },
+    { _id: 'early', auftragNr: 1, detailDatumVon: '2026-09-08', uhrzeitVon: '12:00' },
   ];
-  const groups = buildQuickEntryGroups({ auftragNr: 1 }, shifts, assignments);
-  assert.deepEqual(groups.map(group => group.einsaetze.map(assignment => assignment._id)), [['one'], ['two'], ['unknown']]);
-  assert.equal(groups[2].key, 'unassigned');
-});
-
-test('legacy shift IDs are matched by date and mismatches remain visible as unassigned', () => {
-  const shifts = [
-    { _id: 'day1', auftragNr: 1, idAuftragArbeitsschichten: 50, datumVon: '2026-09-08' },
-    { _id: 'day2', auftragNr: 1, idAuftragArbeitsschichten: 50, datumVon: '2026-09-09' },
-  ];
-  const entries = [
-    { _id: 'e1', auftragNr: 1, idAuftragArbeitsschichten: 50, datumVon: '2026-09-08' },
-    { _id: 'e2', auftragNr: 1, idAuftragArbeitsschichten: 50, datumVon: '2026-09-09' },
-    { _id: 'e3', auftragNr: 1, idAuftragArbeitsschichten: 50, datumVon: '2026-09-10' },
-  ];
-  assert.deepEqual(buildQuickEntryGroups({ auftragNr: 1 }, shifts, entries).map(group => group.einsaetze.map(entry => entry._id)), [['e1'], ['e2'], ['e3']]);
-  assert.equal(buildQuickEntryGroups({ auftragNr: 1 }, shifts.slice(0, 1), entries.slice(2))[1].key, 'unassigned');
+  assert.deepEqual(buildQuickEntryRows({ auftragNr: 1 }, assignments).map(row => row._id), ['early', 'later']);
 });
 
 test('night shift subtracts only unpaid break minutes', () => {
@@ -122,11 +105,12 @@ test('blank rows stay open; incomplete and equal times are invalid', () => {
   }
 });
 
-test('drafts clone their source and planned values prefer assignment overrides', () => {
+test('drafts clone their source and planned values use imported assignment times', () => {
   const source = { start: '10:00', breaks: [{ start: '12:00', end: '12:15', paid: true }] };
   const draft = createQuickEntry({ _id: 'a' }, source);
   draft.breaks[0].start = '13:00';
   assert.equal(source.breaks[0].start, '12:00');
   assert.equal(draft.breaks.length, 3);
-  assert.deepEqual(plannedTimes({ uhrzeitVon: '18:00' }, { uhrzeitVon: '17:00', uhrzeitBis: '04:00' }), { start: '18:00', end: '04:00' });
+  assert.deepEqual(plannedTimes({ uhrzeitVon: '18:00', uhrzeitBis: '04:00' }), { start: '18:00', end: '04:00' });
+  assert.deepEqual(plannedTimes({}), { start: '', end: '' });
 });

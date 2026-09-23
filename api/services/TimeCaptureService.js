@@ -4,6 +4,7 @@ const Einsatz = require('../models/Event/Einsatz');
 const Schicht = require('../models/Event/Schicht');
 const Auftrag = require('../models/Event/Auftrag');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
+const Kunde = require('../models/Customer/Kunde');
 const Lohnart = require('../models/Payroll/Lohnart');
 
 const DAY_ENTRY_TYPES = Object.freeze({
@@ -189,10 +190,12 @@ async function review(user, number, employeeId) {
   const filter = { auftragNr: auftrag.auftragNr, isPseudo: { $ne: true }, personalNr: { $ne: null } };
   if (employeeId) filter.personalNr = { $in: employeeNumbers(await employeeForUser(user, employeeId)) };
   const einsaetze = await Einsatz.find(filter).sort({ datumVon: 1, personalNr: 1 }).lean();
-  const employees = await Mitarbeiter.find(employeeNumberQuery(einsaetze.map(item => item.personalNr))).select('personalnr personalnrHistory vorname nachname').lean();
-  const schichten = await Schicht.find({ auftragNr: auftrag.auftragNr }).sort({ datumVon: 1 }).lean();
-  const entries = await Stundenzeit.find({ _id: { $in: einsaetze.map(item => item._id) } }).populate('history.by', 'name').lean();
-  return { auftrag, schichten, einsaetze: einsaetze.map(item => ({ ...item, mitarbeiterData: employees.find(employee => employeeNumbers(employee).includes(item.personalNr)) })), entries };
+  const [employees, entries, kunde] = await Promise.all([
+    Mitarbeiter.find(employeeNumberQuery(einsaetze.map(item => item.personalNr))).select('personalnr personalnrHistory vorname nachname').lean(),
+    Stundenzeit.find({ _id: { $in: einsaetze.map(item => item._id) } }).populate('history.by', 'name').lean(),
+    auftrag.kundenNr ? Kunde.findOne({ kundenNr: auftrag.kundenNr }).select('kuerzel').lean() : null,
+  ]);
+  return { auftrag, kunde, einsaetze: einsaetze.map(item => ({ ...item, mitarbeiterData: employees.find(employee => employeeNumbers(employee).includes(item.personalNr)) })), entries };
 }
 async function employeeOrders(user, employeeId, month) {
   const employee = await employeeForUser(user, employeeId);

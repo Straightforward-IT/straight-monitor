@@ -41,6 +41,14 @@ export const WIDGET_DEFINITIONS = [
     defaultVisible: true,
   },
   {
+    id: 'signatur',
+    title: 'Offene Stundenlisten',
+    icon: ['fas', 'file-signature'],
+    component: defineAsyncComponent(() => import('./WidgetSignatur.vue')),
+    description: 'Zeigt offene Stundenlisten zur Unterschrift',
+    defaultVisible: true,
+  },
+  {
     id: 'bestand',
     title: 'Bestand',
     icon: ['fas', 'warehouse'],

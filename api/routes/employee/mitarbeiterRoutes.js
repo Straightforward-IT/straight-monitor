@@ -3694,7 +3694,10 @@ router.get(
     }
 
     const { month, year, locationV2 } = req.query;
-    const teamleiterQuery = { qualifikationen: qual._id };
+    const teamleiterQuery = {
+      qualifikationen: qual._id,
+      isActive: { $ne: false },
+    };
     if (locationV2) {
       const selectedLocation = await resolveActiveLocation(locationV2);
       if (!selectedLocation) {

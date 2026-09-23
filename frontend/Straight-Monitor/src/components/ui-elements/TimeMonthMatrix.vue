@@ -80,7 +80,7 @@
                       <button
                         type="button"
                         class="tm-entry__type"
-                        :disabled="entry.locked"
+                        :disabled="entry.locked || readonly"
                         :aria-expanded="typeMenuId === entry.id"
                         :aria-label="entry.locked ? `${entry.label} wartet auf Stundenerfassung` : `Art ${entry.code || (entry.kind === 'planned' ? 'PL' : 'P')} für ${week.days[weekdayIndex].day}. ${monthLabel} ändern`"
                         :ref="element => setTypeButton(entry.id, element)"
@@ -150,7 +150,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { formatMinutes, monthWeeks, TIME_ENTRY_TYPES } from '@/utils/timeManagement';
-const props = defineProps({ month: { type: String, required: true }, entries: { type: Array, required: true }, selectedDate: { type: String, default: '' }, held: { type: Number, default: 0 } });
+const props = defineProps({ month: { type: String, required: true }, entries: { type: Array, required: true }, selectedDate: { type: String, default: '' }, held: { type: Number, default: 0 }, readonly: Boolean });
 const emit = defineEmits(['selectDay', 'selectWeek', 'changeType', 'openCapture']);
 function onHoursClick(event, entry) {
   if (!entry.locked) return;

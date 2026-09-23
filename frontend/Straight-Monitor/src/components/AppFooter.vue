@@ -54,6 +54,14 @@
             <font-awesome-icon :icon="['fas', 'user']" />
             <span>{{ auth.user.name }}</span>
           </div>
+          <div v-if="userRoles.length" class="meta-item">
+            <font-awesome-icon :icon="['fas', 'user-tag']" />
+            <span>{{ userRoles.join(', ') }}</span>
+          </div>
+          <div v-if="auth.user?.locationV2" class="meta-item">
+            <font-awesome-icon :icon="['fas', 'location-dot']" />
+            <span>{{ auth.user.locationV2.shortName || auth.user.locationV2.nameFull }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -83,6 +91,8 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import { 
   faHeart, 
   faUser, 
+  faUserTag,
+  faLocationDot,
   faSun, 
   faMoon 
 } from '@fortawesome/free-solid-svg-icons';
@@ -93,7 +103,7 @@ import darkLogo from '@/assets/SF_000.svg';
 import lightLogo from '@/assets/SF_002.png';
 
 // Icons registrieren
-library.add(faHeart, faUser, faSun, faMoon);
+library.add(faHeart, faUser, faUserTag, faLocationDot, faSun, faMoon);
 
 export default {
   name: 'AppFooter',
@@ -105,6 +115,10 @@ export default {
 
     const logoSrc = computed(() => (theme.isDark ? darkLogo : lightLogo));
     const currentYear = computed(() => new Date().getFullYear());
+    const userRoles = computed(() => {
+      const roles = Array.isArray(auth.user?.roles) ? auth.user.roles : [];
+      return [...new Set([...roles, auth.user?.role].filter(Boolean))];
+    });
 
     // Modal State
     const showLegalModal = ref(false);
@@ -120,6 +134,7 @@ export default {
       auth,
       logoSrc,
       currentYear,
+      userRoles,
       showLegalModal,
       legalModalType,
       openModal

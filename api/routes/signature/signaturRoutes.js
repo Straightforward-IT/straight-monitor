@@ -1173,7 +1173,10 @@ router.put('/folge-defaults', auth, asyncHandler(async (req, res) => {
 router.get('/', auth, asyncHandler(async (req, res) => {
   const { status, locationV2, standort, typ, mitarbeiter, kunde, kundenNr, auftragNr, limit, refresh } = req.query;
   const filter = {};
-  if (status)      filter.status      = status;
+  if (status) {
+    const statuses = String(status).split(',').map(s => s.trim()).filter(Boolean);
+    if (statuses.length) filter.status = statuses.length > 1 ? { $in: statuses } : statuses[0];
+  }
   if (locationV2)  filter.locationV2  = locationV2;
   if (standort)    filter.standort    = standort;
   if (typ)         filter.typ         = typ;

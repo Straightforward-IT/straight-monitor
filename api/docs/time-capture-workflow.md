@@ -60,8 +60,8 @@ Public:
 
 Intern:
 
-- `GET /api/working-times/orders/:auftragNr?employeeId=…` → Auftrag, Schichten,
-  Einsätze und bestehende Stunden. Mitarbeiterfilter optional.
+- `GET /api/working-times/orders/:auftragNr?employeeId=…` → Auftrag, Einsätze
+  mit Mitarbeiterdaten und bestehende Ist-Stunden. Mitarbeiterfilter optional.
 - `POST /api/working-times/orders/:auftragNr` →
   `{action: 'save'|'release'|'withdraw', reason, entries: [{einsatzId, revision, start, end,
   breakMinutes, paidBreakMinutes, breaks: [{start, end, paid}]}]}`.

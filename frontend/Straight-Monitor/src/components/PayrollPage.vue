@@ -28,7 +28,7 @@
               <ToolbarButton
                 :variant="bucketEnabled ? 'primary' : 'secondary'"
                 :aria-pressed="bucketEnabled"
-                :disabled="loading || !data"
+                :disabled="loading || !data || preparation?.state === 'REVIEWED'"
                 aria-label="Eimer-Modus"
                 :title="bucketEnabled ? 'Eimer ausschalten und laufende Sammlung zurücklegen' : 'Stunden mit dem Eimer sammeln und ablegen'"
                 @click="bucketEnabled = !bucketEnabled"
@@ -51,7 +51,7 @@
                   class="payroll-page__refresh"
                   :disabled="loading || !employeeId"
                   aria-label="Stand neu laden"
-                  @click="loadMonth"
+                  @click="reloadMonth"
                 >
                   <FontAwesomeIcon
                     :icon="faRotateRight"
@@ -90,6 +90,28 @@
             {{ error }}
           </p>
           <template v-else-if="data">
+            <p v-if="preparationError" role="alert">{{ preparationError }}</p>
+            <p v-if="notice" role="status">{{ notice }}</p>
+            <template v-if="preparation">
+              <div class="payroll-preparation-actions">
+                <label>Bearbeitungs- / Prüfvermerk<input v-model="preparationReason" maxlength="1000" :disabled="busy"></label>
+                <label v-if="preparation.stale && preparation.state === 'DRAFT'"><input v-model="reconcile" type="checkbox"> Geänderte Quellen geprüft und abgeglichen</label>
+                <p v-if="preparation.stale" role="alert">Die gespeicherte Vorbereitung verweist auf ältere Quellen. Bitte Änderungen prüfen.</p>
+                <button v-if="preparation.state === 'DRAFT'" type="button" :disabled="busy || formDirty || !preparationReason.trim() || (preparation.stale && !reconcile)" @click="savePreparation">Vorbereitung speichern</button>
+                <span v-if="preparationDirty">Ungespeicherte Änderungen</span>
+                <span v-if="formDirty">Eintrag zuerst zum Entwurf hinzufügen oder Bearbeiten abbrechen.</span>
+              </div>
+              <PayrollMonthlyReview
+                v-show="reviewTab"
+                :state="preparation" :preview="review" :mapping="mapping" :busy="busy" :dirty="preparationDirty" :reason="preparationReason" :codes="mappingCodes"
+                @action="act" @preview="loadPreview" @load-mapping="loadMapping" @save-mapping="saveMapping" @mapping-dirty="mappingDirty = $event"
+              />
+              <PayrollPreparationEditor
+                v-show="!reviewTab" :key="`${employeeId}:${month}:${preparation.revision}`" ref="preparationEditor"
+                v-model="preparationItems" :sources="preparation.sources" :inherited="preparation.inherited" :types="data.dayEntryTypes" :month="month"
+                :readonly="preparation.state === 'REVIEWED'" :busy="busy" :picked="picked" @form-dirty="formDirty = $event"
+              />
+            </template>
             <p
               v-if="!data.initialData.entries.length"
               class="payroll-page__notice"
@@ -97,20 +119,24 @@
               Für diesen Monat wurden noch keine Stunden aus der Schnellerfassung übergeben.
             </p>
             <TimeManagement
-              :key="revision"
+              v-if="!reviewTab"
+              :key="`${revision}:${calendarKey}`"
               :employee="data.employee"
               :month="month"
-              :initial-data="data.initialData"
+              :initial-data="calendarData"
               :day-entry-types="data.dayEntryTypes"
               :save-enabled="false"
               :show-context="false"
               :show-guide="false"
               :bucket-enabled="bucketEnabled"
+              preparation-mode
               details-in-side-panel
               :details-target="detailsTarget"
               @select-day="openDayDetails"
               @close-details="detailsOpen = false; focusSelectedDay()"
               @open-capture="openAssignmentCapture"
+              @prepare-transfer="pickTransfer"
+              @prepare-entry="pickEntry"
             >
               <template #day-documents>
                 <OrderDocuments
@@ -195,6 +221,10 @@ import TimeManagement from '@/components/ui-elements/TimeManagement.vue';
 import OrderDocuments from '@/components/ui-elements/OrderDocuments.vue';
 import { payrollTabs } from '@/components/layout/pageTabDefinitions';
 import { useTimeCaptureModals } from '@/composables/useTimeCaptureModals';
+import { usePayrollPreparation } from '@/composables/usePayrollPreparation';
+import { preparationCalendar } from '@/utils/payrollPreparation';
+import PayrollPreparationEditor from '@/components/payroll/PayrollPreparationEditor.vue';
+import PayrollMonthlyReview from '@/components/payroll/PayrollMonthlyReview.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -259,6 +289,23 @@ function saveEmployeeId(value) {
 }
 const employeeId = computed(() => String(route.query.employeeId || storedEmployeeId()));
 const month = computed(() => String(route.query.month || new Date().toLocaleDateString('sv-SE').slice(0, 7)));
+const { state: preparation, items: preparationItems, busy, error: preparationError, notice, reason: preparationReason, reconcile,
+  review, mapping, mappingDirty, formDirty, dirty: preparationDirty, load: loadPreparation, act, loadPreview, loadMapping, saveMapping, confirmDiscard } = usePayrollPreparation(employeeId, month);
+const reviewTab = computed(() => route.query.tab === 'monatspruefung');
+const preparationEditor = ref(null), picked = ref(null);
+const mappingCodes = computed(() => ['P', 'M', 'AZK_DEPOSIT', 'AZK_WITHDRAWAL', ...(data.value?.dayEntryTypes || []).map(t => t.code)]);
+const calendarData = computed(() => ({ ...data.value.initialData, bankMinutes: null,
+  entries: [...data.value.initialData.entries, ...preparationCalendar(preparationItems.value, preparation.value?.inherited || [], month.value, data.value.dayEntryTypes)] }));
+const calendarKey = computed(() => JSON.stringify(preparationItems.value));
+function pickTransfer(value) { picked.value = { ...value, nonce: Date.now() }; }
+function pickEntry(value) { picked.value = { ...value, kind: 'ABSENCE', nonce: Date.now() }; }
+async function savePreparation() { await act('save'); }
+function beforeUnload(event) { if (preparationDirty.value || busy.value) { event.preventDefault(); event.returnValue = ''; } }
+function releasedChanged() {
+  if (preparationDirty.value || busy.value) { notice.value = 'Freigegebene Zeiten geändert. Entwurf bleibt erhalten; vor dem Speichern Quellen neu laden.'; return; }
+  loadMonth();
+}
+function reloadMonth() { if (confirmDiscard()) loadMonth(); }
 const monthDate = computed({
   get: () => {
     const [year, monthNumber] = month.value.split('-').map(Number);
@@ -272,7 +319,6 @@ const monthDate = computed({
 const selectedEmployeeId = computed({
   get: () => employeeId.value || null,
   set: value => {
-    saveEmployeeId(value);
     replaceQuery({ employeeId: value || null });
   },
 });
@@ -303,7 +349,7 @@ async function loadMonth() {
   error.value = '';
   data.value = null;
   try {
-    const response = await api.get(`/api/working-times/employees/${employeeId.value}/month`, { params: { month: month.value } });
+    const [response] = await Promise.all([api.get(`/api/working-times/employees/${employeeId.value}/month`, { params: { month: month.value } }), loadPreparation()]);
     if (current !== request) return;
     data.value = response.data;
     revision.value++;
@@ -315,15 +361,21 @@ async function loadMonth() {
 }
 watch([employeeId, month], loadMonth, { immediate: true });
 onMounted(() => {
-  window.addEventListener('working-times:released', loadMonth);
+  window.addEventListener('working-times:released', releasedChanged);
+  window.addEventListener('beforeunload', beforeUnload);
 });
 onBeforeUnmount(() => {
   request++;
-  window.removeEventListener('working-times:released', loadMonth);
+  window.removeEventListener('working-times:released', releasedChanged);
+  window.removeEventListener('beforeunload', beforeUnload);
 });
 </script>
 
 <style scoped>
+.payroll-preparation-actions { padding: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.payroll-preparation-actions label { display: flex; gap: 8px; align-items: center; }
+.payroll-preparation-actions input:not([type=checkbox]) { min-width: 240px; }
+.payroll-preparation-actions input, .payroll-preparation-actions button { padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); }
 .payroll-page { padding: 16px; min-width: 0; }
 .payroll-page__toolbar { margin-bottom: 29px; overflow: visible; }
 .payroll-page__field { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 12px; }

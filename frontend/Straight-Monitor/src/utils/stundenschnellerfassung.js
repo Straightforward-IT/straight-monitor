@@ -2,31 +2,16 @@ const dayOf = value => String(value || '').slice(0, 10);
 const refId = value => String(value?._id ?? value ?? '');
 const orderMatches = (item, auftragNr) => String(item.auftragNr) === String(auftragNr);
 
-/** Read-only projection of Auftrag → Schicht → Einsatz, including legacy links. */
-export function buildQuickEntryGroups(auftrag, schichten = [], einsaetze = []) {
+/** Read-only projection of Auftrag → Einsatz; imported Einsatz fields are authoritative. */
+export function buildQuickEntryRows(auftrag, einsaetze = []) {
   if (auftrag?.auftragNr == null) return [];
-  const groups = schichten.filter(shift => orderMatches(shift, auftrag.auftragNr)).map((shift, index) => ({
-    key: refId(shift._id) || `shift-${shift.idAuftragArbeitsschichten}-${dayOf(shift.datumVon)}-${index}`,
-    schicht: shift,
-    einsaetze: [],
-  }));
-  const unmatched = [];
-  for (const einsatz of einsaetze.filter(item => orderMatches(item, auftrag.auftragNr))) {
-    const directId = refId(einsatz.schicht);
-    const candidates = directId
-      ? groups.filter(group => refId(group.schicht._id) === directId)
-      : groups.filter(group => einsatz.idAuftragArbeitsschichten != null
-        && String(group.schicht.idAuftragArbeitsschichten) === String(einsatz.idAuftragArbeitsschichten));
-    const assignmentDay = dayOf(einsatz.detailDatumVon || einsatz.datumVon);
-    const dated = candidates.filter(group => dayOf(group.schicht.datumVon) === assignmentDay);
-    const group = directId && candidates.length === 1 ? candidates[0]
-      : dated.length === 1 ? dated[0]
-        : candidates.length === 1 && (!assignmentDay || !dayOf(candidates[0].schicht.datumVon)) ? candidates[0] : null;
-    if (group) group.einsaetze.push(einsatz);
-    else unmatched.push(einsatz);
-  }
-  if (unmatched.length) groups.push({ key: 'unassigned', schicht: { bezeichnung: 'Ohne Schichtzuordnung' }, einsaetze: unmatched });
-  return groups;
+  return einsaetze
+    .filter(einsatz => orderMatches(einsatz, auftrag.auftragNr))
+    .toSorted((left, right) => [
+      dayOf(left.detailDatumVon || left.datumVon).localeCompare(dayOf(right.detailDatumVon || right.datumVon)),
+      String(left.uhrzeitVon || '').localeCompare(String(right.uhrzeitVon || '')),
+      employeeName(left).localeCompare(employeeName(right), 'de'),
+    ].find(result => result !== 0) || 0);
 }
 
 export function employeeName(einsatz) {
@@ -34,8 +19,8 @@ export function employeeName(einsatz) {
   return [employee.nachname, employee.vorname].filter(Boolean).join(', ') || `Mitarbeiter ${einsatz.personalNr ?? 'ohne Nummer'}`;
 }
 
-export function plannedTimes(einsatz, schicht) {
-  return { start: einsatz.uhrzeitVon || schicht.uhrzeitVon || '', end: einsatz.uhrzeitBis || schicht.uhrzeitBis || '' };
+export function plannedTimes(einsatz) {
+  return { start: einsatz.uhrzeitVon || '', end: einsatz.uhrzeitBis || '' };
 }
 
 export function createQuickEntry(einsatz, initial = {}) {

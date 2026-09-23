@@ -1,6 +1,6 @@
 <template>
   <DashboardWidget
-    title="Zuletzt erstellt"
+    title="Reports"
     :icon="['fas', 'file-alt']"
     title-link-to="/dokumente"
     :loading="loading"

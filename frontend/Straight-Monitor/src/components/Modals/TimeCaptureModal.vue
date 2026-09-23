@@ -5,12 +5,29 @@
     size="xl"
     minimizable
     :minimize-id="minimizeId"
+    :minimize-title="modalTitle"
     :close-on-backdrop="false"
     :close-on-escape="false"
     :show-close="!busy"
-    style="--mf-max-width: min(1580px, 97vw); --mf-body-padding: 0; --mf-body-overflow: hidden; --mf-max-height: 94dvh"
+    style="--mf-max-width: min(1420px, 96vw); --mf-body-padding: 0; --mf-body-overflow: hidden; --mf-max-height: 92dvh; --mf-header-padding: 7px 10px; --mf-title-size: .9rem; --mf-radius: 8px"
     @close="close"
   >
+    <template #header="{ titleId }">
+      <div class="time-capture__header-titles">
+        <h3
+          :id="titleId"
+          class="time-capture__header-title"
+        >
+          Stundenschnellerfassung
+        </h3>
+        <p
+          v-if="modalDetails"
+          class="time-capture__header-details"
+        >
+          {{ modalDetails }}
+        </p>
+      </div>
+    </template>
     <template #actions>
       <CustomTooltip text="Neu laden">
         <button
@@ -21,20 +38,6 @@
           @click="reload"
         >
           <FontAwesomeIcon :icon="faRotateRight" />
-        </button>
-      </CustomTooltip>
-      <CustomTooltip
-        v-if="monthEmployee"
-        text="Monat in Stunden öffnen"
-      >
-        <button
-          type="button"
-          class="time-capture__header-action"
-          aria-label="Monat in Stunden öffnen"
-          :disabled="busy || loading"
-          @click="openMonth"
-        >
-          <FontAwesomeIcon :icon="faArrowUpRightFromSquare" />
         </button>
       </CustomTooltip>
     </template>
@@ -81,11 +84,6 @@
             </select>
           </label>
         </template>
-        <span
-          v-else
-          class="time-capture__order-reference"
-          :title="review?.auftrag?.eventTitel || `Auftrag #${selectedOrder}`"
-        >{{ review?.auftrag?.eventTitel || 'Auftrag' }} <small>#{{ selectedOrder }}</small></span>
         <OrderDocuments
           v-if="selectedOrder"
           compact
@@ -121,14 +119,15 @@
           :show-context="false"
           :busy="busy"
           :auftrag="review.auftrag"
-          :schichten="review.schichten"
           :einsaetze="assignments"
           :zeiten="times"
           :employee-search="employeeSearch"
           :submission-filter="submissionFilter"
+          show-payroll-link
           @submit="save"
           @cancel="close"
           @dirty-change="dirty = $event"
+          @open-payroll="openPayroll"
         />
         <details class="time-capture__history">
           <summary>Bearbeitungsverlauf · {{ history.length }} Einträge</summary>
@@ -151,15 +150,17 @@
         class="time-capture__confirm"
         role="alert"
       >
-        <span>Ungespeicherte Änderungen verwerfen?</span>
+        <span class="time-capture__confirm-message">Ungespeicherte Änderungen verwerfen?</span>
         <button
           type="button"
+          class="time-capture__confirm-discard"
           @click="runConfirmed"
         >
-          Verwerfen und fortfahren
+          Verwerfen
         </button>
         <button
           type="button"
+          class="time-capture__confirm-continue"
           @click="confirmAction = null"
         >
           Weiter bearbeiten
@@ -172,7 +173,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faArrowUpRightFromSquare, faBriefcase, faRotateRight } from '@fortawesome/free-solid-svg-icons';
+import { faBriefcase, faRotateRight } from '@fortawesome/free-solid-svg-icons';
 import { useRouter } from 'vue-router';
 import api from '@/utils/api';
 import CustomTooltip from '@/components/CustomTooltip.vue';
@@ -190,11 +191,22 @@ const router = useRouter();
 const month = ref(new Date().toLocaleDateString('sv-SE').slice(0, 7));
 const selectedOrder = ref(props.auftragNr || '');
 const orders = ref([]), review = ref(null), generation = ref(0), loading = ref(false), busy = ref(false);
-const dirty = ref(false), error = ref(''), notice = ref(''), confirmAction = ref(null), monthEmployee = ref(props.employeeId || '');
+const dirty = ref(false), error = ref(''), notice = ref(''), confirmAction = ref(null);
 const filterExpanded = ref(false);
 const employeeSearch = ref('');
 const submissionFilter = ref('all');
-const statusLabel = status => ({ SUBMITTED: 'Vom Mitarbeiter eingereicht', DRAFT: 'Interner Entwurf', RELEASED: 'An Zeitverwaltung übergeben', WITHDRAWN: 'Aus Zeitverwaltung zurückgenommen' }[status] || 'Offen');
+const statusLabel = status => ({ SUBMITTED: 'Vom Mitarbeiter eingereicht', DRAFT: 'Entwurf', RELEASED: 'An Zeitverwaltung übergeben', WITHDRAWN: 'Aus Zeitverwaltung zurückgenommen' }[status] || 'Offen');
+const modalDetails = computed(() => {
+  const auftrag = review.value?.auftrag;
+  const parts = [];
+  if (auftrag?.vonDatum) {
+    parts.push(new Date(`${String(auftrag.vonDatum).slice(0, 10)}T12:00:00`).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }));
+  }
+  if (auftrag?.eventTitel) parts.push(auftrag.eventTitel);
+  if (review.value?.kunde?.kuerzel) parts.push(review.value.kunde.kuerzel);
+  return parts.join(' · ');
+});
+const modalTitle = computed(() => ['Stundenschnellerfassung', modalDetails.value].filter(Boolean).join(' · '));
 function orderOptionLabel(order) {
   const date = String(order.vonDatum || '').slice(0, 10);
   const dateLabel = date ? new Date(`${date}T12:00:00`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Datum offen';
@@ -217,7 +229,7 @@ function runConfirmed() { const action = confirmAction.value; confirmAction.valu
 function resetFilters() { submissionFilter.value = 'all'; }
 function close() { if (!busy.value) guard(() => emit('update:modelValue', false)); }
 function reload() { if (!busy.value) guard(() => selectedOrder.value ? loadReview() : loadOrders()); }
-function openMonth() { router.push({ name: 'Payroll', query: { employeeId: monthEmployee.value, month: month.value } }); }
+function openPayroll(employeeId) { router.push({ name: 'Payroll', query: { employeeId, month: month.value } }); }
 async function loadOrders() {
   loading.value = true; error.value = ''; review.value = null; selectedOrder.value = '';
   try {
@@ -239,7 +251,6 @@ async function loadReview() {
       const employee = assignments.value.find(item => String(item.mitarbeiterData?._id) === String(props.employeeId))?.mitarbeiterData;
       employeeSearch.value = [employee?.vorname, employee?.nachname].filter(Boolean).join(' ');
     }
-    if (!monthEmployee.value) monthEmployee.value = assignments.value[0]?.mitarbeiterData?._id || '';
   } catch (failure) { error.value = messageOf(failure); }
   finally { loading.value = false; }
 }
@@ -272,34 +283,49 @@ onMounted(() => props.auftragNr ? loadReview() : loadOrders());
 </script>
 
 <style scoped>
-.time-capture { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 16px; padding: 16px; overflow: hidden; color: var(--text); }
+.time-capture { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 6px; padding: 8px; overflow: hidden; color: var(--text); }
 .time-capture > :not(.quick-time) { flex-shrink: 0; }
-.time-capture__toolbar { overflow: visible; z-index: 2; }
-.time-capture__toolbar :deep(.order-documents--compact summary) { min-height: 32px; padding: 5px 9px; font-size: 11px; background: var(--surface); }
-.time-capture__order-reference { max-width: 250px; overflow: hidden; color: var(--text); font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.time-capture__order-reference small { margin-left: 4px; color: var(--muted); font-size: 10px; font-weight: 400; }
-.time-capture__control { display: inline-flex; align-items: center; gap: 6px; height: 32px; min-width: 0; padding-left: 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--muted); }
+.time-capture__toolbar { gap: 6px; margin: 0; padding: 4px 7px; border-radius: 7px; overflow: visible; z-index: 2; box-shadow: none; }
+.time-capture__toolbar :deep(.search-bar-root) { gap: 6px; min-height: 28px; padding: 4px 8px; border-radius: 5px; box-shadow: none; }
+.time-capture__toolbar :deep(.search-bar-root input) { font-size: 11px; }
+.time-capture__toolbar :deep(.order-documents--compact summary) { box-sizing: border-box; height: 28px; min-height: 28px; padding: 3px 7px; font-size: 10px; background: var(--surface); }
+.time-capture__control { display: inline-flex; align-items: center; gap: 5px; height: 28px; min-width: 0; padding-left: 7px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--muted); }
 .time-capture__control > svg { flex: 0 0 auto; width: 12px; font-size: 11px; }
-.time-capture__control :is(input, select) { min-width: 0; height: 30px; padding: 4px 8px 4px 0; color: var(--text); background: transparent; border: 0; outline: 0; font: inherit; font-size: 11px; }
+.time-capture__control :is(input, select) { min-width: 0; height: 26px; padding: 2px 6px 2px 0; color: var(--text); background: transparent; border: 0; outline: 0; font: inherit; font-size: 10px; }
 .time-capture__control--order { flex: 1 1 360px; max-width: 520px; }
 .time-capture__control--order select { width: 100%; }
 .time-capture__control:focus-within { border-color: var(--primary); outline: 2px solid color-mix(in srgb, var(--primary) 24%, transparent); outline-offset: 0; }
-.time-capture__header-action { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+.time-capture__header-action { display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; }
 .time-capture__header-action:hover:not(:disabled), .time-capture__header-action:focus-visible { border-color: color-mix(in srgb, var(--primary) 30%, transparent); background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); }
 .time-capture__header-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.time-capture__header-titles { min-width: 0; }
+.time-capture__header-title { margin: 0; color: var(--text); font-size: .9rem; font-weight: 600; line-height: 1.2; }
+.time-capture__header-details { margin: 2px 0 0; overflow: hidden; color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .time-capture__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .time-capture :disabled { opacity: .55; cursor: default; }
-.time-capture__notice { padding: 10px 20px; margin: 0; font-size: 12px; background: color-mix(in srgb, var(--primary) 8%, var(--surface)); }
+.time-capture__notice { padding: 6px 10px; margin: 0; font-size: 10px; background: color-mix(in srgb, var(--primary) 8%, var(--surface)); }
 .time-capture__notice--error { color: #c75048; }
-.time-capture__history { flex-shrink: 0; padding: 10px 20px; border-top: 1px solid var(--border); font-size: 11px; max-height: 160px; overflow: auto; }
-.time-capture__history div { padding: 5px 0; }
+.time-capture__history { flex-shrink: 0; padding: 6px 8px; border-top: 1px solid var(--border); font-size: 10px; max-height: 120px; overflow: auto; }
+.time-capture__history div { padding: 3px 0; }
 .time-capture__history summary { cursor: pointer; }
-.time-capture__confirm { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--border); }
-.time-capture__confirm button { min-height: 30px; padding: 5px 9px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font: inherit; }
+.time-capture__confirm { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 9px 10px; border: 1px solid color-mix(in srgb, #c75048 38%, var(--border)); border-radius: 6px; background: color-mix(in srgb, #c75048 6%, var(--surface)); box-shadow: 0 2px 8px color-mix(in srgb, #c75048 10%, transparent); }
+.time-capture__confirm-message { flex: 1 1 240px; color: var(--text); font-size: 11px; font-weight: 600; }
+.time-capture__confirm button { min-height: 30px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font: inherit; font-size: 10px; font-weight: 600; transition: border-color .15s, background-color .15s, color .15s; }
+.time-capture__confirm button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.time-capture__confirm-discard { border-color: color-mix(in srgb, #c75048 60%, var(--border)) !important; background: var(--surface); color: #b7443d; }
+.time-capture__confirm-discard:hover { border-color: #c75048 !important; background: color-mix(in srgb, #c75048 9%, var(--surface)); }
+.time-capture__confirm-continue { border-color: var(--primary) !important; background: var(--primary); color: #27221c; }
+.time-capture__confirm-continue:hover { background: color-mix(in srgb, var(--primary) 88%, #fff); }
 @media (max-width: 860px) {
-  .time-capture__toolbar { align-items: stretch; overflow-x: auto; }
-  .time-capture__toolbar :deep(.toolbar-main-content) { flex: 0 0 auto; }
-  .time-capture__order-reference { max-width: 180px; align-self: center; }
-  .time-capture__control--order { flex-basis: 320px; }
+  .time-capture { gap: 4px; padding: 6px; }
+  .time-capture__toolbar { align-items: stretch; flex-wrap: wrap; gap: 5px; padding: 4px 6px; overflow: visible; }
+  .time-capture__toolbar :deep(.toolbar-filter) { margin: -4px 0 -4px -6px; }
+  .time-capture__toolbar :deep(.toolbar-main-content) { display: grid; grid-template-columns: minmax(0, 1fr) auto; flex: 1 1 0; min-width: 0; gap: 5px; align-items: center; }
+  .time-capture__toolbar :deep(.toolbar-search) { width: 100%; min-width: 0; max-width: none; box-sizing: border-box; }
+  .time-capture__toolbar :deep(.order-documents--compact) { min-width: 0; justify-self: end; }
+  .time-capture__control--order { grid-column: 1 / -1; width: 100%; max-width: none; flex-basis: auto; }
+  .time-capture__confirm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .time-capture__confirm-message { grid-column: 1 / -1; }
+  .time-capture__confirm button { width: 100%; min-height: 40px; }
 }
 </style>

@@ -9,6 +9,7 @@ const Einsatz = require('../models/Event/Einsatz');
 const Auftrag = require('../models/Event/Auftrag');
 const Schicht = require('../models/Event/Schicht');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
+const Kunde = require('../models/Customer/Kunde');
 const User = require('../models/System/User');
 const { EventReport } = require('../models/Classes/EventReport');
 const Signature = require('../models/Signature/SignaturVorgang');
@@ -61,13 +62,14 @@ describe('Operational time capture API', function () {
     base = `http://127.0.0.1:${server.address().port}`;
   });
   beforeEach(async () => {
-    for (const model of [Stundenzeit, Einsatz, Auftrag, Schicht, Mitarbeiter, User, EventReport, Signature]) await model.deleteMany({});
+    for (const model of [Stundenzeit, Einsatz, Auftrag, Schicht, Mitarbeiter, Kunde, User, EventReport, Signature]) await model.deleteMany({});
     location = oid();
     employee = { _id: oid(), personalnr: '100001', asana_id: 'time-test-1', email: 'employee@example.test', vorname: 'Anna', nachname: 'Test', isActive: true, locationV2: location, arbeitszeit: { monat: 100 } };
     other = { _id: oid(), personalnr: '100002', asana_id: 'time-test-2', email: 'other@example.test', isActive: true, locationV2: location };
     user = { _id: oid(), name: 'Office', email: 'office@example.test', role: 'USER', roles: ['USER'], isConfirmed: true, locationV2: location };
     await Mitarbeiter.collection.insertMany([employee, other]); await User.collection.insertOne(user);
-    order = await Auftrag.create({ auftragNr: 9100001, locationV2: location, eventTitel: 'Testauftrag' });
+    await Kunde.create({ kundenNr: 50001, kuerzel: 'TEST' });
+    order = await Auftrag.create({ auftragNr: 9100001, kundenNr: 50001, locationV2: location, eventTitel: 'Testauftrag', vonDatum: new Date('2020-09-08') });
     const shift = await Schicht.create({ auftragNr: order.auftragNr, datumVon: new Date('2020-09-08'), uhrzeitVon: '10:00', uhrzeitBis: '18:00' });
     einsatz = await Einsatz.create({ auftragNr: order.auftragNr, schicht: shift._id, personalNr: Number(employee.personalnr), datumVon: new Date('2020-09-08') });
     second = await Einsatz.create({ auftragNr: order.auftragNr, personalNr: Number(employee.personalnr), datumVon: new Date('2020-09-09') });
@@ -122,6 +124,8 @@ describe('Operational time capture API', function () {
     assert.equal((await submit()).status, 409);
     assert.equal((await update('release', 4)).status, 409);
     const review = (await request(`/orders/${order.auftragNr}`)).body;
+    assert.equal('schichten' in review, false);
+    assert.equal(review.kunde.kuerzel, 'TEST');
     assert.equal(review.einsaetze[0].mitarbeiterData.vorname, 'Anna');
     assert.equal(review.entries[0].employeeSubmission.netMinutes, 450);
     assert.equal(review.entries[0].history.length, 5);
