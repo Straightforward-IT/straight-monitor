@@ -480,7 +480,7 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
   if (comment && comment.trim()) {
     await queueAsanaWrite(
       `create email comment for task ${createdTask.gid}`,
-      () => createStoryOnTask(createdTask.gid, { html_text: `<body>${formatCommentHtml(comment)}</body>` })
+      () => createStoryOnTask(createdTask.gid, { text: comment.trim() })
     );
   }
 
@@ -495,18 +495,6 @@ async function createTaskFromEmail(email, files = [], hint = {}) {
   }
 
   return createdTask;
-}
-
-function formatCommentHtml(comment = "") {
-  return String(comment)
-    .trim()
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .split(/\r?\n\s*\r?\n/)
-    .filter(Boolean)
-    .map((paragraph) => `<p>${paragraph.replace(/\r?\n/g, "<br>")}</p>`)
-    .join("");
 }
 
 /**
@@ -650,28 +638,26 @@ async function _mergeIntoExistingTask(existingTask, email, files = [], hint = {}
   }
 
   // 2) Neue Bewerbung als Story (Kommentar) an bestehenden Task anhängen
-  const fromInfo = `${(email.fromName || email.fromAddr || "unbekannt").replace(/</g, "&lt;").replace(/>/g, "&gt;")} &lt;${email.fromAddr || ""}&gt;`;
   const dateInfo = email.receivedDateTime
     ? new Date(email.receivedDateTime).toLocaleString("de-DE")
     : "-";
-  const providerInfo = (hint.provider || "-").replace(/</g, "&lt;");
 
   const contactLines = [];
   if (email.meta?.telefon) contactLines.push(`Telefon: ${email.meta.telefon}`);
   if (email.meta?.email) contactLines.push(`E-Mail: ${email.meta.email}`);
-  const contactHtml = contactLines.length
-    ? `<br>${contactLines.map((line) => line.replace(/</g, "&lt;")).join("<br>")}`
-    : "";
 
   const commentText = email.meta?.asana_comment || email.bodyText || "";
-  const commentHtml = commentText.trim()
-    ? `<br>${formatCommentHtml(commentText)}`
-    : "";
-
-  const storyHtml = `<body><strong>🔄 Erneute Bewerbung eingegangen</strong><br>📥 <b>Eingang:</b> ${dateInfo}<br>👤 <b>Von:</b> ${fromInfo}<br>🔍 <b>Quelle:</b> ${providerInfo}${contactHtml}${commentHtml}</body>`;
+  const storyText = [
+    "Erneute Bewerbung eingegangen",
+    `Eingang: ${dateInfo}`,
+    `Von: ${email.fromName || email.fromAddr || "unbekannt"} <${email.fromAddr || ""}>`,
+    `Quelle: ${hint.provider || "-"}`,
+    ...contactLines,
+    commentText.trim(),
+  ].filter(Boolean).join("\n");
   await queueAsanaWrite(
     `create duplicate-email comment for task ${gid}`,
-    () => createStoryOnTask(gid, { html_text: storyHtml })
+    () => createStoryOnTask(gid, { text: storyText })
   );
   console.log(`💬 Story zur erneuten Bewerbung an Task ${gid} angefügt`);
 
@@ -860,7 +846,7 @@ async function uploadAttachmentsToTask(task_gid, files = []) {async function cre
     const comment = email.meta?.asana_comment || email.bodyText || "";
     if (comment && comment.trim()) {
       await createStoryOnTask(createdTask.gid, {
-        html_text: `<body>${formatCommentHtml(comment)}</body>`,
+        text: comment.trim(),
       });
     }
   } catch (e) {
