@@ -30,7 +30,7 @@
                 :aria-pressed="bucketEnabled"
                 :disabled="loading || !data || preparation?.state === 'REVIEWED'"
                 aria-label="Eimer-Modus"
-                :title="bucketEnabled ? 'Eimer ausschalten und laufende Sammlung zurücklegen' : 'Stunden mit dem Eimer sammeln und ablegen'"
+                :title="bucketEnabled ? 'AZK-Vorschlagsmodus ausschalten' : 'Stunden oder Zeitkonto anklicken, um eine AZK-Bewegung vorzuschlagen'"
                 @click="bucketEnabled = !bucketEnabled"
               >
                 <FontAwesomeIcon :icon="faBucket" />
@@ -98,6 +98,7 @@
                 <label v-if="preparation.stale && preparation.state === 'DRAFT'"><input v-model="reconcile" type="checkbox"> Geänderte Quellen geprüft und abgeglichen</label>
                 <p v-if="preparation.stale" role="alert">Die gespeicherte Vorbereitung verweist auf ältere Quellen. Bitte Änderungen prüfen.</p>
                 <button v-if="preparation.state === 'DRAFT'" type="button" :disabled="busy || formDirty || !preparationReason.trim() || (preparation.stale && !reconcile)" @click="savePreparation">Vorbereitung speichern</button>
+                <button type="button" :disabled="busy" @click="refreshSources">Quellen aktualisieren (Entwurf behalten)</button>
                 <span v-if="preparationDirty">Ungespeicherte Änderungen</span>
                 <span v-if="formDirty">Eintrag zuerst zum Entwurf hinzufügen oder Bearbeiten abbrechen.</span>
               </div>
@@ -287,10 +288,10 @@ function saveEmployeeId(value) {
   if (value) sessionStorage.setItem(PAYROLL_EMPLOYEE_STORAGE_KEY, String(value));
   else sessionStorage.removeItem(PAYROLL_EMPLOYEE_STORAGE_KEY);
 }
-const employeeId = computed(() => String(route.query.employeeId || storedEmployeeId()));
+const employeeId = computed(() => String(route.query.employeeId ?? storedEmployeeId()));
 const month = computed(() => String(route.query.month || new Date().toLocaleDateString('sv-SE').slice(0, 7)));
 const { state: preparation, items: preparationItems, busy, error: preparationError, notice, reason: preparationReason, reconcile,
-  review, mapping, mappingDirty, formDirty, dirty: preparationDirty, load: loadPreparation, act, loadPreview, loadMapping, saveMapping, confirmDiscard } = usePayrollPreparation(employeeId, month);
+  review, mapping, mappingDirty, formDirty, dirty: preparationDirty, load: loadPreparation, act, refreshSources, loadPreview, loadMapping, saveMapping, confirmDiscard } = usePayrollPreparation(employeeId, month);
 const reviewTab = computed(() => route.query.tab === 'monatspruefung');
 const preparationEditor = ref(null), picked = ref(null);
 const mappingCodes = computed(() => ['P', 'M', 'AZK_DEPOSIT', 'AZK_WITHDRAWAL', ...(data.value?.dayEntryTypes || []).map(t => t.code)]);
@@ -302,7 +303,7 @@ function pickEntry(value) { picked.value = { ...value, kind: 'ABSENCE', nonce: D
 async function savePreparation() { await act('save'); }
 function beforeUnload(event) { if (preparationDirty.value || busy.value) { event.preventDefault(); event.returnValue = ''; } }
 function releasedChanged() {
-  if (preparationDirty.value || busy.value) { notice.value = 'Freigegebene Zeiten geändert. Entwurf bleibt erhalten; vor dem Speichern Quellen neu laden.'; return; }
+  if (preparationDirty.value || busy.value) { notice.value = 'Freigegebene Zeiten geändert. Entwurf bleibt erhalten; vor dem Speichern „Quellen aktualisieren“ wählen.'; return; }
   loadMonth();
 }
 function reloadMonth() { if (confirmDiscard()) loadMonth(); }
@@ -319,7 +320,7 @@ const monthDate = computed({
 const selectedEmployeeId = computed({
   get: () => employeeId.value || null,
   set: value => {
-    replaceQuery({ employeeId: value || null });
+    replaceQuery({ employeeId: value || '' });
   },
 });
 const selectedEmployee = computed(() => {
@@ -333,7 +334,7 @@ const selectedEmployee = computed(() => {
 });
 function replaceQuery(patch) {
   const query = { ...route.query, ...patch };
-  Object.keys(query).forEach(key => { if (query[key] == null || query[key] === '') delete query[key]; });
+  Object.keys(query).forEach(key => { if (query[key] == null || (query[key] === '' && key !== 'employeeId')) delete query[key]; });
   router.replace({ query });
 }
 watch(employeeId, saveEmployeeId, { immediate: true });
@@ -344,7 +345,7 @@ async function loadMonth() {
   bucketEnabled.value = false;
   detailsOpen.value = false;
   const current = ++request;
-  if (!employeeId.value) { data.value = null; loading.value = false; return; }
+  if (!employeeId.value) { data.value = null; loading.value = false; await loadPreparation(); return; }
   loading.value = true;
   error.value = '';
   data.value = null;

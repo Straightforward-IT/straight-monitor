@@ -242,6 +242,13 @@ function userId(req) {
   return req.user?.id || req.user?._id || null;
 }
 
+async function loadRequestUser(req) {
+  const id = userId(req);
+  return mongoose.isValidObjectId(id)
+    ? User.findById(id).select('name email').lean()
+    : null;
+}
+
 function employeePersonalNumbers(employee) {
   return [...new Set([
     employee?.personalnr,
@@ -251,20 +258,6 @@ function employeePersonalNumbers(employee) {
     .filter(Number.isInteger))];
 }
 
-async function loadRequestUser(req) {
-  const id = userId(req);
-  return mongoose.isValidObjectId(id)
-    ? User.findById(id).select('name email role roles locationV2 locationAccess').lean()
-    : null;
-}
-
-function hasLocationAccess(user, locationId) {
-  const roles = [user?.role, ...(user?.roles || [])].map(role => String(role || '').toUpperCase());
-  if (roles.includes('ADMIN')) return true;
-  const allowed = [user?.locationV2, ...(user?.locationAccess || [])].map(String);
-  return allowed.includes(String(locationId));
-}
-
 async function resolveWritableLocation(req, locationId) {
   if (!locationId || !mongoose.isValidObjectId(locationId)) throw validationError('Ein gültiger Standort ist erforderlich');
   const [location, user] = await resolveQueries([
@@ -272,11 +265,6 @@ async function resolveWritableLocation(req, locationId) {
     () => loadRequestUser(req),
   ]);
   if (!location) throw validationError('Der gewählte Standort ist nicht aktiv oder existiert nicht');
-  if (!hasLocationAccess(user, location._id)) {
-    const error = new Error('Für diesen Standort fehlt die Berechtigung');
-    error.statusCode = 403;
-    throw error;
-  }
   return { location, user };
 }
 
@@ -291,15 +279,8 @@ async function assertCustomerMatchesLocation(customer, locationId) {
   }
 }
 
-async function assertOrderLocationAccess(req, auftrag) {
+async function assertOrderHasLocation(req, auftrag) {
   if (!auftrag?.locationV2) throw validationError('Dem Auftrag ist kein Standort zugeordnet');
-  const user = await loadRequestUser(req);
-  if (!hasLocationAccess(user, auftrag.locationV2)) {
-    const error = new Error('Für den Standort dieses Auftrags fehlt die Berechtigung');
-    error.statusCode = 403;
-    throw error;
-  }
-  return user;
 }
 
 async function allocateMonitorIdForAuftrag(entityType, auftrag) {
@@ -1243,7 +1224,7 @@ router.post('/:auftragNr/labels', auth, withAuftragChronik('Auftrag.updated', as
   }
   const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) });
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
 
   const trimmedName = String(name).trim();
   const exists = (auftrag.labels || []).some(l => l.name.toLowerCase() === trimmedName.toLowerCase());
@@ -1260,7 +1241,7 @@ router.delete('/:auftragNr/labels/:labelId', auth, withAuftragChronik('Auftrag.u
   const { auftragNr, labelId } = req.params;
   const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) });
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
   auftrag.labels = (auftrag.labels || []).filter(l => String(l._id) !== labelId);
   await auftrag.save();
   res.json({ labels: auftrag.labels });
@@ -1346,7 +1327,7 @@ router.delete('/:auftragNr', auth, withAuftragChronik('Auftrag.deleted', async (
   const { auftragNr } = req.params;
   const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr), isPseudo: true });
   if (!auftrag) return res.status(404).json({ message: 'Pseudo-Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
   await Einsatz.deleteMany({ auftragNr: parseInt(auftragNr) });
   await Schicht.deleteMany({ auftragNr: parseInt(auftragNr) });
   await auftrag.deleteOne();
@@ -1366,7 +1347,7 @@ router.post('/:auftragNr/pseudo-einsatz', auth, withAuftragChronik('Einsatz.crea
 
   const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) });
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
 
   const mitarbeiter = await Mitarbeiter.findById(mitarbeiterId).lean();
   if (!mitarbeiter) return res.status(404).json({ message: 'Mitarbeiter nicht gefunden' });
@@ -1454,7 +1435,7 @@ router.patch('/:auftragNr', auth, withAuftragChronik('Auftrag.updated', async (r
   const patch = normalizeEditablePatch(req.body, AUFTRAG_EDITABLE_FIELDS);
   const current = await Auftrag.findOne({ auftragNr });
   if (!current) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, current);
+  await assertOrderHasLocation(req, current);
   if (current.source === 'monitor'
     && Object.prototype.hasOwnProperty.call(patch, 'auftStatus')
     && Number(patch.auftStatus) !== Number(current.auftStatus)) {
@@ -1554,7 +1535,7 @@ router.post('/:auftragNr/schichten', auth, withAuftragChronik('Schicht.created',
   const auftragNr = parseAuftragNr(req.params.auftragNr);
   const auftrag = await Auftrag.findOne({ auftragNr });
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
   const input = req.body || {};
   const editableInput = Object.fromEntries(
     Object.entries(input).filter(([key]) => SCHICHT_EDITABLE_FIELDS.has(key))
@@ -1607,7 +1588,7 @@ router.patch('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schic
   ]);
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   if (!current) return res.status(404).json({ message: 'Schicht nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
   const selectionChanged = ['berufSchl', 'qualSchl'].some(key => (
     Object.prototype.hasOwnProperty.call(patch, key)
     && editableValueChanged(key, patch[key], current[key])
@@ -1668,7 +1649,7 @@ router.delete('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schi
   if (!mongoose.isValidObjectId(req.params.schichtId)) throw validationError('Ungültige Schicht-ID');
   const auftrag = await Auftrag.findOne({ auftragNr }).lean();
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
   const schicht = await Schicht.findOneAndDelete({ _id: req.params.schichtId, auftragNr });
   if (!schicht) return res.status(404).json({ message: 'Schicht nicht gefunden' });
   await Einsatz.deleteMany({
@@ -1687,18 +1668,15 @@ router.delete('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schi
 router.get('/:auftragNr/schichten/:schichtId/candidates', auth, asyncHandler(async (req, res) => {
   const auftragNr = parseAuftragNr(req.params.auftragNr);
   if (!mongoose.isValidObjectId(req.params.schichtId)) throw validationError('Ungültige Schicht-ID');
-  const [auftrag, schicht, user] = await Promise.all([
+  const [auftrag, schicht] = await Promise.all([
     Auftrag.findOne({ auftragNr }).lean(),
     Schicht.findOne({ _id: req.params.schichtId, auftragNr }).lean(),
-    loadRequestUser(req),
   ]);
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   if (!schicht) return res.status(404).json({ message: 'Schicht nicht gefunden' });
-  if (!hasLocationAccess(user, auftrag.locationV2)) return res.status(403).json({ message: 'Für den Standort dieses Auftrags fehlt die Berechtigung' });
   const candidates = await getStaffingCandidates({
     auftrag,
     schicht,
-    user,
     includeOtherLocations: req.query.includeOtherLocations === 'true',
   });
   const shiftAssignmentFilter = {
@@ -1722,13 +1700,11 @@ router.put('/:auftragNr/planning', auth, withAuftragChronik('planning.updated', 
   const expectedVersion = Number(req.body?.planningVersion);
   const operations = Array.isArray(req.body?.operations) ? req.body.operations : [];
   if (!Number.isSafeInteger(expectedVersion)) throw validationError('Eine gültige Planungsversion ist erforderlich');
-  const [auftrag, user, schichten] = await resolveQueries([
+  const [auftrag, schichten] = await resolveQueries([
     () => Auftrag.findOne({ auftragNr }).lean(),
-    () => loadRequestUser(req),
     () => Schicht.find({ auftragNr }).lean(),
   ]);
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  if (!hasLocationAccess(user, auftrag.locationV2)) return res.status(403).json({ message: 'Für den Standort dieses Auftrags fehlt die Berechtigung' });
   if (Number(auftrag.planningVersion || 0) !== expectedVersion) {
     return res.status(409).json({ code: 'PLANNING_STALE', message: 'Die Planung wurde zwischenzeitlich geändert', planningVersion: auftrag.planningVersion || 0 });
   }
@@ -1745,7 +1721,7 @@ router.put('/:auftragNr/planning', auth, withAuftragChronik('planning.updated', 
         ],
       }).select('_id').lean();
       if (!employee) continue;
-      const [candidate] = await getStaffingCandidates({ auftrag, schicht, user, includeOtherLocations: true, employeeIds: [employee._id] });
+      const [candidate] = await getStaffingCandidates({ auftrag, schicht, includeOtherLocations: true, employeeIds: [employee._id] });
       if (!candidate) {
         return res.status(403).json({ message: 'Eine Einplanung liegt außerhalb der freigegebenen Standorte', einsatzId: assignment._id });
       }
@@ -1794,7 +1770,6 @@ router.put('/:auftragNr/planning', auth, withAuftragChronik('planning.updated', 
     const [candidate] = await getStaffingCandidates({
       auftrag,
       schicht,
-      user,
       includeOtherLocations: Boolean(req.body?.includeOtherLocations),
       employeeIds: [mitarbeiter._id],
     });
@@ -1864,7 +1839,7 @@ router.post('/:auftragNr/release', auth, withAuftragChronik('Auftrag.released', 
     () => Schicht.find({ auftragNr }).lean(),
   ]);
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  const requestUser = await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
   const errors = validateAuftragRelease(auftrag, schichten);
   const shiftById = new Map(schichten.map(shift => [String(shift._id), shift]));
   const plannedAssignments = await Einsatz.find({ auftragNr, source: 'monitor', schicht: { $ne: null } }).lean();
@@ -1881,7 +1856,7 @@ router.post('/:auftragNr/release', auth, withAuftragChronik('Auftrag.released', 
       errors.push({ step: 3, field: `einsatz-${assignment._id}`, message: `Personal ${assignment.personalNr} konnte nicht mehr aufgelöst werden` });
       continue;
     }
-    const [candidate] = await getStaffingCandidates({ auftrag: auftrag.toObject(), schicht: shift, user: requestUser, includeOtherLocations: true, employeeIds: [employee._id] });
+    const [candidate] = await getStaffingCandidates({ auftrag: auftrag.toObject(), schicht: shift, includeOtherLocations: true, employeeIds: [employee._id] });
     if (!candidate) {
       errors.push({ step: 3, field: `einsatz-${assignment._id}`, message: `${employee.vorname} ${employee.nachname} liegt außerhalb der freigegebenen Standorte` });
     } else if (!conflictOverrideCovers(assignment.conflictOverride, candidate.conflicts || [])) {
@@ -1912,7 +1887,7 @@ router.post('/:auftragNr/einsaetze', auth, withAuftragChronik('Einsatz.created',
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   if (!mitarbeiter) return res.status(404).json({ message: 'Mitarbeiter nicht gefunden' });
   if (!schicht) return res.status(404).json({ message: 'Schicht nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
 
   const personalNr = Number.parseInt(mitarbeiter.personalnr, 10);
   if (!Number.isInteger(personalNr)) throw validationError('Mitarbeiter hat keine gültige Personalnummer');
@@ -1928,11 +1903,9 @@ router.post('/:auftragNr/einsaetze', auth, withAuftragChronik('Einsatz.created',
   });
   if (duplicate) return res.status(409).json({ message: 'Mitarbeiter ist bereits in dieser Schicht eingeplant' });
 
-  const requestUser = await loadRequestUser(req);
   const [candidate] = await getStaffingCandidates({
     auftrag,
     schicht,
-    user: requestUser,
     includeOtherLocations: Boolean(req.body?.includeOtherLocations),
     employeeIds: [mitarbeiter._id],
   });
@@ -2037,7 +2010,7 @@ router.patch('/:auftragNr/einsaetze/:einsatzId', auth, withAuftragChronik('Einsa
   if (!current) return res.status(404).json({ message: 'Einsatz nicht gefunden' });
   const auftrag = await Auftrag.findOne({ auftragNr }).lean();
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
   const personalNr = patch.personalNr ?? current.personalNr;
   const shiftKey = patch.idAuftragArbeitsschichten ?? current.idAuftragArbeitsschichten;
   const duplicate = await Einsatz.exists({
@@ -2064,7 +2037,7 @@ router.delete('/:auftragNr/einsaetze/:einsatzId', auth, withAuftragChronik('Eins
   if (!mongoose.isValidObjectId(req.params.einsatzId)) throw validationError('Ungültige Einsatz-ID');
   const auftrag = await Auftrag.findOne({ auftragNr }).lean();
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
   const einsatz = await Einsatz.findOneAndDelete({ _id: req.params.einsatzId, auftragNr });
   if (!einsatz) return res.status(404).json({ message: 'Einsatz nicht gefunden' });
   await Auftrag.updateOne({ auftragNr }, { $inc: { planningVersion: 1 } });
@@ -2080,7 +2053,7 @@ router.delete('/:auftragNr/pseudo-einsatz/:einsatzId', auth, withAuftragChronik(
   if (!mongoose.isValidObjectId(einsatzId)) throw validationError('Ungültige Einsatz-ID');
   const auftrag = await Auftrag.findOne({ auftragNr }).lean();
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
   const einsatz = await Einsatz.findOne({ _id: einsatzId, auftragNr, isPseudo: true });
   if (!einsatz) return res.status(404).json({ message: 'Pseudo-Einsatz nicht gefunden' });
   await einsatz.deleteOne();
@@ -2125,7 +2098,7 @@ router.get('/:auftragNr/einsatzdokumente', auth, asyncHandler(async (req, res) =
 router.get('/:auftragNr/einsatzdokumente/:documentId/download', auth, asyncHandler(async (req, res) => {
   const auftrag = await Auftrag.findOne({ auftragNr: parseAuftragNr(req.params.auftragNr) }).lean();
   if (!auftrag) return res.status(404).json({ success: false, message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
   const document = (auftrag.einsatzdokumente || []).find(item => String(item._id) === req.params.documentId);
   if (!document || !(await canAccessOfficeDocument(document, req.user))) {
     return res.status(404).json({ success: false, message: 'Dokument nicht gefunden' });
@@ -2140,7 +2113,7 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
   if (!req.file) return res.status(400).json({ success: false, message: 'Keine Datei übermittelt' });
   const auftrag = await Auftrag.findOne({ auftragNr: parseAuftragNr(auftragNr) }).lean();
   if (!auftrag) return res.status(404).json({ success: false, message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
 
   // Sanitise filename to prevent path traversal
   const safeName = req.file.originalname.replace(/[/\\:*?"<>|]/g, '_');
@@ -2211,7 +2184,7 @@ router.delete('/:auftragNr/einsatzdokumente/:documentId', auth, asyncHandler(asy
   const { auftragNr } = req.params;
   const auftrag = await Auftrag.findOne({ auftragNr: parseAuftragNr(auftragNr) }).lean();
   if (!auftrag) return res.status(404).json({ success: false, message: 'Auftrag nicht gefunden' });
-  await assertOrderLocationAccess(req, auftrag);
+  await assertOrderHasLocation(req, auftrag);
   const document = (auftrag.einsatzdokumente || []).find(item => String(item._id) === req.params.documentId);
   if (!document || !(await canAccessOfficeDocument(document, req.user))) {
     return res.status(404).json({ success: false, message: 'Dokument nicht gefunden' });

@@ -77,19 +77,15 @@ function calendarDayKeys(from, to = from) {
   return keys;
 }
 
-async function accessibleLocationIds(user, requestedLocation, includeOtherLocations) {
-  const roles = [user?.role, ...(user?.roles || [])].map(value => String(value || '').toUpperCase());
-  if (roles.includes('ADMIN') && includeOtherLocations) return null;
-  const allowed = new Set([user?.locationV2, ...(user?.locationAccess || [])].map(id).filter(Boolean));
-  if (requestedLocation && !allowed.has(id(requestedLocation)) && !roles.includes('ADMIN')) return [];
-  if (!includeOtherLocations) return requestedLocation ? [requestedLocation] : [...allowed];
-  return [...allowed];
+async function accessibleLocationIds(requestedLocation, includeOtherLocations) {
+  if (includeOtherLocations) return null;
+  return requestedLocation ? [requestedLocation] : null;
 }
 
-async function getStaffingCandidates({ auftrag, schicht, user, includeOtherLocations = false, employeeIds = null }) {
+async function getStaffingCandidates({ auftrag, schicht, includeOtherLocations = false, employeeIds = null }) {
   const window = shiftWindow(schicht);
   if (!window.start || !window.end) return [];
-  const locationIds = await accessibleLocationIds(user, auftrag.locationV2, includeOtherLocations);
+  const locationIds = await accessibleLocationIds(auftrag.locationV2, includeOtherLocations);
   const filter = { isActive: true, isBewerberstatus: { $ne: true } };
   if (Array.isArray(locationIds)) filter.locationV2 = { $in: locationIds };
   if (Array.isArray(employeeIds)) filter._id = { $in: employeeIds };

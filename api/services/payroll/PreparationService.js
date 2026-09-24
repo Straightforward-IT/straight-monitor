@@ -53,9 +53,14 @@ async function read(user, employeeId, month) {
     const before = record.sources.find(s => s.id === id), after = state.sources.find(s => s.id === id);
     return d.sha256(before || null) === d.sha256(after || null) ? [] : [{ id, before: before?.values || null, after: after?.values || null }];
   });
+  const inheritedChanges = [...new Set([...(record?.inherited || []).map(i => i.id), ...state.inherited.map(i => i.id)])].flatMap(id => {
+    if (!record) return [];
+    const before = record.inherited?.find(i => i.id === id), after = state.inherited.find(i => i.id === id);
+    return d.sha256(before || null) === d.sha256(after || null) ? [] : [{ id, before: before || null, after: after || null }];
+  });
   return { revision: record?.revision || 0, state: record?.state || 'DRAFT', items: record?.items || [], inherited: state.inherited,
     sources: state.sources, sourceHash: state.hash, stale: !!record && record.sourceHash !== state.hash,
-    totals: d.totals(state.sources, items), sourceChanges, history: record?.history || [], snapshots, canReview: canReview(user),
+    totals: d.totals(state.sources, items), sourceChanges, inheritedChanges, history: record?.history || [], snapshots, canReview: canReview(user),
     timeAccount: await readTimeAccount({ employeeId, month }) };
 }
 async function mutate(user, employeeId, month, input, action) {
@@ -87,7 +92,8 @@ async function mutate(user, employeeId, month, input, action) {
       const patch = { employee: employeeId, month, revision, state: action === 'finalize' ? 'REVIEWED' : 'DRAFT', items, history,
         // Reopen does not silently acknowledge changed sources.
         sourceHash: action === 'reopen' ? record.sourceHash : state.hash,
-        sources: action === 'reopen' ? record.sources : state.sources };
+        sources: action === 'reopen' ? record.sources : state.sources,
+        inherited: action === 'reopen' ? record.inherited || [] : state.inherited };
       if (!record) await Preparation.create([patch], { session });
       else {
         const result = await Preparation.updateOne({ _id: record._id, revision: input.revision }, { $set: patch }, { session, runValidators: true });

@@ -55,7 +55,11 @@ const form = ref(blank());
 const baseline = ref(JSON.stringify(form.value));
 watch(form, value => emit('formDirty', JSON.stringify(value) !== baseline.value), { deep: true });
 const lastDay = computed(() => { const [y, m] = props.month.split('-').map(Number); return `${props.month}-${new Date(y, m, 0).getDate()}`; });
-const absenceTypes = computed(() => props.types.filter(t => ['sick', 'vacation', 'absence'].includes(t.kind)));
+const absenceTypes = computed(() => {
+  const types = new Map(props.types.filter(t => ['sick', 'vacation', 'absence'].includes(t.kind)).map(t => [t.code, t]));
+  for (const item of props.modelValue.filter(i => i.kind === 'ABSENCE')) if (!types.has(item.code)) types.set(item.code, { code: item.code, label: item.label || item.code });
+  return [...types.values()];
+});
 function reset() { editing.value = ''; form.value = blank(); baseline.value = JSON.stringify(form.value); error.value = ''; emit('formDirty', false); }
 function generateDays() { form.value.daily = absenceDays(form.value.startDate, form.value.endDate, form.value.daily); }
 function edit(item) { form.value = { ...blank(), ...preparationInput(item) }; editing.value = item.id; baseline.value = JSON.stringify(form.value); }
@@ -64,7 +68,9 @@ function apply() {
   error.value = '';
   if (!form.value.reason.trim()) { error.value = 'Bitte eine Begründung angeben.'; return; }
   if (form.value.kind === 'ABSENCE' && !form.value.code) { error.value = 'Bitte eine Fehlzeitart wählen.'; return; }
-  const item = preparationInput({ ...form.value, id: editing.value || crypto.randomUUID() });
+  const input = preparationInput({ ...form.value, id: editing.value || crypto.randomUUID() });
+  const old = props.modelValue.find(i => i.id === input.id && i.kind === input.kind && i.code === input.code);
+  const item = { ...(old || {}), ...input };
   emit('update:modelValue', [...props.modelValue.filter(i => i.id !== item.id), item]); reset();
 }
 function describe(i) { return i.kind === 'ABSENCE' ? `${i.code} · ${i.startDate} – ${i.endDate}` : `${i.kind === 'TRANSFER' ? 'AZK-Vorschlag' : 'Korrektur'} · ${i.date} · ${i.minutes} Min.`; }

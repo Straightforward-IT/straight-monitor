@@ -40,6 +40,7 @@ describe('Payroll preparation persistence', () => {
     expect(mocks.leave()).toBe(false);
     expect(mocks.update({ query: { employeeId: 'a', month: '2026-09', tab: 'monatspruefung' } }, { query: { employeeId: 'a', month: '2026-09' } })).toBe(true);
     expect(mocks.update({ query: { employeeId: 'b', month: '2026-09' } }, { query: { employeeId: 'a', month: '2026-09' } })).toBe(false);
+    expect(mocks.update({ query: { employeeId: '' } }, { query: {} })).toBe(false);
     p.formDirty.value = false; p.mappingDirty.value = true; expect(mocks.leave()).toBe(false);
   });
   it('does not let a stale employee read replace the newest month', async () => {
@@ -47,6 +48,28 @@ describe('Payroll preparation persistence', () => {
     mocks.api.get.mockReturnValueOnce(new Promise(resolve => { first = resolve; })).mockResolvedValueOnce({ data: { ...state(), revision: 8 } });
     const old = p.load(); await p.load(); first({ data: state() }); await old;
     expect(p.state.value.revision).toBe(8);
+  });
+  it('refreshes source facts without losing draft inputs and refuses concurrent revision adoption', async () => {
+    const p = harness(); await p.load();
+    p.items.value.push({ id: 'a', kind: 'ADJUSTMENT', date: '2026-09-01', minutes: 60, reason: 'Keep me' });
+    p.formDirty.value = true; p.reason.value = 'Keep this too'; p.reconcile.value = true;
+    mocks.api.get.mockResolvedValue({ data: { ...state(), sourceHash: 'new-release', stale: true } });
+    await p.refreshSources();
+    expect(p.state.value.sourceHash).toBe('new-release'); expect(p.reconcile.value).toBe(false);
+    expect(p.items.value[0].reason).toBe('Keep me'); expect(p.formDirty.value).toBe(true); expect(p.reason.value).toBe('Keep this too');
+    mocks.api.get.mockResolvedValue({ data: { ...state(), revision: 2, items: [] } });
+    await p.refreshSources();
+    expect(p.state.value.revision).toBe(1); expect(p.items.value).toHaveLength(1);
+    expect(p.error.value).toContain('anderer Benutzer');
+  });
+  it('keeps saved category metadata for display without sending it as editable facts', async () => {
+    const p = harness();
+    const item = { id: 'a', kind: 'ABSENCE', code: 'K', label: 'Saved label', credited: true, sourceLohnart: '999', startDate: '2026-09-01', endDate: '2026-09-01', daily: [{ date: '2026-09-01', minutes: 120 }], reason: 'Checked' };
+    mocks.api.get.mockResolvedValue({ data: { ...state(), items: [item] } }); await p.load();
+    expect(p.items.value[0].label).toBe('Saved label');
+    expect(preparationCalendar(p.items.value, [], '2026-09', [{ code: 'K', credited: false }])[0].credited).toBe(true);
+    expect(preparationInput(p.items.value[0])).not.toHaveProperty('credited');
+    expect(preparationInput(p.items.value[0])).not.toHaveProperty('label');
   });
   it('never serializes Zeitkonto balances', () => {
     const item = { id: 'x', kind: 'TRANSFER', source: 'AZK', target: 'PAYMENT', date: '2026-09-01', minutes: 120, reason: 'Request', bankMinutes: 999, balance: 999 };

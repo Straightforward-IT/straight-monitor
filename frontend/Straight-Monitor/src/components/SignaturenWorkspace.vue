@@ -29,6 +29,16 @@
         </ToolbarFilter>
         <div class="sig-inner">
           <SearchBar v-model="search" placeholder="Suchen…" class="toolbar-search" />
+          <button
+            v-if="targetVorgangId"
+            class="sig-clear-target-filter"
+            type="button"
+            title="Signaturfilter löschen"
+            aria-label="Signaturfilter löschen"
+            @click="clearTargetFilter"
+          >
+            <font-awesome-icon :icon="['fas', 'times']" />
+          </button>
           <ToolbarLabel>{{ filteredVorgaenge.length }} {{ filteredVorgaenge.length === 1 ? 'Eintrag' : 'Einträge' }}</ToolbarLabel>
         </div>
         <template #actions>
@@ -39,7 +49,15 @@
           </ToolbarGroup>
         </template>
         <template #bottom-actions>
-          <ToolbarPageControls v-model:page="currentPage" v-model:items-per-page="itemsPerPage" :total-items="filteredVorgaenge.length" :page-options="pageOptions" items-per-page-label="Signaturen pro Seite" />
+          <ToolbarPageControls v-model:page="currentPage" v-model:items-per-page="itemsPerPage" :total-items="filteredVorgaenge.length" :page-options="pageOptions" items-per-page-label="Signaturen pro Seite">
+            <template #sort>
+              <SortMenu
+                v-model="sortKey"
+                v-model:ascending="sortAscending"
+                :options="sortOptions"
+              />
+            </template>
+          </ToolbarPageControls>
         </template>
       </Toolbar>
 
@@ -252,6 +270,7 @@ import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
+import SortMenu from '@/components/ui-elements/SortMenu.vue';
 import SignaturCard from '@/components/SignaturCard.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
 import R2FileBrowser from '@/components/R2FileBrowser.vue';
@@ -271,6 +290,12 @@ function showSignaturesTab() {
   const query = { ...route.query };
   delete query.tab;
   if (route.query.tab) router.push({ path: '/signaturen', query });
+}
+
+function clearTargetFilter() {
+  const query = { ...route.query };
+  delete query.vorgangId;
+  router.replace({ path: '/signaturen', query });
 }
 
 const isAdmin = computed(() => {
@@ -307,6 +332,15 @@ const search = ref(persistedFilters?.search ?? '');
 const currentPage = ref(1);
 const itemsPerPage = ref(persistedFilters?.itemsPerPage ?? 25);
 const pageOptions = [25, 50, 100];
+const sortKey = ref(persistedFilters?.sortKey ?? 'createdAt');
+const sortAscending = ref(persistedFilters?.sortAscending ?? false);
+const sortOptions = [
+  { value: 'updatedAt', label: 'Zuletzt aktualisiert' },
+  { value: 'createdAt', label: 'Erstellt am' },
+  { value: 'name', label: 'Name' },
+  { value: 'status', label: 'Status' },
+  { value: 'typKey', label: 'Typ' },
+];
 const filterExpanded = ref(false);
 const showTypModal = ref(false);
 const starred = ref(loadStarred());
@@ -342,6 +376,7 @@ const filteredTemplates = computed(() => {
 const filteredVorgaenge = computed(() => {
   const q = search.value.trim().toLowerCase();
   let list = vorgaenge.value.filter(v => {
+    if (targetVorgangId.value && String(v._id) !== targetVorgangId.value) return false;
     if (filters.value.locationId) {
       const location = locations.value.find(item => item._id === filters.value.locationId);
       const vorgangLocationId = v.locationV2?._id || v.locationV2;
@@ -364,12 +399,24 @@ const filteredVorgaenge = computed(() => {
     }
     return true;
   });
-  // Starred first, then most recently issued or updated.
+  // Starred first, then the selected sorting.
   return [...list].sort((a, b) => {
     const as = starred.value.includes(a._id) ? 0 : 1;
     const bs = starred.value.includes(b._id) ? 0 : 1;
     if (as !== bs) return as - bs;
-    return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
+
+    const valueA = sortKey.value === 'updatedAt'
+      ? new Date(a.updatedAt || a.createdAt).getTime()
+      : sortKey.value === 'createdAt'
+        ? new Date(a.createdAt).getTime()
+        : String(a[sortKey.value] || '').localeCompare(String(b[sortKey.value] || ''), 'de');
+    const valueB = sortKey.value === 'updatedAt'
+      ? new Date(b.updatedAt || b.createdAt).getTime()
+      : sortKey.value === 'createdAt'
+        ? new Date(b.createdAt).getTime()
+        : null;
+    const comparison = valueB === null ? valueA : valueA - valueB;
+    return sortAscending.value ? comparison : -comparison;
   });
 });
 
@@ -416,6 +463,8 @@ function persistFilters() {
       filters: filters.value,
       search: search.value,
       itemsPerPage: itemsPerPage.value,
+      sortKey: sortKey.value,
+      sortAscending: sortAscending.value,
     }));
   } catch { /* ignore */ }
 }
@@ -686,7 +735,7 @@ watch(activeTab, (tab) => {
   if (tab === 'templates' && templates.value.length === 0) loadTemplates();
 }, { immediate: true });
 
-watch([search, filters, itemsPerPage], () => {
+watch([search, filters, itemsPerPage, sortKey, sortAscending], () => {
   currentPage.value = 1;
   persistFilters();
 }, { deep: true });
@@ -847,6 +896,26 @@ onUnmounted(() => {
   overflow-x: auto;
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
+}
+
+.sig-clear-target-filter {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--muted);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
 }
 
 .state {

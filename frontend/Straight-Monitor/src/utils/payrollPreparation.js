@@ -21,7 +21,7 @@ export function preparationCalendar(items, inherited, month, types) {
     const type = types.find(t => t.code === item.code);
     return item.daily.filter(d => d.date.startsWith(month)).map(day => ({
       id: `${item.id}:${day.date}`, date: day.date, code: item.code, kind: type?.kind || 'absence',
-      minutes: day.minutes, originalMinutes: day.minutes, credited: type?.credited ?? item.credited ?? false,
+      minutes: day.minutes, originalMinutes: day.minutes, credited: item.credited ?? type?.credited ?? false,
       label: item.label || type?.label || item.code, source: item.originMonth ? `Fehlzeit ab ${item.originMonth}` : 'Monatsvorbereitung',
     }));
   });

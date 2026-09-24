@@ -623,6 +623,7 @@ function moveCursor(event) {
   cursor.visible = !!target || held.value > 0;
   cursor.x = event.clientX;
   cursor.y = event.clientY;
+  if (props.preparationMode) { cursor.label = 'AZK-Bewegung vorschlagen'; return; }
   cursor.label = !target ? 'Ziel wählen' : event.shiftKey ? 'Alles bewegen' : held.value ? 'Links ablegen · rechts sammeln' : 'Rechts sammeln';
 }
 function onBoardClick(event) {

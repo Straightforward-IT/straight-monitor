@@ -16,6 +16,9 @@ const absence = () => ({ id: 'sick-1', kind: 'ABSENCE', code: 'K', reason: 'Gepr
 const quantityRule = (code, salaryTypeId = 100) => ({ code, mode: 'QUANTITY', salaryTypeId, processingCode: 1, unit: 'HOURS', sign: 1 });
 
 describe('Offline LODAS preparation contract', () => {
+  it('ships the supplied OpenAPI fixture unchanged with the API deployment', () => {
+    assert.deepEqual(require('../services/payroll/hr_exchange-1.0.28.json'), require('../../Documentation/Payroll/hr_exchange-1.0.28.json'));
+  });
   it('rejects custom bounds, enums, regex, lengths and malformed dates', () => {
     for (const payload of [{ personnel_number: 100000 }, { personnel_number: '12' }, { processing_code: 999 }, { cost_center_id: '/invalid' }, { cost_center_id: 'A'.repeat(14) }, { value: Infinity }, { month_of_emergence: '2026-09-01' }]) assert.ok(mapper.validateWire('MonthRecord', payload).length);
     assert.ok(mapper.validateWire('AbsenceLodas', { absence_start_date: '2026-02-30' }).length);
@@ -121,6 +124,18 @@ describe('Payroll monthly preparation API', function () {
     await User.updateOne({ _id: reviewer._id }, { $set: { roles: [] } });
     assert.equal((await act('finalize', saved.body, reviewer)).status, 403);
     assert.equal((await request('/lodas-mapping')).status, 403);
+    await User.updateOne({ _id: staff._id }, { $set: { isConfirmed: false } });
+    assert.equal((await read()).status, 401);
+  });
+  it('excludes unsubmitted or draft-only hours and preserves saved category identities', async () => {
+    await Stundenzeit.create({ _id: oid(), mitarbeiter: employee._id, personalNr: 100001, auftragNr: 13, revision: 1, status: 'DRAFT', current: { ...values, netMinutes: 600 }, history: [] });
+    const saved = await save([absence()]);
+    assert.equal(saved.body.totals.workedMinutes, 450); assert.equal(saved.body.sources.length, 1);
+    const identity = saved.body.items[0];
+    await Lohnart.updateMany({}, { $set: { lohnartBezeichnung: 'Changed category' } });
+    const again = await save([absence()]);
+    assert.equal(again.body.items[0].label, identity.label);
+    assert.equal(again.body.items[0].sourceLohnart, '999');
   });
   it('rejects simultaneous saves and does not overwrite the winning revision', async () => {
     const state = (await read()).body;
@@ -156,7 +171,10 @@ describe('Payroll monthly preparation API', function () {
     assert.equal(october.status, 200);
     const item = absence(); item.daily[1].minutes = 180;
     await save([item]);
-    assert.equal((await read('2026-10')).body.stale, true);
+    const changed = (await read('2026-10')).body;
+    assert.equal(changed.stale, true);
+    assert.equal(changed.inheritedChanges[0].before.daily[0].minutes, 240);
+    assert.equal(changed.inheritedChanges[0].after.daily[0].minutes, 180);
   });
   it('stores versioned mappings and produces offline previews without needing credentials', async () => {
     const final = await act('finalize', (await save([])).body);

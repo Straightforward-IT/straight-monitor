@@ -11,6 +11,7 @@ const monthSchema = new Schema({
   items: { type: [Schema.Types.Mixed], default: [] },
   sourceHash: { type: String, required: true },
   sources: { type: [Schema.Types.Mixed], default: [] },
+  inherited: { type: [Schema.Types.Mixed], default: [] },
   history: { type: [Schema.Types.Mixed], default: [] },
 }, options);
 monthSchema.index({ employee: 1, month: 1 }, { unique: true });

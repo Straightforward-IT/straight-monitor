@@ -12,7 +12,9 @@ export function usePayrollPreparation(employeeId, month) {
   const monthUrl = () => `${base()}/months/${month.value}`;
   function accept(value) {
     state.value = value;
-    items.value = value.items.map(preparationInput);
+    // Keep server-owned category labels/crediting for display; writes still use
+    // preparationInput's allowlist and cannot override those facts.
+    items.value = JSON.parse(JSON.stringify(value.items));
     saved.value = JSON.stringify(items.value);
     reconcile.value = false; review.value = null; formDirty.value = false;
   }
@@ -37,6 +39,21 @@ export function usePayrollPreparation(employeeId, month) {
       const response = action === 'save' ? await api.put(url, payload) : await api.post(`${url}/${action}`, payload);
       accept(response.data); notice.value = action === 'save' ? 'Vorbereitung gespeichert.' : action === 'finalize' ? 'Monat intern geprüft und eingefroren.' : 'Neue Entwurfsrevision geöffnet.';
     } catch (failure) { error.value = failure?.response?.data?.message || 'Speichern fehlgeschlagen. Deine Eingaben bleiben erhalten.'; }
+    finally { busy.value = false; }
+  }
+  async function refreshSources() {
+    if (busy.value || !state.value) return;
+    busy.value = true; error.value = ''; notice.value = '';
+    try {
+      const { data } = await api.get(monthUrl());
+      if (data.revision !== state.value.revision) {
+        error.value = 'Ein anderer Benutzer hat die Vorbereitung geändert. Dein Entwurf bleibt erhalten. Bitte Änderungen vor dem Neuladen sichern und mit dem aktuellen Stand abgleichen.';
+        return;
+      }
+      // Refresh only source facts. Never replace an unsaved entry or mapping form.
+      state.value = data; reconcile.value = false; review.value = null;
+      notice.value = 'Quellen aktualisiert. Ungespeicherte Eingaben bleiben erhalten; geänderte Quellen ausdrücklich abgleichen.';
+    } catch (failure) { error.value = failure?.response?.data?.message || 'Quellen konnten nicht aktualisiert werden. Deine Eingaben bleiben erhalten.'; }
     finally { busy.value = false; }
   }
   async function loadPreview(id) {
@@ -66,8 +83,10 @@ export function usePayrollPreparation(employeeId, month) {
   }
   onBeforeRouteLeave(confirmDiscard);
   onBeforeRouteUpdate((to, from) => {
-    if (String(to.query.employeeId || '') === String(from.query.employeeId || '') && String(to.query.month || '') === String(from.query.month || '')) return true;
+    // An absent employee query uses the remembered employee; an explicit empty
+    // query clears selection. They are different navigation destinations.
+    if (String(to.query.employeeId ?? '__remembered__') === String(from.query.employeeId ?? '__remembered__') && String(to.query.month || '') === String(from.query.month || '')) return true;
     return confirmDiscard();
   });
-  return { state, items, busy, error, notice, reason, reconcile, review, mapping, mappingDirty, formDirty, dirty, load, act, loadPreview, loadMapping, saveMapping, confirmDiscard };
+  return { state, items, busy, error, notice, reason, reconcile, review, mapping, mappingDirty, formDirty, dirty, load, act, refreshSources, loadPreview, loadMapping, saveMapping, confirmDiscard };
 }

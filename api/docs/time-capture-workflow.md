@@ -91,13 +91,15 @@ Die Berechnung ist Zeitdauervalidierung, keine vollständige ArbZG-/Lohnprüfung
 - `/payroll?employeeId=:employeeId&month=YYYY-MM` ist die zentrale Ansicht für
   tatsächlich übergebene Schichtstunden und den Mitarbeiterkontext.
 
-**Weiterhin Vorschau:** Eimer-Umbuchungen, manuell erzeugte Fehlzeiten und das
-Zeitkonto werden dort noch nicht persistiert. Die Fehlzeitarten kommen aus den
-importierten `LOHNART`-Stammdaten: Nur Lohnarten mit einem gültigen `KB` werden
-angeboten; `KB` ist dabei maßgeblich, nicht `LOHNARTKUR`. Der angezeigte Pool startet mit 0
-und ist kein importierter Kontostand. Der Speicherbutton ist in der verbundenen
-Monatsansicht deaktiviert. Die bestehende `/dev/time-management`-Demo bleibt
-separat und kann ihre lokale Sitzung weiterhin speichern.
+**Gespeicherte Monatsvorbereitung:** `/api/payroll` speichert explizite Fehlzeiten,
+Mengenkorrekturen und vorgeschlagene AZK-Bewegungen getrennt von den freigegebenen
+Ist-Stunden. Die importierten `LOHNART`-Stammdaten mit gültigem `KB` liefern die
+Fehlzeitarten, aber keine automatische DATEV-Zuordnung. PAYROLL/ADMIN können
+Monate intern prüfen und unveränderliche Snapshots erzeugen. Die LODAS-Vorschau
+ist offline; es gibt keine DATEV-Übertragung und keinen gespeicherten oder
+nachgerechneten Zeitkontostand. Unbekannt wird nicht als null Stunden dargestellt.
+Die bestehende `/dev/time-management`-Demo bleibt separat.
+Details: [LODAS-Vorbereitung](../../Documentation/Payroll/STRAIGHT-MONITOR-LODAS-PREPARATION.md).
 
 Frühere Erfassungen werden nicht automatisch als bestätigte Einreichungen
 importiert. Vor produktiver Einführung müssen bestehende Erfassungen abgeglichen
