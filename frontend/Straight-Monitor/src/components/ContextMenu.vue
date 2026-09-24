@@ -1,5 +1,5 @@
 <template>
-  <div class="context-menu-overlay" @click="$emit('close')">
+  <div class="context-menu-overlay" @click="$emit('close')" @contextmenu.prevent="$emit('close')">
     <div 
       ref="menuRef"
       class="context-menu"
@@ -7,6 +7,7 @@
       :aria-label="title || 'Aktionen'"
       :style="{ top: menuPosition.y + 'px', left: menuPosition.x + 'px', minWidth: width + 'px' }"
       @click.stop
+      @contextmenu.stop
       @keydown="onMenuKeydown"
     >
       <div v-if="title" class="context-menu__title">{{ title }}</div>

@@ -1,7 +1,7 @@
 <template>
   <div class="sig-card" :class="[`status-${vorgang.status}`, { expanded }]">
     <!-- Collapsed header -->
-    <div class="sc-head" @click="toggleExpand">
+    <div class="sc-head" @click="toggleExpand" @contextmenu.prevent="openHeaderMenu">
       <FavoriteStarButton
         :active="starred"
         active-title="Markierung entfernen"
@@ -252,6 +252,15 @@
         </div>
       </div>
     </Transition>
+
+    <ContextMenu
+      v-if="headerMenu.visible"
+      :x="headerMenu.x"
+      :y="headerMenu.y"
+      :options="headerMenuOptions"
+      @close="closeHeaderMenu"
+      @select="handleHeaderMenuAction"
+    />
   </div>
 </template>
 
@@ -262,7 +271,9 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotateRight, faBan, faLink, faFileCircleQuestion, faSpinner, faCircleCheck, faClock, faCircleXmark, faHourglassHalf, faPenNib, faFileSignature, faTags, faFileContract, faMoneyBillWave, faCar, faPenToSquare, faBuilding, faEnvelope, faCalendarDays, faListCheck, faAddressCard, faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons';
 import { DocusealForm } from '@docuseal/vue';
+import ContextMenu from '@/components/ContextMenu.vue';
 import FavoriteStarButton from '@/components/ui-elements/FavoriteStarButton.vue';
+import { useDocumentPreviewModals } from '@/composables/useDocumentPreviewModals';
 import api from '@/utils/api';
 
 library.add(faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotateRight, faBan, faLink, faFileCircleQuestion, faSpinner, faCircleCheck, faClock, faCircleXmark, faHourglassHalf, faPenNib, faFileSignature, faTags, faFileContract, faMoneyBillWave, faCar, faPenToSquare, faBuilding, faEnvelope, faCalendarDays, faListCheck, faAddressCard, faArrowUpRightFromSquare);
@@ -280,6 +291,8 @@ const previewLoading = ref(false);
 const previewLoaded = ref(false);
 const downloading = ref(false);
 const refreshing = ref(false);
+const headerMenu = ref({ visible: false, x: 0, y: 0 });
+const { openDocumentPreview } = useDocumentPreviewModals();
 
 const typLabel = computed(() => props.vorgang.typ?.label || props.vorgang.typKey || 'Signatur');
 const locationLabel = computed(() => props.vorgang.locationV2?.nameFull || props.vorgang.standort || '');
@@ -299,6 +312,14 @@ const hasSignedDoc = computed(() => props.vorgang.status === 'completed' && !!pr
 const hasPreviewDocument = computed(() =>
   hasSignedDoc.value || Boolean(props.vorgang.r2KeySigned || props.vorgang.r2KeyUnsigned)
 );
+const headerMenuOptions = computed(() => [
+  ...(props.vorgang.status === 'draft'
+    ? [{ label: 'Entwurf bearbeiten', action: 'edit-draft', icon: ['fas', 'pen-nib'] }]
+    : []),
+  { label: 'Dokument öffnen', action: 'open-document', icon: ['fas', 'arrow-up-right-from-square'], disabled: !hasPreviewDocument.value },
+  { label: 'Aktualisieren', action: 'refresh', icon: ['fas', 'rotate-right'], disabled: props.vorgang.status !== 'open' || refreshing.value },
+  { label: 'Stornieren', action: 'cancel', icon: ['fas', 'ban'], variant: 'danger', disabled: ['completed', 'cancelled'].includes(props.vorgang.status) },
+]);
 
 const typIcon = computed(() => ({
   stundenliste: ['fas', 'clock'],
@@ -347,6 +368,34 @@ function toggleExpand() {
   if (expanded.value) {
     loadExpandedContent();
   }
+}
+
+function openHeaderMenu(event) {
+  headerMenu.value = { visible: true, x: event.clientX, y: event.clientY };
+}
+
+function closeHeaderMenu() {
+  headerMenu.value.visible = false;
+}
+
+function handleHeaderMenuAction(action) {
+  if (action === 'edit-draft') editDraft();
+  else if (action === 'open-document') openDocument();
+  else if (action === 'refresh') refresh();
+  else if (action === 'cancel') cancel();
+}
+
+function openDocument() {
+  if (!hasPreviewDocument.value) return;
+  openDocumentPreview({
+    id: `signature-${props.vorgang._id}`,
+    filename: `${props.vorgang.name || 'Signaturdokument'}.pdf`,
+    mimeType: 'application/pdf',
+    resolveUrl: async ({ signal }) => {
+      const { data } = await api.get(`/api/signaturen/${props.vorgang._id}/document-url`, { signal });
+      return data.url;
+    },
+  });
 }
 
 function loadExpandedContent() {

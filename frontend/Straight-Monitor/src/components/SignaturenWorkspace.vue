@@ -313,7 +313,7 @@ const statusOptions = [
   { key: 'completed', label: 'Abgeschlossen' },
   { key: 'cancelled', label: 'Storniert' },
 ];
-const defaultStatuses = statusOptions.filter(({ key }) => key !== 'cancelled').map(({ key }) => key);
+const defaultStatuses = ['draft', 'open'];
 
 const FILTERS_KEY = 'signaturen_filters';
 function loadPersistedFilters() {
