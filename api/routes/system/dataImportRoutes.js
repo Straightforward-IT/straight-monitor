@@ -113,6 +113,10 @@ const parseExcelTime = (val) => {
   return String(val);
 };
 
+const formatBerlinTimestamp = (date = new Date()) => date.toLocaleString('de-DE', {
+  timeZone: 'Europe/Berlin',
+});
+
 // Helper to clean keys (trim spaces and normalize to uppercase)
 const cleanKeys = (obj) => {
   const newObj = {};
@@ -528,7 +532,7 @@ router.post('/auftrag', auth, extendTimeout, upload.single('file'), async (req, 
 
     // Send email notification
     try {
-      const timestamp = new Date().toLocaleString('de-DE');
+      const timestamp = formatBerlinTimestamp();
       const emailContent = `
         <div style="font-family: Arial, sans-serif; color: #333;">
           <h2>📊 Aufträge Import - ${timestamp}</h2>
@@ -552,7 +556,7 @@ router.post('/auftrag', auth, extendTimeout, upload.single('file'), async (req, 
     
     // Send error email notification
     try {
-      const timestamp = new Date().toLocaleString('de-DE');
+      const timestamp = formatBerlinTimestamp();
       const emailContent = `
         <div style="font-family: Arial, sans-serif; color: #333;">
           <h2>❌ Aufträge Import Fehler - ${timestamp}</h2>
@@ -638,7 +642,7 @@ router.post('/kunde', auth, upload.single('file'), async (req, res) => {
 
     // Send email notification
     try {
-      const timestamp = new Date().toLocaleString('de-DE');
+      const timestamp = formatBerlinTimestamp();
       const emailContent = `
         <div style="font-family: Arial, sans-serif; color: #333;">
           <h2>👥 Kunden Import - ${timestamp}</h2>
@@ -662,7 +666,7 @@ router.post('/kunde', auth, upload.single('file'), async (req, res) => {
     
     // Send error email notification
     try {
-      const timestamp = new Date().toLocaleString('de-DE');
+      const timestamp = formatBerlinTimestamp();
       const emailContent = `
         <div style="font-family: Arial, sans-serif; color: #333;">
           <h2>❌ Kunden Import Fehler - ${timestamp}</h2>
@@ -1082,7 +1086,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 
     // Send email notification
     try {
-      const timestamp = new Date().toLocaleString('de-DE');
+      const timestamp = formatBerlinTimestamp();
       const emailContent = `
         <div style="font-family: Arial, sans-serif; color: #333;">
           <h2>📦 Zvoove Komplett-Import - ${timestamp}</h2>
@@ -1109,7 +1113,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
     
     // Send error email notification
     try {
-      const timestamp = new Date().toLocaleString('de-DE');
+      const timestamp = formatBerlinTimestamp();
       await sendMail('it@straightforward.email', `❌ Zvoove Import Fehler - ${timestamp}`, `Fehler: ${error.message}\n${error.stack}`, 'it');
     } catch (e) {}
     
@@ -1648,7 +1652,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         await logImport('personal', originalFilename, 'success', matched, details, importedBy);
 
         // Email notification
-        const timestamp = new Date().toLocaleString('de-DE');
+        const timestamp = formatBerlinTimestamp();
         const notFoundHtml = notFoundPnrs.length
           ? `<h3>ℹ️ Nicht gefunden (${skipped}):</h3><ul>${notFoundPnrs.map(p => `<li>${p}</li>`).join('')}${skipped > notFoundPnrs.length ? `<li>…und ${skipped - notFoundPnrs.length} weitere</li>` : ''}</ul>`
           : '';

@@ -1063,16 +1063,13 @@
     </LeadChronikDrawer>
 
     <!-- Create Modal -->
-    <teleport to="body">
-      <div v-if="showCreateModal" class="modal-overlay" @click="showCreateModal = false">
-        <div class="modal-content" @click.stop>
-          <header class="modal-header">
-            <h3>Neuen Lead anlegen</h3>
-            <button class="btn-icon" @click="showCreateModal = false">
-              <font-awesome-icon :icon="['fas', 'xmark']" />
-            </button>
-          </header>
-          <div class="modal-body">
+    <ModalFrame
+      v-model="showCreateModal"
+      title="Neuen Lead anlegen"
+      size="md"
+      class="lead-create-modal"
+    >
+          <div class="lead-create-body">
 
             <!-- Lead basics -->
             <div class="kv-grid" style="margin-bottom: 16px;">
@@ -1206,16 +1203,14 @@
               </div>
             </div>
           </div>
-          <footer class="modal-footer">
+          <template #footer>
             <button class="btn btn-secondary" @click="showCreateModal = false">Abbrechen</button>
             <button class="btn btn-primary" :disabled="!createForm.title.trim() || creating" @click="createLead">
               <font-awesome-icon v-if="creating" :icon="['fas', 'spinner']" spin />
               {{ contactPickerMode === 'new' ? 'Anlegen & Kontakt erstellen' : 'Anlegen' }}
             </button>
-          </footer>
-        </div>
-      </div>
-    </teleport>
+          </template>
+    </ModalFrame>
 
     <!-- Kontakt Anlegen Modal -->
     <KontaktAnlegenModal
@@ -1403,14 +1398,20 @@
 
     <!-- Row context menu -->
     <teleport to="body">
-      <div v-if="rowMenu.leadId" class="row-menu-overlay" :class="{ 'row-menu-overlay--mobile': isMobile }" @pointerdown.self="closeRowMenu">
+      <ContextMenu
+        v-if="rowMenu.leadId && !isMobile"
+        :x="rowMenu.x"
+        :y="rowMenu.y"
+        :options="rowMenuOptions"
+        @close="closeRowMenu(true)"
+        @select="handleRowMenuAction"
+      />
+      <div v-if="rowMenu.leadId && isMobile" class="row-menu-overlay row-menu-overlay--mobile" @pointerdown.self="closeRowMenu">
         <div
-          class="row-menu"
-          :class="{ 'row-menu--mobile': isMobile }"
-          :style="isMobile ? null : { top: rowMenu.y + 'px', left: rowMenu.x + 'px' }"
+          class="row-menu row-menu--mobile"
           @click.stop
         >
-          <button v-if="isMobile" class="row-menu-item" @click="openMobileStageMenu">
+          <button class="row-menu-item" @click="openMobileStageMenu">
             <font-awesome-icon :icon="['fas', 'flag']" /> Stufe ändern
           </button>
           <button class="row-menu-item" @click="archiveLeadById(leads.find(l => l._id === rowMenu.leadId))">
@@ -1545,6 +1546,7 @@ import LeadBoard from './leads/LeadBoard.vue';
 import LeadCard from './leads/LeadCard.vue';
 import LeadChronikDrawer from './leads/LeadChronikDrawer.vue';
 import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
@@ -1686,17 +1688,28 @@ const ownerOptions = computed(() => {
 
 const rowMenu = reactive({ leadId: null, x: 0, y: 0 });
 let _rowMenuOpenedAt = 0;
+const rowMenuOptions = [
+  { label: 'Archivieren', action: 'archive', icon: 'fa-solid fa-box-archive' },
+  { label: 'Löschen', action: 'delete', icon: 'fa-solid fa-trash', variant: 'danger' },
+];
 
 function openRowMenu(event, lead) {
   const rect = event.currentTarget.getBoundingClientRect();
   rowMenu.leadId = lead._id;
   rowMenu.x = rect.right;
-  rowMenu.y = rect.bottom + window.scrollY;
+  rowMenu.y = rect.bottom;
   _rowMenuOpenedAt = Date.now();
 }
 function closeRowMenu(force = false) {
   if (!force && Date.now() - _rowMenuOpenedAt < 300) return;
   rowMenu.leadId = null;
+}
+
+function handleRowMenuAction(action) {
+  const lead = leads.value.find((item) => item._id === rowMenu.leadId);
+  if (!lead) return;
+  if (action === 'archive') archiveLeadById(lead);
+  else if (action === 'delete') deleteLeadPermanent(lead);
 }
 
 async function archiveLeadById(lead) {
