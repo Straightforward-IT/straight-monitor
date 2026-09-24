@@ -88,11 +88,30 @@ router.get('/', auth, asyncHandler(async (req, res) => {
     .select('personalNr datumVon datumBis auftragNr bezeichnung schichtBezeichnung uhrzeitVon uhrzeitBis isPseudo')
     .lean();
 
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const letzteEinsaetze = await Einsatz.find({
+    personalNr: { $in: personalNrs },
+    datumBis: { $lt: startOfToday },
+    ...(selectedLocationId ? { locationV2: selectedLocationId } : {}),
+  })
+    .select('personalNr datumBis')
+    .sort({ datumBis: -1 })
+    .lean();
+
   // PersonalNr → Mitarbeiter._id Mapping
   const pnrToMaId = {};
   for (const ma of mitarbeiter) {
     if (ma.personalnr) {
       pnrToMaId[parseInt(ma.personalnr, 10)] = ma._id;
+    }
+  }
+
+  const letzterEinsatzBisByMaId = {};
+  for (const einsatz of letzteEinsaetze) {
+    const maId = pnrToMaId[einsatz.personalNr];
+    if (maId && !letzterEinsatzBisByMaId[String(maId)]) {
+      letzterEinsatzBisByMaId[String(maId)] = einsatz.datumBis;
     }
   }
 
@@ -169,6 +188,7 @@ router.get('/', auth, asyncHandler(async (req, res) => {
   res.json({
     mitarbeiter,
     eintraege: [...eintraege, ...einsatzEintraege, ...zvooveEintraege],
+    letzterEinsatzBisByMaId,
     zvooveKommentare,
   });
 }));

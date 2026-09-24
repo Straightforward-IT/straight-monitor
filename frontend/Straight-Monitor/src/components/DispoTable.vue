@@ -135,6 +135,9 @@
           <font-awesome-icon :icon="showHidden ? 'fa-solid fa-arrow-left' : 'fa-solid fa-eye-slash'" />
           {{ showHidden ? 'Zurück' : `${hiddenCount} ausgeblendet` }}
         </button>
+        <FilterChip :active="sortField === 'letzterEinsatz'" @click="toggleLetzterEinsatzColumn">
+          Letzter Einsatz
+        </FilterChip>
       </div>
 
       <div class="fs-toolbar-right">
@@ -304,6 +307,13 @@
           </button>
         </CustomTooltip>
       </div>
+      <template #bottom-actions>
+        <div class="dispo-toolbar-bottom-actions">
+          <FilterChip :active="sortField === 'letzterEinsatz'" @click="toggleLetzterEinsatzColumn">
+            Letzter Einsatz
+          </FilterChip>
+        </div>
+      </template>
     </Toolbar>
 
     <!-- Table area (+ inline feed panel when fullscreen) -->
@@ -354,6 +364,19 @@
                     <font-awesome-icon v-else icon="fa-solid fa-sort" class="sort-icon muted" />
                   </span>
                   <div class="col-resize-handle" @mousedown.prevent.stop="startResize($event, 'vorname')"></div>
+                </th>
+                <th
+                  v-if="sortField === 'letzterEinsatz'"
+                  class="col-letzter-einsatz sortable-th"
+                  @click="toggleSort('letzterEinsatz')"
+                >
+                  <span class="th-content">
+                    Letzter Einsatz
+                    <font-awesome-icon
+                      :icon="sortDir === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'"
+                      class="sort-icon"
+                    />
+                  </span>
                 </th>
                 <th
                   class="col-notiz"
@@ -438,6 +461,9 @@
                       <span class="ma-name" v-bind="triggerProps">{{ ma.vorname }}</span>
                     </template>
                   </HoverDataCard>
+                </td>
+                <td v-if="sortField === 'letzterEinsatz'" class="col-letzter-einsatz">
+                  {{ lastEinsatzAgeLabel(ma._id) }}
                 </td>
                 <!-- Notiz -->
                 <td
@@ -575,7 +601,7 @@
                 </td>
               </tr>
               <tr v-if="filteredMitarbeiter.length === 0">
-                <td colspan="6" class="empty-row text-center">
+                <td :colspan="sortField === 'letzterEinsatz' ? 7 : 6" class="empty-row text-center">
                   --
                 </td>
               </tr>
@@ -1693,6 +1719,7 @@ const route = useRoute();
 const loading = ref(true);
 const mitarbeiter = shallowRef([]);
 const eintraege = shallowRef([]);
+const letzterEinsatzBisByMaId = shallowRef({});
 const searchQuery = ref('');
 const searchInputNormal = ref(null);
 const searchInputFs = ref(null);
@@ -3053,6 +3080,17 @@ const filteredMitarbeiter = computed(() => {
       }
       return (a.nachname || '').localeCompare(b.nachname || '') || (a.vorname || '').localeCompare(b.vorname || '');
     }
+    if (field === 'letzterEinsatz') {
+      const aLastEinsatz = lastEinsatzEndTimestamp(a._id);
+      const bLastEinsatz = lastEinsatzEndTimestamp(b._id);
+      if (aLastEinsatz !== bLastEinsatz) {
+        // Unknown assignments always follow employees with a known last job.
+        if (aLastEinsatz === null) return 1;
+        if (bLastEinsatz === null) return -1;
+        return sortDir.value === 'asc' ? aLastEinsatz - bLastEinsatz : bLastEinsatz - aLastEinsatz;
+      }
+      return (a.nachname || '').localeCompare(b.nachname || '') || (a.vorname || '').localeCompare(b.vorname || '');
+    }
     const dir = sortDir.value === 'asc' ? 1 : -1;
     return dir * (a[field] || '').localeCompare(b[field] || '');
   });
@@ -3188,6 +3226,24 @@ async function loadEmployeeHoverData(ma) {
 
 function getEntriesForCell(maId, iso) {
   return eintragMap.value[`${maId}_${iso}`] || [];
+}
+
+function lastEinsatzEndTimestamp(maId) {
+  const datumBis = letzterEinsatzBisByMaId.value[String(maId)];
+  if (!datumBis) return null;
+  const timestamp = new Date(datumBis).getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function lastEinsatzAgeLabel(maId) {
+  const timestamp = lastEinsatzEndTimestamp(maId);
+  if (timestamp === null) return '—';
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const assignmentDay = new Date(timestamp);
+  assignmentDay.setUTCHours(0, 0, 0, 0);
+  const days = Math.max(0, Math.round((today.getTime() - assignmentDay.getTime()) / 86_400_000));
+  return days === 1 ? 'Vor 1 Tag' : `Vor ${days} Tagen`;
 }
 
 // Returns EXIT label string (e.g. "EXIT: 31.07.") if austrittsdatum is in the current calendar month
@@ -3446,6 +3502,16 @@ function toggleSort(field) {
   }
 }
 
+function toggleLetzterEinsatzColumn() {
+  if (sortField.value === 'letzterEinsatz') {
+    sortField.value = 'nachname';
+    sortDir.value = 'asc';
+    return;
+  }
+  sortField.value = 'letzterEinsatz';
+  sortDir.value = 'asc';
+}
+
 function scrollToHelpSection(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -3560,6 +3626,7 @@ async function fetchDispo() {
       if (!(ma._id in aktivitaetsDraftMap)) aktivitaetsDraftMap[ma._id] = '';
     }
     eintraege.value = data.eintraege || [];
+    letzterEinsatzBisByMaId.value = data.letzterEinsatzBisByMaId || {};
     // Clear DOM caches — cell/row elements may have been replaced by Vue re-render
     _clearDispoCache();
     // Inject virtual Zvoove comments (from EINSATZZEIT_TAEGLICH.INFO field) into the store.
@@ -5010,6 +5077,12 @@ function onNameTouchEnd() {
       border-top-width: 1.5px;
       border-bottom-width: 1.5px;
     }
+    td.col-letzter-einsatz {
+      border-top-color: var(--primary);
+      border-bottom-color: var(--primary);
+      border-top-width: 1.5px;
+      border-bottom-width: 1.5px;
+    }
     td.col-notiz {
       border-top-color: var(--primary);
       border-bottom-color: var(--primary);
@@ -5111,6 +5184,15 @@ function onNameTouchEnd() {
       text-overflow: ellipsis;
       display: block;
     }
+  }
+
+  .col-letzter-einsatz {
+    width: 150px;
+    min-width: 150px;
+    max-width: 150px;
+    padding: 6px 10px;
+    text-align: left;
+    overflow: hidden;
   }
 
   .col-kunden {
@@ -5973,8 +6055,44 @@ function onNameTouchEnd() {
   gap: 8px;
   min-height: 36px;
   padding: 7px 14px;
-  margin-bottom: 12px;
+  margin-bottom: 41px;
   flex-wrap: nowrap;
+  overflow: visible;
+}
+
+.dispo-toolbar-bottom-actions {
+  display: flex;
+  position: absolute;
+  top: 100%;
+  left: 14px;
+  z-index: 5;
+  height: 24px;
+
+  :deep(.filter-chip) {
+    height: 24px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    border-radius: 0 0 5px 5px;
+    background: var(--tile-bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 400;
+    line-height: normal;
+    box-shadow: none;
+
+    &:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--tile-bg);
+    }
+
+    &.active {
+      background: var(--tile-bg);
+      color: var(--primary);
+      box-shadow: none;
+    }
+  }
 }
 
 .sel-bar-left {
