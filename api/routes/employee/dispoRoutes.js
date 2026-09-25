@@ -15,7 +15,7 @@ const Location = require('../../models/System/Location');
 // ─── GET /api/dispo?von=&bis=&locationV2=&mitarbeiterId= ───
 // Liefert DispoEinträge + Einsätze (gemerged) für den Zeitraum
 router.get('/', auth, asyncHandler(async (req, res) => {
-  const { von, bis, locationV2, mitarbeiterId } = req.query;
+  const { von, bis, locationV2, mitarbeiterId, includeInactive } = req.query;
 
   if (!von || !bis) {
     return res.status(400).json({ message: 'Query-Parameter "von" und "bis" sind erforderlich.' });
@@ -34,7 +34,7 @@ router.get('/', auth, asyncHandler(async (req, res) => {
   dateBis.setHours(23, 59, 59, 999);
 
   // ── 1. Mitarbeiter laden (gefiltert nach Standort) ──
-  const maFilter = { isActive: true };
+  const maFilter = includeInactive === 'true' ? {} : { isActive: true };
   let selectedLocationId = null;
   if (mitarbeiterId) {
     maFilter._id = mitarbeiterId;
@@ -57,7 +57,7 @@ router.get('/', auth, asyncHandler(async (req, res) => {
   }
 
   const mitarbeiter = await Mitarbeiter.find(maFilter)
-    .select('_id vorname nachname personalnr telefon qualifikationen berufe profilbild dispoNotiz kundenwuensche austrittsdatum isBewerberstatus arbeitsverhaeltnis arbeitszeit vorarbeitgebertage')
+    .select('_id vorname nachname personalnr telefon qualifikationen berufe profilbild dispoNotiz kundenwuensche austrittsdatum isActive isBewerberstatus locationV2 persgruppe arbeitsverhaeltnis arbeitszeit vorarbeitgebertage')
     .populate('qualifikationen', 'qualificationKey designation')
     .populate('berufe', 'jobKey designation')
     .populate('kundenwuensche.kunde', 'kundenNr kundName kuerzel')

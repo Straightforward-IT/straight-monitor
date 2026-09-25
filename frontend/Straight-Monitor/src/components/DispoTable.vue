@@ -69,19 +69,6 @@
                 </button>
               </div>
 
-              <!-- Qualifikation Filter -->
-              <div class="fs-qual-filter" :class="{ 'fs-qual-filter--active': qualFilter.length > 0 }">
-                <PillMultiSelect
-                  v-model="qualFilter"
-                  :options="allQualifikationen"
-                  label-key="designation"
-                  meta-key="qualificationKey"
-                  emit-objects
-                  placeholder="Qual..."
-                  @change="savePrefs"
-                />
-              </div>
-
               <!-- Reset -->
               <button class="fs-reset-btn" @click="resetFilters" title="Zurücksetzen">
                 <font-awesome-icon icon="fa-solid fa-rotate-left" />
@@ -118,10 +105,19 @@
 
         <!-- Search -->
         <CustomTooltip text="Suchen [S]" position="bottom">
-          <div class="fs-search-box">
-            <font-awesome-icon icon="fa-solid fa-magnifying-glass" class="fs-search-icon" />
-            <input ref="searchInputFs" v-model="searchQuery" type="text" placeholder="Suchen…" />
-          </div>
+          <MitarbeiterSearch
+            ref="searchInputFs"
+            v-model="searchSelectedEmployeeId"
+            v-model:search-value="searchQuery"
+            class="fs-employee-search"
+            :filter-values="employeeSearchFilters"
+            :selected-item="searchSelectedEmployee"
+            include-inactive
+            prefer-active
+            placeholder="Mitarbeiter oder Filter suchen…"
+            @select="onEmployeeSearchSelect"
+            @filters-change="onEmployeeSearchFiltersChange"
+          />
         </CustomTooltip>
 
         <!-- Hidden employees -->
@@ -199,19 +195,6 @@
             <FilterChip :active="filters.planungFilter === 'ungeplant'" @click="setPlanung('ungeplant')">Ungeplante</FilterChip>
           </FilterGroup>
           <FilterDivider />
-          <!-- Qualifikation (compact inline) -->
-          <div class="tf-qual-filter" :class="{ 'tf-qual-filter--active': qualFilter.length > 0 }">
-            <PillMultiSelect
-              v-model="qualFilter"
-              :options="allQualifikationen"
-              label-key="designation"
-              meta-key="qualificationKey"
-              emit-objects
-              placeholder="Qualifikation..."
-              @change="savePrefs"
-            />
-          </div>
-          <FilterDivider />
           <!-- Kunden Filter (compact inline) -->
           <div class="fs-kunde-filter" :class="{ 'fs-kunde-filter--active': !!filters.kundeFilter }">
             <KundeSearch
@@ -226,16 +209,19 @@
       </ToolbarFilter>
       <!-- Left: SearchBar + cell selection chip -->
       <div class="sel-bar-left">
-        <SearchBar
+        <MitarbeiterSearch
+          ref="searchInputNormal"
+          v-model="searchSelectedEmployeeId"
+          v-model:search-value="searchQuery"
           class="dispo-search-bar"
-          v-model="searchQuery"
-          placeholder="Mitarbeiter suchen…"
-          aria-label="Mitarbeiter suchen"
+          :filter-values="employeeSearchFilters"
+          :selected-item="searchSelectedEmployee"
+          include-inactive
+          prefer-active
+          placeholder="Mitarbeiter oder Filter suchen…"
+          @select="onEmployeeSearchSelect"
+          @filters-change="onEmployeeSearchFiltersChange"
         />
-        <FilterDropdown :has-value="filters.tage !== 30" class="zeitraum-dropdown">
-          <template #label><font-awesome-icon icon="fa-solid fa-calendar" style="margin-right:4px" />{{ filters.tage }} Tage</template>
-          <div v-for="opt in [7, 14, 30]" :key="opt" class="dropdown-item" :class="{ selected: filters.tage === opt }" @click="setTage(opt)">{{ opt }} Tage</div>
-        </FilterDropdown>
         <button
           v-if="hiddenCount > 0"
           class="show-hidden-btn show-hidden-btn--topline"
@@ -258,60 +244,61 @@
         </transition>
       </div>
 
-      <!-- Center: KW chips -->
-      <div class="kw-chips">
-        <span class="kw-label">KW</span>
-        <button class="kw-nav-btn" @click="kwChipOffset--" title="Vorherige Wochen">
-          <font-awesome-icon icon="fa-solid fa-chevron-left" />
-        </button>
-        <CustomTooltip
-          v-for="chip in kwChips"
-          :key="`${chip.year}-${chip.kw}`"
-          :text="chip.shortcut ? `Shortcut [${chip.shortcut}]` : `KW ${chip.kw} ${chip.year}`"
-          position="top"
-        >
-          <button
-            class="kw-chip"
-            :class="{ 'kw-chip--active': selectedKw?.kw === chip.kw && selectedKw?.year === chip.year, 'kw-chip--current': chip.isCurrent }"
-            @click="toggleKw(chip)"
-          >{{ chip.kw }}</button>
-        </CustomTooltip>
-        <button class="kw-nav-btn" @click="kwChipOffset++" title="Nächste Wochen">
-          <font-awesome-icon icon="fa-solid fa-chevron-right" />
-        </button>
-      </div>
-
-      <!-- Right: zoom + fullscreen + help -->
-      <div class="sel-bar-right">
-        <div class="zoom-controls">
-          <CustomTooltip text="Verkleinern (-)" position="top">
-            <button class="zoom-btn" @click="tableZoom = Math.max(60, tableZoom - 10)" :disabled="tableZoom <= 60">
-              <font-awesome-icon icon="fa-solid fa-minus" />
-            </button>
-          </CustomTooltip>
-          <span class="zoom-label" @dblclick="tableZoom = 100" title="Doppelklick zum Zurücksetzen">{{ tableZoom }}%</span>
-          <CustomTooltip text="Vergrößern (+)" position="top">
-            <button class="zoom-btn" @click="tableZoom = Math.min(150, tableZoom + 10)" :disabled="tableZoom >= 150">
-              <font-awesome-icon icon="fa-solid fa-plus" />
-            </button>
-          </CustomTooltip>
-        </div>
-        <CustomTooltip text="Vollbild (V)" position="top">
-          <button class="zoom-btn" @click="toggleFullscreen">
-            <font-awesome-icon icon="fa-solid fa-expand" />
-          </button>
-        </CustomTooltip>
-        <CustomTooltip text="Hilfe [H]" position="top">
-          <button class="help-btn" @click="showHelp = true">
-            <font-awesome-icon icon="fa-solid fa-circle-question" />
-          </button>
-        </CustomTooltip>
-      </div>
       <template #bottom-actions>
-        <div class="dispo-toolbar-bottom-actions">
+        <div class="dispo-toolbar-bottom-actions dispo-toolbar-bottom-actions--left">
           <FilterChip :active="sortField === 'letzterEinsatz'" @click="toggleLetzterEinsatzColumn">
             Letzter Einsatz
           </FilterChip>
+        </div>
+        <div class="dispo-toolbar-bottom-actions dispo-toolbar-bottom-actions--right">
+          <FilterDropdown :has-value="filters.tage !== 30" class="zeitraum-dropdown">
+            <template #label><font-awesome-icon icon="fa-solid fa-calendar" style="margin-right:4px" />{{ filters.tage }} Tage</template>
+            <div v-for="opt in [7, 14, 30]" :key="opt" class="dropdown-item" :class="{ selected: filters.tage === opt }" @click="setTage(opt)">{{ opt }} Tage</div>
+          </FilterDropdown>
+          <div class="kw-chips">
+            <span class="kw-label">KW</span>
+            <button class="kw-nav-btn" @click="kwChipOffset--" title="Vorherige Wochen">
+              <font-awesome-icon icon="fa-solid fa-chevron-left" />
+            </button>
+            <CustomTooltip
+              v-for="chip in kwChips"
+              :key="`${chip.year}-${chip.kw}`"
+              :text="chip.shortcut ? `Shortcut [${chip.shortcut}]` : `KW ${chip.kw} ${chip.year}`"
+              position="top"
+            >
+              <button
+                class="kw-chip"
+                :class="{ 'kw-chip--active': selectedKw?.kw === chip.kw && selectedKw?.year === chip.year, 'kw-chip--current': chip.isCurrent }"
+                @click="toggleKw(chip)"
+              >{{ chip.kw }}</button>
+            </CustomTooltip>
+            <button class="kw-nav-btn" @click="kwChipOffset++" title="Nächste Wochen">
+              <font-awesome-icon icon="fa-solid fa-chevron-right" />
+            </button>
+          </div>
+          <div class="zoom-controls">
+            <CustomTooltip text="Verkleinern (-)" position="top">
+              <button class="zoom-btn" @click="tableZoom = Math.max(60, tableZoom - 10)" :disabled="tableZoom <= 60">
+                <font-awesome-icon icon="fa-solid fa-minus" />
+              </button>
+            </CustomTooltip>
+            <span class="zoom-label" @dblclick="tableZoom = 100" title="Doppelklick zum Zurücksetzen">{{ tableZoom }}%</span>
+            <CustomTooltip text="Vergrößern (+)" position="top">
+              <button class="zoom-btn" @click="tableZoom = Math.min(150, tableZoom + 10)" :disabled="tableZoom >= 150">
+                <font-awesome-icon icon="fa-solid fa-plus" />
+              </button>
+            </CustomTooltip>
+          </div>
+          <CustomTooltip text="Vollbild (V)" position="top">
+            <button class="zoom-btn" @click="toggleFullscreen">
+              <font-awesome-icon icon="fa-solid fa-expand" />
+            </button>
+          </CustomTooltip>
+          <CustomTooltip text="Hilfe [H]" position="top">
+            <button class="help-btn" @click="showHelp = true">
+              <font-awesome-icon icon="fa-solid fa-circle-question" />
+            </button>
+          </CustomTooltip>
         </div>
       </template>
     </Toolbar>
@@ -753,11 +740,17 @@
             </div>
           </FilterGroup>
         </ToolbarFilter>
-        <SearchBar
+        <MitarbeiterSearch
+          v-model="searchSelectedEmployeeId"
+          v-model:search-value="searchQuery"
           class="toolbar-search"
-          v-model="searchQuery"
-          placeholder="Mitarbeiter suchen…"
-          aria-label="Mitarbeiter suchen"
+          :filter-values="employeeSearchFilters"
+          :selected-item="searchSelectedEmployee"
+          include-inactive
+          prefer-active
+          placeholder="Mitarbeiter oder Filter suchen…"
+          @select="onEmployeeSearchSelect"
+          @filters-change="onEmployeeSearchFiltersChange"
         />
         <button
           v-if="hiddenCount > 0"
@@ -1200,25 +1193,6 @@
         </div>
       </div>
     </HelpModal>
-
-    <!-- Qualifikation Dropdown (teleported to escape overflow/stacking-context clipping) -->
-    <teleport to="body">
-      <div
-        v-if="qualDropdownOpen && qualSuggestions.length"
-        class="qual-dropdown"
-        :style="qualDropdownStyle"
-      >
-        <div
-          v-for="q in qualSuggestions"
-          :key="q._id"
-          class="qual-dropdown-item"
-          @mousedown.prevent="addQual(q)"
-        >
-          <span class="qual-key">{{ q.qualificationKey }}</span>
-          {{ q.designation }}
-        </div>
-      </div>
-    </teleport>
 
     <!-- Bereich Filter Menu -->
     <teleport to="body">
@@ -1691,7 +1665,6 @@ import LocationFilter from '@/components/ui-elements/LocationFilter.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
-import PillMultiSelect from '@/components/ui-elements/PillMultiSelect.vue';
 import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
 
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
@@ -1700,7 +1673,7 @@ import CustomTooltip from '@/components/CustomTooltip.vue';
 import CommentBubbleBadge from '@/components/CommentBubbleBadge.vue';
 import KommentarFeed from '@/components/KommentarFeed.vue';
 import KundeSearch from '@/components/ui-elements/KundeSearch.vue';
-import SearchBar from '@/components/SearchBar.vue';
+import MitarbeiterSearch from '@/components/ui-elements/MitarbeiterSearch.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import PageLayout from '@/components/layout/PageLayout.vue';
@@ -1723,6 +1696,9 @@ const letzterEinsatzBisByMaId = shallowRef({});
 const searchQuery = ref('');
 const searchInputNormal = ref(null);
 const searchInputFs = ref(null);
+const searchSelectedEmployeeId = ref(null);
+const searchSelectedEmployee = ref(null);
+const employeeSearchFilters = ref([]);
 const tableWrapper = ref(null);
 const chatThreadRef = ref(null);
 const filterExpanded = ref(false);
@@ -1989,126 +1965,15 @@ function clearKundeFilter() {
   kundeFilterFsRef.value?.clearSingle?.();
 }
 
-// ─── Qualifikation Filter ───
-const qualFilter = ref([]);          // [{_id, qualificationKey, designation}]
-const allQualifikationen = ref([]);  // full list from API
-const qualSearchQuery = ref('');
-const qualDropdownOpen = ref(false);
-const qualDropdownStyle = ref({});
-const qualInputRef = ref(null);
-const qualInputFsRef = ref(null);
-const qualFocusedPillIdx = ref(-1); // -1 = kein Pill fokussiert, Cursor im Input
-
-function openQualDropdown(inputEl) {
-  const el = inputEl?.$el ?? inputEl;
-  if (el) {
-    const rect = el.getBoundingClientRect();
-    qualDropdownStyle.value = {
-      position: 'fixed',
-      top: `${rect.bottom + 4}px`,
-      left: `${rect.left}px`,
-      minWidth: `${Math.max(rect.width, 320)}px`,
-      zIndex: 9999,
-    };
-  }
-  qualDropdownOpen.value = true;
-}
 const activeFilterCount = computed(() => {
   let count = 0;
-  if (filters.locationV2) count++;
+  const searchFilterCategories = new Set(employeeSearchFilters.value.map((filter) => filter.category));
+  if (filters.locationV2 && !searchFilterCategories.has('standorte')) count++;
   if (filters.planungFilter) count++;
   if (filters.kundeFilter) count++;
-  if (qualFilter.value.length > 0) count++;
+  count += searchFilterCategories.size;
   return count;
 });
-
-async function fetchQualifikationen() {
-  try {
-    const { data } = await api.get('/api/import/qualifikationen');
-    allQualifikationen.value = (data.data || []).sort((a, b) =>
-      a.qualificationKey - b.qualificationKey
-    );
-  } catch (err) {
-    console.error('Qualifikationen laden fehlgeschlagen:', err);
-  }
-}
-
-const qualSuggestions = computed(() => {
-  const selectedIds = new Set(qualFilter.value.map(q => String(q._id)));
-  const q = qualSearchQuery.value.toLowerCase().trim();
-  return allQualifikationen.value.filter(
-    qual =>
-      !selectedIds.has(String(qual._id)) &&
-      (!q ||
-        qual.designation.toLowerCase().includes(q) ||
-        String(qual.qualificationKey).includes(q))
-  );
-});
-
-function addQual(q) {
-  qualFilter.value = [...qualFilter.value, q];
-  qualSearchQuery.value = '';
-  qualDropdownOpen.value = false;
-  savePrefs();
-}
-
-function removeQual(q) {
-  qualFilter.value = qualFilter.value.filter(x => String(x._id) !== String(q._id));
-  savePrefs();
-}
-
-function clearQualFilter() {
-  qualFilter.value = [];
-  savePrefs();
-}
-
-function onQualBlur() {
-  setTimeout(() => {
-    qualDropdownOpen.value = false;
-    qualFocusedPillIdx.value = -1;
-  }, 150);
-}
-
-function onQualKeydown(e) {
-  const pills = qualFilter.value;
-  const focused = qualFocusedPillIdx.value;
-
-  // Pill ist fokussiert
-  if (focused >= 0) {
-    if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      qualFocusedPillIdx.value = Math.max(0, focused - 1);
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      if (focused < pills.length - 1) {
-        qualFocusedPillIdx.value = focused + 1;
-      } else {
-        // Zurück zum Input
-        qualFocusedPillIdx.value = -1;
-      }
-    } else if (e.key === 'Backspace' || e.key === 'Delete') {
-      e.preventDefault();
-      removeQual(pills[focused]);
-      // Fokus auf vorherige Pill oder -1
-      qualFocusedPillIdx.value = Math.min(focused, pills.length - 2);
-    } else if (e.key === 'Escape') {
-      qualFocusedPillIdx.value = -1;
-    } else if (e.key.length === 1) {
-      // Normales Tippen → zurück zum Input
-      qualFocusedPillIdx.value = -1;
-    }
-    return;
-  }
-
-  // Kein Pill fokussiert, Cursor im Input
-  const atStart = e.target.selectionStart === 0 && e.target.selectionEnd === 0;
-  if (e.key === 'ArrowLeft' && atStart && pills.length > 0) {
-    e.preventDefault();
-    qualFocusedPillIdx.value = pills.length - 1;
-  } else if ((e.key === 'Backspace' || e.key === 'Delete') && qualSearchQuery.value === '' && pills.length > 0) {
-    removeQual(pills[pills.length - 1]);
-  }
-}
 
 const verfTypOptions = [
   { value: 'available', label: 'Verfügbar', icon: 'fa-solid fa-check' },
@@ -2849,7 +2714,7 @@ function onKeyDown(e) {
     showHelp.value = !showHelp.value;
   } else if ((e.key === 's' || e.key === 'S') && isFullscreen.value) {
     e.preventDefault();
-    if (searchInputFs.value) { searchInputFs.value.focus(); searchInputFs.value.select(); }
+    searchInputFs.value?.focus();
   } else if (e.key === '-') {
     tableZoom.value = Math.max(60, tableZoom.value - 10);
   } else if (e.key === '+') {
@@ -2882,6 +2747,7 @@ watch(
     let needsFetch = false;
     if (q.locationV2 && q.locationV2 !== filters.locationV2) {
       filters.locationV2 = q.locationV2;
+      syncEmployeeSearchLocationFilter(filters.locationV2);
       needsFetch = true;
     }
     if (q.resetPlanung) filters.planungFilter = null;
@@ -3034,6 +2900,29 @@ const filteredMitarbeiter = computed(() => {
         m.nachname.toLowerCase().includes(q)
     );
   }
+  if (searchSelectedEmployeeId.value) {
+    list = list.filter((m) => String(m._id) === String(searchSelectedEmployeeId.value));
+  }
+  if (employeeSearchFilters.value.length > 0) {
+    const values = (category) => employeeSearchFilters.value
+      .filter((filter) => filter.category === category)
+      .map((filter) => String(filter.value));
+    const standorte = values('standorte');
+    const aktivstatus = values('aktivstatus')[0];
+    const bewerber = values('bewerber')[0];
+    const berufe = values('berufe');
+    const arbeitsverhaeltnisse = values('arbeitsverhaeltnisse');
+    const persgruppen = values('persgruppen');
+    const qualifikationen = values('qualifikationen');
+
+    if (standorte.length) list = list.filter((m) => standorte.includes(String(m.locationV2?._id || m.locationV2 || '')));
+    if (aktivstatus) list = list.filter((m) => String(m.isActive) === aktivstatus);
+    if (bewerber) list = list.filter((m) => String(Boolean(m.isBewerberstatus)) === bewerber);
+    if (berufe.length) list = list.filter((m) => (m.berufe || []).some((item) => berufe.includes(String(item._id || item))));
+    if (arbeitsverhaeltnisse.length) list = list.filter((m) => arbeitsverhaeltnisse.includes(String(m.arbeitsverhaeltnis?.typ)));
+    if (persgruppen.length) list = list.filter((m) => persgruppen.includes(String(m.persgruppe)));
+    if (qualifikationen.length) list = list.filter((m) => (m.qualifikationen || []).some((item) => qualifikationen.includes(String(item._id || item))));
+  }
   if (bereichFilter.value) {
     const f = bereichFilter.value;
     list = list.filter((m) => {
@@ -3059,12 +2948,6 @@ const filteredMitarbeiter = computed(() => {
       (m.kundenwuensche || []).some(
         (w) => w.typ === 'positiv' && (w.kunde?._id || w.kunde) === filters.kundeFilter
       )
-    );
-  }
-  if (qualFilter.value.length > 0) {
-    const selectedQualIds = new Set(qualFilter.value.map(q => String(q._id)));
-    list = list.filter((m) =>
-      (m.qualifikationen || []).some(q => selectedQualIds.has(String(q._id || q)))
     );
   }
   return list.sort((a, b) => {
@@ -3534,7 +3417,7 @@ async function loadPrefs() {
     if (_savedPrefs.bereichFilter !== undefined) bereichFilter.value = _savedPrefs.bereichFilter;
     if (_savedPrefs.tableZoom !== undefined) tableZoom.value = _savedPrefs.tableZoom;
     if (_savedPrefs.dayColWidth !== undefined) dayColWidth.value = _savedPrefs.dayColWidth;
-    // qualFilter is restored after fetchQualifikationen() — see onMounted
+    if (Array.isArray(_savedPrefs.employeeSearchFilters)) employeeSearchFilters.value = _savedPrefs.employeeSearchFilters;
   } catch (err) {
     console.error('Prefs laden fehlgeschlagen:', err);
   }
@@ -3542,7 +3425,7 @@ async function loadPrefs() {
 
 async function savePrefs() {
   try {
-    const { standort: _legacyStandort, ...savedPrefs } = _savedPrefs || {};
+    const { standort: _legacyStandort, qualFilterIds: _legacyQualFilterIds, ...savedPrefs } = _savedPrefs || {};
     const prefs = {
       ...savedPrefs,
       starredMitarbeiter: [...starredIds.value],
@@ -3553,7 +3436,7 @@ async function savePrefs() {
       bereichFilter: bereichFilter.value,
       tableZoom: tableZoom.value,
       dayColWidth: dayColWidth.value,
-      qualFilterIds: qualFilter.value.map(q => String(q._id)),
+      employeeSearchFilters: employeeSearchFilters.value,
     };
     _savedPrefs = prefs;
     await api.put('/api/users/me/dispo-prefs', { prefs });
@@ -3617,6 +3500,10 @@ async function fetchDispo() {
       bis: endDate.toISOString(),
     });
     if (filters.locationV2) params.append('locationV2', filters.locationV2);
+    if (searchSelectedEmployeeId.value) params.append('mitarbeiterId', searchSelectedEmployeeId.value);
+    const includeInactive = employeeSearchFilters.value.some((filter) => filter.category === 'aktivstatus' && filter.value === 'false')
+      || searchSelectedEmployee.value?.isActive === false;
+    if (includeInactive) params.append('includeInactive', 'true');
 
     const { data } = await api.get(`/api/dispo?${params.toString()}`);
     mitarbeiter.value = data.mitarbeiter || [];
@@ -3688,13 +3575,23 @@ async function fetchKommentare() {
 }
 
 // ─── Filters ───
+function syncEmployeeSearchLocationFilter(locationId) {
+  const filtersWithoutLocation = employeeSearchFilters.value.filter((filter) => filter.category !== 'standorte');
+  employeeSearchFilters.value = locationId
+    ? [...filtersWithoutLocation, { category: 'standorte', value: String(locationId) }]
+    : filtersWithoutLocation;
+}
+
 function setLocationV2(val) {
-  filters.locationV2 = filters.locationV2 === val ? null : val;
+  const nextLocation = filters.locationV2 === val ? null : val;
+  filters.locationV2 = nextLocation;
+  syncEmployeeSearchLocationFilter(nextLocation);
   savePrefs();
   fetchDispo();
 }
 
 function onLocationFilterChange() {
+  syncEmployeeSearchLocationFilter(filters.locationV2);
   savePrefs();
   fetchDispo();
 }
@@ -3719,6 +3616,36 @@ function setDefaultStandort() {
   const locationId = auth.user?.locationV2?._id || auth.user?.locationV2;
   if (locationId && locations.value.some((location) => String(location._id) === String(locationId))) {
     filters.locationV2 = String(locationId);
+    syncEmployeeSearchLocationFilter(filters.locationV2);
+  }
+}
+
+async function onEmployeeSearchFiltersChange(activeFilters) {
+  const hadInactiveFilter = employeeSearchFilters.value.some((filter) => filter.category === 'aktivstatus' && filter.value === 'false');
+  const locationFilters = activeFilters.filter((filter) => filter.category === 'standorte');
+  const hasInactiveFilter = activeFilters.some((filter) => filter.category === 'aktivstatus' && filter.value === 'false');
+  const nextLocation = locationFilters.length === 1 ? String(locationFilters[0].value) : null;
+  const locationChanged = String(filters.locationV2 || '') !== String(nextLocation || '');
+  employeeSearchFilters.value = activeFilters;
+  filters.locationV2 = nextLocation;
+  if (locationChanged || hadInactiveFilter !== hasInactiveFilter) {
+    await fetchDispo();
+  }
+  savePrefs();
+}
+
+async function onEmployeeSearchSelect(employee) {
+  const hadSelectedEmployee = Boolean(searchSelectedEmployeeId.value);
+  searchSelectedEmployeeId.value = employee?._id || null;
+  searchSelectedEmployee.value = employee || null;
+  const employeeLocation = employee?.locationV2?._id || employee?.locationV2;
+  if (employeeLocation && String(employeeLocation) !== String(filters.locationV2 || '')) {
+    filters.locationV2 = String(employeeLocation);
+    syncEmployeeSearchLocationFilter(filters.locationV2);
+    await fetchDispo();
+    savePrefs();
+  } else if (employee || hadSelectedEmployee) {
+    await fetchDispo();
   }
 }
 
@@ -3729,8 +3656,10 @@ function resetFilters() {
   showHidden.value = false;
   clearKundeFilter();
   bereichFilter.value = null;
-  qualFilter.value = [];
   searchQuery.value = '';
+  searchSelectedEmployeeId.value = null;
+  searchSelectedEmployee.value = null;
+  employeeSearchFilters.value = [];
   setDefaultStandort();
   savePrefs();
   fetchDispo();
@@ -4444,21 +4373,22 @@ function scrollToMa(maId) {
 
 // ─── Lifecycle ───
 onMounted(async () => {
-  await Promise.all([loadPrefs(), fetchQualifikationen(), fetchLocations()]);
+  await Promise.all([loadPrefs(), fetchLocations()]);
   migrateLegacyLocationPreference();
   normalizeLocationV2Filter();
-  if (!filters.locationV2) setDefaultStandort();
-  // Restore qual filter now that qualifications are loaded
-  if (_savedPrefs?.qualFilterIds?.length) {
-    qualFilter.value = allQualifikationen.value.filter(
-      q => _savedPrefs.qualFilterIds.includes(String(q._id))
-    );
+  const savedSearchLocations = employeeSearchFilters.value.filter((filter) => filter.category === 'standorte');
+  if (!filters.locationV2 && savedSearchLocations.length === 1) {
+    filters.locationV2 = String(savedSearchLocations[0].value);
+  } else if (!filters.locationV2 && savedSearchLocations.length === 0) {
+    setDefaultStandort();
   }
+  if (filters.locationV2) syncEmployeeSearchLocationFilter(filters.locationV2);
 
   // ── Apply deep-link query params from widget navigation ──
   const q = route.query;
   if (q.locationV2) filters.locationV2 = q.locationV2;
   normalizeLocationV2Filter();
+  if (filters.locationV2) syncEmployeeSearchLocationFilter(filters.locationV2);
   if (q.resetPlanung) filters.planungFilter = null;
   if (q.showHidden) showHidden.value = hiddenIds.value.size > 0 && (!q.maId || hiddenIds.value.has(String(q.maId)));
   if (q.datum) {
@@ -5803,6 +5733,27 @@ function onNameTouchEnd() {
   width: 100%;
   min-width: 0;
   overflow: hidden;
+}
+
+.star-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 2px;
+  flex-shrink: 0;
+  transition: color 0.15s, transform 0.15s;
+
+  &.active {
+    color: var(--primary);
+  }
+
+  &:hover {
+    color: var(--primary);
+    transform: scale(1.2);
+  }
+}
 
 .tl-inline-badge {
   flex-shrink: 0;
@@ -5874,33 +5825,21 @@ function onNameTouchEnd() {
   color: #fff;
   line-height: 1.4;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-  .star-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--muted);
-    font-size: 13px;
-    padding: 2px;
-    flex-shrink: 0;
-    transition: color 0.15s, transform 0.15s;
+.fs-employee-search {
+  width: clamp(180px, 20vw, 320px);
+  flex-shrink: 1;
 
-    &.active {
-      color: var(--primary);
-    }
-
-    &:hover {
-      color: var(--primary);
-      transform: scale(1.2);
-    }
+  :deep(.ma-search__input-wrap) {
+    min-height: 30px;
+    background: var(--surface);
   }
 
-  .ma-name {
-    font-weight: 500;
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
+  :deep(.ma-search__input) {
+    font-size: 13px;
   }
 }
 
@@ -6062,11 +6001,37 @@ function onNameTouchEnd() {
 
 .dispo-toolbar-bottom-actions {
   display: flex;
+  align-items: center;
+  gap: 4px;
   position: absolute;
   top: 100%;
-  left: 14px;
   z-index: 5;
   height: 24px;
+  white-space: nowrap;
+
+  &--left {
+    left: 14px;
+  }
+
+  &--right {
+    right: 14px;
+  }
+
+  :deep(.dropdown-trigger),
+  .kw-nav-btn,
+  .kw-chip,
+  .zoom-btn,
+  .help-btn {
+    height: 24px;
+    box-sizing: border-box;
+    border-radius: 0 0 5px 5px;
+    background: var(--tile-bg);
+  }
+
+  :deep(.dropdown-trigger) {
+    padding-block: 0;
+    font-size: 0.72rem;
+  }
 
   :deep(.filter-chip) {
     height: 24px;
@@ -6099,18 +6064,8 @@ function onNameTouchEnd() {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
-}
-
-
-
-:deep(.qual-pills-input) {
-  border-color: transparent;
-  background: var(--hover);
-
-  &:focus-within {
-    border-color: var(--primary);
-  }
+  flex: 1;
+  min-width: 0;
 }
 
 :deep(.kunde-search__input-wrap),
@@ -6124,18 +6079,14 @@ function onNameTouchEnd() {
 }
 
 .dispo-search-bar {
-  padding: 5px 10px;
-  border-radius: 8px;
-  flex-shrink: 0;
-  width: 200px;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 240px;
+  max-width: none;
+}
 
-  :deep(.search-bar-root) {
-    border-color: transparent;
-  }
-
-  :deep(input) {
-    font-size: 0.85rem;
-  }
+.m-toolbar :deep(.ma-search) {
+  min-width: 0;
 }
 
 .dispo-page :deep(.location-filter-chip) {
@@ -6155,7 +6106,7 @@ function onNameTouchEnd() {
     min-width: unset;
     padding: 4px 10px;
     font-size: 0.82rem;
-    border-radius: 8px;
+    border-radius: 0 0 5px 5px;
   }
 }
 
@@ -6240,7 +6191,7 @@ function onNameTouchEnd() {
   height: 32px;
   padding-inline: 10px;
   background: var(--surface);
-  border-color: transparent;
+  border-color: var(--border);
 }
 
 // ─── KW Chips ───
@@ -7255,206 +7206,6 @@ function onNameTouchEnd() {
   color: var(--muted);
 
   &:hover { color: var(--text); }
-}
-
-// ─── Qualifikation Filter ───
-.qual-filter-box {
-  position: relative;
-  width: 100%;
-}
-
-.qual-pills-input {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  min-height: 34px;
-  padding: 4px 6px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--surface);
-  cursor: text;
-  transition: border-color 0.2s;
-  width: 100%;
-  box-sizing: border-box;
-
-  &:focus-within {
-    border-color: var(--primary);
-  }
-
-  &--fs {
-    min-height: 28px;
-    padding: 2px 6px;
-    border-radius: 6px;
-    width: auto;
-    min-width: 160px;
-    max-width: 400px;
-    flex-wrap: nowrap;
-    overflow: hidden;
-  }
-}
-
-.qual-search-input {
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--text);
-  font-size: 12px;
-  font-family: inherit;
-  flex: 1;
-  min-width: 80px;
-  padding: 0;
-
-  &::placeholder {
-    color: var(--muted);
-    opacity: 0.6;
-  }
-}
-
-.qual-pills-input input {
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--text);
-  font-size: 12px;
-  font-family: inherit;
-  flex: 1;
-  min-width: 60px;
-  padding: 0;
-
-  &::placeholder {
-    color: var(--muted);
-    opacity: 0.6;
-  }
-}
-
-.qual-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px 2px 8px;
-  background: rgba(var(--primary-rgb, 253 126 20) / 0.12);
-  border: 1px solid rgba(var(--primary-rgb, 253 126 20) / 0.35);
-  border-radius: 20px;
-  font-size: 11px;
-  color: var(--primary);
-  font-weight: 500;
-  white-space: nowrap;
-  max-width: 160px;
-  overflow: visible;
-
-  &--sm {
-    font-size: 10px;
-    padding: 1px 5px 1px 7px;
-    max-width: 140px;
-  }
-}
-
-.qual-pill-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.qual-pill.is-focused {
-  background: rgba(var(--primary-rgb, 253 126 20) / 0.22);
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 253 126 20) / 0.3);
-}
-
-.qual-pill-remove {
-  background: none;
-  border: none;
-  color: var(--primary);
-  font-size: 10px;
-  padding: 0;
-  cursor: pointer;
-  line-height: 1;
-  opacity: 0.6;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-
-  &:hover {
-    opacity: 1;
-  }
-}
-
-.qual-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 320px;
-  width: max-content;
-  max-width: min(500px, calc(100vw - 40px));
-  background: var(--modal-bg, var(--panel));
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  z-index: 200;
-  max-height: 220px;
-  overflow-y: auto;
-
-  &--fs {
-    min-width: 380px;
-  }
-}
-
-.qual-dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-  font-size: 12px;
-  color: var(--text);
-  cursor: pointer;
-  transition: background 0.12s;
-
-  &:hover {
-    background: var(--hover);
-  }
-
-  &:not(:last-child) {
-    border-bottom: 1px solid var(--border);
-  }
-}
-
-.qual-key {
-  flex-shrink: 0;
-  font-size: 10px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  min-width: 40px;
-}
-
-.qual-clear-all-btn {
-  margin-top: 6px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 11px;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
-  transition: color 0.15s;
-
-  &:hover {
-    color: var(--primary);
-  }
-}
-
-// ─── Qualifikation Filter (fs-toolbar) ───
-.fs-qual-filter {
-  position: relative;
-  display: flex;
-  align-items: center;
-
-  &--active .qual-pills-input--fs {
-    border-color: var(--primary);
-  }
 }
 
 /* ─── Mobile UI (≤768px) ──────────────────────────────────────────────── */
